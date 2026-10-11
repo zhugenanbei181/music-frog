@@ -4,11 +4,22 @@ use infiltrator_application::cache_application::CacheApplication;
 use infiltrator_application::configuration_application::ConfigurationApplication;
 use infiltrator_application::doctor_application::DoctorApplication;
 use infiltrator_application::network_application::NetworkApplication;
+use infiltrator_application::outbound_application::OutboundApplication;
 use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::profile_reset_application::ProfileResetApplication;
 use infiltrator_application::sync_application::SyncApplication;
 use infiltrator_application::version_application::VersionApplication;
+use infiltrator_contract::core_identity::CoreScope;
+use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::outbound::probe::ProbeOutboundBatchRequest;
+use infiltrator_contract::outbound::probe::ProbeOutboundRequest;
+use infiltrator_contract::outbound::{
+    inventory::{OutboundInventorySnapshot, OutboundObservationSnapshot, OutboundProbeSnapshot},
+    probe::{OutboundProbeBatchSnapshot, OutboundSelectionRequest},
+};
+use infiltrator_contract::routing_intent::{RoutingIntent, RoutingIntentSnapshot};
 use infiltrator_domain::settings::AppSettings;
+use infiltrator_ports::outbound::{OutboundPort, OutboundScopeSource};
 use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use infiltrator_ports::subscription_source::SubscriptionSource;
 use std::env::var;
@@ -31,6 +42,33 @@ pub trait AdminApiContext: Clone + Send + Sync + 'static {
     async fn network_application(&self) -> anyhow::Result<NetworkApplication> {
         Err(anyhow::anyhow!(
             "public IP probe is unavailable in this host"
+        ))
+    }
+    /// Typed outbound operations always use the active Core owner's port and
+    /// scope source. A host without both capabilities fails closed.
+    async fn outbound_owner(&self) -> anyhow::Result<AdminOutboundOwner> {
+        Err(anyhow::anyhow!(
+            "typed outbound owner is unavailable in this host"
+        ))
+    }
+    /// Owner-authored routing intent readback, including its observed Core
+    /// scope and typed availability status.
+    async fn routing_intent_snapshot(
+        &self,
+    ) -> Result<(Option<CoreScope>, RoutingIntentSnapshot), Failure> {
+        Err(Failure::unsupported(
+            "typed routing intent readback is unavailable in this host",
+        ))
+    }
+    /// Apply a routing intent through the existing scoped Core command path.
+    /// The supplied scope must be the one observed by the requesting client.
+    async fn apply_routing_intent(
+        &self,
+        _scope: CoreScope,
+        _intent: RoutingIntent,
+    ) -> Result<(Option<CoreScope>, RoutingIntentSnapshot), Failure> {
+        Err(Failure::unsupported(
+            "typed routing intent control is unavailable in this host",
         ))
     }
 
@@ -77,6 +115,93 @@ pub trait AdminApiContext: Clone + Send + Sync + 'static {
     /// Persist the host credential used by WebDAV. A failed write must abort
     /// the settings update so the file and keyring cannot diverge silently.
     async fn set_webdav_password(&self, password: &str) -> anyhow::Result<()>;
+}
+
+/// Admin's typed view of the already-running Core owner. Scope is sampled
+/// from the injected owner for every operation; callers cannot construct or
+/// guess one from engine names, controller URLs, or revision counters.
+#[derive(Clone)]
+pub struct AdminOutboundOwner {
+    application: OutboundApplication,
+    scope_source: Arc<dyn OutboundScopeSource>,
+}
+
+impl AdminOutboundOwner {
+    pub fn new(port: Arc<dyn OutboundPort>, scope_source: Arc<dyn OutboundScopeSource>) -> Self {
+        Self {
+            application: OutboundApplication::new(port),
+            scope_source,
+        }
+    }
+
+    pub async fn observe(&self) -> Result<(CoreScope, OutboundObservationSnapshot), Failure> {
+        let scope = self.active_scope()?;
+        let observation = self.application.observation(scope.clone()).await?;
+        self.verify_active_scope(&scope)?;
+        Ok((scope, observation))
+    }
+
+    pub async fn inventory(&self) -> Result<(CoreScope, OutboundInventorySnapshot), Failure> {
+        let scope = self.active_scope()?;
+        let inventory = self.application.inventory(scope.clone()).await?;
+        self.verify_active_scope(&scope)?;
+        Ok((scope, inventory))
+    }
+
+    pub async fn select(
+        &self,
+        scope: &CoreScope,
+        request: &OutboundSelectionRequest,
+    ) -> Result<OutboundInventorySnapshot, Failure> {
+        self.verify_active_scope(scope)?;
+        let snapshot = self.application.select_request(scope, request).await?;
+        self.verify_active_scope(scope)?;
+        Ok(snapshot)
+    }
+
+    pub async fn probe(
+        &self,
+        scope: &CoreScope,
+        request: &ProbeOutboundRequest,
+    ) -> Result<OutboundProbeSnapshot, Failure> {
+        self.verify_active_scope(scope)?;
+        let snapshot = self.application.probe_request(scope, request).await?;
+        self.verify_active_scope(scope)?;
+        Ok(snapshot)
+    }
+
+    pub async fn probe_batch(
+        &self,
+        scope: &CoreScope,
+        request: &ProbeOutboundBatchRequest,
+    ) -> Result<OutboundProbeBatchSnapshot, Failure> {
+        self.verify_active_scope(scope)?;
+        let snapshot = self.application.probe_batch_request(scope, request).await?;
+        self.verify_active_scope(scope)?;
+        Ok(snapshot)
+    }
+
+    fn active_scope(&self) -> Result<CoreScope, Failure> {
+        self.scope_source.current_scope().ok_or_else(|| {
+            Failure::new(
+                ErrorCode::NotReady,
+                "no active Core scope is available for Admin outbound operations",
+                true,
+            )
+        })
+    }
+
+    fn verify_active_scope(&self, expected: &CoreScope) -> Result<(), Failure> {
+        if self.scope_source.current_scope().as_ref() == Some(expected) {
+            Ok(())
+        } else {
+            Err(Failure::new(
+                ErrorCode::InvalidState,
+                "Admin outbound operation belongs to a retired Core scope",
+                false,
+            ))
+        }
+    }
 }
 
 #[derive(Default)]
@@ -127,12 +252,20 @@ impl RebuildStatus {
     }
 }
 
+#[derive(Clone, Copy, Default)]
+enum RuntimeTrafficBaseline {
+    #[default]
+    Unobserved,
+    Observed {
+        at: Instant,
+        upload_total: u64,
+        download_total: u64,
+    },
+}
+
 #[derive(Default)]
 pub struct RuntimeTrafficState {
-    initialized: bool,
-    last_at: Option<Instant>,
-    last_up_total: u64,
-    last_down_total: u64,
+    baseline: RuntimeTrafficBaseline,
     peak_up_rate: u64,
     peak_down_rate: u64,
 }
@@ -145,26 +278,32 @@ impl RuntimeTrafficState {
         connections: usize,
     ) -> RuntimeTrafficSnapshotResponse {
         let now = Instant::now();
-        let mut up_rate = 0;
-        let mut down_rate = 0;
-
-        if self.initialized {
-            if let Some(last_at) = self.last_at {
-                let elapsed_secs = now.saturating_duration_since(last_at).as_secs_f64();
+        let (up_rate, down_rate) = match self.baseline {
+            RuntimeTrafficBaseline::Unobserved => (0, 0),
+            RuntimeTrafficBaseline::Observed {
+                at,
+                upload_total: last_up_total,
+                download_total: last_down_total,
+            } => {
+                let elapsed_secs = now.saturating_duration_since(at).as_secs_f64();
                 if elapsed_secs > 0.0 {
-                    let up_delta = upload_total.saturating_sub(self.last_up_total);
-                    let down_delta = download_total.saturating_sub(self.last_down_total);
-                    up_rate = ((up_delta as f64) / elapsed_secs).round() as u64;
-                    down_rate = ((down_delta as f64) / elapsed_secs).round() as u64;
+                    let up_delta = upload_total.saturating_sub(last_up_total);
+                    let down_delta = download_total.saturating_sub(last_down_total);
+                    (
+                        ((up_delta as f64) / elapsed_secs).round() as u64,
+                        ((down_delta as f64) / elapsed_secs).round() as u64,
+                    )
+                } else {
+                    (0, 0)
                 }
             }
-        } else {
-            self.initialized = true;
-        }
+        };
 
-        self.last_at = Some(now);
-        self.last_up_total = upload_total;
-        self.last_down_total = download_total;
+        self.baseline = RuntimeTrafficBaseline::Observed {
+            at: now,
+            upload_total,
+            download_total,
+        };
         self.peak_up_rate = self.peak_up_rate.max(up_rate);
         self.peak_down_rate = self.peak_down_rate.max(down_rate);
 
@@ -236,7 +375,7 @@ impl<C: AdminApiContext> AdminApiState<C> {
 
 #[cfg(test)]
 mod tests {
-    use super::{RebuildStatus, RuntimeTrafficState};
+    use super::{RebuildStatus, RuntimeTrafficBaseline, RuntimeTrafficState};
     #[cfg(test)]
     use std::thread::sleep;
     use std::time::Duration;
@@ -265,7 +404,16 @@ mod tests {
     #[test]
     fn runtime_traffic_snapshot_tracks_rates_and_peaks() {
         let mut state = RuntimeTrafficState::default();
+        assert!(matches!(state.baseline, RuntimeTrafficBaseline::Unobserved));
         let first = state.snapshot(1_000, 2_000, 3);
+        assert!(matches!(
+            state.baseline,
+            RuntimeTrafficBaseline::Observed {
+                upload_total: 1_000,
+                download_total: 2_000,
+                ..
+            }
+        ));
         assert_eq!(first.up_rate, 0);
         assert_eq!(first.down_rate, 0);
         assert_eq!(first.up_peak, 0);

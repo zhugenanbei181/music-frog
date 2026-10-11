@@ -5,8 +5,9 @@ use super::*;
 use bevy::scene::{CommandsSceneExt, bsn};
 use infiltrator_application::shell_readout_application::ShellReadoutApplication;
 use infiltrator_bevy_ui::surface::{LatestSurfaceSnapshot, SurfaceSnapshotUpdated};
-use infiltrator_contract::active_exit::ActiveExitStatus;
-use infiltrator_contract::proxy_mode::ProxyModeSnapshot;
+use infiltrator_contract::active_exit::ActiveExitSnapshot;
+use infiltrator_contract::routing_intent::RoutingIntent;
+use infiltrator_contract::routing_intent::RoutingIntentSnapshot;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface_snapshot::{OverviewPageSnapshot, PageData};
 use infiltrator_contract::traffic_waveform::TrafficSample;
@@ -45,9 +46,9 @@ fn projection_updates_restamp_in_place() {
         system_toggles: Default::default(),
         cpu_percent: None,
         total_traffic_bytes: None,
-        proxy_mode: ProxyModeSnapshot {
-            current: Some(ProxyMode::Global),
-            ..ProxyModeSnapshot::demo_fixture()
+        routing_intent: RoutingIntentSnapshot {
+            current: Some(RoutingIntent::RouteAllThroughProxy),
+            ..RoutingIntentSnapshot::demo_fixture()
         },
         speedtest: Default::default(),
     };
@@ -56,14 +57,13 @@ fn projection_updates_restamp_in_place() {
     observations.project(&snapshot);
     snapshot.revision += 1;
     snapshot.core.lifecycle = CoreLifecycle::Stopped;
-    snapshot.core.proxy_mode = stopped.proxy_mode.current;
+    snapshot.core.routing_intent = stopped.routing_intent.clone();
     snapshot.core.upload_bps = stopped.upload_bps;
     snapshot.core.download_bps = stopped.download_bps;
     snapshot.core.active_connections = stopped.active_connections;
     snapshot.core.memory_bytes = stopped.memory_bytes;
-    snapshot.runtime_control.mode = stopped.proxy_mode.current;
     snapshot.pages.overview = PageData::ready(OverviewPageSnapshot {
-        proxy_mode: stopped.proxy_mode.current,
+        routing_intent: stopped.routing_intent.clone(),
         upload_bps: stopped.upload_bps,
         download_bps: stopped.download_bps,
         active_connections: stopped.active_connections,
@@ -85,17 +85,17 @@ fn projection_updates_restamp_in_place() {
     assert_eq!(ink.0, palette.ink_dim, "stopped ink restamped");
     let (_, upload, _) = line(world, OverviewLineKind::Upload);
     assert_eq!(upload, "↑ 1.40 MB/s（已失效）");
-    let (_, mode_chip, _) = line(world, OverviewLineKind::ModeChip);
+    let (_, mode_chip, _) = line(world, OverviewLineKind::RoutingIntentChip);
     assert_eq!(
-        mode_chip, "全局（已失效）",
+        mode_chip, "全部流量经代理（已失效）",
         "the banner chip renames the mode"
     );
     assert!(
-        pill_selected(world, ProxyMode::Global),
+        pill_selected(world, RoutingIntent::RouteAllThroughProxy),
         "Global pill selected"
     );
     assert!(
-        !pill_selected(world, ProxyMode::Rule),
+        !pill_selected(world, RoutingIntent::FollowRules),
         "Rule pill deselected"
     );
     let (_, fill, stored) = card(world);
@@ -131,9 +131,9 @@ fn projection_updates_restamp_in_place() {
         system_toggles: Default::default(),
         cpu_percent: None,
         total_traffic_bytes: None,
-        proxy_mode: ProxyModeSnapshot {
-            current: Some(ProxyMode::Global),
-            ..ProxyModeSnapshot::demo_fixture()
+        routing_intent: RoutingIntentSnapshot {
+            current: Some(RoutingIntent::RouteAllThroughProxy),
+            ..RoutingIntentSnapshot::demo_fixture()
         },
         speedtest: Default::default(),
     };
@@ -249,7 +249,7 @@ fn projection_replay_preserves_unrelated_text_and_conflicting_native_roles() {
     app.update();
     let original_ink = app.world().get::<TextColor>(topology).unwrap().0;
     let mut projection = live_projection(5.0, 6.0);
-    projection.active_exit.status = ActiveExitStatus::Ready;
+    projection.active_exit.status = ActiveExitSnapshot::demo_fixture().status;
     projection.active_exit.name = Some("node {name}/中文🙂".to_owned());
     app.world_mut()
         .commands()

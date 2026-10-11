@@ -8,6 +8,7 @@ use bevy::ecs::query::With;
 use bevy::ui::InteractionDisabled;
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{ButtonPlugin, Checkbox, CheckboxPlugin};
+use infiltrator_application::runtime_configuration_application::RuntimeConfigurationReadout;
 use infiltrator_application::runtime_control_projection::RuntimeControlApplication;
 use infiltrator_bevy_ui::app::ShellPlugin;
 use infiltrator_bevy_ui::command::{CommandPumpPlugin, DemoCommandSink, UiCommand, UiCommandSink};
@@ -17,10 +18,90 @@ use infiltrator_bevy_ui::pages::settings::settings_core::{
 use infiltrator_bevy_ui::route::{PagesPlugin, Route, RouteChanged};
 use infiltrator_bevy_ui::surface::{LatestSurfaceSnapshot, SurfaceSnapshotUpdated};
 use infiltrator_bevy_widgets::button::ButtonDisabled;
+use infiltrator_contract::core_identity::{
+    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
+};
 use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_domain::runtime::{ConfigSnapshot, TunSnapshot};
-use infiltrator_ports::error::PortError;
+use infiltrator_contract::session::SessionToken;
+use infiltrator_ports::runtime_configuration::{
+    ConfigurationObservation, ConfigurationRevision, DnsRuntimeConfiguration, Ipv6Configuration,
+    LanAuthenticationState, LanSecurityConfiguration, LanSharingConfiguration, ObservedValue,
+    ProxyPortsConfiguration, SnifferConfiguration, TunConfiguration,
+};
 use std::sync::Arc;
+
+fn tun_readout() -> RuntimeConfigurationReadout {
+    let scope = CoreScope {
+        identity: CoreIdentity::new(
+            EngineId::new("mihomo").expect("engine"),
+            CoreInstanceId::new("bevy-settings-observation").expect("instance"),
+            Some(CoreVersion::new("test").expect("version")),
+        ),
+        generation: CoreGeneration::new(1),
+        session_token: Some(SessionToken::new(1)),
+    };
+    let revision = ConfigurationRevision::new(1);
+    RuntimeConfigurationReadout {
+        tun: ConfigurationObservation {
+            scope: scope.clone(),
+            revision,
+            value: TunConfiguration {
+                enabled: ObservedValue::Reported(false),
+                stack: ObservedValue::Reported("system".to_owned()),
+                ..Default::default()
+            },
+        },
+        lan_sharing: ConfigurationObservation {
+            scope: scope.clone(),
+            revision,
+            value: LanSharingConfiguration {
+                enabled: ObservedValue::Unreported,
+                mixed_port: ObservedValue::Unreported,
+                bind_address: ObservedValue::Unreported,
+            },
+        },
+        lan_security: ConfigurationObservation {
+            scope: scope.clone(),
+            revision,
+            value: LanSecurityConfiguration {
+                allowed_ips: ObservedValue::Unreported,
+                disallowed_ips: ObservedValue::Unreported,
+                skip_auth_prefixes: ObservedValue::Unreported,
+                authentication: LanAuthenticationState::Unreported,
+            },
+        },
+        ipv6: ConfigurationObservation {
+            scope: scope.clone(),
+            revision,
+            value: Ipv6Configuration {
+                enabled: ObservedValue::Unreported,
+                tun_enabled: ObservedValue::Reported(false),
+            },
+        },
+        sniffer: ConfigurationObservation {
+            scope: scope.clone(),
+            revision,
+            value: SnifferConfiguration {
+                enabled: ObservedValue::Unreported,
+            },
+        },
+        dns: ConfigurationObservation {
+            scope: scope.clone(),
+            revision,
+            value: DnsRuntimeConfiguration::default(),
+        },
+        core_log_level: ConfigurationObservation {
+            scope: scope.clone(),
+            revision,
+            value: ObservedValue::Unreported,
+        },
+        proxy_ports: ConfigurationObservation {
+            scope,
+            revision,
+            value: ProxyPortsConfiguration::default(),
+        },
+    }
+}
 
 fn line(app: &mut App, kind: SettingsLineKind) -> String {
     app.world_mut()
@@ -77,16 +158,7 @@ fn native_settings_unknown_false_failed_and_recovered_controls_keep_entities_and
     assert!(app.world().get::<InteractionDisabled>(checkbox).is_some());
     click_entity(&mut app, checkbox);
     assert!(sink.submitted().is_empty());
-    let config = ConfigSnapshot {
-        mode: "direct".into(),
-        log_level: "warning".into(),
-        tun: Some(TunSnapshot {
-            enable: Some(false),
-            stack: Some("system".into()),
-            ..Default::default()
-        }),
-        ..Default::default()
-    };
+    let config = tun_readout();
     snapshot.revision += 1;
     snapshot.runtime_control = owner.observe(
         snapshot.generation,
@@ -106,11 +178,8 @@ fn native_settings_unknown_false_failed_and_recovered_controls_keep_entities_and
     sink.clear();
     snapshot.revision += 1;
     let failure = Failure::new(ErrorCode::Authentication, "read denied", false);
-    snapshot.runtime_control = owner.observe(
-        snapshot.generation,
-        snapshot.revision,
-        Some(&Err(PortError::Rejected(failure))),
-    );
+    snapshot.runtime_control =
+        owner.observe(snapshot.generation, snapshot.revision, Some(&Err(failure)));
     app.world_mut()
         .trigger(SurfaceSnapshotUpdated(snapshot.clone()));
     app.update();

@@ -1,6 +1,7 @@
 //! Physical-link to TUN MTU negotiation use-case.
 
-use crate::runtime_query_application::RuntimeQueryApplication;
+use crate::runtime_configuration_application::RuntimeConfigurationApplication;
+use infiltrator_contract::core_identity::CoreScope;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::mtu::{
     MAX_TUN_MTU_BYTES, MIN_TUN_MTU_BYTES, MtuNegotiationSnapshot, MtuProbeState,
@@ -62,33 +63,26 @@ impl MtuApplication {
     pub async fn probe_and_apply(
         &self,
         gateway: Arc<dyn RuntimeGateway>,
+        scope: CoreScope,
     ) -> MtuNegotiationSnapshot {
         let snapshot = self.probe().await;
         let tun_mtu = snapshot.tun_mtu;
-        let applied = match (&snapshot.state, tun_mtu) {
-            (MtuProbeState::Ready, Some(tun_mtu)) => Some(
-                RuntimeQueryApplication::new(gateway)
+        let snapshot = match (snapshot.state.clone(), tun_mtu) {
+            (MtuProbeState::Ready, Some(tun_mtu)) => {
+                match RuntimeConfigurationApplication::from_gateway(scope, gateway.as_ref())
                     .set_tun_mtu(tun_mtu)
-                    .await,
-            ),
-            (MtuProbeState::Ready, None) => Some(Err(Failure::new(
+                    .await
+                {
+                    Ok(_) => snapshot.with_applied_tun_mtu(tun_mtu),
+                    Err(failure) => snapshot.with_failure(failure),
+                }
+            }
+            (MtuProbeState::Ready, None) => snapshot.with_failure(Failure::new(
                 ErrorCode::InvalidState,
                 "ready MTU probe did not contain a calculated TUN MTU",
                 false,
-            ))),
-            _ => None,
-        };
-        let snapshot = match applied {
-            Some(Ok(())) => match tun_mtu {
-                Some(tun_mtu) => snapshot.with_applied_tun_mtu(tun_mtu),
-                None => snapshot.with_failure(Failure::new(
-                    ErrorCode::InvalidState,
-                    "ready MTU probe did not contain a calculated TUN MTU",
-                    false,
-                )),
-            },
-            Some(Err(failure)) => snapshot.with_failure(failure),
-            None => snapshot,
+            )),
+            (_, _) => snapshot,
         };
         self.cache(snapshot.clone());
         snapshot

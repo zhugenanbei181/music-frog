@@ -11,12 +11,13 @@ use bevy::ecs::query::{QueryData, With, Without};
 use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
 use bevy::scene::{CommandsSceneExt, Scene, bsn};
 use bevy::ui::widget::Text;
-use bevy::ui::{Display, FlexDirection, Node, percent, px};
+use bevy::ui::{Display, FlexDirection, Node, percent};
 use infiltrator_application::rule_statistics_inspector_projection::{
     StatisticsRowKey, StatisticsRowProjection, project_inspector,
 };
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::localization::UiLocale;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 
 #[derive(Component, Clone, Default)]
@@ -178,7 +179,7 @@ fn row_scene(row: &StatisticsRowProjection) -> impl Scene + use<> {
     let count = format!("#{} · {}", row.ordinal, row.count);
     let detail = row.detail.clone();
     bsn! {
-        Node { width: percent(100), flex_direction: FlexDirection::Column, row_gap: px(4.0) }
+        Node { width: percent(100), flex_direction: FlexDirection::Column, row_gap: rem(4.0) }
         Children [
             Text(count) StatisticsRow({key.clone()}) StatisticsRowLine::Count TextRole(Role::Caption)
             --

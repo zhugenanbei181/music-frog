@@ -1,16 +1,15 @@
 //! test-intent: behavior
-use crate::command_harness::recording_application;
-use crate::test_support::demo_env;
+use crate::command_harness::{core_test_command_application, recording_application};
 use futures_util::StreamExt;
 use iced::Task;
 use iced::advanced::widget::Tree;
 use iced_runtime::{Action, task::into_stream};
-use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::dns_query_actions::QuerySection;
 use infiltrator_application::dns_query_application::DnsQueryApplication;
 use infiltrator_application::dns_query_fixtures::{IsolatedQueries, QueryFixtureMode};
 use infiltrator_application::dns_query_projection::project_query;
 use infiltrator_application::surface_reader::ApplicationSurfaceReader;
+use infiltrator_contract::core_capabilities::{CoreOperation, DnsOperation};
 use infiltrator_contract::dns_query::DnsRecordType;
 use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
@@ -40,7 +39,8 @@ fn setup(port: Arc<IsolatedQueries>) -> (AppState, ApplicationSurfaceReader) {
     let owner = DnsQueryApplication::new(Some(port));
     let (application, _) = recording_application();
     application.install_command_handler(Arc::new(
-        CommandApplication::new().with_dns_query(owner.clone()),
+        core_test_command_application([CoreOperation::Dns(DnsOperation::Query)])
+            .with_dns_query(owner.clone()),
     ));
     let reader = ApplicationSurfaceReader::new(
         Arc::new(application.clone()),
@@ -48,8 +48,9 @@ fn setup(port: Arc<IsolatedQueries>) -> (AppState, ApplicationSurfaceReader) {
         HostKind::Desktop,
     )
     .with_dns_query(owner);
-    let (mut state, _) = AppState::demo(&demo_env(Route::Dns));
-    state.commands = Some(application);
+    let (mut state, _) = AppState::new();
+    state.shell.current_route = Route::Dns;
+    state.attach_product_application(application);
     state.shell.demo = false;
     publish(&mut state, &reader);
     (state, reader)

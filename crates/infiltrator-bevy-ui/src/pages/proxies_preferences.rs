@@ -83,7 +83,13 @@ pub fn sync_proxy_favorites(
             .groups
             .iter()
             .flat_map(|group| &group.proxies)
-            .find(|node| node.name == pin.node_name)
+            .find(|node| {
+                pin.outbound_id
+                    .as_ref()
+                    .map_or(node.name == pin.node_name, |id| {
+                        node.outbound_id.as_ref() == Some(id)
+                    })
+            })
         {
             let ink = if node.favorite {
                 palette.warning

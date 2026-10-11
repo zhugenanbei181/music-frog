@@ -2,34 +2,25 @@
 //! already-running core, the restart-with-readiness path, and the
 //! apply-current-profile transaction with rollback.
 
+use infiltrator_application::android_control_application::AndroidControlApplication;
 use infiltrator_application::core_application::CoreApplication;
-use infiltrator_application::overview::UnavailableOverviewReader;
-use infiltrator_contract::command::{CommandIntent, CommandResult};
+use infiltrator_contract::android_control::AndroidHostProcessRole;
 use infiltrator_contract::error::InfiltratorError;
-#[cfg(not(target_os = "android"))]
-use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_core::apply::{
     ApplyError, ApplyParams, EndpointConfigReloader, apply_current_profile,
 };
 use infiltrator_domain::apply::ApplyStrategy;
-use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
 use infiltrator_ports::endpoint::EndpointSource;
-use infiltrator_ports::error::PortError;
-use infiltrator_ports::overview::OverviewReader;
 use infiltrator_ports::secure_store::SecureStore;
-use mihomo_api::client::MihomoClient;
-use mihomo_api::overview::ControllerOverviewReader;
 use mihomo_config::endpoint::ProfileEndpointSource;
 use mihomo_config::manager::ConfigManager;
 use mihomo_platform::android_bridge::get_android_bridge;
 use mihomo_platform::defaults::DefaultCredentialStore;
-#[cfg(not(target_os = "android"))]
-use std::result;
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, OnceLock};
+use tokio::sync::OnceCell;
 
-#[cfg(target_os = "android")]
-use mihomo_platform::android::AndroidCoreController;
-
+use crate::composition::{AndroidCoreComposition, core_application_with_readiness};
+use crate::core_launch_spec::AndroidProfileReadiness;
 use crate::ffi::{FfiErrorCode, FfiStatus};
 use crate::host_support::{build_config_manager, map_mihomo_error};
 
@@ -40,183 +31,75 @@ use crate::host_support::{build_config_manager, map_mihomo_error};
 /// this slot.
 pub(crate) struct SharedCore {
     pub(crate) application: CoreApplication,
+    pub(crate) control: AndroidControlApplication,
     pub(crate) endpoints: Arc<dyn EndpointSource>,
     config: Arc<ConfigManager<DefaultCredentialStore>>,
     pub(crate) _watchdog: infiltrator_composition::CoreWatchdogHandle,
 }
 
-/// Adapts the endpoint-aware readiness probe to the 0.30 application port.
-struct ApplicationReadiness {
-    endpoints: Arc<dyn EndpointSource>,
-}
-
-#[async_trait::async_trait]
-impl CoreReadiness for ApplicationReadiness {
-    async fn probe(&self) -> Result<String, PortError> {
-        let endpoint = self
-            .endpoints
-            .resolve()
-            .await
-            .map_err(|error| PortError::Network(error.to_string()))?;
-        let client = MihomoClient::new(&endpoint.url, endpoint.secret)
-            .map_err(|error| PortError::Network(error.to_string()))?;
-        client
-            .get_version()
-            .await
-            .map_err(|error| PortError::Network(error.to_string()))?;
-        Ok(endpoint.url)
-    }
-}
-
-/// Core lifecycle controller for the shared session. On Android this is
-/// mihomo_platform's [`AndroidCoreController`], which delegates to the
-/// globally registered JNI bridge (survives bridge re-registration).
-#[cfg(target_os = "android")]
-fn platform_core_controller() -> Arc<dyn CoreProcess> {
-    Arc::new(AndroidCoreController)
-}
-
-/// Bridge-backed controller for non-Android builds. The bridge registry is
-/// simply never populated there, so the session stays `Stopped`; this only
-/// keeps the shared-session wiring compilable for host tests.
-#[cfg(not(target_os = "android"))]
-struct BridgeCoreController;
-
-#[cfg(not(target_os = "android"))]
-#[async_trait::async_trait]
-impl CoreProcess for BridgeCoreController {
-    async fn start(&self) -> result::Result<(), PortError> {
-        let bridge = get_android_bridge().ok_or_else(|| {
-            PortError::Failed("Android bridge is not configured (core start)".into())
-        })?;
-        bridge
-            .core_start()
-            .await
-            .map_err(|error| PortError::Failed(error.to_string()))
-    }
-
-    async fn stop(&self) -> result::Result<(), PortError> {
-        let bridge = get_android_bridge().ok_or_else(|| {
-            PortError::Failed("Android bridge is not configured (core stop)".into())
-        })?;
-        bridge
-            .core_stop()
-            .await
-            .map_err(|error| PortError::Failed(error.to_string()))
-    }
-
-    async fn status(&self) -> result::Result<CoreLifecycle, PortError> {
-        let running = get_android_bridge()
-            .ok_or_else(|| PortError::Failed("Android bridge is not configured".into()))?
-            .core_is_running()
-            .await
-            .map_err(|error| PortError::Failed(error.to_string()))?;
-        Ok(if running {
-            CoreLifecycle::Running
-        } else {
-            CoreLifecycle::Stopped
-        })
-    }
-
-    fn controller_endpoint(&self) -> Option<String> {
-        get_android_bridge().and_then(|bridge| bridge.core_controller_url())
-    }
-}
-
-#[cfg(not(target_os = "android"))]
-fn platform_core_controller() -> Arc<dyn CoreProcess> {
-    Arc::new(BridgeCoreController)
-}
-
 pub(crate) async fn shared_core() -> Result<Arc<SharedCore>, FfiStatus> {
-    static SHARED_CORE: OnceLock<Mutex<Option<Arc<SharedCore>>>> = OnceLock::new();
-    let slot = SHARED_CORE.get_or_init(|| Mutex::new(None));
-    let cached = {
-        let guard = slot.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
-        guard.as_ref().cloned()
-    };
-    if let Some(core) = cached {
-        return Ok(core);
+    let bridge = get_android_bridge().ok_or_else(|| {
+        FfiStatus::err(
+            FfiErrorCode::NotReady,
+            "Android host bridge is not registered",
+        )
+    })?;
+    if bridge.process_role() != AndroidHostProcessRole::CoreOwner {
+        return Err(FfiStatus::err(
+            FfiErrorCode::NotReady,
+            "CoreApplication is owned by the Android :vpn process",
+        ));
     }
-    // Init path only: the configs-dir redirect resolution (settings load)
-    // stays off the hot path; a concurrent winner's manager is reused below.
-    let config = Arc::new(build_config_manager().await?);
-    let endpoints = Arc::new(ProfileEndpointSource::new(Arc::clone(&config)));
-    let endpoint_source: Arc<dyn EndpointSource> = endpoints.clone();
-    let process = platform_core_controller();
-    let overview: Arc<dyn OverviewReader> = match endpoints.resolve().await {
-        Ok(endpoint) => match MihomoClient::new(&endpoint.url, endpoint.secret) {
-            Ok(client) => Arc::new(ControllerOverviewReader::new(client)),
-            Err(error) => Arc::new(UnavailableOverviewReader::new(PortError::Network(
-                error.to_string(),
-            ))),
-        },
-        Err(error) => Arc::new(UnavailableOverviewReader::new(error)),
-    };
-    let application = CoreApplication::new_with_overview(
-        process,
-        Arc::new(ApplicationReadiness {
-            endpoints: endpoint_source.clone(),
-        }),
-        overview,
-        infiltrator_composition::tokio_application_runtime()
-            .map_err(|error| FfiStatus::err(FfiErrorCode::Unknown, error))?,
-    );
-    let watchdog = infiltrator_composition::spawn_core_watchdog(Arc::new(application.clone()));
-    let core = Arc::new(SharedCore {
-        application,
-        endpoints: endpoints as Arc<dyn EndpointSource>,
-        config,
-        _watchdog: watchdog,
-    });
-    let mut guard = slot.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
-    if let Some(existing) = guard.as_ref() {
-        return Ok(Arc::clone(existing));
-    }
-    *guard = Some(Arc::clone(&core));
-    Ok(core)
-}
 
-async fn restart_runtime_if_running() {
-    if let Err(status) = restart_with_readiness().await {
-        log::error!("core restart failed: {status:?}");
-    }
-}
-
-/// Core restart through the shared application: stop + start under one
-/// generation, then block on controller readiness. Falls back to the legacy
-/// bridge restart when the session cannot be constructed.
-async fn restart_with_readiness() -> Result<(), FfiStatus> {
-    let core = match shared_core().await {
-        Ok(core) => core,
-        Err(_) => {
-            legacy_bridge_restart().await;
-            return Ok(());
-        }
-    };
-    if let Err(failure) = core.application.adopt_if_running().await {
-        return Err(FfiStatus::from(InfiltratorError::Mihomo(failure.message)));
-    }
-    match core.application.execute(CommandIntent::RestartCore).await {
-        CommandResult::Completed { .. } | CommandResult::Produced { .. } => Ok(()),
-        CommandResult::Rejected { failure, .. } => {
-            Err(FfiStatus::from(InfiltratorError::Mihomo(failure.message)))
-        }
-        CommandResult::Accepted { .. } => Err(FfiStatus::from(InfiltratorError::Internal(
-            "application restart unexpectedly returned Accepted".to_string(),
-        ))),
-    }
-}
-
-/// Pre-session behavior kept as the fallback path: raw bridge stop+start
-/// without readiness proof.
-async fn legacy_bridge_restart() {
-    if let Some(bridge) = get_android_bridge()
-        && let Ok(true) = bridge.core_is_running().await
-    {
-        let _ = bridge.core_stop().await;
-        let _ = bridge.core_start().await;
-    }
+    static SHARED_CORE: OnceLock<OnceCell<Arc<SharedCore>>> = OnceLock::new();
+    let slot = SHARED_CORE.get_or_init(OnceCell::new);
+    let core = slot
+        .get_or_try_init(|| {
+            let bridge = Arc::clone(&bridge);
+            async move {
+                let config = Arc::new(build_config_manager().await?);
+                config
+                    .ensure_default_config()
+                    .await
+                    .map_err(map_mihomo_error)?;
+                config
+                    .ensure_external_controller()
+                    .await
+                    .map_err(map_mihomo_error)?;
+                let endpoints = Arc::new(ProfileEndpointSource::new(Arc::clone(&config)));
+                let endpoint_source: Arc<dyn EndpointSource> = endpoints.clone();
+                let endpoint = endpoint_source.resolve().await.map_err(|error| {
+                    FfiStatus::err(
+                        FfiErrorCode::Config,
+                        format!("Android active Core endpoint is unavailable: {error}"),
+                    )
+                })?;
+                let controller_url = endpoint.url;
+                let controller_secret = endpoint.secret;
+                // Compose/FFI and Bevy both reach this product composition. It
+                // installs the Rust command handler, including VPN lifecycle.
+                let application = core_application_with_readiness(
+                    bridge,
+                    controller_url,
+                    controller_secret,
+                    AndroidCoreComposition::new(Arc::clone(&config)),
+                    Arc::new(AndroidProfileReadiness::new(Arc::clone(&endpoints))),
+                )
+                .map_err(|error| FfiStatus::err(FfiErrorCode::Unknown, error))?;
+                let control = AndroidControlApplication::new(application.clone());
+                let watchdog =
+                    infiltrator_composition::spawn_core_watchdog(Arc::new(application.clone()));
+                Ok::<Arc<SharedCore>, FfiStatus>(Arc::new(SharedCore {
+                    application,
+                    control,
+                    endpoints: endpoints as Arc<dyn EndpointSource>,
+                    config,
+                    _watchdog: watchdog,
+                }))
+            }
+        })
+        .await?;
+    Ok(Arc::clone(core))
 }
 
 /// Undo a `set_current` after a failed apply so the active-profile metadata
@@ -242,18 +125,17 @@ async fn restore_current_profile<S: SecureStore>(
 /// (validate → atomic write → restart → readiness → rollback on failure).
 /// `previous` is the active profile name before the caller switched to the
 /// profile being applied; it is restored when the transaction rolls back.
-/// When the shared application cannot be constructed, falls back to the legacy
-/// bridge restart so the pre-session behavior is kept.
+/// This helper is owner-local; UI requests enter through the typed profile
+/// operation, which runs this transaction inside the owner process. Construction
+/// or readiness failures are returned as typed FFI failures; there is no restart
+/// without lifecycle/readback proof.
 pub(crate) async fn apply_current_profile_status(previous: Option<String>) -> FfiStatus {
     let core = match shared_core().await {
         Ok(core) => core,
-        Err(_) => {
-            restart_runtime_if_running().await;
-            return FfiStatus::ok();
-        }
+        Err(status) => return status,
     };
     if let Err(failure) = core.application.adopt_if_running().await {
-        return FfiStatus::from(InfiltratorError::Mihomo(failure.message));
+        return FfiStatus::from(InfiltratorError::Backend(failure.message));
     }
     let current = match core.config.get_current().await {
         Ok(current) => current,

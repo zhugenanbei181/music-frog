@@ -10,22 +10,25 @@
 
 use crate::pages::rules_json::RulesJsonState;
 use crate::pages::rules_statistics::RulesStatisticsState;
-use bevy::a11y::AccessibilityNode;
 use bevy::ecs::component::Component;
+use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::observer::On;
 use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
+use bevy::ecs::system::Commands;
 use bevy::ecs::system::{Query, Res, ResMut};
+use bevy::feathers::theme::{ThemeBackgroundColor, ThemeTextColor};
 use bevy::scene::{Scene, bsn};
-use bevy::text::TextColor;
+use bevy::ui::InteractionDisabled;
 use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderRadius, Display, FlexDirection, JustifyContent, Node,
-    UiRect, Val, percent, px,
+    AlignItems, BorderRadius, Display, FlexDirection, JustifyContent, Node, UiRect, percent,
 };
-use bevy::ui_widgets::{Activate, Button};
+use bevy::ui_widgets::{ControlOrientation, Tab, TabActivation, TabList, ValueChange};
+use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText};
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::rules_workspace::RulesTab;
@@ -36,9 +39,9 @@ pub struct RulesTabState {
     pub tab: RulesTab,
 }
 
-/// One partition container: only the active partition is displayed.
+/// Marker for the Rules workspace tab-list root.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct RulesTabBody(pub RulesTab);
+pub struct RulesTabStrip;
 
 /// Marker on one tab chip button; the payload is the shared partition index.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -48,37 +51,30 @@ pub struct RulesTabChip(pub usize);
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct RulesTabChipLabel(pub usize);
 
+/// One partition container: only the active partition is displayed.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct RulesTabBody(pub RulesTab);
+
 fn tab_chip_scene(tab: RulesTab, palette: &UiPalette) -> Box<dyn Scene> {
     let index = tab.index();
     let selected = index == 0;
-    let background = if selected {
-        palette.accent
-    } else {
-        palette.surface_elevated
-    };
-    let ink = if selected {
-        palette.on_accent
-    } else {
-        palette.ink_dim
-    };
     Box::new(bsn! {
             Node {
                 flex_grow: 1.0,
-                min_height: px(palette.control_height_px),
+                min_height: rem(palette.control_height_px),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
-                padding: UiRect::horizontal(Val::Px(space::S12)),
-                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                padding: UiRect::horizontal(rem(space::S12)),
+                border_radius: BorderRadius::MAX,
             }
-            BackgroundColor({ background })
-            Button
+            ThemeBackgroundColor({ if selected { Token::Accent } else { Token::SurfaceElevated } })
+            Tab
             RulesTabChip(index)
-            AccessibilityNode({ accesskit::Node::new(accesskit::Role::Tab) })
             LocalizedLabel::plain(tab.i18n_key())
             Children [
                 LocalizedText::plain(tab.i18n_key())
                 TextRole(Role::Body)
-                TextColor({ ink })
+                ThemeTextColor({ if selected { Token::OnAccent } else { Token::InkDim } })
                 RulesTabChipLabel(index)
             ]
     })
@@ -96,11 +92,16 @@ pub fn rules_tabs_scene(palette: &UiPalette) -> impl Scene + use<> {
                 width: percent(100),
                 flex_direction: FlexDirection::Row,
                 align_items: AlignItems::Center,
-                column_gap: Val::Px(space::S8),
-                padding: UiRect::all(Val::Px(space::S4)),
-                border_radius: BorderRadius::all(Val::Px(palette.card_radius_px)),
+                column_gap: rem(space::S8),
+                padding: UiRect::all(rem(space::S4)),
+                border_radius: BorderRadius::all(rem(palette.card_radius_px)),
             }
-            BackgroundColor({ palette.surface })
+            ThemeBackgroundColor({ Token::Surface })
+            RulesTabStrip
+            TabList {
+                orientation: ControlOrientation::Horizontal,
+                activation: TabActivation::Automatic,
+            }
             Children [
                 { chips }
             ]
@@ -113,7 +114,7 @@ pub fn tab_body_scene(tab: RulesTab, content: Box<dyn Scene>) -> Box<dyn Scene> 
             Node {
                 width: percent(100),
                 flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(space::S16),
+                row_gap: rem(space::S16),
             }
             RulesTabBody(tab)
             Children [
@@ -122,18 +123,25 @@ pub fn tab_body_scene(tab: RulesTab, content: Box<dyn Scene>) -> Box<dyn Scene> 
     })
 }
 
-/// DUAL-11-14: show only the active partition and restamp the chip fills and
-/// label inks from the palette.
+/// DUAL-11-14: show only the active partition and swap chip fill/label ink
+/// tokens in place (official `Theme*` repaint on insert — norm ②/③).
 pub fn sync_rules_tabs(
     state: Option<Res<RulesTabState>>,
-    palette: Res<UiPalette>,
+    statistics: Option<Res<RulesStatisticsState>>,
+    mut commands: Commands,
     mut bodies: Query<(&mut Node, &RulesTabBody)>,
-    mut chips: Query<(&mut BackgroundColor, &RulesTabChip, &Children)>,
-    mut labels: Query<&mut TextColor, With<RulesTabChipLabel>>,
+    chips: Query<(
+        Entity,
+        &RulesTabChip,
+        &Children,
+        Option<&InteractionDisabled>,
+    )>,
+    labels: Query<Entity, With<RulesTabChipLabel>>,
 ) {
     let Some(state) = state else {
         return;
     };
+    let tabs_disabled = statistics.is_some_and(|state| state.model.confirmation.is_some());
     for (mut node, body) in &mut bodies {
         let want = if body.0 == state.tab {
             Display::Flex
@@ -144,26 +152,30 @@ pub fn sync_rules_tabs(
             node.display = want;
         }
     }
-    for (mut background, chip, children) in &mut chips {
-        let selected = RulesTab::from_index(chip.0) == state.tab;
-        let want = if selected {
-            palette.accent
-        } else {
-            palette.surface_elevated
-        };
-        if background.0 != want {
-            background.0 = want;
+    for (entity, chip, children, disabled) in &chips {
+        if tabs_disabled && disabled.is_none() {
+            commands.entity(entity).insert(InteractionDisabled);
+        } else if !tabs_disabled && disabled.is_some() {
+            commands.entity(entity).remove::<InteractionDisabled>();
         }
+        let selected = RulesTab::from_index(chip.0) == state.tab;
+        commands
+            .entity(entity)
+            .insert(ThemeBackgroundColor(if selected {
+                Token::Accent.theme_token()
+            } else {
+                Token::SurfaceElevated.theme_token()
+            }));
         let ink = if selected {
-            palette.on_accent
+            Token::OnAccent
         } else {
-            palette.ink_dim
+            Token::InkDim
         };
         for child in children.iter() {
-            if let Ok(mut color) = labels.get_mut(*child)
-                && color.0 != ink
-            {
-                color.0 = ink;
+            if labels.contains(*child) {
+                commands
+                    .entity(*child)
+                    .insert(ThemeTextColor(ink.theme_token()));
             }
         }
     }
@@ -172,8 +184,9 @@ pub fn sync_rules_tabs(
 /// Select the clicked partition. Switching tabs blurs the JSON editor buffer
 /// so a hidden editor can never keep consuming keystrokes.
 pub fn on_rules_tab_activated(
-    activate: On<Activate>,
+    change: On<ValueChange<Option<Entity>>>,
     statistics: Option<Res<RulesStatisticsState>>,
+    strips: Query<(), With<RulesTabStrip>>,
     chips: Query<&RulesTabChip>,
     mut state: Option<ResMut<RulesTabState>>,
     mut json: Option<ResMut<RulesJsonState>>,
@@ -181,7 +194,13 @@ pub fn on_rules_tab_activated(
     if statistics.is_some_and(|state| state.model.confirmation.is_some()) {
         return;
     }
-    let Ok(chip) = chips.get(activate.entity) else {
+    if !strips.contains(change.source) {
+        return;
+    }
+    let Some(selected) = change.value else {
+        return;
+    };
+    let Ok(chip) = chips.get(selected) else {
         return;
     };
     let Some(state) = state.as_deref_mut() else {

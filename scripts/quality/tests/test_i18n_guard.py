@@ -1,4 +1,4 @@
-"""Regression checks for the Rust localization scanner's real coverage boundaries."""
+"""Regression checks for shared Rust and product-PO localization coverage."""
 import importlib.util
 from pathlib import Path
 import sys
@@ -14,8 +14,11 @@ spec.loader.exec_module(guard)
 
 class LocalizationCoverageTests(unittest.TestCase):
     def test_runtime_handlers_and_shared_interpolation_are_covered(self):
-        self.assertIn(Path('crates/infiltrator-iced/src/update'), guard.VIEW_SCAN_DIRS)
-        self.assertIn(Path('crates/infiltrator-iced/src/state'), guard.VIEW_SCAN_DIRS)
+        scan_roots = {path.relative_to(ROOT) for path in guard.VIEW_SCAN_DIRS}
+        self.assertIn(Path('crates/infiltrator-iced/src'), scan_roots)
+        iced_source = Path('crates/infiltrator-iced/src')
+        self.assertTrue(Path('crates/infiltrator-iced/src/update').is_relative_to(iced_source))
+        self.assertTrue(Path('crates/infiltrator-iced/src/state').is_relative_to(iced_source))
         source = 'localize(&locale, "runtime_failure", &[("reason", data)])'
         self.assertEqual(guard.INTERPOLATION_REF_PATTERN.findall(source), ['runtime_failure'])
         source = 'localize(locale, "runtime_failure", &[])'
@@ -39,6 +42,17 @@ class LocalizationCoverageTests(unittest.TestCase):
         self.assertNotIn('注释', code)
         self.assertIn('https://example.test/链接', code)
         self.assertIn('多行\n文案', code)
+
+    def test_shared_product_message_ids_are_localized_calls_not_hardcoded_copy(self):
+        source = 'fn view() { let copy = Lang("en").tr("VPN 已连接"); let bad = "未翻译"; }'
+        failures = guard.untranslated_cjk_literals(guard.production_code(source))
+        self.assertEqual(failures, [(1, '未翻译')])
+        keys = guard.product_catalog_keys()
+        self.assertIn('VPN 已连接', keys)
+        self.assertIn('public_ip_ready', keys)
+
+    def test_product_catalogs_have_locale_and_placeholder_parity(self):
+        self.assertEqual(guard.check_product_catalogs(), [])
 
     def test_production_speedtest_is_scanned_and_real_test_files_are_skipped(self):
         self.assertFalse(guard.is_test_path(Path('crates/ui/src/pages/speedtest_details.rs')))

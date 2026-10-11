@@ -3,225 +3,299 @@ package com.musicfrog.infiltrator.ui.sync
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.musicfrog.infiltrator.ui.common.DEFAULT_FFI_TIMEOUT_MS
+import com.musicfrog.infiltrator.ui.common.FailureTextKey
 import com.musicfrog.infiltrator.ui.common.LONG_FFI_TIMEOUT_MS
-import com.musicfrog.infiltrator.ui.common.runFfiCall
-import com.musicfrog.infiltrator.ui.common.userMessage
-import infiltrator_android.FfiErrorCode
-import infiltrator_android.WebDavSettings
-import infiltrator_android.webdavSettings
-import infiltrator_android.webdavSettingsSave
-import infiltrator_android.webdavSyncNow
-import infiltrator_android.webdavTest
+import com.musicfrog.infiltrator.ui.common.localizedFailure
+import com.musicfrog.infiltrator.ui.common.toLocalizedFailure
+import infiltrator_android.AndroidOwnerOperation
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-data class SyncUiState(
-    val enabled: Boolean = false,
-    val url: String = "",
-    val username: String = "",
-    val password: String = "",
-    val syncInterval: String = "60",
-    val syncOnStartup: Boolean = false,
-    val isLoading: Boolean = false,
-    val error: String? = null,
-    val saved: Boolean = false,
-    val testMessage: String? = null,
-    val syncSummary: String? = null
-)
+internal class SyncViewModel(
+    private val repository: SyncRepository,
+) : ViewModel() {
+    constructor() : this(UniFfiSyncRepository())
 
-class SyncViewModel : ViewModel() {
-    private val _state = MutableStateFlow(SyncUiState(isLoading = true))
-    val state: StateFlow<SyncUiState> = _state.asStateFlow()
+    private val _state = MutableStateFlow(SyncUiState())
+    internal val state: StateFlow<SyncUiState> = _state.asStateFlow()
+
+    private var requestSequence = 0uL
 
     init {
         load()
     }
 
     fun load() {
+        val request = begin(SyncOperation.LoadSettings) ?: return
+        _state.value = _state.value.copy(
+            settings = SyncSettingsState.Loading(_state.value.settings.lastAccepted()),
+            action = SyncActionState.Working(SyncOperation.LoadSettings),
+        )
         viewModelScope.launch {
-            _state.value = _state.value.copy(
-                isLoading = true,
-                error = null,
-                saved = false,
-                testMessage = null,
-                syncSummary = null
+            handleResult(
+                operation = SyncOperation.LoadSettings,
+                request = request,
+                result = repository.execute(AndroidOwnerOperation.WebDavSettings, DEFAULT_FFI_TIMEOUT_MS),
+                draftPolicy = SyncDraftPolicy.ReplaceWithAccepted,
             )
-            val call = runFfiCall(timeoutMs = DEFAULT_FFI_TIMEOUT_MS) { webdavSettings() }
-            if (call.error != null) {
-                _state.value = _state.value.copy(isLoading = false, error = call.error)
-                return@launch
-            }
-            val result = call.value!!
-            val settings = result.settings
-            if (result.status.code == FfiErrorCode.OK && settings != null) {
-                applySettings(settings)
-            } else {
-                _state.value = _state.value.copy(
-                    isLoading = false,
-                    error = result.status.userMessage("Failed to load WebDAV settings")
-                )
-            }
         }
     }
 
-    fun updateEnabled(value: Boolean) {
-        _state.value = _state.value.copy(enabled = value, saved = false)
-    }
-
-    fun updateUrl(value: String) {
-        _state.value = _state.value.copy(url = value, saved = false)
-    }
-
-    fun updateUsername(value: String) {
-        _state.value = _state.value.copy(username = value, saved = false)
-    }
-
-    fun updatePassword(value: String) {
-        _state.value = _state.value.copy(password = value, saved = false)
-    }
-
-    fun updateSyncInterval(value: String) {
-        _state.value = _state.value.copy(syncInterval = value, saved = false)
-    }
-
-    fun updateSyncOnStartup(value: Boolean) {
-        _state.value = _state.value.copy(syncOnStartup = value, saved = false)
-    }
+    fun updateEnabled(value: Boolean) = updateDraft { copy(enabled = value) }
+    fun updateUrl(value: String) = updateDraft { copy(url = value) }
+    fun updateUsername(value: String) = updateDraft { copy(username = value) }
+    fun updatePassword(value: String) = updateDraft { copy(password = value) }
+    fun updateSyncInterval(value: String) = updateDraft { copy(intervalMinutes = value) }
+    fun updateSyncOnStartup(value: Boolean) = updateDraft { copy(syncOnStartup = value) }
 
     fun save() {
-        viewModelScope.launch {
-            val current = _state.value
-            _state.value = current.copy(isLoading = true, error = null, testMessage = null)
-
-            val interval = parseInterval(current.syncInterval)
-            if (interval == null) {
-                _state.value = current.copy(
-                    isLoading = false,
-                    error = "Sync interval must be a number"
-                )
-                return@launch
-            }
-
-            val settingsToSave = WebDavSettings(
-                current.enabled,
-                current.url,
-                current.username,
-                current.password,
-                interval,
-                current.syncOnStartup
-            )
-
-            val call = runFfiCall(timeoutMs = LONG_FFI_TIMEOUT_MS) { webdavSettingsSave(settingsToSave) }
-            if (call.error != null) {
-                _state.value = _state.value.copy(isLoading = false, error = call.error)
-                return@launch
-            }
-            val result = call.value!!
-            val savedSettings = result.settings
-            if (result.status.code == FfiErrorCode.OK && savedSettings != null) {
-                applySettings(savedSettings)
-                _state.value = _state.value.copy(saved = true)
-            } else {
+        val form = currentEditableForm() ?: return unavailable(SyncOperation.SaveSettings)
+        val interval = when (val parsed = parseSyncInterval(form.draft.intervalMinutes)) {
+            is SyncIntervalParse.Valid -> parsed.minutes
+            SyncIntervalParse.Invalid -> {
                 _state.value = _state.value.copy(
-                    isLoading = false,
-                    error = result.status.userMessage("Failed to save WebDAV settings")
+                    action = SyncActionState.Failed(
+                        SyncOperation.SaveSettings,
+                        localizedFailure(FailureTextKey.SyncIntervalInvalid),
+                    ),
                 )
+                return
             }
+        }
+        val request = begin(SyncOperation.SaveSettings) ?: return
+        val settings = form.draft.toWebDavSettings(interval)
+        _state.value = _state.value.copy(action = SyncActionState.Working(SyncOperation.SaveSettings))
+        viewModelScope.launch {
+            handleResult(
+                operation = SyncOperation.SaveSettings,
+                request = request,
+                result = repository.execute(
+                    AndroidOwnerOperation.WebDavSettingsSave(settings),
+                    LONG_FFI_TIMEOUT_MS,
+                ),
+                draftPolicy = SyncDraftPolicy.ReplaceWithAccepted,
+                requestedSettings = settings,
+            )
         }
     }
 
     fun testConnection() {
+        val form = currentEditableForm() ?: return unavailable(SyncOperation.TestConnection)
+        val interval = when (val parsed = parseSyncInterval(form.draft.intervalMinutes)) {
+            is SyncIntervalParse.Valid -> parsed.minutes
+            SyncIntervalParse.Invalid -> {
+                _state.value = _state.value.copy(
+                    action = SyncActionState.Failed(
+                        SyncOperation.TestConnection,
+                        localizedFailure(FailureTextKey.SyncIntervalInvalid),
+                    ),
+                )
+                return
+            }
+        }
+        val request = begin(SyncOperation.TestConnection) ?: return
+        val settings = form.draft.toWebDavSettings(interval)
+        _state.value = _state.value.copy(action = SyncActionState.Working(SyncOperation.TestConnection))
         viewModelScope.launch {
-            val current = _state.value
-            _state.value = current.copy(isLoading = true, error = null, testMessage = null)
-
-            val interval = parseInterval(current.syncInterval)
-            if (interval == null) {
-                _state.value = current.copy(
-                    isLoading = false,
-                    error = "Sync interval must be a number"
-                )
-                return@launch
-            }
-
-            val settings = WebDavSettings(
-                current.enabled,
-                current.url,
-                current.username,
-                current.password,
-                interval,
-                current.syncOnStartup
+            handleResult(
+                operation = SyncOperation.TestConnection,
+                request = request,
+                result = repository.execute(
+                    AndroidOwnerOperation.WebDavTest(settings),
+                    LONG_FFI_TIMEOUT_MS,
+                ),
+                draftPolicy = SyncDraftPolicy.Preserve,
             )
-
-            val call = runFfiCall(timeoutMs = LONG_FFI_TIMEOUT_MS) { webdavTest(settings) }
-            if (call.error != null) {
-                _state.value = _state.value.copy(isLoading = false, error = call.error)
-                return@launch
-            }
-            val status = call.value!!
-            if (status.code == FfiErrorCode.OK) {
-                _state.value = _state.value.copy(
-                    isLoading = false,
-                    testMessage = "Connection OK"
-                )
-            } else {
-                _state.value = _state.value.copy(
-                    isLoading = false,
-                    error = status.userMessage("WebDAV connection failed")
-                )
-            }
         }
     }
 
     fun syncNow() {
+        if (currentEditableForm() == null) return unavailable(SyncOperation.SyncNow)
+        val request = begin(SyncOperation.SyncNow) ?: return
+        _state.value = _state.value.copy(action = SyncActionState.Working(SyncOperation.SyncNow))
         viewModelScope.launch {
-            _state.value = _state.value.copy(isLoading = true, error = null, syncSummary = null)
-            val call = runFfiCall(timeoutMs = LONG_FFI_TIMEOUT_MS) { webdavSyncNow() }
-            if (call.error != null) {
-                _state.value = _state.value.copy(isLoading = false, error = call.error)
-                return@launch
-            }
-            val result = call.value!!
-            if (result.status.code == FfiErrorCode.OK) {
-                val summary = "Sync: ${result.successCount}/${result.totalActions} ok, ${result.failedCount} failed"
-                _state.value = _state.value.copy(
-                    isLoading = false,
-                    syncSummary = summary
-                )
-            } else {
-                _state.value = _state.value.copy(
-                    isLoading = false,
-                    error = result.status.userMessage("WebDAV sync failed")
-                )
-            }
+            handleResult(
+                operation = SyncOperation.SyncNow,
+                request = request,
+                result = repository.execute(AndroidOwnerOperation.WebDavSyncNow, LONG_FFI_TIMEOUT_MS),
+                draftPolicy = SyncDraftPolicy.Preserve,
+            )
         }
     }
 
     fun clearError() {
-        _state.value = _state.value.copy(error = null)
+        when (_state.value.action) {
+            is SyncActionState.Failed,
+            is SyncActionState.Cancelled,
+            is SyncActionState.TimedOut,
+            is SyncActionState.Unconfirmed -> _state.value = _state.value.copy(action = SyncActionState.Idle)
+            SyncActionState.Idle,
+            is SyncActionState.Working,
+            SyncActionState.Saved,
+            SyncActionState.ConnectionTested,
+            is SyncActionState.Synchronized -> Unit
+        }
     }
 
-    private fun applySettings(settings: WebDavSettings) {
-        _state.value = SyncUiState(
-            enabled = settings.enabled,
-            url = settings.url,
-            username = settings.username,
-            password = settings.password,
-            syncInterval = settings.syncIntervalMins.toString(),
-            syncOnStartup = settings.syncOnStartup,
-            isLoading = false,
-            error = null,
-            saved = false
+    private fun updateDraft(update: SyncSettingsDraft.() -> SyncSettingsDraft) {
+        val current = _state.value
+        if (current.action is SyncActionState.Working) return
+        val observed = current.settings as? SyncSettingsState.Observed ?: return
+        _state.value = current.copy(
+            settings = SyncSettingsState.Observed(
+                observed.form.copy(draft = observed.form.draft.update()),
+            ),
+            action = SyncActionState.Idle,
         )
     }
 
-    private fun parseInterval(raw: String): UInt? {
-        val trimmed = raw.trim()
-        if (trimmed.isEmpty()) {
-            return null
+    private fun currentEditableForm(): SyncForm? = when (val settings = _state.value.settings) {
+        is SyncSettingsState.Observed -> settings.form
+        is SyncSettingsState.Loading,
+        is SyncSettingsState.Unavailable -> null
+    }
+
+    private fun begin(operation: SyncOperation): SyncRequest? {
+        when (_state.value.requestAvailability()) {
+            SyncRequestAvailability.Busy -> return null
+            SyncRequestAvailability.Available -> Unit
         }
-        return trimmed.toUIntOrNull()
+        return when (val allocation = allocateSyncRequest(requestSequence)) {
+            is SyncRequestAllocation.Allocated -> {
+                requestSequence = allocation.sequence.value
+                SyncRequest(allocation.sequence)
+            }
+            SyncRequestAllocation.Exhausted -> {
+                _state.value = _state.value.copy(
+                    action = SyncActionState.Unconfirmed(
+                        operation,
+                        localizedFailure(FailureTextKey.InvalidState, "Sync request sequence exhausted"),
+                    ),
+                )
+                null
+            }
+        }
+    }
+
+    private suspend fun handleResult(
+        operation: SyncOperation,
+        request: SyncRequest,
+        result: SyncRepositoryResult,
+        draftPolicy: SyncDraftPolicy,
+        requestedSettings: infiltrator_android.WebDavSettings? = null,
+    ) {
+        when (result) {
+            is SyncRepositoryResult.Completed -> {
+                if (requestedSettings != null &&
+                    result.snapshot.isReadbackOf(requestedSettings) != SyncReadbackConfirmation.Confirmed
+                ) {
+                    markUnconfirmed(operation)
+                    return
+                }
+                val currentForm = _state.value.settings.lastAccepted()
+                when (admitSyncSettings(currentForm, result.snapshot, request.sequence.value)) {
+                    SyncSnapshotAdmission.Stale,
+                    SyncSnapshotAdmission.Conflicting -> markUnconfirmed(operation)
+                    SyncSnapshotAdmission.Accepted -> {
+                        val draft = when (draftPolicy) {
+                            SyncDraftPolicy.ReplaceWithAccepted -> result.snapshot.toDraft()
+                            SyncDraftPolicy.Preserve -> currentForm?.draft ?: result.snapshot.toDraft()
+                        }
+                        val form = SyncForm(result.snapshot, draft, request.sequence.value)
+                        _state.value = _state.value.copy(
+                            settings = SyncSettingsState.Observed(form),
+                            action = when (result.outcome) {
+                                SyncRepositoryOutcome.SettingsObserved -> SyncActionState.Idle
+                                SyncRepositoryOutcome.SettingsSaved -> SyncActionState.Saved
+                                SyncRepositoryOutcome.ConnectionTested -> SyncActionState.ConnectionTested
+                                is SyncRepositoryOutcome.Synchronized -> SyncActionState.Synchronized(result.outcome.summary)
+                            },
+                        )
+                    }
+                }
+            }
+            is SyncRepositoryResult.Failed -> {
+                acceptLatest(result.latest, request.sequence, draftPolicy)
+                _state.value = _state.value.copy(action = SyncActionState.Failed(operation, result.failure.toLocalizedFailure()))
+            }
+            is SyncRepositoryResult.Cancelled -> {
+                acceptLatest(result.latest, request.sequence, draftPolicy)
+                _state.value = _state.value.copy(action = SyncActionState.Cancelled(operation, result.failure.toLocalizedFailure()))
+            }
+            is SyncRepositoryResult.TimedOut -> {
+                _state.value = _state.value.copy(
+                    settings = SyncSettingsState.Unavailable(_state.value.settings.lastAccepted()),
+                    action = SyncActionState.TimedOut(operation, result.failure.toLocalizedFailure()),
+                )
+            }
+            is SyncRepositoryResult.Unconfirmed -> {
+                _state.value = _state.value.copy(
+                    settings = SyncSettingsState.Unavailable(_state.value.settings.lastAccepted()),
+                    action = SyncActionState.Unconfirmed(operation, result.failure.toLocalizedFailure()),
+                )
+            }
+        }
+    }
+
+    private fun acceptLatest(
+        snapshot: SyncSettingsSnapshot?,
+        sequence: SyncRequestSequence,
+        draftPolicy: SyncDraftPolicy,
+    ) {
+        if (snapshot == null) {
+            _state.value = _state.value.copy(
+                settings = SyncSettingsState.Unavailable(_state.value.settings.lastAccepted()),
+            )
+            return
+        }
+        when (admitSyncSettings(_state.value.settings.lastAccepted(), snapshot, sequence.value)) {
+            SyncSnapshotAdmission.Accepted -> {
+                val previous = _state.value.settings.lastAccepted()
+                val draft = when (draftPolicy) {
+                    SyncDraftPolicy.ReplaceWithAccepted -> snapshot.toDraft()
+                    SyncDraftPolicy.Preserve -> previous?.draft ?: snapshot.toDraft()
+                }
+                _state.value = _state.value.copy(
+                    settings = SyncSettingsState.Observed(SyncForm(snapshot, draft, sequence.value)),
+                )
+            }
+            SyncSnapshotAdmission.Stale,
+            SyncSnapshotAdmission.Conflicting -> {
+                _state.value = _state.value.copy(
+                    settings = SyncSettingsState.Unavailable(_state.value.settings.lastAccepted()),
+                )
+            }
+        }
+    }
+
+    private fun markUnconfirmed(operation: SyncOperation) {
+        val accepted = _state.value.settings.lastAccepted()
+        _state.value = _state.value.copy(
+            settings = SyncSettingsState.Unavailable(accepted),
+            action = SyncActionState.Unconfirmed(
+                operation,
+                localizedFailure(FailureTextKey.NotReady),
+            ),
+        )
+    }
+
+    private fun unavailable(operation: SyncOperation) {
+        _state.value = _state.value.copy(
+            action = SyncActionState.Unconfirmed(
+                operation,
+                localizedFailure(FailureTextKey.NotReady),
+            ),
+        )
     }
 }
+
+private enum class SyncDraftPolicy {
+    ReplaceWithAccepted,
+    Preserve,
+}
+
+private data class SyncRequest(
+    val sequence: SyncRequestSequence,
+)

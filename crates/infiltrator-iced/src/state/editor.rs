@@ -26,6 +26,8 @@ use infiltrator_contract::dns_self_heal::DnsSelfHealSnapshot;
 use infiltrator_contract::editor_viewport::EditorViewport;
 use infiltrator_contract::mrs_acceleration::MrsAccelerationSnapshot;
 use infiltrator_contract::profile_document::ProfileDocumentSnapshot;
+use infiltrator_contract::profile_document_identity::ProfileDocumentIdentity;
+use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
 use infiltrator_contract::provider_cache::{
     KernelEtagSupportSnapshot, ProviderCacheFingerprint, RuleProviderCacheSnapshot,
 };
@@ -116,6 +118,10 @@ pub struct ConfigEditorState {
     pub rule_providers_json_cache: String,
     pub proxy_providers_json_cache: String,
     pub sniffer_json_cache: String,
+    /// Exact source revision bound to each JSON editor buffer.
+    pub rule_providers_json_identity: Option<ProfileDocumentIdentity>,
+    pub proxy_providers_json_identity: Option<ProfileDocumentIdentity>,
+    pub sniffer_json_identity: Option<ProfileDocumentIdentity>,
     pub rule_providers_editor_state: EditorLazyState,
     pub proxy_providers_editor_state: EditorLazyState,
     pub sniffer_editor_state: EditorLazyState,
@@ -174,7 +180,7 @@ pub struct ConfigEditorState {
     /// DUAL-09-09: two-step rollback confirmation; the first click arms.
     /// DUAL-09-12: session-local unlock for direct edits of a protected
     /// remote subscription. The application still enforces the rule.
-    pub profile_protection_override: bool,
+    pub profile_write_authorization: ProfileWriteAuthorization,
     pub subrule_draft: LogicalDraft,
     pub geodata_status: GeoDataStatus,
     pub rule_hit_audit: RuleStatisticsWorkbench,
@@ -232,7 +238,6 @@ pub struct ConfigEditorState {
     pub editor_pane: EditorPane,
     pub mixin_content: text_editor::Content,
     pub mixin_loaded_for: Option<String>,
-    pub is_saving_mixin: bool,
     /// DUAL-09-14: the shared surface filter draft (`SubscriptionFilterDraft`),
     /// parsed and persisted by the same application use-case both surfaces call.
     pub filter_editor: SubscriptionFilterEditor,

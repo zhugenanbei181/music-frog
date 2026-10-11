@@ -5,7 +5,7 @@
 //! **Where the buffer lives**: a plain bevy `Resource`
 //! ([`TrafficHistory`]) next to the projection seam, not page-local
 //! components — the producer is the live pump's frame drain
-//! ([`crate::controller::drain_overview_pump`], which appends every
+//! (the capture-only controller adapter, which appends every
 //! *delivered* snapshot at the drain site) while the consumer is the page's
 //! refresh observer (which restamps the chart plate from it). A resource
 //! is the one shape both ends already share, and it survives page
@@ -148,6 +148,7 @@ fn sanitize_rate(rate: f64) -> f32 {
 /// capture see the identical curve). Units are the fixture's own scale;
 /// the chart normalizes min→bottom / max→top per series, so only the wave
 /// shape is load-bearing. Pure function.
+#[cfg(any(feature = "capture-tools", test))]
 pub fn demo_traffic_series() -> (Vec<f32>, Vec<f32>) {
     let sample = |i: usize, a: f32, f_a: f32, p_a: f32, b: f32, f_b: f32, p_b: f32| {
         let t = i as f32;
@@ -168,6 +169,7 @@ pub fn demo_traffic_series() -> (Vec<f32>, Vec<f32>) {
 /// both spell through.
 pub fn chart_series(origin: OverviewOrigin, history: &TrafficHistory) -> (Vec<f32>, Vec<f32>) {
     match origin {
+        #[cfg(any(feature = "capture-tools", test))]
         OverviewOrigin::Demo => demo_traffic_series(),
         OverviewOrigin::LiveCore => (history.upload_series(), history.download_series()),
     }
@@ -178,25 +180,29 @@ pub fn chart_series(origin: OverviewOrigin, history: &TrafficHistory) -> (Vec<f3
 /// already Bezier-densified by the shared domain algorithm.
 pub fn chart_inputs(
     projection: &OverviewProjection,
-    history: &TrafficHistory,
+    _history: &TrafficHistory,
 ) -> (Vec<f32>, Vec<f32>, bool, TrafficScaleSnapshot) {
-    if projection.origin == OverviewOrigin::LiveCore {
-        let (upload, download) = display_series(&projection.traffic_waveform);
-        (upload, download, false, projection.traffic_scale.clone())
-    } else {
-        let (upload, download) = chart_series(projection.origin, history);
-        let upload_raw: Vec<f64> = upload.iter().map(|value| *value as f64).collect();
-        let download_raw: Vec<f64> = download.iter().map(|value| *value as f64).collect();
-        (
-            upload,
-            download,
-            true,
-            compute_from_rates(
-                &upload_raw,
-                &download_raw,
-                projection.traffic_waveform.revision,
-            ),
-        )
+    match projection.origin {
+        OverviewOrigin::LiveCore => {
+            let (upload, download) = display_series(&projection.traffic_waveform);
+            (upload, download, false, projection.traffic_scale.clone())
+        }
+        #[cfg(any(feature = "capture-tools", test))]
+        OverviewOrigin::Demo => {
+            let (upload, download) = chart_series(projection.origin, _history);
+            let upload_raw: Vec<f64> = upload.iter().map(|value| *value as f64).collect();
+            let download_raw: Vec<f64> = download.iter().map(|value| *value as f64).collect();
+            (
+                upload,
+                download,
+                true,
+                compute_from_rates(
+                    &upload_raw,
+                    &download_raw,
+                    projection.traffic_waveform.revision,
+                ),
+            )
+        }
     }
 }
 
@@ -378,15 +384,14 @@ pub fn replay_state(origin: OverviewOrigin, replay: &TrafficReplay) -> ReplaySta
     if !replay.is_scrubbing() {
         return ReplayState::Live;
     }
-    if origin == OverviewOrigin::Demo {
-        return ReplayState::Unsupported;
-    }
-    if replay.snapshot.is_empty() {
-        return ReplayState::Empty;
-    }
-    ReplayState::Historical {
-        index: replay.cursor.index(),
-        len: replay.snapshot.len(),
+    match origin {
+        OverviewOrigin::LiveCore if replay.snapshot.is_empty() => ReplayState::Empty,
+        OverviewOrigin::LiveCore => ReplayState::Historical {
+            index: replay.cursor.index(),
+            len: replay.snapshot.len(),
+        },
+        #[cfg(any(feature = "capture-tools", test))]
+        OverviewOrigin::Demo => ReplayState::Unsupported,
     }
 }
 

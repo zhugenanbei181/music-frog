@@ -14,7 +14,7 @@ fn row(domain: &str, address: &str) -> DnsHostEntry {
 #[tokio::test]
 async fn root_write_legacy_preview_permission_retry_and_clear_use_actual_profile_bytes() {
     let store = Arc::new(HostsCaptureStore::default());
-    let application = ConfigurationApplication::new(store.clone());
+    let application = ConfigurationApplication::test_configuration_application(store.clone());
     let observed = application.load_hosts_profile().await.unwrap();
     assert_eq!(observed.profile, HOSTS_PROFILE);
     assert_eq!(observed.entries.len(), 2);
@@ -73,7 +73,7 @@ async fn root_write_legacy_preview_permission_retry_and_clear_use_actual_profile
 #[tokio::test]
 async fn stale_profile_stale_root_invalid_rows_and_read_failure_cannot_write_or_hide_categories() {
     let store = Arc::new(HostsCaptureStore::default());
-    let application = ConfigurationApplication::new(store.clone());
+    let application = ConfigurationApplication::test_configuration_application(store.clone());
     let observed = application.load_hosts_profile().await.unwrap();
     let patch = DnsSettingsPatch {
         expected_profile: Some(HOSTS_PROFILE.into()),

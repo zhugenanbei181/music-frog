@@ -6,19 +6,22 @@ use crate::host::desktop::system_proxy_port;
 use crate::host::storage::{factory_reset, home_dir, profile_store, reset_profiles_to_default};
 use crate::settings_store::load;
 use crate::state::AppState;
+use crate::state::core_operations::{
+    CoreDownloadCancelAdmission, CoreDownloadCompletionAdmission, CoreDownloadInvalidation,
+    CoreDownloadProgressAdmission, CoreDownloadRunId, CoreDownloadStart,
+    CoreUpdateCheckCompletionAdmission, CoreUpdateCheckInvalidation, CoreUpdateCheckStart,
+};
 use crate::types::app::{CoreDownloadProgress, ToastStatus};
 use crate::types::message::Message;
 use crate::types::runtime::RuntimeStatus;
-use crate::version_application::application;
+use crate::version_application::{application, release_channel};
 use iced::futures::channel::mpsc;
 use iced::{Task, stream};
 use infiltrator_application::failure_projection::failure_message;
 use infiltrator_application::system_proxy_application::SystemProxyApplication;
 use infiltrator_application::version_application::VersionApplication;
-use infiltrator_contract::error::{ErrorCode, Failure, InfiltratorError, from_mihomo};
-use infiltrator_contract::version::{
-    CoreArtifactVerification, CoreReleaseChannel, VersionDownloadProgress,
-};
+use infiltrator_contract::error::{ErrorCode, Failure, InfiltratorError, from_backend};
+use infiltrator_contract::version::{CoreArtifactVerification, VersionDownloadProgress};
 use infiltrator_ports::runtime_gateway::ManagedRuntime;
 use infiltrator_ports::version::VersionProgressSink;
 use infiltrator_shared::autostart::set_autostart_enabled;
@@ -32,16 +35,20 @@ use tokio::time::timeout;
 struct IcedVersionProgressSink {
     output: Mutex<mpsc::Sender<Message>>,
     cancel: Arc<AtomicBool>,
-    token: u64,
+    run_id: CoreDownloadRunId,
     previous: Mutex<(Instant, u64)>,
 }
 
 impl IcedVersionProgressSink {
-    fn new(output: mpsc::Sender<Message>, cancel: Arc<AtomicBool>, token: u64) -> Self {
+    fn new(
+        output: mpsc::Sender<Message>,
+        cancel: Arc<AtomicBool>,
+        run_id: CoreDownloadRunId,
+    ) -> Self {
         Self {
             output: Mutex::new(output),
             cancel,
-            token,
+            run_id,
             previous: Mutex::new((Instant::now(), 0)),
         }
     }
@@ -59,14 +66,14 @@ impl VersionProgressSink for IcedVersionProgressSink {
         } as u64;
         *previous = (now, progress.downloaded);
         if let Ok(mut output) = self.output.lock() {
-            let _ = output.try_send(Message::CoreDownloadProgress(
-                CoreDownloadProgress {
+            let _ = output.try_send(Message::CoreDownloadProgress {
+                run_id: self.run_id,
+                progress: CoreDownloadProgress {
                     downloaded: progress.downloaded,
                     total: progress.total,
                     speed_bytes,
                 },
-                self.token,
-            ));
+            });
         }
     }
 
@@ -79,14 +86,6 @@ fn version_application() -> Result<VersionApplication, InfiltratorError> {
     application()
 }
 
-fn parse_release_channel(value: &str) -> CoreReleaseChannel {
-    match value.trim().to_ascii_lowercase().as_str() {
-        "alpha" | "pre-release" | "prerelease" => CoreReleaseChannel::Alpha,
-        "meta" | "meta-core" | "metacore" | "nightly" => CoreReleaseChannel::MetaCore,
-        _ => CoreReleaseChannel::Stable,
-    }
-}
-
 impl AppState {
     /// Kernel download/management. This is the last domain in the
     /// `update_core` chain, so its fallback arm returns `Task::none()` for
@@ -95,27 +94,37 @@ impl AppState {
         let copy_locale = self.shell.lang.clone();
         match message {
             Message::CheckCoreUpdate => {
-                self.runtime.is_checking_update = true;
-                let channel = parse_release_channel(&self.runtime.core_channel);
+                let check_id = match self.runtime.core_update_check.start() {
+                    CoreUpdateCheckStart::Started(check_id) => check_id,
+                    CoreUpdateCheckStart::AlreadyChecking => return Task::none(),
+                };
+                let raw_channel = self.runtime.core_channel.clone();
                 Task::perform(
                     async move {
-                        version_application()?
+                        let application = version_application()?;
+                        let channel =
+                            release_channel(application.engine_id().clone(), &raw_channel);
+                        application
                             .latest(channel)
                             .await
                             .map_err(|failure| InfiltratorError::Download(failure.message))
                             .map(|info| info.version)
                     },
-                    Message::CoreUpdateInfo,
+                    move |result| Message::CoreUpdateFinished { check_id, result },
                 )
             }
-            Message::CoreUpdateInfo(result) => {
-                self.runtime.is_checking_update = false;
+            Message::CoreUpdateFinished { check_id, result } => {
+                if self
+                    .runtime
+                    .core_update_check
+                    .complete(check_id, result.clone())
+                    == CoreUpdateCheckCompletionAdmission::StaleCheck
+                {
+                    return Task::none();
+                }
                 self.refresh_tray();
                 match result {
-                    Ok(version) => {
-                        self.runtime.latest_core_version = Some(version);
-                        Task::none()
-                    }
+                    Ok(_) => Task::none(),
                     Err(e) => {
                         self.set_error(&e);
                         Task::none()
@@ -134,85 +143,104 @@ impl AppState {
                         | "metacore"
                 ) {
                     self.runtime.core_channel = channel.to_ascii_lowercase();
+                    match self.runtime.core_update_check.invalidate() {
+                        CoreUpdateCheckInvalidation::Unchecked
+                        | CoreUpdateCheckInvalidation::Invalidated(_) => {}
+                    }
                 }
                 Task::none()
             }
             Message::DownloadCore(version) => {
-                if self.runtime.is_downloading_core {
-                    return Task::none();
-                }
-                self.runtime.core_download_token = self.runtime.core_download_token.wrapping_add(1);
-                let token = self.runtime.core_download_token;
-                let cancel = Arc::new(AtomicBool::new(false));
-                self.runtime.core_download_cancel = Some(cancel.clone());
-                self.runtime.is_downloading_core = true;
+                let (run_id, cancel) = match self.runtime.core_download.start() {
+                    CoreDownloadStart::Started {
+                        run_id,
+                        cancellation,
+                    } => (run_id, cancellation),
+                    CoreDownloadStart::AlreadyDownloading => return Task::none(),
+                };
                 let application = match version_application() {
                     Ok(application) => application,
                     Err(error) => {
-                        return Task::done(Message::CoreDownloadFinished(
-                            Err(Failure::new(ErrorCode::NotReady, error.to_string(), false)),
-                            token,
-                        ));
+                        return Task::done(Message::CoreDownloadFinished {
+                            result: Err(Failure::new(
+                                ErrorCode::NotReady,
+                                error.to_string(),
+                                false,
+                            )),
+                            engine_id: None,
+                            run_id,
+                        });
                     }
                 };
+                let engine_id = application.engine_id().clone();
                 let stream =
                     stream::channel(100, move |mut output: mpsc::Sender<Message>| async move {
                         let progress =
-                            Arc::new(IcedVersionProgressSink::new(output.clone(), cancel, token));
+                            Arc::new(IcedVersionProgressSink::new(output.clone(), cancel, run_id));
                         match application.install(version.clone(), progress).await {
                             Ok(_) => {
-                                let _ = output
-                                    .try_send(Message::CoreDownloadFinished(Ok(version), token));
+                                let _ = output.try_send(Message::CoreDownloadFinished {
+                                    result: Ok(version),
+                                    engine_id: Some(engine_id),
+                                    run_id,
+                                });
                             }
                             Err(failure) => {
-                                let _ = output
-                                    .try_send(Message::CoreDownloadFinished(Err(failure), token));
+                                let _ = output.try_send(Message::CoreDownloadFinished {
+                                    result: Err(failure),
+                                    engine_id: Some(engine_id),
+                                    run_id,
+                                });
                             }
                         }
                     });
                 Task::run(stream, |m| m)
             }
-            Message::CoreDownloadProgress(progress, token) => {
-                if token != self.runtime.core_download_token {
+            Message::CoreDownloadProgress { run_id, progress } => {
+                if self.runtime.core_download.admit_progress(run_id, progress)
+                    == CoreDownloadProgressAdmission::StaleRun
+                {
                     return Task::none();
                 }
-                self.runtime.download_progress = progress.total.map_or(0.0, |total| {
-                    if total == 0 {
-                        0.0
-                    } else {
-                        (progress.downloaded as f32 / total as f32).clamp(0.0, 1.0)
-                    }
-                });
-                self.runtime.download_stats = Some(progress);
                 self.refresh_tray_throttled();
                 Task::none()
             }
             Message::CancelCoreDownload => {
-                if let Some(cancel) = &self.runtime.core_download_cancel {
-                    cancel.store(true, Ordering::Release);
+                match self.runtime.core_download.request_cancel() {
+                    CoreDownloadCancelAdmission::Requested(_)
+                    | CoreDownloadCancelAdmission::AlreadyRequested(_)
+                    | CoreDownloadCancelAdmission::NotDownloading => {}
                 }
                 Task::none()
             }
-            Message::CoreDownloadFinished(result, token) => {
-                if token != self.runtime.core_download_token {
+            Message::CoreDownloadFinished {
+                result,
+                engine_id,
+                run_id,
+            } => {
+                if self.runtime.core_download.complete(run_id)
+                    == CoreDownloadCompletionAdmission::StaleRun
+                {
                     return Task::none();
                 }
-                self.runtime.download_progress = 0.0;
-                self.runtime.download_stats = None;
-                self.runtime.core_download_cancel = None;
-                self.runtime.is_downloading_core = false;
                 self.refresh_tray();
                 match result {
                     Ok(version) => {
-                        self.runtime.core_integrity =
-                            CoreArtifactVerification::Verified { version };
+                        self.runtime.core_integrity = engine_id
+                            .map_or(CoreArtifactVerification::Unknown, |engine_id| {
+                                CoreArtifactVerification::Verified { engine_id, version }
+                            });
                         Task::done(Message::LoadKernels)
                     }
                     Err(e) => {
-                        self.runtime.core_integrity = CoreArtifactVerification::Rejected {
-                            version: "unknown".to_owned(),
-                            failure: e.clone(),
-                        };
+                        self.runtime.core_integrity =
+                            engine_id.map_or(CoreArtifactVerification::Unknown, |engine_id| {
+                                CoreArtifactVerification::Rejected {
+                                    engine_id,
+                                    version: "unknown".to_owned(),
+                                    failure: e.clone(),
+                                }
+                            });
                         let cancelled = e.code == ErrorCode::Canceled;
                         let message = failure_message(&e, &self.shell.lang);
                         if !cancelled {
@@ -284,12 +312,13 @@ impl AppState {
             },
             Message::FactoryReset => {
                 self.cancel_all_tasks();
-                self.runtime.core_download_token = self.runtime.core_download_token.wrapping_add(1);
-                if let Some(cancel) = &self.runtime.core_download_cancel {
-                    cancel.store(true, Ordering::Release);
+                match self.runtime.core_download.invalidate() {
+                    CoreDownloadInvalidation::Idle | CoreDownloadInvalidation::Cancelled(_) => {}
                 }
-                self.runtime.core_download_cancel = None;
-                self.runtime.is_downloading_core = false;
+                match self.runtime.core_update_check.invalidate() {
+                    CoreUpdateCheckInvalidation::Unchecked
+                    | CoreUpdateCheckInvalidation::Invalidated(_) => {}
+                }
                 if let Some(cancel) = &self.profile.sync_cancel {
                     cancel.store(true, Ordering::Release);
                 }
@@ -328,7 +357,7 @@ impl AppState {
                                         .into_owned(),
                                 )
                             })?
-                            .map_err(|error| InfiltratorError::Mihomo(error.to_string()))?;
+                            .map_err(|error| InfiltratorError::Backend(error.to_string()))?;
                         }
 
                         system_proxy_application
@@ -338,7 +367,7 @@ impl AppState {
                         set_autostart_enabled(crate::AUTOSTART_REG_NAME, false)
                             .map_err(|error| InfiltratorError::Internal(error.to_string()))?;
 
-                        let home = home_dir().map_err(from_mihomo)?;
+                        let home = home_dir().map_err(from_backend)?;
 
                         // 必须趁 settings.toml 还在时解析 configs 目录
                         // （settings 的 configs_dir 可指向云同步目录）并枚举

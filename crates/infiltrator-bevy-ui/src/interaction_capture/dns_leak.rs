@@ -19,6 +19,7 @@ use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
 use bevy::ui_widgets::Activate;
 use infiltrator_application::command_application::CommandApplication;
+use infiltrator_application::dns_leak_actions::DnsLeakActionPhase;
 use infiltrator_application::dns_leak_application::{DnsLeakApplication, default_echo_sources};
 use infiltrator_application::dns_leak_fixtures::IsolatedEcho;
 use infiltrator_bevy_widgets::button::ButtonDisabled;
@@ -82,7 +83,10 @@ pub fn activate(mut probe: ProbeActivation, geometry: CaptureGeometry, mut comma
         commands.trigger(Activate { entity });
         return;
     }
-    if probe.actions.state.pending.is_some() {
+    if matches!(
+        &probe.actions.state.phase,
+        DnsLeakActionPhase::Pending { .. }
+    ) {
         return;
     }
     let report = probe.capture.application.last_report();
@@ -110,8 +114,7 @@ impl ProbeObservation<'_, '_> {
     fn bounds(&self, geometry: &mut CaptureGeometry) -> Option<[f32; 4]> {
         if !self.capture.started
             || self.capture.echo.requests().len() != 1
-            || self.actions.state.pending.is_some()
-            || self.actions.state.failure.is_some()
+            || !matches!(&self.actions.state.phase, DnsLeakActionPhase::Idle)
         {
             return None;
         }

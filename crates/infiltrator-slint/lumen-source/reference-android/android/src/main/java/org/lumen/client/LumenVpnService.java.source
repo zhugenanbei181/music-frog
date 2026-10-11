@@ -1,0 +1,194 @@
+package org.lumen.client;
+
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
+import android.content.Intent;
+import android.content.pm.ServiceInfo;
+import android.net.VpnService;
+import android.os.Build;
+import android.os.ParcelFileDescriptor;
+
+/** Thin Android lifecycle adapter. Rust owns Mihomo and packet forwarding. */
+public final class LumenVpnService extends VpnService {
+    public static final String ACTION_START = "org.lumen.client.action.START_VPN";
+    public static final String ACTION_STOP = "org.lumen.client.action.STOP_VPN";
+
+    private static final String CHANNEL_ID = "lumen-vpn";
+    private static final int NOTIFICATION_ID = 0x4c10;
+    private static volatile LumenVpnService activeService;
+    private ParcelFileDescriptor tunnel;
+    private boolean stopping;
+    private boolean showTrafficRates;
+    private boolean englishNotifications;
+    private String downloadRate = "0 B/s";
+    private String uploadRate = "0 B/s";
+
+    static {
+        System.loadLibrary("lumen");
+    }
+
+    @Override
+    public void onCreate() {
+        super.onCreate();
+        activeService = this;
+    }
+
+    public static void updateTrafficNotification(boolean enabled, String download, String upload, boolean english) {
+        LumenVpnService service = activeService;
+        if (service == null) {
+            return;
+        }
+        service.showTrafficRates = enabled;
+        service.englishNotifications = english;
+        service.downloadRate = download == null ? "0 B/s" : download;
+        service.uploadRate = upload == null ? "0 B/s" : upload;
+        if (service.tunnel != null) {
+            NotificationManager manager = service.getSystemService(NotificationManager.class);
+            if (manager != null) {
+                manager.notify(NOTIFICATION_ID, service.createNotification());
+            }
+        }
+    }
+
+    @Override
+    public int onStartCommand(Intent intent, int flags, int startId) {
+        String action = intent == null ? ACTION_START : intent.getAction();
+        if (ACTION_STOP.equals(action)) {
+            stopTunnel(true);
+            return START_NOT_STICKY;
+        }
+        if (tunnel != null) {
+            nativeVpnTunnelEstablished(tunnel.getFd());
+            return START_NOT_STICKY;
+        }
+        establishTunnel();
+        return START_NOT_STICKY;
+    }
+
+    private void establishTunnel() {
+        try {
+            Builder builder = new Builder()
+                    .setSession("Lumen")
+                    .setMtu(1500)
+                    .addAddress("172.19.0.1", 30)
+                    .addRoute("0.0.0.0", 0)
+                    .addDnsServer("198.18.0.1")
+                    .addAddress("fdfe:dcba:9876::1", 126)
+                    .addRoute("::", 0);
+
+            // Mihomo and the Rust TUN-to-SOCKS worker share this UID. Their
+            // upstream sockets must stay on the underlying network to avoid a loop.
+            builder.addDisallowedApplication(getPackageName());
+
+            tunnel = builder.establish();
+            if (tunnel == null) {
+                throw new IllegalStateException("Android 未能建立 VPN 网络接口");
+            }
+            startForegroundCompat(createNotification());
+            nativeVpnTunnelEstablished(tunnel.getFd());
+        } catch (Exception error) {
+            closeTunnel();
+            stopForeground(true);
+            stopSelf();
+            nativeVpnTunnelFailed(safeMessage(error));
+        }
+    }
+
+    private void startForegroundCompat(Notification notification) {
+        if (Build.VERSION.SDK_INT >= 34) {
+            startForeground(
+                    NOTIFICATION_ID,
+                    notification,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_SYSTEM_EXEMPTED);
+        } else {
+            startForeground(NOTIFICATION_ID, notification);
+        }
+    }
+
+    private Notification createNotification() {
+        NotificationManager manager = getSystemService(NotificationManager.class);
+        if (Build.VERSION.SDK_INT >= 26 && manager != null) {
+            NotificationChannel channel = new NotificationChannel(
+                    CHANNEL_ID,
+                    "Lumen VPN",
+                    NotificationManager.IMPORTANCE_LOW);
+            channel.setDescription("显示 Lumen VPN 接管状态");
+            manager.createNotificationChannel(channel);
+        }
+
+        Intent launchIntent = getPackageManager().getLaunchIntentForPackage(getPackageName());
+        PendingIntent contentIntent = launchIntent == null ? null : PendingIntent.getActivity(
+                this,
+                NOTIFICATION_ID,
+                launchIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        Notification.Builder notification = Build.VERSION.SDK_INT >= 26
+                ? new Notification.Builder(this, CHANNEL_ID)
+                : new Notification.Builder(this);
+        notification
+                .setSmallIcon(android.R.drawable.ic_lock_lock)
+                .setContentTitle(englishNotifications ? "Lumen VPN is running" : "Lumen VPN 正在运行")
+                .setContentText(showTrafficRates
+                        ? "↓ " + downloadRate + "   ↑ " + uploadRate
+                        : englishNotifications
+                                ? "Traffic is routed through the current Mihomo profile"
+                                : "流量正在通过当前 Mihomo 配置处理")
+                .setOngoing(true)
+                .setCategory(Notification.CATEGORY_SERVICE)
+                .setContentIntent(contentIntent);
+        return notification.build();
+    }
+
+    @Override
+    public void onRevoke() {
+        stopTunnel(false);
+        super.onRevoke();
+    }
+
+    @Override
+    public void onDestroy() {
+        boolean unexpected = tunnel != null && !stopping;
+        closeTunnel();
+        stopForeground(true);
+        if (activeService == this) {
+            activeService = null;
+        }
+        super.onDestroy();
+        if (unexpected) {
+            nativeVpnServiceDisconnected("Android 已关闭 Lumen VPN 服务；Runtime 已停止");
+        }
+    }
+
+    private void stopTunnel(boolean userRequested) {
+        stopping = true;
+        closeTunnel();
+        stopForeground(true);
+        if (!userRequested) {
+            nativeVpnServiceDisconnected("Android VPN 授权已撤销；Runtime 已停止");
+        }
+        stopSelf();
+    }
+
+    private void closeTunnel() {
+        ParcelFileDescriptor current = tunnel;
+        tunnel = null;
+        if (current != null) {
+            try {
+                current.close();
+            } catch (Exception ignored) {
+                // The system may already have closed the interface during revoke.
+            }
+        }
+    }
+
+    private static String safeMessage(Exception error) {
+        String message = error.getMessage();
+        return message == null || message.isEmpty() ? "Android VPN 服务启动失败" : message;
+    }
+
+    private static native void nativeVpnTunnelEstablished(int fd);
+    private static native void nativeVpnTunnelFailed(String reason);
+    private static native void nativeVpnServiceDisconnected(String reason);
+}

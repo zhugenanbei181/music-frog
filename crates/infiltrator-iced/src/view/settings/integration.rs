@@ -11,7 +11,7 @@ use crate::view::component_forms::{
     responsive_form_toggle_row, row_card_surface, style_accent, style_danger, style_ghost,
     text_btn,
 };
-use crate::view::components::{BadgeKind, badge, kbd_badge, segmented_control, status_dot};
+use crate::view::components::{BadgeKind, badge, kbd_badge, status_dot};
 use crate::view::svg_icons::{Icon, icon_themed};
 use crate::view::theme;
 use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
@@ -40,13 +40,6 @@ pub(super) const CORE_CHANNEL_OPTIONS: &[SettingsChoice] = &[
     SettingsChoice { value: "alpha" },
     SettingsChoice { value: "meta-core" },
 ];
-pub(super) const CORE_LOG_LEVEL_OPTIONS: &[SettingsChoice] = &[
-    SettingsChoice { value: "debug" },
-    SettingsChoice { value: "info" },
-    SettingsChoice { value: "warn" },
-    SettingsChoice { value: "error" },
-];
-
 pub(super) fn secondary_text(value: impl Into<String>) -> Element<'static, Message> {
     text(value.into())
         .size(12)
@@ -214,10 +207,6 @@ pub(super) fn system_proxy_card<'a>(
     _is_en: bool,
 ) -> Element<'a, Message> {
     const DEFAULT_BYPASS: &str = "localhost;127.*;10.*;192.168.*;*.lan";
-    let proxy_mode_options = vec![
-        lang.tr("settings_mode_manual").to_string(),
-        "PAC".to_string(),
-    ];
     let port_status = format_port_conflicts(&state.runtime.port_conflicts, lang.0);
 
     card(
@@ -246,16 +235,6 @@ pub(super) fn system_proxy_card<'a>(
                     .style(|t: &Theme| text::Style {
                         color: Some(tokens(t).text_primary)
                     }),
-            ]
-            .align_y(Alignment::Center),
-            row![
-                text(lang.tr("settings_proxy_mode").to_string())
-                    .size(13)
-                    .style(|t: &Theme| text::Style {
-                        color: Some(tokens(t).text_primary)
-                    }),
-                Space::new().width(Length::Fill),
-                segmented_control(&proxy_mode_options, 0, |_| Message::Noop),
             ]
             .align_y(Alignment::Center),
             row![

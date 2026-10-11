@@ -95,7 +95,6 @@ pub(super) fn translate_en_legacy(key: &str) -> Cow<'static, str> {
         "sub_update_done" => "Update Completed".into(),
         "sub_update_summary" => "Success {0}, Failed {1}, Skipped {2}".into(),
         "switch_proxy_failed" => "Switch Proxy Failed".into(),
-        "switch_mode_failed" => "Switch Mode Failed".into(),
         "switch_profile_failed" => "Switch Profile Failed".into(),
         "toggle_autostart_failed" => "Toggle Autostart Failed".into(),
         "autostart_need_admin" => "Autostart requires admin privilege".into(),
@@ -112,9 +111,6 @@ pub(super) fn translate_en_legacy(key: &str) -> Cow<'static, str> {
         "tray_show_window" => "Show Main Window".into(),
         "tray_quit" => "Quit".into(),
         "tray_toggle_theme" => "Toggle Light/Dark".into(),
-        "tray_mode" => "Proxy Mode".into(),
-        "tray_mode_script" => "Script Mode".into(),
-        "tray_mode_script_unavailable" => "Script Mode (not enabled)".into(),
         "tray_proxies" => "Nodes".into(),
         "tray_no_proxies" => "No nodes (start the core first)".into(),
         "tray_profiles" => "Profiles".into(),
@@ -142,7 +138,6 @@ pub(super) fn translate_en_legacy(key: &str) -> Cow<'static, str> {
         "tray_sync_settings" => "Sync Settings…".into(),
         "tray_autostart" => "Launch at Login".into(),
         "tray_info" => "Info".into(),
-        "tray_info_mode" => "Mode".into(),
         "tray_info_status" => "Status".into(),
         "tray_status_running" => "Running".into(),
         "tray_status_stopped" => "Stopped".into(),
@@ -167,9 +162,6 @@ pub(super) fn translate_en_legacy(key: &str) -> Cow<'static, str> {
         // --- 0.20 boot retry + port rotation / script mode gate ---
         "toast_port_rotated" => "Controller port busy, switched to".into(),
         "toast_boot_failed_ports" => "Startup failed (tried controller ports".into(),
-        "toast_script_mode_unavailable" => {
-            "The current profile has no script block; cannot switch to Script Mode".into()
-        }
         "update_all_none" => "No subscriptions to update".into(),
         _ => key.to_string().into(),
     }

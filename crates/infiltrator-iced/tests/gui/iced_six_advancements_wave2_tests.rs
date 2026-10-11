@@ -1,6 +1,6 @@
 //! High-fidelity verification tests for Wave 2 of the 6 Iced Core Maturity Advancements.
 //!
-//! Complies strictly with docs/TEST_GOVERNANCE.md (Zero-Tautology Rule):
+//! Complies strictly with TESTING.md zero-tautology assertion rule:
 //! Every assertion validates concrete business contracts, state transitions,
 //! exact string/integer values, and mathematical invariants.
 
@@ -28,7 +28,10 @@ fn test_advancement_w2_1_dns_leak_cross_source_probe_lifecycle() {
     let (mut state, _) = AppState::new();
 
     // Default state: no report, no readiness, no verdict.
-    assert!(!state.diag.is_probing_dns_leak);
+    assert!(matches!(
+        &state.diag.dns_leak_action.phase,
+        infiltrator_application::dns_leak_actions::DnsLeakActionPhase::Idle
+    ));
     assert!(!state.editor.dns_leak.status.is_ready());
     assert_eq!(
         state.editor.dns_leak.conclusion(),
@@ -37,7 +40,22 @@ fn test_advancement_w2_1_dns_leak_cross_source_probe_lifecycle() {
 
     // Trigger without a host runtime: nothing is invented.
     let _ = state.update(Message::RunDnsLeakProbe);
-    assert!(!state.diag.is_probing_dns_leak);
+    let first_token = match &state.diag.dns_leak_action.phase {
+        infiltrator_application::dns_leak_actions::DnsLeakActionPhase::Pending { token } => *token,
+        phase => panic!("probe must enter its typed pending phase: {phase:?}"),
+    };
+    let _ = state.update(Message::DnsLeakProbed {
+        token: first_token,
+        result: Err(infiltrator_contract::error::Failure::new(
+            infiltrator_contract::error::ErrorCode::NotReady,
+            "DNS probe runtime is unavailable",
+            true,
+        )),
+    });
+    assert!(matches!(
+        &state.diag.dns_leak_action.phase,
+        infiltrator_application::dns_leak_actions::DnsLeakActionPhase::Failed { .. }
+    ));
     assert!(state.editor.dns_leak.observations.is_empty());
 
     // A real shared report lands verbatim; a divergent result lists the facts.
@@ -60,8 +78,19 @@ fn test_advancement_w2_1_dns_leak_cross_source_probe_lifecycle() {
             observation("b.echo.example.org", "198.51.100.7"),
         ],
     );
-    let _ = state.update(Message::DnsLeakProbed(Ok(report.clone())));
-    assert!(!state.diag.is_probing_dns_leak);
+    let _ = state.update(Message::RetryDnsLeakProbe);
+    let report_token = match &state.diag.dns_leak_action.phase {
+        infiltrator_application::dns_leak_actions::DnsLeakActionPhase::Pending { token } => *token,
+        phase => panic!("retry must enter its typed pending phase: {phase:?}"),
+    };
+    let _ = state.update(Message::DnsLeakProbed {
+        token: report_token,
+        result: Ok(report.clone()),
+    });
+    assert!(matches!(
+        &state.diag.dns_leak_action.phase,
+        infiltrator_application::dns_leak_actions::DnsLeakActionPhase::Idle
+    ));
     assert_eq!(state.editor.dns_leak, report);
     let conclusion = state.editor.dns_leak.conclusion();
     assert!(conclusion.is_divergent());
@@ -72,7 +101,15 @@ fn test_advancement_w2_1_dns_leak_cross_source_probe_lifecycle() {
 
     // A typed refusal is surfaced as such, never dressed as a verdict.
     let unsupported = DnsLeakReport::unsupported("no echo authority is configured");
-    let _ = state.update(Message::DnsLeakProbed(Ok(unsupported.clone())));
+    let _ = state.update(Message::RunDnsLeakProbe);
+    let unsupported_token = match &state.diag.dns_leak_action.phase {
+        infiltrator_application::dns_leak_actions::DnsLeakActionPhase::Pending { token } => *token,
+        phase => panic!("probe must enter its typed pending phase: {phase:?}"),
+    };
+    let _ = state.update(Message::DnsLeakProbed {
+        token: unsupported_token,
+        result: Ok(unsupported.clone()),
+    });
     assert_eq!(state.editor.dns_leak, unsupported);
     assert!(!state.editor.dns_leak.conclusion().is_consistent());
     assert!(!state.editor.dns_leak.conclusion().is_divergent());

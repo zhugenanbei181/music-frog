@@ -7,9 +7,11 @@
 //! **Scene Adapters**: [`collapse_scene`] and [`accordion_scene`] build declarative
 //! card sections with animated disclosure chevrons and token surface chrome.
 
+use crate::feathers_theme::Token;
 use crate::icon::IconId;
 use crate::icon_tile::icon_tile_scene;
 use crate::palette::UiPalette;
+use crate::palette::rem;
 use crate::text::{Role, TextRole};
 use crate::theme::space;
 use bevy::color::Color;
@@ -19,11 +21,11 @@ use bevy::ecs::hierarchy::Children;
 use bevy::ecs::message::{Message, MessageReader};
 use bevy::ecs::query::Changed;
 use bevy::ecs::system::Query;
+use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::{Scene, bsn};
 use bevy::ui::BorderColor;
 use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderRadius, Display, FlexDirection, JustifyContent, Node,
-    UiRect, Val, percent, px,
+    AlignItems, BorderRadius, Display, FlexDirection, JustifyContent, Node, UiRect, Val, percent,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
@@ -186,17 +188,17 @@ pub fn collapse_scene(
                 width: percent(100),
                 flex_direction: FlexDirection::Column,
                 border: UiRect::all(Val::Px(palette.hairline_px)),
-                border_radius: BorderRadius::all(Val::Px(palette.card_radius_px)),
+                border_radius: BorderRadius::all(rem(palette.card_radius_px)),
             }
-            BackgroundColor({ palette.surface })
+            ThemeBackgroundColor({ Token::Surface })
             BorderColor { top: edge, right: edge, bottom: edge, left: edge }
             AccordionRoot
             AccordionStateComp(AccordionState::new(vec![(title.clone(), is_expanded)], AccordionMode::Multiple))
             Children [
                 Node {
                     width: percent(100),
-                    height: px(palette.control_height_px),
-                    padding: UiRect::horizontal(Val::Px(space::S12)),
+                    height: rem(palette.control_height_px),
+                    padding: UiRect::horizontal(rem(space::S12)),
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::SpaceBetween,
                 }
@@ -210,7 +212,7 @@ pub fn collapse_scene(
                 --
                 Node {
                     width: percent(100),
-                    padding: UiRect::all(Val::Px(space::S12)),
+                    padding: UiRect::all(rem(space::S12)),
                     display: body_display,
                 }
                 AccordionContent(0)
@@ -257,8 +259,8 @@ pub fn accordion_scene(
                             Children [
                                 Node {
                                     width: percent(100),
-                                    height: px(palette.control_height_px),
-                                    padding: UiRect::horizontal(Val::Px(space::S12)),
+                                    height: rem(palette.control_height_px),
+                                    padding: UiRect::horizontal(rem(space::S12)),
                                     align_items: AlignItems::Center,
                                     justify_content: JustifyContent::SpaceBetween,
                                 }
@@ -272,7 +274,7 @@ pub fn accordion_scene(
                                 --
                                 Node {
                                     width: percent(100),
-                                    padding: UiRect::all(Val::Px(space::S12)),
+                                    padding: UiRect::all(rem(space::S12)),
                                     display: body_display,
                                 }
                                 AccordionContent(idx)
@@ -289,9 +291,9 @@ pub fn accordion_scene(
                 width: percent(100),
                 flex_direction: FlexDirection::Column,
                 border: UiRect::all(Val::Px(palette.hairline_px)),
-                border_radius: BorderRadius::all(Val::Px(palette.card_radius_px)),
+                border_radius: BorderRadius::all(rem(palette.card_radius_px)),
             }
-            BackgroundColor({ palette.surface })
+            ThemeBackgroundColor({ Token::Surface })
             BorderColor { top: edge, right: edge, bottom: edge, left: edge }
             AccordionRoot
             AccordionStateComp(AccordionState::new(state_seed, AccordionMode::Single))

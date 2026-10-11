@@ -4,9 +4,21 @@
 //! Scenes read it as a `Res<UiPalette>`; nothing else in this crate (or in
 //! the frontend crate) is allowed to construct a `Color` from raw numbers.
 
-use crate::theme::{Theme, TokenColor, metrics, radius, timing, type_scale};
+use crate::theme::{REM_BASE, Theme, TokenColor, metrics, radius, timing, type_scale};
 use bevy::color::{Alpha, Color};
 use bevy::ecs::resource::Resource;
+use bevy::ui::{Val, ValNum};
+
+/// Convert a baseline-pixel dimension into a `Val::Rem` so it scales with
+/// the root font size (`RemSize`). This is the ONLY sanctioned way to turn a
+/// dimension token into a bevy value: `px(...)` is reserved for the runtime
+/// measured values and the hairline/caret/touch-floor whitelist documented in
+/// `crates/infiltrator-bevy-ui/docs/BEVY_020_UI_CAPABILITIES.md` ①. Mirrors
+/// bevy's own `rem()` ergonomics (integer and float literals both accepted);
+/// the division by [`REM_BASE`] is what makes the value baseline-relative.
+pub fn rem<T: ValNum>(px_at_baseline: T) -> Val {
+    Val::Rem(px_at_baseline.val_num_f32() / REM_BASE)
+}
 
 /// Resolve one token to a bevy color, channel-exact (asserted by the
 /// headless round-trip test).

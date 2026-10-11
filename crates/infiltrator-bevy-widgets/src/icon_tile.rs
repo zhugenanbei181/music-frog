@@ -10,6 +10,7 @@
 
 use crate::icon::{IconId, IconTint, icon_scene};
 use crate::palette::UiPalette;
+use crate::palette::rem;
 use crate::theme::radius;
 use bevy::color::Color;
 use bevy::ecs::component::Component;
@@ -17,7 +18,7 @@ use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::system::{Query, Res};
 use bevy::scene::{Scene, bsn};
-use bevy::ui::prelude::{AlignItems, BackgroundColor, BorderRadius, JustifyContent, Node, Val, px};
+use bevy::ui::prelude::{AlignItems, BackgroundColor, BorderRadius, JustifyContent, Node, px};
 
 /// Marker on the tile root; [`sync_icon_tile_visuals`] re-projects its fill
 /// and its icon child's tint from the live palette.
@@ -48,7 +49,7 @@ pub fn icon_tile_scene(icon: IconId, size_px: f32, palette: &UiPalette) -> impl 
                 flex_shrink: 0.0,
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
-                border_radius: BorderRadius::all(Val::Px(radius::CONTROL)),
+                border_radius: BorderRadius::all(rem(radius::CONTROL)),
             }
             BackgroundColor({ icon_tile_fill(palette) })
             IconTile

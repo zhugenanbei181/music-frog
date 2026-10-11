@@ -16,16 +16,17 @@ use bevy::ecs::observer::On;
 use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
+use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::{Scene, bsn};
-use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, FlexDirection, JustifyContent, Node, UiRect, Val, percent, px,
-};
+use bevy::ui::prelude::{AlignItems, FlexDirection, JustifyContent, Node, UiRect, percent};
 use bevy::ui::widget::Text;
 use bevy::ui::{BorderRadius, Checked};
 use bevy::ui_widgets::{Activate, Button, ValueChange};
 use infiltrator_application::settings_status_projection::format_lan_auth;
+use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::text_input::state::{TextFieldInput, TextFieldState};
@@ -111,7 +112,7 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
             Box::new(bsn! {
                             Node {
                                 width: percent(100),
-                                padding: UiRect::bottom(Val::Px(space::S8)),
+                                padding: UiRect::bottom(rem(space::S8)),
                             }
                             Children [
                                 LocalizedText::plain("settings_allow_lan_title") TextRole(Role::BodyStrong)
@@ -121,12 +122,12 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                             Node {
                                 width: percent(100),
                                 flex_direction: FlexDirection::Column,
-                                row_gap: Val::Px(space::S8),
+                                row_gap: rem(space::S8),
                             }
                             Children [
                                 Node {
                                     width: percent(100),
-                                    padding: UiRect::horizontal(Val::Px(space::S4)),
+                                    padding: UiRect::horizontal(rem(space::S4)),
                                 }
                                 LanSharingToggle
                                 Children [
@@ -137,14 +138,14 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                                     width: percent(100),
                                     align_items: AlignItems::Center,
                                     justify_content: JustifyContent::SpaceBetween,
-                                    padding: UiRect::all(Val::Px(space::S8)),
-                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                    padding: UiRect::all(rem(space::S8)),
+                                    border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                                 }
-                                BackgroundColor({ palette.surface_elevated })
+                                ThemeBackgroundColor({ Token::SurfaceElevated })
                                 Children [
                                     LocalizedText::plain("settings_mixed_port_label") TextRole(Role::Body)
                                     --
-                                    Node { width: px(180.0) }
+                                    Node { width: rem(180.0) }
                                     LanMixedPortField
                                     Children [
                                         @{ text_field_with_placeholder_scene(mixed_port.clone(), "7890".to_owned(), palette) } LanFieldBaseline({ mixed_port.clone() })
@@ -155,14 +156,14 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                                     width: percent(100),
                                     align_items: AlignItems::Center,
                                     justify_content: JustifyContent::SpaceBetween,
-                                    padding: UiRect::all(Val::Px(space::S8)),
-                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                    padding: UiRect::all(rem(space::S8)),
+                                    border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                                 }
-                                BackgroundColor({ palette.surface_elevated })
+                                ThemeBackgroundColor({ Token::SurfaceElevated })
                                 Children [
                                     LocalizedText::plain("settings_bind_address_label") TextRole(Role::Body)
                                     --
-                                    Node { width: px(300.0) }
+                                    Node { width: rem(300.0) }
                                     LanBindAddressField
                                     Children [
                                         @{ text_field_with_placeholder_scene(bind_address.clone(), "* / 192.168.1.10 / [::1]".to_owned(), palette) } LanFieldBaseline({ bind_address.clone() })
@@ -173,7 +174,7 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                                     width: percent(100),
                                     align_items: AlignItems::Center,
                                     justify_content: JustifyContent::SpaceBetween,
-                                    padding: UiRect::all(Val::Px(space::S8)),
+                                    padding: UiRect::all(rem(space::S8)),
                                 }
                                 Children [
                                     LocalizedText::plain("settings_current_bind_label") TextRole(Role::Caption)
@@ -181,13 +182,13 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                                     Text({ bind_address.clone() }) SettingsLine(SettingsLineKind::LanBindAddress) TextRole(Role::Mono)
                                     --
                                     Node {
-                                        min_height: px(palette.control_height_px),
-                                        padding: UiRect::horizontal(Val::Px(space::S12)),
+                                        min_height: rem(palette.control_height_px),
+                                        padding: UiRect::horizontal(rem(space::S12)),
                                         align_items: AlignItems::Center,
                                         justify_content: JustifyContent::Center,
-                                        border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                        border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                                     }
-                                    BackgroundColor({ palette.accent })
+                                    ThemeBackgroundColor({ Token::Accent })
                                     LanSharingApplyButton
                                     Button
                                     Children [
@@ -197,7 +198,7 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                                 --
                                 Node {
                                     width: percent(100),
-                                    padding: UiRect::top(Val::Px(space::S8)),
+                                    padding: UiRect::top(rem(space::S8)),
                                 }
                                 Children [
                                     LocalizedText::plain("settings_lan_access_control_title") TextRole(Role::BodyStrong)
@@ -207,14 +208,14 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                                     width: percent(100),
                                     align_items: AlignItems::Center,
                                     justify_content: JustifyContent::SpaceBetween,
-                                    padding: UiRect::all(Val::Px(space::S8)),
-                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                    padding: UiRect::all(rem(space::S8)),
+                                    border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                                 }
-                                BackgroundColor({ palette.surface_elevated })
+                                ThemeBackgroundColor({ Token::SurfaceElevated })
                                 Children [
                                     LocalizedText::plain("settings_allowed_cidr_label") TextRole(Role::Body)
                                     --
-                                    Node { width: px(360.0) }
+                                    Node { width: rem(360.0) }
                                     LanAllowedIpsField
                                     Children [
                                         @{ text_field_with_placeholder_scene(allowed_ips.clone(), "192.168.0.0/16, 10.0.0.0/8".to_owned(), palette) } LanFieldBaseline({ allowed_ips.clone() })
@@ -225,14 +226,14 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                                     width: percent(100),
                                     align_items: AlignItems::Center,
                                     justify_content: JustifyContent::SpaceBetween,
-                                    padding: UiRect::all(Val::Px(space::S8)),
-                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                    padding: UiRect::all(rem(space::S8)),
+                                    border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                                 }
-                                BackgroundColor({ palette.surface_elevated })
+                                ThemeBackgroundColor({ Token::SurfaceElevated })
                                 Children [
                                     LocalizedText::plain("settings_denied_cidr_label") TextRole(Role::Body)
                                     --
-                                    Node { width: px(360.0) }
+                                    Node { width: rem(360.0) }
                                     LanDisallowedIpsField
                                     Children [
                                         @{ text_field_with_placeholder_scene(disallowed_ips.clone(), "192.168.1.10/32".to_owned(), palette) } LanFieldBaseline({ disallowed_ips.clone() })
@@ -243,14 +244,14 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                                     width: percent(100),
                                     align_items: AlignItems::Center,
                                     justify_content: JustifyContent::SpaceBetween,
-                                    padding: UiRect::all(Val::Px(space::S8)),
-                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                    padding: UiRect::all(rem(space::S8)),
+                                    border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                                 }
-                                BackgroundColor({ palette.surface_elevated })
+                                ThemeBackgroundColor({ Token::SurfaceElevated })
                                 Children [
                                     LocalizedText::plain("settings_skip_auth_cidr_label") TextRole(Role::Body)
                                     --
-                                    Node { width: px(360.0) }
+                                    Node { width: rem(360.0) }
                                     LanSkipAuthPrefixesField
                                     Children [
                                         @{ text_field_with_placeholder_scene(skip_auth_prefixes.clone(), "127.0.0.0/8, ::1/128".to_owned(), palette) } LanFieldBaseline({ skip_auth_prefixes.clone() })
@@ -261,7 +262,7 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                                     width: percent(100),
                                     align_items: AlignItems::Center,
                                     justify_content: JustifyContent::SpaceBetween,
-                                    padding: UiRect::all(Val::Px(space::S8)),
+                                    padding: UiRect::all(rem(space::S8)),
                                 }
                                 LanAuthenticationToggle
                                 Children [
@@ -274,14 +275,14 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                                     width: percent(100),
                                     align_items: AlignItems::Center,
                                     justify_content: JustifyContent::SpaceBetween,
-                                    padding: UiRect::all(Val::Px(space::S8)),
-                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                    padding: UiRect::all(rem(space::S8)),
+                                    border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                                 }
-                                BackgroundColor({ palette.surface_elevated })
+                                ThemeBackgroundColor({ Token::SurfaceElevated })
                                 Children [
                                     LocalizedText::plain("settings_auth_username_label") TextRole(Role::Body)
                                     --
-                                    Node { width: px(240.0) }
+                                    Node { width: rem(240.0) }
                                     LanAuthUsernameField
                                     Children [
                                         @{ text_field_with_placeholder_scene(auth_username.clone(), "musicfrog".to_owned(), palette) } LanFieldBaseline({ auth_username.clone() })
@@ -292,14 +293,14 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                                     width: percent(100),
                                     align_items: AlignItems::Center,
                                     justify_content: JustifyContent::SpaceBetween,
-                                    padding: UiRect::all(Val::Px(space::S8)),
-                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                    padding: UiRect::all(rem(space::S8)),
+                                    border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                                 }
-                                BackgroundColor({ palette.surface_elevated })
+                                ThemeBackgroundColor({ Token::SurfaceElevated })
                                 Children [
                                     LocalizedText::plain("settings_auth_password_label") TextRole(Role::Body)
                                     --
-                                    Node { width: px(240.0) }
+                                    Node { width: rem(240.0) }
                                     LanAuthPasswordField
                                     Children [
                                         @{ password_field_scene(String::new(), "Apply to set password".to_owned(), palette) }
@@ -310,17 +311,17 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                                     width: percent(100),
                                     align_items: AlignItems::Center,
                                     justify_content: JustifyContent::FlexEnd,
-                                    padding: UiRect::all(Val::Px(space::S8)),
+                                    padding: UiRect::all(rem(space::S8)),
                                 }
                                 Children [
                                     Node {
-                                        min_height: px(palette.control_height_px),
-                                        padding: UiRect::horizontal(Val::Px(space::S12)),
+                                        min_height: rem(palette.control_height_px),
+                                        padding: UiRect::horizontal(rem(space::S12)),
                                         align_items: AlignItems::Center,
                                         justify_content: JustifyContent::Center,
-                                        border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                        border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                                     }
-                                    BackgroundColor({ palette.accent })
+                                    ThemeBackgroundColor({ Token::Accent })
                                     LanSecurityApplyButton
                                     Button
                                     Children [

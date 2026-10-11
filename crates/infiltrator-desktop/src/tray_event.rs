@@ -1,4 +1,7 @@
 use anyhow::{Context, Result};
+use infiltrator_contract::routing_intent::{
+    RoutingIntent, RoutingIntentSnapshot, RoutingIntentStatus,
+};
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 
@@ -6,7 +9,7 @@ use tokio::sync::mpsc;
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum TrayMenuAction {
     ToggleProxy(bool),
-    SwitchMode(String),
+    SetRoutingIntent(RoutingIntent),
     SelectProfile(String),
     OpenMainWindow,
     ShowDiagnostics,
@@ -17,7 +20,7 @@ pub enum TrayMenuAction {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct TrayStateSnapshot {
     pub is_proxy_enabled: bool,
-    pub current_mode: String,
+    pub routing_intent: RoutingIntentSnapshot,
     pub active_profile: String,
     pub window_visible: bool,
     pub speed_display: String,
@@ -51,9 +54,10 @@ impl TrayEventDispatcher {
         } else {
             "Disabled"
         };
+        let routing_intent = routing_intent_label(&snapshot.routing_intent);
         format!(
-            "Status: {}\nMode: {}\nProfile: {}\nSpeed: {}",
-            status, snapshot.current_mode, snapshot.active_profile, snapshot.speed_display
+            "Status: {}\nRouting: {}\nProfile: {}\nSpeed: {}",
+            status, routing_intent, snapshot.active_profile, snapshot.speed_display
         )
     }
 
@@ -65,11 +69,39 @@ impl TrayEventDispatcher {
                 let verb = if *enable { "Enable" } else { "Disable" };
                 format!("{} Proxy", verb)
             }
-            TrayMenuAction::SwitchMode(mode) => format!("Mode: {}{}", mode, check),
+            TrayMenuAction::SetRoutingIntent(intent) => {
+                format!("Routing: {}{}", routing_intent_name(intent), check)
+            }
             TrayMenuAction::SelectProfile(profile) => format!("Profile: {}{}", profile, check),
             TrayMenuAction::OpenMainWindow => "Open Dashboard".to_string(),
             TrayMenuAction::ShowDiagnostics => "Diagnostics".to_string(),
             TrayMenuAction::QuitApp => "Quit".to_string(),
+        }
+    }
+}
+
+fn routing_intent_label(snapshot: &RoutingIntentSnapshot) -> String {
+    let value = snapshot
+        .current
+        .as_ref()
+        .map(routing_intent_name)
+        .unwrap_or_else(|| "Unknown".to_string());
+    match snapshot.status {
+        RoutingIntentStatus::Ready => value,
+        RoutingIntentStatus::Pending => format!("{} (pending)", value),
+        RoutingIntentStatus::Unsupported => "Unsupported".to_string(),
+        RoutingIntentStatus::Failed => "Unavailable".to_string(),
+        RoutingIntentStatus::Unobserved => "Unknown".to_string(),
+    }
+}
+
+fn routing_intent_name(intent: &RoutingIntent) -> String {
+    match intent {
+        RoutingIntent::FollowRules => "Follow rules".to_string(),
+        RoutingIntent::RouteAllThroughProxy => "Route all through proxy".to_string(),
+        RoutingIntent::BypassProxy => "Bypass proxy".to_string(),
+        RoutingIntent::EngineDefined(extension) => {
+            format!("Engine policy ({})", extension.extension_id().as_str())
         }
     }
 }
@@ -108,7 +140,11 @@ mod tests {
     fn test_format_tooltip() {
         let snapshot = TrayStateSnapshot {
             is_proxy_enabled: true,
-            current_mode: "Global".to_string(),
+            routing_intent: RoutingIntentSnapshot {
+                current: Some(RoutingIntent::RouteAllThroughProxy),
+                status: RoutingIntentStatus::Ready,
+                failure: None,
+            },
             active_profile: "US-West".to_string(),
             window_visible: false,
             speed_display: "1.2 MB/s".to_string(),
@@ -116,7 +152,7 @@ mod tests {
         let tooltip = TrayEventDispatcher::format_tooltip(&snapshot);
         assert_eq!(
             tooltip,
-            "Status: Enabled\nMode: Global\nProfile: US-West\nSpeed: 1.2 MB/s"
+            "Status: Enabled\nRouting: Route all through proxy\nProfile: US-West\nSpeed: 1.2 MB/s"
         );
 
         let snapshot_disabled = TrayStateSnapshot {
@@ -139,10 +175,10 @@ mod tests {
         );
         assert_eq!(
             TrayEventDispatcher::format_menu_item_label(
-                &TrayMenuAction::SwitchMode("PAC".to_string()),
+                &TrayMenuAction::SetRoutingIntent(RoutingIntent::BypassProxy),
                 true
             ),
-            "Mode: PAC [x]"
+            "Routing: Bypass proxy [x]"
         );
         assert_eq!(
             TrayEventDispatcher::format_menu_item_label(
@@ -170,10 +206,10 @@ mod tests {
         let (dispatcher, mut receiver) = TrayEventDispatcher::new(100);
         let mut handles = vec![];
 
-        for i in 0..10 {
+        for _ in 0..10 {
             let d = dispatcher.clone();
             handles.push(thread::spawn(move || {
-                let _ = d.dispatch(TrayMenuAction::SwitchMode(format!("Mode-{}", i)));
+                let _ = d.dispatch(TrayMenuAction::SetRoutingIntent(RoutingIntent::FollowRules));
             }));
         }
 

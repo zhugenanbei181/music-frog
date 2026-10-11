@@ -1,21 +1,23 @@
 //! test-intent: behavior
 //! Native observers, production command pump, actual coherent reader and persisted results.
+use crate::command_harness::{
+    HostlessProcess, IdentifiedHostlessProcess, test_command_application,
+};
 use crate::native_input::{click_entity, replace_text};
-use crate::support::headless_plugins;
+use crate::support::{
+    command_pump_for_observed_snapshot, execute_at_observed_scope, headless_plugins,
+};
 use bevy::app::App;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ui_widgets::ButtonPlugin;
-use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::filter_capture_store::{
     FILTER_POLICY, FILTER_PROFILE, FilterCaptureStore,
 };
-use infiltrator_application::language_choice_fixtures::LanguageCaptureProcess;
 use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::surface_reader::ApplicationSurfaceReader;
 use infiltrator_bevy_ui::app::ShellPlugin;
-use infiltrator_bevy_ui::command::CommandPumpPlugin;
 use infiltrator_bevy_ui::pages::profiles_editor_filter::{EditorFilterDiscard, EditorFilterText};
 use infiltrator_bevy_ui::pages::profiles_editor_panes::{
     EditorFilterSaveButton, ProfileEditorOptionsState, ProfileEditorPane, ProfileEditorPaneButton,
@@ -24,6 +26,7 @@ use infiltrator_bevy_ui::route::{PagesPlugin, Route, RouteChanged};
 use infiltrator_bevy_ui::surface::{LatestSurfaceSnapshot, SurfaceSnapshotUpdated};
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::command::CommandIntent;
+use infiltrator_contract::core_capabilities::{CoreOperation, ProfileOperation};
 use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::subscription_filter_form::FilterField;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
@@ -88,23 +91,30 @@ fn wait_terminal(app: &mut App) {
 fn setup() -> (App, ApplicationSurfaceReader, Arc<FilterCaptureStore>) {
     let store = Arc::new(FilterCaptureStore::default());
     let core = Arc::new(CoreApplication::new(
-        Arc::new(LanguageCaptureProcess),
-        Arc::new(LanguageCaptureProcess),
+        Arc::new(IdentifiedHostlessProcess),
+        Arc::new(HostlessProcess),
         tokio_application_runtime().unwrap(),
     ));
     let profiles = ProfileApplication::new(store.clone());
     core.install_command_handler(Arc::new(
-        CommandApplication::new().with_profile(profiles.clone()),
+        test_command_application([CoreOperation::Profile(ProfileOperation::ApplyFeature)])
+            .with_profile(profiles.clone()),
     ));
-    block_on(core.execute(CommandIntent::LoadProfileDocument {
-        profile: Some(FILTER_PROFILE.into()),
-    }))
+    block_on(execute_at_observed_scope(
+        &core,
+        CommandIntent::LoadProfileDocument {
+            profile: Some(FILTER_PROFILE.into()),
+        },
+    ))
     .into_output()
     .and_then(|output| output.into_profile_document())
     .unwrap();
-    block_on(core.execute(CommandIntent::LoadProfileOptions {
-        profile: Some(FILTER_PROFILE.into()),
-    }))
+    block_on(execute_at_observed_scope(
+        &core,
+        CommandIntent::LoadProfileOptions {
+            profile: Some(FILTER_PROFILE.into()),
+        },
+    ))
     .into_output()
     .unwrap()
     .into_profile_options()
@@ -118,7 +128,7 @@ fn setup() -> (App, ApplicationSurfaceReader, Arc<FilterCaptureStore>) {
         ButtonPlugin,
         ShellPlugin::default(),
         PagesPlugin::default(),
-        CommandPumpPlugin::for_application(core),
+        command_pump_for_observed_snapshot(core),
     ));
     app.update();
     app.world_mut().trigger(RouteChanged(Route::Profiles));
@@ -179,8 +189,9 @@ fn native_filter_transaction_reads_actual_policy_cancels_then_denies_retries_and
     assert!(editor.failure.is_none());
     assert_eq!(store.writes.load(Ordering::SeqCst), 1);
     let saved = store.observed();
-    assert!(saved.content.contains("HK-public"));
-    assert!(!saved.content.contains("HK-private"));
+    let saved_document = saved.document.utf8_text().unwrap();
+    assert!(saved_document.contains("HK-public"));
+    assert!(!saved_document.contains("HK-private"));
     publish(&mut app, &reader);
     assert!(
         app.world()

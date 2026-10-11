@@ -1,0 +1,1431 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: MusicFrog\n"
+"PO-Revision-Date: 2026-10-11 00:00+0000\n"
+"Last-Translator: MusicFrog contributors\n"
+"Language-Team: English\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: en\n"
+"MIME-Version: 1.0\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgid "日均上传"
+msgstr "Avg. upload"
+
+msgid "上传"
+msgstr "Upload"
+
+msgid "上传 "
+msgstr "Upload "
+
+msgid "下载"
+msgstr "Download"
+
+msgid "下载 "
+msgstr "Download "
+
+msgid " 个配置"
+msgstr " profiles"
+
+msgid " 项"
+msgstr " items"
+
+msgid "✓ 本周"
+msgstr "✓ This week"
+
+msgid "✓ 活动中"
+msgstr "✓ Active"
+
+msgid "✓ 今日"
+msgstr "✓ Today"
+
+msgid "✓ 已关闭"
+msgstr "✓ Closed"
+
+msgid "85%–115% · 以逻辑尺寸缩放文字、图标、间距和控件"
+msgstr "85%–115% · Scales text, icons, spacing, and controls"
+
+msgid "按本地时间从 Mihomo 累计计数差分；仅统计 MusicFrog 观察到的核心总流量，最多保留近 7 日。"
+msgstr "Uses Mihomo cumulative counters in local time; keeps up to 7 days of core-wide traffic observed by MusicFrog."
+
+msgid "按名称排序"
+msgstr "Sort by name"
+
+msgid "按延迟排序"
+msgstr "Sort by latency"
+
+msgid "按依赖名、版本或 SPDX 许可证标识搜索"
+msgstr "Search dependencies, versions, or SPDX license IDs"
+
+msgid "版本 0.1.0 · Mihomo "
+msgstr "Version 0.1.0 · Mihomo "
+
+msgid "版本与许可证"
+msgstr "Version and licenses"
+
+msgid "饱和度"
+msgstr "Saturation"
+
+msgid "保存"
+msgstr "Save"
+
+msgid "保存覆写"
+msgstr "Save override"
+
+msgid "保存设置"
+msgstr "Save settings"
+
+msgid "保存中…"
+msgstr "Saving…"
+
+msgid "本次运行  ↓ "
+msgstr "This session  ↓ "
+
+msgid "本次运行累计下载 "
+msgstr "Session total download "
+
+msgid "本地 Mihomo 活动连接；最多显示 500 条。"
+msgstr "Active Mihomo connections on this device; showing up to 500."
+
+msgid "本地来源："
+msgstr "Local source: "
+
+msgid "本地来源配置保持只读；名称可在此修改。"
+msgstr "Local source profiles are read-only; you can rename them here."
+
+msgid "本地配置来源以解密后的 YAML 保存，无需继续保留 Age 私钥。"
+msgstr "The decrypted YAML is stored locally; you do not need to keep the Age private key."
+
+msgid "本地文件"
+msgstr "Local file"
+
+msgid "本周"
+msgstr "This week"
+
+msgid "本周暂无统计数据；运行 Mihomo 后开始记录。"
+msgstr "No weekly statistics yet. Recording starts when Mihomo runs."
+
+msgid "编辑"
+msgstr "Edit"
+
+msgid "编辑配置"
+msgstr "Edit profile"
+
+msgid "编辑器打开"
+msgstr "Open editor"
+
+msgid "测试策略组全部节点"
+msgstr "Test all nodes in this proxy group"
+
+msgid "策略模式"
+msgstr "Routing mode"
+
+msgid "查看并管理活动连接"
+msgstr "View and manage active connections"
+
+msgid "查看第三方依赖许可"
+msgstr "View third-party dependency licenses"
+
+msgid "查看和临时启停规则"
+msgstr "View and temporarily enable or disable rules"
+
+msgid "查看今日和本周流量"
+msgstr "View today's and this week's traffic"
+
+msgid "查看流量统计"
+msgstr "View traffic statistics"
+
+msgid "出口 IP"
+msgstr "Exit IP"
+
+msgid "创建覆写"
+msgstr "Create override"
+
+msgid "此连接已从当前有界观测缓存中移除。返回列表刷新状态。"
+msgstr "This connection has left the bounded observation cache. Return to the list to refresh."
+
+msgid "从 PATH 运行 Mihomo；当前版本："
+msgstr "Runs Mihomo from PATH; current version: "
+
+msgid "从 YAML/YML 文件导入"
+msgstr "Import YAML/YML file"
+
+msgid "从链接导入"
+msgstr "Import from link"
+
+msgid "打断"
+msgstr "Close"
+
+msgid "打断连接"
+msgstr "Close connection"
+
+msgid "代理"
+msgstr "Proxy"
+
+msgid "代理节点旗帜图形使用 Twemoji，© Twitter, Inc. 和贡献者，CC BY 4.0。"
+msgstr "Proxy node flags use Twemoji, © Twitter, Inc. and contributors, CC BY 4.0."
+
+msgid "代理链路"
+msgstr "Proxy chain"
+
+msgid "代理模式"
+msgstr "Proxy mode"
+
+msgid "代理模式、核心与平台接管"
+msgstr "Proxy mode, core, and platform control"
+
+msgid "代理排序和操作"
+msgstr "Proxy sort and actions"
+
+msgid "代理提供者和规则提供者均来自核心回读。"
+msgstr "Proxy and rule providers are read back from Mihomo."
+
+msgid "代理组"
+msgstr "Proxy groups"
+
+msgid "当前比例："
+msgstr "Current scale: "
+
+msgid "当前地址："
+msgstr "Current address: "
+
+msgid "当前节点"
+msgstr "Current node"
+
+msgid "当前配置"
+msgstr "Current profile"
+
+msgid "当前配置未包含外部 Provider"
+msgstr "The current profile has no external providers."
+
+msgid "当前许可证清单为空"
+msgstr "The license catalog is empty."
+
+msgid "当前选择："
+msgstr "Current selection: "
+
+msgid "当前用户登录时启动 Lumen"
+msgstr "Start Lumen when this user signs in"
+
+msgid "当前主题色："
+msgstr "Current theme color: "
+
+msgid "当前组没有可选节点"
+msgstr "This group has no selectable nodes."
+
+msgid "导出"
+msgstr "Export"
+
+msgid "导出日志"
+msgstr "Export logs"
+
+msgid "导航"
+msgstr "Navigation"
+
+msgid "等待 Mihomo 日志流"
+msgstr "Waiting for Mihomo log stream"
+
+msgid "第三方依赖许可证"
+msgstr "Third-party licenses"
+
+msgid "电池优化无限制"
+msgstr "Unrestricted battery use"
+
+msgid "订阅或导入 YAML 配置后，可以选择当前配置并启动 Mihomo。"
+msgstr "Add a subscription or import a YAML profile, then select it to start Mihomo."
+
+msgid "订阅链接"
+msgstr "Subscription URL"
+
+msgid "订阅设置"
+msgstr "Profile settings"
+
+msgid "订阅信息"
+msgstr "Subscription details"
+
+msgid "定位当前节点"
+msgstr "Locate current node"
+
+msgid "定位当前节点与排序"
+msgstr "Locate current node and sort"
+
+msgid "二维码扫描尚未接入。请先使用订阅链接或本地文件。"
+msgstr "QR scanning is not available yet. Use a subscription URL or local file."
+
+msgid "反转语义文本颜色，保留强调色和状态色"
+msgstr "Swap semantic text tones while keeping accent and status colors"
+
+msgid "反转主题前景色"
+msgstr "Invert theme foreground"
+
+msgid "返回"
+msgstr "Back"
+
+msgid "返回关于"
+msgstr "Back to About"
+
+msgid "返回许可证列表"
+msgstr "Back to licenses"
+
+msgid "分享配置"
+msgstr "Share profile"
+
+msgid "分享配置文件"
+msgstr "Share profile file"
+
+msgid "服务"
+msgstr "Service"
+
+msgid "覆写"
+msgstr "Overrides"
+
+msgid "覆写配置"
+msgstr "Override configuration"
+
+msgid "跟随系统"
+msgstr "Follow system"
+
+msgid "更多"
+msgstr "More"
+
+msgid "更新"
+msgstr "Update"
+
+msgid "更新代理与规则提供者"
+msgstr "Update proxy and rule providers"
+
+msgid "更新中…"
+msgstr "Updating…"
+
+msgid "关闭"
+msgstr "Close"
+
+msgid "关闭提示"
+msgstr "Dismiss message"
+
+msgid "关闭添加配置"
+msgstr "Close add profile"
+
+msgid "关于"
+msgstr "About"
+
+msgid "官方 Android v1.19.32 · 随 Lumen APK 提供，独立进程运行；GPL-3.0 许可与源码见关于页。当前："
+msgstr "Official Android v1.19.32 core ships with this Lumen APK as a separate process. See About for the GPL-3.0 license and source. Current: "
+
+msgid "规则"
+msgstr "Rules"
+
+msgid "过去 24 小时"
+msgstr "Last 24 hours"
+
+msgid "核心运行规则；启停仅影响当前会话，重启后恢复配置值。"
+msgstr "Core runtime rules. Enablement changes apply to this session and reset on restart."
+
+msgid "后台隐藏时释放界面"
+msgstr "Pause UI updates in background"
+
+msgid "滑动隐藏底栏"
+msgstr "Hide navigation bar while scrolling"
+
+msgid "活动连接"
+msgstr "Active connections"
+
+msgid "活动中"
+msgstr "Active"
+
+msgid "检查版本"
+msgstr "Check version"
+
+msgid "简体中文"
+msgstr "Simplified Chinese"
+
+msgid "将停止当前 Mihomo，再以「"
+msgstr "Stops Mihomo and restarts it in “"
+
+msgid "」重新启动；切换期间网络可能短暂中断。若配置校验或平台状态确认失败，Runtime 会保持停止并显示恢复提示。"
+msgstr "”. The network may briefly pause. If configuration validation or platform confirmation fails, Runtime stays stopped and shows recovery instructions."
+
+msgid "节点"
+msgstr "Nodes"
+
+msgid "界面设置"
+msgstr "Display settings"
+
+msgid "今日"
+msgstr "Today"
+
+msgid "今日流量"
+msgstr "Today's traffic"
+
+msgid "仅用户 Override 可编辑；JavaScript 尚未通过安全沙箱验证，因此不执行。"
+msgstr "Only user overrides are editable. JavaScript is disabled until its security sandbox is verified."
+
+msgid "进程："
+msgstr "Process: "
+
+msgid "开始时间："
+msgstr "Started: "
+
+msgid "开源许可"
+msgstr "Open-source licenses"
+
+msgid "控制 API 绑定 127.0.0.1，随机密钥仅驻留内存；未实现或未确认的系统接管能力不会报告为已生效。"
+msgstr "The control API binds to 127.0.0.1 and its random secret stays in memory. Unimplemented or unverified system control is never reported as active."
+
+msgid "跨平台 Mihomo 客户端，使用 Rust + Slint。"
+msgstr "Cross-platform Mihomo client built with Rust and Slint."
+
+msgid "来源配置可能包含节点认证信息；导出仅包含来源 YAML，不含订阅凭据或绑定的覆写。"
+msgstr "Source profiles may contain node credentials. Export includes source YAML only, never subscription credentials or linked overrides."
+
+msgid "累计统计"
+msgstr "Totals"
+
+msgid "连接"
+msgstr "Connections"
+
+msgid "连接、日志、规则和流量统计"
+msgstr "Connections, logs, rules, and traffic statistics"
+
+msgid "连接不可用"
+msgstr "Connections unavailable"
+
+msgid "连接详情"
+msgstr "Connection details"
+
+msgid "连接信息"
+msgstr "Connection details"
+
+msgid "流量"
+msgstr "Traffic"
+
+msgid "流量统计"
+msgstr "Traffic statistics"
+
+msgid "留空使用默认值"
+msgstr "Leave blank to use the default:"
+
+msgid "没有匹配的活动连接"
+msgstr "No matching active connections"
+
+msgid "没有匹配的节点"
+msgstr "No matching nodes"
+
+msgid "没有匹配的日志"
+msgstr "No matching logs"
+
+msgid "没有匹配的依赖或许可证"
+msgstr "No matching dependencies or licenses"
+
+msgid "没有匹配的已关闭连接"
+msgstr "No matching closed connections"
+
+msgid "没有匹配的运行规则"
+msgstr "No matching runtime rules"
+
+msgid "敏感字段已遮蔽 · 修改行为请使用覆写配置"
+msgstr "Sensitive fields are masked · use an override to change behavior"
+
+msgid "明度"
+msgstr "Value"
+
+msgid "默认顺序"
+msgstr "Default order"
+
+msgid "目标地址："
+msgstr "Destination: "
+
+msgid "内核未启动：Ping 测 TCP 连通性，切换节点需启动"
+msgstr "With the core stopped, Ping tests TCP connectivity. Start the core to switch nodes."
+
+msgid "配置"
+msgstr "Profiles"
+
+msgid "配置类型"
+msgstr "Profile type"
+
+msgid "配置名称"
+msgstr "Profile name"
+
+msgid "配置名称（可选）"
+msgstr "Profile name (optional)"
+
+msgid "匹配 "
+msgstr "Match "
+
+msgid "启动 VPN"
+msgstr "Start VPN"
+
+msgid "启动代理"
+msgstr "Start proxy"
+
+msgid "启动更新配置"
+msgstr "Update profile on launch"
+
+msgid "启动中…"
+msgstr "Starting…"
+
+msgid "启用"
+msgstr "Enable"
+
+msgid "启用时将请求 Android 通知权限"
+msgstr "Android notification permission will be requested when enabled"
+
+msgid "浅色"
+msgstr "Light"
+
+msgid "切换并重启"
+msgstr "Switch and restart"
+
+msgid "切换网络接管模式？"
+msgstr "Switch network control mode?"
+
+msgid "轻触启动"
+msgstr "Tap to start"
+
+msgid "清空"
+msgstr "Clear"
+
+msgid "清空统计"
+msgstr "Clear statistics"
+
+msgid "清空统计？"
+msgstr "Clear statistics?"
+
+msgid "请输入订阅链接"
+msgstr "Enter a subscription URL"
+
+msgid "取消"
+msgstr "Cancel"
+
+msgid "取消编辑"
+msgstr "Cancel editing"
+
+msgid "取消当前配置"
+msgstr "Unset current profile"
+
+msgid "全部"
+msgstr "All"
+
+msgid "全局"
+msgstr "Global"
+
+msgid "确定要删除「"
+msgstr "Delete “"
+
+msgid "确认添加"
+msgstr "Confirm add"
+
+msgid "日均下载 "
+msgstr "Avg. download "
+
+msgid "日志"
+msgstr "Logs"
+
+msgid "日志流断开，正在重连；保留最近 300 条并脱敏。"
+msgstr "Log stream disconnected; reconnecting. The latest 300 entries are kept and sensitive data is masked."
+
+msgid "扫码添加"
+msgstr "Add by QR code"
+
+msgid "色相"
+msgstr "Hue"
+
+msgid "筛选和导出 Mihomo 日志"
+msgstr "Filter and export Mihomo logs"
+
+msgid "删除"
+msgstr "Delete"
+
+msgid "删除配置"
+msgstr "Delete profile"
+
+msgid "上传："
+msgstr "Upload: "
+
+msgid "上移"
+msgstr "Move up"
+
+msgid "尚未观察到已关闭连接"
+msgstr "No closed connections have been observed yet."
+
+msgid "尚未启动 Mihomo"
+msgstr "Mihomo has not started"
+
+msgid "尚未添加配置"
+msgstr "No profile added"
+
+msgid "设备重启后显示启动通知，点按进入 Lumen"
+msgstr "Show a startup notification after reboot; tap it to open Lumen"
+
+msgid "设为当前配置"
+msgstr "Set as current profile"
+
+msgid "设置"
+msgstr "Settings"
+
+msgid "设置类型"
+msgstr "Setting type"
+
+msgid "深色"
+msgstr "Dark"
+
+msgid "时间"
+msgstr "Time"
+
+msgid "实时流量"
+msgstr "Live traffic"
+
+msgid "实时流重连中；速率显示为 0，保留的统计仍可查看。"
+msgstr "Live stream reconnecting; rates show 0 while saved statistics remain available."
+
+msgid "实时日志"
+msgstr "Live logs"
+
+msgid "实时下载速度"
+msgstr "Live download speed"
+
+msgid "首页"
+msgstr "Home"
+
+msgid "输入新订阅链接；留空不更改"
+msgstr "Enter a new subscription URL; leave blank to keep the current one"
+
+msgid "输入新私钥以添加或替换；留空保留已保存的私钥。"
+msgstr "Enter a private key to add or replace it; leave blank to keep the saved key."
+
+msgid "刷新"
+msgstr "Refresh"
+
+msgid "搜索"
+msgstr "Search"
+
+msgid "搜索规则"
+msgstr "Search rules"
+
+msgid "搜索日志"
+msgstr "Search logs"
+
+msgid "搜索依赖或 SPDX 标识"
+msgstr "Search dependencies or SPDX IDs"
+
+msgid "搜索主机或进程"
+msgstr "Search hosts or processes"
+
+msgid "添加订阅或导入 YAML 文件后即可启动 Mihomo。"
+msgstr "Add a subscription or import a YAML file to start Mihomo."
+
+msgid "添加配置"
+msgstr "Add profile"
+
+msgid "添加配置文件"
+msgstr "Add profile file"
+
+msgid "填写 YAML 覆写内容"
+msgstr "Enter YAML override content"
+
+msgid "停止 VPN"
+msgstr "Stop VPN"
+
+msgid "停止代理"
+msgstr "Stop proxy"
+
+msgid "停止中…"
+msgstr "Stopping…"
+
+msgid "通知栏常驻显示实际速率"
+msgstr "Keep actual traffic rates in the notification"
+
+msgid "外部资源"
+msgstr "Providers"
+
+msgid "网络"
+msgstr "Network"
+
+msgid "网络接管"
+msgstr "Network control"
+
+msgid "网络设置"
+msgstr "Network settings"
+
+msgid "未设置，使用默认值"
+msgstr "Not set; using the default"
+
+msgid "未知"
+msgstr "Unknown"
+
+msgid "无法读取内置许可证清单："
+msgstr "Unable to read the bundled license catalog: "
+
+msgid "系统代理"
+msgstr "System proxy"
+
+msgid "系统代理 ✓"
+msgstr "System proxy ✓"
+
+msgid "系统已加入不优化名单"
+msgstr "System has excluded Lumen from battery optimization"
+
+msgid "系统正在优化 MusicFrog"
+msgstr "System is optimizing MusicFrog"
+
+msgid "下移"
+msgstr "Move down"
+
+msgid "显示布局边界（调试）"
+msgstr "Show layout bounds (debug)"
+
+msgid "显示流量通知"
+msgstr "Show traffic notification"
+
+msgid "协议："
+msgstr "Protocol: "
+
+msgid "新建 YAML Override"
+msgstr "New YAML override"
+
+msgid "行为"
+msgstr "Behavior"
+
+msgid "许可证标识："
+msgstr "License ID: "
+
+msgid "许可证全文可选择并复制；Windows/Linux 可使用 Ctrl+C。"
+msgstr "The full license text can be selected and copied; use Ctrl+C on Windows/Linux."
+
+msgid "选择 YAML / YML 文件"
+msgstr "Choose YAML / YML file"
+
+msgid "选择当前配置后，可先查看配置中的代理组和节点。启动 Mihomo 后即可切换。"
+msgstr "Select a profile to inspect its proxy groups and nodes. Start Mihomo to switch nodes."
+
+msgid "选择配置"
+msgstr "Select a profile"
+
+msgid "选中的覆写会按列表顺序合并；更改先保存为 Profile 绑定。"
+msgstr "Selected overrides are merged in list order. Save changes to the profile bindings first."
+
+msgid "选中项按列表顺序应用。修改暂存到草稿，保存后生效。"
+msgstr "Selected items apply in list order. Changes stay in a draft until saved."
+
+msgid "延迟"
+msgstr "Latency"
+
+msgid "颜色代码"
+msgstr "Color code"
+
+msgid "颜色预览"
+msgstr "Color preview"
+
+msgid "洋红：外框 · 青色：内容区/输入框 · 蓝色：图标框"
+msgstr "Magenta: outer bounds · cyan: content/input · blue: icon bounds"
+
+msgid "页面缩放"
+msgstr "UI scale"
+
+msgid "已关闭"
+msgstr "Closed"
+
+msgid "已停止"
+msgstr "Stopped"
+
+msgid "已连接"
+msgstr "Connected"
+
+msgid "隐藏后台卡片"
+msgstr "Hide from recent apps"
+
+msgid "隐私"
+msgstr "Privacy"
+
+msgid "应用"
+msgstr "Apply"
+
+msgid "应用到当前配置"
+msgstr "Apply to current profile"
+
+msgid "应用后会从 Mihomo 核心回读实际值"
+msgstr "The effective value is read back from Mihomo after applying."
+
+msgid "应用后由 Mihomo 核心回读实际模式。"
+msgstr "The effective mode is read back from Mihomo after applying."
+
+msgid "应用设置"
+msgstr "App settings"
+
+msgid "应用颜色"
+msgstr "Apply color"
+
+msgid "应用语言"
+msgstr "App language"
+
+msgid "有效配置"
+msgstr "Active profile"
+
+msgid "预测返回手势"
+msgstr "Predictive back gesture"
+
+msgid "源地址："
+msgstr "Source: "
+
+msgid "运行安全"
+msgstr "Runtime safety"
+
+msgid "运行概况"
+msgstr "Runtime overview"
+
+msgid "运行观测"
+msgstr "Runtime monitoring"
+
+msgid "运行规则"
+msgstr "Runtime rules"
+
+msgid "运行模式"
+msgstr "Runtime mode"
+
+msgid "运行中"
+msgstr "Running"
+
+msgid "暂无代理组"
+msgstr "No proxy groups"
+
+msgid "暂无活动连接"
+msgstr "No active connections"
+
+msgid "暂无可绑定的 YAML 覆写"
+msgstr "No YAML overrides available to bind"
+
+msgid "暂无可绑定的用户 Override"
+msgstr "No user overrides available to bind"
+
+msgid "暂无可用节点"
+msgstr "No available nodes"
+
+msgid "暂无配置文件"
+msgstr "No profiles"
+
+msgid "暂无统计数据；运行 Mihomo 后开始记录。"
+msgstr "No statistics yet. Recording starts when Mihomo runs."
+
+msgid "暂无运行规则"
+msgstr "No runtime rules"
+
+msgid "这会删除本地保留的近 7 日流量汇总，无法撤销。"
+msgstr "This permanently deletes locally retained traffic totals for the last 7 days."
+
+msgid "正在测试组内节点…"
+msgstr "Testing nodes in the group…"
+
+msgid "正在测速"
+msgstr "Testing latency"
+
+msgid "正在打断…"
+msgstr "Closing…"
+
+msgid "正在打断连接…"
+msgstr "Closing connection…"
+
+msgid "正在导入…"
+msgstr "Importing…"
+
+msgid "正在导入并校验 YAML Override…"
+msgstr "Importing and validating YAML override…"
+
+msgid "正在读取代理组…"
+msgstr "Reading proxy groups…"
+
+msgid "正在读取当前 Mihomo 状态。"
+msgstr "Reading the current Mihomo status."
+
+msgid "正在连接 Mihomo 实时日志流。"
+msgstr "Connecting to the Mihomo live log stream."
+
+msgid "正在重连"
+msgstr "Reconnecting"
+
+msgid "正在重连日志流"
+msgstr "Reconnecting log stream"
+
+msgid "执行命令：mihomo"
+msgstr "Command: mihomo"
+
+msgid "直连"
+msgstr "Direct"
+
+msgid "只读"
+msgstr "Read-only"
+
+msgid "重试"
+msgstr "Retry"
+
+msgid "重试读取"
+msgstr "Retry reading"
+
+msgid "重试恢复上次系统代理"
+msgstr "Retry restoring the previous system proxy"
+
+msgid "主机"
+msgstr "Host"
+
+msgid "主题、语言与启动行为"
+msgstr "Theme, language, and launch behavior"
+
+msgid "主题模式"
+msgstr "Theme mode"
+
+msgid "主题配色"
+msgstr "Theme color"
+
+msgid "桌面接管模式与 Mihomo 的 Rule/Global/Direct 代理策略相互独立。"
+msgstr "Desktop control mode is separate from Mihomo's Rule/Global/Direct proxy strategy."
+
+msgid "自定义 User-Agent"
+msgstr "Custom User-Agent"
+
+msgid "自动启动"
+msgstr "Launch at sign-in"
+
+msgid "Age 私钥（可选）"
+msgstr "Age private key (optional)"
+
+msgid "Android 14及以上支持系统手势进度"
+msgstr "System gesture progress requires Android 14 or later"
+
+msgid "Android 通过系统 VPN 接管其他应用流量；Lumen 核心与转发器自身流量直连以避免回环。"
+msgstr "Android routes other apps through the system VPN. Lumen's core and relay bypass it to prevent a loop."
+
+msgid "Android 应用级流量统计待接入；此处仅显示 Mihomo 核心总量。"
+msgstr "Per-app traffic totals are not available yet; only Mihomo's total is shown."
+
+msgid "Android ABI 核心"
+msgstr "Android ABI core"
+
+msgid "HTTP/HTTPS YAML 链接"
+msgstr "HTTP/HTTPS YAML URL"
+
+msgid "MusicFrog 本次运行中观察到的已关闭连接；最多保留 500 条。"
+msgstr "Connections closed during this MusicFrog session; up to 500 are retained."
+
+msgid "界面改编自 Lumen；上游 README 声明采用 MIT，导入归档未附独立许可证文本。"
+msgstr "The interface is adapted from Lumen. Its upstream README says MIT, but the imported archive did not include a separate license text."
+
+msgid "Meta 功能"
+msgstr "Meta tools"
+
+msgid "Mihomo /traffic 实时流已连接。"
+msgstr "Mihomo /traffic stream connected."
+
+msgid "Mihomo 核心"
+msgstr "Mihomo core"
+
+msgid "Mihomo 核心由用户安装在 PATH 中。第三方依赖许可正文随应用离线提供。"
+msgstr "Install the Mihomo core in PATH. Third-party license texts are bundled offline."
+
+msgid "Mihomo 实时日志流已连接；保留最近 300 条并脱敏。"
+msgstr "Mihomo live log stream connected; the latest 300 entries are retained with sensitive data masked."
+
+msgid "Mihomo v1.19.32 是独立 GPL-3.0 核心进程，随本 ABI APK 提供；在依赖许可列表中搜索 Mihomo Core 可查看许可证和源码标签。"
+msgstr "Mihomo v1.19.32 ships as a separate GPL-3.0 core process in this ABI APK. Search Mihomo Core in the license list for its license and source tag."
+
+msgid "Ping 测速"
+msgstr "Ping test"
+
+msgid "Runtime 未运行，规则不可用"
+msgstr "Runtime is stopped; rules are unavailable"
+
+msgid "Runtime 未运行，日志不可用"
+msgstr "Runtime is stopped; logs are unavailable"
+
+msgid "Runtime 未运行；不显示缓存数据作为实时状态。"
+msgstr "Runtime is stopped; cached data is not shown as live status."
+
+msgid "Runtime 未运行；活动连接不可用"
+msgstr "Runtime is stopped; active connections are unavailable"
+
+msgid "Runtime 未运行；实时采样已停止，保留的统计仍可查看。"
+msgstr "Runtime is stopped; live sampling has stopped, but saved statistics remain available."
+
+msgid "Runtime 未运行；已关闭连接不可用"
+msgstr "Runtime is stopped; closed connections are unavailable"
+
+msgid "Runtime 已启动，正在连接流量采样。"
+msgstr "Runtime started; connecting to traffic sampling."
+
+msgid "TUN 平台适配未验证"
+msgstr "TUN platform integration is unverified"
+
+msgid "YAML 与规则覆写"
+msgstr "YAML and rule overrides"
+
+msgid "本地配置文件"
+msgstr "Local YAML file"
+
+msgid "。留空保持已保存地址；新地址会先下载并校验。"
+msgstr ". Leave blank to keep the saved address; new addresses are downloaded and validated first."
+
+msgid "。来源文件保持只读。"
+msgstr ". Source files remain read-only."
+
+msgid "，上传 "
+msgstr ", upload "
+
+msgid "‹ 返回连接列表"
+msgstr "‹ Back to connections"
+
+msgid "持续时间："
+msgstr "Duration: "
+
+msgid "下载："
+msgstr "Download: "
+
+msgid "下载  "
+msgstr "Download  "
+
+msgid "下载   "
+msgstr "Download   "
+
+msgid "正在应用…"
+msgstr "Applying…"
+
+msgid "正在验证订阅链接…"
+msgstr "Validating subscription URL…"
+
+msgid "  ·  绑定到 "
+msgstr " · Bound to "
+
+msgid "日均上传 "
+msgstr "Avg. upload "
+
+msgid "」吗？如果该配置正在运行，会先停止代理。"
+msgstr "” if this profile is running, its proxy will be stopped first."
+
+
+msgid "上传  "
+msgstr "Upload  "
+
+msgid "订阅链接无效；只接受 HTTP 或 HTTPS URL"
+msgstr "Invalid subscription URL; only HTTP and HTTPS are supported"
+
+msgid "无法安全保存订阅链接："
+msgstr "Unable to store the subscription URL securely: "
+
+msgid "无法安全保存 Age 私钥"
+msgstr "Unable to store the Age private key securely"
+
+msgid "无法保存订阅配置到应用数据目录"
+msgstr "Unable to save the subscription profile to app storage"
+
+msgid "无法保存来源配置"
+msgstr "Unable to save the source profile"
+
+msgid "本地 YAML 导入成功；Profile 来源按只读数据保存"
+msgstr "Local YAML imported. The profile source is kept read-only."
+
+msgid "配置文件超过 20 MiB 上限"
+msgstr "The profile file exceeds the 20 MiB limit"
+
+msgid "无法读取所选文件"
+msgstr "Unable to read the selected file"
+
+msgid "配置文件不是有效 UTF-8 文本"
+msgstr "The profile file is not valid UTF-8 text"
+
+msgid "无法读取所选文件名"
+msgstr "Unable to read the selected file name"
+
+msgid "仅支持 .yaml 或 .yml 格式的配置文件"
+msgstr "Only .yaml and .yml profile files are supported"
+
+msgid "找不到该 Profile"
+msgstr "Profile not found"
+
+msgid "此配置已经是当前 Profile"
+msgstr "This is already the current profile"
+
+msgid "Profile 顺序已保存"
+msgstr "Profile order saved"
+
+msgid "本地文件来源无法在线更新"
+msgstr "Local-file profiles cannot be refreshed online"
+
+msgid "订阅凭据引用不存在，请重新添加此订阅"
+msgstr "Subscription credentials are missing; add the subscription again"
+
+msgid "无法从系统安全凭据库读取 Age 私钥"
+msgstr "Unable to read the Age private key from secure storage"
+
+msgid "无法读取现有来源配置"
+msgstr "Unable to read the existing source profile"
+
+msgid "无法写入更新的来源配置"
+msgstr "Unable to write the updated source profile"
+
+msgid "订阅更新成功"
+msgstr "Subscription updated"
+
+msgid "Profile 设置已失效；请重新打开设置页"
+msgstr "Profile settings expired; reopen the settings page"
+
+msgid "配置名称不能为空"
+msgstr "Profile name cannot be empty"
+
+msgid "本地文件来源不能转换为订阅链接"
+msgstr "A local-file profile cannot be changed into a subscription"
+
+msgid "订阅地址未更改："
+msgstr "Subscription URL was not changed: "
+
+msgid "Profile 设置已保存"
+msgstr "Profile settings saved"
+
+msgid "配置预览失败："
+msgstr "Profile preview failed: "
+
+msgid "上次系统代理状态仍待恢复；请先重试恢复或手动还原系统代理"
+msgstr "The previous system proxy state still needs recovery. Retry recovery or restore it manually."
+
+msgid "Mihomo 已在运行"
+msgstr "Mihomo is already running"
+
+msgid "请先在配置页面选择当前 Profile"
+msgstr "Select a current profile on the Profiles page first"
+
+msgid "当前 Profile 不存在，请重新选择配置"
+msgstr "The current profile is missing; select another profile"
+
+msgid "配置生成失败："
+msgstr "Unable to generate the configuration: "
+
+msgid "Runtime 当前未运行"
+msgstr "Runtime is not running"
+
+msgid "请先停止当前 Runtime，再恢复上次系统代理状态"
+msgstr "Stop Runtime before restoring the previous system proxy state"
+
+msgid "检测到系统代理已被外部修改；已保留当前设置，现在可以启动 Runtime"
+msgstr "System proxy was changed externally. The new value is preserved; Runtime can now start."
+
+msgid "已恢复上次系统代理设置，现在可以启动 Runtime"
+msgstr "Previous system proxy settings were restored; Runtime can now start."
+
+msgid "Runtime 停止失败："
+msgstr "Unable to stop Runtime: "
+
+msgid "不支持的核心模式"
+msgstr "Unsupported core mode"
+
+msgid "核心模式切换失败："
+msgstr "Unable to switch core mode: "
+
+msgid "核心未确认新的代理模式；仍显示上次实际值"
+msgstr "The core did not confirm the new proxy mode; showing the last confirmed value."
+
+msgid "核心代理模式已回读确认"
+msgstr "The core confirmed the proxy mode."
+
+msgid "Windows TUN 需要管理员权限；请以管理员身份重新启动 Lumen"
+msgstr "Windows TUN requires administrator permission. Restart Lumen as administrator."
+
+msgid "已校验 APK 附带的 Mihomo Android 核心"
+msgstr "The Mihomo core bundled with the APK passed verification."
+
+msgid "已读取 PATH 中 Mihomo 核心版本"
+msgstr "Read the Mihomo core version from PATH."
+
+msgid "请输入 Override 名称"
+msgstr "Enter an override name"
+
+msgid "Override 顶层必须是 YAML 对象"
+msgstr "The override root must be a YAML object."
+
+msgid "YAML Override 已创建"
+msgstr "YAML override created"
+
+msgid "YAML Override 已导入"
+msgstr "YAML override imported"
+
+msgid "YAML Override 已从文件导入"
+msgstr "YAML override imported from file"
+
+msgid "Override 不存在"
+msgstr "Override not found"
+
+msgid "YAML Override 已导出"
+msgstr "YAML override exported"
+
+msgid "Override 导出失败；请检查目标位置权限"
+msgstr "Unable to export the override; check destination permissions."
+
+msgid "配置不存在"
+msgstr "Profile not found"
+
+msgid "无法读取配置来源文件；请确认配置仍可用"
+msgstr "Unable to read the profile source; check that the profile is still available."
+
+msgid "Profile 配置已导出"
+msgstr "Profile exported"
+
+msgid "配置导出失败；请检查目标位置权限"
+msgstr "Unable to export the profile; check destination permissions."
+
+msgid "请选择保存位置"
+msgstr "Choose a save location"
+
+msgid "YAML Override 已保存"
+msgstr "YAML override saved"
+
+msgid "Override 已删除"
+msgstr "Override deleted"
+
+msgid "请先选择当前 Profile"
+msgstr "Select a current profile first"
+
+msgid "当前 Profile 不存在"
+msgstr "Current profile not found"
+
+msgid "Override 绑定已保存；执行顺序按列表顺序"
+msgstr "Override bindings saved in list order."
+
+msgid "Mihomo 未运行"
+msgstr "Mihomo is not running"
+
+msgid "节点切换已由 Mihomo 接受并回读"
+msgstr "Mihomo accepted and confirmed the node switch."
+
+msgid "连接已请求打断"
+msgstr "Connection close requested"
+
+msgid "运行规则序号无效"
+msgstr "Invalid runtime rule index"
+
+msgid "运行规则临时状态已更新；重启后恢复配置值"
+msgstr "Runtime rule updated for this session; the profile value returns after restart."
+
+msgid "Provider 更新请求已接受"
+msgstr "Provider update request accepted"
+
+msgid "当前筛选结果没有可导出的 Mihomo 日志"
+msgstr "No Mihomo logs match the current filters."
+
+msgid "日志已导出"
+msgstr "Logs exported"
+
+msgid "未选择配置"
+msgstr "No profile selected"
+
+msgid "未运行"
+msgstr "Not running"
+
+msgid "HarmonyOS Sans SC is used; © 2021 Huawei Device Co., Ltd."
+msgstr "HarmonyOS Sans SC is used; © 2021 Huawei Device Co., Ltd."
+
+msgid "Font attribution"
+msgstr "Font attribution"
+
+msgid "Runtime 未运行"
+msgstr "Runtime is stopped"
+
+msgid "护眼森林"
+msgstr "Forest"
+
+msgid "条规则"
+msgstr " rules"
+
+msgid "随应用离线提供"
+msgstr "Included offline with the application"
+
+msgid "宿主支持 TUN"
+msgstr "TUN is supported by the host"
+
+msgid "TUN 为实验性能力"
+msgstr "TUN is experimental on this host"
+
+msgid "TUN 已启用"
+msgstr "TUN is enabled"
+
+msgid "出口 IP 尚未观测"
+msgstr "Egress IP has not been observed"
+
+msgid "已读取出口 IP"
+msgstr "Egress IP was observed"
+
+msgid "正在读取出口 IP"
+msgstr "Reading egress IP"
+
+msgid "尚未获得出口 IP"
+msgstr "No egress IP was returned"
+
+msgid "出口 IP 查询不受支持"
+msgstr "Egress IP lookup is unsupported"
+
+msgid "出口 IP 查询失败"
+msgstr "Egress IP lookup failed"
+
+msgid "按名称降序"
+msgstr "Name descending"
+
+msgid "按延迟降序"
+msgstr "Latency descending"
+
+msgid "已配置订阅来源"
+msgstr "Subscription source configured"
+
+msgid "仅核心"
+msgstr "Core only"
+
+msgid "状态未知"
+msgstr "Status unknown"
+
+msgid "正在启动"
+msgstr "Starting"
+
+msgid "正在停止"
+msgstr "Stopping"
+
+msgid "启动失败"
+msgstr "Start failed"
+
+msgid "命名 Override 尚未接入共享配置 owner"
+msgstr "Named overrides are not connected to the shared profile owner yet"
+
+msgid "正在读取配置文档"
+msgstr "Loading profile document"
+
+msgid "The shared owner publishes a bounded window: {shown} of {total} {items}."
+msgstr "The shared owner publishes a bounded window: {shown} of {total} {items}."
+
+msgid "active connections"
+msgstr "active connections"
+
+msgid "runtime rules"
+msgstr "runtime rules"
+
+msgid "log entries"
+msgstr "log entries"
+
+msgid "Cancel"
+msgstr "Cancel"
+
+msgid "Enter date"
+msgstr "Enter date"
+
+msgid "Hour"
+msgstr "Hour"
+
+msgid "Minute"
+msgstr "Minute"
+
+msgid "Ok"
+msgstr "OK"
+
+msgid "Select time"
+msgstr "Select time"
+
+msgid "Android 通过系统 VPN 接管其他应用流量；MusicFrog 核心与转发器自身流量直连以避免回环。"
+msgstr "Android routes other apps through the system VPN; MusicFrog core and forwarding traffic bypass it to prevent a loop."
+
+msgid "官方 Android v1.19.32 · 随 MusicFrog APK 提供，独立进程运行；GPL-3.0 许可与源码见关于页。当前："
+msgstr "Official Android v1.19.32 core · bundled with the MusicFrog APK and run as a separate process; GPL-3.0 license and source are listed in About. Current: "
+
+msgid "版本 "
+msgstr "Version "
+
+msgid " · Mihomo "
+msgstr " · Mihomo "
+
+msgid "public_ip_unobserved"
+msgstr "Egress IP has not been observed"
+
+msgid "public_ip_ready"
+msgstr "Egress IP is available"
+
+msgid "public_ip_probing"
+msgstr "Looking up egress IP"
+
+msgid "public_ip_empty"
+msgstr "No egress IP was returned"
+
+msgid "public_ip_unsupported"
+msgstr "Egress IP lookup is unsupported"
+
+msgid "public_ip_failed"
+msgstr "Egress IP lookup failed"
+
+msgid "VPN 已连接"
+msgstr "VPN connected"
+
+msgid "VPN 授权已撤销"
+msgstr "VPN permission was revoked"
+
+msgid "VPN 未运行"
+msgstr "VPN is not running"
+
+msgid "VPN 正在停止"
+msgstr "VPN is stopping"
+
+msgid "VPN 正在启动"
+msgstr "VPN is starting"
+
+msgid "手动选择"
+msgstr "Manual selection"
+
+msgid "故障转移"
+msgstr "Failover"
+
+msgid "本地 YAML"
+msgstr "Local YAML"
+
+msgid "正在连接"
+msgstr "Connecting"
+
+msgid "等待 VPN 授权"
+msgstr "Waiting for VPN permission"
+
+msgid "策略组"
+msgstr "Proxy group"
+
+msgid "系统代理已启用"
+msgstr "System proxy is enabled"
+
+msgid "系统代理未启用"
+msgstr "System proxy is disabled"
+
+msgid "系统代理状态未观测"
+msgstr "System proxy status has not been observed"
+
+msgid "自动选择"
+msgstr "Automatic selection"
+
+msgid "订阅配置"
+msgstr "Subscription configuration"
+
+msgid "读取失败"
+msgstr "Read failed"
+
+msgid "负载均衡"
+msgstr "Load balancing"
+
+msgid "链式中继"
+msgstr "Relay chain"
+
+msgid "Providers"
+msgstr "Providers"
+
+msgid "Provider："
+msgstr "Provider: "
+
+msgid "Debug"
+msgstr "Debug"
+
+msgid "Info"
+msgstr "Info"
+
+msgid "Warning"
+msgstr "Warning"
+
+msgid "Error"
+msgstr "Error"
+
+msgid "MIHOMO CLIENT"
+msgstr "MIHOMO CLIENT"

@@ -1,66 +1,97 @@
 //! Locale replay of the Mixin studio updates captions without replacing document entities.
-use crate::pages::profiles_editor_panes::ProfileEditorOptionsState;
-use crate::pages::profiles_editor_state::ProfileEditorState;
+use crate::pages::profiles_editor_panes::{MixinStudioState, ProfileEditorOptionsState};
 use bevy::ecs::change_detection::DetectChanges;
 use bevy::ecs::component::Component;
 use bevy::ecs::system::{Query, Res};
 use bevy::ui::widget::Text;
 use infiltrator_application::mixin_studio_projection;
 use infiltrator_bevy_widgets::localization::UiLocale;
-use infiltrator_domain::mixin_studio::{
-    MixinColumnRole, mixin_editor_columns, preflight_mixin, preview_cascade_from_yaml,
-};
+use infiltrator_ports::profile_document_codec::{ProfileMixinColumnRole, ProfileMixinComposition};
 
 #[derive(Component, Clone, Default)]
 pub enum MixinCopyRole {
     #[default]
     Cascade,
-    Column(MixinColumnRole),
+    Column(ProfileMixinColumnRole),
     Error,
     Detail,
     Verdict,
 }
 pub fn replay_studio_copy(
     options: Res<ProfileEditorOptionsState>,
-    document: Res<ProfileEditorState>,
     locale: Res<UiLocale>,
     mut labels: Query<(&MixinCopyRole, &mut Text)>,
 ) {
     if labels.is_empty()
         || (!options.is_changed()
-            && !document.is_changed()
             && !locale.is_changed()
             && !labels.iter_mut().any(|(_, text)| text.is_added()))
     {
         return;
     }
-    let base = document.buffer.full_text();
-    let overlay = options.mixin.buffer.full_text();
-    let columns = mixin_editor_columns(&base, &overlay);
-    let report = preview_cascade_from_yaml(&base, &overlay);
-    let preflight = preflight_mixin(&base, &overlay);
     for (role, mut text) in &mut labels {
         let copy = match role {
-            MixinCopyRole::Cascade => {
-                mixin_studio_projection::cascade_caption(&report, locale.code())
-            }
+            MixinCopyRole::Cascade => match &options.mixin_studio {
+                MixinStudioState::Available(studio) => {
+                    mixin_studio_projection::cascade_caption(&studio.cascade, locale.code())
+                }
+                MixinStudioState::NotRequested | MixinStudioState::Unavailable(_) => {
+                    locale.text("editor_document_inspection_unavailable")
+                }
+            },
             MixinCopyRole::Column(role) => {
-                let column = match role {
-                    MixinColumnRole::Base => &columns.base,
-                    MixinColumnRole::Overlay => &columns.overlay,
-                    MixinColumnRole::Composed => &columns.composed,
+                let column = match (&options.mixin_studio, role) {
+                    (MixinStudioState::Available(studio), ProfileMixinColumnRole::Base) => {
+                        Some(&studio.columns.base)
+                    }
+                    (MixinStudioState::Available(studio), ProfileMixinColumnRole::Overlay) => {
+                        Some(&studio.columns.overlay)
+                    }
+                    (MixinStudioState::Available(studio), ProfileMixinColumnRole::Composed) => {
+                        match &studio.columns.composed {
+                            ProfileMixinComposition::Produced(column) => Some(column),
+                            ProfileMixinComposition::Blocked { .. } => None,
+                        }
+                    }
+                    _ => None,
                 };
-                mixin_studio_projection::column_caption(column, locale.code())
+                match column {
+                    Some(column) => mixin_studio_projection::column_caption(column, locale.code()),
+                    None => mixin_studio_projection::column_caption_parts(
+                        *role,
+                        0,
+                        false,
+                        locale.code(),
+                    ),
+                }
             }
-            MixinCopyRole::Error => {
-                mixin_studio_projection::composed_error(columns.error.as_deref(), locale.code())
-            }
-            MixinCopyRole::Detail => {
-                mixin_studio_projection::preflight_detail(&preflight, locale.code())
-            }
-            MixinCopyRole::Verdict => {
-                locale.text(mixin_studio_projection::preflight_key(&preflight))
-            }
+            MixinCopyRole::Error => match &options.mixin_studio {
+                MixinStudioState::Available(studio) => match &studio.columns.composed {
+                    ProfileMixinComposition::Blocked { reason } => {
+                        mixin_studio_projection::composed_error(Some(reason), locale.code())
+                    }
+                    ProfileMixinComposition::Produced(_) => String::new(),
+                },
+                MixinStudioState::NotRequested | MixinStudioState::Unavailable(_) => {
+                    locale.text("editor_document_inspection_unavailable")
+                }
+            },
+            MixinCopyRole::Detail => match &options.mixin_studio {
+                MixinStudioState::Available(studio) => {
+                    mixin_studio_projection::preflight_detail(&studio.preflight, locale.code())
+                }
+                MixinStudioState::NotRequested | MixinStudioState::Unavailable(_) => {
+                    locale.text("editor_document_inspection_unavailable")
+                }
+            },
+            MixinCopyRole::Verdict => match &options.mixin_studio {
+                MixinStudioState::Available(studio) => {
+                    locale.text(mixin_studio_projection::preflight_key(&studio.preflight))
+                }
+                MixinStudioState::NotRequested | MixinStudioState::Unavailable(_) => {
+                    locale.text("mixin_studio_preflight_blocked")
+                }
+            },
         };
         if text.0 != copy {
             text.0 = copy;

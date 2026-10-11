@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -32,9 +33,11 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.musicfrog.infiltrator.R
+import com.musicfrog.infiltrator.ui.common.ConnectionRecord
 import com.musicfrog.infiltrator.ui.common.ErrorDialog
+import com.musicfrog.infiltrator.ui.common.LocalizedFailureText
 import com.musicfrog.infiltrator.ui.common.StandardListItem
-import infiltrator_android.ConnectionRecord
+import com.musicfrog.infiltrator.ui.common.toLocalizedFailure
 
 @Composable
 fun ConnectionsScreen(viewModel: ConnectionsViewModel = viewModel()) {
@@ -43,9 +46,10 @@ fun ConnectionsScreen(viewModel: ConnectionsViewModel = viewModel()) {
     val processFilter by viewModel.processFilter.collectAsState()
     var selectedConnection by remember { mutableStateOf<ConnectionRecord?>(null) }
 
-    if (state.error != null) {
+    val commandFailure = (state.actionState as? ConnectionActionState.Failed)?.failure
+    if (commandFailure != null) {
         ErrorDialog(
-            message = state.error.orEmpty(),
+            failure = commandFailure.toLocalizedFailure(),
             onDismiss = { viewModel.clearError() },
         )
     }
@@ -66,20 +70,37 @@ fun ConnectionsScreen(viewModel: ConnectionsViewModel = viewModel()) {
                 .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Row(
+            Column(
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 Text(
-                    text = stringResource(R.string.text_connections_total, state.connections.size),
+                    text = when (state.listStatus) {
+                        ConnectionsListStatus.Loading -> stringResource(R.string.text_loading)
+                        ConnectionsListStatus.Unavailable -> stringResource(R.string.status_unknown)
+                        ConnectionsListStatus.Empty,
+                        ConnectionsListStatus.NoMatches,
+                        ConnectionsListStatus.Content -> stringResource(
+                            R.string.text_connections_total,
+                            state.totalConnectionCount,
+                        )
+                    },
                     style = MaterialTheme.typography.titleMedium,
                 )
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    TextButton(onClick = { viewModel.refresh() }) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End),
+                ) {
+                    TextButton(
+                        onClick = { viewModel.refresh() },
+                        enabled = state.actionState == ConnectionActionState.Idle,
+                    ) {
                         Text(stringResource(R.string.action_refresh))
                     }
-                    TextButton(onClick = { viewModel.closeAllConnections() }) {
+                    TextButton(
+                        onClick = { viewModel.closeAllConnections() },
+                        enabled = state.actionState == ConnectionActionState.Idle,
+                    ) {
                         Text(stringResource(R.string.action_close_all))
                     }
                 }
@@ -101,21 +122,64 @@ fun ConnectionsScreen(viewModel: ConnectionsViewModel = viewModel()) {
                 modifier = Modifier.fillMaxWidth(),
             )
 
-            if (state.isLoading && state.connections.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            when (state.listStatus) {
+                ConnectionsListStatus.Loading -> Box(
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    contentAlignment = Alignment.Center,
+                ) {
                     CircularProgressIndicator()
                 }
-            } else if (state.connections.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                ConnectionsListStatus.Unavailable -> Box(
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                ) {
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            Text(
+                                text = stringResource(R.string.status_unknown),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            state.failure?.let { failure ->
+                                LocalizedFailureText(
+                                    failure = failure.toLocalizedFailure(),
+                                    modifier = Modifier.padding(top = 8.dp),
+                                )
+                            }
+                        }
+                        if (state.connections.isNotEmpty()) {
+                            LazyColumn(
+                                modifier = Modifier.weight(1f).fillMaxWidth(),
+                                contentPadding = PaddingValues(bottom = 16.dp),
+                            ) {
+                                items(state.connections, key = { it.id }) { connection ->
+                                    ConnectionRow(
+                                        connection = connection,
+                                        onClick = { selectedConnection = connection },
+                                        onClose = { viewModel.closeConnection(connection.id) },
+                                        actionEnabled = state.actionState == ConnectionActionState.Idle,
+                                    )
+                                    HorizontalDivider()
+                                }
+                            }
+                        }
+                    }
+                }
+                ConnectionsListStatus.Empty -> Box(
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    contentAlignment = Alignment.Center,
+                ) {
                     Text(
                         text = stringResource(R.string.text_no_connections),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
+                ConnectionsListStatus.NoMatches -> Spacer(Modifier.weight(1f))
+                ConnectionsListStatus.Content -> LazyColumn(
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
                     contentPadding = PaddingValues(bottom = 16.dp),
                 ) {
                     items(state.connections, key = { it.id }) { connection ->
@@ -123,6 +187,7 @@ fun ConnectionsScreen(viewModel: ConnectionsViewModel = viewModel()) {
                             connection = connection,
                             onClick = { selectedConnection = connection },
                             onClose = { viewModel.closeConnection(connection.id) },
+                            actionEnabled = state.actionState == ConnectionActionState.Idle,
                         )
                         HorizontalDivider()
                     }
@@ -137,6 +202,7 @@ private fun ConnectionRow(
     connection: ConnectionRecord,
     onClick: () -> Unit,
     onClose: () -> Unit,
+    actionEnabled: Boolean,
 ) {
     val headline = connection.host.ifBlank { connection.id }
     val supporting = buildSupportingText(connection)
@@ -146,7 +212,7 @@ private fun ConnectionRow(
         supporting = supporting,
         onClick = onClick,
         trailingContent = {
-            TextButton(onClick = onClose) {
+            TextButton(onClick = onClose, enabled = actionEnabled) {
                 Text(stringResource(R.string.action_disconnect))
             }
         },
@@ -169,7 +235,7 @@ private fun ConnectionDetailsDialog(
             ) {
                 DetailItem(label = "ID", value = connection.id)
                 DetailItem(label = "Network", value = connection.network.uppercase())
-                DetailItem(label = "Type", value = connection.connectionType)
+                DetailItem(label = "Type", value = connection.connectionType ?: "—")
                 DetailItem(label = "Rule", value = connection.rule.ifBlank { "-" })
                 DetailItem(label = "Process", value = connection.processPath.ifBlank { "-" })
                 DetailItem(label = "Chains", value = connection.chains.joinToString(" > ").ifBlank { "-" })

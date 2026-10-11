@@ -8,6 +8,7 @@ use bevy::scene::WorldSceneExt;
 use bevy::ui::Checked;
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Checkbox, CheckboxPlugin, ToggleChecked, checkbox_self_update};
+use infiltrator_application::routing_intent_projection::routing_intent_copy;
 use infiltrator_bevy_ui::localization::LocalizationPlugin;
 use infiltrator_bevy_ui::localized_widgets::{localized_checkbox_scene, localized_field_scene};
 use infiltrator_bevy_widgets::localization::{
@@ -21,10 +22,9 @@ use infiltrator_contract::language::LanguagePreference;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 #[test]
-fn shell_mode_text_and_accessibility_refresh_in_place_from_shared_copy() {
-    use infiltrator_bevy_ui::app::{ShellPlugin, SidebarScriptModePill};
-    use infiltrator_bevy_ui::pages::overview::OverviewModePill;
-    use infiltrator_contract::command::ProxyMode;
+fn shell_routing_intent_text_and_accessibility_refresh_in_place_from_shared_copy() {
+    use infiltrator_bevy_ui::app::ShellPlugin;
+    use infiltrator_bevy_ui::pages::overview::OverviewRoutingIntentPill;
 
     let mut app = App::new();
     headless_plugins(&mut app);
@@ -34,18 +34,11 @@ fn shell_mode_text_and_accessibility_refresh_in_place_from_shared_copy() {
     app.update();
     let roots = app
         .world_mut()
-        .query::<(
-            Entity,
-            Option<&OverviewModePill>,
-            Option<&SidebarScriptModePill>,
-        )>()
+        .query::<(Entity, &OverviewRoutingIntentPill)>()
         .iter(app.world())
-        .filter_map(|(entity, mode, script)| {
-            mode.map(|mode| (entity, mode.0))
-                .or_else(|| script.map(|_| (entity, ProxyMode::Script)))
-        })
+        .map(|(entity, pill)| (entity, pill.0.clone()))
         .collect::<Vec<_>>();
-    assert_eq!(roots.len(), 4);
+    assert_eq!(roots.len(), 3);
     let labels = roots
         .iter()
         .map(|(root, mode)| {
@@ -57,7 +50,7 @@ fn shell_mode_text_and_accessibility_refresh_in_place_from_shared_copy() {
                 .copied()
                 .find(|child| app.world().get::<LocalizedText>(*child).is_some())
                 .unwrap();
-            (label, *mode)
+            (label, mode.clone())
         })
         .collect::<Vec<_>>();
     app.world_mut()
@@ -65,16 +58,11 @@ fn shell_mode_text_and_accessibility_refresh_in_place_from_shared_copy() {
         .apply_preference("en-US");
     app.update();
     for ((root, _), (label, mode)) in roots.iter().zip(&labels) {
-        let expected = match mode {
-            ProxyMode::Rule => "Rule",
-            ProxyMode::Global => "Global",
-            ProxyMode::Direct => "Direct",
-            ProxyMode::Script => "Script",
-        };
+        let expected = routing_intent_copy(mode, "en-US");
         assert_eq!(app.world().get::<Text>(*label).unwrap().0, expected);
         assert_eq!(
             app.world().get::<AccessibilityNode>(*root).unwrap().label(),
-            Some(expected)
+            Some(expected.as_str())
         );
         assert!(app.world().get::<Children>(*root).unwrap().contains(label));
     }

@@ -6,7 +6,8 @@ use iced::Task;
 use iced::widget::text_editor;
 use infiltrator_application::script_workbench::ScriptPending;
 use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::script_export_review::ScriptExportDraft;
+use infiltrator_contract::script_export::ScriptExportKind;
+use infiltrator_contract::script_export_review::{ScriptExportDraft, ScriptExportValidationScope};
 use infiltrator_contract::script_run::ScriptEditorField;
 
 impl AppState {
@@ -29,9 +30,31 @@ impl AppState {
             Message::Script(ScriptAction::Run) => self.editor.script_sandbox.run(),
             Message::Script(ScriptAction::Clear) => self.editor.script_sandbox.clear(),
             Message::Script(ScriptAction::Export(kind)) => {
+                let (profile, validation_scope) = match kind {
+                    ScriptExportKind::MixinOverlayYaml => {
+                        match self.editor.document_session.source() {
+                            Some(source) => (
+                                Some(source.document.profile_id.as_str().to_owned()),
+                                ScriptExportValidationScope::ProfileDocument(
+                                    source.document.clone(),
+                                ),
+                            ),
+                            None => (
+                                self.editor_profile_name(),
+                                ScriptExportValidationScope::Unscoped,
+                            ),
+                        }
+                    }
+                    ScriptExportKind::DirectiveDslScript
+                    | ScriptExportKind::ExtensionPackageJson => (
+                        self.editor_profile_name(),
+                        ScriptExportValidationScope::Unscoped,
+                    ),
+                };
                 let draft = ScriptExportDraft {
                     kind,
-                    profile: self.editor_profile_name(),
+                    validation_scope,
+                    profile,
                     base_yaml: self.editor.editor_content.text(),
                     mixin_yaml: self.editor.mixin_content.text(),
                     script_code: self.editor.script_sandbox.script_code.clone(),
@@ -107,7 +130,7 @@ impl AppState {
     }
     fn submit_script_request(&mut self, request: ScriptPending) -> Task<Message> {
         let operation = request.operation;
-        let Some(commands) = self.commands.clone() else {
+        let Some(commands) = self.command_ingress() else {
             self.editor.script_sandbox.finish(
                 operation,
                 Err(Failure::new(

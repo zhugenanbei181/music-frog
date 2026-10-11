@@ -1,5 +1,7 @@
 //! test-intent: behavior
-use crate::command_harness::recording_application;
+use crate::command_harness::{
+    attach_product_application_with_accepted_owner_snapshot, recording_application,
+};
 use crate::test_support::demo_env;
 use futures_util::StreamExt;
 use iced_runtime::Action;
@@ -21,7 +23,7 @@ fn connection_inspection_close_escape_and_navigation_do_not_execute_commands() {
     let original = state.diag.connections.clone();
     let connection = original.as_ref().unwrap().connections[0].clone();
     let (application, handler) = recording_application();
-    state.commands = Some(application);
+    attach_product_application_with_accepted_owner_snapshot(&mut state, application);
     state.shell.demo = false;
     assert_eq!(
         state
@@ -75,7 +77,7 @@ fn connection_copy_emits_native_write_and_disconnect_executes_shared_identity() 
         state.diag.connection_rate_book.get(&connection.id),
     );
     let (application, handler) = recording_application();
-    state.commands = Some(application);
+    attach_product_application_with_accepted_owner_snapshot(&mut state, application);
     state.shell.demo = false;
     let _ = state.update(Message::InspectConnection(Some(connection.id.clone())));
     let copy = state.update(Message::CopyConnectionHost);

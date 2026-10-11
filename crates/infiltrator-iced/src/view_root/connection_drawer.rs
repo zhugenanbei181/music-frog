@@ -3,7 +3,7 @@
 use crate::state::AppState;
 use crate::types::message::Message;
 use crate::view_root::interaction_regions::InteractionRegion;
-use infiltrator_application::byte_format::format_bytes;
+use infiltrator_shared::byte_units::format_bytes;
 
 use crate::view::component_forms::{style_accent, style_danger, style_ghost};
 use crate::view::components::{chip, modern_scrollable};
@@ -15,7 +15,7 @@ use iced::{Alignment, Border, Color, Element, Length, Theme, border};
 use infiltrator_application::connection_detail_projection::{kernel_asn_label, kernel_geo_label};
 use infiltrator_application::connection_rate_application::project_connection;
 use infiltrator_contract::capability::Availability;
-use infiltrator_contract::connection::timing_availability;
+use infiltrator_contract::connection::{ConnectionRateObservation, timing_availability};
 use infiltrator_domain::connection_view;
 use infiltrator_domain::runtime::Connection;
 use infiltrator_shared::locales::{Lang, Localizer};
@@ -93,8 +93,8 @@ pub fn connection_drawer_modal<'a>(state: &'a AppState, conn_id: &'a str) -> Ele
     // measured interval); before a second observation they read as an honest
     // "no data yet" rather than a fabricated speed.
     let rate = state.diag.connection_rate_book.get(&conn.id);
-    let rate_row = if rate.observed {
-        row![
+    let rate_row = match rate.observation {
+        ConnectionRateObservation::Measured => row![
             stat_card(
                 lang.tr("conn_drawer_upload_speed"),
                 format!("{}/s", format_bytes(rate.upload_bps.max(0.0) as u64)),
@@ -108,15 +108,14 @@ pub fn connection_drawer_modal<'a>(state: &'a AppState, conn_id: &'a str) -> Ele
                 Icon::ArrowDown,
                 |t| tokens(t).success
             ),
-        ]
-    } else {
-        row![
+        ],
+        ConnectionRateObservation::Unobserved => row![
             text(lang.tr("conn_drawer_rate_pending"))
                 .size(11)
                 .style(|t: &Theme| text::Style {
                     color: Some(tokens(t).text_tertiary),
                 })
-        ]
+        ],
     };
 
     let throughput_section = column![

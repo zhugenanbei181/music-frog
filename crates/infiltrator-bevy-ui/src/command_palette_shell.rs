@@ -17,20 +17,21 @@ use crate::command_palette::{
 use crate::mini_hud::ToggleMiniHud;
 use crate::pages::connections_confirm::RequestCloseAllConfirmation;
 use crate::pages::dns_cache::RequestCacheConfirmation;
+use crate::pages::outbound_batch_probe::{OutboundBatchProbeReadback, submit_batch};
 use crate::pages::profiles::LastProfilesProjection;
 use crate::pages::profiles_script_workbench::ScriptWorkbenchState;
-use crate::route::{Route, RouteChanged};
-use crate::shell_modes::RequestModeChange;
+use crate::route::{ActiveRoute, Route, RouteChanged};
+use crate::shell_routing_intent::RequestRoutingIntentChange;
 use crate::shortcuts::{ShortcutBindings, modifiers_from_keyboard};
+use crate::surface::LatestSurfaceSnapshot;
 use bevy::app::{App, Plugin, Update};
 use bevy::ecs::change_detection::DetectChanges;
-use bevy::ecs::entity::Entity;
 use bevy::ecs::message::MessageReader;
 use bevy::ecs::observer::On;
 use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::IntoScheduleConfigs;
-use bevy::ecs::system::{Commands, Query, Res, ResMut};
+use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
 use bevy::input::keyboard::{Key, KeyCode, KeyboardInput};
 use bevy::input::{ButtonInput, ButtonState};
 use bevy::scene::CommandsSceneExt;
@@ -40,6 +41,7 @@ use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::switch::ThemeSwitch;
 use infiltrator_contract::command_catalogue::{CommandCatalogue, CommandTarget, ProfileChoice};
+use infiltrator_contract::outbound::probe::OutboundProbeBatchScope;
 use infiltrator_contract::shortcuts::ShortcutRegistry;
 use infiltrator_contract::system_toggle::SystemToggle;
 
@@ -147,7 +149,6 @@ pub fn sync_palette_overlay(
     state: Res<CommandPaletteState>,
     bindings: Res<ShortcutBindings>,
     mut signature: ResMut<PaletteOverlaySignature>,
-    mounted: Query<Entity, With<CommandPaletteOverlayRoot>>,
 ) {
     let next = PaletteOverlaySignature {
         language: state.language.clone(),
@@ -161,9 +162,8 @@ pub fn sync_palette_overlay(
         return;
     }
     *signature = next;
-    for entity in &mounted {
-        commands.entity(entity).despawn();
-    }
+    // Batch teardown by marker (capability norm ⑦).
+    commands.despawn_all::<With<CommandPaletteOverlayRoot>>();
     if !state.is_open {
         return;
     }
@@ -203,16 +203,34 @@ pub fn on_execute_palette_entry(
     commands.trigger(ExecuteSelectedPaletteAction);
 }
 
+/// Typed resources available to one palette action dispatch.
+#[derive(SystemParam)]
+pub struct PaletteActionResources<'w> {
+    sink: Option<Res<'w, CommandSinkHandle>>,
+    active_route: Option<Res<'w, ActiveRoute>>,
+    latest: Option<Res<'w, LatestSurfaceSnapshot>>,
+    batch_readback: Option<ResMut<'w, OutboundBatchProbeReadback>>,
+    theme_mode: Option<ResMut<'w, ThemeMode>>,
+    appearance: Option<Res<'w, SystemAppearance>>,
+    toggles: Option<Res<'w, SidebarToggleProjection>>,
+}
+
 /// Observer executing the currently selected catalogue entry.
 pub fn on_execute_selected_palette_action(
     _trigger: On<ExecuteSelectedPaletteAction>,
     mut state: ResMut<CommandPaletteState>,
-    sink: Option<Res<CommandSinkHandle>>,
-    theme_mode: Option<ResMut<ThemeMode>>,
-    appearance: Option<Res<SystemAppearance>>,
-    toggles: Option<Res<SidebarToggleProjection>>,
+    resources: PaletteActionResources,
     mut commands: Commands,
 ) {
+    let PaletteActionResources {
+        sink,
+        active_route,
+        latest,
+        mut batch_readback,
+        theme_mode,
+        appearance,
+        toggles,
+    } = resources;
     if !state.is_open {
         return;
     }
@@ -225,8 +243,8 @@ pub fn on_execute_selected_palette_action(
             let route = Route::from_shell_page(page);
             commands.trigger(RouteChanged(route));
         }
-        CommandTarget::SetProxyMode(mode) => {
-            commands.trigger(RequestModeChange(mode));
+        CommandTarget::SetRoutingIntent(intent) => {
+            commands.trigger(RequestRoutingIntentChange(intent));
         }
         CommandTarget::SwitchProfile { id, .. } => {
             if let Some(sink) = sink.as_deref() {
@@ -265,9 +283,23 @@ pub fn on_execute_selected_palette_action(
         CommandTarget::FlushDnsCache => {
             commands.trigger(RequestCacheConfirmation);
         }
-        CommandTarget::TestAllProxyGroups => {
-            if let Some(sink) = sink.as_deref() {
-                sink.submit(UiCommand::TestAllProxyGroups);
+        CommandTarget::ProbeAllOutbounds => {
+            if let (Some(sink), Some(latest), Some(readback)) = (
+                sink.as_deref(),
+                latest.as_deref(),
+                batch_readback.as_deref_mut(),
+            ) {
+                let owner_route = active_route
+                    .as_deref()
+                    .and_then(|route| route.0)
+                    .unwrap_or(Route::Overview);
+                submit_batch(
+                    &latest.0,
+                    OutboundProbeBatchScope::All,
+                    owner_route,
+                    sink,
+                    readback,
+                );
             }
         }
         CommandTarget::RunDoctor => {

@@ -1,11 +1,10 @@
 //! test-intent: behavior
 use crate::client::MihomoClient;
-use crate::overview::ControllerOverviewReader;
-use infiltrator_contract::command::ProxyMode;
+use crate::types::ConfigResponse;
+use infiltrator_contract::command::CoreLogLevel;
 use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_ports::core_log_level::CoreLogLevelPort;
 use infiltrator_ports::error::PortError;
-use infiltrator_ports::overview::OverviewReader;
-use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use mockito::Server;
 use serde_json::json;
 
@@ -21,7 +20,7 @@ async fn controller_permission_denial_is_typed_even_when_the_body_contains_valid
         .create_async()
         .await;
     let client = MihomoClient::new(&server.url(), None).unwrap();
-    let error = RuntimeGateway::get_proxies(&client).await.unwrap_err();
+    let error = client.get_proxies().await.unwrap_err();
     let failure = Failure::from(error);
     assert_eq!(failure.code, ErrorCode::Authentication);
     assert!(!failure.retryable);
@@ -52,18 +51,6 @@ async fn failed_controller_mutations_never_return_success_and_can_retry_after_re
         .await
         .unwrap();
     success.assert_async().await;
-    let patch = server
-        .mock("PATCH", "/configs")
-        .with_status(503)
-        .create_async()
-        .await;
-    assert!(matches!(
-        RuntimeGateway::patch_config(&client, json!({"mode":"rule"}))
-            .await
-            .unwrap_err(),
-        PortError::Network(_)
-    ));
-    patch.assert_async().await;
     let select = server
         .mock("PUT", "/proxies/Group")
         .with_status(400)
@@ -80,64 +67,61 @@ async fn failed_controller_mutations_never_return_success_and_can_retry_after_re
 }
 
 #[tokio::test]
-async fn mode_change_verifies_actual_readback_and_preserves_denied_and_retryable_failure_categories()
- {
+async fn core_log_level_port_uses_mihomo_wire_and_reads_back_a_typed_level() {
     let mut server = Server::new_async().await;
-    let reader = ControllerOverviewReader::new(MihomoClient::new(&server.url(), None).unwrap());
-    let denied = server
+    let patch = server
         .mock("PATCH", "/configs")
-        .with_status(401)
-        .create_async()
-        .await;
-    let not_read = server
-        .mock("GET", "/configs")
-        .expect(0)
-        .create_async()
-        .await;
-    let failure = Failure::from(reader.set_mode(ProxyMode::Global).await.unwrap_err());
-    assert_eq!(failure.code, ErrorCode::Authentication);
-    assert!(!failure.retryable);
-    denied.assert_async().await;
-    not_read.assert_async().await;
-    denied.remove_async().await;
-    not_read.remove_async().await;
-    let accepted = server
-        .mock("PATCH", "/configs")
+        .match_body(mockito::Matcher::JsonString(
+            json!({"log-level":"warn"}).to_string(),
+        ))
         .with_status(204)
-        .expect(3)
         .create_async()
         .await;
-    let retained = server
+    let config = ConfigResponse {
+        log_level: "warning".to_owned(),
+        ..ConfigResponse::default()
+    };
+    let read = server
         .mock("GET", "/configs")
         .with_status(200)
-        .with_body(
-            json!({"mode":"rule","port":0,"socks-port":0,"redir-port":0,"tproxy-port":0,"mixed-port":7890,"allow-lan":false,"log-level":"info"})
-                .to_string(),
-        )
+        .with_body(serde_json::to_string(&config).unwrap())
         .create_async()
         .await;
-    let failure = Failure::from(reader.set_mode(ProxyMode::Global).await.unwrap_err());
-    assert_eq!(failure.code, ErrorCode::InvalidState);
-    assert!(failure.retryable);
-    retained.assert_async().await;
-    retained.remove_async().await;
-    let read_failed = server
+    let client = MihomoClient::new(&server.url(), None).unwrap();
+    let observed = CoreLogLevelPort::set_core_log_level(&client, CoreLogLevel::Warn)
+        .await
+        .unwrap();
+    assert_eq!(observed, CoreLogLevel::Warn);
+    patch.assert_async().await;
+    read.assert_async().await;
+}
+
+#[tokio::test]
+async fn core_log_level_port_rejects_unknown_mihomo_readback() {
+    let mut server = Server::new_async().await;
+    let patch = server
+        .mock("PATCH", "/configs")
+        .match_body(mockito::Matcher::JsonString(
+            json!({"log-level":"debug"}).to_string(),
+        ))
+        .with_status(204)
+        .create_async()
+        .await;
+    let config = ConfigResponse {
+        log_level: "trace".to_owned(),
+        ..ConfigResponse::default()
+    };
+    let read = server
         .mock("GET", "/configs")
-        .with_status(503)
+        .with_status(200)
+        .with_body(serde_json::to_string(&config).unwrap())
         .create_async()
         .await;
-    let failure = Failure::from(reader.set_mode(ProxyMode::Global).await.unwrap_err());
-    assert_eq!(failure.code, ErrorCode::Network);
-    assert!(failure.retryable);
-    read_failed.assert_async().await;
-    read_failed.remove_async().await;
-    let applied = server.mock("GET", "/configs").with_status(200)
-        .with_body(json!({"mode":"global","port":0,"socks-port":0,"redir-port":0,"tproxy-port":0,"mixed-port":7890,"allow-lan":false,"log-level":"info"}).to_string())
-        .create_async().await;
-    assert_eq!(
-        reader.set_mode(ProxyMode::Global).await.unwrap(),
-        ProxyMode::Global
-    );
-    applied.assert_async().await;
-    accepted.assert_async().await;
+    let client = MihomoClient::new(&server.url(), None).unwrap();
+    let failure = CoreLogLevelPort::set_core_log_level(&client, CoreLogLevel::Debug)
+        .await
+        .unwrap_err();
+    assert!(matches!(failure, PortError::Failed(_)));
+    patch.assert_async().await;
+    read.assert_async().await;
 }

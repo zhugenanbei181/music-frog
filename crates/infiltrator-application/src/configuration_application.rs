@@ -1,15 +1,22 @@
-//! Configuration-file use-cases over the profile store port.
+//! Typed configuration use-cases over an engine-scoped profile codec.
 
 use crate::profile_application::ProfileApplication;
-use crate::rule_source_identity::rule_workspace;
 use infiltrator_contract::dns::DnsSettingsPatch;
+use infiltrator_contract::dns_hosts::DnsHostEntry;
 use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::profile_configuration::{
+    ProfileConfigurationRequest, ProfileConfigurationUpdate as ContractConfigurationUpdate,
+};
 use infiltrator_contract::provider_cache::KernelEtagSupportSnapshot;
+use infiltrator_contract::rules_workspace::{RulesJsonDocumentSnapshot, RulesJsonSection};
 use infiltrator_domain::{dns, fake_ip, proxy_providers, rules, sniffer, tun};
+use infiltrator_ports::profile_document_codec::{
+    ProfileConfigurationQuery, ProfileConfigurationReadout, ProfileConfigurationUpdate,
+};
 use infiltrator_ports::profile_store::ProfileStore;
+use infiltrator_ports::profile_workspace::{ProfileWorkspacePurpose, ProfileWorkspaceUpdate};
 use infiltrator_ports::rule_tracer::RuleWorkspace;
-use serde_yaml_ng::Value;
-use std::fmt::Display;
+use infiltrator_ports::runtime_gateway::ManagedRuntime;
 use std::sync::Arc;
 
 #[path = "configuration_dns.rs"]
@@ -21,340 +28,449 @@ pub struct ConfigurationApplication {
 }
 
 impl ConfigurationApplication {
-    pub fn new(store: Arc<dyn ProfileStore>) -> Self {
-        Self {
-            profiles: ProfileApplication::new(store),
-        }
+    #[cfg(test)]
+    pub(crate) fn test_configuration_application(store: Arc<dyn ProfileStore>) -> Self {
+        let profiles = ProfileApplication::new(store).with_document_codec(Arc::new(
+            crate::profile_document_codec_test_support::TestProfileDocumentCodec::mihomo(),
+        ));
+        Self::from_profile_application(profiles)
     }
 
-    async fn current(&self) -> Result<(String, String), Failure> {
-        self.profiles.current_content().await
+    pub fn from_profile_application(profiles: ProfileApplication) -> Self {
+        Self { profiles }
+    }
+
+    async fn read_configuration(
+        &self,
+        query: ProfileConfigurationQuery,
+    ) -> Result<ProfileConfigurationReadout, Failure> {
+        let workspace = self.profiles.load_active_workspace().await?;
+        self.profiles.read_profile_configuration(
+            &workspace.document.identity,
+            &workspace.document.raw_bytes,
+            query,
+        )
+    }
+
+    async fn apply_configuration<R: ManagedRuntime + ?Sized>(
+        &self,
+        runtime: Option<Arc<R>>,
+        expected_profile: Option<&str>,
+        expected_hosts: Option<&[DnsHostEntry]>,
+        update: ProfileConfigurationUpdate,
+    ) -> Result<ProfileConfigurationReadout, Failure> {
+        let workspace = self.profiles.load_active_workspace().await?;
+        let profile = workspace.document.identity.profile_id.as_str();
+        if expected_profile.is_some_and(|expected| expected != profile) {
+            return Err(Failure::new(
+                ErrorCode::InvalidState,
+                "the active profile changed; review the latest mappings before applying",
+                false,
+            ));
+        }
+        if let Some(expected) = expected_hosts {
+            let observed = self.profiles.read_profile_configuration(
+                &workspace.document.identity,
+                &workspace.document.raw_bytes,
+                ProfileConfigurationQuery::Hosts,
+            )?;
+            let ProfileConfigurationReadout::Hosts { entries, .. } = observed else {
+                return Err(Failure::new(
+                    ErrorCode::InvalidState,
+                    "the profile codec returned an unexpected Hosts readout",
+                    false,
+                ));
+            };
+            if entries != expected {
+                return Err(Failure::new(
+                    ErrorCode::InvalidState,
+                    "Hosts mappings changed; review the current rows before applying",
+                    false,
+                ));
+            }
+        }
+
+        let expected_identity = workspace.identity();
+        let mutation = self.profiles.apply_profile_configuration(
+            &workspace.document.identity,
+            &workspace.document.raw_bytes,
+            update,
+        )?;
+        let workspace_update = ProfileWorkspaceUpdate {
+            purpose: ProfileWorkspacePurpose::Derived,
+            document_bytes: mutation.document_bytes,
+            sidecar_bytes: workspace.sidecar_bytes,
+        };
+        if let Some(runtime) = runtime {
+            self.profiles
+                .commit_workspace(Some(runtime), &expected_identity, &workspace_update)
+                .await?;
+        } else {
+            self.profiles
+                .commit_active_workspace(&expected_identity, &workspace_update)
+                .await?;
+        }
+        Ok(mutation.readback)
     }
 
     pub async fn load_rule_workspace(&self) -> Result<RuleWorkspace, Failure> {
-        let (profile, content) = self.current().await?;
-        rule_workspace(profile, &content)
+        let workspace = self.profiles.load_active_workspace().await?;
+        self.profiles.read_profile_rule_workspace(&workspace)
+    }
+
+    /// Read the editor projections and their exact source revision from one
+    /// coherent active workspace observation.
+    pub async fn load_rules_json_documents(
+        &self,
+    ) -> Result<Vec<RulesJsonDocumentSnapshot>, Failure> {
+        let workspace = self.profiles.load_active_workspace().await?;
+        let identity = workspace.document.identity.clone();
+        let bytes = &workspace.document.raw_bytes;
+        let mut documents = Vec::new();
+        for (section, query) in [
+            (
+                RulesJsonSection::RuleProviders,
+                ProfileConfigurationQuery::RuleProviders,
+            ),
+            (
+                RulesJsonSection::ProxyProviders,
+                ProfileConfigurationQuery::ProxyProviders,
+            ),
+            (
+                RulesJsonSection::Sniffer,
+                ProfileConfigurationQuery::Sniffer,
+            ),
+        ] {
+            let readout = match self
+                .profiles
+                .read_profile_configuration(&identity, bytes, query)
+            {
+                Ok(readout) => readout,
+                // Preserve the read model's honest omission behavior for a
+                // section the active engine cannot decode.
+                Err(_) => continue,
+            };
+            let json = match readout {
+                ProfileConfigurationReadout::RuleProviders(value)
+                    if section == RulesJsonSection::RuleProviders =>
+                {
+                    serde_json::to_string_pretty(&value)
+                }
+                ProfileConfigurationReadout::ProxyProviders(value)
+                    if section == RulesJsonSection::ProxyProviders =>
+                {
+                    serde_json::to_string_pretty(&value)
+                }
+                ProfileConfigurationReadout::Sniffer(value)
+                    if section == RulesJsonSection::Sniffer =>
+                {
+                    serde_json::to_string_pretty(&value)
+                }
+                _ => continue,
+            };
+            let Ok(json) = json else {
+                continue;
+            };
+            documents.push(RulesJsonDocumentSnapshot {
+                section,
+                identity: identity.clone(),
+                json,
+            });
+        }
+        Ok(documents)
+    }
+
+    /// Apply a typed rules-workspace update only to the active document
+    /// revision that supplied the editor buffer.
+    pub async fn apply_profile_configuration_request(
+        &self,
+        request: ProfileConfigurationRequest,
+    ) -> Result<ProfileConfigurationReadout, Failure> {
+        let workspace = self.profiles.load_active_workspace().await?;
+        if workspace.document.identity != request.identity {
+            return Err(Failure::new(
+                ErrorCode::InvalidState,
+                "The profile document changed; reload the editor before applying this update",
+                false,
+            ));
+        }
+        let update = match request.update {
+            ContractConfigurationUpdate::RuleProviders(value) => {
+                ProfileConfigurationUpdate::RuleProviders(value)
+            }
+            ContractConfigurationUpdate::ProxyProviders(value) => {
+                ProfileConfigurationUpdate::ProxyProviders(value)
+            }
+            ContractConfigurationUpdate::Sniffer(value) => {
+                ProfileConfigurationUpdate::Sniffer(sniffer_config_from_contract(value))
+            }
+        };
+        let expected_workspace = workspace.identity();
+        let mutation = self.profiles.apply_profile_configuration(
+            &request.identity,
+            &workspace.document.raw_bytes,
+            update,
+        )?;
+        let update = ProfileWorkspaceUpdate {
+            purpose: ProfileWorkspacePurpose::Derived,
+            document_bytes: mutation.document_bytes,
+            sidecar_bytes: workspace.sidecar_bytes,
+        };
+        self.profiles
+            .commit_active_workspace(&expected_workspace, &update)
+            .await?;
+        Ok(mutation.readback)
     }
 
     pub async fn load_dns_config(&self) -> Result<dns::DnsConfig, Failure> {
-        let (_, content) = self.current().await?;
-        let doc = parse_yaml(&content)?;
-        dns::extract_dns_config_from_doc(&doc).map_err(config_failure)
+        match self
+            .read_configuration(ProfileConfigurationQuery::Dns)
+            .await?
+        {
+            ProfileConfigurationReadout::Dns(config) => Ok(config),
+            _ => Err(unexpected_readout("DNS")),
+        }
     }
 
     pub async fn save_dns_config(
         &self,
         patch: dns::DnsConfigPatch,
     ) -> Result<dns::DnsConfig, Failure> {
-        let (profile, content) = self.current().await?;
-        let updated = dns::apply_dns_patch_to_yaml(&content, patch).map_err(config_failure)?;
-        let config =
-            dns::extract_dns_config_from_doc(&parse_yaml(&updated)?).map_err(config_failure)?;
-        self.profiles.save_profile(&profile, &updated).await?;
-        Ok(config)
+        match self
+            .apply_configuration::<dyn ManagedRuntime>(
+                None,
+                None,
+                None,
+                ProfileConfigurationUpdate::Dns(patch),
+            )
+            .await?
+        {
+            ProfileConfigurationReadout::Dns(config) => Ok(config),
+            _ => Err(unexpected_readout("DNS")),
+        }
     }
 
     pub async fn load_fake_ip_config(&self) -> Result<fake_ip::FakeIpConfig, Failure> {
-        let (_, content) = self.current().await?;
-        fake_ip::extract_fake_ip_config_from_doc(&parse_yaml(&content)?).map_err(config_failure)
+        match self
+            .read_configuration(ProfileConfigurationQuery::FakeIp)
+            .await?
+        {
+            ProfileConfigurationReadout::FakeIp(config) => Ok(config),
+            _ => Err(unexpected_readout("Fake-IP")),
+        }
     }
 
     pub async fn save_fake_ip_config(
         &self,
         patch: fake_ip::FakeIpConfigPatch,
     ) -> Result<fake_ip::FakeIpConfig, Failure> {
-        let (profile, content) = self.current().await?;
-        let updated =
-            fake_ip::apply_fake_ip_patch_to_yaml(&content, patch).map_err(config_failure)?;
-        let config = fake_ip::extract_fake_ip_config_from_doc(&parse_yaml(&updated)?)
-            .map_err(config_failure)?;
-        self.profiles.save_profile(&profile, &updated).await?;
-        Ok(config)
+        match self
+            .apply_configuration::<dyn ManagedRuntime>(
+                None,
+                None,
+                None,
+                ProfileConfigurationUpdate::FakeIp(patch),
+            )
+            .await?
+        {
+            ProfileConfigurationReadout::FakeIp(config) => Ok(config),
+            _ => Err(unexpected_readout("Fake-IP")),
+        }
     }
 
     pub async fn load_tun_config(&self) -> Result<tun::TunConfig, Failure> {
-        let (_, content) = self.current().await?;
-        tun::extract_tun_config_from_doc(&parse_yaml(&content)?).map_err(config_failure)
+        match self
+            .read_configuration(ProfileConfigurationQuery::Tun)
+            .await?
+        {
+            ProfileConfigurationReadout::Tun(config) => Ok(config),
+            _ => Err(unexpected_readout("TUN")),
+        }
     }
 
     pub async fn save_tun_config(
         &self,
         patch: tun::TunConfigPatch,
     ) -> Result<tun::TunConfig, Failure> {
-        let (profile, content) = self.current().await?;
-        let updated = tun::apply_tun_patch_to_yaml(&content, patch).map_err(config_failure)?;
-        let config =
-            tun::extract_tun_config_from_doc(&parse_yaml(&updated)?).map_err(config_failure)?;
-        self.profiles.save_profile(&profile, &updated).await?;
-        Ok(config)
+        match self
+            .apply_configuration::<dyn ManagedRuntime>(
+                None,
+                None,
+                None,
+                ProfileConfigurationUpdate::Tun(patch),
+            )
+            .await?
+        {
+            ProfileConfigurationReadout::Tun(config) => Ok(config),
+            _ => Err(unexpected_readout("TUN")),
+        }
     }
 
     pub async fn load_rules(&self) -> Result<Vec<rules::RuleEntry>, Failure> {
-        let (_, content) = self.current().await?;
-        rules::load_rules_from_yaml(&content).map_err(config_failure)
+        match self
+            .read_configuration(ProfileConfigurationQuery::Rules)
+            .await?
+        {
+            ProfileConfigurationReadout::Rules(entries) => Ok(entries),
+            _ => Err(unexpected_readout("rules")),
+        }
     }
 
     pub async fn save_rules(
         &self,
         entries: Vec<rules::RuleEntry>,
     ) -> Result<Vec<rules::RuleEntry>, Failure> {
-        rules::validate_rules(&entries).map_err(config_failure)?;
-        let (profile, content) = self.current().await?;
-        let updated = rules::apply_rules_to_yaml(&content, &entries).map_err(config_failure)?;
-        self.profiles.save_profile(&profile, &updated).await?;
-        Ok(entries)
+        match self
+            .apply_configuration::<dyn ManagedRuntime>(
+                None,
+                None,
+                None,
+                ProfileConfigurationUpdate::Rules(entries),
+            )
+            .await?
+        {
+            ProfileConfigurationReadout::Rules(entries) => Ok(entries),
+            _ => Err(unexpected_readout("rules")),
+        }
     }
 
     pub async fn load_rule_providers(&self) -> Result<rules::RuleProviders, Failure> {
-        let (_, content) = self.current().await?;
-        rules::extract_rule_providers_from_doc(&parse_yaml(&content)?).map_err(config_failure)
+        match self
+            .read_configuration(ProfileConfigurationQuery::RuleProviders)
+            .await?
+        {
+            ProfileConfigurationReadout::RuleProviders(providers) => Ok(providers),
+            _ => Err(unexpected_readout("rule providers")),
+        }
     }
 
-    /// DUAL-11-05: the active profile's top-level `etag-support` declaration.
-    ///
-    /// mihomo reads `etag-support` at the config root (its `General.ETagSupport`,
-    /// default `true`) to gate its `ETag`/`If-None-Match` conditional cache for
-    /// downloaded resources. The client publishes that declaration; the
-    /// per-request `304` outcome is not exposed by the controller, so it is
-    /// never inferred here.
+    /// Read the profile's declared `etag-support` setting through its format
+    /// adapter. This is a declaration fact, not an HTTP cache outcome.
     pub async fn load_etag_support(&self) -> Result<KernelEtagSupportSnapshot, Failure> {
-        let (_, content) = self.current().await?;
-        let doc = parse_yaml(&content)?;
-        Ok(KernelEtagSupportSnapshot::from_declared(
-            doc.get("etag-support").and_then(Value::as_bool),
-        ))
+        match self
+            .read_configuration(ProfileConfigurationQuery::EtagSupport)
+            .await?
+        {
+            ProfileConfigurationReadout::EtagSupport(snapshot) => Ok(snapshot),
+            _ => Err(unexpected_readout("ETag support")),
+        }
     }
 
     pub async fn save_rule_providers(
         &self,
         providers: rules::RuleProviders,
     ) -> Result<rules::RuleProviders, Failure> {
-        let (profile, content) = self.current().await?;
-        let updated =
-            rules::apply_rule_providers_to_yaml(&content, &providers).map_err(config_failure)?;
-        self.profiles.save_profile(&profile, &updated).await?;
-        Ok(providers)
+        match self
+            .apply_configuration::<dyn ManagedRuntime>(
+                None,
+                None,
+                None,
+                ProfileConfigurationUpdate::RuleProviders(providers),
+            )
+            .await?
+        {
+            ProfileConfigurationReadout::RuleProviders(providers) => Ok(providers),
+            _ => Err(unexpected_readout("rule providers")),
+        }
     }
 
     pub async fn load_proxy_providers(&self) -> Result<proxy_providers::ProxyProviders, Failure> {
-        let (_, content) = self.current().await?;
-        proxy_providers::extract_proxy_providers_from_doc(&parse_yaml(&content)?)
-            .map_err(config_failure)
+        match self
+            .read_configuration(ProfileConfigurationQuery::ProxyProviders)
+            .await?
+        {
+            ProfileConfigurationReadout::ProxyProviders(providers) => Ok(providers),
+            _ => Err(unexpected_readout("proxy providers")),
+        }
     }
 
     pub async fn save_proxy_providers(
         &self,
         providers: proxy_providers::ProxyProviders,
     ) -> Result<proxy_providers::ProxyProviders, Failure> {
-        let (profile, content) = self.current().await?;
-        let updated = proxy_providers::apply_proxy_providers_to_yaml(&content, &providers)
-            .map_err(config_failure)?;
-        self.profiles.save_profile(&profile, &updated).await?;
-        Ok(providers)
+        match self
+            .apply_configuration::<dyn ManagedRuntime>(
+                None,
+                None,
+                None,
+                ProfileConfigurationUpdate::ProxyProviders(providers),
+            )
+            .await?
+        {
+            ProfileConfigurationReadout::ProxyProviders(providers) => Ok(providers),
+            _ => Err(unexpected_readout("proxy providers")),
+        }
     }
 
+    /// Read-only JSON editor projection; writes use the typed configuration
+    /// operation below.
     pub async fn load_sniffer_config(&self) -> Result<serde_json::Value, Failure> {
-        let (_, content) = self.current().await?;
-        sniffer::extract_sniffer_config_from_doc(&parse_yaml(&content)?).map_err(config_failure)
-    }
-
-    pub async fn save_sniffer_config(
-        &self,
-        config: serde_json::Value,
-    ) -> Result<serde_json::Value, Failure> {
-        sniffer::validate_sniffer_config(&config).map_err(config_failure)?;
-        let (profile, content) = self.current().await?;
-        let updated = sniffer::apply_sniffer_to_yaml(&content, &config).map_err(config_failure)?;
-        self.profiles.save_profile(&profile, &updated).await?;
-        Ok(config)
+        let config = self.load_typed_sniffer_config().await?;
+        serde_json::to_value(config)
+            .map_err(|error| Failure::new(ErrorCode::Configuration, error.to_string(), false))
     }
 
     pub async fn load_typed_sniffer_config(&self) -> Result<sniffer::SnifferConfig, Failure> {
-        let (_, content) = self.current().await?;
-        sniffer::extract_sniffer_config(&parse_yaml(&content)?).map_err(config_failure)
+        match self
+            .read_configuration(ProfileConfigurationQuery::Sniffer)
+            .await?
+        {
+            ProfileConfigurationReadout::Sniffer(config) => Ok(config),
+            _ => Err(unexpected_readout("sniffer")),
+        }
+    }
+
+    /// Read the endpoint used by Android's tun2proxy worker through the
+    /// active engine codec instead of parsing the native profile format in
+    /// the platform adapter.
+    pub async fn load_proxy_endpoint(&self) -> Result<Option<String>, Failure> {
+        match self
+            .read_configuration(ProfileConfigurationQuery::ProxyEndpoint)
+            .await?
+        {
+            ProfileConfigurationReadout::ProxyEndpoint(endpoint) => Ok(endpoint),
+            _ => Err(unexpected_readout("proxy endpoint")),
+        }
     }
 
     pub async fn save_typed_sniffer_config(
         &self,
         config: sniffer::SnifferConfig,
     ) -> Result<sniffer::SnifferConfig, Failure> {
-        sniffer::validate_typed_sniffer_config(&config).map_err(config_failure)?;
-        let (profile, content) = self.current().await?;
-        let updated =
-            sniffer::apply_typed_sniffer_to_yaml(&content, &config).map_err(config_failure)?;
-        self.profiles.save_profile(&profile, &updated).await?;
-        Ok(config)
-    }
-}
-
-/// Map the shared workbench patch onto the domain merge patch.
-///
-/// This is the single mapping used by both surfaces' form submission, so the
-/// Iced form draft and a Bevy `ApplyDnsSettings` command write identical
-/// profile keys.
-pub fn dns_patch_from_settings(patch: DnsSettingsPatch) -> dns::DnsConfigPatch {
-    let mut domain_patch = dns::DnsConfigPatch::default();
-    if let Some(switches) = patch.switches {
-        domain_patch.enable = Some(switches.enable);
-        domain_patch.ipv6 = Some(switches.ipv6);
-        domain_patch.cache = Some(switches.cache);
-        domain_patch.use_hosts = Some(switches.use_hosts);
-        domain_patch.use_system_hosts = Some(switches.use_system_hosts);
-        domain_patch.respect_rules = Some(switches.respect_rules);
-    }
-    if let Some(mode) = patch.enhanced_mode {
-        match mode.config_value() {
-            Some(value) => domain_patch.enhanced_mode = Some(value.to_owned()),
-            None => domain_patch.clear_enhanced_mode = true,
+        match self
+            .apply_configuration::<dyn ManagedRuntime>(
+                None,
+                None,
+                None,
+                ProfileConfigurationUpdate::Sniffer(config),
+            )
+            .await?
+        {
+            ProfileConfigurationReadout::Sniffer(config) => Ok(config),
+            _ => Err(unexpected_readout("sniffer")),
         }
     }
-    if let Some(mode) = patch.filter_mode {
-        domain_patch.fake_ip_filter_mode = Some(mode.config_value().to_owned());
-    }
-    if let Some(nameserver) = patch.nameserver {
-        domain_patch.nameserver = Some(nameserver);
-    }
-    if let Some(fallback) = patch.fallback {
-        domain_patch.fallback = Some(fallback);
-    }
-    if let Some(policy) = patch.fallback_policy {
-        domain_patch.fallback_filter_partial = Some(dns::FallbackFilterPatch {
-            geoip: Some(policy.geoip),
-            // An emptied geoip-code keeps the configured value (the host
-            // rejects an empty code); an emptied trigger list clears it.
-            geoip_code: (!policy.geoip_code.is_empty()).then_some(policy.geoip_code),
-            ipcidr: Some(policy.trigger_ipcidr),
-        });
-    }
-    if let Some(range) = patch.fake_ip_range {
-        domain_patch.fake_ip_range = Some(range);
-    }
-    if patch.clear_fake_ip_range {
-        domain_patch.clear_fake_ip_range = true;
-    }
-    if let Some(filter) = patch.fake_ip_filter {
-        domain_patch.fake_ip_filter = Some(filter);
-    }
-    if let Some(servers) = patch.proxy_server_nameserver {
-        domain_patch.proxy_server_nameserver = Some(servers);
-    }
-    if let Some(servers) = patch.direct_nameserver {
-        domain_patch.direct_nameserver = Some(servers);
-    }
-    domain_patch
 }
 
-fn parse_yaml(content: &str) -> Result<Value, Failure> {
-    serde_yaml_ng::from_str(content).map_err(config_failure)
+fn sniffer_config_from_contract(
+    value: infiltrator_contract::profile_configuration::SnifferConfiguration,
+) -> sniffer::SnifferConfig {
+    sniffer::SnifferConfig {
+        enable: value.enable,
+        sniff: value.sniff,
+        skip_domain: value.skip_domain,
+        force_domain: value.force_domain,
+        port_whitelist: value.port_whitelist,
+        sniffing: value.sniffing,
+        force_dns_mapping: value.force_dns_mapping,
+        parse_pure_ip: value.parse_pure_ip,
+    }
 }
 
-fn config_failure(error: impl Display) -> Failure {
-    Failure::new(ErrorCode::Configuration, error.to_string(), false)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[cfg(test)]
-    use infiltrator_contract::dns::DnsFallbackPolicy;
-    use infiltrator_contract::dns::{
-        DnsCoreSwitches, DnsEnhancedMode, DnsFakeIpFilterMode, DnsSwitchField,
-    };
-
-    #[test]
-    fn dns_settings_patch_maps_onto_domain_patch() {
-        let switches = DnsCoreSwitches {
-            enable: true,
-            respect_rules: true,
-            ..DnsCoreSwitches::default()
-        };
-        let patch = dns_patch_from_settings(DnsSettingsPatch {
-            switches: Some(switches),
-            enhanced_mode: Some(DnsEnhancedMode::RedirHost),
-            filter_mode: Some(DnsFakeIpFilterMode::Rules),
-            ..DnsSettingsPatch::default()
-        });
-        assert_eq!(patch.enable, Some(true));
-        assert_eq!(patch.respect_rules, Some(true));
-        assert_eq!(patch.enhanced_mode.as_deref(), Some("redir-host"));
-        assert!(!patch.clear_enhanced_mode);
-        assert_eq!(patch.fake_ip_filter_mode.as_deref(), Some("rule"));
-    }
-
-    #[test]
-    fn unmapped_mapping_mode_clears_the_key() {
-        let patch = dns_patch_from_settings(DnsSettingsPatch {
-            enhanced_mode: Some(DnsEnhancedMode::Unmapped),
-            ..DnsSettingsPatch::default()
-        });
-        assert!(patch.clear_enhanced_mode);
-        assert!(patch.enhanced_mode.is_none());
-    }
-
-    #[test]
-    fn switch_toggle_patch_derives_from_current_value() {
-        let current = DnsCoreSwitches::default();
-        let patch = DnsSettingsPatch::toggle(DnsSwitchField::Cache, current);
-        let mapped = dns_patch_from_settings(patch);
-        assert_eq!(mapped.cache, Some(true));
-        assert_eq!(mapped.enable, Some(false));
-    }
-
-    #[test]
-    fn workbench_lists_and_fallback_policy_map_onto_the_domain_patch() {
-        let patch = DnsSettingsPatch {
-            nameserver: Some(vec!["https://doh.pub/dns-query".to_owned()]),
-            fallback: Some(vec!["tls://1.0.0.1:853".to_owned()]),
-            fallback_policy: Some(DnsFallbackPolicy {
-                geoip: true,
-                geoip_code: "CN".to_owned(),
-                trigger_ipcidr: vec!["192.168.0.0/16".to_owned()],
-            }),
-            fake_ip_filter: Some(vec!["*.lan".to_owned()]),
-            proxy_server_nameserver: Some(vec!["tls://223.5.5.5:853".to_owned()]),
-            direct_nameserver: Some(vec!["system".to_owned()]),
-            ..DnsSettingsPatch::default()
-        };
-        let mapped = dns_patch_from_settings(patch);
-        assert_eq!(
-            mapped.nameserver.as_deref(),
-            Some(&["https://doh.pub/dns-query".to_owned()][..])
-        );
-        assert_eq!(
-            mapped.fallback.as_deref(),
-            Some(&["tls://1.0.0.1:853".to_owned()][..])
-        );
-        let filter = mapped
-            .fallback_filter_partial
-            .expect("fallback filter partial merge");
-        assert_eq!(filter.geoip, Some(true));
-        assert_eq!(filter.geoip_code.as_deref(), Some("CN"));
-        assert_eq!(
-            filter.ipcidr.as_deref(),
-            Some(&["192.168.0.0/16".to_owned()][..])
-        );
-        assert!(mapped.fallback_filter.is_none());
-        assert_eq!(
-            mapped.fake_ip_filter.as_deref(),
-            Some(&["*.lan".to_owned()][..])
-        );
-        assert_eq!(
-            mapped.proxy_server_nameserver.as_deref(),
-            Some(&["tls://223.5.5.5:853".to_owned()][..])
-        );
-        assert_eq!(
-            mapped.direct_nameserver.as_deref(),
-            Some(&["system".to_owned()][..])
-        );
-    }
-
-    #[test]
-    fn an_emptied_range_maps_to_the_explicit_clear_flag() {
-        let patch = dns_patch_from_settings(DnsSettingsPatch {
-            clear_fake_ip_range: true,
-            ..DnsSettingsPatch::default()
-        });
-        assert!(patch.clear_fake_ip_range);
-        assert!(patch.fake_ip_range.is_none());
-    }
+fn unexpected_readout(section: &str) -> Failure {
+    Failure::new(
+        ErrorCode::InvalidState,
+        format!("profile codec returned a readout other than {section}"),
+        false,
+    )
 }

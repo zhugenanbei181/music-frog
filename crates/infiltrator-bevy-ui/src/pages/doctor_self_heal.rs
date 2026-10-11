@@ -7,9 +7,9 @@
 //! history). Every fact is derived from the live proxy catalogue; a node whose
 //! latency or loss was never observed surfaces as a typed
 //! `NodeUnobserved` anomaly and is never scored as if the missing metric were
-//! zero. The single actionable control submits a typed
-//! [`UiCommand::SelectProxyNode`] through the shared command sink — the page
-//! never calls the controller directly.
+//! zero. The single actionable control resolves the recommendation against
+//! the latest accepted neutral outbound inventory and submits a revision-fenced
+//! [`UiCommand::SelectOutbound`] through the shared command sink.
 //!
 //! The card is a fixed `bsn!` structure restamped in place: the best-node text
 //! and anomaly rows are updated by [`refresh_self_heal`], and the anomaly list
@@ -17,6 +17,7 @@
 
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::localized_widgets::localized_button_scene;
+use crate::pages::proxies::outbound_selection_request;
 use crate::surface::LatestSurfaceSnapshot;
 use bevy::color::Color;
 use bevy::ecs::component::Component;
@@ -28,7 +29,7 @@ use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
 use bevy::scene::{CommandsSceneExt, Scene, bsn};
 use bevy::text::TextColor;
-use bevy::ui::prelude::{AlignItems, FlexDirection, FlexWrap, JustifyContent, Node, percent, px};
+use bevy::ui::prelude::{AlignItems, FlexDirection, FlexWrap, JustifyContent, Node, percent};
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
 use infiltrator_bevy_widgets::auto_heal::{
@@ -38,11 +39,14 @@ use infiltrator_bevy_widgets::auto_heal::{
 use infiltrator_bevy_widgets::button::{ButtonDisabled, ButtonVariant};
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
-use infiltrator_contract::surface_snapshot::ProxiesPageSnapshot;
-use std::collections::{HashMap, HashSet};
+use infiltrator_contract::outbound::{identity::OutboundId, inventory::OutboundInventoryState};
+use infiltrator_contract::speedtest::SpeedtestOutboundResult;
+use infiltrator_contract::surface_snapshot::{PageStatus, SurfaceSnapshot};
+use std::collections::HashMap;
 
 /// Marker on the self-heal card root.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -65,7 +69,8 @@ pub struct DoctorSelfHealAnomalyRow(pub String);
 #[require(Button, ButtonDisabled)]
 pub struct ApplyBestNodeButton;
 
-/// The latest self-heal projection, refreshed from the live proxy catalogue.
+/// The latest self-heal projection, refreshed from the accepted outbound
+/// inventory and matching speedtest results.
 ///
 /// The board is a read-only projection for the UI: it is never re-derived by
 /// the scene, and `best_node` stays `None` until a candidate actually had the
@@ -74,18 +79,15 @@ pub struct ApplyBestNodeButton;
 pub struct DoctorSelfHealBoard {
     pub signals: SelfHealSignalBoard,
     /// Policy group owning the recommended node, if one was scored.
-    pub best_group: Option<String>,
+    pub best_target: Option<(OutboundId, OutboundId)>,
     /// Number of distinct proxy nodes observed in the catalogue.
     pub observed_nodes: usize,
 }
 
 impl DoctorSelfHealBoard {
     /// The `(group, node)` the apply intent should carry, if any.
-    pub fn apply_target(&self) -> Option<(String, String)> {
-        match (&self.best_group, &self.signals.best_node) {
-            (Some(group), Some(node)) => Some((group.clone(), node.clone())),
-            _ => None,
-        }
+    pub fn apply_target(&self) -> Option<(OutboundId, OutboundId)> {
+        self.best_target.clone()
     }
 }
 
@@ -108,7 +110,7 @@ pub fn self_heal_card_scene(palette: &UiPalette) -> impl Scene + use<> {
                         width: percent(100),
                         align_items: AlignItems::Center,
                         justify_content: JustifyContent::SpaceBetween,
-                        column_gap: px(space::S8),
+                        column_gap: rem(space::S8),
                     }
                     Children [
                         LocalizedText::plain("proxies_title") TextRole(Role::BodyStrong)
@@ -120,7 +122,7 @@ pub fn self_heal_card_scene(palette: &UiPalette) -> impl Scene + use<> {
                     Node {
                         width: percent(100),
                         flex_direction: FlexDirection::Column,
-                        row_gap: px(space::S4),
+                        row_gap: rem(space::S4),
                     }
                     DoctorSelfHealAnomalyRows
             }),
@@ -129,8 +131,8 @@ pub fn self_heal_card_scene(palette: &UiPalette) -> impl Scene + use<> {
                         width: percent(100),
                         align_items: AlignItems::Center,
                         justify_content: JustifyContent::SpaceBetween,
-                        column_gap: px(space::S8),
-                        row_gap: px(space::S4),
+                        column_gap: rem(space::S8),
+                        row_gap: rem(space::S4),
                         flex_wrap: FlexWrap::Wrap,
                     }
                     Children [
@@ -166,34 +168,70 @@ pub struct SelfHealText {
     row: Option<&'static DoctorSelfHealAnomalyRow>,
 }
 
-/// Derive node candidates from the observed proxy catalogue.
-///
-/// `delay_ms` is the observed latency. The controller-reported `alive` flag is
-/// the only loss fact the catalogue carries (a reported dead node is 100%
-/// loss); a node without the flag keeps loss unobserved, so it is never
-/// silently scored. Returns the candidates and the first policy group owning
-/// each node.
-fn candidates_from_proxies(
-    proxies: &ProxiesPageSnapshot,
-) -> (Vec<NodeCandidate>, HashMap<String, String>) {
-    let mut seen = HashSet::new();
+/// Derive candidates from the accepted neutral inventory and exact matching
+/// speedtest results. Missing probe facts remain unobserved, and duplicate
+/// display labels stay non-actionable because they cannot identify one opaque
+/// outbound safely.
+fn candidates_from_surface(
+    snapshot: &SurfaceSnapshot,
+) -> (
+    Vec<NodeCandidate>,
+    HashMap<String, (OutboundId, OutboundId)>,
+) {
+    if !matches!(
+        &snapshot.outbound_inventory.status,
+        PageStatus::Ready | PageStatus::Empty
+    ) {
+        return (Vec::new(), HashMap::new());
+    }
+    let Some(inventory) = snapshot.outbound_inventory.data.as_ref() else {
+        return (Vec::new(), HashMap::new());
+    };
+    if snapshot.core.scope().as_ref() != Some(inventory.scope()) {
+        return (Vec::new(), HashMap::new());
+    }
+    let OutboundInventoryState::Ready {
+        entries,
+        collections,
+    } = inventory.inventory()
+    else {
+        return (Vec::new(), HashMap::new());
+    };
+
+    let current_speedtest = snapshot
+        .speedtest
+        .state
+        .target()
+        .is_some_and(|target| target.core_scope() == inventory.scope())
+        .then_some(&snapshot.speedtest);
     let mut candidates = Vec::new();
     let mut groups = HashMap::new();
-    for group in &proxies.groups {
-        for node in &group.proxies {
-            if !seen.insert(node.name.clone()) {
-                continue;
-            }
-            groups.insert(node.name.clone(), group.name.clone());
-            let mut candidate = NodeCandidate::new(node.name.clone());
-            candidate.observation = NodeObservation {
-                latency_ms: node.delay_ms.map(|delay| delay as f32),
-                loss_ratio: node.alive.map(|alive| if alive { 0.0 } else { 1.0 }),
-            };
-            candidates.push(candidate);
+    for outbound in entries {
+        let name = outbound
+            .display_name
+            .clone()
+            .unwrap_or_else(|| outbound.id.value().to_owned());
+        let speedtest = current_speedtest.and_then(|speedtest| speedtest.result(&outbound.id));
+        let mut candidate = NodeCandidate::new(name.clone());
+        candidate.observation = NodeObservation {
+            latency_ms: speedtest.and_then(|result| result.delay_ms().map(|delay| delay as f32)),
+            loss_ratio: speedtest.and_then(observed_loss_ratio),
+        };
+        candidates.push(candidate);
+        if let Some(collection) = collections
+            .iter()
+            .find(|collection| collection.member_ids.contains(&outbound.id))
+        {
+            groups.insert(name, (collection.id.clone(), outbound.id.clone()));
         }
     }
     (candidates, groups)
+}
+
+fn observed_loss_ratio(result: &SpeedtestOutboundResult) -> Option<f32> {
+    result
+        .calculation()
+        .map(|calculation| (calculation.loss_percent / 100.0) as f32)
 }
 
 /// Stable row identity: node plus anomaly kind. A changing measurement updates
@@ -268,8 +306,9 @@ fn anomaly_row_scene(id: String, text: String, color: Color) -> impl Scene + use
     }
 }
 
-/// Refresh the self-heal board from the latest proxy catalogue and restamp the
-/// mounted card. Structure changes only when the anomaly identity set changes.
+/// Refresh the self-heal board from the latest neutral outbound inventory and
+/// restamp the mounted card. Structure changes only when anomaly identities
+/// change.
 pub fn refresh_self_heal(
     snapshot: Option<Res<LatestSurfaceSnapshot>>,
     mut board: ResMut<DoctorSelfHealBoard>,
@@ -280,22 +319,21 @@ pub fn refresh_self_heal(
     let fallback = UiLocale::default();
     let locale_ref = locale.as_deref().unwrap_or(&fallback);
 
-    let (candidates, groups) = snapshot
+    let (candidates, targets) = snapshot
         .as_deref()
-        .and_then(|snapshot| snapshot.0.pages.proxies.data.as_ref())
-        .map(candidates_from_proxies)
+        .map(|snapshot| candidates_from_surface(&snapshot.0))
         .unwrap_or_default();
 
     let detector = ContextAwareHealDetector::new();
     let mut signals = SelfHealSignalBoard::new();
     signals.refresh(&detector, &candidates);
-    let best_group = signals
+    let best_target = signals
         .best_node
         .as_ref()
-        .and_then(|node| groups.get(node).cloned());
+        .and_then(|node| targets.get(node).cloned());
     let next = DoctorSelfHealBoard {
         signals,
-        best_group,
+        best_target,
         observed_nodes: candidates.len(),
     };
     if board.as_ref() != &next {
@@ -361,7 +399,12 @@ pub fn refresh_self_heal(
         }
     }
 
-    let disabled = board.apply_target().is_none();
+    let disabled = board.apply_target().is_none_or(|(group, node)| {
+        snapshot
+            .as_deref()
+            .and_then(|snapshot| outbound_selection_request(&snapshot.0, &group, &node))
+            .is_none()
+    });
     for mut button in &mut surface.buttons {
         if button.0 != disabled {
             button.0 = disabled;
@@ -375,6 +418,7 @@ pub fn on_apply_best_node(
     activate: On<Activate>,
     buttons: Query<(), With<ApplyBestNodeButton>>,
     board: Res<DoctorSelfHealBoard>,
+    latest: Option<Res<LatestSurfaceSnapshot>>,
     sink: Option<Res<CommandSinkHandle>>,
 ) {
     if !buttons.contains(activate.entity) {
@@ -384,69 +428,114 @@ pub fn on_apply_best_node(
     let Some((group, node)) = board.apply_target() else {
         return;
     };
-    sink.submit(UiCommand::SelectProxyNode { group, node });
+    let Some(request) = latest
+        .as_deref()
+        .and_then(|snapshot| outbound_selection_request(&snapshot.0, &group, &node))
+    else {
+        return;
+    };
+    sink.submit(UiCommand::SelectOutbound { request });
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use infiltrator_contract::surface_snapshot::{ProxyGroupSnapshot, ProxyNodeSnapshot};
+    use crate::surface::{DemoSurfaceSource, SurfaceSource};
+    use infiltrator_contract::outbound::probe::OutboundProbeBatchScope;
+    use infiltrator_contract::outbound::{
+        details::OutboundSnapshot,
+        identity::{OutboundId, SnapshotRevision},
+        inventory::{
+            OutboundInventorySnapshot, OutboundSelectionSet, OutboundSelectionState,
+            SelectionAvailability,
+        },
+    };
+    use infiltrator_contract::speedtest::{
+        SpeedtestOutboundResult, SpeedtestProgress, SpeedtestResultState, SpeedtestRounds,
+        SpeedtestRunId, SpeedtestRunState, SpeedtestSampleOutcome, SpeedtestTarget,
+    };
+    use infiltrator_contract::surface_snapshot::PageData;
 
-    fn proxies() -> ProxiesPageSnapshot {
-        ProxiesPageSnapshot {
-            name_runs: Default::default(),
-            search_query: String::new(),
-            node_details: Vec::new(),
-            groups: vec![ProxyGroupSnapshot {
-                name: "GLOBAL".to_owned(),
-                group_type: "select".to_owned(),
-                classification: None,
-                current: "HK-Fast".to_owned(),
-                expanded: true,
-                proxies: vec![
-                    ProxyNodeSnapshot {
-                        name: "HK-Fast".to_owned(),
-                        node_type: "ss".to_owned(),
-                        delay_ms: Some(40),
-                        alive: Some(true),
-                        selected: true,
-                        favorite: false,
-                        features: Vec::new(),
-                    },
-                    ProxyNodeSnapshot {
-                        name: "US-Lossy".to_owned(),
-                        node_type: "ss".to_owned(),
-                        delay_ms: Some(120),
-                        alive: Some(false),
-                        selected: false,
-                        favorite: false,
-                        features: Vec::new(),
-                    },
-                    ProxyNodeSnapshot {
-                        name: "JP-Unknown".to_owned(),
-                        node_type: "ss".to_owned(),
-                        delay_ms: None,
-                        alive: None,
-                        selected: false,
-                        favorite: false,
-                        features: Vec::new(),
-                    },
+    fn observed_surface() -> SurfaceSnapshot {
+        let mut snapshot = DemoSurfaceSource::running().surface_snapshot();
+        let scope = snapshot
+            .core
+            .scope()
+            .expect("demo surface has an accepted core scope");
+        let engine = scope.identity.engine.clone();
+        let id = |name: &str| OutboundId::new(engine.clone(), name).expect("valid ID");
+        let names = ["HK-Fast", "US-Lossy", "JP-Unknown"];
+        let entries = names
+            .iter()
+            .map(|name| OutboundSnapshot {
+                id: id(name),
+                display_name: Some((*name).to_owned()),
+            })
+            .collect();
+        let inventory = OutboundInventorySnapshot::new(
+            scope.clone(),
+            SnapshotRevision::new(5),
+            OutboundInventoryState::Ready {
+                entries,
+                collections: vec![OutboundSelectionSet {
+                    id: id("GLOBAL"),
+                    member_ids: names.iter().map(|name| id(name)).collect(),
+                    availability: SelectionAvailability::Selectable,
+                    selection: OutboundSelectionState::Unknown,
+                }],
+            },
+        )
+        .expect("valid outbound fixture");
+        snapshot.outbound_inventory = PageData::ready(inventory);
+        snapshot.speedtest.state = SpeedtestRunState::Completed {
+            run_id: SpeedtestRunId::new(1).expect("valid fixture run ID"),
+            target: SpeedtestTarget::new(
+                scope,
+                SnapshotRevision::new(5),
+                OutboundProbeBatchScope::All,
+                SpeedtestRounds::DEFAULT,
+            )
+            .expect("valid speedtest target"),
+            progress: SpeedtestProgress {
+                completed_targets: 2,
+                total_targets: 2,
+            },
+        };
+        snapshot.speedtest.results = vec![
+            SpeedtestOutboundResult {
+                outbound_id: id("HK-Fast"),
+                display_name: Some("HK-Fast".to_owned()),
+                protocol_display_name: Some("test".to_owned()),
+                samples: vec![SpeedtestSampleOutcome::Measured { delay_ms: 40 }],
+                state: SpeedtestResultState::Completed,
+                tested_at_epoch_ms: 1,
+            },
+            SpeedtestOutboundResult {
+                outbound_id: id("US-Lossy"),
+                display_name: Some("US-Lossy".to_owned()),
+                protocol_display_name: Some("test".to_owned()),
+                samples: vec![
+                    SpeedtestSampleOutcome::Measured { delay_ms: 120 },
+                    SpeedtestSampleOutcome::TimedOut,
+                    SpeedtestSampleOutcome::TimedOut,
                 ],
-            }],
-            testing: false,
-            active_exit: String::new(),
-            filter_alive: Default::default(),
-            sort_order: Default::default(),
-            compact_view: false,
-            custom_node: Default::default(),
-        }
+                state: SpeedtestResultState::Completed,
+                tested_at_epoch_ms: 1,
+            },
+        ];
+        snapshot
     }
 
     #[test]
     fn missing_observations_stay_typed_unknown() {
-        let (candidates, groups) = candidates_from_proxies(&proxies());
+        let snapshot = observed_surface();
+        let (candidates, groups) = candidates_from_surface(&snapshot);
         assert_eq!(candidates.len(), 3);
-        assert_eq!(groups.get("JP-Unknown").map(String::as_str), Some("GLOBAL"));
+        assert_eq!(
+            groups.get("JP-Unknown").map(|(group, _)| group.value()),
+            Some("GLOBAL")
+        );
+        assert!(snapshot.outbound_inventory.data.is_some());
 
         let unknown = candidates
             .iter()

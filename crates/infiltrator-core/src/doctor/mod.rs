@@ -13,6 +13,7 @@
 //! tests and embedded hosts never touch global state.
 
 use crate::settings_io::load_settings;
+use crate::version_port::MihomoVersionPort;
 use mihomo_api::error;
 use mihomo_platform::defaults::DefaultCredentialStore;
 mod checks;
@@ -23,6 +24,7 @@ mod fixes;
 mod pidfile;
 
 use mihomo_config::manager::ConfigManager;
+use mihomo_config::manager::paths::{engine_config_dir, resolve_configs_dir_in};
 use mihomo_platform::paths::get_home_dir;
 use mihomo_version::manager::VersionManager;
 use serde::{Deserialize, Serialize};
@@ -266,15 +268,17 @@ impl DoctorEnv {
         // settings 解析失败时按默认值继续：坏 settings 由 config.settings_parse
         // 专门上报，其余检查不得连带失效。
         let settings = load_settings(&self.settings_file).await.unwrap_or_default();
-        ConfigManager::with_home_configs_dir_and_store(
+        let manager = ConfigManager::with_home_configs_dir_and_store(
             self.home.clone(),
             settings.configs_dir.as_deref(),
             DefaultCredentialStore::default(),
-        )
+        )?;
+        manager.initialize_profile_namespace().await?;
+        Ok(manager)
     }
 
     pub(super) fn version_manager(&self) -> error::Result<VersionManager> {
-        VersionManager::with_home(self.home.clone())
+        VersionManager::for_engine(self.home.clone(), MihomoVersionPort::engine_identifier())
     }
 
     /// Resolved current-profile YAML path.
@@ -284,14 +288,12 @@ impl DoctorEnv {
     }
 
     /// Resolved configs directory. Derivation goes through
-    /// [`ConfigManager::get_current_path`] so it stays consistent with
-    /// whatever directory resolution `mihomo-config` performs, including the
-    /// cloud-sync redirect from the settings file (`configs_dir` field).
+    /// the same shared root and engine namespace used by `ConfigManager`,
+    /// without initializing the store before the directory check runs.
     pub(super) async fn configs_dir(&self) -> anyhow::Result<PathBuf> {
-        let path = self.current_profile_path().await?;
-        path.parent()
-            .map(Path::to_path_buf)
-            .ok_or_else(|| anyhow::anyhow!("profile path has no parent: {}", path.display()))
+        let settings = load_settings(&self.settings_file).await.unwrap_or_default();
+        let root = resolve_configs_dir_in(settings.configs_dir.as_deref(), &self.home)?;
+        Ok(engine_config_dir(&root, &mihomo_config::engine_id()))
     }
 }
 

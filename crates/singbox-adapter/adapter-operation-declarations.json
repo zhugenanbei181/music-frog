@@ -1,0 +1,436 @@
+{
+  "schema_version": 1,
+  "engine": "sing-box",
+  "operations": [
+    {
+      "operation": {
+        "category": "profile",
+        "operation": "validate"
+      },
+      "support": {
+        "status": "unsupported",
+        "reason": "The standalone sing-box native JSON validator is not registered in the production EngineBackendFactory; this Core operation is unavailable until that owner composition exists."
+      }
+    },
+    {
+      "operation": {
+        "category": "profile",
+        "operation": "apply"
+      },
+      "support": {
+        "status": "unsupported",
+        "reason": "The standalone sing-box native config transaction is not registered in the production EngineBackendFactory; this Core operation is unavailable until that owner composition exists."
+      }
+    },
+    {
+      "operation": {
+        "category": "profile",
+        "operation": "apply_feature"
+      },
+      "support": {
+        "status": "unsupported",
+        "reason": "The sing-box adapter has no implementation for this CoreOperation."
+      }
+    },
+    {
+      "operation": {
+        "category": "dns",
+        "operation": "read_configuration"
+      },
+      "support": {
+        "status": "unsupported",
+        "reason": "The sing-box adapter has no implementation for this CoreOperation."
+      }
+    },
+    {
+      "operation": {
+        "category": "dns",
+        "operation": "apply_configuration"
+      },
+      "support": {
+        "status": "unsupported",
+        "reason": "The sing-box adapter has no implementation for this CoreOperation."
+      }
+    },
+    {
+      "operation": {
+        "category": "dns",
+        "operation": "read_hosts"
+      },
+      "support": {
+        "status": "unsupported",
+        "reason": "The sing-box adapter has no implementation for this CoreOperation."
+      }
+    },
+    {
+      "operation": {
+        "category": "dns",
+        "operation": "write_hosts"
+      },
+      "support": {
+        "status": "unsupported",
+        "reason": "The sing-box adapter has no implementation for this CoreOperation."
+      }
+    },
+    {
+      "operation": {
+        "category": "dns",
+        "operation": "query"
+      },
+      "support": {
+        "status": "unsupported",
+        "reason": "The sing-box adapter has no implementation for this CoreOperation."
+      }
+    },
+    {
+      "operation": {
+        "category": "dns",
+        "operation": "flush_cache"
+      },
+      "support": {
+        "status": "unsupported",
+        "reason": "The sing-box adapter has no implementation for this CoreOperation."
+      }
+    },
+    {
+      "operation": {
+        "category": "rules",
+        "operation": "trace"
+      },
+      "support": {
+        "status": "unsupported",
+        "reason": "The sing-box adapter has no implementation for this CoreOperation."
+      }
+    },
+    {
+      "operation": {
+        "category": "rules",
+        "operation": "apply"
+      },
+      "support": {
+        "status": "unsupported",
+        "reason": "The sing-box adapter has no implementation for this CoreOperation."
+      }
+    },
+    {
+      "operation": {
+        "category": "subscription",
+        "operation": "refresh"
+      },
+      "support": {
+        "status": "unsupported",
+        "reason": "The sing-box adapter has no implementation for this CoreOperation."
+      }
+    },
+    {
+      "operation": {
+        "category": "subscription",
+        "operation": "import"
+      },
+      "support": {
+        "status": "unsupported",
+        "reason": "The sing-box adapter has no implementation for this CoreOperation."
+      }
+    },
+    {
+      "operation": {
+        "category": "subscription",
+        "operation": "update"
+      },
+      "support": {
+        "status": "unsupported",
+        "reason": "The sing-box adapter has no implementation for this CoreOperation."
+      }
+    },
+    {
+      "operation": {
+        "category": "provider",
+        "operation": "list_proxy"
+      },
+      "support": {
+        "status": "unsupported",
+        "reason": "The sing-box adapter has no implementation for this CoreOperation."
+      }
+    },
+    {
+      "operation": {
+        "category": "provider",
+        "operation": "update_proxy"
+      },
+      "support": {
+        "status": "unsupported",
+        "reason": "The sing-box adapter has no implementation for this CoreOperation."
+      }
+    },
+    {
+      "operation": {
+        "category": "provider",
+        "operation": "healthcheck_proxy"
+      },
+      "support": {
+        "status": "unsupported",
+        "reason": "The sing-box adapter has no implementation for this CoreOperation."
+      }
+    },
+    {
+      "operation": {
+        "category": "provider",
+        "operation": "list_rule"
+      },
+      "support": {
+        "status": "unsupported",
+        "reason": "The sing-box adapter has no implementation for this CoreOperation."
+      }
+    },
+    {
+      "operation": {
+        "category": "provider",
+        "operation": "update_rule"
+      },
+      "support": {
+        "status": "unsupported",
+        "reason": "The sing-box adapter has no implementation for this CoreOperation."
+      }
+    },
+    {
+      "operation": {
+        "category": "outbound",
+        "operation": "list"
+      },
+      "support": {
+        "status": "unsupported",
+        "reason": "The standalone sing-box Clash inventory adapter is not registered in the production EngineBackendFactory; this Core operation is unavailable until that owner composition exists."
+      }
+    },
+    {
+      "operation": {
+        "category": "outbound",
+        "operation": "select"
+      },
+      "support": {
+        "status": "unsupported",
+        "reason": "The standalone sing-box selector adapter is not registered in the production EngineBackendFactory; this Core operation is unavailable until that owner composition exists."
+      }
+    },
+    {
+      "operation": {
+        "category": "outbound",
+        "operation": "probe"
+      },
+      "support": {
+        "status": "unsupported",
+        "reason": "The sing-box adapter returns typed Unsupported for delay probing because its controller endpoint side effects are not proven safe."
+      }
+    },
+    {
+      "operation": {
+        "category": "connection",
+        "operation": "list"
+      },
+      "support": {
+        "status": "unsupported",
+        "reason": "The sing-box adapter has no implementation for this CoreOperation."
+      }
+    },
+    {
+      "operation": {
+        "category": "connection",
+        "operation": "close"
+      },
+      "support": {
+        "status": "unsupported",
+        "reason": "The sing-box adapter has no implementation for this CoreOperation."
+      }
+    },
+    {
+      "operation": {
+        "category": "logs",
+        "operation": "read"
+      },
+      "support": {
+        "status": "unsupported",
+        "reason": "The sing-box adapter has no implementation for this CoreOperation."
+      }
+    },
+    {
+      "operation": {
+        "category": "logs",
+        "operation": "stream"
+      },
+      "support": {
+        "status": "unsupported",
+        "reason": "The sing-box adapter has no implementation for this CoreOperation."
+      }
+    },
+    {
+      "operation": {
+        "category": "logs",
+        "operation": "set_level"
+      },
+      "support": {
+        "status": "unsupported",
+        "reason": "The sing-box adapter has no implementation for this CoreOperation."
+      }
+    },
+    {
+      "operation": {
+        "category": "geo",
+        "operation": "update_databases"
+      },
+      "support": {
+        "status": "unsupported",
+        "reason": "The sing-box adapter has no implementation for this CoreOperation."
+      }
+    },
+    {
+      "operation": {
+        "category": "fake_ip_cache",
+        "operation": "read"
+      },
+      "support": {
+        "status": "unsupported",
+        "reason": "The sing-box adapter has no implementation for this CoreOperation."
+      }
+    },
+    {
+      "operation": {
+        "category": "fake_ip_cache",
+        "operation": "flush"
+      },
+      "support": {
+        "status": "unsupported",
+        "reason": "The sing-box adapter has no implementation for this CoreOperation."
+      }
+    },
+    {
+      "operation": {
+        "category": "tun",
+        "operation": "inspect"
+      },
+      "support": {
+        "status": "unsupported",
+        "reason": "The sing-box adapter has no implementation for this CoreOperation."
+      }
+    },
+    {
+      "operation": {
+        "category": "tun",
+        "operation": "configure"
+      },
+      "support": {
+        "status": "unsupported",
+        "reason": "The sing-box adapter has no implementation for this CoreOperation."
+      }
+    },
+    {
+      "operation": {
+        "category": "tun",
+        "operation": "start"
+      },
+      "support": {
+        "status": "unsupported",
+        "reason": "The sing-box adapter has no implementation for this CoreOperation."
+      }
+    },
+    {
+      "operation": {
+        "category": "tun",
+        "operation": "stop"
+      },
+      "support": {
+        "status": "unsupported",
+        "reason": "The sing-box adapter has no implementation for this CoreOperation."
+      }
+    },
+    {
+      "operation": {
+        "category": "lifecycle",
+        "operation": "start"
+      },
+      "support": {
+        "status": "owner_managed",
+        "owner": "core_lifecycle"
+      }
+    },
+    {
+      "operation": {
+        "category": "lifecycle",
+        "operation": "stop"
+      },
+      "support": {
+        "status": "owner_managed",
+        "owner": "core_lifecycle"
+      }
+    },
+    {
+      "operation": {
+        "category": "lifecycle",
+        "operation": "restart"
+      },
+      "support": {
+        "status": "unsupported",
+        "reason": "The sing-box adapter has no implementation for this CoreOperation."
+      }
+    },
+    {
+      "operation": {
+        "category": "proxy_control",
+        "operation": "get_routing_intent"
+      },
+      "support": {
+        "status": "unsupported",
+        "reason": "The standalone sing-box mode observer is not registered in the production EngineBackendFactory; this Core operation is unavailable until that owner composition exists."
+      }
+    },
+    {
+      "operation": {
+        "category": "proxy_control",
+        "operation": "set_routing_intent"
+      },
+      "support": {
+        "status": "unsupported",
+        "reason": "The sing-box adapter returns typed Unsupported for routing writes; /configs.mode is not a neutral routing policy."
+      }
+    },
+    {
+      "operation": {
+        "category": "core_garbage_collection",
+        "operation": "trigger"
+      },
+      "support": {
+        "status": "unsupported",
+        "reason": "The sing-box adapter has no implementation for this CoreOperation."
+      }
+    },
+    {
+      "operation": {
+        "category": "version",
+        "operation": "inspect"
+      },
+      "support": {
+        "status": "unsupported",
+        "reason": "Version installation and update operations are not implemented; live CoreReadiness version observation is not a version-management operation."
+      }
+    },
+    {
+      "operation": {
+        "category": "version",
+        "operation": "install"
+      },
+      "support": {
+        "status": "unsupported",
+        "reason": "Version installation and update operations are not implemented; live CoreReadiness version observation is not a version-management operation."
+      }
+    },
+    {
+      "operation": {
+        "category": "version",
+        "operation": "rollback"
+      },
+      "support": {
+        "status": "unsupported",
+        "reason": "Version installation and update operations are not implemented; live CoreReadiness version observation is not a version-management operation."
+      }
+    }
+  ]
+}

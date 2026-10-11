@@ -13,8 +13,9 @@ use infiltrator_bevy_ui::pages::profiles_editor_panes::{
 use infiltrator_bevy_ui::pages::profiles_editor_state::ProfileEditorState;
 use infiltrator_bevy_widgets::editor::state::CodeEditorState;
 use infiltrator_bevy_widgets::localization::UiLocale;
-use infiltrator_domain::mixin_studio::MixinColumnRole;
+use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
 use infiltrator_domain::yaml_edit::format::FormatSkipReason;
+use infiltrator_ports::profile_document_codec::ProfileMixinColumnRole;
 
 #[test]
 fn editor_locale_replays_shared_facts_and_keeps_dirty_buffers_cursor_focus_and_entities() {
@@ -34,7 +35,7 @@ fn editor_locale_replays_shared_facts_and_keeps_dirty_buffers_cursor_focus_and_e
         state.buffer.cursor_col = "# 中文".len();
         state.dirty = true;
         state.focused = true;
-        state.protection_override = true;
+        state.write_authorization = ProfileWriteAuthorization::ExplicitUnlock;
         state.format_note = Some(FormatSkipReason::AnchorsPresent);
         state.generation += 1;
     }
@@ -61,7 +62,7 @@ fn editor_locale_replays_shared_facts_and_keeps_dirty_buffers_cursor_focus_and_e
         .world_mut()
         .query::<(Entity, &MixinColumnCaption)>()
         .iter(app.world())
-        .find(|(_, caption)| caption.0 == MixinColumnRole::Overlay)
+        .find(|(_, caption)| caption.0 == ProfileMixinColumnRole::Overlay)
         .unwrap()
         .0;
     sink.clear();

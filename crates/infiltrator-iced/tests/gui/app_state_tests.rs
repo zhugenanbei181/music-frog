@@ -4,6 +4,7 @@
 //! test-intent: behavior
 
 use crate::state::AppState;
+use crate::state::core_operations::{CoreDownloadCompletionAdmission, CoreDownloadStart};
 use crate::test_mounts::profile_edit_fixture;
 use crate::tray::spec::{TRAY_ACTION_QUIT, TrayEvent, TrayIntent, resolve_tray_event};
 use crate::types::app::{ConfirmAction, CoreDownloadProgress, Route, SyncProgress, ToastStatus};
@@ -11,27 +12,107 @@ use crate::types::dns::DnsTab;
 use crate::types::message::Message;
 use crate::types::profile_edit::ProfileEditReply;
 use crate::types::runtime::{
-    IpProbeResult, RebuildFlowState, RuntimePatchSnapshot, RuntimeStatus, RuntimeStreamKind,
-    RuntimeStreamState,
+    IpProbeResult, RebuildFlowState, RuntimePatchSnapshot, RuntimeStreamKind, RuntimeStreamState,
 };
 use iced::widget::text_editor;
 use infiltrator_application::rule_list_fixtures::list_document;
-use infiltrator_contract::command::ProxyMode;
+use infiltrator_application::runtime_configuration_application::RuntimeConfigurationReadout;
 use infiltrator_contract::command_output::CommandOutput;
+use infiltrator_contract::core_control::CoreControlLabel;
+use infiltrator_contract::core_identity::{
+    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId,
+};
 use infiltrator_contract::error::{ErrorCode, Failure, InfiltratorError};
-use infiltrator_contract::proxy_mode::ProxyModeSnapshot;
+use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
+use infiltrator_contract::routing_intent::RoutingIntent;
+use infiltrator_contract::routing_intent::RoutingIntentSnapshot;
+use infiltrator_contract::routing_intent::RoutingIntentStatus;
 use infiltrator_contract::rules_workspace::{RulesJsonSection, RulesTab};
 use infiltrator_contract::runtime_control::RuntimeControlStatus;
+use infiltrator_contract::session::SessionToken;
+use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::system_toggle::SystemToggleState;
 use infiltrator_domain::connection_rate::pulse_intensity;
 use infiltrator_domain::profiles::ProfileInfo;
 use infiltrator_domain::rules::RuleEntry;
 use infiltrator_domain::runtime::TrafficData;
-use infiltrator_domain::runtime::{ConfigSnapshot, DnsSnapshot, SnifferSnapshot, TunSnapshot};
+use infiltrator_ports::runtime_configuration::{
+    ConfigurationObservation, ConfigurationRevision, DnsRuntimeConfiguration, Ipv6Configuration,
+    LanAuthenticationState, LanSecurityConfiguration, LanSharingConfiguration, ObservedValue,
+    ProxyPortsConfiguration, SnifferConfiguration, TunConfiguration,
+};
 use infiltrator_shared::locales::{Lang, Localizer};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
+
+fn runtime_config_readout(
+    tun: TunConfiguration,
+    ipv6_enabled: ObservedValue<bool>,
+    nameservers: ObservedValue<Vec<String>>,
+) -> RuntimeConfigurationReadout {
+    let scope = runtime_stream_scope("mihomo", "runtime-config-test", SessionToken::new(91));
+    let revision = ConfigurationRevision::new(1);
+    RuntimeConfigurationReadout {
+        tun: ConfigurationObservation {
+            scope: scope.clone(),
+            revision,
+            value: tun.clone(),
+        },
+        lan_sharing: ConfigurationObservation {
+            scope: scope.clone(),
+            revision,
+            value: LanSharingConfiguration {
+                enabled: ObservedValue::Unreported,
+                mixed_port: ObservedValue::Unreported,
+                bind_address: ObservedValue::Unreported,
+            },
+        },
+        lan_security: ConfigurationObservation {
+            scope: scope.clone(),
+            revision,
+            value: LanSecurityConfiguration {
+                allowed_ips: ObservedValue::Unreported,
+                disallowed_ips: ObservedValue::Unreported,
+                skip_auth_prefixes: ObservedValue::Unreported,
+                authentication: LanAuthenticationState::Unreported,
+            },
+        },
+        ipv6: ConfigurationObservation {
+            scope: scope.clone(),
+            revision,
+            value: Ipv6Configuration {
+                enabled: ipv6_enabled,
+                tun_enabled: tun.enabled,
+            },
+        },
+        sniffer: ConfigurationObservation {
+            scope: scope.clone(),
+            revision,
+            value: SnifferConfiguration {
+                enabled: ObservedValue::Unreported,
+            },
+        },
+        dns: ConfigurationObservation {
+            scope: scope.clone(),
+            revision,
+            value: DnsRuntimeConfiguration {
+                nameserver: nameservers,
+                ..Default::default()
+            },
+        },
+        core_log_level: ConfigurationObservation {
+            scope: scope.clone(),
+            revision,
+            value: ObservedValue::Unreported,
+        },
+        proxy_ports: ConfigurationObservation {
+            scope,
+            revision,
+            value: ProxyPortsConfiguration::default(),
+        },
+    }
+}
 
 #[test]
 fn test_route_navigation() {
@@ -84,38 +165,24 @@ fn test_runtime_config_sync() {
 
     // Simulate config fetch
     let _ = state.update(Message::RuntimeConfigFetched(
-        Ok(ConfigSnapshot {
-            mode: "global".into(),
-            allow_lan: false,
-            mixed_port: 7890,
-            bind_address: Some("*".into()),
-            lan_allowed_ips: Some(vec!["192.168.0.0/16".into()]),
-            lan_disallowed_ips: Some(vec![]),
-            skip_auth_prefixes: Some(vec!["127.0.0.0/8".into()]),
-            authentication_enabled: Some(false),
-            authentication_user_count: Some(0),
-            authentication_username: None,
-            ipv6: Some(false),
-            script: Some(serde_json::json!({"code": "fixture"})),
-            tun: Some(TunSnapshot {
-                enable: Some(true),
-                stack: Some("gvisor".into()),
-                auto_route: Some(true),
-                strict_route: Some(false),
+        Ok(runtime_config_readout(
+            TunConfiguration {
+                enabled: ObservedValue::Reported(true),
+                stack: ObservedValue::Reported("gvisor".into()),
+                auto_route: ObservedValue::Reported(true),
+                strict_route: ObservedValue::Reported(false),
                 ..Default::default()
-            }),
-            dns: Some(DnsSnapshot {
-                nameserver: vec!["1.1.1.1".into()],
-                fallback: vec!["8.8.8.8".into()],
-                enhanced_mode: "fake-ip".into(),
-            }),
-            sniffer: Some(SnifferSnapshot { enable: true }),
-            ..Default::default()
-        }),
+            },
+            ObservedValue::Reported(false),
+            ObservedValue::Reported(vec!["1.1.1.1".into()]),
+        )),
         generation,
     ));
 
-    assert_eq!(state.runtime.proxy_mode.as_ref().unwrap(), "global");
+    assert_eq!(
+        state.runtime.routing_intent, None,
+        "runtime config does not contain routing-intent readback"
+    );
     assert!(!state.runtime.ipv6_routing.enabled);
     assert!(state.runtime.tun_enabled.unwrap());
     assert_eq!(state.editor.dns_nameservers[0], "1.1.1.1");
@@ -127,11 +194,11 @@ fn runtime_config_replay_preserves_missing_fields_and_typed_failure_blocks_last_
     let generation = state.runtime.runtime_generation;
     state.editor.tun_stack = "draft-stack".into();
     let _ = state.update(Message::RuntimeConfigFetched(
-        Ok(ConfigSnapshot {
-            mode: "direct".into(),
-            tun: Some(TunSnapshot::default()),
-            ..Default::default()
-        }),
+        Ok(runtime_config_readout(
+            TunConfiguration::default(),
+            ObservedValue::Unreported,
+            ObservedValue::Unreported,
+        )),
         generation,
     ));
     assert_eq!(state.runtime.tun_enabled, None);
@@ -140,16 +207,15 @@ fn runtime_config_replay_preserves_missing_fields_and_typed_failure_blocks_last_
     assert_eq!(state.runtime.runtime_control.ipv6_routing, None);
     assert_eq!(state.editor.tun_stack, "draft-stack");
     let _ = state.update(Message::RuntimeConfigFetched(
-        Ok(ConfigSnapshot {
-            mode: "global".into(),
-            ipv6: Some(false),
-            tun: Some(TunSnapshot {
-                enable: Some(false),
-                stack: Some("system".into()),
+        Ok(runtime_config_readout(
+            TunConfiguration {
+                enabled: ObservedValue::Reported(false),
+                stack: ObservedValue::Reported("system".into()),
                 ..Default::default()
-            }),
-            ..Default::default()
-        }),
+            },
+            ObservedValue::Reported(false),
+            ObservedValue::Unreported,
+        )),
         generation,
     ));
     assert_eq!(state.runtime.tun_enabled, Some(false));
@@ -177,46 +243,66 @@ fn runtime_config_replay_preserves_missing_fields_and_typed_failure_blocks_last_
         }
     );
     assert!(!state.runtime.system_toggles.tun.can_toggle());
-    assert_eq!(state.runtime.proxy_mode_state.failure, Some(failure));
+    assert_eq!(
+        state.runtime.routing_intent_state.status,
+        RoutingIntentStatus::Unobserved
+    );
+    assert_eq!(state.runtime.routing_intent_state.failure, None);
     let before = state.runtime.runtime_control.clone();
     let _ = state.update(Message::RuntimeConfigFetched(
-        Ok(ConfigSnapshot {
-            mode: "rule".into(),
-            ..Default::default()
-        }),
+        Ok(runtime_config_readout(
+            TunConfiguration::default(),
+            ObservedValue::Unreported,
+            ObservedValue::Unreported,
+        )),
         generation.wrapping_add(1),
     ));
     assert_eq!(state.runtime.runtime_control, before);
 }
 
 #[test]
-fn test_mode_set_interactions() {
+fn routing_intent_actions_keep_typed_readback_and_failures() {
     let (mut state, _) = AppState::new();
 
     let generation = state.runtime.runtime_generation;
-    state
+    state.runtime.routing_intent_actions.observe(
+        generation,
+        1,
+        RoutingIntentSnapshot::demo_fixture(),
+    );
+    let request = state
         .runtime
-        .mode_actions
-        .observe(generation, 1, ProxyModeSnapshot::demo_fixture());
-    let request = state.runtime.mode_actions.begin(ProxyMode::Global).unwrap();
-    let _ = state.update(Message::ProxyModeFinished {
+        .routing_intent_actions
+        .begin(RoutingIntent::RouteAllThroughProxy)
+        .unwrap();
+    let _ = state.update(Message::RoutingIntentFinished {
         request,
-        result: Ok(ProxyMode::Global),
+        result: Ok(RoutingIntent::RouteAllThroughProxy),
     });
-    assert_eq!(state.runtime.proxy_mode.as_deref(), Some("global"));
+    assert_eq!(
+        state.runtime.routing_intent.as_ref(),
+        Some(&RoutingIntent::RouteAllThroughProxy)
+    );
     assert!(state.shell.error_msg.is_none());
-    let request = state.runtime.mode_actions.begin(ProxyMode::Direct).unwrap();
+    let request = state
+        .runtime
+        .routing_intent_actions
+        .begin(RoutingIntent::BypassProxy)
+        .unwrap();
     let failure = Failure::new(ErrorCode::Network, "API Error", true);
-    let _ = state.update(Message::ProxyModeFinished {
+    let _ = state.update(Message::RoutingIntentFinished {
         request,
         result: Err(failure.clone()),
     });
-    assert_eq!(state.runtime.mode_actions.failure, Some(failure));
+    assert_eq!(state.runtime.routing_intent_actions.failure, Some(failure));
     assert_eq!(
-        state.runtime.mode_actions.retry_target(),
-        Some(ProxyMode::Direct)
+        state.runtime.routing_intent_actions.retry_target(),
+        Some(RoutingIntent::BypassProxy)
     );
-    assert_eq!(state.runtime.proxy_mode.as_deref(), Some("global"));
+    assert_eq!(
+        state.runtime.routing_intent.as_ref(),
+        Some(&RoutingIntent::RouteAllThroughProxy)
+    );
     assert!(state.shell.error_msg.is_none());
 }
 
@@ -335,13 +421,17 @@ fn test_profiles_and_rules_loading() {
 }
 
 #[test]
-fn test_proxy_lifecycle_messages() {
+fn core_lifecycle_controls_require_an_attached_owner() {
     let (mut state, _) = AppState::new();
 
-    let _ = state.update(Message::StartProxy);
-    assert_eq!(state.runtime.status, RuntimeStatus::Starting);
+    let _ = state.update(Message::StartCore);
+    assert_eq!(state.runtime.lifecycle_pending, None);
+    assert_eq!(
+        state.core_control_projection().label,
+        CoreControlLabel::Unavailable
+    );
 
-    let _ = state.update(Message::ProxyStopped);
+    let _ = state.update(Message::CoreStopped);
     assert!(state.diag.traffic.is_none());
 }
 
@@ -360,7 +450,7 @@ fn test_rebuild_flow_state_transitions() {
     ));
 
     let _ = state.update(Message::RuntimeRebuildFinished(Err(
-        InfiltratorError::Mihomo("boom".into()),
+        InfiltratorError::Backend("boom".into()),
     )));
     assert!(matches!(
         state.runtime.rebuild_flow,
@@ -412,17 +502,34 @@ fn test_editor_actions() {
     let pending = state
         .editor
         .document_session
-        .begin_document("proxies: []".into(), false)
+        .begin_document(
+            "proxies: []".into(),
+            ProfileWriteAuthorization::RequireUnlock,
+        )
         .unwrap();
     let _ = state.update(Message::ProfileSaved(ProfileEditReply {
         pending,
         result: Ok(CommandOutput::Unit),
     }));
     assert_eq!(
-        state.editor.document_session.failure.as_ref().unwrap().code,
+        match &state.editor.document_session.operation {
+            infiltrator_application::profile_edit_session::ProfileEditOperationPhase::Failed(
+                failure,
+            ) => failure.code.clone(),
+            infiltrator_application::profile_edit_session::ProfileEditOperationPhase::Ready
+            | infiltrator_application::profile_edit_session::ProfileEditOperationPhase::Pending(
+                _,
+            )
+            | infiltrator_application::profile_edit_session::ProfileEditOperationPhase::Saved => {
+                panic!("mismatched terminal output must be a typed failure")
+            }
+        },
         ErrorCode::InvalidState
     );
-    assert!(!state.editor.document_session.saved);
+    assert!(!matches!(
+        &state.editor.document_session.operation,
+        infiltrator_application::profile_edit_session::ProfileEditOperationPhase::Saved
+    ));
     assert_eq!(state.shell.current_route, Route::Editor);
 }
 
@@ -519,18 +626,47 @@ fn test_p0_confirmation_is_staged_and_cancellable() {
 }
 
 #[test]
-fn test_p0_runtime_stream_generation_and_failure_projection() {
+fn test_p0_runtime_stream_scope_and_failure_projection() {
     let (mut state, _) = AppState::new();
     state.runtime.runtime_generation = 7;
+    let shared_session = SessionToken::new(77);
+    let previous_scope = runtime_stream_scope("mihomo", "owner-a", shared_session);
+    let current_scope = runtime_stream_scope("sing-box", "owner-b", shared_session);
+    state.runtime.core_lifecycle.identity = Some(current_scope.identity.clone());
+    state.runtime.core_lifecycle.lifecycle = CoreLifecycle::Running;
+    state.runtime.core_lifecycle.generation = current_scope.generation.value();
+    state.runtime.core_lifecycle.session_token = current_scope.session_token;
 
-    let _ = state.update(Message::RuntimeStreamLogReceived(6, "stale".to_string()));
-    assert!(state.diag.logs.is_empty());
-    let _ = state.update(Message::RuntimeStreamLogReceived(7, "current".to_string()));
+    let _ = state.update(Message::RuntimeStreamLogReceived(
+        current_scope.clone(),
+        "current".to_string(),
+    ));
     assert_eq!(state.diag.logs.back().map(String::as_str), Some("current"));
+
+    let _ = state.update(Message::RuntimeStreamLogReceived(
+        previous_scope.clone(),
+        "stale".to_string(),
+    ));
+    assert_eq!(state.diag.logs.len(), 1);
+    let _ = state.update(Message::RuntimeStreamStateChanged {
+        kind: RuntimeStreamKind::Traffic,
+        scope: current_scope.clone(),
+        state: RuntimeStreamState::Connected,
+    });
+    let _ = state.update(Message::RuntimeStreamStateChanged {
+        kind: RuntimeStreamKind::Traffic,
+        scope: previous_scope,
+        state: RuntimeStreamState::Failed("old engine stream failed".to_string()),
+    });
+    assert_eq!(
+        state.diag.traffic_stream_state,
+        RuntimeStreamState::Connected
+    );
+    assert!(state.shell.error_msg.is_none());
 
     let _ = state.update(Message::RuntimeStreamStateChanged {
         kind: RuntimeStreamKind::Traffic,
-        generation: 7,
+        scope: current_scope,
         state: RuntimeStreamState::Failed("socket closed".to_string()),
     });
     assert!(matches!(
@@ -538,6 +674,18 @@ fn test_p0_runtime_stream_generation_and_failure_projection() {
         RuntimeStreamState::Failed(_)
     ));
     assert!(state.shell.error_msg.is_some());
+}
+
+fn runtime_stream_scope(engine: &str, instance: &str, session_token: SessionToken) -> CoreScope {
+    CoreScope {
+        identity: CoreIdentity::new(
+            EngineId::new(engine).expect("engine ID"),
+            CoreInstanceId::new(instance).expect("instance ID"),
+            None,
+        ),
+        generation: CoreGeneration::new(7),
+        session_token: Some(session_token),
+    }
 }
 
 #[test]
@@ -574,7 +722,17 @@ fn test_p0_ip_probe_metadata_and_explicit_language() {
         "an uncomposed host cannot claim a persisted language change"
     );
     assert_eq!(
-        state.shell.language_choice.failure.as_ref().unwrap().code,
+        match &state.shell.language_choice.phase {
+            infiltrator_application::language_choice::LanguageChoicePhase::Rejected(failure) => {
+                failure.code.clone()
+            }
+            infiltrator_application::language_choice::LanguageChoicePhase::Ready
+            | infiltrator_application::language_choice::LanguageChoicePhase::Pending(_)
+            | infiltrator_application::language_choice::LanguageChoicePhase::Failed { .. }
+            | infiltrator_application::language_choice::LanguageChoicePhase::AwaitingObservation {
+                ..
+            } => panic!("uncomposed language change must be rejected"),
+        },
         ErrorCode::NotReady
     );
 }
@@ -582,24 +740,48 @@ fn test_p0_ip_probe_metadata_and_explicit_language() {
 #[test]
 fn test_p0_download_progress_token_and_sync_progress() {
     let (mut state, _) = AppState::new();
-    state.runtime.core_download_token = 9;
-    state.runtime.is_downloading_core = true;
+    let stale_run = match state.runtime.core_download.start() {
+        CoreDownloadStart::Started { run_id, .. } => run_id,
+        CoreDownloadStart::AlreadyDownloading => panic!("first download must start"),
+    };
+    assert_eq!(
+        state.runtime.core_download.complete(stale_run),
+        CoreDownloadCompletionAdmission::Applied
+    );
+    let current_run = match state.runtime.core_download.start() {
+        CoreDownloadStart::Started { run_id, .. } => run_id,
+        CoreDownloadStart::AlreadyDownloading => {
+            panic!("second download must start after completion")
+        }
+    };
     let stale = CoreDownloadProgress {
         downloaded: 100,
         total: Some(200),
         speed_bytes: 10,
     };
-    let _ = state.update(Message::CoreDownloadProgress(stale, 8));
-    assert!(state.runtime.download_stats.is_none());
+    let _ = state.update(Message::CoreDownloadProgress {
+        progress: stale,
+        run_id: stale_run,
+    });
+    assert_eq!(
+        state.runtime.core_download.progress().unwrap().downloaded,
+        0
+    );
 
     let current = CoreDownloadProgress {
         downloaded: 100,
         total: Some(200),
         speed_bytes: 10,
     };
-    let _ = state.update(Message::CoreDownloadProgress(current, 9));
-    assert_eq!(state.runtime.download_progress, 0.5);
-    assert!(state.runtime.download_stats.is_some());
+    let _ = state.update(Message::CoreDownloadProgress {
+        progress: current,
+        run_id: current_run,
+    });
+    assert_eq!(state.runtime.core_download.progress_fraction(), 0.5);
+    assert_eq!(
+        state.runtime.core_download.progress().unwrap().downloaded,
+        100
+    );
 
     let _ = state.update(Message::SyncProgress(SyncProgress {
         phase: "上传配置".to_string(),
@@ -613,24 +795,10 @@ fn test_p0_download_progress_token_and_sync_progress() {
 }
 
 #[test]
-fn test_p0_stale_proxy_start_is_ignored() {
-    let (mut state, _) = AppState::new();
-    state.runtime.lifecycle_token = 4;
-    let _ = state.update(Message::ProxyStarted(
-        Err(InfiltratorError::Mihomo("late start".to_string())),
-        3,
-    ));
-    assert_eq!(state.runtime.status, RuntimeStatus::Stopped);
-    assert!(state.shell.error_msg.is_none());
-}
-
-#[test]
 fn test_p0_runtime_patch_failure_restores_the_previous_snapshot() {
     let (mut state, _) = AppState::new();
-    state.runtime.proxy_mode = Some("rule".to_string());
+    state.runtime.routing_intent = Some(RoutingIntent::FollowRules);
     state.runtime.pending_runtime_patch = Some(RuntimePatchSnapshot {
-        proxy_mode: Some("rule".to_string()),
-        proxy_mode_state: Default::default(),
         ipv6_enabled: true,
         tun_enabled: Some(false),
         tun_stack: "gvisor".to_string(),
@@ -640,22 +808,29 @@ fn test_p0_runtime_patch_failure_restores_the_previous_snapshot() {
         sniffer_enabled: true,
     });
     state.runtime.runtime_patch_token = 11;
-    state.runtime.proxy_mode = Some("global".to_string());
+    state.runtime.routing_intent = Some(RoutingIntent::RouteAllThroughProxy);
     let generation = state.runtime.runtime_generation;
 
     let _ = state.update(Message::RuntimePatchResult(
-        Err(InfiltratorError::Mihomo("controller rejected".to_string())),
+        Err(InfiltratorError::Backend("controller rejected".to_string())),
         11,
         generation,
     ));
-    assert_eq!(state.runtime.proxy_mode.as_deref(), Some("rule"));
+    assert_eq!(
+        state.runtime.routing_intent.as_ref(),
+        Some(&RoutingIntent::RouteAllThroughProxy),
+        "a TUN/config patch does not own the routing intent"
+    );
     assert!(state.runtime.pending_runtime_patch.is_none());
     assert!(state.shell.error_msg.is_some());
 
-    state.runtime.proxy_mode = Some("direct".to_string());
+    state.runtime.routing_intent = Some(RoutingIntent::BypassProxy);
     let generation = state.runtime.runtime_generation;
     let _ = state.update(Message::RuntimePatchResult(Ok(()), 10, generation));
-    assert_eq!(state.runtime.proxy_mode.as_deref(), Some("direct"));
+    assert_eq!(
+        state.runtime.routing_intent.as_ref(),
+        Some(&RoutingIntent::BypassProxy)
+    );
 }
 
 #[test]

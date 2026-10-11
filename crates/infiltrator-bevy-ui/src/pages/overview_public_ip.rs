@@ -8,23 +8,26 @@ use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::observer::On;
 use bevy::ecs::system::{Query, Res};
+use bevy::feathers::theme::ThemeBackgroundColor;
+use bevy::feathers::theme::ThemeTextColor;
 use bevy::scene::{Scene, bsn};
-use bevy::text::TextColor;
 use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, Val,
-    percent,
+    AlignItems, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, percent,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
+use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::icon::{IconId, icon_scene};
 use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::public_ip::{PublicIpProbeSnapshot, PublicIpProbeStatus};
 
 /// Public IP probe card (BEVY-GAP-023 / DUAL-03-11).
+#[cfg(any(feature = "capture-tools", test))]
 pub fn public_ip_probe_card_scene(palette: &UiPalette) -> impl Scene + use<> {
     public_ip_probe_card_scene_with_snapshot(&PublicIpProbeSnapshot::demo_fixture(), palette)
 }
@@ -47,7 +50,7 @@ pub fn public_ip_probe_card_scene_with_snapshot(
                     Node {
                         width: percent(100),
                         flex_direction: FlexDirection::Column,
-                        row_gap: Val::Px(space::S8),
+                        row_gap: rem(space::S8),
                     }
                     AccessibilityNode(a11y) LocalizedLabel::plain("overview_public_ip_label")
                     PublicIpProbeCard
@@ -60,7 +63,7 @@ pub fn public_ip_probe_card_scene_with_snapshot(
                         Children [
                             Node {
                                 align_items: AlignItems::Center,
-                                column_gap: Val::Px(space::S8),
+                                column_gap: rem(space::S8),
                             }
                             Children [
                                 @{ icon_scene(IconId::Globe, 16.0, palette.accent) }
@@ -70,33 +73,33 @@ pub fn public_ip_probe_card_scene_with_snapshot(
                             --
                             Node {
                                 align_items: AlignItems::Center,
-                                column_gap: Val::Px(space::S8),
+                                column_gap: rem(space::S8),
                             }
                             Children [
                                 Node {
-                                    padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S2)),
-                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                    padding: UiRect::axes(rem(space::S8), rem(space::S2)),
+                                    border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                                 }
-                                BackgroundColor({ palette.surface_elevated })
+                                ThemeBackgroundColor({ Token::SurfaceElevated })
                                 SurfaceElevatedFill
                                 Children [
-                                    Text({ provider }) PublicIpText(PublicIpTextKind::Provider) TextRole(Role::Caption) TextColor({ palette.ink_dim })
+                                    Text({ provider }) PublicIpText(PublicIpTextKind::Provider) TextRole(Role::Caption) ThemeTextColor({ Token::InkDim })
                                 ]
                                 --
                                 Button
                                 PublicIpRefreshButton
                                 Node {
-                                    padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S4)),
-                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                    padding: UiRect::axes(rem(space::S8), rem(space::S4)),
+                                    border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                                     align_items: AlignItems::Center,
-                                    column_gap: Val::Px(space::S4),
+                                    column_gap: rem(space::S4),
                                 }
-                                BackgroundColor({ palette.surface_elevated })
+                                ThemeBackgroundColor({ Token::SurfaceElevated })
                                 SurfaceElevatedFill
                                 Children [
                                     @{ icon_scene(IconId::Activity, 12.0, palette.ink) }
                                     --
-                                    LocalizedText::plain("refresh") TextRole(Role::Caption) TextColor({ palette.ink })
+                                    LocalizedText::plain("refresh") TextRole(Role::Caption) ThemeTextColor({ Token::Ink })
                                 ]
                             ]
                         ]
@@ -105,40 +108,40 @@ pub fn public_ip_probe_card_scene_with_snapshot(
                             width: percent(100),
                             align_items: AlignItems::Center,
                             justify_content: JustifyContent::SpaceBetween,
-                            padding: UiRect::all(Val::Px(space::S8)),
-                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                            padding: UiRect::all(rem(space::S8)),
+                            border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                         }
-                        BackgroundColor({ palette.surface_elevated })
+                        ThemeBackgroundColor({ Token::SurfaceElevated })
                         SurfaceElevatedFill
                         Children [
                             Node {
                                 flex_direction: FlexDirection::Column,
-                                row_gap: Val::Px(space::S2),
+                                row_gap: rem(space::S2),
                             }
                             Children [
-                                Text({ ip }) PublicIpText(PublicIpTextKind::Ip) TextRole(Role::BodyStrong) TextColor({ palette.ink })
+                                Text({ ip }) PublicIpText(PublicIpTextKind::Ip) TextRole(Role::BodyStrong) ThemeTextColor({ Token::Ink })
                                 --
                                 Node {
                                     align_items: AlignItems::Center,
-                                    column_gap: Val::Px(space::S8),
+                                    column_gap: rem(space::S8),
                                 }
                                 Children [
-                                    Text({ location }) PublicIpText(PublicIpTextKind::Location) TextRole(Role::Caption) TextColor({ palette.ink_dim })
+                                    Text({ location }) PublicIpText(PublicIpTextKind::Location) TextRole(Role::Caption) ThemeTextColor({ Token::InkDim })
                                     --
-                                    Text({ "·".to_owned() }) TextRole(Role::Caption) TextColor({ palette.ink_dim })
+                                    Text({ "·".to_owned() }) TextRole(Role::Caption) ThemeTextColor({ Token::InkDim })
                                     --
-                                    Text({ isp }) PublicIpText(PublicIpTextKind::Isp) TextRole(Role::Caption) TextColor({ palette.ink_dim })
+                                    Text({ isp }) PublicIpText(PublicIpTextKind::Isp) TextRole(Role::Caption) ThemeTextColor({ Token::InkDim })
                                 ]
                             ]
                             --
                             Node {
-                                padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S2)),
-                                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                padding: UiRect::axes(rem(space::S8), rem(space::S2)),
+                                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                             }
-                            BackgroundColor({ palette.accent_container })
+                            ThemeBackgroundColor({ Token::AccentContainer })
                             AccentContainerFill
                             Children [
-                                Text({ status }) PublicIpText(PublicIpTextKind::Status) TextRole(Role::Caption) TextColor({ palette.accent })
+                                Text({ status }) PublicIpText(PublicIpTextKind::Status) TextRole(Role::Caption) ThemeTextColor({ Token::Accent })
                             ]
                         ]
                     ]

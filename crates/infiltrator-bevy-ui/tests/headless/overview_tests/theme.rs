@@ -99,9 +99,9 @@ fn theme_flip_repaints_every_page_surface_in_place() {
     let (_, _, dot_fill) = dots.iter(world).next().expect("status dot mounted");
     assert_eq!(dot_fill.0, light.success, "dot restamped");
 
-    let mut chip_inks = world.query::<(Entity, &OverviewModeChip, &BackgroundColor)>();
-    let (_, _, chip_fill) = chip_inks.iter(world).next().expect("mode chip mounted");
-    assert_eq!(chip_fill.0, light.accent, "mode chip restamped");
+    let mut chip_inks = world.query::<(Entity, &OverviewRoutingIntentChip, &BackgroundColor)>();
+    let (_, _, chip_fill) = chip_inks.iter(world).next().expect("routing chip mounted");
+    assert_eq!(chip_fill.0, light.accent, "routing chip restamped");
 
     let mut stops = world.query::<(Entity, &CoreControlButton, &BackgroundColor)>();
     let (_, _, stop_fill) = stops.iter(world).next().expect("stop button mounted");

@@ -1,4 +1,5 @@
 //! Capture executes the production TEA command and its actual terminal result.
+use crate::demo::owner::attach_capture_owner;
 use crate::state::AppState;
 use crate::types::message::Message;
 use iced::Task;
@@ -23,7 +24,7 @@ pub(super) fn activate(state: &mut AppState) -> Task<Message> {
     application.install_command_handler(Arc::new(
         CommandApplication::new().with_settings(SettingsApplication::new(store.clone())),
     ));
-    state.commands = Some(application);
+    attach_capture_owner(state, application);
     state.shell.lang = "zh-CN".into();
     state.observe_language_settings(&project_language(Some(&Ok(store.saved()))));
     state.update(Message::SetLanguage("en-US".into()))

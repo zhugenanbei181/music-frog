@@ -27,12 +27,21 @@ use axum::extract::{Request, State};
 use axum::http::{StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use iced_runtime::task::into_stream;
+use infiltrator_application::runtime_configuration_application::RuntimeConfigurationReadout;
+use infiltrator_contract::core_identity::{
+    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
+};
 use infiltrator_contract::error::InfiltratorError;
+use infiltrator_contract::session::SessionToken;
 use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_domain::config::validate_yaml;
 use infiltrator_domain::mixin::merge_yaml_key_picks;
-use infiltrator_domain::runtime::{ConfigSnapshot, DnsSnapshot, SnifferSnapshot, TunSnapshot};
 use infiltrator_domain::sync::diff_yaml_configs;
+use infiltrator_ports::runtime_configuration::{
+    ConfigurationObservation, ConfigurationRevision, DnsRuntimeConfiguration, Ipv6Configuration,
+    LanAuthenticationState, LanSecurityConfiguration, LanSharingConfiguration, ObservedValue,
+    ProxyPortsConfiguration, SnifferConfiguration, TunConfiguration,
+};
 use std::collections::{BTreeMap, HashSet};
 use std::fs::write;
 use std::net::SocketAddr;
@@ -42,6 +51,83 @@ use tokio::fs::{read_to_string, remove_file};
 use tokio::net::TcpListener;
 use tokio::sync::oneshot;
 use tokio::time::timeout;
+
+fn runtime_config_readout(
+    tun: TunConfiguration,
+    ipv6_enabled: bool,
+    nameservers: Vec<String>,
+    sniffer_enabled: bool,
+) -> RuntimeConfigurationReadout {
+    let scope = CoreScope {
+        identity: CoreIdentity::new(
+            EngineId::new("mihomo").expect("engine"),
+            CoreInstanceId::new("sync-conflict-runtime").expect("instance"),
+            Some(CoreVersion::new("test").expect("version")),
+        ),
+        generation: CoreGeneration::new(1),
+        session_token: Some(SessionToken::new(92)),
+    };
+    let revision = ConfigurationRevision::new(1);
+    RuntimeConfigurationReadout {
+        tun: ConfigurationObservation {
+            scope: scope.clone(),
+            revision,
+            value: tun.clone(),
+        },
+        lan_sharing: ConfigurationObservation {
+            scope: scope.clone(),
+            revision,
+            value: LanSharingConfiguration {
+                enabled: ObservedValue::Unreported,
+                mixed_port: ObservedValue::Unreported,
+                bind_address: ObservedValue::Unreported,
+            },
+        },
+        lan_security: ConfigurationObservation {
+            scope: scope.clone(),
+            revision,
+            value: LanSecurityConfiguration {
+                allowed_ips: ObservedValue::Unreported,
+                disallowed_ips: ObservedValue::Unreported,
+                skip_auth_prefixes: ObservedValue::Unreported,
+                authentication: LanAuthenticationState::Unreported,
+            },
+        },
+        ipv6: ConfigurationObservation {
+            scope: scope.clone(),
+            revision,
+            value: Ipv6Configuration {
+                enabled: ObservedValue::Reported(ipv6_enabled),
+                tun_enabled: tun.enabled,
+            },
+        },
+        sniffer: ConfigurationObservation {
+            scope: scope.clone(),
+            revision,
+            value: SnifferConfiguration {
+                enabled: ObservedValue::Reported(sniffer_enabled),
+            },
+        },
+        dns: ConfigurationObservation {
+            scope: scope.clone(),
+            revision,
+            value: DnsRuntimeConfiguration {
+                nameserver: ObservedValue::Reported(nameservers),
+                ..Default::default()
+            },
+        },
+        core_log_level: ConfigurationObservation {
+            scope: scope.clone(),
+            revision,
+            value: ObservedValue::Unreported,
+        },
+        proxy_ports: ConfigurationObservation {
+            scope,
+            revision,
+            value: ProxyPortsConfiguration::default(),
+        },
+    }
+}
 
 // ---------------------------------------------------------------------------
 // Minimal WebDAV stub (journey 7)
@@ -455,7 +541,7 @@ fn sync_conflict_network_leg_upload_download_resolve_and_dismiss() {
 
 /// Journey 15 — 混合旅程：SyncFinished（active profile 变更）→ 无内核时清
 /// 备份不重建；Rebuilding 中途失败的 RebuildFlow 状态机；FetchRuntimeConfig
-/// 回灌刷新 proxy_mode 并推送托盘。
+/// 回灌刷新 routing_intent 并推送托盘。
 #[test]
 fn mixed_profile_switch_rebuild_flow_and_runtime_refetch_chain() {
     let home = TempHome::acquire("mixed-rebuild");
@@ -492,7 +578,7 @@ fn mixed_profile_switch_rebuild_flow_and_runtime_refetch_chain() {
     state.runtime.status = RuntimeStatus::Running;
     let units = feed(
         &mut state,
-        Message::RuntimeRebuildFinished(Err(InfiltratorError::Mihomo("内核启动失败".into()))),
+        Message::RuntimeRebuildFinished(Err(InfiltratorError::Backend("内核启动失败".into()))),
     );
     assert!(matches!(
         state.runtime.rebuild_flow,
@@ -515,40 +601,23 @@ fn mixed_profile_switch_rebuild_flow_and_runtime_refetch_chain() {
     let units = feed(
         &mut state,
         Message::RuntimeConfigFetched(
-            Ok(ConfigSnapshot {
-                mode: "global".into(),
-                allow_lan: false,
-                mixed_port: 7890,
-                bind_address: Some("*".into()),
-                lan_allowed_ips: Some(vec!["192.168.0.0/16".into()]),
-                lan_disallowed_ips: Some(vec![]),
-                skip_auth_prefixes: Some(vec!["127.0.0.0/8".into()]),
-                authentication_enabled: Some(false),
-                authentication_user_count: Some(0),
-                authentication_username: None,
-                ipv6: Some(true),
-                script: Some(serde_json::json!({"code": "fixture"})),
-                tun: Some(TunSnapshot {
-                    enable: Some(false),
-                    stack: Some("gvisor".into()),
-                    auto_route: Some(true),
-                    strict_route: Some(false),
+            Ok(runtime_config_readout(
+                TunConfiguration {
+                    enabled: ObservedValue::Reported(false),
+                    stack: ObservedValue::Reported("gvisor".into()),
+                    auto_route: ObservedValue::Reported(true),
+                    strict_route: ObservedValue::Reported(false),
                     ..Default::default()
-                }),
-                dns: Some(DnsSnapshot {
-                    nameserver: vec!["1.1.1.1".into()],
-                    fallback: vec![],
-                    enhanced_mode: "fake-ip".into(),
-                }),
-                sniffer: Some(SnifferSnapshot { enable: true }),
-                ..Default::default()
-            }),
+                },
+                true,
+                vec!["1.1.1.1".into()],
+                true,
+            )),
             generation,
         ),
     );
     assert_eq!(units, 0);
-    assert_eq!(state.runtime.proxy_mode.as_deref(), Some("global"));
-    assert!(state.runtime.script_block_present, "script gate reopened");
+    assert_eq!(state.runtime.routing_intent, None);
     assert_eq!(state.editor.dns_nameservers, vec!["1.1.1.1".to_string()]);
     assert!(
         tray.count() >= 1,
@@ -559,41 +628,24 @@ fn mixed_profile_switch_rebuild_flow_and_runtime_refetch_chain() {
     let units = feed(
         &mut state,
         Message::RuntimeConfigFetched(
-            Ok(ConfigSnapshot {
-                mode: "direct".into(),
-                allow_lan: false,
-                mixed_port: 7890,
-                bind_address: Some("*".into()),
-                lan_allowed_ips: Some(vec!["192.168.0.0/16".into()]),
-                lan_disallowed_ips: Some(vec![]),
-                skip_auth_prefixes: Some(vec!["127.0.0.0/8".into()]),
-                authentication_enabled: Some(false),
-                authentication_user_count: Some(0),
-                authentication_username: None,
-                ipv6: Some(true),
-                script: None,
-                tun: Some(TunSnapshot {
-                    enable: Some(false),
-                    stack: Some(String::new()),
-                    auto_route: Some(false),
-                    strict_route: Some(false),
+            Ok(runtime_config_readout(
+                TunConfiguration {
+                    enabled: ObservedValue::Reported(false),
+                    stack: ObservedValue::Reported(String::new()),
+                    auto_route: ObservedValue::Reported(false),
+                    strict_route: ObservedValue::Reported(false),
                     ..Default::default()
-                }),
-                dns: Some(DnsSnapshot {
-                    nameserver: vec![],
-                    fallback: vec![],
-                    enhanced_mode: String::new(),
-                }),
-                sniffer: Some(SnifferSnapshot { enable: false }),
-                ..Default::default()
-            }),
+                },
+                true,
+                Vec::new(),
+                false,
+            )),
             generation + 5,
         ),
     );
     assert_eq!(units, 0);
     assert_eq!(
-        state.runtime.proxy_mode.as_deref(),
-        Some("global"),
-        "stale generation must not clobber the live mode"
+        state.runtime.routing_intent, None,
+        "stale generation must not invent a routing intent from raw config"
     );
 }

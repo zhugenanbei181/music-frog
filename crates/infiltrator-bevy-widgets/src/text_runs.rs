@@ -15,7 +15,7 @@ use bevy::scene::{CommandsSceneExt, bsn};
 use bevy::text::{Justify, TextColor, TextFont, TextLayout, TextSpan};
 use bevy::ui::prelude::{Display, FlexDirection, Node};
 use bevy::ui::widget::Text;
-use infiltrator_contract::search_text::SearchTextRun;
+use zhuge_ui_core::text::SearchTextRun;
 
 #[derive(Component, Clone, Debug, Default, PartialEq, Eq)]
 #[require(Text)]

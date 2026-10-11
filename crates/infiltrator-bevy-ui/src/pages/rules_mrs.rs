@@ -13,10 +13,10 @@ use bevy::ecs::observer::On;
 use bevy::ecs::query::{With, Without};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Query, Res, ResMut};
+use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, Val,
-    percent, px,
+    AlignItems, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, percent,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
@@ -24,10 +24,12 @@ use infiltrator_application::rule_mrs_projection::{
     mrs_acceleration_item_label, mrs_acceleration_status_line,
 };
 use infiltrator_application::rule_provider_projection::provider_cache_line;
+use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
@@ -89,18 +91,18 @@ pub fn rules_mrs_scene(
         .map(|(idx, item)| {
             let label = mrs_acceleration_item_label(&Lang("en-US"), item);
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    padding: UiRect::all(Val::Px(space::S8)),
-                    align_items: AlignItems::Center,
-                    justify_content: JustifyContent::SpaceBetween,
-                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                }
-                BackgroundColor({ palette.surface_elevated })
-                Children [
-                    Text({ label }) MrsItemText(idx) TextRole(Role::Body)
-                ]
-}) as Box<dyn Scene>
+                            Node {
+                                width: percent(100),
+                                padding: UiRect::all(rem(space::S8)),
+                                align_items: AlignItems::Center,
+                                justify_content: JustifyContent::SpaceBetween,
+                                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
+                            }
+                            ThemeBackgroundColor({ Token::SurfaceElevated })
+                            Children [
+                                Text({ label }) MrsItemText(idx) TextRole(Role::Body)
+                            ]
+            }) as Box<dyn Scene>
         })
         .collect();
 
@@ -111,13 +113,13 @@ pub fn rules_mrs_scene(
                                 width: percent(100),
                                 align_items: AlignItems::Center,
                                 justify_content: JustifyContent::SpaceBetween,
-                                padding: UiRect::bottom(Val::Px(space::S8)),
+                                padding: UiRect::bottom(rem(space::S8)),
                             }
                             RulesMrsRoot
                             Children [
                                 Node {
                                     align_items: AlignItems::Center,
-                                    column_gap: Val::Px(space::S8),
+                                    column_gap: rem(space::S8),
                                 }
                                 Children [
                                     @{ icon_tile_scene(IconId::Activity, 24.0, palette) }
@@ -127,17 +129,17 @@ pub fn rules_mrs_scene(
                                 --
                                 Node {
                                     align_items: AlignItems::Center,
-                                    column_gap: Val::Px(space::S8),
+                                    column_gap: rem(space::S8),
                                 }
                                 Children [
                                     Node {
-                                        min_height: px(palette.control_height_px),
-                                        padding: UiRect::horizontal(Val::Px(space::S12)),
+                                        min_height: rem(palette.control_height_px),
+                                        padding: UiRect::horizontal(rem(space::S12)),
                                         align_items: AlignItems::Center,
                                         justify_content: JustifyContent::Center,
-                                        border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                        border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                                     }
-                                    BackgroundColor({ palette.border })
+                                    ThemeBackgroundColor({ Token::Border })
                                     Button
                                     UpgradeGeoDatabasesButton
                                     Children [
@@ -145,13 +147,13 @@ pub fn rules_mrs_scene(
                                     ]
                                     --
                                     Node {
-                                        min_height: px(palette.control_height_px),
-                                        padding: UiRect::horizontal(Val::Px(space::S12)),
+                                        min_height: rem(palette.control_height_px),
+                                        padding: UiRect::horizontal(rem(space::S12)),
                                         align_items: AlignItems::Center,
                                         justify_content: JustifyContent::Center,
-                                        border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                        border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                                     }
-                                    BackgroundColor({ palette.border })
+                                    ThemeBackgroundColor({ Token::Border })
                                     Button
                                     PurgeRuleProviderCacheButton
                                     Children [
@@ -159,13 +161,13 @@ pub fn rules_mrs_scene(
                                     ]
                                     --
                                     Node {
-                                        min_height: px(palette.control_height_px),
-                                        padding: UiRect::horizontal(Val::Px(space::S12)),
+                                        min_height: rem(palette.control_height_px),
+                                        padding: UiRect::horizontal(rem(space::S12)),
                                         align_items: AlignItems::Center,
                                         justify_content: JustifyContent::Center,
-                                        border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                        border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                                     }
-                                    BackgroundColor({ palette.accent })
+                                    ThemeBackgroundColor({ Token::Accent })
                                     Button
                                     UnpackRuleProviderButton
                                     Children [
@@ -177,7 +179,7 @@ pub fn rules_mrs_scene(
             Box::new(bsn! {
                             Node {
                                 width: percent(100),
-                                padding: UiRect::vertical(Val::Px(space::S4)),
+                                padding: UiRect::vertical(rem(space::S4)),
                             }
                             Children [
                                 Text({ status_line }) MrsStatusText TextRole(Role::Caption)
@@ -189,8 +191,8 @@ pub fn rules_mrs_scene(
                             Node {
                                 width: percent(100),
                                 flex_direction: FlexDirection::Column,
-                                row_gap: Val::Px(space::S8),
-                                padding: UiRect::vertical(Val::Px(space::S4)),
+                                row_gap: rem(space::S8),
+                                padding: UiRect::vertical(rem(space::S4)),
                             }
                             Children [
                                 { item_scenes }

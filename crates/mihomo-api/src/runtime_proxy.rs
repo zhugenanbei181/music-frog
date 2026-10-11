@@ -10,17 +10,15 @@ pub struct ControllerProxy(pub Proxy);
 impl<'de> Deserialize<'de> for ControllerProxy {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let value = Value::deserialize(deserializer)?;
-        // Parse observed field types even when an older controller also includes
-        // complete configuration metadata. Malformed facts must never disappear.
+        // Decode the partial runtime DTO exactly once. Configuration models
+        // have serde defaults for convenience and can turn an omitted wire
+        // fact into `false`, `0`, or an empty string, so they must not be used
+        // as runtime observation sources.
         let facts: RuntimeProxyObservation = from_value(value.clone()).map_err(D::Error::custom)?;
         if facts.name.trim().is_empty() || facts.proxy_type.trim().is_empty() {
             return Err(D::Error::custom("controller proxy identity/type is empty"));
         }
-        let proxy = match from_value::<Proxy>(value) {
-            Ok(proxy) if !matches!(proxy, Proxy::Unknown) => proxy,
-            _ => Proxy::Observed(facts),
-        };
-        Ok(Self(proxy))
+        Ok(Self(Proxy::Observed(facts)))
     }
 }
 

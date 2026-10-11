@@ -3,6 +3,14 @@
 
 use super::*;
 use infiltrator_contract::command::{CommandIntent, CommandKind};
+use infiltrator_contract::core_identity::EngineId;
+use infiltrator_contract::profile_configuration::{
+    ProfileConfigurationRequest, ProfileConfigurationUpdate, SnifferConfiguration,
+};
+use infiltrator_contract::profile_document_identity::{
+    ProfileDocumentIdentity, ProfileDocumentRevision, ProfileDocumentSourceIdentity,
+    ProfileDocumentSourceKind, ProfileFormatId, ProfileId, ProfileSchemaVersion, ProfileSourceId,
+};
 
 #[test]
 fn test_rules_workspace_partitions_delegate_to_shared_vocabulary() {
@@ -56,10 +64,23 @@ fn test_rules_workspace_partitions_delegate_to_shared_vocabulary() {
         CommandIntent::UpgradeGeoDatabases.kind(),
         CommandKind::Runtime
     );
+    let identity = ProfileDocumentIdentity::new(
+        ProfileId::new("main").unwrap(),
+        EngineId::new("mihomo").unwrap(),
+        ProfileDocumentSourceIdentity::new(
+            ProfileDocumentSourceKind::Local,
+            ProfileSourceId::new("local-main").unwrap(),
+        ),
+        ProfileDocumentRevision::new("revision-1").unwrap(),
+        ProfileFormatId::new("mihomo-yaml").unwrap(),
+        ProfileSchemaVersion::new(1).unwrap(),
+    );
     assert_eq!(
-        CommandIntent::ApplyRulesJsonDocument {
-            section: RulesJsonSection::Sniffer,
-            json: "{}".to_owned(),
+        CommandIntent::ApplyProfileConfiguration {
+            request: Box::new(ProfileConfigurationRequest {
+                identity,
+                update: ProfileConfigurationUpdate::Sniffer(SnifferConfiguration::default()),
+            }),
         }
         .kind(),
         CommandKind::Profile

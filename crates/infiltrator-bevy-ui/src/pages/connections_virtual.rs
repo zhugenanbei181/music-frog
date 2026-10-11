@@ -316,18 +316,21 @@ pub(crate) fn sync_connections_virtual_window(
 
     if structure_changed {
         state.signature = signature;
-        state.list =
-            VirtualListState::new_dynamic(state.order.len(), CONNECTION_ROW_HEIGHT_PX, viewport)
-                .with_overscan(CONNECTIONS_VIRTUAL_OVERSCAN);
+        state.list = VirtualListState::new_variable_extent(
+            state.order.len(),
+            CONNECTION_ROW_HEIGHT_PX,
+            viewport,
+        )
+        .with_overscan(CONNECTIONS_VIRTUAL_OVERSCAN);
         for index in 0..state.order.len() {
-            state
+            let _ = state
                 .list
-                .update_measured_row_height(index, CONNECTION_ROW_HEIGHT_PX);
+                .update_measured_extent(index, CONNECTION_ROW_HEIGHT_PX);
         }
     } else {
         state.list.set_viewport_height(viewport);
     }
-    state.list.set_scroll_offset(offset);
+    let _ = state.list.set_scroll_offset(offset);
 
     let window = state.list.window();
 
@@ -370,7 +373,7 @@ pub(crate) fn sync_connections_virtual_window(
         let height = if active {
             state
                 .list
-                .item_height(item_idx)
+                .item_extent(item_idx)
                 .unwrap_or(CONNECTION_ROW_HEIGHT_PX)
         } else {
             0.0
@@ -379,7 +382,7 @@ pub(crate) fn sync_connections_virtual_window(
         if node.height != target {
             node.height = target;
         }
-        // Dynamic height: feed the mounted row's measured layout height back
+        // Variable extent: feed the mounted row's measured layout height back
         // into the index so multi-hop cards never overlap. Skip the frame that
         // rebound slots (the old child would measure against the new index).
         if active
@@ -389,7 +392,7 @@ pub(crate) fn sync_connections_virtual_window(
         {
             let measured = computed.size().y * computed.inverse_scale_factor();
             if measured > 0.0 {
-                state.list.update_measured_row_height(item_idx, measured);
+                let _ = state.list.update_measured_extent(item_idx, measured);
             }
         }
     }
@@ -409,7 +412,7 @@ pub(crate) fn sync_connections_virtual_window(
 mod tests {
     use super::*;
     use bevy::ecs::world::World;
-    use infiltrator_contract::connection::ConnectionStreamPhase;
+    use infiltrator_contract::connection::{ConnectionRateObservation, ConnectionStreamPhase};
     use infiltrator_contract::surface_snapshot::ConnectionSnapshot;
 
     fn connection(index: usize) -> ConnectionSnapshot {
@@ -428,7 +431,7 @@ mod tests {
             source_port: "50000".to_owned(),
             destination_ip: "1.1.1.1".to_owned(),
             destination_port: "443".to_owned(),
-            rate_observed: true,
+            rate_observation: ConnectionRateObservation::Measured,
             upload_bps: index as f64,
             download_bps: (index * 2) as f64,
             upload_total: index as u64,
@@ -470,10 +473,10 @@ mod tests {
 
         let viewport = CONNECTIONS_VIRTUAL_FALLBACK_VIEWPORT_PX;
         let mut list =
-            VirtualListState::new_dynamic(order.len(), CONNECTION_ROW_HEIGHT_PX, viewport)
+            VirtualListState::new_variable_extent(order.len(), CONNECTION_ROW_HEIGHT_PX, viewport)
                 .with_overscan(CONNECTIONS_VIRTUAL_OVERSCAN);
         for index in 0..order.len() {
-            list.update_measured_row_height(index, CONNECTION_ROW_HEIGHT_PX);
+            let _ = list.update_measured_extent(index, CONNECTION_ROW_HEIGHT_PX);
         }
         let bound = (viewport / CONNECTION_ROW_HEIGHT_PX).ceil() as usize
             + CONNECTIONS_VIRTUAL_OVERSCAN * 2;
@@ -495,17 +498,17 @@ mod tests {
         let order = sorted_connection_order(&projection, ConnectionSortKey::DownloadDesc);
         let viewport = CONNECTIONS_VIRTUAL_FALLBACK_VIEWPORT_PX;
         let mut list =
-            VirtualListState::new_dynamic(order.len(), CONNECTION_ROW_HEIGHT_PX, viewport)
+            VirtualListState::new_variable_extent(order.len(), CONNECTION_ROW_HEIGHT_PX, viewport)
                 .with_overscan(CONNECTIONS_VIRTUAL_OVERSCAN);
         for index in 0..order.len() {
-            list.update_measured_row_height(index, CONNECTION_ROW_HEIGHT_PX);
+            let _ = list.update_measured_extent(index, CONNECTION_ROW_HEIGHT_PX);
         }
 
         let top = list.window();
         assert_eq!(top.start, 0);
         assert!(top.bottom_spacer_px > 0.0);
 
-        list.scroll_to_bottom();
+        let _ = list.scroll_to_bottom();
         let bottom = list.window();
         assert_eq!(bottom.end, order.len());
         assert!(bottom.top_spacer_px > 0.0);

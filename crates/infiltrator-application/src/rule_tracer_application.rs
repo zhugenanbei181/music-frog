@@ -2,25 +2,28 @@
 
 use self::statistics::TraceStatistics;
 use futures_util::lock;
-use infiltrator_contract::active_exit::ActiveExitSnapshot;
 use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::outbound::details::{OutboundObservation, OutboundProtocolObservation};
+use infiltrator_contract::outbound::identity::OutboundId;
+use infiltrator_contract::outbound::inventory::{
+    OutboundInventoryState, OutboundObservationSnapshot, OutboundSelectionState,
+};
 use infiltrator_contract::rule_condition::{ConditionIssue, RuleTraceIssue};
 use infiltrator_contract::rule_location::RuleLocation;
-use infiltrator_contract::rule_trace_run::RuleTraceExecution;
 use infiltrator_contract::rule_trace_run::RuleTraceRequest;
+use infiltrator_contract::rule_trace_run::{RuleTraceExecution, RuleTraceOutboundFacts};
 use infiltrator_contract::rule_tracer::{
-    DecisionChainSnapshot, RuleTracerSnapshot, RuleTracerStatus, TracerRuleOverride,
-    TracerRuleOverrideResult, TracerRuleOverrideStatus, TrafficContextSnapshot,
+    DecisionChainSnapshot, RuleTraceOutboundResolution, RuleTraceRuntimeMode, RuleTracerSnapshot,
+    TracerRuleOverride, TracerRuleOverrideResult, TracerRuleOverrideStatus, TrafficContextSnapshot,
 };
 use infiltrator_contract::snapshot::{CoreLifecycle, CoreSnapshot};
-use infiltrator_domain::proxy::Proxy;
 use infiltrator_domain::rules::tracer::decision_chain::build_decision_chain;
 use infiltrator_domain::rules::tracer::named::trace_named_rules;
 use infiltrator_domain::rules::tracer::{RuleTraceMatch, TrafficContext, trace_rules};
 use infiltrator_domain::rules::types::parse_rule_str;
 use infiltrator_domain::rules::{RuleEntry, rewrite_rule_target};
 use infiltrator_ports::rule_tracer::RuleOverridePort;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 use std::fmt;
 use std::fmt::{Debug, Formatter};
 use std::sync::{Arc, Mutex};
@@ -59,6 +62,19 @@ pub struct RuleTracerApplication {
     context: Arc<Mutex<TrafficContextSnapshot>>,
     statistics: Arc<Mutex<TraceStatistics>>,
     override_port: OverridePortSlot,
+}
+
+#[derive(Clone, Copy)]
+enum RuleTraceSessionMode {
+    Live,
+    Offline,
+}
+
+#[derive(Clone, Copy)]
+enum RuleTraceSnapshotOwner<'a> {
+    Live { generation: u64, revision: u64 },
+    Offline { generation: u64, revision: u64 },
+    ObservedCore(&'a CoreSnapshot),
 }
 
 impl RuleTracerApplication {
@@ -256,20 +272,33 @@ impl RuleTracerApplication {
         &self,
         rules: &[RuleEntry],
         query: &str,
-        active_exit: Option<&ActiveExitSnapshot>,
-        proxies: Option<&HashMap<String, Proxy>>,
     ) -> Result<(Option<RuleTraceMatch>, DecisionChainSnapshot), RuleTraceIssue> {
-        self.trace_in_scope(rules, None, query, active_exit, proxies)
+        let observation = crate::rule_trace_fixtures::unknown_rule_trace_observation(
+            crate::rule_trace_fixtures::rule_trace_test_scope(),
+        );
+        self.trace_with_outbounds(
+            rules,
+            None,
+            query,
+            &RuleTraceOutboundFacts::Observed(observation),
+        )
+        .map(|(matched, chain, _)| (matched, chain))
     }
 
-    fn trace_in_scope(
+    fn trace_with_outbounds(
         &self,
         rules: &[RuleEntry],
         sub_rules: Option<&BTreeMap<String, Vec<RuleEntry>>>,
         query: &str,
-        active_exit: Option<&ActiveExitSnapshot>,
-        proxies: Option<&HashMap<String, Proxy>>,
-    ) -> Result<(Option<RuleTraceMatch>, DecisionChainSnapshot), RuleTraceIssue> {
+        outbound_facts: &RuleTraceOutboundFacts,
+    ) -> Result<
+        (
+            Option<RuleTraceMatch>,
+            DecisionChainSnapshot,
+            RuleTraceOutboundResolution,
+        ),
+        RuleTraceIssue,
+    > {
         let start = Instant::now();
         let context = self.merged_context(query)?;
         let domain_matched = match sub_rules {
@@ -286,52 +315,67 @@ impl RuleTracerApplication {
             .map(|m| m.target.as_str())
             .unwrap_or("DIRECT");
 
-        // Resolve outbound node and facts from proxy group read model or active exit.
-        // Without runtime facts the outbound stage stays honestly unknown; the
-        // domain chain renders a neutral node instead of fabricated node data.
+        // Resolve through typed collection membership and selection, then use
+        // details authored for that same engine observation. Names in a rule
+        // remain document syntax; they never key a production map.
         let mut resolved: (Option<String>, Option<String>, Option<u32>, Option<String>) =
             (None, None, None, None);
+        let mut outbound_resolution = match outbound_facts {
+            RuleTraceOutboundFacts::Observed(_) => RuleTraceOutboundResolution::Unknown,
+            RuleTraceOutboundFacts::Unavailable(failure) => {
+                RuleTraceOutboundResolution::Unavailable {
+                    failure: failure.clone(),
+                }
+            }
+        };
         if target_group == "DIRECT" {
             resolved = (Some("DIRECT".into()), Some("Direct".into()), None, None);
+            outbound_resolution = RuleTraceOutboundResolution::NotRequired;
         } else if target_group == "REJECT" {
             resolved = (Some("REJECT".into()), Some("Reject".into()), None, None);
-        } else if let Some(proxies) = proxies
-            && let Some(group) = proxies.get(target_group)
-            && let Some(now_node_name) = group.now()
-        {
-            let node_info = proxies.get(now_node_name);
-            resolved = (
-                Some(now_node_name.to_owned()),
-                node_info.map(|n| n.proxy_type().to_string()),
-                node_info.and_then(|n| n.delay()).filter(|delay| *delay > 0),
-                active_exit
-                    .filter(|exit| {
-                        exit.is_drawable() && exit.name.as_deref() == Some(now_node_name)
-                    })
-                    .and_then(|exit| exit.country_code.clone()),
-            );
-        } else if let Some(node) = proxies.and_then(|proxies| proxies.get(target_group))
-            && !node.is_group()
-        {
-            resolved = (
-                Some(target_group.to_owned()),
-                Some(node.proxy_type().to_owned()),
-                node.delay().filter(|delay| *delay > 0),
-                active_exit
-                    .filter(|exit| exit.is_drawable() && exit.name.as_deref() == Some(target_group))
-                    .and_then(|exit| exit.country_code.clone()),
-            );
-        } else if let Some(exit) = active_exit
-            && exit.is_drawable()
-            && (exit.group.as_deref() == Some(target_group)
-                || exit.name.as_deref() == Some(target_group))
-        {
-            resolved = (
-                exit.name.clone(),
-                exit.protocol.clone(),
-                exit.delay_ms,
-                exit.country_code.clone(),
-            );
+            outbound_resolution = RuleTraceOutboundResolution::NotRequired;
+        } else if let RuleTraceOutboundFacts::Observed(outbound_observation) = outbound_facts {
+            if let Some(outbound_id) = resolve_rule_target(target_group, outbound_observation) {
+                let outbound_name = match outbound_observation.inventory().inventory() {
+                    OutboundInventoryState::Ready { entries, .. } => entries
+                        .iter()
+                        .find(|entry| &entry.id == outbound_id)
+                        .and_then(|entry| entry.display_name.clone())
+                        .unwrap_or_else(|| outbound_id.value().to_owned()),
+                    OutboundInventoryState::Unknown
+                    | OutboundInventoryState::Empty
+                    | OutboundInventoryState::Unsupported
+                    | OutboundInventoryState::Failed { .. } => outbound_id.value().to_owned(),
+                };
+                let detail = outbound_observation.details().detail(outbound_id);
+                let protocol = detail.and_then(|detail| match &detail.protocol {
+                    OutboundProtocolObservation::Reported(protocol) => Some(
+                        detail
+                            .protocol_display_name
+                            .clone()
+                            .unwrap_or_else(|| protocol.value().to_owned()),
+                    ),
+                    OutboundProtocolObservation::Unknown
+                    | OutboundProtocolObservation::Unsupported => None,
+                });
+                let delay = detail.and_then(|detail| match &detail.current_latency_ms {
+                    OutboundObservation::Observed(0) => None,
+                    OutboundObservation::Observed(delay) => Some(*delay),
+                    OutboundObservation::Unknown | OutboundObservation::Unsupported => None,
+                });
+                let country = detail.and_then(|detail| match &detail.historical_egress {
+                    OutboundObservation::Observed(history) => {
+                        history.last().and_then(|sample| sample.country.clone())
+                    }
+                    OutboundObservation::Unknown | OutboundObservation::Unsupported => None,
+                });
+                resolved = (Some(outbound_name), protocol, delay, country);
+                outbound_resolution = RuleTraceOutboundResolution::Resolved {
+                    outbound_id: outbound_id.clone(),
+                    inventory_revision: outbound_observation.inventory().revision(),
+                    details_revision: outbound_observation.details().detail_revision(),
+                };
+            }
         }
         let (outbound_node, protocol, delay, country) = (
             resolved.0.as_deref(),
@@ -358,44 +402,74 @@ impl RuleTracerApplication {
             latency_us,
         );
 
-        Ok((domain_matched, chain))
+        Ok((domain_matched, chain, outbound_resolution))
     }
 
     /// Project the Live Rule Tracer read model for the current snapshot revision.
     #[cfg(test)]
     pub(crate) fn simulate_snapshot(
         &self,
-        core: Option<&CoreSnapshot>,
+        core: &CoreSnapshot,
         rules: &[RuleEntry],
-        active_exit: Option<&ActiveExitSnapshot>,
-        proxies: Option<&HashMap<String, Proxy>>,
     ) -> Result<RuleTracerSnapshot, RuleTraceIssue> {
-        self.simulate_workspace_snapshot(core, rules, None, active_exit, proxies)
+        let outbound_facts = match core.scope() {
+            Some(scope) => match scope.session_token.as_ref() {
+                Some(_) => RuleTraceOutboundFacts::Observed(
+                    crate::rule_trace_fixtures::unknown_rule_trace_observation(scope),
+                ),
+                None => RuleTraceOutboundFacts::Unavailable(Failure::new(
+                    ErrorCode::NotReady,
+                    "Core session is unavailable; local AST simulation only",
+                    true,
+                )),
+            },
+            None => RuleTraceOutboundFacts::Unavailable(Failure::new(
+                ErrorCode::NotReady,
+                "Core owner is unavailable; local AST simulation only",
+                true,
+            )),
+        };
+        self.simulate_workspace_snapshot(
+            RuleTraceSnapshotOwner::ObservedCore(core),
+            rules,
+            None,
+            &outbound_facts,
+        )
     }
 
     pub(crate) fn simulate_workspace_snapshot(
         &self,
-        core: Option<&CoreSnapshot>,
+        owner: RuleTraceSnapshotOwner<'_>,
         rules: &[RuleEntry],
         sub_rules: Option<&BTreeMap<String, Vec<RuleEntry>>>,
-        active_exit: Option<&ActiveExitSnapshot>,
-        proxies: Option<&HashMap<String, Proxy>>,
+        outbound_facts: &RuleTraceOutboundFacts,
     ) -> Result<RuleTracerSnapshot, RuleTraceIssue> {
-        let generation = core.map_or(0, |core| core.generation);
-        let revision = core.map_or(1, |core| core.revision.max(1));
+        let (generation, revision, runtime_mode) = match owner {
+            RuleTraceSnapshotOwner::Live {
+                generation,
+                revision,
+            } => (generation, revision, RuleTraceRuntimeMode::Live),
+            RuleTraceSnapshotOwner::Offline {
+                generation,
+                revision,
+            } => (generation, revision, RuleTraceRuntimeMode::Offline),
+            RuleTraceSnapshotOwner::ObservedCore(core) => {
+                let mode = match (&core.lifecycle, core.session_token.as_ref()) {
+                    (CoreLifecycle::Running | CoreLifecycle::Ready, Some(_)) => {
+                        RuleTraceRuntimeMode::Live
+                    }
+                    _ => RuleTraceRuntimeMode::Offline,
+                };
+                (core.generation, core.revision.max(1), mode)
+            }
+        };
         let query = self.query();
 
         // When query is empty, provide a clean, ready-to-test sandbox with presets
         if query.trim().is_empty() {
             let mut snapshot = RuleTracerSnapshot::empty(generation, revision);
-            if core.is_some_and(|core| {
-                matches!(
-                    core.lifecycle,
-                    CoreLifecycle::Running | CoreLifecycle::Ready
-                )
-            }) {
-                snapshot.status = RuleTracerStatus::Ready;
-            }
+            snapshot.runtime_mode = runtime_mode;
+            snapshot.outbound_resolution = RuleTraceOutboundResolution::NotEvaluated;
             return Ok(snapshot);
         }
 
@@ -404,8 +478,8 @@ impl RuleTracerApplication {
         let simulated_context = self.merged_context(&query)?;
         let ctx_snapshot = simulated_context.snapshot();
 
-        let (_matched, chain) =
-            self.trace_in_scope(rules, sub_rules, &query, active_exit, proxies)?;
+        let (_matched, chain, outbound_resolution) =
+            self.trace_with_outbounds(rules, sub_rules, &query, outbound_facts)?;
 
         let mut snapshot = RuleTracerSnapshot::ready(
             generation,
@@ -415,18 +489,8 @@ impl RuleTracerApplication {
             Some(chain),
             rules.len(),
         );
-
-        // Offline notice if core is stopped but AST trace still completed
-        if core.is_some_and(|core| {
-            !matches!(
-                core.lifecycle,
-                CoreLifecycle::Running | CoreLifecycle::Ready
-            )
-        }) {
-            snapshot.status = RuleTracerStatus::Ready;
-            snapshot.failure =
-                Some("内核离线：当前展示基于本地 AST 规则树的离线模拟推演".to_owned());
-        }
+        snapshot.runtime_mode = runtime_mode;
+        snapshot.outbound_resolution = outbound_resolution;
 
         Ok(snapshot)
     }
@@ -462,3 +526,43 @@ mod statistics;
 #[cfg(test)]
 #[path = "rule_trace_statistics_test.rs"]
 mod statistics_test;
+
+fn resolve_rule_target<'a>(
+    target: &str,
+    observation: &'a OutboundObservationSnapshot,
+) -> Option<&'a OutboundId> {
+    let OutboundInventoryState::Ready {
+        entries,
+        collections,
+    } = observation.inventory().inventory()
+    else {
+        return None;
+    };
+
+    let matching_collections: Vec<_> = collections
+        .iter()
+        .filter(|collection| collection.id.value() == target)
+        .collect();
+    match matching_collections.as_slice() {
+        [collection] => {
+            return match &collection.selection {
+                OutboundSelectionState::Ready { selected } => Some(selected),
+                OutboundSelectionState::Unknown
+                | OutboundSelectionState::Empty
+                | OutboundSelectionState::Unsupported
+                | OutboundSelectionState::Failed { .. } => None,
+            };
+        }
+        [] => {}
+        _ => return None,
+    }
+
+    let mut matching_entries = entries.iter().filter(|entry| {
+        entry.id.value() == target || entry.display_name.as_deref() == Some(target)
+    });
+    let first = matching_entries.next()?;
+    if matching_entries.any(|entry| entry.id != first.id) {
+        return None;
+    }
+    Some(&first.id)
+}

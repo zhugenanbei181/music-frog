@@ -11,7 +11,6 @@ pub struct ProfileSnapshot {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct RuntimeSnapshot {
     pub is_running: bool,
-    pub mode: String,
     pub mixed_port: u16,
     pub controller_port: u16,
     pub memory_bytes: u64,
@@ -147,7 +146,6 @@ pub fn sample_snapshot() -> AppDomainSnapshot {
         })
         .runtime(RuntimeSnapshot {
             is_running: true,
-            mode: "rule".to_string(),
             mixed_port: 7890,
             controller_port: 9090,
             memory_bytes: 104857600,
@@ -188,7 +186,6 @@ mod tests {
     fn test_sample_snapshot_creation() {
         let snapshot = sample_snapshot();
         assert_eq!(snapshot.profile.profiles_count, 3);
-        assert_eq!(snapshot.runtime.mode, "rule");
         assert!(snapshot.tun.is_enabled);
         assert_eq!(snapshot.dns.enhanced_mode, "fake-ip");
         assert_eq!(snapshot.traffic.active_connections, 42);

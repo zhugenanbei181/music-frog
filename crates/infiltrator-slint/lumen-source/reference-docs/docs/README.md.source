@@ -1,0 +1,70 @@
+# Lumen 文档索引与实现状态
+
+## 阅读顺序
+
+1. [spec.md](spec.md)：产品范围、平台差异、FR/NFR 与验收条件；产品范围的权威来源。
+2. [architecture.md](architecture.md)：系统边界、数据流、安全与 ADR；技术边界的权威来源。
+3. [ui-design.md](ui-design.md)：目标页面、字段、交互和状态；界面细节的权威来源。
+4. [research.md](research.md)：参考项目和官方技术资料的证据及取舍。
+5. [../AGENTS.md](../AGENTS.md)：协作约定和文档变更规则。
+
+spec、architecture、ui-design、research 分别回答产品做什么、如何实现、界面如何呈现、设计依据是什么。实现状态表只记录代码现状，不修改或缩减产品验收范围。
+
+## 当前实现
+
+Rust + Slint 应用和异步应用服务已建立。Android arm64 与 x86_64 APK 可打包并附带 ABI 匹配的独立 Mihomo v1.19.32 核心。Home 按当前 Rule/Global/Direct 解析策略组选择链并显示叶节点、延迟、出口查询状态与实际流量波形；按钮有按压动画。Proxy 在启动前解析 YAML 节点，旗帜使用彩色 SVG；单节点 Ping 和策略组全成员测速在 Runtime 停止时以有界 TCP 连通测试继续可用。Config 卡片保持四项操作；分享、删除、编辑和订阅设置使用日/夜适配圆角底部 Sheet；“编辑器打开”进入脱敏只读候选配置预览，用户改动通过 YAML Override 保存。Android VPN service 已在 API 35 x86_64 AVD 走通授权、Runtime 启动和节点切换。Profile、YAML Override、候选配置校验/重载，以及 Connections、Rules、Logs、Traffic、Providers 的基础观测已有代码。UI 与后台服务经消息通道交换意图和状态。
+
+| 需求 | 当前状态 | 实现边界 |
+|---|---|---|
+| FR-001–004 | 部分实现 | 四个一级入口与系统返回状态机已实现；API 35 x86_64 AVD 核对根页、节点详情、Sheet 和 Network Settings Back，留在当前 Activity 并回到来源页。Home 运行时在 Rule 显示实际 DMIT、Direct 模式显示 DIRECT 与323ms；假订阅节点的延迟如实显示超时。出口查询在此前AVD网络中曾失败；本轮Direct样例取得出口信息，成功与失败状态分别核验；完整首次引导和 arm64 真机仍待覆盖 |
+| FR-005、NFR-007/009 | 首页、Config、Proxy 与应用设置调试矩阵已回归；未截图页面仍须逐页验收 | `tools/ui-preview.ps1` 本轮生成92张截图，覆盖320×720、360×800、400×880、480×960、六组App Settings、深/浅色、User-Agent与主题色/缩放弹层、英文界面及既有主页/配置/代理回归。API35 x86_64 AVD按1440×3200@560dpi检查了安全区、主题浮窗圆角、输入键盘和设置页；ARM64真机仍待核对 |
+| FR-010–017 | 部分实现 | 本地/订阅 Profile、唯一当前项、更新/删除、Override 绑定；Config 卡片仅提供分享来源文件、删除、当前开关和编辑。API 35 x86_64 AVD 本轮逐一检查 Add、Share、Delete、Edit 与订阅设置 Sheet：实际表面完整露出圆角底边并停在导航手势安全区上方，表单和按钮没有被遮挡；开发版描边显示 PopupWindow 与 Surface 实际边界。导出不含订阅 URL/Age 密钥。Android SAF 20 MiB 导入已在 AVD 验证；扫码相机/二维码解码尚未接入，UI 明确显示不可用 |
+| FR-020–026 | 部分实现 | YAML Override、HTTP/HTTPS YAML 链接导入、Windows/Linux 文件导入/导出、Android SAF 本地 YAML/YML 导入与导出、Profile 绑定/顺序、预览、候选配置校验和运行时重载；Android SAF 操作及链接导入仍待设备验证，完整 Override 全局排序未实现；JavaScript 保持禁用 |
+| FR-030–037、FR-057、NFR-011 | 部分实现 | Rule/Global/Direct 已放在 Network Settings；节点组及节点在 Runtime 未启动时从 YAML 显示，运行时可切换并回读。策略组按钮递归测速全部叶节点；节点 Ping 离线时测 TCP 连通性、运行时调用 Mihomo delay API，超时和成功值按阈值显示状态色，处理中时钟按定时器切换旋转 SVG 帧。菜单保留定位当前节点和三种排序；Providers 从 Settings > Meta 进入。API 35 AVD 已核对搜索/国旗/行内容对齐，DIRECT 样例 25ms 显示绿色，DMIT 失败显示红色超时；短时测试直接返回结果，因此加载帧以界面预览状态核对。Android VPN 已在 x86_64 AVD 建立；Windows System Proxy 与 TUN、GNOME System Proxy、Android VPN 的平台限制见 architecture。真实订阅流量、arm64 真机、撤权恢复和 Android per-app 控制仍待验证 |
+| FR-040–044 | 部分实现 | Connections 已支持本次运行中的活动/已关闭视图、主机/进程搜索、时间/上下行/主机排序、详情和单条打断；已关闭项由轮询差分识别且最多保留 500 条。Rules 搜索/临时启停、Logs 实时流状态/等级筛选/搜索/导出已接入，Android 日志导出使用 SAF；Traffic 已实现今日/本周上下行汇总、小时/日柱图、确认清空和本地 7 日有界持久化；Android 逐应用流量与观测页面滚动自动跟随仍未实现 |
+| FR-050–058 | 部分实现 | FR-051新增的桌面登录启动、Android开机通知、订阅更新、主题模式/颜色/前景层级、应用语言、逻辑缩放、滚动隐藏底栏、预测返回、最近任务排除、VPN通知速率、后台低频UI和电池状态均有代码。Network Settings与UI-20 TUN表单、Android Wi-Fi自动化、远程控制器、GeoX与Age工具仍未实现；About已支持离线许可证检索 |
+| FR-059–063 | 功能已实现；目标设备组合仍需继续覆盖 | 简中/英文Slint PO、系统语言默认与即时切换、HSV/色码预览与持久化、85%–115%逻辑缩放、滚动隐藏底栏、Android Back动画、Recents排除、VPN通知速率、后台观测降频和电池白名单回读已接入。API35 AVD验证了语言切换、主题色和底栏交互、通知权限拒绝、电池确认取消、预测返回撤销/提交及输入法退回；VPN实际流量通知、重启通知和Recent任务卡片视觉仍需设备运行态核验 |
+| NFR-001–011 | 部分实现 | 异步 UI 边界、有限观测缓存、敏感信息脱敏、Android Back与预测手势、主题同步和Windows系统代理外部修改检测已有代码。Android API35模拟器验证/系统权限拒绝态、系统撤权/进程恢复、ARM64真机、跨平台字体/触控与i18n长文本仍待核验；出口请求按状态清除旧值；技术基线依官方来源记录在research |
+
+**构建和平台验证状态（2026-10-11）：** `tools/ui-preview.ps1` 本轮生成92张视口截图至 `target/ui-preview/app-settings-functional-2026-10-11/`，包括六组设置、两种主题、两类浮窗和English界面，覆盖320×720、360×800、400×880、480×960。API35 x86_64 AVD在1440×3200@560dpi实际核对App Settings圆角/安全区、颜色HSV拖动和色码保存、UI缩放预览与取消、简中/系统英文切换、通知权限拒绝、电池豁免拒绝、最近任务开关、长列表底栏收起/恢复、键盘Back关闭与预测手势取消/提交。当前没有运行VPN流量会话，因此通知中的实时速率未实测；真机重启通知与Recents卡片排除仍需设备重启/概览核对。ARM64和x86_64调试包均由本机debug.keystore签名，打包脚本核验ABI、签名和16 KB对齐；程序包不是发布签名。ARM64包：`dist/android/lumen-android-dev.apk`；模拟器包：`dist/android/lumen-android-x86_64-dev.apk`。ARM64真机、Linux字体与安全区以及其他页面完整视觉验收仍待核对。
+
+### 本工作站 Android 工具链盘点（2026-10-10）
+
+| 组件 | 位置/版本 | 状态 |
+|---|---|---|
+| Android SDK | `D:\env\Android\Sdk` | 已安装；`ANDROID_HOME`/`ANDROID_SDK_ROOT` 当前未设置，可向构建脚本传 `-AndroidSdk` |
+| Platform Tools / ADB | `D:\env\Android\Sdk\platform-tools\adb.exe`，ADB 37.0.0 | 已安装但不在 `PATH`；本轮连接 `emulator-5554` |
+| SDK Platforms | `android-35`、`android-36.1` | 已安装；当前 APK 脚本按其版本筛选规则选取 `android-35` |
+| Build Tools | `35.0.0`、`36.1.0` | 已安装；脚本使用最高版本 `36.1.0` |
+| Command-Line Tools | `D:\env\Android\Sdk\cmdline-tools\latest`，官方包 15859902 | 已安装；新版 `android sdk` CLI 可用。官方说明新版 Windows AVD 命令目前不可用；本机使用兼容的 `avdmanager` 创建 AVD，`sdkmanager` 仅用于安装包且已标记弃用 |
+| Android NDK | `D:\env\Android\Sdk\ndk\29.0.14206865` | 已安装；`ANDROID_NDK_ROOT` 未设置时，脚本会从 SDK 的 `ndk/` 目录自动发现 |
+| JDK | `D:\env\JDK\jdk-21` | JDK 21 已安装，`JAVA_HOME` 已指向该目录 |
+| Rust Android Target | `aarch64-linux-android`、`x86_64-linux-android` | 均已安装 |
+| cargo-apk | `D:\env\cargo-tools\bin\cargo-apk.exe` | 已安装但不在 `PATH`；构建时通过 `CARGO_APK` 指向该文件 |
+| APK Debug Keystore | `%USERPROFILE%\.android\debug.keystore` | 文件已存在，供 `apk-dev` 调试包签名；不是发布签名 |
+| Emulator / System Image | `D:\env\Android\Sdk\emulator\emulator.exe`；`system-images;android-35;google_apis;x86_64` | 已安装；API 35 Google APIs x86_64 image |
+| AVD | `%USERPROFILE%\.android\avd\Lumen_API_35_x86_64.avd` | Pixel 7 配置；ADB 序列号 `emulator-5554`。本轮分别以1440×3200@560dpi高分辨率和1080×2400@480dpi（360×800逻辑尺寸）回归 |
+
+APK 构建命令：`$env:CARGO_APK='D:\env\cargo-tools\bin\cargo-apk.exe'; .\tools\build_android.ps1 -AndroidSdk 'D:\env\Android\Sdk' -Target aarch64-linux-android`。命令生成调试包到 `dist/android/lumen-android-dev.apk`；真机安装仍需 USB 调试授权，模拟器验收还需安装系统镜像并创建 AVD。
+
+x86_64 模拟器包构建命令：`$env:CARGO_APK='D:\env\cargo-tools\bin\cargo-apk.exe'; .\tools\build_android.ps1 -AndroidSdk 'D:\env\Android\Sdk' -Target x86_64-linux-android -OutputApk 'dist/android/lumen-android-x86_64-dev.apk'`。
+
+当前 Android UI 截图用 x86_64 调试包：`dist/android/lumen-android-x86_64-dev.apk`（`org.lumen.client`、target SDK 35），使用本机 debug.keystore 签名，不是发布签名包。ARM64 手机/平板包与 x86_64 模拟器包分别构建至 `dist/android/lumen-android-dev.apk` 与 `dist/android/lumen-android-x86_64-dev.apk`；两者均为本机 debug.keystore 签名的开发包，不是发布签名包。物理 arm64 设备未验证。
+
+此表不是全部验收通过声明。完整需求与待办以 [spec.md](spec.md) 为准；平台适配状态、失败和恢复边界以 [architecture.md](architecture.md) ADR-04/05/09/11 为准；视觉与溢出验收以 UI-37、FR-005、NFR-009 和 ADR-10 为准。
+
+## 设计基线与取舍
+
+- 目标平台为 Windows、Android、Linux，所有可见 UI 使用 Rust + Slint。
+- 保留 Mihomo Profile、Override、代理切换和运行观测工作流；`yumebox-ui/` 截图是页面高保真视觉验收基准，须逐页比较和迭代。只不复制 YumeBox 品牌标志、专有资源和 Compose 源码。Slint Material Components 1.1.0 与 `LumenTheme` 共同承载统一令牌；Android 布局读取 `Window.safe-area-insets`。技术栈版本和弃用状态持续从官方来源核验并记录在 [research.md](research.md)。
+- UI 资源的格式、路径、上游图标名、许可证、变体和引用位置由 [assets/manifest.json](../assets/manifest.json) 唯一登记；目录规则见 [assets/README.md](../assets/README.md)。功能符号使用本地静态 SVG；UTF-8/Emoji 用于文本语义和规定保留的节点旗帜名称；地区旗帜由 Twemoji SVG 源文件生成带圆形 alpha 裁切的 PNG 供 Slint 运行时显示。PNG 不用于普通功能图标。替换资源时同时更新清单和 UI 引用，并删除未使用的旧文件。
+- Profile 原始配置为来源数据；持久化 YAML Override 表达用户改动。
+- 不建设配置版本历史、diff、自动备份或历史回滚。
+- Android 运行模式仅 VPN；Windows/Linux 桌面目标为 System Proxy 与 TUN。
+- 密钥与订阅凭据不进入普通日志或诊断导出；适配能力未验证时不对用户声称成功。
+
+需求变更先改受影响的 spec，再同步 architecture、ui-design、research 和本索引中的映射或状态。
+
+### 应用设置视觉重构（2026-10-11）
+
+FR-005/051/059–063、NFR-007/009 → UI-16/37 → ADR-10–14：六组设置已接入保存层与对应桌面/Android API；按最新需求移除App Settings“首页”组及占位图标流程，保留应用主首页。简中/英文静态界面、设置消息、HSV主题色、逻辑缩放、底栏隐藏、预测返回、通知权限、Recents、电池入口与后台低频观测已连通；调试边界仅由开发开关显示，不会因点击普通行出现。92张软件预览和API35模拟器核对结果见上表；签名ARM64调试安装包已重建。真机、Linux和剩余运行状态仍待验证。

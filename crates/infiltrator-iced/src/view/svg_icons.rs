@@ -1,8 +1,8 @@
 //! Embedded monochrome SVG icon set (Lucide-style, 24x24, stroke-width 2,
 //! round caps, `stroke="currentColor"`).
 //!
-//! The raw files live in `assets/icons/*.svg` and are compiled into the
-//! binary with `include_bytes!`, so no runtime asset lookup is needed.
+//! Raw SVGs are owned by the shared visual asset catalog and compiled into the
+//! binary, so no runtime asset lookup is needed.
 //! Recoloring is done through the iced svg color filter — see [`icon`].
 //!
 //! `text` block: Usage in a page view:
@@ -13,8 +13,7 @@ use iced::{Color, Element};
 use std::collections::HashMap;
 use std::sync::LazyLock;
 
-/// Every icon available in the set. Variants map 1:1 to
-/// `assets/icons/<kebab-case>.svg`.
+/// Every icon available in the set. Variants map 1:1 to a shared catalog ID.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Icon {
     LayoutGrid,
@@ -52,38 +51,40 @@ pub enum Icon {
 impl Icon {
     /// Raw (embedded) SVG source for this icon.
     fn bytes(self) -> &'static [u8] {
-        match self {
-            Icon::LayoutGrid => include_bytes!("../../assets/icons/layout-grid.svg"),
-            Icon::FileText => include_bytes!("../../assets/icons/file-text.svg"),
-            Icon::Globe => include_bytes!("../../assets/icons/globe.svg"),
-            Icon::Activity => include_bytes!("../../assets/icons/activity.svg"),
-            Icon::ListChecks => include_bytes!("../../assets/icons/list-checks.svg"),
-            Icon::Network => include_bytes!("../../assets/icons/network.svg"),
-            Icon::RefreshCw => include_bytes!("../../assets/icons/refresh-cw.svg"),
-            Icon::Settings => include_bytes!("../../assets/icons/settings.svg"),
-            Icon::Code2 => include_bytes!("../../assets/icons/code-2.svg"),
-            Icon::Search => include_bytes!("../../assets/icons/search.svg"),
-            Icon::Target => include_bytes!("../../assets/icons/target.svg"),
-            Icon::Zap => include_bytes!("../../assets/icons/zap.svg"),
-            Icon::Shield => include_bytes!("../../assets/icons/shield.svg"),
-            Icon::Wifi => include_bytes!("../../assets/icons/wifi.svg"),
-            Icon::ChevronDown => include_bytes!("../../assets/icons/chevron-down.svg"),
-            Icon::ChevronRight => include_bytes!("../../assets/icons/chevron-right.svg"),
-            Icon::ChevronLeft => include_bytes!("../../assets/icons/chevron-left.svg"),
-            Icon::ChevronUp => include_bytes!("../../assets/icons/chevron-up.svg"),
-            Icon::X => include_bytes!("../../assets/icons/x.svg"),
-            Icon::Plus => include_bytes!("../../assets/icons/plus.svg"),
-            Icon::Trash2 => include_bytes!("../../assets/icons/trash-2.svg"),
-            Icon::Copy => include_bytes!("../../assets/icons/copy.svg"),
-            Icon::Pencil => include_bytes!("../../assets/icons/pencil.svg"),
-            Icon::Pin => include_bytes!("../../assets/icons/pin.svg"),
-            Icon::ArrowUp => include_bytes!("../../assets/icons/arrow-up.svg"),
-            Icon::ArrowDown => include_bytes!("../../assets/icons/arrow-down.svg"),
-            Icon::Server => include_bytes!("../../assets/icons/server.svg"),
-            Icon::Plug => include_bytes!("../../assets/icons/plug.svg"),
-            Icon::Minus => include_bytes!("../../assets/icons/minus.svg"),
-            Icon::Square => include_bytes!("../../assets/icons/square.svg"),
-        }
+        let name = match self {
+            Icon::LayoutGrid => "layout-grid",
+            Icon::FileText => "file-text",
+            Icon::Globe => "globe",
+            Icon::Activity => "activity",
+            Icon::ListChecks => "list-checks",
+            Icon::Network => "network",
+            Icon::RefreshCw => "refresh-cw",
+            Icon::Settings => "settings",
+            Icon::Code2 => "code-2",
+            Icon::Search => "search",
+            Icon::Target => "target",
+            Icon::Zap => "zap",
+            Icon::Shield => "shield",
+            Icon::Wifi => "wifi",
+            Icon::ChevronDown => "chevron-down",
+            Icon::ChevronRight => "chevron-right",
+            Icon::ChevronLeft => "chevron-left",
+            Icon::ChevronUp => "chevron-up",
+            Icon::X => "x",
+            Icon::Plus => "plus",
+            Icon::Trash2 => "trash-2",
+            Icon::Copy => "copy",
+            Icon::Pencil => "pencil",
+            Icon::Pin => "pin",
+            Icon::ArrowUp => "arrow-up",
+            Icon::ArrowDown => "arrow-down",
+            Icon::Server => "server",
+            Icon::Plug => "plug",
+            Icon::Minus => "minus",
+            Icon::Square => "square",
+        };
+        infiltrator_shared::assets::iced_icon_svg(name)
+            .expect("registered Iced icon must exist in the shared asset catalog")
     }
 }
 

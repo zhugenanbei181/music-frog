@@ -1,8 +1,10 @@
 //! Settings snapshot construction belongs to the settings adapter.
 use crate::pages::settings::settings_core::SettingsProjection;
+use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::runtime_control::RuntimeControlStatus;
 use infiltrator_contract::surface_snapshot;
 use infiltrator_contract::surface_snapshot::PageStatus;
+use infiltrator_contract::version::CoreVersionSnapshot;
 
 pub(crate) fn empty_settings() -> SettingsProjection {
     SettingsProjection {
@@ -10,6 +12,7 @@ pub(crate) fn empty_settings() -> SettingsProjection {
         notifications_enabled: None,
         preference_status: PageStatus::Loading,
         runtime_status: RuntimeControlStatus::Unobserved,
+        theme: "system".into(),
         autostart: false,
         system_proxy: false,
         system_proxy_snapshot: Default::default(),
@@ -30,7 +33,9 @@ pub(crate) fn empty_settings() -> SettingsProjection {
         controller_port: None,
         log_level: None,
         core_channel: String::new(),
-        core_versions: Default::default(),
+        core_versions: CoreVersionSnapshot::for_engine(
+            EngineId::new("mihomo").expect("demo Mihomo engine ID is valid"),
+        ),
         core_integrity: Default::default(),
         controller_auth: Default::default(),
         service_mode: Default::default(),
@@ -48,6 +53,7 @@ impl From<SettingsProjection> for surface_snapshot::SettingsPageSnapshot {
             close_to_tray: value.close_to_tray,
             notifications_enabled: value.notifications_enabled,
             language: "zh-CN".into(),
+            theme: value.theme,
             autostart: value.autostart,
             system_proxy: value.system_proxy,
             mixed_port: value.mixed_port,

@@ -9,27 +9,30 @@ use crate::pages::connections_search::ConnectionMatchTerm;
 use crate::pages::connections_view::ConnectionRow;
 use crate::pages::overview::format_rate;
 use bevy::ecs::hierarchy::Children;
+use bevy::feathers::theme::ThemeBackgroundColor;
+use bevy::feathers::theme::ThemeTextColor;
 use bevy::scene::{Scene, bsn};
-use bevy::text::TextColor;
 use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderRadius, Display, FlexDirection, JustifyContent, Node,
-    Overflow, PositionType, UiRect, Val, percent, px,
+    AlignItems, BorderRadius, Display, FlexDirection, JustifyContent, Node, Overflow, PositionType,
+    UiRect, percent, px,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
+use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::gesture::{
     SwipeActionDrawer, SwipeContentContainer, SwipeToActionItem, SwipeToActionSpring,
 };
 use infiltrator_bevy_widgets::localization::LocalizedText;
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::responsive::TouchHitbox;
 use infiltrator_bevy_widgets::surface::SurfacePanel;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::text_runs::TextRuns;
 use infiltrator_bevy_widgets::theme::space;
-use infiltrator_contract::search_text::SearchTextRun;
 use infiltrator_contract::surface_snapshot::ConnectionSnapshot;
 use infiltrator_domain::connection_view;
+use zhuge_ui_core::text::SearchTextRun;
 
 /// Construct a connection row scene supporting horizontal swipe-to-action.
 pub fn connection_row_scene(
@@ -59,12 +62,12 @@ pub fn connection_row_scene(
                 max_width: percent(100),
                 flex_direction: FlexDirection::Column,
                 flex_shrink: 0.0,
-                row_gap: Val::Px(space::S8),
-                padding: UiRect::all(Val::Px(space::S16)),
-                border_radius: BorderRadius::all(Val::Px(palette.card_radius_px)),
+                row_gap: rem(space::S8),
+                padding: UiRect::all(rem(space::S16)),
+                border_radius: BorderRadius::all(rem(palette.card_radius_px)),
                 overflow: Overflow::clip(),
             }
-            BackgroundColor({ palette.surface })
+            ThemeBackgroundColor({ Token::Surface })
             SurfacePanel
             ConnectionRow(idx)
             SwipeToActionItem {
@@ -78,20 +81,20 @@ pub fn connection_row_scene(
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::SpaceBetween,
                     flex_direction: FlexDirection::Column,
-                    row_gap: px(space::S8),
+                    row_gap: rem(space::S8),
                 }
                 SwipeContentContainer
                 Children [
                     Node {
                         width: percent(100), min_width: px(0.0),
                         flex_direction: FlexDirection::Column,
-                        row_gap: Val::Px(space::S4),
+                        row_gap: rem(space::S4),
                     }
                     Children [
                         Node {
                             width: percent(100), min_width: px(0.0),
                             flex_direction: FlexDirection::Column,
-                            row_gap: Val::Px(space::S4),
+                            row_gap: rem(space::S4),
                         }
                         Children [
                             TextRuns(vec![SearchTextRun { text: host, highlighted: false }]) ConnHostText(idx) TextRole(Role::BodyStrong)
@@ -101,7 +104,7 @@ pub fn connection_row_scene(
                         --
                         Node {
                             align_items: AlignItems::Center,
-                            column_gap: Val::Px(space::S4),
+                            column_gap: rem(space::S4),
                         }
                         Children [
                             { chain_scenes }
@@ -112,7 +115,7 @@ pub fn connection_row_scene(
                     --
                     Node {
                         align_items: AlignItems::Center,
-                        column_gap: Val::Px(space::S12),
+                        column_gap: rem(space::S12),
                     }
                     Children [
                         Text(speed_info) ConnSpeedText(idx) TextRole(Role::Mono)
@@ -121,12 +124,12 @@ pub fn connection_row_scene(
                         --
                         Node {
                             min_height: px(palette.control_height_px * 0.8),
-                            padding: UiRect::horizontal(Val::Px(space::S8)),
+                            padding: UiRect::horizontal(rem(space::S8)),
                             align_items: AlignItems::Center,
                             justify_content: JustifyContent::Center,
-                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                            border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                         }
-                        BackgroundColor({ palette.surface_elevated })
+                        ThemeBackgroundColor({ Token::SurfaceElevated })
                         Button
                         TouchHitbox::default()
                         inspect_btn
@@ -136,12 +139,12 @@ pub fn connection_row_scene(
                         --
                         Node {
                             min_height: px(palette.control_height_px * 0.8),
-                            padding: UiRect::horizontal(Val::Px(space::S8)),
+                            padding: UiRect::horizontal(rem(space::S8)),
                             align_items: AlignItems::Center,
                             justify_content: JustifyContent::Center,
-                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                            border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                         }
-                        BackgroundColor({ palette.surface_elevated })
+                        ThemeBackgroundColor({ Token::SurfaceElevated })
                         Button
                         TouchHitbox::default()
                         conn_btn
@@ -156,26 +159,26 @@ pub fn connection_row_scene(
                     right: px(0.0),
                     top: px(0.0),
                     bottom: px(0.0),
-                    width: px(88.0),
+                    width: rem(88.0),
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::Center,
                     display: Display::None,
                 }
                 SwipeActionDrawer
-                BackgroundColor({ palette.surface_elevated })
+                ThemeBackgroundColor({ Token::SurfaceElevated })
                 Children [
                     Node {
-                        padding: UiRect::axes(Val::Px(space::S12), Val::Px(space::S8)),
-                        border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                        padding: UiRect::axes(rem(space::S12), rem(space::S8)),
+                        border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                         align_items: AlignItems::Center,
                         justify_content: JustifyContent::Center,
                     }
-                    BackgroundColor({ palette.danger })
+                    ThemeBackgroundColor({ Token::Danger })
                     Button
                     TouchHitbox::default()
                     conn_btn_drawer
                     Children [
-                        LocalizedText::plain("connections_cut_action") TextRole(Role::BodyStrong) TextColor({ palette.surface })
+                        LocalizedText::plain("connections_cut_action") TextRole(Role::BodyStrong) ThemeTextColor({ Token::Surface })
                     ]
                 ]
             ]

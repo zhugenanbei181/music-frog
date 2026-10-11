@@ -2,7 +2,7 @@
 //!
 //! The scene renders the shared `infiltrator_contract::mini_hud` read model:
 //! duplex rates, the real exit-node pill, the shared toggle state letters and
-//! the proxy-mode chip. Runtime wiring (mount/unmount, toggle event, pin
+//! the shared routing intent chip. Runtime wiring (mount/unmount, toggle event, pin
 //! persistence) lives in [`crate::mini_hud_shell`].
 
 use crate::a11y::{semantic_node, switch_node};
@@ -11,19 +11,24 @@ use bevy::ecs::component::Component;
 use bevy::ecs::event::Event;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::resource::Resource;
+use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::{Scene, bsn};
+use bevy::ui::FixedNode;
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderColor, BorderRadius, FlexDirection, JustifyContent, Node,
     Overflow, PositionType, UiRect, Val, percent, px,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
+use infiltrator_application::routing_intent_projection::routing_intent_status_copy;
 use infiltrator_application::system_toggle_projection::{compact_label, compact_status_line};
 use infiltrator_bevy_widgets::button::{ButtonDisabled, pill_caption_scene};
+use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::a11y::ShellA11yNode;
@@ -62,9 +67,9 @@ pub struct MiniHudExpandButton;
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct MiniHudPinButton;
 
-/// Marker on the mode chip text.
+/// Marker on the routing intent chip text.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct MiniHudModeLabel;
+pub struct MiniHudRoutingIntentLabel;
 
 /// Marker on the exit-node pill text.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -112,7 +117,7 @@ pub struct MiniHudPipReadout;
 #[derive(Clone, Copy, Debug, Default)]
 pub enum MiniHudTextKind {
     #[default]
-    Mode,
+    RoutingIntent,
     Node,
     ToggleLine,
     UpRate,
@@ -196,7 +201,8 @@ pub fn format_rate(bytes_per_second: u64) -> String {
 pub fn mini_hud_scene(model: &MiniHudReadModel, palette: &UiPalette) -> impl Scene + use<> {
     let up_rate = format_rate(model.up_bytes_per_sec);
     let down_rate = format_rate(model.down_bytes_per_sec);
-    let mode_label = model.mode_zh.clone();
+    let routing_intent_label =
+        routing_intent_status_copy(&model.routing_intent, UiLocale::default().code());
     let node_label = exit_label(model);
     let toggle_line =
         compact_status_line(&model.system_proxy, &model.tun, UiLocale::default().code());
@@ -227,31 +233,32 @@ pub fn mini_hud_scene(model: &MiniHudReadModel, palette: &UiPalette) -> impl Sce
             }
             BackgroundColor(scrim)
             MiniHudRoot
+            FixedNode
             Children [
                 Node {
-                    width: px(280.0),
-                    height: px(112.0),
+                    width: rem(280.0),
+                    height: rem(112.0),
                     flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(space::S4),
-                    padding: UiRect::all(Val::Px(space::S12)),
+                    row_gap: rem(space::S4),
+                    padding: UiRect::all(rem(space::S12)),
                     border: UiRect::all(Val::Px(palette.hairline_px)),
-                    border_radius: BorderRadius::all(Val::Px(palette.card_radius_px)),
+                    border_radius: BorderRadius::all(rem(palette.card_radius_px)),
                 }
-                BackgroundColor({ palette.surface })
+                ThemeBackgroundColor({ Token::Surface })
                 BorderColor { top: edge, right: edge, bottom: edge, left: edge }
                 card_node
                 Children [
-                    // Header: title, real mode chip, pin and expand actions
+                    // Header: title, observed routing intent, pin and expand actions
                     Node {
                         width: percent(100),
                         align_items: AlignItems::Center,
                         justify_content: JustifyContent::SpaceBetween,
-                        padding: UiRect::bottom(Val::Px(space::S4)),
+                        padding: UiRect::bottom(rem(space::S4)),
                     }
                     Children [
                         Node {
                             align_items: AlignItems::Center,
-                            column_gap: Val::Px(space::S6),
+                            column_gap: rem(space::S6),
                         }
                         Children [
                             @{ icon_tile_scene(IconId::Activity, 16.0, palette) }
@@ -259,32 +266,32 @@ pub fn mini_hud_scene(model: &MiniHudReadModel, palette: &UiPalette) -> impl Sce
                             Text({ "Mini HUD".to_owned() }) TextRole(Role::Caption)
                             --
                             Node {
-                                padding: UiRect::axes(Val::Px(space::S6), Val::Px(2.0)),
+                                padding: UiRect::axes(rem(space::S6), Val::Px(2.0)),
                                 border_radius: BorderRadius::all(Val::Px(4.0)),
                             }
-                            BackgroundColor({ palette.surface_elevated })
-                            MiniHudText(MiniHudTextKind::Mode)
+                            ThemeBackgroundColor({ Token::SurfaceElevated })
+                            MiniHudText(MiniHudTextKind::RoutingIntent)
                             Children [
-                                Text({ mode_label })
+                                Text({ routing_intent_label })
                                 TextRole(Role::Caption)
-                                MiniHudModeLabel
+                                MiniHudRoutingIntentLabel
                             ]
                         ]
                         --
                         Node {
                             align_items: AlignItems::Center,
-                            column_gap: Val::Px(space::S4),
+                            column_gap: rem(space::S4),
                         }
                         Children [
                             Node {
-                                min_height: px(20.0),
-                                padding: UiRect::horizontal(Val::Px(space::S6)),
+                                min_height: rem(20.0),
+                                padding: UiRect::horizontal(rem(space::S6)),
                                 align_items: AlignItems::Center,
                                 justify_content: JustifyContent::Center,
                                 border_radius: BorderRadius::all(Val::Px(4.0)),
                                 border: UiRect::all(Val::Px(1.0)),
                             }
-                            BackgroundColor({ palette.surface_elevated })
+                            ThemeBackgroundColor({ Token::SurfaceElevated })
                             BorderColor { top: edge, right: edge, bottom: edge, left: edge }
                             Button
                             MiniHudPinButton MiniHudText(MiniHudTextKind::Pin)
@@ -293,13 +300,13 @@ pub fn mini_hud_scene(model: &MiniHudReadModel, palette: &UiPalette) -> impl Sce
                             ]
                             --
                             Node {
-                                min_height: px(20.0),
-                                padding: UiRect::horizontal(Val::Px(space::S6)),
+                                min_height: rem(20.0),
+                                padding: UiRect::horizontal(rem(space::S6)),
                                 align_items: AlignItems::Center,
                                 justify_content: JustifyContent::Center,
                                 border_radius: BorderRadius::all(Val::Px(4.0)),
                             }
-                            BackgroundColor({ palette.accent })
+                            ThemeBackgroundColor({ Token::Accent })
                             Button
                             MiniHudExpandButton
                             Children [
@@ -314,12 +321,12 @@ pub fn mini_hud_scene(model: &MiniHudReadModel, palette: &UiPalette) -> impl Sce
                         flex_direction: FlexDirection::Row,
                         justify_content: JustifyContent::SpaceBetween,
                         align_items: AlignItems::Center,
-                        padding: UiRect::vertical(Val::Px(space::S4)),
+                        padding: UiRect::vertical(rem(space::S4)),
                     }
                     Children [
                         Node {
                             align_items: AlignItems::Center,
-                            column_gap: Val::Px(space::S6),
+                            column_gap: rem(space::S6),
                         }
                         Children [
                             @{ icon_tile_scene(IconId::ArrowDown, 16.0, palette) }
@@ -332,7 +339,7 @@ pub fn mini_hud_scene(model: &MiniHudReadModel, palette: &UiPalette) -> impl Sce
                         --
                         Node {
                             align_items: AlignItems::Center,
-                            column_gap: Val::Px(space::S6),
+                            column_gap: rem(space::S6),
                         }
                         Children [
                             @{ icon_tile_scene(IconId::ArrowUp, 16.0, palette) }
@@ -350,7 +357,7 @@ pub fn mini_hud_scene(model: &MiniHudReadModel, palette: &UiPalette) -> impl Sce
                         width: percent(100),
                         align_items: AlignItems::Center,
                         justify_content: JustifyContent::SpaceBetween,
-                        column_gap: Val::Px(space::S6),
+                        column_gap: rem(space::S6),
                     }
                     Children [
                         Node MiniHudPipReadout Children [
@@ -359,7 +366,7 @@ pub fn mini_hud_scene(model: &MiniHudReadModel, palette: &UiPalette) -> impl Sce
                         --
                         Node {
                             align_items: AlignItems::Center,
-                            column_gap: Val::Px(space::S4),
+                            column_gap: rem(space::S4),
                         }
                         Children [
                             @{ (pill_caption_scene("PiP Pin".to_owned(), false, palette), bsn! { MiniHudPipPinButton }) }
@@ -376,12 +383,12 @@ pub fn mini_hud_scene(model: &MiniHudReadModel, palette: &UiPalette) -> impl Sce
                         width: percent(100),
                         align_items: AlignItems::Center,
                         justify_content: JustifyContent::SpaceBetween,
-                        padding: UiRect::top(Val::Px(space::S4)),
-                        column_gap: Val::Px(space::S6),
+                        padding: UiRect::top(rem(space::S4)),
+                        column_gap: rem(space::S6),
                     }
                     Children [
                         Node {
-                            padding: UiRect::axes(Val::Px(space::S8), Val::Px(2.0)),
+                            padding: UiRect::axes(rem(space::S8), Val::Px(2.0)),
                             border_radius: BorderRadius::all(Val::Px(4.0)),
                         }
                         BackgroundColor({ palette.accent.with_alpha(0.14) })
@@ -394,7 +401,7 @@ pub fn mini_hud_scene(model: &MiniHudReadModel, palette: &UiPalette) -> impl Sce
                         --
                         Node {
                             align_items: AlignItems::Center,
-                            column_gap: Val::Px(space::S6),
+                            column_gap: rem(space::S6),
                         }
                         Children [
                             @{ pill_caption_scene(proxy_label, proxy_selected, palette) }
@@ -426,6 +433,7 @@ mod tests {
     use bevy::scene::{CommandsSceneExt, ScenePlugin};
     use infiltrator_bevy_widgets::palette::UiPalette;
     use infiltrator_bevy_widgets::theme::Theme;
+    use infiltrator_contract::routing_intent::RoutingIntentSnapshot;
     use infiltrator_contract::system_toggle::SystemToggleSnapshot;
     #[cfg(test)]
     use infiltrator_contract::traffic_waveform::TrafficWaveformSnapshot;
@@ -436,7 +444,7 @@ mod tests {
             .with_toggles(&snapshot)
             .with_traffic(120 * 1024, 2 * 1024 * 1024)
             .with_exit_node("HK-01")
-            .with_mode("规则模式")
+            .with_routing_intent(&RoutingIntentSnapshot::demo_fixture())
             .with_waveform(&waveform_snapshot())
     }
 
@@ -503,13 +511,13 @@ mod tests {
         app.update();
 
         let world = app.world_mut();
-        let mut mode_labels = world.query::<(&Text, &MiniHudModeLabel)>();
+        let mut mode_labels = world.query::<(&Text, &MiniHudRoutingIntentLabel)>();
         assert_eq!(
             mode_labels
                 .iter(world)
                 .next()
                 .map(|(text, _)| text.0.clone()),
-            Some("规则模式".to_owned())
+            Some("遵循分流规则".to_owned())
         );
         let mut node_labels = world.query::<(&Text, &MiniHudNodeLabel)>();
         assert_eq!(

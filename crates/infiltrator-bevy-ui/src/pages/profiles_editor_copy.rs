@@ -86,11 +86,11 @@ pub fn replay_mixin_copy(
             text.0.clone_from(&label);
         }
     }
-    let (label, has_error) = diagnostic_line(&options.mixin, locale.code());
-    let color = if has_error {
-        palette.danger
-    } else {
-        palette.success
+    let (label, validation_status) = diagnostic_line(&options.mixin, locale.code());
+    let color = match validation_status {
+        profile_editor_projection::DocumentValidationStatus::Valid => palette.success,
+        profile_editor_projection::DocumentValidationStatus::Invalid => palette.danger,
+        profile_editor_projection::DocumentValidationStatus::Unavailable => palette.warning,
     };
     for (mut text, mut foreground) in &mut diagnostics {
         if text.0 != label {
@@ -100,7 +100,7 @@ pub fn replay_mixin_copy(
             foreground.0 = color;
         }
     }
-    let label = profile_editor_projection::syntax_label(has_error, locale.code());
+    let label = profile_editor_projection::syntax_label(validation_status, locale.code());
     for (mut text, mut background) in &mut pills {
         if text.0 != label {
             text.0.clone_from(&label);

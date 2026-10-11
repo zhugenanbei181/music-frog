@@ -27,66 +27,125 @@ pub fn project_language(
         },
     }
 }
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct PendingLanguageChoice {
     pub token: u64,
     pub preference: LanguagePreference,
 }
-#[derive(Clone, Debug, Default)]
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub enum LanguageReadPhase {
+    #[default]
+    Unobserved,
+    Observed {
+        preference: Option<LanguagePreference>,
+    },
+    Failed {
+        failure: Failure,
+        last_known: Option<LanguagePreference>,
+    },
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum LanguagePersistence {
+    #[default]
+    Unavailable,
+    Available,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub enum LanguageChoicePhase {
+    #[default]
+    Ready,
+    Pending(PendingLanguageChoice),
+    Rejected(Failure),
+    Failed {
+        requested: LanguagePreference,
+        failure: Failure,
+    },
+    AwaitingObservation {
+        preference: LanguagePreference,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum LanguageChoiceFinish {
+    Stale,
+    Saved(LanguagePreference),
+    Failed(Failure),
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct LanguageChoiceState {
-    pub applied: Option<LanguagePreference>,
-    pub requested: Option<LanguagePreference>,
-    pub pending: Option<PendingLanguageChoice>,
-    pub failure: Option<Failure>,
-    pub can_persist: bool,
-    awaiting: Option<LanguagePreference>,
-    read_failure: Option<Failure>,
+    pub read: LanguageReadPhase,
+    pub persistence: LanguagePersistence,
+    pub phase: LanguageChoicePhase,
     next_token: u64,
 }
+
 impl LanguageChoiceState {
     pub fn observe(&mut self, snapshot: &LanguageSettingsSnapshot) {
-        self.can_persist = snapshot.can_persist;
-        if let Some(expected) = self.awaiting {
-            if snapshot.preference != Some(expected) {
+        self.persistence = match snapshot.can_persist {
+            true => LanguagePersistence::Available,
+            false => LanguagePersistence::Unavailable,
+        };
+
+        match &self.phase {
+            LanguageChoicePhase::Pending(_) => return,
+            LanguageChoicePhase::AwaitingObservation { preference }
+                if snapshot.preference != Some(*preference) =>
+            {
                 return;
             }
-            self.awaiting = None;
-        }
-        if self.pending.is_some() {
-            return;
-        }
-        if snapshot.failure.is_some() {
-            if self.failure.is_none() || self.failure == self.read_failure {
-                self.failure = snapshot.failure.clone();
+            LanguageChoicePhase::AwaitingObservation { .. } => {
+                self.phase = LanguageChoicePhase::Ready;
             }
-            self.read_failure = snapshot.failure.clone();
-            return;
+            LanguageChoicePhase::Ready
+            | LanguageChoicePhase::Rejected(_)
+            | LanguageChoicePhase::Failed { .. } => {}
         }
-        if self.failure == self.read_failure {
-            self.failure = None;
-        }
-        self.read_failure = None;
-        self.applied = snapshot.preference;
+
+        let last_known = match &self.read {
+            LanguageReadPhase::Unobserved => None,
+            LanguageReadPhase::Observed { preference } => *preference,
+            LanguageReadPhase::Failed { last_known, .. } => *last_known,
+        };
+        self.read = match &snapshot.failure {
+            Some(failure) => LanguageReadPhase::Failed {
+                failure: failure.clone(),
+                last_known,
+            },
+            None => LanguageReadPhase::Observed {
+                preference: snapshot.preference,
+            },
+        };
     }
+
     pub fn begin(
         &mut self,
         preference: LanguagePreference,
     ) -> Result<PendingLanguageChoice, Failure> {
-        if !self.can_persist {
+        if self.persistence != LanguagePersistence::Available {
             return Err(Failure::new(
                 ErrorCode::NotReady,
                 "language settings store is unavailable",
                 true,
             ));
         }
-        if self.pending.is_some() {
-            return Err(Failure::new(
-                ErrorCode::InvalidState,
-                "language save is already pending",
-                false,
-            ));
+        match &self.phase {
+            LanguageChoicePhase::Pending(_) | LanguageChoicePhase::AwaitingObservation { .. } => {
+                return Err(Failure::new(
+                    ErrorCode::InvalidState,
+                    "language save is already pending",
+                    false,
+                ));
+            }
+            LanguageChoicePhase::Ready
+            | LanguageChoicePhase::Rejected(_)
+            | LanguageChoicePhase::Failed { .. } => {}
         }
-        if self.applied == Some(preference) {
+        if self.current_preference() == Some(preference) {
             return Err(Failure::new(
                 ErrorCode::InvalidState,
                 "language is already applied",
@@ -98,36 +157,94 @@ impl LanguageChoiceState {
             token: self.next_token,
             preference,
         };
-        self.requested = Some(preference);
-        self.pending = Some(pending);
-        self.failure = None;
+        self.phase = LanguageChoicePhase::Pending(pending);
         Ok(pending)
     }
-    pub fn finish(
-        &mut self,
-        token: u64,
-        result: Result<(), Failure>,
-    ) -> Option<Result<LanguagePreference, Failure>> {
-        let pending = self.pending.filter(|pending| pending.token == token)?;
-        self.pending = None;
-        Some(match result {
+
+    pub fn begin_retry(&mut self) -> Result<PendingLanguageChoice, Failure> {
+        let preference = match &self.phase {
+            LanguageChoicePhase::Failed { requested, .. }
+                if self.persistence == LanguagePersistence::Available =>
+            {
+                *requested
+            }
+            LanguageChoicePhase::Ready
+            | LanguageChoicePhase::Pending(_)
+            | LanguageChoicePhase::Rejected(_)
+            | LanguageChoicePhase::Failed { .. }
+            | LanguageChoicePhase::AwaitingObservation { .. } => {
+                return Err(Failure::new(
+                    ErrorCode::InvalidState,
+                    "language choice has no retryable failure",
+                    false,
+                ));
+            }
+        };
+        self.begin(preference)
+    }
+
+    pub fn reject(&mut self, failure: Failure) {
+        self.phase = LanguageChoicePhase::Rejected(failure);
+    }
+
+    /// A demo-only local choice has no durable command receipt.
+    pub fn set_local_preference(&mut self, preference: LanguagePreference) {
+        self.persistence = LanguagePersistence::Available;
+        self.read = LanguageReadPhase::Observed {
+            preference: Some(preference),
+        };
+        self.phase = LanguageChoicePhase::Ready;
+    }
+
+    pub fn finish(&mut self, token: u64, result: Result<(), Failure>) -> LanguageChoiceFinish {
+        let pending = match &self.phase {
+            LanguageChoicePhase::Pending(pending) if pending.token == token => *pending,
+            LanguageChoicePhase::Ready
+            | LanguageChoicePhase::Pending(_)
+            | LanguageChoicePhase::Rejected(_)
+            | LanguageChoicePhase::Failed { .. }
+            | LanguageChoicePhase::AwaitingObservation { .. } => {
+                return LanguageChoiceFinish::Stale;
+            }
+        };
+        match result {
             Ok(()) => {
-                self.applied = Some(pending.preference);
-                self.awaiting = Some(pending.preference);
-                self.requested = None;
-                self.failure = None;
-                Ok(pending.preference)
+                self.read = LanguageReadPhase::Observed {
+                    preference: Some(pending.preference),
+                };
+                self.phase = LanguageChoicePhase::AwaitingObservation {
+                    preference: pending.preference,
+                };
+                LanguageChoiceFinish::Saved(pending.preference)
             }
             Err(failure) => {
-                self.failure = Some(failure.clone());
-                Err(failure)
+                self.phase = LanguageChoicePhase::Failed {
+                    requested: pending.preference,
+                    failure: failure.clone(),
+                };
+                LanguageChoiceFinish::Failed(failure)
             }
-        })
+        }
+    }
+
+    fn current_preference(&self) -> Option<LanguagePreference> {
+        match &self.read {
+            LanguageReadPhase::Unobserved => None,
+            LanguageReadPhase::Observed { preference } => *preference,
+            LanguageReadPhase::Failed { last_known, .. } => *last_known,
+        }
+    }
+
+    pub fn can_retry(&self) -> bool {
+        matches!(&self.phase, LanguageChoicePhase::Failed { .. })
+            && self.persistence == LanguagePersistence::Available
     }
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
     #[test]
     fn durable_failure_stale_results_retry_and_old_reader_cannot_publish_or_undo_a_choice() {
         let original = LanguageSettingsSnapshot {
@@ -136,25 +253,46 @@ mod tests {
             failure: None,
         };
         let mut state = LanguageChoiceState::default();
+        assert!(state.begin_retry().is_err());
         state.observe(&original);
         let pending = state.begin(LanguagePreference::English).unwrap();
         assert!(state.begin(LanguagePreference::System).is_err());
-        assert!(state.finish(pending.token + 1, Ok(())).is_none());
+        assert_eq!(
+            state.finish(pending.token + 1, Ok(())),
+            LanguageChoiceFinish::Stale
+        );
         let failure = Failure::new(ErrorCode::Storage, "save failed", true);
         assert_eq!(
             state.finish(pending.token, Err(failure.clone())),
-            Some(Err(failure))
+            LanguageChoiceFinish::Failed(failure.clone())
         );
-        assert_eq!(state.applied, original.preference);
-        let retry = state.begin(state.requested.unwrap()).unwrap();
+        assert_eq!(state.current_preference(), original.preference);
+        let retry_preference = match &state.phase {
+            LanguageChoicePhase::Failed { requested, .. } => *requested,
+            LanguageChoicePhase::Ready
+            | LanguageChoicePhase::Pending(_)
+            | LanguageChoicePhase::Rejected(_)
+            | LanguageChoicePhase::AwaitingObservation { .. } => {
+                panic!("failed save retains its requested choice")
+            }
+        };
+        let retry = state.begin_retry().unwrap();
+        assert_eq!(retry.preference, retry_preference);
         assert_eq!(
             state.finish(retry.token, Ok(())),
-            Some(Ok(LanguagePreference::English))
+            LanguageChoiceFinish::Saved(LanguagePreference::English)
         );
         state.observe(&original);
-        assert_eq!(state.applied, Some(LanguagePreference::English));
-        assert!(state.finish(pending.token, Ok(())).is_none());
+        assert_eq!(
+            state.current_preference(),
+            Some(LanguagePreference::English)
+        );
+        assert_eq!(
+            state.finish(pending.token, Ok(())),
+            LanguageChoiceFinish::Stale
+        );
     }
+
     #[test]
     fn invalid_stored_language_and_read_failure_do_not_invent_a_saved_choice() {
         let settings = AppSettings {
@@ -172,21 +310,52 @@ mod tests {
     }
 
     #[test]
-    fn successful_refresh_clears_only_read_failures_and_keeps_unsaved_command_failures() {
+    fn successful_refresh_clears_read_failures_without_erasing_write_failures() {
         let good = project_language(Some(&Ok(AppSettings::default())));
         let read = Failure::new(ErrorCode::Storage, "read denied", true);
         let mut state = LanguageChoiceState::default();
         state.observe(&good);
         state.observe(&project_language(Some(&Err(read.clone()))));
-        assert_eq!(state.failure, Some(read));
-        assert_eq!(state.applied, good.preference);
+        assert_eq!(
+            state.read,
+            LanguageReadPhase::Failed {
+                failure: read,
+                last_known: good.preference,
+            }
+        );
+        assert_eq!(state.current_preference(), good.preference);
         state.observe(&good);
-        assert!(state.failure.is_none());
+        assert_eq!(
+            state.read,
+            LanguageReadPhase::Observed {
+                preference: good.preference
+            }
+        );
         let pending = state.begin(LanguagePreference::English).unwrap();
         let write = Failure::new(ErrorCode::Storage, "write denied", true);
         state.finish(pending.token, Err(write.clone()));
         state.observe(&good);
-        assert_eq!(state.failure, Some(write));
-        assert_eq!(state.requested, Some(LanguagePreference::English));
+        assert_eq!(
+            state.phase,
+            LanguageChoicePhase::Failed {
+                requested: LanguagePreference::English,
+                failure: write,
+            }
+        );
+        assert_eq!(state.current_preference(), good.preference);
+    }
+
+    #[test]
+    fn local_demo_choice_and_rejection_are_typed_phases() {
+        let mut state = LanguageChoiceState::default();
+        state.set_local_preference(LanguagePreference::English);
+        assert_eq!(state.phase, LanguageChoicePhase::Ready);
+        assert_eq!(
+            state.current_preference(),
+            Some(LanguagePreference::English)
+        );
+        let failure = Failure::new(ErrorCode::InvalidInput, "invalid language", false);
+        state.reject(failure.clone());
+        assert_eq!(state.phase, LanguageChoicePhase::Rejected(failure));
     }
 }

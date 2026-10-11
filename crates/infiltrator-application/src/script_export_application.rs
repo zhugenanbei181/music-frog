@@ -21,7 +21,6 @@ mod review;
 use infiltrator_contract::script_export_review::{ScriptExportReview, ScriptExportSaved};
 use infiltrator_domain::script_export::{
     ExportArtifact, compose_directive_dsl_export, compose_extension_package_export,
-    compose_mixin_overlay_export,
 };
 use infiltrator_domain::script_export_review::draft_package;
 use infiltrator_ports::error::PortError;
@@ -29,13 +28,20 @@ use infiltrator_ports::script_export::ScriptExportPort;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
+#[derive(Clone, Default)]
+enum ExportReviewState {
+    #[default]
+    Empty,
+    Prepared(ScriptExportReview),
+    Saving(ScriptExportReview),
+    Saved(ScriptExportSaved),
+}
+
 #[derive(Default)]
 struct ExportState {
     sequence: u64,
     latest: Option<ScriptExportSnapshot>,
-    review: Option<ScriptExportReview>,
-    saved: Option<ScriptExportSaved>,
-    saving: bool,
+    review_state: ExportReviewState,
 }
 
 /// The shared export service.
@@ -84,18 +90,6 @@ impl ScriptExportApplication {
 
     pub fn clear_history(&self) {
         self.state.lock().expect("script export state").latest = None;
-    }
-
-    /// Export the edited Mixin overlay as a real YAML document.
-    pub fn export_mixin_overlay(
-        &self,
-        profile: &str,
-        base_yaml: &str,
-        mixin_yaml: &str,
-    ) -> Result<ScriptExportSnapshot, Failure> {
-        let artifact = compose_mixin_overlay_export(profile, base_yaml, mixin_yaml)
-            .map_err(|error| export_failure(ErrorCode::Configuration, error))?;
-        Ok(self.save(artifact, Some(profile.to_string())))
     }
 
     /// Export the sandbox script as a `.js`-named directive-DSL file.

@@ -1,6 +1,7 @@
 //! test-intent: behavior
 use super::*;
 use crate::command_application::CommandApplication;
+use crate::core_capability_test_support::with_test_capabilities;
 use async_trait::async_trait;
 use futures_util::{future, poll};
 use infiltrator_contract::command::CommandIntent;
@@ -76,7 +77,7 @@ async fn real_command_and_reader_clone_share_reports_fix_refresh_and_permission_
     let reader = doctor.clone();
     assert_eq!(reader.page().status, PageStatus::Empty);
     assert!(!reader.page().data.unwrap().overall_healthy);
-    let commands = CommandApplication::new().with_doctor(doctor);
+    let commands = with_test_capabilities(CommandApplication::new().with_doctor(doctor));
     commands
         .execute(CommandIntent::RunDoctorDiagnostics)
         .await

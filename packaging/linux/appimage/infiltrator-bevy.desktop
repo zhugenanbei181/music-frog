@@ -1,11 +1,11 @@
 [Desktop Entry]
-Name=Infiltrator Bevy
-Comment=Modern High-Performance Proxy Client (Bevy unified surface)
-Exec=infiltrator-bevy-ui %U
-Icon=infiltrator-bevy
+Name=@desktop.bevy.display_name@
+Comment=@desktop.bevy.linux_comment@
+Exec=@desktop.bevy.binary_name@ %U
+Icon=@desktop.bevy.linux_package_id@
 Terminal=false
 Type=Application
 Categories=Network;Utility;
-MimeType=x-scheme-handler/infiltrator;
+MimeType=x-scheme-handler/@desktop.bevy.url_scheme@;
 Keywords=proxy;vpn;mihomo;network;
-StartupWMClass=infiltrator-bevy-ui
+StartupWMClass=@desktop.bevy.binary_name@

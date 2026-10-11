@@ -9,15 +9,42 @@ use iced::advanced::widget::Tree;
 use iced::mouse::{self, Button, Cursor, ScrollDelta};
 use iced::widget::{Space, button, mouse_area, stack};
 use iced::{Element, Event, Length, Point, Rectangle, Size, Theme};
+use infiltrator_contract::core_identity::{
+    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId,
+};
+use infiltrator_contract::outbound::{
+    identity::{OutboundId, SnapshotRevision},
+    probe::{OutboundProbeBatchScope, OutboundSelectionRequest},
+};
 
 fn layer() -> Element<'static, Message, Theme, ()> {
+    let engine = EngineId::new("mihomo").expect("valid engine");
+    let selection = OutboundSelectionRequest::new(
+        OutboundId::new(engine.clone(), "live-group").expect("valid collection ID"),
+        OutboundId::new(engine.clone(), "live-node").expect("valid outbound ID"),
+        SnapshotRevision::new(1),
+    )
+    .expect("valid selection request");
+    let scope = CoreScope {
+        identity: CoreIdentity::new(
+            engine,
+            CoreInstanceId::new("modal-test").expect("valid instance ID"),
+            None,
+        ),
+        generation: CoreGeneration::new(1),
+        session_token: None,
+    };
     let live: Element<'static, Message, Theme, ()> =
         mouse_area(Space::new().width(Length::Fill).height(Length::Fill))
-            .on_press(Message::SelectProxy(
-                "live-group".into(),
-                "live-node".into(),
-            ))
-            .on_scroll(|_| Message::TestAllProxyDelays)
+            .on_press(Message::SelectOutbound {
+                scope: scope.clone(),
+                request: selection,
+            })
+            .on_scroll(move |_| Message::StartOutboundProbeBatch {
+                scope: scope.clone(),
+                target_scope: OutboundProbeBatchScope::All,
+                expected_inventory_revision: SnapshotRevision::new(1),
+            })
             .into();
     let cancel: Element<'static, Message, Theme, ()> = button(Space::new().width(100).height(40))
         .padding(0)

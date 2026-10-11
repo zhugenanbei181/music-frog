@@ -11,12 +11,10 @@ fn test_settings_vpn_projection_and_actions_submit_shared_commands() {
     let (root, _) = navigate_to(&mut app, Route::Settings);
 
     let mut projection = SettingsProjection::demo();
-    projection.vpn = VpnSessionSnapshot {
-        state: VpnSessionState::PermissionRequired,
-        foreground: false,
-        revision: 3,
-        ..VpnSessionSnapshot::default()
-    };
+    projection.vpn = owner_vpn_observation(
+        infiltrator_contract::android_control::VpnOwnerLifecycle::PermissionRequired,
+        infiltrator_contract::android_control::VpnOwnerReadiness::PermissionRequired,
+    );
     app.world_mut()
         .commands()
         .trigger(SettingsProjectionUpdated(projection));
@@ -50,11 +48,10 @@ fn test_settings_vpn_projection_and_actions_submit_shared_commands() {
         "permission waiting does not imply a running service to stop"
     );
     let mut running = SettingsProjection::demo();
-    running.vpn = VpnSessionSnapshot {
-        state: VpnSessionState::Running,
-        revision: 4,
-        ..Default::default()
-    };
+    running.vpn = owner_vpn_observation(
+        infiltrator_contract::android_control::VpnOwnerLifecycle::Running,
+        infiltrator_contract::android_control::VpnOwnerReadiness::Ready,
+    );
     app.world_mut().trigger(SettingsProjectionUpdated(running));
     app.update();
     app.world_mut().trigger(Activate { entity: stop });

@@ -1,26 +1,32 @@
 //! Credential-store persistence of per-profile subscription URLs.
 //!
 //! URLs live in the OS credential store keyed by
-//! `subscription:<sanitized profile name>`; the settings TOML only keeps a
+//! `subscription:<engine-id>:<sanitized profile name>`; the engine profile-state TOML only keeps a
 //! reference (`subscription_url_key`) plus a plaintext fallback
 //! (`subscription_url`) for stores that cannot persist the value.
 
+use infiltrator_contract::core_identity::EngineId;
 use infiltrator_ports::secure_store::SecureStore;
 use mihomo_api::error::{MihomoError, Result};
 
-const SUBSCRIPTION_SERVICE: &str = "MusicFrog-Despicable-Infiltrator";
+pub(super) const SUBSCRIPTION_SERVICE: &str = "MusicFrog-Despicable-Infiltrator";
 const SUBSCRIPTION_KEY_PREFIX: &str = "subscription";
 
-pub(super) fn subscription_key(profile: &str) -> String {
+pub(super) fn legacy_subscription_key(profile: &str) -> String {
     format!("{SUBSCRIPTION_KEY_PREFIX}:{profile}")
+}
+
+pub(super) fn subscription_key(engine: &EngineId, profile: &str) -> String {
+    format!("{SUBSCRIPTION_KEY_PREFIX}:{}:{profile}", engine.as_str())
 }
 
 pub(super) async fn store_subscription_url<S: SecureStore>(
     credential_store: &S,
+    engine: &EngineId,
     profile: &str,
     url: &str,
 ) -> Result<String> {
-    let key = subscription_key(profile);
+    let key = subscription_key(engine, profile);
     credential_store
         .set(SUBSCRIPTION_SERVICE, &key, url)
         .await
@@ -48,9 +54,10 @@ pub(super) async fn load_subscription_url<S: SecureStore>(
 
 pub(super) async fn delete_subscription_url<S: SecureStore>(
     credential_store: &S,
+    engine: &EngineId,
     profile: &str,
 ) -> Result<()> {
-    let key = subscription_key(profile);
+    let key = subscription_key(engine, profile);
     credential_store
         .delete(SUBSCRIPTION_SERVICE, &key)
         .await

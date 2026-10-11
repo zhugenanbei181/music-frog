@@ -1,10 +1,10 @@
 //! One cached grouping fold for native peers; renderers only replay its rows.
-use crate::byte_format::format_bytes;
 use crate::connection_search::project_search_row;
 use infiltrator_contract::connection_search::ConnectionSearchRow;
 use infiltrator_domain::connection_view::{
     self, ConnectionGroupingMode, ConnectionSortKey, ConnectionView,
 };
+use infiltrator_shared::byte_units::format_bytes;
 use std::collections::HashMap;
 
 #[derive(Clone, Debug, PartialEq, Eq)]

@@ -2,12 +2,16 @@
 use async_trait::async_trait;
 use infiltrator_application::snapshot_application::SnapshotApplication;
 use infiltrator_contract::capability::Capability;
+use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::profile_document_identity::{
+    ProfileDocument, ProfileDocumentIdentity, ProfileDocumentRevision,
+    ProfileDocumentSourceIdentity, ProfileDocumentSourceKind, ProfileFormatId, ProfileId,
+    ProfileSchemaVersion, ProfileSidecarRevision, ProfileSourceId, ProfileWorkspaceIdentity,
+};
 use infiltrator_contract::profile_protection::ProfileWriteProtection;
-use infiltrator_contract::profile_source::ProfileSourceIdentity;
 use infiltrator_contract::snapshot_restore::SnapshotRestoreTarget;
-use infiltrator_domain::profile_options::ProfileOptions;
-use infiltrator_domain::profile_source::identify_profile_source;
+use infiltrator_domain::profile_source::{hash_bytes, hash_document_bytes};
 use infiltrator_domain::profiles::{ProfileInfo, ProfileMetadata};
 use infiltrator_domain::snapshots::{SnapshotMeta, content_hash};
 use infiltrator_ports::error::PortError;
@@ -24,7 +28,7 @@ const SNAPSHOT: &str = "/memory/snapshots/main/1-reviewed.yaml";
 #[derive(Default)]
 struct MemoryState {
     content: String,
-    options_document: Option<String>,
+    sidecar_bytes: Option<Vec<u8>>,
     writes: usize,
     denied: bool,
 }
@@ -65,7 +69,7 @@ impl SnapshotRestoreFixture {
         self.state.lock().unwrap().denied = denied;
     }
     pub fn replace_options(&self, document: Option<&str>) {
-        self.state.lock().unwrap().options_document = document.map(str::to_owned);
+        self.state.lock().unwrap().sidecar_bytes = document.map(|text| text.as_bytes().to_vec());
     }
     pub fn replace_source(&self, content: &str) {
         self.state.lock().unwrap().content = content.into();
@@ -85,17 +89,40 @@ fn unsupported() -> PortError {
         "This isolated restoration adapter implements only reviewed commits",
     )
 }
-fn workspace(content: &str, options: Option<&str>) -> ProfileWorkspace {
+fn workspace(content: &str, sidecar_bytes: Option<&[u8]>) -> ProfileWorkspace {
+    let profile_id = ProfileId::new("main").expect("fixture profile ID");
+    let engine_id = EngineId::new("mihomo").expect("fixture engine ID");
+    let source_id = ProfileSourceId::new("local-snapshot-fixture").expect("fixture source ID");
+    let identity = ProfileDocumentIdentity::new(
+        profile_id,
+        engine_id,
+        ProfileDocumentSourceIdentity::new(ProfileDocumentSourceKind::Local, source_id),
+        ProfileDocumentRevision::new(hash_document_bytes(content))
+            .expect("fixture document revision"),
+        ProfileFormatId::new("mihomo-yaml").expect("fixture format ID"),
+        ProfileSchemaVersion::new(1).expect("fixture schema version"),
+    );
+    let sidecar_revision = sidecar_bytes
+        .map(hash_bytes)
+        .map(|revision| {
+            ProfileDocumentRevision::new(revision)
+                .map(ProfileSidecarRevision::Present)
+                .expect("fixture sidecar revision")
+        })
+        .unwrap_or(ProfileSidecarRevision::Absent);
     ProfileWorkspace {
+        document: ProfileDocument::new(identity, content.as_bytes().to_vec()),
+        sidecar_revision,
         write_protection: ProfileWriteProtection::Editable,
-        source: identify_profile_source("main".into(), content, options),
-        content: content.into(),
-        options: Default::default(),
-        options_document: options.map(str::to_owned),
+        sidecar_bytes: sidecar_bytes.map(<[u8]>::to_vec),
     }
 }
 #[async_trait]
 impl ProfileStore for MemoryProfile {
+    fn engine_id(&self) -> EngineId {
+        EngineId::new("mihomo").expect("fixture engine ID")
+    }
+
     fn config_dir(&self) -> PathBuf {
         "/memory/configs".into()
     }
@@ -133,46 +160,35 @@ impl ProfileStore for MemoryProfile {
     async fn delete_subscription_credential(&self, _: &str) -> Result<(), PortError> {
         Err(unsupported())
     }
-    async fn load_options(&self, profile: &str) -> Result<ProfileOptions, PortError> {
-        scoped(profile)?;
-        Ok(Default::default())
-    }
-    async fn save_options(&self, _: &str, _: &ProfileOptions) -> Result<(), PortError> {
-        Err(unsupported())
-    }
-    async fn delete_options(&self, _: &str) -> Result<(), PortError> {
-        Err(unsupported())
-    }
-    async fn load_workspace(&self, profile: &str) -> Result<ProfileWorkspace, PortError> {
-        scoped(profile)?;
+    async fn load_workspace(&self, profile: &ProfileId) -> Result<ProfileWorkspace, PortError> {
+        scoped(profile.as_str())?;
         let state = self.0.lock().unwrap();
-        Ok(workspace(&state.content, state.options_document.as_deref()))
+        Ok(workspace(&state.content, state.sidecar_bytes.as_deref()))
     }
     async fn compare_and_save_workspace(
         &self,
-        expected: &ProfileSourceIdentity,
+        expected: &ProfileWorkspaceIdentity,
         update: &ProfileWorkspaceUpdate,
     ) -> Result<ProfileWorkspace, PortError> {
-        scoped(&expected.profile)?;
+        scoped(expected.document.profile_id.as_str())?;
         let mut state = self.0.lock().unwrap();
         if state.denied {
             return Err(PortError::PermissionDenied(
                 "Memory fixture denied profile access".into(),
             ));
         }
-        if workspace(&state.content, state.options_document.as_deref()).source != *expected {
+        if workspace(&state.content, state.sidecar_bytes.as_deref()).identity() != *expected {
             return Err(PortError::Rejected(Failure::new(
                 ErrorCode::NotReady,
                 "The reviewed profile source changed",
                 false,
             )));
         }
-        if update.options != ProfileOptions::default() {
-            return Err(unsupported());
-        }
-        state.content = update.content.clone();
+        state.content = String::from_utf8(update.document_bytes.clone())
+            .map_err(|error| PortError::Io(error.to_string()))?;
+        state.sidecar_bytes = update.sidecar_bytes.clone();
         state.writes += 1;
-        Ok(workspace(&state.content, state.options_document.as_deref()))
+        Ok(workspace(&state.content, state.sidecar_bytes.as_deref()))
     }
     async fn clear_backup(&self, _: &str) -> Result<(), PortError> {
         Err(unsupported())
@@ -184,6 +200,10 @@ impl ProfileStore for MemoryProfile {
 struct MemorySnapshot;
 #[async_trait]
 impl SnapshotStore for MemorySnapshot {
+    fn engine_id(&self) -> EngineId {
+        EngineId::new("mihomo").expect("fixture engine ID")
+    }
+
     async fn save(&self, _: &str, _: &str) -> Result<SnapshotMeta, PortError> {
         Err(unsupported())
     }

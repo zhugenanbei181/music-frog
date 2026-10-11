@@ -2,6 +2,7 @@
 //! test-intent: behavior
 
 use super::*;
+use infiltrator_bevy_widgets::palette::rem;
 
 #[test]
 fn responsive_shell_mounts_both_modes_and_defaults_to_sidebar() {
@@ -122,7 +123,7 @@ fn responsive_four_tier_sidebar_morphology() {
         let mut sidebars = world.query::<(&Node, &SidebarPanel)>();
         let (node, _) = sidebars.single(world).unwrap();
         assert_eq!(node.display, Display::Flex);
-        assert_eq!(node.width, px(64.0));
+        assert_eq!(node.width, rem(64.0));
     }
 
     // 3. Expanded: 1000px -> Sidebar (240px)
@@ -135,7 +136,7 @@ fn responsive_four_tier_sidebar_morphology() {
         let mut sidebars = world.query::<(&Node, &SidebarPanel)>();
         let (node, _) = sidebars.single(world).unwrap();
         assert_eq!(node.display, Display::Flex);
-        assert_eq!(node.width, px(240.0));
+        assert_eq!(node.width, rem(240.0));
     }
 
     // 4. Ultra: 1920px -> Wide (280px)
@@ -148,7 +149,7 @@ fn responsive_four_tier_sidebar_morphology() {
         let mut sidebars = world.query::<(&Node, &SidebarPanel)>();
         let (node, _) = sidebars.single(world).unwrap();
         assert_eq!(node.display, Display::Flex);
-        assert_eq!(node.width, px(280.0));
+        assert_eq!(node.width, rem(280.0));
     }
 }
 

@@ -13,12 +13,14 @@ use crate::pages::proxies::{
     TestAllProxiesButton, TestProxyGroupButton, ToggleViewModeButton, latency_color,
 };
 use crate::pages::proxies_filter::format_protocol_chip;
-use crate::pages::proxies_identity::ProxyGroupIdentity;
+use crate::pages::proxies_identity::{ProxyGroupIdentity, ProxyGroupOutboundIdentity};
 use crate::pages::proxies_preferences::{FilterAliveIndicator, ProxyFavoriteStar, ProxyViewLabel};
 use crate::pages::proxies_search::search_input_scene;
 use crate::pages::proxy_probe_settings::launcher;
 use bevy::a11y::AccessibilityNode;
 use bevy::ecs::hierarchy::Children;
+use bevy::feathers::theme::ThemeBackgroundColor;
+use bevy::feathers::theme::ThemeTextColor;
 use bevy::scene::{Scene, bsn};
 use bevy::text::TextColor;
 use bevy::ui::prelude::{
@@ -28,7 +30,9 @@ use bevy::ui::prelude::{
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
 use infiltrator_application::latency_projection::project_proxy_latency;
+use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::button::ControlVisual;
+use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::gesture::{
     SwipeActionDrawer, SwipeContentContainer, SwipeToActionItem, SwipeToActionSpring,
 };
@@ -36,9 +40,11 @@ use infiltrator_bevy_widgets::icon::{IconId, icon_scene};
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
 use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText};
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::outbound::identity::OutboundId;
 use infiltrator_shared::country_flags::node_flag_emoji;
 
 /// Renders the toolbar card containing search box, "只看可用" toggle switch, 4 sort mode pills, and "测试地址" indicator.
@@ -53,8 +59,8 @@ pub fn search_bar_card_scene(query: &str, palette: &UiPalette) -> impl Scene + u
                         flex_wrap: FlexWrap::Wrap,
                         align_items: AlignItems::Center,
                         justify_content: JustifyContent::SpaceBetween,
-                        row_gap: Val::Px(space::S8),
-                        column_gap: Val::Px(space::S12),
+                        row_gap: rem(space::S8),
+                        column_gap: rem(space::S12),
                     }
                     AccessibilityNode(search_a11y)
                     LocalizedLabel::plain("proxies_search_placeholder")
@@ -62,14 +68,14 @@ pub fn search_bar_card_scene(query: &str, palette: &UiPalette) -> impl Scene + u
                         @{ search_input_scene(query, palette) }
                         --
                         Node {
-                            height: px(palette.control_height_px),
+                            height: rem(palette.control_height_px),
                             align_items: AlignItems::Center,
-                            padding: UiRect::horizontal(Val::Px(space::S12)),
+                            padding: UiRect::horizontal(rem(space::S12)),
                             border: UiRect::all(Val::Px(palette.hairline_px)),
-                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                            column_gap: Val::Px(space::S8),
+                            border_radius: BorderRadius::all(rem(palette.control_radius_px)),
+                            column_gap: rem(space::S8),
                         }
-                        BackgroundColor({ palette.surface_elevated })
+                        ThemeBackgroundColor({ Token::SurfaceElevated })
                         BorderColor {
                             top: { palette.border },
                             right: { palette.border },
@@ -82,20 +88,20 @@ pub fn search_bar_card_scene(query: &str, palette: &UiPalette) -> impl Scene + u
                             LocalizedText::plain("proxies_filter_alive") TextRole(Role::Caption)
                             --
                             Node {
-                                width: px(28.0),
-                                height: px(16.0),
+                                width: rem(28.0),
+                                height: rem(16.0),
                                 border_radius: BorderRadius::all(Val::Px(8.0)),
                                 align_items: AlignItems::Center,
                                 padding: UiRect::horizontal(Val::Px(2.0)),
                             }
-                            BackgroundColor({ palette.surface_elevated }) FilterAliveIndicator
+                            ThemeBackgroundColor({ Token::SurfaceElevated }) FilterAliveIndicator
                             Children [
                                 Node {
-                                    width: px(12.0),
-                                    height: px(12.0),
+                                    width: rem(12.0),
+                                    height: rem(12.0),
                                     border_radius: BorderRadius::all(Val::Px(6.0)),
                                 }
-                                BackgroundColor({ palette.surface })
+                                ThemeBackgroundColor({ Token::Surface })
                             ]
                         ]
                         --
@@ -103,10 +109,10 @@ pub fn search_bar_card_scene(query: &str, palette: &UiPalette) -> impl Scene + u
                             align_items: AlignItems::Center,
                             padding: UiRect::all(Val::Px(2.0)),
                             border: UiRect::all(Val::Px(palette.hairline_px)),
-                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                            column_gap: Val::Px(space::S4),
+                            border_radius: BorderRadius::all(rem(palette.control_radius_px)),
+                            column_gap: rem(space::S4),
                         }
-                        BackgroundColor({ palette.surface_elevated })
+                        ThemeBackgroundColor({ Token::SurfaceElevated })
                         BorderColor {
                             top: { palette.border },
                             right: { palette.border },
@@ -115,51 +121,51 @@ pub fn search_bar_card_scene(query: &str, palette: &UiPalette) -> impl Scene + u
                         }
                         Children [
                             Node {
-                                padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S4)),
+                                padding: UiRect::axes(rem(space::S8), rem(space::S4)),
                                 border_radius: BorderRadius::all(Val::Px(4.0)),
                                 align_items: AlignItems::Center,
                             }
-                            BackgroundColor({ palette.accent_container })
+                            ThemeBackgroundColor({ Token::AccentContainer })
                             ProxySortPill(ProxySortMode::LatencyAsc)
                             Button
                             Children [
-                                LocalizedText::plain("runtime_delay_sort_delay_asc") TextRole(Role::Caption) TextColor({ palette.accent })
+                                LocalizedText::plain("outbound_sort_latency_ascending") TextRole(Role::Caption) ThemeTextColor({ Token::Accent })
                             ]
                             --
                             Node {
-                                padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S4)),
+                                padding: UiRect::axes(rem(space::S8), rem(space::S4)),
                                 border_radius: BorderRadius::all(Val::Px(4.0)),
                                 align_items: AlignItems::Center,
                             }
-                            BackgroundColor({ palette.surface })
+                            ThemeBackgroundColor({ Token::Surface })
                             ProxySortPill(ProxySortMode::LatencyDesc)
                             Button
                             Children [
-                                LocalizedText::plain("runtime_delay_sort_delay_desc") TextRole(Role::Caption) TextColor({ palette.ink_dim })
+                                LocalizedText::plain("outbound_sort_latency_descending") TextRole(Role::Caption) ThemeTextColor({ Token::InkDim })
                             ]
                             --
                             Node {
-                                padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S4)),
+                                padding: UiRect::axes(rem(space::S8), rem(space::S4)),
                                 border_radius: BorderRadius::all(Val::Px(4.0)),
                                 align_items: AlignItems::Center,
                             }
-                            BackgroundColor({ palette.surface })
+                            ThemeBackgroundColor({ Token::Surface })
                             ProxySortPill(ProxySortMode::NameAsc)
                             Button
                             Children [
-                                LocalizedText::plain("runtime_delay_sort_name_asc") TextRole(Role::Caption) TextColor({ palette.ink_dim })
+                                LocalizedText::plain("outbound_sort_name_ascending") TextRole(Role::Caption) ThemeTextColor({ Token::InkDim })
                             ]
                             --
                             Node {
-                                padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S4)),
+                                padding: UiRect::axes(rem(space::S8), rem(space::S4)),
                                 border_radius: BorderRadius::all(Val::Px(4.0)),
                                 align_items: AlignItems::Center,
                             }
-                            BackgroundColor({ palette.surface })
+                            ThemeBackgroundColor({ Token::Surface })
                             ProxySortPill(ProxySortMode::NameDesc)
                             Button
                             Children [
-                                LocalizedText::plain("runtime_delay_sort_name_desc") TextRole(Role::Caption) TextColor({ palette.ink_dim })
+                                LocalizedText::plain("outbound_sort_name_descending") TextRole(Role::Caption) ThemeTextColor({ Token::InkDim })
                             ]
                         ]
                         --
@@ -185,28 +191,28 @@ pub fn header_card_scene(
                         width: percent(100),
                         align_items: AlignItems::Center,
                         justify_content: JustifyContent::SpaceBetween,
-                        column_gap: Val::Px(space::S16),
+                        column_gap: rem(space::S16),
                     }
                     AccessibilityNode(header_a11y)
                     LocalizedLabel::plain("proxies_title")
                     Children [
                         Node {
                             align_items: AlignItems::Center,
-                            column_gap: Val::Px(space::S12),
+                            column_gap: rem(space::S12),
                         }
                         Children [
                             @{ icon_tile_scene(IconId::Globe, 36.0, palette) }
                             --
                             Node {
                                 flex_direction: FlexDirection::Column,
-                                row_gap: Val::Px(space::S4),
+                                row_gap: rem(space::S4),
                             }
                             Children [
                                 LocalizedText { .. { summary } } ProxiesLine(ProxiesLineKind::Summary) TextRole(Role::Heading)
                                 --
                                 Node {
                                     align_items: AlignItems::Center,
-                                    column_gap: Val::Px(space::S8),
+                                    column_gap: rem(space::S8),
                                 }
                                 Children [
                                     LocalizedText::plain("proxies_active_exit_label") TextRole(Role::Caption)
@@ -218,19 +224,19 @@ pub fn header_card_scene(
                         --
                         Node {
                             align_items: AlignItems::Center,
-                            column_gap: Val::Px(space::S8),
+                            column_gap: rem(space::S8),
                         }
                         Children [
                             Node {
-                                min_height: px(palette.control_height_px),
-                                padding: UiRect::horizontal(Val::Px(space::S12)),
+                                min_height: rem(palette.control_height_px),
+                                padding: UiRect::horizontal(rem(space::S12)),
                                 align_items: AlignItems::Center,
                                 justify_content: JustifyContent::Center,
                                 border: UiRect::all(Val::Px(palette.hairline_px)),
-                                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                                column_gap: Val::Px(space::S4),
+                                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
+                                column_gap: rem(space::S4),
                             }
-                            BackgroundColor({ palette.surface_elevated })
+                            ThemeBackgroundColor({ Token::SurfaceElevated })
                             BorderColor {
                                 top: { palette.border },
                                 right: { palette.border },
@@ -246,15 +252,15 @@ pub fn header_card_scene(
                             ]
                             --
                             Node {
-                                min_height: px(palette.control_height_px),
-                                padding: UiRect::horizontal(Val::Px(space::S12)),
+                                min_height: rem(palette.control_height_px),
+                                padding: UiRect::horizontal(rem(space::S12)),
                                 align_items: AlignItems::Center,
                                 justify_content: JustifyContent::Center,
                                 border: UiRect::all(Val::Px(palette.hairline_px)),
-                                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                                column_gap: Val::Px(space::S4),
+                                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
+                                column_gap: rem(space::S4),
                             }
-                            BackgroundColor({ palette.surface_elevated })
+                            ThemeBackgroundColor({ Token::SurfaceElevated })
                             BorderColor {
                                 top: { palette.border },
                                 right: { palette.border },
@@ -268,15 +274,15 @@ pub fn header_card_scene(
                             ]
                             --
                             Node {
-                                min_height: px(palette.control_height_px),
-                                padding: UiRect::horizontal(Val::Px(space::S12)),
+                                min_height: rem(palette.control_height_px),
+                                padding: UiRect::horizontal(rem(space::S12)),
                                 align_items: AlignItems::Center,
                                 justify_content: JustifyContent::Center,
                                 border: UiRect::all(Val::Px(palette.hairline_px)),
-                                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                                column_gap: Val::Px(space::S4),
+                                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
+                                column_gap: rem(space::S4),
                             }
-                            BackgroundColor({ palette.surface_elevated })
+                            ThemeBackgroundColor({ Token::SurfaceElevated })
                             BorderColor {
                                 top: { palette.border },
                                 right: { palette.border },
@@ -294,13 +300,13 @@ pub fn header_card_scene(
                             LocalizedText { .. { test_status } } ProxiesLine(ProxiesLineKind::TestStatus) TextRole(Role::Caption)
                             --
                             Node {
-                                min_height: px(palette.control_height_px),
-                                padding: UiRect::horizontal(Val::Px(space::S12)),
+                                min_height: rem(palette.control_height_px),
+                                padding: UiRect::horizontal(rem(space::S12)),
                                 align_items: AlignItems::Center,
                                 justify_content: JustifyContent::Center,
-                                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                             }
-                            BackgroundColor({ palette.accent })
+                            ThemeBackgroundColor({ Token::Accent })
                             TestAllProxiesButton
                             Button
                             Children [
@@ -318,29 +324,73 @@ pub fn proxy_node_scene(
     g_idx: usize,
     n_idx: usize,
     group_name: &str,
+    collection_id: Option<OutboundId>,
     node: &ProxyNode,
+    selection_available: bool,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
-    proxy_node_scene_sized(g_idx, n_idx, group_name, node, percent(31), palette)
+    proxy_node_scene_sized(
+        ProxyNodeSceneContext {
+            group_idx: g_idx,
+            node_idx: n_idx,
+            group_name,
+            collection_id,
+            selection_available,
+        },
+        node,
+        percent(31),
+        palette,
+    )
+}
+
+pub struct ProxyNodeSceneContext<'a> {
+    pub group_idx: usize,
+    pub node_idx: usize,
+    pub group_name: &'a str,
+    pub collection_id: Option<OutboundId>,
+    pub selection_available: bool,
 }
 
 /// Renders a single proxy node card at an explicit column width. The
 /// virtual-list node rows pass the shared wrapped-item percent so a recycled
 /// row reuses the exact same card vocabulary as the full-mount path.
 pub fn proxy_node_scene_sized(
-    g_idx: usize,
-    n_idx: usize,
-    group_name: &str,
+    context: ProxyNodeSceneContext<'_>,
     node: &ProxyNode,
     width: Val,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
+    let ProxyNodeSceneContext {
+        group_idx: g_idx,
+        node_idx: n_idx,
+        group_name,
+        collection_id,
+        selection_available,
+    } = context;
     let name = node.name.clone();
-    let flag = node_flag_emoji(&node.name);
+    let flag = if node.node_type.is_empty() {
+        String::new()
+    } else {
+        node_flag_emoji(&node.name).into()
+    };
     let latency = project_proxy_latency(node.delay_ms);
     let delay_color_val = latency_color(latency.band, palette);
     let delay_copy = LocalizedText::new(latency.key, latency.params);
-    let proto_tag = format_protocol_chip(&node.node_type);
+    let protocol_chip: Vec<Box<dyn Scene>> = if node.node_type.is_empty() {
+        Vec::new()
+    } else {
+        let proto_tag = format_protocol_chip(&node.node_type);
+        vec![Box::new(bsn! {
+            Node {
+                padding: UiRect::axes(rem(space::S6), rem(space::S2)),
+                border_radius: BorderRadius::all(Val::Px(4.0)),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+            }
+            ThemeBackgroundColor({ Token::Surface })
+            Children [ Text(proto_tag) NodeProtoText { group_idx: g_idx, node_idx: n_idx } TextRole(Role::Caption) ]
+        })]
+    };
 
     let (bg, border_color, border_width) = if node.selected {
         (palette.accent_container, palette.accent, Val::Px(1.5))
@@ -368,14 +418,14 @@ pub fn proxy_node_scene_sized(
             let f_str = f.clone();
             Box::new(bsn! {
                 Node {
-                    padding: UiRect::axes(Val::Px(space::S4), Val::Px(space::S2)),
+                    padding: UiRect::axes(rem(space::S4), rem(space::S2)),
                     border_radius: BorderRadius::all(Val::Px(3.0)),
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::Center,
                 }
-                BackgroundColor({ palette.surface })
+                ThemeBackgroundColor({ Token::Surface })
                 Children [
-                    Text({ f_str }) TextRole(Role::Caption) TextColor({ palette.ink_dim })
+                    Text({ f_str }) TextRole(Role::Caption) ThemeTextColor({ Token::InkDim })
                 ]
 }) as Box<dyn Scene>
         })
@@ -384,17 +434,17 @@ pub fn proxy_node_scene_sized(
     let udp_chip: Vec<Box<dyn Scene>> = if has_udp {
         vec![Box::new(bsn! {
                     Node {
-                        padding: UiRect::axes(Val::Px(space::S4), Val::Px(space::S2)),
+                        padding: UiRect::axes(rem(space::S4), rem(space::S2)),
                         border_radius: BorderRadius::all(Val::Px(3.0)),
                         align_items: AlignItems::Center,
                         justify_content: JustifyContent::Center,
                     }
-                    BackgroundColor({ palette.surface })
+                    ThemeBackgroundColor({ Token::Surface })
                     Children [
                         Text({ "udp".to_owned() })
                         NodeUdpTag { group_idx: g_idx, node_idx: n_idx }
                         TextRole(Role::Caption)
-                        TextColor({ palette.ink_dim })
+                        ThemeTextColor({ Token::InkDim })
                     ]
         }) as Box<dyn Scene>]
     } else {
@@ -404,9 +454,9 @@ pub fn proxy_node_scene_sized(
     bsn! {
             Node {
                 width: { width },
-                min_height: px(58.0),
+                min_height: rem(58.0),
                 border: UiRect::all(border_width),
-                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                 overflow: Overflow::clip(),
             }
             BackgroundColor({ bg })
@@ -422,8 +472,11 @@ pub fn proxy_node_scene_sized(
                 node_idx: { n_idx },
                 group_name: { group_name.to_owned() },
                 node_name: { node.name.clone() },
+                collection_id: { collection_id.clone() },
+                outbound_id: { node.outbound_id.clone() },
             }
             Button
+            ButtonDisabled({ !selection_available })
             SwipeToActionItem {
                 offset_x: 0.0,
                 max_action_width: 88.0,
@@ -432,16 +485,16 @@ pub fn proxy_node_scene_sized(
             Children [
                 Node {
                     width: percent(100),
-                    min_height: px(58.0),
+                    min_height: rem(58.0),
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::SpaceBetween,
-                    padding: UiRect::axes(Val::Px(space::S12), Val::Px(space::S8)),
+                    padding: UiRect::axes(rem(space::S12), rem(space::S8)),
                 }
                 SwipeContentContainer
                 Children [
                     Node {
                         align_items: AlignItems::Center,
-                        column_gap: Val::Px(space::S8),
+                        column_gap: rem(space::S8),
                         flex_grow: 1.0,
                         overflow: Overflow::clip(),
                     }
@@ -456,19 +509,21 @@ pub fn proxy_node_scene_sized(
                             group_idx: g_idx,
                             node_idx: n_idx,
                             node_name: { name.clone() },
+                            outbound_id: { node.outbound_id.clone() },
                         }
                         TextRole(Role::Caption)
-                        TextColor({ if node.favorite { palette.warning } else { palette.ink_dim } })
+                        ThemeTextColor({ if node.favorite { Token::Warning } else { Token::InkDim } })
                         --
                         Text({ "ℹ️".to_owned() })
                         NodeDetailButton {
                             group_idx: g_idx,
                             node_idx: n_idx,
                             node_name: { name.clone() },
+                            outbound_id: { node.outbound_id.clone() },
                         }
                         Button
                         TextRole(Role::Caption)
-                        TextColor({ palette.ink_dim })
+                        ThemeTextColor({ Token::InkDim })
                         --
                         Text({ flag.to_owned() })
                         NodeFlagText { group_idx: g_idx, node_idx: n_idx }
@@ -476,7 +531,7 @@ pub fn proxy_node_scene_sized(
                         --
                         Node {
                             flex_direction: FlexDirection::Column,
-                            row_gap: Val::Px(space::S2),
+                            row_gap: rem(space::S2),
                             overflow: Overflow::clip(),
                         }
                         Children [
@@ -486,22 +541,11 @@ pub fn proxy_node_scene_sized(
                             --
                             Node {
                                 align_items: AlignItems::Center,
-                                column_gap: Val::Px(space::S4),
+                                column_gap: rem(space::S4),
                                 flex_wrap: FlexWrap::Wrap,
                             }
                             Children [
-                                Node {
-                                    padding: UiRect::axes(Val::Px(space::S6), Val::Px(space::S2)),
-                                    border_radius: BorderRadius::all(Val::Px(4.0)),
-                                    align_items: AlignItems::Center,
-                                    justify_content: JustifyContent::Center,
-                                }
-                                BackgroundColor({ palette.surface })
-                                Children [
-                                    Text(proto_tag)
-                                    NodeProtoText { group_idx: g_idx, node_idx: n_idx }
-                                    TextRole(Role::Caption)
-                                ]
+                                { protocol_chip }
                                 --
                                 { udp_chip }
                                 --
@@ -511,13 +555,13 @@ pub fn proxy_node_scene_sized(
                     ]
                     --
                     Node {
-                        padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S4)),
+                        padding: UiRect::axes(rem(space::S8), rem(space::S4)),
                         border_radius: BorderRadius::all(Val::Px(4.0)),
                         align_items: AlignItems::Center,
                         justify_content: JustifyContent::Center,
-                        column_gap: Val::Px(space::S4),
+                        column_gap: rem(space::S4),
                     }
-                    BackgroundColor({ palette.surface })
+                    ThemeBackgroundColor({ Token::Surface })
                     LatencySkeletonPulse { group_idx: g_idx, node_idx: n_idx }
                     Children [
                         Text({ "📈".to_owned() })
@@ -536,46 +580,47 @@ pub fn proxy_node_scene_sized(
                     right: px(0.0),
                     top: px(0.0),
                     bottom: px(0.0),
-                    width: px(88.0),
+                    width: rem(88.0),
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::Center,
-                    column_gap: Val::Px(space::S4),
+                    column_gap: rem(space::S4),
                     display: Display::None,
                 }
                 SwipeActionDrawer
-                BackgroundColor({ palette.surface_elevated })
+                ThemeBackgroundColor({ Token::SurfaceElevated })
                 Children [
                     Node {
-                        padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S4)),
-                        border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                        padding: UiRect::axes(rem(space::S8), rem(space::S4)),
+                        border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                         align_items: AlignItems::Center,
                         justify_content: JustifyContent::Center,
                     }
-                    BackgroundColor({ palette.warning })
+                    ThemeBackgroundColor({ Token::Warning })
                     Button
                     NodePinButton {
                         group_idx: g_idx,
                         node_idx: n_idx,
                         node_name: { name },
+                        outbound_id: { node.outbound_id.clone() },
                     }
                     Children [
-                        Text({ "★".to_owned() }) TextRole(Role::BodyStrong) TextColor({ palette.surface })
+                        Text({ "★".to_owned() }) TextRole(Role::BodyStrong) ThemeTextColor({ Token::Surface })
                     ]
                     --
                     Node {
-                        padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S4)),
-                        border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                        padding: UiRect::axes(rem(space::S8), rem(space::S4)),
+                        border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                         align_items: AlignItems::Center,
                         justify_content: JustifyContent::Center,
                     }
-                    BackgroundColor({ palette.accent })
+                    ThemeBackgroundColor({ Token::Accent })
                     Button
                     TestProxyGroupButton {
                         group_idx: { g_idx },
-                        group_name: { group_name.to_owned() },
+                        collection_id: { collection_id.clone() },
                     }
                     Children [
-                        Text({ "⚡".to_owned() }) TextRole(Role::BodyStrong) TextColor({ palette.surface })
+                        Text({ "⚡".to_owned() }) TextRole(Role::BodyStrong) ThemeTextColor({ Token::Surface })
                     ]
                 ]
             ]
@@ -626,8 +671,15 @@ fn group_card_scene_impl(
         sorted_proxies
             .into_iter()
             .map(|(n_idx, node)| {
-                Box::new(proxy_node_scene(g_idx, n_idx, &group_name, node, palette))
-                    as Box<dyn Scene>
+                Box::new(proxy_node_scene(
+                    g_idx,
+                    n_idx,
+                    &group_name,
+                    group.collection_id.clone(),
+                    node,
+                    group.outbound_selection_available,
+                    palette,
+                )) as Box<dyn Scene>
             })
             .collect()
     } else {
@@ -647,24 +699,25 @@ fn group_card_scene_impl(
                                 width: percent(100),
                                 align_items: AlignItems::Center,
                                 justify_content: JustifyContent::SpaceBetween,
-                                padding: UiRect::bottom(Val::Px(space::S8)),
+                                padding: UiRect::bottom(rem(space::S8)),
                             }
                             ProxyGroupIdentity({ group.name.clone() })
+                            ProxyGroupOutboundIdentity({ group.collection_id.clone() })
                             Children [
                                 Node {
                                     align_items: AlignItems::Center,
-                                    column_gap: Val::Px(space::S8),
+                                    column_gap: rem(space::S8),
                                 }
                                 Children [
                                     Text(title) TextRole(Role::BodyStrong)
                                     --
                                     Node {
-                                        padding: UiRect::axes(Val::Px(space::S6), Val::Px(space::S2)),
+                                        padding: UiRect::axes(rem(space::S6), rem(space::S2)),
                                         border_radius: BorderRadius::all(Val::Px(4.0)),
                                         align_items: AlignItems::Center,
                                         justify_content: JustifyContent::Center,
                                     }
-                                    BackgroundColor({ palette.surface_elevated })
+                                    ThemeBackgroundColor({ Token::SurfaceElevated })
                                     Children [
                                         Text(type_badge) TextRole(Role::Caption)
                                     ]
@@ -672,22 +725,22 @@ fn group_card_scene_impl(
                                 --
                                 Node {
                                     align_items: AlignItems::Center,
-                                    column_gap: Val::Px(space::S8),
+                                    column_gap: rem(space::S8),
                                 }
                                 Children [
                                     LocalizedText { .. { current_label } } GroupCurrentText(g_idx) TextRole(Role::Caption)
                                     --
                                     Node {
-                                        min_height: px(28.0),
-                                        padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S4)),
+                                        min_height: rem(28.0),
+                                        padding: UiRect::axes(rem(space::S8), rem(space::S4)),
                                         align_items: AlignItems::Center,
                                         justify_content: JustifyContent::Center,
-                                        border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                        border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                                     }
-                                    BackgroundColor({ palette.surface_elevated })
+                                    ThemeBackgroundColor({ Token::SurfaceElevated })
                                     TestProxyGroupButton {
                                         group_idx: { g_idx },
-                                        group_name: { group_name.clone() },
+                                        collection_id: { group.collection_id.clone() },
                                     }
                                     Button
                                     Children [
@@ -695,16 +748,17 @@ fn group_card_scene_impl(
                                     ]
                                     --
                                     Node {
-                                        min_height: px(28.0),
-                                        padding: UiRect::axes(Val::Px(space::S6), Val::Px(space::S4)),
+                                        min_height: rem(28.0),
+                                        padding: UiRect::axes(rem(space::S6), rem(space::S4)),
                                         align_items: AlignItems::Center,
                                         justify_content: JustifyContent::Center,
-                                        border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                        border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                                     }
-                                    BackgroundColor({ palette.surface_elevated })
+                                    ThemeBackgroundColor({ Token::SurfaceElevated })
                                     ProxyGroupMoveUpButton {
                                         group_idx: { g_idx },
                                         group_name: { group_name.clone() },
+                                        collection_id: { group.collection_id.clone() },
                                     }
                                     Button
                                     Children [
@@ -712,16 +766,17 @@ fn group_card_scene_impl(
                                     ]
                                     --
                                     Node {
-                                        min_height: px(28.0),
-                                        padding: UiRect::axes(Val::Px(space::S6), Val::Px(space::S4)),
+                                        min_height: rem(28.0),
+                                        padding: UiRect::axes(rem(space::S6), rem(space::S4)),
                                         align_items: AlignItems::Center,
                                         justify_content: JustifyContent::Center,
-                                        border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                        border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                                     }
-                                    BackgroundColor({ palette.surface_elevated })
+                                    ThemeBackgroundColor({ Token::SurfaceElevated })
                                     ProxyGroupMoveDownButton {
                                         group_idx: { g_idx },
                                         group_name: { group_name.clone() },
+                                        collection_id: { group.collection_id.clone() },
                                     }
                                     Button
                                     Children [
@@ -729,16 +784,17 @@ fn group_card_scene_impl(
                                     ]
                                     --
                                     Node {
-                                        min_height: px(28.0),
-                                        padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S4)),
+                                        min_height: rem(28.0),
+                                        padding: UiRect::axes(rem(space::S8), rem(space::S4)),
                                         align_items: AlignItems::Center,
                                         justify_content: JustifyContent::Center,
-                                        border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                        border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                                     }
-                                    BackgroundColor({ palette.surface_elevated })
+                                    ThemeBackgroundColor({ Token::SurfaceElevated })
                                     ProxyGroupFoldButton {
                                         group_idx: { g_idx },
                                         group_name: { group.name.clone() },
+                                        collection_id: { group.collection_id.clone() },
                                     }
                                     Button
                                     Children [
@@ -753,12 +809,13 @@ fn group_card_scene_impl(
                                 flex_direction: FlexDirection::Row,
                                 flex_wrap: FlexWrap::Wrap,
                                 justify_content: JustifyContent::SpaceBetween,
-                                row_gap: Val::Px(space::S8),
-                                column_gap: Val::Px(space::S8),
+                                row_gap: rem(space::S8),
+                                column_gap: rem(space::S8),
                                 display: { nodes_display },
                             }
                             GroupNodesContainer(g_idx)
                             ProxyGroupIdentity({ group.name.clone() })
+                            ProxyGroupOutboundIdentity({ group.collection_id.clone() })
                             Children [
                                 { node_scenes }
                             ]

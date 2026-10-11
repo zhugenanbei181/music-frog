@@ -15,8 +15,8 @@ use crate::command::{CommandSinkHandle, UiCommand};
 use crate::pages::connections::{ConnectionsProjection, LastConnectionsProjection};
 use crate::pages::connections_clipboard::CopyConnectionHostButton;
 use bevy::ecs::change_detection::DetectChanges;
-use infiltrator_application::byte_format::format_bytes;
 use infiltrator_application::connection_detail_projection::{kernel_asn_label, kernel_geo_label};
+use infiltrator_shared::byte_units::format_bytes;
 
 use crate::route::{ActiveRoute, Route};
 use bevy::ecs::component::Component;
@@ -25,22 +25,26 @@ use bevy::ecs::observer::On;
 use bevy::ecs::query::{QueryFilter, With, Without};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Query, Res, ResMut};
+use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::input::{ButtonInput, keyboard::KeyCode};
 use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderRadius, Display, FlexDirection, JustifyContent, Node,
-    Overflow, PositionType, UiRect, Val, percent, px,
+    AlignItems, BorderRadius, Display, FlexDirection, JustifyContent, Node, Overflow, PositionType,
+    UiRect, percent, px,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button, ScrollArea};
 use infiltrator_bevy_widgets::drawer::{DrawerCloseButton, DrawerPlacement, drawer_scene};
+use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::capability::Availability;
+use infiltrator_contract::connection::ConnectionRateObservation;
 use infiltrator_contract::connection::timing_availability;
 use infiltrator_domain::connection_view;
 use infiltrator_domain::rules::RuleEntry;
@@ -161,7 +165,7 @@ fn connection_drawer_content(palette: &UiPalette) -> impl Scene + use<> {
                 Node {
                     display: { if hop == 0 { Display::Flex } else { Display::None } },
                     align_items: AlignItems::Center,
-                    column_gap: Val::Px(space::S4),
+                    column_gap: rem(space::S4),
                 }
                 ConnDrawerHopSlot(hop)
                 Children [
@@ -178,7 +182,7 @@ fn connection_drawer_content(palette: &UiPalette) -> impl Scene + use<> {
                 min_height: px(0.0),
                 overflow: Overflow::scroll_y(),
                 flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(space::S12),
+                row_gap: rem(space::S12),
             }
             ConnectionDrawerRoot ScrollArea
             Children [
@@ -190,7 +194,7 @@ fn connection_drawer_content(palette: &UiPalette) -> impl Scene + use<> {
                 Children [
                     Node {
                         align_items: AlignItems::Center,
-                        column_gap: Val::Px(space::S8),
+                        column_gap: rem(space::S8),
                     }
                     Children [
                         @{ icon_tile_scene(IconId::Activity, 24.0, palette) }
@@ -225,7 +229,7 @@ fn connection_drawer_content(palette: &UiPalette) -> impl Scene + use<> {
                     width: percent(100),
                     flex_direction: FlexDirection::Row,
                     align_items: AlignItems::Center,
-                    column_gap: Val::Px(space::S4),
+                    column_gap: rem(space::S4),
                 }
                 Children [
                     Text(chain_label) TextRole(Role::Caption)
@@ -247,17 +251,17 @@ fn connection_drawer_content(palette: &UiPalette) -> impl Scene + use<> {
                     width: percent(100),
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::FlexStart,
-                    column_gap: Val::Px(space::S8),
+                    column_gap: rem(space::S8),
                 }
                 Children [
                     Node {
-                        min_height: px(palette.control_height_px),
-                        padding: UiRect::horizontal(Val::Px(space::S12)),
+                        min_height: rem(palette.control_height_px),
+                        padding: UiRect::horizontal(rem(space::S12)),
                         align_items: AlignItems::Center,
                         justify_content: JustifyContent::Center,
-                        border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                        border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                     }
-                    BackgroundColor({ palette.accent })
+                    ThemeBackgroundColor({ Token::Accent })
                     Button
                     DrawerAddRuleButton
                     Children [
@@ -265,13 +269,13 @@ fn connection_drawer_content(palette: &UiPalette) -> impl Scene + use<> {
                     ]
                     --
                     Node {
-                        min_height: px(palette.control_height_px),
-                        padding: UiRect::horizontal(Val::Px(space::S12)),
+                        min_height: rem(palette.control_height_px),
+                        padding: UiRect::horizontal(rem(space::S12)),
                         align_items: AlignItems::Center,
                         justify_content: JustifyContent::Center,
-                        border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                        border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                     }
-                    BackgroundColor({ palette.danger })
+                    ThemeBackgroundColor({ Token::Danger })
                     Button
                     DrawerCloseConnectionButton
                     Children [
@@ -279,7 +283,7 @@ fn connection_drawer_content(palette: &UiPalette) -> impl Scene + use<> {
                     ]
                 ]
                 --
-                Node { min_height: px(palette.control_height_px), padding: UiRect::horizontal(px(space::S12)), align_items: AlignItems::Center }
+                Node { min_height: rem(palette.control_height_px), padding: UiRect::horizontal(rem(space::S12)), align_items: AlignItems::Center }
                 Button CopyConnectionHostButton
                 Children [ Text(copy_label) TextRole(Role::BodyStrong) ]
                 --
@@ -470,18 +474,17 @@ fn restamp_drawer<F, H, S>(
             ),
             // DUAL-13-10/12: the drawer shows the derived instantaneous rates
             // only once a real window exists; a fresh connection stays honest.
-            ConnDrawerFieldKind::Rate => {
-                if item.rate_observed {
-                    format!(
-                        "{} ↑ {}/s  ↓ {}/s",
-                        lang.tr("conn_drawer_rate_prefix"),
-                        format_bytes(item.upload_bps.max(0.0) as u64),
-                        format_bytes(item.download_bps.max(0.0) as u64)
-                    )
-                } else {
+            ConnDrawerFieldKind::Rate => match item.rate_observation {
+                ConnectionRateObservation::Measured => format!(
+                    "{} ↑ {}/s  ↓ {}/s",
+                    lang.tr("conn_drawer_rate_prefix"),
+                    format_bytes(item.upload_bps.max(0.0) as u64),
+                    format_bytes(item.download_bps.max(0.0) as u64)
+                ),
+                ConnectionRateObservation::Unobserved => {
                     lang.tr("conn_drawer_rate_pending").into_owned()
                 }
-            }
+            },
             // DUAL-13-05: the kernel's own GEOIP/IP-ASN rule-evaluation results.
             // The client reads no MMDB and never guesses a location or ASN.
             ConnDrawerFieldKind::KernelAsn => format!(

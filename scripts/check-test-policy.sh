@@ -57,16 +57,6 @@ require .github/workflows/test.yml 'test\.sh[[:space:]]+--guards-only'
 require .github/workflows/test.yml 'test\.sh[[:space:]]+--no-run'
 require .github/workflows/bevy.yml 'test-bevy\.sh[[:space:]]+--guards-only'
 
-# G. Retired source-evidence guards must not be re-registered under any runner.
-while IFS=$'\t' read -r script replacement; do
-  [[ "$script" == script ]] && continue
-  for runner in scripts/test.sh scripts/test-bevy.sh scripts/quality/check-structure.sh; do
-    if grep -Fq -- "$script" "$runner"; then
-      note "retired source-evidence guard registered in $runner: $script"
-    fi
-  done
-done < scripts/parity/retired_source_guards.tsv
-
 if [[ "$failed" -ne 0 ]]; then
   exit 1
 fi

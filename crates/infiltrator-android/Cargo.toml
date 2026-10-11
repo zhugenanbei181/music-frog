@@ -1,6 +1,6 @@
 [package]
 name = "infiltrator-android"
-version = "0.1.0"
+version.workspace = true
 edition = "2024"
 
 [lib]
@@ -12,21 +12,18 @@ path = "uniffi-bindgen.rs"
 
 [features]
 default = []
-# BANDROID-003/004: the Gradle Bevy host links the Bevy UI renderer and this
-# crate's Android product composition into one native driver. It is off by
-# default so the `:vpn` cdylib and the Compose host never pull the Bevy stack.
-bevy-host = ["dep:infiltrator-bevy-ui"]
+slint-ui = ["dep:infiltrator-slint", "dep:slint"]
 
 [dependencies]
 anyhow = { workspace = true }
 async-trait = { workspace = true }
 futures-util = { workspace = true }
 infiltrator-application = { path = "../infiltrator-application" }
-infiltrator-bevy-ui = { path = "../infiltrator-bevy-ui", optional = true }
 infiltrator-composition = { path = "../infiltrator-composition" }
 infiltrator-contract = { path = "../infiltrator-contract" }
 infiltrator-domain = { path = "../infiltrator-domain" }
 infiltrator-ports = { path = "../infiltrator-ports" }
+infiltrator-shared = { path = "../infiltrator-shared" }
 thiserror = { workspace = true }
 tokio = { workspace = true }
 log = { workspace = true }
@@ -36,6 +33,7 @@ mihomo-platform = { path = "../mihomo-platform" }
 infiltrator-core = { path = "../infiltrator-core" }
 reqwest = { workspace = true, default-features = false, features = ["json", "socks", "stream", "http2"] }
 serde = { workspace = true }
+sha2 = { workspace = true }
 serde_json = { workspace = true }
 serde_yaml_ng = { workspace = true }
 chrono = { workspace = true }
@@ -43,12 +41,21 @@ uniffi = { workspace = true, features = ["tokio", "cli"] }
 
 [target.'cfg(target_os = "android")'.dependencies]
 jni = { workspace = true }
+infiltrator-slint = { path = "../infiltrator-slint", default-features = false, optional = true }
+slint = { workspace = true, features = ["backend-android-activity-06"], optional = true }
 reqwest = { workspace = true, default-features = false, features = ["rustls-no-provider"] }
 rustls = { workspace = true }
 tun2proxy = "0.5"
+tun2 = { version = "3", features = ["async"] }
+
+[target.'cfg(unix)'.dependencies]
+libc = { workspace = true }
 
 [target.'cfg(not(target_os = "android"))'.dependencies]
 reqwest = { workspace = true, default-features = false, features = ["native-tls"] }
 
 [build-dependencies]
 camino = "1.0.8"
+
+[dev-dependencies]
+tempfile = { workspace = true }

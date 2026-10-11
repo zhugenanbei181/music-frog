@@ -10,14 +10,8 @@ import androidx.compose.ui.Modifier
 @Composable
 fun ComingSoonScreen(
     title: String,
-    errorMessage: String? = null,
-    onDismissError: () -> Unit = {}
 ) {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Text("$title (Coming Soon)")
-    }
-
-    if (errorMessage != null) {
-        ErrorDialog(message = errorMessage, onDismiss = onDismissError)
     }
 }

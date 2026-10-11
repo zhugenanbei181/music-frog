@@ -12,7 +12,7 @@ ManifestDPIAware true
 ; General Configuration
 ; ---------------------------------------------------------------------------
 !ifndef VERSION
-  !define VERSION "0.20.0"
+  !error "VERSION must be supplied from the workspace product version"
 !endif
 !ifndef ARCH
   !define ARCH "x64"
@@ -42,7 +42,7 @@ SetCompressor /SOLID lzma
 ; repo-root-relative literal would break. The workflow passes an absolute
 ; -DICON_PATH; this default keeps a bare `makensis` invocation usable.
 !ifndef ICON_PATH
-  !define ICON_PATH "crates\infiltrator-iced\icons\icon.ico"
+  !define ICON_PATH "crates\infiltrator-shared\assets\product\icon.ico"
 !endif
 !define MUI_ICON "${ICON_PATH}"
 !define MUI_UNICON "${ICON_PATH}"

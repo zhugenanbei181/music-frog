@@ -34,17 +34,20 @@ use bevy::ecs::lifecycle::Add;
 use bevy::ecs::observer::On;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
+use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::{CommandsSceneExt, Scene, bsn};
 use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, Val,
+    AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, UiRect,
     percent, px,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
+use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::globe::{
     GeoLocation, GeoUnknown, GlobeLink, GlobeMode, GlobeNode, GlobePlate, GlobeSpec, globe_scene,
 };
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 
@@ -178,11 +181,11 @@ pub fn globe_page(data: &GlobeData, mode: GlobeMode, palette: &UiPalette) -> imp
                 min_width: px(0.0),
                 max_width: percent(100),
                 flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(space::S12),
-                padding: UiRect::all(Val::Px(space::S16)),
-                border_radius: BorderRadius::all(Val::Px(palette.card_radius_px)),
+                row_gap: rem(space::S12),
+                padding: UiRect::all(rem(space::S16)),
+                border_radius: BorderRadius::all(rem(palette.card_radius_px)),
             }
-            BackgroundColor({ palette.surface })
+            ThemeBackgroundColor({ Token::Surface })
             GlobePageRoot
             Children [
                 @{ header_scene(data, palette) }
@@ -194,7 +197,7 @@ pub fn globe_page(data: &GlobeData, mode: GlobeMode, palette: &UiPalette) -> imp
     }
 }
 
-fn header_scene(data: &GlobeData, palette: &UiPalette) -> impl Scene + use<> {
+fn header_scene(data: &GlobeData, _palette: &UiPalette) -> impl Scene + use<> {
     let summary = format!(
         "{} of {} node locations are plottable",
         data.plottable_count(),
@@ -204,7 +207,7 @@ fn header_scene(data: &GlobeData, palette: &UiPalette) -> impl Scene + use<> {
             Node {
                 width: percent(100),
                 flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(space::S4),
+                row_gap: rem(space::S4),
             }
             Children [
                 Text({ "Geo Globe".to_owned() }) TextRole(Role::Heading)
@@ -215,7 +218,7 @@ fn header_scene(data: &GlobeData, palette: &UiPalette) -> impl Scene + use<> {
                     width: percent(100),
                     height: px(1.0),
                 }
-                BackgroundColor({ palette.border })
+                ThemeBackgroundColor({ Token::Border })
             ]
     }
 }
@@ -224,7 +227,7 @@ fn mode_toggle_scene(mode: GlobeMode, palette: &UiPalette) -> impl Scene + use<>
     bsn! {
             Node {
                 align_items: AlignItems::Center,
-                column_gap: Val::Px(space::S8),
+                column_gap: rem(space::S8),
             }
             Children [
                 @{ mode_button_scene(GlobeMode::Globe, mode, "Globe", palette) }
@@ -255,11 +258,11 @@ fn mode_button_scene(
     };
     bsn! {
             Node {
-                min_height: px(palette.control_height_px),
-                padding: UiRect::horizontal(Val::Px(space::S12)),
+                min_height: rem(palette.control_height_px),
+                padding: UiRect::horizontal(rem(space::S12)),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
-                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
             }
             BackgroundColor({ fill })
             Button
@@ -278,16 +281,16 @@ fn empty_state_scene(data: &GlobeData, palette: &UiPalette) -> impl Scene + use<
                 height: px(GLOBE_HEIGHT_PX as f32),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
-                padding: UiRect::all(Val::Px(space::S16)),
-                border_radius: BorderRadius::all(Val::Px(palette.card_radius_px)),
+                padding: UiRect::all(rem(space::S16)),
+                border_radius: BorderRadius::all(rem(palette.card_radius_px)),
             }
-            BackgroundColor({ palette.surface_elevated })
+            ThemeBackgroundColor({ Token::SurfaceElevated })
             GlobeEmptyState
             Children [
                 Node {
                     flex_direction: FlexDirection::Column,
                     align_items: AlignItems::Center,
-                    row_gap: Val::Px(space::S8),
+                    row_gap: rem(space::S8),
                 }
                 Children [
                     Text({ "No plottable node location".to_owned() })

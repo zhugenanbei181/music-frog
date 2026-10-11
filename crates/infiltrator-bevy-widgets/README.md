@@ -1,9 +1,22 @@
 # infiltrator-bevy-widgets
 
-MusicFrog 的 Bevy 原生控件层，基于官方未加皮肤的 `bevy_ui_widgets` 提供按钮、文本输入、卡片、导航、图表和移动手势组件。界面结构由 `bsn!` 场景组合，视觉来自共享主题令牌，输入与绘制状态通过 ECS 原位同步。
+> 层级：L3
 
-控件层不依赖 mihomo 控制器、产品页面或宿主服务。共享文案与语言资源负责文本、无障碍标签及占位提示更新；切换语言保留控件实体、用户草稿、焦点和 IME 状态。产品语言偏好由使用该库的前端接入。
+业务无关的 Bevy 控件、场景函数、主题、输入、列表和图表组件，供 Bevy UI 产品组合。
 
-该库与 Bevy UI 产品共用 workspace 和锁定的 Bevy 版本。无头行为验证使用 `cargo nextest run -p infiltrator-bevy-widgets`，静态检查使用 `cargo clippy -p infiltrator-bevy-widgets --all-targets`。这些检查覆盖控件行为，不代表产品所有场景及平台已经验收。
+通用 surface 与 headless button 场景树来自共享仓库 `libs/zhuge-ui-kit` 的
+`zhuge-ui-kit-bevy`；原文高亮片段归纯 Rust `zhuge-ui-core`（同一仓库）。
+本包保留产品主题、Feathers 投影、字体/图标角色和本地化适配，直接导入公共能力 owner。
+RenderPlugin 已注册的 Shader 存储不得重复初始化，避免使在途资源句柄失效。
 
-原生宿主可安装 `ModernSurfacePlugin` 为通用卡片启用 GPU Squircle 材质，使用模块化 WESL；`SurfaceShaderMode` 控制 shader/平面回退。布局与主题更新复用材质，静态帧不改写资产。波形、环图、直方图及二维拓扑各自持有可写纹理，绑定和资产丢失时恢复，销毁或移除绘制角色时释放引用。临时零尺寸保留卡片的一个材质缓存，显式平面回退释放它。无头组合默认保留原有平面呈现。
+不依赖 Mihomo、application 或具体页面。静态结构使用 `bsn!`，运行态由受限 ECS 系统原位更新；shader、handle 和实体生命周期遵循 [Bevy UI 章程](../infiltrator-bevy-ui/docs/BEVY_UI_FRONTEND.md)。
+
+图标与字体从共享视觉资源目录嵌入；稳定 ID、SVG/PNG/ICO/字体格式变体和许可证来源由同级 crate [infiltrator-shared](../infiltrator-shared/README.md) 的资源 catalog 统一维护。
+
+通用 UI 功能先扩展对应 `zhuge-ui-*` owner，再在本 crate 接入；不得复制共享实现。
+固定行高视口范围、overscan 与滚动边界，以及变高列表的前缀索引与可见窗口，
+由 `zhuge-ui-core::virtual_list` 唯一计算。本 crate 只把共享窗口映射为 ECS 列表
+所需的 spacer 投影；实体池和业务行身份仍属于 Bevy 适配层。触摸拖动与有界惯性
+统一由原生 `ScrollArea` adapter 管理，虚拟列表只依据当前滚动位置计算窗口，不另设
+fling/physics 状态。行高测量和固定行高修改返回明确枚举。更新共享依赖时同时验证
+Iced/Bevy 消费者的可见范围与边界行为。

@@ -71,8 +71,14 @@ async fn test_get_capabilities_route() {
     assert_eq!(response.status(), StatusCode::OK);
     let body = to_bytes(response.into_body(), 2048).await.unwrap();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(json["schema_version"], 1);
+    assert_eq!(json["schema_version"], 2);
     assert!(json["runtime"]["status"].as_bool().unwrap());
+    assert!(json["runtime"]["routing_intent"].as_bool().unwrap());
+    assert!(json["outbound"]["inventory"].as_bool().unwrap());
+    assert!(json["outbound"]["selection"].as_bool().unwrap());
+    assert!(json["outbound"]["probe"].as_bool().unwrap());
+    assert!(json["outbound"]["batch_probe"].as_bool().unwrap());
+    assert!(json.get("proxy").is_none());
 }
 
 #[tokio::test]

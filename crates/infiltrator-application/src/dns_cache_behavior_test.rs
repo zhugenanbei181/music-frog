@@ -1,11 +1,44 @@
 //! test-intent: behavior
 use super::*;
+use crate::command_application::handler::{CommandHandler, ValidatedCoreCommandScope};
 use crate::dns_cache_actions::DnsCacheActions;
 use crate::dns_cache_actions::allocate_operation;
 use crate::dns_cache_fixtures::{CachePortMode, IsolatedCaches};
 use crate::dns_cache_projection::project_cache;
 use futures_util::{FutureExt, pin_mut};
+use infiltrator_contract::command::CommandIntent;
 use std::sync::atomic::Ordering;
+
+#[tokio::test]
+async fn missing_core_capability_refuses_before_controller_or_host_cache_side_effects() {
+    let ports = Arc::new(IsolatedCaches::default());
+    let owner = DnsCacheApplication::new(Some(ports.clone()), Some(ports.clone()));
+    let application = crate::command_application::CommandApplication::new().with_dns_cache(owner);
+
+    let failure = application
+        .handle_output_scoped(
+            ValidatedCoreCommandScope::from_core_application(Some(
+                crate::dns_cache_fixtures::test_core_scope(),
+            )),
+            CommandIntent::ClearDnsCache {
+                operation: allocate_operation().unwrap(),
+            },
+        )
+        .await
+        .expect_err("missing engine capability denies the flush before dispatch");
+
+    assert_eq!(failure.code, ErrorCode::NotReady);
+    assert_eq!(ports.fake_calls.load(Ordering::SeqCst), 0);
+    assert_eq!(ports.system_calls.load(Ordering::SeqCst), 0);
+    assert_eq!(
+        ports.contents(),
+        (
+            vec!["cached.example.test".into()],
+            vec!["host.example.test".into()]
+        )
+    );
+}
+
 #[tokio::test]
 async fn actual_targets_preserve_permission_identity_publish_partial_facts_retry_and_refuse_replayed_operations()
  {
@@ -15,7 +48,10 @@ async fn actual_targets_preserve_permission_identity_publish_partial_facts_retry
     let original = ports.contents();
     ports.set_system_mode(CachePortMode::Denied);
     let operation = allocate_operation().unwrap();
-    let failure = owner.flush_with_id(operation).await.unwrap_err();
+    let failure = owner
+        .flush_with_id(crate::dns_cache_fixtures::test_core_scope(), operation)
+        .await
+        .unwrap_err();
     assert_eq!(failure.code, ErrorCode::Permission);
     assert!(!failure.retryable);
     let snapshot = owner.snapshot();
@@ -31,13 +67,20 @@ async fn actual_targets_preserve_permission_identity_publish_partial_facts_retry
     assert!(ports.contents().0.is_empty());
     assert_eq!(ports.contents().1, original.1);
     assert_eq!(
-        owner.flush_with_id(operation).await.unwrap_err().code,
+        owner
+            .flush_with_id(crate::dns_cache_fixtures::test_core_scope(), operation)
+            .await
+            .unwrap_err()
+            .code,
         ErrorCode::InvalidState
     );
     assert_eq!(ports.fake_calls.load(Ordering::SeqCst), 1);
     ports.set_system_mode(CachePortMode::Allowed);
     let retry = allocate_operation().unwrap();
-    let report = owner.flush_with_id(retry).await.unwrap();
+    let report = owner
+        .flush_with_id(crate::dns_cache_fixtures::test_core_scope(), retry)
+        .await
+        .unwrap();
     assert_eq!(report.fake_ip, DnsFlushOutcome::Flushed);
     assert_eq!(report.os_cache, DnsFlushOutcome::Flushed);
     assert!(ports.contents().0.is_empty() && ports.contents().1.is_empty());
@@ -50,18 +93,31 @@ async fn concurrent_or_dropped_flush_cannot_claim_completion_or_lose_previous_ob
  {
     let ports = Arc::new(IsolatedCaches::default());
     let owner = DnsCacheApplication::new(Some(ports.clone()), Some(ports.clone()));
-    let previous = owner.flush_all().await.unwrap();
+    let previous = owner
+        .flush_with_id(
+            crate::dns_cache_fixtures::test_core_scope(),
+            allocate_operation().unwrap(),
+        )
+        .await
+        .unwrap();
     let previous_id = owner.snapshot().report_id;
     ports.set_fake_mode(CachePortMode::Pending);
     let operation = allocate_operation().unwrap();
     {
-        let pending = owner.flush_with_id(operation);
+        let pending = owner.flush_with_id(crate::dns_cache_fixtures::test_core_scope(), operation);
         pin_mut!(pending);
         assert!(pending.as_mut().now_or_never().is_none());
         assert_eq!(owner.snapshot().operation, DnsCacheOperation::Running);
         assert_eq!(owner.snapshot().report, previous);
         assert_eq!(
-            owner.flush_all().await.unwrap_err().code,
+            owner
+                .flush_with_id(
+                    crate::dns_cache_fixtures::test_core_scope(),
+                    allocate_operation().unwrap(),
+                )
+                .await
+                .unwrap_err()
+                .code,
             ErrorCode::NotReady
         );
     }
@@ -71,7 +127,17 @@ async fn concurrent_or_dropped_flush_cannot_claim_completion_or_lose_previous_ob
     assert_eq!(owner.snapshot().report_id, previous_id);
     assert_eq!(ports.system_calls.load(Ordering::SeqCst), 1);
     ports.set_fake_mode(CachePortMode::Allowed);
-    assert!(owner.flush_all().await.unwrap().fake_ip.is_flushed());
+    assert!(
+        owner
+            .flush_with_id(
+                crate::dns_cache_fixtures::test_core_scope(),
+                allocate_operation().unwrap(),
+            )
+            .await
+            .unwrap()
+            .fake_ip
+            .is_flushed()
+    );
     assert_eq!(owner.snapshot().operation, DnsCacheOperation::Completed);
 }
 #[test]

@@ -12,11 +12,11 @@ use bevy::ecs::hierarchy::{ChildOf, Children};
 use bevy::ecs::observer::On;
 use bevy::ecs::query::With;
 use bevy::ecs::system::{Query, Res};
+use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::{Scene, bsn};
 use bevy::ui::BorderRadius;
 use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, FlexDirection, FlexWrap, JustifyContent, Node, UiRect, Val,
-    percent, px,
+    AlignItems, BackgroundColor, FlexDirection, FlexWrap, JustifyContent, Node, UiRect, percent,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button, ValueChange};
@@ -25,8 +25,9 @@ use infiltrator_application::settings_status_projection::{
     format_rollback_target, format_runtime_status, format_service_mode, optional_copy,
 };
 use infiltrator_bevy_widgets::button::ButtonDisabled;
+use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
-use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::{UiPalette, rem};
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
@@ -48,7 +49,7 @@ use infiltrator_contract::surface_snapshot::PageStatus;
 use infiltrator_contract::system_proxy::{SystemProxyRecoverySnapshot, SystemProxySnapshot};
 use infiltrator_contract::tun::TunStack;
 use infiltrator_contract::version::{CoreArtifactVerification, CoreVersionSnapshot};
-use infiltrator_contract::vpn::VpnSessionSnapshot;
+use infiltrator_contract::vpn::VpnSurfaceObservation;
 
 /// Marker for text lines updated by the Settings projection observer.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -143,6 +144,7 @@ pub struct SettingsProjection {
     pub notifications_enabled: Option<bool>,
     pub preference_status: PageStatus,
     pub runtime_status: RuntimeControlStatus,
+    pub theme: String,
     pub autostart: bool,
     pub system_proxy: bool,
     pub system_proxy_snapshot: SystemProxySnapshot,
@@ -154,7 +156,7 @@ pub struct SettingsProjection {
     pub ipv6_routing: Option<Ipv6RoutingSnapshot>,
     pub pac: PacSnapshot,
     pub network_roaming: NetworkRoamingSnapshot,
-    pub vpn: VpnSessionSnapshot,
+    pub vpn: VpnSurfaceObservation,
     pub privileged_network: PrivilegedNetworkSnapshot,
     pub tun_enabled: Option<bool>,
     pub tun_stack: Option<String>,
@@ -189,7 +191,7 @@ pub(super) fn controller_settings_card(
             Box::new(bsn! {
                             Node {
                                 width: percent(100),
-                                padding: UiRect::bottom(Val::Px(space::S8)),
+                                padding: UiRect::bottom(rem(space::S8)),
                             }
                             Children [
                                 LocalizedText::plain("settings_controller_title") TextRole(Role::BodyStrong)
@@ -199,17 +201,17 @@ pub(super) fn controller_settings_card(
                             Node {
                                 width: percent(100),
                                 flex_direction: FlexDirection::Column,
-                                row_gap: Val::Px(space::S8),
+                                row_gap: rem(space::S8),
                             }
                             Children [
                                 Node {
                                     width: percent(100),
                                     align_items: AlignItems::Center,
                                     justify_content: JustifyContent::SpaceBetween,
-                                    padding: UiRect::all(Val::Px(space::S8)),
-                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                    padding: UiRect::all(rem(space::S8)),
+                                    border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                                 }
-                                BackgroundColor({ palette.surface_elevated })
+                                ThemeBackgroundColor({ Token::SurfaceElevated })
                                 Children [
                                     LocalizedText::plain("settings_controller_port_label") TextRole(Role::Body)
                                     --
@@ -241,13 +243,13 @@ pub(super) fn core_rollback_row_scene(
     let rollback_available = projection.core_versions.rollback.target.is_some();
     let action: Box<dyn Scene> = Box::new(bsn! {
             Node {
-                min_height: px(palette.control_height_px),
-                padding: UiRect::horizontal(Val::Px(space::S12)),
+                min_height: rem(palette.control_height_px),
+                padding: UiRect::horizontal(rem(space::S12)),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
-                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
             }
-            BackgroundColor({ if rollback_available { palette.accent } else { palette.surface_elevated } })
+            ThemeBackgroundColor({ if rollback_available { Token::Accent } else { Token::SurfaceElevated } })
             CoreRollbackButton
             CoreRollbackAvailability(rollback_available)
             Button
@@ -259,7 +261,7 @@ pub(super) fn core_rollback_row_scene(
     let label: Box<dyn Scene> = Box::new(bsn! {
             Node {
                 flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(space::S4),
+                row_gap: rem(space::S4),
             }
             Children [
                 LocalizedText::plain("settings_core_rollback_title") TextRole(Role::Body)
@@ -274,10 +276,10 @@ pub(super) fn core_rollback_row_scene(
                 width: percent(100),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::SpaceBetween,
-                padding: UiRect::all(Val::Px(space::S8)),
-                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                padding: UiRect::all(rem(space::S8)),
+                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
             }
-            BackgroundColor({ palette.surface_elevated })
+            ThemeBackgroundColor({ Token::SurfaceElevated })
             Children [
                 { children }
             ]
@@ -294,10 +296,10 @@ pub(super) fn controller_auth_row_scene(
                 width: percent(100),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::SpaceBetween,
-                padding: UiRect::all(Val::Px(space::S8)),
-                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                padding: UiRect::all(rem(space::S8)),
+                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
             }
-            BackgroundColor({ palette.surface_elevated })
+            ThemeBackgroundColor({ Token::SurfaceElevated })
             Children [
                 LocalizedText::plain("settings_controller_auth_title") TextRole(Role::Body)
                 --
@@ -313,7 +315,7 @@ pub(super) fn core_log_level_row_scene(
     let active = projection
         .log_level
         .as_deref()
-        .and_then(CoreLogLevel::parse);
+        .and_then(CoreLogLevel::from_key);
     let buttons: Vec<Box<dyn Scene>> = CoreLogLevel::ALL
         .into_iter()
         .map(|level| {
@@ -322,12 +324,12 @@ pub(super) fn core_log_level_row_scene(
         .collect();
     let current = active.map_or_else(
         || optional_copy(projection.log_level.as_ref(), UiLocale::default().code()),
-        |level| level.as_str().to_uppercase(),
+        |level| level.as_key().to_uppercase(),
     );
     let label: Box<dyn Scene> = Box::new(bsn! {
             Node {
                 flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(space::S4),
+                row_gap: rem(space::S4),
             }
             Children [
                 LocalizedText::plain("settings_core_log_level_label") TextRole(Role::Body)
@@ -338,7 +340,7 @@ pub(super) fn core_log_level_row_scene(
     let controls: Box<dyn Scene> = Box::new(bsn! {
             Node {
                 align_items: AlignItems::Center,
-                column_gap: Val::Px(space::S4),
+                column_gap: rem(space::S4),
             }
             Children [
                 { buttons }
@@ -351,10 +353,10 @@ pub(super) fn core_log_level_row_scene(
                 width: percent(100),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::SpaceBetween,
-                padding: UiRect::all(Val::Px(space::S8)),
-                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                padding: UiRect::all(rem(space::S8)),
+                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
             }
-            BackgroundColor({ palette.surface_elevated })
+            ThemeBackgroundColor({ Token::SurfaceElevated })
             Children [
                 { children }
             ]
@@ -369,17 +371,17 @@ fn core_log_level_button_scene(
     let selected = active == Some(level);
     bsn! {
             Node {
-                min_height: px(palette.control_height_px),
-                padding: UiRect::horizontal(Val::Px(space::S8)),
+                min_height: rem(palette.control_height_px),
+                padding: UiRect::horizontal(rem(space::S8)),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
-                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
             }
-            BackgroundColor({ if selected { palette.accent } else { palette.surface_elevated } })
+            ThemeBackgroundColor({ if selected { Token::Accent } else { Token::SurfaceElevated } })
             CoreLogLevelButton { level }
             Button
             Children [
-                Text({ level.as_str().to_uppercase() }) TextRole(Role::Caption)
+                Text({ level.as_key().to_uppercase() }) TextRole(Role::Caption)
             ]
     }
 }
@@ -396,9 +398,9 @@ pub(super) fn tun_stack_selector_scene(
     let controls: Box<dyn Scene> = Box::new(bsn! {
             Node {
                 align_items: AlignItems::Center,
-                column_gap: Val::Px(space::S4),
+                column_gap: rem(space::S4),
                 flex_wrap: FlexWrap::Wrap,
-                row_gap: Val::Px(space::S4),
+                row_gap: rem(space::S4),
             }
             Children [
                 { buttons }
@@ -408,7 +410,7 @@ pub(super) fn tun_stack_selector_scene(
             Node {
                 width: percent(100),
                 flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(space::S4),
+                row_gap: rem(space::S4),
             }
             Children [
                 LocalizedText::plain("settings_tun_protocol_label") TextRole(Role::Body)
@@ -428,14 +430,14 @@ pub(super) fn mtu_row_scene(
                 width: percent(100),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::SpaceBetween,
-                padding: UiRect::all(Val::Px(space::S8)),
-                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                padding: UiRect::all(rem(space::S8)),
+                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
             }
-            BackgroundColor({ palette.surface_elevated })
+            ThemeBackgroundColor({ Token::SurfaceElevated })
             Children [
                 Node {
                     flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(space::S4),
+                    row_gap: rem(space::S4),
                 }
                 Children [
                     LocalizedText::plain("settings_mtu_title") TextRole(Role::Body)
@@ -444,13 +446,13 @@ pub(super) fn mtu_row_scene(
                 ]
                 --
                 Node {
-                    min_height: px(palette.control_height_px),
-                    padding: UiRect::horizontal(Val::Px(space::S12)),
+                    min_height: rem(palette.control_height_px),
+                    padding: UiRect::horizontal(rem(space::S12)),
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::Center,
-                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                    border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                 }
-                BackgroundColor({ palette.accent })
+                ThemeBackgroundColor({ Token::Accent })
                 ProbeTunMtuButton
                 Button
                 Children [
@@ -469,7 +471,7 @@ pub(super) fn tun_route_toggle_scene(
     Box::new(bsn! {
             Node {
                 width: percent(100),
-                padding: UiRect::horizontal(Val::Px(space::S4)),
+                padding: UiRect::horizontal(rem(space::S4)),
             }
             TunRouteToggle(kind)
             Children [
@@ -486,7 +488,7 @@ pub(super) fn tun_enable_toggle_scene(
     Box::new(bsn! {
             Node {
                 width: percent(100),
-                padding: UiRect::horizontal(Val::Px(space::S4)),
+                padding: UiRect::horizontal(rem(space::S4)),
             }
             TunEnableToggle
             Children [
@@ -577,11 +579,11 @@ fn tun_stack_button_scene(
     };
     bsn! {
             Node {
-                min_height: px(palette.control_height_px),
-                padding: UiRect::horizontal(Val::Px(space::S8)),
+                min_height: rem(palette.control_height_px),
+                padding: UiRect::horizontal(rem(space::S8)),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
-                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
             }
             BackgroundColor({ if available && active == Some(stack) { palette.accent } else { palette.surface_elevated } })
             TunStackButton { stack }
@@ -609,14 +611,14 @@ pub(super) fn service_mode_row_scene(
                 width: percent(100),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::SpaceBetween,
-                padding: UiRect::all(Val::Px(space::S8)),
-                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                padding: UiRect::all(rem(space::S8)),
+                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
             }
-            BackgroundColor({ palette.surface_elevated })
+            ThemeBackgroundColor({ Token::SurfaceElevated })
             Children [
                 Node {
                     flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(space::S4),
+                    row_gap: rem(space::S4),
                 }
                 Children [
                     LocalizedText::plain("settings_service_mode_title") TextRole(Role::Body)
@@ -625,13 +627,13 @@ pub(super) fn service_mode_row_scene(
                 ]
                 --
                 Node {
-                    min_height: px(palette.control_height_px),
-                    padding: UiRect::horizontal(Val::Px(space::S12)),
+                    min_height: rem(palette.control_height_px),
+                    padding: UiRect::horizontal(rem(space::S12)),
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::Center,
-                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                    border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                 }
-                BackgroundColor({ if ready { palette.surface_elevated } else { palette.accent } })
+                ThemeBackgroundColor({ if ready { Token::SurfaceElevated } else { Token::Accent } })
                 ServiceModeButton
                 ServiceModeAvailability({ !ready })
                 Button
@@ -652,14 +654,14 @@ pub(super) fn port_conflicts_row_scene(
                 width: percent(100),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::SpaceBetween,
-                padding: UiRect::all(Val::Px(space::S8)),
-                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                padding: UiRect::all(rem(space::S8)),
+                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
             }
-            BackgroundColor({ palette.surface_elevated })
+            ThemeBackgroundColor({ Token::SurfaceElevated })
             Children [
                 Node {
                     flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(space::S4),
+                    row_gap: rem(space::S4),
                 }
                 Children [
                     LocalizedText::plain("settings_port_conflict_title") TextRole(Role::Body)
@@ -668,13 +670,13 @@ pub(super) fn port_conflicts_row_scene(
                 ]
                 --
                 Node {
-                    min_height: px(palette.control_height_px),
-                    padding: UiRect::horizontal(Val::Px(space::S12)),
+                    min_height: rem(palette.control_height_px),
+                    padding: UiRect::horizontal(rem(space::S12)),
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::Center,
-                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                    border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                 }
-                BackgroundColor({ palette.accent })
+                ThemeBackgroundColor({ Token::Accent })
                 PortConflictButton
                 Button
                 Children [
@@ -694,10 +696,10 @@ pub(super) fn core_resources_row_scene(
                 width: percent(100),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::SpaceBetween,
-                padding: UiRect::all(Val::Px(space::S8)),
-                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                padding: UiRect::all(rem(space::S8)),
+                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
             }
-            BackgroundColor({ palette.surface_elevated })
+            ThemeBackgroundColor({ Token::SurfaceElevated })
             Children [
                 LocalizedText::plain("settings_core_resources_title") TextRole(Role::Body)
                 --

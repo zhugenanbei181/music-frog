@@ -6,25 +6,25 @@ import android.os.Build
 import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
 import androidx.annotation.RequiresApi
+import infiltrator_android.AndroidControlIntent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @RequiresApi(Build.VERSION_CODES.N)
 class InfiltratorTileService : TileService() {
-    private val serviceScope = CoroutineScope(Dispatchers.Main + Job())
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private val controlClient by lazy { MihomoControlClient(applicationContext) }
     private var stateJob: Job? = null
 
     override fun onStartListening() {
         super.onStartListening()
         stateJob?.cancel()
-        stateJob = serviceScope.launch {
-            VpnStateManager.vpnState.collectLatest { state ->
-                updateTile(state)
-            }
-        }
+        stateJob = serviceScope.launch { refreshTile() }
     }
 
     override fun onStopListening() {
@@ -32,76 +32,106 @@ class InfiltratorTileService : TileService() {
         stateJob?.cancel()
     }
 
+    override fun onDestroy() {
+        stateJob?.cancel()
+        serviceScope.cancel()
+        super.onDestroy()
+    }
+
     override fun onClick() {
         super.onClick()
-        val currentState = VpnStateManager.vpnState.value
-        when (currentState) {
-            VpnStateManager.VpnState.RUNNING -> {
-                MihomoVpnService.stop(this)
+        serviceScope.launch {
+            val state = withContext(Dispatchers.IO) { readOwnerState() } ?: return@launch
+            val command = when (state.tileState()) {
+                TileVpnState.Active,
+                TileVpnState.CleanupPending -> AndroidControlIntent.STOP_PROXY
+                TileVpnState.Starting,
+                TileVpnState.Stopping,
+                TileVpnState.Unavailable -> return@launch
+                TileVpnState.Idle -> AndroidControlIntent.START_PROXY
             }
-            VpnStateManager.VpnState.STOPPED, VpnStateManager.VpnState.ERROR -> {
-                if (VpnStateManager.checkPermission(this)) {
-                    MihomoVpnService.start(this)
-                } else {
-                    // Start activity to request permission
-                    val intent = Intent(this, MainActivity::class.java).apply {
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    }
-                    
-                    val pendingIntent = PendingIntent.getActivity(
-                        this,
-                        0,
-                        intent,
-                        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-                    )
-                    
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                        startActivityAndCollapse(pendingIntent)
-                    } else {
-                        // For older versions, we can still use the PendingIntent version if available,
-                        // or fall back. TileService has had (PendingIntent) since API 24.
-                        startActivityAndCollapse(pendingIntent)
-                    }
-                }
+            val intent = Intent().setClassName(
+                this@InfiltratorTileService,
+                getString(R.string.notification_activity),
+            ).apply {
+                putExtra(AndroidControlIntentWire.EXTRA, command)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
-            else -> {
-                // Ignore while starting/stopping
+            val pendingIntent = PendingIntent.getActivity(
+                this@InfiltratorTileService,
+                command.ordinal,
+                intent,
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+            )
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                startActivityAndCollapse(pendingIntent)
+            } else {
+                @Suppress("DEPRECATION")
+                startActivityAndCollapse(intent)
             }
         }
     }
 
-    private fun updateTile(state: VpnStateManager.VpnState) {
+    private suspend fun refreshTile() {
+        val state = withContext(Dispatchers.IO) { readOwnerState() }
         val tile = qsTile ?: return
-        when (state) {
-            VpnStateManager.VpnState.RUNNING -> {
+        when (state?.tileState() ?: TileVpnState.Unavailable) {
+            TileVpnState.Active -> {
                 tile.state = Tile.STATE_ACTIVE
                 tile.label = getString(R.string.status_active)
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                     tile.subtitle = getString(R.string.app_name)
                 }
             }
-            VpnStateManager.VpnState.STARTING -> {
+            TileVpnState.Starting -> {
                 tile.state = Tile.STATE_INACTIVE
                 tile.label = getString(R.string.status_starting)
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    tile.subtitle = null
-                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) tile.subtitle = null
             }
-            VpnStateManager.VpnState.STOPPING -> {
+            TileVpnState.Stopping,
+            TileVpnState.CleanupPending -> {
                 tile.state = Tile.STATE_INACTIVE
                 tile.label = getString(R.string.status_stopping)
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    tile.subtitle = null
-                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) tile.subtitle = null
             }
-            else -> {
+            TileVpnState.Idle -> {
                 tile.state = Tile.STATE_INACTIVE
                 tile.label = getString(R.string.status_idle)
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    tile.subtitle = null
-                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) tile.subtitle = null
+            }
+            TileVpnState.Unavailable -> {
+                tile.state = Tile.STATE_UNAVAILABLE
+                tile.label = getString(R.string.status_unknown)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) tile.subtitle = null
             }
         }
         tile.updateTile()
+    }
+
+    private fun readOwnerState(): VpnOwnerSnapshotWire? = controlClient.readVpnOwnerSnapshot()
+
+    private fun VpnOwnerSnapshotWire.tileState(): TileVpnState = when {
+        readiness == VpnOwnerReadinessWire.CleanupPending -> TileVpnState.CleanupPending
+        readiness == VpnOwnerReadinessWire.Ready && vpnState == VpnOwnerLifecycleWire.Running ->
+            TileVpnState.Active
+        readiness == VpnOwnerReadinessWire.Stopping || vpnState == VpnOwnerLifecycleWire.Stopping ->
+            TileVpnState.Stopping
+        vpnState == VpnOwnerLifecycleWire.StartRequested ||
+            vpnState == VpnOwnerLifecycleWire.Starting ||
+            vpnState == VpnOwnerLifecycleWire.Foreground ||
+            vpnState == VpnOwnerLifecycleWire.TunnelEstablished -> TileVpnState.Starting
+        vpnState == VpnOwnerLifecycleWire.PermissionRequired ||
+            vpnState == VpnOwnerLifecycleWire.Stopped ||
+            vpnState == VpnOwnerLifecycleWire.Revoked -> TileVpnState.Idle
+        else -> TileVpnState.Unavailable
+    }
+
+    private enum class TileVpnState {
+        Active,
+        Starting,
+        Stopping,
+        CleanupPending,
+        Idle,
+        Unavailable,
     }
 }

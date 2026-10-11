@@ -4,46 +4,10 @@ use std::sync::Mutex;
 use tokio::fs::write;
 
 #[test]
-fn test_normalize_mode() {
-    assert_eq!(normalize_mode("rule"), "rule");
-    assert_eq!(normalize_mode("RULE"), "rule");
-    assert_eq!(normalize_mode("Rule"), "rule");
-    assert_eq!(normalize_mode("  rule  "), "rule");
-}
-
-#[test]
-fn test_normalize_mode_empty() {
-    assert_eq!(normalize_mode(""), "rule");
-    assert_eq!(normalize_mode("   "), "rule");
-}
-
-#[test]
-fn test_normalize_mode_other_modes() {
-    assert_eq!(normalize_mode("global"), "global");
-    assert_eq!(normalize_mode("direct"), "direct");
-    assert_eq!(normalize_mode("script"), "script");
-}
-
-#[test]
-fn test_is_supported_mode() {
-    assert!(is_supported_mode("rule"));
-    assert!(is_supported_mode("global"));
-    assert!(is_supported_mode("direct"));
-    assert!(is_supported_mode("script"));
-}
-
-#[test]
-fn test_is_supported_mode_invalid() {
-    assert!(!is_supported_mode("invalid"));
-    assert!(!is_supported_mode(""));
-    assert!(!is_supported_mode("other"));
-}
-
-#[test]
 fn test_parse_yaml_doc_success() {
     let yaml = r#"
 port: 7890
-mode: rule
+mixed-port: 7891
 "#;
     let result = parse_yaml_doc(yaml);
     assert!(result.is_ok());
@@ -63,33 +27,6 @@ fn test_parse_yaml_doc_empty() {
     let yaml = "";
     let result = parse_yaml_doc(yaml);
     assert!(result.is_err());
-}
-
-#[test]
-fn test_get_yaml_str_success() {
-    let yaml = r#"
-port: 7890
-mode: rule
-"#;
-    let doc = parse_yaml_doc(yaml).unwrap();
-    let result = get_yaml_str(&doc, "mode");
-    assert_eq!(result, Some("rule"));
-}
-
-#[test]
-fn test_get_yaml_str_not_found() {
-    let yaml = "port: 7890";
-    let doc = parse_yaml_doc(yaml).unwrap();
-    let result = get_yaml_str(&doc, "mode");
-    assert_eq!(result, None);
-}
-
-#[test]
-fn test_get_yaml_str_invalid_type() {
-    let yaml = "port: 7890";
-    let doc = parse_yaml_doc(yaml).unwrap();
-    let result = get_yaml_str(&doc, "port");
-    assert_eq!(result, None);
 }
 
 #[test]
@@ -207,7 +144,6 @@ async fn offline_geoip_missing_is_non_fatal_and_does_not_write_or_download() {
 fn test_mihomo_summary_serialization() {
     let summary = MihomoSummary {
         profile: "default".to_string(),
-        mode: "rule".to_string(),
         running: true,
         controller: "http://127.0.0.1:9090".to_string(),
         groups: vec![],
@@ -221,7 +157,6 @@ fn test_mihomo_summary_serialization() {
 fn test_mihomo_summary_debug() {
     let summary = MihomoSummary {
         profile: "default".to_string(),
-        mode: "rule".to_string(),
         running: true,
         controller: "http://127.0.0.1:9090".to_string(),
         groups: vec![],
@@ -229,5 +164,5 @@ fn test_mihomo_summary_debug() {
 
     let debug_str = format!("{:?}", summary);
     assert!(debug_str.contains("default"));
-    assert!(debug_str.contains("rule"));
+    assert!(debug_str.contains("default"));
 }

@@ -21,21 +21,24 @@ fn resolve_tray_event_in_covers_every_menu_action_and_rejects_unknowns() {
         Some(TrayIntent::ToggleTheme)
     );
     assert_eq!(
-        resolve_tray_event_in(&activated(TRAY_ACTION_MODE_RULE, None), &ctx),
-        Some(TrayIntent::SetMode("rule".to_string()))
+        resolve_tray_event_in(&activated(TRAY_ACTION_ROUTING_FOLLOW_RULES, None), &ctx),
+        Some(TrayIntent::SetRoutingIntent(RoutingIntent::FollowRules))
     );
     assert_eq!(
-        resolve_tray_event_in(&activated(TRAY_ACTION_MODE_GLOBAL, None), &ctx),
-        Some(TrayIntent::SetMode("global".to_string()))
+        resolve_tray_event_in(
+            &activated(TRAY_ACTION_ROUTING_ALL_THROUGH_PROXY, None),
+            &ctx
+        ),
+        Some(TrayIntent::SetRoutingIntent(
+            RoutingIntent::RouteAllThroughProxy
+        ))
     );
     assert_eq!(
-        resolve_tray_event_in(&activated(TRAY_ACTION_MODE_DIRECT, None), &ctx),
-        Some(TrayIntent::SetMode("direct".to_string()))
+        resolve_tray_event_in(&activated(TRAY_ACTION_ROUTING_BYPASS_PROXY, None), &ctx),
+        Some(TrayIntent::SetRoutingIntent(RoutingIntent::BypassProxy))
     );
-    assert_eq!(
-        resolve_tray_event_in(&activated(TRAY_ACTION_MODE_SCRIPT, None), &ctx),
-        Some(TrayIntent::SetMode("script".to_string()))
-    );
+    // Former script action ID has no common routing choice.
+    assert_eq!(resolve_tray_event_in(&activated(30, None), &ctx), None);
     // Toggles resolve against the snapshot's current states.
     assert_eq!(
         resolve_tray_event_in(&activated(TRAY_ACTION_TOGGLE_SYSTEM_PROXY, None), &ctx),
@@ -58,9 +61,9 @@ fn resolve_tray_event_in_covers_every_menu_action_and_rejects_unknowns() {
             ),
             &ctx
         ),
-        Some(TrayIntent::SelectProxy {
-            group: "GLOBAL".to_string(),
-            node: "X".to_string(),
+        Some(TrayIntent::SelectOutbound {
+            collection: "GLOBAL".to_string(),
+            outbound: "X".to_string(),
         })
     );
     assert_eq!(
@@ -73,7 +76,7 @@ fn resolve_tray_event_in_covers_every_menu_action_and_rejects_unknowns() {
     // Legacy GLOBAL quick-switch id stays resolvable (never-reuse contract).
     assert_eq!(
         resolve_tray_event_in(&activated(TRAY_ACTION_SELECT_GLOBAL_PROXY, Some("X")), &ctx),
-        Some(TrayIntent::SelectGlobalProxy("X".to_string()))
+        Some(TrayIntent::SelectGlobalOutbound("X".to_string()))
     );
     assert_eq!(
         resolve_tray_event_in(&activated(TRAY_ACTION_SELECT_GLOBAL_PROXY, None), &ctx),
@@ -157,7 +160,7 @@ fn resolve_tray_event_in_covers_every_menu_action_and_rejects_unknowns() {
     for id in [
         TRAY_ACTION_NO_PROXIES,
         TRAY_ACTION_NO_PROFILES,
-        TRAY_ACTION_INFO_MODE,
+        TRAY_ACTION_INFO_ROUTING_INTENT,
         TRAY_ACTION_INFO_STATUS,
         TRAY_ACTION_INFO_CONTROLLER,
         TRAY_ACTION_INFO_ADMIN,

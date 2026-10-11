@@ -28,10 +28,8 @@ use bevy::image::Image;
 use bevy::scene::CommandsSceneExt;
 use bevy::ui::widget::ImageNode;
 use bevy::ui_widgets::Activate;
-use infiltrator_application::proxy_mode_projection::mode_status_copy;
 use infiltrator_application::system_toggle_application::SystemToggleApplication;
 use infiltrator_bevy_widgets::chart::sparkline_image;
-use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_contract::mini_hud::{MiniHudReadModel, MiniHudWaveformStrip};
 use infiltrator_contract::system_toggle::SystemToggle;
@@ -53,7 +51,6 @@ pub fn sync_mini_hud_model(
     toggles: Option<Res<SidebarToggleProjection>>,
     surface: Option<Res<LatestSurfaceSnapshot>>,
     mut model: ResMut<MiniHudModel>,
-    locale: Res<UiLocale>,
 ) {
     let mut next = MiniHudModel(MiniHudReadModel::default());
     if let Some(toggles) = toggles.as_deref() {
@@ -74,7 +71,7 @@ pub fn sync_mini_hud_model(
                 sanitize_rate(overview.upload_bps),
                 sanitize_rate(overview.download_bps),
             )
-            .with_mode(mode_status_copy(&overview.proxy_mode, locale.code()))
+            .with_routing_intent(&overview.routing_intent)
             .with_exit_node(overview.active_exit.name.clone().unwrap_or_default())
             .with_waveform(&overview.traffic_waveform);
     }
@@ -110,9 +107,9 @@ pub fn sync_mini_hud_overlay(
     }
     *signature = next;
     if !mode.0 {
-        for entity in &mounted {
-            commands.entity(entity).despawn();
-        }
+        // Batch teardown by marker (capability norm ⑦): one filtered command
+        // instead of a per-entity loop.
+        commands.despawn_all::<With<MiniHudRoot>>();
         return;
     }
     if !mounted.is_empty() {

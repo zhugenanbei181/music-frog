@@ -92,11 +92,48 @@ impl DavClient for WebDavClient {
         Ok(etag)
     }
 
+    async fn put_if_absent(&self, path: &str, data: &[u8]) -> Result<String> {
+        let url = self.full_url(path)?;
+        let resp = self
+            .client
+            .put(url)
+            .header(header::IF_NONE_MATCH, "*")
+            .body(data.to_owned())
+            .send()
+            .await?;
+        if !resp.status().is_success() {
+            return Err(anyhow!("conditional PUT failed: {}", resp.status()));
+        }
+        Ok(resp
+            .headers()
+            .get(header::ETAG)
+            .and_then(|value| value.to_str().ok())
+            .map(|value| value.replace('"', ""))
+            .unwrap_or_default())
+    }
+
     async fn delete(&self, path: &str) -> Result<()> {
         let url = self.full_url(path)?;
         let resp = self.client.delete(url).send().await?;
         if !resp.status().is_success() && resp.status() != reqwest::StatusCode::NOT_FOUND {
             return Err(anyhow!("DELETE failed: {}", resp.status()));
+        }
+        Ok(())
+    }
+
+    async fn delete_if_match(&self, path: &str, etag: &str) -> Result<()> {
+        if etag.trim().is_empty() || etag.starts_with("W/") || etag.chars().any(char::is_control) {
+            return Err(anyhow!("conditional DELETE requires a usable strong ETag"));
+        }
+        let url = self.full_url(path)?;
+        let resp = self
+            .client
+            .delete(url)
+            .header(header::IF_MATCH, format!("\"{etag}\""))
+            .send()
+            .await?;
+        if !resp.status().is_success() && resp.status() != reqwest::StatusCode::NOT_FOUND {
+            return Err(anyhow!("conditional DELETE failed: {}", resp.status()));
         }
         Ok(())
     }

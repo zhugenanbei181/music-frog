@@ -1,19 +1,19 @@
 use super::*;
 use crate::types::message::Message;
-use infiltrator_application::runtime_control_projection::{
-    RuntimeControlApplication, runtime_control,
-};
 use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::routing_intent::RoutingIntent;
+use infiltrator_contract::routing_intent::RoutingIntentSnapshot;
+use infiltrator_contract::routing_intent::RoutingIntentStatus;
+use infiltrator_contract::runtime_control::{RuntimeControlSnapshot, RuntimeControlStatus};
+use infiltrator_contract::shell_readout::ShellObservation;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_contract::system_toggle::{SystemToggleSnapshot, SystemToggleState};
 use infiltrator_domain::runtime::TrafficData;
-use infiltrator_domain::runtime::{ConfigSnapshot, TunSnapshot};
-use infiltrator_ports::error::PortError;
 
 #[test]
-fn shared_observation_replay_keeps_mode_and_tun_unknown_and_preserves_failed_readback_values() {
+fn shared_observation_replay_keeps_intent_typed_and_preserves_failed_tun_readback() {
     let (mut state, _) = AppState::new();
     let mut snapshot = SurfaceSnapshot::unavailable(
         SurfaceKind::IcedDesktop,
@@ -21,45 +21,63 @@ fn shared_observation_replay_keeps_mode_and_tun_unknown_and_preserves_failed_rea
         Failure::unsupported("fixture has no controller read yet"),
     );
     snapshot.core.lifecycle = CoreLifecycle::Running;
-    snapshot.core.proxy_mode = None;
+    snapshot.core.routing_intent = RoutingIntentSnapshot::default();
     snapshot.revision = 1;
     assert!(state.apply_shared_surface_snapshot(snapshot.clone()));
-    assert_eq!(state.runtime.proxy_mode, None);
-    assert!(!state.runtime.script_block_present);
+    assert_eq!(state.runtime.routing_intent, None);
     assert_eq!(state.runtime.system_toggles.tun, SystemToggleState::Unknown);
-    let owner = RuntimeControlApplication::default();
-    let config = ConfigSnapshot {
-        mode: "global".into(),
-        tun: Some(TunSnapshot {
-            enable: Some(false),
-            ..Default::default()
-        }),
+    snapshot.runtime_control = RuntimeControlSnapshot {
+        status: RuntimeControlStatus::Ready,
+        tun_enabled: Some(false),
         ..Default::default()
     };
-    snapshot.runtime_control = owner.observe(0, 2, Some(&Ok(config)));
+    snapshot.core.routing_intent = RoutingIntentSnapshot {
+        current: Some(RoutingIntent::RouteAllThroughProxy),
+        status: RoutingIntentStatus::Ready,
+        failure: None,
+    };
     snapshot.revision = 2;
     assert!(state.apply_shared_surface_snapshot(snapshot.clone()));
-    assert_eq!(state.runtime.proxy_mode.as_deref(), Some("global"));
+    assert_eq!(
+        state.runtime.routing_intent.as_ref(),
+        Some(&RoutingIntent::RouteAllThroughProxy)
+    );
     assert_eq!(
         state.runtime.system_toggles.tun,
         SystemToggleState::Disabled
     );
     let denied = Failure::new(ErrorCode::Authentication, "controller denied", false);
-    snapshot.runtime_control = owner.observe(0, 3, Some(&Err(PortError::Rejected(denied.clone()))));
+    snapshot.runtime_control = RuntimeControlSnapshot {
+        status: RuntimeControlStatus::Failed {
+            failure: denied.clone(),
+        },
+        tun_enabled: Some(false),
+        ..Default::default()
+    };
     snapshot.revision = 3;
     assert!(state.apply_shared_surface_snapshot(snapshot));
-    assert_eq!(state.runtime.proxy_mode.as_deref(), Some("global"));
+    assert_eq!(
+        state.runtime.routing_intent.as_ref(),
+        Some(&RoutingIntent::RouteAllThroughProxy)
+    );
     assert_eq!(
         state.runtime.system_toggles.tun,
         SystemToggleState::Failed { failure: denied }
     );
     assert!(!state.runtime.system_toggles.tun.can_toggle());
-    assert_eq!(runtime_control(None).tun_enabled, None);
+    assert_eq!(state.runtime.runtime_control.tun_enabled, Some(false));
 }
 
 #[test]
-fn test_mode_ids() {
-    assert_eq!(mode_ids(), vec!["rule", "global", "direct", "script"]);
+fn common_routing_intents_are_shared_choices() {
+    assert_eq!(
+        common_routing_intents(),
+        [
+            RoutingIntent::FollowRules,
+            RoutingIntent::RouteAllThroughProxy,
+            RoutingIntent::BypassProxy,
+        ]
+    );
 }
 
 #[test]
@@ -80,10 +98,8 @@ fn unobserved_shell_counts_and_rates_are_distinct_from_observed_zero() {
         rate_copy(&state.shell.readout.upload_bps, "en-US"),
         "Not observed"
     );
-    state.shell.readout.rules.value = Some(0);
-    state.shell.readout.rules.current = true;
-    state.shell.readout.upload_bps.value = Some(0.0);
-    state.shell.readout.upload_bps.current = true;
+    state.shell.readout.rules = ShellObservation::Current(0);
+    state.shell.readout.upload_bps = ShellObservation::Current(0.0);
     assert_eq!(
         count_copy(&state.shell.readout, PageId::Rules, "en-US"),
         "0"
@@ -97,7 +113,6 @@ fn test_sidebar_render_smoke() {
     let _elem = sidebar(&state);
 
     let (mut state2, _) = AppState::new();
-    state2.runtime.script_block_present = true;
     state2.runtime.system_proxy_enabled = true;
     state2.runtime.tun_enabled = Some(true);
     state2.shell.current_route = Route::Proxies;

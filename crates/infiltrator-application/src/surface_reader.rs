@@ -9,6 +9,10 @@ use crate::active_exit_application::ActiveExitApplication;
 use crate::configuration_application::ConfigurationApplication;
 use crate::connection_rate_application::{ConnectionRateApplication, connections_page_snapshot};
 use crate::core_application::CoreApplication;
+use crate::core_capability_application::{
+    CoreCapabilityApplication, CoreCapabilityGateFailure, CoreCapabilityLookup,
+    CoreCapabilityRequirement, CoreCommandEffect,
+};
 use crate::dns_cache_application::DnsCacheApplication;
 use crate::dns_latency_application::DnsLatencyApplication;
 use crate::dns_leak_application::DnsLeakApplication;
@@ -20,30 +24,29 @@ use crate::mrs_acceleration_application::MrsAccelerationApplication;
 use crate::mtu_application::MtuApplication;
 use crate::network_roaming_application::NetworkRoamingApplication;
 use crate::offline_startup_application::OfflineStartupApplication;
+use crate::outbound_application::OutboundApplication;
+use crate::outbound_application::preferences::OutboundUiPreferencesApplication;
 use crate::pac_application::PacApplication;
 use crate::port_conflict_application::PortConflictApplication;
 use crate::privileged_network_application::PrivilegedNetworkApplication;
 use crate::profile_aggregation_application::last_aggregation_report;
 use crate::profile_application::ProfileApplication;
 use crate::protocol_codec_application::studio_snapshot;
-use crate::proxy_inspection_projection::{inspection_catalogue, with_egress_record};
-use crate::proxy_preferences_application::ProxyPreferencesApplication;
-use crate::proxy_probe_options_projection::project_settings;
-use crate::proxy_projection::project_groups_snapshot;
-use crate::proxy_search_projection::project_name_runs;
 use crate::reconnect_mask_application::ReconnectMaskApplication;
 use crate::resource_application::ResourceApplication;
 use crate::routing_application::RoutingApplication;
+use crate::routing_intent_application::RoutingIntentApplication;
 use crate::rule_provider_application::RuleProviderApplication;
 use crate::rule_tracer_application::RuleTracerApplication;
+use crate::runtime_configuration_application::RuntimeConfigurationApplication;
 use crate::runtime_control_projection::RuntimeControlApplication;
+use crate::runtime_probe_settings::project_settings;
 use crate::script_application::ScriptApplication;
 use crate::script_export_application::ScriptExportApplication;
 use crate::service_mode_application::ServiceModeApplication;
 use crate::settings_application::SettingsApplication;
 use crate::shell_readout_application::ShellReadoutApplication;
 use crate::snapshot_application::SnapshotApplication;
-use crate::speedtest_application::SpeedtestApplication;
 use crate::stun_probe_application::StunProbeApplication;
 use crate::subscription_quota_application::SubscriptionQuotaApplication;
 use crate::system_proxy_application::SystemProxyApplication;
@@ -54,39 +57,59 @@ use crate::uwp_loopback_application::UwpLoopbackApplication;
 use crate::version_application::VersionApplication;
 use crate::vpn_application::VpnServiceApplication;
 use infiltrator_contract::capability::CapabilitySnapshot;
+use infiltrator_contract::core_capabilities::{
+    CapabilityAccess, CoreCapabilitySnapshot, CoreCapabilityStatus, CoreOperation,
+    OutboundOperation,
+};
+use infiltrator_contract::core_identity::{CoreGeneration, CoreIdentity, CoreScope};
 use infiltrator_contract::dns_cache::DnsCacheSnapshot;
 use infiltrator_contract::dns_query::DnsQuerySnapshot;
 use infiltrator_contract::error::{ErrorCode, Failure, FailureReason};
 use infiltrator_contract::mrs_acceleration::MrsAccelerationSnapshot;
+use infiltrator_contract::outbound::inventory::{
+    OutboundInventorySnapshot, OutboundInventoryState, OutboundObservationSnapshot,
+    SelectionAvailability,
+};
 use infiltrator_contract::profile_protection::ProfileWriteProtection;
 use infiltrator_contract::provider_cache::RuleProviderCacheSnapshot;
 use infiltrator_contract::public_ip::PublicIpProbeSnapshot;
+use infiltrator_contract::routing_intent::{RoutingIntentSnapshot, RoutingIntentStatus};
+use infiltrator_contract::session::SessionToken;
+use infiltrator_contract::snapshot::CoreSnapshot;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot;
-use infiltrator_contract::version::{CoreChannelStatus, CoreVersionSnapshot};
+use infiltrator_contract::version::CoreVersionSnapshot;
 use infiltrator_domain::app_routing::{AppRoutingMode, AppRoutingRule};
-use infiltrator_domain::filter_policy_form::filter_spec_to_draft;
-use infiltrator_domain::proxy::Proxy;
 use infiltrator_ports::endpoint::EndpointSource;
 use infiltrator_ports::error::PortError;
+use infiltrator_ports::routing_intent::RoutingIntentPort;
 use infiltrator_ports::rule_provider_cache::RuleProviderCachePort;
 use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use infiltrator_ports::surface::SurfaceReader;
+use outbound_observation::{
+    SurfaceReadScope, authorize_outbound_inventory, gate_outbound_observation,
+    surface_read_scope_changed,
+};
 use page_builders::{app_routing_page, build_dns_page, build_settings_page, build_sync_page};
-use projections::{active_exit, merge_applied_mtu, missing, page_from_result};
+use projections::{merge_applied_mtu, missing, page_from_result};
 use rules_page::{RulesTracerReplay, build_rules_page};
-use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 #[path = "surface_reader_services.rs"]
 mod surface_reader_services;
 
+#[path = "surface_reader/composition.rs"]
+mod composition;
+#[path = "surface_reader/outbound_observation.rs"]
+mod outbound_observation;
 mod page_builders;
 mod projections;
 mod rules_page;
 mod snapshot_views;
+#[path = "surface_reader_versions.rs"]
+mod versions;
 
 /// Application facades required to expose the page read model.
 #[derive(Clone)]
@@ -97,8 +120,8 @@ pub struct ApplicationSurfaceReader {
     runtime_control: RuntimeControlApplication,
     core: Arc<CoreApplication>,
     gateway: Option<Arc<dyn RuntimeGateway>>,
+    routing_intent_port: Option<Arc<dyn RoutingIntentPort>>,
     profiles: Option<ProfileApplication>,
-    proxy_preferences: Option<ProxyPreferencesApplication>,
     configuration: Option<ConfigurationApplication>,
     doctor: Option<DoctorApplication>,
     read_revision: Arc<AtomicU64>,
@@ -124,7 +147,6 @@ pub struct ApplicationSurfaceReader {
     active_exit: ActiveExitApplication,
     rule_tracer: RuleTracerApplication,
     subscription_quota: SubscriptionQuotaApplication,
-    speedtest: Option<SpeedtestApplication>,
     dns_cache: Option<DnsCacheApplication>,
     dns_query: Option<DnsQueryApplication>,
     /// DUAL-14-10/13: the shared latency prober whose last report drives both
@@ -136,6 +158,8 @@ pub struct ApplicationSurfaceReader {
     /// DUAL-14-09 (re-scoped): the shared STUN UDP-egress prober whose last
     /// report the DNS privacy area publishes to both surfaces.
     stun_probe: Option<StunProbeApplication>,
+    outbound: Option<OutboundApplication>,
+    outbound_ui_preferences: Option<OutboundUiPreferencesApplication>,
     rule_provider: RuleProviderApplication,
     /// DUAL-13-10/12: the shared per-connection instantaneous-rate window.
     /// Kept across reads (and cloned readers) so successive snapshots diff.
@@ -145,298 +169,34 @@ pub struct ApplicationSurfaceReader {
     surface: SurfaceKind,
 }
 
-impl ApplicationSurfaceReader {
-    pub fn new(core: Arc<CoreApplication>, surface: SurfaceKind, host: HostKind) -> Self {
-        Self {
-            scripts: None,
-            script_exports: None,
-            shell_readout: ShellReadoutApplication::default(),
-            runtime_control: RuntimeControlApplication::default(),
-            core,
-            gateway: None,
-            profiles: None,
-            proxy_preferences: None,
-            configuration: None,
-            doctor: None,
-            read_revision: Arc::new(AtomicU64::new(0)),
-            routing: None,
-            settings: None,
-            snapshots: None,
-            versions: None,
-            endpoint_source: None,
-            service_mode: None,
-            port_conflicts: None,
-            resources: None,
-            offline_startup: None,
-            mtu: None,
-            system_proxy: None,
-            uwp_loopback: None,
-            pac: None,
-            network_roaming: None,
-            vpn: None,
-            privileged_network: None,
-            traffic_waveform: TrafficWaveformApplication::new(),
-            traffic_scale: TrafficScaleApplication,
-            traffic_topology: TrafficTopologyApplication,
-            active_exit: ActiveExitApplication,
-            rule_tracer: RuleTracerApplication::new(),
-            subscription_quota: SubscriptionQuotaApplication::default(),
-            speedtest: None,
-            dns_cache: None,
-            dns_query: None,
-            dns_latency: None,
-            dns_leak: None,
-            stun_probe: None,
-            rule_provider: RuleProviderApplication::default(),
-            connection_rates: ConnectionRateApplication::new(),
-            version_cache: Arc::new(Mutex::new(None)),
-            capabilities: CapabilitySnapshot::new(host, 0, Vec::new()),
-            surface,
-        }
-    }
-
-    pub fn with_scripts(
-        mut self,
-        scripts: ScriptApplication,
-        exports: ScriptExportApplication,
-    ) -> Self {
-        self.scripts = Some(scripts);
-        self.script_exports = Some(exports);
-        self
-    }
-
-    pub fn with_capabilities(mut self, capabilities: CapabilitySnapshot) -> Self {
-        self.capabilities = capabilities;
-        self
-    }
-
-    pub fn with_gateway(mut self, gateway: Arc<dyn RuntimeGateway>) -> Self {
-        self.gateway = Some(gateway);
-        self
-    }
-
-    pub fn with_profiles(mut self, profiles: ProfileApplication) -> Self {
-        self.profiles = Some(profiles);
-        self
-    }
-
-    pub fn with_proxy_preferences(mut self, preferences: ProxyPreferencesApplication) -> Self {
-        self.proxy_preferences = Some(preferences);
-        self
-    }
-
-    pub fn with_configuration(mut self, configuration: ConfigurationApplication) -> Self {
-        self.configuration = Some(configuration);
-        self
-    }
-
-    pub fn with_doctor(mut self, doctor: DoctorApplication) -> Self {
-        self.doctor = Some(doctor);
-        self
-    }
-
-    pub fn with_routing(mut self, routing: RoutingApplication) -> Self {
-        self.routing = Some(routing);
-        self
-    }
-
-    pub fn with_settings(mut self, settings: SettingsApplication) -> Self {
-        self.settings = Some(settings);
-        self
-    }
-
-    pub fn with_snapshots(mut self, snapshots: SnapshotApplication) -> Self {
-        self.snapshots = Some(snapshots);
-        self
-    }
-
-    pub fn with_versions(mut self, versions: VersionApplication) -> Self {
-        self.versions = Some(versions);
-        self
-    }
-
-    pub fn with_endpoint_source(mut self, source: Arc<dyn EndpointSource>) -> Self {
-        self.endpoint_source = Some(source);
-        self
-    }
-
-    pub fn with_service_mode(mut self, service_mode: ServiceModeApplication) -> Self {
-        self.service_mode = Some(service_mode);
-        self
-    }
-
-    pub fn with_port_conflicts(mut self, port_conflicts: PortConflictApplication) -> Self {
-        self.port_conflicts = Some(port_conflicts);
-        self
-    }
-
-    pub fn with_resources(mut self, resources: ResourceApplication) -> Self {
-        self.resources = Some(resources);
-        self
-    }
-
-    pub fn with_offline_startup(mut self, startup: OfflineStartupApplication) -> Self {
-        self.offline_startup = Some(startup);
-        self
-    }
-
-    pub fn with_mtu(mut self, mtu: MtuApplication) -> Self {
-        self.mtu = Some(mtu);
-        self
-    }
-
-    pub fn with_system_proxy(mut self, system_proxy: SystemProxyApplication) -> Self {
-        self.system_proxy = Some(system_proxy);
-        self
-    }
-
-    pub fn with_uwp_loopback(mut self, uwp_loopback: UwpLoopbackApplication) -> Self {
-        self.uwp_loopback = Some(uwp_loopback);
-        self
-    }
-
-    pub fn with_pac(mut self, pac: PacApplication) -> Self {
-        self.pac = Some(pac);
-        self
-    }
-
-    pub fn with_network_roaming(mut self, application: NetworkRoamingApplication) -> Self {
-        self.network_roaming = Some(application);
-        self
-    }
-
-    pub fn with_vpn(mut self, application: VpnServiceApplication) -> Self {
-        self.vpn = Some(application);
-        self
-    }
-
-    pub fn with_privileged_network(mut self, application: PrivilegedNetworkApplication) -> Self {
-        self.privileged_network = Some(application);
-        self
-    }
-
-    /// Attach the shared speedtest/jitter engine so its snapshot is published
-    /// to both surfaces. Without this the field would fall back to `Default`.
-    pub fn with_speedtest(mut self, application: SpeedtestApplication) -> Self {
-        self.speedtest = Some(application);
-        self
-    }
-
-    /// Share the live rule tracer engine with the host composition so UI
-    /// intents and surface projections observe one query state.
-    pub fn with_rule_tracer(mut self, application: RuleTracerApplication) -> Self {
-        self.rule_tracer = application;
-        self
-    }
-
-    /// Share the DNS cache application so the published read model carries the
-    /// honest last Fake-IP / OS-cache flush report.
-    pub fn with_dns_query(mut self, application: DnsQueryApplication) -> Self {
-        self.dns_query = Some(application);
-        self
-    }
-
-    pub fn with_dns_cache(mut self, application: DnsCacheApplication) -> Self {
-        self.dns_cache = Some(application);
-        self
-    }
-
-    /// DUAL-14-10/13: share the latency probe application so the published read
-    /// model carries the last real per-nameserver probe and the DNS self-heal
-    /// observation derived from it.
-    pub fn with_dns_latency(mut self, application: DnsLatencyApplication) -> Self {
-        self.dns_latency = Some(application);
-        self
-    }
-
-    /// DUAL-14-08: share the leak probe application so the published read model
-    /// carries the last real cross-source observation.
-    pub fn with_dns_leak(mut self, application: DnsLeakApplication) -> Self {
-        self.dns_leak = Some(application);
-        self
-    }
-
-    /// DUAL-14-09 (re-scoped): share the STUN UDP-egress probe application so
-    /// the published read model carries the last real host observation and its
-    /// comparison against the expected proxied egress.
-    pub fn with_stun_probe(mut self, application: StunProbeApplication) -> Self {
-        self.stun_probe = Some(application);
-        self
-    }
-
-    /// The shared tracer engine handed to inbound UI ports.
-    pub fn rule_tracer(&self) -> RuleTracerApplication {
-        self.rule_tracer.clone()
-    }
-
-    /// DUAL-11-06/07: the shared unpack + cache-maintenance service. The
-    /// adapter result is published as the observed cache fact.
-    pub fn with_rule_provider_cache(mut self, cache: Arc<dyn RuleProviderCachePort>) -> Self {
-        self.rule_provider = RuleProviderApplication::new(Some(cache));
-        self
-    }
-
-    /// The shared unpack service handed to inbound UI ports.
-    pub fn rule_provider(&self) -> RuleProviderApplication {
-        self.rule_provider.clone()
-    }
-
-    /// Observed cache location read for the rules page (never a guess).
-    pub(super) async fn provider_cache(&self) -> RuleProviderCacheSnapshot {
-        self.rule_provider.snapshot().await
-    }
-
-    pub fn core(&self) -> &Arc<CoreApplication> {
-        &self.core
-    }
-
-    async fn read_versions(&self) -> CoreVersionSnapshot {
-        let Some(versions) = &self.versions else {
-            return CoreVersionSnapshot::default();
-        };
-        if let Some((probed_at, snapshot)) = self
-            .version_cache
-            .lock()
-            .expect("version cache lock")
-            .as_ref()
-            .cloned()
-        {
-            let has_ready_channel = snapshot
-                .channels
-                .iter()
-                .any(|channel| matches!(channel.status, CoreChannelStatus::Ready { .. }));
-            let ttl = if has_ready_channel {
-                Duration::from_secs(600)
-            } else {
-                Duration::from_secs(30)
-            };
-            if probed_at.elapsed() < ttl {
-                return snapshot;
-            }
-        }
-
-        let next_revision = self
-            .version_cache
-            .lock()
-            .expect("version cache lock")
-            .as_ref()
-            .map_or(1, |(_, snapshot)| snapshot.revision.saturating_add(1));
-        let mut snapshot = versions.probe_channels().await;
-        snapshot.revision = next_revision;
-        *self.version_cache.lock().expect("version cache lock") =
-            Some((Instant::now(), snapshot.clone()));
-        snapshot
-    }
-}
-
 #[async_trait::async_trait]
 impl SurfaceReader for ApplicationSurfaceReader {
     async fn read(&self) -> Result<surface_snapshot::SurfaceSnapshot, PortError> {
+        let read_scope = SurfaceReadScope::from(&self.core.snapshot());
         let telemetry = self.core.read_telemetry().await;
         let core = telemetry
             .as_ref()
             .cloned()
             .unwrap_or_else(|_| self.core.snapshot());
+        if SurfaceReadScope::from(&core) != read_scope
+            || SurfaceReadScope::from(&self.core.snapshot()) != read_scope
+        {
+            return Err(surface_read_scope_changed());
+        }
+        let core_capability_snapshot = match core.identity.as_ref() {
+            Some(identity) => self
+                .core
+                .core_capability_application()
+                .matrix_for(&identity.engine, identity.version.as_ref())
+                .map(|matrix| CoreCapabilitySnapshot::from_matrix(&matrix))
+                .map(surface_snapshot::PageData::ready)
+                .unwrap_or_else(surface_snapshot::PageData::unavailable),
+            None => surface_snapshot::PageData::unavailable(Failure::new(
+                ErrorCode::NotReady,
+                "active core identity is unavailable",
+                true,
+            )),
+        };
         // Controller-independent pages also change while the core is idle.
         let revision = self
             .read_revision
@@ -460,11 +220,84 @@ impl SurfaceReader for ApplicationSurfaceReader {
         let network_roaming = self.read_network_roaming().await;
         let vpn = self.read_vpn().await;
         let privileged_network = self.read_privileged_network().await;
+        let speedtest = self.core.speedtest_snapshot();
+        let outbound_observation = match (&self.outbound, core.scope()) {
+            (Some(outbound), Some(scope)) => {
+                let capabilities = self.core.core_capability_application();
+                match authorize_outbound_inventory(&capabilities, &scope) {
+                    Err(failure) => Some(Err(failure)),
+                    Ok(()) => Some(
+                        outbound
+                            .observation(scope.clone())
+                            .await
+                            .map_err(Failure::from)
+                            .and_then(|observation| {
+                                gate_outbound_observation(&capabilities, observation)
+                            }),
+                    ),
+                }
+            }
+            (Some(_), None) => {
+                let failure = core.failure.clone().unwrap_or_else(|| {
+                    Failure::new(
+                        ErrorCode::NotReady,
+                        "active core scope is unavailable for outbound observation",
+                        true,
+                    )
+                });
+                Some(Err(failure))
+            }
+            (None, _) => None,
+        };
+        let (outbound_inventory, outbound_details) = match outbound_observation.as_ref() {
+            Some(Ok(observation)) => (
+                surface_snapshot::PageData::ready(observation.inventory().clone()),
+                surface_snapshot::PageData::ready(observation.details().clone()),
+            ),
+            Some(Err(failure)) => (
+                surface_snapshot::PageData::failed(failure.clone()),
+                surface_snapshot::PageData::failed(failure.clone()),
+            ),
+            None => {
+                let failure = missing("outbound port");
+                (
+                    surface_snapshot::PageData::unavailable(failure.clone()),
+                    surface_snapshot::PageData::unavailable(failure),
+                )
+            }
+        };
+        let outbound_ui_preferences = match (&self.outbound_ui_preferences, core.scope()) {
+            (Some(preferences), Some(scope)) => match preferences.snapshot(&scope) {
+                Ok(snapshot) => surface_snapshot::PageData::ready(snapshot),
+                Err(failure) => surface_snapshot::PageData::failed(failure),
+            },
+            (Some(_), None) => {
+                surface_snapshot::PageData::unavailable(core.failure.clone().unwrap_or_else(|| {
+                    Failure::new(
+                        ErrorCode::NotReady,
+                        "active core scope is unavailable for outbound preferences",
+                        true,
+                    )
+                }))
+            }
+            (None, _) => surface_snapshot::PageData::unavailable(Failure::unsupported(
+                "engine-scoped outbound UI preferences have not been migrated from legacy storage",
+            )),
+        };
+        let protocol_studio = studio_snapshot()
+            .map(surface_snapshot::PageData::ready)
+            .unwrap_or_else(|| {
+                surface_snapshot::PageData::unavailable(Failure::new(
+                    ErrorCode::NotReady,
+                    "protocol studio has not published an observation",
+                    true,
+                ))
+            });
         let mut pages = surface_snapshot::SurfacePages::unavailable(missing("surface reader"));
 
         pages.overview =
             surface_snapshot::PageData::ready(surface_snapshot::OverviewPageSnapshot {
-                proxy_mode: core.proxy_mode,
+                routing_intent: core.routing_intent.clone(),
                 upload_bps: core.upload_bps,
                 download_bps: core.download_bps,
                 active_connections: core.active_connections,
@@ -472,18 +305,25 @@ impl SurfaceReader for ApplicationSurfaceReader {
                 core_version: core.core_version.clone(),
             });
 
-        let runtime_config = match &self.gateway {
-            Some(gateway) => Some(gateway.get_config().await),
-            None => None,
+        let runtime_config = match (&self.gateway, core.scope()) {
+            (Some(gateway), Some(scope)) => Some(
+                RuntimeConfigurationApplication::from_gateway(scope, gateway.as_ref())
+                    .observe_readout()
+                    .await,
+            ),
+            (Some(_), None) => Some(Err(core.failure.clone().unwrap_or_else(|| {
+                Failure::new(
+                    ErrorCode::NotReady,
+                    "active Core scope is unavailable for configuration reads",
+                    true,
+                )
+            }))),
+            (None, _) => None,
         };
         let runtime_control =
             self.runtime_control
                 .observe(core.generation, revision, runtime_config.as_ref());
         let mtu = merge_applied_mtu(self.read_mtu().await, runtime_config.as_ref());
-        let runtime_proxies = match &self.gateway {
-            Some(gateway) => Some(gateway.get_proxies().await),
-            None => None,
-        };
         let runtime_connections = match &self.gateway {
             Some(gateway) => Some(gateway.get_connections().await),
             None => None,
@@ -491,10 +331,12 @@ impl SurfaceReader for ApplicationSurfaceReader {
         let traffic_topology = self.traffic_topology.project(
             &core,
             runtime_config.as_ref(),
-            runtime_proxies.as_ref(),
+            outbound_observation.as_ref(),
             runtime_connections.as_ref(),
         );
-        let active_exit_snapshot = self.active_exit.project(&core, runtime_proxies.as_ref());
+        let active_exit_snapshot = self
+            .active_exit
+            .project(&core, outbound_observation.as_ref());
         let quota_read = self.subscription_quota.begin();
         let current_before = match &self.profiles {
             Some(profiles) => Some(profiles.active_quota_identity().await),
@@ -538,56 +380,10 @@ impl SurfaceReader for ApplicationSurfaceReader {
             None => None,
         };
 
-        let speedtest = self
-            .speedtest
-            .as_ref()
-            .map(|application| application.snapshot())
-            .unwrap_or_default();
         let hydrated_settings = match &self.settings {
             Some(settings) => Some(settings.load_hydrated().await),
             None => None,
         };
-        let proxy_preferences = self
-            .proxy_preferences
-            .as_ref()
-            .map(ProxyPreferencesApplication::preferences)
-            .transpose()
-            .map(|preferences| preferences.unwrap_or_default());
-        let proxy_page_input = runtime_proxies.map(|result| {
-            result.and_then(|proxies| {
-                proxy_preferences
-                    .map(|preferences| (proxies, preferences))
-                    .map_err(PortError::Rejected)
-            })
-        });
-        pages.proxies = page_from_result(
-            proxy_page_input,
-            |(proxies, preferences)| {
-                let (groups, filter_alive) = project_groups_snapshot(&proxies, &preferences);
-                let mut node_details = inspection_catalogue(&proxies);
-                for detail in &mut node_details {
-                    with_egress_record(detail, &speedtest);
-                }
-                surface_snapshot::ProxiesPageSnapshot {
-                    name_runs: project_name_runs(&groups, &preferences.search_query),
-                    search_query: preferences.search_query.clone(),
-                    node_details,
-                    groups,
-                    testing: false,
-                    active_exit: active_exit(&proxies),
-                    filter_alive,
-                    sort_order: preferences.sort_order,
-                    compact_view: preferences.compact_view,
-                    // DUAL-05: the shared protocol studio, published by
-                    // `ProtocolCodecApplication` and read here. A host without a
-                    // profile store still gets the typed draft + report, with
-                    // `can_persist = false`.
-                    custom_node: studio_snapshot().unwrap_or_default(),
-                }
-            },
-            "Mihomo proxy gateway",
-        );
-
         let profile_editor = match &self.profiles {
             Some(profiles) => profiles.verified_editor_snapshot().await,
             None => Default::default(),
@@ -644,24 +440,12 @@ impl SurfaceReader for ApplicationSurfaceReader {
                         // both surfaces can prefill the editor.
                         let (filter, filter_source) = match &self.profiles {
                             Some(profiles) => match profiles.load_workspace(&item.name).await {
-                                Ok(workspace) => match workspace
-                                    .options
-                                    .filter
-                                    .as_ref()
-                                    .map(filter_spec_to_draft)
-                                    .transpose()
-                                {
-                                    Ok(filter) => {
-                                        (filter.unwrap_or_default(), Ok(workspace.source))
-                                    }
-                                    Err(error) => (
-                                        Default::default(),
-                                        Err(Failure::new(
-                                            ErrorCode::Configuration,
-                                            error.to_string(),
-                                            false,
-                                        )),
-                                    ),
+                                Ok(workspace) => match profiles.inspect_profile_options(
+                                    &workspace.document.identity,
+                                    workspace.sidecar_bytes.as_deref(),
+                                ) {
+                                    Ok(options) => (options.filter, Ok(workspace.identity())),
+                                    Err(error) => (Default::default(), Err(error)),
                                 },
                                 Err(failure) => (Default::default(), Err(failure)),
                             },
@@ -840,8 +624,10 @@ impl SurfaceReader for ApplicationSurfaceReader {
             revision,
             core,
             capabilities: self.capabilities.clone(),
+            core_capability_snapshot,
             failure: None,
             pages,
+            protocol_studio,
             versions,
             controller_auth,
             service_mode,
@@ -858,6 +644,9 @@ impl SurfaceReader for ApplicationSurfaceReader {
             traffic_scale,
             traffic_topology,
             active_exit: active_exit_snapshot,
+            outbound_inventory,
+            outbound_details,
+            outbound_ui_preferences,
             public_ip: PublicIpProbeSnapshot::default(),
             overview_layout: Default::default(),
             reconnect_mask,
@@ -874,6 +663,30 @@ impl SurfaceReader for ApplicationSurfaceReader {
                 .and_then(ScriptExportApplication::snapshot),
             speedtest,
         };
+        let routing_intent_scope = snapshot.core.scope();
+        let observed_routing_intent = match &self.routing_intent_port {
+            Some(port) => {
+                RoutingIntentApplication::new(port.clone(), self.core.core_capability_application())
+                    .observe(routing_intent_scope.as_ref())
+                    .await
+            }
+            None => RoutingIntentSnapshot {
+                current: None,
+                status: RoutingIntentStatus::Unsupported,
+                failure: Some(Failure::unsupported(
+                    "routing intent adapter is not composed for this surface",
+                )),
+            },
+        };
+        snapshot.core.routing_intent = observed_routing_intent;
+        let routing_intent = RoutingIntentApplication::from_surface(&snapshot);
+        snapshot.core.routing_intent = routing_intent.clone();
+        if let Some(overview) = &mut snapshot.pages.overview.data {
+            overview.routing_intent = routing_intent;
+        }
+        if SurfaceReadScope::from(&self.core.snapshot()) != read_scope {
+            return Err(surface_read_scope_changed());
+        }
         snapshot.shell_readout.rate_failure = telemetry.err();
         snapshot.shell_readout = self.shell_readout.project(&snapshot);
         Ok(snapshot)

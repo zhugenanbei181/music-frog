@@ -2,7 +2,7 @@
 //! test-intent: behavior
 
 use super::*;
-use infiltrator_contract::proxy_mode::ProxyModeSnapshot;
+use infiltrator_contract::routing_intent::RoutingIntentSnapshot;
 use infiltrator_contract::snapshot::CoreLifecycle;
 
 /// The four stat chips carry labeled Group semantics ("name value") that
@@ -60,9 +60,9 @@ fn stat_chips_and_banner_status_carry_accesskit_semantics() {
         system_toggles: Default::default(),
         cpu_percent: None,
         total_traffic_bytes: None,
-        proxy_mode: ProxyModeSnapshot {
-            current: Some(ProxyMode::Rule),
-            ..ProxyModeSnapshot::demo_fixture()
+        routing_intent: RoutingIntentSnapshot {
+            current: Some(RoutingIntent::FollowRules),
+            ..RoutingIntentSnapshot::demo_fixture()
         },
         speedtest: Default::default(),
     };

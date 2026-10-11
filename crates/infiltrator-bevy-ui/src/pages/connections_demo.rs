@@ -6,8 +6,8 @@
 //! in demo compositions.
 
 use crate::pages::connections::ConnectionsProjection;
-use infiltrator_composition::demo_identities::{HK_PRIMARY, PROXIES, SG, STREAMING};
-use infiltrator_contract::connection::ConnectionStreamPhase;
+use infiltrator_contract::connection::{ConnectionRateObservation, ConnectionStreamPhase};
+use infiltrator_contract::fixture_identities::{HK_PRIMARY, PROXIES, SG, STREAMING};
 use infiltrator_contract::surface_snapshot::ConnectionSnapshot;
 
 impl ConnectionsProjection {
@@ -34,7 +34,7 @@ impl ConnectionsProjection {
                     destination_port: "443".to_owned(),
                     chain: format!("{PROXIES} -> {HK_PRIMARY}"),
                     chains: vec![PROXIES.to_owned(), HK_PRIMARY.to_owned()],
-                    rate_observed: true,
+                    rate_observation: ConnectionRateObservation::Measured,
                     upload_bps: 24_000.0,
                     download_bps: 180_000.0,
                     upload_total: 1_200_000,
@@ -57,7 +57,7 @@ impl ConnectionsProjection {
                     destination_port: "443".to_owned(),
                     chain: format!("{STREAMING} -> {SG}"),
                     chains: vec![STREAMING.to_owned(), SG.to_owned()],
-                    rate_observed: true,
+                    rate_observation: ConnectionRateObservation::Measured,
                     upload_bps: 8_500.0,
                     download_bps: 8_500_000.0,
                     upload_total: 450_000,
@@ -80,7 +80,7 @@ impl ConnectionsProjection {
                     destination_port: "443".to_owned(),
                     chain: format!("{PROXIES} -> {HK_PRIMARY}"),
                     chains: vec![PROXIES.to_owned(), HK_PRIMARY.to_owned()],
-                    rate_observed: true,
+                    rate_observation: ConnectionRateObservation::Measured,
                     upload_bps: 1_200.0,
                     download_bps: 3_400.0,
                     upload_total: 890_000,
@@ -103,7 +103,7 @@ impl ConnectionsProjection {
                     destination_port: "53".to_owned(),
                     chain: "DIRECT".to_owned(),
                     chains: vec!["DIRECT".to_owned()],
-                    rate_observed: true,
+                    rate_observation: ConnectionRateObservation::Measured,
                     upload_bps: 0.0,
                     download_bps: 0.0,
                     upload_total: 12_000,

@@ -20,15 +20,17 @@ use bevy::ecs::resource::Resource;
 use bevy::text::Font;
 
 /// Inter SemiBold — headings.
-const HEADING_TTF: &[u8] = include_bytes!("../assets/fonts/Inter-SemiBold.ttf");
+const HEADING_TTF: &[u8] =
+    include_bytes!("../../infiltrator-shared/assets/fonts/Inter-SemiBold.ttf");
 /// Inter Regular — body and control labels.
-const BODY_TTF: &[u8] = include_bytes!("../assets/fonts/Inter-Regular.ttf");
+const BODY_TTF: &[u8] = include_bytes!("../../infiltrator-shared/assets/fonts/Inter-Regular.ttf");
 /// Inter Medium — captions and idle labels.
-const CAPTION_TTF: &[u8] = include_bytes!("../assets/fonts/Inter-Medium.ttf");
+const CAPTION_TTF: &[u8] = include_bytes!("../../infiltrator-shared/assets/fonts/Inter-Medium.ttf");
 /// JetBrains Mono Regular — aligned telemetry values.
-const MONO_TTF: &[u8] = include_bytes!("../assets/fonts/JetBrainsMono-Regular.ttf");
+const MONO_TTF: &[u8] =
+    include_bytes!("../../infiltrator-shared/assets/fonts/JetBrainsMono-Regular.ttf");
 /// Unified embedded CJK font — full Chinese character support across all platforms.
-const CJK_TTF: &[u8] = include_bytes!("../assets/fonts/CJK-Regular.ttf");
+const CJK_TTF: &[u8] = include_bytes!("../../infiltrator-shared/assets/fonts/CJK-Regular.ttf");
 
 /// The role → face table, injected as a resource by [`crate::WidgetsPlugin`].
 #[derive(Resource, Clone, Debug)]

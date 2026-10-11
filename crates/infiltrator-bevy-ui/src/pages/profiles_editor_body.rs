@@ -17,6 +17,7 @@ use bevy::ui::widget::Text;
 use infiltrator_bevy_widgets::editor::{SyntaxTokenKind, tokenize_yaml_line};
 use infiltrator_bevy_widgets::localization::LocalizedText;
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 
@@ -83,13 +84,13 @@ pub(crate) fn editor_rows_scene(state: &ProfileEditorState, palette: &UiPalette)
                     Node {
                         width: percent(100),
                         flex_direction: FlexDirection::Row,
-                        column_gap: Val::Px(space::S8),
-                        min_height: px(16.0),
+                        column_gap: rem(space::S8),
+                        min_height: rem(16.0),
                     }
                     BackgroundColor({ background })
                     Children [
                         Node {
-                            min_width: px(36.0),
+                            min_width: rem(36.0),
                             justify_content: JustifyContent::FlexEnd,
                         }
                         Children [
@@ -133,7 +134,7 @@ fn indent_rail(level: usize, palette: &UiPalette) -> Box<dyn Scene> {
         ticks.push(Box::new(bsn! {
                     Node {
                         width: px(2.0),
-                        height: px(10.0),
+                        height: rem(10.0),
                         margin: UiRect::right(Val::Px(2.0)),
                     }
                     BackgroundColor({ color })
@@ -142,7 +143,7 @@ fn indent_rail(level: usize, palette: &UiPalette) -> Box<dyn Scene> {
     Box::new(bsn! {
             Node {
                 flex_direction: FlexDirection::Row,
-                min_width: px(4.0),
+                min_width: rem(4.0),
             }
             Children [
                 { ticks }

@@ -3,6 +3,8 @@
 //! test-intent: behavior
 
 use crate::test_support::{DEFAULT_WINDOW, demo_state};
+use infiltrator_contract::outbound::inventory::OutboundInventoryState;
+use infiltrator_contract::outbound::inventory::SelectionAvailability;
 use infiltrator_iced::types::app::Route;
 use infiltrator_iced::types::message::Message;
 use infiltrator_iced::types::runtime::RuntimeStatus;
@@ -18,17 +20,29 @@ fn demo_fixture_inventory_matches_the_demo_contract() {
         "demo mode must not own a runtime"
     );
 
-    // Proxy inventory: at least one selectable group.
-    let groups = state
+    // Outbound inventory: at least one selectable collection is observed.
+    let inventory = state
         .runtime
-        .proxies
-        .values()
-        .filter(|p| p.is_group())
+        .outbound_inventory
+        .data
+        .as_ref()
+        .expect("demo publishes typed outbound inventory");
+    let OutboundInventoryState::Ready {
+        entries,
+        collections,
+    } = inventory.inventory()
+    else {
+        panic!("demo outbound inventory is ready")
+    };
+    let groups = collections
+        .iter()
+        .filter(|collection| collection.availability == SelectionAvailability::Selectable)
         .count();
     assert!(
         groups > 0,
         "expected non-empty group inventory, got {groups}"
     );
+    assert!(!entries.is_empty());
 
     // Profiles: the demo subscription shelf carries three entries.
     assert!(
@@ -69,13 +83,13 @@ fn navigate_messages_retarget_current_route_without_touching_runtime() {
             state.shell.current_route, route,
             "Navigate must retarget route"
         );
-        // Demo gate: navigation stays pure state — no runtime is ever
-        // created, status keeps reporting the fixture's running demo.
+        // Demo gate: navigation stays pure state, no runtime is created, and
+        // the demo never claims that a Core process is running.
         assert!(
             state.runtime.runtime.is_none(),
             "demo gate: no live runtime"
         );
-        assert!(matches!(state.runtime.status, RuntimeStatus::Running));
+        assert!(matches!(state.runtime.status, RuntimeStatus::Stopped));
     }
 }
 

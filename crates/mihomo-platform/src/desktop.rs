@@ -1,5 +1,6 @@
 use crate::paths::get_home_dir;
 use async_trait::async_trait;
+use infiltrator_contract::core_identity::{CoreIdentity, CoreInstanceId, EngineId};
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_ports::core_process::CoreProcess;
 use infiltrator_ports::data_dir::DataDirProvider;
@@ -96,6 +97,14 @@ fn map_port_error(error: MihomoError) -> PortError {
 
 #[async_trait]
 impl CoreProcess for ProcessCoreController {
+    fn core_identity(&self) -> Option<CoreIdentity> {
+        Some(CoreIdentity::new(
+            EngineId::new("mihomo").ok()?,
+            CoreInstanceId::new("desktop-active").ok()?,
+            None,
+        ))
+    }
+
     async fn start(&self) -> result::Result<(), PortError> {
         self.cleanup_orphaned().await?;
         if self

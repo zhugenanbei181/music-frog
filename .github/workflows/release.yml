@@ -27,15 +27,14 @@ jobs:
     secrets: inherit
 
   # ---------------------------------------------------------------------------
-  # 1. Desktop Build Matrix (Windows, macOS, Linux)
+  # 1. Desktop Build Matrix (Windows, Linux; Apple targets temporarily deferred)
   # ---------------------------------------------------------------------------
   build-desktop:
     needs: [test-gate]
     name: Build (${{ matrix.target }})
     runs-on: ${{ matrix.os }}
-    # 每条腿现在编译 iced + bevy 两个二进制（共享同一 target/cache）。iced-only
-    # 时代的 45 分钟不够；macOS Intel runner（macos-15-intel）明显更慢，75 分钟
-    # 仍会把整条腿超时并浪费已完成的编译，故放宽到 150 分钟。
+    # 每条腿编译 iced + bevy + slint 三个二进制（共享同一 target/cache）。macOS 与 iOS
+    # Apple target 暂停进入自动 CI/release；恢复前不得在 matrix 加回 Apple runner。
     timeout-minutes: 150
     strategy:
       # A failed platform must stop the release fan-out; publish-release is
@@ -48,33 +47,21 @@ jobs:
             target: x86_64-pc-windows-msvc
             binary_name: infiltrator-iced.exe
             bevy_binary_name: infiltrator-bevy-ui.exe
+            slint_binary_name: infiltrator-slint.exe
             pkg_format: nsis
             artifact_name: Infiltrator-Windows-x86_64
             bevy_artifact_name: Infiltrator-Bevy-Windows-x86_64
+            slint_artifact_name: Infiltrator-Slint-Windows-x86_64
           # Windows ARM64
           - os: windows-latest
             target: aarch64-pc-windows-msvc
             binary_name: infiltrator-iced.exe
             bevy_binary_name: infiltrator-bevy-ui.exe
+            slint_binary_name: infiltrator-slint.exe
             pkg_format: zip
             artifact_name: Infiltrator-Windows-aarch64
             bevy_artifact_name: Infiltrator-Bevy-Windows-aarch64
-          # macOS Apple Silicon (arm64)
-          - os: macos-latest
-            target: aarch64-apple-darwin
-            binary_name: infiltrator-iced
-            bevy_binary_name: infiltrator-bevy-ui
-            pkg_format: dmg
-            artifact_name: Infiltrator-macOS-arm64
-            bevy_artifact_name: Infiltrator-Bevy-macOS-arm64
-          # macOS Intel (x86_64)
-          - os: macos-15-intel
-            target: x86_64-apple-darwin
-            binary_name: infiltrator-iced
-            bevy_binary_name: infiltrator-bevy-ui
-            pkg_format: dmg
-            artifact_name: Infiltrator-macOS-x86_64
-            bevy_artifact_name: Infiltrator-Bevy-macOS-x86_64
+            slint_artifact_name: Infiltrator-Slint-Windows-aarch64
           # Linux x64 —— cargo-zigbuild 把 glibc 下限定桩在 2.17（CentOS 7 /
           # Debian 9 级别），产物兼容性不随构建机系统漂移，runner 始终跟最新
           # LTS；OpenSSL 经 static-openssl feature 静态内联，产物不依赖用户机
@@ -86,13 +73,19 @@ jobs:
             tool: zigbuild
             binary_name: infiltrator-iced
             bevy_binary_name: infiltrator-bevy-ui
+            slint_binary_name: infiltrator-slint
             pkg_format: linux-all
             artifact_name: Infiltrator-Linux-x86_64
             bevy_artifact_name: Infiltrator-Bevy-Linux-x86_64
+            slint_artifact_name: Infiltrator-Slint-Linux-x86_64
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
+
+      - name: Verify release version and product identity
+        shell: bash
+        run: python3 scripts/quality/android-product-identity-guard.py --release-tag "$GITHUB_REF_NAME"
 
       - name: Restore verified platform kernel
         shell: bash
@@ -170,6 +163,16 @@ jobs:
         if: matrix.tool != 'zigbuild'
         run: cargo build --release --target ${{ matrix.target }} --bin infiltrator-bevy-ui
 
+      - name: Build Slint Release Binary (zig-pinned glibc floor)
+        if: matrix.tool == 'zigbuild'
+        run: >
+          cargo zigbuild --release --target ${{ matrix.zig_target }}
+          -p infiltrator-slint --features static-openssl --bin infiltrator-slint
+
+      - name: Build Slint Release Binary
+        if: matrix.tool != 'zigbuild'
+        run: cargo build --release --target ${{ matrix.target }} --bin infiltrator-slint
+
       - name: Package Windows Artifacts (NSIS & ZIP)
         if: runner.os == 'Windows'
         shell: bash
@@ -220,51 +223,30 @@ jobs:
 
           find dist -maxdepth 1 -type f -size +0c -print
 
-      - name: Package macOS Artifacts (DMG & Tarball)
-        if: runner.os == 'macOS'
+      - name: Package Slint Windows Artifacts (NSIS & ZIP)
+        if: runner.os == 'Windows'
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p dist
-          BIN_PATH="target/${{ matrix.target }}/release/infiltrator-iced"
+          BIN_PATH="target/${{ matrix.target }}/release/${{ matrix.slint_binary_name }}"
           test -s "$BIN_PATH"
-          chmod +x "$BIN_PATH"
 
-          APP_DIR="dist/Infiltrator.app"
-          mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources"
-          cp "$BIN_PATH" "$APP_DIR/Contents/MacOS/infiltrator-iced"
-          bash scripts/fetch-mihomo.sh --target "${{ matrix.target }}" --stage "$APP_DIR/Contents/Resources/mihomo"
-          cp packaging/macos/Info.plist "$APP_DIR/Contents/Info.plist"
+          ZIP_NAME="${{ matrix.slint_artifact_name }}.zip"
+          PACKAGE_DIR="dist/windows-slint"
+          mkdir -p "$PACKAGE_DIR"
+          cp "$BIN_PATH" "$PACKAGE_DIR/infiltrator-slint.exe"
+          bash scripts/fetch-mihomo.sh --target "${{ matrix.target }}" --stage "$PACKAGE_DIR/mihomo.exe"
+          (cd "$PACKAGE_DIR" && 7z a -tzip "../${ZIP_NAME}" .)
+          test -s "dist/${ZIP_NAME}"
 
-          tar -czf "dist/${{ matrix.artifact_name }}.tar.gz" -C dist Infiltrator.app
-          test -s "dist/${{ matrix.artifact_name }}.tar.gz"
-          bash packaging/macos/create-dmg.sh "dist/${{ matrix.artifact_name }}.dmg" "$APP_DIR"
-          test -s "dist/${{ matrix.artifact_name }}.dmg"
+          if [ "${{ matrix.target }}" = "x86_64-pc-windows-msvc" ]; then
+            bash packaging/windows/nsis/build-nsis.sh slint "${GITHUB_REF_NAME#v}" \
+              "$BIN_PATH" "dist/Infiltrator-Slint-Setup-x86_64.exe"
+            test -s "dist/Infiltrator-Slint-Setup-x86_64.exe"
+          fi
 
-      - name: Package Bevy macOS Artifacts (DMG & Tarball)
-        if: runner.os == 'macOS'
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p dist
-          BIN_PATH="target/${{ matrix.target }}/release/${{ matrix.bevy_binary_name }}"
-          test -s "$BIN_PATH"
-          chmod +x "$BIN_PATH"
-
-          APP_DIR="dist/InfiltratorBevy.app"
-          mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources"
-          cp "$BIN_PATH" "$APP_DIR/Contents/MacOS/${{ matrix.bevy_binary_name }}"
-          bash scripts/fetch-mihomo.sh --target "${{ matrix.target }}" --stage "$APP_DIR/Contents/Resources/mihomo"
-          sed -e 's/infiltrator-iced/infiltrator-bevy-ui/' \
-              -e 's/app\.musicfrog\.infiltrator/app.musicfrog.infiltrator.bevy/' \
-              -e 's#<string>Infiltrator</string>#<string>Infiltrator Bevy</string>#g' \
-              packaging/macos/Info.plist > "$APP_DIR/Contents/Info.plist"
-
-          tar -czf "dist/${{ matrix.bevy_artifact_name }}.tar.gz" -C dist InfiltratorBevy.app
-          test -s "dist/${{ matrix.bevy_artifact_name }}.tar.gz"
-          VOL_NAME="Infiltrator Bevy" bash packaging/macos/create-dmg.sh \
-            "dist/${{ matrix.bevy_artifact_name }}.dmg" "$APP_DIR"
-          test -s "dist/${{ matrix.bevy_artifact_name }}.dmg"
+          find dist -maxdepth 1 -type f -size +0c -print
 
       - name: Package Linux Artifacts (AppImage, Deb & Tarball)
         if: runner.os == 'Linux'
@@ -275,6 +257,8 @@ jobs:
           BIN_PATH="target/${{ matrix.target }}/release/infiltrator-iced"
           test -s "$BIN_PATH"
           chmod +x "$BIN_PATH"
+          ICED_PACKAGE="$(python3 scripts/product_identity.py --get desktop.iced.linux_package_id)"
+          ICED_ARTIFACT_PREFIX="$(python3 scripts/product_identity.py --get desktop.iced.release_artifact_prefix)"
 
           PACKAGE_DIR="dist/linux-iced"
           mkdir -p "$PACKAGE_DIR"
@@ -285,11 +269,10 @@ jobs:
 
           bash packaging/linux/deb/build-deb.sh "$BIN_PATH" \
             "${GITHUB_REF_NAME#v}" "amd64" "dist"
-          test -s "dist/infiltrator_${GITHUB_REF_NAME#v}_amd64.deb"
+          test -s "dist/${ICED_PACKAGE}_${GITHUB_REF_NAME#v}_amd64.deb"
 
-          bash packaging/linux/appimage/build-appimage.sh "$BIN_PATH" \
-            "dist/Infiltrator-Linux-x86_64.AppImage"
-          test -s "dist/Infiltrator-Linux-x86_64.AppImage"
+          bash packaging/linux/appimage/build-appimage.sh "$BIN_PATH"
+          test -s "dist/${ICED_ARTIFACT_PREFIX}-Linux-x86_64.AppImage"
 
           find dist -maxdepth 1 -type f -size +0c -print
 
@@ -302,6 +285,8 @@ jobs:
           BIN_PATH="target/${{ matrix.target }}/release/${{ matrix.bevy_binary_name }}"
           test -s "$BIN_PATH"
           chmod +x "$BIN_PATH"
+          BEVY_PACKAGE="$(python3 scripts/product_identity.py --get desktop.bevy.linux_package_id)"
+          BEVY_ARTIFACT_PREFIX="$(python3 scripts/product_identity.py --get desktop.bevy.release_artifact_prefix)"
 
           PACKAGE_DIR="dist/linux-bevy"
           mkdir -p "$PACKAGE_DIR"
@@ -310,22 +295,42 @@ jobs:
           tar -czf "dist/${{ matrix.bevy_artifact_name }}.tar.gz" -C "$PACKAGE_DIR" .
           test -s "dist/${{ matrix.bevy_artifact_name }}.tar.gz"
 
-          APP_BIN=infiltrator-bevy-ui \
-          APP_PKG=infiltrator-bevy \
-          APP_DISPLAY_NAME="Infiltrator Bevy" \
-          APP_DESKTOP=packaging/linux/appimage/infiltrator-bevy.desktop \
-          APP_ICON=crates/infiltrator-iced/icons/icon.png \
+          APP_PRODUCT=bevy \
             bash packaging/linux/deb/build-deb.sh "$BIN_PATH" \
               "${GITHUB_REF_NAME#v}" "amd64" "dist"
-          test -s "dist/infiltrator-bevy_${GITHUB_REF_NAME#v}_amd64.deb"
+          test -s "dist/${BEVY_PACKAGE}_${GITHUB_REF_NAME#v}_amd64.deb"
 
-          APP_BIN=infiltrator-bevy-ui \
-          APP_PKG=infiltrator-bevy \
-          APP_DESKTOP=packaging/linux/appimage/infiltrator-bevy.desktop \
-          APP_ICON=crates/infiltrator-iced/icons/icon.png \
-            bash packaging/linux/appimage/build-appimage.sh "$BIN_PATH" \
-              "dist/${{ matrix.bevy_artifact_name }}.AppImage"
-          test -s "dist/${{ matrix.bevy_artifact_name }}.AppImage"
+          APP_PRODUCT=bevy bash packaging/linux/appimage/build-appimage.sh "$BIN_PATH"
+          test -s "dist/${BEVY_ARTIFACT_PREFIX}-Linux-x86_64.AppImage"
+
+          find dist -maxdepth 1 -type f -size +0c -print
+
+      - name: Package Slint Linux Artifacts (AppImage, Deb & Tarball)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          BIN_PATH="target/${{ matrix.target }}/release/${{ matrix.slint_binary_name }}"
+          test -s "$BIN_PATH"
+          chmod +x "$BIN_PATH"
+          SLINT_PACKAGE="$(python3 scripts/product_identity.py --get desktop.slint.linux_package_id)"
+          SLINT_ARTIFACT_PREFIX="$(python3 scripts/product_identity.py --get desktop.slint.release_artifact_prefix)"
+
+          PACKAGE_DIR="dist/linux-slint"
+          mkdir -p "$PACKAGE_DIR"
+          cp "$BIN_PATH" "$PACKAGE_DIR/${{ matrix.slint_binary_name }}"
+          bash scripts/fetch-mihomo.sh --target "${{ matrix.target }}" --stage "$PACKAGE_DIR/mihomo"
+          tar -czf "dist/${{ matrix.slint_artifact_name }}.tar.gz" -C "$PACKAGE_DIR" .
+          test -s "dist/${{ matrix.slint_artifact_name }}.tar.gz"
+
+          APP_PRODUCT=slint \
+            bash packaging/linux/deb/build-deb.sh "$BIN_PATH" \
+              "${GITHUB_REF_NAME#v}" "amd64" "dist"
+          test -s "dist/${SLINT_PACKAGE}_${GITHUB_REF_NAME#v}_amd64.deb"
+
+          APP_PRODUCT=slint bash packaging/linux/appimage/build-appimage.sh "$BIN_PATH"
+          test -s "dist/${SLINT_ARTIFACT_PREFIX}-Linux-x86_64.AppImage"
 
           find dist -maxdepth 1 -type f -size +0c -print
 
@@ -336,19 +341,23 @@ jobs:
           path: dist/
 
   # ---------------------------------------------------------------------------
-  # 2. Android APK Build Job (iced + bevy share ONE SDK/NDK/JDK)
+  # 2. Android APK Build Job (Compose + Bevy + Slint share one host and SDK/NDK/JDK)
   # ---------------------------------------------------------------------------
   build-android:
     needs: [test-gate]
-    name: Build Android APKs (iced + bevy)
+    name: Build Android APKs (Compose + Bevy + Slint)
     # 显式钉最新 LTS（ubuntu-26.04 已 GA），不跟 ubuntu-latest 的静默迁移走。
     runs-on: ubuntu-26.04
-    # iced(gradle) 与 bevy(cargo-apk) 串行跑在同一 runner，共享一套工具链；
-    # 相比两个作业各自装链，省下一次 SDK/NDK/JDK 供给与一份 ~1.2GB 缓存。
+    # 三种产品由同一 Gradle application module 的独立 flavor 构建，
+    # 共用 VPN 宿主、权限定义、状态服务和 Android 工具链。
     timeout-minutes: 120
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
+
+      - name: Verify Android product identity registry and release tag
+        shell: bash
+        run: python3 scripts/quality/android-product-identity-guard.py --release-tag "$GITHUB_REF_NAME"
 
       - name: Setup Java JDK 17
         uses: actions/setup-java@v6
@@ -404,75 +413,62 @@ jobs:
           echo "ANDROID_NDK_ROOT=$NDK_ROOT" >> "$GITHUB_ENV"
           echo "ANDROID_NDK_HOME=$NDK_ROOT" >> "$GITHUB_ENV"
 
-      - name: Build iced Android Release APKs
+      - name: Build all Android release flavors
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p dist-android
           chmod +x android/gradlew
-          # Gradle resolves the project from the CWD, so run inside android/;
-          # invoking ./android/gradlew from the repo root makes it look for a
-          # settings.gradle at the root and fail ("does not contain a Gradle build").
-          ( cd android && ./gradlew --no-daemon --stacktrace assembleRelease )
-          for apk in $(find android/app/build/outputs/apk -type f -name '*-release.apk'); do
-            base="$(basename "$apk")"
-            normalized="Infiltrator-Android-${base#app-}"
-            cp "$apk" "dist-android/$normalized"
-          done
-          test -n "$(find dist-android -type f -name '*.apk' -size +0c -print -quit)"
-          find dist-android -type f -name '*.apk' -size +0c -print
+          # Gradle resolves the project from the CWD, so run inside android/.
+          ( cd android && ./gradlew --no-daemon --stacktrace \
+            :app:assembleComposeRelease :app:assembleBevyRelease :app:assembleSlintRelease )
 
-      # cargo-apk requires a release keystore. Use the standard Android debug
-      # keystore (the same debug key the iced gradle release signs with); the
-      # CARGO_APK_RELEASE_* env vars take precedence over the generated driver
-      # manifest, so no per-checkout keystore file is needed.
-      - name: Ensure Android debug keystore
+      - name: Verify and collect registered Android APKs
         shell: bash
         run: |
           set -euo pipefail
-          KEYSTORE="$HOME/.android/debug.keystore"
-          if [ ! -f "$KEYSTORE" ]; then
-            mkdir -p "$HOME/.android"
-            keytool -genkeypair -v -keystore "$KEYSTORE" -alias androiddebugkey \
-              -storepass android -keypass android -keyalg RSA -keysize 2048 \
-              -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
-          fi
-          test -f "$KEYSTORE"
-          echo "CARGO_APK_RELEASE_KEYSTORE=$KEYSTORE" >> "$GITHUB_ENV"
-          echo "CARGO_APK_RELEASE_KEYSTORE_PASSWORD=android" >> "$GITHUB_ENV"
+          mkdir -p dist-android dist-android-bevy dist-android-slint
+          PRODUCT_VERSION="$(python3 scripts/product_identity.py --get version.name)"
+          COMPOSE_ARTIFACT_PREFIX="$(python3 scripts/product_identity.py --get compose.release_artifact_prefix)"
+          BEVY_ARTIFACT_PREFIX="$(python3 scripts/product_identity.py --get bevy.release_artifact_prefix)"
+          SLINT_ARTIFACT_PREFIX="$(python3 scripts/product_identity.py --get slint.release_artifact_prefix)"
+          echo "COMPOSE_ARTIFACT_PREFIX=$COMPOSE_ARTIFACT_PREFIX" >> "$GITHUB_ENV"
+          echo "BEVY_ARTIFACT_PREFIX=$BEVY_ARTIFACT_PREFIX" >> "$GITHUB_ENV"
+          echo "SLINT_ARTIFACT_PREFIX=$SLINT_ARTIFACT_PREFIX" >> "$GITHUB_ENV"
+          AAPT="$ANDROID_HOME/build-tools/37.0.0/aapt"
+          COMPOSE_APK="android/app/build/outputs/apk/compose/release/app-compose-universal-release.apk"
+          BEVY_APK="android/app/build/outputs/apk/bevy/release/app-bevy-universal-release.apk"
+          SLINT_APK="android/app/build/outputs/apk/slint/release/app-slint-universal-release.apk"
+          test -s "$COMPOSE_APK"
+          test -s "$BEVY_APK"
+          test -s "$SLINT_APK"
+          python3 scripts/quality/android-product-identity-guard.py \
+            --aapt "$AAPT" --apk "compose=$COMPOSE_APK"
+          python3 scripts/quality/android-product-identity-guard.py \
+            --aapt "$AAPT" --apk "bevy=$BEVY_APK"
+          python3 scripts/quality/android-product-identity-guard.py \
+            --aapt "$AAPT" --apk "slint=$SLINT_APK"
+          cp "$COMPOSE_APK" "dist-android/${COMPOSE_ARTIFACT_PREFIX}-${PRODUCT_VERSION}-universal-release.apk"
+          cp "$BEVY_APK" "dist-android-bevy/${BEVY_ARTIFACT_PREFIX}-${PRODUCT_VERSION}-universal-release.apk"
+          cp "$SLINT_APK" "dist-android-slint/${SLINT_ARTIFACT_PREFIX}-${PRODUCT_VERSION}-universal-release.apk"
+          find dist-android dist-android-bevy dist-android-slint -type f -name '*.apk' -size +0c -print
 
-      # Bevy reuses the exact SDK/NDK/JDK this job already provisioned
-      # (BEVY_APK_USE_SYSTEM_TOOLCHAIN=1), so no second ~1.2 GB userspace
-      # toolchain is downloaded or cached. BEVY_APK_SKIP_EMULATOR drops the
-      # emulator/system image a packaging-only run never uses.
-      - name: Build Bevy Android Release APK
-        shell: bash
-        env:
-          BEVY_APK_USE_SYSTEM_TOOLCHAIN: "1"
-          BEVY_APK_SKIP_EMULATOR: "1"
-        run: bash scripts/build-bevy-apk.sh --release
-
-      - name: Collect Bevy APK
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p dist-android-bevy
-          APK="target/android-tools/apk-driver/target/release/apk/infiltrator-bevy-ui.apk"
-          test -s "$APK"
-          cp "$APK" "dist-android-bevy/Infiltrator-Bevy-Android-universal-release.apk"
-          find dist-android-bevy -type f -size +0c -print
-
-      - name: Upload iced Android Artifacts
+      - name: Upload Compose Android Artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: Infiltrator-Android-APKs
+          name: ${{ env.COMPOSE_ARTIFACT_PREFIX }}-APKs
           path: dist-android/
 
       - name: Upload Bevy Android Artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: Infiltrator-Bevy-Android-APKs
+          name: ${{ env.BEVY_ARTIFACT_PREFIX }}-APKs
           path: dist-android-bevy/
+
+      - name: Upload Slint Android Artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ env.SLINT_ARTIFACT_PREFIX }}-APKs
+          path: dist-android-slint/
 
   # ---------------------------------------------------------------------------
   # 3. Release Publication & Manifest Generation
@@ -499,11 +495,13 @@ jobs:
           apk_count="$(find all-artifacts -type f -name '*.apk' -size +0c | wc -l)"
           desktop_count="$(find all-artifacts -type f \( -name '*.exe' -o -name '*.dmg' -o -name '*.AppImage' -o -name '*.deb' -o -name '*.tar.gz' -o -name '*.zip' \) -size +0c | wc -l)"
           bevy_count="$(find all-artifacts -type f -iname '*bevy*' -size +0c | wc -l)"
-          # Both UI surfaces must ship: the iced desktop matrix plus the Bevy
-          # matrix, and one APK per surface.
-          test "$apk_count" -ge 2
-          test "$desktop_count" -ge 14
+          slint_count="$(find all-artifacts -type f -iname '*slint*' -size +0c | wc -l)"
+          # All three UI products ship across the supported desktop matrix and
+          # each has a separately identified Android APK.
+          test "$apk_count" -ge 3
+          test "$desktop_count" -ge 18
           test "$bevy_count" -ge 7
+          test "$slint_count" -ge 6
           find all-artifacts -type f -size +0c -print
 
       - name: Consolidate & Generate Checksums / Manifests

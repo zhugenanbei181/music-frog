@@ -25,22 +25,24 @@ use bevy::ecs::observer::On;
 use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Query, Res, ResMut};
+use bevy::feathers::theme::ThemeBackgroundColor;
+use bevy::feathers::theme::ThemeTextColor;
 use bevy::picking::events::{PointerClick, PointerPress};
 use bevy::scene::{Scene, bsn};
-#[cfg(not(target_os = "android"))]
-use bevy::text::TextColor;
 #[cfg(target_os = "android")]
 use bevy::ui::prelude::Display;
 use bevy::ui::prelude::Node;
 #[cfg(not(target_os = "android"))]
-use bevy::ui::prelude::{AlignItems, BackgroundColor, FlexDirection, UiRect, Val, percent, px};
+use bevy::ui::prelude::{AlignItems, FlexDirection, UiRect, percent, px};
 #[cfg(not(target_os = "android"))]
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Activate;
 use bevy::window::{PrimaryWindow, Window};
 #[cfg(not(target_os = "android"))]
 use infiltrator_bevy_widgets::button::pill_caption_scene;
+use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 #[cfg(not(target_os = "android"))]
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 #[cfg(not(target_os = "android"))]
@@ -231,15 +233,15 @@ pub fn chrome_bar_scene(palette: &UiPalette) -> impl Scene + use<> {
                 flex_shrink: 0.0,
                 flex_direction: FlexDirection::Row,
                 align_items: AlignItems::Center,
-                padding: UiRect::horizontal(Val::Px(space::S12)),
-                column_gap: Val::Px(space::S8),
+                padding: UiRect::horizontal(rem(space::S12)),
+                column_gap: rem(space::S8),
             }
-            BackgroundColor({ palette.sidebar })
+            ThemeBackgroundColor({ Token::Sidebar })
             ChromeDragBar
             Children [
                 Text({ "MusicFrog Infiltrator".to_owned() })
                 TextRole(Role::Caption)
-                TextColor({ palette.ink_dim })
+                ThemeTextColor({ Token::InkDim })
                 --
                 Node { flex_grow: 1.0 }
                 --

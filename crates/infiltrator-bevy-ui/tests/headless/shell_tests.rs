@@ -3,7 +3,7 @@
 //! typography is stamped by the widget layer's observer, the AccessKit
 //! semantic seeds land with the right roles, the theme affordance restamps
 //! the mounted tree in place (zero remounts), and the theme flip repaints
-//! every token-filled sidebar surface (rail, nav items, mode pills)
+//! every token-filled sidebar surface (rail, nav items, routing intent pills)
 //! without changing a single entity id.
 
 use bevy::MinimalPlugins;
@@ -17,20 +17,19 @@ use bevy::ecs::hierarchy::Children;
 use bevy::ecs::world::World;
 use bevy::scene::ScenePlugin;
 use bevy::text::{FontSize, TextColor, TextFont};
-use bevy::ui::prelude::px;
 use bevy::ui::widget::Text;
 use bevy::ui::{BackgroundColor, Display, Node};
 use bevy::ui_widgets::Activate;
 use infiltrator_bevy_ui::app::{
     BottomNavActive, BottomNavBar, BottomNavItem, ContentSlot, ContentTitleLabel, DensityToggle,
-    GlobalModeCapsule, GlobalStatusDot, HistoryBackButton, HistoryForwardButton, LayoutMode,
-    ShellHeader, ShellLayoutState, ShellPlugin, ShellRoot, SidebarActiveProfileCard,
-    SidebarNavItem, SidebarPanel, SidebarScriptModePill, SidebarShortcutMatrix,
+    GlobalStatusDot, HistoryBackButton, HistoryForwardButton, LayoutMode,
+    RoutingIntentStatusCapsule, ShellHeader, ShellLayoutState, ShellPlugin, ShellRoot,
+    SidebarActiveProfileCard, SidebarNavItem, SidebarPanel, SidebarShortcutMatrix,
     SidebarShortcutTile, SidebarSpeedFooter, SidebarSystemProxyCard, SidebarSystemProxyToggle,
     SidebarTunCard, SidebarTunToggle, ThemeToggle,
 };
 use infiltrator_bevy_ui::appearance::ThemeMode;
-use infiltrator_bevy_ui::pages::overview::OverviewModePill;
+use infiltrator_bevy_ui::pages::overview::OverviewRoutingIntentPill;
 use infiltrator_bevy_ui::route::{ActiveRoute, Route};
 use infiltrator_bevy_widgets::button::ControlVisual;
 use infiltrator_bevy_widgets::icon::IconTint;
@@ -39,8 +38,9 @@ use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::responsive::{Density, ResponsiveContext};
 use infiltrator_bevy_widgets::switch::ThemeSwitch;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::theme::REM_BASE;
 use infiltrator_bevy_widgets::theme::{Breakpoint, Theme, ThemeSkin};
-use infiltrator_contract::command::ProxyMode;
+use infiltrator_contract::routing_intent::RoutingIntent;
 use infiltrator_contract::theme::ThemePreference;
 
 fn mounted_shell() -> App {

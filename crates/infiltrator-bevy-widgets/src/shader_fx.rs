@@ -229,7 +229,7 @@ impl OklchColor {
     }
 }
 
-use crate::palette::UiPalette;
+use crate::palette::{UiPalette, rem};
 use crate::surface::SurfacePanel;
 use crate::theme::CornerCurvature;
 use crate::theme::space;
@@ -290,22 +290,22 @@ pub fn skeleton_card_scene(height_px: f32, palette: &UiPalette) -> Box<dyn Scene
                 width: percent(100),
                 height: px(height_px),
                 flex_direction: FlexDirection::Column,
-                padding: UiRect::all(Val::Px(space::S16)),
-                row_gap: Val::Px(space::S12),
-                border_radius: BorderRadius::all(Val::Px(palette.card_radius_px)),
+                padding: UiRect::all(rem(space::S16)),
+                row_gap: rem(space::S12),
+                border_radius: BorderRadius::all(rem(palette.card_radius_px)),
             }
             BackgroundColor({ base_fill })
             Children [
                 Node {
                     width: percent(40),
-                    height: px(16.0),
+                    height: rem(16.0),
                     border_radius: BorderRadius::all(Val::Px(4.0)),
                 }
                 BackgroundColor({ shimmer_bar_fill })
                 --
                 Node {
                     width: percent(80),
-                    height: px(12.0),
+                    height: rem(12.0),
                     border_radius: BorderRadius::all(Val::Px(4.0)),
                 }
                 BackgroundColor({ shimmer_bar_fill })

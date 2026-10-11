@@ -15,7 +15,6 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -24,83 +23,88 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.musicfrog.infiltrator.R
 import com.musicfrog.infiltrator.ui.common.ErrorDialog
 import com.musicfrog.infiltrator.ui.common.InputDialog
+import com.musicfrog.infiltrator.ui.common.LocalizedFailureText
 import com.musicfrog.infiltrator.ui.common.SelectionDialog
 import com.musicfrog.infiltrator.ui.common.StandardListItem
+import com.musicfrog.infiltrator.ui.common.toLocalizedFailure
 
 @Composable
 fun DnsScreen(viewModel: DnsViewModel = viewModel()) {
-    val state by viewModel.state.collectAsState()
-    var showModeDialog by remember { mutableStateOf(false) }
-    var showNameserverDialog by remember { mutableStateOf(false) }
-    var showDefaultDialog by remember { mutableStateOf(false) }
-    var showFallbackDialog by remember { mutableStateOf(false) }
-    var showFallbackFilterGeoipDialog by remember { mutableStateOf(false) }
-    var showFallbackFilterGeoipCodeDialog by remember { mutableStateOf(false) }
-    var showFallbackFilterIpcidrDialog by remember { mutableStateOf(false) }
-    var showFallbackFilterDomainDialog by remember { mutableStateOf(false) }
-    var showFallbackFilterDomainSuffixDialog by remember { mutableStateOf(false) }
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    val operationFailure = when (val operation = state.operation) {
+        is DnsSettingsOperationState.Failed -> operation.failure
+        is DnsSettingsOperationState.Unconfirmed -> operation.failure
+        is DnsSettingsOperationState.Cancelled -> operation.failure
+        is DnsSettingsOperationState.TimedOut -> operation.failure
+        DnsSettingsOperationState.Idle,
+        DnsSettingsOperationState.Reading,
+        DnsSettingsOperationState.Saving,
+        is DnsSettingsOperationState.Saved -> null
+    }
+    var dialog by remember { mutableStateOf(DnsDialogState.Closed) }
 
-    if (showModeDialog) {
+    if (dialog == DnsDialogState.EnhancedMode) {
         SelectionDialog(
             title = stringResource(R.string.label_enhanced_mode),
             options = listOf(
-                "" to "Disabled",
-                "fake-ip" to "Fake-IP",
-                "redir-host" to "Redir-Host"
+                "" to stringResource(R.string.enhanced_mode_disabled),
+                "fake-ip" to stringResource(R.string.enhanced_mode_fake_ip),
+                "redir-host" to stringResource(R.string.enhanced_mode_redir_host),
             ),
-            selectedOption = state.enhancedMode,
-            onDismiss = { showModeDialog = false },
+            selectedOption = state.enhancedMode.selectionValue(),
+            onDismiss = { dialog = DnsDialogState.Closed },
             onSelect = {
-                viewModel.updateEnhancedMode(it)
-                showModeDialog = false
+                viewModel.updateEnhancedMode(dnsEnhancedModeFromSelection(it))
+                dialog = DnsDialogState.Closed
             }
         )
     }
 
-    if (showNameserverDialog) {
+    if (dialog == DnsDialogState.Nameserver) {
         InputDialog(
             title = stringResource(R.string.label_nameserver),
             initialValue = state.nameserver,
-            onDismiss = { showNameserverDialog = false },
+            onDismiss = { dialog = DnsDialogState.Closed },
             onConfirm = {
                 viewModel.updateNameserver(it)
-                showNameserverDialog = false
+                dialog = DnsDialogState.Closed
             },
             singleLine = false
         )
     }
 
-    if (showDefaultDialog) {
+    if (dialog == DnsDialogState.DefaultNameserver) {
         InputDialog(
             title = stringResource(R.string.label_default_nameserver),
             initialValue = state.defaultNameserver,
-            onDismiss = { showDefaultDialog = false },
+            onDismiss = { dialog = DnsDialogState.Closed },
             onConfirm = {
                 viewModel.updateDefaultNameserver(it)
-                showDefaultDialog = false
+                dialog = DnsDialogState.Closed
             },
             singleLine = false
         )
     }
 
-    if (showFallbackDialog) {
+    if (dialog == DnsDialogState.Fallback) {
         InputDialog(
             title = stringResource(R.string.label_fallback),
             initialValue = state.fallback,
-            onDismiss = { showFallbackDialog = false },
+            onDismiss = { dialog = DnsDialogState.Closed },
             onConfirm = {
                 viewModel.updateFallback(it)
-                showFallbackDialog = false
+                dialog = DnsDialogState.Closed
             },
             singleLine = false
         )
     }
 
-    if (showFallbackFilterGeoipDialog) {
+    if (dialog == DnsDialogState.FallbackGeoIp) {
         SelectionDialog(
             title = stringResource(R.string.label_fallback_filter_geoip),
             options = listOf(
@@ -108,61 +112,61 @@ fun DnsScreen(viewModel: DnsViewModel = viewModel()) {
                 "true" to stringResource(R.string.option_enabled),
                 "false" to stringResource(R.string.option_disabled)
             ),
-            selectedOption = state.fallbackFilterGeoip,
-            onDismiss = { showFallbackFilterGeoipDialog = false },
+            selectedOption = state.fallbackFilterGeoip.selectionValue,
+            onDismiss = { dialog = DnsDialogState.Closed },
             onSelect = {
-                viewModel.updateFallbackFilterGeoip(it)
-                showFallbackFilterGeoipDialog = false
+                viewModel.updateFallbackFilterGeoip(DnsGeoIpPolicy.fromSelection(it))
+                dialog = DnsDialogState.Closed
             }
         )
     }
 
-    if (showFallbackFilterGeoipCodeDialog) {
+    if (dialog == DnsDialogState.FallbackGeoIpCode) {
         InputDialog(
             title = stringResource(R.string.label_fallback_filter_geoip_code),
             initialValue = state.fallbackFilterGeoipCode,
-            onDismiss = { showFallbackFilterGeoipCodeDialog = false },
+            onDismiss = { dialog = DnsDialogState.Closed },
             onConfirm = {
                 viewModel.updateFallbackFilterGeoipCode(it)
-                showFallbackFilterGeoipCodeDialog = false
+                dialog = DnsDialogState.Closed
             }
         )
     }
 
-    if (showFallbackFilterIpcidrDialog) {
+    if (dialog == DnsDialogState.FallbackIpcidr) {
         InputDialog(
             title = stringResource(R.string.label_fallback_filter_ipcidr),
             initialValue = state.fallbackFilterIpcidr,
-            onDismiss = { showFallbackFilterIpcidrDialog = false },
+            onDismiss = { dialog = DnsDialogState.Closed },
             onConfirm = {
                 viewModel.updateFallbackFilterIpcidr(it)
-                showFallbackFilterIpcidrDialog = false
+                dialog = DnsDialogState.Closed
             },
             singleLine = false
         )
     }
 
-    if (showFallbackFilterDomainDialog) {
+    if (dialog == DnsDialogState.FallbackDomain) {
         InputDialog(
             title = stringResource(R.string.label_fallback_filter_domain),
             initialValue = state.fallbackFilterDomain,
-            onDismiss = { showFallbackFilterDomainDialog = false },
+            onDismiss = { dialog = DnsDialogState.Closed },
             onConfirm = {
                 viewModel.updateFallbackFilterDomain(it)
-                showFallbackFilterDomainDialog = false
+                dialog = DnsDialogState.Closed
             },
             singleLine = false
         )
     }
 
-    if (showFallbackFilterDomainSuffixDialog) {
+    if (dialog == DnsDialogState.FallbackDomainSuffix) {
         InputDialog(
             title = stringResource(R.string.label_fallback_filter_domain_suffix),
             initialValue = state.fallbackFilterDomainSuffix,
-            onDismiss = { showFallbackFilterDomainSuffixDialog = false },
+            onDismiss = { dialog = DnsDialogState.Closed },
             onConfirm = {
                 viewModel.updateFallbackFilterDomainSuffix(it)
-                showFallbackFilterDomainSuffixDialog = false
+                dialog = DnsDialogState.Closed
             },
             singleLine = false
         )
@@ -178,14 +182,15 @@ fun DnsScreen(viewModel: DnsViewModel = viewModel()) {
             ) {
                 Button(
                     onClick = { viewModel.save() },
-                    enabled = !state.isLoading,
+                    enabled = state.activity == DnsActivity.Interactive &&
+                        state.availability == DnsSettingsAvailability.Available,
                     modifier = Modifier.weight(1f)
                 ) {
                     Text(stringResource(R.string.action_save))
                 }
                 TextButton(
                     onClick = { viewModel.load() },
-                    enabled = !state.isLoading
+                    enabled = state.activity == DnsActivity.Interactive
                 ) {
                     Text(stringResource(R.string.action_reload))
                 }
@@ -193,30 +198,57 @@ fun DnsScreen(viewModel: DnsViewModel = viewModel()) {
         }
     ) { padding ->
         Box(modifier = Modifier.padding(padding).fillMaxSize()) {
-            if (state.isLoading) {
-                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-            }
-
-            if (state.error != null) {
+            if (operationFailure != null) {
                 ErrorDialog(
-                    message = state.error ?: "",
+                    failure = operationFailure.toLocalizedFailure(),
                     onDismiss = { viewModel.clearError() }
                 )
             }
 
-            LazyColumn(modifier = Modifier.fillMaxSize()) {
+            if (state.availability == DnsSettingsAvailability.Available) {
+                if (state.activity == DnsActivity.Busy) {
+                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                }
+                if (state.observation is DnsSettingsReadState.Unavailable) {
+                    LocalizedFailureText(
+                        failure = state.observation.failure.toLocalizedFailure(),
+                        modifier = Modifier.align(Alignment.TopCenter).padding(16.dp),
+                    )
+                }
+                LazyColumn(modifier = Modifier.fillMaxSize()) {
                 item {
                     StandardListItem(
                         headline = stringResource(R.string.dns_enable),
-                        supporting = stringResource(R.string.dns_enable_desc),
+                        supporting = if (state.enabled == DnsToggleState.Unspecified) {
+                            stringResource(R.string.setting_not_explicit)
+                        } else {
+                            stringResource(R.string.dns_enable_desc)
+                        },
                         trailingContent = {
                             Switch(
-                                checked = state.enabled,
-                                onCheckedChange = { viewModel.updateEnabled(it) },
-                                enabled = !state.isLoading
+                                checked = state.enabled == DnsToggleState.Enabled,
+                                onCheckedChange = {
+                                    viewModel.updateEnabled(
+                                        if (it) DnsToggleState.Enabled else DnsToggleState.Disabled,
+                                    )
+                                },
+                                enabled = state.activity == DnsActivity.Interactive &&
+                                    state.availability == DnsSettingsAvailability.Available
                             )
                         },
-                        onClick = { if (!state.isLoading) viewModel.updateEnabled(!state.enabled) }
+                        onClick = {
+                            if (state.activity == DnsActivity.Interactive &&
+                                state.availability == DnsSettingsAvailability.Available
+                            ) {
+                                viewModel.updateEnabled(
+                                    if (state.enabled == DnsToggleState.Enabled) {
+                                        DnsToggleState.Disabled
+                                    } else {
+                                        DnsToggleState.Enabled
+                                    },
+                                )
+                            }
+                        }
                     )
                     HorizontalDivider()
                 }
@@ -224,15 +256,36 @@ fun DnsScreen(viewModel: DnsViewModel = viewModel()) {
                 item {
                     StandardListItem(
                         headline = stringResource(R.string.label_ipv6),
-                        supporting = stringResource(R.string.tun_ipv6_desc),
+                        supporting = if (state.ipv6 == DnsToggleState.Unspecified) {
+                            stringResource(R.string.setting_not_explicit)
+                        } else {
+                            stringResource(R.string.tun_ipv6_desc)
+                        },
                         trailingContent = {
                             Switch(
-                                checked = state.ipv6,
-                                onCheckedChange = { viewModel.updateIpv6(it) },
-                                enabled = !state.isLoading
+                                checked = state.ipv6 == DnsToggleState.Enabled,
+                                onCheckedChange = {
+                                    viewModel.updateIpv6(
+                                        if (it) DnsToggleState.Enabled else DnsToggleState.Disabled,
+                                    )
+                                },
+                                enabled = state.activity == DnsActivity.Interactive &&
+                                    state.availability == DnsSettingsAvailability.Available
                             )
                         },
-                        onClick = { if (!state.isLoading) viewModel.updateIpv6(!state.ipv6) }
+                        onClick = {
+                            if (state.activity == DnsActivity.Interactive &&
+                                state.availability == DnsSettingsAvailability.Available
+                            ) {
+                                viewModel.updateIpv6(
+                                    if (state.ipv6 == DnsToggleState.Enabled) {
+                                        DnsToggleState.Disabled
+                                    } else {
+                                        DnsToggleState.Enabled
+                                    },
+                                )
+                            }
+                        }
                     )
                     HorizontalDivider()
                 }
@@ -240,8 +293,18 @@ fun DnsScreen(viewModel: DnsViewModel = viewModel()) {
                 item {
                     StandardListItem(
                         headline = stringResource(R.string.label_enhanced_mode),
-                        supporting = state.enhancedMode.ifBlank { "Disabled" },
-                        onClick = { if (!state.isLoading) showModeDialog = true }
+                        supporting = when (val mode = state.enhancedMode) {
+                            DnsEnhancedMode.Unspecified -> stringResource(R.string.setting_not_explicit)
+                            DnsEnhancedMode.Disabled -> stringResource(R.string.enhanced_mode_disabled)
+                            DnsEnhancedMode.FakeIp -> stringResource(R.string.enhanced_mode_fake_ip)
+                            DnsEnhancedMode.RedirHost -> stringResource(R.string.enhanced_mode_redir_host)
+                            is DnsEnhancedMode.Custom -> mode.value
+                        },
+                        onClick = {
+                            if (state.activity == DnsActivity.Interactive &&
+                                state.availability == DnsSettingsAvailability.Available
+                            ) dialog = DnsDialogState.EnhancedMode
+                        }
                     )
                     HorizontalDivider()
                 }
@@ -250,7 +313,11 @@ fun DnsScreen(viewModel: DnsViewModel = viewModel()) {
                     StandardListItem(
                         headline = stringResource(R.string.label_nameserver),
                         supporting = state.nameserver.replace("\n", ", "),
-                        onClick = { if (!state.isLoading) showNameserverDialog = true }
+                        onClick = {
+                            if (state.activity == DnsActivity.Interactive &&
+                                state.availability == DnsSettingsAvailability.Available
+                            ) dialog = DnsDialogState.Nameserver
+                        }
                     )
                     HorizontalDivider()
                 }
@@ -259,7 +326,11 @@ fun DnsScreen(viewModel: DnsViewModel = viewModel()) {
                     StandardListItem(
                         headline = stringResource(R.string.label_default_nameserver),
                         supporting = state.defaultNameserver.replace("\n", ", "),
-                        onClick = { if (!state.isLoading) showDefaultDialog = true }
+                        onClick = {
+                            if (state.activity == DnsActivity.Interactive &&
+                                state.availability == DnsSettingsAvailability.Available
+                            ) dialog = DnsDialogState.DefaultNameserver
+                        }
                     )
                     HorizontalDivider()
                 }
@@ -268,7 +339,11 @@ fun DnsScreen(viewModel: DnsViewModel = viewModel()) {
                     StandardListItem(
                         headline = stringResource(R.string.label_fallback),
                         supporting = state.fallback.replace("\n", ", "),
-                        onClick = { if (!state.isLoading) showFallbackDialog = true }
+                        onClick = {
+                            if (state.activity == DnsActivity.Interactive &&
+                                state.availability == DnsSettingsAvailability.Available
+                            ) dialog = DnsDialogState.Fallback
+                        }
                     )
                     HorizontalDivider()
                 }
@@ -277,11 +352,15 @@ fun DnsScreen(viewModel: DnsViewModel = viewModel()) {
                     StandardListItem(
                         headline = stringResource(R.string.label_fallback_filter_geoip),
                         supporting = when (state.fallbackFilterGeoip) {
-                            "true" -> stringResource(R.string.option_enabled)
-                            "false" -> stringResource(R.string.option_disabled)
-                            else -> stringResource(R.string.option_auto)
+                            DnsGeoIpPolicy.Enabled -> stringResource(R.string.option_enabled)
+                            DnsGeoIpPolicy.Disabled -> stringResource(R.string.option_disabled)
+                            DnsGeoIpPolicy.Automatic -> stringResource(R.string.option_auto)
                         },
-                        onClick = { if (!state.isLoading) showFallbackFilterGeoipDialog = true }
+                        onClick = {
+                            if (state.activity == DnsActivity.Interactive &&
+                                state.availability == DnsSettingsAvailability.Available
+                            ) dialog = DnsDialogState.FallbackGeoIp
+                        }
                     )
                     HorizontalDivider()
                 }
@@ -290,7 +369,11 @@ fun DnsScreen(viewModel: DnsViewModel = viewModel()) {
                     StandardListItem(
                         headline = stringResource(R.string.label_fallback_filter_geoip_code),
                         supporting = state.fallbackFilterGeoipCode,
-                        onClick = { if (!state.isLoading) showFallbackFilterGeoipCodeDialog = true }
+                        onClick = {
+                            if (state.activity == DnsActivity.Interactive &&
+                                state.availability == DnsSettingsAvailability.Available
+                            ) dialog = DnsDialogState.FallbackGeoIpCode
+                        }
                     )
                     HorizontalDivider()
                 }
@@ -299,7 +382,11 @@ fun DnsScreen(viewModel: DnsViewModel = viewModel()) {
                     StandardListItem(
                         headline = stringResource(R.string.label_fallback_filter_ipcidr),
                         supporting = state.fallbackFilterIpcidr.replace("\n", ", "),
-                        onClick = { if (!state.isLoading) showFallbackFilterIpcidrDialog = true }
+                        onClick = {
+                            if (state.activity == DnsActivity.Interactive &&
+                                state.availability == DnsSettingsAvailability.Available
+                            ) dialog = DnsDialogState.FallbackIpcidr
+                        }
                     )
                     HorizontalDivider()
                 }
@@ -308,7 +395,11 @@ fun DnsScreen(viewModel: DnsViewModel = viewModel()) {
                     StandardListItem(
                         headline = stringResource(R.string.label_fallback_filter_domain),
                         supporting = state.fallbackFilterDomain.replace("\n", ", "),
-                        onClick = { if (!state.isLoading) showFallbackFilterDomainDialog = true }
+                        onClick = {
+                            if (state.activity == DnsActivity.Interactive &&
+                                state.availability == DnsSettingsAvailability.Available
+                            ) dialog = DnsDialogState.FallbackDomain
+                        }
                     )
                     HorizontalDivider()
                 }
@@ -317,12 +408,16 @@ fun DnsScreen(viewModel: DnsViewModel = viewModel()) {
                     StandardListItem(
                         headline = stringResource(R.string.label_fallback_filter_domain_suffix),
                         supporting = state.fallbackFilterDomainSuffix.replace("\n", ", "),
-                        onClick = { if (!state.isLoading) showFallbackFilterDomainSuffixDialog = true }
+                        onClick = {
+                            if (state.activity == DnsActivity.Interactive &&
+                                state.availability == DnsSettingsAvailability.Available
+                            ) dialog = DnsDialogState.FallbackDomainSuffix
+                        }
                     )
                     HorizontalDivider()
                 }
                 
-                if (state.saved) {
+                if (state.operation is DnsSettingsOperationState.Saved) {
                     item {
                         Box(modifier = Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
                             Text(
@@ -333,7 +428,31 @@ fun DnsScreen(viewModel: DnsViewModel = viewModel()) {
                         }
                     }
                 }
+                }
+            } else {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    when (val observation = state.observation) {
+                        is DnsSettingsReadState.Loading -> CircularProgressIndicator()
+                        is DnsSettingsReadState.Unavailable -> LocalizedFailureText(
+                            failure = observation.failure.toLocalizedFailure(),
+                        )
+                        is DnsSettingsReadState.Observed -> Text(stringResource(R.string.status_unknown))
+                    }
+                }
             }
         }
     }
+}
+
+private enum class DnsDialogState {
+    Closed,
+    EnhancedMode,
+    Nameserver,
+    DefaultNameserver,
+    Fallback,
+    FallbackGeoIp,
+    FallbackGeoIpCode,
+    FallbackIpcidr,
+    FallbackDomain,
+    FallbackDomainSuffix,
 }

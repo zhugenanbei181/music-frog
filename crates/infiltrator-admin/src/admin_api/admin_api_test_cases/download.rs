@@ -13,7 +13,9 @@ async fn test_download_core_installed_version_route() {
     let temp_dir = tempfile::tempdir().unwrap();
     let version = "v1.20.0";
     plant_runnable_fake_binary(temp_dir.path(), version);
-    let planted = temp_dir.path().join("versions/v1.20.0/mihomo");
+    let planted = temp_dir
+        .path()
+        .join("engines/mihomo/versions/v1.20.0/mihomo");
     assert!(planted.exists(), "planted binary missing before request");
     let raw = read(&planted).unwrap();
     println!("planted bytes: {:?}", String::from_utf8_lossy(&raw));

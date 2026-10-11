@@ -4,7 +4,10 @@
 //! application state mirror, process probe and serialized restart transaction
 //! so the main lifecycle module does not become a second monolith.
 
+use super::runtime_projection;
 use super::{CoreApplication, CoreState};
+use crate::core_capability_application::{CoreCapabilityRequirement, CoreCommandEffect};
+use infiltrator_contract::core_capabilities::{CoreLifecycleOperation, CoreOperation};
 use infiltrator_contract::session::SessionToken;
 use infiltrator_contract::snapshot::{CoreWatchdogSnapshot, CoreWatchdogState};
 use infiltrator_domain::core_state::CoreEvent;
@@ -68,12 +71,21 @@ impl CoreApplication {
             let mut mirror = self.inner.state.write().expect("core state lock");
             mirror.revision = mirror.revision.saturating_add(1);
             let watchdog = self.watchdog_snapshot();
-            super::snapshot_from_state(&mirror.state, mirror.revision, watchdog)
+            runtime_projection::snapshot_from_state(
+                &mirror.state,
+                mirror.revision,
+                watchdog,
+                self.current_core_identity(),
+            )
         };
         self.push_event(super::CoreEvent::SnapshotUpdated(snapshot));
     }
 
     async fn watchdog_tick_locked(&self) -> Result<WatchdogTick, PortError> {
+        // Watchdog restarts participate in the same command ordering as UI
+        // requests so a scoped request cannot pass its identity check and
+        // then run against a session replaced by recovery.
+        let _commands = self.inner.commands.lock().await;
         let _operation = self.inner.operation.lock().await;
         if self.inner.closed.load(Ordering::Acquire) {
             return Ok(WatchdogTick::Healthy);
@@ -149,7 +161,14 @@ impl CoreApplication {
             self.publish_watchdog_snapshot();
 
             let previous_session = current_token;
-            let restart = self.start_locked().await;
+            let restart =
+                match self.authorize_lifecycle_requirement(CoreCapabilityRequirement::new(
+                    CoreOperation::Lifecycle(CoreLifecycleOperation::Restart),
+                    CoreCommandEffect::Write,
+                )) {
+                    Ok(()) => self.start_locked().await,
+                    Err(failure) => Err(failure),
+                };
             match restart {
                 Ok(()) => {
                     let current_session = self.session_token().ok_or_else(|| {

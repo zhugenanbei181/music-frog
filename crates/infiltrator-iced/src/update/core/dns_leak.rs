@@ -8,7 +8,9 @@
 use crate::state::AppState;
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
+use crate::update::core::dns_leak_commands::DnsLeakProbeAdmission;
 use iced::Task;
+use infiltrator_application::dns_leak_actions::{DnsLeakActionPhase, DnsLeakFinish};
 use infiltrator_application::dns_leak_application::NO_ECHO_PORT_REASON;
 use infiltrator_contract::dns_leak::DnsLeakReport;
 use infiltrator_contract::error::Failure;
@@ -18,7 +20,11 @@ impl AppState {
     /// flight keeps the local optimistic report until the reader publishes
     /// the same fact.
     pub(crate) fn apply_dns_leak_snapshot(&mut self, report: &DnsLeakReport) {
-        if !self.diag.is_probing_dns_leak || report.is_probed() {
+        if !matches!(
+            self.diag.dns_leak_action.phase,
+            DnsLeakActionPhase::Pending { .. }
+        ) || report.is_probed()
+        {
             self.editor.dns_leak = report.clone();
         }
     }
@@ -31,66 +37,81 @@ impl AppState {
             // compares the observed identities, so a probe started here lands
             // in the one report the reader publishes to both surfaces.
             Message::DnsLeakCommandFinished { token, result } => {
-                if self.diag.dns_leak_action.finish(token, result) {
-                    self.diag.is_probing_dns_leak = false;
-                    if self.shell.demo
-                        && let Some(application) = &self.diag.dns_leak_capture
-                    {
-                        let mut snapshot = self
-                            .surface
-                            .latest()
-                            .expect("isolated DNS snapshot")
-                            .clone();
-                        snapshot.revision += 1;
-                        snapshot.dns_leak = application.last_report();
-                        self.apply_shared_surface_snapshot(snapshot);
+                match self.diag.dns_leak_action.finish(token, result) {
+                    DnsLeakFinish::Stale => {}
+                    DnsLeakFinish::Applied => {
+                        if self.shell.demo
+                            && let Some(application) = &self.diag.dns_leak_capture
+                        {
+                            let mut snapshot = self
+                                .surface
+                                .latest()
+                                .expect("isolated DNS snapshot")
+                                .clone();
+                            snapshot.revision += 1;
+                            snapshot.dns_leak = application.last_report();
+                            self.apply_shared_surface_snapshot(snapshot);
+                        }
                     }
                 }
                 Task::none()
             }
             Message::RetryDnsLeakProbe => {
-                if self.diag.dns_leak_action.can_retry() {
-                    self.shared_dns_leak_command()
-                } else {
-                    Task::none()
+                if self.commands.is_some() {
+                    return self.shared_dns_leak_command(DnsLeakProbeAdmission::Retry);
                 }
+                self.local_dns_leak_probe(DnsLeakProbeAdmission::Retry)
             }
             Message::RunDnsLeakProbe => {
                 if self.commands.is_some() {
-                    return self.shared_dns_leak_command();
+                    return self.shared_dns_leak_command(DnsLeakProbeAdmission::Start);
                 }
-                if self.diag.is_probing_dns_leak {
-                    return Task::none();
-                }
-                let Some(runtime) = self.runtime.runtime.clone() else {
-                    return Task::none();
-                };
-                let Some(port) = runtime.dns_leak_probe_port() else {
-                    return Task::done(Message::DnsLeakProbed(Err(Failure::unsupported(
-                        NO_ECHO_PORT_REASON,
-                    ))));
-                };
-                self.diag.is_probing_dns_leak = true;
-                Task::perform(
-                    async move { port.probe().await.map_err(Failure::from) },
-                    Message::DnsLeakProbed,
-                )
+                self.local_dns_leak_probe(DnsLeakProbeAdmission::Start)
             }
-            Message::DnsLeakProbed(_) if self.commands.is_some() => Task::none(),
-            Message::DnsLeakProbed(result) => {
-                self.diag.is_probing_dns_leak = false;
-                match result {
-                    Ok(report) => {
-                        self.editor.dns_leak = report;
-                        Task::none()
-                    }
-                    Err(failure) => {
-                        self.set_error(&failure.message);
-                        Task::done(Message::ShowToast(failure.message, ToastStatus::Error))
-                    }
+            Message::DnsLeakProbed { token, result } => {
+                let terminal = result.as_ref().map(|_| ()).map_err(Clone::clone);
+                match self.diag.dns_leak_action.finish(token, terminal) {
+                    DnsLeakFinish::Stale => Task::none(),
+                    DnsLeakFinish::Applied => match result {
+                        Ok(report) => {
+                            self.editor.dns_leak = report;
+                            Task::none()
+                        }
+                        Err(failure) => {
+                            self.set_error(&failure.message);
+                            Task::done(Message::ShowToast(failure.message, ToastStatus::Error))
+                        }
+                    },
                 }
             }
             other => self.update_core_stun(other),
         }
+    }
+
+    fn local_dns_leak_probe(&mut self, admission: DnsLeakProbeAdmission) -> Task<Message> {
+        let token = match self.begin_dns_leak_probe(admission) {
+            Ok(token) => token,
+            Err(_) => return Task::none(),
+        };
+        let Some(runtime) = self.runtime.runtime.clone() else {
+            return Task::done(Message::DnsLeakProbed {
+                token,
+                result: Err(Failure::new(
+                    infiltrator_contract::error::ErrorCode::NotReady,
+                    "DNS probe runtime is unavailable",
+                    true,
+                )),
+            });
+        };
+        let Some(port) = runtime.dns_leak_probe_port() else {
+            return Task::done(Message::DnsLeakProbed {
+                token,
+                result: Err(Failure::unsupported(NO_ECHO_PORT_REASON)),
+            });
+        };
+        Task::perform(
+            async move { port.probe().await.map_err(Failure::from) },
+            move |result| Message::DnsLeakProbed { token, result },
+        )
     }
 }

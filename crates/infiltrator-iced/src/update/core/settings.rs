@@ -3,12 +3,12 @@
 
 use crate::state::AppState;
 use crate::types::message::Message;
+use crate::version_application::normalized_release_channel;
 use iced::Task;
 use infiltrator_application::language_choice::project_language;
-use infiltrator_application::proxy_probe_options_projection::project_settings;
+use infiltrator_application::runtime_probe_settings::project_settings;
 use infiltrator_contract::shortcuts::ShortcutRegistry;
 use infiltrator_contract::theme::ThemePreference;
-use infiltrator_contract::version::CoreReleaseChannel;
 use infiltrator_domain::settings::AppSettings;
 use std::path::PathBuf;
 
@@ -42,12 +42,8 @@ impl AppState {
         self.profile.webdav_sync_interval_mins = settings.webdav.sync_interval_mins.to_string();
         self.profile.webdav_sync_on_startup = settings.webdav.sync_on_startup;
         self.runtime.runtime_auto_refresh = settings.runtime_panel.auto_refresh;
-        self.runtime.core_channel = CoreReleaseChannel::parse(&settings.core_channel)
-            .as_str()
-            .to_string();
-        self.runtime.proxy_delay_sort =
-            Self::normalize_delay_sort_key(&settings.runtime_panel.delay_sort).to_string();
-        self.runtime.proxy_sort_by_delay = self.runtime.proxy_delay_sort.starts_with("delay_");
+        self.runtime.core_channel = normalized_release_channel(&settings.core_channel);
+        self.runtime.runtime_panel_delay_sort_order = settings.runtime_panel.delay_sort_order;
         self.runtime.runtime_connection_filter = settings.runtime_panel.connection_filter;
         self.runtime.runtime_connection_sort =
             Self::normalize_connection_sort_key(&settings.runtime_panel.connection_sort)

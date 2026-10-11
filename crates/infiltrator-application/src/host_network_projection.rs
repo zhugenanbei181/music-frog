@@ -1,7 +1,11 @@
 //! One fact-to-copy owner for host VPN, privileged transactions and PAC observations.
+use infiltrator_contract::android_control::{
+    VpnOwnerCoreReadback, VpnOwnerLifecycle, VpnOwnerReadiness, VpnOwnerResourceState,
+    VpnOwnerSnapshot,
+};
 use infiltrator_contract::pac::{PacServiceState, PacSnapshot};
 use infiltrator_contract::privileged_network::{PrivilegedNetworkSnapshot, PrivilegedNetworkState};
-use infiltrator_contract::vpn::{VpnSessionSnapshot, VpnSessionState};
+use infiltrator_contract::vpn::VpnSurfaceObservation;
 use infiltrator_shared::i18n_interpolator::localize;
 use infiltrator_shared::locales::{Lang, Localizer};
 
@@ -26,64 +30,183 @@ fn status_detail(key: &str, reason: Option<&str>, code: &str) -> String {
         },
     )
 }
-pub fn vpn(snapshot: &VpnSessionSnapshot, code: &str) -> HostActionPresentation {
-    let (key, reason) = match &snapshot.state {
-        VpnSessionState::Idle => ("vpn_status_idle", None),
-        VpnSessionState::PermissionRequired => ("vpn_status_permission", None),
-        VpnSessionState::Starting => ("vpn_status_starting", None),
-        VpnSessionState::Running => ("vpn_status_running", None),
-        VpnSessionState::Stopping => ("vpn_status_stopping", None),
-        VpnSessionState::Stopped => ("vpn_status_stopped", None),
-        VpnSessionState::Revoked => ("vpn_status_revoked", None),
-        VpnSessionState::Unsupported { reason } => {
-            ("vpn_status_unsupported", Some(reason.as_str()))
-        }
-        VpnSessionState::Failed { failure } => {
-            ("vpn_status_failed", Some(failure.message.as_str()))
-        }
+pub fn vpn(observation: &VpnSurfaceObservation, code: &str) -> HostActionPresentation {
+    let presentation = vpn_presentation(observation);
+    let (key, reason) = match &presentation {
+        VpnPresentation::PermissionRequired => ("vpn_status_permission", None),
+        VpnPresentation::Starting => ("vpn_status_starting", None),
+        VpnPresentation::Running => ("vpn_status_running", None),
+        VpnPresentation::Stopping => ("vpn_status_stopping", None),
+        VpnPresentation::Stopped => ("vpn_status_stopped", None),
+        VpnPresentation::Revoked => ("vpn_status_revoked", None),
+        VpnPresentation::Unsupported(reason) => ("vpn_status_unsupported", Some(reason.as_str())),
+        VpnPresentation::Failed(reason) => ("vpn_status_failed", Some(reason.as_str())),
+        VpnPresentation::CleanupPending(reason) => ("vpn_status_failed", Some(reason.as_str())),
     };
-    let active = matches!(
-        snapshot.state,
-        VpnSessionState::Running | VpnSessionState::Starting
-    );
-    HostActionPresentation {
-        status: status_detail(key, reason, code),
-        details: localize(
+    let details = match observation {
+        VpnSurfaceObservation::AndroidOwner(snapshot) => vpn_owner_details(snapshot, code),
+        VpnSurfaceObservation::Unsupported { .. }
+        | VpnSurfaceObservation::NotApplicable
+        | VpnSurfaceObservation::Unavailable { .. } => localize(
             code,
             "network_vpn_details",
             &[
-                ("foreground", snapshot.foreground.to_string()),
                 (
-                    "mtu",
-                    snapshot
-                        .mtu
-                        .map(|value| value.to_string())
-                        .unwrap_or_else(|| Lang(code).tr("shell_readout_unknown").into_owned()),
+                    "foreground",
+                    Lang(code).tr("shell_readout_unknown").into_owned(),
                 ),
-                ("routes", snapshot.route_count.to_string()),
-                ("ipv6", snapshot.ipv6.to_string()),
+                ("mtu", Lang(code).tr("shell_readout_unknown").into_owned()),
+                (
+                    "routes",
+                    Lang(code).tr("shell_readout_unknown").into_owned(),
+                ),
+                ("ipv6", Lang(code).tr("shell_readout_unknown").into_owned()),
             ],
         ),
-        start_key: if active {
+    };
+    let start_enabled = matches!(
+        &presentation,
+        VpnPresentation::PermissionRequired
+            | VpnPresentation::Stopped
+            | VpnPresentation::Revoked
+            | VpnPresentation::Failed(_)
+    );
+    let stop_enabled = matches!(
+        &presentation,
+        VpnPresentation::Running | VpnPresentation::Starting | VpnPresentation::CleanupPending(_)
+    );
+    let start_active = matches!(
+        &presentation,
+        VpnPresentation::Running | VpnPresentation::Starting
+    );
+    let stop_active = matches!(&presentation, VpnPresentation::Stopping);
+    HostActionPresentation {
+        status: status_detail(key, reason, code),
+        details,
+        start_key: if start_active {
             "vpn_start_active"
         } else {
             "vpn_start"
         },
-        stop_key: if active || matches!(snapshot.state, VpnSessionState::Stopping) {
+        stop_key: if stop_enabled || stop_active {
             "vpn_stop"
         } else {
             "vpn_stopped"
         },
-        start_enabled: matches!(
-            snapshot.state,
-            VpnSessionState::Idle
-                | VpnSessionState::PermissionRequired
-                | VpnSessionState::Stopped
-                | VpnSessionState::Revoked
-                | VpnSessionState::Failed { .. }
-        ),
-        stop_enabled: active,
+        start_enabled,
+        stop_enabled,
     }
+}
+
+enum VpnPresentation {
+    PermissionRequired,
+    Starting,
+    Running,
+    Stopping,
+    CleanupPending(String),
+    Stopped,
+    Revoked,
+    Unsupported(String),
+    Failed(String),
+}
+
+fn vpn_presentation(observation: &VpnSurfaceObservation) -> VpnPresentation {
+    match observation {
+        VpnSurfaceObservation::Unsupported { reason } => {
+            VpnPresentation::Unsupported(reason.clone())
+        }
+        VpnSurfaceObservation::NotApplicable => {
+            VpnPresentation::Unsupported("VPN is not applicable to this surface".to_owned())
+        }
+        VpnSurfaceObservation::Unavailable { failure } => {
+            VpnPresentation::Failed(failure.message.clone())
+        }
+        VpnSurfaceObservation::AndroidOwner(snapshot) => vpn_owner_presentation(snapshot),
+    }
+}
+
+fn vpn_owner_presentation(snapshot: &VpnOwnerSnapshot) -> VpnPresentation {
+    if let Some(message) = snapshot
+        .resources
+        .iter()
+        .find_map(|resource| match &resource.state {
+            VpnOwnerResourceState::CleanupPending {
+                failure_message, ..
+            } => Some(failure_message.clone()),
+            VpnOwnerResourceState::Absent | VpnOwnerResourceState::Held { .. } => None,
+        })
+    {
+        return VpnPresentation::CleanupPending(message);
+    }
+    match (&snapshot.vpn_state, snapshot.readiness) {
+        (VpnOwnerLifecycle::Unavailable { failure_message }, _) => {
+            VpnPresentation::Unsupported(failure_message.clone())
+        }
+        (_, VpnOwnerReadiness::Unavailable) => {
+            VpnPresentation::Unsupported("VPN owner readback is unavailable".to_owned())
+        }
+        (VpnOwnerLifecycle::Failed { failure_message }, _) => {
+            VpnPresentation::Failed(failure_message.clone())
+        }
+        (_, VpnOwnerReadiness::Failed) => VpnPresentation::Failed(
+            "VPN owner published failed readiness without failure detail".to_owned(),
+        ),
+        (_, VpnOwnerReadiness::CleanupPending) => {
+            VpnPresentation::CleanupPending("VPN owner cleanup is pending".to_owned())
+        }
+        (VpnOwnerLifecycle::PermissionRequired, _) | (_, VpnOwnerReadiness::PermissionRequired) => {
+            VpnPresentation::PermissionRequired
+        }
+        (
+            VpnOwnerLifecycle::StartRequested
+            | VpnOwnerLifecycle::Starting
+            | VpnOwnerLifecycle::Foreground
+            | VpnOwnerLifecycle::TunnelEstablished,
+            _,
+        )
+        | (
+            _,
+            VpnOwnerReadiness::AwaitingForeground
+            | VpnOwnerReadiness::AwaitingTunnel
+            | VpnOwnerReadiness::AwaitingDataPlane,
+        ) => VpnPresentation::Starting,
+        (VpnOwnerLifecycle::Stopping, _) | (_, VpnOwnerReadiness::Stopping) => {
+            VpnPresentation::Stopping
+        }
+        (VpnOwnerLifecycle::Running, VpnOwnerReadiness::Ready) if snapshot.is_running() => {
+            VpnPresentation::Running
+        }
+        (VpnOwnerLifecycle::Running, VpnOwnerReadiness::Ready) => VpnPresentation::Failed(
+            "VPN owner Running state lacks its worker or tunnel resource".to_owned(),
+        ),
+        (VpnOwnerLifecycle::Running, VpnOwnerReadiness::Stopped | VpnOwnerReadiness::Revoked) => {
+            VpnPresentation::Failed(
+                "VPN owner Running state conflicts with its terminal readiness".to_owned(),
+            )
+        }
+        (VpnOwnerLifecycle::Stopped, _) => VpnPresentation::Stopped,
+        (VpnOwnerLifecycle::Revoked, _) => VpnPresentation::Revoked,
+    }
+}
+
+fn vpn_owner_details(snapshot: &VpnOwnerSnapshot, code: &str) -> String {
+    let unknown = Lang(code).tr("shell_readout_unknown").into_owned();
+    localize(
+        code,
+        "network_vpn_details",
+        &[
+            ("foreground", snapshot.foreground.to_string()),
+            (
+                "mtu",
+                snapshot
+                    .mtu
+                    .map(|value| value.to_string())
+                    .unwrap_or_else(|| unknown.clone()),
+            ),
+            ("routes", snapshot.route_count.to_string()),
+            ("ipv6", snapshot.ipv6.to_string()),
+        ],
+    )
 }
 pub fn privileged(snapshot: &PrivilegedNetworkSnapshot, code: &str) -> HostActionPresentation {
     let (key, reason) = match &snapshot.state {
@@ -142,43 +265,108 @@ pub fn pac(snapshot: &PacSnapshot, code: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::{privileged, vpn};
+    use infiltrator_contract::android_control::{
+        VpnOwnerCoreReadback, VpnOwnerLifecycle, VpnOwnerReadiness, VpnOwnerResourceFact,
+        VpnOwnerResourceKind, VpnOwnerResourceState, VpnOwnerSnapshot,
+    };
+    use infiltrator_contract::core_identity::{CoreIdentity, CoreInstanceId, EngineId};
     use infiltrator_contract::error::{ErrorCode, Failure};
     use infiltrator_contract::privileged_network::{
         PrivilegedNetworkSnapshot, PrivilegedNetworkState,
     };
-    use infiltrator_contract::vpn::{VpnSessionSnapshot, VpnSessionState};
+    use infiltrator_contract::session::SessionToken;
+    use infiltrator_contract::snapshot::CoreLifecycle;
+    use infiltrator_contract::vpn::{VpnGeneration, VpnSurfaceObservation};
 
     #[test]
     fn host_lifecycle_facts_keep_unknown_mtu_errors_and_inflight_actions_distinct() {
-        let mut snapshot = VpnSessionSnapshot {
-            state: VpnSessionState::Running,
-            ..Default::default()
-        };
-        let absent = vpn(&snapshot, "en-US");
+        let mut observation = running_owner();
+        let absent = vpn(
+            &VpnSurfaceObservation::AndroidOwner(observation.clone()),
+            "en-US",
+        );
         assert!(absent.details.contains("MTU=Not observed"));
         assert!(!absent.start_enabled);
         assert!(absent.stop_enabled);
-        snapshot.mtu = Some(0);
-        assert!(vpn(&snapshot, "en-US").details.contains("MTU=0"));
-        snapshot.state = VpnSessionState::Stopping;
-        let stopping = vpn(&snapshot, "en-US");
+        observation.mtu = Some(0);
+        assert!(
+            vpn(
+                &VpnSurfaceObservation::AndroidOwner(observation.clone()),
+                "en-US"
+            )
+            .details
+            .contains("MTU=0")
+        );
+        observation.vpn_state = VpnOwnerLifecycle::Stopping;
+        observation.readiness = VpnOwnerReadiness::Stopping;
+        let stopping = vpn(
+            &VpnSurfaceObservation::AndroidOwner(observation.clone()),
+            "en-US",
+        );
         assert!(!stopping.start_enabled && !stopping.stop_enabled);
         let reason = "permission {state} / 中文🙂";
-        snapshot.state = VpnSessionState::Unsupported {
+        let unsupported = VpnSurfaceObservation::Unsupported {
             reason: reason.into(),
         };
         assert_eq!(
-            vpn(&snapshot, "en-US").status,
+            vpn(&unsupported, "en-US").status,
             format!("Host unsupported · {reason}")
         );
-        snapshot.state = VpnSessionState::Failed {
+        let failed = VpnSurfaceObservation::Unavailable {
             failure: Failure::new(ErrorCode::Permission, reason, false),
         };
-        assert_eq!(vpn(&snapshot, "en-US").status, format!("Failed · {reason}"));
+        assert_eq!(vpn(&failed, "en-US").status, format!("Failed · {reason}"));
         let snapshot = PrivilegedNetworkSnapshot {
             state: PrivilegedNetworkState::RollingBack,
             ..Default::default()
         };
         assert!(!privileged(&snapshot, "en-US").start_enabled);
+    }
+
+    fn running_owner() -> VpnOwnerSnapshot {
+        VpnOwnerSnapshot {
+            owner_session_id: "owner-session".to_owned(),
+            revision: 4,
+            vpn_generation: VpnGeneration::new(3),
+            vpn_state: VpnOwnerLifecycle::Running,
+            readiness: VpnOwnerReadiness::Ready,
+            resources: [
+                VpnOwnerResourceKind::PreparedConfiguration,
+                VpnOwnerResourceKind::Worker,
+                VpnOwnerResourceKind::TunnelDescriptor,
+                VpnOwnerResourceKind::RoutingLease,
+            ]
+            .into_iter()
+            .map(|kind| VpnOwnerResourceFact {
+                kind,
+                state: match kind {
+                    VpnOwnerResourceKind::Worker | VpnOwnerResourceKind::TunnelDescriptor => {
+                        VpnOwnerResourceState::Held { generation: 3 }
+                    }
+                    VpnOwnerResourceKind::PreparedConfiguration
+                    | VpnOwnerResourceKind::RoutingLease => VpnOwnerResourceState::Absent,
+                },
+            })
+            .collect(),
+            foreground: true,
+            mtu: None,
+            route_count: 1,
+            dns_servers: vec!["1.1.1.1".to_owned()],
+            ipv6: false,
+            core: VpnOwnerCoreReadback::Available(
+                infiltrator_contract::snapshot::CoreLifecycleSnapshot {
+                    identity: Some(CoreIdentity::new(
+                        EngineId::new("mihomo").expect("engine ID"),
+                        CoreInstanceId::new("owner-a").expect("instance ID"),
+                        None,
+                    )),
+                    lifecycle: CoreLifecycle::Running,
+                    generation: 3,
+                    session_token: Some(SessionToken::new(3)),
+                    revision: 4,
+                    failure: None,
+                },
+            ),
+        }
     }
 }

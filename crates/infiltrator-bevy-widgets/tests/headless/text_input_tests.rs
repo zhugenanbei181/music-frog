@@ -641,14 +641,10 @@ fn soft_keyboard_focus_avoidance_scroll() {
     let keep_scroll = calculate_focus_avoidance_scroll(visible_params);
     assert_eq!(keep_scroll, 100.0);
 
-    // 4. SoftKeyboardState state helpers
-    let open_kb = SoftKeyboardState::open(280.0);
-    assert!(open_kb.is_open);
-    assert_eq!(open_kb.height_px, 280.0);
-
-    let closed_kb = SoftKeyboardState::closed();
-    assert!(!closed_kb.is_open);
-    assert_eq!(closed_kb.height_px, 0.0);
+    // 4. Keyboard visibility is a closed/open sum type.
+    let open_kb = SoftKeyboardState::Open { height_px: 280.0 };
+    assert_eq!(open_kb, SoftKeyboardState::Open { height_px: 280.0 });
+    assert_eq!(SoftKeyboardState::default(), SoftKeyboardState::Closed);
 }
 
 #[test]
@@ -708,7 +704,7 @@ fn ime_cursor_area_ecs_sync() {
 #[test]
 fn focus_avoidance_auto_scroll_ecs() {
     let mut app = headless_app();
-    app.insert_resource(SoftKeyboardState::open(300.0));
+    app.insert_resource(SoftKeyboardState::Open { height_px: 300.0 });
     app.add_systems(Startup, |mut commands: Commands| {
         commands
             .spawn((ScrollArea, ScrollPosition::default()))

@@ -1,29 +1,39 @@
 use infiltrator_application::connection_application::ConnectionApplication;
+use infiltrator_application::core_application::CoreApplication;
+use infiltrator_application::core_capability_application::CoreCapabilityApplication;
 use infiltrator_application::doctor_application::DoctorApplication;
+use infiltrator_application::outbound_application::OutboundApplication;
 use infiltrator_application::profile_application::ProfileApplication;
-use infiltrator_application::proxy_application::ProxyApplication;
 use infiltrator_application::runtime_query_application::RuntimeQueryApplication;
 use infiltrator_application::settings_application::SettingsApplication;
 use infiltrator_application::sync_application::SyncApplication;
 use infiltrator_application::version_application::VersionApplication;
+use infiltrator_contract::core_capabilities::{CoreOperation, OutboundOperation};
+use infiltrator_contract::core_identity::CoreScope;
+use infiltrator_contract::surface::HostKind;
 use infiltrator_core::doctor_port::MihomoDoctor;
+use infiltrator_core::engine_version_backend_factory::MihomoEngineVersionBackendFactory;
 use infiltrator_core::settings_store::FileSettingsStore;
 use infiltrator_core::subscription_io::HttpSubscriptionSource;
 use infiltrator_core::sync_port::FileWebDavSync;
 use infiltrator_core::version_port::MihomoVersionPort;
 use infiltrator_domain::settings::AppSettings;
 use infiltrator_ports::endpoint::EndpointSource as _;
+use infiltrator_ports::outbound::{OutboundPort, OutboundScopeSource};
 use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use infiltrator_ports::subscription_source::SubscriptionSource;
 use mihomo_api::client::MihomoClient;
+use mihomo_api::core_capability_provider::MihomoCoreCapabilityProvider;
 use mihomo_api::error;
+use mihomo_api::outbound::MihomoOutboundAdapter;
+use mihomo_api::readiness::ControllerReadiness;
 use mihomo_config::endpoint::ProfileEndpointSource;
 use mihomo_config::manager::ConfigManager;
 use mihomo_config::manager::paths::resolve_configs_dir_in;
 use mihomo_platform::defaults::DefaultCredentialStore;
+use mihomo_platform::desktop::ProcessCoreController;
 use mihomo_platform::paths::get_home_dir;
 use mihomo_version::manager::VersionManager;
-use std::path;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -50,11 +60,12 @@ impl Runtime {
                 .load()
                 .await
                 .map_err(|failure| anyhow::anyhow!(failure.message))?;
-        Ok(Self { home, settings })
-    }
-
-    pub fn home(&self) -> &path::Path {
-        &self.home
+        let runtime = Self { home, settings };
+        runtime
+            .config_manager()?
+            .initialize_profile_namespace()
+            .await?;
+        Ok(runtime)
     }
 
     #[cfg(test)]
@@ -78,12 +89,27 @@ impl Runtime {
     }
 
     pub fn version_manager(&self) -> error::Result<VersionManager> {
-        VersionManager::with_home(self.home.clone())
+        VersionManager::for_engine(self.home.clone(), MihomoVersionPort::engine_identifier())
+    }
+
+    /// Process controller for the active profile and installed Mihomo binary.
+    /// CLI lifecycle and outbound composition use the same resolved paths.
+    pub async fn process_core_controller(&self) -> anyhow::Result<ProcessCoreController> {
+        let binary = self.version_manager()?.get_binary_path(None).await?;
+        let config = self.config_manager()?.get_current_path().await?;
+        Ok(ProcessCoreController::with_home(
+            binary,
+            config,
+            self.home.clone(),
+        ))
     }
 
     pub fn version_application(&self) -> anyhow::Result<VersionApplication> {
-        let version = MihomoVersionPort::with_home(self.home.clone())?;
-        Ok(VersionApplication::new(Arc::new(version)))
+        let factory = MihomoEngineVersionBackendFactory::with_home(self.home.clone());
+        Ok(VersionApplication::from_factory(
+            MihomoVersionPort::engine_identifier(),
+            &factory,
+        )?)
     }
 
     /// Resolved configs directory (same chain as [`Self::config_manager`]).
@@ -122,15 +148,54 @@ impl Runtime {
         Ok(MihomoClient::new(&endpoint.url, endpoint.secret)?)
     }
 
+    /// Compose the typed CLI outbound path around a per-invocation Core owner.
+    /// The owner adopts the existing process only after ProcessCoreController
+    /// and ControllerReadiness confirm its live identity and version; the
+    /// outbound adapter then publishes revisions from its own inventory reads.
+    pub async fn outbound_context(&self) -> anyhow::Result<OutboundContext> {
+        let endpoint_source = ProfileEndpointSource::new(Arc::new(self.config_manager()?));
+        let endpoint = endpoint_source.resolve().await?;
+        let client = Arc::new(MihomoClient::new(&endpoint.url, endpoint.secret.clone())?);
+        let owner = CoreApplication::new(
+            Arc::new(self.process_core_controller().await?),
+            Arc::new(ControllerReadiness::new(endpoint.url, endpoint.secret)),
+            infiltrator_composition::tokio_application_runtime().map_err(anyhow::Error::msg)?,
+        );
+        if !owner
+            .adopt_if_running()
+            .await
+            .map_err(|failure| anyhow::anyhow!(failure.message))?
+        {
+            anyhow::bail!("outbound operations require a ready, running core");
+        }
+        let scope = owner
+            .snapshot()
+            .scope()
+            .ok_or_else(|| anyhow::anyhow!("the active core did not publish a scope"))?;
+        let scope_source: Arc<dyn OutboundScopeSource> = Arc::new(owner);
+        let outbound_port: Arc<dyn OutboundPort> =
+            Arc::new(MihomoOutboundAdapter::new(client, scope_source));
+        let capabilities =
+            CoreCapabilityApplication::new(Arc::new(MihomoCoreCapabilityProvider::new(
+                HostKind::Desktop,
+                [
+                    CoreOperation::Outbound(OutboundOperation::List),
+                    CoreOperation::Outbound(OutboundOperation::Select),
+                    CoreOperation::Outbound(OutboundOperation::Probe),
+                ],
+            )));
+        Ok(OutboundContext {
+            application: OutboundApplication::new(outbound_port),
+            scope,
+            capabilities,
+        })
+    }
+
     /// Controller gateway for application services. The concrete client is
     /// assembled here, at the CLI composition root; handlers only receive
     /// runtime-neutral application facades.
     pub async fn runtime_gateway(&self) -> anyhow::Result<Arc<dyn RuntimeGateway>> {
         Ok(Arc::new(self.api_client().await?))
-    }
-
-    pub async fn proxy_application(&self) -> anyhow::Result<ProxyApplication> {
-        Ok(ProxyApplication::new(self.runtime_gateway().await?))
     }
 
     pub async fn connection_application(&self) -> anyhow::Result<ConnectionApplication> {
@@ -153,6 +218,12 @@ impl Runtime {
             .await
             .map_err(|failure| anyhow::anyhow!(failure.message))
     }
+}
+
+pub struct OutboundContext {
+    pub application: OutboundApplication,
+    pub scope: CoreScope,
+    pub capabilities: CoreCapabilityApplication,
 }
 
 #[cfg(test)]

@@ -2,8 +2,6 @@
 
 use crate::client::MihomoClient;
 use crate::runtime_gateway::network_error;
-use infiltrator_contract::command::ProxyMode;
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::overview::{OverviewReader, OverviewSample};
@@ -37,12 +35,6 @@ impl OverviewReader for ControllerOverviewReader {
             .await
             .ok()
             .map(|value| value.version);
-        let mode = self
-            .client
-            .get_config()
-            .await
-            .ok()
-            .and_then(|value| ProxyMode::from_wire(&value.mode));
         let memory_bytes = timeout(time::Duration::from_millis(250), self.client.get_memory())
             .await
             .ok()
@@ -55,7 +47,6 @@ impl OverviewReader for ControllerOverviewReader {
 
         Ok(OverviewSample {
             lifecycle: CoreLifecycle::Running,
-            mode,
             upload_total: connections.upload_total,
             download_total: connections.download_total,
             active_connections: u32::try_from(connections.connections.len()).unwrap_or(u32::MAX),
@@ -63,28 +54,5 @@ impl OverviewReader for ControllerOverviewReader {
             core_version: version,
             sampled_at_epoch_ms,
         })
-    }
-
-    async fn set_mode(&self, mode: ProxyMode) -> Result<ProxyMode, PortError> {
-        self.client
-            .patch_config(serde_json::json!({"mode": mode.to_wire()}))
-            .await
-            .map_err(network_error)?;
-        let actual = self.client.get_config().await.map_err(network_error)?;
-        let actual = ProxyMode::from_wire(&actual.mode).ok_or_else(|| {
-            PortError::Rejected(Failure::new(
-                ErrorCode::InvalidState,
-                format!("Unknown controller mode: {}", actual.mode),
-                false,
-            ))
-        })?;
-        if actual != mode {
-            return Err(PortError::Rejected(Failure::new(
-                ErrorCode::InvalidState,
-                format!("Controller retained proxy mode {}", actual.to_wire()),
-                true,
-            )));
-        }
-        Ok(actual)
     }
 }

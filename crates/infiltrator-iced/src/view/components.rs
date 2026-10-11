@@ -16,6 +16,8 @@ use iced::{
     Border, Color, Element, Length, Point, Rectangle, Renderer, Shadow, Size, Theme, Vector,
     border, mouse,
 };
+use zhuge_ui_kit_iced::surface::{self, BadgeGeometry, SurfaceGeometry, rgba, surface_style};
+use zhuge_ui_tokens::surface::SurfaceColors;
 
 // ---------------------------------------------------------------------------
 // Legacy palette constants (pre-token pages still import these).
@@ -50,16 +52,18 @@ pub fn modern_scrollable<'a, T: 'a>(content: impl Into<Element<'a, T>>) -> Scrol
 /// and the soft card shadow. Reusable by any container-based widget.
 pub fn card_surface(t: &Theme) -> container::Style {
     let tk = theme::tokens(t);
-    container::Style {
-        background: Some(tk.card_bg.into()),
-        border: Border {
-            radius: border::Radius::from(theme::R_CARD),
-            width: theme::HAIRLINE,
-            color: tk.card_border,
+    surface_style(
+        SurfaceColors {
+            background: rgba(tk.card_bg),
+            border: rgba(tk.card_border),
+            foreground: None,
         },
-        shadow: tk.card_shadow,
-        ..Default::default()
-    }
+        SurfaceGeometry {
+            radius: border::Radius::from(theme::R_CARD),
+            border_width: theme::HAIRLINE,
+            shadow: tk.card_shadow,
+        },
+    )
 }
 
 /// Card surface with hover lift state: when hovered, slightly elevates background
@@ -458,21 +462,30 @@ impl BadgeKind {
 
 /// Small tinted pill for statuses ("ACTIVE", "ERROR", counts, ...).
 pub fn badge<'a, Message: 'a>(label: impl Into<String>, kind: BadgeKind) -> Element<'a, Message> {
-    container(text(label.into()).size(11).font(theme::FONT_SEMIBOLD))
-        .padding([3, 8])
-        .style(move |t: &Theme| {
+    surface::badge(
+        label,
+        BadgeGeometry {
+            size: 11.0,
+            font: Some(theme::FONT_SEMIBOLD),
+            padding: [3.0, 8.0].into(),
+            height: Length::Shrink,
+            centered: false,
+        },
+        move |t: &Theme| {
             let color = kind.color(theme::tokens(t));
-            container::Style {
-                background: Some(Color { a: 0.14, ..color }.into()),
-                border: Border {
+            surface_style(
+                SurfaceColors {
+                    background: rgba(Color { a: 0.14, ..color }),
+                    border: rgba(Color::TRANSPARENT),
+                    foreground: Some(rgba(color)),
+                },
+                SurfaceGeometry {
                     radius: border::Radius::from(theme::R_CHIP),
                     ..Default::default()
                 },
-                text_color: Some(color),
-                ..Default::default()
-            }
-        })
-        .into()
+            )
+        },
+    )
 }
 
 /// Neutral pill for protocol/type tags ("Shadowsocks", "VMess", ...).

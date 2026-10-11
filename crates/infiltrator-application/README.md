@@ -1,0 +1,13 @@
+# infiltrator-application
+
+> 层级：L3
+
+实现共享用例、命令编排和跨端业务事务。公开接口使用 contract 类型并经 ports 调用副作用；跨表面纯呈现投影由独立 presentation crate 统一提供。
+
+本 crate 不选择 executor、不创建具体网络客户端，也不依赖 UI。异步调度由 composition 注入；一个业务语义只能有一个 owner。
+
+原文搜索片段、Unicode/grapheme 边界与范围重放归纯 Rust `zhuge-ui-core`，
+不引入 UI toolkit。产品搜索条件、拼音匹配与连接/日志业务投影继续由本层定义。
+
+通用 UI 功能先扩展对应 `zhuge-ui-*` owner，再在本 crate 接入；不得复制共享实现。
+产品适配保留业务职责，更新共享依赖时同时验证其他消费者和可见行为。

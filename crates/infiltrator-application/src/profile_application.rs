@@ -11,9 +11,8 @@ use futures_util::stream::StreamExt;
 use infiltrator_contract::aggregator::AggregationTemplate;
 use infiltrator_contract::apply_transaction::ApplyTransactionSnapshot;
 use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use infiltrator_contract::profile_protection::ProfileWriteProtection;
-use infiltrator_contract::profile_source::ProfileSourceIdentity;
-use infiltrator_contract::subscription_filter_result::SubscriptionFilterApplied;
 use infiltrator_contract::subscription_import::{
     CoreReloadOutcome, SubscriptionBatchReport, SubscriptionImportChannel,
     SubscriptionImportReport, SubscriptionQuotaFacts, SubscriptionScheduleDraft,
@@ -21,9 +20,7 @@ use infiltrator_contract::subscription_import::{
 };
 use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_domain::config::validate_yaml;
-use infiltrator_domain::filter::SubscriptionFilterPipeline;
 use infiltrator_domain::profile_converter::ProfileConverter;
-use infiltrator_domain::profile_options::FilterSpec;
 use infiltrator_domain::profiles::{
     ProfileDetail, ProfileInfo, ProfileMetadata, sanitize_profile_name,
 };
@@ -31,6 +28,7 @@ use infiltrator_domain::subscription::{CheckedSubscriptionUrl, SubscriptionUserI
 use infiltrator_domain::subscription_scheduler_policy::{
     CronSchedule, FormatDetector, QuotaWarningPolicy, SubscriptionSchedule,
 };
+use infiltrator_ports::profile_document_codec::ProfileDocumentCodecPort;
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::profile_workspace::{ProfileWorkspacePurpose, ProfileWorkspaceUpdate};
 use infiltrator_ports::runtime_gateway::ManagedRuntime;
@@ -41,18 +39,30 @@ use std::fmt::Display;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
+mod document_codec;
 mod workspace;
 
 #[derive(Clone)]
 pub struct ProfileApplication {
     store: Arc<dyn ProfileStore>,
+    document_codec: Option<Arc<dyn ProfileDocumentCodecPort>>,
     pub(crate) editor_observations: Arc<Mutex<EditorObservations>>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ProfileActivationOutcome {
+    AlreadySelectedWithoutRuntime,
+    AlreadySelectedWithRuntime,
+    SelectedWithoutRuntime,
+    SelectedAndApplied,
+    CurrentProfileUpdatedAndApplied,
 }
 
 impl ProfileApplication {
     pub fn new(store: Arc<dyn ProfileStore>) -> Self {
         Self {
             store,
+            document_codec: None,
             editor_observations: Arc::new(Mutex::new(EditorObservations::default())),
         }
     }
@@ -131,10 +141,7 @@ impl ProfileApplication {
             .await
             .map_err(Failure::from)?;
         self.retire_editor_profile(&name);
-        self.store
-            .delete_options(&name)
-            .await
-            .map_err(Failure::from)
+        Ok(())
     }
 
     pub async fn load_metadata(&self, name: &str) -> Result<ProfileMetadata, Failure> {
@@ -276,61 +283,6 @@ impl ProfileApplication {
             .save_aggregation_templates(templates)
             .await
             .map_err(Failure::from)
-    }
-
-    /// DUAL-07-08: run the shared node-keyword filter pipeline over a profile's
-    /// stored document, commit the filtered content through the managed
-    /// runtime seam, and persist the spec so the next subscription update
-    /// recomposes from the same node strategy.
-    pub async fn apply_subscription_filter<R: ManagedRuntime + ?Sized>(
-        &self,
-        runtime: Option<Arc<R>>,
-        expected: &ProfileSourceIdentity,
-        spec: FilterSpec,
-    ) -> Result<SubscriptionFilterApplied, Failure> {
-        let name = valid_name(&expected.profile)?;
-        let rule = spec
-            .to_rule()
-            .map_err(|error| Failure::new(ErrorCode::Configuration, error.to_string(), false))?;
-        let workspace = self
-            .store
-            .load_workspace(&name)
-            .await
-            .map_err(Failure::from)?;
-        if workspace.source != *expected {
-            return Err(Failure::new(
-                ErrorCode::NotReady,
-                "The filter source changed; inspect the current profile and options",
-                true,
-            ));
-        }
-        let (filtered, report) = SubscriptionFilterPipeline::new(rule)
-            .apply_to_yaml(&workspace.content)
-            .map_err(|error| Failure::new(ErrorCode::Configuration, error.to_string(), false))?;
-        validate_yaml(&filtered)
-            .map_err(|error| Failure::new(ErrorCode::Configuration, error.to_string(), false))?;
-        let mut options = workspace.options;
-        options.filter = Some(spec);
-        let update = ProfileWorkspaceUpdate {
-            purpose: ProfileWorkspacePurpose::Derived,
-            content: filtered,
-            options,
-        };
-        let committed = if let Some(runtime) = runtime {
-            runtime
-                .apply_profile_workspace(expected, &update, ApplyStrategy::PreferReload)
-                .await
-                .map_err(Failure::from)?
-        } else {
-            self.store
-                .compare_and_save_workspace(expected, &update)
-                .await
-                .map_err(Failure::from)?
-        };
-        Ok(SubscriptionFilterApplied {
-            source: committed.source,
-            report,
-        })
     }
 
     pub async fn update_subscription<S: SubscriptionSource + ?Sized>(
@@ -706,11 +658,14 @@ impl ProfileApplication {
         &self,
         runtime: Option<Arc<R>>,
         profile: &str,
-    ) -> Result<bool, Failure> {
+    ) -> Result<ProfileActivationOutcome, Failure> {
         let profile = valid_name(profile)?;
         let previous = self.store.get_current().await.map_err(Failure::from)?;
         if previous == profile {
-            return Ok(runtime.is_some());
+            return Ok(match runtime {
+                Some(_) => ProfileActivationOutcome::AlreadySelectedWithRuntime,
+                None => ProfileActivationOutcome::AlreadySelectedWithoutRuntime,
+            });
         }
 
         self.store
@@ -719,7 +674,7 @@ impl ProfileApplication {
             .map_err(Failure::from)?;
 
         let Some(runtime) = runtime else {
-            return Ok(false);
+            return Ok(ProfileActivationOutcome::SelectedWithoutRuntime);
         };
 
         if let Err(error) = runtime
@@ -746,7 +701,7 @@ impl ProfileApplication {
             ));
         }
 
-        Ok(true)
+        Ok(ProfileActivationOutcome::SelectedAndApplied)
     }
 }
 

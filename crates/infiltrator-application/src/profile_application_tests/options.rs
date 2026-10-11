@@ -13,27 +13,27 @@ async fn options_load_publishes_the_sidecar_draft_for_both_surfaces() {
     use crate::profile_options_application::ProfileOptionsApplication;
 
     let store = Arc::new(FakeStore::with_profile("main", "mode: rule\n", true));
-    {
-        let mut options = store.options.lock().expect("options lock");
-        options.insert(
-            "main".to_string(),
-            ProfileOptions {
-                mixin: MixinConfig {
-                    mode: Some("global".to_string()),
-                    ..Default::default()
-                },
-                filter: Some(FilterSpec {
-                    include_keywords: vec!["香港".to_string()],
-                    ..Default::default()
-                }),
+    store.set_options(
+        "main",
+        &ProfileOptions {
+            mixin: MixinConfig {
+                mode: Some("global".to_string()),
+                ..Default::default()
             },
-        );
-    }
-    let profiles = ProfileApplication::new(Arc::clone(&store) as Arc<dyn ProfileStore>);
+            filter: Some(FilterSpec {
+                include_keywords: vec!["香港".to_string()],
+                ..Default::default()
+            }),
+        },
+    );
+    let profiles = profiles_with_mihomo_codec(Arc::clone(&store) as Arc<dyn ProfileStore>);
     let application = ProfileOptionsApplication::new(profiles.clone());
 
     let snapshot = application.load(None).await.expect("sidecar");
-    assert_eq!(snapshot.source.profile, "main");
+    assert_eq!(
+        snapshot.workspace_identity.document.profile_id.as_str(),
+        "main"
+    );
     assert!(
         snapshot.mixin_yaml.contains("mode: global"),
         "the stored mixin is rendered back into the editor buffer: {}",

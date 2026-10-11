@@ -41,6 +41,7 @@ use bevy::ecs::observer::On;
 use bevy::ecs::query::{With, Without};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Query, Res, ResMut, SystemParam};
+use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::{Scene, bsn};
 use bevy::text::TextColor;
 use bevy::ui::BorderColor;
@@ -50,15 +51,16 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button, ScrollArea};
-use infiltrator_application::byte_format::format_bytes;
 use infiltrator_application::connection_grouping::grouping_label_key;
 use infiltrator_bevy_widgets::button::ButtonDisabled;
+use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
 use infiltrator_bevy_widgets::localization::{
     LocalizedLabel, LocalizedPlaceholder, LocalizedText, UiLocale,
 };
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::text_input::native::NativeTextField;
@@ -68,6 +70,7 @@ use infiltrator_contract::connection::ConnectionStreamPhase;
 use infiltrator_contract::surface_snapshot::ConnectionSnapshot;
 use infiltrator_domain::connection_view;
 use infiltrator_domain::connection_view::ConnectionGroupingMode;
+use infiltrator_shared::byte_units::format_bytes;
 
 /// Root marker on the Connections page scene.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
@@ -209,7 +212,7 @@ pub fn connections_page(
                 height: percent(100),
                 min_height: px(0.0),
                 flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(space::S16),
+                row_gap: rem(space::S16),
                 overflow: Overflow::clip(),
             }
             PageRoot(Route::Connections)
@@ -219,7 +222,7 @@ pub fn connections_page(
                     width: percent(100), height: percent(100),
                     min_height: px(0.0), flex_shrink: 1.0,
                     flex_direction: FlexDirection::Column,
-                    row_gap: px(space::S16), overflow: Overflow::scroll_y(),
+                    row_gap: rem(space::S16), overflow: Overflow::scroll_y(),
                 }
                 ScrollArea ConnectionsScrollArea
                 Children [
@@ -249,21 +252,21 @@ fn header_card_scene(
                                 align_items: AlignItems::Center,
                                 justify_content: JustifyContent::SpaceBetween,
                                 flex_wrap: FlexWrap::Wrap,
-                                row_gap: px(space::S8),
-                                column_gap: Val::Px(space::S16),
+                                row_gap: rem(space::S8),
+                                column_gap: rem(space::S16),
                             }
                             AccessibilityNode(header_a11y) LocalizedLabel::plain("nav_connections")
                             Children [
                                 Node {
                                     align_items: AlignItems::Center,
-                                    column_gap: Val::Px(space::S12),
+                                    column_gap: rem(space::S12),
                                 }
                                 Children [
                                     @{ icon_tile_scene(IconId::Network, 36.0, palette) }
                                     --
                                     Node {
                                         flex_direction: FlexDirection::Column,
-                                        row_gap: Val::Px(space::S4),
+                                        row_gap: rem(space::S4),
                                     }
                                     Children [
                                         LocalizedText { .. { summary } } ConnectionsLine(ConnectionsLineKind::Summary) TextRole(Role::Heading)
@@ -276,20 +279,20 @@ fn header_card_scene(
                                 --
                                 Node {
                                     align_items: AlignItems::Center,
-                                    column_gap: Val::Px(space::S8),
+                                    column_gap: rem(space::S8),
                                     flex_wrap: FlexWrap::Wrap,
-                                    row_gap: px(space::S8),
+                                    row_gap: rem(space::S8),
                                 }
                                 Children [
                                     Node {
                                         align_items: AlignItems::Center,
                                         padding: UiRect::all(Val::Px(2.0)),
                                         border: UiRect::all(Val::Px(palette.hairline_px)),
-                                        border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                                        column_gap: Val::Px(space::S4),
+                                        border_radius: BorderRadius::all(rem(palette.control_radius_px)),
+                                        column_gap: rem(space::S4),
                                         flex_wrap: FlexWrap::Wrap,
                                     }
-                                    BackgroundColor({ palette.surface_elevated })
+                                    ThemeBackgroundColor({ Token::SurfaceElevated })
                                     BorderColor {
                                         top: { palette.border },
                                         right: { palette.border },
@@ -305,13 +308,13 @@ fn header_card_scene(
                                     ]
                                     --
                                     Node {
-                                        min_height: px(palette.control_height_px),
-                                        padding: UiRect::horizontal(Val::Px(space::S12)),
+                                        min_height: rem(palette.control_height_px),
+                                        padding: UiRect::horizontal(rem(space::S12)),
                                         align_items: AlignItems::Center,
                                         justify_content: JustifyContent::Center,
-                                        border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                        border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                                     }
-                                    BackgroundColor({ palette.danger })
+                                    ThemeBackgroundColor({ Token::Danger })
                                     Button
                                     CloseAllConnectionsButton
                                     Children [
@@ -345,7 +348,7 @@ fn conn_aggregation_pill(
 
     bsn! {
             Node {
-                padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S4)),
+                padding: UiRect::axes(rem(space::S8), rem(space::S4)),
                 border_radius: BorderRadius::all(Val::Px(4.0)),
                 align_items: AlignItems::Center,
             }
@@ -381,7 +384,7 @@ fn connections_table_scene(
             Node {
                 width: percent(100),
                 flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(space::S8),
+                row_gap: rem(space::S8),
             }
             ConnRowsContainer
             Children [
@@ -396,8 +399,8 @@ fn connections_table_scene(
                                 width: percent(100),
                                 align_items: AlignItems::Center,
                                 justify_content: JustifyContent::SpaceBetween,
-                                column_gap: Val::Px(space::S8),
-                                padding: UiRect::bottom(Val::Px(space::S8)),
+                                column_gap: rem(space::S8),
+                                padding: UiRect::bottom(rem(space::S8)),
                             }
                             Children [
                                 LocalizedText::plain("connections_sessions_title") TextRole(Role::BodyStrong)
@@ -411,7 +414,7 @@ fn connections_table_scene(
                             Node {
                                 width: percent(100),
                                 align_items: AlignItems::Center,
-                                column_gap: Val::Px(space::S8),
+                                column_gap: rem(space::S8),
                             }
                             Children [
                                 Node {
@@ -427,18 +430,18 @@ fn connections_table_scene(
                                     ) } LocalizedPlaceholder::plain("connections_search_placeholder") NativeTextField(10)
                                 ]
                                 --
-                                Node { min_height: px(palette.control_height_px), padding: UiRect::horizontal(px(space::S8)), align_items: AlignItems::Center }
+                                Node { min_height: rem(palette.control_height_px), padding: UiRect::horizontal(rem(space::S8)), align_items: AlignItems::Center }
                                 Button ClearConnectionsSearch
                                 Children [ LocalizedText::plain("common_clear") TextRole(Role::Caption) ]
                                 --
                                 Node {
-                                    min_height: px(palette.control_height_px),
-                                    padding: UiRect::horizontal(Val::Px(space::S12)),
+                                    min_height: rem(palette.control_height_px),
+                                    padding: UiRect::horizontal(rem(space::S12)),
                                     align_items: AlignItems::Center,
                                     justify_content: JustifyContent::Center,
-                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                    border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                                 }
-                                BackgroundColor({ palette.surface_elevated })
+                                ThemeBackgroundColor({ Token::SurfaceElevated })
                                 Button
                                 CloseFilteredConnectionsButton
                                 Children [
@@ -450,7 +453,7 @@ fn connections_table_scene(
                 LocalizedText::plain("conn_search_results") ConnectionsSearchSummary TextRole(Role::Caption)
             }),
             Box::new(bsn! {
-                Node { width: percent(100), display: Display::None, padding: UiRect::all(px(space::S16)) } ConnectionsSearchEmpty
+                Node { width: percent(100), display: Display::None, padding: UiRect::all(rem(space::S16)) } ConnectionsSearchEmpty
                 Children [ LocalizedText::plain("runtime_no_matching_connections") TextRole(Role::Body) ]
             }),
             Box::new(bsn! {
@@ -459,13 +462,13 @@ fn connections_table_scene(
                                 display: Display::None,
                                 flex_direction: FlexDirection::Column,
                                 align_items: AlignItems::Stretch,
-                                row_gap: px(space::S8),
+                                row_gap: rem(space::S8),
                             }
                             ConnAggregationSummaryContainer
                             Children [
                                 LocalizedText::plain("conn_aggregate_empty") ConnAggregationSummary TextRole(Role::Caption)
                                 --
-                                Node {width: percent(100), flex_direction: FlexDirection::Column, row_gap: px(space::S8)} ConnectionGroupsRoot
+                                Node {width: percent(100), flex_direction: FlexDirection::Column, row_gap: rem(space::S8)} ConnectionGroupsRoot
                             ]
             }),
             rows_scene,

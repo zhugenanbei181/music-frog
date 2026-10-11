@@ -74,16 +74,16 @@ mod tests {
         assert_eq!(snap.order.len(), 8);
         assert!(!snap.is_customized);
 
-        assert!(app.move_down(OverviewCardKind::ModeSegment));
+        assert!(app.move_down(OverviewCardKind::RoutingIntentSegment));
         let snap = app.snapshot();
         assert!(snap.is_customized);
         assert_eq!(snap.order[0], OverviewCardKind::Traffic);
-        assert_eq!(snap.order[1], OverviewCardKind::ModeSegment);
+        assert_eq!(snap.order[1], OverviewCardKind::RoutingIntentSegment);
 
-        assert!(app.move_up(OverviewCardKind::ModeSegment));
+        assert!(app.move_up(OverviewCardKind::RoutingIntentSegment));
         let snap = app.snapshot();
         assert!(!snap.is_customized);
-        assert_eq!(snap.order[0], OverviewCardKind::ModeSegment);
+        assert_eq!(snap.order[0], OverviewCardKind::RoutingIntentSegment);
 
         app.set_order(vec![OverviewCardKind::Quota, OverviewCardKind::Traffic]);
         let snap = app.snapshot();

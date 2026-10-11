@@ -20,7 +20,7 @@ fn mount() -> (App, Arc<DemoCommandSink>, ProfileOptionsSnapshot) {
     app.add_plugins(ButtonPlugin);
     navigate_to(&mut app, Route::Profiles);
     let observed = observation("main", FIXTURE_DOCUMENT, Default::default()).unwrap();
-    let options = ProfileOptionsSnapshot::new(observed.source, "{}\n", observed.filter);
+    let options = ProfileOptionsSnapshot::new(observed.workspace_identity, "{}\n", observed.filter);
     replay(&mut app, options.clone());
     let tab = pane_button_entity(&mut app, ProfileEditorPane::Filter);
     click_entity(&mut app, tab);
@@ -81,7 +81,7 @@ fn native_document_filter_hidden_tab_releases_focus_and_source_change_requires_d
         Default::default(),
     )
     .unwrap();
-    let changed = ProfileOptionsSnapshot::new(changed.source, "{}\n", changed.filter);
+    let changed = ProfileOptionsSnapshot::new(changed.workspace_identity, "{}\n", changed.filter);
     app.world_mut()
         .trigger(ProfilesProjectionUpdated(editor_options_page_projection(
             "# externally edited\nmode: rule\n",
@@ -171,7 +171,7 @@ fn native_document_filter_rejects_unit_receipt_then_retries_and_keeps_actual_sta
         panic!("filter intent");
     };
     let applied = SubscriptionFilterApplied {
-        source: source.clone(),
+        workspace_identity: source.clone(),
         report: FilterReport {
             total_input: 3,
             passed: 1,
@@ -232,7 +232,7 @@ fn native_document_advanced_filter_validates_keeps_user_input_and_discards_witho
         command: command.clone(),
         result: Ok(CommandOutput::SubscriptionFilterApplied(
             SubscriptionFilterApplied {
-                source: source.clone(),
+                workspace_identity: source.clone(),
                 report: Default::default(),
             },
         )),

@@ -1,16 +1,18 @@
-//! Config snapshot history ([缺口13], CORE-004).
+//! Engine-scoped profile snapshot history (CORE-004).
 //!
-//! Every successful [`crate::apply::apply_current_profile`] stores the newly
-//! live content as a timestamped, SHA-256-tagged snapshot under
-//! `<config_dir>/snapshots/<profile>/`. Rolling back is itself an apply:
+//! Every successful profile apply stores the new document as a timestamped,
+//! SHA-256-tagged snapshot under `<config_dir>/engines/<engine>/snapshots/<profile>/`.
+//! Rolling back is itself an apply:
 //! callers read a snapshot and feed its content through the same
 //! transaction, so restores inherit validation, atomic write, readiness and
 //! rollback — never a raw file overwrite.
 
 use chrono::Utc;
+use infiltrator_contract::core_identity::EngineId;
 use infiltrator_domain::backup;
 use infiltrator_domain::snapshots::{SnapshotMeta, content_hash, parse_snapshot_name};
 use mihomo_api::error::{MihomoError, Result};
+use mihomo_config::manager::paths::scope_config_dir;
 use std::cmp::Reverse;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
@@ -19,9 +21,13 @@ use tokio::fs::{create_dir_all, read_dir, read_to_string, remove_file, write};
 /// How many snapshots are retained per profile after pruning.
 pub const DEFAULT_KEEP: usize = 20;
 
-/// Directory holding `profile`'s snapshots: `<config_dir>/snapshots/<profile>`.
-pub fn snapshot_dir(config_dir: &Path, profile: &str) -> PathBuf {
+/// Directory holding one Mihomo profile's snapshots under its engine namespace.
+pub(crate) fn snapshot_dir(config_dir: &Path, profile: &str) -> PathBuf {
     config_dir.join("snapshots").join(profile)
+}
+
+fn engine_config_dir(engine_id: &EngineId, config_root_or_scoped: &Path) -> Result<PathBuf> {
+    scope_config_dir(config_root_or_scoped, engine_id)
 }
 
 /// Persist `content` as the newest snapshot of `profile`.
@@ -30,11 +36,13 @@ pub fn snapshot_dir(config_dir: &Path, profile: &str) -> PathBuf {
 /// content hash, so identical content never produces duplicate entries and
 /// ordering never depends on file mtimes.
 pub async fn save_snapshot(
+    engine_id: &EngineId,
     config_dir: &Path,
     profile: &str,
     content: &str,
 ) -> Result<SnapshotMeta> {
-    let dir = snapshot_dir(config_dir, profile);
+    let config_dir = engine_config_dir(engine_id, config_dir)?;
+    let dir = snapshot_dir(&config_dir, profile);
     create_dir_all(&dir).await?;
 
     let timestamp = Utc::now();
@@ -52,8 +60,13 @@ pub async fn save_snapshot(
 }
 
 /// All snapshots of `profile`, newest first.
-pub async fn list_snapshots(config_dir: &Path, profile: &str) -> Result<Vec<SnapshotMeta>> {
-    let dir = snapshot_dir(config_dir, profile);
+pub async fn list_snapshots(
+    engine_id: &EngineId,
+    config_dir: &Path,
+    profile: &str,
+) -> Result<Vec<SnapshotMeta>> {
+    let config_dir = engine_config_dir(engine_id, config_dir)?;
+    let dir = snapshot_dir(&config_dir, profile);
     let mut out = Vec::new();
     let mut entries = match read_dir(&dir).await {
         Ok(entries) => entries,
@@ -91,8 +104,13 @@ pub async fn read_snapshot(path: &Path) -> Result<String> {
 /// The decision itself lives in
 /// [`infiltrator_domain::backup::prune_snapshots`] so the manual prune control
 /// and the automatic post-apply prune can never diverge.
-pub async fn prune_snapshots(config_dir: &Path, profile: &str, keep: usize) -> Result<usize> {
-    let mut snapshots = list_snapshots(config_dir, profile).await?;
+pub async fn prune_snapshots(
+    engine_id: &EngineId,
+    config_dir: &Path,
+    profile: &str,
+    keep: usize,
+) -> Result<usize> {
+    let mut snapshots = list_snapshots(engine_id, config_dir, profile).await?;
     snapshots.sort_by_key(|meta| Reverse(meta.timestamp));
     let doomed = backup::prune_snapshots(&snapshots, keep);
     let mut removed = 0;
@@ -118,14 +136,22 @@ mod tests {
         (dir, path)
     }
 
+    fn mihomo() -> EngineId {
+        EngineId::new("mihomo").expect("Mihomo engine ID is valid")
+    }
+
     #[tokio::test]
     async fn save_then_list_returns_newest_first() {
         let (_dir, config) = config_dir();
-        let first = save_snapshot(&config, "main", "port: 1").await.unwrap();
+        let first = save_snapshot(&mihomo(), &config, "main", "port: 1")
+            .await
+            .unwrap();
         sleep(time::Duration::from_millis(20)).await;
-        let second = save_snapshot(&config, "main", "port: 2").await.unwrap();
+        let second = save_snapshot(&mihomo(), &config, "main", "port: 2")
+            .await
+            .unwrap();
 
-        let list = list_snapshots(&config, "main").await.unwrap();
+        let list = list_snapshots(&mihomo(), &config, "main").await.unwrap();
         assert_eq!(list.len(), 2);
         assert_eq!(list[0].path, second.path);
         assert_eq!(list[1].path, first.path);
@@ -135,7 +161,9 @@ mod tests {
     #[tokio::test]
     async fn snapshot_name_embeds_hash_prefix() {
         let (_dir, config) = config_dir();
-        let meta = save_snapshot(&config, "main", "port: 42").await.unwrap();
+        let meta = save_snapshot(&mihomo(), &config, "main", "port: 42")
+            .await
+            .unwrap();
         assert_eq!(meta.sha256.len(), 64);
         let name = meta.path.file_name().unwrap().to_string_lossy();
         assert!(
@@ -147,9 +175,26 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn shared_root_snapshot_api_writes_inside_mihomo_namespace() {
+        let (_dir, config) = config_dir();
+        let meta = save_snapshot(&mihomo(), &config, "main", "mode: rule\n")
+            .await
+            .unwrap();
+
+        assert!(
+            meta.path
+                .starts_with(config.join("engines/mihomo/snapshots/main"))
+        );
+        assert_eq!(
+            list_snapshots(&mihomo(), &config, "main").await.unwrap()[0].path,
+            meta.path
+        );
+    }
+
+    #[tokio::test]
     async fn read_snapshot_returns_original_content() {
         let (_dir, config) = config_dir();
-        let meta = save_snapshot(&config, "main", "port: 7890\nsecret: s3cret\n")
+        let meta = save_snapshot(&mihomo(), &config, "main", "port: 7890\nsecret: s3cret\n")
             .await
             .unwrap();
         assert_eq!(
@@ -162,14 +207,16 @@ mod tests {
     async fn prune_keeps_newest_only() {
         let (_dir, config) = config_dir();
         for port in 1..=5 {
-            save_snapshot(&config, "main", &format!("port: {port}"))
+            save_snapshot(&mihomo(), &config, "main", &format!("port: {port}"))
                 .await
                 .unwrap();
             sleep(time::Duration::from_millis(20)).await;
         }
-        let removed = prune_snapshots(&config, "main", 2).await.unwrap();
+        let removed = prune_snapshots(&mihomo(), &config, "main", 2)
+            .await
+            .unwrap();
         assert_eq!(removed, 3);
-        let list = list_snapshots(&config, "main").await.unwrap();
+        let list = list_snapshots(&mihomo(), &config, "main").await.unwrap();
         assert_eq!(list.len(), 2);
         assert_eq!(read_snapshot(&list[0].path).await.unwrap(), "port: 5");
     }
@@ -178,14 +225,18 @@ mod tests {
     async fn prune_deduplicates_identical_content_before_the_lru_cut() {
         let (_dir, config) = config_dir();
         for content in ["port: 1", "port: 2", "port: 2", "port: 2"] {
-            save_snapshot(&config, "main", content).await.unwrap();
+            save_snapshot(&mihomo(), &config, "main", content)
+                .await
+                .unwrap();
             sleep(time::Duration::from_millis(20)).await;
         }
         // Three identical copies plus a distinct one: dedupe keeps the newest
         // copy of each content, so the limit of 20 removes the two duplicates.
-        let removed = prune_snapshots(&config, "main", 20).await.unwrap();
+        let removed = prune_snapshots(&mihomo(), &config, "main", 20)
+            .await
+            .unwrap();
         assert_eq!(removed, 2);
-        let list = list_snapshots(&config, "main").await.unwrap();
+        let list = list_snapshots(&mihomo(), &config, "main").await.unwrap();
         assert_eq!(list.len(), 2);
         assert_eq!(read_snapshot(&list[0].path).await.unwrap(), "port: 2");
         assert_eq!(read_snapshot(&list[1].path).await.unwrap(), "port: 1");
@@ -194,7 +245,12 @@ mod tests {
     #[tokio::test]
     async fn list_missing_profile_is_empty_not_error() {
         let (_dir, config) = config_dir();
-        assert!(list_snapshots(&config, "ghost").await.unwrap().is_empty());
+        assert!(
+            list_snapshots(&mihomo(), &config, "ghost")
+                .await
+                .unwrap()
+                .is_empty()
+        );
     }
 
     #[test]

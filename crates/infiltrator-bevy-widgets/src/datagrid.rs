@@ -18,6 +18,7 @@ use crate::filter::FilterEngine;
 use crate::list::VirtualListState;
 use crate::list::scroll_core::VirtualWindow;
 use crate::palette::UiPalette;
+use crate::palette::rem;
 use crate::selection::SelectionState;
 use crate::text::{Role, TextRole};
 use crate::theme::space;
@@ -321,9 +322,9 @@ pub fn data_grid_header_scene<T>(
             Box::new(bsn! {
                             Node {
                                 width: px(width_px),
-                                height: px(palette.control_height_px),
+                                height: rem(palette.control_height_px),
                                 align_items: AlignItems::Center,
-                                padding: UiRect::horizontal(Val::Px(space::S8)),
+                                padding: UiRect::horizontal(rem(space::S8)),
                                 flex_shrink: 0.0,
                             }
                             Button
@@ -338,7 +339,7 @@ pub fn data_grid_header_scene<T>(
     Box::new(bsn! {
             Node {
                 width: percent(100),
-                height: px(palette.control_height_px),
+                height: rem(palette.control_height_px),
                 flex_direction: FlexDirection::Row,
                 align_items: AlignItems::Center,
                 border: UiRect::bottom(Val::Px(palette.hairline_px)),
@@ -380,7 +381,7 @@ pub fn data_grid_row_scene<T>(
                             Node {
                                 width: px(width_px),
                                 align_items: AlignItems::Center,
-                                padding: UiRect::horizontal(Val::Px(space::S8)),
+                                padding: UiRect::horizontal(rem(space::S8)),
                                 flex_shrink: 0.0,
                             }
                             Children [
@@ -393,10 +394,10 @@ pub fn data_grid_row_scene<T>(
     Box::new(bsn! {
             Node {
                 width: percent(100),
-                min_height: px(palette.control_height_px),
+                min_height: rem(palette.control_height_px),
                 flex_direction: FlexDirection::Row,
                 align_items: AlignItems::Center,
-                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
             }
             BackgroundColor({ row_fill })
             DataGridRow(row_idx)

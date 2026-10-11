@@ -5,7 +5,9 @@ use crate::pages::proxies::{
     ProxiesProjectionUpdated, ProxyNodeButton, latency_color,
 };
 use crate::pages::proxies_filter::format_protocol_chip;
-use crate::pages::proxies_identity::{ProxyGroupIdentity, group_for_entity, node_for_entity};
+use crate::pages::proxies_identity::{
+    ProxyGroupIdentity, ProxyGroupOutboundIdentity, group_for_entity, node_for_entity,
+};
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::ChildOf;
 use bevy::ecs::observer::On;
@@ -40,6 +42,7 @@ pub struct ProxyTextParts {
 pub struct ProxyIdentityQueries<'w, 's> {
     parents: Query<'w, 's, &'static ChildOf>,
     groups: Query<'w, 's, &'static ProxyGroupIdentity>,
+    outbound_groups: Query<'w, 's, &'static ProxyGroupOutboundIdentity>,
     nodes: Query<'w, 's, &'static ProxyNodeButton>,
 }
 
@@ -91,6 +94,7 @@ pub fn apply_proxies_projection(
                 label.entity,
                 &identities.parents,
                 &identities.groups,
+                &identities.outbound_groups,
                 projection,
             ) && let Some(ref mut copy) = label.copy
             {
@@ -130,25 +134,41 @@ pub fn apply_proxies_projection(
         }
     }
     for (entity, mut layout, _) in &mut containers {
-        layout.display =
-            if group_for_entity(entity, &identities.parents, &identities.groups, projection)
-                .is_some_and(|group| group.expanded)
-            {
-                Display::Flex
-            } else {
-                Display::None
-            };
+        layout.display = if group_for_entity(
+            entity,
+            &identities.parents,
+            &identities.groups,
+            &identities.outbound_groups,
+            projection,
+        )
+        .is_some_and(|group| group.expanded)
+        {
+            Display::Flex
+        } else {
+            Display::None
+        };
     }
     for (identity, mut fill, mut border, mut visual) in &mut visuals {
         if let Some(node) = projection
             .groups
             .iter()
-            .find(|group| group.name == identity.group_name)
+            .find(|group| {
+                identity
+                    .collection_id
+                    .as_ref()
+                    .map_or(group.name == identity.group_name, |id| {
+                        group.collection_id.as_ref() == Some(id)
+                    })
+            })
             .and_then(|group| {
-                group
-                    .proxies
-                    .iter()
-                    .find(|node| node.name == identity.node_name)
+                group.proxies.iter().find(|node| {
+                    identity
+                        .outbound_id
+                        .as_ref()
+                        .map_or(node.name == identity.node_name, |id| {
+                            node.outbound_id.as_ref() == Some(id)
+                        })
+                })
             })
         {
             visual.0 = node.selected;

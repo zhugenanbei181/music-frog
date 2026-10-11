@@ -49,7 +49,6 @@ pub struct ProfileState {
     /// （手动上传/下载不发）。TickWebDavSync 置位，SyncFinished 处理后清除。
     pub sync_from_tick: bool,
     pub is_saving_app_settings: bool,
-    pub is_saving_profile: bool,
     pub restart_after_profile_reset: bool,
     pub sync_diff: Option<SyncDiffState>,
     pub is_loading_sync_diff: bool,

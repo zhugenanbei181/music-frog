@@ -7,20 +7,34 @@
 
 use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::core_application::CoreApplication;
+use infiltrator_application::core_capability_application::CoreCapabilityApplication;
 use infiltrator_application::mtu_application::MtuApplication;
 use infiltrator_application::offline_startup_application::OfflineStartupApplication;
 use infiltrator_application::overview::{OverviewConfig, OverviewPump, UnavailableOverviewReader};
+use infiltrator_contract::core_capabilities::{
+    ConnectionOperation, CoreLifecycleOperation, CoreOperation, GeoOperation, LogsOperation,
+    OutboundOperation, ProviderOperation, ProxyControlOperation,
+};
+use infiltrator_contract::surface::HostKind;
 use infiltrator_ios::{IosBridge, IosHostAdapter};
 use infiltrator_ports::application_runtime::{
-    ApplicationFuture, ApplicationRuntime, ApplicationSleep,
+    ApplicationFuture, ApplicationRuntime, ApplicationSleep, ApplicationTaskAdmission,
+    ApplicationTaskId, ApplicationTaskShutdown,
 };
 use infiltrator_ports::core_watchdog::CoreWatchdogPort;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::overview::OverviewReader;
 use mihomo_api::client::MihomoClient;
+use mihomo_api::core_capability_provider::MihomoCoreCapabilityProvider;
 use mihomo_api::overview::ControllerOverviewReader;
 use mihomo_api::readiness::ControllerReadiness;
-use std::sync::Arc;
+use mihomo_api::routing_intent::MihomoRoutingIntentAdapter;
+use std::num::NonZeroU64;
+use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::mpsc::{Receiver, SyncSender, TrySendError, sync_channel};
+use std::sync::{Arc, Condvar, Mutex};
+use std::thread;
 use std::time::Duration;
 use tokio::runtime::{Builder, Runtime};
 use tokio::task::JoinHandle;
@@ -64,15 +78,60 @@ pub fn spawn_core_watchdog(application: Arc<CoreApplication>) -> CoreWatchdogHan
 /// composition root, rather than in `infiltrator-application`.
 pub struct TokioApplicationRuntime {
     runtime: Runtime,
+    background: SyncSender<BackgroundTaskMessage>,
+    background_state: Arc<(Mutex<BackgroundSchedulerState>, Condvar)>,
+    next_task_id: AtomicU64,
+}
+
+enum BackgroundTaskMessage {
+    Run {
+        task_id: ApplicationTaskId,
+        future: ApplicationFuture,
+    },
+    Shutdown,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum BackgroundSchedulerState {
+    Open,
+    Occupied { task_id: ApplicationTaskId },
+    Closing,
+    Closed,
+    WorkerFailed,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ShutdownDisposition {
+    Initiated,
+    Awaiting,
+    AlreadyClosed,
+    WorkerFailed,
 }
 
 impl TokioApplicationRuntime {
     pub fn new() -> Result<Self, String> {
-        Builder::new_current_thread()
+        let runtime = Builder::new_current_thread()
             .enable_all()
             .build()
-            .map(|runtime| Self { runtime })
-            .map_err(|error| error.to_string())
+            .map_err(|error| error.to_string())?;
+        let background_runtime = Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .map_err(|error| error.to_string())?;
+        let (background, receiver) = sync_channel(1);
+        let background_state =
+            Arc::new((Mutex::new(BackgroundSchedulerState::Open), Condvar::new()));
+        let worker_state = Arc::clone(&background_state);
+        thread::Builder::new()
+            .name("infiltrator-background-task".to_owned())
+            .spawn(move || background_task_worker(background_runtime, receiver, worker_state))
+            .map_err(|error| error.to_string())?;
+        Ok(Self {
+            runtime,
+            background,
+            background_state,
+            next_task_id: AtomicU64::new(1),
+        })
     }
 }
 
@@ -81,9 +140,207 @@ impl ApplicationRuntime for TokioApplicationRuntime {
         self.runtime.block_on(future);
     }
 
+    fn spawn_background(&self, future: ApplicationFuture) -> ApplicationTaskAdmission {
+        let task_id =
+            match self
+                .next_task_id
+                .try_update(Ordering::Relaxed, Ordering::Relaxed, |next| {
+                    next.checked_add(1)
+                }) {
+                Ok(value) => match NonZeroU64::new(value) {
+                    Some(value) => ApplicationTaskId::new(value),
+                    None => return ApplicationTaskAdmission::IdExhausted,
+                },
+                Err(_) => return ApplicationTaskAdmission::IdExhausted,
+            };
+        let (state, changed) = &*self.background_state;
+        let mut state = state.lock().expect("background scheduler state lock");
+        match *state {
+            BackgroundSchedulerState::Open => {
+                *state = BackgroundSchedulerState::Occupied { task_id };
+                match self
+                    .background
+                    .try_send(BackgroundTaskMessage::Run { task_id, future })
+                {
+                    Ok(()) => ApplicationTaskAdmission::Scheduled { task_id },
+                    Err(TrySendError::Full(_)) => {
+                        *state = BackgroundSchedulerState::WorkerFailed;
+                        changed.notify_all();
+                        ApplicationTaskAdmission::WorkerFailed
+                    }
+                    Err(TrySendError::Disconnected(_)) => {
+                        *state = BackgroundSchedulerState::WorkerFailed;
+                        changed.notify_all();
+                        ApplicationTaskAdmission::WorkerFailed
+                    }
+                }
+            }
+            BackgroundSchedulerState::Occupied { task_id } => {
+                ApplicationTaskAdmission::AtCapacity {
+                    occupying_task_id: task_id,
+                }
+            }
+            BackgroundSchedulerState::Closing => ApplicationTaskAdmission::Closing,
+            BackgroundSchedulerState::Closed => ApplicationTaskAdmission::Closed,
+            BackgroundSchedulerState::WorkerFailed => ApplicationTaskAdmission::WorkerFailed,
+        }
+    }
+
+    fn shutdown_background_tasks(&self) -> ApplicationTaskShutdown {
+        let (state, changed) = &*self.background_state;
+        let mut state = state.lock().expect("background scheduler state lock");
+        let disposition = match *state {
+            BackgroundSchedulerState::Open => {
+                *state = BackgroundSchedulerState::Closing;
+                match self.background.try_send(BackgroundTaskMessage::Shutdown) {
+                    Ok(()) => ShutdownDisposition::Initiated,
+                    Err(TrySendError::Full(_)) => {
+                        *state = BackgroundSchedulerState::WorkerFailed;
+                        changed.notify_all();
+                        ShutdownDisposition::WorkerFailed
+                    }
+                    Err(TrySendError::Disconnected(_)) => {
+                        *state = BackgroundSchedulerState::Closed;
+                        changed.notify_all();
+                        ShutdownDisposition::AlreadyClosed
+                    }
+                }
+            }
+            BackgroundSchedulerState::Occupied { .. } => {
+                *state = BackgroundSchedulerState::Closing;
+                ShutdownDisposition::Initiated
+            }
+            BackgroundSchedulerState::Closing => ShutdownDisposition::Awaiting,
+            BackgroundSchedulerState::Closed => ShutdownDisposition::AlreadyClosed,
+            BackgroundSchedulerState::WorkerFailed => ShutdownDisposition::WorkerFailed,
+        };
+        if matches!(disposition, ShutdownDisposition::WorkerFailed) {
+            return ApplicationTaskShutdown::WorkerFailed;
+        }
+        while matches!(*state, BackgroundSchedulerState::Closing) {
+            state = changed
+                .wait(state)
+                .expect("background scheduler state lock");
+        }
+        match *state {
+            BackgroundSchedulerState::Closed => match disposition {
+                ShutdownDisposition::Initiated => ApplicationTaskShutdown::Closed,
+                ShutdownDisposition::Awaiting | ShutdownDisposition::AlreadyClosed => {
+                    ApplicationTaskShutdown::AlreadyClosed
+                }
+                ShutdownDisposition::WorkerFailed => ApplicationTaskShutdown::WorkerFailed,
+            },
+            BackgroundSchedulerState::WorkerFailed => ApplicationTaskShutdown::WorkerFailed,
+            BackgroundSchedulerState::Open | BackgroundSchedulerState::Occupied { .. } => {
+                ApplicationTaskShutdown::WorkerFailed
+            }
+            BackgroundSchedulerState::Closing => unreachable!("closing state was awaited"),
+        }
+    }
+
     fn sleep(&self, duration: Duration) -> ApplicationSleep<'_> {
         Box::pin(sleep(duration))
     }
+}
+
+fn background_task_worker(
+    runtime: Runtime,
+    receiver: Receiver<BackgroundTaskMessage>,
+    shared_state: Arc<(Mutex<BackgroundSchedulerState>, Condvar)>,
+) {
+    while let Ok(message) = receiver.recv() {
+        match message {
+            BackgroundTaskMessage::Run { task_id, future } => {
+                let (state, changed) = &*shared_state;
+                let mut state = state.lock().expect("background scheduler state lock");
+                match *state {
+                    BackgroundSchedulerState::Occupied {
+                        task_id: active_task,
+                    } if active_task == task_id => {
+                        drop(state);
+                        let task_result =
+                            catch_unwind(AssertUnwindSafe(|| runtime.block_on(future)));
+                        state = shared_state
+                            .0
+                            .lock()
+                            .expect("background scheduler state lock");
+                        match (task_result, *state) {
+                            (Err(_), BackgroundSchedulerState::Closed)
+                            | (Err(_), BackgroundSchedulerState::WorkerFailed) => {}
+                            (Err(_), _) => *state = BackgroundSchedulerState::WorkerFailed,
+                            (
+                                Ok(()),
+                                BackgroundSchedulerState::Occupied {
+                                    task_id: active_task,
+                                },
+                            ) if active_task == task_id => *state = BackgroundSchedulerState::Open,
+                            (Ok(()), BackgroundSchedulerState::Closing) => {
+                                *state = BackgroundSchedulerState::Closed;
+                            }
+                            (
+                                Ok(()),
+                                BackgroundSchedulerState::WorkerFailed
+                                | BackgroundSchedulerState::Closed,
+                            ) => {}
+                            (Ok(()), BackgroundSchedulerState::Open)
+                            | (Ok(()), BackgroundSchedulerState::Occupied { .. }) => {
+                                *state = BackgroundSchedulerState::WorkerFailed;
+                            }
+                        }
+                        changed.notify_all();
+                        if matches!(
+                            *state,
+                            BackgroundSchedulerState::Closed
+                                | BackgroundSchedulerState::WorkerFailed
+                        ) {
+                            return;
+                        }
+                    }
+                    BackgroundSchedulerState::Closing => {
+                        *state = BackgroundSchedulerState::Closed;
+                        changed.notify_all();
+                        return;
+                    }
+                    BackgroundSchedulerState::Open
+                    | BackgroundSchedulerState::Occupied { .. }
+                    | BackgroundSchedulerState::Closed
+                    | BackgroundSchedulerState::WorkerFailed => {
+                        *state = BackgroundSchedulerState::WorkerFailed;
+                        changed.notify_all();
+                        return;
+                    }
+                }
+            }
+            BackgroundTaskMessage::Shutdown => {
+                let (state, changed) = &*shared_state;
+                let mut state = state.lock().expect("background scheduler state lock");
+                match *state {
+                    BackgroundSchedulerState::Closing => {
+                        *state = BackgroundSchedulerState::Closed;
+                    }
+                    BackgroundSchedulerState::Closed => {}
+                    BackgroundSchedulerState::Open
+                    | BackgroundSchedulerState::Occupied { .. }
+                    | BackgroundSchedulerState::WorkerFailed => {
+                        *state = BackgroundSchedulerState::WorkerFailed;
+                    }
+                }
+                changed.notify_all();
+                return;
+            }
+        }
+    }
+    let (state, changed) = &*shared_state;
+    let mut state = state.lock().expect("background scheduler state lock");
+    *state = match *state {
+        BackgroundSchedulerState::Closing | BackgroundSchedulerState::Closed => {
+            BackgroundSchedulerState::Closed
+        }
+        BackgroundSchedulerState::Open
+        | BackgroundSchedulerState::Occupied { .. }
+        | BackgroundSchedulerState::WorkerFailed => BackgroundSchedulerState::WorkerFailed,
+    };
+    changed.notify_all();
 }
 
 pub fn tokio_application_runtime() -> Result<Arc<dyn ApplicationRuntime>, String> {
@@ -103,6 +360,9 @@ pub fn spawn_mihomo_overview(config: OverviewConfig) -> OverviewPump {
         };
     OverviewPump::spawn(reader, config.sample_interval, runtime)
 }
+
+#[cfg(test)]
+mod background_runtime_tests;
 
 /// Assemble the shared application for an iOS host. The native bridge is the
 /// only iOS-specific input; NetworkExtension and Swift lifecycle details stay
@@ -132,9 +392,34 @@ where
     application
         .install_log_gateway(Arc::new(client.clone()))
         .map_err(|failure| failure.message)?;
+    let core_capabilities =
+        CoreCapabilityApplication::new(Arc::new(MihomoCoreCapabilityProvider::new(
+            HostKind::Ios,
+            [
+                CoreOperation::Outbound(OutboundOperation::Select),
+                CoreOperation::Outbound(OutboundOperation::Probe),
+                CoreOperation::Connection(ConnectionOperation::Close),
+                CoreOperation::Logs(LogsOperation::SetLevel),
+                CoreOperation::Geo(GeoOperation::UpdateDatabases),
+                CoreOperation::Provider(ProviderOperation::ListRule),
+                CoreOperation::Provider(ProviderOperation::UpdateRule),
+                CoreOperation::Lifecycle(CoreLifecycleOperation::Start),
+                CoreOperation::Lifecycle(CoreLifecycleOperation::Stop),
+                CoreOperation::Lifecycle(CoreLifecycleOperation::Restart),
+                CoreOperation::ProxyControl(ProxyControlOperation::SetRoutingIntent),
+                CoreOperation::ProxyControl(ProxyControlOperation::GetRoutingIntent),
+            ],
+        )));
+    application
+        .install_core_capability_application(core_capabilities.clone())
+        .map_err(|failure| failure.message)?;
     application.install_command_handler(Arc::new(
         CommandApplication::new()
+            .with_core_capabilities(core_capabilities)
+            .with_host_capabilities(host.clone())
             .with_logs(application.log_application())
+            .with_routing_intent_port(Arc::new(MihomoRoutingIntentAdapter::new(client.clone())))
+            .with_core_log_level_port(Arc::new(client.clone()))
             .with_runtime(Arc::new(client))
             .with_application_runtime(runtime)
             .with_mtu(MtuApplication::new(host)),
@@ -174,6 +459,5 @@ where
     Ok((application, watchdog))
 }
 
+pub mod engine_backend_factory;
 pub mod snapshot_restore_fixture;
-
-pub mod demo_identities;

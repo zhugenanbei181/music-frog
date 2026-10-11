@@ -1,7 +1,7 @@
 //! One match and text presentation fold for live and projected connection facts.
-use crate::search_text::project_text_runs;
 use infiltrator_contract::connection_search::ConnectionSearchRow;
 use infiltrator_domain::connection_view::{self, ConnectionView};
+use zhuge_ui_core::text::{CaseSensitivity, project_text_runs};
 
 pub fn display_endpoint(host: &str, port: &str) -> String {
     if port.is_empty() {
@@ -27,10 +27,10 @@ pub fn project_search_row<C: ConnectionView>(row: &C, query: &str) -> Connection
     let matched = connection_view::matching_term(row, query);
     let visible = query.is_empty() || matched.is_some();
     let matched_term = matched
-        .map(|term| project_text_runs(term, query))
+        .map(|term| project_text_runs(term, query, CaseSensitivity::UnicodeInsensitive))
         .unwrap_or_default();
-    let endpoint = project_text_runs(&endpoint, query);
-    let process_rule = project_text_runs(&process_rule, query);
+    let endpoint = project_text_runs(&endpoint, query, CaseSensitivity::UnicodeInsensitive);
+    let process_rule = project_text_runs(&process_rule, query, CaseSensitivity::UnicodeInsensitive);
     let matched_term = if endpoint
         .iter()
         .chain(&process_rule)
@@ -43,7 +43,7 @@ pub fn project_search_row<C: ConnectionView>(row: &C, query: &str) -> Connection
     ConnectionSearchRow {
         visible,
         endpoint,
-        process_name: project_text_runs(&process, query),
+        process_name: project_text_runs(&process, query, CaseSensitivity::UnicodeInsensitive),
         process_rule,
         matched_term,
     }

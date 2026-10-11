@@ -3,21 +3,21 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleExecutable</key>
-    <string>infiltrator-iced</string>
+    <string>@desktop.iced.binary_name@</string>
     <key>CFBundleIdentifier</key>
-    <string>app.musicfrog.infiltrator</string>
+    <string>@desktop.iced.bundle_id@</string>
     <key>CFBundleName</key>
-    <string>Infiltrator</string>
+    <string>@desktop.iced.display_name@</string>
     <key>CFBundleDisplayName</key>
-    <string>Infiltrator</string>
+    <string>@desktop.iced.display_name@</string>
     <key>CFBundleIconFile</key>
-    <string>icon.icns</string>
+    <string>@desktop.iced.macos_icon_filename@</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>0.20.0</string>
+    <string>@version.name@</string>
     <key>CFBundleVersion</key>
-    <string>0.20.0</string>
+    <string>@version.name@</string>
     <key>LSMinimumSystemVersion</key>
     <string>11.0</string>
     <key>NSHighResolutionCapable</key>
@@ -30,10 +30,10 @@
     <array>
         <dict>
             <key>CFBundleURLName</key>
-            <string>app.musicfrog.infiltrator</string>
+            <string>@desktop.iced.bundle_id@</string>
             <key>CFBundleURLSchemes</key>
             <array>
-                <string>infiltrator</string>
+                <string>@desktop.iced.url_scheme@</string>
             </array>
         </dict>
     </array>

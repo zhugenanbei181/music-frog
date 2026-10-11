@@ -9,6 +9,7 @@ use bevy::ecs::hierarchy::Children;
 use bevy::ecs::query::QueryData;
 use bevy::ecs::system::{Query, Res};
 use bevy::ui::widget::Text;
+use infiltrator_application::routing_intent_projection::routing_intent_status_copy;
 use infiltrator_application::system_toggle_projection::{compact_label, compact_status_line};
 use infiltrator_bevy_widgets::button::{ButtonDisabled, ControlVisual};
 use infiltrator_bevy_widgets::localization::UiLocale;
@@ -37,7 +38,9 @@ pub fn refresh_mini_hud(
         let value = match kind.0 {
             MiniHudTextKind::UpRate => format_rate(model.0.up_bytes_per_sec),
             MiniHudTextKind::DownRate => format_rate(model.0.down_bytes_per_sec),
-            MiniHudTextKind::Mode => model.0.mode_zh.clone(),
+            MiniHudTextKind::RoutingIntent => {
+                routing_intent_status_copy(&model.0.routing_intent, locale.code())
+            }
             MiniHudTextKind::Node => exit_label(&model.0),
             MiniHudTextKind::ToggleLine => {
                 compact_status_line(&model.0.system_proxy, &model.0.tun, locale.code())

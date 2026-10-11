@@ -3,8 +3,8 @@
 use crate::fonts::FontSources;
 use crate::icon::{IconPlate, IconSources};
 use crate::text::TextRole;
-use bevy::asset::{AssetServer, Assets};
-use bevy::ecs::system::{Query, Res, ResMut};
+use bevy::asset::Assets;
+use bevy::ecs::system::{Query, ResMut};
 use bevy::image::Image;
 use bevy::text::{Font, FontSource, TextFont};
 use bevy::ui::widget::ImageNode;
@@ -25,15 +25,14 @@ pub(crate) fn initialize_fonts(
 }
 
 pub(crate) fn initialize_icons(
-    server: Option<Res<AssetServer>>,
-    images: Option<Res<Assets<Image>>>,
+    images: Option<ResMut<Assets<Image>>>,
     mut sources: ResMut<IconSources>,
     mut mounted: Query<(&IconPlate, &mut ImageNode)>,
 ) {
-    let (Some(server), Some(_images)) = (server, images) else {
+    let Some(mut images) = images else {
         return;
     };
-    *sources = IconSources::load(&server);
+    *sources = IconSources::embedded(&mut images);
     for (plate, mut image) in &mut mounted {
         image.image = sources.handle(plate.0).unwrap_or_default();
     }

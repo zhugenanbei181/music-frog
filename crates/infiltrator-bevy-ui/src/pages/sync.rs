@@ -14,12 +14,12 @@ use self::query_access::SyncProjectionTargets;
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::localized_widgets::localized_checkbox_scene;
 use crate::pages::snapshot_restore::OpenSnapshotRestore;
-use infiltrator_application::byte_format::format_bytes;
 use infiltrator_application::sync_projection;
 use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText, UiLocale};
 use infiltrator_contract::snapshot_restore::SnapshotRestoreTarget;
 use infiltrator_contract::surface_snapshot::PageStatus;
 use infiltrator_contract::sync::SyncStatus;
+use infiltrator_shared::byte_units::format_bytes;
 
 use crate::pages::sync_merge::{
     SyncMergeRowsCache, replay_availability, replay_fields, sync_three_way_merge_scene,
@@ -34,16 +34,19 @@ use bevy::ecs::observer::On;
 use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
+use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderRadius, Display, FlexDirection, JustifyContent, Node,
-    Overflow, UiRect, Val, percent, px,
+    AlignItems, BorderRadius, Display, FlexDirection, JustifyContent, Node, Overflow, UiRect,
+    percent, px,
 };
 use bevy::ui::widget::Text;
-use bevy::ui_widgets::{Activate, Button};
+use bevy::ui_widgets::{Activate, Button, ScrollArea};
+use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
@@ -151,6 +154,7 @@ pub struct SyncProjection {
 
 impl SyncProjection {
     /// Believable demo fixture for the Sync page.
+    #[cfg(any(feature = "capture-tools", test))]
     pub fn demo() -> Self {
         Self {
             status: SyncStatus::Connected,
@@ -219,11 +223,12 @@ pub fn sync_page(projection: &SyncProjection, palette: &UiPalette) -> impl Scene
                 height: percent(100),
                 min_height: px(0.0),
                 flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(space::S16),
+                row_gap: rem(space::S16),
                 overflow: Overflow::scroll_y(),
             }
             PageRoot(Route::Sync)
             SyncPageRoot
+            ScrollArea
             Children [
                 @{ header_card_scene(summary, last_sync_str, palette) }
                 --
@@ -253,20 +258,20 @@ fn header_card_scene(
                         width: percent(100),
                         align_items: AlignItems::Center,
                         justify_content: JustifyContent::SpaceBetween,
-                        column_gap: Val::Px(space::S16),
+                        column_gap: rem(space::S16),
                     }
                     AccessibilityNode(header_a11y) label
                     Children [
                         Node {
                             align_items: AlignItems::Center,
-                            column_gap: Val::Px(space::S12),
+                            column_gap: rem(space::S12),
                         }
                         Children [
                             @{ icon_tile_scene(IconId::Zap, 36.0, palette) }
                             --
                             Node {
                                 flex_direction: FlexDirection::Column,
-                                row_gap: Val::Px(space::S4),
+                                row_gap: rem(space::S4),
                             }
                             Children [
                                 Text(summary) SyncLine(SyncLineKind::Summary) TextRole(Role::Heading)
@@ -277,17 +282,17 @@ fn header_card_scene(
                         --
                         Node {
                             align_items: AlignItems::Center,
-                            column_gap: Val::Px(space::S8),
+                            column_gap: rem(space::S8),
                         }
                         Children [
                             Node {
-                                min_height: px(palette.control_height_px),
-                                padding: UiRect::horizontal(Val::Px(space::S12)),
+                                min_height: rem(palette.control_height_px),
+                                padding: UiRect::horizontal(rem(space::S12)),
                                 align_items: AlignItems::Center,
                                 justify_content: JustifyContent::Center,
-                                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                             }
-                            BackgroundColor({ palette.accent })
+                            ThemeBackgroundColor({ Token::Accent })
                             SyncNowButton
                             Button
                             Children [
@@ -295,13 +300,13 @@ fn header_card_scene(
                             ]
                             --
                             Node {
-                                min_height: px(palette.control_height_px),
-                                padding: UiRect::horizontal(Val::Px(space::S12)),
+                                min_height: rem(palette.control_height_px),
+                                padding: UiRect::horizontal(rem(space::S12)),
                                 align_items: AlignItems::Center,
                                 justify_content: JustifyContent::Center,
-                                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                             }
-                            BackgroundColor({ palette.surface_elevated })
+                            ThemeBackgroundColor({ Token::SurfaceElevated })
                             CreateBackupButton
                             Button
                             Children [
@@ -335,7 +340,7 @@ fn conflict_panel_scene(
                     Node {
                         width: percent(100),
                         flex_direction: FlexDirection::Column,
-                        row_gap: Val::Px(space::S8),
+                        row_gap: rem(space::S8),
                     }
                     Children [
                         Node {
@@ -351,17 +356,17 @@ fn conflict_panel_scene(
                         --
                         Node {
                             align_items: AlignItems::Center,
-                            column_gap: Val::Px(space::S8),
+                            column_gap: rem(space::S8),
                         }
                         Children [
                             Node {
                                 min_height: px(palette.control_height_px * 0.85),
-                                padding: UiRect::horizontal(Val::Px(space::S12)),
+                                padding: UiRect::horizontal(rem(space::S12)),
                                 align_items: AlignItems::Center,
                                 justify_content: JustifyContent::Center,
-                                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                             }
-                            BackgroundColor({ palette.accent })
+                            ThemeBackgroundColor({ Token::Accent })
                             KeepLocalConflictButton
                             Button
                             Children [
@@ -370,12 +375,12 @@ fn conflict_panel_scene(
                             --
                             Node {
                                 min_height: px(palette.control_height_px * 0.85),
-                                padding: UiRect::horizontal(Val::Px(space::S12)),
+                                padding: UiRect::horizontal(rem(space::S12)),
                                 align_items: AlignItems::Center,
                                 justify_content: JustifyContent::Center,
-                                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                             }
-                            BackgroundColor({ palette.surface_elevated })
+                            ThemeBackgroundColor({ Token::SurfaceElevated })
                             TakeRemoteConflictButton
                             Button
                             Children [
@@ -397,7 +402,7 @@ fn webdav_config_card(projection: &SyncProjection, palette: &UiPalette) -> impl 
             Box::new(bsn! {
                             Node {
                                 width: percent(100),
-                                padding: UiRect::bottom(Val::Px(space::S8)),
+                                padding: UiRect::bottom(rem(space::S8)),
                             }
                             Children [
                                 LocalizedText::plain("sync_webdav_settings_title") TextRole(Role::BodyStrong)
@@ -407,17 +412,17 @@ fn webdav_config_card(projection: &SyncProjection, palette: &UiPalette) -> impl 
                             Node {
                                 width: percent(100),
                                 flex_direction: FlexDirection::Column,
-                                row_gap: Val::Px(space::S8),
+                                row_gap: rem(space::S8),
                             }
                             Children [
                                 Node {
                                     width: percent(100),
                                     align_items: AlignItems::Center,
                                     justify_content: JustifyContent::SpaceBetween,
-                                    padding: UiRect::all(Val::Px(space::S8)),
-                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                    padding: UiRect::all(rem(space::S8)),
+                                    border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                                 }
-                                BackgroundColor({ palette.surface_elevated })
+                                ThemeBackgroundColor({ Token::SurfaceElevated })
                                 Children [
                                     Text(server_str) SyncLine(SyncLineKind::ServerUrl) TextRole(Role::Body)
                                     --
@@ -445,7 +450,7 @@ fn snapshots_card_scene(
                                 width: percent(100),
                                 align_items: AlignItems::Center,
                                 justify_content: JustifyContent::SpaceBetween,
-                                padding: UiRect::bottom(Val::Px(space::S8)),
+                                padding: UiRect::bottom(rem(space::S8)),
                             }
                             Children [
                                 LocalizedText::plain("sync_observation_history_title") TextRole(Role::BodyStrong)
@@ -457,7 +462,7 @@ fn snapshots_card_scene(
                             Node {
                                 width: percent(100),
                                 flex_direction: FlexDirection::Column,
-                                row_gap: Val::Px(space::S8),
+                                row_gap: rem(space::S8),
                             }
                             Children [
                                 { snapshot_scenes }
@@ -484,14 +489,14 @@ fn snapshot_row_scene(
                 width: percent(100),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::SpaceBetween,
-                padding: UiRect::all(Val::Px(space::S8)),
-                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                padding: UiRect::all(rem(space::S8)),
+                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
             }
-            BackgroundColor({ palette.surface_elevated })
+            ThemeBackgroundColor({ Token::SurfaceElevated })
             Children [
                 Node {
                     flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(space::S4),
+                    row_gap: rem(space::S4),
                 }
                 Children [
                     Text(device_time) SnapshotDeviceText(idx) TextRole(Role::Body)
@@ -501,12 +506,12 @@ fn snapshot_row_scene(
                 --
                 Node {
                     min_height: px(palette.control_height_px * 0.8),
-                    padding: UiRect::horizontal(Val::Px(space::S8)),
+                    padding: UiRect::horizontal(rem(space::S8)),
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::Center,
-                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                    border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                 }
-                BackgroundColor({ palette.surface })
+                ThemeBackgroundColor({ Token::Surface })
                 RestoreSnapshotButton {
                     profile: { snapshot.profile.clone() },                    snapshot_id: { snapshot.id.clone() },
                     snapshot_idx: idx,

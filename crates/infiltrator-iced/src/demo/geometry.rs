@@ -297,8 +297,8 @@ impl AppState {
             FeatureId::DoctorFailureRecovery => InteractionRegion::DoctorReport.id(),
             FeatureId::SettingsLanguageChoice => InteractionRegion::LanguageChoices.id(),
             FeatureId::ProfilesSnapshotRestoreConfirm => InteractionRegion::RestoreReview.id(),
-            FeatureId::ShellProxyModeControl | FeatureId::ShellProxyModeAuthentication => {
-                InteractionRegion::ModeFailure.id()
+            FeatureId::ShellRoutingIntentControl | FeatureId::ShellRoutingIntentAuthentication => {
+                InteractionRegion::RoutingIntentFailure.id()
             }
             FeatureId::ProxiesCustomNodeModal | FeatureId::ProxiesUriImportPreview => {
                 InteractionRegion::Protocol.id()
@@ -419,14 +419,14 @@ impl AppState {
         }
         if matches!(
             feature,
-            FeatureId::ShellProxyModeControl | FeatureId::ShellProxyModeAuthentication
+            FeatureId::ShellRoutingIntentControl | FeatureId::ShellRoutingIntentAuthentication
         ) {
             probe = probe
-                .requiring(InteractionRegion::ModeRetry.id())
-                .requiring(InteractionRegion::ModeDismiss.id());
+                .requiring(InteractionRegion::RoutingIntentRetry.id())
+                .requiring(InteractionRegion::RoutingIntentDismiss.id());
         }
-        if feature == FeatureId::ShellProxyModeAuthentication {
-            probe = probe.requiring(InteractionRegion::ModeSettings.id());
+        if feature == FeatureId::ShellRoutingIntentAuthentication {
+            probe = probe.requiring(InteractionRegion::RoutingIntentSettings.id());
         }
         if feature == FeatureId::ProxiesGroupReorder {
             probe = probe.requiring(InteractionRegion::ProxyGroupOrderList.id());

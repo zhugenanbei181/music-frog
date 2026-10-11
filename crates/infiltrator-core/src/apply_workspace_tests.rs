@@ -1,6 +1,7 @@
 //! test-intent: behavior
 use super::*;
 use crate::apply_workspace::apply_confirmed_workspace;
+use infiltrator_contract::core_identity::EngineId;
 use infiltrator_domain::profile_options::{FilterSpec, ProfileOptions, options_path};
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::profile_workspace::{ProfileWorkspacePurpose, ProfileWorkspaceUpdate};
@@ -8,16 +9,17 @@ use tokio::fs::{create_dir_all, write};
 use tokio::time::timeout;
 
 fn proposal() -> ProfileWorkspaceUpdate {
+    let options = ProfileOptions {
+        filter: Some(FilterSpec {
+            include_keywords: vec!["keep".into()],
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
     ProfileWorkspaceUpdate {
         purpose: ProfileWorkspacePurpose::Derived,
-        content: NEW.into(),
-        options: ProfileOptions {
-            filter: Some(FilterSpec {
-                include_keywords: vec!["keep".into()],
-                ..Default::default()
-            }),
-            ..Default::default()
-        },
+        document_bytes: NEW.as_bytes().to_vec(),
+        sidecar_bytes: Some(serde_yaml_ng::to_string(&options).unwrap().into_bytes()),
     }
 }
 async fn ready(f: &Fixture) {
@@ -37,17 +39,17 @@ async fn confirmed_workspace_commits_both_documents_and_reports_actual_stored_so
         &f.session,
         &f.config,
         &f.reloader,
-        &before.source,
+        &before.identity(),
         &proposal(),
         params(ApplyStrategy::PreferReload),
     )
     .await
     .unwrap();
-    assert_eq!(committed.content, NEW);
-    assert_eq!(committed.options, proposal().options);
+    assert_eq!(committed.document.utf8_text().unwrap(), NEW);
+    assert_eq!(committed.sidecar_bytes, proposal().sidecar_bytes);
     assert_eq!(f.config.load_active_workspace().await.unwrap(), committed);
-    assert_ne!(committed.source, before.source);
-    assert!(committed.options_document.is_some());
+    assert_ne!(committed.identity(), before.identity());
+    assert!(committed.sidecar_bytes.is_some());
     assert_eq!(f.reloader.calls.load(Ordering::SeqCst), 1);
     assert_eq!(f.session.lifecycle(), CoreLifecycle::Ready);
     assert_eq!(
@@ -60,8 +62,10 @@ async fn confirmed_workspace_commits_both_documents_and_reports_actual_stored_so
 async fn changed_options_or_active_profile_rejects_without_applying_or_writing() {
     let f = fixture(0, false).await;
     let before = f.config.load_active_workspace().await.unwrap();
+    let mut changed_sidecar = proposal();
+    changed_sidecar.document_bytes = before.document.raw_bytes.clone();
     f.config
-        .save_options("main", &proposal().options)
+        .compare_and_save_workspace(&before.identity(), &changed_sidecar)
         .await
         .unwrap();
     let changed = f.config.load_active_workspace().await.unwrap();
@@ -70,7 +74,7 @@ async fn changed_options_or_active_profile_rejects_without_applying_or_writing()
             &f.session,
             &f.config,
             &f.reloader,
-            &before.source,
+            &before.identity(),
             &proposal(),
             params(ApplyStrategy::PreferReload)
         )
@@ -86,7 +90,7 @@ async fn changed_options_or_active_profile_rejects_without_applying_or_writing()
             &f.session,
             &f.config,
             &f.reloader,
-            &changed.source,
+            &changed.identity(),
             &proposal(),
             params(ApplyStrategy::PreferReload)
         )
@@ -98,6 +102,35 @@ async fn changed_options_or_active_profile_rejects_without_applying_or_writing()
     assert_eq!(f.config.load("other").await.unwrap(), OLD);
     assert_eq!(f.reloader.calls.load(Ordering::SeqCst), 0);
     assert_eq!(f.session.lifecycle(), CoreLifecycle::Stopped);
+}
+
+#[tokio::test]
+async fn foreign_engine_is_rejected_before_document_validation_or_runtime_work() {
+    let f = fixture(0, false).await;
+    let before = f.config.load_active_workspace().await.unwrap();
+    let mut foreign = before.identity();
+    foreign.document.engine_id = EngineId::new("sing-box").unwrap();
+    let update = ProfileWorkspaceUpdate {
+        document_bytes: vec![0xFF],
+        ..proposal()
+    };
+
+    let failure = apply_confirmed_workspace(
+        &f.session,
+        &f.config,
+        &f.reloader,
+        &foreign,
+        &update,
+        params(ApplyStrategy::PreferReload),
+    )
+    .await
+    .unwrap_err();
+
+    assert_eq!(failure, ApplyError::SourceChanged);
+    assert_eq!(f.config.load_active_workspace().await.unwrap(), before);
+    assert_eq!(f.reloader.calls.load(Ordering::SeqCst), 0);
+    assert_eq!(f.session.lifecycle(), CoreLifecycle::Stopped);
+    assert!(!f.controller.running.load(Ordering::SeqCst));
 }
 
 #[tokio::test]
@@ -116,7 +149,7 @@ async fn apply_failure_restores_exact_sidecar_or_absence_and_recovers_the_old_co
             &f.session,
             &f.config,
             &f.reloader,
-            &before.source,
+            &before.identity(),
             &proposal(),
             params(ApplyStrategy::PreferReload),
         )
@@ -124,7 +157,7 @@ async fn apply_failure_restores_exact_sidecar_or_absence_and_recovers_the_old_co
         .unwrap_err();
         assert!(matches!(failure, ApplyError::RolledBack { .. }));
         assert_eq!(f.config.load_active_workspace().await.unwrap(), before);
-        assert_eq!(before.options_document.as_deref(), sidecar);
+        assert_eq!(before.sidecar_bytes.as_deref(), sidecar.map(str::as_bytes));
         assert_eq!(f.session.lifecycle(), CoreLifecycle::Ready);
         assert!(f.controller.running.load(Ordering::SeqCst));
         assert_eq!(
@@ -147,8 +180,22 @@ impl ConfigReloader for LaterOptions<'_> {
             }),
             ..Default::default()
         };
+        let current = self
+            .config
+            .load_active_workspace()
+            .await
+            .map_err(|error| error.to_string())?;
+        let update = ProfileWorkspaceUpdate {
+            purpose: ProfileWorkspacePurpose::Derived,
+            document_bytes: current.document.raw_bytes.clone(),
+            sidecar_bytes: Some(
+                serde_yaml_ng::to_string(&options)
+                    .map_err(|error| error.to_string())?
+                    .into_bytes(),
+            ),
+        };
         self.config
-            .save_options("main", &options)
+            .compare_and_save_workspace(&current.identity(), &update)
             .await
             .map_err(|error| error.to_string())?;
         Err("reload failed after a later option edit".into())
@@ -167,7 +214,7 @@ async fn later_option_edit_is_preserved_and_recovery_refuses_to_overwrite_it() {
             &f.session,
             &f.config,
             &reloader,
-            &before.source,
+            &before.identity(),
             &proposal(),
             params(ApplyStrategy::PreferReload),
         ),
@@ -177,16 +224,15 @@ async fn later_option_edit_is_preserved_and_recovery_refuses_to_overwrite_it() {
     .unwrap_err();
     assert!(matches!(failure, ApplyError::RollbackFailed { .. }));
     assert_eq!(f.config.load("main").await.unwrap(), NEW);
-    assert_eq!(
-        f.config
-            .load_options("main")
-            .await
-            .unwrap()
-            .filter
-            .unwrap()
-            .include_keywords,
-        vec!["later edit"]
-    );
+    let sidecar = f
+        .config
+        .load_active_workspace()
+        .await
+        .unwrap()
+        .sidecar_bytes
+        .expect("later edit sidecar remains committed");
+    let sidecar = String::from_utf8(sidecar).expect("valid options sidecar");
+    assert!(sidecar.contains("later edit"));
     assert_eq!(
         f.config.apply_transaction("main").unwrap().stage,
         ApplyTransactionStage::RollbackFailed
@@ -212,19 +258,19 @@ async fn successful_reload_cannot_report_applied_after_the_active_profile_change
     ready(&f).await;
     let before = f.config.load_active_workspace().await.unwrap();
     let reloader = SwitchActive { config: &f.config };
-    assert_eq!(
+    assert!(matches!(
         apply_confirmed_workspace(
             &f.session,
             &f.config,
             &reloader,
-            &before.source,
+            &before.identity(),
             &proposal(),
             params(ApplyStrategy::PreferReload)
         )
         .await
         .unwrap_err(),
-        ApplyError::SourceChanged
-    );
+        ApplyError::RollbackFailed { .. }
+    ));
     assert_eq!(f.config.get_current().await.unwrap(), "other");
     assert_eq!(f.config.load("other").await.unwrap(), OLD);
     assert_eq!(f.config.load("main").await.unwrap(), NEW);

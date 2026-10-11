@@ -14,15 +14,19 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 BIN_PATH="${1:-target/release/infiltrator-iced}"
-VERSION="${2:-0.20.0}"
+APP_PRODUCT="${APP_PRODUCT:-iced}"
+identity_value() {
+    python3 "$REPO_ROOT/scripts/product_identity.py" --get "desktop.$APP_PRODUCT.$1"
+}
+VERSION="${2:-$(python3 "$REPO_ROOT/scripts/product_identity.py" --get version.name)}"
 ARCH="${3:-amd64}"
 OUTPUT_DIR="${4:-dist}"
 
-APP_BIN="${APP_BIN:-infiltrator-iced}"
-APP_PKG="${APP_PKG:-infiltrator}"
-APP_DISPLAY_NAME="${APP_DISPLAY_NAME:-Infiltrator}"
-APP_DESKTOP="${APP_DESKTOP:-packaging/linux/appimage/infiltrator.desktop}"
-APP_ICON="${APP_ICON:-crates/infiltrator-iced/icons/icon.png}"
+APP_BIN="${APP_BIN:-$(identity_value binary_name)}"
+APP_PKG="${APP_PKG:-$(identity_value linux_package_id)}"
+APP_DISPLAY_NAME="${APP_DISPLAY_NAME:-$(identity_value display_name)}"
+APP_DESKTOP="${APP_DESKTOP:-$(identity_value linux_desktop_file)}"
+APP_ICON="${APP_ICON:-$(identity_value icon_png)}"
 ICON_PATH="$REPO_ROOT/$APP_ICON"
 
 if [ ! -f "$BIN_PATH" ]; then
@@ -51,7 +55,9 @@ bash "$REPO_ROOT/scripts/fetch-mihomo.sh" --target "$kernel_target" \
     --stage "$DEB_ROOT/usr/libexec/musicfrog/$APP_BIN/mihomo"
 
 # Copy desktop and icon metadata
-cp "$REPO_ROOT/$APP_DESKTOP" "$DEB_ROOT/usr/share/applications/${APP_PKG}.desktop"
+python3 "$REPO_ROOT/scripts/render-product-template.py" \
+    --input "$REPO_ROOT/$APP_DESKTOP" \
+    --output "$DEB_ROOT/usr/share/applications/${APP_PKG}.desktop"
 test -s "$ICON_PATH"
 cp "$ICON_PATH" "$DEB_ROOT/usr/share/icons/hicolor/512x512/apps/${APP_PKG}.png"
 

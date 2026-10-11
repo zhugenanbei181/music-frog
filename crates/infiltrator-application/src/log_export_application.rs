@@ -91,7 +91,7 @@ impl LogExportApplication {
         }
     }
     pub async fn save(&self, identity: &LogExportIdentity) -> Result<LogExportReceipt, Failure> {
-        if !self.logs.has_export_scope(identity.session) {
+        if !self.logs.has_export_scope(&identity.session) {
             return Err(invalid(
                 "Log export belongs to an earlier controller session",
             ));

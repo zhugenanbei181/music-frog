@@ -1,6 +1,6 @@
 //! Global Command Palette (`Ctrl+K` / search): pure state machine + BSN scene.
 //!
-//! Charter law (docs/bevy-ui/BEVY_UI_FRONTEND.md):
+//! Charter law (crates/infiltrator-bevy-ui/docs/BEVY_UI_FRONTEND.md):
 //! - 100% `bsn!` scene composition for the modal scrim and floating search dialog;
 //! - Pure state machine core ([`CommandPaletteState`]) testable headlessly;
 //! - The rows are the shared `infiltrator_contract::command_catalogue` list —
@@ -15,7 +15,9 @@ use bevy::ecs::component::Component;
 use bevy::ecs::event::Event;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::resource::Resource;
+use bevy::feathers::theme::{SurfaceLevel, ThemeBackgroundColor, ThemeContext};
 use bevy::scene::{Scene, bsn};
+use bevy::ui::FixedNode;
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderColor, BorderRadius, FlexDirection, JustifyContent, Node,
     Overflow, PositionType, UiRect, Val, percent, px,
@@ -23,9 +25,11 @@ use bevy::ui::prelude::{
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Button, ScrollArea};
 use infiltrator_application::command_palette_projection::{filtered_indices, localized_title};
+use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::a11y::ShellA11yNode;
@@ -248,12 +252,12 @@ pub fn command_palette_item_scene(
     bsn! {
             Node {
                 width: percent(100),
-                height: px(40.0),
-                min_height: px(40.0),
+                height: rem(40.0),
+                min_height: rem(40.0),
                 flex_shrink: 0.0,
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::SpaceBetween,
-                padding: UiRect::axes(Val::Px(space::S12), Val::Px(space::S4)),
+                padding: UiRect::axes(rem(space::S12), rem(space::S4)),
                 border: UiRect::all(Val::Px(1.0)),
                 border_radius: BorderRadius::all(Val::Px(6.0)),
             }
@@ -264,7 +268,7 @@ pub fn command_palette_item_scene(
             Children [
                 Node {
                     align_items: AlignItems::Center,
-                    column_gap: Val::Px(space::S8),
+                    column_gap: rem(space::S8),
                 }
                 Children [
                     Text({ category_text })
@@ -278,7 +282,7 @@ pub fn command_palette_item_scene(
                     padding: UiRect::axes(Val::Px(6.0), Val::Px(2.0)),
                     border_radius: BorderRadius::all(Val::Px(4.0)),
                 }
-                BackgroundColor({ palette.surface_elevated })
+                ThemeBackgroundColor({ Token::SurfaceElevated })
                 Children [
                     Text({ hint_text })
                     TextRole(Role::Caption)
@@ -346,37 +350,39 @@ pub fn command_palette_modal_scene(
                 min_height: px(0.0), max_height: percent(100),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
-                padding: UiRect::all(px(16.0)),
+                padding: UiRect::all(rem(16.0)),
             }
-            BackgroundColor({ palette.scrim })
+            ThemeBackgroundColor({ Token::Scrim })
+            ThemeContext(SurfaceLevel::Floating)
             CommandPaletteOverlayRoot
+            FixedNode
             semantic
             Children [
                 Node {
-                    width: px(560.0),
+                    width: rem(560.0),
                     max_width: percent(92),
                     max_height: percent(90), min_height: px(0.0),
                     flex_direction: FlexDirection::Column,
-                    padding: UiRect::all(Val::Px(space::S16)),
-                    row_gap: Val::Px(space::S12),
+                    padding: UiRect::all(rem(space::S16)),
+                    row_gap: rem(space::S12),
                     border: UiRect::all(Val::Px(1.0)),
                     border_radius: BorderRadius::all(Val::Px(12.0)),
                 }
                 CommandPaletteCard
-                BackgroundColor({ palette.surface })
+                ThemeBackgroundColor({ Token::Surface })
                 BorderColor { top: edge, right: edge, bottom: edge, left: edge }
                 Children [
                     // Search bar row
                     Node {
                         width: percent(100),
-                        height: px(44.0),
+                        height: rem(44.0),
                         align_items: AlignItems::Center,
-                        padding: UiRect::axes(Val::Px(space::S12), Val::Px(space::S8)),
+                        padding: UiRect::axes(rem(space::S12), rem(space::S8)),
                         border: UiRect::all(Val::Px(1.0)),
                         border_radius: BorderRadius::all(Val::Px(8.0)),
-                        column_gap: Val::Px(space::S8),
+                        column_gap: rem(space::S8),
                     }
-                    BackgroundColor({ palette.surface_elevated })
+                    ThemeBackgroundColor({ Token::SurfaceElevated })
                     BorderColor { top: edge, right: edge, bottom: edge, left: edge }
                     Children [
                         @{ icon_tile_scene(IconId::Activity, 24.0, palette) }
@@ -386,7 +392,7 @@ pub fn command_palette_modal_scene(
                         CommandPaletteQueryLabel
                         query_semantic
                         --
-                        Node { margin: { UiRect { left: Val::Auto, ..UiRect::default() } }, padding: UiRect::all(px(space::S4)) }
+                        Node { margin: { UiRect { left: Val::Auto, ..UiRect::default() } }, padding: UiRect::all(rem(space::S4)) }
                         Button CommandPaletteDismissButton
                         Children [ Text(close_label) TextRole(Role::Caption) ]
                     ]
@@ -396,7 +402,7 @@ pub fn command_palette_modal_scene(
                         width: percent(100), min_height: px(0.0), flex_shrink: 1.0,
                         overflow: Overflow::scroll_y(),
                         flex_direction: FlexDirection::Column,
-                        row_gap: Val::Px(space::S4),
+                        row_gap: rem(space::S4),
                     }
                     ScrollArea CommandPaletteScrollArea
                     Children [
@@ -407,7 +413,7 @@ pub fn command_palette_modal_scene(
                     Node {
                         width: percent(100),
                         justify_content: JustifyContent::SpaceBetween,
-                        padding: UiRect::top(Val::Px(space::S4)),
+                        padding: UiRect::top(rem(space::S4)),
                     }
                     Children [
                         Text(hints)
@@ -476,9 +482,13 @@ mod tests {
         let mut state = CommandPaletteState::new();
         state.open();
 
-        // Categories match by their shared Chinese label.
-        state.set_query("代理模式");
-        assert_eq!(state.filtered_indices.len(), 3);
+        // Typed routing-intent names match their shared localized rows.
+        state.set_query("遵循分流规则");
+        assert_eq!(state.filtered_indices.len(), 1);
+        assert_eq!(
+            state.current_selected_action().unwrap().id,
+            "routing.follow_rules"
+        );
 
         // The keyboard seam types and erases characters.
         state.set_query("");

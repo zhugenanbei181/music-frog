@@ -4,108 +4,94 @@
 //! test-intent: behavior
 
 use crate::state::AppState;
+use crate::test_mounts::command_harness::{
+    RecordingHandler, install_test_core_capabilities, recording_application,
+};
+use crate::test_mounts::outbound_fixtures::{
+    OutboundFixture, OutboundFixtureInput, standard_members, terminal,
+};
 use crate::types::message::Message;
-use infiltrator_domain::proxy::{Proxy, ProxyBase, ProxyGroup, ProxyHistory, Shadowsocks};
-use std::collections::HashMap;
+use infiltrator_application::core_application::CoreApplication;
+use infiltrator_contract::command::CommandIntent;
+use infiltrator_contract::command_output::CommandOutput;
+use infiltrator_contract::core_capabilities::{CoreOperation, OutboundOperation};
+use infiltrator_contract::outbound::preferences::OutboundFavoriteState;
+use infiltrator_contract::outbound::preferences::OutboundLayout;
+use infiltrator_contract::outbound::preferences::{
+    OutboundHealthFilter, OutboundSortOrder, OutboundUiPreferenceIntent,
+};
+use std::sync::Arc;
+
+fn product_state() -> (
+    AppState,
+    CoreApplication,
+    Arc<RecordingHandler>,
+    OutboundFixture,
+) {
+    let (application, handler) = recording_application();
+    install_test_core_capabilities(
+        &application,
+        [
+            CoreOperation::Outbound(OutboundOperation::List),
+            CoreOperation::Outbound(OutboundOperation::Select),
+            CoreOperation::Outbound(OutboundOperation::Probe),
+        ],
+    );
+    let scope = application
+        .snapshot()
+        .scope()
+        .expect("identified test owner");
+    let fixture = OutboundFixture::new(OutboundFixtureInput {
+        scope: &scope,
+        revision: 41,
+        members: &standard_members(),
+        selected: Some("proxy-a"),
+        favorites: &[],
+        health_filter: OutboundHealthFilter::All,
+        sort_order: OutboundSortOrder::LatencyAscending,
+        layout: OutboundLayout::Grid,
+    });
+    let mut state = AppState::empty();
+    fixture.attach_to(&mut state, &application);
+    (state, application, handler, fixture)
+}
+
+fn visible_member_names(state: &AppState) -> Vec<String> {
+    state
+        .runtime
+        .filtered_groups
+        .iter()
+        .flat_map(|(group_name, member_ids)| {
+            let Some(group) = state
+                .runtime
+                .proxy_groups
+                .iter()
+                .find(|group| &group.name == group_name)
+            else {
+                return Vec::new();
+            };
+            member_ids
+                .iter()
+                .filter_map(|member_id| {
+                    group
+                        .proxies
+                        .iter()
+                        .find(|member| &member.name == member_id)
+                        .map(|member| member.search_name().to_owned())
+                })
+                .collect()
+        })
+        .collect()
+}
 
 #[test]
 fn test_proxy_filtering_and_sorting() {
-    let (mut state, _) = AppState::new();
-    let mut proxies = HashMap::new();
-
-    // Group GLOBAL
-    proxies.insert(
-        "GLOBAL".to_string(),
-        Proxy::Selector(ProxyGroup {
-            name: "GLOBAL".to_string(),
-            now: "Proxy-A".to_string(),
-            all: vec!["Proxy-A".into(), "Proxy-B".into(), "Special".into()],
-            history: vec![],
-        }),
-    );
-
-    // Node A (100ms)
-    proxies.insert(
-        "Proxy-A".to_string(),
-        Proxy::Shadowsocks(Shadowsocks {
-            base: ProxyBase {
-                name: "Proxy-A".to_string(),
-                history: vec![ProxyHistory {
-                    time: "".into(),
-                    delay: 100,
-                }],
-                ..Default::default()
-            },
-            ..Default::default()
-        }),
-    );
-
-    // Node B (50ms)
-    proxies.insert(
-        "Proxy-B".to_string(),
-        Proxy::Shadowsocks(Shadowsocks {
-            base: ProxyBase {
-                name: "Proxy-B".to_string(),
-                history: vec![ProxyHistory {
-                    time: "".into(),
-                    delay: 50,
-                }],
-                ..Default::default()
-            },
-            ..Default::default()
-        }),
-    );
-
-    // Node Special (200ms)
-    proxies.insert(
-        "Special".to_string(),
-        Proxy::Shadowsocks(Shadowsocks {
-            base: ProxyBase {
-                name: "Special".to_string(),
-                history: vec![ProxyHistory {
-                    time: "".into(),
-                    delay: 200,
-                }],
-                ..Default::default()
-            },
-            ..Default::default()
-        }),
-    );
-
-    state.runtime.proxies = proxies;
-
-    // Test Search
-    let _ = state.update(Message::FilterProxies("special".into()));
-    assert_eq!(state.runtime.proxy_filter, "special");
-
-    // Test Sort Toggle
-    let _ = state.update(Message::ToggleProxySort);
-    assert!(state.runtime.proxy_sort_by_delay);
-
-    // Verification of logic (manual check of sorting logic used in view)
-    let global = state.runtime.proxies.get("GLOBAL").unwrap();
-    let mut members = global.all().unwrap().to_vec();
-
-    // Apply filter
-    let filter = state.runtime.proxy_filter.to_lowercase();
-    members.retain(|m| m.to_lowercase().contains(&filter));
-    assert_eq!(members.len(), 1);
-    assert_eq!(members[0], "Special");
-
-    // Apply sort (on all members)
-    let mut all_members = global.all().unwrap().to_vec();
-    all_members.sort_by_key(|m| {
-        state
-            .runtime
-            .proxies
-            .get(m)
-            .and_then(|p| p.history().last().map(|h| h.delay))
-            .unwrap_or(u32::MAX)
-    });
-
-    assert_eq!(all_members[0], "Proxy-B"); // 50ms
-    assert_eq!(all_members[1], "Proxy-A"); // 100ms
-    assert_eq!(all_members[2], "Special"); // 200ms
+    let (mut state, _, _, _) = product_state();
+    let _ = state.update(Message::FilterProxies("Proxy".into()));
+    assert_eq!(state.runtime.proxy_filter, "Proxy");
+    let members = &state.runtime.filtered_groups[0].1;
+    assert_eq!(members, &["proxy-b".to_owned(), "proxy-a".to_owned()]);
+    assert_eq!(visible_member_names(&state), ["Proxy-B", "Proxy-A"]);
 }
 
 #[test]
@@ -133,19 +119,6 @@ fn test_runtime_connection_sort_mode_switch() {
 }
 
 #[test]
-fn test_proxy_delay_sort_mode_switch() {
-    let (mut state, _) = AppState::new();
-
-    let _ = state.update(Message::UpdateProxyDelaySort("name_desc".into()));
-    assert_eq!(state.runtime.proxy_delay_sort, "name_desc");
-    assert!(!state.runtime.proxy_sort_by_delay);
-
-    let _ = state.update(Message::UpdateProxyDelaySort("delay_desc".into()));
-    assert_eq!(state.runtime.proxy_delay_sort, "delay_desc");
-    assert!(state.runtime.proxy_sort_by_delay);
-}
-
-#[test]
 fn test_profiles_filter_state() {
     let (mut state, _) = AppState::new();
     let _ = state.update(Message::UpdateProfilesFilter("default".into()));
@@ -161,189 +134,181 @@ fn test_runtime_connection_filter_state() {
 
 #[test]
 fn test_runtime_proxy_selector_sync_and_apply() {
-    let (mut state, _) = AppState::new();
-    let mut proxies = HashMap::new();
-
-    proxies.insert(
-        "GLOBAL".to_string(),
-        Proxy::Selector(ProxyGroup {
-            name: "GLOBAL".to_string(),
-            now: "Proxy-A".to_string(),
-            all: vec!["Proxy-A".into(), "Proxy-B".into()],
-            history: vec![],
-        }),
-    );
-    proxies.insert(
-        "Proxy-A".to_string(),
-        Proxy::Shadowsocks(Shadowsocks {
-            base: ProxyBase {
-                name: "Proxy-A".to_string(),
-                ..Default::default()
-            },
-            ..Default::default()
-        }),
-    );
-    proxies.insert(
-        "Proxy-B".to_string(),
-        Proxy::Shadowsocks(Shadowsocks {
-            base: ProxyBase {
-                name: "Proxy-B".to_string(),
-                ..Default::default()
-            },
-            ..Default::default()
-        }),
-    );
-
-    let _ = state.update(Message::ProxiesLoaded(Ok(proxies)));
+    let (mut state, _, handler, fixture) = product_state();
     assert_eq!(state.runtime.runtime_selected_group, "GLOBAL");
-    assert_eq!(state.runtime.runtime_selected_proxy, "Proxy-A");
-
-    let _ = state.update(Message::UpdateRuntimeSelectedProxy("Proxy-B".into()));
-    assert_eq!(state.runtime.runtime_selected_proxy, "Proxy-B");
-
-    let _ = state.update(Message::ApplyRuntimeSelectedProxy);
+    assert_eq!(state.runtime.runtime_selected_proxy, "proxy-a");
+    let prepare = state
+        .prepare_runtime_outbound_selection_message("GLOBAL", "proxy-b")
+        .expect("selection is formed from the accepted inventory");
+    assert!(matches!(
+        prepare,
+        Message::PrepareRuntimeOutboundSelection { .. }
+    ));
+    let _ = state.update(prepare);
+    assert_eq!(state.runtime.runtime_selected_proxy, "proxy-b");
+    let changed = OutboundFixture::new(OutboundFixtureInput {
+        scope: &fixture.scope,
+        revision: 42,
+        members: &standard_members(),
+        selected: Some("proxy-b"),
+        favorites: &[],
+        health_filter: OutboundHealthFilter::All,
+        sort_order: OutboundSortOrder::LatencyAscending,
+        layout: OutboundLayout::Grid,
+    });
+    handler
+        .2
+        .lock()
+        .unwrap()
+        .push_back(CommandOutput::OutboundInventory(changed.inventory));
+    let select = terminal(state.update(Message::ApplyRuntimeSelectedProxy));
+    let result = terminal(state.update(select));
+    let _ = state.update(result);
+    assert_eq!(state.runtime.runtime_selected_group, "GLOBAL");
+    assert_eq!(state.runtime.runtime_selected_proxy, "proxy-b");
+    assert!(matches!(
+        handler.0.lock().unwrap().as_slice(),
+        [CommandIntent::SelectOutbound { request }]
+            if request.outbound_id() == &fixture.ids["proxy-b"]
+                && request.collection_id() == &fixture.group_id
+                && request.expected_revision().value() == 41
+    ));
 }
 
 #[test]
 fn test_filter_alive_and_favorite_pinning() {
-    let (mut state, _) = AppState::new();
-    let mut proxies = HashMap::new();
-
-    // Group GLOBAL with 3 nodes
-    proxies.insert(
-        "GLOBAL".to_string(),
-        Proxy::Selector(ProxyGroup {
-            name: "GLOBAL".to_string(),
-            now: "Node-Alive-1".to_string(),
-            all: vec![
-                "Node-Alive-1".into(),
-                "Node-Dead".into(),
-                "Node-Alive-2".into(),
-            ],
-            history: vec![],
-        }),
-    );
-
-    // Node-Alive-1 (120ms)
-    proxies.insert(
-        "Node-Alive-1".to_string(),
-        Proxy::Shadowsocks(Shadowsocks {
-            base: ProxyBase {
-                name: "Node-Alive-1".to_string(),
-                alive: true,
-                history: vec![ProxyHistory {
-                    time: "".into(),
-                    delay: 120,
-                }],
-                ..Default::default()
-            },
-            ..Default::default()
-        }),
-    );
-
-    // Node-Dead (0ms / no delay)
-    proxies.insert(
-        "Node-Dead".to_string(),
-        Proxy::Shadowsocks(Shadowsocks {
-            base: ProxyBase {
-                name: "Node-Dead".to_string(),
-                alive: false,
-                history: vec![],
-                ..Default::default()
-            },
-            ..Default::default()
-        }),
-    );
-
-    // Node-Alive-2 (50ms)
-    proxies.insert(
-        "Node-Alive-2".to_string(),
-        Proxy::Shadowsocks(Shadowsocks {
-            base: ProxyBase {
-                name: "Node-Alive-2".to_string(),
-                alive: true,
-                history: vec![ProxyHistory {
-                    time: "".into(),
-                    delay: 50,
-                }],
-                ..Default::default()
-            },
-            ..Default::default()
-        }),
-    );
-
-    state.runtime.proxies = proxies;
-    state.recompute_filtered_groups();
+    let (mut state, _, handler, initial) = product_state();
     assert_eq!(state.runtime.filtered_groups.len(), 1);
     let members = &state.runtime.filtered_groups[0].1;
-    assert_eq!(members.len(), 3);
-    assert_eq!(members[0], "Node-Alive-2"); // 50ms lowest
-    assert_eq!(members[1], "Node-Alive-1"); // 120ms
-    assert_eq!(members[2], "Node-Dead");
+    assert_eq!(members.len(), standard_members().len());
+    assert_eq!(members[0], "node-alive-2");
+    assert_eq!(members[1], "proxy-b");
+    assert_eq!(
+        visible_member_names(&state),
+        [
+            "Node-Alive-2",
+            "Proxy-B",
+            "日本 Tokyo-01",
+            "Proxy-A",
+            "Node-Alive-1",
+            "香港 IEPL-01",
+            "Node-Dead",
+        ]
+    );
 
-    // Test Filter Alive
-    let _ = state.update(Message::ToggleFilterAlive(true));
-    state.recompute_filtered_groups();
+    let healthy = OutboundFixture::new(OutboundFixtureInput {
+        scope: &initial.scope,
+        revision: 42,
+        members: &standard_members(),
+        selected: Some("proxy-a"),
+        favorites: &[],
+        health_filter: OutboundHealthFilter::HealthyOnly,
+        sort_order: OutboundSortOrder::LatencyAscending,
+        layout: OutboundLayout::Grid,
+    });
+    handler
+        .2
+        .lock()
+        .unwrap()
+        .push_back(CommandOutput::OutboundUiPreferencesApplied(
+            healthy.preferences,
+        ));
+    let task = state.update(Message::ToggleFilterAlive(true));
+    let _ = state.update(terminal(task));
     assert!(state.runtime.filter_alive_only);
     let alive_members = &state.runtime.filtered_groups[0].1;
-    assert_eq!(alive_members.len(), 2);
-    assert!(!alive_members.contains(&"Node-Dead".to_string()));
+    assert_eq!(alive_members.len(), standard_members().len() - 1);
+    assert!(!alive_members.contains(&"node-dead".to_owned()));
+    assert!(!visible_member_names(&state).contains(&"Node-Dead".to_owned()));
 
-    // Test Favorite Pinning: Favorite Node-Alive-1 (even though it has higher latency than Node-Alive-2)
-    let _ = state.update(Message::ToggleFavoriteProxy("Node-Alive-1".into()));
-    state.recompute_filtered_groups();
-    assert!(state.runtime.favorite_proxies.contains("Node-Alive-1"));
+    let pinned = OutboundFixture::new(OutboundFixtureInput {
+        scope: &initial.scope,
+        revision: 43,
+        members: &standard_members(),
+        selected: Some("proxy-a"),
+        favorites: &["node-alive-1"],
+        health_filter: OutboundHealthFilter::HealthyOnly,
+        sort_order: OutboundSortOrder::LatencyAscending,
+        layout: OutboundLayout::Grid,
+    });
+    handler
+        .2
+        .lock()
+        .unwrap()
+        .push_back(CommandOutput::OutboundUiPreferencesApplied(
+            pinned.preferences,
+        ));
+    let task = state.update(Message::ToggleFavoriteOutbound(
+        initial.ids["node-alive-1"].clone(),
+    ));
+    let _ = state.update(terminal(task));
+    assert!(state.runtime.favorite_proxies.contains("node-alive-1"));
     let fav_members = &state.runtime.filtered_groups[0].1;
-    assert_eq!(fav_members[0], "Node-Alive-1"); // Pinned to top!
-    assert_eq!(fav_members[1], "Node-Alive-2");
-
-    // Test Inspect Proxy and Compact View
-    let _ = state.update(Message::InspectProxy(Some("Node-Alive-1".into())));
+    assert_eq!(fav_members[0], "node-alive-1");
+    assert_eq!(fav_members[1], "node-alive-2");
+    let visible_favorites = visible_member_names(&state);
+    assert_eq!(visible_favorites[0], "Node-Alive-1");
+    assert_eq!(visible_favorites[1], "Node-Alive-2");
+    let applied_preferences = handler
+        .0
+        .lock()
+        .unwrap()
+        .iter()
+        .filter_map(|intent| match intent {
+            CommandIntent::ApplyOutboundUiPreference { request } => Some(request.intent().clone()),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
     assert_eq!(
-        state.runtime.inspecting_proxy.as_deref(),
-        Some("Node-Alive-1")
+        applied_preferences,
+        vec![
+            OutboundUiPreferenceIntent::SetHealthFilter(OutboundHealthFilter::HealthyOnly),
+            OutboundUiPreferenceIntent::SetFavorite {
+                outbound_id: initial.ids["node-alive-1"].clone(),
+                state: OutboundFavoriteState::Pinned,
+            },
+        ]
     );
-    let _ = state.update(Message::InspectProxy(None));
-    assert!(state.runtime.inspecting_proxy.is_none());
 
-    let _ = state.update(Message::ToggleProxyCompactView);
+    let compact = OutboundFixture::new(OutboundFixtureInput {
+        scope: &initial.scope,
+        revision: 44,
+        members: &standard_members(),
+        selected: Some("proxy-a"),
+        favorites: &["node-alive-1"],
+        health_filter: OutboundHealthFilter::HealthyOnly,
+        sort_order: OutboundSortOrder::LatencyAscending,
+        layout: OutboundLayout::CompactList,
+    });
+    handler
+        .2
+        .lock()
+        .unwrap()
+        .push_back(CommandOutput::OutboundUiPreferencesApplied(
+            compact.preferences,
+        ));
+    let task = state.update(Message::ToggleProxyCompactView);
+    let _ = state.update(terminal(task));
     assert!(state.runtime.proxy_compact_view);
 }
 
 #[test]
 fn test_pinyin_fuzzy_filter_in_gui() {
-    let (mut state, _) = AppState::new();
-    let mut proxies = HashMap::new();
-
-    proxies.insert(
-        "GLOBAL".to_string(),
-        Proxy::Selector(ProxyGroup {
-            name: "GLOBAL".to_string(),
-            now: "香港 IEPL-01".to_string(),
-            all: vec![
-                "香港 IEPL-01".into(),
-                "日本 Tokyo-01".into(),
-                "美国 GIA-01".into(),
-            ],
-            history: vec![],
-        }),
-    );
-
-    state.runtime.proxies = proxies;
+    let (mut state, _, _, _) = product_state();
 
     // Search with pinyin initials "xg" -> should match 香港 IEPL-01
     let _ = state.update(Message::FilterProxies("xg".into()));
-    state.recompute_filtered_groups();
     let members = &state.runtime.filtered_groups[0].1;
     assert_eq!(members.len(), 1);
-    assert_eq!(members[0], "香港 IEPL-01");
+    assert_eq!(members[0], "hong-kong");
+    assert_eq!(visible_member_names(&state), ["香港 IEPL-01"]);
 
     // Search with country code "jp" -> should match 日本 Tokyo-01
     let _ = state.update(Message::FilterProxies("jp".into()));
-    state.recompute_filtered_groups();
     let members = &state.runtime.filtered_groups[0].1;
     assert_eq!(members.len(), 1);
-    assert_eq!(members[0], "日本 Tokyo-01");
+    assert_eq!(members[0], "japan");
+    assert_eq!(visible_member_names(&state), ["日本 Tokyo-01"]);
 }
 
 #[test]

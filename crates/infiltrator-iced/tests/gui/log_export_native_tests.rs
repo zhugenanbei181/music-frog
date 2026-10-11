@@ -2,6 +2,10 @@
 //! Native buttons drive actual Core commands and host files, including cancellation and retry.
 use super::content;
 use crate::state::AppState;
+use crate::test_mounts::command_harness::{
+    attach_product_application_with_accepted_snapshot, install_lifecycle_test_capabilities,
+};
+use crate::test_mounts::execute_at_observed_scope;
 use crate::test_mounts::native_widgets::native;
 use crate::types::message::Message;
 use crate::view::runtime::logs_controls::export;
@@ -17,16 +21,19 @@ use infiltrator_application::log_capture_fixtures::{
     LogCaptureProcess, append_follow_records, populate_logs,
 };
 use infiltrator_application::log_export_application::LogExportApplication;
+use infiltrator_application::surface_reader::ApplicationSurfaceReader;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::log_export::{LogExportArtifact, LogExportReceipt};
 use infiltrator_contract::logs::LogSession;
 use infiltrator_contract::shortcuts::KeyModifiers;
+use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_desktop::log_export::DesktopLogExportPort;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::log_export::LogExportPort;
 use infiltrator_ports::runtime_gateway::RuntimeStreamEvent;
+use infiltrator_ports::surface::SurfaceReader;
 use std::fs;
 use std::path::Path;
 use std::sync::Arc;
@@ -86,6 +93,7 @@ fn install(state: &mut AppState, port: Arc<dyn LogExportPort>) -> CoreApplicatio
         process,
         tokio_application_runtime().unwrap(),
     );
+    install_lifecycle_test_capabilities(&core);
     core.install_command_handler(Arc::new(
         CommandApplication::new()
             .with_logs(core.log_application())
@@ -98,15 +106,18 @@ fn install(state: &mut AppState, port: Arc<dyn LogExportPort>) -> CoreApplicatio
     run(populate_logs(&core)).unwrap();
     let snapshot = core.snapshot();
     assert!(core.log_application().ingest(
-        LogSession {
-            generation: snapshot.generation,
-            token: snapshot.session_token.unwrap()
-        },
+        LogSession::from_core_scope(snapshot.scope().expect("core scope")).expect("log session"),
         RuntimeStreamEvent::Item(
             "GET https://api.sub.lan/token?token=secret_sub_token_123456 HTTP/1.1".into()
         )
     ));
-    state.commands = Some(core.clone());
+    let reader = ApplicationSurfaceReader::new(
+        Arc::new(core.clone()),
+        SurfaceKind::IcedDesktop,
+        HostKind::Desktop,
+    );
+    let snapshot = run(reader.read()).unwrap();
+    attach_product_application_with_accepted_snapshot(state, core.clone(), snapshot);
     core
 }
 fn launch(state: &mut AppState) -> Task<Message> {
@@ -228,7 +239,7 @@ fn native_permission_failure_retries_the_same_reviewed_source_and_restarted_sour
     drive(&mut state, task);
     let task = launch(&mut state);
     drive(&mut state, task);
-    run(core.execute(CommandIntent::RestartCore))
+    run(execute_at_observed_scope(&core, CommandIntent::RestartCore))
         .into_unit()
         .unwrap();
     let task = click(&mut state, InteractionRegion::LogExportConfirm);
@@ -245,6 +256,14 @@ fn native_permission_failure_retries_the_same_reviewed_source_and_restarted_sour
             .count(),
         1
     );
+    let restarted_snapshot = run(ApplicationSurfaceReader::new(
+        Arc::new(core.clone()),
+        SurfaceKind::IcedDesktop,
+        HostKind::Desktop,
+    )
+    .read())
+    .unwrap();
+    assert!(state.apply_shared_surface_snapshot(restarted_snapshot));
     let task = click(&mut state, InteractionRegion::LogExportCancel);
     drive(&mut state, task);
     assert!(!state.diag.log_export.open);

@@ -16,7 +16,7 @@ use crate::types::message::Message;
 use crate::types::options::{SyncDiffBundle, SyncDiffState};
 use crate::update::core::profile_apply::save_profile_content;
 use iced::Task;
-use infiltrator_contract::error::{InfiltratorError, from_mihomo};
+use infiltrator_contract::error::{InfiltratorError, from_backend};
 use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_domain::config::validate_yaml;
 use infiltrator_domain::mixin::merge_yaml_key_picks;
@@ -44,7 +44,10 @@ impl AppState {
                 Task::perform(
                     async move {
                         let manager = config_manager().await?;
-                        let local = manager.load(&conflict.profile).await.map_err(from_mihomo)?;
+                        let local = manager
+                            .load(&conflict.profile)
+                            .await
+                            .map_err(from_backend)?;
                         let remote = read_conflict_file(&conflict).await?;
                         let summary = diff_yaml_configs(&local, &remote)
                             .map_err(|error| InfiltratorError::Config(error.to_string()))?;
@@ -130,7 +133,10 @@ impl AppState {
                             }
                         }
                         let manager = config_manager().await?;
-                        let local = manager.load(&conflict.profile).await.map_err(from_mihomo)?;
+                        let local = manager
+                            .load(&conflict.profile)
+                            .await
+                            .map_err(from_backend)?;
                         let remote = read_conflict_file(&conflict).await?;
                         let merged =
                             merge_yaml_key_picks(&local, &remote, &take_remote, &accept_removals)

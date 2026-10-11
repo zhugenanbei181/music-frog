@@ -16,11 +16,12 @@ pub(super) fn fmt(m: &Message, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result
         Message::DnsQuery(action) => write!(f, "DnsQuery({action:?})"),
         Message::RunDnsLatencyProbe => write!(f, "RunDnsLatencyProbe"),
         Message::DnsLatencyProbed(_) => write!(f, "DnsLatencyProbed"),
-        Message::DnsLeakProbed(report) => {
+        Message::DnsLeakProbed { token, result } => {
             write!(
                 f,
-                "DnsLeakProbed({:?})",
-                report.as_ref().map(|r| r.conclusion())
+                "DnsLeakProbed(token={}, {:?})",
+                token,
+                result.as_ref().map(|report| report.conclusion())
             )
         }
         Message::RunStunProbe => write!(f, "RunStunProbe"),
@@ -146,8 +147,8 @@ pub(super) fn fmt(m: &Message, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result
         Message::SetSnapshotDiffMode(mode) => write!(f, "SetSnapshotDiffMode({mode:?})"),
         Message::RefreshSnapshotDiff => write!(f, "RefreshSnapshotDiff"),
         Message::RollbackToSnapshot(id) => write!(f, "RollbackToSnapshot({id})"),
-        Message::SetProfileProtectionOverride(allow) => {
-            write!(f, "SetProfileProtectionOverride({allow})")
+        Message::SetProfileWriteAuthorization(authorization) => {
+            write!(f, "SetProfileWriteAuthorization({authorization:?})")
         }
         Message::BeginHotkeyCapture(action) => {
             write!(f, "BeginHotkeyCapture({})", action.id())
@@ -181,14 +182,31 @@ pub(super) fn fmt(m: &Message, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result
         Message::RemoveSubRuleCondition(idx) => write!(f, "RemoveSubRuleCondition({idx})"),
         Message::UpdateSubRuleTarget(t) => write!(f, "UpdateSubRuleTarget({t})"),
         Message::InsertSubRuleIntoRules => write!(f, "InsertSubRuleIntoRules"),
-        Message::RunNodeSpeedtest(node) => write!(f, "RunNodeSpeedtest({node})"),
-        Message::SpeedtestSnapshotUpdated(Ok(snapshot)) => write!(
+        Message::StartSpeedtest(target) => write!(f, "StartSpeedtest({target:?})"),
+        Message::SpeedtestStarted(Ok((receipt, snapshot))) => write!(
             f,
-            "SpeedtestSnapshotUpdated(Ok(nodes={}))",
-            snapshot.node_results.len()
+            "SpeedtestStarted(Ok(run_id={:?}, nodes={}))",
+            receipt.run_id,
+            snapshot.results.len()
         ),
-        Message::SpeedtestSnapshotUpdated(Err(error)) => {
-            write!(f, "SpeedtestSnapshotUpdated(Err({error:?}))")
+        Message::SpeedtestStarted(Err(error)) => {
+            write!(f, "SpeedtestStarted(Err({error:?}))")
+        }
+        Message::SpeedtestCancelled(Ok((outcome, snapshot))) => write!(
+            f,
+            "SpeedtestCancelled(Ok({outcome:?}, revision={}))",
+            snapshot.revision
+        ),
+        Message::SpeedtestCancelled(Err(error)) => {
+            write!(f, "SpeedtestCancelled(Err({error:?}))")
+        }
+        Message::SpeedtestConcurrencySet(Ok(snapshot)) => write!(
+            f,
+            "SpeedtestConcurrencySet(Ok(revision={}))",
+            snapshot.revision
+        ),
+        Message::SpeedtestConcurrencySet(Err(error)) => {
+            write!(f, "SpeedtestConcurrencySet(Err({error:?}))")
         }
         Message::CheckGeoDataUpdates => write!(f, "CheckGeoDataUpdates"),
         Message::TriggerGeoDataUpdate => write!(f, "TriggerGeoDataUpdate"),

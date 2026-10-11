@@ -13,12 +13,16 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 BIN_PATH="${1:-target/release/infiltrator-iced}"
-OUTPUT_PATH="${2:-dist/Infiltrator-x86_64.AppImage}"
+APP_PRODUCT="${APP_PRODUCT:-iced}"
+identity_value() {
+    python3 "$REPO_ROOT/scripts/product_identity.py" --get "desktop.$APP_PRODUCT.$1"
+}
 
-APP_BIN="${APP_BIN:-infiltrator-iced}"
-APP_PKG="${APP_PKG:-infiltrator}"
-APP_DESKTOP="${APP_DESKTOP:-packaging/linux/appimage/infiltrator.desktop}"
-APP_ICON="${APP_ICON:-crates/infiltrator-iced/icons/icon.png}"
+APP_BIN="${APP_BIN:-$(identity_value binary_name)}"
+APP_PKG="${APP_PKG:-$(identity_value linux_package_id)}"
+APP_DESKTOP="${APP_DESKTOP:-$(identity_value linux_desktop_file)}"
+APP_ICON="${APP_ICON:-$(identity_value icon_png)}"
+OUTPUT_PATH="${2:-dist/$(identity_value release_artifact_prefix)-Linux-x86_64.AppImage}"
 ICON_PATH="$REPO_ROOT/$APP_ICON"
 
 if [ ! -f "$BIN_PATH" ]; then
@@ -43,8 +47,11 @@ bash "$REPO_ROOT/scripts/fetch-mihomo.sh" --target x86_64-unknown-linux-gnu \
     --stage "$APP_DIR/usr/bin/mihomo"
 
 # Copy desktop and icon metadata
-cp "$REPO_ROOT/$APP_DESKTOP" "$APP_DIR/${APP_PKG}.desktop"
-cp "$REPO_ROOT/$APP_DESKTOP" "$APP_DIR/usr/share/applications/${APP_PKG}.desktop"
+python3 "$REPO_ROOT/scripts/render-product-template.py" \
+    --input "$REPO_ROOT/$APP_DESKTOP" --output "$APP_DIR/${APP_PKG}.desktop"
+python3 "$REPO_ROOT/scripts/render-product-template.py" \
+    --input "$REPO_ROOT/$APP_DESKTOP" \
+    --output "$APP_DIR/usr/share/applications/${APP_PKG}.desktop"
 test -s "$ICON_PATH"
 cp "$ICON_PATH" "$APP_DIR/${APP_PKG}.png"
 cp "$ICON_PATH" "$APP_DIR/usr/share/icons/hicolor/512x512/apps/${APP_PKG}.png"

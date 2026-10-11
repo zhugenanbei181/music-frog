@@ -1,34 +1,34 @@
 [package]
 name = "infiltrator-bevy-widgets"
-version = "0.41.0"
+version.workspace = true
 edition = "2024"
 publish = false
 description = "Business-agnostic Bevy UI widget layer for MusicFrog: bsn! scene functions over the official unstyled bevy_ui_widgets."
 
-# Business-agnostic by law (docs/bevy-ui/BEVY_UI_FRONTEND.md): this crate uses Bevy, Unicode and shared copy resources — never application
-# engines, infiltrator-core or mihomo-*. It is the future
-# extraction candidate shared with taskmanager's bevy frontend, which is why
-# bevy is pinned to the exact same patch (`=0.20.0`) so both resolve one ABI.
+# Business-agnostic by law (crates/infiltrator-bevy-ui/docs/BEVY_UI_FRONTEND.md): this crate uses Bevy, Unicode and shared copy resources — never application
+# engines, infiltrator-core or mihomo-*. Shared BSN roots are owned by
+# zhuge-ui-kit-bevy; this crate retains MusicFrog theme, copy and widget adapters.
+# Bevy is pinned to the same patch (`=0.20.0`) as the shared scene owner.
 
-# Base `bevy` declaration with an EMPTY feature set. The per-target tables
-# below own the real feature closure; this entry exists because bevy's derive
-# macros (Event/Component/Resource) resolve `::bevy::…` paths by scanning this
-# crate's plain `[dependencies]` table, and a target-table-only declaration
-# leaves them unresolved. The feature union across the tables is exactly the
-# per-target closure below. (Same two-phase shape taskmanager ships.)
+# Base `bevy` declaration enables Feathers' theme projection because this
+# crate imports it in all targets. Per-target tables below own the remaining
+# host feature closure; the plain dependency also keeps Bevy derive macros
+# (`Event`/`Component`/`Resource`) able to resolve `::bevy::…` paths.
 [dependencies]
+zhuge-ui-kit-bevy.workspace = true
+zhuge-ui-core.workspace = true
 accesskit = { workspace = true }
-bevy = { workspace = true }
+bevy = { workspace = true, features = ["bevy_feathers"] }
 unicode-segmentation = { workspace = true }
 infiltrator-shared = { path = "../infiltrator-shared" }
-infiltrator-contract = { path = "../infiltrator-contract" }
 
 # Feature closure (minimal for a bevy_ui surface), locked `=0.20.0`:
 # - bevy_ui: the toolkit layer itself (its layout plugin; pulls bevy_text and
 #   bevy_sprite; nothing 3D).
 # - bevy_ui_widgets: the official unstyled widget package (button / checkbox /
 #   radio / scrollarea / slider / text_input / menu / popover semantics).
-#   Styling stays ours via theme tokens; Feathers is not adopted.
+#   Interaction components remain ours; Feathers supplies only its theme
+#   projection API, connected to our design tokens.
 # - bevy_scene: the `bsn!` (Bevy Scene Notation) macro and the `Scene` /
 #   `CommandsSceneExt` spawn seam. Charter law: static structure composes
 #   declaratively with `bsn!`; no imperative `Node`/`Children` trees.
@@ -37,9 +37,8 @@ infiltrator-contract = { path = "../infiltrator-contract" }
 # - bevy_core_pipeline / bevy_render: the render-graph host the ui render
 #   node plugs into.
 # - bevy_asset: AssetPlugin, i.e. the Assets<Font>/Assets<Image> stores.
-# - png: the only image codec this layer needs — the icon plates under
-#   assets/icons/ are 64px RGBA PNGs, decoded by the asset-backed ImageLoader
-#   the host's render stack registers.
+# - png: the only image codec this layer needs — the shared asset catalog's
+#   64px RGBA icon plates are decoded into the host image store.
 # - bevy_winit: the window/event-loop host; no raw winit use of our own.
 # - bevy_text: font shaping through cosmic-text, chosen explicitly.
 # - ui_picking: the picking/message infrastructure the 0.20 widget observers
@@ -52,6 +51,9 @@ infiltrator-contract = { path = "../infiltrator-contract" }
 [target.'cfg(all(target_os = "linux", not(target_os = "android")))'.dependencies]
 bevy = { workspace = true, features = [
     "bevy_ui",
+    "bevy_feathers",
+    "custom_cursor",
+    "debug",
     "bevy_ui_widgets",
     "bevy_scene",
     "bevy_ui_render",
@@ -77,6 +79,9 @@ bevy = { workspace = true, features = [
 [target.'cfg(target_os = "android")'.dependencies]
 bevy = { workspace = true, features = [
     "bevy_ui",
+    "bevy_feathers",
+    "custom_cursor",
+    "debug",
     "bevy_ui_widgets",
     "bevy_scene",
     "bevy_ui_render",
@@ -99,6 +104,9 @@ blake3 = { version = "1.8", default-features = false, features = ["no_neon"] }
 [target.'cfg(not(any(target_os = "android", all(target_os = "linux", not(target_os = "android")))))'.dependencies]
 bevy = { workspace = true, features = [
     "bevy_ui",
+    "bevy_feathers",
+    "custom_cursor",
+    "debug",
     "bevy_ui_widgets",
     "bevy_scene",
     "bevy_ui_render",

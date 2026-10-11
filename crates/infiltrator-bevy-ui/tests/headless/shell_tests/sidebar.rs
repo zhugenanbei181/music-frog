@@ -2,9 +2,10 @@
 //! test-intent: behavior
 
 use super::*;
+use infiltrator_application::routing_intent_projection::routing_intent_copy;
 
 #[test]
-fn sidebar_mounts_nav_and_mode_segment() {
+fn sidebar_mounts_nav_and_routing_intent_segment() {
     let mut app = mounted_shell();
     let world = app.world_mut();
 
@@ -24,17 +25,17 @@ fn sidebar_mounts_nav_and_mode_segment() {
         "the remaining 10 routes in Route::ALL mount as idle items"
     );
 
-    let mut pills = world.query::<(&OverviewModePill, &ControlVisual)>();
+    let mut pills = world.query::<(&OverviewRoutingIntentPill, &ControlVisual)>();
     let mut selected = Vec::new();
     for (pill, visual) in pills.iter(world) {
         if visual.0 {
-            selected.push(pill.0);
+            selected.push(pill.0.clone());
         }
     }
     assert_eq!(
         selected,
-        Vec::<ProxyMode>::new(),
-        "an uncomposed shell cannot invent an observed mode"
+        Vec::<RoutingIntent>::new(),
+        "an uncomposed shell cannot invent an observed routing intent"
     );
 }
 
@@ -48,7 +49,7 @@ fn sidebar_orders_nav_into_the_content_flow_above_the_spacer() {
     assert_eq!(
         children.len(),
         9,
-        "identity, mode segment, system toggles, active profile, shortcut matrix, speed footer, nav, spacer, version expected"
+        "identity, routing segment, system toggles, active profile, shortcut matrix, speed footer, nav, spacer, version expected"
     );
 
     assert!(
@@ -135,27 +136,41 @@ fn test_sidebar_modern_control_center_parity() {
     let (rail, _) = rails.single(world).expect("one sidebar rail");
     let children: Vec<Entity> = world.get::<Children>(rail).expect("rail children").to_vec();
 
-    // 1. Header row: logo + MusicFrog + v0.20.0
+    // 1. Header row: logo + MusicFrog + version
     assert!(
         subtree_has_text(world, children[0], "MusicFrog"),
         "sidebar identity header contains MusicFrog"
     );
+    let expected_version = format!("v{}", env!("CARGO_PKG_VERSION"));
     assert!(
-        subtree_has_text(world, children[0], "v0.20.0"),
-        "sidebar identity header contains v0.20.0"
+        subtree_has_text(world, children[0], &expected_version),
+        "sidebar identity header contains current package version"
     );
 
-    // 2. Proxy Mode Segmented Control: Script segment alongside Rule, Global, Direct
-    let mut script_pills = world.query::<(&SidebarScriptModePill, &AccessibilityNode)>();
-    let (_, script_node) = script_pills
+    // 2. The shell exposes only the three shared routing choices.
+    let mut routing_pills = world.query::<(&OverviewRoutingIntentPill, &AccessibilityNode)>();
+    let labels: Vec<(RoutingIntent, String)> = routing_pills
         .iter(world)
-        .next()
-        .expect("SidebarScriptModePill mounted");
-    assert_eq!(script_node.role(), accesskit::Role::Button);
-    assert_eq!(script_node.label(), Some("脚本"));
+        .map(|(pill, node)| (pill.0.clone(), node.label().unwrap().to_owned()))
+        .collect();
+    assert_eq!(labels.len(), 3);
+    assert_eq!(
+        labels,
+        [
+            RoutingIntent::FollowRules,
+            RoutingIntent::RouteAllThroughProxy,
+            RoutingIntent::BypassProxy,
+        ]
+        .into_iter()
+        .map(|intent| {
+            let label = routing_intent_copy(&intent, "zh-CN");
+            (intent, label)
+        })
+        .collect::<Vec<_>>()
+    );
     assert!(
-        subtree_has_text(world, children[1], "脚本"),
-        "mode segment contains 脚本模式"
+        !subtree_has_text(world, children[1], "脚本"),
+        "engine-defined choices are not offered by the shared shell"
     );
 
     // 3. Double System Toggle Cards

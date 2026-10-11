@@ -1,6 +1,6 @@
 use crate::commands::{
-    Cli, Commands, ConfigsDirAction, ConnectionAction, DoctorAction, KernelAction, ProfileAction,
-    ProxyAction, ServiceAction, SyncAction,
+    Cli, Commands, ConfigsDirAction, ConnectionAction, DoctorAction, KernelAction, OutboundAction,
+    ProfileAction, ServiceAction, SyncAction,
 };
 use clap::{CommandFactory, Parser};
 use std::mem::discriminant;
@@ -218,56 +218,69 @@ fn service_subcommands_parse() {
 }
 
 #[test]
-fn proxy_test_has_sensible_defaults() {
-    match parse(&["proxy", "test", "HK-01"]) {
-        Commands::Proxy {
+fn outbound_commands_use_opaque_ids_and_typed_probe_defaults() {
+    assert!(matches!(
+        parse(&["outbound", "list"]),
+        Commands::Outbound {
+            action: OutboundAction::List
+        }
+    ));
+
+    match parse(&["outbound", "probe", "HK-01"]) {
+        Commands::Outbound {
             action:
-                ProxyAction::Test {
-                    name,
+                OutboundAction::Probe {
+                    outbound_id,
                     url,
                     timeout_ms,
                 },
         } => {
-            assert_eq!(name, "HK-01");
+            assert_eq!(outbound_id, "HK-01");
             assert_eq!(url, "http://www.gstatic.com/generate_204");
             assert_eq!(timeout_ms, 5000);
         }
-        _ => panic!("expected proxy test"),
+        _ => panic!("expected outbound probe"),
     }
 
     match parse(&[
-        "proxy",
-        "test",
+        "outbound",
+        "probe",
         "HK-01",
         "--url",
         "https://x.example",
         "--timeout-ms",
         "2500",
     ]) {
-        Commands::Proxy {
+        Commands::Outbound {
             action:
-                ProxyAction::Test {
-                    name,
+                OutboundAction::Probe {
+                    outbound_id,
                     url,
                     timeout_ms,
                 },
         } => {
-            assert_eq!(name, "HK-01");
+            assert_eq!(outbound_id, "HK-01");
             assert_eq!(url, "https://x.example");
             assert_eq!(timeout_ms, 2500);
         }
-        _ => panic!("expected proxy test with overrides"),
+        _ => panic!("expected outbound probe with overrides"),
     }
 
-    match parse(&["proxy", "switch", "GLOBAL", "HK-01"]) {
-        Commands::Proxy {
-            action: ProxyAction::Switch { group, proxy },
+    match parse(&["outbound", "select", "GLOBAL", "HK-01"]) {
+        Commands::Outbound {
+            action:
+                OutboundAction::Select {
+                    collection_id,
+                    outbound_id,
+                },
         } => {
-            assert_eq!(group, "GLOBAL");
-            assert_eq!(proxy, "HK-01");
+            assert_eq!(collection_id, "GLOBAL");
+            assert_eq!(outbound_id, "HK-01");
         }
-        _ => panic!("expected proxy switch"),
+        _ => panic!("expected outbound select"),
     }
+
+    assert!(Cli::try_parse_from(["infiltrator", "proxy", "list"]).is_err());
 }
 
 #[test]
@@ -358,7 +371,7 @@ fn root_help_lists_all_namespaced_groups() {
         "kernel",
         "profile",
         "service",
-        "proxy",
+        "outbound",
         "connection",
         "sync",
     ] {

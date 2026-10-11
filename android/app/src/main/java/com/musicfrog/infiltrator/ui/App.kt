@@ -9,13 +9,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.activity.compose.BackHandler
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.outlined.CloudSync
-import androidx.compose.material.icons.outlined.Settings
-import androidx.compose.material.icons.outlined.Shield
-import androidx.compose.material.icons.outlined.Storage
-import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -34,13 +30,14 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import com.musicfrog.infiltrator.MihomoHost
+import androidx.compose.ui.platform.testTag
 import com.musicfrog.infiltrator.R
+import com.musicfrog.infiltrator.AndroidVpnAuthorizationUiState
 import com.musicfrog.infiltrator.ui.connections.ConnectionsScreen
 import com.musicfrog.infiltrator.ui.logs.LogsScreen
 import com.musicfrog.infiltrator.ui.overview.OverviewScreen
@@ -53,25 +50,25 @@ import com.musicfrog.infiltrator.ui.settings.routing.AppRoutingScreen
 import com.musicfrog.infiltrator.ui.settings.rules.RulesScreen
 import com.musicfrog.infiltrator.ui.settings.tun.TunScreen
 import com.musicfrog.infiltrator.ui.sync.SyncScreen
+import infiltrator_android.AndroidControlIntent
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun InfiltratorApp(
     windowSizeClass: WindowSizeClass,
-    host: MihomoHost?,
-    vpnPermissionGranted: Boolean,
+    vpnAuthorization: AndroidVpnAuthorizationUiState,
     onRequestVpnPermission: () -> Unit,
+    onControlIntent: (AndroidControlIntent) -> Unit,
     pendingImportUrl: String? = null,
     onImportHandled: () -> Unit = {}
 ) {
-    var section by remember { mutableStateOf(AppSection.Overview) }
-    // Settings sub-navigation state
-    var settingsSubScreen by remember { mutableStateOf<String?>(null) }
+    var route by remember { mutableStateOf<AppRoute>(AppRoute.Main(AppSection.Overview)) }
+    val routeStateHolder = rememberSaveableStateHolder()
 
     // Handle deep link redirect
     LaunchedEffect(pendingImportUrl) {
         if (pendingImportUrl != null) {
-            section = AppSection.Profiles
+            route = AppRoute.Main(AppSection.Profiles)
         }
     }
 
@@ -84,24 +81,25 @@ fun InfiltratorApp(
 
     // Reset settings nav when switching main tabs
     val onSectionChange = { newSection: AppSection ->
-        section = newSection
-        if (newSection != AppSection.AppRouting) {
-            settingsSubScreen = null
-        }
+        route = AppRoute.Main(newSection)
+    }
+
+    BackHandler(enabled = route.canGoBack) {
+        route = route.back()
     }
 
     Scaffold(
         topBar = {
-            val titleText = when {
-                section == AppSection.AppRouting && settingsSubScreen != null -> settingsSubScreen!!
-                else -> stringResource(section.titleRes)
-            }
-            
             TopAppBar(
-                title = { Text(text = titleText) },
+                title = {
+                    Text(
+                        text = stringResource(route.titleRes),
+                        modifier = Modifier.testTag("screen-title"),
+                    )
+                },
                 navigationIcon = {
-                    if (section == AppSection.AppRouting && settingsSubScreen != null) {
-                        IconButton(onClick = { settingsSubScreen = null }) {
+                    if (route is AppRoute.SettingsDetail) {
+                        IconButton(onClick = { route = route.back() }) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                         }
                     }
@@ -117,10 +115,11 @@ fun InfiltratorApp(
                 NavigationBar {
                     AppSection.values().forEach { item ->
                         NavigationBarItem(
-                            selected = item == section,
+                            selected = item == route.selectedSection,
                             onClick = { onSectionChange(item) },
                             icon = { Icon(item.icon, null) },
-                            label = { Text(text = stringResource(item.titleRes)) }
+                            label = { Text(text = stringResource(item.titleRes)) },
+                            modifier = Modifier.testTag("nav_${item.name.lowercase()}"),
                         )
                     }
                 }
@@ -138,10 +137,11 @@ fun InfiltratorApp(
                     ) {
                         AppSection.values().forEach { item ->
                             NavigationRailItem(
-                                selected = item == section,
+                                selected = item == route.selectedSection,
                                 onClick = { onSectionChange(item) },
                                 icon = { Icon(item.icon, null) },
-                                label = { Text(text = stringResource(item.titleRes)) }
+                                label = { Text(text = stringResource(item.titleRes)) },
+                                modifier = Modifier.testTag("nav_${item.name.lowercase()}"),
                             )
                         }
                     }
@@ -152,43 +152,55 @@ fun InfiltratorApp(
                 modifier = Modifier
                     .fillMaxSize()
             ) {
-                when (section) {
-                    AppSection.Overview -> OverviewScreen(
-                        host = host,
-                        vpnPermissionGranted = vpnPermissionGranted,
-                        onRequestVpnPermission = onRequestVpnPermission,
-                        isExpanded = overviewExpanded
-                    )
-                    AppSection.Profiles -> ProfilesScreen(
-                        initialImportUrl = pendingImportUrl,
-                        onImportHandled = onImportHandled
-                    )
-                    AppSection.Proxies -> ProxiesScreen()
-                    AppSection.AppRouting -> {
-                        // Settings & Routing Tab
-                        if (settingsSubScreen == null) {
-                            SettingsScreen(
-                                onNavigateToRouting = { settingsSubScreen = "App Routing" },
-                                onNavigateToTun = { settingsSubScreen = "TUN" },
-                                onNavigateToDns = { settingsSubScreen = "DNS" },
-                                onNavigateToFakeIp = { settingsSubScreen = "Fake-IP" },
-                                onNavigateToRules = { settingsSubScreen = "Rules" },
-                                onNavigateToConnections = { settingsSubScreen = "Connections" },
-                                onNavigateToLogs = { settingsSubScreen = "Logs" }
+                routeStateHolder.SaveableStateProvider(route.saveableStateKey) {
+                    when (val activeRoute = route) {
+                        is AppRoute.Main -> when (activeRoute.section) {
+                            AppSection.Overview -> OverviewScreen(
+                                vpnAuthorization = vpnAuthorization,
+                                onRequestVpnPermission = onRequestVpnPermission,
+                                onControlIntent = onControlIntent,
+                                isExpanded = overviewExpanded
                             )
-                        } else {
-                            when (settingsSubScreen) {
-                                "App Routing" -> AppRoutingScreen()
-                                "TUN" -> TunScreen()
-                                "DNS" -> DnsScreen()
-                                "Fake-IP" -> FakeIpScreen()
-                                "Rules" -> RulesScreen()
-                                "Connections" -> ConnectionsScreen()
-                                "Logs" -> LogsScreen()
-                            }
+                            AppSection.Profiles -> ProfilesScreen(
+                                initialImportUrl = pendingImportUrl,
+                                onImportHandled = onImportHandled
+                            )
+                            AppSection.Proxies -> ProxiesScreen()
+                            AppSection.AppRouting -> SettingsScreen(
+                                onNavigateToRouting = {
+                                    route = AppRoute.SettingsDetail(SettingsDestination.Routing)
+                                },
+                                onNavigateToTun = {
+                                    route = AppRoute.SettingsDetail(SettingsDestination.Tun)
+                                },
+                                onNavigateToDns = {
+                                    route = AppRoute.SettingsDetail(SettingsDestination.Dns)
+                                },
+                                onNavigateToFakeIp = {
+                                    route = AppRoute.SettingsDetail(SettingsDestination.FakeIp)
+                                },
+                                onNavigateToRules = {
+                                    route = AppRoute.SettingsDetail(SettingsDestination.Rules)
+                                },
+                                onNavigateToConnections = {
+                                    route = AppRoute.SettingsDetail(SettingsDestination.Connections)
+                                },
+                                onNavigateToLogs = {
+                                    route = AppRoute.SettingsDetail(SettingsDestination.Logs)
+                                }
+                            )
+                            AppSection.Sync -> SyncScreen()
+                        }
+                        is AppRoute.SettingsDetail -> when (activeRoute.destination) {
+                            SettingsDestination.Routing -> AppRoutingScreen()
+                            SettingsDestination.Tun -> TunScreen()
+                            SettingsDestination.Dns -> DnsScreen()
+                            SettingsDestination.FakeIp -> FakeIpScreen()
+                            SettingsDestination.Rules -> RulesScreen()
+                            SettingsDestination.Connections -> ConnectionsScreen()
+                            SettingsDestination.Logs -> LogsScreen()
                         }
                     }
-                    AppSection.Sync -> SyncScreen()
                 }
             }
         }
@@ -198,15 +210,4 @@ fun InfiltratorApp(
 private enum class NavigationType {
     Bottom,
     Rail
-}
-
-private enum class AppSection(
-    val titleRes: Int,
-    val icon: ImageVector
-) {
-    Overview(R.string.nav_overview, Icons.Outlined.Shield),
-    Profiles(R.string.nav_profiles, Icons.Outlined.Storage),
-    Proxies(R.string.nav_proxies, Icons.Outlined.Tune),
-    AppRouting(R.string.nav_settings, Icons.Outlined.Settings),
-    Sync(R.string.nav_sync, Icons.Outlined.CloudSync),
 }

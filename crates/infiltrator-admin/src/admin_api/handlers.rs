@@ -2,7 +2,8 @@
 //!
 //! - [`profiles`]: profile / subscription management
 //! - [`runtime`]: runtime lifecycle, connections, logs/traffic/memory/ip
-//! - [`proxies`]: proxy listing, mode/select, delay testing
+//! - [`outbounds`]: typed outbound observation, selection, and probing
+//! - [`routing_intent`]: scoped typed traffic-routing control
 //! - [`config`]: static config read-write (dns, fake-ip, providers,
 //!   sniffer, rules, tun)
 //! - [`settings`]: app settings, editor integration, WebDAV sync
@@ -13,13 +14,15 @@
 //! This file is the module root: submodules plus the shared rebuild /
 //! logging glue. The router in `super` consumes every handler through the
 //! submodule paths below (`handlers::config::get_dns_config_http`, ...), so
-//! route paths, methods, and handler names are unchanged.
+//! routing names and handler names are owned by the public API contract.
 
+use crate::admin_api::models::ApiError;
 use crate::admin_api::state::{AdminApiContext, RebuildStatus};
 use axum::body::Body;
 use axum::http::Request;
 use axum::middleware::Next;
 use axum::response::Response;
+use infiltrator_contract::error::{ErrorCode, Failure};
 use log::{info, warn};
 use std::sync::Arc;
 use std::time::Instant;
@@ -29,13 +32,30 @@ pub mod auth;
 pub mod config;
 pub mod doctor;
 pub mod kernel;
+pub mod outbounds;
 pub mod profiles;
-pub mod proxies;
+pub mod routing_intent;
 pub mod runtime;
 pub mod scripts;
 pub mod settings;
 pub mod system;
 pub mod webhook;
+
+pub(super) fn api_failure(failure: Failure) -> ApiError {
+    match failure.code {
+        ErrorCode::InvalidInput => ApiError::bad_request(failure.message),
+        ErrorCode::InvalidState => ApiError::conflict(failure.message),
+        ErrorCode::Unsupported => ApiError::unsupported(failure.message),
+        ErrorCode::NotReady => ApiError::unavailable(failure.message),
+        ErrorCode::Network
+        | ErrorCode::Authentication
+        | ErrorCode::Configuration
+        | ErrorCode::Storage
+        | ErrorCode::Permission
+        | ErrorCode::Canceled
+        | ErrorCode::Internal => ApiError::internal(failure.message),
+    }
+}
 
 pub async fn log_admin_request(req: Request<Body>, next: Next) -> Response {
     let method = req.method().clone();

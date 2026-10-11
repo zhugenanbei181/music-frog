@@ -1,6 +1,6 @@
 //! Clipboard sanitization, invisible zero-width character stripping, and credential masking.
 //!
-//! Charter (docs/bevy-ui/BEVY_UI_FRONTEND.md):
+//! Charter (crates/infiltrator-bevy-ui/docs/BEVY_UI_FRONTEND.md):
 //! Pure sanitization pipeline ensuring pasted subscription links, tokens, and YAML configs
 //! are stripped of hostile zero-width characters and credentials are masked for UI presentation.
 

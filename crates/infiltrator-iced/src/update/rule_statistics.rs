@@ -49,7 +49,7 @@ impl AppState {
                 let Some(request) = self.editor.rule_hit_audit.begin_reset() else {
                     return Task::none();
                 };
-                let Some(commands) = self.commands.clone() else {
+                let Some(commands) = self.command_ingress() else {
                     self.editor.rule_hit_audit.finish_reset(
                         &request,
                         Err(Failure::new(

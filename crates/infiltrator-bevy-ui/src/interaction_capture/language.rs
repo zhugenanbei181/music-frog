@@ -15,7 +15,9 @@ use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::SystemParam;
 use bevy::ui_widgets::Activate;
 use infiltrator_application::command_application::CommandApplication;
-use infiltrator_application::language_choice::project_language;
+use infiltrator_application::language_choice::{
+    LanguageChoicePhase, LanguageReadPhase, project_language,
+};
 use infiltrator_application::language_choice_fixtures::LanguageCaptureStore;
 use infiltrator_application::settings_application::SettingsApplication;
 use infiltrator_bevy_widgets::button::ButtonDisabled;
@@ -65,13 +67,24 @@ pub struct LanguageControls<'w, 's> {
     >,
 }
 pub fn activate(controls: LanguageControls, mut commands: Commands) {
+    let preference = match &controls.choice.model.read {
+        LanguageReadPhase::Unobserved => None,
+        LanguageReadPhase::Observed { preference } => *preference,
+        LanguageReadPhase::Failed { last_known, .. } => *last_known,
+    };
+    let operation_pending = match &controls.choice.model.phase {
+        LanguageChoicePhase::Pending(_) | LanguageChoicePhase::AwaitingObservation { .. } => true,
+        LanguageChoicePhase::Ready
+        | LanguageChoicePhase::Rejected(_)
+        | LanguageChoicePhase::Failed { .. } => false,
+    };
     if !selected(
         &controls.feature,
         &controls.route,
         FeatureId::SettingsLanguageChoice,
         Route::Settings,
-    ) || controls.choice.model.applied == Some(LanguagePreference::English)
-        || controls.choice.model.pending.is_some()
+    ) || preference == Some(LanguagePreference::English)
+        || operation_pending
     {
         return;
     }
@@ -102,9 +115,20 @@ pub struct LanguageObservation<'w, 's> {
 impl LanguageObservation<'_, '_> {
     fn bounds(&self, geometry: &mut CaptureGeometry) -> Option<[f32; 4]> {
         let state = &self.choice.model;
-        if state.applied != Some(LanguagePreference::English)
-            || state.pending.is_some()
-            || state.failure.is_some()
+        let preference = match &state.read {
+            LanguageReadPhase::Unobserved => None,
+            LanguageReadPhase::Observed { preference } => *preference,
+            LanguageReadPhase::Failed { last_known, .. } => *last_known,
+        };
+        let settled = match &state.phase {
+            LanguageChoicePhase::Ready => true,
+            LanguageChoicePhase::Pending(_)
+            | LanguageChoicePhase::Rejected(_)
+            | LanguageChoicePhase::Failed { .. }
+            | LanguageChoicePhase::AwaitingObservation { .. } => false,
+        };
+        if preference != Some(LanguagePreference::English)
+            || !settled
             || self.locale.code() != "en-US"
             || self.store.store.saved().language != "en-US"
             || self.buttons.iter().count() != LanguagePreference::ALL.len()

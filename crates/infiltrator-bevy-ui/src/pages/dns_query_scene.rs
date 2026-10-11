@@ -6,20 +6,23 @@ use crate::pages::dns_query::{
 use bevy::a11y::AccessibilityNode;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::system::{Commands, Res};
+use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::{CommandsSceneExt, Scene, bsn};
 use bevy::ui::widget::Text;
 use bevy::ui::{
-    AlignItems, BackgroundColor, Display, FlexDirection, FlexWrap, GlobalZIndex, JustifyContent,
-    Node, Overflow, PositionType, UiRect, percent, px,
+    AlignItems, Display, FlexDirection, FlexWrap, GlobalZIndex, JustifyContent, Node, Overflow,
+    PositionType, UiRect, percent, px,
 };
 use bevy::ui_widgets::ScrollArea;
 use infiltrator_application::dns_query_actions::QuerySection;
 use infiltrator_bevy_widgets::button::{
     ButtonLabel, ButtonSize, ButtonVariant, button_with_label_scene,
 };
+use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText};
 use infiltrator_bevy_widgets::modal::{ModalDialogCard, ModalScrim};
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::text_input::native::NativeTextField;
 use infiltrator_contract::dns_query::DnsRecordType;
@@ -82,14 +85,14 @@ fn modal(palette: &UiPalette) -> impl Scene + use<> {
         QueryModalRoot GlobalZIndex(116)
         Children [
             Node { position_type: PositionType::Absolute, width: percent(100), height: percent(100) }
-            ModalScrim BackgroundColor({ palette.scrim }) QueryAction::Cancel
+            ModalScrim ThemeBackgroundColor({ Token::Scrim }) QueryAction::Cancel
             --
             Node {
-                width: percent(90), max_width: px(640.0), height: percent(90), max_height: px(640.0),
-                padding: UiRect::all(px(12.0)),
-                flex_direction: FlexDirection::Column, row_gap: px(6.0),
+                width: percent(90), max_width: rem(640.0), height: percent(90), max_height: rem(640.0),
+                padding: UiRect::all(rem(12.0)),
+                flex_direction: FlexDirection::Column, row_gap: rem(6.0),
             }
-            ModalDialogCard QueryModalCard BackgroundColor({ palette.surface })
+            ModalDialogCard QueryModalCard ThemeBackgroundColor({ Token::Surface })
             AccessibilityNode(semantic) LocalizedLabel::plain("dns_query_title")
             Children [
                 LocalizedText::plain("dns_query_title") TextRole(Role::Heading)
@@ -97,7 +100,7 @@ fn modal(palette: &UiPalette) -> impl Scene + use<> {
                 @{ (localized_field_scene(String::new(), LocalizedText::plain("dns_query_name"), palette),
                     bsn! { QueryNameField NativeTextField(0) }) }
                 --
-                Node { width: percent(100), column_gap: px(8.0), align_items: AlignItems::Center }
+                Node { width: percent(100), column_gap: rem(8.0), align_items: AlignItems::Center }
                 Children [
                     @{ query_button(QueryAction::TypePicker, LocalizedText::plain("dns_query_record_type"), palette) }
                     --
@@ -105,22 +108,22 @@ fn modal(palette: &UiPalette) -> impl Scene + use<> {
                 ]
                 --
                 Node {
-                    position_type: PositionType::Absolute, top: px(100.0), left: px(12.0), right: px(12.0),
-                    flex_wrap: FlexWrap::Wrap, column_gap: px(4.0), row_gap: px(4.0),
-                    padding: UiRect::all(px(8.0)), display: Display::None,
+                    position_type: PositionType::Absolute, top: rem(100.0), left: rem(12.0), right: rem(12.0),
+                    flex_wrap: FlexWrap::Wrap, column_gap: rem(4.0), row_gap: rem(4.0),
+                    padding: UiRect::all(rem(8.0)), display: Display::None,
                 }
-                QueryTypeMenu GlobalZIndex(117) BackgroundColor({ palette.surface_elevated })
+                QueryTypeMenu GlobalZIndex(117) ThemeBackgroundColor({ Token::SurfaceElevated })
                 Children [ { types } ]
                 --
                 Text(String::new()) QueryLine::Status TextRole(Role::Caption)
                 --
-                Node { width: percent(100), column_gap: px(8.0) }
+                Node { width: percent(100), column_gap: rem(8.0) }
                 Children [ { sections } ]
                 --
                 Node {
                     width: percent(100), flex_grow: 1.0, min_height: px(0.0),
                     overflow: Overflow::scroll_y(), flex_direction: FlexDirection::Column,
-                    row_gap: px(6.0),
+                    row_gap: rem(6.0),
                 }
                 ScrollArea
                 Children [
@@ -133,7 +136,7 @@ fn modal(palette: &UiPalette) -> impl Scene + use<> {
                     Text(String::new()) QueryLine::Records TextRole(Role::Mono)
                 ]
                 --
-                Node { width: percent(100), column_gap: px(8.0), align_items: AlignItems::Center }
+                Node { width: percent(100), column_gap: rem(8.0), align_items: AlignItems::Center }
                 Children [
                     @{ query_button(QueryAction::Previous, LocalizedText::plain("dns_query_previous_page"), palette) }
                     --
@@ -142,7 +145,7 @@ fn modal(palette: &UiPalette) -> impl Scene + use<> {
                     @{ query_button(QueryAction::Next, LocalizedText::plain("dns_query_next_page"), palette) }
                 ]
                 --
-                Node { width: percent(100), column_gap: px(8.0), justify_content: JustifyContent::FlexEnd }
+                Node { width: percent(100), column_gap: rem(8.0), justify_content: JustifyContent::FlexEnd }
                 Children [
                     @{ query_button(QueryAction::Cancel, LocalizedText::plain("dns_query_close"), palette) }
                     --

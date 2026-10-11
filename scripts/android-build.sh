@@ -71,9 +71,15 @@ build_abi() {
     rustup target add "$target" >/dev/null 2>&1
     # .cargo/config.toml pins aarch64-linux-android21-clang; set the linker
     # explicitly for every target so the script works without editing config.
-    local linker_var
+    local linker_var cc_var ar_var
     linker_var="CARGO_TARGET_$(echo "$target" | tr 'a-z-' 'A-Z_')_LINKER"
+    cc_var="CC_$(echo "$target" | tr 'a-z-' 'A-Z_' | tr 'A-Z' 'a-z')"
+    ar_var="AR_$(echo "$target" | tr 'a-z-' 'A-Z_' | tr 'A-Z' 'a-z')"
     env "$linker_var=$TOOLCHAIN_BIN/${target}${API_LEVEL}-clang" \
+        "$cc_var=$TOOLCHAIN_BIN/${target}${API_LEVEL}-clang" \
+        "$ar_var=$TOOLCHAIN_BIN/llvm-ar" \
+        "CC_$target=$TOOLCHAIN_BIN/${target}${API_LEVEL}-clang" \
+        "AR_$target=$TOOLCHAIN_BIN/llvm-ar" \
         cargo build -p "$CRATE" --release --target "$target"
     mkdir -p "$JNILIBS_DIR/$abi"
     local dest="$JNILIBS_DIR/$abi/$LIBNAME"

@@ -1,15 +1,16 @@
 //! Native TEA flows execute the shared command owner and consume its actual reader.
 //! test-intent: behavior
 use super::*;
-use crate::test_mounts::command_harness::{recording_application, rejecting_application};
+use crate::test_mounts::command_harness::{
+    attach_product_application_with_accepted_owner_snapshot, core_test_command_application,
+    recording_application, rejecting_application,
+};
 use crate::types::app::ConfirmAction;
 use crate::types::app::Route;
 use crate::types::rule_trace::RuleTraceAction;
 use futures_util::StreamExt;
 use iced::Task;
 use iced_runtime::{Action, task::into_stream};
-use infiltrator_application::command_application::CommandApplication;
-use infiltrator_application::configuration_application::ConfigurationApplication;
 use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::rule_list_application::RuleListApplication;
 use infiltrator_application::rule_trace_fixtures::{
@@ -17,6 +18,7 @@ use infiltrator_application::rule_trace_fixtures::{
 };
 use infiltrator_application::rule_tracer_application::RuleTracerApplication;
 use infiltrator_application::surface_reader::ApplicationSurfaceReader;
+use infiltrator_contract::core_capabilities::{CoreOperation, RulesOperation};
 use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::rules_workspace::RulesTab;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
@@ -25,15 +27,18 @@ use std::sync::{Arc, atomic::Ordering};
 use tokio::runtime::Builder;
 
 pub(crate) fn setup() -> (AppState, ApplicationSurfaceReader, Arc<RuleTraceStore>) {
-    let store = Arc::new(RuleTraceStore::default());
+    let store = infiltrator_iced::configuration::mihomo_rule_trace_fixture();
     let owner = RuleTracerApplication::new();
     owner.set_override_port(store.clone());
-    let configuration = ConfigurationApplication::new(store.clone());
+    let configuration = infiltrator_iced::configuration::for_mihomo_store(store.clone());
     let (application, _) = recording_application();
     application.install_command_handler(Arc::new(
-        CommandApplication::new()
-            .with_rule_tracer(owner.clone())
-            .with_rule_list(RuleListApplication::new(store.clone())),
+        core_test_command_application([
+            CoreOperation::Rules(RulesOperation::Trace),
+            CoreOperation::Rules(RulesOperation::Apply),
+        ])
+        .with_rule_tracer(owner.clone())
+        .with_rule_list(RuleListApplication::new(store.clone())),
     ));
     let reader = ApplicationSurfaceReader::new(
         Arc::new(application.clone()),
@@ -44,7 +49,7 @@ pub(crate) fn setup() -> (AppState, ApplicationSurfaceReader, Arc<RuleTraceStore
     .with_profiles(ProfileApplication::new(store.clone()))
     .with_configuration(configuration);
     let (mut state, _) = AppState::new();
-    state.commands = Some(application);
+    state.attach_product_application(application);
     state.shell.demo = false;
     let _ = state.update(Message::UpdateTracerSourceIp("192.0.2.1".into()));
     publish(&mut state, &reader);
@@ -291,7 +296,7 @@ fn test_rules_tracer_reverse_apply_override_dual_surface_flow() {
     assert_eq!(store.writes.load(Ordering::SeqCst), 1);
     assert_eq!(store.content(), changed);
     let (rejected, _) = rejecting_application();
-    state.commands = Some(rejected);
+    attach_product_application_with_accepted_owner_snapshot(&mut state, rejected);
     let task = state.update(Message::ConfirmAction);
     complete(&mut state, task);
     assert_eq!(

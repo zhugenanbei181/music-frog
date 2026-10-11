@@ -37,18 +37,15 @@ impl LogExportPort for Writer {
 }
 fn observed() -> (LogApplication, LogSession) {
     let logs = LogApplication::default();
-    let session = LogSession {
-        generation: 1,
-        token: SessionToken::new(41),
-    };
-    logs.bind(Some(session));
-    assert!(logs.ingest(session, RuntimeStreamEvent::Connected));
+    let session = LogSession::new(1, SessionToken::new(41));
+    logs.bind(Some(session.clone()));
+    assert!(logs.ingest(session.clone(), RuntimeStreamEvent::Connected));
     assert!(logs.ingest(
-        session,
+        session.clone(),
         RuntimeStreamEvent::Item("WARN[1] token=credential".into())
     ));
     assert!(logs.ingest(
-        session,
+        session.clone(),
         RuntimeStreamEvent::Item("INFO[2] café healthy".into())
     ));
     (logs, session)
@@ -74,7 +71,7 @@ async fn cancel_is_effect_free_and_confirmation_freezes_all_records_despite_filt
     let summary = application.prepare().await.unwrap();
     assert_eq!(summary.records, 2);
     assert!(logs.ingest(
-        session,
+        session.clone(),
         RuntimeStreamEvent::Item("DEBUG[3] arrived after confirmation".into())
     ));
     let receipt = application.save(&summary.identity).await.unwrap();
@@ -120,10 +117,7 @@ async fn superseded_confirmation_and_changed_controller_session_cannot_write() {
         application.save(&old.identity).await.unwrap_err().code,
         ErrorCode::InvalidState
     );
-    logs.bind(Some(LogSession {
-        generation: 2,
-        token: SessionToken::new(42),
-    }));
+    logs.bind(Some(LogSession::new(2, SessionToken::new(42))));
     assert!(application.save(&latest.identity).await.is_err());
     assert!(writer.writes.lock().unwrap().is_empty());
 }
@@ -135,11 +129,8 @@ async fn missing_host_is_typed_unsupported_and_observed_empty_differs_from_unobs
         application.prepare().await.unwrap_err().code,
         ErrorCode::NotReady
     );
-    let session = LogSession {
-        generation: 1,
-        token: SessionToken::new(41),
-    };
-    logs.bind(Some(session));
+    let session = LogSession::new(1, SessionToken::new(41));
+    logs.bind(Some(session.clone()));
     assert!(logs.ingest(session, RuntimeStreamEvent::Connected));
     let summary = application.prepare().await.unwrap();
     assert_eq!(summary.records, 0);

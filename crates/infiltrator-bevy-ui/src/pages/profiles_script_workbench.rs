@@ -28,9 +28,10 @@ use infiltrator_bevy_widgets::multiline_editor::{MultilineEditorPlugin, Multilin
 use infiltrator_contract::command::{CommandIntent, RequestId};
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::script_export::ScriptExportKind;
-use infiltrator_contract::script_export_review::ScriptExportDraft;
+use infiltrator_contract::script_export_review::{ScriptExportDraft, ScriptExportValidationScope};
 use infiltrator_contract::script_run::ScriptEditorField;
-use std::mem::take;
+use mem::take;
+use std::mem;
 
 #[derive(Resource, Default)]
 pub struct ScriptWorkbenchState {
@@ -212,6 +213,7 @@ fn process(mut surface: ScriptInteraction) {
             ScriptControl::Export(kind) => {
                 let draft = ScriptExportDraft {
                     kind,
+                    validation_scope: ScriptExportValidationScope::Unscoped,
                     profile: None,
                     base_yaml: surface.state.model.input_yaml.clone(),
                     mixin_yaml: String::new(),

@@ -1,5 +1,7 @@
 //! Integration and unit tests for config apply transaction and YAML fidelity.
 
+#[path = "profile_configuration_transaction_tests.rs"]
+mod configuration_transactions;
 #[path = "apply_source_race_tests.rs"]
 mod source_races;
 #[path = "apply_workspace_tests.rs"]
@@ -8,6 +10,7 @@ mod workspace;
 use super::*;
 use crate::history::{list_snapshots, read_snapshot};
 use infiltrator_contract::apply_transaction::ApplyTransactionStage;
+use infiltrator_contract::core_identity::{CoreIdentity, CoreInstanceId, EngineId};
 use infiltrator_contract::session::SessionToken;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_domain::mixin::{MixinConfig, RuleMixin};
@@ -67,6 +70,8 @@ struct TestLifecycleState {
 struct TestLifecycle {
     controller: Arc<MockController>,
     readiness_failures: AtomicU64,
+    start_calls: AtomicU64,
+    stop_calls: AtomicU64,
     state: Mutex<TestLifecycleState>,
 }
 
@@ -75,6 +80,8 @@ impl TestLifecycle {
         Self {
             controller,
             readiness_failures: AtomicU64::new(readiness_failures),
+            start_calls: AtomicU64::new(0),
+            stop_calls: AtomicU64::new(0),
             state: Mutex::new(TestLifecycleState {
                 lifecycle: CoreLifecycle::Stopped,
                 generation: 0,
@@ -98,10 +105,26 @@ impl TestLifecycle {
     fn set_status(&self, lifecycle: CoreLifecycle) {
         self.state.lock().expect("lifecycle lock").lifecycle = lifecycle;
     }
+
+    fn start_calls(&self) -> u64 {
+        self.start_calls.load(Ordering::SeqCst)
+    }
+
+    fn stop_calls(&self) -> u64 {
+        self.stop_calls.load(Ordering::SeqCst)
+    }
 }
 
 #[async_trait]
 impl CoreLifecyclePort for TestLifecycle {
+    fn core_identity(&self) -> Option<CoreIdentity> {
+        Some(CoreIdentity::new(
+            EngineId::new("mihomo").expect("valid test engine"),
+            CoreInstanceId::new("apply-test-core").expect("valid test instance"),
+            None,
+        ))
+    }
+
     fn lifecycle(&self) -> CoreLifecycle {
         self.status()
     }
@@ -115,6 +138,7 @@ impl CoreLifecyclePort for TestLifecycle {
     }
 
     async fn start(&self) -> Result<u64, PortError> {
+        self.start_calls.fetch_add(1, Ordering::SeqCst);
         let generation = {
             let mut state = self.state.lock().expect("lifecycle lock");
             state.generation += 1;
@@ -127,6 +151,7 @@ impl CoreLifecyclePort for TestLifecycle {
     }
 
     async fn stop(&self) -> Result<(), PortError> {
+        self.stop_calls.fetch_add(1, Ordering::SeqCst);
         self.set_status(CoreLifecycle::Stopping);
         if let Err(error) = CoreProcess::stop(self.controller.as_ref()).await {
             self.set_status(CoreLifecycle::Failed);
@@ -421,7 +446,9 @@ async fn successful_apply_stores_snapshot_history() {
     assert!(!record.is_failure());
 
     let config_dir = f._dir.path().join("configs");
-    let snapshots = list_snapshots(&config_dir, "main").await.expect("list");
+    let snapshots = list_snapshots(&EngineId::new("mihomo").unwrap(), &config_dir, "main")
+        .await
+        .expect("list");
     assert_eq!(snapshots.len(), 1);
     assert_eq!(read_snapshot(&snapshots[0].path).await.unwrap(), NEW);
 }

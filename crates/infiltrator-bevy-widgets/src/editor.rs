@@ -58,15 +58,18 @@ pub fn tokenize_yaml_line(line: &str) -> Vec<SyntaxToken> {
     tokens
 }
 
+use crate::feathers_theme::Token;
 use crate::palette::UiPalette;
+use crate::palette::rem;
 use crate::text::{Role, TextRole};
 use crate::theme::space;
 use bevy::ecs::hierarchy::Children;
+use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::{Scene, bsn};
 use bevy::ui::BorderColor;
 use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, Overflow,
-    UiRect, Val, percent, px,
+    AlignItems, BorderRadius, FlexDirection, JustifyContent, Node, Overflow, UiRect, Val, percent,
+    px,
 };
 use bevy::ui::widget::Text;
 
@@ -93,7 +96,7 @@ pub fn code_editor_scene(state: &CodeEditorState, palette: &UiPalette) -> Box<dy
                             Node {
                                 height: px(palette.control_height_px * 0.6),
                                 justify_content: JustifyContent::FlexEnd,
-                                padding: UiRect::horizontal(Val::Px(space::S4)),
+                                padding: UiRect::horizontal(rem(space::S4)),
                             }
                             Children [
                                 Text({ format!("{}", num) })
@@ -137,19 +140,19 @@ pub fn code_editor_scene(state: &CodeEditorState, palette: &UiPalette) -> Box<dy
                 height: percent(100),
                 flex_direction: FlexDirection::Row,
                 border: UiRect::all(Val::Px(palette.hairline_px)),
-                border_radius: BorderRadius::all(Val::Px(palette.card_radius_px)),
+                border_radius: BorderRadius::all(rem(palette.card_radius_px)),
                 overflow: Overflow::clip(),
             }
-            BackgroundColor({ palette.surface })
+            ThemeBackgroundColor({ Token::Surface })
             BorderColor { top: edge, right: edge, bottom: edge, left: edge }
             CodeEditorRoot
             Children [
                 Node {
-                    width: px(48.0),
+                    width: rem(48.0),
                     flex_direction: FlexDirection::Column,
-                    padding: UiRect::vertical(Val::Px(space::S8)),
+                    padding: UiRect::vertical(rem(space::S8)),
                 }
-                BackgroundColor({ palette.surface_elevated })
+                ThemeBackgroundColor({ Token::SurfaceElevated })
                 CodeEditorGutter
                 Children [
                     { gutter_lines }
@@ -158,7 +161,7 @@ pub fn code_editor_scene(state: &CodeEditorState, palette: &UiPalette) -> Box<dy
                 Node {
                     flex_grow: 1.0,
                     flex_direction: FlexDirection::Column,
-                    padding: UiRect::all(Val::Px(space::S8)),
+                    padding: UiRect::all(rem(space::S8)),
                 }
                 CodeEditorBody
                 Children [

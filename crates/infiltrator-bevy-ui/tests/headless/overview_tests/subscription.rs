@@ -54,7 +54,7 @@ fn test_subscription_quota_card_mounts_with_progress_bar() {
     let mut found_bar = false;
     for e in &all_descendants {
         if let Some(node) = world.get::<ui::Node>(*e)
-            && node.height == ui::Val::Px(8.0)
+            && matches!(node.height, ui::Val::Rem(f) if (f * 15.0 - 8.0).abs() < 1e-4)
         {
             let bar_descendants = descendants(world, *e);
             for child in bar_descendants {

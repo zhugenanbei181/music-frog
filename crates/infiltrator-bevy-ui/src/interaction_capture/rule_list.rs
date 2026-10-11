@@ -11,7 +11,8 @@ use crate::pages::rules_draft::{
 use crate::pages::rules_edit::RuleToggleButton;
 use crate::pages::rules_projection::{RuleIndexText, RulePayloadText, RuleProxyText, RuleTypeText};
 use crate::pages::rules_view::RuleRow;
-use crate::route::{ActiveRoute, Route, replay_surface_snapshot};
+use crate::route::surface_projection::replay_surface_snapshot;
+use crate::route::{ActiveRoute, Route};
 use crate::surface::LatestSurfaceSnapshot;
 use bevy::app::App;
 use bevy::ecs::entity::Entity;
@@ -21,7 +22,6 @@ use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Activate;
 use infiltrator_application::command_application::CommandApplication;
-use infiltrator_application::configuration_application::ConfigurationApplication;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::language_choice_fixtures::LanguageCaptureProcess;
 use infiltrator_application::profile_application::ProfileApplication;
@@ -44,7 +44,7 @@ struct CaptureList {
     stage: u8,
 }
 pub fn install(app: &mut App) {
-    let store = Arc::new(RuleTraceStore::default());
+    let store = super::mihomo_rule_trace_fixture();
     store.deny_write.store(true, Ordering::SeqCst);
     let core = Arc::new(CoreApplication::new(
         Arc::new(LanguageCaptureProcess),
@@ -54,7 +54,7 @@ pub fn install(app: &mut App) {
     let reader = Arc::new(
         ApplicationSurfaceReader::new(core, SurfaceKind::BevyDesktop, HostKind::Desktop)
             .with_profiles(ProfileApplication::new(store.clone()))
-            .with_configuration(ConfigurationApplication::new(store.clone())),
+            .with_configuration(super::mihomo_configuration_application(store.clone())),
     );
     app.insert_resource(CommandSinkHandle(Arc::new(CaptureCommandSink::new(
         CommandApplication::new().with_rule_list(RuleListApplication::new(store.clone())),

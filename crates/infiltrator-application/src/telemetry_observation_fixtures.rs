@@ -3,8 +3,9 @@ use crate::core_application::CoreApplication;
 use crate::surface_reader::ApplicationSurfaceReader;
 use async_trait::async_trait;
 use infiltrator_contract::command::CommandIntent;
-use infiltrator_contract::command::ProxyMode;
-use infiltrator_contract::error::Failure;
+use infiltrator_contract::core_identity::CoreCommandRequest;
+use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::shell_readout::ShellObservation;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_ports::error::PortError;
@@ -23,16 +24,36 @@ pub async fn stale_zero_snapshot(
     reader: &ApplicationSurfaceReader,
     telemetry: &TelemetryObservationReader,
 ) -> Result<SurfaceSnapshot, Failure> {
-    core.execute(CommandIntent::StartCore).await.into_unit()?;
+    let scope = core.snapshot().scope().ok_or_else(|| {
+        Failure::new(
+            ErrorCode::InvalidState,
+            "telemetry fixture has no owner scope",
+            false,
+        )
+    })?;
+    core.execute_scoped(CoreCommandRequest {
+        scope,
+        intent: CommandIntent::StartCore,
+    })
+    .await
+    .result
+    .into_unit()?;
     let unknown = reader.read().await?;
-    assert!(unknown.shell_readout.upload_bps.value.is_none());
+    assert!(matches!(
+        unknown.shell_readout.upload_bps,
+        ShellObservation::Unobserved
+    ));
     let zero = reader.read().await?;
-    assert_eq!(zero.shell_readout.upload_bps.value, Some(0.0));
-    assert!(zero.shell_readout.upload_bps.current);
+    assert_eq!(
+        zero.shell_readout.upload_bps,
+        ShellObservation::Current(0.0)
+    );
     telemetry.denied.store(true, Ordering::Release);
     let failed = reader.read().await?;
-    assert_eq!(failed.shell_readout.upload_bps.value, Some(0.0));
-    assert!(!failed.shell_readout.upload_bps.current);
+    assert_eq!(
+        &failed.shell_readout.upload_bps,
+        &ShellObservation::Stale(0.0)
+    );
     assert!(failed.shell_readout.rate_failure.is_some());
     Ok(failed)
 }
@@ -46,7 +67,6 @@ impl OverviewReader for TelemetryObservationReader {
         }
         Ok(OverviewSample {
             lifecycle: CoreLifecycle::Running,
-            mode: None,
             upload_total: 512,
             download_total: 1024,
             active_connections: 0,
@@ -54,8 +74,5 @@ impl OverviewReader for TelemetryObservationReader {
             core_version: None,
             sampled_at_epoch_ms: Some(self.epoch.fetch_add(1, Ordering::AcqRel) + 1),
         })
-    }
-    async fn set_mode(&self, mode: ProxyMode) -> Result<ProxyMode, PortError> {
-        Ok(mode)
     }
 }

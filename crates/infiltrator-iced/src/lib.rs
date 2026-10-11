@@ -7,10 +7,13 @@
 //! harnesses (see `tests/common`, `tests/headless`, `tests/gui`) exercise the
 //! public surface directly.
 
+extern crate self as infiltrator_iced;
+
 use infiltrator_application::surface_application::SurfacePump;
 pub mod accessibility;
 pub mod admin_server;
 pub mod app;
+mod command_ingress;
 pub mod configs_dir;
 pub mod configuration;
 pub mod demo;
@@ -63,6 +66,7 @@ pub fn run() -> iced::Result {
 
 /// Run Iced with a host-composed application surface pump. This is the
 /// symmetric counterpart to Bevy's `run_with_application_surface_pump`.
+/// Without an attached CoreApplication, lifecycle controls remain unavailable.
 pub fn run_with_surface_pump(pump: SurfacePump) -> iced::Result {
     desktop_composition::run_with_surface_pump(pump)
 }

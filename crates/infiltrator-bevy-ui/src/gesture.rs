@@ -20,22 +20,30 @@
 //! top band is a pull-to-refresh, a dominant horizontal drag is a
 //! swipe-to-action, a two-finger sequence is a pinch, and everything else goes
 //! to the recognizer (tap/double-tap/long-press/pan). The boundary is explicit:
-//! Bevy 0.20 exposes no safe-area API, so insets default to zero and a mobile
-//! composition root must inject the real values through [`GestureHostReport`].
+//! Bevy 0.20 exposes no safe-area API. Android's NativeActivity supplies typed
+//! physical-pixel system-bar, cutout, system-gesture and IME observations
+//! through `WindowInsetsInput`; the shell converts them using display density
+//! before publishing logical safe-area values through [`GestureHostReport`].
+//! Zero is only the initial value before the host's first observation arrives.
 
 use crate::command::{CommandSinkHandle, UiCommand};
+use crate::host_capabilities::{HostPreferenceIntent, MotionPreference};
+use crate::pages::outbound_batch_probe::{OutboundBatchProbeReadback, submit_batch};
 use crate::route::{ActiveRoute, Route};
+use crate::surface::LatestSurfaceSnapshot;
 use bevy::app::{App, Plugin, Update};
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::message::MessageReader;
+use bevy::ecs::observer::On;
 use bevy::ecs::query::{With, Without};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::IntoScheduleConfigs;
-use bevy::ecs::system::{Local, Query, Res, ResMut};
+use bevy::ecs::system::{Local, Query, Res, ResMut, SystemParam};
 use bevy::input::touch::{TouchInput, TouchPhase};
 use bevy::math::Vec2;
 use bevy::time::Time;
-use bevy::ui::prelude::{Display, Node, Val};
+use bevy::ui::prelude::{Display, Node, ScrollPosition, Val};
+use bevy::ui_widgets::ScrollArea;
 use infiltrator_bevy_widgets::gesture;
 use infiltrator_bevy_widgets::gesture::{
     GestureOutcome, GestureRecognizer, PinchZoomController, PullToRefreshIndicator,
@@ -45,6 +53,8 @@ use infiltrator_bevy_widgets::gesture::{
 use infiltrator_bevy_widgets::localization::{
     LocaleCopySet, LocalizedText, WidgetLocalizationPlugin,
 };
+use infiltrator_bevy_widgets::scrollarea::ScrollMotionPreference;
+use infiltrator_contract::outbound::probe::OutboundProbeBatchScope;
 use infiltrator_contract::shell_gesture::{
     GesturePoint, GestureSemanticEvent, GestureSnapshot, GestureTouchPhase, SafeAreaInsets,
     TouchGestureSupport,
@@ -142,9 +152,9 @@ pub struct ShellGestureSnapshot(pub GestureSnapshot);
 
 /// The host facts of this surface, inserted by [`ShellGesturePlugin`].
 ///
-/// `insets` is public because Bevy 0.20 has no safe-area API: a mobile
-/// composition root writes the real values here and
-/// [`sync_gesture_capability`] publishes them into the shared snapshot.
+/// `insets` is the logical safe-area projection written by `HostInsetsPlugin`
+/// from a host `WindowInsetsInput`; [`sync_gesture_capability`] publishes the
+/// same values into the shared snapshot.
 #[derive(Resource, Clone, Copy, Debug, PartialEq)]
 pub struct GestureHostReport {
     pub support: TouchGestureSupport,
@@ -186,7 +196,25 @@ impl Plugin for ShellGesturePlugin {
                     sync_swipe_to_action_items,
                 )
                     .chain(),
-            );
+            )
+            .add_observer(sync_scroll_motion_preference);
+    }
+}
+
+/// Map the shell's typed host accessibility preference to scroll physics.
+fn sync_scroll_motion_preference(
+    intent: On<HostPreferenceIntent>,
+    preference: Option<ResMut<ScrollMotionPreference>>,
+) {
+    let Some(mut preference) = preference else {
+        return;
+    };
+    let next = match intent.0.effective_motion() {
+        MotionPreference::Reduced => ScrollMotionPreference::Reduced,
+        MotionPreference::Standard => ScrollMotionPreference::Full,
+    };
+    if *preference != next {
+        *preference = next;
     }
 }
 
@@ -234,8 +262,8 @@ fn vec2(value: GesturePoint) -> Vec2 {
 }
 
 /// The deterministic axis policy for one drag.
-fn decide_mode(start: GesturePoint, delta: GesturePoint) -> GestureMode {
-    if delta.y.abs() > delta.x.abs() && delta.y > 0.0 && start.y <= PULL_EDGE_PX {
+fn decide_mode(start: GesturePoint, delta: GesturePoint, is_scrolled: bool) -> GestureMode {
+    if delta.y.abs() > delta.x.abs() && delta.y > 0.0 && start.y <= PULL_EDGE_PX && !is_scrolled {
         GestureMode::Pull
     } else if delta.x.abs() > delta.y.abs() {
         GestureMode::Swipe
@@ -259,8 +287,10 @@ fn consume_touch_input(
     mut state: ResMut<ShellGestureState>,
     mut snapshot: ResMut<ShellGestureSnapshot>,
     mut report: ResMut<GestureHostReport>,
+    scroll_positions: Query<&ScrollPosition, With<ScrollArea>>,
     time: Res<Time>,
 ) {
+    let is_scrolled = scroll_positions.iter().any(|pos| pos.y > 1.0);
     let now_ms = time.elapsed().as_millis() as u64;
     for event in events.read() {
         let position = GesturePoint::new(event.position.x, event.position.y);
@@ -351,7 +381,7 @@ fn consume_touch_input(
                         if delta.length() <= GESTURE_DIRECTION_LOCK_PX {
                             continue;
                         }
-                        state.mode = decide_mode(start, delta);
+                        state.mode = decide_mode(start, delta, is_scrolled);
                         match state.mode {
                             GestureMode::Pull => {
                                 state.pull.pull(delta.y);
@@ -445,19 +475,42 @@ fn sync_gesture_capability(
     }
 }
 
-/// Synchronize pull-to-refresh indicators with the live gesture state using spring physics.
-pub fn sync_pull_to_refresh_indicators(
-    time: Option<Res<Time>>,
-    gesture_state: Res<ShellGestureState>,
-    active_route: Option<Res<ActiveRoute>>,
-    command_sink: Option<Res<CommandSinkHandle>>,
-    mut last_refreshing: Local<bool>,
-    mut indicators: Query<
-        (&mut Node, &mut PullToRefreshSpring, &Children),
+/// Typed resources and queries used by the indicator and refresh dispatch.
+#[derive(SystemParam)]
+pub struct PullToRefreshIndicatorParams<'w, 's> {
+    time: Option<Res<'w, Time>>,
+    gesture_state: Res<'w, ShellGestureState>,
+    active_route: Option<Res<'w, ActiveRoute>>,
+    command_sink: Option<Res<'w, CommandSinkHandle>>,
+    latest: Option<Res<'w, LatestSurfaceSnapshot>>,
+    batch_readback: Option<ResMut<'w, OutboundBatchProbeReadback>>,
+    last_refreshing: Local<'s, bool>,
+    indicators: Query<
+        'w,
+        's,
+        (
+            &'static mut Node,
+            &'static mut PullToRefreshSpring,
+            &'static Children,
+        ),
         With<PullToRefreshIndicator>,
     >,
-    mut texts: Query<&mut LocalizedText, With<PullToRefreshText>>,
-) {
+    texts: Query<'w, 's, &'static mut LocalizedText, With<PullToRefreshText>>,
+}
+
+/// Synchronize pull-to-refresh indicators with the live gesture state using spring physics.
+pub fn sync_pull_to_refresh_indicators(params: PullToRefreshIndicatorParams) {
+    let PullToRefreshIndicatorParams {
+        time,
+        gesture_state,
+        active_route,
+        command_sink,
+        latest,
+        mut batch_readback,
+        mut last_refreshing,
+        mut indicators,
+        mut texts,
+    } = params;
     let dt = time
         .as_ref()
         .map(|t| t.delta_secs())
@@ -477,7 +530,17 @@ pub fn sync_pull_to_refresh_indicators(
             .unwrap_or(Route::Overview);
         match route {
             Route::Proxies => {
-                sink.submit(UiCommand::TestAllProxyGroups);
+                if let (Some(latest), Some(readback)) =
+                    (latest.as_deref(), batch_readback.as_deref_mut())
+                {
+                    submit_batch(
+                        &latest.0,
+                        OutboundProbeBatchScope::All,
+                        route,
+                        sink,
+                        readback,
+                    );
+                }
             }
             Route::Rules => {
                 sink.submit(UiCommand::RefreshRuleProviders);

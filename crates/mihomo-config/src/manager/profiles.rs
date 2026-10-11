@@ -9,7 +9,9 @@ use super::metadata::{
 use super::paths::sanitized_profile_key;
 use super::subscription_store::{delete_subscription_url, store_subscription_url};
 use crate::profile::Profile;
+use crate::sidecar_store::remove_optional;
 use crate::yaml;
+use infiltrator_domain::profile_options::options_path;
 use infiltrator_ports::secure_store::SecureStore;
 use mihomo_api::error::{MihomoError, Result};
 use std::io::ErrorKind;
@@ -24,6 +26,7 @@ use toml::map::Map;
 
 impl<S: SecureStore> ConfigManager<S> {
     pub async fn load(&self, profile: &str) -> Result<String> {
+        self.initialize_profile_namespace().await?;
         let path = self.existing_profile_yaml_path(profile).await?;
         let content = fs::read_to_string(&path).await?;
         Ok(content)
@@ -33,6 +36,7 @@ impl<S: SecureStore> ConfigManager<S> {
     /// use it to recover the actual previous content after another operation
     /// has already written a validated profile file.
     pub async fn load_backup(&self, profile: &str) -> Result<Option<String>> {
+        self.initialize_profile_namespace().await?;
         let path = self.profile_yaml_path(profile).await?;
         match fs::read_to_string(backup_path(&path)).await {
             Ok(content) => Ok(Some(content)),
@@ -42,6 +46,7 @@ impl<S: SecureStore> ConfigManager<S> {
     }
 
     pub async fn save(&self, profile: &str, content: &str) -> Result<()> {
+        self.initialize_profile_namespace().await?;
         let _guard = self.lock_profile_writes().await;
         yaml::validate(content)?;
         let path = self.profile_yaml_path(profile).await?;
@@ -60,6 +65,7 @@ impl<S: SecureStore> ConfigManager<S> {
     /// backup is deliberately one-shot and is cleared after the caller has
     /// successfully applied/rebuilt the new configuration.
     pub async fn restore_backup(&self, profile: &str) -> Result<bool> {
+        self.initialize_profile_namespace().await?;
         let _guard = self.lock_profile_writes().await;
         let path = self.profile_yaml_path(profile).await?;
         let backup = backup_path(&path);
@@ -77,6 +83,7 @@ impl<S: SecureStore> ConfigManager<S> {
     /// Remove the transient last-save backup once the new configuration is
     /// known to be live (or when a save did not require a runtime rebuild).
     pub async fn clear_backup(&self, profile: &str) -> Result<()> {
+        self.initialize_profile_namespace().await?;
         let _guard = self.lock_profile_writes().await;
         let path = self.profile_yaml_path(profile).await?;
         match fs::remove_file(backup_path(&path)).await {
@@ -87,6 +94,7 @@ impl<S: SecureStore> ConfigManager<S> {
     }
 
     pub async fn list_profiles(&self) -> Result<Vec<Profile>> {
+        self.initialize_profile_namespace().await?;
         if !self.config_dir.exists() {
             return Ok(vec![]);
         }
@@ -97,6 +105,7 @@ impl<S: SecureStore> ConfigManager<S> {
             .as_ref()
             .and_then(|value| value.get("profiles"))
             .and_then(|value| value.as_table());
+        let engine = self.engine_id();
         let mut profiles = vec![];
 
         let mut entries = fs::read_dir(&self.config_dir).await?;
@@ -113,8 +122,13 @@ impl<S: SecureStore> ConfigManager<S> {
                 if let Some(table) = metadata_table.and_then(|table| table.get(&name))
                     && let Some(profile_table) = table.as_table()
                 {
-                    apply_profile_metadata(&self.credential_store, &mut profile, profile_table)
-                        .await;
+                    apply_profile_metadata(
+                        &self.credential_store,
+                        &engine,
+                        &mut profile,
+                        profile_table,
+                    )
+                    .await;
                 }
                 profile.has_backup = fs::try_exists(backup_path(&profile.path))
                     .await
@@ -128,21 +142,37 @@ impl<S: SecureStore> ConfigManager<S> {
     }
 
     pub async fn delete_profile(&self, profile: &str) -> Result<()> {
+        self.initialize_profile_namespace().await?;
         let _guard = self.lock_profile_writes().await;
         let path = self.existing_profile_yaml_path(profile).await?;
-        let current = self.get_current().await.ok();
+        let current = self.get_current_unlocked().await.ok();
         if current.as_ref() == Some(&profile.to_string()) {
             return Err(MihomoError::Config(
                 "Cannot delete the active profile".to_string(),
             ));
         }
 
-        fs::remove_file(path).await?;
+        let previous_document = fs::read(&path).await?;
+        fs::remove_file(&path).await?;
+        let profile_key = sanitized_profile_key(profile)?;
+        if let Err(error) = remove_optional(&options_path(self.config_dir(), &profile_key)).await {
+            if let Err(rollback) = atomic_write(&path, &previous_document).await {
+                return Err(MihomoError::Config(format!(
+                    "profile deletion sidecar cleanup failed ({error}); profile restore failed ({rollback})"
+                )));
+            }
+            return Err(MihomoError::Config(error.to_string()));
+        }
+        if let Err(error) = remove_optional(&backup_path(&path)).await {
+            log::warn!("deleted profile backup cleanup failed: {error}");
+        }
         self.apply_observations
             .write()
             .expect("apply observations")
             .remove(profile);
-        if let Err(err) = delete_subscription_url(&self.credential_store, profile).await {
+        if let Err(err) =
+            delete_subscription_url(&self.credential_store, &self.engine_id(), profile).await
+        {
             log::warn!("failed to delete subscription entry: {err}");
         }
         self.remove_profile_metadata(profile).await?;
@@ -151,13 +181,21 @@ impl<S: SecureStore> ConfigManager<S> {
 
     /// 只删除单个 profile 在 OS 凭证库中的订阅 URL（恢复出厂清理用）。
     /// 与 [`Self::delete_profile`] 不同：不删 YAML 文件、不动 settings
-    /// 元数据。名字先做与存储侧一致的消毒，再拼 `subscription:<key>`。
+    /// 元数据。名字先做与存储侧一致的消毒，再拼 engine-scoped subscription key。
     pub async fn delete_subscription_credential(&self, profile: &str) -> Result<()> {
+        self.initialize_profile_namespace().await?;
         let key = sanitized_profile_key(profile)?;
-        delete_subscription_url(&self.credential_store, &key).await
+        delete_subscription_url(&self.credential_store, &self.engine_id(), &key).await
     }
 
     pub async fn get_profile_metadata(&self, profile: &str) -> Result<Profile> {
+        self.initialize_profile_namespace().await?;
+        self.get_profile_metadata_unlocked(profile).await
+    }
+
+    /// Read profile metadata after namespace initialization. Workspace reads
+    /// call this while holding the shared profile write boundary.
+    pub(crate) async fn get_profile_metadata_unlocked(&self, profile: &str) -> Result<Profile> {
         let key = sanitized_profile_key(profile)?;
         let mut profile_info = Profile::new(profile.to_string(), PathBuf::new(), false);
         let settings = self.read_settings_value().await?;
@@ -167,12 +205,19 @@ impl<S: SecureStore> ConfigManager<S> {
             .and_then(|table| table.get(&key))
             .and_then(|value| value.as_table())
         {
-            apply_profile_metadata(&self.credential_store, &mut profile_info, table).await;
+            apply_profile_metadata(
+                &self.credential_store,
+                &self.engine_id(),
+                &mut profile_info,
+                table,
+            )
+            .await;
         }
         Ok(profile_info)
     }
 
     pub async fn update_profile_metadata(&self, profile: &str, metadata: &Profile) -> Result<()> {
+        self.initialize_profile_namespace().await?;
         let _guard = self.lock_profile_writes().await;
         let key = sanitized_profile_key(profile)?;
         let mut settings = self.read_settings_value().await?;
@@ -192,7 +237,8 @@ impl<S: SecureStore> ConfigManager<S> {
         // store is unavailable — otherwise it lives in the keyring alone.
         let mut subscription_fallback = metadata.subscription_url.clone();
         if let Some(url) = metadata.subscription_url.as_deref() {
-            match store_subscription_url(&self.credential_store, &key, url).await {
+            match store_subscription_url(&self.credential_store, &self.engine_id(), &key, url).await
+            {
                 Ok(key) => {
                     subscription_key = Some(key);
                     subscription_fallback = None;
@@ -201,7 +247,9 @@ impl<S: SecureStore> ConfigManager<S> {
                     log::warn!("failed to store subscription url securely: {err}");
                 }
             }
-        } else if let Err(err) = delete_subscription_url(&self.credential_store, &key).await {
+        } else if let Err(err) =
+            delete_subscription_url(&self.credential_store, &self.engine_id(), &key).await
+        {
             log::warn!("failed to delete subscription url: {err}");
         }
         set_optional_string(profile_table, "subscription_url_key", subscription_key);

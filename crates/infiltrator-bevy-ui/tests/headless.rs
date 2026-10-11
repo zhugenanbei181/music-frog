@@ -64,6 +64,9 @@ mod ime_tests;
 #[path = "headless/gesture_tests.rs"]
 mod gesture_tests;
 
+#[path = "headless/outbound_batch_probe_tests.rs"]
+mod outbound_batch_probe_tests;
+
 // DUAL-05: protocol-ecosystem studio (custom node URI codec) dual-surface tests.
 #[path = "headless/protocol_codec_tests.rs"]
 mod protocol_codec_tests;
@@ -73,6 +76,8 @@ mod inspection_scroll_tests;
 
 #[path = "common/command_harness.rs"]
 mod command_harness;
+#[path = "common/configuration_codec.rs"]
+mod configuration_codec;
 #[path = "headless/protocol_form_tests.rs"]
 mod protocol_form_tests;
 
@@ -81,8 +86,8 @@ mod product_launch_tests;
 
 #[path = "headless/localization_tests.rs"]
 mod localization_tests;
-#[path = "headless/mode_change_tests.rs"]
-mod mode_change_tests;
+#[path = "headless/routing_intent_change_tests.rs"]
+mod routing_intent_change_tests;
 #[path = "headless/runtime_observation_tests.rs"]
 mod runtime_observation_tests;
 #[path = "headless/settings_observation_tests.rs"]
@@ -184,3 +189,6 @@ mod editor_observation_tests;
 
 #[path = "headless/globe_tests.rs"]
 mod globe_tests;
+
+#[path = "headless/host_asset_store_tests.rs"]
+mod host_asset_store_tests;

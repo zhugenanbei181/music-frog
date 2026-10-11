@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # Capture the Infiltrator iced-frontend demo screenshot matrix in one fully
 # backgrounded compositor stack (native iced render evidence — see
-# docs/screenshots/README.md).
+# crates/infiltrator-iced/docs/SCREENSHOTS.md).
 #
 # Pipeline: build once -> start one private virtual KWin host -> start one
 # nested niri inside that host -> launch one demo scenario at a time -> wait
 # for the app's CAPTURE_READY marker -> bind the screenshot to the exact
 # PID/app-id/window-id via niri IPC -> publish the PNG plus a manifest into
-# docs/screenshots/iced/. The operator's Wayland session is never contacted:
+# crates/infiltrator-iced/docs/screenshots/. The operator's Wayland session is never contacted:
 # the nested niri's winit window lives inside the invisible
 # `kwin_wayland --virtual` host, so nothing can pop up on or steal focus from
 # the operator's desktop, and no compositor UI chrome (hotkey overlay etc.)
@@ -27,15 +27,20 @@ cd "$REPO"
 source "$REPO/scripts/parity/capture_attempt.sh"
 export RUSTC_WRAPPER=
 
+if [ "$#" -gt 1 ]; then
+  printf 'usage: %s [scenario[,scenario...]]\n' "$0" >&2
+  exit 2
+fi
+
 APP_ID="infiltrator-iced"
 # Runtime check (niri msg -j windows): iced/winit maps the demo window with an
 # EMPTY app_id, so app_id cannot be the identity key; the window title is the
 # stable observed identifier ("MusicFrog Infiltrator" in every locale). The
 # spawned PID stays the authoritative binding either way.
 APP_TITLE="MusicFrog Infiltrator"
-APP="$REPO/target/debug/infiltrator-iced"
+APP="${CARGO_TARGET_DIR:-$REPO/target}/debug/infiltrator-iced"
 MATRIX_SRC="${INFILTRATOR_CAPTURE_MATRIX:-$REPO/scripts/capture_iced_scenarios.tsv}"
-OUT_DIR="${INFILTRATOR_CAPTURE_OUT_DIR:-$REPO/docs/screenshots/iced}"
+OUT_DIR="${INFILTRATOR_CAPTURE_OUT_DIR:-$REPO/crates/infiltrator-iced/docs/screenshots}"
 MANIFEST_PUBLISHED="$OUT_DIR/manifest.tsv"
 EVIDENCE_ROOT="$REPO/.evidence/captures/iced"
 RUN_STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
@@ -247,7 +252,7 @@ CAPTURED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   printf 'matrix=%s\n' "$MATRIX_SRC"
   printf 'scenario_count=%s\n' "$SCENARIO_COUNT"
   printf 'niri_host=kwin-wayland-virtual\n'
-  printf 'command=bash scripts/capture-iced.sh\n'
+  printf 'command=bash scripts/capture-iced-matrix.sh\n'
 } >"$METADATA"
 printf 'scenario\tpage\tskin\trequested_window\tapp_pid\twindow_id\twidth\theight\tbytes\tsha256\tstatus\n' >"$MANIFEST"
 
@@ -430,7 +435,7 @@ capture_one() {
   local windows_error="$scenario_dir/windows.err"
   local action="$scenario_dir/action.log"
   local image="$scenario_dir/image.png"
-  local published="docs/screenshots/iced/$name.png"
+  local published="crates/infiltrator-iced/docs/screenshots/$name.png"
   local exp_w="${window_size%x*}" exp_h="${window_size#*x}"
   local window_id="" window_ready=0 marker_ready=0 action_status=failed
   local width=0 height=0 bytes=0 hash="-"

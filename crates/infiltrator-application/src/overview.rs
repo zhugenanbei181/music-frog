@@ -5,15 +5,13 @@
 //! channels; no Bevy/Iced/FFI type or concrete HTTP client is part of the
 //! seam.
 
-use infiltrator_contract::command::ProxyMode;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::snapshot::{CoreLifecycle, CoreSnapshot};
 use infiltrator_ports::application_runtime::ApplicationRuntime;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::overview::{OverviewReader, OverviewSample};
-use std::sync::mpsc::{
-    Receiver, RecvTimeoutError, SendError, Sender, SyncSender, TrySendError, channel, sync_channel,
-};
+use std::sync::mpsc;
+use std::sync::mpsc::{Receiver, SyncSender, TryRecvError, TrySendError, channel, sync_channel};
 use std::sync::{Arc, Mutex};
 use std::thread::spawn;
 use std::time::{Duration, Instant};
@@ -27,7 +25,6 @@ pub struct OverviewConfig {
     pub secret: Option<String>,
     pub sample_interval: Duration,
 }
-
 impl OverviewConfig {
     pub fn new(endpoint: impl Into<String>, secret: Option<String>) -> Self {
         Self {
@@ -37,17 +34,9 @@ impl OverviewConfig {
         }
     }
 }
-
 struct Shared {
     last: Arc<Mutex<CoreSnapshot>>,
-    command_tx: Sender<OverviewCommand>,
-}
-
-enum OverviewCommand {
-    SetMode {
-        mode: ProxyMode,
-        responder: Sender<Result<ProxyMode, Failure>>,
-    },
+    _shutdown_tx: mpsc::Sender<()>,
 }
 
 /// The application-owned Overview source. Clones share one worker and one
@@ -84,13 +73,13 @@ impl OverviewPump {
         runtime: Arc<dyn ApplicationRuntime>,
     ) -> Self {
         let (snapshot_tx, snapshot_rx) = sync_channel(SNAPSHOT_CAPACITY);
+        let (shutdown_tx, shutdown_rx) = channel();
         let snapshot_rx = Arc::new(Mutex::new(snapshot_rx));
-        let (command_tx, command_rx) = channel();
         let last = Arc::new(Mutex::new(initial_snapshot()));
         let pump = Self {
             shared: Arc::new(Shared {
                 last: Arc::clone(&last),
-                command_tx,
+                _shutdown_tx: shutdown_tx,
             }),
             snapshot_rx: Arc::clone(&snapshot_rx),
         };
@@ -99,10 +88,10 @@ impl OverviewPump {
                 reader,
                 sample_interval,
                 runtime,
-                command_rx,
                 snapshot_tx,
                 snapshot_rx,
                 last,
+                shutdown_rx,
             )
         });
         pump
@@ -119,21 +108,6 @@ impl OverviewPump {
     pub fn bridge(&self) -> OverviewPumpBridge {
         OverviewPumpBridge {
             snapshot_rx: Arc::clone(&self.snapshot_rx),
-        }
-    }
-
-    /// Enqueue a mode command. Completion is delivered through the standard
-    /// library channel supplied by the caller.
-    pub fn request_mode(&self, mode: ProxyMode, responder: Sender<Result<ProxyMode, Failure>>) {
-        let command = OverviewCommand::SetMode { mode, responder };
-        if let Err(SendError(OverviewCommand::SetMode { responder, .. })) =
-            self.shared.command_tx.send(command)
-        {
-            let _ = responder.send(Err(Failure::new(
-                ErrorCode::Internal,
-                "overview worker is no longer available",
-                true,
-            )));
         }
     }
 }
@@ -156,19 +130,16 @@ impl OverviewReader for UnavailableOverviewReader {
     async fn sample(&self) -> Result<OverviewSample, PortError> {
         Err(self.failure.clone())
     }
-
-    async fn set_mode(&self, _mode: ProxyMode) -> Result<ProxyMode, PortError> {
-        Err(self.failure.clone())
-    }
 }
 
 fn initial_snapshot() -> CoreSnapshot {
     CoreSnapshot {
+        identity: None,
         lifecycle: CoreLifecycle::Starting,
         generation: 0,
         session_token: None,
         revision: 0,
-        proxy_mode: Some(ProxyMode::Rule),
+        routing_intent: Default::default(),
         core_version: None,
         sampled_at_epoch_ms: None,
         failure: Some(Failure::new(
@@ -188,34 +159,19 @@ fn pump_loop(
     reader: Arc<dyn OverviewReader>,
     sample_interval: Duration,
     runtime: Arc<dyn ApplicationRuntime>,
-    command_rx: Receiver<OverviewCommand>,
     snapshot_tx: SyncSender<CoreSnapshot>,
     snapshot_rx: Arc<Mutex<Receiver<CoreSnapshot>>>,
     last: Arc<Mutex<CoreSnapshot>>,
+    shutdown_rx: Receiver<()>,
 ) {
     let mut previous_totals: Option<(u64, u64, Instant)> = None;
-    let mut mode: Option<ProxyMode> = None;
     let mut version: Option<String> = None;
     let mut memory_bytes: Option<u64> = None;
     let mut revision = 0_u64;
 
     loop {
-        match command_rx.recv_timeout(sample_interval) {
-            Ok(OverviewCommand::SetMode {
-                mode: wanted,
-                responder,
-            }) => {
-                let reader_for_call = Arc::clone(&reader);
-                let result = crate::run_on_runtime(runtime.as_ref(), async move {
-                    reader_for_call.set_mode(wanted).await
-                });
-                if let Ok(actual) = result.as_ref() {
-                    mode = Some(*actual);
-                }
-                let _ = responder.send(result.map_err(Failure::from));
-            }
-            Err(RecvTimeoutError::Timeout) => {}
-            Err(RecvTimeoutError::Disconnected) => return,
+        if !matches!(shutdown_rx.try_recv(), Err(TryRecvError::Empty)) {
+            return;
         }
 
         let reader_for_call = Arc::clone(&reader);
@@ -225,7 +181,6 @@ fn pump_loop(
                 async move { reader_for_call.sample().await },
             ) {
                 Ok(sample) => {
-                    mode = sample.mode.or(mode);
                     version = sample.core_version.or(version);
                     memory_bytes = sample.memory_bytes.or(memory_bytes);
                     let now = Instant::now();
@@ -238,11 +193,12 @@ fn pump_loop(
                     previous_totals = Some((sample.upload_total, sample.download_total, now));
                     revision = revision.saturating_add(1);
                     CoreSnapshot {
+                        identity: None,
                         lifecycle: sample.lifecycle,
                         generation: 1,
                         session_token: None,
                         revision,
-                        proxy_mode: mode,
+                        routing_intent: Default::default(),
                         core_version: version.clone(),
                         sampled_at_epoch_ms: sample.sampled_at_epoch_ms,
                         failure: None,
@@ -256,15 +212,17 @@ fn pump_loop(
                 Err(error) => {
                     previous_totals = None;
                     revision = revision.saturating_add(1);
+                    let failure = Failure::from(error);
                     CoreSnapshot {
+                        identity: None,
                         lifecycle: CoreLifecycle::Failed,
                         generation: 1,
                         session_token: None,
                         revision,
-                        proxy_mode: mode,
+                        routing_intent: Default::default(),
                         core_version: version.clone(),
                         sampled_at_epoch_ms: None,
-                        failure: Some(Failure::from(error)),
+                        failure: Some(failure),
                         upload_bps: 0.0,
                         download_bps: 0.0,
                         active_connections: 0,
@@ -284,6 +242,12 @@ fn pump_loop(
                 }
             }
             Err(TrySendError::Disconnected(_)) => return,
+        }
+        if !sample_interval.is_zero() {
+            match shutdown_rx.recv_timeout(sample_interval) {
+                Ok(()) | Err(mpsc::RecvTimeoutError::Disconnected) => return,
+                Err(mpsc::RecvTimeoutError::Timeout) => {}
+            }
         }
 
         if sample_interval.is_zero() {
@@ -340,7 +304,7 @@ mod tests {
     fn initial_snapshot_is_explicitly_not_ready() {
         let snapshot = initial_snapshot();
         assert_eq!(snapshot.lifecycle, CoreLifecycle::Starting);
-        assert_eq!(snapshot.proxy_mode, Some(ProxyMode::Rule));
+        assert_eq!(snapshot.routing_intent, Default::default());
         assert_eq!(snapshot.failure.as_ref().unwrap().code, ErrorCode::NotReady);
     }
 }

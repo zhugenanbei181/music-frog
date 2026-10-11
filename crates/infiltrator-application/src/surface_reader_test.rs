@@ -1,15 +1,45 @@
 //! Behavior tests for the application surface reader.
 
-use super::rules_page::rules_json_documents;
 use super::*;
+use crate::core_application::test_execute_result_at_current_scope;
+use crate::core_application::tests::install_lifecycle_capabilities;
+use crate::core_capability_application::CoreCapabilityApplication;
 use async_trait::async_trait;
+use infiltrator_contract::android_control::{
+    VpnOwnerCoreReadback, VpnOwnerLifecycle, VpnOwnerReadiness, VpnOwnerResourceFact,
+    VpnOwnerResourceKind, VpnOwnerResourceState, VpnOwnerSnapshot,
+};
+use infiltrator_contract::command::{CommandIntent, CommandResult};
 use infiltrator_contract::controller::ControllerAuthStatus;
+use infiltrator_contract::core_capabilities::{
+    AdapterCapabilityDecision, AdapterRevision, CoreCapabilityEntry, CoreCapabilityMatrix,
+    CoreCapabilityScope, CoreLifecycleOperation, CoreOperation, EngineCapabilityDecision,
+    HostCapabilityDecision, OutboundOperation,
+};
+use infiltrator_contract::core_identity::{
+    CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
+};
+use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::mtu::PhysicalMtuSnapshot;
 use infiltrator_contract::network_roaming::{
     NetworkInterfaceKind, NetworkInterfaceSnapshot, NetworkObservation,
     NetworkRoamingRepairRequest, NetworkRoamingRepairResult,
 };
 use infiltrator_contract::offline_startup::{LocalAssetStatus, OfflineStartupSnapshot};
+use infiltrator_contract::outbound::inventory::OutboundSelectionState;
+use infiltrator_contract::outbound::inventory::SelectionAvailability;
+use infiltrator_contract::outbound::{
+    details::{
+        OutboundDetail, OutboundDetailsSnapshot, OutboundDetailsState, OutboundHealthObservation,
+        OutboundObservation, OutboundProbeAvailability, OutboundProtocolObservation,
+        OutboundSnapshot, OutboundUdpSupport,
+    },
+    identity::{OutboundId, SnapshotRevision},
+    inventory::{
+        OutboundInventorySnapshot, OutboundInventoryState, OutboundProbeSnapshot,
+        OutboundSelectionSet,
+    },
+};
 use infiltrator_contract::port_conflict::{PortBinding, PortConflict, PortConflictSnapshot};
 use infiltrator_contract::privileged_network::PrivilegedNetworkState;
 use infiltrator_contract::service_mode::{
@@ -18,28 +48,34 @@ use infiltrator_contract::service_mode::{
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::system_proxy::SystemProxyObservation;
 use infiltrator_contract::version::{
-    CoreChannelStatus, CoreRelease, CoreReleaseChannel, CoreReleaseSummary, CoreRollbackSnapshot,
+    CoreChannelStatus, CoreRelease, CoreReleaseSummary, CoreRollbackSnapshot, EngineReleaseChannel,
     InstalledCoreVersion,
 };
 use infiltrator_contract::vpn::{
-    VpnConfiguration, VpnSessionSnapshot, VpnSessionState, VpnStartRequest,
+    PreparedVpnConfiguration, VpnGeneration, VpnSessionSnapshot, VpnSessionState, VpnStartRequest,
+    VpnSurfaceObservation,
 };
-use infiltrator_domain::proxy_providers::ProxyProviders;
-use infiltrator_domain::rules::RuleProviders;
 use infiltrator_ports::application_runtime::{
     ApplicationFuture, ApplicationRuntime, ApplicationSleep,
+};
+use infiltrator_ports::core_capability_provider::{
+    CoreCapabilityProvider, CoreCapabilityProviderError,
 };
 use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
 use infiltrator_ports::endpoint::{ControllerEndpoint, EndpointSource};
 use infiltrator_ports::mtu_probe::MtuProbePort;
 use infiltrator_ports::network_roaming::NetworkRoamingPort;
 use infiltrator_ports::offline_startup::OfflineStartupPort;
+use infiltrator_ports::outbound::{OutboundPort, OutboundProbeRequest};
 use infiltrator_ports::port_conflict::PortConflictPort;
 use infiltrator_ports::service_mode::ServiceModePort;
 use infiltrator_ports::system_proxy::SystemProxyPort;
-use infiltrator_ports::version::{VersionPort, VersionProgressSink};
-use infiltrator_ports::vpn_service::VpnServicePort;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use infiltrator_ports::version::{
+    VersionActivationRequest, VersionInstallRequest, VersionPort, VersionUninstallRequest,
+};
+use infiltrator_ports::vpn_service::{VpnServicePort, VpnStartReceipt};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::time::Duration;
 use tokio::runtime::Builder;
 use tokio::time::sleep;
 
@@ -80,12 +116,64 @@ impl CoreProcess for TestProcess {
     }
 }
 
+struct ScopeProcess {
+    running: AtomicBool,
+}
+
+#[async_trait]
+impl CoreProcess for ScopeProcess {
+    fn core_identity(&self) -> Option<CoreIdentity> {
+        Some(CoreIdentity::new(
+            EngineId::new("mihomo").expect("engine ID"),
+            CoreInstanceId::new("surface-reader-test").expect("instance ID"),
+            None,
+        ))
+    }
+
+    async fn start(&self) -> Result<(), PortError> {
+        self.running.store(true, Ordering::SeqCst);
+        Ok(())
+    }
+
+    async fn stop(&self) -> Result<(), PortError> {
+        self.running.store(false, Ordering::SeqCst);
+        Ok(())
+    }
+
+    async fn status(&self) -> Result<CoreLifecycle, PortError> {
+        if self.running.load(Ordering::SeqCst) {
+            Ok(CoreLifecycle::Running)
+        } else {
+            Ok(CoreLifecycle::Stopped)
+        }
+    }
+
+    fn controller_endpoint(&self) -> Option<String> {
+        Some("http://127.0.0.1:9090".to_owned())
+    }
+}
+
 struct TestReadiness;
 
 #[async_trait]
 impl CoreReadiness for TestReadiness {
     async fn probe(&self) -> Result<String, PortError> {
         Ok("http://127.0.0.1:9090".to_owned())
+    }
+}
+
+struct OutboundReadiness;
+
+#[async_trait]
+impl CoreReadiness for OutboundReadiness {
+    async fn probe(&self) -> Result<String, PortError> {
+        Ok("http://127.0.0.1:9090".to_owned())
+    }
+
+    async fn active_core_version(&self) -> Result<Option<CoreVersion>, PortError> {
+        Ok(Some(
+            CoreVersion::new("v1.19.32").expect("valid test version"),
+        ))
     }
 }
 
@@ -168,6 +256,10 @@ struct TestSystemProxy {
     calls: Arc<AtomicUsize>,
 }
 
+struct StopCoreDuringSurfaceRead {
+    core: Arc<CoreApplication>,
+}
+
 struct TestNetworkRoaming {
     calls: Arc<AtomicUsize>,
 }
@@ -176,6 +268,42 @@ struct TestVpn;
 
 #[async_trait]
 impl VpnServicePort for TestVpn {
+    async fn owner_observation(&self) -> VpnSurfaceObservation {
+        VpnSurfaceObservation::AndroidOwner(VpnOwnerSnapshot {
+            owner_session_id: "test-vpn-owner".to_owned(),
+            revision: 4,
+            vpn_generation: VpnGeneration::new(3),
+            vpn_state: VpnOwnerLifecycle::Running,
+            readiness: VpnOwnerReadiness::Ready,
+            resources: [
+                VpnOwnerResourceKind::PreparedConfiguration,
+                VpnOwnerResourceKind::Worker,
+                VpnOwnerResourceKind::TunnelDescriptor,
+                VpnOwnerResourceKind::RoutingLease,
+            ]
+            .into_iter()
+            .map(|kind| VpnOwnerResourceFact {
+                kind,
+                state: match kind {
+                    VpnOwnerResourceKind::Worker | VpnOwnerResourceKind::TunnelDescriptor => {
+                        VpnOwnerResourceState::Held { generation: 3 }
+                    }
+                    VpnOwnerResourceKind::PreparedConfiguration
+                    | VpnOwnerResourceKind::RoutingLease => VpnOwnerResourceState::Absent,
+                },
+            })
+            .collect(),
+            foreground: true,
+            mtu: Some(1500),
+            route_count: 2,
+            dns_servers: vec!["1.1.1.1".to_owned()],
+            ipv6: true,
+            core: VpnOwnerCoreReadback::Unavailable {
+                failure_message: "test Core is not scoped".to_owned(),
+            },
+        })
+    }
+
     async fn request_start(&self) -> Result<VpnSessionSnapshot, PortError> {
         Ok(VpnSessionSnapshot {
             state: VpnSessionState::Starting,
@@ -186,7 +314,7 @@ impl VpnServicePort for TestVpn {
 
     async fn prepare(
         &self,
-        _configuration: VpnConfiguration,
+        _prepared: PreparedVpnConfiguration,
     ) -> Result<VpnSessionSnapshot, PortError> {
         Ok(VpnSessionSnapshot {
             state: VpnSessionState::Starting,
@@ -195,15 +323,16 @@ impl VpnServicePort for TestVpn {
         })
     }
 
-    async fn start(&self, request: VpnStartRequest) -> Result<VpnSessionSnapshot, PortError> {
-        Ok(VpnSessionSnapshot::running(
+    async fn start(&self, request: VpnStartRequest) -> Result<VpnStartReceipt, PortError> {
+        let configuration = &request.prepared.configuration;
+        Ok(VpnStartReceipt::Started(VpnSessionSnapshot::running(
             1,
-            request.mtu,
-            request.routes.len(),
-            request.dns_servers,
-            request.ipv6,
+            configuration.mtu,
+            configuration.routes.len(),
+            configuration.dns_servers.clone(),
+            configuration.ipv6,
             true,
-        ))
+        )))
     }
 
     async fn stop(&self) -> Result<VpnSessionSnapshot, PortError> {
@@ -283,46 +412,86 @@ impl SystemProxyPort for TestSystemProxy {
     }
 }
 
+#[async_trait]
+impl SystemProxyPort for StopCoreDuringSurfaceRead {
+    async fn snapshot(&self) -> Result<SystemProxyObservation, PortError> {
+        if !matches!(
+            test_execute_result_at_current_scope(&self.core, CommandIntent::StopCore).await,
+            CommandResult::Completed { .. }
+        ) {
+            return Err(PortError::Failed(
+                "test core stop did not complete".to_owned(),
+            ));
+        }
+        Ok(SystemProxyObservation {
+            enabled: false,
+            endpoint: None,
+            bypass: None,
+        })
+    }
+
+    async fn apply(
+        &self,
+        _endpoint: Option<String>,
+        _bypass: Option<String>,
+    ) -> Result<(), PortError> {
+        Ok(())
+    }
+}
+
 struct TestVersions {
+    engine_id: EngineId,
     calls: Arc<AtomicUsize>,
 }
 
 #[async_trait]
 impl VersionPort for TestVersions {
-    async fn list_installed(&self) -> Result<Vec<InstalledCoreVersion>, PortError> {
+    fn engine_id(&self) -> EngineId {
+        self.engine_id.clone()
+    }
+
+    async fn list_installed(
+        &self,
+        _engine_id: &EngineId,
+    ) -> Result<Vec<InstalledCoreVersion>, PortError> {
         Ok(Vec::new())
     }
 
-    async fn latest(&self, channel: CoreReleaseChannel) -> Result<CoreRelease, PortError> {
+    async fn latest(&self, channel: EngineReleaseChannel) -> Result<CoreRelease, PortError> {
         self.calls.fetch_add(1, Ordering::SeqCst);
         Ok(CoreRelease {
-            version: format!("{}-v1.0.0", channel.as_str()),
+            engine_id: VersionPort::engine_id(self),
+            version: format!("{}-v1.0.0", channel.channel_id.as_str()),
             release_date: "2026-09-05".to_owned(),
         })
     }
 
-    async fn list_releases(&self, _limit: usize) -> Result<Vec<CoreReleaseSummary>, PortError> {
+    async fn list_releases(
+        &self,
+        _engine_id: &EngineId,
+        _limit: usize,
+    ) -> Result<Vec<CoreReleaseSummary>, PortError> {
         Ok(Vec::new())
     }
 
-    async fn install(
+    async fn install(&self, _request: VersionInstallRequest) -> Result<(), PortError> {
+        Ok(())
+    }
+
+    async fn activate(&self, _request: VersionActivationRequest) -> Result<(), PortError> {
+        Ok(())
+    }
+
+    async fn uninstall(&self, _request: VersionUninstallRequest) -> Result<(), PortError> {
+        Ok(())
+    }
+
+    async fn rollback_snapshot(
         &self,
-        _version: String,
-        _progress: Arc<dyn VersionProgressSink>,
-    ) -> Result<(), PortError> {
-        Ok(())
-    }
-
-    async fn activate(&self, _version: &str) -> Result<(), PortError> {
-        Ok(())
-    }
-
-    async fn uninstall(&self, _version: &str) -> Result<(), PortError> {
-        Ok(())
-    }
-
-    async fn rollback_snapshot(&self) -> Result<CoreRollbackSnapshot, PortError> {
+        engine_id: &EngineId,
+    ) -> Result<CoreRollbackSnapshot, PortError> {
         Ok(CoreRollbackSnapshot {
+            engine_id: engine_id.clone(),
             current: Some("v1.19.30".to_owned()),
             target: Some("v1.19.29".to_owned()),
             history: vec!["v1.19.29".to_owned()],
@@ -342,9 +511,16 @@ async fn surface_reader_publishes_and_caches_all_core_channel_results() {
         Arc::new(TestRuntime),
     ));
     let reader = ApplicationSurfaceReader::new(core, SurfaceKind::BevyDesktop, HostKind::Desktop)
-        .with_versions(VersionApplication::new(Arc::new(TestVersions {
-            calls: calls.clone(),
-        })))
+        .with_versions(
+            VersionApplication::new(
+                EngineId::new("mihomo").unwrap(),
+                Arc::new(TestVersions {
+                    engine_id: EngineId::new("mihomo").unwrap(),
+                    calls: calls.clone(),
+                }),
+            )
+            .unwrap(),
+        )
         .with_endpoint_source(Arc::new(TestEndpoint))
         .with_service_mode(ServiceModeApplication::new(Arc::new(TestServiceMode)))
         .with_port_conflicts(PortConflictApplication::new(Arc::new(TestPortConflicts)))
@@ -369,10 +545,19 @@ async fn surface_reader_publishes_and_caches_all_core_channel_results() {
         second.revision > first.revision,
         "non-core observations remain refreshable"
     );
-    assert_eq!(first.versions.channels.len(), 3);
+    assert_eq!(first.versions.channels.len(), 2);
     assert_eq!(first.versions.revision, 1);
     assert_eq!(second.versions.revision, 1);
-    assert_eq!(calls.load(Ordering::SeqCst), 3);
+    assert_eq!(calls.load(Ordering::SeqCst), 2);
+    assert_eq!(
+        first
+            .versions
+            .channels
+            .iter()
+            .map(|channel| channel.channel.channel_id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["stable", "alpha"]
+    );
     assert_eq!(first.versions.rollback.target.as_deref(), Some("v1.19.29"));
     assert_eq!(first.controller_auth.status, ControllerAuthStatus::Secured);
     assert_eq!(first.service_mode.state, ServiceModeState::Ready);
@@ -396,8 +581,11 @@ async fn surface_reader_publishes_and_caches_all_core_channel_results() {
         Some("eth0")
     );
     assert_eq!(network_calls.load(Ordering::SeqCst), 2);
-    assert!(first.vpn.is_running());
-    assert_eq!(first.vpn.route_count, 2);
+    assert!(matches!(
+        &first.vpn,
+        VpnSurfaceObservation::AndroidOwner(owner)
+            if owner.is_running() && owner.route_count == 2
+    ));
     assert!(matches!(
         first.privileged_network.state,
         PrivilegedNetworkState::Unsupported { .. }
@@ -411,61 +599,87 @@ async fn surface_reader_publishes_and_caches_all_core_channel_results() {
     );
 }
 
-/// DUAL-11-14: the shared reader publishes the three rules-workspace JSON
-/// documents, in the shared section order, and omits a section the host cannot
-/// read instead of publishing an empty document for it.
-#[test]
-fn rules_json_documents_cover_the_shared_sections_and_omit_unreadable_ones() {
-    use infiltrator_contract::rules_workspace::{RulesJsonDocumentSnapshot, RulesJsonSection};
+#[tokio::test]
+async fn cloned_surface_readers_do_not_reuse_another_engines_version_cache() {
+    let core = Arc::new(CoreApplication::new(
+        Arc::new(TestProcess),
+        Arc::new(TestReadiness),
+        Arc::new(TestRuntime),
+    ));
+    let base = ApplicationSurfaceReader::new(core, SurfaceKind::BevyDesktop, HostKind::Desktop);
+    let mihomo_id = EngineId::new("mihomo").unwrap();
+    let mihomo = VersionApplication::new(
+        mihomo_id.clone(),
+        Arc::new(TestVersions {
+            engine_id: mihomo_id.clone(),
+            calls: Arc::new(AtomicUsize::new(0)),
+        }),
+    )
+    .unwrap();
+    let mihomo_snapshot = base
+        .clone()
+        .with_versions(mihomo)
+        .read()
+        .await
+        .expect("Mihomo surface read");
+    let sing_box_id = EngineId::new("sing-box").unwrap();
+    let sing_box = VersionApplication::new(
+        sing_box_id.clone(),
+        Arc::new(TestVersions {
+            engine_id: sing_box_id.clone(),
+            calls: Arc::new(AtomicUsize::new(0)),
+        }),
+    )
+    .unwrap();
 
-    let rule_providers: RuleProviders = serde_json::from_value(serde_json::json!({
-        "ads": {"type": "inline", "behavior": "domain", "payload": ["ads.com"]}
-    }))
-    .expect("rule providers");
-    let proxy_providers: ProxyProviders = serde_json::from_value(serde_json::json!({
-        "sub": {"type": "http", "url": "https://example.com/proxies.yaml"}
-    }))
-    .expect("proxy providers");
-    let sniffer = serde_json::json!({"enable": true});
+    let sing_box_snapshot = base
+        .with_versions(sing_box)
+        .read()
+        .await
+        .expect("sing-box surface read");
 
-    let documents = rules_json_documents(
-        Some(rule_providers.clone()),
-        Some(proxy_providers.clone()),
-        Some(sniffer.clone()),
-    );
-    assert_eq!(documents.len(), RulesJsonSection::ALL.len());
-    assert_eq!(
-        documents
+    assert_eq!(mihomo_snapshot.versions.engine_id, mihomo_id);
+    assert_eq!(sing_box_snapshot.versions.engine_id, sing_box_id);
+    assert_eq!(sing_box_snapshot.versions.revision, 1);
+    assert!(
+        sing_box_snapshot
+            .versions
+            .channels
             .iter()
-            .map(|document| document.section)
-            .collect::<Vec<_>>(),
-        RulesJsonSection::ALL.to_vec()
+            .all(|channel| channel.engine_id == sing_box_id)
     );
-
-    // Each document round-trips back to the value it was serialised from, so
-    // the Bevy editor edits exactly the text the shared application owns.
-    for document in &documents {
-        let value: serde_json::Value =
-            serde_json::from_str(&document.json).expect("document is valid JSON");
-        match document.section {
-            RulesJsonSection::RuleProviders => {
-                assert_eq!(value, serde_json::to_value(&rule_providers).unwrap());
-            }
-            RulesJsonSection::ProxyProviders => {
-                assert_eq!(value, serde_json::to_value(&proxy_providers).unwrap());
-            }
-            RulesJsonSection::Sniffer => assert_eq!(value, sniffer),
-        }
-    }
-
-    // A section the host cannot read is omitted, not fabricated.
-    let partial = rules_json_documents(None, None, Some(sniffer));
-    assert_eq!(
-        partial,
-        vec![RulesJsonDocumentSnapshot {
-            section: RulesJsonSection::Sniffer,
-            json: partial[0].json.clone(),
-        }]
-    );
-    assert!(partial[0].json.contains("enable"));
 }
+
+#[tokio::test]
+async fn surface_reader_rejects_a_snapshot_when_core_scope_changes_mid_read() {
+    let core = Arc::new(CoreApplication::new(
+        Arc::new(ScopeProcess {
+            running: AtomicBool::new(false),
+        }),
+        Arc::new(TestReadiness),
+        Arc::new(TestRuntime),
+    ));
+    install_lifecycle_capabilities(&core);
+    assert!(matches!(
+        test_execute_result_at_current_scope(&core, CommandIntent::StartCore).await,
+        CommandResult::Completed { .. }
+    ));
+    let starting_scope = core.snapshot().scope().expect("running core scope");
+    let reader =
+        ApplicationSurfaceReader::new(core.clone(), SurfaceKind::BevyDesktop, HostKind::Desktop)
+            .with_system_proxy(SystemProxyApplication::new(Arc::new(
+                StopCoreDuringSurfaceRead { core: core.clone() },
+            )));
+
+    let result = reader.read().await;
+
+    assert!(matches!(
+        result,
+        Err(PortError::Rejected(failure))
+            if failure.code == ErrorCode::NotReady && failure.retryable
+    ));
+    assert_ne!(core.snapshot().scope().as_ref(), Some(&starting_scope));
+}
+
+#[path = "surface_reader_outbound_tests.rs"]
+mod outbound_tests;

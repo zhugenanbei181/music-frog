@@ -11,8 +11,8 @@ use bevy::input::keyboard::{Key, KeyCode, KeyboardInput};
 use bevy::window::{Window, WindowFocused, WindowOccluded};
 use bevy::winit::{UpdateMode, WinitSettings};
 use infiltrator_bevy_ui::cadence::{
-    CADENCE_IDLE_FRAMES, CadenceActivity, CadencePlugin, SUSPENDED_WAIT, WindowCadenceState,
-    winit_settings_for,
+    CADENCE_IDLE_FRAMES, CadenceActivity, CadenceEngagement, CadencePlugin, SUSPENDED_WAIT,
+    WindowCadenceState, winit_settings_for,
 };
 use infiltrator_bevy_widgets::cadence::FramePacingMode;
 use infiltrator_contract::cadence::RenderCadence;
@@ -213,7 +213,7 @@ fn a_steady_quiet_window_idles_at_the_contract_rate() {
     assert_eq!(
         app.world()
             .resource::<WindowCadenceState>()
-            .cadence_with(false),
+            .cadence_with(CadenceEngagement::Idle),
         RenderCadence::Idling
     );
 }
@@ -251,7 +251,9 @@ fn new_input_wakes_the_idling_window_back_to_active() {
 /// cadence heat while input still wakes the shell.
 #[test]
 fn reduce_motion_drops_animation_driven_cadence() {
-    use infiltrator_bevy_ui::host_capabilities::{EnergyPreference, HostPreferences};
+    use infiltrator_bevy_ui::host_capabilities::{
+        EnergyPreference, HostPreferences, MotionPreference,
+    };
 
     let mut app = cadence_app();
     for _ in 0..=CADENCE_IDLE_FRAMES {
@@ -263,7 +265,7 @@ fn reduce_motion_drops_animation_driven_cadence() {
     );
 
     *app.world_mut().resource_mut::<HostPreferences>() = HostPreferences {
-        reduce_motion: true,
+        motion: MotionPreference::Reduced,
         energy: EnergyPreference::Balanced,
     };
 

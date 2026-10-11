@@ -70,11 +70,12 @@ mod tests {
 
     fn core(lifecycle: CoreLifecycle) -> CoreSnapshot {
         CoreSnapshot {
+            identity: None,
             lifecycle,
             generation: 2,
             revision: 3,
             session_token: None,
-            proxy_mode: None,
+            routing_intent: Default::default(),
             core_version: None,
             sampled_at_epoch_ms: None,
             failure: None,

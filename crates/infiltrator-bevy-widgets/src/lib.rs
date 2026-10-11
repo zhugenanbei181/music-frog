@@ -14,6 +14,7 @@
 //! lift-and-shift.
 
 use bevy::input::mouse::MouseScrollPixelsPerLine;
+use bevy::picking::pointer::PointerInput;
 use bevy::ui_widgets::{Button, ScrollAreaPlugin};
 use chart::donut::sync_donut_charts;
 use chart::histogram::sync_histogram_charts;
@@ -41,6 +42,7 @@ pub mod density;
 pub mod desktop;
 pub mod drawer;
 pub mod editor;
+pub mod feathers_theme;
 pub mod filter;
 pub mod fluid_grid;
 pub mod focus;
@@ -104,9 +106,18 @@ use crate::text_input::render::{
 };
 use crate::text_runs::TextRunsPlugin;
 use crate::theme::Breakpoint;
+use crate::theme::REM_BASE;
 use bevy::app::{App, Plugin, PostUpdate, PreStartup, Update};
+use bevy::asset::AssetApp;
 use bevy::ecs::schedule::{ApplyDeferred, IntoScheduleConfigs};
+use bevy::feathers::FeathersCorePlugin;
+use bevy::input_focus::InputFocusPlugin;
+use bevy::render::RenderPlugin;
+use bevy::shader::Shader;
+use bevy::text::RemSize;
+use bevy::ui::UiScale;
 use bevy::ui::UiSystems;
+use bevy::ui_widgets::{TabPlugin, tablist_self_update};
 
 /// Installs the resolved palette resource, the embedded font sources, the
 /// icon plate store, the typography/theme observers and the per-control
@@ -134,11 +145,54 @@ impl Plugin for WidgetsPlugin {
         app.add_plugins((NativeTextFieldPlugin, TextRunsPlugin));
         app.add_plugins(TelemetryGpuPlugin);
         app.init_resource::<MouseScrollPixelsPerLine>();
+        app.add_message::<PointerInput>();
         if !app.is_plugin_added::<ScrollAreaPlugin>() {
             app.add_plugins(ScrollAreaPlugin);
         }
+        app.init_resource::<scrollarea::ScrollMotionState>()
+            .init_resource::<scrollarea::ScrollMotionPreference>()
+            .init_resource::<scrollarea::PointerGestureTracker>()
+            .add_observer(scrollarea::track_button_pointer_press)
+            .add_observer(scrollarea::cancel_pointer_tap_on_drag_start)
+            .add_observer(scrollarea::scrollarea_on_drag_start)
+            .add_observer(scrollarea::scrollarea_on_drag)
+            .add_observer(scrollarea::scrollarea_on_drag_end)
+            .add_observer(scrollarea::scrollarea_on_drag_cancel);
 
         app.insert_resource(self.palette);
+        // Root font size: the single scale knob behind every rem token
+        // (capability norm ①). Hosts override this resource to rescale the
+        // whole UI; nothing else may change type sizes.
+        app.insert_resource(RemSize(REM_BASE));
+        // Official two-stage theming (capability norm ②): the palette builds
+        // the feathers UiTheme; overwriting that resource repaints every
+        // Theme* paint component through the official update_theme systems.
+        // FeathersCorePlugin embeds .wesl shader assets; the asset store must
+        // exist even in hosts that skip AssetPlugin (headless compositions).
+        // RenderPlugin owns the live Shader store and its handle allocator.
+        // Reinitializing it invalidates in-flight embedded Feathers shader loads.
+        if !app.is_plugin_added::<RenderPlugin>() {
+            app.init_asset::<Shader>();
+        }
+        // Feathers observers read these even in headless hosts that skip
+        // UiPlugin / the windowing stack.
+        app.init_resource::<UiScale>();
+        // Feathers' focus-outline systems read the input-focus resources.
+        if !app.is_plugin_added::<InputFocusPlugin>() {
+            app.add_plugins(InputFocusPlugin);
+        }
+        if !app.is_plugin_added::<FeathersCorePlugin>() {
+            app.add_plugins(FeathersCorePlugin);
+        }
+        app.insert_resource(feathers_theme::build_ui_theme(&self.palette));
+        app.add_systems(Update, feathers_theme::sync_ui_theme);
+        // Official headless tab strip (capability norm ③): selection state,
+        // keyboard navigation and a11y roles come from bevy_ui_widgets.
+        if !app.is_plugin_added::<TabPlugin>() {
+            app.add_plugins(TabPlugin);
+        }
+        app.add_observer(tablist_self_update);
+        app.add_observer(tabs::stamp_initial_tab_ink);
         app.init_resource::<ResponsiveContext>();
         app.init_resource::<Density>();
         app.init_resource::<Breakpoint>();
@@ -169,12 +223,10 @@ impl Plugin for WidgetsPlugin {
         app.add_message::<menu::MenuNavEvent>();
         app.add_message::<menu::MenuOutcome>();
         app.add_message::<list::VirtualListScroll>();
-        app.add_message::<list::VirtualListFling>();
         app.add_message::<list::VirtualListSelect>();
         app.add_message::<radio::RadioGroupNavEvent>();
         app.add_message::<combobox::ComboboxNavEvent>();
         app.add_message::<combobox::ComboboxOutcomeEvent>();
-        app.add_message::<tabs::TabSelectEvent>();
         app.add_message::<modal::ModalEvent>();
         app.add_message::<modal::ModalOpenEvent>();
         app.add_message::<modal::ModalCloseEvent>();
@@ -202,6 +254,10 @@ impl Plugin for WidgetsPlugin {
                 icon::sync_icon_tints,
             ),
         );
+        app.add_systems(
+            Update,
+            scrollarea::cancel_motion_on_pointer_input.before(scrollarea::advance_scroll_motion),
+        );
 
         // Page projection and retirement queues finish in Update. Sync SDK
         // state from surviving controls, then commit before UI preparation.
@@ -225,7 +281,6 @@ impl Plugin for WidgetsPlugin {
                 surface::sync_surface_visuals,
                 (menu::advance_menus, menu::sync_menu_visuals).chain(),
                 popover::sync_popover_visuals,
-                list::sync_list_visuals,
                 list::advance_virtual_lists,
                 list::sync_list_selection.before(nav::sync_nav_visuals),
                 chart::sync_chart_crosshair_tracking,
@@ -242,6 +297,7 @@ impl Plugin for WidgetsPlugin {
                 (advance_topology_flow, sync_topology_charts).chain(),
                 (advance_globe_rotation, sync_globe_charts).chain(),
                 update_telemetry_cadence,
+                scrollarea::advance_scroll_motion,
                 scrollarea::focus_avoidance_auto_scroll_system,
                 responsive::sync_responsive_context_from_window,
                 fluid_grid::sync_fluid_grid_layout,
@@ -257,11 +313,7 @@ impl Plugin for WidgetsPlugin {
             Update,
             (
                 (combobox::advance_combobox, combobox::sync_combobox_visuals).chain(),
-                (
-                    tabs::advance_segmented_control,
-                    tabs::sync_segmented_control_visuals,
-                )
-                    .chain(),
+                (tabs::sync_segmented_control_visuals,).chain(),
                 modal::sync_modal_visuals,
                 drawer::sync_drawer_visuals,
                 tooltip::sync_tooltip_visuals,

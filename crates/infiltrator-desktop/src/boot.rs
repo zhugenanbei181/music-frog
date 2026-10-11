@@ -2,7 +2,7 @@
 //! "启动引导 3 次重试，失败轮换 external-controller 端口；就绪等待 15s；
 //! rebuild 等端口释放 5s").
 //!
-//! [`MihomoRuntime::bootstrap_offline`] is a single shot: once it spawns the core it
+//! Offline runtime materialization is a single shot: once it spawns the core it
 //! never returns a handle on failure, and the application deliberately has no
 //! `Drop`-stop — a readiness timeout would leave an unmanaged mihomo holding
 //! the controller port and poisoning every later attempt. So the retry loop
@@ -13,7 +13,7 @@
 //! ServiceManager, CoreApplication, readiness) and **owns its process**: on
 //! failure the session is stopped explicitly under a timeout. Once an attempt
 //! proves the core startable and ready, `materialize` runs the real
-//! `MihomoRuntime::bootstrap_offline`, which attaches to the now-running core
+//! the runtime materializer, which attaches to the now-running core
 //! (fast path) and produces the full-fidelity runtime. Local config and asset
 //! checks stay authoritative; remote enrichment is post-start only.
 //!
@@ -27,14 +27,12 @@
 //!   via the existing [`mihomo_config`] rotation (it picks its own port, so
 //!   the injected picker is used solely to wait for port release).
 
-use crate::composition::core_application;
-use crate::runtime::MihomoRuntime;
+use crate::composition::{core_application, desktop_backend, materialize_boot_host};
 use crate::service::ServiceManager;
 use crate::storage::doctor;
-use crate::storage::{home_dir, subscription_source};
+use crate::storage::{home_dir, settings_store, subscription_source, version_factory};
 use crate::surface::SurfaceEngines;
 use crate::system_dns_cache::DesktopSystemDnsCache;
-use crate::version::resolve_binary;
 use anyhow::anyhow;
 use infiltrator_application::configuration_application::ConfigurationApplication;
 use infiltrator_application::core_application::CoreApplication;
@@ -44,11 +42,11 @@ use infiltrator_application::dns_leak_application::{DnsLeakApplication, default_
 use infiltrator_application::dns_query_application::DnsQueryApplication;
 use infiltrator_application::doctor_application::DoctorApplication;
 use infiltrator_application::profile_application::ProfileApplication;
-use infiltrator_application::proxy_preferences_application::ProxyPreferencesApplication;
 use infiltrator_application::rule_list_application::RuleListApplication;
 use infiltrator_application::rule_tracer_application::RuleTracerApplication;
 use infiltrator_application::script_application::ScriptApplication;
 use infiltrator_application::script_export_application::ScriptExportApplication;
+use infiltrator_application::settings_application::SettingsApplication;
 use infiltrator_application::snapshot_application::SnapshotApplication;
 use infiltrator_application::speedtest_application::SpeedtestApplication;
 use infiltrator_application::stun_probe_application::StunProbeApplication;
@@ -58,15 +56,20 @@ use infiltrator_core::dns_leak_io::HttpDnsLeakEchoProbe;
 use infiltrator_core::settings_io::app_config_manager;
 use infiltrator_core::snapshot_io::FileSnapshotStore;
 use infiltrator_core::stun_io::UdpStunProbe;
+use infiltrator_core::version_port::MihomoVersionPort;
+use infiltrator_ports::core_binary_selection::{
+    BundledBinarySource, CoreBinarySelection, CoreBinarySelectionPolicy, CoreBinarySelectionPort,
+    CoreBinarySelectionRequest,
+};
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::endpoint::EndpointSource;
 use infiltrator_ports::host_runtime::HostRuntime;
-use mihomo_api::client::MihomoClient;
+use mihomo_api::controller_fake_ip_cache::MihomoControllerFakeIpCacheAdapter;
 use mihomo_config::endpoint::ProfileEndpointSource;
 use mihomo_config::port::is_port_available;
-use mihomo_version::manager::VersionManager;
-use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use mihomo_version::bundled_kernel::packaged_candidates;
+use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use std::{error, fmt};
 use tokio::time::{Instant, sleep, timeout};
@@ -79,6 +82,14 @@ pub const RETRY_DELAY: Duration = Duration::from_millis(100);
 
 /// Ceiling for waiting until the previous controller port is released.
 pub const PORT_RELEASE_TIMEOUT: Duration = Duration::from_secs(5);
+
+/// Desktop host policy that maps to the engine-neutral binary selector.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DesktopBinaryPreference {
+    ManagedWithBundledFallback,
+    PreferBundled,
+    RequireBundled,
+}
 
 /// Poll interval while waiting for port release.
 const PORT_RELEASE_POLL_INTERVAL: Duration = Duration::from_millis(100);
@@ -98,7 +109,7 @@ pub struct BootAttempt {
 
 /// Successful boot: the runtime plus a trace of what it took to get there.
 pub struct BootOutcome {
-    pub runtime: MihomoRuntime,
+    pub runtime: Arc<dyn HostRuntime>,
     /// Attempts that failed before the successful one, in order.
     pub attempts: Vec<BootAttempt>,
     /// True when at least one controller-port rotation succeeded.
@@ -167,59 +178,59 @@ impl Default for BootRetryOptions {
 /// Retry-guided boot with ledger defaults (3 attempts, 100ms pause, 5s port
 /// release wait). See [`bootstrap_with_retry_opts`] for the customizable form.
 pub async fn bootstrap_with_retry(
-    vm: &VersionManager,
-    use_bundled: bool,
-    bundled_candidates: &[PathBuf],
-    data_dir: &Path,
+    policy: CoreBinarySelectionPolicy,
 ) -> anyhow::Result<BootOutcome> {
-    bootstrap_with_retry_opts(
-        vm,
-        use_bundled,
-        bundled_candidates,
-        data_dir,
-        BootRetryOptions::default(),
-    )
-    .await
+    bootstrap_with_retry_opts(policy, BootRetryOptions::default()).await
 }
 
 /// Boot the desktop host and return only the inbound-safe runtime port.
-/// Concrete `MihomoRuntime` ownership remains inside this composition module.
 pub async fn bootstrap_host_runtime(
-    vm: &VersionManager,
-    use_bundled: bool,
-    bundled_candidates: &[PathBuf],
-    data_dir: &Path,
+    policy: CoreBinarySelectionPolicy,
 ) -> anyhow::Result<(Arc<dyn HostRuntime>, bool)> {
-    let outcome = bootstrap_with_retry(vm, use_bundled, bundled_candidates, data_dir).await?;
-    Ok((Arc::new(outcome.runtime), outcome.rotated))
+    let outcome = bootstrap_with_retry(policy).await?;
+    Ok((outcome.runtime, outcome.rotated))
 }
 
 /// Desktop composition entry point used by UI/admin callers. Version
 /// manager construction and home resolution stay inside the desktop host;
 /// callers only choose the bundled-core policy and optional packaged paths.
 pub async fn bootstrap_host_runtime_from_current_home(
-    use_bundled: bool,
+    preference: DesktopBinaryPreference,
     bundled_candidates: &[PathBuf],
 ) -> anyhow::Result<(Arc<dyn HostRuntime>, bool)> {
-    let vm = VersionManager::new()?;
     let data_dir = home_dir()?;
-    bootstrap_host_runtime(&vm, use_bundled, bundled_candidates, &data_dir).await
+    let mut candidates = bundled_candidates.to_vec();
+    candidates.extend(packaged_candidates()?);
+    let bundled = BundledBinarySource {
+        candidates,
+        data_directory: data_dir,
+    };
+    let policy = match preference {
+        DesktopBinaryPreference::ManagedWithBundledFallback => {
+            CoreBinarySelectionPolicy::ManagedWithBundledFallback(bundled)
+        }
+        DesktopBinaryPreference::PreferBundled => CoreBinarySelectionPolicy::PreferBundled(bundled),
+        DesktopBinaryPreference::RequireBundled => {
+            CoreBinarySelectionPolicy::RequireBundled(bundled)
+        }
+    };
+    bootstrap_host_runtime(policy).await
 }
 
 /// [`bootstrap_with_retry`] with explicit retry behavior (tests, rebuild
 /// flows that need different timings).
 pub async fn bootstrap_with_retry_opts(
-    vm: &VersionManager,
-    use_bundled: bool,
-    bundled_candidates: &[PathBuf],
-    data_dir: &Path,
+    policy: CoreBinarySelectionPolicy,
     options: BootRetryOptions,
 ) -> anyhow::Result<BootOutcome> {
+    let engine_id = MihomoVersionPort::engine_identifier();
+    let version_factory = version_factory()?;
+    let binary_selection = version_factory.binary_selection_port(&engine_id)?;
     let engine = ProductionEngine {
-        vm,
-        use_bundled,
-        bundled_candidates,
-        data_dir,
+        engine_id,
+        binary_selection,
+        selection_policy: policy,
+        binary_state: Mutex::new(SelectedBinaryState::Awaiting),
     };
     let config = RetryLoopConfig {
         max_attempts: options.max_attempts,
@@ -395,17 +406,32 @@ fn production_port_picker(port: u16) -> Option<u16> {
 
 /// Production engine over the real lifecycle (pid-file process control makes
 /// cross-attempt stop/attach valid).
-struct ProductionEngine<'a> {
-    vm: &'a VersionManager,
-    use_bundled: bool,
-    bundled_candidates: &'a [PathBuf],
-    data_dir: &'a Path,
+enum SelectedBinaryState {
+    Awaiting,
+    Selected(CoreBinarySelection),
 }
 
-impl BootEngine for ProductionEngine<'_> {
-    type Runtime = MihomoRuntime;
+struct ProductionEngine {
+    engine_id: infiltrator_contract::core_identity::EngineId,
+    binary_selection: Arc<dyn CoreBinarySelectionPort>,
+    selection_policy: CoreBinarySelectionPolicy,
+    binary_state: Mutex<SelectedBinaryState>,
+}
+
+impl BootEngine for ProductionEngine {
+    type Runtime = Arc<dyn HostRuntime>;
 
     async fn attempt(&self) -> Result<(), AttemptFailure> {
+        {
+            let mut state = self.binary_state.lock().map_err(|_| {
+                AttemptFailure::new(
+                    anyhow!("Mihomo binary selection state lock is poisoned"),
+                    None,
+                    false,
+                )
+            })?;
+            *state = SelectedBinaryState::Awaiting;
+        }
         // Config preparation. Fatal on failure: YAML-level breakage is not
         // something a port rotation can fix (mirrors runtime.rs:60-66).
         let cm = Arc::new(app_config_manager().await.map_err(|error| {
@@ -432,22 +458,34 @@ impl BootEngine for ProductionEngine<'_> {
         })?;
         let controller = Some(controller_url.as_str());
 
-        // Retryable: a transiently failing core download/install can recover
-        // on the next attempt (mirrors runtime.rs:67).
-        let binary = resolve_binary(
-            self.vm,
-            self.use_bundled,
-            self.bundled_candidates,
-            self.data_dir,
-        )
-        .await
-        .map_err(|error| {
-            AttemptFailure::new(
-                anyhow!("resolve mihomo core binary: {error:#}"),
-                controller,
-                true,
-            )
-        })?;
+        // Retryable: binary source/readiness failures can recover on a later
+        // attempt. Selection and its version evidence come from the engine's
+        // version-scoped adapter factory.
+        let selection = self
+            .binary_selection
+            .select(CoreBinarySelectionRequest {
+                engine_id: self.engine_id.clone(),
+                policy: self.selection_policy.clone(),
+            })
+            .await
+            .map_err(|error| {
+                AttemptFailure::new(
+                    anyhow!("select Mihomo core binary: {error}"),
+                    controller,
+                    true,
+                )
+            })?;
+        let binary = selection.binary_path.clone();
+        {
+            let mut state = self.binary_state.lock().map_err(|_| {
+                AttemptFailure::new(
+                    anyhow!("Mihomo binary selection state lock is poisoned"),
+                    controller,
+                    false,
+                )
+            })?;
+            *state = SelectedBinaryState::Selected(selection);
+        }
 
         // Mirror of runtime.rs:70-77: service + application with a lazily
         // resolving endpoint source, so a rotated port is picked up by every
@@ -461,14 +499,32 @@ impl BootEngine for ProductionEngine<'_> {
                 false,
             )
         })?;
+        let backend = desktop_backend(
+            &service_manager,
+            &endpoint.url,
+            endpoint.secret.clone(),
+            &MihomoVersionPort::engine_identifier(),
+        )
+        .map_err(|error| {
+            AttemptFailure::new(
+                anyhow!("create engine backend ports: {error}"),
+                controller,
+                false,
+            )
+        })?;
+        let client = backend.client.clone();
+        let apply_guard = Arc::new(tokio::sync::Mutex::new(()));
+        let profiles =
+            ProfileApplication::new(cm.clone()).with_document_codec(backend.ports.configuration());
+        let configuration = ConfigurationApplication::from_profile_application(profiles.clone());
         let application = Arc::new(
             core_application(
                 &service_manager,
-                endpoint.url.clone(),
+                backend,
                 endpoint.secret.clone(),
                 SurfaceEngines {
-                    profiles: ProfileApplication::new(cm.clone()),
-                    configuration: ConfigurationApplication::new(cm.clone()),
+                    profiles,
+                    configuration,
                     snapshots: SnapshotApplication::new(
                         cm.clone(),
                         Arc::new(FileSnapshotStore::new(cm.config_dir().to_path_buf())),
@@ -482,43 +538,13 @@ impl BootEngine for ProductionEngine<'_> {
                             false,
                         )
                     })?)),
-                    proxy_preferences: ProxyPreferencesApplication::new(),
-                    speedtest: SpeedtestApplication::new(Arc::new(
-                        MihomoClient::new(&endpoint.url, endpoint.secret.clone()).map_err(
-                            |error| {
-                                AttemptFailure::new(
-                                    anyhow!("build controller client: {error}"),
-                                    controller,
-                                    false,
-                                )
-                            },
-                        )?,
-                    )),
                     rule_tracer: RuleTracerApplication::new(),
                     rule_list: RuleListApplication::default(),
-                    dns_query: DnsQueryApplication::new(Some(Arc::new(
-                        MihomoClient::new(&endpoint.url, endpoint.secret.clone()).map_err(
-                            |error| {
-                                AttemptFailure::new(
-                                    anyhow!("build DNS query controller client: {error}"),
-                                    controller,
-                                    false,
-                                )
-                            },
-                        )?,
-                    ))),
+                    dns_query: DnsQueryApplication::new(Some(Arc::new(client.clone()))),
                     dns_cache: DnsCacheApplication::new(
-                        Some(Arc::new(
-                            MihomoClient::new(&endpoint.url, endpoint.secret.clone()).map_err(
-                                |error| {
-                                    AttemptFailure::new(
-                                        anyhow!("build DNS cache controller client: {error}"),
-                                        controller,
-                                        false,
-                                    )
-                                },
-                            )?,
-                        )),
+                        Some(Arc::new(MihomoControllerFakeIpCacheAdapter::new(
+                            client.clone(),
+                        ))),
                         Some(Arc::new(DesktopSystemDnsCache::new())),
                     ),
                     // DUAL-14-10: the boot path composes the same real prober the
@@ -544,8 +570,20 @@ impl BootEngine for ProductionEngine<'_> {
                         DEFAULT_STUN_SERVER,
                     ),
                 },
+                SpeedtestApplication::new(SettingsApplication::new(
+                    settings_store().await.map_err(|error| {
+                        AttemptFailure::new(
+                            anyhow!("construct probe settings store: {error}"),
+                            controller,
+                            false,
+                        )
+                    })?,
+                )),
                 cm.clone(),
                 Arc::new(subscription_source()),
+                cm.clone(),
+                endpoints.clone() as Arc<dyn EndpointSource>,
+                apply_guard,
             )
             .map_err(|error| {
                 AttemptFailure::new(
@@ -604,14 +642,20 @@ impl BootEngine for ProductionEngine<'_> {
             .ok_or_else(|| anyhow!("rotated controller URL has no port: {url}"))
     }
 
-    async fn materialize(&self) -> anyhow::Result<MihomoRuntime> {
-        MihomoRuntime::bootstrap_offline(
-            self.vm,
-            self.use_bundled,
-            self.bundled_candidates,
-            self.data_dir,
-        )
-        .await
+    async fn materialize(&self) -> anyhow::Result<Arc<dyn HostRuntime>> {
+        let selection = {
+            let state = self
+                .binary_state
+                .lock()
+                .map_err(|_| anyhow!("Mihomo binary selection state lock is poisoned"))?;
+            match &*state {
+                SelectedBinaryState::Awaiting => {
+                    anyhow::bail!("Mihomo runtime cannot materialize before binary selection")
+                }
+                SelectedBinaryState::Selected(selection) => selection.clone(),
+            }
+        };
+        materialize_boot_host(selection).await
     }
 }
 

@@ -7,6 +7,15 @@ mod tests {
     use crate::types::ProxiesResponse;
     use infiltrator_domain::proxy::Proxy;
 
+    // These legacy protocol-configuration fixtures are not `/proxies`
+    // observations. Runtime reads use the partial observation DTO and must
+    // not backfill missing configuration fields into observed facts.
+    fn deserialize_config_proxy(json: &str, name: &str) -> Proxy {
+        let document: serde_json::Value = serde_json::from_str(json).expect("valid fixture");
+        serde_json::from_value(document["proxies"][name].clone())
+            .expect("valid configuration proxy")
+    }
+
     // ──────────────────────────────────────────────
     // 反序列化：节点类型识别
     // ──────────────────────────────────────────────
@@ -27,8 +36,7 @@ mod tests {
                 }
             }
         }"#;
-        let resp: ProxiesResponse = serde_json::from_str(json).unwrap();
-        let proxy = resp.proxies.get("My-SS").unwrap();
+        let proxy = deserialize_config_proxy(json, "My-SS");
 
         assert_eq!(proxy.proxy_type(), "Shadowsocks");
         assert!(!proxy.is_group());
@@ -62,8 +70,7 @@ mod tests {
                 }
             }
         }"#;
-        let resp: ProxiesResponse = serde_json::from_str(json).unwrap();
-        if let Proxy::Shadowsocks(ss) = resp.proxies.get("SS-Obfs").unwrap() {
+        if let Proxy::Shadowsocks(ss) = deserialize_config_proxy(json, "SS-Obfs") {
             assert_eq!(ss.plugin.as_deref(), Some("v2ray-plugin"));
             let opts = ss.plugin_opts.as_ref().unwrap();
             assert_eq!(opts.mode.as_deref(), Some("websocket"));
@@ -98,8 +105,7 @@ mod tests {
                 }
             }
         }"#;
-        let resp: ProxiesResponse = serde_json::from_str(json).unwrap();
-        if let Proxy::Vmess(vm) = resp.proxies.get("Vmess-WS").unwrap() {
+        if let Proxy::Vmess(vm) = deserialize_config_proxy(json, "Vmess-WS") {
             assert_eq!(vm.network, "ws");
             assert!(vm.tls, "TLS 应该为开启状态");
             let opts = vm.ws_opts.as_ref().expect("ws-opts 不能为空");
@@ -131,8 +137,7 @@ mod tests {
                 }
             }
         }"#;
-        let resp: ProxiesResponse = serde_json::from_str(json).unwrap();
-        if let Proxy::Hysteria2(hy) = resp.proxies.get("Hy2").unwrap() {
+        if let Proxy::Hysteria2(hy) = deserialize_config_proxy(json, "Hy2") {
             assert_eq!(hy.auth.as_deref(), Some("my-password"));
             assert_eq!(hy.sni.as_deref(), Some("example.com"));
         } else {

@@ -11,18 +11,19 @@ use bevy::ecs::hierarchy::{ChildOf, Children};
 use bevy::ecs::observer::On;
 use bevy::ecs::query::{QueryData, With};
 use bevy::ecs::system::{Commands, Query, Res};
+use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::{CommandsSceneExt, Scene, bsn};
 use bevy::text::TextColor;
 use bevy::ui::widget::Text;
-use bevy::ui::{
-    AlignItems, BackgroundColor, BorderRadius, FlexDirection, Node, UiRect, percent, px,
-};
+use bevy::ui::{AlignItems, BorderRadius, FlexDirection, Node, UiRect, percent, px};
 use infiltrator_application::doctor_projection::{
     check_detail, check_name, status_key, summary, watchdog_status_text,
 };
 use infiltrator_bevy_widgets::button::{ButtonDisabled, ButtonVariant};
+use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_shared::i18n_interpolator::localize;
@@ -49,12 +50,12 @@ pub fn check_row_scene(
             width: percent(100),
             min_width: px(0),
             flex_direction: FlexDirection::Column,
-            row_gap: px(space::S4),
-            padding: UiRect::all(px(space::S8)),
-            border_radius: BorderRadius::all(px(palette.control_radius_px)),
+            row_gap: rem(space::S4),
+            padding: UiRect::all(rem(space::S8)),
+            border_radius: BorderRadius::all(rem(palette.control_radius_px)),
         }
         DoctorRow({ id.clone() })
-        BackgroundColor({ palette.surface_elevated })
+        ThemeBackgroundColor({ Token::SurfaceElevated })
         Children [
             Text({ check_name(check.kind, &check.name, &check.category, code) })
             DoctorName({ id.clone() }) TextRole(Role::BodyStrong)
@@ -67,7 +68,7 @@ pub fn check_row_scene(
             --
             Node {
                 align_items: AlignItems::Center,
-                column_gap: px(space::S12),
+                column_gap: rem(space::S12),
             }
             Children [
                 Text({ Lang(code).tr(status_key(check.state)).into_owned() })

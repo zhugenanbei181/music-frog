@@ -1,0 +1,90 @@
+use std::{cell::RefCell, collections::VecDeque, rc::Rc, sync::mpsc, time::Duration};
+
+use slint::{ComponentHandle, Timer, TimerMode};
+
+use crate::{
+    AppWindow,
+    services::{self, UiCommand, UiState},
+};
+
+pub fn run(compact_layout: bool) -> Result<(), slint::PlatformError> {
+    let _ = slint::select_bundled_translation("zh-CN");
+    let ui = AppWindow::new()?;
+    ui.global::<crate::Palette>()
+        .set_color_scheme(slint::language::ColorScheme::Light);
+    let weak_palette_ui = ui.as_weak();
+    ui.on_color_scheme_changed(move |dark| {
+        if let Some(ui) = weak_palette_ui.upgrade() {
+            ui.global::<crate::Palette>().set_color_scheme(if dark {
+                slint::language::ColorScheme::Dark
+            } else {
+                slint::language::ColorScheme::Light
+            });
+        }
+        #[cfg(target_os = "android")]
+        crate::platform::set_android_system_bar_appearance(dark);
+    });
+    if !compact_layout {
+        ui.window().set_size(slint::LogicalSize::new(1360.0, 860.0));
+    }
+    ui.set_compact_layout(compact_layout);
+    ui.set_android_platform(cfg!(target_os = "android"));
+    ui.set_layout_debug_tools_enabled(cfg!(debug_assertions));
+    let (command_sender, command_receiver) = mpsc::channel::<UiCommand>();
+    let (state_sender, state_receiver) = mpsc::sync_channel::<UiState>(4);
+    #[cfg(target_os = "android")]
+    crate::platform::register_android_profile_file_sender(command_sender.clone());
+    let worker = services::start_worker(command_receiver, state_sender);
+    services::bind_commands(&ui, command_sender);
+    let back_preview_history = Rc::new(RefCell::new(VecDeque::<slint::Image>::new()));
+    {
+        let weak_ui = ui.as_weak();
+        let history = back_preview_history.clone();
+        ui.on_cache_back_preview(move || {
+            let Some(ui) = weak_ui.upgrade() else { return; };
+            let Ok(snapshot) = ui.window().take_snapshot() else { return; };
+            let image = slint::Image::from_rgba8(snapshot);
+            let mut history = history.borrow_mut();
+            history.push_back(image.clone());
+            while history.len() > 8 { history.pop_front(); }
+            ui.set_back_preview_image(image);
+            ui.set_back_preview_available(true);
+        });
+    }
+    {
+        let weak_ui = ui.as_weak();
+        let history = back_preview_history.clone();
+        ui.on_commit_back_preview(move || {
+            let Some(ui) = weak_ui.upgrade() else { return; };
+            let mut history = history.borrow_mut();
+            history.pop_back();
+            if let Some(image) = history.back().cloned() {
+                ui.set_back_preview_image(image);
+                ui.set_back_preview_available(true);
+            } else {
+                ui.set_back_preview_available(false);
+            }
+        });
+    }
+    #[cfg(target_os = "android")]
+    crate::platform::refresh_android_system_theme();
+
+    let weak_ui = ui.as_weak();
+    let timer = Timer::default();
+    let state_poll_interval = if compact_layout { 16 } else { 120 };
+    timer.start(TimerMode::Repeated, Duration::from_millis(state_poll_interval), move || {
+        let mut latest = None;
+        while let Ok(state) = state_receiver.try_recv() {
+            latest = Some(state);
+        }
+        if let (Some(state), Some(ui)) = (latest, weak_ui.upgrade()) {
+            services::apply_state(&ui, state);
+        }
+    });
+
+    let result = ui.run();
+    drop(timer);
+    drop(ui);
+    let _ = worker.join();
+    result
+}

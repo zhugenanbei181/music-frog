@@ -1,5 +1,5 @@
 use crate::admin_api::models::{ImportProfilePayload, SaveProfilePayload, SwitchProfilePayload};
-use crate::admin_api::state::{AdminApiContext, AdminApiState};
+use crate::admin_api::state::{AdminApiContext, AdminApiState, AdminOutboundOwner};
 use crate::admin_api::*;
 use crate::support::{
     app_config_manager, cache_application, configuration_application, doctor_application,
@@ -16,16 +16,29 @@ use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::profile_reset_application::ProfileResetApplication;
 use infiltrator_application::sync_application::SyncApplication;
 use infiltrator_application::version_application::VersionApplication;
+use infiltrator_contract::core_identity::{
+    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
+};
+use infiltrator_contract::error::ErrorCode;
+use infiltrator_contract::error::Failure;
+use infiltrator_contract::routing_intent::{
+    RoutingIntent, RoutingIntentSnapshot, RoutingIntentStatus,
+};
+use infiltrator_contract::session::SessionToken;
 use infiltrator_contract::version::{
-    CoreRelease, CoreReleaseChannel, CoreReleaseSummary, InstalledCoreVersion,
+    CoreRelease, CoreReleaseSummary, EngineReleaseChannel, InstalledCoreVersion,
 };
 use infiltrator_core::settings_io::{WEBDAV_CREDENTIAL_SERVICE, WEBDAV_PASSWORD_KEY};
 use infiltrator_domain::settings::AppSettings;
 use infiltrator_ports::error::PortError;
+use infiltrator_ports::outbound::OutboundScopeSource;
 use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use infiltrator_ports::subscription_source::SubscriptionSource;
-use infiltrator_ports::version::{VersionPort, VersionProgressSink};
+use infiltrator_ports::version::{
+    VersionActivationRequest, VersionInstallRequest, VersionPort, VersionUninstallRequest,
+};
 use mihomo_api::client::MihomoClient;
+use mihomo_api::outbound::MihomoOutboundAdapter;
 use mihomo_platform::TEST_LOCK;
 use mihomo_platform::defaults::DefaultCredentialStore;
 use std::collections::HashMap;
@@ -47,7 +60,7 @@ use tower::ServiceExt; // for `oneshot`, `ready`, and `call`
 #[cfg(unix)]
 fn plant_runnable_fake_binary(home: &path::Path, version: &str) {
     use std::os::unix::fs::PermissionsExt;
-    let dir = home.join("versions").join(version);
+    let dir = home.join("engines/mihomo/versions").join(version);
     create_dir_all(&dir).unwrap();
     let bin = dir.join("mihomo");
     write(&bin, "#!/bin/sh\necho \"Mihomo Meta v1.19.18 test\"\n").unwrap();
@@ -62,6 +75,29 @@ struct MockContext {
     /// 内存版 WebDAV 密码库（替代真实 OS keyring，测试零外部依赖）。
     secrets: Arc<Mutex<HashMap<String, String>>>,
     version: Option<VersionApplication>,
+}
+
+#[derive(Clone)]
+struct TestOutboundScopeSource {
+    scope: CoreScope,
+}
+
+impl OutboundScopeSource for TestOutboundScopeSource {
+    fn current_scope(&self) -> Option<CoreScope> {
+        Some(self.scope.clone())
+    }
+}
+
+fn test_outbound_scope() -> CoreScope {
+    CoreScope {
+        identity: CoreIdentity::new(
+            EngineId::new("mihomo").expect("valid engine ID"),
+            CoreInstanceId::new("admin-test-instance").expect("valid instance ID"),
+            Some(CoreVersion::new("test-version").expect("valid core version")),
+        ),
+        generation: CoreGeneration::new(1),
+        session_token: Some(SessionToken::new(7)),
+    }
 }
 
 /// 内存密码库的键：service/key 拼接，语义与真实 keyring 一致。
@@ -175,6 +211,50 @@ impl AdminApiContext for MockContext {
         let client = MihomoClient::new(runtime_url, None).map_err(|e| anyhow!(e.to_string()))?;
         Ok(Arc::new(client))
     }
+    async fn outbound_owner(&self) -> anyhow::Result<AdminOutboundOwner> {
+        let runtime_url = self
+            .runtime_url
+            .as_deref()
+            .ok_or_else(|| anyhow!("runtime url is not configured"))?;
+        let client = MihomoClient::new(runtime_url, None).map_err(|e| anyhow!(e.to_string()))?;
+        let scope_source: Arc<dyn OutboundScopeSource> = Arc::new(TestOutboundScopeSource {
+            scope: test_outbound_scope(),
+        });
+        let port = Arc::new(MihomoOutboundAdapter::new(
+            Arc::new(client),
+            scope_source.clone(),
+        ));
+        Ok(AdminOutboundOwner::new(port, scope_source))
+    }
+    async fn routing_intent_snapshot(
+        &self,
+    ) -> Result<(Option<CoreScope>, RoutingIntentSnapshot), Failure> {
+        Ok((
+            Some(test_outbound_scope()),
+            RoutingIntentSnapshot::demo_fixture(),
+        ))
+    }
+    async fn apply_routing_intent(
+        &self,
+        scope: CoreScope,
+        intent: RoutingIntent,
+    ) -> Result<(Option<CoreScope>, RoutingIntentSnapshot), Failure> {
+        if scope != test_outbound_scope() {
+            return Err(Failure::new(
+                ErrorCode::InvalidState,
+                "stale test scope",
+                false,
+            ));
+        }
+        Ok((
+            Some(scope),
+            RoutingIntentSnapshot {
+                current: Some(intent),
+                status: RoutingIntentStatus::Ready,
+                failure: None,
+            },
+        ))
+    }
     async fn system_proxy_enabled(&self) -> bool {
         false
     }
@@ -239,48 +319,60 @@ struct StaticVersionPort {
 
 #[async_trait::async_trait]
 impl VersionPort for StaticVersionPort {
-    async fn list_installed(&self) -> Result<Vec<InstalledCoreVersion>, PortError> {
+    fn engine_id(&self) -> EngineId {
+        EngineId::new("mihomo").unwrap()
+    }
+
+    async fn list_installed(
+        &self,
+        _engine_id: &EngineId,
+    ) -> Result<Vec<InstalledCoreVersion>, PortError> {
         Ok(vec![InstalledCoreVersion {
+            engine_id: self.engine_id(),
             version: "v1.20.0".to_string(),
             path: self
                 .home
-                .join("versions/v1.20.0/mihomo")
+                .join("engines/mihomo/versions/v1.20.0/mihomo")
                 .to_string_lossy()
                 .into_owned(),
             is_default: true,
         }])
     }
 
-    async fn latest(&self, _channel: CoreReleaseChannel) -> Result<CoreRelease, PortError> {
+    async fn latest(&self, channel: EngineReleaseChannel) -> Result<CoreRelease, PortError> {
+        if channel.engine_id != self.engine_id() {
+            return Err(PortError::Failed("wrong engine context".to_owned()));
+        }
         Ok(CoreRelease {
+            engine_id: self.engine_id(),
             version: "v1.20.0".to_string(),
             release_date: "2026-01-01T00:00:00Z".to_string(),
         })
     }
 
-    async fn list_releases(&self, _limit: usize) -> Result<Vec<CoreReleaseSummary>, PortError> {
+    async fn list_releases(
+        &self,
+        _engine_id: &EngineId,
+        _limit: usize,
+    ) -> Result<Vec<CoreReleaseSummary>, PortError> {
         Ok(Vec::new())
     }
 
-    async fn install(
-        &self,
-        _version: String,
-        _progress: Arc<dyn VersionProgressSink>,
-    ) -> Result<(), PortError> {
+    async fn install(&self, _request: VersionInstallRequest) -> Result<(), PortError> {
         Ok(())
     }
 
-    async fn activate(&self, version: &str) -> Result<(), PortError> {
+    async fn activate(&self, request: VersionActivationRequest) -> Result<(), PortError> {
         create_dir_all(&self.home).map_err(|error| PortError::Io(error.to_string()))?;
         write(
             self.home.join("config.toml"),
-            format!("version = \"{version}\"\n"),
+            format!("version = \"{}\"\n", request.version),
         )
         .map_err(|error| PortError::Io(error.to_string()))?;
         Ok(())
     }
 
-    async fn uninstall(&self, _version: &str) -> Result<(), PortError> {
+    async fn uninstall(&self, _request: VersionUninstallRequest) -> Result<(), PortError> {
         Ok(())
     }
 }
@@ -291,9 +383,15 @@ fn setup_app_with_static_version(home: &path::Path) -> axum::Router {
         runtime_url: None,
         settings: Arc::new(Mutex::new(AppSettings::default())),
         secrets: Arc::new(Mutex::new(HashMap::new())),
-        version: Some(VersionApplication::new(Arc::new(StaticVersionPort {
-            home: home.to_path_buf(),
-        }))),
+        version: Some(
+            VersionApplication::new(
+                EngineId::new("mihomo").unwrap(),
+                Arc::new(StaticVersionPort {
+                    home: home.to_path_buf(),
+                }),
+            )
+            .unwrap(),
+        ),
     };
     let bus = events::AdminEventBus::new();
     router(AdminApiState::new(ctx, bus))
@@ -333,3 +431,5 @@ mod settings;
 mod switch;
 #[path = "admin_api_test_cases/update.rs"]
 mod update;
+#[path = "admin_api_test_cases/webhook.rs"]
+mod webhook;

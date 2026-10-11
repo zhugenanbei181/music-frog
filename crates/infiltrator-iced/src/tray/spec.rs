@@ -12,6 +12,7 @@
 //! Red line: everything in this module is pure data plus pure functions —
 //! no app-state access, no I/O, no backend calls.
 
+use infiltrator_contract::routing_intent::RoutingIntent;
 use infiltrator_contract::tray_status::TrayRateBadge;
 use infiltrator_contract::version::InstalledCoreVersion;
 use infiltrator_domain::profiles::ProfileInfo;
@@ -26,9 +27,9 @@ pub type TrayActionId = u16;
 pub const TRAY_ACTION_SHOW: TrayActionId = 1;
 pub const TRAY_ACTION_QUIT: TrayActionId = 2;
 pub const TRAY_ACTION_TOGGLE_THEME: TrayActionId = 3;
-pub const TRAY_ACTION_MODE_RULE: TrayActionId = 4;
-pub const TRAY_ACTION_MODE_GLOBAL: TrayActionId = 5;
-pub const TRAY_ACTION_MODE_DIRECT: TrayActionId = 6;
+pub const TRAY_ACTION_ROUTING_FOLLOW_RULES: TrayActionId = 4;
+pub const TRAY_ACTION_ROUTING_ALL_THROUGH_PROXY: TrayActionId = 5;
+pub const TRAY_ACTION_ROUTING_BYPASS_PROXY: TrayActionId = 6;
 pub const TRAY_ACTION_TOGGLE_SYSTEM_PROXY: TrayActionId = 7;
 pub const TRAY_ACTION_TOGGLE_TUN: TrayActionId = 8;
 /// Legacy GLOBAL quick-switch entry (the dedicated submenu was folded into
@@ -36,8 +37,6 @@ pub const TRAY_ACTION_TOGGLE_TUN: TrayActionId = 8;
 pub const TRAY_ACTION_SELECT_GLOBAL_PROXY: TrayActionId = 9;
 /// Disabled placeholder shown when no proxy groups are available yet.
 pub const TRAY_ACTION_NO_PROXIES: TrayActionId = 10;
-/// Script mode; only enabled when the loaded profile carries a script block.
-pub const TRAY_ACTION_MODE_SCRIPT: TrayActionId = 30;
 /// Generic per-node switch; payload is `group␁node` (see [`encode_pair_payload`]).
 pub const TRAY_ACTION_SELECT_PROXY: TrayActionId = 31;
 /// Disabled placeholder shown when no profiles exist yet.
@@ -63,7 +62,7 @@ pub const TRAY_ACTION_FACTORY_RESET: TrayActionId = 46;
 
 /// Informational, always-disabled entries. They exist so the reader sees
 /// static state in place; they must never resolve to an intent.
-pub const TRAY_ACTION_INFO_MODE: TrayActionId = 80;
+pub const TRAY_ACTION_INFO_ROUTING_INTENT: TrayActionId = 80;
 pub const TRAY_ACTION_INFO_STATUS: TrayActionId = 81;
 pub const TRAY_ACTION_INFO_CONTROLLER: TrayActionId = 82;
 pub const TRAY_ACTION_INFO_ADMIN: TrayActionId = 83;
@@ -78,7 +77,7 @@ pub const TRAY_ACTION_INFO_RATE: TrayActionId = 89;
 
 /// Submenu identities (used for tree identity and tests; the id is never
 /// reported as an activation).
-pub const TRAY_SUBMENU_MODE: TrayActionId = 20;
+pub const TRAY_SUBMENU_ROUTING_INTENT: TrayActionId = 20;
 pub const TRAY_SUBMENU_PROXIES: TrayActionId = 22;
 pub const TRAY_SUBMENU_PROFILES: TrayActionId = 23;
 pub const TRAY_SUBMENU_KERNEL: TrayActionId = 24;
@@ -259,15 +258,14 @@ pub enum TrayIntent {
     ShowWindow,
     Exit,
     ToggleTheme,
-    SetMode(String),
+    SetRoutingIntent(RoutingIntent),
     SetSystemProxy(bool),
     SetTunEnabled(bool),
-    /// Legacy GLOBAL quick-switch (id 9, kept for the never-reuse contract);
-    /// live menus route node selection through [`TrayIntent::SelectProxy`].
-    SelectGlobalProxy(String),
-    SelectProxy {
-        group: String,
-        node: String,
+    /// Legacy GLOBAL quick-switch menu ID; the live event becomes typed at the app boundary.
+    SelectGlobalOutbound(String),
+    SelectOutbound {
+        collection: String,
+        outbound: String,
     },
     ActivateProfile(String),
     UpdateAllProfilesNow,
@@ -310,19 +308,24 @@ pub fn resolve_tray_event_in(event: &TrayEvent, ctx: &TrayEventContext<'_>) -> O
         TRAY_ACTION_SHOW => TrayIntent::ShowWindow,
         TRAY_ACTION_QUIT => TrayIntent::Exit,
         TRAY_ACTION_TOGGLE_THEME => TrayIntent::ToggleTheme,
-        TRAY_ACTION_MODE_RULE => TrayIntent::SetMode("rule".to_string()),
-        TRAY_ACTION_MODE_GLOBAL => TrayIntent::SetMode("global".to_string()),
-        TRAY_ACTION_MODE_DIRECT => TrayIntent::SetMode("direct".to_string()),
-        TRAY_ACTION_MODE_SCRIPT => TrayIntent::SetMode("script".to_string()),
+        TRAY_ACTION_ROUTING_FOLLOW_RULES => {
+            TrayIntent::SetRoutingIntent(RoutingIntent::FollowRules)
+        }
+        TRAY_ACTION_ROUTING_ALL_THROUGH_PROXY => {
+            TrayIntent::SetRoutingIntent(RoutingIntent::RouteAllThroughProxy)
+        }
+        TRAY_ACTION_ROUTING_BYPASS_PROXY => {
+            TrayIntent::SetRoutingIntent(RoutingIntent::BypassProxy)
+        }
         TRAY_ACTION_TOGGLE_SYSTEM_PROXY => TrayIntent::SetSystemProxy(!ctx.system_proxy),
         TRAY_ACTION_TOGGLE_TUN => TrayIntent::SetTunEnabled(!ctx.tun),
         TRAY_ACTION_TOGGLE_AUTOSTART => TrayIntent::SetAutostart(!ctx.autostart),
-        TRAY_ACTION_SELECT_GLOBAL_PROXY => TrayIntent::SelectGlobalProxy(payload?.to_string()),
+        TRAY_ACTION_SELECT_GLOBAL_PROXY => TrayIntent::SelectGlobalOutbound(payload?.to_string()),
         TRAY_ACTION_SELECT_PROXY => {
             let (group, node) = decode_pair_payload(payload?)?;
-            TrayIntent::SelectProxy {
-                group: group.to_string(),
-                node: node.to_string(),
+            TrayIntent::SelectOutbound {
+                collection: group.to_string(),
+                outbound: node.to_string(),
             }
         }
         TRAY_ACTION_ACTIVATE_PROFILE => TrayIntent::ActivateProfile(payload?.to_string()),
@@ -406,10 +409,8 @@ pub fn tray_status_key(status: TrayCoreStatus) -> &'static str {
 #[derive(Clone, Debug)]
 pub struct TraySpecContext<'a> {
     pub lang: &'a str,
-    /// Current proxy mode (`rule` / `global` / `direct` / `script`).
-    pub mode: Option<&'a str>,
-    /// Whether the running core reports a top-level `script:` block.
-    pub script_block_present: bool,
+    /// Current typed routing intent.
+    pub routing_intent: Option<&'a RoutingIntent>,
     pub system_proxy: bool,
     pub tun: bool,
     /// Proxy group snapshots (at most [`TRAY_MAX_GROUPS`], GLOBAL first).
@@ -470,7 +471,9 @@ pub enum TrayStartup {
 /// the current working directory; packaged builds fall back to the resource
 /// directory shipped next to the binary (cwd-relative or exe-relative).
 pub fn load_icon_rgba() -> Option<TrayIconData> {
-    let mut icon_dirs = vec![PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("icons")];
+    let shared_product_icons =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../infiltrator-shared/assets/product");
+    let mut icon_dirs = vec![shared_product_icons];
     if let Ok(cwd) = current_dir() {
         icon_dirs.push(cwd.join("icons"));
     }
@@ -493,7 +496,15 @@ pub fn load_icon_rgba() -> Option<TrayIconData> {
             return Some(data);
         }
     }
-    None
+    let image = image::load_from_memory(infiltrator_shared::assets::product_icon_png())
+        .ok()?
+        .into_rgba8();
+    let (width, height) = image.dimensions();
+    Some(TrayIconData {
+        width,
+        height,
+        rgba: image.into_raw(),
+    })
 }
 
 fn load_rgba_from_path(path: &Path) -> Option<TrayIconData> {

@@ -10,7 +10,9 @@
 //! dash from `Checked`/`Indeterminate` and the live palette every pass
 //! (compare-and-set).
 
+use crate::feathers_theme::Token;
 use crate::palette::UiPalette;
+use crate::palette::rem;
 use crate::text::{Role, TextRole};
 use crate::theme::space;
 use bevy::camera::visibility::Visibility;
@@ -19,6 +21,7 @@ use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::query::{Has, QueryData, With, Without};
 use bevy::ecs::system::{Query, Res};
+use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, Val, px,
@@ -191,19 +194,19 @@ fn checked_row(label: Box<dyn Scene>, palette: &UiPalette) -> impl Scene + use<>
     let edge = tri_checkbox_border(TriState::Checked, palette);
     bsn! {
             Node {
-                min_height: px(palette.control_height_px),
+                min_height: rem(palette.control_height_px),
                 flex_direction: FlexDirection::Row,
                 align_items: AlignItems::Center,
-                column_gap: Val::Px(space::S8),
-                padding: UiRect::horizontal(Val::Px(space::S4)),
+                column_gap: rem(space::S8),
+                padding: UiRect::horizontal(rem(space::S4)),
             }
             Checkbox
             Checked
             TriStateCheckbox(TriState::Checked)
             Children [
                 Node {
-                    width: px(palette.control_square_px),
-                    height: px(palette.control_square_px),
+                    width: rem(palette.control_square_px),
+                    height: rem(palette.control_square_px),
                     flex_shrink: 0.0,
                     border: UiRect::all(Val::Px(palette.hairline_px)),
                     border_radius: BorderRadius::all(Val::Px(
@@ -225,7 +228,7 @@ fn checked_row(label: Box<dyn Scene>, palette: &UiPalette) -> impl Scene + use<>
                         width: px(palette.control_square_px * 0.55),
                         height: px(2.0),
                     }
-                    BackgroundColor({ palette.on_accent })
+                    ThemeBackgroundColor({ Token::OnAccent })
                     Visibility::Hidden
                     CheckboxDash
                 ]
@@ -240,18 +243,18 @@ fn unchecked_row(label: Box<dyn Scene>, palette: &UiPalette) -> impl Scene + use
     let edge = tri_checkbox_border(TriState::Unchecked, palette);
     bsn! {
             Node {
-                min_height: px(palette.control_height_px),
+                min_height: rem(palette.control_height_px),
                 flex_direction: FlexDirection::Row,
                 align_items: AlignItems::Center,
-                column_gap: Val::Px(space::S8),
-                padding: UiRect::horizontal(Val::Px(space::S4)),
+                column_gap: rem(space::S8),
+                padding: UiRect::horizontal(rem(space::S4)),
             }
             Checkbox
             TriStateCheckbox(TriState::Unchecked)
             Children [
                 Node {
-                    width: px(palette.control_square_px),
-                    height: px(palette.control_square_px),
+                    width: rem(palette.control_square_px),
+                    height: rem(palette.control_square_px),
                     flex_shrink: 0.0,
                     border: UiRect::all(Val::Px(palette.hairline_px)),
                     border_radius: BorderRadius::all(Val::Px(
@@ -273,7 +276,7 @@ fn unchecked_row(label: Box<dyn Scene>, palette: &UiPalette) -> impl Scene + use
                         width: px(palette.control_square_px * 0.55),
                         height: px(2.0),
                     }
-                    BackgroundColor({ palette.on_accent })
+                    ThemeBackgroundColor({ Token::OnAccent })
                     Visibility::Hidden
                     CheckboxDash
                 ]
@@ -288,19 +291,19 @@ fn indeterminate_row(label: Box<dyn Scene>, palette: &UiPalette) -> impl Scene +
     let edge = tri_checkbox_border(TriState::Indeterminate, palette);
     bsn! {
             Node {
-                min_height: px(palette.control_height_px),
+                min_height: rem(palette.control_height_px),
                 flex_direction: FlexDirection::Row,
                 align_items: AlignItems::Center,
-                column_gap: Val::Px(space::S8),
-                padding: UiRect::horizontal(Val::Px(space::S4)),
+                column_gap: rem(space::S8),
+                padding: UiRect::horizontal(rem(space::S4)),
             }
             Checkbox
             Indeterminate
             TriStateCheckbox(TriState::Indeterminate)
             Children [
                 Node {
-                    width: px(palette.control_square_px),
-                    height: px(palette.control_square_px),
+                    width: rem(palette.control_square_px),
+                    height: rem(palette.control_square_px),
                     flex_shrink: 0.0,
                     border: UiRect::all(Val::Px(palette.hairline_px)),
                     border_radius: BorderRadius::all(Val::Px(
@@ -322,7 +325,7 @@ fn indeterminate_row(label: Box<dyn Scene>, palette: &UiPalette) -> impl Scene +
                         width: px(palette.control_square_px * 0.55),
                         height: px(2.0),
                     }
-                    BackgroundColor({ palette.on_accent })
+                    ThemeBackgroundColor({ Token::OnAccent })
                     Visibility::Visible
                     CheckboxDash
                 ]

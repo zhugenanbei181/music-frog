@@ -11,18 +11,18 @@
 //! item is a plain node, not the official `Button`, because a nav target
 //! that routes nowhere must not pretend to be pressable.
 
-use crate::palette::UiPalette;
+use crate::feathers_theme::Token;
+use crate::palette::{UiPalette, rem};
 use crate::text::{Role, TextRole};
 use crate::theme::space;
-use bevy::color::Color;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::query::With;
-use bevy::ecs::system::{Query, Res};
+use bevy::ecs::system::{Commands, Query};
+use bevy::feathers::theme::{ThemeBackgroundColor, ThemeTextColor};
 use bevy::scene::{Scene, bsn};
-use bevy::text::TextColor;
-use bevy::ui::prelude::{AlignItems, BackgroundColor, BorderRadius, Node, UiRect, Val, px};
+use bevy::ui::prelude::{AlignItems, BorderRadius, Node, UiRect};
 use bevy::ui::widget::Text;
 
 /// Marker on the item root; [`sync_nav_visuals`] re-projects its fill and
@@ -41,22 +41,18 @@ pub struct NavLabel;
 
 /// The item fill: accent while active, the elevated control surface
 /// otherwise. Pure function — headless-testable without any app.
-pub fn nav_fill(active: bool, palette: &UiPalette) -> Color {
+pub fn nav_fill_token(active: bool) -> Token {
     if active {
-        palette.accent
+        Token::Accent
     } else {
-        palette.surface_elevated
+        Token::SurfaceElevated
     }
 }
 
 /// The label ink: `on_accent` while active, ordinary ink otherwise. Pure
 /// function.
-pub fn nav_label_ink(active: bool, palette: &UiPalette) -> Color {
-    if active {
-        palette.on_accent
-    } else {
-        palette.ink
-    }
+pub fn nav_label_ink_token(active: bool) -> Token {
+    if active { Token::OnAccent } else { Token::Ink }
 }
 
 /// One navigation item: a control-height pill row carrying its label. The
@@ -66,12 +62,12 @@ pub fn nav_item_scene(label: String, active: bool, palette: &UiPalette) -> impl 
     bsn! {
             Node {
                 flex_grow: 1.0,
-                min_height: px(palette.control_height_px),
+                min_height: rem(palette.control_height_px),
                 align_items: AlignItems::Center,
-                padding: UiRect::horizontal(Val::Px(space::S12)),
-                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                padding: UiRect::horizontal(rem(space::S12)),
+                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
             }
-            BackgroundColor({ nav_fill(active, palette) })
+            ThemeBackgroundColor({ nav_fill_token(active) })
             NavItem
             NavActive(active)
             Children [
@@ -84,24 +80,28 @@ pub fn nav_item_scene(label: String, active: bool, palette: &UiPalette) -> impl 
 /// root fill and label ink, compare-and-set. Unchanged frames cost
 /// nothing; a theme switch repaints items without any switch-specific hook.
 pub fn sync_nav_visuals(
-    palette: Res<UiPalette>,
-    items: Query<(Entity, &NavActive, &Children), With<NavItem>>,
-    mut fills: Query<&mut BackgroundColor>,
-    mut labels: Query<(&NavLabel, &mut TextColor)>,
+    mut commands: Commands,
+    items: Query<(Entity, &NavActive, &Children, Option<&ThemeBackgroundColor>), With<NavItem>>,
+    labels: Query<(Entity, &NavLabel, Option<&ThemeTextColor>)>,
 ) {
-    for (entity, active, children) in &items {
-        let fill = nav_fill(active.0, &palette);
-        if let Ok(mut bg) = fills.get_mut(entity)
-            && bg.0 != fill
+    for (entity, active, children, fill) in &items {
+        let fill_token = nav_fill_token(active.0);
+        if fill
+            .map(|f| f.0 != fill_token.theme_token())
+            .unwrap_or(true)
         {
-            bg.0 = fill;
+            commands
+                .entity(entity)
+                .insert(ThemeBackgroundColor(fill_token.into()));
         }
-        let ink = nav_label_ink(active.0, &palette);
+        let ink_token = nav_label_ink_token(active.0);
         for child in children.iter() {
-            if let Ok((_, mut label_ink)) = labels.get_mut(*child)
-                && label_ink.0 != ink
+            if let Ok((label_entity, _, ink)) = labels.get(*child)
+                && ink.map(|t| t.0 != ink_token.theme_token()).unwrap_or(true)
             {
-                label_ink.0 = ink;
+                commands
+                    .entity(label_entity)
+                    .insert(ThemeTextColor(ink_token.into()));
             }
         }
     }

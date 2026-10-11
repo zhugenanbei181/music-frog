@@ -93,12 +93,14 @@ fn safe(value: &str) -> String {
 pub fn format_integrity(snapshot: &CoreArtifactVerification, code: &str) -> String {
     match snapshot {
         CoreArtifactVerification::Unknown => tr(code, "core_integrity_unknown"),
-        CoreArtifactVerification::Verified { version } => localize(
+        CoreArtifactVerification::Verified { version, .. } => localize(
             code,
             "core_integrity_verified",
             &[("version", version.clone())],
         ),
-        CoreArtifactVerification::Rejected { version, failure } => localize(
+        CoreArtifactVerification::Rejected {
+            version, failure, ..
+        } => localize(
             code,
             "core_integrity_rejected",
             &[
@@ -131,7 +133,7 @@ pub fn format_core_versions(snapshot: &CoreVersionSnapshot, code: &str) -> Strin
                 CoreChannelStatus::Ready { release } => release.version.clone(),
                 CoreChannelStatus::Failed { .. } => tr(code, "common_unavailable"),
             };
-            format!("{}={version}", channel.channel.as_str())
+            format!("{}={version}", channel.channel.channel_id.as_str())
         })
         .collect::<Vec<_>>()
         .join(" · ")

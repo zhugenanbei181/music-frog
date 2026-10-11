@@ -1,12 +1,14 @@
 //! Application seam for the shared live traffic topology.
 
+use crate::runtime_configuration_application::RuntimeConfigurationReadout;
+use infiltrator_contract::error::Failure;
+use infiltrator_contract::outbound::inventory::OutboundObservationSnapshot;
 use infiltrator_contract::snapshot::{CoreLifecycle, CoreSnapshot};
 use infiltrator_contract::traffic_topology::TrafficTopologySnapshot;
-use infiltrator_domain::proxy::Proxy;
-use infiltrator_domain::runtime::{ConfigSnapshot, ConnectionSnapshot};
+use infiltrator_domain::runtime::ConnectionSnapshot;
 use infiltrator_domain::traffic_topology::{TrafficTopologyInput, derive};
 use infiltrator_ports::error::PortError;
-use std::collections::HashMap;
+use infiltrator_ports::runtime_configuration::ObservedValue;
 
 /// Converts composed controller observations into one immutable topology
 /// snapshot. UI surfaces never call a gateway or infer the routing chain.
@@ -17,8 +19,8 @@ impl TrafficTopologyApplication {
     pub fn project(
         &self,
         core: &CoreSnapshot,
-        config: Option<&Result<ConfigSnapshot, PortError>>,
-        proxies: Option<&Result<HashMap<String, Proxy>, PortError>>,
+        config: Option<&Result<RuntimeConfigurationReadout, Failure>>,
+        observation: Option<&Result<OutboundObservationSnapshot, Failure>>,
         connections: Option<&Result<ConnectionSnapshot, PortError>>,
     ) -> TrafficTopologySnapshot {
         let revision = core.revision.max(1);
@@ -40,11 +42,11 @@ impl TrafficTopologyApplication {
                 "runtime config gateway is not composed",
             );
         };
-        let Some(proxies) = proxies else {
+        let Some(observation) = observation else {
             return TrafficTopologySnapshot::unsupported(
                 core.generation,
                 revision,
-                "proxy gateway is not composed",
+                "outbound inventory source is not composed",
             );
         };
         let Some(connections) = connections else {
@@ -57,16 +59,56 @@ impl TrafficTopologyApplication {
 
         let config = match config {
             Ok(config) => config,
-            Err(error) => return failed(core, revision, "runtime config", error),
+            Err(failure) => return failed_failure(core, revision, "runtime config", failure),
         };
-        let proxies = match proxies {
-            Ok(proxies) => proxies,
-            Err(error) => return failed(core, revision, "proxy list", error),
+        let observation = match observation {
+            Ok(observation) => observation,
+            Err(failure) => {
+                return TrafficTopologySnapshot::failed(
+                    core.generation,
+                    revision,
+                    format!(
+                        "outbound inventory topology input failed: {}",
+                        failure.message
+                    ),
+                );
+            }
         };
         let connections = match connections {
             Ok(connections) => connections,
             Err(error) => return failed(core, revision, "connection list", error),
         };
+
+        let Some(scope) = core.scope() else {
+            return TrafficTopologySnapshot::unavailable(
+                core.generation,
+                revision,
+                "active core scope is unavailable",
+            );
+        };
+        if observation.inventory().scope() != &scope {
+            return TrafficTopologySnapshot::unavailable(
+                core.generation,
+                revision,
+                "outbound observation belongs to a different core scope",
+            );
+        }
+        if config.tun.scope != scope
+            || config.lan_sharing.scope != scope
+            || config.sniffer.scope != scope
+            || config.proxy_ports.scope != scope
+        {
+            return TrafficTopologySnapshot::unavailable(
+                core.generation,
+                revision,
+                "runtime configuration observation belongs to a different Core scope",
+            );
+        }
+        let tun_enabled = reported(&config.tun.value.enabled);
+        let tun_stack = reported(&config.tun.value.stack);
+        let mixed_port = reported(&config.proxy_ports.value.mixed_port);
+        let http_port = reported(&config.proxy_ports.value.http_port);
+        let sniffer_enabled = reported(&config.sniffer.value.enabled);
 
         derive(TrafficTopologyInput {
             generation: core.generation,
@@ -74,10 +116,21 @@ impl TrafficTopologyApplication {
             lifecycle: core.lifecycle.clone(),
             upload_bps: core.upload_bps,
             download_bps: core.download_bps,
-            config,
+            tun_enabled,
+            tun_stack: tun_stack.as_deref(),
+            mixed_port,
+            http_port,
+            sniffer_enabled,
             connections: &connections.connections,
-            proxies,
+            outbounds: observation,
         })
+    }
+}
+
+fn reported<T: Clone>(value: &ObservedValue<T>) -> Option<T> {
+    match value {
+        ObservedValue::Unreported => None,
+        ObservedValue::Reported(value) => Some(value.clone()),
     }
 }
 
@@ -94,6 +147,19 @@ fn failed(
     )
 }
 
+fn failed_failure(
+    core: &CoreSnapshot,
+    revision: u64,
+    source: &str,
+    failure: &Failure,
+) -> TrafficTopologySnapshot {
+    TrafficTopologySnapshot::failed(
+        core.generation,
+        revision,
+        format!("{source} topology input failed: {}", failure.message),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -102,11 +168,12 @@ mod tests {
 
     fn core(lifecycle: CoreLifecycle) -> CoreSnapshot {
         CoreSnapshot {
+            identity: None,
             lifecycle,
             generation: 7,
             session_token: None,
             revision: 9,
-            proxy_mode: None,
+            routing_intent: Default::default(),
             core_version: None,
             sampled_at_epoch_ms: None,
             failure: None,

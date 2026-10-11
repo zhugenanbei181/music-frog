@@ -5,6 +5,7 @@ use infiltrator_contract::pac::{PacRequest, PacServiceState, PacSnapshot};
 use infiltrator_domain::pac_generator::{PacGenerator, validate_pac_script};
 use infiltrator_domain::pac_policy::normalize_bypass_domains;
 use infiltrator_ports::pac::PacServicePort;
+use infiltrator_ports::runtime_configuration::ObservedValue;
 use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
@@ -52,14 +53,51 @@ impl PacApplication {
     }
 
     pub async fn apply(&self, request: PacRequest) -> Result<PacSnapshot, Failure> {
+        let configuration = crate::runtime_configuration_application::
+            RuntimeConfigurationApplication::from_current_gateway(self.gateway.as_ref())?;
+        self.apply_with_configuration(configuration, request).await
+    }
+
+    pub async fn apply_scoped(
+        &self,
+        scope: infiltrator_contract::core_identity::CoreScope,
+        request: PacRequest,
+    ) -> Result<PacSnapshot, Failure> {
+        let configuration =
+            crate::runtime_configuration_application::RuntimeConfigurationApplication::from_gateway(
+                scope,
+                self.gateway.as_ref(),
+            );
+        self.apply_with_configuration(configuration, request).await
+    }
+
+    async fn apply_with_configuration(
+        &self,
+        configuration: crate::runtime_configuration_application::RuntimeConfigurationApplication,
+        request: PacRequest,
+    ) -> Result<PacSnapshot, Failure> {
         let bypass_domains = normalize_bypass_domains(&request.bypass_domains)
             .map_err(|message| Failure::new(ErrorCode::InvalidInput, message, false))?;
-        let rules = self.gateway.get_rules().await.map_err(Failure::from)?;
-        let config = self.gateway.get_config().await.map_err(Failure::from)?;
-        let port = if config.mixed_port > 0 {
-            config.mixed_port
+        let rules = configuration
+            .observe_pac_rules()
+            .await
+            .map_err(Failure::from)?;
+        let ports = configuration
+            .observe_proxy_ports()
+            .await
+            .map_err(Failure::from)?;
+        let mixed_port = match ports.value.mixed_port {
+            ObservedValue::Reported(port) => port,
+            ObservedValue::Unreported => 0,
+        };
+        let http_port = match ports.value.http_port {
+            ObservedValue::Reported(port) => port,
+            ObservedValue::Unreported => 0,
+        };
+        let port = if mixed_port > 0 {
+            mixed_port
         } else {
-            config.port
+            http_port
         };
         if port == 0 {
             return Err(Failure::new(
@@ -72,7 +110,7 @@ impl PacApplication {
             .with_bypass_lan(request.bypass_lan)
             .with_bypass_domains(bypass_domains.clone())
             .with_minified(request.minify);
-        let script = generator.compile_pac_script(&rules);
+        let script = generator.compile_pac_script(&rules.value);
         validate_pac_script(&script).map_err(|error| {
             Failure::new(
                 ErrorCode::Configuration,
@@ -130,18 +168,24 @@ mod tests {
     use async_trait::async_trait;
     #[cfg(test)]
     use futures_util::stream::empty;
+    use infiltrator_contract::core_identity::{
+        CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
+    };
     #[cfg(test)]
-    use infiltrator_contract::command::ProxyMode;
     use infiltrator_contract::pac::PacServiceState;
+    use infiltrator_contract::session::SessionToken;
     #[cfg(test)]
-    use infiltrator_domain::proxy::Proxy;
+    use infiltrator_domain::rules::RuleEntry;
     use infiltrator_domain::runtime::{
-        ConfigSnapshot, ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider, TrafficData,
+        ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider, TrafficData,
     };
     use infiltrator_ports::error::PortError;
     use infiltrator_ports::pac::PacServicePort;
+    use infiltrator_ports::runtime_configuration::{
+        ConfigurationObservation, ConfigurationRevision, PacRuleReadPort, ProxyPortsConfiguration,
+        ProxyPortsReadPort, RuntimeConfigurationPorts,
+    };
     use infiltrator_ports::runtime_gateway::{RuntimeGateway, RuntimeStream};
-    use std::collections::HashMap;
 
     #[derive(Default)]
     struct FakeService {
@@ -166,26 +210,61 @@ mod tests {
         }
     }
 
-    struct FakeGateway;
+    #[derive(Clone)]
+    struct FakePacConfiguration(CoreScope);
+
+    #[async_trait]
+    impl ProxyPortsReadPort for FakePacConfiguration {
+        async fn observe(
+            &self,
+            scope: &CoreScope,
+        ) -> Result<ConfigurationObservation<ProxyPortsConfiguration>, PortError> {
+            Ok(ConfigurationObservation {
+                scope: scope.clone(),
+                revision: ConfigurationRevision::new(1),
+                value: ProxyPortsConfiguration {
+                    http_port: ObservedValue::Reported(7890),
+                    mixed_port: ObservedValue::Reported(0),
+                },
+            })
+        }
+    }
+
+    #[async_trait]
+    impl PacRuleReadPort for FakePacConfiguration {
+        async fn observe_rules(
+            &self,
+            scope: &CoreScope,
+        ) -> Result<ConfigurationObservation<Vec<RuleEntry>>, PortError> {
+            Ok(ConfigurationObservation {
+                scope: scope.clone(),
+                revision: ConfigurationRevision::new(1),
+                value: vec![RuleEntry {
+                    rule: "MATCH,DIRECT".to_owned(),
+                    enabled: true,
+                }],
+            })
+        }
+    }
+
+    struct FakeGateway {
+        config: FakePacConfiguration,
+    }
 
     #[async_trait]
     impl RuntimeGateway for FakeGateway {
-        async fn get_config(&self) -> Result<ConfigSnapshot, PortError> {
-            Ok(ConfigSnapshot {
-                port: 7890,
-                mixed_port: 0,
-                ..ConfigSnapshot::default()
-            })
+        fn current_core_scope(&self) -> Result<CoreScope, PortError> {
+            Ok(self.config.0.clone())
         }
-        async fn patch_config(&self, _updates: serde_json::Value) -> Result<(), PortError> {
-            Ok(())
+
+        fn configuration_ports(&self) -> RuntimeConfigurationPorts {
+            let configuration = Arc::new(self.config.clone());
+            let mut ports = RuntimeConfigurationPorts::unsupported();
+            ports.proxy_ports = configuration.clone();
+            ports.pac_rules = configuration;
+            ports
         }
-        async fn set_proxy_mode(&self, _mode: ProxyMode) -> Result<(), PortError> {
-            Ok(())
-        }
-        async fn get_proxies(&self) -> Result<HashMap<String, Proxy>, PortError> {
-            Ok(HashMap::new())
-        }
+
         async fn switch_proxy(&self, _group: &str, _proxy: &str) -> Result<(), PortError> {
             Ok(())
         }
@@ -207,9 +286,6 @@ mod tests {
             Ok(())
         }
         async fn update_rule_provider(&self, _name: &str) -> Result<(), PortError> {
-            Ok(())
-        }
-        async fn flush_fakeip_cache(&self) -> Result<(), PortError> {
             Ok(())
         }
         async fn get_connections(&self) -> Result<ConnectionSnapshot, PortError> {
@@ -240,8 +316,12 @@ mod tests {
 
     #[tokio::test]
     async fn pac_application_compiles_live_rules_and_reads_back_service() {
-        let application =
-            PacApplication::new(Arc::new(FakeGateway), Arc::new(FakeService::default()));
+        let application = PacApplication::new(
+            Arc::new(FakeGateway {
+                config: FakePacConfiguration(scope()),
+            }),
+            Arc::new(FakeService::default()),
+        );
         let snapshot = application
             .apply(PacRequest {
                 enabled: true,
@@ -254,5 +334,17 @@ mod tests {
         assert!(matches!(snapshot.state, PacServiceState::Running { .. }));
         assert!(snapshot.script_bytes > 0);
         assert_eq!(snapshot.bypass_domains, vec!["example.com"]);
+    }
+
+    fn scope() -> CoreScope {
+        CoreScope {
+            identity: CoreIdentity::new(
+                EngineId::new("mihomo").expect("engine"),
+                CoreInstanceId::new("pac-core").expect("instance"),
+                Some(CoreVersion::new("test").expect("version")),
+            ),
+            generation: CoreGeneration::new(1),
+            session_token: Some(SessionToken::new(1)),
+        }
     }
 }

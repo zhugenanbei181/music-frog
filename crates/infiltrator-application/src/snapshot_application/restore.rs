@@ -7,8 +7,7 @@ use infiltrator_contract::snapshot_restore::{
 };
 use infiltrator_domain::config::validate_yaml;
 use infiltrator_domain::myers_diff::compute_diff;
-use infiltrator_domain::profile_options::ProfileOptions;
-use infiltrator_domain::profile_source::{hash_document_bytes, identify_profile_source};
+use infiltrator_domain::profile_source::hash_document_bytes;
 use infiltrator_ports::profile_workspace::{
     ProfileWorkspace, ProfileWorkspacePurpose, ProfileWorkspaceUpdate,
 };
@@ -50,6 +49,7 @@ impl SnapshotApplication {
         &self,
         target: &SnapshotRestoreTarget,
     ) -> Result<SnapshotRestoreReview, Failure> {
+        self.validate_namespace()?;
         if target.profile.is_empty() || target.snapshot_id.is_empty() {
             return Err(Failure::new(
                 ErrorCode::InvalidInput,
@@ -66,21 +66,7 @@ impl SnapshotApplication {
         }
         let _admission = AdmissionGuard(&self.restores);
         let workspace = self.profiles.load_workspace(&target.profile).await?;
-        let decoded_options: ProfileOptions = match workspace.options_document.as_deref() {
-            Some(document) => serde_yaml_ng::from_str(document).map_err(|error| {
-                Failure::new(ErrorCode::Configuration, error.to_string(), false)
-            })?,
-            None => Default::default(),
-        };
-        if workspace.source.profile != target.profile
-            || workspace.source
-                != identify_profile_source(
-                    target.profile.clone(),
-                    &workspace.content,
-                    workspace.options_document.as_deref(),
-                )
-            || decoded_options != workspace.options
-        {
+        if workspace.document.identity.profile_id.as_str() != target.profile {
             return Err(invalid("Snapshot workspace source is inconsistent"));
         }
         let restored_yaml = self
@@ -89,8 +75,13 @@ impl SnapshotApplication {
         validate_yaml(&restored_yaml)
             .map_err(|error| Failure::new(ErrorCode::Configuration, error.to_string(), false))?;
         let snapshot_hash = hash_document_bytes(&restored_yaml);
+        let before_yaml = workspace
+            .document
+            .utf8_text()
+            .map_err(|error| Failure::new(ErrorCode::Storage, error.to_string(), false))?
+            .to_owned();
         let difference = compute_diff(
-            &workspace.content,
+            &before_yaml,
             &restored_yaml,
             &target.profile,
             &target.profile,
@@ -106,10 +97,10 @@ impl SnapshotApplication {
                 owner: self.restore_owner,
                 sequence,
                 snapshot_hash,
-                source: workspace.source.clone(),
+                workspace_identity: workspace.identity(),
             },
             target: target.clone(),
-            before_yaml: workspace.content.clone(),
+            before_yaml,
             restored_yaml,
             difference,
         };
@@ -146,6 +137,7 @@ impl SnapshotApplication {
         runtime: Option<Arc<R>>,
         identity: &SnapshotRestoreIdentity,
     ) -> Result<SnapshotRestoreReceipt, Failure> {
+        self.validate_namespace()?;
         let frozen = {
             let mut state = self.restores.lock().expect("snapshot restore state");
             if state.busy {
@@ -176,9 +168,9 @@ impl SnapshotApplication {
         }
         let current = self
             .profiles
-            .load_workspace(&identity.source.profile)
+            .load_workspace_id(&identity.workspace_identity.document.profile_id)
             .await?;
-        if current.source != identity.source {
+        if current.identity() != identity.workspace_identity {
             return Err(Failure::new(
                 ErrorCode::NotReady,
                 "The profile or options changed; cancel and prepare a new review",
@@ -187,19 +179,19 @@ impl SnapshotApplication {
         }
         let update = ProfileWorkspaceUpdate {
             purpose: ProfileWorkspacePurpose::Derived,
-            content: frozen.review.restored_yaml,
-            options: frozen.workspace.options,
+            document_bytes: frozen.review.restored_yaml.into_bytes(),
+            sidecar_bytes: frozen.workspace.sidecar_bytes,
         };
         let committed = self
             .profiles
-            .commit_workspace(runtime, &identity.source, &update)
+            .commit_workspace(runtime, &identity.workspace_identity, &update)
             .await?;
         let receipt = SnapshotRestoreReceipt {
             identity: identity.clone(),
-            committed: committed.source,
+            committed: committed.identity(),
         };
         receipt.validate(identity)?;
-        self.clear_diff(&identity.source.profile);
+        self.clear_diff(identity.workspace_identity.document.profile_id.as_str());
         self.restores.lock().expect("snapshot restore state").review = None;
         Ok(receipt)
     }

@@ -8,7 +8,8 @@ use crate::state::AppState;
 use crate::state::diagnostics::DiagnosticsState;
 use crate::state::editor::ConfigEditorState;
 use crate::state::profiles::ProfileState;
-use crate::state::runtime::RuntimeState;
+use crate::state::proxy_probe;
+use crate::state::runtime::{ProbeSettingsDialogState, ProxyGroupOrderDialogState, RuntimeState};
 use crate::state::shell::ShellState;
 use crate::types::app::{RouteHistory, Transition};
 use crate::types::dns::AdvancedValidationState;
@@ -27,17 +28,20 @@ use infiltrator_contract::dns::DnsEnhancedMode;
 use infiltrator_contract::dns_cache::DnsCacheFlushReport;
 use infiltrator_contract::dns_form::DnsWorkbenchForm;
 use infiltrator_contract::editor_viewport::EditorViewport;
+use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::ime::ImeCompositionTracker;
 use infiltrator_contract::mini_hud::MiniHudPlacement;
+use infiltrator_contract::outbound::preferences::OutboundSortOrder;
 use infiltrator_contract::overview_layout::OverviewCardKind;
 use infiltrator_contract::privileged_network::PrivilegedNetworkSnapshot;
-use infiltrator_contract::proxies::ProxyUiPreferences;
 use infiltrator_contract::responsive_viewport::ResponsiveViewportSnapshot;
 use infiltrator_contract::shortcuts::ShortcutRegistry;
 use infiltrator_contract::snapshot_history::SNAPSHOT_DEFAULT_KEEP;
+use infiltrator_contract::surface_snapshot::PageData;
 use infiltrator_contract::system_toggle::SystemToggleSnapshot;
 use infiltrator_contract::theme::ThemePreference;
 use infiltrator_contract::toast::ToastGate;
+use infiltrator_contract::version::CoreVersionSnapshot;
 use infiltrator_contract::vpn::VpnSessionSnapshot;
 use infiltrator_domain::connection_activity::{
     ConnectionActivityTracker, DEFAULT_IDLE_TIMEOUT_SECS,
@@ -146,12 +150,10 @@ impl AppState {
                 lifecycle_pending: None,
                 lifecycle_failure: None,
                 status: RuntimeStatus::Stopped,
-                proxy_mode: None,
-                proxy_mode_state: Default::default(),
-                mode_actions: Default::default(),
-                mode_read_revision: 0,
+                routing_intent: None,
+                routing_intent_state: Default::default(),
+                routing_intent_actions: Default::default(),
                 runtime_control: Default::default(),
-                script_block_present: false,
                 tun_enabled: None,
                 tun_service_status: None,
                 is_installing_tun_service: false,
@@ -161,9 +163,6 @@ impl AppState {
                 filter_alive_only: false,
                 favorite_proxies: HashSet::new(),
                 proxy_compact_view: false,
-                inspecting_proxy: None,
-                inspection_probe: Default::default(),
-                inspection_read: Default::default(),
                 is_adding_custom_node: false,
                 new_node_type: "ss".to_string(),
                 new_node_name: String::new(),
@@ -173,31 +172,26 @@ impl AppState {
                 new_node_cipher: "aes-256-gcm".to_string(),
                 new_node_tls: true,
                 installed_kernels: Vec::new(),
-                latest_core_version: None,
                 core_channel: "stable".to_string(),
-                core_versions: Default::default(),
+                core_versions: CoreVersionSnapshot::unavailable(),
                 core_integrity: Default::default(),
                 controller_auth: Default::default(),
                 service_mode: Default::default(),
                 port_conflicts: Default::default(),
                 core_resources: Default::default(),
                 offline_startup: Default::default(),
-                download_progress: 0.0,
-                download_stats: None,
-                core_download_token: 0,
-                core_download_cancel: None,
-                is_downloading_core: false,
-                is_checking_update: false,
+                core_download: Default::default(),
+                core_update_check: Default::default(),
                 rebuild_flow: RebuildFlowState::Idle,
-                probe_options_editor: Default::default(),
-                probe_options_open: false,
-                runtime_delay_test_url: "http://www.gstatic.com/generate_204".to_string(),
-                runtime_speedtest_url: String::new(),
-                runtime_delay_timeout_ms: "5000".to_string(),
-                runtime_testing_delay_proxy: String::new(),
-                runtime_testing_all_delays: false,
+                runtime_probe_settings_editor: Default::default(),
+                probe_settings_dialog: ProbeSettingsDialogState::Closed,
+                runtime_probe_url_draft: String::new(),
+                runtime_probe_timeout_draft: String::new(),
+                outbound_probe_batch: proxy_probe::OutboundProbeBatchState::Idle,
+                outbound_probe_batch_token: 0,
                 runtime_selected_group: String::new(),
                 runtime_selected_proxy: String::new(),
+                runtime_outbound_selection: None,
                 runtime_connection_filter: String::new(),
                 runtime_connection_sort: "download_desc".to_string(),
                 runtime_auto_refresh: true,
@@ -207,19 +201,35 @@ impl AppState {
                 runtime_prev_snapshot_at: None,
                 pending_runtime_patch: None,
                 runtime_patch_token: 0,
-                proxies: HashMap::new(),
-                is_loading_proxies: false,
+                outbound_inventory: PageData::unavailable(Failure::new(
+                    ErrorCode::NotReady,
+                    "waiting for an outbound inventory observation",
+                    true,
+                )),
+                outbound_details: PageData::unavailable(Failure::new(
+                    ErrorCode::NotReady,
+                    "waiting for outbound details",
+                    true,
+                )),
+                outbound_ui_preferences: PageData::unavailable(Failure::unsupported(
+                    "outbound UI preferences have not been observed",
+                )),
+                outbound_inspecting: None,
+                outbound_probe_result: None,
+                outbound_probe_pending: None,
+                outbound_probe_failure: None,
+                outbound_probe_blocked: None,
+                outbound_probe_token: 0,
                 proxy_groups: Vec::new(),
                 proxy_name_runs: Default::default(),
                 proxy_search: Default::default(),
                 proxy_preferences: Default::default(),
                 filtered_groups: Vec::new(),
                 proxy_filter: String::new(),
-                proxy_sort_by_delay: false,
-                proxy_delay_sort: "delay_asc".to_string(),
-                proxy_ui_preferences: ProxyUiPreferences::default(),
+                outbound_sort_order: OutboundSortOrder::LatencyAscending,
+                runtime_panel_delay_sort_order: Default::default(),
                 group_order_editor: Default::default(),
-                group_order_open: false,
+                group_order_dialog: ProxyGroupOrderDialogState::Closed,
                 custom_node_modal_open: false,
                 custom_node_uri_input: String::new(),
                 custom_node_studio: Default::default(),
@@ -270,7 +280,6 @@ impl AppState {
                 sync_cancel: None,
                 sync_from_tick: false,
                 is_saving_app_settings: false,
-                is_saving_profile: false,
                 restart_after_profile_reset: false,
                 sync_diff: None,
                 is_loading_sync_diff: false,
@@ -337,6 +346,9 @@ impl AppState {
                 rule_providers_json_cache: "{}".to_string(),
                 proxy_providers_json_cache: "{}".to_string(),
                 sniffer_json_cache: "{}".to_string(),
+                rule_providers_json_identity: None,
+                proxy_providers_json_identity: None,
+                sniffer_json_identity: None,
                 rule_providers_editor_state: EditorLazyState::Unloaded,
                 proxy_providers_editor_state: EditorLazyState::Unloaded,
                 sniffer_editor_state: EditorLazyState::Unloaded,
@@ -396,7 +408,7 @@ impl AppState {
                 snapshot_diff_mode: Default::default(),
                 snapshot_diff_loading: false,
                 snapshot_diff_error: None,
-                profile_protection_override: false,
+                profile_write_authorization: Default::default(),
                 subrule_draft: default_logical_draft(DEFAULT_RULE_TARGET),
                 geodata_status: Default::default(),
                 rule_hit_audit: Default::default(),
@@ -433,7 +445,6 @@ impl AppState {
                 editor_pane: EditorPane::default(),
                 mixin_content: Content::new(),
                 mixin_loaded_for: None,
-                is_saving_mixin: false,
                 filter_editor: Default::default(),
                 filter_load: None,
                 next_filter_load: 0,
@@ -478,7 +489,6 @@ impl AppState {
                 dns_cache_actions: Default::default(),
                 dns_query: Default::default(),
                 dns_cache_flush: DnsCacheFlushReport::default(),
-                is_probing_dns_leak: false,
                 dns_leak_action: Default::default(),
                 dns_leak_capture: None,
                 is_probing_stun: false,
@@ -571,6 +581,7 @@ impl AppState {
             surface: Default::default(),
             surface_bridge: None,
             commands: None,
+            command_scope: Default::default(),
             exit_cleanup: None,
         };
         // DUAL-15-04: bind the Iced window handle into the desktop host port

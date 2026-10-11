@@ -3,7 +3,6 @@
 use infiltrator_application::script_application::ScriptApplication;
 use infiltrator_contract::script_sandbox::{ScriptLogLevel, ScriptSandboxStatus};
 use infiltrator_contract::yaml_ast_diff::{DiffKind, FidelityGrade};
-use infiltrator_domain::config::preflight_yaml_syntax;
 use infiltrator_domain::myers_diff;
 use infiltrator_domain::yaml_edit::SourceDoc;
 
@@ -60,17 +59,6 @@ rules:
     assert!(rendered.contains("mode: global"));
     assert!(rendered.contains("DOMAIN-KEYWORD,twitter,PROXY"));
     assert!(!rendered.contains("DOMAIN-SUFFIX,google.com,PROXY"));
-}
-
-#[test]
-fn test_track5_metric2_syntax_preflight_and_diagnostics() {
-    let valid_yaml = "port: 7890\nmode: rule\n";
-    assert!(preflight_yaml_syntax(valid_yaml).is_ok());
-
-    let invalid_yaml = "port: 7890\nmode: [unclosed brackets";
-    let diag = preflight_yaml_syntax(invalid_yaml).unwrap_err();
-    assert!(diag.line >= 2);
-    assert!(!diag.message.is_empty());
 }
 
 #[test]

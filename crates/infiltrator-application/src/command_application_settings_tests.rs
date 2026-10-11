@@ -9,7 +9,7 @@ use super::*;
 use async_trait::async_trait;
 use infiltrator_contract::language::LanguagePreference;
 use infiltrator_contract::mini_hud::MiniHudPlacement;
-use infiltrator_contract::proxy_probe_options::ProxyProbeOptions;
+use infiltrator_contract::runtime_settings::RuntimeProbeSettings;
 use infiltrator_contract::shortcuts::ShortcutAction;
 use infiltrator_domain::settings::AppSettings;
 use infiltrator_ports::error::PortError;
@@ -185,43 +185,28 @@ async fn mini_hud_placement_writes_are_validated_per_field() {
 }
 
 #[tokio::test]
-async fn probe_options_persist_atomically_preserve_unrelated_settings_and_refuse_bad_or_failed_writes()
- {
+async fn runtime_probe_settings_persist_preserve_unrelated_settings_and_refuse_failed_writes() {
     let (application, store) = settings_application();
     let original = store.settings.lock().unwrap().clone();
-    let options = ProxyProbeOptions {
-        test_url: "https://probe.example.test/check".into(),
-        timeout_ms: 32767,
-    };
-    let intent = CommandIntent::SetProxyProbeOptions {
-        options: options.clone(),
+    let probe_settings =
+        RuntimeProbeSettings::new("https://probe.example.test/check", 60_000).unwrap();
+    let intent = CommandIntent::SetRuntimeProbeSettings {
+        settings: probe_settings.clone(),
     };
     application.execute(intent.clone()).await.unwrap();
     let stored = store.settings.lock().unwrap().clone();
-    assert_eq!(stored.runtime_panel.delay_test_url, options.test_url);
-    assert_eq!(stored.runtime_panel.delay_timeout_ms, options.timeout_ms);
+    assert_eq!(stored.runtime_panel.probe_settings, probe_settings);
     assert_eq!(stored.theme, original.theme);
     assert_eq!(
         stored.runtime_panel.connection_sort,
         original.runtime_panel.connection_sort
     );
-    for timeout in [0, 32768, 60000] {
-        let failure = application
-            .execute(CommandIntent::SetProxyProbeOptions {
-                options: ProxyProbeOptions {
-                    timeout_ms: timeout,
-                    ..options.clone()
-                },
-            })
-            .await
-            .unwrap_err();
-        assert_eq!(failure.code, ErrorCode::InvalidInput);
-        assert_eq!(*store.settings.lock().unwrap(), stored);
-    }
+    assert!(RuntimeProbeSettings::new("https://probe.example.test/check", 0).is_err());
+    assert_eq!(*store.settings.lock().unwrap(), stored);
     store.reject_save.store(true, Ordering::SeqCst);
     let failure = application
-        .execute(CommandIntent::SetProxyProbeOptions {
-            options: ProxyProbeOptions::default(),
+        .execute(CommandIntent::SetRuntimeProbeSettings {
+            settings: RuntimeProbeSettings::default(),
         })
         .await
         .unwrap_err();

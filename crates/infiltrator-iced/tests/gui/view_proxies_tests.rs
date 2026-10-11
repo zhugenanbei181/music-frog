@@ -1,5 +1,7 @@
 use super::*;
-use crate::view::proxies_controls::{SORT_KEYS, SORT_LABEL_KEYS};
+use crate::view::proxies::node_cards::{format_protocol_chip, group_icon};
+use crate::view::proxies_controls::{SORT_LABEL_KEYS, SORT_ORDERS};
+use infiltrator_contract::outbound::preferences::OutboundSortOrder;
 
 #[test]
 fn test_group_icon_mapping() {
@@ -40,10 +42,15 @@ fn test_format_protocol_chip() {
 }
 
 #[test]
-fn test_sort_keys_correspondence() {
-    assert_eq!(SORT_KEYS.len(), SORT_LABEL_KEYS.len());
-    assert_eq!(SORT_KEYS[0], "delay_asc");
-    assert_eq!(SORT_KEYS[1], "delay_desc");
-    assert_eq!(SORT_KEYS[2], "name_asc");
-    assert_eq!(SORT_KEYS[3], "name_desc");
+fn test_sort_options_use_the_shared_typed_order() {
+    assert_eq!(SORT_ORDERS.len(), SORT_LABEL_KEYS.len());
+    assert_eq!(
+        SORT_ORDERS,
+        [
+            OutboundSortOrder::LatencyAscending,
+            OutboundSortOrder::LatencyDescending,
+            OutboundSortOrder::NameAscending,
+            OutboundSortOrder::NameDescending,
+        ]
+    );
 }

@@ -6,7 +6,10 @@
 
 use super::support::{TempHome, block_on, feed, fresh_state, list_profiles, subscribed_profile};
 use crate::host::storage::settings_store;
-use crate::test_mounts::command_harness::{recording_application, rejecting_application};
+use crate::test_mounts::command_harness::{
+    attach_product_application_with_accepted_owner_snapshot, recording_application,
+    rejecting_application,
+};
 use crate::types::app::{ConfirmAction, ToastStatus};
 use crate::types::message::Message;
 use crate::types::runtime::{RebuildFlowState, RuntimeStatus};
@@ -169,21 +172,27 @@ fn language_and_theme_switches_persist_and_mirror_back_on_startup() {
 
     let settings = SettingsApplication::new(block_on(settings_store()).unwrap());
     let initial = block_on(settings.load()).unwrap();
-    state.observe_language_settings(&project_language(Some(&Ok(initial))));
     let (application, _) = recording_application();
     application.install_command_handler(Arc::new(
         CommandApplication::new().with_settings(settings.clone()),
     ));
-    state.commands = Some(application);
+    attach_product_application_with_accepted_owner_snapshot(&mut state, application);
+    state.observe_language_settings(&project_language(Some(&Ok(initial))));
     let task = state.update(Message::SetLanguage("en-US".into()));
     assert_eq!(state.shell.lang, "zh-CN", "accepted is not saved");
     feed(&mut state, language_terminal(task));
+    let readback = block_on(settings.load()).unwrap();
+    state.observe_language_settings(&project_language(Some(&Ok(readback))));
     assert_eq!(state.shell.lang, "en-US");
     let task = state.update(Message::SetLanguage("zh".into()));
     feed(&mut state, language_terminal(task));
+    let readback = block_on(settings.load()).unwrap();
+    state.observe_language_settings(&project_language(Some(&Ok(readback))));
     assert_eq!(state.shell.lang, "zh-CN", "aliases normalize to zh-CN");
     let task = state.update(Message::SetLanguage("en-US".into()));
     feed(&mut state, language_terminal(task));
+    let readback = block_on(settings.load()).unwrap();
+    state.observe_language_settings(&project_language(Some(&Ok(readback))));
     let units = feed(&mut state, Message::SetTheme("light".into()));
     assert_eq!(units, 0);
     assert_eq!(state.shell.theme, iced::Theme::Light);
@@ -303,22 +312,22 @@ fn language_terminal(task: Task<Message>) -> Message {
 fn rejected_language_command_retains_the_current_locale_and_exposes_retry() {
     let mut state = fresh_state();
     let (application, handler) = rejecting_application();
-    state.commands = Some(application);
+    attach_product_application_with_accepted_owner_snapshot(&mut state, application);
     state.observe_language_settings(&project_language(Some(&Ok(AppSettings::default()))));
     let current = state.shell.lang.clone();
     let task = state.update(Message::SetLanguage("en-US".into()));
     feed(&mut state, language_terminal(task));
     assert_eq!(state.shell.lang, current);
-    assert_eq!(
-        state
-            .shell
-            .language_choice
-            .failure
-            .as_ref()
-            .unwrap()
-            .message,
-        "profile is read-only"
-    );
-    assert!(state.shell.language_choice.requested.is_some());
+    let failure = match &state.shell.language_choice.phase {
+        infiltrator_application::language_choice::LanguageChoicePhase::Failed {
+            failure, ..
+        } => failure,
+        phase => panic!("language rejection must remain explicit: {phase:?}"),
+    };
+    assert_eq!(failure.message, "profile is read-only");
+    assert!(matches!(
+        &state.shell.language_choice.phase,
+        infiltrator_application::language_choice::LanguageChoicePhase::Failed { .. }
+    ));
     assert_eq!(handler.0.lock().unwrap().len(), 1);
 }

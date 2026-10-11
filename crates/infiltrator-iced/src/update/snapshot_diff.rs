@@ -36,7 +36,7 @@ impl AppState {
                         Some("no profile is open in the editor".to_string());
                     return Task::none();
                 };
-                let commands = self.commands.clone();
+                let commands = self.command_ingress();
                 Task::perform(
                     async move {
                         execute(
@@ -81,8 +81,8 @@ impl AppState {
                 Some(id) => self.update_snapshot_diff(Message::OpenSnapshotDiff(id)),
                 None => Task::none(),
             },
-            Message::SetProfileProtectionOverride(allow) => {
-                self.editor.profile_protection_override = allow;
+            Message::SetProfileWriteAuthorization(authorization) => {
+                self.editor.profile_write_authorization = authorization;
                 Task::none()
             }
             Message::CloseSnapshotDiff => {

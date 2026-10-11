@@ -1,4 +1,5 @@
 //! Capture opens the actual restoration review through the production TEA command path.
+use crate::demo::owner::attach_capture_owner;
 use crate::state::AppState;
 use crate::types::message::Message;
 use crate::types::snapshot_restore::RestoreAction;
@@ -19,7 +20,7 @@ pub(super) fn activate(state: &mut AppState) -> Task<Message> {
     core.install_command_handler(Arc::new(
         CommandApplication::new().with_snapshots(fixture.application),
     ));
-    state.commands = Some(core);
+    attach_capture_owner(state, core);
     state.update(Message::SnapshotRestore(RestoreAction::Open(
         fixture.target,
     )))

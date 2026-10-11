@@ -24,8 +24,12 @@ use infiltrator_bevy_ui::projection::DemoOverviewSource;
 use infiltrator_bevy_ui::route::{PagesPlugin, Route, RouteChanged};
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::localization::UiLocale;
+use infiltrator_contract::android_control::{
+    VpnOwnerCoreReadback, VpnOwnerLifecycle, VpnOwnerReadiness, VpnOwnerResourceFact,
+    VpnOwnerResourceKind, VpnOwnerResourceState, VpnOwnerSnapshot,
+};
 use infiltrator_contract::privileged_network::PrivilegedNetworkState;
-use infiltrator_contract::vpn::{VpnSessionSnapshot, VpnSessionState};
+use infiltrator_contract::vpn::{VpnGeneration, VpnSurfaceObservation};
 use std::sync::Arc;
 
 fn read_text<T: Component>(app: &mut App) -> String {
@@ -72,10 +76,39 @@ fn native_host_status_keeps_unknown_mtu_and_busy_controls_and_replays_opaque_fai
         .unwrap()
         .0;
     let mut projection = SettingsProjection::demo();
-    projection.vpn = VpnSessionSnapshot {
-        state: VpnSessionState::Running,
-        ..Default::default()
-    };
+    projection.vpn = VpnSurfaceObservation::AndroidOwner(VpnOwnerSnapshot {
+        owner_session_id: "locale-test-owner".to_owned(),
+        revision: 4,
+        vpn_generation: VpnGeneration::new(3),
+        vpn_state: VpnOwnerLifecycle::Running,
+        readiness: VpnOwnerReadiness::Ready,
+        resources: [
+            VpnOwnerResourceKind::PreparedConfiguration,
+            VpnOwnerResourceKind::Worker,
+            VpnOwnerResourceKind::TunnelDescriptor,
+            VpnOwnerResourceKind::RoutingLease,
+        ]
+        .into_iter()
+        .map(|kind| VpnOwnerResourceFact {
+            kind,
+            state: match kind {
+                VpnOwnerResourceKind::Worker | VpnOwnerResourceKind::TunnelDescriptor => {
+                    VpnOwnerResourceState::Held { generation: 3 }
+                }
+                VpnOwnerResourceKind::PreparedConfiguration
+                | VpnOwnerResourceKind::RoutingLease => VpnOwnerResourceState::Absent,
+            },
+        })
+        .collect(),
+        foreground: true,
+        mtu: None,
+        route_count: 1,
+        dns_servers: Vec::new(),
+        ipv6: false,
+        core: VpnOwnerCoreReadback::Unavailable {
+            failure_message: "locale test has no Core".to_owned(),
+        },
+    });
     projection.privileged_network.state = PrivilegedNetworkState::RollingBack;
     app.world_mut()
         .trigger(SettingsProjectionUpdated(projection.clone()));
@@ -96,7 +129,7 @@ fn native_host_status_keeps_unknown_mtu_and_busy_controls_and_replays_opaque_fai
     click_entity(&mut app, stop);
     assert_eq!(sink.submitted(), vec![UiCommand::StopVpn]);
     sink.clear();
-    projection.vpn.state = VpnSessionState::Unsupported {
+    projection.vpn = VpnSurfaceObservation::Unsupported {
         reason: "no bridge {state} / 中文🙂".into(),
     };
     app.world_mut()

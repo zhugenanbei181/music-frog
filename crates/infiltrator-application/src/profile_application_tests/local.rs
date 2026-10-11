@@ -3,19 +3,20 @@
 
 use super::*;
 use crate::profile_document_application::ProfileDocumentApplication;
+use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
 
 #[tokio::test]
 async fn local_profiles_stay_directly_editable() {
     let store = Arc::new(FakeStore::with_profile("lab", "mode: rule\n", true));
-    let profiles = ProfileApplication::new(Arc::clone(&store) as Arc<dyn ProfileStore>);
-    let source = profiles.load_workspace("lab").await.unwrap().source;
+    let profiles = profiles_with_mihomo_codec(Arc::clone(&store) as Arc<dyn ProfileStore>);
+    let source = profiles.load_workspace("lab").await.unwrap().identity();
     let application = ProfileDocumentApplication::new(profiles);
     application
         .save(
             None::<Arc<dyn ManagedRuntime>>,
             &source,
             "mode: global\n",
-            false,
+            ProfileWriteAuthorization::RequireUnlock,
         )
         .await
         .expect("local profile edits need no unlock");

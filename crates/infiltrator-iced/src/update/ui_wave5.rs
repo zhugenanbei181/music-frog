@@ -3,17 +3,19 @@
 
 use crate::state::AppState;
 use crate::types::app::ToastStatus;
-use crate::types::message::{Message, MtuProbeCompletion};
+use crate::types::message::Message;
+use crate::types::message::mtu_probe::MtuProbeCompletion;
 use iced::Task;
 use infiltrator_application::mtu_application::MtuApplication;
 use infiltrator_application::privileged_network_application::PrivilegedNetworkApplication;
-use infiltrator_application::runtime_query_application::RuntimeQueryApplication;
+use infiltrator_application::runtime_configuration_application::RuntimeConfigurationApplication;
 use infiltrator_contract::error::{ErrorCode, Failure, InfiltratorError};
 use infiltrator_contract::lan::LanCredentials;
 use infiltrator_contract::mtu::{MtuNegotiationSnapshot, MtuProbeState, PhysicalMtuSnapshot};
 use infiltrator_contract::privileged_network::{
     PrivilegedNetworkRequest, PrivilegedNetworkSnapshot, PrivilegedNetworkState,
 };
+use infiltrator_ports::runtime_configuration::LanAuthenticationUpdate;
 use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use infiltrator_shared::i18n_interpolator::localize;
 use infiltrator_shared::locales::{Lang, Localizer};
@@ -99,11 +101,18 @@ impl AppState {
             return self.runtime_unavailable(Lang(&copy_locale).tr("runtime_action_lan").as_ref());
         };
         let generation = runtime.generation();
+        let Some(scope) = self.runtime.core_lifecycle.scope() else {
+            let error = InfiltratorError::Config(
+                "LAN configuration requires an observed Core scope".to_owned(),
+            );
+            self.set_error(&error);
+            return Task::done(Message::ShowToast(error.to_string(), ToastStatus::Error));
+        };
         let desired = self.runtime.lan_sharing.clone();
         let gateway: Arc<dyn RuntimeGateway> = runtime;
         Task::perform(
             async move {
-                RuntimeQueryApplication::new(gateway)
+                RuntimeConfigurationApplication::from_gateway(scope, gateway.as_ref())
                     .set_lan_sharing(desired.allow_lan, desired.mixed_port, &desired.bind_address)
                     .await
                     .map_err(|failure| InfiltratorError::Config(failure.message))
@@ -122,6 +131,13 @@ impl AppState {
                 .runtime_unavailable(Lang(&copy_locale).tr("runtime_action_lan_access").as_ref());
         };
         let generation = runtime.generation();
+        let Some(scope) = self.runtime.core_lifecycle.scope() else {
+            let error = InfiltratorError::Config(
+                "LAN configuration requires an observed Core scope".to_owned(),
+            );
+            self.set_error(&error);
+            return Task::done(Message::ShowToast(error.to_string(), ToastStatus::Error));
+        };
         let desired = self.runtime.lan_security.clone();
         let allowed_ips = split_cidrs(&desired.allowed_ips);
         let disallowed_ips = split_cidrs(&desired.disallowed_ips);
@@ -130,16 +146,26 @@ impl AppState {
             username: desired.auth_username.clone(),
             password: desired.auth_password.clone(),
         });
+        let authentication = match credentials {
+            Some(credentials) => LanAuthenticationUpdate::Enabled(credentials),
+            None if !desired.authentication_enabled => LanAuthenticationUpdate::Disabled,
+            None => {
+                let error = InfiltratorError::Config(
+                    "LAN authentication requires username and password".to_owned(),
+                );
+                self.set_error(&error);
+                return Task::done(Message::ShowToast(error.to_string(), ToastStatus::Error));
+            }
+        };
         let gateway: Arc<dyn RuntimeGateway> = runtime;
         Task::perform(
             async move {
-                RuntimeQueryApplication::new(gateway)
+                RuntimeConfigurationApplication::from_gateway(scope, gateway.as_ref())
                     .set_lan_security(
                         &allowed_ips,
                         &disallowed_ips,
                         &skip_auth_prefixes,
-                        desired.authentication_enabled,
-                        credentials.as_ref(),
+                        authentication,
                     )
                     .await
                     .map_err(|failure| InfiltratorError::Config(failure.message))
@@ -193,10 +219,20 @@ impl AppState {
                 let gateway: Arc<dyn RuntimeGateway> = runtime.clone();
                 let generation = runtime.generation();
                 let session_token = self.runtime.core_session_token;
+                let Some(scope) = self.runtime.core_lifecycle.scope() else {
+                    let failure = Failure::new(
+                        ErrorCode::NotReady,
+                        "TUN MTU apply requires an observed Core scope",
+                        false,
+                    );
+                    let error = InfiltratorError::Config(failure.message);
+                    self.set_error(&error);
+                    return Task::done(Message::ShowToast(error.to_string(), ToastStatus::Error));
+                };
                 self.runtime.mtu = application.probing_snapshot();
                 self.runtime.tun_stack_config.is_probing_mtu = true;
                 Task::perform(
-                    async move { application.probe_and_apply(gateway).await },
+                    async move { application.probe_and_apply(gateway, scope).await },
                     move |snapshot| {
                         Message::MtuProbeFinished(MtuProbeCompletion {
                             snapshot,

@@ -10,7 +10,8 @@ use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use crate::types::runtime::{RebuildFlowState, RuntimeStatus};
 use iced::Task;
-use infiltrator_contract::error::{InfiltratorError, from_mihomo};
+use infiltrator_contract::error::{InfiltratorError, from_backend};
+use infiltrator_desktop::boot::DesktopBinaryPreference;
 use infiltrator_ports::runtime_gateway::ManagedRuntime;
 use infiltrator_shared::i18n_interpolator::localize;
 use tokio::time;
@@ -84,27 +85,32 @@ impl AppState {
             async move {
                 let _ = ManagedRuntime::shutdown(runtime.as_ref()).await;
                 let manager = config_manager().await?;
-                let profile = manager.get_current().await.map_err(from_mihomo)?;
+                let profile = manager.get_current().await.map_err(from_backend)?;
                 let candidates = vec![];
-                match bootstrap_host_runtime_from_current_home(true, &candidates).await {
+                match bootstrap_host_runtime_from_current_home(
+                    DesktopBinaryPreference::PreferBundled,
+                    &candidates,
+                )
+                .await
+                {
                     Ok((runtime, _rotated)) => {
-                        manager.clear_backup(&profile).await.map_err(from_mihomo)?;
+                        manager.clear_backup(&profile).await.map_err(from_backend)?;
                         Ok(runtime)
                     }
                     Err(cause) => {
                         let restored = manager
                             .restore_backup(&profile)
                             .await
-                            .map_err(from_mihomo)?;
+                            .map_err(from_backend)?;
                         let _ = manager.clear_backup(&profile).await;
                         if restored {
-                            Err(InfiltratorError::Mihomo(localize(
+                            Err(InfiltratorError::Backend(localize(
                                 &copy_locale,
                                 "core_rebuild_restored",
                                 &[("reason", cause.to_string())],
                             )))
                         } else {
-                            Err(InfiltratorError::Mihomo(cause.to_string()))
+                            Err(InfiltratorError::Backend(cause.to_string()))
                         }
                     }
                 }
@@ -132,7 +138,7 @@ impl AppState {
                         };
                         Task::batch(vec![
                             Task::done(Message::FetchRuntimeConfig),
-                            Task::done(Message::LoadProxies),
+                            Task::done(Message::RefreshOutboundInventory),
                             Task::done(Message::RefreshRuntimeNow),
                             Task::done(Message::ShowToast(
                                 format!("{label} saved and rebuilt"),

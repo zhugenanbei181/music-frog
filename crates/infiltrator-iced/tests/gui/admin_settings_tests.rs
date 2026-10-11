@@ -6,6 +6,7 @@
 use crate::admin_server::ADMIN_DEFAULT_PORT;
 use crate::state::AppState;
 use crate::types::message::Message;
+use infiltrator_contract::runtime_settings::{RuntimeDelaySortOrder, RuntimeProbeSettings};
 use infiltrator_domain::settings::{AdminServerConfig, AppSettings, RuntimePanelConfig};
 
 #[test]
@@ -112,9 +113,9 @@ fn test_settings_loaded_applies_runtime_panel_state() {
     let settings = AppSettings {
         runtime_panel: RuntimePanelConfig {
             auto_refresh: false,
-            delay_sort: "name_desc".into(),
-            delay_test_url: "https://example.com/generate_204".into(),
-            delay_timeout_ms: 1200,
+            delay_sort_order: RuntimeDelaySortOrder::NameDescending,
+            probe_settings: RuntimeProbeSettings::new("https://example.com/generate_204", 1200)
+                .unwrap(),
             connection_filter: "api".into(),
             connection_sort: "host_asc".into(),
         },
@@ -123,12 +124,15 @@ fn test_settings_loaded_applies_runtime_panel_state() {
 
     let _ = state.update(Message::SettingsLoaded(Ok(settings)));
     assert!(!state.runtime.runtime_auto_refresh);
-    assert_eq!(state.runtime.proxy_delay_sort, "name_desc");
     assert_eq!(
-        state.runtime.runtime_delay_test_url,
+        state.runtime.runtime_panel_delay_sort_order,
+        RuntimeDelaySortOrder::NameDescending
+    );
+    assert_eq!(
+        state.runtime.runtime_probe_url_draft,
         "https://example.com/generate_204"
     );
-    assert_eq!(state.runtime.runtime_delay_timeout_ms, "1200");
+    assert_eq!(state.runtime.runtime_probe_timeout_draft, "1200");
     assert_eq!(state.runtime.runtime_connection_filter, "api");
     assert_eq!(state.runtime.runtime_connection_sort, "host_asc");
 }

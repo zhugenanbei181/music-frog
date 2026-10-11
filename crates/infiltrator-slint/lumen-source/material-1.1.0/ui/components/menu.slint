@@ -1,0 +1,244 @@
+// Copyright © SixtyFPS GmbH <info@slint.dev>
+// SPDX-License-Identifier: MIT
+
+import { LumenUiScale } from "../../../ui/ui-scale.slint";
+import { MaterialStyleMetrics } from "../styling/material_style_metrics.slint";
+import { MaterialPalette } from "../styling/material_palette.slint";
+import { Elevation } from "elevation.slint";
+import { StateLayerArea } from "./state_layer.slint";
+import { MaterialTypography } from "../styling/material_typography.slint";
+import { Icon } from "./icon.slint";
+import { MenuItem } from "../items/menu_item.slint";
+import { MaterialText } from "./material_text.slint";
+import { Icons } from "../icons/icons.slint";
+
+component MenuItemTemplate {
+    in property <image> icon;
+    in property <string> text;
+    in property <string> trailing_text;
+    in property <length> row_height: 48px * LumenUiScale.factor;
+    in property <bool> show_layout_bounds: false;
+    in property <bool> enabled <=> state_area.enabled;
+    in property <bool> selected;
+
+    callback clicked();
+
+    property <bool> has_icon: root.icon.width > 0 && root.icon.height > 0;
+    property <color> color: MaterialPalette.on_surface;
+    property <color> color_variant: MaterialPalette.on_surface_variant;
+
+    min_height: root.row_height;
+
+    background_layer := Rectangle {
+        width: 100%;
+        height: root.row_height;
+
+        state_area := StateLayerArea {
+            width: 100%;
+            height: 100%;
+            color: root.color;
+            border_radius: 0px * LumenUiScale.factor;
+            transparent_background: true;
+
+            layout := HorizontalLayout {
+                width: 100%;
+                height: 100%;
+                padding_left: 20px * LumenUiScale.factor;
+                padding_right: 24px * LumenUiScale.factor;
+                spacing: MaterialStyleMetrics.spacing_12;
+                alignment: start;
+                cross-axis-alignment: center;
+
+                if root.has_icon: Rectangle {
+                    width: MaterialStyleMetrics.size_20;
+                    height: MaterialStyleMetrics.size_20;
+                    background: transparent;
+                    border_width: root.show_layout_bounds ? 1px * LumenUiScale.factor : 0px * LumenUiScale.factor;
+                    border_color: #007AFF;
+
+                    Icon {
+                        source: root.icon;
+                        size: MaterialStyleMetrics.size_20;
+                        colorize: root.color;
+                    }
+                }
+
+                label_frame := Rectangle {
+                    width: max(0px * LumenUiScale.factor, root.width
+                        - MaterialStyleMetrics.padding_20
+                        - MaterialStyleMetrics.padding_24
+                        - MaterialStyleMetrics.size_20
+                        - MaterialStyleMetrics.spacing_12
+                        - (root.has_icon ? MaterialStyleMetrics.size_20 + MaterialStyleMetrics.spacing_12 : 0px * LumenUiScale.factor));
+                    height: parent.height;
+                    background: transparent;
+                    border_width: root.show_layout_bounds ? 1px * LumenUiScale.factor : 0px * LumenUiScale.factor;
+                    border_color: #00A7A7;
+
+                    MaterialText {
+                        width: 100%;
+                        height: 100%;
+                        text: root.text;
+                        style: MaterialTypography.body_large;
+                        color: root.color;
+                        vertical_alignment: center;
+                    }
+                }
+
+                if root.trailing_text != "": Rectangle {
+                    height: parent.height;
+                    background: transparent;
+                    border_width: root.show_layout_bounds ? 1px * LumenUiScale.factor : 0px * LumenUiScale.factor;
+                    border_color: #00A7A7;
+
+                    MaterialText {
+                        width: 100%;
+                        height: 100%;
+                        text: root.trailing_text;
+                        style: MaterialTypography.body_large;
+                        color: root.color_variant;
+                        vertical_alignment: center;
+                    }
+                }
+
+                check_frame := Rectangle {
+                    width: MaterialStyleMetrics.size_20;
+                    height: MaterialStyleMetrics.size_20;
+                    background: transparent;
+                    border_width: root.show_layout_bounds ? 1px * LumenUiScale.factor : 0px * LumenUiScale.factor;
+                    border_color: #007AFF;
+
+                    if root.selected: Icon {
+                        source: Icons.check;
+                        size: MaterialStyleMetrics.size_20;
+                        colorize: root.color;
+                    }
+                }
+            }
+
+            clicked => {
+                root.clicked();
+            }
+        }
+
+        if root.show_layout_bounds: Rectangle {
+            width: parent.width;
+            height: parent.height;
+            background: transparent;
+            border_width: 1px * LumenUiScale.factor;
+            border_color: #FF2D55;
+            z: 1000;
+        }
+    }
+
+    states [
+        disabled when !root.enabled : {
+            state_area.opacity: MaterialPalette.disable_opacity;
+        }
+        selected when root.selected : {
+            background_layer.background: transparent;
+            root.color: MaterialPalette.primary;
+            root.color_variant: MaterialPalette.primary;
+        }
+    ]
+}
+
+export component MenuInner {
+    in property <[MenuItem]> items;
+    in_out property <int> current_index: -1;
+    in property <int> divider_before_index: -1;
+    in property <length> row_height: 48px * LumenUiScale.factor;
+    in property <length> first_item_height: 48px * LumenUiScale.factor;
+    in property <bool> show_layout_bounds: false;
+
+    callback activated(index: int);
+
+    // used to fix clipping of shadows
+    out property <int> elevation: 2;
+
+    menu := Elevation {
+        width: 100%;
+        level: root.elevation;
+        height: layout.min_height + root.elevation * 1px * LumenUiScale.factor;
+        border_radius: MaterialStyleMetrics.border_radius_16;
+        background: MaterialPalette.surface_container;
+
+        layout := VerticalLayout {
+            width: root.width;
+            padding_top: MaterialStyleMetrics.padding_8;
+            padding_bottom: self.padding_top;
+
+            for item[index] in root.items : VerticalLayout {
+                width: parent.width;
+
+                if index == root.divider_before_index: Rectangle {
+                    x: MaterialStyleMetrics.padding_12;
+                    width: max(0px * LumenUiScale.factor, parent.width - 2 * MaterialStyleMetrics.padding_12);
+                    height: 1px * LumenUiScale.factor;
+                    background: MaterialPalette.outline_variant;
+                }
+
+                MenuItemTemplate {
+                    width: parent.width;
+                    row_height: index == 0 ? root.first_item_height : root.row_height;
+                    icon: item.icon;
+                    text: item.text;
+                    trailing_text: item.trailing_text;
+                    enabled: item.enabled;
+                    selected: index == root.current_index;
+                    show_layout_bounds: root.show_layout_bounds;
+
+                    clicked => {
+                        root.activated(index);
+                    }
+                }
+            }
+        }
+
+        if root.show_layout_bounds: Rectangle {
+            width: parent.width;
+            height: parent.height;
+            background: transparent;
+            border_width: 1px * LumenUiScale.factor;
+            border_color: #FF2D55;
+            z: 2000;
+        }
+    }
+}
+
+export component PopupMenu inherits PopupWindow {
+    in property <[MenuItem]> items;
+    in property <int> current_index: -1;
+    in property <int> divider_before_index: -1;
+    in property <length> available_width: MaterialStyleMetrics.size_220;
+    in property <length> row_height: 48px * LumenUiScale.factor;
+    in property <length> first_item_height: 48px * LumenUiScale.factor;
+    in property <bool> show_layout_bounds: false;
+
+    callback activated(index: int);
+
+    width: min(MaterialStyleMetrics.size_220, max(MaterialStyleMetrics.size_200, root.available_width * 0.54));
+    height: root.items.length > 0
+        ? root.first_item_height + (root.items.length - 1) * root.row_height
+            + (root.divider_before_index >= 0 && root.divider_before_index < root.items.length ? 1px * LumenUiScale.factor : 0px * LumenUiScale.factor)
+            + 2 * MaterialStyleMetrics.padding_8 + 3 * MaterialStyleMetrics.size_2
+        : 2 * MaterialStyleMetrics.padding_8 + 3 * MaterialStyleMetrics.size_2;
+    close_policy: close_on_click_outside;
+
+    VerticalLayout {
+        padding: inner.elevation * 1px * LumenUiScale.factor;
+
+        inner := MenuInner {
+            items: root.items;
+            current_index: root.current_index;
+            divider_before_index: root.divider_before_index;
+            row_height: root.row_height;
+            first_item_height: root.first_item_height;
+            show_layout_bounds: root.show_layout_bounds;
+
+            activated(index) => {
+                root.activated(index);
+            }
+        }
+    }
+}

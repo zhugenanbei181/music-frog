@@ -3,29 +3,29 @@
 # fed by a REAL mihomo core, not the demo fixture.
 #
 # Pipeline:
-#   1. ensure the pinned core binary exists at target/bevy-live/mihomo —
-#     download `mihomo-linux-amd64-v1.19.18.gz` from the official
-#     MetaCubeX/mihomo release (the same pinned version fetch-mihomo.sh
-#     vendors), gunzip + chmod; target/ is git-ignored, nothing lands in
-#     the tree;
+#   1. ensure the locked core binary exists at target/bevy-live/mihomo —
+#     resolve version, archive, and SHA-256 values from
+#     packaging/mihomo-assets.json, then verify archive and extracted bytes;
+#     target/ is git-ignored, nothing lands in the source tree;
 #   2. generate a minimal config (external-controller 127.0.0.1:9099,
 #     mixed-port 7899, mode rule, log-level silent) and start the core in
 #     its own process group with a private XDG_RUNTIME_DIR (it can never
 #     touch the operator's session or $HOME);
 #   3. poll /version until the controller is ready, then re-run the
 #     capture-bevy-matrix machinery for the `overview-live` scenario with
-#     INFILTRATOR_BEVY_CONTROLLER exported — the app boots its live pump
+#     capture-controller explicitly enabled and INFILTRATOR_BEVY_CONTROLLER
+#     exported — the app boots its live pump
 #     (src/controller.rs) instead of the demo fixture, so the banner shows
 #     the core's real version and the chips show the core's real numbers
 #     (an idle core reports ~0 B/s rates: honest zeros, not a failure);
-#   4. merge the overview-live row into docs/screenshots/bevy/manifest.tsv
+#   4. merge the overview-live row into crates/infiltrator-bevy-ui/docs/screenshots/bevy/manifest.tsv
 #     (append: the demo rows of the last matrix run are preserved);
 #   5. tear the core down via its process group (terminate_owned, the same
 #     discipline as capture-iced / capture-bevy-matrix).
 #
 # Usage:
 #   bash scripts/capture-bevy-live.sh
-#   MIHOMO_LIVE_ASSET=mihomo-linux-arm64-v1.19.18.gz bash scripts/capture-bevy-live.sh
+#   MIHOMO_LIVE_ASSET=<registered archive for this host> bash scripts/capture-bevy-live.sh
 #
 # Exit codes: 0 pass; 1 capture failed; 2 preflight error.
 set -euo pipefail
@@ -40,14 +40,64 @@ CORE_HOME="$LIVE_DIR/run"
 CORE_RUNTIME="$(mktemp -d /tmp/infiltrator-bevy-core.XXXXXX)"
 CONTROLLER="127.0.0.1:9099"
 MIXED_PORT="7899"
-# Pinned in lockstep with scripts/fetch-mihomo.sh.
-PINNED_VERSION="v1.19.18"
-ASSET="${MIHOMO_LIVE_ASSET:-mihomo-linux-amd64-${PINNED_VERSION}.gz}"
 BASE_URL="${MIHOMO_BASE_URL:-https://github.com/MetaCubeX/mihomo/releases/download}"
 VERSION_URL="http://$CONTROLLER/version"
-OUT_DIR="$REPO/docs/screenshots/bevy"
+OUT_DIR="$REPO/crates/infiltrator-bevy-ui/docs/screenshots/bevy"
 MANIFEST="$OUT_DIR/manifest.tsv"
 READY_ITERS=60 # 60 * 0.25s = 15s controller budget
+ARCHIVE_PATH=""
+TEMP_CORE=""
+
+for command in python3 curl gunzip sha256sum; do
+  command -v "$command" >/dev/null 2>&1 || {
+    printf 'required live-capture command is unavailable: %s\n' "$command" >&2
+    exit 2
+  }
+done
+
+case "$(uname -m)" in
+  x86_64) CORE_TARGET="x86_64-unknown-linux-gnu" ;;
+  aarch64|arm64) CORE_TARGET="aarch64-unknown-linux-gnu" ;;
+  *)
+    printf 'unsupported live-core host architecture: %s\n' "$(uname -m)" >&2
+    exit 2
+    ;;
+esac
+
+# Use the packaging lock as the one source for the live-core version, asset,
+# and both archive/binary digests. An explicit asset is accepted only when it
+# is registered for this host target in that same lock.
+LOCKED_CORE="$(python3 -c '
+import json
+import sys
+
+lock_path, target, requested_archive = sys.argv[1:4]
+lock = json.load(open(lock_path, encoding="utf-8"))
+assets = [asset for asset in lock["assets"] if asset["target"] == target]
+if requested_archive:
+    assets = [asset for asset in assets if asset["archive"] == requested_archive]
+if len(assets) != 1:
+    raise SystemExit("live-core asset is not uniquely registered for the host target")
+asset = assets[0]
+for value in (
+    lock["version"],
+    asset["archive"],
+    asset["archive_sha256"],
+    asset["binary"],
+    asset["binary_sha256"],
+):
+    print(value)
+' "$REPO/packaging/mihomo-assets.json" "$CORE_TARGET" "${MIHOMO_LIVE_ASSET:-}")"
+mapfile -t LOCKED_CORE_FIELDS <<<"$LOCKED_CORE"
+if [ "${#LOCKED_CORE_FIELDS[@]}" -ne 5 ]; then
+  printf 'invalid Mihomo asset lock entry for %s\n' "$CORE_TARGET" >&2
+  exit 2
+fi
+PINNED_VERSION="${LOCKED_CORE_FIELDS[0]}"
+ASSET="${LOCKED_CORE_FIELDS[1]}"
+EXPECTED_ARCHIVE_SHA256="${LOCKED_CORE_FIELDS[2]}"
+LOCKED_BINARY="${LOCKED_CORE_FIELDS[3]}"
+EXPECTED_BINARY_SHA256="${LOCKED_CORE_FIELDS[4]}"
 
 CORE_PID=""
 CORE_PGID=""
@@ -83,6 +133,12 @@ terminate_owned() {
 
 cleanup() {
   terminate_owned "$CORE_PID" "$CORE_PGID"
+  if [ -n "$ARCHIVE_PATH" ]; then
+    rm -f "$ARCHIVE_PATH"
+  fi
+  if [ -n "$TEMP_CORE" ]; then
+    rm -f "$TEMP_CORE"
+  fi
   if [ -d "$CORE_RUNTIME" ]; then
     rm -rf -- "$CORE_RUNTIME"
   fi
@@ -91,12 +147,6 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-for command in curl gunzip sha256sum; do
-  command -v "$command" >/dev/null 2>&1 || {
-    printf 'required live-capture command is unavailable: %s\n' "$command" >&2
-    exit 2
-  }
-done
 # The asset name ends up in a URL; keep it to a safe charset.
 [[ "$ASSET" =~ ^[A-Za-z0-9._-]+$ ]] || {
   printf 'unsafe MIHOMO_LIVE_ASSET: %s\n' "$ASSET" >&2
@@ -116,18 +166,35 @@ fi
 mkdir -p "$LIVE_DIR" "$CORE_HOME"
 
 # ------------------------------------------------------- 1. the core binary --
-if [ ! -x "$CORE_BIN" ]; then
-  printf 'live-core: downloading %s (pinned %s)\n' "$ASSET" "$PINNED_VERSION"
-  curl -fL --retry 3 -o "$LIVE_DIR/$ASSET" "$BASE_URL/$PINNED_VERSION/$ASSET"
-  gunzip -c "$LIVE_DIR/$ASSET" >"$CORE_BIN"
-  rm -f "$LIVE_DIR/$ASSET"
-  chmod +x "$CORE_BIN"
-  [ -s "$CORE_BIN" ] || {
+if [ ! -x "$CORE_BIN" ] || [ "$(sha256sum "$CORE_BIN" | cut -d' ' -f1)" != "$EXPECTED_BINARY_SHA256" ]; then
+  ARCHIVE_PATH="$LIVE_DIR/$ASSET"
+  TEMP_CORE="$CORE_BIN.tmp"
+  printf 'live-core: downloading locked %s (%s)\n' "$ASSET" "$PINNED_VERSION"
+  curl -fL --retry 3 -o "$ARCHIVE_PATH" "$BASE_URL/$PINNED_VERSION/$ASSET"
+  ARCHIVE_SHA256="$(sha256sum "$ARCHIVE_PATH" | cut -d' ' -f1)"
+  [ "$ARCHIVE_SHA256" = "$EXPECTED_ARCHIVE_SHA256" ] || {
+    printf 'live-core: archive digest mismatch for %s\n' "$ASSET" >&2
+    exit 2
+  }
+  gunzip -c "$ARCHIVE_PATH" >"$TEMP_CORE"
+  rm -f "$ARCHIVE_PATH"
+  [ -s "$TEMP_CORE" ] || {
     printf 'live-core: extracted core is empty\n' >&2
     exit 2
   }
+  BINARY_SHA256="$(sha256sum "$TEMP_CORE" | cut -d' ' -f1)"
+  [ "$BINARY_SHA256" = "$EXPECTED_BINARY_SHA256" ] || {
+    printf 'live-core: binary digest mismatch for %s\n' "$LOCKED_BINARY" >&2
+    exit 2
+  }
+  chmod +x "$TEMP_CORE"
+  mv -f "$TEMP_CORE" "$CORE_BIN"
 fi
 CORE_SHA256="$(sha256sum "$CORE_BIN" | cut -d' ' -f1)"
+[ "$CORE_SHA256" = "$EXPECTED_BINARY_SHA256" ] || {
+  printf 'live-core: installed binary does not match the Mihomo asset lock\n' >&2
+  exit 2
+}
 printf 'live-core: %s (sha256 %s)\n' "$CORE_BIN" "$CORE_SHA256"
 
 # -------------------------------------------------------- 2. config + start --
@@ -187,6 +254,7 @@ if [ -f "$MANIFEST" ]; then
   cp "$MANIFEST" "$MANIFEST_PREVIOUS"
 fi
 export INFILTRATOR_BEVY_CONTROLLER="http://$CONTROLLER"
+export INFILTRATOR_BEVY_FEATURES="capture-controller"
 export INFILTRATOR_CAPTURE_SCENARIOS="overview-live"
 if ! bash "$REPO/scripts/capture-bevy-matrix.sh"; then
   printf 'live capture FAILED: see the matrix output above\n' >&2

@@ -2,10 +2,9 @@
 #
 # This crate is NOT a member of the repository workspace (it declares its own
 # empty [workspace] so `cargo build --workspace` at the repo root ignores it).
-# It is built by android/bevy-host/build.gradle.kts for aarch64-linux-android.
+# It is built by android/bevy-host/build.gradle.kts for shipped Android ABIs.
 #
-# See ../README.md. Nothing here is claimed verified until the Gradle/NDK/device
-# checklist passes.
+# See ../README.md for build and device evidence status.
 
 [package]
 name = "infiltrator-bevy-android-driver"
@@ -19,10 +18,16 @@ name = "infiltrator_bevy_android"
 crate-type = ["cdylib"]
 
 [dependencies]
-# `bevy-host` links the Bevy UI renderer plus the Android product composition
-# (`product.rs`) and the launch entry (`bevy_host.rs`).
-infiltrator-android = { path = "../../../crates/infiltrator-android", features = ["bevy-host"] }
+# The NativeActivity driver owns only the Bevy surface. Android application
+# state and commands are obtained through the typed :vpn IPC client.
+infiltrator-bevy-ui = { path = "../../../crates/infiltrator-bevy-ui", default-features = false, features = ["ui-application-projections"] }
+infiltrator-contract = { path = "../../../crates/infiltrator-contract" }
+serde_json = "1"
+serde = { version = "1", features = ["derive"] }
+
+[target.'cfg(target_os = "android")'.dependencies]
 android-activity = { version = "0.6.1", features = ["native-activity"] }
 bevy_android = "=0.20.0"
+jni = "0.22.4"
 
 [workspace]

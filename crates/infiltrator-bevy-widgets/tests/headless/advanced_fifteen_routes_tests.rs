@@ -11,7 +11,7 @@ use infiltrator_bevy_widgets::boot_cache::{BootPipelineCache, StaticByteTable};
 use infiltrator_bevy_widgets::chaos::{ChaosFaultConfig, MonkeyExplorerBot};
 use infiltrator_bevy_widgets::gamepad_ui::GamepadScrollState;
 use infiltrator_bevy_widgets::mobile_view::{
-    CameraPixelFormat, CameraTextureFeed, NativePlatformViewSlot,
+    CameraPixelFormat, CameraTextureFeed, NativePlatformViewSlot, PlatformViewTransition,
 };
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::sandbox::SandboxedWidgetInstance;
@@ -583,11 +583,12 @@ fn test_advanced_ecosystem_round_five_capabilities() {
     use infiltrator_bevy_widgets::auto_heal::AutoRollbackTransaction;
     use infiltrator_bevy_widgets::boot_cache::ZeroAllocBudgetMeter;
     use infiltrator_bevy_widgets::chart::bezier::CatmullRomSpline;
-    use infiltrator_bevy_widgets::list::scroll_core::{DynamicHeightIndex, ScrollAnchorBookmark};
+    use infiltrator_bevy_widgets::list::scroll_core::ScrollAnchorBookmark;
     use std::time::Duration;
+    use zhuge_ui_core::virtual_list::VariableExtentIndex;
 
     // 1. Scroll Anchor Bookmark
-    let index = DynamicHeightIndex::new(10, 40.0);
+    let index = VariableExtentIndex::new(10, 40.0);
     let bookmark = ScrollAnchorBookmark::create(105.0, &index);
     assert_eq!(bookmark.item_index, 2);
     assert_eq!(bookmark.restore_scroll_offset(&index), 105.0);
@@ -733,9 +734,13 @@ fn test_advanced_ecosystem_round_eight_capabilities() {
 
     // 5. Platform view lifecycle host
     let mut pv = PlatformViewLifecycleHost::new("view1");
-    pv.attach(999);
-    assert!(pv.is_attached);
-    assert_eq!(pv.detach(), Some(999));
+    assert_eq!(pv.mount(999), Ok(PlatformViewTransition::Mounted));
+    assert_eq!(
+        pv.unmount(),
+        Ok(PlatformViewTransition::Unmounted {
+            released_handle_id: 999,
+        })
+    );
 }
 
 #[test]

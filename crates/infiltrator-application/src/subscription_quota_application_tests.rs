@@ -5,11 +5,12 @@ use infiltrator_contract::session::SessionToken;
 use infiltrator_contract::snapshot::CoreLifecycle;
 fn core(generation: u64, token: Option<SessionToken>) -> CoreSnapshot {
     CoreSnapshot {
+        identity: None,
         lifecycle: CoreLifecycle::Stopped,
         generation,
         session_token: token,
         revision: 1,
-        proxy_mode: None,
+        routing_intent: Default::default(),
         core_version: None,
         sampled_at_epoch_ms: None,
         failure: None,

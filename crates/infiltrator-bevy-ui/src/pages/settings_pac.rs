@@ -10,17 +10,19 @@ use bevy::ecs::hierarchy::{ChildOf, Children};
 use bevy::ecs::observer::On;
 use bevy::ecs::query::{Has, With};
 use bevy::ecs::system::{Commands, Query, Res, SystemParam};
+use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::{Scene, bsn};
 use bevy::ui::Checked;
 use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, Val,
-    percent, px,
+    AlignItems, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, percent,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button, Checkbox, ValueChange};
 use infiltrator_application::host_network_projection::pac;
+use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::text_input::state::TextFieldInput;
@@ -48,7 +50,7 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                     Node {
                         width: percent(100),
                         flex_direction: FlexDirection::Column,
-                        row_gap: Val::Px(space::S6),
+                        row_gap: rem(space::S6),
                     }
                     Children [
                         LocalizedText::plain("settings_pac_title") TextRole(Role::BodyStrong)
@@ -57,10 +59,10 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                             width: percent(100),
                             align_items: AlignItems::Center,
                             justify_content: JustifyContent::SpaceBetween,
-                            padding: UiRect::all(Val::Px(space::S8)),
-                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                            padding: UiRect::all(rem(space::S8)),
+                            border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                         }
-                        BackgroundColor({ palette.surface_elevated })
+                        ThemeBackgroundColor({ Token::SurfaceElevated })
                         PacToggle
                         Children [
                             @{ localized_checkbox_scene(LocalizedText::plain("pac_enable_service"), matches!(projection.pac.state, PacServiceState::Running { .. }), palette) }
@@ -72,12 +74,12 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                             width: percent(100),
                             align_items: AlignItems::Center,
                             justify_content: JustifyContent::SpaceBetween,
-                            padding: UiRect::all(Val::Px(space::S8)),
+                            padding: UiRect::all(rem(space::S8)),
                         }
                         Children [
                             LocalizedText::plain("settings_pac_bypass_label") TextRole(Role::Body)
                             --
-                            Node { width: px(360.0) }
+                            Node { width: rem(360.0) }
                             PacBypassField
                             Children [
                                 @{ text_field_with_placeholder_scene(bypass, "localhost, *.lan, example.com".to_owned(), palette) }
@@ -91,13 +93,13 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                         }
                         Children [
                             Node {
-                                min_height: px(palette.control_height_px),
-                                padding: UiRect::horizontal(Val::Px(space::S12)),
+                                min_height: rem(palette.control_height_px),
+                                padding: UiRect::horizontal(rem(space::S12)),
                                 align_items: AlignItems::Center,
                                 justify_content: JustifyContent::Center,
-                                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                             }
-                            BackgroundColor({ palette.accent })
+                            ThemeBackgroundColor({ Token::Accent })
                             PacApplyButton
                             Button
                             Children [

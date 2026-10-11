@@ -34,8 +34,8 @@ fn shell_mounts_camera_content_slot_and_stamped_header() {
     let palette = UiPalette::new(&Theme::dark());
     assert_eq!(ink.0, palette.ink, "heading ink stamped from tokens");
     assert!(
-        matches!(font.font_size, FontSize::Px(size) if size == palette.heading_font_px),
-        "heading size stamped from the type scale"
+        matches!(font.font_size, FontSize::Rem(f) if (f * REM_BASE - palette.heading_font_px).abs() < 1e-4),
+        "heading size stamped from the type scale through the rem channel"
     );
 }
 
@@ -97,10 +97,10 @@ fn test_shell_header_history_and_status_indicators() {
         "GlobalStatusDot must be mounted"
     );
 
-    let mut mode_capsule_query = world.query::<(Entity, &GlobalModeCapsule)>();
+    let mut mode_capsule_query = world.query::<(Entity, &RoutingIntentStatusCapsule)>();
     assert!(
         mode_capsule_query.iter(world).next().is_some(),
-        "GlobalModeCapsule must be mounted"
+        "RoutingIntentStatusCapsule must be mounted"
     );
 
     // Trigger back button activation

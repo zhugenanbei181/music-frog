@@ -8,8 +8,9 @@ use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use crate::update::core::profile_apply::activate_profile;
 use iced::Task;
+use infiltrator_application::profile_application::ProfileActivationOutcome;
 use infiltrator_application::profile_application::ProfileApplication;
-use infiltrator_contract::error::{InfiltratorError, from_mihomo};
+use infiltrator_contract::error::{InfiltratorError, from_backend};
 use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_domain::config::validate_yaml;
 use infiltrator_domain::profile_converter::ProfileConverter;
@@ -53,7 +54,7 @@ impl AppState {
                         let profile_name = sanitize_profile_name(&name)
                             .map_err(|e| InfiltratorError::Config(e.to_string()))?;
                         let cm = config_manager().await?;
-                        let current = cm.get_current().await.map_err(from_mihomo)?;
+                        let current = cm.get_current().await.map_err(from_backend)?;
                         if runtime.is_some() && current == profile_name {
                             return Err(InfiltratorError::Config(
                                 Lang(&copy_locale)
@@ -67,12 +68,11 @@ impl AppState {
                             .await
                             .map_err(|failure| InfiltratorError::Config(failure.message))?;
 
-                        let reloaded = if activate {
-                            activate_profile(runtime, &profile_name).await?
-                        } else {
-                            false
+                        let activation = match activate {
+                            true => Some(activate_profile(runtime, &profile_name).await?),
+                            false => None,
                         };
-                        Ok(reloaded)
+                        Ok(activation)
                     },
                     Message::ProfileImported,
                 )
@@ -80,9 +80,8 @@ impl AppState {
             Message::ProfileImported(result) => {
                 self.profile.is_importing = false;
                 match result {
-                    Ok(reloaded) => {
+                    Ok(activation) => {
                         self.invalidate_rules_dns_views();
-                        let activate = self.profile.import_activate;
                         self.profile.import_url.clear();
                         self.profile.import_name.clear();
                         self.profile.import_activate = false;
@@ -93,10 +92,21 @@ impl AppState {
                                 ToastStatus::Success,
                             )),
                         ];
-                        if activate && !reloaded {
-                            tasks.push(Task::done(Message::StartProxy));
-                        } else if reloaded && let Some(runtime) = self.runtime.runtime.clone() {
-                            self.sync_runtime_slot(Some(runtime));
+                        match activation {
+                            None => {}
+                            Some(
+                                ProfileActivationOutcome::AlreadySelectedWithoutRuntime
+                                | ProfileActivationOutcome::SelectedWithoutRuntime,
+                            ) => tasks.push(Task::done(Message::StartCore)),
+                            Some(
+                                ProfileActivationOutcome::AlreadySelectedWithRuntime
+                                | ProfileActivationOutcome::SelectedAndApplied
+                                | ProfileActivationOutcome::CurrentProfileUpdatedAndApplied,
+                            ) => {
+                                if let Some(runtime) = self.runtime.runtime.clone() {
+                                    self.sync_runtime_slot(Some(runtime));
+                                }
+                            }
                         }
                         Task::batch(tasks)
                     }
@@ -179,8 +189,8 @@ impl AppState {
                             .map_err(|e| InfiltratorError::Config(e.to_string()))?;
 
                         let cm = config_manager().await?;
-                        let current = cm.get_current().await.map_err(from_mihomo)?;
-                        let reloaded = match (runtime, current == profile_name) {
+                        let current = cm.get_current().await.map_err(from_backend)?;
+                        let activation = match (runtime, current == profile_name) {
                             (Some(runtime), true) => {
                                 ManagedRuntime::apply_profile_content(
                                     runtime.as_ref(),
@@ -189,26 +199,30 @@ impl AppState {
                                 )
                                 .await
                                 .map_err(|error| InfiltratorError::Config(error.to_string()))?;
-                                true
+                                Some(ProfileActivationOutcome::CurrentProfileUpdatedAndApplied)
                             }
                             (runtime, false) => {
                                 cm.save(&profile_name, &content)
                                     .await
-                                    .map_err(from_mihomo)?;
-                                if activate {
-                                    activate_profile(runtime, &profile_name).await?
-                                } else {
-                                    false
+                                    .map_err(from_backend)?;
+                                match activate {
+                                    true => Some(activate_profile(runtime, &profile_name).await?),
+                                    false => None,
                                 }
                             }
                             (None, true) => {
                                 cm.save(&profile_name, &content)
                                     .await
-                                    .map_err(from_mihomo)?;
-                                false
+                                    .map_err(from_backend)?;
+                                match activate {
+                                    true => Some(
+                                        ProfileActivationOutcome::AlreadySelectedWithoutRuntime,
+                                    ),
+                                    false => None,
+                                }
                             }
                         };
-                        Ok(reloaded)
+                        Ok(activation)
                     },
                     Message::LocalProfileImported,
                 )
@@ -216,9 +230,8 @@ impl AppState {
             Message::LocalProfileImported(result) => {
                 self.profile.is_importing_local = false;
                 match result {
-                    Ok(reloaded) => {
+                    Ok(activation) => {
                         self.invalidate_rules_dns_views();
-                        let activate = self.profile.local_import_activate;
                         self.profile.local_import_path.clear();
                         self.profile.local_import_name.clear();
                         self.profile.local_import_activate = false;
@@ -229,10 +242,21 @@ impl AppState {
                                 ToastStatus::Success,
                             )),
                         ];
-                        if activate && !reloaded {
-                            tasks.push(Task::done(Message::StartProxy));
-                        } else if reloaded && let Some(runtime) = self.runtime.runtime.clone() {
-                            self.sync_runtime_slot(Some(runtime));
+                        match activation {
+                            None => {}
+                            Some(
+                                ProfileActivationOutcome::AlreadySelectedWithoutRuntime
+                                | ProfileActivationOutcome::SelectedWithoutRuntime,
+                            ) => tasks.push(Task::done(Message::StartCore)),
+                            Some(
+                                ProfileActivationOutcome::AlreadySelectedWithRuntime
+                                | ProfileActivationOutcome::SelectedAndApplied
+                                | ProfileActivationOutcome::CurrentProfileUpdatedAndApplied,
+                            ) => {
+                                if let Some(runtime) = self.runtime.runtime.clone() {
+                                    self.sync_runtime_slot(Some(runtime));
+                                }
+                            }
                         }
                         Task::batch(tasks)
                     }

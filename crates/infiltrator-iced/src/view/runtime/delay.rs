@@ -1,5 +1,5 @@
-//! Runtime page delay-test section: sort control, test URL/timeout inputs,
-//! refresh proxies button, test all delays button, and the per-node delay list
+//! Runtime page latency section: typed sort control, probe URL/timeout inputs,
+//! outbound refresh button, test-all button, and the per-outbound delay list
 //! with country flags, latency status dots, mini progress bars, monospace badges,
 //! and individual test buttons.
 
@@ -15,15 +15,21 @@ use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, SP_MD, tokens};
 use crate::view::{svg_icons, theme};
 use iced::widget::{Space, button, column, container, row, text, text_input};
 use iced::{Alignment, Border, Element, Length, Theme, border};
+use infiltrator_contract::outbound::details::OutboundObservation;
+use infiltrator_contract::outbound::identity::OutboundId;
+use infiltrator_contract::outbound::inventory::OutboundInventoryState;
+use infiltrator_contract::outbound::probe::OutboundProbeBatchScope;
+use infiltrator_contract::runtime_settings::RuntimeDelaySortOrder;
 use infiltrator_shared::country_flags::node_flag_emoji;
 use infiltrator_shared::locales::{Lang, Localizer};
 use std::cmp::Ordering;
+use std::collections::HashSet;
 
 /// Node delay representation: (name, proxy_type, delay_ms).
 pub type DelayNodeItem = (String, String, Option<u32>);
 
 /// Sort delay nodes according to user selection.
-pub fn sort_delay_nodes(nodes: &mut [DelayNodeItem], sort_key: &str) {
+pub fn sort_delay_nodes(nodes: &mut [DelayNodeItem], sort_order: RuntimeDelaySortOrder) {
     nodes.sort_by(|(left_name, _, left_delay), (right_name, _, right_delay)| {
         let compare_delay = |desc: bool| match (left_delay, right_delay) {
             (None, None) => left_name.cmp(right_name),
@@ -42,11 +48,11 @@ pub fn sort_delay_nodes(nodes: &mut [DelayNodeItem], sort_key: &str) {
                 }
             }
         };
-        match sort_key {
-            "name_asc" => left_name.cmp(right_name),
-            "name_desc" => right_name.cmp(left_name),
-            "delay_desc" => compare_delay(true),
-            _ => compare_delay(false),
+        match sort_order {
+            RuntimeDelaySortOrder::NameAscending => left_name.cmp(right_name),
+            RuntimeDelaySortOrder::NameDescending => right_name.cmp(left_name),
+            RuntimeDelaySortOrder::LatencyDescending => compare_delay(true),
+            RuntimeDelaySortOrder::LatencyAscending => compare_delay(false),
         }
     });
 }
@@ -59,25 +65,22 @@ pub(super) fn delay_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Element<
         lang.tr("runtime_delay_sort_name_asc").to_string(),
         lang.tr("runtime_delay_sort_name_desc").to_string(),
     ];
-    let delay_sort_index = match state.runtime.proxy_delay_sort.as_str() {
-        "delay_desc" => 1,
-        "name_asc" => 2,
-        "name_desc" => 3,
-        _ => 0,
+    let delay_sort_index = match state.runtime.runtime_panel_delay_sort_order {
+        RuntimeDelaySortOrder::LatencyAscending => 0,
+        RuntimeDelaySortOrder::LatencyDescending => 1,
+        RuntimeDelaySortOrder::NameAscending => 2,
+        RuntimeDelaySortOrder::NameDescending => 3,
     };
     let delay_sort_control = segmented_control(&delay_sort_labels, delay_sort_index, |index| {
-        let key = match index {
-            1 => "delay_desc",
-            2 => "name_asc",
-            3 => "name_desc",
-            _ => "delay_asc",
-        };
-        Message::UpdateProxyDelaySort(key.to_string())
+        let sort_order = *RuntimeDelaySortOrder::ALL
+            .get(index)
+            .expect("segmented control emits an index from its four labels");
+        Message::SetRuntimePanelDelaySort(sort_order)
     });
 
     // 2. Test all delays button
-    let delay_testing = state.runtime.runtime_testing_all_delays
-        || !state.runtime.runtime_testing_delay_proxy.is_empty();
+    let delay_testing = state.runtime.outbound_probe_batch.is_running()
+        || state.runtime.outbound_probe_pending.is_some();
     let delay_test_all_btn = text_btn(
         if delay_testing {
             lang.tr("runtime_delay_testing_all").to_string()
@@ -89,32 +92,56 @@ pub(super) fn delay_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Element<
         } else {
             style_accent
         },
-        (!delay_testing).then_some(Message::TestAllProxyDelays),
+        (!delay_testing)
+            .then(|| state.outbound_probe_batch_message(OutboundProbeBatchScope::All))
+            .flatten(),
     );
 
     // 3. Extract and sort non-group proxy nodes
+    let collection_ids = state
+        .runtime
+        .outbound_inventory
+        .data
+        .as_ref()
+        .and_then(|inventory| match inventory.inventory() {
+            OutboundInventoryState::Ready { collections, .. } => Some(
+                collections
+                    .iter()
+                    .map(|collection| collection.id.clone())
+                    .collect::<HashSet<_>>(),
+            ),
+            _ => None,
+        })
+        .unwrap_or_default();
+    let mut seen = HashSet::<OutboundId>::new();
     let mut delay_nodes: Vec<DelayNodeItem> = state
         .runtime
-        .proxies
+        .proxy_groups
         .iter()
-        .filter_map(|(name, proxy)| {
-            if proxy.is_group() {
-                None
-            } else {
-                Some((
-                    name.clone(),
-                    proxy.proxy_type().to_string(),
-                    proxy
-                        .history()
-                        .last()
-                        .map(|item| item.delay)
-                        .filter(|delay| *delay > 0),
-                ))
+        .flat_map(|group| &group.proxies)
+        .filter_map(|member| {
+            let id = member.id.as_ref()?;
+            if collection_ids.contains(id)
+                || !seen.insert(id.clone())
+                || matches!(member.current_latency_ms, OutboundObservation::Unsupported)
+            {
+                return None;
             }
+            Some((
+                member.search_name().to_owned(),
+                member
+                    .protocol_display_name
+                    .clone()
+                    .unwrap_or_else(|| "Unknown".to_owned()),
+                member.latency_ms().filter(|delay| *delay > 0),
+            ))
         })
         .collect();
 
-    sort_delay_nodes(&mut delay_nodes, state.runtime.proxy_delay_sort.as_str());
+    sort_delay_nodes(
+        &mut delay_nodes,
+        state.runtime.runtime_panel_delay_sort_order,
+    );
 
     // 4. Build node list
     let mut delay_list = column![].spacing(theme::SP_SM);
@@ -126,15 +153,26 @@ pub(super) fn delay_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Element<
         ));
     } else {
         for (name, proxy_type, delay) in delay_nodes {
-            let is_testing = state.runtime.runtime_testing_all_delays
-                || state.runtime.runtime_testing_delay_proxy == name;
+            let outbound_id = state
+                .runtime
+                .proxy_groups
+                .iter()
+                .flat_map(|group| &group.proxies)
+                .find(|member| member.search_name() == name || member.name == name)
+                .and_then(|member| member.id.clone());
+            let is_testing = state.runtime.outbound_probe_batch.is_running()
+                || state.runtime.outbound_probe_pending.is_some()
+                    && outbound_id.as_ref() == state.runtime.outbound_inspecting.as_ref();
+            let probe_message = outbound_id
+                .as_ref()
+                .and_then(|id| state.outbound_probe_message(id));
             let test_button = compact_test_btn(
                 if is_testing {
                     lang.tr("runtime_delay_testing_one").to_string()
                 } else {
                     lang.tr("runtime_delay_test_one").to_string()
                 },
-                (!is_testing).then_some(Message::TestProxyDelay(name.clone())),
+                (!is_testing).then_some(probe_message).flatten(),
             );
 
             let flag = node_flag_emoji(&name);
@@ -177,7 +215,7 @@ pub(super) fn delay_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Element<
     let header_trailing = row![
         delay_sort_control,
         Space::new().width(theme::SP_SM),
-        icon_button(Icon::RefreshCw, 14.0, Message::LoadProxies),
+        icon_button(Icon::RefreshCw, 14.0, Message::RefreshOutboundInventory),
         Space::new().width(theme::SP_SM),
         delay_test_all_btn,
     ]
@@ -188,10 +226,10 @@ pub(super) fn delay_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Element<
         svg_icons::icon_themed(Icon::Globe, 14.0, |t: &Theme| tokens(t).text_tertiary),
         Space::new().width(theme::SP_XS),
         text_input(
-            lang.tr("runtime_delay_test_url_placeholder").as_ref(),
-            &state.runtime.runtime_delay_test_url
+            lang.tr("runtime_probe_url_draft_placeholder").as_ref(),
+            &state.runtime.runtime_probe_url_draft
         )
-        .on_input(Message::UpdateDelayTestUrl)
+        .on_input(Message::UpdateRuntimeProbeUrlDraft)
         .padding([8, 12])
         .size(12)
         .width(Length::Fill)
@@ -200,10 +238,10 @@ pub(super) fn delay_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Element<
         svg_icons::icon_themed(Icon::Activity, 14.0, |t: &Theme| tokens(t).text_tertiary),
         Space::new().width(theme::SP_XS),
         text_input(
-            lang.tr("runtime_delay_timeout_ms_placeholder").as_ref(),
-            &state.runtime.runtime_delay_timeout_ms
+            lang.tr("runtime_probe_timeout_draft_placeholder").as_ref(),
+            &state.runtime.runtime_probe_timeout_draft
         )
-        .on_input(Message::UpdateDelayTimeoutMs)
+        .on_input(Message::UpdateRuntimeProbeTimeoutDraft)
         .padding([8, 12])
         .size(12)
         .font(MONO)

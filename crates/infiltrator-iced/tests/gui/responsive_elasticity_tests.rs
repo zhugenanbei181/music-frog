@@ -168,25 +168,31 @@ fn overview_card_order_follows_shared_layout_moves() {
     );
 
     // Move the first card down: it swaps with the second card.
-    let _ = state.update(Message::MoveOverviewCardDown(OverviewCardKind::ModeSegment));
+    let _ = state.update(Message::MoveOverviewCardDown(
+        OverviewCardKind::RoutingIntentSegment,
+    ));
     assert_eq!(state.diag.overview_card_order[0], OverviewCardKind::Traffic);
     assert_eq!(
         state.diag.overview_card_order[1],
-        OverviewCardKind::ModeSegment
+        OverviewCardKind::RoutingIntentSegment
     );
 
     // Move it back up restores the canonical order.
-    let _ = state.update(Message::MoveOverviewCardUp(OverviewCardKind::ModeSegment));
+    let _ = state.update(Message::MoveOverviewCardUp(
+        OverviewCardKind::RoutingIntentSegment,
+    ));
     assert_eq!(
         state.diag.overview_card_order,
         OverviewCardKind::DEFAULT_ORDER.to_vec()
     );
 
     // Moving the top card up is a no-op (already first).
-    let _ = state.update(Message::MoveOverviewCardUp(OverviewCardKind::ModeSegment));
+    let _ = state.update(Message::MoveOverviewCardUp(
+        OverviewCardKind::RoutingIntentSegment,
+    ));
     assert_eq!(
         state.diag.overview_card_order[0],
-        OverviewCardKind::ModeSegment
+        OverviewCardKind::RoutingIntentSegment
     );
 
     // After a custom order, reset restores the default.

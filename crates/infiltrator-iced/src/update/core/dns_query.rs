@@ -8,6 +8,7 @@ use infiltrator_contract::dns_query::DnsQueryOperationId;
 use infiltrator_contract::error::{ErrorCode, Failure};
 impl AppState {
     pub(super) fn update_dns_query(&mut self, action: QueryAction) -> Task<Message> {
+        let command_ingress = self.command_ingress();
         let model = &mut self.diag.dns_query;
         match action {
             QueryAction::Open => model.show(),
@@ -29,7 +30,7 @@ impl AppState {
                 let Ok((token, request)) = model.begin() else {
                     return Task::none();
                 };
-                let Some(application) = self.commands.clone() else {
+                let Some(application) = command_ingress else {
                     model.finish(
                         token,
                         Err(Failure::new(

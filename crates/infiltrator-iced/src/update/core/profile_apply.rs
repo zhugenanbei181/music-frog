@@ -9,7 +9,7 @@
 use crate::configs_dir::config_manager;
 use crate::types::message::Message;
 use iced::Task;
-use infiltrator_application::profile_application::ProfileApplication;
+use infiltrator_application::profile_application::{ProfileActivationOutcome, ProfileApplication};
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_ports::host_runtime::HostRuntime;
@@ -84,10 +84,10 @@ pub(crate) async fn save_profile_content(
 pub(crate) async fn activate_profile(
     runtime: Option<Arc<dyn HostRuntime>>,
     profile: &str,
-) -> Result<bool, InfiltratorError> {
+) -> Result<ProfileActivationOutcome, InfiltratorError> {
     let store = config_manager().await?;
     ProfileApplication::new(store)
         .activate_profile(runtime, profile)
         .await
-        .map_err(|failure| InfiltratorError::Mihomo(failure.message))
+        .map_err(|failure| InfiltratorError::Backend(failure.message))
 }

@@ -2,7 +2,7 @@
 //! Native controls drive actual Core commands against an isolated source-bound storage adapter.
 use crate::command_harness::recording_application;
 use crate::native_input::click_entity;
-use crate::support::headless_plugins;
+use crate::support::{command_pump_for_observed_snapshot, headless_plugins};
 use bevy::app::App;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::query::{With, Without};
@@ -11,7 +11,6 @@ use bevy::ui::{Display, InteractionDisabled, Node};
 use bevy::ui_widgets::ButtonPlugin;
 use infiltrator_application::command_application::CommandApplication;
 use infiltrator_bevy_ui::app::ShellPlugin;
-use infiltrator_bevy_ui::command::CommandPumpPlugin;
 use infiltrator_bevy_ui::pages::snapshot_restore::{OpenSnapshotRestore, RestoreState};
 use infiltrator_bevy_ui::pages::snapshot_restore_scene::{
     RestoreControl, RestoreLine, RestoreOverlay,
@@ -37,7 +36,7 @@ fn setup() -> (App, SnapshotRestoreFixture) {
     app.add_plugins((
         ShellPlugin::default(),
         PagesPlugin::new(DemoOverviewSource::running()),
-        CommandPumpPlugin::for_application(Arc::new(core)),
+        command_pump_for_observed_snapshot(Arc::new(core)),
     ));
     app.add_plugins(ButtonPlugin);
     app.update();

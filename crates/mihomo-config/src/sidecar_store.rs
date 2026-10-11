@@ -5,12 +5,21 @@ use std::io::{Error, ErrorKind};
 use std::path::Path;
 use std::process::id;
 use std::sync::atomic::{AtomicU64, Ordering};
-use tokio::fs::{OpenOptions, create_dir_all, read_to_string, remove_file, rename};
+use tokio::fs::{OpenOptions, create_dir_all, read, remove_file, rename};
 use tokio::io::AsyncWriteExt;
 
 pub(crate) async fn read_optional(path: &Path) -> Result<Option<String>, PortError> {
-    match read_to_string(path).await {
-        Ok(text) => Ok(Some(text)),
+    let Some(bytes) = read_optional_bytes(path).await? else {
+        return Ok(None);
+    };
+    String::from_utf8(bytes)
+        .map(Some)
+        .map_err(|error| PortError::Io(error.to_string()))
+}
+
+pub(crate) async fn read_optional_bytes(path: &Path) -> Result<Option<Vec<u8>>, PortError> {
+    match read(path).await {
+        Ok(bytes) => Ok(Some(bytes)),
         Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),
         Err(error) => Err(io_error(error)),
     }
@@ -27,6 +36,10 @@ pub(crate) async fn remove_optional(path: &Path) -> Result<(), PortError> {
 /// Each writer owns a create-new temporary. Publish only a fully flushed file;
 /// never delete the destination to make replacement appear to succeed.
 pub(crate) async fn write_document(path: &Path, text: &str) -> Result<(), PortError> {
+    write_document_bytes(path, text.as_bytes()).await
+}
+
+pub(crate) async fn write_document_bytes(path: &Path, content: &[u8]) -> Result<(), PortError> {
     static NEXT_TEMPORARY: AtomicU64 = AtomicU64::new(0);
     let parent = path
         .parent()
@@ -51,7 +64,7 @@ pub(crate) async fn write_document(path: &Path, text: &str) -> Result<(), PortEr
         }
     };
     let result = async {
-        file.write_all(text.as_bytes()).await?;
+        file.write_all(content).await?;
         file.sync_all().await?;
         drop(file);
         rename(&temporary, path).await

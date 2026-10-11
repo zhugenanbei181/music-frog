@@ -19,7 +19,8 @@ use iced::window::{Id, Level, resize, set_min_size, set_resizable};
 use iced::{Point, Size, Task, window};
 use infiltrator_contract::mini_hud::MiniHudPlacement;
 use infiltrator_ports::mini_hud_window::MiniHudWindowHandle;
-use std::mem::take;
+use mem::take;
+use std::mem;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 

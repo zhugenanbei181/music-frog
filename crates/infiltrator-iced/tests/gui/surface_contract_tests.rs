@@ -8,6 +8,7 @@ use crate::types::runtime::RuntimeStatus;
 use async_trait::async_trait;
 use infiltrator_application::surface_application::SurfacePump;
 use infiltrator_contract::controller::{ControllerAuthSnapshot, ControllerAuthStatus};
+use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::offline_startup::{
     LocalAssetStatus, OfflineStartupSnapshot, OfflineStartupState,
@@ -25,7 +26,7 @@ use infiltrator_contract::surface_snapshot::{PageId, PageStatus, SurfaceSnapshot
 use infiltrator_contract::traffic_topology::TrafficTopologySnapshot;
 use infiltrator_contract::version::{
     CoreArtifactVerification, CoreChannelSnapshot, CoreChannelStatus, CoreRelease,
-    CoreReleaseChannel, CoreRollbackSnapshot, CoreVersionSnapshot,
+    CoreRollbackSnapshot, CoreVersionSnapshot, EngineReleaseChannel, ReleaseChannelId,
 };
 use infiltrator_ports::application_runtime::{
     ApplicationFuture, ApplicationRuntime, ApplicationSleep,
@@ -230,20 +231,29 @@ fn shared_core_channel_probe_updates_the_iced_kernel_projection() {
         },
     };
     snapshot.versions = CoreVersionSnapshot {
+        engine_id: EngineId::new("mihomo").unwrap(),
         revision: 1,
         channels: vec![CoreChannelSnapshot {
-            channel: CoreReleaseChannel::MetaCore,
+            engine_id: EngineId::new("mihomo").unwrap(),
+            channel: EngineReleaseChannel::new(
+                EngineId::new("mihomo").unwrap(),
+                ReleaseChannelId::new("meta-core").unwrap(),
+            ),
             status: CoreChannelStatus::Ready {
                 release: CoreRelease {
+                    engine_id: EngineId::new("mihomo").unwrap(),
                     version: "v1.19.30".to_owned(),
                     release_date: "2026-08-16".to_owned(),
                 },
             },
         }],
+        channel_failure: None,
         verification: CoreArtifactVerification::Verified {
+            engine_id: EngineId::new("mihomo").unwrap(),
             version: "v1.19.30".to_owned(),
         },
         rollback: CoreRollbackSnapshot {
+            engine_id: EngineId::new("mihomo").unwrap(),
             current: Some("v1.19.30".to_owned()),
             target: Some("v1.19.29".to_owned()),
             history: vec!["v1.19.29".to_owned()],
@@ -254,11 +264,15 @@ fn shared_core_channel_probe_updates_the_iced_kernel_projection() {
     assert_eq!(state.runtime.core_versions.revision, 1);
     assert_eq!(
         state.runtime.core_versions.channels[0].channel,
-        CoreReleaseChannel::MetaCore
+        EngineReleaseChannel::new(
+            EngineId::new("mihomo").unwrap(),
+            ReleaseChannelId::new("meta-core").unwrap(),
+        )
     );
     assert_eq!(
         state.runtime.core_integrity,
         CoreArtifactVerification::Verified {
+            engine_id: EngineId::new("mihomo").unwrap(),
             version: "v1.19.30".to_owned(),
         }
     );

@@ -10,7 +10,7 @@ use crate::types::message::Message;
 use crate::types::runtime::RuntimeStreamState;
 use crate::view::runtime::{connection_search, connections_controls};
 use crate::view_root::interaction_regions::InteractionRegion;
-use infiltrator_application::byte_format::format_bytes;
+use infiltrator_shared::byte_units::format_bytes;
 
 use crate::view::component_forms::{row_card_surface, style_danger, style_ghost, text_btn};
 use crate::view::components::{
@@ -454,7 +454,7 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
                 if !process_name.is_empty() {
                     headline_items.push(
                         if let Some(search) = state.diag.connection_groups.search_row(&conn.id) {
-                            connection_search::highlighted(state, &search.process_name, 12)
+                            connection_search::connection_text(state, &search.process_name, 12)
                         } else {
                             chip(process_name)
                         },
@@ -464,7 +464,7 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
 
                 let search = state.diag.connection_groups.search_row(&conn.id);
                 let host_text = if let Some(search) = search {
-                    connection_search::highlighted(state, &search.endpoint, 13)
+                    connection_search::connection_text(state, &search.endpoint, 13)
                 } else {
                     text(host).size(13).into()
                 };
@@ -517,7 +517,7 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
                 let headline = row(headline_items).align_y(Alignment::Center);
                 let match_detail = search
                     .filter(|row| !row.matched_term.is_empty())
-                    .map(|row| connection_search::highlighted(state, &row.matched_term, 11));
+                    .map(|row| connection_search::connection_text(state, &row.matched_term, 11));
 
                 // Subline row: rule payload, destination host:port, optional chains, source:port
                 let mut subline_items: Vec<Element<'_, Message>> = vec![

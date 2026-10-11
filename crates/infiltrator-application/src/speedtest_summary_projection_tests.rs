@@ -1,92 +1,84 @@
-use super::{dead_archive, egress_label, history_lines, metrics_label, node_metrics, rating_label};
-use infiltrator_contract::speedtest::{JitterCalculation, SpeedtestScope, SpeedtestSnapshot};
+use super::{dead_archive, history_lines, metrics_label, node_metrics};
+use infiltrator_contract::core_identity::EngineId;
+use infiltrator_contract::outbound::identity::OutboundId;
+use infiltrator_contract::speedtest::{
+    HistoricalSpeedtestRecord, SpeedtestConcurrency, SpeedtestOutboundResult,
+    SpeedtestResultState, SpeedtestRunId, SpeedtestSampleOutcome, SpeedtestSnapshot,
+};
 
-#[test]
-fn partial_probes_cannot_claim_packet_loss_or_stability_and_measured_zero_is_retained() {
-    let snapshot = SpeedtestSnapshot::demo_fixture();
-    let mut node = snapshot.fastest_node().unwrap().clone();
-    node.node_name = "node {rating}/中文🙂".into();
-    node.bandwidth_mbps = Some(0.0);
-    node.jitter = None;
-    let metrics = node_metrics(&node);
-    assert_eq!(metrics.bandwidth, "0.0 Mbps");
-    assert_eq!(metrics.jitter, "—");
-    assert_eq!(metrics.loss, "—");
-    assert!(metrics.rating.is_none());
-    assert_eq!(metrics.stars, "—");
-    for locale in ["zh-CN", "en-US"] {
-        let label = metrics_label(Some(&node), locale);
-        assert!(label.starts_with("node {rating}/中文🙂"));
-        assert!(!label.contains("Excellent"));
-        assert!(!label.contains("极佳"));
+fn outbound_result(
+    id: &str,
+    display_name: &str,
+    samples: Vec<SpeedtestSampleOutcome>,
+    state: SpeedtestResultState,
+) -> SpeedtestOutboundResult {
+    SpeedtestOutboundResult {
+        outbound_id: OutboundId::new(EngineId::new("fixture").unwrap(), id).unwrap(),
+        display_name: Some(display_name.to_owned()),
+        protocol_display_name: Some("Shadowsocks".to_owned()),
+        samples,
+        state,
+        tested_at_epoch_ms: 1_700_000_000_000,
     }
-    for samples in [&[None, None][..], &[Some(0), None][..]] {
-        node.jitter = Some(JitterCalculation::from_samples(samples));
-        let metrics = node_metrics(&node);
-        assert_eq!(
-            metrics.jitter, "—",
-            "jitter needs a pair of successful RTTs"
-        );
-        assert_eq!(
-            metrics.loss,
-            if samples[0].is_some() {
-                "50.0%"
-            } else {
-                "100.0%"
-            }
-        );
-        assert!(metrics.rating.is_some());
-    }
-    node.jitter = Some(JitterCalculation::from_samples(&[Some(0), Some(0)]));
-    let metrics = node_metrics(&node);
-    assert_eq!(metrics.jitter, "0.0 ms");
-    assert_eq!(metrics.loss, "0.0%");
-    assert_eq!(rating_label(metrics.rating, "en-US"), "Excellent (0%)");
-    assert_eq!(metrics.stars.chars().count(), 5);
+}
+
+fn snapshot() -> SpeedtestSnapshot {
+    let mut snapshot = SpeedtestSnapshot::demo_fixture();
+    snapshot.concurrency = SpeedtestConcurrency::new(12).unwrap();
+    snapshot.results = vec![
+            outbound_result(
+                "proxy-a",
+                "Node A",
+                vec![
+                    SpeedtestSampleOutcome::Measured { delay_ms: 40 },
+                    SpeedtestSampleOutcome::TimedOut,
+                    SpeedtestSampleOutcome::Measured { delay_ms: 44 },
+                ],
+                SpeedtestResultState::Completed,
+            ),
+            outbound_result(
+                "proxy-b",
+                "Node B",
+                vec![
+                    SpeedtestSampleOutcome::TimedOut,
+                    SpeedtestSampleOutcome::TimedOut,
+                ],
+                SpeedtestResultState::TimedOut,
+            ),
+        ];
+    snapshot.recent_history = vec![HistoricalSpeedtestRecord {
+            run_id: SpeedtestRunId::new(5).unwrap(),
+            timestamp_epoch_ms: 1_700_000_000_000,
+            target: None,
+            total_targets: 2,
+            completed_targets: 2,
+            avg_latency_ms: Some(42.0),
+            avg_jitter_ms: Some(4.0),
+        }];
+    snapshot
 }
 
 #[test]
-fn history_keeps_reverse_order_opaque_scope_unknown_values_and_out_of_range_time() {
-    let mut snapshot = SpeedtestSnapshot::demo_fixture();
-    let mut first = snapshot.recent_history[0].clone();
-    first.scope = SpeedtestScope::SingleGroup("first {time}/中文🙂".into());
-    first.avg_latency_ms = Some(0.0);
-    first.avg_jitter_ms = None;
-    first.avg_bandwidth_mbps = None;
-    let mut second = first.clone();
-    second.scope = SpeedtestScope::SingleNode("second {scope}/🙂".into());
-    second.timestamp_epoch_ms = u64::MAX;
-    snapshot.recent_history = vec![first, second];
-    let lines = history_lines(&snapshot, "en-US");
-    assert_eq!(lines.len(), 2);
-    assert!(lines[0].starts_with("— · Node second {scope}/🙂"));
-    assert!(lines[1].contains("Group first {time}/中文🙂"));
-    assert!(lines[1].contains("Avg latency 0.0 ms"));
-    assert!(lines[1].contains("Avg jitter —"));
-    assert!(lines[1].contains("Avg bandwidth —"));
+fn metrics_derive_from_preserved_samples_and_typed_result_identity() {
+    let snapshot = snapshot();
+    let first = &snapshot.results[0];
+    let metrics = node_metrics(first);
+    assert_eq!(first.outbound_id.value(), "proxy-a");
+    assert_eq!(first.calculation().unwrap().sample_count, 3);
+    assert!(metrics.jitter.ends_with("ms"));
+    assert!(metrics.loss.ends_with('%'));
+    let caption = metrics_label(Some(first), "en-US");
+    assert!(caption.contains("Node A"));
 }
 
 #[test]
-fn archive_reports_full_count_and_explicit_bounded_names_without_translating_egress() {
-    let mut snapshot = SpeedtestSnapshot::demo_fixture();
-    let base = snapshot.dead_nodes()[0].clone();
-    snapshot.node_results.clear();
-    for index in 0..6 {
-        let mut node = base.clone();
-        node.node_name = format!("dead {index} {{count}}/🙂");
-        snapshot.node_results.insert(index.to_string(), node);
-    }
+fn timeout_archive_and_history_use_explicit_typed_outcomes() {
+    let snapshot = snapshot();
     let archive = dead_archive(&snapshot, "en-US");
-    assert_eq!(archive.count, 6);
-    assert!(archive.names.contains("dead 0 {count}/🙂"));
-    assert!(archive.names.ends_with("(+2)"));
-    assert!(!archive.names.contains("dead 5"));
-    assert!(archive.caption.starts_with("Unreachable 6"));
-    let mut node = base;
-    node.outbound_ip = Some("endpoint {status}/🙂".into());
-    node.outbound_country = None;
-    assert_eq!(
-        egress_label(Some(&node), "en-US"),
-        "Egress endpoint {status}/🙂 · Egress not probed"
-    );
+    assert_eq!(archive.count, 1);
+    assert_eq!(archive.names, "Node B");
+    let lines = history_lines(&snapshot, "en-US");
+    assert_eq!(lines.len(), 1);
+    assert!(lines[0].contains("42.0 ms"));
+    assert!(lines[0].contains("4.0 ms"));
 }

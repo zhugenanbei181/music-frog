@@ -1,6 +1,6 @@
 //! RAII background task lifecycle governance and safe teardown infrastructure.
 //!
-//! Charter (docs/bevy-ui/BEVY_UI_FRONTEND.md):
+//! Charter (crates/infiltrator-bevy-ui/docs/BEVY_UI_FRONTEND.md):
 //! Strictly no orphan tasks ("严禁管杀不管埋"). Every background worker, pump, and stream
 //! carries an explicit cancellation token and auto-terminates on drop within timeout.
 
@@ -58,6 +58,13 @@ pub struct LifecycleTaskHandle {
     join_handle: Option<JoinHandle<()>>,
 }
 
+/// Result of requesting cancellation and waiting for the worker thread.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CancelWaitResult {
+    Exited,
+    TimedOut,
+}
+
 impl LifecycleTaskHandle {
     pub fn spawn<F>(name: impl Into<String>, task_fn: F) -> Self
     where
@@ -89,20 +96,22 @@ impl LifecycleTaskHandle {
     }
 
     /// Cancel and block waiting for worker thread exit up to `timeout`.
-    pub fn cancel_and_wait(&mut self, timeout: Duration) -> bool {
+    pub fn cancel_and_wait(&mut self, timeout: Duration) -> CancelWaitResult {
         self.cancel();
-        if let Some(handle) = self.join_handle.take() {
+        if let Some(handle) = self.join_handle.as_ref() {
             let start = Instant::now();
             while !handle.is_finished() {
                 if start.elapsed() >= timeout {
-                    return false;
+                    return CancelWaitResult::TimedOut;
                 }
                 sleep(Duration::from_millis(1));
             }
-            let _ = handle.join();
-            true
+            if let Some(handle) = self.join_handle.take() {
+                let _ = handle.join();
+            }
+            CancelWaitResult::Exited
         } else {
-            true
+            CancelWaitResult::Exited
         }
     }
 }
@@ -120,6 +129,13 @@ impl Drop for LifecycleTaskHandle {
 #[derive(Resource, Debug, Default)]
 pub struct TaskLifecycleRegistry {
     tasks: Vec<LifecycleTaskHandle>,
+}
+
+/// Outcome of a registry shutdown attempt.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum TaskTerminationReport {
+    Complete,
+    TimedOut { task_names: Vec<String> },
 }
 
 impl TaskLifecycleRegistry {
@@ -141,17 +157,37 @@ impl TaskLifecycleRegistry {
     }
 
     /// Terminate and join all managed tasks.
-    pub fn terminate_all(&mut self) {
-        for task in &mut self.tasks {
-            task.cancel_and_wait(Duration::from_millis(50));
+    pub fn terminate_all(&mut self) -> TaskTerminationReport {
+        let mut timed_out = Vec::new();
+        let mut retained = Vec::new();
+        for mut task in self.tasks.drain(..) {
+            match task.cancel_and_wait(Duration::from_millis(50)) {
+                CancelWaitResult::Exited => {}
+                CancelWaitResult::TimedOut => {
+                    timed_out.push(task.name.clone());
+                    retained.push(task);
+                }
+            }
         }
-        self.tasks.clear();
+        self.tasks = retained;
+        if timed_out.is_empty() {
+            TaskTerminationReport::Complete
+        } else {
+            TaskTerminationReport::TimedOut {
+                task_names: timed_out,
+            }
+        }
     }
 }
 
 impl Drop for TaskLifecycleRegistry {
     fn drop(&mut self) {
-        self.terminate_all();
+        match self.terminate_all() {
+            TaskTerminationReport::Complete => {}
+            TaskTerminationReport::TimedOut { task_names } => {
+                eprintln!("background tasks exceeded shutdown wait: {task_names:?}");
+            }
+        }
     }
 }
 
@@ -479,9 +515,28 @@ mod tests {
         assert!(!handle.is_cancelled());
 
         // Cancel and wait for exit
-        assert!(handle.cancel_and_wait(Duration::from_millis(100)));
+        assert_eq!(
+            handle.cancel_and_wait(Duration::from_millis(100)),
+            CancelWaitResult::Exited
+        );
         assert!(handle.is_cancelled());
         assert_eq!(rx.try_recv(), Ok(true));
+    }
+
+    #[test]
+    fn timed_out_wait_keeps_the_join_handle_for_a_later_wait() {
+        let mut handle = LifecycleTaskHandle::spawn("slow_worker", |_| {
+            sleep(Duration::from_millis(25));
+        });
+
+        assert_eq!(
+            handle.cancel_and_wait(Duration::from_millis(1)),
+            CancelWaitResult::TimedOut
+        );
+        assert_eq!(
+            handle.cancel_and_wait(Duration::from_millis(100)),
+            CancelWaitResult::Exited
+        );
     }
 
     #[test]
@@ -501,7 +556,24 @@ mod tests {
         });
 
         assert_eq!(registry.active_count(), 2);
-        registry.terminate_all();
+        assert_eq!(registry.terminate_all(), TaskTerminationReport::Complete);
+        assert_eq!(registry.active_count(), 0);
+    }
+
+    #[test]
+    fn task_registry_retains_timed_out_handles_for_a_later_shutdown_attempt() {
+        let mut registry = TaskLifecycleRegistry::new();
+        registry.spawn_task("slow-task", |_| sleep(Duration::from_millis(80)));
+
+        assert_eq!(
+            registry.terminate_all(),
+            TaskTerminationReport::TimedOut {
+                task_names: vec!["slow-task".into()]
+            }
+        );
+        assert_eq!(registry.active_count(), 1);
+        sleep(Duration::from_millis(50));
+        assert_eq!(registry.terminate_all(), TaskTerminationReport::Complete);
         assert_eq!(registry.active_count(), 0);
     }
 

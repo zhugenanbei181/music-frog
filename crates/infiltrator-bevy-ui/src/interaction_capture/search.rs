@@ -1,6 +1,8 @@
 //! Search capture edits the native field, executes its shared command and observes actual highlight ink.
 use super::geometry::CaptureGeometry;
 use super::host::{CaptureCapability, CaptureCommandSink};
+use super::outbound_fixture::{SEARCH_GROUP, SEARCH_QUERY, set_capture_inventory};
+use super::outbound_preferences::OutboundPreferenceCaptureOwner;
 use super::scroll::request_scroll;
 use super::{InteractionCapture, ObservedInteraction, selected};
 use crate::command::CommandSinkHandle;
@@ -18,40 +20,46 @@ use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
 use bevy::text::TextColor;
 use bevy::ui::widget::Text;
 use infiltrator_application::command_application::CommandApplication;
-use infiltrator_application::proxy_preferences_application::ProxyPreferencesApplication;
-use infiltrator_application::proxy_projection::{project_groups_snapshot, project_proxy_groups};
-use infiltrator_application::proxy_search_fixtures::{SEARCH_QUERY, observed_proxies};
-use infiltrator_application::proxy_search_projection::project_name_runs;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::text_input::TextField;
 use infiltrator_bevy_widgets::text_input::state::TextFieldInput;
+use infiltrator_contract::outbound::inventory::SelectionAvailability;
 use infiltrator_contract::parity::FeatureId;
-use infiltrator_contract::surface_snapshot::ProxyGroupSnapshot;
+use infiltrator_contract::surface_snapshot::PageData;
 use std::sync::Arc;
 
-#[derive(Resource, Default)]
-struct SearchCapture {
-    preferences: ProxyPreferencesApplication,
-    groups: Vec<ProxyGroupSnapshot>,
+#[derive(Resource)]
+pub(super) struct SearchCapture {
+    preferences: Option<OutboundPreferenceCaptureOwner>,
     stage: u8,
 }
 pub fn install(app: &mut App) {
-    let preferences = ProxyPreferencesApplication::new();
-    let (groups, _) = project_groups_snapshot(
-        &observed_proxies(),
-        &preferences
-            .preferences()
-            .expect("shared preference state available"),
-    );
-    app.insert_resource(CommandSinkHandle(Arc::new(CaptureCommandSink::new(
-        CommandApplication::new().with_proxy_preferences(preferences.clone()),
-        CaptureCapability::Search,
-    ))));
     app.insert_resource(SearchCapture {
-        preferences,
-        groups,
+        preferences: None,
         stage: 0,
     });
+}
+pub(super) fn initialize(
+    latest: Res<LatestSurfaceSnapshot>,
+    mut capture: ResMut<SearchCapture>,
+    mut commands: Commands,
+) {
+    if capture.preferences.is_some() {
+        return;
+    }
+    let Some(preferences) = latest.0.outbound_ui_preferences.data.clone() else {
+        return;
+    };
+    let owner = OutboundPreferenceCaptureOwner::new(preferences);
+    owner.reset_search_query();
+    commands.insert_resource(CommandSinkHandle(Arc::new(
+        CaptureCommandSink::with_outbound_preferences(
+            CommandApplication::new(),
+            CaptureCapability::Search,
+            owner.clone(),
+        ),
+    )));
+    capture.preferences = Some(owner);
 }
 
 #[derive(SystemParam)]
@@ -79,19 +87,22 @@ pub fn activate(
     ) {
         return;
     }
+    let Some(preferences) = &controls.capture.preferences else {
+        return;
+    };
     match controls.capture.stage {
         0 => {
             let mut snapshot = controls.latest.0.clone();
             snapshot.revision += 1;
-            let page = snapshot
-                .pages
-                .proxies
-                .data
-                .as_mut()
-                .expect("search fixture page");
-            page.groups = controls.capture.groups.clone();
-            page.search_query.clear();
-            page.name_runs = project_name_runs(&page.groups, "");
+            set_capture_inventory(
+                &mut snapshot,
+                &[(
+                    SEARCH_GROUP,
+                    &[SEARCH_QUERY, "Other node"],
+                    SelectionAvailability::Selectable,
+                )],
+            );
+            snapshot.outbound_ui_preferences = PageData::ready(preferences.snapshot());
             commands.trigger(SurfaceSnapshotUpdated(snapshot));
             controls.capture.stage = 1;
         }
@@ -115,26 +126,14 @@ pub fn activate(
             controls.capture.stage = 2;
         }
         2 => {
-            let preferences = controls
-                .capture
-                .preferences
-                .preferences()
-                .expect("shared preferences");
-            if preferences.search_query != SEARCH_QUERY || controls.search.pending.is_some() {
+            let preference_snapshot = preferences.snapshot();
+            if preference_snapshot.search_query != SEARCH_QUERY || controls.search.pending.is_some()
+            {
                 return;
             }
-            let groups = project_proxy_groups(controls.capture.groups.clone(), &preferences);
             let mut snapshot = controls.latest.0.clone();
             snapshot.revision += 1;
-            let page = snapshot
-                .pages
-                .proxies
-                .data
-                .as_mut()
-                .expect("search fixture page");
-            page.search_query = SEARCH_QUERY.into();
-            page.name_runs = project_name_runs(&groups, SEARCH_QUERY);
-            page.groups = groups;
+            snapshot.outbound_ui_preferences = PageData::ready(preference_snapshot);
             commands.trigger(SurfaceSnapshotUpdated(snapshot));
             controls.capture.stage = 3;
         }

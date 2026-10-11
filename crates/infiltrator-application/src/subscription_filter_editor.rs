@@ -35,15 +35,22 @@ impl SubscriptionFilterEditor {
         match observation {
             Err(failure) => self.read_failure = Some(failure),
             Ok(latest) => {
-                self.target_profile = latest.as_ref().map(|value| value.source.profile.clone());
+                self.target_profile = latest.as_ref().map(|value| {
+                    value
+                        .workspace_identity
+                        .document
+                        .profile_id
+                        .as_str()
+                        .to_owned()
+                });
                 self.read_failure = None;
                 if self.pending.is_some() {
                     self.latest = latest;
                     return;
                 }
                 if !self.dirty() {
-                    if self.base.as_ref().map(|value| &value.source)
-                        != latest.as_ref().map(|value| &value.source)
+                    if self.base.as_ref().map(|value| &value.workspace_identity)
+                        != latest.as_ref().map(|value| &value.workspace_identity)
                     {
                         self.applied = false;
                         self.report = None;
@@ -71,7 +78,7 @@ impl SubscriptionFilterEditor {
         observation: Result<FilterObservation, Failure>,
     ) {
         self.observe(observation.and_then(|observed| {
-            if observed.source.profile == profile {
+            if observed.workspace_identity.document.profile_id.as_str() == profile {
                 Ok(Some(observed))
             } else {
                 Err(Failure::new(
@@ -87,7 +94,12 @@ impl SubscriptionFilterEditor {
             return;
         }
         self.target_profile = profile.map(str::to_owned);
-        if self.base.as_ref().map(|base| base.source.profile.as_str()) != profile {
+        if self
+            .base
+            .as_ref()
+            .map(|base| base.workspace_identity.document.profile_id.as_str())
+            != profile
+        {
             self.read_failure = Some(Failure::new(
                 ErrorCode::NotReady,
                 "Waiting for the selected profile options",
@@ -101,9 +113,10 @@ impl SubscriptionFilterEditor {
                 .base
                 .as_ref()
                 .zip(self.latest.as_ref())
-                .is_some_and(|(base, latest)| base.source == latest.source)
+                .is_some_and(|(base, latest)| base.workspace_identity == latest.workspace_identity)
             && self.base.as_ref().is_some_and(|base| {
-                Some(base.source.profile.as_str()) == self.target_profile.as_deref()
+                Some(base.workspace_identity.document.profile_id.as_str())
+                    == self.target_profile.as_deref()
             })
     }
     pub fn can_edit(&self) -> bool {
@@ -117,10 +130,9 @@ impl SubscriptionFilterEditor {
     }
     pub fn value_for(&self, profile: &str) -> Option<SubscriptionFilterDedup> {
         (self.can_edit()
-            && self
-                .base
-                .as_ref()
-                .is_some_and(|base| base.source.profile == profile))
+            && self.base.as_ref().is_some_and(|base| {
+                base.workspace_identity.document.profile_id.as_str() == profile
+            }))
         .then(|| self.selected())
         .flatten()
     }
@@ -165,7 +177,9 @@ impl SubscriptionFilterEditor {
         true
     }
     pub fn source_profile(&self) -> Option<&str> {
-        self.base.as_ref().map(|base| base.source.profile.as_str())
+        self.base
+            .as_ref()
+            .map(|base| base.workspace_identity.document.profile_id.as_str())
     }
     pub fn composing(&mut self) {
         if self.can_edit() {
@@ -175,7 +189,7 @@ impl SubscriptionFilterEditor {
     pub fn latest_profile(&self) -> Option<&str> {
         self.latest
             .as_ref()
-            .map(|latest| latest.source.profile.as_str())
+            .map(|latest| latest.workspace_identity.document.profile_id.as_str())
     }
     pub fn read_failure(&self) -> Option<&Failure> {
         self.read_failure.as_ref()
@@ -222,9 +236,12 @@ impl SubscriptionFilterEditor {
         };
         self.pending = None;
         match result {
-            Ok(applied) if applied.source.profile == pending.source.source.profile => {
+            Ok(applied)
+                if applied.workspace_identity.document.profile_id
+                    == pending.source.workspace_identity.document.profile_id =>
+            {
                 let observed = FilterObservation {
-                    source: applied.source,
+                    workspace_identity: applied.workspace_identity,
                     filter: pending.draft,
                 };
                 self.base = Some(observed.clone());

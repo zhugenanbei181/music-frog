@@ -25,7 +25,7 @@ use bevy::text::TextColor;
 use bevy::ui::widget::Text;
 use bevy::window::{PrimaryWindow, Window};
 use infiltrator_application::command_application::CommandApplication;
-use infiltrator_application::core_application::CoreApplication;
+use infiltrator_application::core_application::{CoreApplication, CoreScopeObservation};
 use infiltrator_application::log_capture_fixtures::{
     LOG_QUERY, LogCaptureProcess, append_follow_records, populate_logs,
 };
@@ -41,7 +41,7 @@ use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::SurfaceOrigin;
 use infiltrator_ports::application_runtime::ApplicationRuntime;
 use infiltrator_ports::surface::SurfaceReader;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 use std::time::Duration;
 
 #[derive(Resource)]
@@ -49,6 +49,7 @@ pub(super) struct LogsCapture {
     core: Arc<CoreApplication>,
     reader: Arc<ApplicationSurfaceReader>,
     runtime: Arc<dyn ApplicationRuntime>,
+    scope_observation: Arc<RwLock<CoreScopeObservation>>,
     pub(super) stage: u8,
 }
 pub fn install(app: &mut App) {
@@ -73,13 +74,15 @@ pub fn install(app: &mut App) {
         SurfaceKind::BevyDesktop,
         HostKind::Desktop,
     ));
-    app.insert_resource(CommandSinkHandle(Arc::new(ApplicationCommandSink::new(
-        core.clone(),
-    ))));
+    let scope_observation = Arc::new(RwLock::new(CoreScopeObservation::Unavailable));
+    app.insert_resource(CommandSinkHandle(Arc::new(
+        ApplicationCommandSink::new_for_surface(core.clone(), scope_observation.clone()),
+    )));
     app.insert_resource(LogsCapture {
         core,
         reader,
         runtime,
+        scope_observation,
         stage: 0,
     });
 }
@@ -142,6 +145,15 @@ pub fn activate(
                 .expect("actual isolated log facts");
             snapshot.origin = SurfaceOrigin::Demo;
             snapshot.revision = controls.latest.0.revision + 1;
+            *controls
+                .capture
+                .scope_observation
+                .write()
+                .expect("log capture Core scope") = snapshot
+                .core
+                .scope()
+                .map(CoreScopeObservation::Observed)
+                .unwrap_or(CoreScopeObservation::Unavailable);
             commands.trigger(SurfaceSnapshotUpdated(snapshot));
             controls.capture.stage = 1;
         }

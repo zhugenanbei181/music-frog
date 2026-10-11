@@ -3,137 +3,274 @@ use crate::failure_projection::failure_message;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use infiltrator_contract::profile_editor_read::{ProfileEditorReadSnapshot, ProfileReadStatus};
-use infiltrator_contract::profile_source::ProfileSourceIdentity;
+use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
 use infiltrator_shared::i18n_interpolator::localize;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct Baseline {
-    source: ProfileSourceIdentity,
+    source: ProfileWorkspaceIdentity,
     content: String,
 }
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ProfileEditPending {
     pub operation: u64,
     pub intent: CommandIntent,
 }
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub enum ProfileEditOperationPhase {
+    #[default]
+    Ready,
+    Pending(ProfileEditPending),
+    Failed(Failure),
+    Saved,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+enum ProfileEditVerification {
+    #[default]
+    Unchecked,
+    Current,
+    Stale,
+    Failed(Failure),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ProfileEditObservation {
+    DraftProtected,
+    Unchanged,
+    Updated,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ProfileEditFinish {
+    Stale,
+    Applied,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ProfileEditReadTarget {
+    Document,
+    Options,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ProfileEditSession {
     baseline: Option<Baseline>,
     latest: Option<Baseline>,
-    pub pending: Option<ProfileEditPending>,
-    pub failure: Option<Failure>,
-    pub saved: bool,
-    read_status: Option<ProfileReadStatus>,
-    verification_current: bool,
-    verification_failure: Option<Failure>,
+    pub operation: ProfileEditOperationPhase,
+    read_status: ProfileReadStatus,
+    verification: ProfileEditVerification,
     next_operation: u64,
 }
+
 impl ProfileEditSession {
-    pub fn source(&self) -> Option<&ProfileSourceIdentity> {
+    pub fn source(&self) -> Option<&ProfileWorkspaceIdentity> {
         self.baseline.as_ref().map(|baseline| &baseline.source)
     }
+
     pub fn stale(&self) -> bool {
         self.baseline.as_ref().map(|baseline| &baseline.source)
             != self.latest.as_ref().map(|latest| &latest.source)
     }
+
     pub fn can_edit(&self) -> bool {
-        self.baseline.is_some() && self.pending.is_none()
+        self.baseline.is_some() && !matches!(&self.operation, ProfileEditOperationPhase::Pending(_))
     }
+
     pub fn can_save(&self) -> bool {
         self.can_edit()
             && !self.stale()
-            && self
-                .read_status
-                .as_ref()
-                .is_none_or(|status| matches!(status, ProfileReadStatus::Ready))
-            && (self.read_status.is_none() || self.verification_current)
+            && match (&self.read_status, &self.verification) {
+                (
+                    ProfileReadStatus::Unobserved,
+                    ProfileEditVerification::Unchecked | ProfileEditVerification::Current,
+                )
+                | (ProfileReadStatus::Ready, ProfileEditVerification::Current) => true,
+                (
+                    ProfileReadStatus::Unobserved,
+                    ProfileEditVerification::Stale | ProfileEditVerification::Failed(_),
+                )
+                | (
+                    ProfileReadStatus::Ready,
+                    ProfileEditVerification::Unchecked
+                    | ProfileEditVerification::Stale
+                    | ProfileEditVerification::Failed(_),
+                )
+                | (ProfileReadStatus::Loading | ProfileReadStatus::Failed(_), _) => false,
+            }
     }
+
     pub fn dirty(&self, draft: &str) -> bool {
         self.baseline
             .as_ref()
             .is_some_and(|baseline| baseline.content != draft)
     }
-    /// Return whether the native buffer may adopt this read without losing a draft.
-    pub fn observe(&mut self, source: &ProfileSourceIdentity, content: &str, draft: &str) -> bool {
+
+    /// Keep incoming source facts while protecting a pending operation or an edited draft.
+    pub fn observe(
+        &mut self,
+        source: &ProfileWorkspaceIdentity,
+        content: &str,
+        draft: &str,
+    ) -> ProfileEditObservation {
         let latest = Baseline {
             source: source.clone(),
             content: content.into(),
         };
         self.latest = Some(latest.clone());
-        if self.pending.is_some() || self.dirty(draft) {
-            return false;
+        if matches!(&self.operation, ProfileEditOperationPhase::Pending(_)) || self.dirty(draft) {
+            return ProfileEditObservation::DraftProtected;
         }
         let changed = self.baseline.as_ref() != Some(&latest);
         if changed {
-            self.saved = false;
+            if matches!(&self.operation, ProfileEditOperationPhase::Saved) {
+                self.operation = ProfileEditOperationPhase::Ready;
+            }
+            self.baseline = Some(latest);
         }
-        self.baseline = Some(latest);
-        changed
+        match changed {
+            true => ProfileEditObservation::Updated,
+            false => ProfileEditObservation::Unchanged,
+        }
     }
+
     pub fn read_failed(&mut self, failure: Failure) {
-        self.read_status = Some(ProfileReadStatus::Failed(failure));
-        self.verification_current = false;
+        self.read_status = ProfileReadStatus::Failed(failure.clone());
+        self.verification = ProfileEditVerification::Failed(failure);
     }
-    pub fn read_completed(&mut self, source: &ProfileSourceIdentity) {
-        self.read_status = Some(ProfileReadStatus::Ready);
-        self.verification_current = self.source() == Some(source);
-        self.verification_failure = None;
+
+    pub fn read_completed(&mut self, source: &ProfileWorkspaceIdentity) {
+        self.read_status = ProfileReadStatus::Ready;
+        self.verification = match self.source() == Some(source) {
+            true => ProfileEditVerification::Current,
+            false => ProfileEditVerification::Stale,
+        };
     }
-    pub fn observe_read_status(&mut self, snapshot: &ProfileEditorReadSnapshot, options: bool) {
-        if snapshot.profile.as_ref() != self.source().map(|source| &source.profile) {
+
+    pub fn observe_read_status(
+        &mut self,
+        snapshot: &ProfileEditorReadSnapshot,
+        target: ProfileEditReadTarget,
+    ) {
+        if snapshot.profile.as_deref()
+            != self
+                .source()
+                .map(|source| source.document.profile_id.as_str())
+        {
             return;
         }
-        self.read_status = Some(if options {
-            snapshot.options.clone()
-        } else {
-            snapshot.document.clone()
-        });
-        self.verification_current =
-            snapshot.source_current() && snapshot.verified_source.as_ref() == self.source();
-        self.verification_failure = snapshot.verification_failure.clone();
+        self.read_status = match target {
+            ProfileEditReadTarget::Document => snapshot.document.clone(),
+            ProfileEditReadTarget::Options => snapshot.options.clone(),
+        };
+        self.verification = match &snapshot.verification_failure {
+            Some(failure) => ProfileEditVerification::Failed(failure.clone()),
+            None if snapshot.source_current()
+                && snapshot.verified_workspace_identity.as_ref() == self.source() =>
+            {
+                ProfileEditVerification::Current
+            }
+            None => ProfileEditVerification::Stale,
+        };
     }
+
     pub fn discard(&mut self) -> Option<String> {
-        if self.pending.is_some() {
+        if matches!(&self.operation, ProfileEditOperationPhase::Pending(_)) {
             return None;
         }
         self.baseline = self.latest.clone();
-        self.failure = None;
-        self.saved = false;
+        self.operation = ProfileEditOperationPhase::Ready;
         self.baseline
             .as_ref()
             .map(|baseline| baseline.content.clone())
     }
+
     pub fn begin_document(
         &mut self,
         content: String,
-        allow_protected: bool,
+        authorization: ProfileWriteAuthorization,
     ) -> Result<ProfileEditPending, Failure> {
-        let source = self.ready_source()?;
+        let workspace_identity = self.ready_source()?;
         self.begin(CommandIntent::SaveProfileDocument {
-            source,
+            workspace_identity,
             content,
-            allow_protected,
+            authorization,
         })
     }
+
     pub fn begin_mixin(&mut self, mixin_yaml: String) -> Result<ProfileEditPending, Failure> {
-        let source = self.ready_source()?;
-        self.begin(CommandIntent::SaveMixinOverlay { source, mixin_yaml })
+        let workspace_identity = self.ready_source()?;
+        self.begin(CommandIntent::SaveMixinOverlay {
+            workspace_identity,
+            mixin_yaml,
+        })
     }
-    fn ready_source(&self) -> Result<ProfileSourceIdentity, Failure> {
-        if !self.can_save() {
+
+    pub fn reject(&mut self, failure: Failure) {
+        self.operation = ProfileEditOperationPhase::Failed(failure);
+    }
+
+    fn ready_source(&self) -> Result<ProfileWorkspaceIdentity, Failure> {
+        if matches!(&self.operation, ProfileEditOperationPhase::Pending(_)) {
             return Err(Failure::new(
-                ErrorCode::NotReady,
-                "Inspect the current source before saving",
+                ErrorCode::InvalidState,
+                "editor operation is already pending",
                 true,
             ));
         }
-        Ok(self
-            .source()
-            .expect("save requires an observed source")
-            .clone())
+        let baseline = self.baseline.as_ref().ok_or_else(|| {
+            Failure::new(
+                ErrorCode::NotReady,
+                "Inspect the current source before saving",
+                true,
+            )
+        })?;
+        if self.latest.as_ref().map(|latest| &latest.source) != Some(&baseline.source) {
+            return Err(Failure::new(
+                ErrorCode::NotReady,
+                "The profile source changed; inspect the current source before saving",
+                true,
+            ));
+        }
+        match (&self.read_status, &self.verification) {
+            (
+                ProfileReadStatus::Unobserved,
+                ProfileEditVerification::Unchecked | ProfileEditVerification::Current,
+            )
+            | (ProfileReadStatus::Ready, ProfileEditVerification::Current) => {}
+            (
+                ProfileReadStatus::Unobserved,
+                ProfileEditVerification::Stale | ProfileEditVerification::Failed(_),
+            )
+            | (
+                ProfileReadStatus::Ready,
+                ProfileEditVerification::Unchecked
+                | ProfileEditVerification::Stale
+                | ProfileEditVerification::Failed(_),
+            )
+            | (ProfileReadStatus::Loading | ProfileReadStatus::Failed(_), _) => {
+                return Err(Failure::new(
+                    ErrorCode::NotReady,
+                    "Verify the current source before saving",
+                    true,
+                ));
+            }
+        }
+        Ok(baseline.source.clone())
     }
+
     fn begin(&mut self, intent: CommandIntent) -> Result<ProfileEditPending, Failure> {
+        if matches!(&self.operation, ProfileEditOperationPhase::Pending(_)) {
+            return Err(Failure::new(
+                ErrorCode::InvalidState,
+                "editor operation is already pending",
+                true,
+            ));
+        }
         self.next_operation = self.next_operation.checked_add(1).ok_or_else(|| {
             Failure::new(
                 ErrorCode::Internal,
@@ -145,39 +282,38 @@ impl ProfileEditSession {
             operation: self.next_operation,
             intent,
         };
-        self.pending = Some(pending.clone());
-        self.failure = None;
-        self.saved = false;
+        self.operation = ProfileEditOperationPhase::Pending(pending.clone());
         Ok(pending)
     }
+
     pub fn finish(
         &mut self,
         operation: u64,
         intent: &CommandIntent,
         result: Result<CommandOutput, Failure>,
-    ) -> bool {
-        if self
-            .pending
-            .as_ref()
-            .is_none_or(|pending| pending.operation != operation || pending.intent != *intent)
-        {
-            return false;
-        }
-        self.pending = None;
+    ) -> ProfileEditFinish {
+        match &self.operation {
+            ProfileEditOperationPhase::Pending(pending)
+                if pending.operation == operation && pending.intent == *intent => {}
+            ProfileEditOperationPhase::Ready
+            | ProfileEditOperationPhase::Pending(_)
+            | ProfileEditOperationPhase::Failed(_)
+            | ProfileEditOperationPhase::Saved => return ProfileEditFinish::Stale,
+        };
         let output = match result.and_then(|output| output.validate_for(intent).map(|()| output)) {
             Ok(output) => output,
             Err(failure) => {
-                self.failure = Some(failure);
-                return true;
+                self.operation = ProfileEditOperationPhase::Failed(failure);
+                return ProfileEditFinish::Applied;
             }
         };
         let baseline = match output {
             CommandOutput::ProfileDocumentSaved(saved) => Baseline {
-                source: saved.document.source.expect("validated document source"),
+                source: saved.document.workspace_identity,
                 content: saved.document.content,
             },
             CommandOutput::ProfileMixinSaved(saved) => Baseline {
-                source: saved.options.source,
+                source: saved.options.workspace_identity,
                 content: saved.options.mixin_yaml,
             },
             _ => unreachable!("only editor save intents enter this state"),
@@ -188,43 +324,51 @@ impl ProfileEditSession {
             self.latest = Some(baseline.clone());
         }
         self.baseline = Some(baseline);
-        self.read_status = None;
-        self.verification_current = false;
-        self.verification_failure = None;
-        self.failure = None;
-        self.saved = true;
-        true
+        self.read_status = ProfileReadStatus::Unobserved;
+        self.verification = ProfileEditVerification::Unchecked;
+        self.operation = ProfileEditOperationPhase::Saved;
+        ProfileEditFinish::Applied
     }
+
     pub fn status(&self, draft: &str, locale: &str) -> String {
-        if self.pending.is_some() {
-            return localize(locale, "editor_save_pending", &[]);
+        match &self.operation {
+            ProfileEditOperationPhase::Pending(_) => {
+                return localize(locale, "editor_save_pending", &[]);
+            }
+            ProfileEditOperationPhase::Failed(failure) => {
+                return localize(
+                    locale,
+                    "editor_save_failed",
+                    &[("reason", failure_message(failure, locale))],
+                );
+            }
+            ProfileEditOperationPhase::Ready | ProfileEditOperationPhase::Saved => {}
         }
-        if let Some(failure) = &self.failure {
-            return localize(
-                locale,
-                "editor_save_failed",
-                &[("reason", failure_message(failure, locale))],
-            );
+        match &self.read_status {
+            ProfileReadStatus::Failed(failure) => {
+                return localize(
+                    locale,
+                    "editor_read_failed",
+                    &[("reason", failure_message(failure, locale))],
+                );
+            }
+            ProfileReadStatus::Loading => {
+                return localize(locale, "editor_read_loading", &[]);
+            }
+            ProfileReadStatus::Unobserved | ProfileReadStatus::Ready => {}
         }
-        if let Some(ProfileReadStatus::Failed(failure)) = &self.read_status {
-            return localize(
-                locale,
-                "editor_read_failed",
-                &[("reason", failure_message(failure, locale))],
-            );
-        }
-        if matches!(self.read_status, Some(ProfileReadStatus::Loading)) {
-            return localize(locale, "editor_read_loading", &[]);
-        }
-        if let Some(failure) = &self.verification_failure {
-            return localize(
-                locale,
-                "editor_source_verification_failed",
-                &[("reason", failure_message(failure, locale))],
-            );
-        }
-        if self.read_status.is_some() && !self.verification_current {
-            return localize(locale, "editor_save_source_changed", &[]);
+        match &self.verification {
+            ProfileEditVerification::Failed(failure) => {
+                return localize(
+                    locale,
+                    "editor_source_verification_failed",
+                    &[("reason", failure_message(failure, locale))],
+                );
+            }
+            ProfileEditVerification::Stale => {
+                return localize(locale, "editor_save_source_changed", &[]);
+            }
+            ProfileEditVerification::Unchecked | ProfileEditVerification::Current => {}
         }
         if self.stale() {
             return localize(locale, "editor_save_source_changed", &[]);
@@ -235,7 +379,7 @@ impl ProfileEditSession {
         if self.dirty(draft) {
             return localize(locale, "editor_unsaved", &[]);
         }
-        if self.saved {
+        if matches!(&self.operation, ProfileEditOperationPhase::Saved) {
             return localize(locale, "editor_save_committed", &[]);
         }
         String::new()

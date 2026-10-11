@@ -33,8 +33,8 @@ use bevy::ecs::system::{Res, ResMut};
 use bevy::scene::{Scene, bsn};
 use bevy::ui::BorderColor;
 use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderRadius, FlexDirection, FlexWrap, JustifyContent, Node,
-    Overflow, UiRect, Val, percent, px,
+    AlignItems, BorderRadius, FlexDirection, FlexWrap, JustifyContent, Node, Overflow, UiRect, Val,
+    percent, px,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button, ScrollArea};
@@ -71,6 +71,7 @@ pub mod settings_pac;
 pub mod settings_preferences;
 #[path = "settings_privileged_network.rs"]
 pub mod settings_privileged_network;
+#[cfg(any(feature = "capture-tools", test))]
 #[path = "settings_projection_defaults.rs"]
 mod settings_projection_defaults;
 #[path = "settings_render_strategy.rs"]
@@ -84,6 +85,9 @@ mod settings_tun;
 #[path = "settings_vpn.rs"]
 pub mod settings_vpn;
 
+use bevy::feathers::theme::{ThemeBackgroundColor, ThemeTextColor};
+use infiltrator_bevy_widgets::feathers_theme::Token;
+use infiltrator_bevy_widgets::palette::rem;
 use settings_core::{SettingsLine, SettingsLineKind, SettingsProjection};
 
 /// Root marker on the Settings page scene.
@@ -160,13 +164,29 @@ pub fn settings_page(projection: &SettingsProjection, palette: &UiPalette) -> im
                 height: percent(100),
                 min_height: px(0.0),
                 flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(space::S16),
+                row_gap: rem(space::S16),
                 overflow: Overflow::scroll_y(),
             }
             PageRoot(Route::Settings)
             SettingsPageRoot ScrollArea
             Children [
                 @{ language_card(palette) }
+                --
+                Node {
+                    width: percent(100),
+                    flex_direction: FlexDirection::Column,
+                    row_gap: rem(space::S8),
+                    padding: UiRect::all(rem(space::S16)),
+                    border_radius: BorderRadius::all(rem(palette.card_radius_px)),
+                }
+                ThemeBackgroundColor({ Token::SurfaceElevated })
+                Children [
+                    LocalizedText::plain("Font attribution") TextRole(Role::BodyStrong)
+                    --
+                    LocalizedText::plain("HarmonyOS Sans SC is used; © 2021 Huawei Device Co., Ltd.") TextRole(Role::Caption) ThemeTextColor({ Token::InkDim })
+                    --
+                    Text({ infiltrator_shared::assets::harmonyos_font_license_text().to_owned() }) TextRole(Role::Caption) ThemeTextColor({ Token::InkDim })
+                ]
                 --
                 @{ tun_permission_alert_banner_scene(palette) }
                 --
@@ -189,14 +209,14 @@ pub fn tun_permission_alert_banner_scene(palette: &UiPalette) -> impl Scene + us
                 width: percent(100),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::SpaceBetween,
-                padding: UiRect::axes(Val::Px(space::S16), Val::Px(space::S12)),
+                padding: UiRect::axes(rem(space::S16), rem(space::S12)),
                 border: UiRect::all(Val::Px(palette.hairline_px)),
-                border_radius: BorderRadius::all(Val::Px(palette.card_radius_px)),
-                column_gap: Val::Px(space::S12),
-                row_gap: Val::Px(space::S8),
+                border_radius: BorderRadius::all(rem(palette.card_radius_px)),
+                column_gap: rem(space::S12),
+                row_gap: rem(space::S8),
                 flex_wrap: FlexWrap::Wrap,
             }
-            BackgroundColor({ palette.surface_elevated })
+            ThemeBackgroundColor({ Token::SurfaceElevated })
             BorderColor {
                 top: border_color,
                 right: border_color,
@@ -207,7 +227,7 @@ pub fn tun_permission_alert_banner_scene(palette: &UiPalette) -> impl Scene + us
             Children [
                 Node {
                     align_items: AlignItems::Center,
-                    column_gap: Val::Px(space::S12),
+                    column_gap: rem(space::S12),
                     flex_grow: 1.0,
                 }
                 Children [
@@ -217,13 +237,13 @@ pub fn tun_permission_alert_banner_scene(palette: &UiPalette) -> impl Scene + us
                 ]
                 --
                 Node {
-                    min_height: px(palette.control_height_px),
-                    padding: UiRect::horizontal(Val::Px(space::S12)),
+                    min_height: rem(palette.control_height_px),
+                    padding: UiRect::horizontal(rem(space::S12)),
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::Center,
-                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                    border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                 }
-                BackgroundColor({ palette.accent })
+                ThemeBackgroundColor({ Token::Accent })
                 PrepareTunPermissionButton
                 Button
                 Children [
@@ -243,13 +263,13 @@ fn header_card_scene(summary: String, palette: &UiPalette) -> impl Scene + use<>
                         width: percent(100),
                         align_items: AlignItems::Center,
                         justify_content: JustifyContent::SpaceBetween,
-                        column_gap: Val::Px(space::S16),
+                        column_gap: rem(space::S16),
                     }
                     AccessibilityNode(header_a11y) LocalizedLabel::plain("settings_summary")
                     Children [
                         Node {
                             align_items: AlignItems::Center,
-                            column_gap: Val::Px(space::S12),
+                            column_gap: rem(space::S12),
                         }
                         Children [
                             @{ icon_tile_scene(IconId::Settings, 36.0, palette) }
@@ -259,17 +279,17 @@ fn header_card_scene(summary: String, palette: &UiPalette) -> impl Scene + use<>
                         --
                         Node {
                             align_items: AlignItems::Center,
-                            column_gap: Val::Px(space::S8),
+                            column_gap: rem(space::S8),
                         }
                         Children [
                             Node {
-                                min_height: px(palette.control_height_px),
-                                padding: UiRect::horizontal(Val::Px(space::S12)),
+                                min_height: rem(palette.control_height_px),
+                                padding: UiRect::horizontal(rem(space::S12)),
                                 align_items: AlignItems::Center,
                                 justify_content: JustifyContent::Center,
-                                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                             }
-                            BackgroundColor({ palette.accent })
+                            ThemeBackgroundColor({ Token::Accent })
                             SaveSettingsButton
                             Button
                             Children [
@@ -315,7 +335,7 @@ pub fn general_card_scene(
             Box::new(bsn! {
                             Node {
                                 width: percent(100),
-                                padding: UiRect::bottom(Val::Px(space::S8)),
+                                padding: UiRect::bottom(rem(space::S8)),
                             }
                             Children [
                                 LocalizedText::plain("settings_general_title") TextRole(Role::BodyStrong)
@@ -325,7 +345,7 @@ pub fn general_card_scene(
                             Node {
                                 width: percent(100),
                                 flex_direction: FlexDirection::Column,
-                                row_gap: Val::Px(space::S8),
+                                row_gap: rem(space::S8),
                             }
                             Children [
                                 @{ localized_checkbox_scene(LocalizedText::plain("settings_autostart_on_boot"), projection.autostart, palette) }
@@ -352,10 +372,10 @@ pub fn general_card_scene(
                                     width: percent(100),
                                     align_items: AlignItems::Center,
                                     justify_content: JustifyContent::SpaceBetween,
-                                    padding: UiRect::all(Val::Px(space::S8)),
-                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                    padding: UiRect::all(rem(space::S8)),
+                                    border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                                 }
-                                BackgroundColor({ palette.surface_elevated })
+                                ThemeBackgroundColor({ Token::SurfaceElevated })
                                 Children [
                                     LocalizedText::plain("settings_core_channel_title") TextRole(Role::Body)
                                     --
@@ -378,10 +398,10 @@ pub fn general_card_scene(
                                     width: percent(100),
                                     align_items: AlignItems::Center,
                                     justify_content: JustifyContent::SpaceBetween,
-                                    padding: UiRect::all(Val::Px(space::S8)),
-                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                    padding: UiRect::all(rem(space::S8)),
+                                    border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                                 }
-                                BackgroundColor({ palette.surface_elevated })
+                                ThemeBackgroundColor({ Token::SurfaceElevated })
                                 Children [
                                     LocalizedText::plain("settings_artifact_integrity_title") TextRole(Role::Body)
                                     --
@@ -392,10 +412,10 @@ pub fn general_card_scene(
                                     width: percent(100),
                                     align_items: AlignItems::Center,
                                     justify_content: JustifyContent::SpaceBetween,
-                                    padding: UiRect::all(Val::Px(space::S8)),
-                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                    padding: UiRect::all(rem(space::S8)),
+                                    border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                                 }
-                                BackgroundColor({ palette.surface_elevated })
+                                ThemeBackgroundColor({ Token::SurfaceElevated })
                                 Children [
                                     LocalizedText::plain("settings_channel_probe_title") TextRole(Role::Body)
                                     --
@@ -406,10 +426,10 @@ pub fn general_card_scene(
                                     width: percent(100),
                                     align_items: AlignItems::Center,
                                     justify_content: JustifyContent::SpaceBetween,
-                                    padding: UiRect::all(Val::Px(space::S8)),
-                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                    padding: UiRect::all(rem(space::S8)),
+                                    border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                                 }
-                                BackgroundColor({ palette.surface_elevated })
+                                ThemeBackgroundColor({ Token::SurfaceElevated })
                                 Children [
                                     LocalizedText::plain("settings_mixed_port_label") TextRole(Role::Body)
                                     --
@@ -419,8 +439,8 @@ pub fn general_card_scene(
                                 Node {
                                     width: percent(100),
                                     flex_direction: FlexDirection::Column,
-                                    row_gap: Val::Px(space::S6),
-                                    padding: UiRect::top(Val::Px(space::S4)),
+                                    row_gap: rem(space::S6),
+                                    padding: UiRect::top(rem(space::S4)),
                                 }
                                 Children [
                                     LocalizedText::plain("settings_interface_theme_title") TextRole(Role::Caption)
@@ -636,7 +656,7 @@ pub(crate) fn apply_settings_projection(
     let active_level = projection
         .log_level
         .as_deref()
-        .and_then(CoreLogLevel::parse);
+        .and_then(CoreLogLevel::from_key);
     for LogLevelControlItem {
         mut background,
         button,

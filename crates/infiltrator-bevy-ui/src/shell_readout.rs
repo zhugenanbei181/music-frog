@@ -4,15 +4,17 @@ use crate::surface::LatestSurfaceSnapshot;
 use bevy::ecs::component::Component;
 use bevy::ecs::query::{With, Without};
 use bevy::ecs::system::{Query, Res};
-use bevy::ui::prelude::{BackgroundColor, Display, Node, Val};
+use bevy::feathers::theme::{SurfaceLevel, UiTheme};
+use bevy::ui::prelude::{Display, Node, Val};
+use bevy::ui::widget::InlineImage;
 use bevy::ui::widget::Text;
-use infiltrator_application::shell_readout_projection::{
-    count_copy, profile_kind, profile_name, profile_percent, profile_usage, rate_copy, rate_status,
-};
+use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::UiLocale;
-use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface_snapshot::PageId;
+use infiltrator_presentation::shell_readout::{
+    count_copy, profile_kind, profile_name, profile_percent, profile_usage, rate_copy, rate_status,
+};
 
 #[derive(Component, Clone, Copy, Default)]
 pub enum ShellReadoutText {
@@ -65,7 +67,7 @@ pub fn sync_quota(
 ) {
     let fraction = snapshot
         .as_ref()
-        .and_then(|snapshot| snapshot.0.shell_readout.profile.value.as_ref())
+        .and_then(|snapshot| snapshot.0.shell_readout.profile.value())
         .and_then(|profile| profile.usage_fraction);
     for mut node in &mut fills {
         node.width = Val::Percent(fraction.unwrap_or_default() * 100.0);
@@ -81,16 +83,22 @@ pub fn sync_quota(
 
 pub fn sync_core_status(
     snapshot: Option<Res<LatestSurfaceSnapshot>>,
-    palette: Res<UiPalette>,
-    mut dots: Query<&mut BackgroundColor, With<GlobalStatusDot>>,
+    theme: Option<Res<UiTheme>>,
+    mut dots: Query<&mut InlineImage, With<GlobalStatusDot>>,
 ) {
-    let color = match snapshot.as_ref().map(|snapshot| &snapshot.0.core.lifecycle) {
-        Some(CoreLifecycle::Running | CoreLifecycle::Ready) => palette.success,
-        Some(CoreLifecycle::Starting | CoreLifecycle::Stopping) => palette.warning,
-        Some(CoreLifecycle::Failed) => palette.danger,
-        Some(CoreLifecycle::Stopped) | None => palette.ink_dim,
+    let token = match snapshot.as_ref().map(|snapshot| &snapshot.0.core.lifecycle) {
+        Some(CoreLifecycle::Running | CoreLifecycle::Ready) => Token::Success,
+        Some(CoreLifecycle::Starting | CoreLifecycle::Stopping) => Token::Warning,
+        Some(CoreLifecycle::Failed) => Token::Danger,
+        Some(CoreLifecycle::Stopped) | None => Token::InkDim,
     };
+    let Some(theme) = theme else {
+        return;
+    };
+    let color = theme.context_color(&token.theme_token(), SurfaceLevel::Base);
     for mut dot in &mut dots {
-        dot.0 = color;
+        if dot.color != color {
+            dot.color = color;
+        }
     }
 }

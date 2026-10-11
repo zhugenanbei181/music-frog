@@ -1,4 +1,6 @@
 //! Dedicated logs activation composes the shared buffer and real typed reader.
+use crate::demo::capabilities::install_demo_log_lifecycle_capability;
+use crate::demo::owner::attach_capture_owner;
 use crate::state::AppState;
 use crate::types::message::Message;
 use iced::Task;
@@ -25,6 +27,7 @@ pub(super) fn activate(state: &mut AppState, feature: FeatureId) -> Task<Message
         process,
         tokio_application_runtime().expect("isolated log executor"),
     );
+    install_demo_log_lifecycle_capability(&core);
     core.install_command_handler(Arc::new(
         CommandApplication::new()
             .with_logs(core.log_application())
@@ -34,7 +37,7 @@ pub(super) fn activate(state: &mut AppState, feature: FeatureId) -> Task<Message
                 vec![],
             )),
     ));
-    state.commands = Some(core.clone());
+    attach_capture_owner(state, core.clone());
     let reader = ApplicationSurfaceReader::new(
         Arc::new(core.clone()),
         SurfaceKind::IcedDesktop,

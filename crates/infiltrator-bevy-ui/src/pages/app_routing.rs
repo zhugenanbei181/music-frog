@@ -23,24 +23,28 @@ use bevy::ecs::observer::On;
 use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Query, Res, ResMut};
+use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::{Scene, bsn};
 use bevy::text::TextColor;
 use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, Overflow,
-    UiRect, Val, percent, px,
+    AlignItems, BorderRadius, FlexDirection, JustifyContent, Node, Overflow, UiRect, percent, px,
 };
 use bevy::ui::widget::Text;
-use bevy::ui_widgets::{Activate, Button};
+use bevy::ui_widgets::{Activate, Button, ScrollArea};
 use infiltrator_application::routing_projection::{process_copy, routing_summary, rule_key};
 use infiltrator_bevy_widgets::button::ControlVisual;
+use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
 use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText};
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
-use infiltrator_contract::uwp::{UwpLoopbackSnapshot, UwpPackageSnapshot};
+use infiltrator_contract::uwp::UwpLoopbackSnapshot;
+#[cfg(any(feature = "capture-tools", test))]
+use infiltrator_contract::uwp::UwpPackageSnapshot;
 use infiltrator_domain::app_routing::{AppRoutingMode, AppRoutingRule};
 use infiltrator_shared::locales::{Lang, Localizer};
 
@@ -114,6 +118,7 @@ pub struct AppRoutingProjection {
 
 impl AppRoutingProjection {
     /// Believable demo fixture for the App Routing page.
+    #[cfg(any(feature = "capture-tools", test))]
     pub fn demo() -> Self {
         Self {
             mode: AppRoutingMode::ProxySelected,
@@ -220,11 +225,12 @@ pub fn app_routing_page(
                 height: percent(100),
                 min_height: px(0.0),
                 flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(space::S16),
+                row_gap: rem(space::S16),
                 overflow: Overflow::scroll_y(),
             }
             PageRoot(Route::AppRouting)
             AppRoutingPageRoot
+            ScrollArea
             Children [
                 @{ header_card_scene(summary, projection.include_system, palette) }
                 --
@@ -250,13 +256,13 @@ fn header_card_scene(
                                 width: percent(100),
                                 align_items: AlignItems::Center,
                                 justify_content: JustifyContent::SpaceBetween,
-                                column_gap: Val::Px(space::S16),
+                                column_gap: rem(space::S16),
                             }
                             AccessibilityNode(header_a11y) LocalizedLabel::plain("app_routing_title")
                             Children [
                                 Node {
                                     align_items: AlignItems::Center,
-                                    column_gap: Val::Px(space::S12),
+                                    column_gap: rem(space::S12),
                                 }
                                 Children [
                                     @{ icon_tile_scene(IconId::Globe, 36.0, palette) }
@@ -266,17 +272,17 @@ fn header_card_scene(
                                 --
                                 Node {
                                     align_items: AlignItems::Center,
-                                    column_gap: Val::Px(space::S8),
+                                    column_gap: rem(space::S8),
                                 }
                                 Children [
                                     Node {
-                                        min_height: px(palette.control_height_px),
-                                        padding: UiRect::horizontal(Val::Px(space::S12)),
+                                        min_height: rem(palette.control_height_px),
+                                        padding: UiRect::horizontal(rem(space::S12)),
                                         align_items: AlignItems::Center,
                                         justify_content: JustifyContent::Center,
-                                        border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                        border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                                     }
-                                    BackgroundColor({ palette.accent })
+                                    ThemeBackgroundColor({ Token::Accent })
                                     AddAppRouteButton
                                     Button
                                     Children [
@@ -289,7 +295,7 @@ fn header_card_scene(
                             Node {
                                 width: percent(100),
                                 align_items: AlignItems::Center,
-                                padding: UiRect::top(Val::Px(space::S8)),
+                                padding: UiRect::top(rem(space::S8)),
                             }
                             Children [
                                 @{ localized_checkbox_scene(LocalizedText::plain("app_routing_include_system"), include_system, palette) }
@@ -311,7 +317,7 @@ fn apps_container_scene(
                                 width: percent(100),
                                 align_items: AlignItems::Center,
                                 justify_content: JustifyContent::SpaceBetween,
-                                padding: UiRect::bottom(Val::Px(space::S8)),
+                                padding: UiRect::bottom(rem(space::S8)),
                             }
                             Children [
                                 LocalizedText::plain("app_routing_rules_title") TextRole(Role::BodyStrong)
@@ -323,7 +329,7 @@ fn apps_container_scene(
                             Node {
                                 width: percent(100),
                                 flex_direction: FlexDirection::Column,
-                                row_gap: Val::Px(space::S8),
+                                row_gap: rem(space::S8),
                             }
                             Children [
                                 { app_scenes }
@@ -345,14 +351,14 @@ fn app_row_scene(idx: usize, app: &AppItem, palette: &UiPalette) -> impl Scene +
                 width: percent(100),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::SpaceBetween,
-                padding: UiRect::all(Val::Px(space::S8)),
-                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                padding: UiRect::all(rem(space::S8)),
+                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
             }
-            BackgroundColor({ palette.surface_elevated })
+            ThemeBackgroundColor({ Token::SurfaceElevated })
             Children [
                 Node {
                     flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(space::S4),
+                    row_gap: rem(space::S4),
                 }
                 Children [
                     Text(name) AppNameText(idx) TextRole(Role::BodyStrong)
@@ -362,7 +368,7 @@ fn app_row_scene(idx: usize, app: &AppItem, palette: &UiPalette) -> impl Scene +
                 --
                 Node {
                     align_items: AlignItems::Center,
-                    column_gap: Val::Px(space::S8),
+                    column_gap: rem(space::S8),
                 }
                 Children [
                     Text(rule_str)
@@ -372,12 +378,12 @@ fn app_row_scene(idx: usize, app: &AppItem, palette: &UiPalette) -> impl Scene +
                     --
                     Node {
                         min_height: px(palette.control_height_px * 0.8),
-                        padding: UiRect::horizontal(Val::Px(space::S8)),
+                        padding: UiRect::horizontal(rem(space::S8)),
                         align_items: AlignItems::Center,
                         justify_content: JustifyContent::Center,
-                        border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                        border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                     }
-                    BackgroundColor({ palette.surface })
+                    ThemeBackgroundColor({ Token::Surface })
                     ControlVisual(false)
                     SwitchAppRuleButton {
                         app_id: { app.id.clone() },
@@ -422,13 +428,13 @@ pub(crate) fn on_app_routing_action_activated(
     if add_buttons.contains(activate.entity) {
         handle.submit(UiCommand::SetAppRule {
             app_id: "new-app".to_owned(),
-            rule: "Proxy".to_owned(),
+            rule: AppRoutingRule::Proxy.into(),
         });
     } else if let Ok(btn) = switch_buttons.get(activate.entity) {
         let next_rule = btn.current_rule.next();
         handle.submit(UiCommand::SetAppRule {
             app_id: btn.app_id.clone(),
-            rule: format!("{:?}", next_rule),
+            rule: next_rule.into(),
         });
     }
 }

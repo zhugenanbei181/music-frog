@@ -13,14 +13,16 @@ use bevy::ecs::hierarchy::Children;
 use bevy::ecs::observer::On;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Query, Res, ResMut};
+use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, Val,
-    percent, px,
+    AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, percent,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
+use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::shader_fx::CardRenderStrategy;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
@@ -76,15 +78,15 @@ pub fn render_strategy_row_scene(palette: &UiPalette) -> impl Scene + use<> {
         Node {
             width: percent(100),
             flex_direction: FlexDirection::Column,
-            row_gap: Val::Px(space::S6),
-            padding: UiRect::top(Val::Px(space::S4)),
+            row_gap: rem(space::S6),
+            padding: UiRect::top(rem(space::S4)),
         }
         Children [
             Text("Card render strategy") TextRole(Role::Caption)
             --
             Node {
                 align_items: AlignItems::Center,
-                column_gap: Val::Px(space::S4),
+                column_gap: rem(space::S4),
             }
             Children [
                 { buttons }
@@ -100,13 +102,13 @@ fn strategy_button_scene(
 ) -> impl Scene + use<> {
     bsn! {
         Node {
-            min_height: px(palette.control_height_px),
-            padding: UiRect::horizontal(Val::Px(space::S8)),
+            min_height: rem(palette.control_height_px),
+            padding: UiRect::horizontal(rem(space::S8)),
             align_items: AlignItems::Center,
             justify_content: JustifyContent::Center,
-            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+            border_radius: BorderRadius::all(rem(palette.control_radius_px)),
         }
-        BackgroundColor({ palette.surface_elevated })
+        ThemeBackgroundColor({ Token::SurfaceElevated })
         RenderStrategyButton(strategy)
         Button
         Children [

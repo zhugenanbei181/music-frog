@@ -1,0 +1,1640 @@
+#[cfg(not(target_os = "android"))]
+use std::fs;
+use std::path::Path;
+#[cfg(target_os = "android")]
+use std::path::PathBuf;
+
+#[cfg(not(target_os = "android"))]
+use anyhow::Context;
+use serde::{Deserialize, Serialize};
+
+pub fn system_dark_mode() -> bool {
+    #[cfg(windows)]
+    {
+        use winreg::{RegKey, enums::HKEY_CURRENT_USER};
+        let key = RegKey::predef(HKEY_CURRENT_USER).open_subkey(
+            "Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
+        );
+        return key
+            .and_then(|key| key.get_value::<u32, _>("AppsUseLightTheme"))
+            .is_ok_and(|uses_light_theme| uses_light_theme == 0);
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let output = std::process::Command::new("gsettings")
+            .args(["get", "org.gnome.desktop.interface", "color-scheme"])
+            .output();
+        return output
+            .ok()
+            .filter(|output| output.status.success())
+            .map(|output| String::from_utf8_lossy(&output.stdout).to_ascii_lowercase())
+            .is_some_and(|value| value.contains("prefer-dark"));
+    }
+    #[cfg(target_os = "android")]
+    false
+}
+
+pub fn tun_platform_supported() -> bool {
+    cfg!(windows)
+}
+
+pub fn tun_permission_available() -> bool {
+    #[cfg(windows)]
+    {
+        return unsafe { windows_sys::Win32::UI::Shell::IsUserAnAdmin() != 0 };
+    }
+    #[cfg(not(windows))]
+    false
+}
+
+pub fn tun_interface_is_up(name: &str) -> anyhow::Result<bool> {
+    #[cfg(windows)]
+    {
+        return Ok(windows_tun_adapter(name)?.is_some_and(|(_, is_up)| is_up));
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = name;
+        anyhow::bail!("当前平台尚未接入 TUN 网卡状态查询");
+    }
+}
+
+pub fn tun_default_routes_present(name: &str) -> anyhow::Result<bool> {
+    #[cfg(windows)]
+    {
+        return windows_tun_default_routes_present(name);
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = name;
+        anyhow::bail!("当前平台尚未接入 TUN 路由状态查询");
+    }
+}
+
+#[cfg(windows)]
+fn windows_tun_adapter(name: &str) -> anyhow::Result<Option<(u32, bool)>> {
+    use std::{mem::size_of, ptr::null};
+    use windows_sys::Win32::{
+        NetworkManagement::{
+            IpHelper::{GetAdaptersAddresses, IP_ADAPTER_ADDRESSES_LH},
+            Ndis::IfOperStatusUp,
+        },
+        Networking::WinSock::AF_UNSPEC,
+    };
+
+    const ERROR_BUFFER_OVERFLOW_CODE: u32 = 111;
+    let mut buffer_bytes = 0u32;
+    let initial_status = unsafe {
+        GetAdaptersAddresses(
+            AF_UNSPEC as u32,
+            0,
+            null(),
+            std::ptr::null_mut(),
+            &mut buffer_bytes,
+        )
+    };
+    if initial_status != ERROR_BUFFER_OVERFLOW_CODE && initial_status != 0 {
+        anyhow::bail!("无法读取 Windows 网络适配器状态（错误码 {initial_status}）");
+    }
+    if buffer_bytes == 0 {
+        return Ok(None);
+    }
+
+    let word_size = size_of::<u64>();
+    let mut storage = Vec::<u64>::with_capacity((buffer_bytes as usize).div_ceil(word_size));
+    loop {
+        let capacity_bytes = (storage.capacity() * word_size).min(u32::MAX as usize) as u32;
+        let mut returned_bytes = capacity_bytes;
+        let status = unsafe {
+            GetAdaptersAddresses(
+                AF_UNSPEC as u32,
+                0,
+                null(),
+                storage.as_mut_ptr().cast::<IP_ADAPTER_ADDRESSES_LH>(),
+                &mut returned_bytes,
+            )
+        };
+        if status == ERROR_BUFFER_OVERFLOW_CODE {
+            storage.reserve((returned_bytes as usize).div_ceil(word_size));
+            continue;
+        }
+        if status != 0 {
+            anyhow::bail!("无法枚举 Windows 网络适配器（错误码 {status}）");
+        }
+        break;
+    }
+
+    let mut adapter = storage.as_mut_ptr().cast::<IP_ADAPTER_ADDRESSES_LH>();
+    while !adapter.is_null() {
+        let current = unsafe { &*adapter };
+        let friendly_name = unsafe { wide_string(current.FriendlyName) };
+        if friendly_name.eq_ignore_ascii_case(name) {
+            let interface_index = unsafe { current.Anonymous1.Anonymous.IfIndex };
+            return Ok(Some((
+                interface_index,
+                current.OperStatus == IfOperStatusUp,
+            )));
+        }
+        adapter = current.Next;
+    }
+    Ok(None)
+}
+
+#[cfg(windows)]
+fn windows_tun_default_routes_present(name: &str) -> anyhow::Result<bool> {
+    use std::{ffi::c_void, slice};
+    use windows_sys::Win32::{
+        NetworkManagement::IpHelper::{FreeMibTable, GetIpForwardTable2, MIB_IPFORWARD_TABLE2},
+        Networking::WinSock::AF_UNSPEC,
+    };
+
+    let Some((interface_index, _)) = windows_tun_adapter(name)? else {
+        return Ok(false);
+    };
+    let mut table = std::ptr::null_mut::<MIB_IPFORWARD_TABLE2>();
+    let status = unsafe { GetIpForwardTable2(AF_UNSPEC, &mut table) };
+    if status != 0 || table.is_null() {
+        anyhow::bail!("无法读取 Windows 路由表（错误码 {status}）");
+    }
+    let has_managed_route = unsafe {
+        let table_ref = &*table;
+        let routes = slice::from_raw_parts(table_ref.Table.as_ptr(), table_ref.NumEntries as usize);
+        routes.iter().any(|route| {
+            route.InterfaceIndex == interface_index && route.DestinationPrefix.PrefixLength <= 1
+        })
+    };
+    unsafe { FreeMibTable(table.cast::<c_void>()) };
+    Ok(has_managed_route)
+}
+
+#[cfg(windows)]
+unsafe fn wide_string(value: windows_sys::core::PWSTR) -> String {
+    use std::slice;
+
+    if value.is_null() {
+        return String::new();
+    }
+    let mut length = 0usize;
+    while length < 32_768 && unsafe { *value.add(length) } != 0 {
+        length += 1;
+    }
+    String::from_utf16_lossy(unsafe { slice::from_raw_parts(value, length) })
+}
+
+pub fn set_autostart(enabled: bool) -> anyhow::Result<()> {
+    #[cfg(windows)]
+    {
+        return windows_set_autostart(enabled);
+    }
+    #[cfg(target_os = "linux")]
+    {
+        return linux_set_autostart(enabled);
+    }
+    #[cfg(target_os = "android")]
+    {
+        return android_profile_picker::set_auto_start_preference(enabled);
+    }
+}
+
+#[cfg(windows)]
+fn windows_set_autostart(enabled: bool) -> anyhow::Result<()> {
+    use winreg::{RegKey, enums::HKEY_CURRENT_USER};
+
+    const RUN_KEY: &str = "Software\\Microsoft\\Windows\\CurrentVersion\\Run";
+    const VALUE_NAME: &str = "org.lumen.client";
+
+    let current_user = RegKey::predef(HKEY_CURRENT_USER);
+    if enabled {
+        let executable = std::env::current_exe().context("无法确定 Lumen 程序路径")?;
+        let command = format!("\"{}\"", executable.display());
+        if command.encode_utf16().count() > 260 {
+            anyhow::bail!("Lumen 程序路径过长，无法安全注册 Windows 登录启动项");
+        }
+        let (key, _) = current_user
+            .create_subkey(RUN_KEY)
+            .context("无法创建 Windows 用户登录启动项")?;
+        key.set_value(VALUE_NAME, &command)
+            .context("无法保存 Windows 用户登录启动项")?;
+        return Ok(());
+    }
+
+    let key = match current_user
+        .open_subkey_with_flags(RUN_KEY, winreg::enums::KEY_READ | winreg::enums::KEY_WRITE)
+    {
+        Ok(key) => key,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(error).context("无法读取 Windows 用户登录启动项"),
+    };
+    match key.delete_value(VALUE_NAME) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error).context("无法删除 Windows 用户登录启动项"),
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn linux_set_autostart(enabled: bool) -> anyhow::Result<()> {
+    use directories::BaseDirs;
+
+    let directories = BaseDirs::new().context("无法确定桌面自动启动目录")?;
+    let autostart_dir = directories.config_dir().join("autostart");
+    let entry = autostart_dir.join("org.lumen.client.desktop");
+    if !enabled {
+        match fs::remove_file(entry) {
+            Ok(()) => return Ok(()),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+            Err(error) => return Err(error).context("无法删除 Lumen 桌面自动启动入口"),
+        }
+    }
+
+    let executable = std::env::current_exe().context("无法确定 Lumen 程序路径")?;
+    let command = desktop_exec_value(&executable);
+    let contents = format!(
+        "[Desktop Entry]\nType=Application\nName=Lumen\nComment=Mihomo client\nExec={command}\nTerminal=false\nX-GNOME-Autostart-enabled=true\n"
+    );
+    fs::create_dir_all(&autostart_dir).context("无法创建桌面自动启动目录")?;
+    let temporary = entry.with_extension("desktop.tmp");
+    fs::write(&temporary, contents).context("无法写入 Lumen 桌面自动启动入口")?;
+    if let Err(error) = fs::rename(&temporary, entry) {
+        let _ = fs::remove_file(temporary);
+        return Err(error).context("无法启用 Lumen 桌面自动启动入口");
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "linux")]
+fn desktop_exec_value(path: &Path) -> String {
+    format!("\"{}\"", desktop_exec_escape(&path.to_string_lossy()))
+}
+
+#[cfg(target_os = "linux")]
+fn desktop_exec_escape(value: &str) -> String {
+    let mut escaped = String::with_capacity(value.len());
+    for character in value.chars() {
+        if character == '%' {
+            escaped.push_str("%%");
+            continue;
+        }
+        if matches!(character, '"' | '\\' | '$' | '`') {
+            escaped.push('\\');
+        }
+        escaped.push(character);
+    }
+    escaped
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "platform", content = "snapshot", rename_all = "snake_case")]
+pub enum ProxyLease {
+    Windows(WindowsProxySnapshot),
+    Gnome(GnomeProxySnapshot),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WindowsProxySnapshot {
+    enable: Option<u32>,
+    server: Option<String>,
+    #[serde(default)]
+    applied_enable: Option<u32>,
+    #[serde(default)]
+    applied_server: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GnomeProxySnapshot {
+    mode: String,
+    http_host: String,
+    http_port: i32,
+    https_host: String,
+    https_port: i32,
+    #[serde(default)]
+    applied_mode: Option<String>,
+    #[serde(default)]
+    applied_http_host: Option<String>,
+    #[serde(default)]
+    applied_http_port: Option<i32>,
+    #[serde(default)]
+    applied_https_host: Option<String>,
+    #[serde(default)]
+    applied_https_port: Option<i32>,
+}
+
+pub async fn enable_system_proxy(port: u16, journal: &Path) -> anyhow::Result<ProxyLease> {
+    #[cfg(windows)]
+    {
+        return windows_enable(port, journal);
+    }
+    #[cfg(target_os = "linux")]
+    {
+        return gnome_enable(port, journal).await;
+    }
+    #[cfg(not(any(windows, target_os = "linux")))]
+    {
+        let _ = (port, journal);
+        anyhow::bail!("当前平台未实现系统代理适配");
+    }
+}
+
+pub async fn restore_system_proxy(journal: &Path) -> anyhow::Result<bool> {
+    #[cfg(target_os = "android")]
+    {
+        let _ = journal;
+        Ok(false)
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        if !journal.exists() {
+            return Ok(false);
+        }
+        let lease: ProxyLease = serde_json::from_slice(&fs::read(journal)?)?;
+        let external_change_preserved = match lease {
+            #[cfg(windows)]
+            ProxyLease::Windows(snapshot) => windows_restore(snapshot, true)?,
+            #[cfg(target_os = "linux")]
+            ProxyLease::Gnome(snapshot) => gnome_restore(snapshot, true).await?,
+            #[allow(unreachable_patterns)]
+            _ => anyhow::bail!("此系统无法恢复另一平台保存的代理状态"),
+        };
+        fs::remove_file(journal).context("无法清理系统代理恢复记录")?;
+        Ok(external_change_preserved)
+    }
+}
+
+pub async fn verify_system_proxy_lease(lease: &ProxyLease) -> anyhow::Result<bool> {
+    #[cfg(windows)]
+    if let ProxyLease::Windows(snapshot) = lease {
+        return windows_lease_is_active(snapshot);
+    }
+    #[cfg(target_os = "linux")]
+    if let ProxyLease::Gnome(snapshot) = lease {
+        return gnome_lease_is_active(snapshot).await;
+    }
+    let _ = lease;
+    Ok(false)
+}
+
+#[cfg(not(target_os = "android"))]
+pub fn persist_lease(lease: &ProxyLease, journal: &Path) -> anyhow::Result<()> {
+    let bytes = serde_json::to_vec(lease)?;
+    let parent = journal.parent().context("恢复记录目录不存在")?;
+    fs::create_dir_all(parent)?;
+    let temp = journal.with_extension("tmp");
+    fs::write(&temp, bytes)?;
+    fs::rename(temp, journal)?;
+    Ok(())
+}
+
+#[cfg(windows)]
+fn windows_enable(port: u16, journal: &Path) -> anyhow::Result<ProxyLease> {
+    use winreg::{RegKey, enums::HKEY_CURRENT_USER};
+    let current_user = RegKey::predef(HKEY_CURRENT_USER);
+    let key = current_user
+        .open_subkey_with_flags(
+            "Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings",
+            winreg::enums::KEY_READ | winreg::enums::KEY_WRITE,
+        )
+        .context("无法读取 Windows Internet Settings")?;
+    let server = format!("http=127.0.0.1:{port};https=127.0.0.1:{port}");
+    let snapshot = WindowsProxySnapshot {
+        enable: key.get_value("ProxyEnable").ok(),
+        server: key.get_value("ProxyServer").ok(),
+        applied_enable: Some(1),
+        applied_server: Some(server.clone()),
+    };
+    let lease = ProxyLease::Windows(snapshot.clone());
+    persist_lease(&lease, journal)?;
+    let apply = (|| -> anyhow::Result<()> {
+        key.set_value("ProxyEnable", &1u32)
+            .context("无法启用 Windows 系统代理")?;
+        key.set_value("ProxyServer", &server)
+            .context("无法写入 Windows 系统代理地址")?;
+        Ok(())
+    })();
+    if let Err(error) = apply {
+        return match windows_restore(snapshot.clone(), false) {
+            Ok(_) => {
+                fs::remove_file(journal).context("无法清理系统代理恢复记录")?;
+                Err(error)
+            }
+            Err(restore_error) => Err(anyhow::anyhow!(
+                "{error}；恢复 Windows 系统代理失败：{restore_error}。恢复记录已保留，请重试恢复。"
+            )),
+        };
+    }
+    notify_windows_proxy_change();
+    let confirmed: u32 = key.get_value("ProxyEnable").unwrap_or_default();
+    let confirmed_server: String = key.get_value("ProxyServer").unwrap_or_default();
+    if confirmed != 1 || confirmed_server != server {
+        let external_change = windows_restore(snapshot, true)?;
+        fs::remove_file(journal).context("无法清理系统代理恢复记录")?;
+        anyhow::bail!(
+            "Windows 未确认系统代理设置；{}",
+            if external_change {
+                "检测到外部修改，已保留当前系统代理"
+            } else {
+                "已恢复先前系统代理设置"
+            }
+        );
+    }
+    Ok(lease)
+}
+
+#[cfg(windows)]
+fn windows_restore(
+    snapshot: WindowsProxySnapshot,
+    check_external_change: bool,
+) -> anyhow::Result<bool> {
+    use winreg::{RegKey, enums::HKEY_CURRENT_USER};
+    let current_user = RegKey::predef(HKEY_CURRENT_USER);
+    let key = current_user
+        .open_subkey_with_flags(
+            "Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings",
+            winreg::enums::KEY_READ | winreg::enums::KEY_WRITE,
+        )
+        .context("无法恢复 Windows Internet Settings")?;
+    if check_external_change
+        && let (Some(applied_enable), Some(applied_server)) =
+            (snapshot.applied_enable, snapshot.applied_server.as_deref())
+    {
+        let current_enable: Option<u32> = key.get_value("ProxyEnable").ok();
+        let current_server: Option<String> = key.get_value("ProxyServer").ok();
+        let matches_applied = current_enable == Some(applied_enable)
+            && current_server.as_deref() == Some(applied_server);
+        let matches_original =
+            current_enable == snapshot.enable && current_server == snapshot.server;
+        if !matches_applied {
+            return Ok(!matches_original);
+        }
+    }
+    match snapshot.enable {
+        Some(value) => key.set_value("ProxyEnable", &value)?,
+        None => {
+            let _ = key.delete_value("ProxyEnable");
+        }
+    }
+    match snapshot.server.clone() {
+        Some(value) => key.set_value("ProxyServer", &value)?,
+        None => {
+            let _ = key.delete_value("ProxyServer");
+        }
+    }
+    notify_windows_proxy_change();
+    let restored_enable: Option<u32> = key.get_value("ProxyEnable").ok();
+    let restored_server: Option<String> = key.get_value("ProxyServer").ok();
+    if restored_enable != snapshot.enable || restored_server != snapshot.server {
+        anyhow::bail!("Windows 系统代理恢复后未通过状态回读确认");
+    }
+    Ok(false)
+}
+
+#[cfg(windows)]
+fn windows_lease_is_active(snapshot: &WindowsProxySnapshot) -> anyhow::Result<bool> {
+    use winreg::{RegKey, enums::HKEY_CURRENT_USER};
+    let current_user = RegKey::predef(HKEY_CURRENT_USER);
+    let key = current_user
+        .open_subkey_with_flags(
+            "Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings",
+            winreg::enums::KEY_READ,
+        )
+        .context("无法读取 Windows Internet Settings")?;
+    let current_enable: Option<u32> = key.get_value("ProxyEnable").ok();
+    let current_server: Option<String> = key.get_value("ProxyServer").ok();
+    Ok(current_enable == snapshot.applied_enable && current_server == snapshot.applied_server)
+}
+
+#[cfg(windows)]
+fn notify_windows_proxy_change() {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        HWND_BROADCAST, SMTO_ABORTIFHUNG, SendMessageTimeoutW, WM_SETTINGCHANGE,
+    };
+    let name: Vec<u16> = "Internet Settings\0".encode_utf16().collect();
+    let mut result = 0usize;
+    unsafe {
+        SendMessageTimeoutW(
+            HWND_BROADCAST,
+            WM_SETTINGCHANGE,
+            0,
+            name.as_ptr() as isize,
+            SMTO_ABORTIFHUNG,
+            5000,
+            &mut result,
+        );
+    }
+}
+
+#[cfg(target_os = "linux")]
+async fn gnome_read(schema: &str, key: &str) -> anyhow::Result<String> {
+    let output = tokio::process::Command::new("gsettings")
+        .args(["get", schema, key])
+        .output()
+        .await
+        .context("GNOME gsettings 不可用")?;
+    if !output.status.success() {
+        anyhow::bail!("无法读取 GNOME 系统代理设置");
+    }
+    Ok(String::from_utf8_lossy(&output.stdout)
+        .trim()
+        .trim_matches('\'')
+        .to_string())
+}
+
+#[cfg(target_os = "linux")]
+async fn gnome_set(schema: &str, key: &str, value: &str) -> anyhow::Result<()> {
+    let output = tokio::process::Command::new("gsettings")
+        .args(["set", schema, key, value])
+        .output()
+        .await
+        .context("GNOME gsettings 不可用")?;
+    if !output.status.success() {
+        anyhow::bail!("GNOME 桌面拒绝系统代理设置");
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "linux")]
+async fn gnome_enable(port: u16, journal: &Path) -> anyhow::Result<ProxyLease> {
+    let desktop = std::env::var("XDG_CURRENT_DESKTOP")
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    if !desktop.contains("gnome") && !desktop.contains("unity") {
+        anyhow::bail!("当前 Linux 桌面环境未验证自动系统代理；可在桌面网络设置中手动配置本地代理");
+    }
+    let snapshot = GnomeProxySnapshot {
+        mode: gnome_read("org.gnome.system.proxy", "mode").await?,
+        http_host: gnome_read("org.gnome.system.proxy.http", "host").await?,
+        http_port: gnome_read("org.gnome.system.proxy.http", "port")
+            .await?
+            .parse()
+            .unwrap_or(0),
+        https_host: gnome_read("org.gnome.system.proxy.https", "host").await?,
+        https_port: gnome_read("org.gnome.system.proxy.https", "port")
+            .await?
+            .parse()
+            .unwrap_or(0),
+        applied_mode: None,
+        applied_http_host: None,
+        applied_http_port: None,
+        applied_https_host: None,
+        applied_https_port: None,
+    };
+    let mut snapshot = snapshot;
+    snapshot.applied_mode = Some("manual".into());
+    snapshot.applied_http_host = Some("127.0.0.1".into());
+    snapshot.applied_http_port = Some(i32::from(port));
+    snapshot.applied_https_host = Some("127.0.0.1".into());
+    snapshot.applied_https_port = Some(i32::from(port));
+    let lease = ProxyLease::Gnome(snapshot);
+    persist_lease(&lease, journal)?;
+    let apply = async {
+        gnome_set("org.gnome.system.proxy.http", "host", "'127.0.0.1'").await?;
+        gnome_set("org.gnome.system.proxy.http", "port", &port.to_string()).await?;
+        gnome_set("org.gnome.system.proxy.https", "host", "'127.0.0.1'").await?;
+        gnome_set("org.gnome.system.proxy.https", "port", &port.to_string()).await?;
+        gnome_set("org.gnome.system.proxy", "mode", "'manual'").await?;
+        Ok::<(), anyhow::Error>(())
+    }
+    .await;
+    if let Err(error) = apply {
+        let _ = gnome_restore(
+            match &lease {
+                ProxyLease::Gnome(s) => s.clone(),
+                _ => unreachable!(),
+            },
+            false,
+        )
+        .await;
+        let _ = fs::remove_file(journal);
+        return Err(error);
+    }
+    let mode = gnome_read("org.gnome.system.proxy", "mode").await?;
+    let host = gnome_read("org.gnome.system.proxy.http", "host").await?;
+    let active_port = gnome_read("org.gnome.system.proxy.http", "port")
+        .await?
+        .parse::<u16>()
+        .unwrap_or(0);
+    if mode != "manual" || host != "127.0.0.1" || active_port != port {
+        let external_change = gnome_restore(
+            match &lease {
+                ProxyLease::Gnome(s) => s.clone(),
+                _ => unreachable!(),
+            },
+            true,
+        )
+        .await?;
+        fs::remove_file(journal).context("无法清理系统代理恢复记录")?;
+        anyhow::bail!(
+            "GNOME 未确认系统代理设置；{}",
+            if external_change {
+                "检测到外部修改，已保留当前系统代理"
+            } else {
+                "已恢复先前系统代理设置"
+            }
+        );
+    }
+    Ok(lease)
+}
+
+#[cfg(target_os = "linux")]
+async fn gnome_restore(
+    snapshot: GnomeProxySnapshot,
+    check_external_change: bool,
+) -> anyhow::Result<bool> {
+    if check_external_change
+        && let (Some(mode), Some(http_host), Some(http_port), Some(https_host), Some(https_port)) = (
+            snapshot.applied_mode.as_deref(),
+            snapshot.applied_http_host.as_deref(),
+            snapshot.applied_http_port,
+            snapshot.applied_https_host.as_deref(),
+            snapshot.applied_https_port,
+        )
+    {
+        let current = GnomeProxySnapshot {
+            mode: gnome_read("org.gnome.system.proxy", "mode").await?,
+            http_host: gnome_read("org.gnome.system.proxy.http", "host").await?,
+            http_port: gnome_read("org.gnome.system.proxy.http", "port")
+                .await?
+                .parse()
+                .unwrap_or(0),
+            https_host: gnome_read("org.gnome.system.proxy.https", "host").await?,
+            https_port: gnome_read("org.gnome.system.proxy.https", "port")
+                .await?
+                .parse()
+                .unwrap_or(0),
+            applied_mode: None,
+            applied_http_host: None,
+            applied_http_port: None,
+            applied_https_host: None,
+            applied_https_port: None,
+        };
+        let matches_applied = current.mode == mode
+            && current.http_host == http_host
+            && current.http_port == http_port
+            && current.https_host == https_host
+            && current.https_port == https_port;
+        let matches_original = current.mode == snapshot.mode
+            && current.http_host == snapshot.http_host
+            && current.http_port == snapshot.http_port
+            && current.https_host == snapshot.https_host
+            && current.https_port == snapshot.https_port;
+        if !matches_applied {
+            return Ok(!matches_original);
+        }
+    }
+    gnome_set(
+        "org.gnome.system.proxy.http",
+        "host",
+        &format!("'{}'", snapshot.http_host.replace('\'', "")),
+    )
+    .await?;
+    gnome_set(
+        "org.gnome.system.proxy.http",
+        "port",
+        &snapshot.http_port.to_string(),
+    )
+    .await?;
+    gnome_set(
+        "org.gnome.system.proxy.https",
+        "host",
+        &format!("'{}'", snapshot.https_host.replace('\'', "")),
+    )
+    .await?;
+    gnome_set(
+        "org.gnome.system.proxy.https",
+        "port",
+        &snapshot.https_port.to_string(),
+    )
+    .await?;
+    gnome_set(
+        "org.gnome.system.proxy",
+        "mode",
+        &format!("'{}'", snapshot.mode.replace('\'', "")),
+    )
+    .await?;
+    Ok(false)
+}
+
+#[cfg(target_os = "linux")]
+async fn gnome_lease_is_active(snapshot: &GnomeProxySnapshot) -> anyhow::Result<bool> {
+    let (Some(mode), Some(http_host), Some(http_port), Some(https_host), Some(https_port)) = (
+        snapshot.applied_mode.as_deref(),
+        snapshot.applied_http_host.as_deref(),
+        snapshot.applied_http_port,
+        snapshot.applied_https_host.as_deref(),
+        snapshot.applied_https_port,
+    ) else {
+        return Ok(false);
+    };
+    Ok(gnome_read("org.gnome.system.proxy", "mode").await? == mode
+        && gnome_read("org.gnome.system.proxy.http", "host").await? == http_host
+        && gnome_read("org.gnome.system.proxy.http", "port")
+            .await?
+            .parse::<i32>()
+            .unwrap_or(0)
+            == http_port
+        && gnome_read("org.gnome.system.proxy.https", "host").await? == https_host
+        && gnome_read("org.gnome.system.proxy.https", "port")
+            .await?
+            .parse::<i32>()
+            .unwrap_or(0)
+            == https_port)
+}
+
+#[cfg(target_os = "android")]
+mod android_profile_picker {
+    use std::sync::{
+        Mutex, OnceLock,
+        atomic::{AtomicBool, Ordering},
+    };
+
+    use jni::{
+        JavaVM,
+        objects::{JByteArray, JClass, JObject, JString, JValue},
+    };
+    use slint::android::AndroidApp;
+
+    use crate::services::UiCommand;
+
+    static ACTIVITY: OnceLock<AndroidApp> = OnceLock::new();
+    static COMMAND_SENDER: OnceLock<Mutex<Option<std::sync::mpsc::Sender<UiCommand>>>> =
+        OnceLock::new();
+    static DOCUMENT_OPERATION_PENDING: AtomicBool = AtomicBool::new(false);
+    static VPN_PERMISSION_SENDER: OnceLock<Mutex<Option<tokio::sync::oneshot::Sender<bool>>>> =
+        OnceLock::new();
+    static NOTIFICATION_PERMISSION_SENDER: OnceLock<Mutex<Option<tokio::sync::oneshot::Sender<bool>>>> =
+        OnceLock::new();
+    static VPN_TUN_SENDER: OnceLock<
+        Mutex<Option<tokio::sync::oneshot::Sender<Result<i32, String>>>>,
+    > = OnceLock::new();
+
+    pub(super) fn configure_activity(app: AndroidApp) {
+        let _ = ACTIVITY.set(app);
+    }
+
+    pub(super) fn set_system_bar_appearance(dark_background: bool) {
+        let Some(app) = ACTIVITY.get().cloned() else {
+            return;
+        };
+        app.clone().run_on_java_main_thread(Box::new(move || {
+            let _ = (|| -> jni::errors::Result<()> {
+                let vm = unsafe { JavaVM::from_raw(app.vm_as_ptr().cast()) }?;
+                let mut env = vm.attach_current_thread()?;
+                let raw_activity = app.activity_as_ptr() as jni::sys::jobject;
+                let activity = unsafe { JObject::from_raw(raw_activity) };
+                env.call_method(
+                    &activity,
+                    "setSystemBarAppearance",
+                    "(Z)V",
+                    &[JValue::Bool(dark_background as u8)],
+                )?;
+                Ok(())
+            })();
+        }));
+    }
+
+    pub(super) fn refresh_system_theme() {
+        let Some(app) = ACTIVITY.get().cloned() else {
+            return;
+        };
+        app.clone().run_on_java_main_thread(Box::new(move || {
+            let _ = (|| -> jni::errors::Result<()> {
+                let vm = unsafe { JavaVM::from_raw(app.vm_as_ptr().cast()) }?;
+                let mut env = vm.attach_current_thread()?;
+                let raw_activity = app.activity_as_ptr() as jni::sys::jobject;
+                let activity = unsafe { JObject::from_raw(raw_activity) };
+                env.call_method(&activity, "notifySystemTheme", "()V", &[])?;
+                Ok(())
+            })();
+        }));
+    }
+
+    pub(super) fn set_auto_start_preference(enabled: bool) -> anyhow::Result<()> {
+        invoke_activity_bool_blocking("setAutoStartEnabled", enabled)
+    }
+
+    pub(super) async fn set_hide_background_card(enabled: bool) -> anyhow::Result<()> {
+        invoke_activity_bool("setHideBackgroundCard", enabled).await
+    }
+
+    pub(super) async fn set_application_language_preference(language: String) -> anyhow::Result<()> {
+        invoke_activity_string("setApplicationLanguagePreference", language).await
+    }
+
+    pub(super) async fn set_predictive_back_enabled(enabled: bool) -> anyhow::Result<()> {
+        invoke_activity_bool("setPredictiveBackEnabled", enabled).await
+    }
+
+    pub(super) async fn request_ignore_battery_optimizations() -> anyhow::Result<()> {
+        invoke_activity("requestIgnoreBatteryOptimizations").await
+    }
+
+    pub(super) async fn request_notification_permission() -> anyhow::Result<bool> {
+        let (sender, receiver) = tokio::sync::oneshot::channel();
+        let slot = NOTIFICATION_PERMISSION_SENDER.get_or_init(|| Mutex::new(None));
+        {
+            let mut current = slot
+                .lock()
+                .map_err(|_| anyhow::anyhow!("Android 通知权限状态锁不可用"))?;
+            if current.is_some() {
+                anyhow::bail!("Android 通知权限请求正在等待系统确认");
+            }
+            *current = Some(sender);
+        }
+        if let Err(error) = invoke_activity("requestNotificationPermission").await {
+            if let Ok(mut current) = slot.lock() { current.take(); }
+            return Err(error);
+        }
+        match tokio::time::timeout(std::time::Duration::from_secs(300), receiver).await {
+            Ok(Ok(granted)) => Ok(granted),
+            Ok(Err(_)) => anyhow::bail!("Android 通知权限结果未返回"),
+            Err(_) => {
+                if let Ok(mut current) = slot.lock() { current.take(); }
+                anyhow::bail!("等待 Android 通知权限确认超时")
+            }
+        }
+    }
+
+    pub(super) fn update_traffic_notification(enabled: bool, download: String, upload: String, english: bool) {
+        let Some(app) = ACTIVITY.get().cloned() else { return; };
+        app.clone().run_on_java_main_thread(Box::new(move || {
+            let _ = (|| -> jni::errors::Result<()> {
+                let vm = unsafe { JavaVM::from_raw(app.vm_as_ptr().cast()) }?;
+                let mut env = vm.attach_current_thread()?;
+                let raw_activity = app.activity_as_ptr() as jni::sys::jobject;
+                let activity = unsafe { JObject::from_raw(raw_activity) };
+                let download = env.new_string(download)?;
+                let upload = env.new_string(upload)?;
+                env.call_method(
+                    &activity,
+                    "updateTrafficNotification",
+                    "(ZLjava/lang/String;Ljava/lang/String;Z)V",
+                    &[
+                        JValue::Bool(enabled as u8),
+                        JValue::Object(download.as_ref()),
+                        JValue::Object(upload.as_ref()),
+                        JValue::Bool(english as u8),
+                    ],
+                )?;
+                Ok(())
+            })();
+        }));
+    }
+
+    pub(super) fn register_sender(sender: std::sync::mpsc::Sender<UiCommand>) {
+        let slot = COMMAND_SENDER.get_or_init(|| Mutex::new(None));
+        if let Ok(mut current) = slot.lock() {
+            *current = Some(sender);
+        }
+    }
+
+    pub(super) fn request_profile_picker() -> anyhow::Result<()> {
+        request_picker(
+            "openProfileDocument",
+            UiCommand::AndroidProfileFileFailed("无法启动 Android 系统文件选择器".into()),
+        )
+    }
+
+    pub(super) fn request_override_picker() -> anyhow::Result<()> {
+        request_picker(
+            "openOverrideDocument",
+            UiCommand::AndroidOverrideFileFailed("无法启动 Android 系统文件选择器".into()),
+        )
+    }
+
+    fn request_picker(method: &'static str, launch_failure: UiCommand) -> anyhow::Result<()> {
+        if DOCUMENT_OPERATION_PENDING
+            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+            .is_err()
+        {
+            anyhow::bail!("文件选择器正在等待选择结果");
+        }
+        let Some(app) = ACTIVITY.get().cloned() else {
+            DOCUMENT_OPERATION_PENDING.store(false, Ordering::Release);
+            anyhow::bail!("Android Activity 尚未就绪");
+        };
+        app.clone().run_on_java_main_thread(Box::new(move || {
+            let result = (|| -> jni::errors::Result<()> {
+                let vm = unsafe { JavaVM::from_raw(app.vm_as_ptr().cast()) }?;
+                let mut env = vm.attach_current_thread()?;
+                let raw_activity = app.activity_as_ptr() as jni::sys::jobject;
+                let activity = unsafe { JObject::from_raw(raw_activity) };
+                env.call_method(&activity, method, "()V", &[])?;
+                Ok(())
+            })();
+            if result.is_err() {
+                DOCUMENT_OPERATION_PENDING.store(false, Ordering::Release);
+                send(launch_failure);
+            }
+        }));
+        Ok(())
+    }
+
+    pub(super) fn request_export_document(
+        display_name: String,
+        mime_type: String,
+    ) -> anyhow::Result<()> {
+        if DOCUMENT_OPERATION_PENDING
+            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+            .is_err()
+        {
+            anyhow::bail!("Android 文档导出正在进行");
+        }
+        let Some(app) = ACTIVITY.get().cloned() else {
+            DOCUMENT_OPERATION_PENDING.store(false, Ordering::Release);
+            anyhow::bail!("Android Activity 尚未就绪");
+        };
+        app.clone().run_on_java_main_thread(Box::new(move || {
+            let result = (|| -> jni::errors::Result<()> {
+                let vm = unsafe { JavaVM::from_raw(app.vm_as_ptr().cast()) }?;
+                let mut env = vm.attach_current_thread()?;
+                let raw_activity = app.activity_as_ptr() as jni::sys::jobject;
+                let activity = unsafe { JObject::from_raw(raw_activity) };
+                let display_name = env.new_string(display_name)?;
+                let mime_type = env.new_string(mime_type)?;
+                env.call_method(
+                    &activity,
+                    "openExportDocument",
+                    "(Ljava/lang/String;Ljava/lang/String;)V",
+                    &[
+                        JValue::Object(display_name.as_ref()),
+                        JValue::Object(mime_type.as_ref()),
+                    ],
+                )?;
+                Ok(())
+            })();
+            if result.is_err() {
+                DOCUMENT_OPERATION_PENDING.store(false, Ordering::Release);
+                send(UiCommand::AndroidExportDocumentFailed(
+                    "无法启动 Android 系统保存对话框".into(),
+                ));
+            }
+        }));
+        Ok(())
+    }
+
+    pub(super) fn write_export_document(uri: String, contents: String) -> anyhow::Result<()> {
+        if !DOCUMENT_OPERATION_PENDING.load(Ordering::Acquire) {
+            anyhow::bail!("没有等待写入的 Android 文档");
+        }
+        let Some(app) = ACTIVITY.get().cloned() else {
+            DOCUMENT_OPERATION_PENDING.store(false, Ordering::Release);
+            anyhow::bail!("Android Activity 尚未就绪");
+        };
+        app.clone().run_on_java_main_thread(Box::new(move || {
+            let result = (|| -> jni::errors::Result<()> {
+                let vm = unsafe { JavaVM::from_raw(app.vm_as_ptr().cast()) }?;
+                let mut env = vm.attach_current_thread()?;
+                let raw_activity = app.activity_as_ptr() as jni::sys::jobject;
+                let activity = unsafe { JObject::from_raw(raw_activity) };
+                let uri = env.new_string(uri)?;
+                let contents = env.new_string(contents)?;
+                env.call_method(
+                    &activity,
+                    "writeExportDocument",
+                    "(Ljava/lang/String;Ljava/lang/String;)V",
+                    &[
+                        JValue::Object(uri.as_ref()),
+                        JValue::Object(contents.as_ref()),
+                    ],
+                )?;
+                Ok(())
+            })();
+            if result.is_err() {
+                DOCUMENT_OPERATION_PENDING.store(false, Ordering::Release);
+                send(UiCommand::AndroidExportDocumentFailed(
+                    "无法写入所选 Android 文档".into(),
+                ));
+            }
+        }));
+        Ok(())
+    }
+
+    async fn invoke_activity(method: &'static str) -> anyhow::Result<()> {
+        let Some(app) = ACTIVITY.get().cloned() else {
+            anyhow::bail!("Android Activity 尚未就绪");
+        };
+        let (completed, result) = tokio::sync::oneshot::channel();
+        app.clone().run_on_java_main_thread(Box::new(move || {
+            let call = (|| -> jni::errors::Result<()> {
+                let vm = unsafe { JavaVM::from_raw(app.vm_as_ptr().cast()) }?;
+                let mut env = vm.attach_current_thread()?;
+                let raw_activity = app.activity_as_ptr() as jni::sys::jobject;
+                let activity = unsafe { JObject::from_raw(raw_activity) };
+                env.call_method(&activity, method, "()V", &[])?;
+                Ok(())
+            })()
+            .map_err(|error| error.to_string());
+            let _ = completed.send(call);
+        }));
+        result
+            .await
+            .map_err(|_| anyhow::anyhow!("Android 主线程未返回 VPN 请求结果"))?
+            .map_err(anyhow::Error::msg)
+    }
+
+    async fn invoke_activity_bool(method: &'static str, value: bool) -> anyhow::Result<()> {
+        let Some(app) = ACTIVITY.get().cloned() else {
+            anyhow::bail!("Android Activity 尚未就绪");
+        };
+        let (completed, result) = tokio::sync::oneshot::channel();
+        app.clone().run_on_java_main_thread(Box::new(move || {
+            let call = (|| -> jni::errors::Result<()> {
+                let vm = unsafe { JavaVM::from_raw(app.vm_as_ptr().cast()) }?;
+                let mut env = vm.attach_current_thread()?;
+                let raw_activity = app.activity_as_ptr() as jni::sys::jobject;
+                let activity = unsafe { JObject::from_raw(raw_activity) };
+                env.call_method(&activity, method, "(Z)V", &[JValue::Bool(value as u8)])?;
+                Ok(())
+            })().map_err(|error| error.to_string());
+            let _ = completed.send(call);
+        }));
+        result.await.map_err(|_| anyhow::anyhow!("Android 主线程未返回设置结果"))?
+            .map_err(anyhow::Error::msg)
+    }
+
+    async fn invoke_activity_string(method: &'static str, value: String) -> anyhow::Result<()> {
+        let Some(app) = ACTIVITY.get().cloned() else {
+            anyhow::bail!("Android Activity 尚未就绪");
+        };
+        let (completed, result) = tokio::sync::oneshot::channel();
+        app.clone().run_on_java_main_thread(Box::new(move || {
+            let call = (|| -> jni::errors::Result<()> {
+                let vm = unsafe { JavaVM::from_raw(app.vm_as_ptr().cast()) }?;
+                let mut env = vm.attach_current_thread()?;
+                let raw_activity = app.activity_as_ptr() as jni::sys::jobject;
+                let activity = unsafe { JObject::from_raw(raw_activity) };
+                let value = env.new_string(value)?;
+                env.call_method(&activity, method, "(Ljava/lang/String;)V", &[JValue::Object(value.as_ref())])?;
+                Ok(())
+            })().map_err(|error| error.to_string());
+            let _ = completed.send(call);
+        }));
+        result.await.map_err(|_| anyhow::anyhow!("Android 主线程未返回设置结果"))?
+            .map_err(anyhow::Error::msg)
+    }
+
+    fn invoke_activity_bool_blocking(method: &'static str, value: bool) -> anyhow::Result<()> {
+        let Some(app) = ACTIVITY.get().cloned() else {
+            anyhow::bail!("Android Activity 尚未就绪");
+        };
+        let (completed, result) = std::sync::mpsc::channel();
+        app.clone().run_on_java_main_thread(Box::new(move || {
+            let call = (|| -> jni::errors::Result<()> {
+                let vm = unsafe { JavaVM::from_raw(app.vm_as_ptr().cast()) }?;
+                let mut env = vm.attach_current_thread()?;
+                let raw_activity = app.activity_as_ptr() as jni::sys::jobject;
+                let activity = unsafe { JObject::from_raw(raw_activity) };
+                env.call_method(&activity, method, "(Z)V", &[JValue::Bool(value as u8)])?;
+                Ok(())
+            })().map_err(|error| error.to_string());
+            let _ = completed.send(call);
+        }));
+        result.recv_timeout(std::time::Duration::from_secs(5))
+            .map_err(|_| anyhow::anyhow!("Android 主线程未保存自启动设置"))?
+            .map_err(anyhow::Error::msg)
+    }
+
+    pub(super) async fn request_vpn_authorization() -> anyhow::Result<bool> {
+        let (sender, receiver) = tokio::sync::oneshot::channel();
+        let slot = VPN_PERMISSION_SENDER.get_or_init(|| Mutex::new(None));
+        {
+            let mut current = slot
+                .lock()
+                .map_err(|_| anyhow::anyhow!("Android VPN 授权状态锁不可用"))?;
+            if current.is_some() {
+                anyhow::bail!("Android VPN 授权请求正在等待系统确认");
+            }
+            *current = Some(sender);
+        }
+        if let Err(error) = invoke_activity("requestVpnPermission").await {
+            if let Ok(mut current) = slot.lock() {
+                current.take();
+            }
+            return Err(error);
+        }
+        match tokio::time::timeout(std::time::Duration::from_secs(300), receiver).await {
+            Ok(Ok(granted)) => Ok(granted),
+            Ok(Err(_)) => anyhow::bail!("Android VPN 授权结果未返回"),
+            Err(_) => {
+                if let Ok(mut current) = slot.lock() {
+                    current.take();
+                }
+                anyhow::bail!("等待 Android VPN 系统授权超时")
+            }
+        }
+    }
+
+    pub(super) async fn start_vpn_service() -> anyhow::Result<i32> {
+        let (sender, receiver) = tokio::sync::oneshot::channel();
+        let slot = VPN_TUN_SENDER.get_or_init(|| Mutex::new(None));
+        {
+            let mut current = slot
+                .lock()
+                .map_err(|_| anyhow::anyhow!("Android VPN 隧道状态锁不可用"))?;
+            if current.is_some() {
+                anyhow::bail!("Android VPN 隧道建立请求正在进行");
+            }
+            *current = Some(sender);
+        }
+        if let Err(error) = invoke_activity("startVpnService").await {
+            if let Ok(mut current) = slot.lock() {
+                current.take();
+            }
+            return Err(error);
+        }
+        match tokio::time::timeout(std::time::Duration::from_secs(20), receiver).await {
+            Ok(Ok(Ok(fd))) if fd >= 0 => Ok(fd),
+            Ok(Ok(Ok(_))) => anyhow::bail!("Android VPN 返回了无效 TUN 文件描述符"),
+            Ok(Ok(Err(reason))) => anyhow::bail!("Android VPN 隧道建立失败：{reason}"),
+            Ok(Err(_)) => anyhow::bail!("Android VPN 隧道建立结果未返回"),
+            Err(_) => {
+                if let Ok(mut current) = slot.lock() {
+                    current.take();
+                }
+                let _ = invoke_activity("stopVpnService").await;
+                anyhow::bail!("等待 Android VPN 隧道建立超时")
+            }
+        }
+    }
+
+    pub(super) async fn stop_vpn_service() -> anyhow::Result<()> {
+        invoke_activity("stopVpnService").await
+    }
+
+    pub(super) async fn mihomo_core_path() -> anyhow::Result<std::path::PathBuf> {
+        let Some(app) = ACTIVITY.get().cloned() else {
+            anyhow::bail!("Android Activity 尚未就绪");
+        };
+        let (sender, receiver) = tokio::sync::oneshot::channel();
+        app.clone().run_on_java_main_thread(Box::new(move || {
+            let path = (|| -> jni::errors::Result<String> {
+                let vm = unsafe { JavaVM::from_raw(app.vm_as_ptr().cast()) }?;
+                let mut env = vm.attach_current_thread()?;
+                let raw_activity = app.activity_as_ptr() as jni::sys::jobject;
+                let activity = unsafe { JObject::from_raw(raw_activity) };
+                let path = env
+                    .call_method(&activity, "mihomoCorePath", "()Ljava/lang/String;", &[])?
+                    .l()?;
+                let path = JString::from(path);
+                Ok(env.get_string(&path)?.to_string_lossy().into_owned())
+            })()
+            .map_err(|error| error.to_string());
+            let _ = sender.send(path);
+        }));
+        let path = receiver
+            .await
+            .map_err(|_| anyhow::anyhow!("无法读取 Android Mihomo 核心路径"))?
+            .map_err(anyhow::Error::msg)?;
+        let path = std::path::PathBuf::from(path);
+        if !path.is_file() {
+            anyhow::bail!("APK 中缺少当前 ABI 的 Mihomo 核心；请重新安装 Lumen APK");
+        }
+        Ok(path)
+    }
+
+    fn send(command: UiCommand) {
+        let Some(slot) = COMMAND_SENDER.get() else {
+            return;
+        };
+        let sender = slot.lock().ok().and_then(|current| current.clone());
+        if let Some(sender) = sender {
+            let _ = sender.send(command);
+        }
+    }
+
+    fn complete(command: UiCommand) {
+        DOCUMENT_OPERATION_PENDING.store(false, Ordering::Release);
+        send(command);
+    }
+
+    fn complete_export(command: UiCommand) {
+        DOCUMENT_OPERATION_PENDING.store(false, Ordering::Release);
+        send(command);
+    }
+
+    fn error_message(code: i32) -> &'static str {
+        match code {
+            1 => "无法读取所选文件名",
+            2 => "仅支持 .yaml 或 .yml 格式的配置文件",
+            4 => "配置文件超过 20 MiB 上限",
+            5 => "无法启动 Android 系统文件选择器",
+            _ => "无法读取所选文件",
+        }
+    }
+
+    fn override_error_message(code: i32) -> &'static str {
+        match code {
+            1 => "无法读取所选文件名",
+            2 => "仅支持 .yaml 或 .yml 格式的 Override 文件",
+            4 => "Override 文件超过 20 MiB 上限",
+            5 => "无法启动 Android 系统文件选择器",
+            _ => "无法读取所选文件",
+        }
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "system" fn Java_org_lumen_client_LumenActivity_nativeProfileFilePicked(
+        mut env: jni::JNIEnv<'_>,
+        _class: JClass<'_>,
+        display_name: JString<'_>,
+        contents: JByteArray<'_>,
+    ) {
+        let display_name = match env.get_string(&display_name) {
+            Ok(value) => value.to_string_lossy().into_owned(),
+            Err(_) => {
+                complete(UiCommand::AndroidProfileFileFailed(error_message(1).into()));
+                return;
+            }
+        };
+        let contents = match env.convert_byte_array(contents) {
+            Ok(value) if value.len() <= 20 * 1024 * 1024 => value,
+            Ok(_) => {
+                complete(UiCommand::AndroidProfileFileFailed(error_message(4).into()));
+                return;
+            }
+            Err(_) => {
+                complete(UiCommand::AndroidProfileFileFailed(error_message(3).into()));
+                return;
+            }
+        };
+        complete(UiCommand::AndroidProfileFilePicked {
+            display_name,
+            contents,
+        });
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "system" fn Java_org_lumen_client_LumenActivity_nativeProfileFileReading(
+        _env: jni::JNIEnv<'_>,
+        _class: JClass<'_>,
+    ) {
+        send(UiCommand::AndroidProfileFileReading);
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "system" fn Java_org_lumen_client_LumenActivity_nativeProfileFileFailed(
+        _env: jni::JNIEnv<'_>,
+        _class: JClass<'_>,
+        code: i32,
+    ) {
+        complete(UiCommand::AndroidProfileFileFailed(
+            error_message(code).into(),
+        ));
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "system" fn Java_org_lumen_client_LumenActivity_nativeProfileFileCancelled(
+        _env: jni::JNIEnv<'_>,
+        _class: JClass<'_>,
+    ) {
+        complete(UiCommand::AndroidProfileFileCancelled);
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "system" fn Java_org_lumen_client_LumenActivity_nativeOverrideFilePicked(
+        mut env: jni::JNIEnv<'_>,
+        _class: JClass<'_>,
+        display_name: JString<'_>,
+        contents: JByteArray<'_>,
+    ) {
+        let display_name = match env.get_string(&display_name) {
+            Ok(value) => value.to_string_lossy().into_owned(),
+            Err(_) => {
+                complete(UiCommand::AndroidOverrideFileFailed(
+                    override_error_message(1).into(),
+                ));
+                return;
+            }
+        };
+        let contents = match env.convert_byte_array(contents) {
+            Ok(value) if value.len() <= 20 * 1024 * 1024 => value,
+            Ok(_) => {
+                complete(UiCommand::AndroidOverrideFileFailed(
+                    override_error_message(4).into(),
+                ));
+                return;
+            }
+            Err(_) => {
+                complete(UiCommand::AndroidOverrideFileFailed(
+                    override_error_message(3).into(),
+                ));
+                return;
+            }
+        };
+        complete(UiCommand::AndroidOverrideFilePicked {
+            display_name,
+            contents,
+        });
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "system" fn Java_org_lumen_client_LumenActivity_nativeOverrideFileReading(
+        _env: jni::JNIEnv<'_>,
+        _class: JClass<'_>,
+    ) {
+        send(UiCommand::AndroidOverrideFileReading);
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "system" fn Java_org_lumen_client_LumenActivity_nativeOverrideFileFailed(
+        _env: jni::JNIEnv<'_>,
+        _class: JClass<'_>,
+        code: i32,
+    ) {
+        complete(UiCommand::AndroidOverrideFileFailed(
+            override_error_message(code).into(),
+        ));
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "system" fn Java_org_lumen_client_LumenActivity_nativeOverrideFileCancelled(
+        _env: jni::JNIEnv<'_>,
+        _class: JClass<'_>,
+    ) {
+        complete(UiCommand::AndroidOverrideFileCancelled);
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "system" fn Java_org_lumen_client_LumenActivity_nativeExportDocumentSelected(
+        mut env: jni::JNIEnv<'_>,
+        _class: JClass<'_>,
+        uri: JString<'_>,
+    ) {
+        let uri = match env.get_string(&uri) {
+            Ok(value) => value.to_string_lossy().into_owned(),
+            Err(_) => {
+                complete_export(UiCommand::AndroidExportDocumentFailed(
+                    "无法读取 Android 保存位置".into(),
+                ));
+                return;
+            }
+        };
+        send(UiCommand::AndroidExportDocumentSelected(uri));
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "system" fn Java_org_lumen_client_LumenActivity_nativeExportDocumentCompleted(
+        _env: jni::JNIEnv<'_>,
+        _class: JClass<'_>,
+    ) {
+        complete_export(UiCommand::AndroidExportDocumentCompleted);
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "system" fn Java_org_lumen_client_LumenActivity_nativeExportDocumentFailed(
+        _env: jni::JNIEnv<'_>,
+        _class: JClass<'_>,
+    ) {
+        complete_export(UiCommand::AndroidExportDocumentFailed(
+            "无法写入目标文档；请检查保存位置权限和可用空间".into(),
+        ));
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "system" fn Java_org_lumen_client_LumenActivity_nativeExportDocumentCancelled(
+        _env: jni::JNIEnv<'_>,
+        _class: JClass<'_>,
+    ) {
+        complete_export(UiCommand::AndroidExportDocumentCancelled);
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "system" fn Java_org_lumen_client_LumenActivity_nativeBackPressed(
+        _env: jni::JNIEnv<'_>,
+        _class: JClass<'_>,
+    ) {
+        send(UiCommand::AndroidBackPressed);
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "system" fn Java_org_lumen_client_LumenActivity_nativeSystemThemeChanged(
+        _env: jni::JNIEnv<'_>,
+        _class: JClass<'_>,
+        dark_mode: jni::sys::jboolean,
+    ) {
+        send(UiCommand::SetSystemDarkMode(dark_mode != 0));
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "system" fn Java_org_lumen_client_LumenActivity_nativeAndroidActivityVisibility(
+        _env: jni::JNIEnv<'_>,
+        _class: JClass<'_>,
+        visible: jni::sys::jboolean,
+    ) {
+        send(UiCommand::AndroidActivityVisibility(visible != 0));
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "system" fn Java_org_lumen_client_LumenActivity_nativeAndroidSystemSettingsChanged(
+        mut env: jni::JNIEnv<'_>,
+        _class: JClass<'_>,
+        notifications_allowed: jni::sys::jboolean,
+        battery_optimization_ignored: jni::sys::jboolean,
+        language: JString<'_>,
+        api_level: jni::sys::jint,
+    ) {
+        let language = env.get_string(&language)
+            .map(|value| value.to_string_lossy().into_owned())
+            .unwrap_or_else(|_| "zh-CN".into());
+        send(UiCommand::AndroidSystemSettingsChanged {
+            notification_permission_granted: notifications_allowed != 0,
+            ignore_battery_optimizations: battery_optimization_ignored != 0,
+            system_language: language,
+            api_level: api_level.max(0) as u32,
+        });
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "system" fn Java_org_lumen_client_LumenActivity_nativeNotificationPermissionResult(
+        _env: jni::JNIEnv<'_>,
+        _class: JClass<'_>,
+        granted: jni::sys::jboolean,
+    ) {
+        if let Some(slot) = NOTIFICATION_PERMISSION_SENDER.get() {
+            if let Some(sender) = slot.lock().ok().and_then(|mut current| current.take()) {
+                let _ = sender.send(granted != 0);
+            }
+        }
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "system" fn Java_org_lumen_client_LumenActivity_nativeBackGestureProgress(
+        _env: jni::JNIEnv<'_>,
+        _class: JClass<'_>,
+        progress: jni::sys::jfloat,
+    ) {
+        send(UiCommand::AndroidBackGestureProgress(progress));
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "system" fn Java_org_lumen_client_LumenActivity_nativeBackGestureCancelled(
+        _env: jni::JNIEnv<'_>,
+        _class: JClass<'_>,
+    ) {
+        send(UiCommand::AndroidBackGestureCancelled);
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "system" fn Java_org_lumen_client_LumenActivity_nativeVpnPermissionResult(
+        _env: jni::JNIEnv<'_>,
+        _class: JClass<'_>,
+        granted: jni::sys::jboolean,
+    ) {
+        if let Some(slot) = VPN_PERMISSION_SENDER.get() {
+            if let Some(sender) = slot.lock().ok().and_then(|mut current| current.take()) {
+                let _ = sender.send(granted != 0);
+            }
+        }
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "system" fn Java_org_lumen_client_LumenActivity_nativeVpnStartRequestFailed(
+        _env: jni::JNIEnv<'_>,
+        _class: JClass<'_>,
+    ) {
+        if let Some(slot) = VPN_TUN_SENDER.get() {
+            if let Some(sender) = slot.lock().ok().and_then(|mut current| current.take()) {
+                let _ = sender.send(Err("无法启动 Android VPN 前台服务".into()));
+            }
+        }
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "system" fn Java_org_lumen_client_LumenVpnService_nativeVpnTunnelEstablished(
+        _env: jni::JNIEnv<'_>,
+        _class: JClass<'_>,
+        fd: jni::sys::jint,
+    ) {
+        if let Some(slot) = VPN_TUN_SENDER.get() {
+            if let Some(sender) = slot.lock().ok().and_then(|mut current| current.take()) {
+                let _ = sender.send(Ok(fd));
+            }
+        }
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "system" fn Java_org_lumen_client_LumenVpnService_nativeVpnTunnelFailed(
+        mut env: jni::JNIEnv<'_>,
+        _class: JClass<'_>,
+        reason: JString<'_>,
+    ) {
+        let reason = env
+            .get_string(&reason)
+            .map(|value| value.to_string_lossy().into_owned())
+            .unwrap_or_else(|_| "Android VPN 服务启动失败".into());
+        if let Some(slot) = VPN_TUN_SENDER.get() {
+            if let Some(sender) = slot.lock().ok().and_then(|mut current| current.take()) {
+                let _ = sender.send(Err(reason));
+            }
+        }
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "system" fn Java_org_lumen_client_LumenVpnService_nativeVpnServiceDisconnected(
+        mut env: jni::JNIEnv<'_>,
+        _class: JClass<'_>,
+        reason: JString<'_>,
+    ) {
+        let reason = env
+            .get_string(&reason)
+            .map(|value| value.to_string_lossy().into_owned())
+            .unwrap_or_else(|_| "Android VPN 服务已断开".into());
+        if let Some(slot) = VPN_TUN_SENDER.get() {
+            if let Some(sender) = slot.lock().ok().and_then(|mut current| current.take()) {
+                let _ = sender.send(Err(reason.clone()));
+            }
+        }
+        send(UiCommand::AndroidVpnDisconnected(reason));
+    }
+}
+
+#[cfg(target_os = "android")]
+pub fn configure_android_activity(app: slint::android::AndroidApp) {
+    android_profile_picker::configure_activity(app);
+}
+
+#[cfg(target_os = "android")]
+pub fn set_android_system_bar_appearance(dark_background: bool) {
+    android_profile_picker::set_system_bar_appearance(dark_background);
+}
+
+#[cfg(target_os = "android")]
+pub fn refresh_android_system_theme() {
+    android_profile_picker::refresh_system_theme();
+}
+
+#[cfg(target_os = "android")]
+pub fn register_android_profile_file_sender(
+    sender: std::sync::mpsc::Sender<crate::services::UiCommand>,
+) {
+    android_profile_picker::register_sender(sender);
+}
+
+#[cfg(target_os = "android")]
+pub fn request_android_profile_file_picker() -> anyhow::Result<()> {
+    android_profile_picker::request_profile_picker()
+}
+
+#[cfg(target_os = "android")]
+pub async fn set_android_hide_background_card(enabled: bool) -> anyhow::Result<()> {
+    android_profile_picker::set_hide_background_card(enabled).await
+}
+
+#[cfg(target_os = "android")]
+pub async fn set_android_predictive_back_enabled(enabled: bool) -> anyhow::Result<()> {
+    android_profile_picker::set_predictive_back_enabled(enabled).await
+}
+
+#[cfg(target_os = "android")]
+pub async fn request_android_ignore_battery_optimizations() -> anyhow::Result<()> {
+    android_profile_picker::request_ignore_battery_optimizations().await
+}
+
+#[cfg(target_os = "android")]
+pub async fn request_android_notification_permission() -> anyhow::Result<bool> {
+    android_profile_picker::request_notification_permission().await
+}
+
+#[cfg(target_os = "android")]
+pub fn update_android_traffic_notification(enabled: bool, download: &str, upload: &str, english: bool) {
+    android_profile_picker::update_traffic_notification(enabled, download.into(), upload.into(), english)
+}
+
+#[cfg(target_os = "android")]
+pub async fn set_android_application_language_preference(language: String) -> anyhow::Result<()> {
+    android_profile_picker::set_application_language_preference(language).await
+}
+
+#[cfg(target_os = "android")]
+pub fn request_android_override_file_picker() -> anyhow::Result<()> {
+    android_profile_picker::request_override_picker()
+}
+
+#[cfg(target_os = "android")]
+pub fn request_android_document_export(display_name: &str, mime_type: &str) -> anyhow::Result<()> {
+    android_profile_picker::request_export_document(display_name.into(), mime_type.into())
+}
+
+#[cfg(target_os = "android")]
+pub fn write_android_document(uri: &str, contents: &str) -> anyhow::Result<()> {
+    android_profile_picker::write_export_document(uri.into(), contents.into())
+}
+
+#[cfg(target_os = "android")]
+pub async fn request_android_vpn_authorization() -> anyhow::Result<bool> {
+    android_profile_picker::request_vpn_authorization().await
+}
+
+#[cfg(target_os = "android")]
+pub async fn start_android_vpn_service() -> anyhow::Result<i32> {
+    android_profile_picker::start_vpn_service().await
+}
+
+#[cfg(target_os = "android")]
+pub async fn stop_android_vpn_service() -> anyhow::Result<()> {
+    android_profile_picker::stop_vpn_service().await
+}
+
+#[cfg(target_os = "android")]
+pub async fn android_mihomo_core_path() -> anyhow::Result<PathBuf> {
+    android_profile_picker::mihomo_core_path().await
+}

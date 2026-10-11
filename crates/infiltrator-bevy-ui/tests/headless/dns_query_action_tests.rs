@@ -1,20 +1,19 @@
 //! test-intent: behavior
-use crate::command_harness::recording_application;
+use crate::command_harness::{identified_recording_application, test_command_application};
 use crate::native_input::{click_entity, type_text};
-use crate::support::headless_plugins;
+use crate::support::{command_pump_for_observed_snapshot, headless_plugins};
 use bevy::app::App;
 use bevy::ecs::entity::Entity;
 use bevy::input::ButtonState;
 use bevy::input::keyboard::{Key, KeyCode, KeyboardInput};
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::ButtonPlugin;
-use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::dns_query_actions::QuerySection;
 use infiltrator_application::dns_query_application::DnsQueryApplication;
 use infiltrator_application::dns_query_fixtures::{IsolatedQueries, QueryFixtureMode};
 use infiltrator_application::surface_reader::ApplicationSurfaceReader;
 use infiltrator_bevy_ui::app::ShellPlugin;
-use infiltrator_bevy_ui::command::{CommandPumpPlugin, UiCommand};
+use infiltrator_bevy_ui::command::UiCommand;
 use infiltrator_bevy_ui::command_events::CommandExecutedEvent;
 use infiltrator_bevy_ui::pages::dns_query::{QueryAction, QueryLine, QueryNameField, QueryPanel};
 use infiltrator_bevy_ui::route::{PagesPlugin, Route, RouteChanged};
@@ -23,6 +22,7 @@ use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::localization::{LocalizedLabel, UiLocale};
 use infiltrator_bevy_widgets::text_input::{TextField, TextFieldFocused};
 use infiltrator_contract::command_output::CommandOutput;
+use infiltrator_contract::core_capabilities::{CoreOperation, DnsOperation};
 use infiltrator_contract::dns_query::{DnsQueryOperationId, DnsQueryRequest, DnsRecordType};
 use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
@@ -34,9 +34,10 @@ use tokio::runtime::Builder;
 
 fn setup(port: Arc<IsolatedQueries>) -> (App, ApplicationSurfaceReader) {
     let owner = DnsQueryApplication::new(Some(port));
-    let (application, _) = recording_application();
+    let (application, _) = identified_recording_application();
     application.install_command_handler(Arc::new(
-        CommandApplication::new().with_dns_query(owner.clone()),
+        test_command_application([CoreOperation::Dns(DnsOperation::Query)])
+            .with_dns_query(owner.clone()),
     ));
     let application = Arc::new(application);
     let reader = ApplicationSurfaceReader::new(
@@ -51,7 +52,7 @@ fn setup(port: Arc<IsolatedQueries>) -> (App, ApplicationSurfaceReader) {
         ButtonPlugin,
         ShellPlugin::default(),
         PagesPlugin::default(),
-        CommandPumpPlugin::for_application(application),
+        command_pump_for_observed_snapshot(application),
     ));
     app.update();
     app.world_mut().trigger(RouteChanged(Route::Dns));

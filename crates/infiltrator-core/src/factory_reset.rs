@@ -18,7 +18,7 @@
 //!
 //! * 硬失败组（`settings.toml` / `settings.json` / `config.toml`）删除
 //!   失败立即返回 `Err`，中止整个恢复出厂；
-//! * 软失败组（`versions/`、`logs/`、崩溃/启动日志、configs 目录）删除
+//! * 软失败组（引擎 namespace、旧 `versions/`、`logs/`、崩溃/启动日志、configs 目录）删除
 //!   失败只记入 [`ResetReport::warnings`]，不中断其余目标；
 //! * 不存在的目标静默跳过并记入 [`ResetReport::skipped`]。
 
@@ -62,6 +62,7 @@ pub fn execute(home: &Path, configs_dir: Option<&Path>) -> anyhow::Result<ResetR
     }
 
     // 软失败组：目录/日志删除失败（如被占用）只记 warning，继续其余清理。
+    remove_dir_soft(&home.join("engines"), &mut report);
     remove_dir_soft(&home.join("versions"), &mut report);
     remove_dir_soft(&home.join("logs"), &mut report);
     remove_file_soft(&home.join("infiltrator_crash.log"), &mut report);
@@ -158,6 +159,7 @@ mod tests {
         touch(&home.join("settings.json"));
         touch(&home.join("config.toml"));
         touch(&home.join("versions").join("1.19.0").join("mihomo"));
+        touch(&home.join("engines/mihomo/versions/1.19.1/mihomo"));
         touch(&home.join("logs").join("mihomo.log"));
         touch(&home.join("infiltrator_crash.log"));
         touch(&home.join("startup_critical.log"));
@@ -170,14 +172,15 @@ mod tests {
         let report = execute(home, Some(&configs)).unwrap();
         assert!(report.warnings.is_empty(), "{:?}", report.warnings);
         assert!(report.skipped.is_empty(), "{:?}", report.skipped);
-        // 3 个 settings/config 文件 + versions + logs + 2 个日志 + configs。
-        assert_eq!(report.removed_count(), 8);
+        // 3 个 settings/config 文件 + 两个版本根目录 + logs + 2 个日志 + configs。
+        assert_eq!(report.removed_count(), 9);
 
         for path in [
             "settings.toml",
             "settings.json",
             "config.toml",
             "versions/1.19.0/mihomo",
+            "engines/mihomo/versions/1.19.1/mihomo",
             "logs/mihomo.log",
             "infiltrator_crash.log",
             "startup_critical.log",
@@ -199,8 +202,8 @@ mod tests {
         let report = execute(home, Some(&configs)).unwrap();
         assert!(report.removed.is_empty());
         assert!(report.warnings.is_empty());
-        // 3 个硬失败文件 + versions + logs + 2 个日志 + configs。
-        assert_eq!(report.skipped.len(), 8);
+        // 3 个硬失败文件 + 两个版本根目录 + logs + 2 个日志 + configs。
+        assert_eq!(report.skipped.len(), 9);
         assert!(report.skipped.contains(&configs));
     }
 
@@ -213,6 +216,7 @@ mod tests {
         touch(&home.join("config.toml"));
         // 目录目标建成普通文件：remove_dir_all 必失败（非 NotFound）。
         touch(&home.join("versions"));
+        touch(&home.join("engines"));
         touch(&home.join("logs"));
         touch(&home.join("configs_dir_target"));
         // 文件目标建成目录：remove_file 必失败（非 NotFound）。
@@ -225,8 +229,8 @@ mod tests {
         assert_eq!(report.removed_count(), 3);
         assert!(!home.join("settings.toml").exists());
         assert!(!home.join("config.toml").exists());
-        // 5 个软目标全部落 warning：versions/logs/configs + 2 个日志。
-        assert_eq!(report.warnings.len(), 5, "{:?}", report.warnings);
+        // 6 个软目标全部落 warning：两个版本根目录/logs/configs + 2 个日志。
+        assert_eq!(report.warnings.len(), 6, "{:?}", report.warnings);
         assert!(report.skipped.is_empty());
         assert!(home.join("versions").exists());
         assert!(home.join("infiltrator_crash.log").exists());

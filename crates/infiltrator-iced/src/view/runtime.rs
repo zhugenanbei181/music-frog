@@ -3,11 +3,11 @@
 //! sibling section modules and composed into one page-level scrollable.
 
 use crate::view::pcap_panel::pcap_card;
-use infiltrator_application::proxy_mode_projection::mode_status_copy;
-use infiltrator_contract::command::ProxyMode;
-use infiltrator_contract::proxy_mode::ProxyModeStatus;
-use std::fmt;
-use std::fmt::{Display, Formatter};
+use infiltrator_application::routing_intent_projection::{
+    routing_intent_copy, routing_intent_status_copy,
+};
+use infiltrator_contract::routing_intent::{RoutingIntent, RoutingIntentStatus};
+use std::fmt::{self, Display, Formatter};
 pub(crate) mod connection_search;
 mod connections;
 pub(crate) mod connections_controls;
@@ -30,17 +30,17 @@ use crate::view::theme;
 use crate::view::theme::{FONT_SEMIBOLD, SP_LG, SP_MD, tokens};
 use iced::widget::{Space, column, container, pick_list, row, text};
 use iced::{Alignment, Element, Length, Theme};
+use infiltrator_contract::outbound::inventory::SelectionAvailability;
 use infiltrator_shared::locales::{Lang, Localizer};
 
-/// Localized proxy-mode pick-list option: renders `label` (via `Display`)
-/// while `Message::SetProxyMode` keeps carrying the raw mihomo `value`.
+/// Localized common routing choice for the pick-list.
 #[derive(Clone, PartialEq)]
-struct ModeOption {
-    value: &'static str,
+struct RoutingIntentOption {
+    intent: RoutingIntent,
     label: String,
 }
 
-impl Display for ModeOption {
+impl Display for RoutingIntentOption {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.write_str(&self.label)
     }
@@ -56,12 +56,12 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         let stopped = card(
             None,
             column![
-                empty_state(Icon::Plug, lang.tr("proxy_not_running").as_ref(), ""),
+                empty_state(Icon::Plug, lang.tr("core_not_running").as_ref(), ""),
                 Space::new().height(SP_MD),
                 text_btn(
-                    lang.tr("start_proxy").to_string(),
+                    lang.tr("start_core").to_string(),
                     style_accent,
-                    Some(Message::StartProxy)
+                    Some(Message::StartCore)
                 ),
             ]
             .align_x(Alignment::Center),
@@ -78,46 +78,33 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         .into();
     }
 
-    let mode_options = vec![
-        ModeOption {
-            value: "rule",
-            label: lang.tr("proxy_mode_rule").to_string(),
-        },
-        ModeOption {
-            value: "global",
-            label: lang.tr("proxy_mode_global").to_string(),
-        },
-        ModeOption {
-            value: "direct",
-            label: lang.tr("proxy_mode_direct").to_string(),
-        },
-        ModeOption {
-            value: "script",
-            label: lang.tr("proxy_mode_script").to_string(),
-        },
-    ];
-    let mode_options: Vec<_> = mode_options
-        .into_iter()
-        .filter(|option| {
-            ProxyMode::from_wire(option.value)
-                .is_some_and(|mode| state.runtime.proxy_mode_state.is_mode_selectable(mode))
-        })
-        .collect();
-    let selected_mode = mode_options
+    let routing_intent_options: Vec<_> = [
+        RoutingIntent::FollowRules,
+        RoutingIntent::RouteAllThroughProxy,
+        RoutingIntent::BypassProxy,
+    ]
+    .into_iter()
+    .map(|intent| RoutingIntentOption {
+        label: routing_intent_copy(&intent, &state.shell.lang),
+        intent,
+    })
+    .filter(|option| {
+        state
+            .runtime
+            .routing_intent_state
+            .is_intent_selectable(&option.intent)
+    })
+    .collect();
+    let selected_routing_intent = routing_intent_options
         .iter()
-        .find(|option| Some(option.value) == state.runtime.proxy_mode.as_deref())
+        .find(|option| Some(&option.intent) == state.runtime.routing_intent.as_ref())
         .cloned();
     let mut runtime_group_options: Vec<String> = state
         .runtime
-        .proxies
+        .proxy_groups
         .iter()
-        .filter_map(|(name, proxy)| {
-            if proxy.is_group() {
-                Some(name.clone())
-            } else {
-                None
-            }
-        })
+        .filter(|group| group.availability == SelectionAvailability::Selectable)
+        .map(|group| group.name.clone())
         .collect();
     runtime_group_options.sort();
     if let Some(index) = runtime_group_options
@@ -134,10 +121,13 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     };
     let runtime_proxy_options: Vec<String> = state
         .runtime
-        .proxies
-        .get(&state.runtime.runtime_selected_group)
-        .and_then(|proxy| proxy.all())
-        .map(|all| all.to_vec())
+        .proxy_groups
+        .iter()
+        .find(|group| {
+            group.name == state.runtime.runtime_selected_group
+                && group.availability == SelectionAvailability::Selectable
+        })
+        .map(|group| group.proxies.iter().map(|node| node.name.clone()).collect())
         .unwrap_or_default();
     let selected_runtime_proxy = if state.runtime.runtime_selected_proxy.trim().is_empty() {
         None
@@ -150,15 +140,15 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             text_btn(lang.tr("status_starting").to_string(), style_ghost, None)
         } else if matches!(state.runtime.status, RuntimeStatus::Running) {
             text_btn(
-                lang.tr("stop_proxy").to_string(),
+                lang.tr("stop_core").to_string(),
                 style_danger,
-                Some(Message::StopProxy),
+                Some(Message::StopCore),
             )
         } else {
             text_btn(
-                lang.tr("start_proxy").to_string(),
+                lang.tr("start_core").to_string(),
                 style_accent,
-                Some(Message::StartProxy),
+                Some(Message::StartCore),
             )
         };
 
@@ -170,27 +160,29 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 color: Some(tokens(t).text_primary),
             }),
         Space::new().width(Length::Fill),
-        text(lang.tr("proxy_mode").to_string())
+        text(lang.tr("routing_intent_title").to_string())
             .size(12)
             .style(|t: &Theme| text::Style {
                 color: Some(tokens(t).text_secondary),
             }),
         Space::new().width(theme::SP_SM),
-        if state.runtime.proxy_mode_state.status == ProxyModeStatus::Ready
+        if state.runtime.routing_intent_state.status == RoutingIntentStatus::Ready
             && state.runtime.pending_runtime_patch.is_none()
         {
             Element::from(
-                pick_list(mode_options, selected_mode, |mode: ModeOption| {
-                    Message::SetProxyMode(mode.value.to_string())
-                })
+                pick_list(
+                    routing_intent_options,
+                    selected_routing_intent,
+                    |option: RoutingIntentOption| Message::SetRoutingIntent(option.intent),
+                )
                 .text_size(12)
                 .width(Length::Shrink)
                 .style(form_pick_style),
             )
         } else {
             Element::from(
-                text(mode_status_copy(
-                    &state.runtime.proxy_mode_state,
+                text(routing_intent_status_copy(
+                    &state.runtime.routing_intent_state,
                     &state.shell.lang,
                 ))
                 .size(12),
@@ -251,11 +243,14 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                         color: Some(tokens(t).text_secondary),
                     }),
                 Space::new().height(theme::SP_XS),
-                pick_list(
-                    runtime_proxy_options,
-                    selected_runtime_proxy,
-                    Message::UpdateRuntimeSelectedProxy,
-                )
+                pick_list(runtime_proxy_options, selected_runtime_proxy, |outbound| {
+                    state
+                        .prepare_runtime_outbound_selection_message(
+                            &state.runtime.runtime_selected_group,
+                            &outbound,
+                        )
+                        .unwrap_or(Message::Noop)
+                },)
                 .width(Length::Fill)
                 .text_size(12)
                 .style(form_pick_style),
@@ -291,11 +286,14 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                         color: Some(tokens(t).text_secondary),
                     }),
                 Space::new().height(theme::SP_XS),
-                pick_list(
-                    runtime_proxy_options,
-                    selected_runtime_proxy,
-                    Message::UpdateRuntimeSelectedProxy,
-                )
+                pick_list(runtime_proxy_options, selected_runtime_proxy, |outbound| {
+                    state
+                        .prepare_runtime_outbound_selection_message(
+                            &state.runtime.runtime_selected_group,
+                            &outbound,
+                        )
+                        .unwrap_or(Message::Noop)
+                },)
                 .width(Length::FillPortion(1))
                 .text_size(12)
                 .style(form_pick_style),

@@ -1,13 +1,15 @@
 //! Capture the actual reader and independent native cleanup review before any write.
+use crate::demo::owner::attach_capture_owner;
 use crate::state::AppState;
 use crate::types::message::Message;
 use iced::Task;
 use infiltrator_application::command_application::CommandApplication;
-use infiltrator_application::configuration_application::ConfigurationApplication;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::language_choice_fixtures::LanguageCaptureProcess;
 use infiltrator_application::rule_statistics_workbench::{StatisticsAction, StatisticsTab};
-use infiltrator_application::rule_trace_fixtures::RuleTraceStore;
+use infiltrator_application::rule_trace_fixtures::{
+    scoped_rule_trace_request, unknown_rule_trace_observation,
+};
 use infiltrator_application::rule_tracer_application::RuleTracerApplication;
 use infiltrator_application::surface_reader::ApplicationSurfaceReader;
 use infiltrator_composition::tokio_application_runtime;
@@ -16,11 +18,12 @@ use infiltrator_contract::rule_trace_run::{RuleTraceOperationId, RuleTraceReques
 use infiltrator_contract::rule_tracer::TrafficContextSnapshot;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::SurfaceOrigin;
+use infiltrator_ports::rule_tracer::RuleOverridePort;
 use infiltrator_ports::surface::SurfaceReader;
 use std::sync::Arc;
 
 pub(super) fn activate(state: &mut AppState) -> Task<Message> {
-    let store = Arc::new(RuleTraceStore::default());
+    let store = crate::configuration::mihomo_rule_trace_fixture();
     let owner = RuleTracerApplication::new();
     owner.set_override_port(store.clone());
     let core = CoreApplication::new(
@@ -37,22 +40,36 @@ pub(super) fn activate(state: &mut AppState) -> Task<Message> {
         HostKind::Desktop,
     )
     .with_rule_tracer(owner.clone())
-    .with_configuration(ConfigurationApplication::new(store));
-    state.commands = Some(core);
+    .with_configuration(crate::configuration::for_mihomo_store(store.clone()));
+    attach_capture_owner(state, core);
     let revision = state.surface.revision() + 1;
     Task::perform(
         async move {
-            owner
-                .simulate(
-                    RuleTraceOperationId(1),
-                    RuleTraceRequest {
-                        query: "special.com".into(),
-                        context: TrafficContextSnapshot {
-                            src_ip: Some("192.0.2.1".into()),
-                            ..Default::default()
-                        },
+            let workspace = store
+                .load_rule_workspace()
+                .await
+                .expect("capture profile workspace")
+                .profile_identity;
+            let (scope, observed_workspace, request) = scoped_rule_trace_request(
+                RuleTraceRequest {
+                    query: "special.com".into(),
+                    context: TrafficContextSnapshot {
+                        src_ip: Some("192.0.2.1".into()),
+                        ..Default::default()
                     },
-                    None,
+                },
+                workspace,
+            );
+            let outbound_observation = unknown_rule_trace_observation(scope.clone());
+            owner
+                .simulate_scoped(
+                    &scope,
+                    &observed_workspace,
+                    RuleTraceOperationId(1),
+                    request,
+                    &infiltrator_contract::rule_trace_run::RuleTraceOutboundFacts::Observed(
+                        outbound_observation.clone(),
+                    ),
                 )
                 .await
                 .expect("actual trace statistics");

@@ -34,7 +34,7 @@ fn every_spec_action_id_resolves_to_an_intent() {
     const EXPECTED_MISSES: &[TrayActionId] = &[
         TRAY_ACTION_NO_PROXIES,
         TRAY_ACTION_NO_PROFILES,
-        TRAY_ACTION_INFO_MODE,
+        TRAY_ACTION_INFO_ROUTING_INTENT,
         TRAY_ACTION_INFO_STATUS,
         TRAY_ACTION_INFO_CONTROLLER,
         TRAY_ACTION_INFO_ADMIN,
@@ -94,11 +94,11 @@ fn every_spec_action_id_resolves_to_an_intent() {
 
     let (mut hits, mut misses) = (0, Vec::new());
     walk(&spec.menu.items, &event_ctx, &mut hits, &mut misses);
-    // 28 clickable entries: show, 4 modes, 3 nodes, sys/tun/theme, 2 profile
+    // 27 clickable entries: show, 3 routing intents, 3 nodes, sys/tun/theme, 2 profile
     // activations, update-all, 2 auto-update checkmarks, 2×(set-default +
     // uninstall), check-update, flush-fakeip, upload, download, sync
     // settings, autostart, factory reset, quit.
-    assert_eq!(hits, 28);
+    assert_eq!(hits, 27);
     // 8 read-only lines rendered by this snapshot: the two kernel info
     // entries, the sync status line and the five-entry info submenu. (The
     // two placeholders and the download-progress line only appear in their

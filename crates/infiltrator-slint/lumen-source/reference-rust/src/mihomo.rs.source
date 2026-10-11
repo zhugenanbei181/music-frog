@@ -1,0 +1,944 @@
+use std::{net::TcpListener, path::Path, time::Duration};
+
+use anyhow::Context;
+use reqwest::{Client, Method, Response, Url};
+use serde_json::{Value as JsonValue, json};
+use serde_yaml::Value as YamlValue;
+use tokio::{
+    process::Child,
+    time::{sleep, timeout},
+};
+use uuid::Uuid;
+
+use crate::{
+    model::{AppPaths, AppStore, NetworkMode, Profile},
+    platform,
+};
+
+const MAX_API_RESPONSE: usize = 8 * 1024 * 1024;
+#[cfg(target_os = "android")]
+pub const ANDROID_CORE_VERSION: &str = "1.19.32";
+
+#[derive(Clone)]
+pub struct Controller {
+    client: Client,
+    base: Url,
+    secret: String,
+}
+
+impl Controller {
+    pub fn new(port: u16, secret: String) -> anyhow::Result<Self> {
+        let client = Client::builder().timeout(Duration::from_secs(4)).build()?;
+        let base = Url::parse(&format!("http://127.0.0.1:{port}/"))?;
+        Ok(Self {
+            client,
+            base,
+            secret,
+        })
+    }
+
+    fn request(&self, method: Method, path: &str) -> reqwest::RequestBuilder {
+        self.client
+            .request(
+                method,
+                self.base.join(path).expect("relative Mihomo API path"),
+            )
+            .bearer_auth(&self.secret)
+    }
+
+    async fn response(
+        &self,
+        method: Method,
+        path: &str,
+        body: Option<JsonValue>,
+    ) -> anyhow::Result<Response> {
+        let mut request = self.request(method, path);
+        if let Some(value) = body {
+            request = request.json(&value);
+        }
+        let response = request
+            .send()
+            .await
+            .context("无法连接本地 Mihomo 控制接口")?;
+        if !response.status().is_success() {
+            anyhow::bail!("Mihomo API 返回 HTTP {}", response.status().as_u16());
+        }
+        Ok(response)
+    }
+
+    pub async fn get_json(&self, path: &str) -> anyhow::Result<JsonValue> {
+        let response = self.response(Method::GET, path, None).await?;
+        if response
+            .content_length()
+            .is_some_and(|length| length > MAX_API_RESPONSE as u64)
+        {
+            anyhow::bail!("Mihomo API 响应超出安全上限");
+        }
+        let bytes = response.bytes().await.context("读取 Mihomo API 响应失败")?;
+        if bytes.len() > MAX_API_RESPONSE {
+            anyhow::bail!("Mihomo API 响应超出安全上限");
+        }
+        Ok(serde_json::from_slice(&bytes).context("Mihomo API 返回了无效数据")?)
+    }
+
+    pub async fn send_json(
+        &self,
+        method: Method,
+        path: &str,
+        body: JsonValue,
+    ) -> anyhow::Result<()> {
+        self.response(method, path, Some(body)).await?;
+        Ok(())
+    }
+
+    pub fn web_socket_url(&self, path: &str) -> String {
+        format!(
+            "ws://{}:{}/{}",
+            self.base.host_str().unwrap_or("127.0.0.1"),
+            self.base.port().unwrap_or(80),
+            path.trim_start_matches('/')
+        )
+    }
+}
+
+pub struct RuntimeSession {
+    pub child: Child,
+    pub controller: Controller,
+    pub api_secret: String,
+    pub api_port: u16,
+    pub proxy_port: u16,
+    pub version: String,
+    pub candidate_file: std::path::PathBuf,
+    pub last_good_config: String,
+    pub proxy_lease: Option<platform::ProxyLease>,
+    pub network_mode: NetworkMode,
+    pub tun_device: String,
+    pub tun_active: bool,
+    pub stream_tasks: Vec<tokio::task::JoinHandle<()>>,
+    #[cfg(target_os = "android")]
+    android_tunnel: Option<AndroidTunnelTask>,
+    #[cfg(windows)]
+    _process_job: ProcessJob,
+}
+
+#[cfg(target_os = "android")]
+struct AndroidTunnelTask {
+    shutdown: tun2proxy::CancellationToken,
+    task: tokio::task::JoinHandle<std::io::Result<usize>>,
+}
+
+#[cfg(windows)]
+struct ProcessJob(windows_sys::Win32::Foundation::HANDLE);
+
+#[cfg(windows)]
+impl Drop for ProcessJob {
+    fn drop(&mut self) {
+        unsafe {
+            windows_sys::Win32::Foundation::CloseHandle(self.0);
+        }
+    }
+}
+
+impl RuntimeSession {
+    pub async fn stop(&mut self, paths: &AppPaths) -> anyhow::Result<bool> {
+        let external_proxy_change_preserved = match self.network_mode {
+            NetworkMode::SystemProxy if self.proxy_lease.is_some() => {
+                let result =
+                    platform::restore_system_proxy(&paths.root.join("system-proxy-recovery.json"))
+                        .await?;
+                self.proxy_lease = None;
+                result
+            }
+            NetworkMode::Tun => {
+                if self
+                    .child
+                    .try_wait()
+                    .context("无法确认 Mihomo 进程状态")?
+                    .is_none()
+                {
+                    disable_tun(&self.controller, &self.tun_device).await?;
+                } else {
+                    wait_for_tun_inactive(&self.tun_device, Duration::from_secs(8))
+                        .await
+                        .context("Mihomo 已退出；无法确认 TUN 网卡已停止")?;
+                }
+                self.tun_active = false;
+                false
+            }
+            NetworkMode::Vpn => {
+                #[cfg(target_os = "android")]
+                {
+                    if let Some(tunnel) = self.android_tunnel.take() {
+                        tunnel.shutdown.cancel();
+                        let mut task = tunnel.task;
+                        match timeout(Duration::from_secs(5), &mut task).await {
+                            Ok(_) => {}
+                            Err(_) => {
+                                task.abort();
+                                anyhow::bail!("Android VPN 转发器未能及时停止");
+                            }
+                        }
+                    }
+                    platform::stop_android_vpn_service().await?;
+                }
+                false
+            }
+            _ => false,
+        };
+        for task in self.stream_tasks.drain(..) {
+            task.abort();
+        }
+        if self.child.try_wait().ok().flatten().is_none() {
+            self.child.kill().await.context("无法停止 Mihomo 进程")?;
+        }
+        let _ = self.child.wait().await;
+        let _ = std::fs::remove_file(&self.candidate_file);
+        Ok(external_proxy_change_preserved)
+    }
+
+    pub async fn reload(&mut self, new_config: String, paths: &AppPaths) -> anyhow::Result<()> {
+        let previous = self.last_good_config.clone();
+        let expected: YamlValue = serde_yaml::from_str(&new_config)?;
+        let expected_mode = expected
+            .get("mode")
+            .and_then(YamlValue::as_str)
+            .unwrap_or("rule");
+        let candidate_name = self
+            .candidate_file
+            .file_name()
+            .and_then(|value| value.to_str())
+            .unwrap_or("runtime.yaml");
+        paths.atomic_text(&self.candidate_file, &new_config)?;
+        let body = json!({ "path": candidate_name, "payload": "" });
+        let reloaded = self
+            .controller
+            .send_json(Method::PUT, "configs?force=true", body)
+            .await;
+        if let Err(error) = reloaded {
+            let _ = paths.atomic_text(&self.candidate_file, &previous);
+            let rollback = json!({ "path": candidate_name, "payload": "" });
+            let _ = self
+                .controller
+                .send_json(Method::PUT, "configs?force=true", rollback)
+                .await;
+            return Err(error).context("Mihomo 拒绝应用候选配置");
+        }
+        let actual = match self.controller.get_json("configs").await {
+            Ok(value) => value,
+            Err(error) => {
+                let _ = paths.atomic_text(&self.candidate_file, &previous);
+                let rollback = json!({ "path": candidate_name, "payload": "" });
+                let _ = self
+                    .controller
+                    .send_json(Method::PUT, "configs?force=true", rollback)
+                    .await;
+                return Err(error).context("无法回读候选配置，已请求恢复上次有效配置");
+            }
+        };
+        let actual_mode = actual
+            .get("mode")
+            .and_then(JsonValue::as_str)
+            .unwrap_or_default();
+        if !actual_mode.eq_ignore_ascii_case(expected_mode) {
+            let _ = paths.atomic_text(&self.candidate_file, &previous);
+            let rollback = json!({ "path": candidate_name, "payload": "" });
+            let rollback_ok = self
+                .controller
+                .send_json(Method::PUT, "configs?force=true", rollback)
+                .await
+                .is_ok();
+            anyhow::bail!(
+                "Mihomo 未回读确认候选配置；{}",
+                if rollback_ok {
+                    "已恢复上次有效配置"
+                } else {
+                    "恢复旧配置请求失败，请停止 Runtime 后重试"
+                }
+            );
+        }
+        self.last_good_config = new_config;
+        Ok(())
+    }
+}
+
+pub async fn start_runtime(
+    store: &AppStore,
+    paths: &AppPaths,
+    profile: &Profile,
+    core: &Path,
+    content: String,
+) -> anyhow::Result<RuntimeSession> {
+    if platform::tun_platform_supported()
+        && (platform::tun_interface_is_up("Lumen")?
+            || platform::tun_default_routes_present("Lumen")?)
+    {
+        anyhow::bail!(
+            "检测到 Lumen TUN 网卡或默认路由仍活动；请先在 Windows 网络设置中恢复后再启动 Runtime"
+        );
+    }
+    match store.network_mode {
+        NetworkMode::SystemProxy => {}
+        NetworkMode::Tun => {
+            if !platform::tun_platform_supported() {
+                anyhow::bail!("当前平台尚未接入 TUN 运行适配");
+            }
+            if !platform::tun_permission_available() {
+                anyhow::bail!("Windows TUN 需要管理员权限；请以管理员身份重新启动 Lumen");
+            }
+        }
+        NetworkMode::Vpn if !cfg!(target_os = "android") => {
+            anyhow::bail!("当前平台不支持 Android VPN 模式")
+        }
+        NetworkMode::Vpn => {}
+    }
+    let config_value: YamlValue =
+        serde_yaml::from_str(&content).map_err(|error| yaml_error("来源 YAML", error))?;
+    if !config_value.is_mapping() {
+        anyhow::bail!("来源 YAML 顶层必须是对象");
+    }
+    let proxy_port = if matches!(store.network_mode, NetworkMode::Vpn) {
+        find_or_add_mixed_proxy_port(&config_value)?
+    } else {
+        find_or_add_proxy_port(&config_value)
+    };
+    let mut candidate: YamlValue =
+        serde_yaml::from_str(&content).map_err(|error| yaml_error("候选配置", error))?;
+    if matches!(store.network_mode, NetworkMode::Vpn) {
+        set_config_value(
+            &mut candidate,
+            "mixed-port",
+            YamlValue::Number(proxy_port.into()),
+        )?;
+        set_config_value(&mut candidate, "allow-lan", YamlValue::Bool(false))?;
+        set_config_value(
+            &mut candidate,
+            "bind-address",
+            YamlValue::String("127.0.0.1".into()),
+        )?;
+    } else {
+        ensure_proxy_port(&mut candidate, proxy_port)?;
+    }
+    apply_network_mode(&mut candidate, &store.network_mode)?;
+    set_config_value(
+        &mut candidate,
+        "mode",
+        YamlValue::String(store.route_mode.label().to_ascii_lowercase()),
+    )?;
+
+    let api_port = free_loopback_port_excluding(Some(proxy_port))?;
+    let api_secret = format!("{}{}", Uuid::new_v4().simple(), Uuid::new_v4().simple());
+    set_config_value(
+        &mut candidate,
+        "external-controller",
+        YamlValue::String(format!("127.0.0.1:{api_port}")),
+    )?;
+    set_config_value(
+        &mut candidate,
+        "secret",
+        YamlValue::String(api_secret.clone()),
+    )?;
+    let candidate_yaml = serde_yaml::to_string(&candidate)?;
+    let file = paths
+        .root
+        .join(format!("runtime-{}.yaml", Uuid::new_v4().simple()));
+    paths.atomic_text(&file, &candidate_yaml)?;
+
+    let validation = timeout(
+        Duration::from_secs(20),
+        tokio::process::Command::new(core)
+            .arg("-t")
+            .arg("-d")
+            .arg(&paths.root)
+            .arg("-f")
+            .arg(&file)
+            .current_dir(&paths.root)
+            .output(),
+    )
+    .await;
+    let validation = match validation {
+        Ok(Ok(output)) if output.status.success() => output,
+        Ok(Ok(_)) => {
+            let _ = std::fs::remove_file(&file);
+            anyhow::bail!("Mihomo 校验候选配置失败；Profile 来源和当前运行会话未改变");
+        }
+        Ok(Err(_)) => {
+            let _ = std::fs::remove_file(&file);
+            anyhow::bail!("无法启动 Mihomo 核心，请检查核心路径和权限");
+        }
+        Err(_) => {
+            let _ = std::fs::remove_file(&file);
+            anyhow::bail!("Mihomo 配置校验超时");
+        }
+    };
+    let _ = validation;
+
+    if matches!(store.network_mode, NetworkMode::Vpn) {
+        #[cfg(target_os = "android")]
+        if !platform::request_android_vpn_authorization().await? {
+            let _ = std::fs::remove_file(&file);
+            anyhow::bail!("Android VPN 授权被拒绝；Mihomo 核心保持停止");
+        }
+    }
+
+    let secret_for_controller = api_secret.clone();
+    let controller = Controller::new(api_port, secret_for_controller)?;
+    let mut command = tokio::process::Command::new(core);
+    command
+        .arg("-d")
+        .arg(&paths.root)
+        .arg("-f")
+        .arg(&file)
+        .current_dir(&paths.root)
+        .kill_on_drop(true)
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null());
+    if let Some(origin) = profile
+        .origin_directory
+        .as_deref()
+        .or_else(|| profile.source_file.parent())
+    {
+        let current = std::env::var("SAFE_PATHS").unwrap_or_default();
+        let join = if cfg!(windows) { ";" } else { ":" };
+        let value = if current.is_empty() {
+            origin.to_string_lossy().to_string()
+        } else {
+            format!("{current}{join}{}", origin.to_string_lossy())
+        };
+        command.env("SAFE_PATHS", value);
+    }
+    #[cfg(target_os = "linux")]
+    unsafe {
+        use std::os::unix::process::CommandExt;
+        let parent_pid = std::process::id() as libc::pid_t;
+        command.as_std_mut().pre_exec(move || {
+            if libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGTERM, 0, 0, 0) == -1 {
+                return Err(std::io::Error::last_os_error());
+            }
+            if libc::getppid() != parent_pid {
+                libc::kill(libc::getpid(), libc::SIGTERM);
+            }
+            Ok(())
+        });
+    }
+    let mut child = command.spawn().context("无法启动 Mihomo 核心")?;
+    #[cfg(windows)]
+    let process_job = match attach_kill_on_close_job(&child) {
+        Ok(value) => value,
+        Err(error) => {
+            let _ = child.kill().await;
+            let _ = std::fs::remove_file(&file);
+            return Err(error);
+        }
+    };
+    let mut version = None;
+    for _ in 0..80 {
+        if let Some(status) = child.try_wait().context("无法读取 Mihomo 进程状态")? {
+            let _ = std::fs::remove_file(&file);
+            anyhow::bail!("Mihomo 在就绪前退出（退出码 {:?}）", status.code());
+        }
+        if let Ok(Ok(value)) =
+            timeout(Duration::from_millis(800), controller.get_json("version")).await
+        {
+            version = value
+                .get("version")
+                .and_then(JsonValue::as_str)
+                .map(str::to_owned);
+            if version.is_some() {
+                break;
+            }
+        }
+        sleep(Duration::from_millis(250)).await;
+    }
+    let version = match version {
+        Some(value) => value,
+        None => {
+            let _ = child.kill().await;
+            let _ = std::fs::remove_file(&file);
+            anyhow::bail!("Mihomo 控制接口未就绪，已停止候选进程");
+        }
+    };
+
+    let tun_device = "Lumen".to_string();
+    #[cfg(target_os = "android")]
+    let mut android_tunnel = None;
+    let lease = match store.network_mode {
+        NetworkMode::SystemProxy => {
+            let journal = paths.root.join("system-proxy-recovery.json");
+            match platform::enable_system_proxy(proxy_port, &journal).await {
+                Ok(lease) => Some(lease),
+                Err(error) => {
+                    let _ = child.kill().await;
+                    let _ = child.wait().await;
+                    let _ = std::fs::remove_file(&file);
+                    return Err(error).context("系统代理未能启用，Mihomo 保持停止");
+                }
+            }
+        }
+        NetworkMode::Tun => {
+            if let Err(error) = wait_for_tun_active(&controller, &tun_device).await {
+                let _ = child.kill().await;
+                let _ = child.wait().await;
+                let cleanup = wait_for_tun_inactive(&tun_device, Duration::from_secs(8)).await;
+                let _ = std::fs::remove_file(&file);
+                return match cleanup {
+                    Ok(()) => {
+                        Err(error).context("Windows TUN 未通过网卡状态确认，已停止候选 Runtime")
+                    }
+                    Err(cleanup_error) => Err(anyhow::anyhow!(
+                        "{error}；停止候选 Runtime 后仍无法确认 TUN 网卡已关闭：{cleanup_error}。请在 Windows 网络设置中恢复 Lumen 网卡"
+                    )),
+                };
+            }
+            None
+        }
+        NetworkMode::Vpn => {
+            #[cfg(target_os = "android")]
+            {
+                let fd = match platform::start_android_vpn_service().await {
+                    Ok(fd) => fd,
+                    Err(error) => {
+                        let _ = child.kill().await;
+                        let _ = child.wait().await;
+                        let _ = platform::stop_android_vpn_service().await;
+                        let _ = std::fs::remove_file(&file);
+                        return Err(error).context("Android VPN 隧道未能建立，已停止候选 Mihomo");
+                    }
+                };
+                match start_android_tun_proxy(fd, proxy_port).await {
+                    Ok(tunnel) => android_tunnel = Some(tunnel),
+                    Err(error) => {
+                        let _ = platform::stop_android_vpn_service().await;
+                        let _ = child.kill().await;
+                        let _ = child.wait().await;
+                        let _ = std::fs::remove_file(&file);
+                        return Err(error)
+                            .context("Rust Android VPN 转发器未启动，已清理候选 Runtime");
+                    }
+                }
+            }
+            None
+        }
+    };
+
+    Ok(RuntimeSession {
+        child,
+        controller,
+        api_secret,
+        api_port,
+        proxy_port,
+        version,
+        candidate_file: file,
+        last_good_config: candidate_yaml,
+        proxy_lease: lease,
+        network_mode: store.network_mode.clone(),
+        tun_device,
+        tun_active: matches!(store.network_mode, NetworkMode::Tun),
+        stream_tasks: Vec::new(),
+        #[cfg(target_os = "android")]
+        android_tunnel,
+        #[cfg(windows)]
+        _process_job: process_job,
+    })
+}
+
+#[cfg(target_os = "android")]
+async fn start_android_tun_proxy(
+    tunnel_fd: i32,
+    proxy_port: u16,
+) -> anyhow::Result<AndroidTunnelTask> {
+    let proxy_url = format!("socks5://127.0.0.1:{proxy_port}");
+    let mut args = tun2proxy::Args::default();
+    args.proxy = tun2proxy::ProxyParameters::try_from(proxy_url.as_str())
+        .map_err(|error| anyhow::anyhow!("无法配置 Mihomo loopback SOCKS5：{error}"))?;
+    args.tun_fd = Some(tunnel_fd);
+    args.close_fd_on_drop = Some(false);
+    args.dns = tun2proxy::ArgDns::Virtual;
+    args.ipv6_enabled = true;
+    args.setup = false;
+    args.mtu = 1500;
+    args.verbosity = tun2proxy::LevelFilter::Warn;
+
+    let shutdown = tun2proxy::CancellationToken::new();
+    let task = tokio::spawn(tun2proxy::general_run_async(
+        args,
+        1500,
+        false,
+        shutdown.clone(),
+    ));
+    let mut task = task;
+    match timeout(Duration::from_millis(500), &mut task).await {
+        Ok(Ok(Ok(_))) => anyhow::bail!("Rust Android VPN 转发器提前停止"),
+        Ok(Ok(Err(error))) => anyhow::bail!("Rust Android VPN 转发器初始化失败：{error}"),
+        Ok(Err(error)) => anyhow::bail!("Rust Android VPN 转发任务异常：{error}"),
+        Err(_) => Ok(AndroidTunnelTask { shutdown, task }),
+    }
+}
+
+#[cfg(windows)]
+fn attach_kill_on_close_job(child: &tokio::process::Child) -> anyhow::Result<ProcessJob> {
+    use std::{
+        mem::{size_of, zeroed},
+        ptr::null,
+    };
+    use windows_sys::Win32::{
+        Foundation::HANDLE,
+        System::JobObjects::{
+            AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+            JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectExtendedLimitInformation,
+            SetInformationJobObject,
+        },
+    };
+    let handle = unsafe { CreateJobObjectW(null(), null()) };
+    if handle.is_null() {
+        anyhow::bail!("无法创建 Mihomo 进程生命周期组");
+    }
+    let mut limits: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = unsafe { zeroed() };
+    limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+    let process_handle = child
+        .raw_handle()
+        .ok_or_else(|| anyhow::anyhow!("Mihomo 在启动时已退出"))?
+        as HANDLE;
+    let configured = unsafe {
+        SetInformationJobObject(
+            handle,
+            JobObjectExtendedLimitInformation,
+            &limits as *const _ as *const _,
+            size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+        ) != 0
+            && AssignProcessToJobObject(handle, process_handle) != 0
+    };
+    if !configured {
+        unsafe {
+            windows_sys::Win32::Foundation::CloseHandle(handle);
+        }
+        anyhow::bail!("无法将 Mihomo 进程纳入 Lumen 生命周期管理");
+    }
+    Ok(ProcessJob(handle))
+}
+
+pub fn build_candidate(
+    store: &AppStore,
+    paths: &AppPaths,
+    profile: &Profile,
+    include_overrides: bool,
+) -> anyhow::Result<String> {
+    let source = paths.read_profile_source(profile)?;
+    let mut config: YamlValue =
+        serde_yaml::from_str(&source).map_err(|error| yaml_error("来源 YAML", error))?;
+    if !config.is_mapping() {
+        anyhow::bail!("Profile 来源 YAML 顶层必须是对象");
+    }
+    if include_overrides {
+        for override_id in &profile.override_ids {
+            if let Some(item) = store.overrides.iter().find(|item| &item.id == override_id) {
+                if item.content.trim().is_empty() {
+                    continue;
+                }
+                let value: YamlValue = serde_yaml::from_str(&item.content)
+                    .map_err(|error| yaml_error("Override YAML", error))?;
+                if !value.is_mapping() {
+                    anyhow::bail!("Override 顶层必须是对象");
+                }
+                merge_yaml(&mut config, &value);
+            }
+        }
+    }
+    apply_network_mode(&mut config, &store.network_mode)?;
+    let yaml = serde_yaml::to_string(&config)?;
+    Ok(yaml)
+}
+
+fn apply_network_mode(config: &mut YamlValue, mode: &NetworkMode) -> anyhow::Result<()> {
+    match mode {
+        NetworkMode::SystemProxy => {
+            let mut tun = config
+                .get("tun")
+                .filter(|value| value.is_mapping())
+                .cloned()
+                .unwrap_or_else(|| YamlValue::Mapping(Default::default()));
+            set_config_value(&mut tun, "enable", YamlValue::Bool(false))?;
+            set_config_value(config, "tun", tun)?;
+        }
+        NetworkMode::Tun => {
+            let mut tun = config
+                .get("tun")
+                .filter(|value| value.is_mapping())
+                .cloned()
+                .unwrap_or_else(|| YamlValue::Mapping(Default::default()));
+            for key in [
+                "route-address",
+                "inet4-route-address",
+                "inet6-route-address",
+            ] {
+                let configured = tun.get(key).is_some_and(|value| match value {
+                    YamlValue::Sequence(values) => !values.is_empty(),
+                    YamlValue::Null => false,
+                    _ => true,
+                });
+                if configured {
+                    anyhow::bail!(
+                        "当前 Windows TUN 只验证 Mihomo 自动默认路由；请移除 Profile/Override 中的 {key} 后重试"
+                    );
+                }
+            }
+            set_config_value(&mut tun, "enable", YamlValue::Bool(true))?;
+            set_config_value(&mut tun, "auto-route", YamlValue::Bool(true))?;
+            set_config_value(&mut tun, "auto-detect-interface", YamlValue::Bool(true))?;
+            set_config_value(&mut tun, "device", YamlValue::String("Lumen".to_string()))?;
+            set_config_value(config, "tun", tun)?;
+        }
+        NetworkMode::Vpn => {
+            let mut tun = config
+                .get("tun")
+                .filter(|value| value.is_mapping())
+                .cloned()
+                .unwrap_or_else(|| YamlValue::Mapping(Default::default()));
+            set_config_value(&mut tun, "enable", YamlValue::Bool(false))?;
+            set_config_value(config, "tun", tun)?;
+        }
+    }
+    Ok(())
+}
+
+async fn wait_for_tun_active(controller: &Controller, device: &str) -> anyhow::Result<()> {
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(20);
+    loop {
+        if platform::tun_interface_is_up(device)? && platform::tun_default_routes_present(device)? {
+            let config = timeout(Duration::from_secs(5), controller.get_json("configs"))
+                .await
+                .context("无法确认 Mihomo TUN 配置状态")??;
+            if config
+                .get("tun")
+                .and_then(|value| value.get("enable"))
+                .and_then(JsonValue::as_bool)
+                != Some(true)
+            {
+                anyhow::bail!("Windows 已出现 TUN 网卡，但 Mihomo 未回读确认 tun.enable=true");
+            }
+            return Ok(());
+        }
+        if tokio::time::Instant::now() >= deadline {
+            anyhow::bail!("Mihomo 未创建活动的 Lumen TUN 网卡；请检查管理员权限和 Windows 防火墙");
+        }
+        sleep(Duration::from_millis(250)).await;
+    }
+}
+
+async fn wait_for_tun_inactive(device: &str, timeout_after: Duration) -> anyhow::Result<()> {
+    let deadline = tokio::time::Instant::now() + timeout_after;
+    loop {
+        if !platform::tun_interface_is_up(device)? && !platform::tun_default_routes_present(device)?
+        {
+            return Ok(());
+        }
+        if tokio::time::Instant::now() >= deadline {
+            anyhow::bail!("TUN 网卡仍处于活动状态");
+        }
+        sleep(Duration::from_millis(250)).await;
+    }
+}
+
+async fn disable_tun(controller: &Controller, device: &str) -> anyhow::Result<()> {
+    let config = controller.get_json("configs").await?;
+    let mut tun = config
+        .get("tun")
+        .and_then(JsonValue::as_object)
+        .cloned()
+        .ok_or_else(|| {
+            anyhow::anyhow!("无法回读当前 TUN 配置；保持 Runtime 运行以避免丢失路由恢复能力")
+        })?;
+    tun.insert("enable".into(), JsonValue::Bool(false));
+    controller
+        .send_json(Method::PATCH, "configs", json!({ "tun": tun }))
+        .await
+        .context("Mihomo 拒绝关闭 TUN；Runtime 保持运行")?;
+
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(15);
+    loop {
+        let actual = controller.get_json("configs").await?;
+        let disabled = actual
+            .get("tun")
+            .and_then(|value| value.get("enable"))
+            .and_then(JsonValue::as_bool)
+            == Some(false);
+        if disabled
+            && !platform::tun_interface_is_up(device)?
+            && !platform::tun_default_routes_present(device)?
+        {
+            return Ok(());
+        }
+        if tokio::time::Instant::now() >= deadline {
+            anyhow::bail!(
+                "未能确认 Mihomo 已关闭 TUN 且 Windows 网卡已停止；Runtime 保持运行，请重试停止"
+            );
+        }
+        sleep(Duration::from_millis(250)).await;
+    }
+}
+
+pub fn merge_yaml(base: &mut YamlValue, overlay: &YamlValue) {
+    match (base, overlay) {
+        (YamlValue::Mapping(base), YamlValue::Mapping(overlay)) => {
+            for (key, value) in overlay {
+                if let Some(existing) = base.get_mut(key) {
+                    merge_yaml(existing, value);
+                } else {
+                    base.insert(key.clone(), value.clone());
+                }
+            }
+        }
+        (base, overlay) => *base = overlay.clone(),
+    }
+}
+
+pub fn yaml_error(label: &str, error: serde_yaml::Error) -> anyhow::Error {
+    match error.location() {
+        Some(location) => anyhow::anyhow!(
+            "{label}语法无效（第 {} 行，第 {} 列）",
+            location.line(),
+            location.column()
+        ),
+        None => anyhow::anyhow!("{label}语法无效"),
+    }
+}
+
+fn find_or_add_proxy_port(config: &YamlValue) -> u16 {
+    if let Some(port) = config
+        .get("mixed-port")
+        .and_then(YamlValue::as_u64)
+        .filter(|port| *port > 0 && *port <= u16::MAX as u64)
+    {
+        return port as u16;
+    }
+    if let Some(port) = config
+        .get("port")
+        .and_then(YamlValue::as_u64)
+        .filter(|port| *port > 0 && *port <= u16::MAX as u64)
+    {
+        return port as u16;
+    }
+    free_loopback_port_excluding(None).unwrap_or(7890)
+}
+
+fn find_or_add_mixed_proxy_port(config: &YamlValue) -> anyhow::Result<u16> {
+    if let Some(port) = config
+        .get("mixed-port")
+        .and_then(YamlValue::as_u64)
+        .filter(|port| *port > 0 && *port <= u16::MAX as u64)
+    {
+        return Ok(port as u16);
+    }
+    free_loopback_port_excluding(None)
+}
+
+fn ensure_proxy_port(config: &mut YamlValue, port: u16) -> anyhow::Result<()> {
+    let has_http = config
+        .get("port")
+        .and_then(YamlValue::as_u64)
+        .is_some_and(|value| value > 0);
+    let has_mixed = config
+        .get("mixed-port")
+        .and_then(YamlValue::as_u64)
+        .is_some_and(|value| value > 0);
+    if has_http || has_mixed {
+        return Ok(());
+    }
+    set_config_value(config, "mixed-port", YamlValue::Number(port.into()))
+}
+
+fn set_config_value(config: &mut YamlValue, key: &str, value: YamlValue) -> anyhow::Result<()> {
+    let mapping = config
+        .as_mapping_mut()
+        .ok_or_else(|| anyhow::anyhow!("Mihomo 配置顶层必须是对象"))?;
+    mapping.insert(YamlValue::String(key.into()), value);
+    Ok(())
+}
+
+fn free_loopback_port_excluding(excluded: Option<u16>) -> anyhow::Result<u16> {
+    for _ in 0..64 {
+        let listener = TcpListener::bind("127.0.0.1:0").context("无法分配本地控制端口")?;
+        let port = listener.local_addr()?.port();
+        if Some(port) != excluded {
+            return Ok(port);
+        }
+    }
+    anyhow::bail!("无法分配不冲突的本地控制端口")
+}
+
+pub fn sanitize_preview(yaml: &str) -> String {
+    let Ok(mut value) = serde_yaml::from_str::<YamlValue>(yaml) else {
+        return String::new();
+    };
+    mask_secrets(&mut value);
+    serde_yaml::to_string(&value).unwrap_or_default()
+}
+
+fn mask_secrets(value: &mut YamlValue) {
+    match value {
+        YamlValue::Mapping(mapping) => {
+            for (key, value) in mapping.iter_mut() {
+                let name = key.as_str().unwrap_or_default().to_ascii_lowercase();
+                if [
+                    "password",
+                    "secret",
+                    "token",
+                    "private-key",
+                    "private_key",
+                    "authorization",
+                    "auth",
+                ]
+                .iter()
+                .any(|needle| name.contains(needle))
+                {
+                    *value = YamlValue::String("••••••".into());
+                } else {
+                    mask_secrets(value);
+                }
+            }
+        }
+        YamlValue::Sequence(items) => {
+            for value in items {
+                mask_secrets(value);
+            }
+        }
+        _ => {}
+    }
+}
+
+pub fn format_bytes(bytes: f64) -> String {
+    const UNITS: [&str; 4] = ["B", "KB", "MB", "GB"];
+    let mut value = bytes.max(0.0);
+    let mut unit = 0;
+    while value >= 1024.0 && unit < UNITS.len() - 1 {
+        value /= 1024.0;
+        unit += 1;
+    }
+    if unit == 0 {
+        format!("{value:.0} {}", UNITS[unit])
+    } else {
+        format!("{value:.1} {}", UNITS[unit])
+    }
+}
+
+pub async fn validate_core(core: &Path) -> anyhow::Result<String> {
+    let output = timeout(
+        Duration::from_secs(5),
+        tokio::process::Command::new(core).arg("-v").output(),
+    )
+    .await
+    .context("Mihomo 版本查询超时")?
+    .context("找不到 Mihomo 核心或无法执行")?;
+    if !output.status.success() {
+        anyhow::bail!("Mihomo 核心版本查询失败");
+    }
+    let text = String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .next()
+        .unwrap_or_default()
+        .trim()
+        .to_string();
+    if text.is_empty() {
+        anyhow::bail!("Mihomo 未返回版本信息");
+    }
+    Ok(text.chars().take(160).collect())
+}

@@ -1,7 +1,9 @@
 //! Native SDK multiline input: one keyboard/selection/clipboard/IME owner.
+use crate::feathers_theme::Token;
 use crate::interaction_block::InteractionBlocked;
 use crate::localization::LocalizedLabel;
 use crate::palette::UiPalette;
+use crate::palette::rem;
 use crate::text::{Role, TextRole};
 use crate::text_input::TextFieldFocused;
 use bevy::a11y::AccessibilityNode;
@@ -13,6 +15,7 @@ use bevy::ecs::observer::On;
 use bevy::ecs::query::{Has, QueryData, With};
 use bevy::ecs::schedule::{ApplyDeferred, IntoScheduleConfigs, SystemSet};
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
+use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::input::ButtonInput;
 use bevy::input::gamepad::GamepadButtonChangedEvent;
 use bevy::input::keyboard::{Key, KeyboardInput};
@@ -95,10 +98,10 @@ pub fn multiline_editor_scene(
         ..Default::default()
     };
     bsn! {
-        Node { width: percent(100), min_width: px(0), min_height: px(160), max_width: percent(100),
-            overflow: Overflow::clip(), padding: UiRect::all(px(8)),
-            border: UiRect::all(px(palette.hairline_px)), border_radius: BorderRadius::all(px(palette.control_radius_px)) }
-        BackgroundColor({palette.surface_elevated})
+        Node { width: percent(100), min_width: px(0), min_height: rem(160), max_width: percent(100),
+            overflow: Overflow::clip(), padding: UiRect::all(rem(8)),
+            border: UiRect::all(px(palette.hairline_px)), border_radius: BorderRadius::all(rem(palette.control_radius_px)) }
+        ThemeBackgroundColor({Token::SurfaceElevated})
         BorderColor::all(palette.border)
         MultilineEditor MultilineReadOnly(false) TabIndex(order)
         EditableText { ..{editable} } TextRole(Role::Mono)

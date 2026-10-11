@@ -7,26 +7,49 @@
 //! runtime-neutral [`SurfacePump`]. Pages whose Android host adapters are not
 //! composed yet stay typed `unavailable`; nothing here fabricates demo data.
 
-use crate::composition::core_application;
 use crate::composition::mtu_application;
 use crate::composition::offline_startup_application;
+#[cfg(test)]
+use crate::composition::{AndroidCoreComposition, core_application};
+use crate::host_session::shared_core;
+use crate::host_support::get_runtime;
 use crate::runtime::AndroidBridgeAdapter;
 use crate::vpn_service::AndroidVpnServicePort;
+use infiltrator_application::android_control_application::AndroidControlApplication;
 use infiltrator_application::core_application::CoreApplication;
+use infiltrator_application::outbound_application::OutboundApplication;
 use infiltrator_application::resource_application::ResourceApplication;
 use infiltrator_application::surface_application::SurfacePump;
 use infiltrator_application::surface_application::SurfacePumpBridge;
 use infiltrator_application::surface_reader::ApplicationSurfaceReader;
 use infiltrator_application::vpn_application::VpnServiceApplication;
+#[cfg(test)]
+use infiltrator_contract::android_control::AndroidHostProcessRole;
 use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
+#[cfg(test)]
+use infiltrator_contract::vpn::{
+    PreparedVpnConfiguration, VpnConfigurationApplyOutcome, VpnOwnerStopReceipt, VpnStartOutcome,
+    VpnStopTarget, VpnSurfaceObservation,
+};
 use infiltrator_ports::capability_provider::CapabilityProvider;
+use infiltrator_ports::error::PortError;
 use infiltrator_ports::runtime_gateway::RuntimeGateway;
+#[cfg(test)]
+use infiltrator_ports::secure_store::SecureStore;
 use mihomo_api::client::MihomoClient;
+use mihomo_api::routing_intent::MihomoRoutingIntentAdapter;
 use mihomo_platform::android_bridge::{AndroidBridge, get_android_bridge};
 use std::sync::Arc;
 use std::time::Duration;
+use tokio::sync::OnceCell;
+
+#[cfg(feature = "slint-ui")]
+const ANDROID_PRODUCT_SURFACE: SurfaceKind = SurfaceKind::SlintAndroid;
+#[cfg(not(feature = "slint-ui"))]
+const ANDROID_PRODUCT_SURFACE: SurfaceKind = SurfaceKind::BevyAndroid;
 
 /// Host-supplied parameters for the Android product composition.
 #[derive(Clone, Debug)]
@@ -54,6 +77,8 @@ impl AndroidProductConfig {
 pub enum AndroidProductError {
     #[error("android bridge is not registered in this process")]
     BridgeUnavailable,
+    #[error("Android product composition is owned by the :vpn process")]
+    NotCoreOwner,
     #[error("android application runtime is unavailable: {0}")]
     RuntimeUnavailable(String),
 }
@@ -62,6 +87,7 @@ pub enum AndroidProductError {
 /// pump. The owner decides when to drop the pump and close the application.
 pub struct AndroidProductComposition {
     application: Arc<CoreApplication>,
+    control: AndroidControlApplication,
     pump: SurfacePump,
 }
 
@@ -72,25 +98,87 @@ impl AndroidProductComposition {
     /// this is called, so the UI process is not required to have run first.
     pub fn open(config: AndroidProductConfig) -> Result<Self, AndroidProductError> {
         let bridge = get_android_bridge().ok_or(AndroidProductError::BridgeUnavailable)?;
-        Self::open_with_bridge(bridge, config)
+        let shared = get_runtime().block_on(shared_core()).map_err(|status| {
+            AndroidProductError::RuntimeUnavailable(
+                status
+                    .message
+                    .unwrap_or_else(|| "shared Android application unavailable".to_owned()),
+            )
+        })?;
+        Self::open_with_application(
+            bridge,
+            config,
+            Arc::new(shared.application.clone()),
+            shared.control.clone(),
+        )
     }
 
-    /// Open with an explicit bridge. Used by hosts and tests that own the
-    /// bridge value directly instead of reading the process registry.
-    pub fn open_with_bridge(
+    /// Open the single product projection beside the shared application
+    /// inside the `:vpn` owner process.
+    pub(crate) async fn open_shared_owner() -> Result<Self, AndroidProductError> {
+        let bridge = get_android_bridge().ok_or(AndroidProductError::BridgeUnavailable)?;
+        let shared = shared_core().await.map_err(|status| {
+            AndroidProductError::RuntimeUnavailable(
+                status
+                    .message
+                    .unwrap_or_else(|| "shared Android application unavailable".to_owned()),
+            )
+        })?;
+        let endpoint = shared
+            .endpoints
+            .resolve()
+            .await
+            .map_err(|error| AndroidProductError::RuntimeUnavailable(error.to_string()))?;
+        let controller_url = endpoint.url;
+        let controller_secret = endpoint.secret;
+        Self::open_with_application(
+            bridge,
+            AndroidProductConfig {
+                controller_url,
+                controller_secret,
+                sample_interval: Duration::from_millis(700),
+            },
+            Arc::new(shared.application.clone()),
+            shared.control.clone(),
+        )
+    }
+
+    /// Test-only constructor. Product code must open through `shared_core()`
+    /// so the owner process cannot create a second application actor.
+    #[cfg(test)]
+    fn open_with_bridge(
         bridge: Arc<dyn AndroidBridge>,
         config: AndroidProductConfig,
+        composition: AndroidCoreComposition<impl SecureStore + 'static>,
     ) -> Result<Self, AndroidProductError> {
-        let application = Arc::new(core_application(
-            bridge.clone(),
-            config.controller_url.clone(),
-            config.controller_secret.clone(),
-        ));
+        if bridge.process_role() != AndroidHostProcessRole::CoreOwner {
+            return Err(AndroidProductError::NotCoreOwner);
+        }
+        let application = Arc::new(
+            core_application(
+                bridge.clone(),
+                config.controller_url.clone(),
+                config.controller_secret.clone(),
+                composition,
+            )
+            .map_err(AndroidProductError::RuntimeUnavailable)?,
+        );
+        let control = AndroidControlApplication::new(application.as_ref().clone());
+        Self::open_with_application(bridge, config, application, control)
+    }
+
+    fn open_with_application(
+        bridge: Arc<dyn AndroidBridge>,
+        config: AndroidProductConfig,
+        application: Arc<CoreApplication>,
+        control: AndroidControlApplication,
+    ) -> Result<Self, AndroidProductError> {
+        let outbound = application.outbound_port().map(OutboundApplication::new);
         let capabilities =
             CapabilityProvider::capabilities(&AndroidBridgeAdapter::new(bridge.clone()));
         let mut reader = ApplicationSurfaceReader::new(
             application.clone(),
-            SurfaceKind::BevyAndroid,
+            ANDROID_PRODUCT_SURFACE,
             HostKind::Android,
         )
         .with_capabilities(capabilities)
@@ -99,16 +187,41 @@ impl AndroidProductComposition {
         .with_vpn(VpnServiceApplication::new(Arc::new(
             AndroidVpnServicePort::shared(),
         )));
-        if let Ok(client) = MihomoClient::new(&config.controller_url, config.controller_secret) {
+        if let Some(outbound) = outbound {
+            reader = reader.with_outbound(outbound);
+        }
+        let scope_application = application.clone();
+        let scope_resolver: mihomo_api::runtime_configuration::RuntimeScopeResolver =
+            Arc::new(move || {
+                let lifecycle = scope_application.snapshot().lifecycle_snapshot();
+                match &lifecycle.lifecycle {
+                    CoreLifecycle::Running | CoreLifecycle::Ready => {
+                        lifecycle.scope().ok_or_else(|| {
+                            PortError::Failed(
+                                "active Core identity is unavailable for configuration access"
+                                    .into(),
+                            )
+                        })
+                    }
+                    _ => Err(PortError::Failed(
+                        "configuration access requires a running Core".to_owned(),
+                    )),
+                }
+            });
+        let client = MihomoClient::new(&config.controller_url, config.controller_secret)
+            .map(|client| client.with_configuration_scope_resolver(scope_resolver));
+        if let Ok(client) = client {
+            let routing_intent_port = Arc::new(MihomoRoutingIntentAdapter::new(client.clone()));
             let gateway: Arc<dyn RuntimeGateway> = Arc::new(client);
             reader = reader
+                .with_routing_intent_port(routing_intent_port)
                 .with_gateway(gateway.clone())
                 .with_resources(ResourceApplication::new(gateway));
         }
         let runtime = infiltrator_composition::tokio_application_runtime()
             .map_err(AndroidProductError::RuntimeUnavailable)?;
         let initial = SurfaceSnapshot::unavailable(
-            SurfaceKind::BevyAndroid,
+            ANDROID_PRODUCT_SURFACE,
             HostKind::Android,
             Failure::new(
                 ErrorCode::NotReady,
@@ -117,12 +230,21 @@ impl AndroidProductComposition {
             ),
         );
         let pump = SurfacePump::spawn(Arc::new(reader), config.sample_interval, runtime, initial);
-        Ok(Self { application, pump })
+        Ok(Self {
+            application,
+            control,
+            pump,
+        })
     }
 
     /// The shared application facade both UI surfaces dispatch commands to.
     pub fn application(&self) -> Arc<CoreApplication> {
         self.application.clone()
+    }
+
+    /// The same typed control orchestrator used by the Compose FFI adapter.
+    pub fn android_control(&self) -> AndroidControlApplication {
+        self.control.clone()
     }
 
     /// The bounded surface pump owned by this composition.
@@ -136,51 +258,153 @@ impl AndroidProductComposition {
     }
 }
 
+/// Owner-side product session used by the typed Messenger surface read.
+/// The UI process never constructs this composition or a second Core actor.
+static OWNER_PRODUCT: OnceCell<AndroidProductComposition> = OnceCell::const_new();
+
+pub(crate) async fn owner_surface_snapshot_json() -> Result<String, String> {
+    let owner = OWNER_PRODUCT
+        .get_or_try_init(AndroidProductComposition::open_shared_owner)
+        .await
+        .map_err(|error| error.to_string())?;
+    let snapshot = owner.surface_pump().current();
+    serialize_owner_surface_snapshot(&snapshot)
+}
+
+fn serialize_owner_surface_snapshot(snapshot: &SurfaceSnapshot) -> Result<String, String> {
+    snapshot
+        .validate_core_capability_scope_binding()
+        .map_err(|failure| failure.message)?;
+    snapshot
+        .validate_vpn_owner_core_binding()
+        .map_err(|failure| failure.message)?;
+    serde_json::to_string(snapshot)
+        .map_err(|error| format!("Android surface snapshot serialization failed: {error}"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use async_trait::async_trait;
+    use infiltrator_contract::android_control::{
+        AndroidCoreProcessState, CoreLaunchSpec, VpnOwnerCoreReadback, VpnOwnerLifecycle,
+        VpnOwnerReadiness, VpnOwnerSnapshot,
+    };
+    use infiltrator_contract::snapshot::CoreLifecycle;
+    use infiltrator_ports::error::PortError;
+    use infiltrator_ports::secure_store::SecureStore;
     use mihomo_api::error::Result;
-    use mihomo_platform::android_bridge::clear_android_bridge;
+    use mihomo_config::manager::ConfigManager;
+    use mihomo_platform::android_bridge::{
+        CoreProcessStartReceipt, CoreProcessStopReceipt, clear_android_bridge,
+    };
+    use std::env;
+    use std::fs;
     use std::path::PathBuf;
+    use std::process;
+    use std::result;
     use std::sync::Mutex;
     use std::thread::yield_now;
-    use std::time::Instant;
+    use std::time::{Instant, SystemTime, UNIX_EPOCH};
+
+    struct TestCredentialStore;
+
+    #[async_trait]
+    impl SecureStore for TestCredentialStore {
+        async fn get(
+            &self,
+            _namespace: &str,
+            _key: &str,
+        ) -> result::Result<Option<String>, PortError> {
+            Ok(None)
+        }
+
+        async fn set(
+            &self,
+            _namespace: &str,
+            _key: &str,
+            _value: &str,
+        ) -> result::Result<(), PortError> {
+            Ok(())
+        }
+
+        async fn delete(&self, _namespace: &str, _key: &str) -> result::Result<(), PortError> {
+            Ok(())
+        }
+    }
+
+    struct TestHome(PathBuf);
+
+    impl Drop for TestHome {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn composition_input() -> (TestHome, AndroidCoreComposition<TestCredentialStore>) {
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock is after the Unix epoch")
+            .as_nanos();
+        let home = env::temp_dir().join(format!(
+            "infiltrator-android-product-owner-{}-{stamp}",
+            process::id()
+        ));
+        fs::create_dir_all(&home).expect("temporary product home is created");
+        let manager = ConfigManager::with_home_and_store(home.clone(), TestCredentialStore)
+            .expect("Mihomo config manager is constructed for the test home");
+        (
+            TestHome(home),
+            AndroidCoreComposition::new(Arc::new(manager)),
+        )
+    }
 
     struct TestBridge {
-        running: Mutex<bool>,
+        state: Mutex<AndroidCoreProcessState>,
+        core_owner: bool,
     }
 
     impl TestBridge {
         fn new() -> Self {
             Self {
-                running: Mutex::new(false),
+                state: Mutex::new(AndroidCoreProcessState::Stopped),
+                core_owner: true,
+            }
+        }
+
+        fn client_process() -> Self {
+            Self {
+                state: Mutex::new(AndroidCoreProcessState::Stopped),
+                core_owner: false,
             }
         }
     }
 
     #[async_trait]
     impl AndroidBridge for TestBridge {
-        async fn core_start(&self) -> Result<()> {
-            if let Ok(mut guard) = self.running.lock() {
-                *guard = true;
+        fn process_role(&self) -> AndroidHostProcessRole {
+            if self.core_owner {
+                AndroidHostProcessRole::CoreOwner
+            } else {
+                AndroidHostProcessRole::UiClient
             }
-            Ok(())
         }
 
-        async fn core_stop(&self) -> Result<()> {
-            if let Ok(mut guard) = self.running.lock() {
-                *guard = false;
-            }
-            Ok(())
+        async fn core_start(
+            &self,
+            _launch_spec: &CoreLaunchSpec,
+        ) -> Result<CoreProcessStartReceipt> {
+            *self.state.lock().expect("test process state lock") = AndroidCoreProcessState::Running;
+            Ok(CoreProcessStartReceipt::Started)
         }
 
-        async fn core_is_running(&self) -> Result<bool> {
-            Ok(self.running.lock().map(|guard| *guard).unwrap_or(false))
+        async fn core_stop(&self) -> Result<CoreProcessStopReceipt> {
+            *self.state.lock().expect("test process state lock") = AndroidCoreProcessState::Stopped;
+            Ok(CoreProcessStopReceipt::StoppedGracefully)
         }
 
-        fn core_controller_url(&self) -> Option<String> {
-            Some("http://127.0.0.1:1".to_string())
+        async fn core_process_state(&self) -> Result<AndroidCoreProcessState> {
+            Ok(*self.state.lock().expect("test process state lock"))
         }
 
         async fn credential_get(&self, _service: &str, _key: &str) -> Result<Option<String>> {
@@ -196,31 +420,58 @@ mod tests {
         }
 
         fn data_dir(&self) -> Option<PathBuf> {
-            Some(PathBuf::from("data"))
+            Some(PathBuf::from("/android-test-data"))
         }
 
         fn cache_dir(&self) -> Option<PathBuf> {
             Some(PathBuf::from("cache"))
         }
 
-        async fn vpn_start(&self) -> Result<bool> {
-            Ok(false)
+        async fn vpn_start(&self) -> Result<VpnStartOutcome> {
+            Ok(VpnStartOutcome::PermissionRequired)
         }
 
-        async fn vpn_stop(&self) -> Result<bool> {
-            Ok(true)
+        async fn vpn_apply_configuration(
+            &self,
+            _prepared: &PreparedVpnConfiguration,
+        ) -> Result<VpnConfigurationApplyOutcome> {
+            Ok(VpnConfigurationApplyOutcome::Rejected)
         }
 
-        async fn vpn_is_running(&self) -> Result<bool> {
-            Ok(false)
+        async fn vpn_stop(&self, _target: VpnStopTarget) -> Result<VpnOwnerStopReceipt> {
+            Ok(VpnOwnerStopReceipt::OwnerUnavailable {
+                failure: Failure::new(
+                    ErrorCode::NotReady,
+                    "fake VPN stop owner has no same-request readback",
+                    true,
+                ),
+            })
         }
 
-        async fn tun_set_enabled(&self, _enabled: bool) -> Result<bool> {
-            Ok(false)
-        }
-
-        async fn tun_is_enabled(&self) -> Result<bool> {
-            Ok(false)
+        async fn vpn_owner_snapshot(&self) -> Result<VpnOwnerSnapshot> {
+            Ok(VpnOwnerSnapshot {
+                owner_session_id: "owner-session".to_owned(),
+                revision: 1,
+                vpn_generation: infiltrator_contract::vpn::VpnGeneration::new(0),
+                vpn_state: VpnOwnerLifecycle::Stopped,
+                readiness: VpnOwnerReadiness::Stopped,
+                resources: Vec::new(),
+                foreground: false,
+                mtu: None,
+                route_count: 0,
+                dns_servers: Vec::new(),
+                ipv6: false,
+                core: VpnOwnerCoreReadback::Available(
+                    infiltrator_contract::snapshot::CoreLifecycleSnapshot {
+                        identity: None,
+                        lifecycle: CoreLifecycle::Stopped,
+                        generation: 0,
+                        session_token: None,
+                        revision: 0,
+                        failure: None,
+                    },
+                ),
+            })
         }
     }
 
@@ -234,9 +485,13 @@ mod tests {
 
     #[test]
     fn composition_publishes_an_android_surface_snapshot() {
-        let composition =
-            AndroidProductComposition::open_with_bridge(Arc::new(TestBridge::new()), config())
-                .expect("composition opens with an explicit bridge");
+        let (_home, owner_composition) = composition_input();
+        let composition = AndroidProductComposition::open_with_bridge(
+            Arc::new(TestBridge::new()),
+            config(),
+            owner_composition,
+        )
+        .expect("composition opens with an explicit bridge");
         let bridge = composition.surface_bridge();
         let deadline = Instant::now() + Duration::from_secs(10);
         let mut delivered = None;
@@ -265,5 +520,59 @@ mod tests {
             Err(error) => error,
         };
         assert!(matches!(error, AndroidProductError::BridgeUnavailable));
+    }
+
+    #[test]
+    fn client_process_cannot_construct_a_local_product_or_controller() {
+        let (_home, owner_composition) = composition_input();
+        let result = AndroidProductComposition::open_with_bridge(
+            Arc::new(TestBridge::client_process()),
+            config(),
+            owner_composition,
+        );
+
+        assert!(matches!(result, Err(AndroidProductError::NotCoreOwner)));
+    }
+
+    #[test]
+    fn owner_surface_json_rejects_core_facts_from_a_different_owner_readback() {
+        let mut snapshot = SurfaceSnapshot::unavailable(
+            SurfaceKind::BevyAndroid,
+            HostKind::Android,
+            Failure::new(ErrorCode::NotReady, "waiting", true),
+        );
+        snapshot.vpn = VpnSurfaceObservation::AndroidOwner(VpnOwnerSnapshot {
+            owner_session_id: "vpn-owner-a".to_owned(),
+            revision: 1,
+            vpn_generation: infiltrator_contract::vpn::VpnGeneration::new(0),
+            vpn_state: VpnOwnerLifecycle::Stopped,
+            readiness: VpnOwnerReadiness::Stopped,
+            resources: Vec::new(),
+            foreground: false,
+            mtu: None,
+            route_count: 0,
+            dns_servers: Vec::new(),
+            ipv6: false,
+            core: VpnOwnerCoreReadback::Unavailable {
+                failure_message: "Core readback unavailable".to_owned(),
+            },
+        });
+        assert!(serialize_owner_surface_snapshot(&snapshot).is_ok());
+
+        snapshot.core.identity = Some(infiltrator_contract::core_identity::CoreIdentity::new(
+            infiltrator_contract::core_identity::EngineId::new("mihomo").expect("engine ID"),
+            infiltrator_contract::core_identity::CoreInstanceId::new("core-a")
+                .expect("instance ID"),
+            None,
+        ));
+        let VpnSurfaceObservation::AndroidOwner(owner) = &mut snapshot.vpn else {
+            unreachable!("the test installed an Android owner snapshot");
+        };
+        owner.core = VpnOwnerCoreReadback::Available(
+            infiltrator_contract::snapshot::CoreLifecycleSnapshot::default(),
+        );
+        let error = serialize_owner_surface_snapshot(&snapshot)
+            .expect_err("surface must not combine a newer Core identity with stale owner data");
+        assert!(error.contains("do not match"));
     }
 }

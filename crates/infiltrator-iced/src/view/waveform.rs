@@ -3,12 +3,12 @@
 use crate::view::theme;
 use iced::widget::canvas;
 use iced::{Color, Element, Point, Rectangle, Renderer, Theme, border, mouse};
-use infiltrator_application::byte_format::format_bytes;
 use infiltrator_contract::mini_hud::MiniHudWaveformStrip;
 use infiltrator_contract::traffic_scale::TrafficScaleSnapshot;
 use infiltrator_contract::traffic_waveform::TrafficWaveformSnapshot;
 use infiltrator_domain::traffic_scale::compute_from_rates;
 use infiltrator_domain::traffic_waveform::smooth_dual_series;
+use infiltrator_shared::byte_units::format_bytes;
 use std::collections::VecDeque;
 
 // ---------------------------------------------------------------------------

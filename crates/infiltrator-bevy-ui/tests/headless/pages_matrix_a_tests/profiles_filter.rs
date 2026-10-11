@@ -25,9 +25,13 @@ fn complete_save(app: &mut App, sink: &DemoCommandSink) {
         panic!("filter save");
     };
     let applied = SubscriptionFilterApplied {
-        source: observation(&source.profile, FIXTURE_DOCUMENT, filter.clone())
-            .unwrap()
-            .source,
+        workspace_identity: observation(
+            source.document.profile_id.as_str(),
+            FIXTURE_DOCUMENT,
+            filter.clone(),
+        )
+        .unwrap()
+        .workspace_identity,
         report: Default::default(),
     };
     app.world_mut().trigger(CommandExecutedEvent {
@@ -141,7 +145,7 @@ fn native_filter_strategy_preserves_keep_last_and_submits_all_four_choices_witho
             panic!("filter save");
         };
         assert_eq!(filter.dedup_index, mode.index());
-        assert_eq!(source.profile, "sub-fetch");
+        assert_eq!(source.document.profile_id.as_str(), "sub-fetch");
         complete_save(&mut app, &sink);
     }
 }
@@ -221,6 +225,6 @@ fn refresh_filter_source(projection: &mut ProfilesProjection) {
         .iter_mut()
         .find(|profile| profile.is_active)
         .unwrap();
-    profile.filter_source =
-        observation(&profile.id, FIXTURE_DOCUMENT, profile.filter.clone()).map(|o| o.source);
+    profile.filter_source = observation(&profile.id, FIXTURE_DOCUMENT, profile.filter.clone())
+        .map(|observation| observation.workspace_identity);
 }

@@ -224,7 +224,7 @@ impl AppState {
                     return Task::done(Message::ShowToast(issues, ToastStatus::Error));
                 }
                 self.runtime.custom_node_saving = true;
-                if let Some(application) = self.commands.clone() {
+                if let Some(application) = self.command_ingress() {
                     return Task::perform(
                         async move {
                             match (application
@@ -282,7 +282,7 @@ impl AppState {
                         // the panel never shows a stale resolution.
                         self.refresh_custom_node_ca_trust();
                         Task::batch(vec![
-                            Task::done(Message::LoadProxies),
+                            Task::done(Message::RefreshOutboundInventory),
                             Task::done(Message::ShowToast(
                                 "Proxy node saved to active profile".to_string(),
                                 ToastStatus::Success,

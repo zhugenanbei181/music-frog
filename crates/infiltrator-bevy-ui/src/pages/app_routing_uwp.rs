@@ -12,19 +12,22 @@ use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::observer::On;
 use bevy::ecs::system::{Query, Res};
+use bevy::feathers::theme::ThemeBackgroundColor;
+use bevy::feathers::theme::ThemeTextColor;
 use bevy::scene::{Scene, bsn};
-use bevy::text::TextColor;
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, Val,
-    percent, px,
+    percent,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
 use infiltrator_application::routing_projection::{uwp_empty, uwp_state_key, uwp_summary};
+use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
@@ -84,7 +87,7 @@ pub fn uwp_exemption_scene(
         vec![Box::new(bsn! {
                     Node {
                         width: percent(100),
-                        padding: UiRect::vertical(Val::Px(space::S4)),
+                        padding: UiRect::vertical(rem(space::S4)),
                     }
                     Children [
                         Text({ uwp_empty(&projection.uwp_loopback.availability, "en-US") }) UwpEmptyLine TextRole(Role::Caption)
@@ -110,9 +113,9 @@ pub fn uwp_exemption_scene(
                                 width: percent(100),
                                 align_items: AlignItems::Center,
                                 justify_content: JustifyContent::SpaceBetween,
-                                padding: UiRect::bottom(Val::Px(space::S8)),
+                                padding: UiRect::bottom(rem(space::S8)),
                                 flex_direction: FlexDirection::Column,
-                                row_gap: Val::Px(space::S8),
+                                row_gap: rem(space::S8),
                             }
                             UwpExemptionRoot
                             Children [
@@ -124,7 +127,7 @@ pub fn uwp_exemption_scene(
                                 Children [
                                     Node {
                                         align_items: AlignItems::Center,
-                                        column_gap: Val::Px(space::S8),
+                                        column_gap: rem(space::S8),
                                     }
                                     Children [
                                         @{ icon_tile_scene(IconId::Settings, 24.0, palette) }
@@ -134,7 +137,7 @@ pub fn uwp_exemption_scene(
                                     --
                                     Node {
                                         align_items: AlignItems::Center,
-                                        column_gap: Val::Px(space::S4),
+                                        column_gap: rem(space::S4),
                                     }
                                     Children [
                                         @{ action_button("uwp_btn_scan", UwpAction::Scan, palette) }
@@ -152,11 +155,11 @@ pub fn uwp_exemption_scene(
                             Node {
                                 width: percent(100),
                                 flex_direction: FlexDirection::Column,
-                                row_gap: Val::Px(space::S4),
-                                padding: UiRect::all(Val::Px(space::S8)),
-                                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                row_gap: rem(space::S4),
+                                padding: UiRect::all(rem(space::S8)),
+                                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                             }
-                            BackgroundColor({ palette.window_clear })
+                            ThemeBackgroundColor({ Token::WindowClear })
                             Children [
                                 { app_rows }
                             ]
@@ -164,7 +167,7 @@ pub fn uwp_exemption_scene(
             Box::new(bsn! {
                             Node {
                                 width: percent(100),
-                                padding: UiRect::top(Val::Px(space::S4)),
+                                padding: UiRect::top(rem(space::S4)),
                             }
                             Children [
                                 LocalizedText::plain("settings_uwp_loopback_hint") TextRole(Role::Caption)
@@ -182,13 +185,13 @@ fn action_button(
 ) -> impl Scene + use<> {
     bsn! {
             Node {
-                min_height: px(palette.control_height_px),
-                padding: UiRect::horizontal(Val::Px(space::S8)),
+                min_height: rem(palette.control_height_px),
+                padding: UiRect::horizontal(rem(space::S8)),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
-                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
             }
-            BackgroundColor({ palette.accent })
+            ThemeBackgroundColor({ Token::Accent })
             UwpActionButton(action)
             Button
             Children [
@@ -215,7 +218,7 @@ fn package_row_scene(
                 width: percent(100),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::SpaceBetween,
-                padding: UiRect::vertical(Val::Px(space::S4)),
+                padding: UiRect::vertical(rem(space::S4)),
             }
             ToggleUwpButton {
                 sid: { package.sid.clone() },
@@ -226,12 +229,12 @@ fn package_row_scene(
                 Text({ package.display_name.clone() }) UwpPackageName(index) TextRole(Role::Caption)
                 --
                 Node {
-                    padding: UiRect::axes(Val::Px(space::S6), Val::Px(2.0)),
+                    padding: UiRect::axes(rem(space::S6), Val::Px(2.0)),
                     border_radius: BorderRadius::all(Val::Px(4.0)),
                 }
                 BackgroundColor({ color })
                 Children [
-                    Text({ state.to_owned() }) UwpPackageState(index) TextColor({ palette.on_accent }) TextRole(Role::Caption)
+                    Text({ state.to_owned() }) UwpPackageState(index) ThemeTextColor({ Token::OnAccent }) TextRole(Role::Caption)
                 ]
             ]
     }

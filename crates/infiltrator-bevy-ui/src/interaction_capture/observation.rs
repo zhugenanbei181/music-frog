@@ -1,5 +1,6 @@
 //! Scenario-specific observation systems expose only their declared native UI facts.
 use super::geometry::CaptureGeometry;
+use super::outbound_fixture::INSPECTION_NODE;
 use super::{InteractionCapture, ObservedInteraction};
 use crate::command_palette::{CommandPaletteCard, CommandPaletteOverlayRoot, CommandPaletteState};
 use crate::pages::business_panel::{
@@ -13,12 +14,12 @@ use crate::pages::overview_speedtest::OverviewSpeedtestDetailBodyText;
 use crate::pages::proxies_custom::CustomNodeText;
 use crate::pages::proxies_form::CustomNodeForm;
 use crate::pages::proxy_inspection::{
-    ProxyInspectionCard, ProxyInspectionChart, ProxyInspectionRoot, ProxyInspectionState,
+    ProxyInspectionCard, ProxyInspectionChart, ProxyInspectionPhase, ProxyInspectionRoot,
+    ProxyInspectionState,
 };
 use bevy::ecs::prelude::*;
 use bevy::ecs::system::SystemParam;
 use bevy::ui::widget::Text;
-use infiltrator_application::proxy_inspection_fixtures::INSPECTION_NODE;
 use infiltrator_application::speedtest_detail_projection::{listing, project_details};
 use infiltrator_bevy_widgets::adaptive_modal::{AdaptiveModalRoot, ModalCard, ModalState};
 use infiltrator_bevy_widgets::chart::ChartPlate;
@@ -108,9 +109,7 @@ pub fn speedtest_observation(
         let expected = listing(&project_details(snapshot), &|key| {
             Lang(&language).tr(key).into_owned()
         });
-        if snapshot.node_results.is_empty()
-            || !surface.details.iter().any(|text| text.0 == expected)
-        {
+        if snapshot.results.is_empty() || !surface.details.iter().any(|text| text.0 == expected) {
             return None;
         }
         geometry.bounds(surface.cards.iter().next()?, "speedtest details")
@@ -193,8 +192,12 @@ pub fn inspection_observation(
     mut marker: ObservationMarker,
 ) {
     let bounds = (|| {
+        let selected = match &surface.state.phase {
+            ProxyInspectionPhase::Closed => return None,
+            ProxyInspectionPhase::Open(session) => &session.selected,
+        };
         if !marker.feature.activated
-            || surface.state.selected.as_deref() != Some(INSPECTION_NODE)
+            || selected.value() != INSPECTION_NODE
             || !geometry.visible(surface.roots.iter().next()?)
         {
             return None;

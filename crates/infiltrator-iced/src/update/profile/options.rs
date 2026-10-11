@@ -16,13 +16,15 @@ use crate::update::profile::editor::ViewportSync;
 use iced::Task;
 use iced::widget::text_editor;
 use infiltrator_application::failure_projection::failure_message;
+use infiltrator_application::profile_edit_session::{
+    ProfileEditFinish, ProfileEditObservation, ProfileEditOperationPhase,
+};
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::error::InfiltratorError;
-use infiltrator_contract::error::{ErrorCode, Failure, FailureReason};
+use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::subscription_filter_form::{FilterField, FilterObservation};
 use infiltrator_contract::subscription_import::SubscriptionFilterDedup;
-use infiltrator_domain::mixin_studio::{MixinPreflightReport, preflight_mixin, set_toggle};
 
 impl AppState {
     pub(super) fn update_options(&mut self, message: Message) -> Task<Message> {
@@ -52,10 +54,10 @@ impl AppState {
                     None => self.sync_document_viewport(EditorPane::Mixin, ViewportSync::Caret),
                 }
                 let text = self.editor.mixin_content.text();
-                // DUAL-10-10: the shared syntax + merge + validation preflight
-                // gates the pane (the same rule the application re-runs).
+                // DUAL-10-10: engine-scoped codec inspection (syntax + merge +
+                // output validation) gates the pane; save re-runs the same rule.
                 let report = self.mixin_preflight(&text);
-                self.editor.syntax_error = report.error;
+                self.editor.syntax_error = report.err().map(|failure| failure.message);
                 self.editor.syntax_error_line = None;
                 Task::none()
             }
@@ -64,16 +66,35 @@ impl AppState {
                     return Task::none();
                 }
                 let text = self.editor.mixin_content.text();
-                match set_toggle(&text, &id, enabled) {
+                let result = self
+                    .editor
+                    .document_session
+                    .source()
+                    .map(|source| source.document.clone())
+                    .ok_or_else(|| {
+                        Failure::new(ErrorCode::NotReady, "No profile document is open", true)
+                    })
+                    .and_then(|identity| {
+                        self.command_ingress()
+                            .ok_or_else(|| {
+                                Failure::new(
+                                    ErrorCode::NotReady,
+                                    "Profile options codec is unavailable",
+                                    true,
+                                )
+                            })?
+                            .set_mixin_toggle(&identity, &text, id, enabled)
+                    });
+                match result {
                     Ok(updated) => {
                         self.editor.mixin_content = text_editor::Content::with_text(&updated);
                         self.reset_document_viewport(EditorPane::Mixin);
                         let report = self.mixin_preflight(&updated);
-                        self.editor.syntax_error = report.error;
+                        self.editor.syntax_error = report.err().map(|failure| failure.message);
                         self.editor.syntax_error_line = None;
                     }
-                    Err(error) => {
-                        self.set_error(InfiltratorError::Config(error));
+                    Err(failure) => {
+                        self.set_error(InfiltratorError::Config(failure.message));
                     }
                 }
                 Task::none()
@@ -87,16 +108,22 @@ impl AppState {
                 self.editor.mixin_load = None;
                 match reply.result {
                     Ok(snapshot) => {
-                        if self.editor.mixin_session.observe(
-                            &snapshot.source,
+                        match self.editor.mixin_session.observe(
+                            &snapshot.workspace_identity,
                             &snapshot.mixin_yaml,
                             &self.editor.mixin_content.text(),
                         ) {
-                            self.editor.mixin_content =
-                                text_editor::Content::with_text(&snapshot.mixin_yaml);
-                            self.reset_document_viewport(EditorPane::Mixin);
+                            ProfileEditObservation::Updated => {
+                                self.editor.mixin_content =
+                                    text_editor::Content::with_text(&snapshot.mixin_yaml);
+                                self.reset_document_viewport(EditorPane::Mixin);
+                            }
+                            ProfileEditObservation::DraftProtected
+                            | ProfileEditObservation::Unchanged => {}
                         }
-                        self.editor.mixin_session.read_completed(&snapshot.source);
+                        self.editor
+                            .mixin_session
+                            .read_completed(&snapshot.workspace_identity);
                     }
                     Err(failure) => self.editor.mixin_session.read_failed(failure),
                 }
@@ -111,27 +138,31 @@ impl AppState {
             }
             Message::SaveMixin => self.save_mixin(),
             Message::MixinSaved(reply) => {
-                if !self.editor.mixin_session.finish(
+                match self.editor.mixin_session.finish(
                     reply.pending.operation,
                     &reply.pending.intent,
                     reply.result.clone(),
                 ) {
-                    return Task::none();
+                    ProfileEditFinish::Stale => {
+                        return Task::none();
+                    }
+                    ProfileEditFinish::Applied => {}
                 }
-                self.editor.is_saving_mixin = false;
                 if let Ok(CommandOutput::ProfileMixinSaved(saved)) = reply.result {
                     self.editor.mixin_content =
                         text_editor::Content::with_text(&saved.options.mixin_yaml);
-                    if let Some(source) = saved.document.source.as_ref()
-                        && self.editor.document_session.observe(
-                            source,
-                            &saved.document.content,
-                            &self.editor.editor_content.text(),
-                        )
-                    {
-                        self.editor.editor_content =
-                            text_editor::Content::with_text(&saved.document.content);
-                        self.reset_document_viewport(EditorPane::Profile);
+                    match self.editor.document_session.observe(
+                        &saved.document.workspace_identity,
+                        &saved.document.content,
+                        &self.editor.editor_content.text(),
+                    ) {
+                        ProfileEditObservation::Updated => {
+                            self.editor.editor_content =
+                                text_editor::Content::with_text(&saved.document.content);
+                            self.reset_document_viewport(EditorPane::Profile);
+                        }
+                        ProfileEditObservation::DraftProtected
+                        | ProfileEditObservation::Unchanged => {}
                     }
                     if let Some((_, document)) = &mut self.editor.document_latest {
                         *document = saved.document;
@@ -223,7 +254,7 @@ impl AppState {
             .expect("editor read identity exhausted");
         let ticket = self.editor.next_editor_read;
         self.editor.mixin_load = Some((ticket, profile.clone()));
-        let commands = self.commands.clone();
+        let commands = self.command_ingress();
         Task::perform(
             async move {
                 let result = match commands {
@@ -278,7 +309,7 @@ impl AppState {
         let token = self.editor.next_filter_load;
         self.editor.filter_load = Some((token, profile.clone()));
         let reply_profile = profile.clone();
-        let commands = self.commands.clone();
+        let commands = self.command_ingress();
         Task::perform(
             async move {
                 let commands = commands.ok_or_else(|| {
@@ -296,7 +327,7 @@ impl AppState {
                     .into_output()?
                     .into_profile_options()
                     .map(|snapshot| FilterObservation {
-                        source: snapshot.source,
+                        workspace_identity: snapshot.workspace_identity,
                         filter: snapshot.filter,
                     })
             },
@@ -320,26 +351,42 @@ impl AppState {
 
     /// DUAL-10-10: run the shared Mixin preflight against the open profile
     /// document as the base. Both the live pane verdict and the save gate call it.
-    fn mixin_preflight(&self, mixin_yaml: &str) -> MixinPreflightReport {
+    pub(crate) fn mixin_preflight(&self, mixin_yaml: &str) -> Result<(), Failure> {
         let base = self.editor.editor_content.text();
-        preflight_mixin(&base, mixin_yaml)
+        let identity = self
+            .editor
+            .document_session
+            .source()
+            .map(|source| source.document.clone())
+            .ok_or_else(|| {
+                Failure::new(ErrorCode::NotReady, "No profile document is open", true)
+            })?;
+        let commands = self.command_ingress().ok_or_else(|| {
+            Failure::new(
+                ErrorCode::NotReady,
+                "Profile options codec is unavailable",
+                true,
+            )
+        })?;
+        commands.inspect_mixin_draft(&identity, &base, mixin_yaml)
     }
 
     fn save_mixin(&mut self) -> Task<Message> {
-        if self.editor.is_saving_mixin {
+        if matches!(
+            &self.editor.mixin_session.operation,
+            ProfileEditOperationPhase::Pending(_)
+        ) {
             return Task::none();
         }
         // DUAL-10-10 validation gate: a malformed or unmergeable overlay is
-        // rejected by the shared preflight before any state flips or task
-        // spawns, so the editor keeps its content for fixing.
+        // rejected by the engine-scoped codec preflight before any state flips
+        // or task spawns, so the editor keeps its content for fixing.
         let text = self.editor.mixin_content.text();
-        let report = self.mixin_preflight(&text);
-        if let Some(error) = report.error {
-            let failure = Failure::new(ErrorCode::InvalidInput, error.clone(), false)
-                .with_reason(FailureReason::MixinYaml);
+        if let Err(failure) = self.mixin_preflight(&text) {
+            let error = failure.message.clone();
             let message = failure_message(&failure, &self.shell.lang);
             self.set_error(&message);
-            self.editor.mixin_session.failure = Some(failure);
+            self.editor.mixin_session.reject(failure);
             self.editor.syntax_error = Some(error);
             self.editor.syntax_error_line = None;
             return Task::done(Message::ShowToast(message, ToastStatus::Error));
@@ -349,12 +396,11 @@ impl AppState {
         let pending = match self.editor.mixin_session.begin_mixin(text) {
             Ok(pending) => pending,
             Err(failure) => {
-                self.editor.mixin_session.failure = Some(failure);
+                self.editor.mixin_session.reject(failure);
                 return Task::none();
             }
         };
-        self.editor.is_saving_mixin = true;
-        let commands = self.commands.clone();
+        let commands = self.command_ingress();
         Task::perform(
             async move {
                 let result = match commands {
@@ -383,7 +429,7 @@ impl AppState {
             Err(_) => return Task::none(),
         };
         let token = pending.token;
-        let commands = self.commands.clone();
+        let commands = self.command_ingress();
         Task::perform(
             async move {
                 let commands = commands.ok_or_else(|| {
@@ -395,7 +441,7 @@ impl AppState {
                 })?;
                 commands
                     .execute(CommandIntent::SaveSubscriptionFilter {
-                        source: pending.source.source,
+                        workspace_identity: pending.source.workspace_identity,
                         filter: pending.draft,
                     })
                     .await

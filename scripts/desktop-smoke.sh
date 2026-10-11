@@ -12,8 +12,9 @@
 #                       StatusNotifierItem properties, full DBusMenu
 #                       GetLayout tree ("● " active marks, checkmark
 #                       toggle-states, disabled placeholders), AboutToShow,
-#                       real "clicked" Events (Proxy Mode -> Global marker
-#                       flip; autostart checkmark 0 -> 1) and the resulting
+#                       real "clicked" Events (typed routing-intent request
+#                       keeps the observed choice unchanged without a Core;
+#                       autostart checkmark 0 -> 1) and the resulting
 #                       autostart .desktop file inside the rig's own
 #                       XDG_CONFIG_HOME.
 #   notify              Private bus + org.freedesktop.Notifications daemon

@@ -32,22 +32,6 @@ pub(super) fn fmt(m: &Message, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result
         }
         Message::EnsureSnifferEditorLoaded => write!(f, "EnsureSnifferEditorLoaded"),
         Message::ActivateRulesHeavyView => write!(f, "ActivateRulesHeavyView"),
-        Message::RuleProvidersJsonLoaded(Ok(json)) => {
-            write!(f, "RuleProvidersJsonLoaded(Ok({} chars))", json.len())
-        }
-        Message::RuleProvidersJsonLoaded(Err(e)) => {
-            write!(f, "RuleProvidersJsonLoaded(Err({:?}))", e)
-        }
-        Message::ProxyProvidersJsonLoaded(Ok(json)) => {
-            write!(f, "ProxyProvidersJsonLoaded(Ok({} chars))", json.len())
-        }
-        Message::ProxyProvidersJsonLoaded(Err(e)) => {
-            write!(f, "ProxyProvidersJsonLoaded(Err({:?}))", e)
-        }
-        Message::SnifferJsonLoaded(Ok(json)) => {
-            write!(f, "SnifferJsonLoaded(Ok({} chars))", json.len())
-        }
-        Message::SnifferJsonLoaded(Err(e)) => write!(f, "SnifferJsonLoaded(Err({:?}))", e),
         Message::LoadProviders => write!(f, "LoadProviders"),
         Message::ProvidersLoaded(Ok((p, r))) => write!(
             f,
@@ -350,22 +334,39 @@ pub(super) fn fmt(m: &Message, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result
         Message::KernelsLoaded(Ok(k)) => write!(f, "KernelsLoaded(Ok({} kernels))", k.len()),
         Message::KernelsLoaded(Err(e)) => write!(f, "KernelsLoaded(Err({:?}))", e),
         Message::CheckCoreUpdate => write!(f, "CheckCoreUpdate"),
-        Message::CoreUpdateInfo(Ok(v)) => write!(f, "CoreUpdateInfo(Ok({}))", v),
-        Message::CoreUpdateInfo(Err(e)) => write!(f, "CoreUpdateInfo(Err({:?}))", e),
+        Message::CoreUpdateFinished { check_id, result } => {
+            write!(f, "CoreUpdateFinished({check_id:?}, {result:?})")
+        }
         Message::SetCoreChannel(channel) => write!(f, "SetCoreChannel({})", channel),
         Message::DownloadCore(v) => write!(f, "DownloadCore({})", v),
-        Message::CoreDownloadProgress(progress, token) => {
+        Message::CoreDownloadProgress { progress, run_id } => {
             write!(
                 f,
-                "CoreDownloadProgress({}/{:?}, {} B/s, token={})",
-                progress.downloaded, progress.total, progress.speed_bytes, token
+                "CoreDownloadProgress({}/{:?}, {} B/s, run_id={:?})",
+                progress.downloaded, progress.total, progress.speed_bytes, run_id
             )
         }
-        Message::CoreDownloadFinished(Ok(v), token) => {
-            write!(f, "CoreDownloadFinished(Ok({}), token={})", v, token)
+        Message::CoreDownloadFinished {
+            result: Ok(v),
+            engine_id,
+            run_id,
+        } => {
+            write!(
+                f,
+                "CoreDownloadFinished(Ok({}), engine={:?}, run_id={:?})",
+                v, engine_id, run_id
+            )
         }
-        Message::CoreDownloadFinished(Err(e), token) => {
-            write!(f, "CoreDownloadFinished(Err({:?}), token={})", e, token)
+        Message::CoreDownloadFinished {
+            result: Err(e),
+            engine_id,
+            run_id,
+        } => {
+            write!(
+                f,
+                "CoreDownloadFinished(Err({:?}), engine={:?}, run_id={:?})",
+                e, engine_id, run_id
+            )
         }
         Message::CancelCoreDownload => write!(f, "CancelCoreDownload"),
         Message::DeleteKernel(v) => write!(f, "DeleteKernel({})", v),
@@ -390,13 +391,6 @@ pub(super) fn fmt(m: &Message, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result
             .field("token", token)
             .field("result", result)
             .finish(),
-        Message::ProxyDelayCompleted { name, result } => {
-            write!(f, "ProxyDelayCompleted({name}, {result:?})")
-        }
-        Message::TestProxyDelay(p) => write!(f, "TestProxyDelay({})", p),
-        Message::TestGroupDelay(g) => write!(f, "TestGroupDelay({})", g),
-        Message::ProxyTested(p, Ok(d)) => write!(f, "ProxyTested({}, Ok({}ms))", p, d),
-        Message::ProxyTested(p, Err(e)) => write!(f, "ProxyTested({}, Err({:?}))", p, e),
         Message::WindowClosed(id) => write!(f, "WindowClosed({:?})", id),
         Message::HideWindow => write!(f, "HideWindow"),
         Message::ShowWindow => write!(f, "ShowWindow"),
@@ -419,23 +413,10 @@ pub(super) fn fmt(m: &Message, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result
         Message::CycleThemePreference => write!(f, "CycleThemePreference"),
         Message::ShowToast(s, st) => write!(f, "ShowToast({}, {:?})", s, st),
         Message::RemoveToast(id) => write!(f, "RemoveToast({id})"),
-        Message::TestAllProxyDelays => write!(f, "TestAllProxyDelays"),
         Message::MoveOverviewCardUp(kind) => write!(f, "MoveOverviewCardUp({kind:?})"),
         Message::MoveOverviewCardDown(kind) => write!(f, "MoveOverviewCardDown({kind:?})"),
         Message::ResetOverviewCardOrder => write!(f, "ResetOverviewCardOrder"),
-        Message::SpeedtestScopeUpdated(Ok(snapshot)) => write!(
-            f,
-            "SpeedtestScopeUpdated(Ok(alive={}, total={}))",
-            snapshot.alive_nodes_count(),
-            snapshot.node_count()
-        ),
-        Message::SpeedtestScopeUpdated(Err(e)) => {
-            write!(f, "SpeedtestScopeUpdated(Err({:?}))", e)
-        }
-        Message::CancelSpeedtest => write!(f, "CancelSpeedtest"),
-        Message::UpdateSpeedtestTestUrl(url) => {
-            write!(f, "UpdateSpeedtestTestUrl({url})")
-        }
+        Message::CancelSpeedtestRun(run_id) => write!(f, "CancelSpeedtestRun({run_id:?})"),
         Message::AdjustSpeedtestConcurrency(delta) => {
             write!(f, "AdjustSpeedtestConcurrency({delta})")
         }

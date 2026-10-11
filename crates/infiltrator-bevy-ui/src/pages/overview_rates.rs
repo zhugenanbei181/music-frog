@@ -13,11 +13,11 @@ use bevy::ecs::system::{Query, Res, SystemParam};
 use bevy::text::TextColor;
 use bevy::ui::widget::Text;
 use infiltrator_application::core_status_projection::{failure_copy, lifecycle_copy};
-use infiltrator_application::proxy_mode_projection::mode_status_copy;
-use infiltrator_application::shell_readout_projection::{rate_copy, rate_status};
+use infiltrator_application::routing_intent_projection::routing_intent_status_copy;
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::stat_chip::{StatChipLabel, StatChipValue};
+use infiltrator_presentation::shell_readout::{rate_copy, rate_status};
 
 #[derive(QueryData)]
 #[query_data(mutable)]
@@ -74,7 +74,9 @@ pub fn refresh(mut copy: OverviewCopy) {
             OverviewLineKind::Upload => format!("↑ {upload}"),
             OverviewLineKind::Download => format!("↓ {download}"),
             OverviewLineKind::TelemetryFailure => rate_status(&projection.readout, language),
-            OverviewLineKind::ModeChip => mode_status_copy(&projection.proxy_mode, language),
+            OverviewLineKind::RoutingIntentChip => {
+                routing_intent_status_copy(&projection.routing_intent, language)
+            }
             OverviewLineKind::BannerNote => banner_note(projection, language),
             OverviewLineKind::Failure => failure_copy(
                 &projection.lifecycle,

@@ -1,7 +1,7 @@
 //! test-intent: behavior
-use crate::command_harness::recording_application;
+use crate::command_harness::{TestCoreLifecycleHostCapabilityProvider, recording_application};
 use crate::doctor_port::DiagnosticPort;
-use crate::support::{headless_plugins, subtree_has_text};
+use crate::support::{command_pump_for_observed_snapshot, headless_plugins, subtree_has_text};
 use bevy::a11y::AccessibilityNode;
 use bevy::app::App;
 use bevy::ecs::{component::Component, entity::Entity, hierarchy::Children};
@@ -29,11 +29,23 @@ use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_contract::command::RequestId;
 use infiltrator_contract::command_output::CommandOutput;
+use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::error::ErrorCode;
-use infiltrator_contract::surface::{HostKind, SurfaceKind};
-use infiltrator_contract::surface_snapshot::{
-    PageData, ProxiesPageSnapshot, ProxyGroupSnapshot, ProxyNodeSnapshot,
+use infiltrator_contract::outbound::{
+    details::OutboundSnapshot,
+    identity::{OutboundId, SnapshotRevision},
+    inventory::{
+        OutboundInventorySnapshot, OutboundInventoryState, OutboundSelectionSet,
+        OutboundSelectionState, SelectionAvailability,
+    },
+    probe::{OutboundProbeBatchScope, OutboundSelectionRequest},
 };
+use infiltrator_contract::speedtest::{
+    SpeedtestOutboundResult, SpeedtestProgress, SpeedtestResultState, SpeedtestRounds,
+    SpeedtestRunId, SpeedtestRunState, SpeedtestSampleOutcome, SpeedtestTarget,
+};
+use infiltrator_contract::surface::{HostKind, SurfaceKind};
+use infiltrator_contract::surface_snapshot::PageData;
 use infiltrator_ports::surface::SurfaceReader;
 use std::any::type_name;
 use std::sync::{Arc, atomic::Ordering};
@@ -88,7 +100,9 @@ fn native_doctor_controls_execute_real_failure_retry_repair_bootstrap_and_reject
     let doctor = DoctorApplication::new(port.clone());
     let (application, _) = recording_application();
     application.install_command_handler(Arc::new(
-        CommandApplication::new().with_doctor(doctor.clone()),
+        CommandApplication::new()
+            .with_host_capabilities(Arc::new(TestCoreLifecycleHostCapabilityProvider))
+            .with_doctor(doctor.clone()),
     ));
     let application = Arc::new(application);
     let reader = ApplicationSurfaceReader::new(
@@ -101,7 +115,7 @@ fn native_doctor_controls_execute_real_failure_retry_repair_bootstrap_and_reject
     headless_plugins(&mut app);
     app.add_plugins(ShellPlugin::default());
     app.add_plugins(PagesPlugin::default());
-    app.add_plugins(CommandPumpPlugin::for_application(application));
+    app.add_plugins(command_pump_for_observed_snapshot(application));
     app.update();
     app.world_mut()
         .commands()
@@ -276,48 +290,10 @@ fn native_doctor_controls_execute_real_failure_retry_repair_bootstrap_and_reject
     );
 }
 
-fn self_heal_node(name: &str, delay_ms: Option<u32>, alive: Option<bool>) -> ProxyNodeSnapshot {
-    ProxyNodeSnapshot {
-        name: name.to_owned(),
-        node_type: "ss".to_owned(),
-        delay_ms,
-        alive,
-        selected: false,
-        favorite: false,
-        features: Vec::new(),
-    }
-}
-
-fn self_heal_proxies(groups: Vec<ProxyGroupSnapshot>) -> ProxiesPageSnapshot {
-    ProxiesPageSnapshot {
-        name_runs: Default::default(),
-        search_query: String::new(),
-        node_details: Vec::new(),
-        groups,
-        testing: false,
-        active_exit: String::new(),
-        filter_alive: Default::default(),
-        sort_order: Default::default(),
-        compact_view: false,
-        custom_node: Default::default(),
-    }
-}
-
-fn self_heal_group(proxies: Vec<ProxyNodeSnapshot>) -> ProxyGroupSnapshot {
-    ProxyGroupSnapshot {
-        name: "GLOBAL".to_owned(),
-        group_type: "select".to_owned(),
-        classification: None,
-        current: String::new(),
-        expanded: true,
-        proxies,
-    }
-}
-
 fn mount_doctor_with_sink() -> (App, Arc<DemoCommandSink>) {
     let mut app = App::new();
     headless_plugins(&mut app);
-    app.add_plugins((ShellPlugin::default(), PagesPlugin::default()));
+    app.add_plugins((ShellPlugin::default(), PagesPlugin::demo()));
     let sink = Arc::new(DemoCommandSink::accepting());
     app.add_plugins(CommandPumpPlugin::new(
         sink.clone() as Arc<dyn UiCommandSink>
@@ -330,10 +306,78 @@ fn mount_doctor_with_sink() -> (App, Arc<DemoCommandSink>) {
     (app, sink)
 }
 
-fn publish_proxies(app: &mut App, proxies: ProxiesPageSnapshot) {
+fn publish_outbounds(app: &mut App, outbounds: &[(&str, Option<Vec<SpeedtestSampleOutcome>>)]) {
     let mut snapshot = app.world().resource::<LatestSurfaceSnapshot>().0.clone();
     snapshot.revision += 1;
-    snapshot.pages.proxies = PageData::ready(proxies);
+    snapshot.core.revision = snapshot.revision;
+    let scope = snapshot
+        .core
+        .scope()
+        .expect("demo surface exposes its accepted core scope");
+    let engine = scope.identity.engine.clone();
+    let id = |name: &str| OutboundId::new(engine.clone(), name).expect("test outbound ID is valid");
+    let entries = outbounds
+        .iter()
+        .map(|(name, _)| OutboundSnapshot {
+            id: id(name),
+            display_name: Some((*name).to_owned()),
+        })
+        .collect();
+    let member_ids = outbounds.iter().map(|(name, _)| id(name)).collect();
+    snapshot.outbound_inventory = PageData::ready(
+        OutboundInventorySnapshot::new(
+            scope.clone(),
+            SnapshotRevision::new(13),
+            OutboundInventoryState::Ready {
+                entries,
+                collections: vec![OutboundSelectionSet {
+                    id: id("GLOBAL"),
+                    member_ids,
+                    availability: SelectionAvailability::Selectable,
+                    selection: OutboundSelectionState::Unknown,
+                }],
+            },
+        )
+        .expect("test outbound inventory is valid"),
+    );
+    snapshot.speedtest.state = SpeedtestRunState::Completed {
+        run_id: SpeedtestRunId::new(1).expect("test run ID is valid"),
+        target: SpeedtestTarget::new(
+            scope,
+            SnapshotRevision::new(13),
+            OutboundProbeBatchScope::All,
+            SpeedtestRounds::DEFAULT,
+        )
+        .expect("test speedtest target is valid"),
+        progress: SpeedtestProgress {
+            completed_targets: outbounds
+                .iter()
+                .filter(|(_, samples)| samples.is_some())
+                .count(),
+            total_targets: outbounds.len(),
+        },
+    };
+    for (name, samples) in outbounds {
+        let Some(samples) = samples else {
+            continue;
+        };
+        let state = if samples
+            .iter()
+            .any(|sample| matches!(sample, SpeedtestSampleOutcome::Measured { .. }))
+        {
+            SpeedtestResultState::Completed
+        } else {
+            SpeedtestResultState::TimedOut
+        };
+        snapshot.speedtest.results.push(SpeedtestOutboundResult {
+            outbound_id: id(name),
+            display_name: Some((*name).to_owned()),
+            protocol_display_name: Some("test".to_owned()),
+            samples: samples.clone(),
+            state,
+            tested_at_epoch_ms: 1,
+        });
+    }
     app.world_mut()
         .commands()
         .trigger(SurfaceSnapshotUpdated(snapshot));
@@ -344,13 +388,23 @@ fn publish_proxies(app: &mut App, proxies: ProxiesPageSnapshot) {
 #[test]
 fn native_doctor_self_heal_surfaces_best_node_typed_unknown_and_applies_through_the_sink() {
     let (mut app, sink) = mount_doctor_with_sink();
-    publish_proxies(
+    publish_outbounds(
         &mut app,
-        self_heal_proxies(vec![self_heal_group(vec![
-            self_heal_node("HK-Fast", Some(40), Some(true)),
-            self_heal_node("US-Lossy", Some(120), Some(false)),
-            self_heal_node("JP-Unknown", None, None),
-        ])]),
+        &[
+            (
+                "HK-Fast",
+                Some(vec![SpeedtestSampleOutcome::Measured { delay_ms: 40 }]),
+            ),
+            (
+                "US-Lossy",
+                Some(vec![
+                    SpeedtestSampleOutcome::Measured { delay_ms: 120 },
+                    SpeedtestSampleOutcome::TimedOut,
+                    SpeedtestSampleOutcome::TimedOut,
+                ]),
+            ),
+            ("JP-Unknown", None),
+        ],
     );
 
     let root = entity::<DoctorPageRoot>(&mut app);
@@ -366,9 +420,13 @@ fn native_doctor_self_heal_surfaces_best_node_typed_unknown_and_applies_through_
     click(&mut app, apply);
     assert_eq!(
         sink.submitted(),
-        vec![UiCommand::SelectProxyNode {
-            group: "GLOBAL".to_owned(),
-            node: "HK-Fast".to_owned(),
+        vec![UiCommand::SelectOutbound {
+            request: OutboundSelectionRequest::new(
+                OutboundId::new(EngineId::new("mihomo").unwrap(), "GLOBAL").unwrap(),
+                OutboundId::new(EngineId::new("mihomo").unwrap(), "HK-Fast").unwrap(),
+                SnapshotRevision::new(13),
+            )
+            .unwrap(),
         }],
         "apply routes the recommendation through the shared command sink"
     );
@@ -377,14 +435,7 @@ fn native_doctor_self_heal_surfaces_best_node_typed_unknown_and_applies_through_
 #[test]
 fn native_doctor_self_heal_without_scored_facts_is_unknown_and_not_actionable() {
     let (mut app, sink) = mount_doctor_with_sink();
-    publish_proxies(
-        &mut app,
-        self_heal_proxies(vec![self_heal_group(vec![self_heal_node(
-            "JP-Unknown",
-            None,
-            None,
-        )])]),
-    );
+    publish_outbounds(&mut app, &[("JP-Unknown", None)]);
 
     let root = entity::<DoctorPageRoot>(&mut app);
     assert!(subtree_has_text(app.world(), root, "JP-Unknown"));

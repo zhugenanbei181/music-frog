@@ -1,5 +1,6 @@
 use super::*;
 use crate::command_application::CommandApplication;
+use crate::core_capability_test_support::{execute_core_command, with_test_capabilities};
 use crate::dns_observation_projection::DnsObservationTone;
 use crate::dns_query_actions::{DnsQueryActions, QuerySection};
 use crate::dns_query_fixtures::{IsolatedQueries, QueryFixtureMode};
@@ -20,12 +21,12 @@ async fn real_query_command_preserves_all_sections_and_failure_categories_withou
  {
     let port = Arc::new(IsolatedQueries::default());
     let owner = DnsQueryApplication::new(Some(port.clone()));
-    let command = CommandApplication::new().with_dns_query(owner.clone());
+    let command = with_test_capabilities(CommandApplication::new().with_dns_query(owner.clone()));
     let intent = |id| CommandIntent::QueryDns {
         operation: DnsQueryOperationId(id),
         request: request(),
     };
-    command.execute(intent(1)).await.unwrap();
+    execute_core_command(&command, intent(1)).await.unwrap();
     let first = owner.snapshot();
     assert_eq!(first.report_id, Some(DnsQueryOperationId(1)));
     let report = first.report.as_ref().unwrap();
@@ -36,7 +37,10 @@ async fn real_query_command_preserves_all_sections_and_failure_categories_withou
     assert!(report.response.checking_disabled);
     port.set_mode(QueryFixtureMode::Permission);
     assert_eq!(
-        command.execute(intent(2)).await.unwrap_err().code,
+        execute_core_command(&command, intent(2))
+            .await
+            .unwrap_err()
+            .code,
         ErrorCode::Permission
     );
     let failure = owner.snapshot();
@@ -46,19 +50,25 @@ async fn real_query_command_preserves_all_sections_and_failure_categories_withou
     assert_eq!(failure.operation_id, Some(DnsQueryOperationId(2)));
     port.set_mode(QueryFixtureMode::MismatchedQuestion);
     assert_eq!(
-        command.execute(intent(3)).await.unwrap_err().code,
+        execute_core_command(&command, intent(3))
+            .await
+            .unwrap_err()
+            .code,
         ErrorCode::InvalidState
     );
     assert_eq!(owner.snapshot().report, first.report);
     port.set_mode(QueryFixtureMode::NegativeAnswer);
-    command.execute(intent(4)).await.unwrap();
+    execute_core_command(&command, intent(4)).await.unwrap();
     let negative = owner.snapshot().report.unwrap().response;
     assert_eq!(negative.status, 3);
     assert!(negative.answers.is_empty());
     assert_eq!(negative.authority[0].data, "ns.test.");
     let calls = port.requests().len();
     assert_eq!(
-        command.execute(intent(4)).await.unwrap_err().code,
+        execute_core_command(&command, intent(4))
+            .await
+            .unwrap_err()
+            .code,
         ErrorCode::InvalidState
     );
     let bad = DnsQueryRequest {
@@ -75,7 +85,7 @@ async fn real_query_command_preserves_all_sections_and_failure_categories_withou
     );
     assert_eq!(port.requests().len(), calls);
     port.set_mode(QueryFixtureMode::Answer);
-    command.execute(intent(5)).await.unwrap();
+    execute_core_command(&command, intent(5)).await.unwrap();
     assert_eq!(owner.snapshot().report_id, Some(DnsQueryOperationId(5)));
 }
 #[tokio::test]

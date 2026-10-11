@@ -20,9 +20,10 @@ use bevy::ecs::query::{With, Without};
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Commands, Query, Res};
 use bevy::scene::{Scene, bsn};
-use bevy::ui::prelude::{AlignItems, Node, Val, percent};
+use bevy::ui::prelude::{AlignItems, Node, percent};
 use bevy::ui::widget::Text;
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::reactive::{
     ReactiveDagResource, ReactiveGraphPlugin, SignalInput, SignalOutput, flush_signal_outputs,
     stage_signal_inputs,
@@ -153,7 +154,7 @@ pub fn reactive_summary_scene(_palette: &UiPalette) -> impl Scene + use<> {
         Node {
             width: percent(100),
             align_items: AlignItems::Center,
-            column_gap: Val::Px(space::S8),
+            column_gap: rem(space::S8),
         }
         Children [
             Text("Load score") TextRole(Role::Caption)

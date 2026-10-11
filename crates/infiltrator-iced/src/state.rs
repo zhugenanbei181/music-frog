@@ -7,6 +7,7 @@
 //!
 //! 视图层只读这些域做纯渲染投影;update 层按域定位字段。
 
+use crate::command_ingress::{CoreCommandIngress, ObservedCoreScope};
 use crate::state::diagnostics::DiagnosticsState;
 use crate::state::editor::ConfigEditorState;
 use crate::state::profiles::ProfileState;
@@ -15,21 +16,41 @@ use crate::state::shell::ShellState;
 use crate::surface::{SurfaceBridge, SurfaceModel};
 use crate::types::app::UwpAppItem;
 use crate::types::app_routing::AppRoutingState;
+use crate::types::message::Message;
 use crate::types::runtime::{RuntimeStatus, RuntimeStreamState};
 use crate::utils::sanitize_ui_text;
 use infiltrator_application::command_palette_projection::filtered_indices;
 use infiltrator_application::core_application::CoreApplication;
-use infiltrator_application::proxy_mode_application::ProxyModeApplication;
+use infiltrator_application::core_application::ScopedCoreCommandClient;
+use infiltrator_application::routing_intent_application::RoutingIntentApplication;
 use infiltrator_application::system_toggle_application::SystemToggleApplication;
-use infiltrator_contract::command::ProxyMode;
 use infiltrator_contract::command_catalogue::{CommandCatalogue, ProfileChoice};
+use infiltrator_contract::core_identity::CoreScope;
 use infiltrator_contract::dns_form::DnsWorkbenchForm;
+use infiltrator_contract::error::ErrorCode;
+use infiltrator_contract::error::Failure;
 use infiltrator_contract::logs::LogStreamState;
 use infiltrator_contract::mini_hud::{MiniHudReadModel, MiniHudWaveformStrip};
+use infiltrator_contract::outbound::identity::SnapshotRevision;
+use infiltrator_contract::outbound::preferences::OutboundFavoriteState;
+use infiltrator_contract::outbound::preferences::OutboundGroupExpansion;
+use infiltrator_contract::outbound::preferences::OutboundUiPreferenceIntent;
+use infiltrator_contract::outbound::{
+    details::{OutboundDetail, OutboundDetailsSnapshot},
+    identity::OutboundId,
+    inventory::{OutboundInventorySnapshot, OutboundInventoryState, SelectionAvailability},
+    preferences::{
+        OutboundHealthFilter, OutboundLayout, OutboundUiPreferencesSnapshot,
+        OutboundUiPreferencesValues,
+    },
+    probe::OutboundSelectionRequest,
+};
 use infiltrator_contract::pac::PacServiceState;
 use infiltrator_contract::profile_protection::ProfileWriteProtection;
 use infiltrator_contract::runtime_control::RuntimeControlStatus;
-use infiltrator_contract::surface_snapshot::{PageStatus, SurfaceSnapshot};
+use infiltrator_contract::surface_snapshot::{
+    PageData, PageStatus, SurfaceOrigin, SurfaceSnapshot,
+};
 use infiltrator_contract::system_proxy::SystemProxyStatus;
 use infiltrator_domain::runtime::{MemoryData, TrafficData};
 use infiltrator_shared::fuzzy_search::pinyin_fuzzy_match;
@@ -37,19 +58,21 @@ use infiltrator_shared::locales::{Lang, Localizer};
 use std::sync::Arc;
 
 pub mod core_control;
+pub mod core_operations;
 pub mod diagnostics;
 pub mod editor;
 mod editor_observation;
 pub mod language;
+pub mod outbound_inventory;
 pub mod profiles;
 pub mod proxy_group_order;
-pub mod proxy_inspection;
 pub mod proxy_preferences;
 pub mod proxy_probe;
 pub mod proxy_probe_settings;
 pub mod proxy_search;
 pub mod runtime;
 pub mod shell;
+mod surface_snapshot;
 mod traffic;
 
 pub struct AppState {
@@ -67,6 +90,7 @@ pub struct AppState {
     pub surface_bridge: Option<SurfaceBridge>,
     /// Host-injected neutral command facade; embedded/headless hosts need no desktop runtime.
     pub commands: Option<CoreApplication>,
+    pub(crate) command_scope: ObservedCoreScope,
     /// Host-provided process-exit cleanup callback. The UI knows only this
     /// zero-argument seam; OS signal and proxy/TUN details stay in the host.
     pub exit_cleanup: Option<Arc<dyn Fn() + Send + Sync>>,
@@ -104,7 +128,7 @@ impl AppState {
     }
 
     /// The Mini HUD's shared read model, assembled from the live projections:
-    /// traffic rates, the controller-reported mode, the selected exit node and
+    /// traffic rates, the observed routing intent, the selected exit node and
     /// the shared system-toggle snapshot. Nothing here is a constant.
     pub fn mini_hud_read_model(&self) -> MiniHudReadModel {
         let active_node = if !self.runtime.runtime_selected_proxy.is_empty() {
@@ -114,16 +138,6 @@ impl AppState {
         } else {
             String::new()
         };
-        let mode_zh = self
-            .runtime
-            .proxy_mode
-            .as_deref()
-            .and_then(ProxyMode::from_wire)
-            .map(|mode| {
-                Localizer::tr(&Lang(&self.shell.lang), &format!("mode_{}", mode.to_wire()))
-                    .into_owned()
-            })
-            .unwrap_or_default();
         let (up, down) = self
             .diag
             .traffic
@@ -132,7 +146,7 @@ impl AppState {
             .unwrap_or((0, 0));
         MiniHudReadModel {
             visible: self.shell.mini_hud_mode,
-            mode_zh,
+            routing_intent: self.runtime.routing_intent_state.clone(),
             exit_node: active_node,
             down_bytes_per_sec: down,
             up_bytes_per_sec: up,
@@ -143,400 +157,513 @@ impl AppState {
         }
     }
 
-    /// Apply the shared page read model as a monotonic render cache. The
-    /// existing Elm fields remain toolkit-local projections; stale host
-    /// events cannot overwrite a newer shared revision.
-    pub fn apply_shared_surface_snapshot(&mut self, snapshot: SurfaceSnapshot) -> bool {
-        let previous_scope = self
-            .surface
-            .latest()
-            .map(|previous| (previous.core.generation, previous.core.session_token))
-            .unwrap_or((
-                self.runtime.core_lifecycle.generation,
-                self.runtime.core_lifecycle.session_token,
-            ));
-        let changed_scope = self.commands.is_some()
-            && (previous_scope != (snapshot.core.generation, snapshot.core.session_token)
-                || self
-                    .surface
-                    .latest()
-                    .is_some_and(|previous| previous.origin != snapshot.origin));
-        if !self.surface.apply(snapshot.clone()) {
+    /// Attach the shared product owner and require scope-bound typed commands.
+    /// Hosts and integration harnesses use the same entry point as desktop composition.
+    pub fn attach_product_application(&mut self, application: CoreApplication) {
+        self.commands = Some(application);
+        self.shell
+            .admin_shared
+            .set_application(self.commands.clone());
+        self.enable_product_command_ingress();
+    }
+
+    pub(crate) fn rebind_product_commands_to_scope(&mut self, scope: Option<CoreScope>) {
+        if self.commands.is_some() {
+            let observed = self.commands.as_ref().and_then(|application| {
+                scope.map(|scope| {
+                    ObservedCoreScope::Bound(ScopedCoreCommandClient::new(
+                        application.clone(),
+                        scope,
+                    ))
+                })
+            });
+            self.command_scope = observed.unwrap_or(ObservedCoreScope::Unavailable);
+        }
+    }
+
+    pub(crate) fn command_ingress(&self) -> Option<CoreCommandIngress> {
+        let application = self.commands.clone()?;
+        Some(CoreCommandIngress::new(
+            application,
+            self.command_scope.clone(),
+        ))
+    }
+
+    pub(crate) fn is_product_command_ingress(&self) -> bool {
+        self.commands.is_some()
+    }
+
+    pub(crate) fn apply_outbound_inventory_observation(
+        &mut self,
+        observation: PageData<OutboundInventorySnapshot>,
+    ) {
+        if self.uses_outbound_surface()
+            && let (Some(current), Some(next)) = (
+                self.runtime.outbound_inventory.data.as_ref(),
+                observation.data.as_ref(),
+            )
+            && current.scope() == next.scope()
+            && next.revision() < current.revision()
+        {
+            return;
+        }
+        self.runtime.outbound_inventory = observation;
+        self.refresh_outbound_inventory_projection();
+        self.reconcile_outbound_inspection();
+        self.refresh_outbound_probe_block();
+    }
+
+    pub(crate) fn apply_outbound_details_observation(
+        &mut self,
+        observation: PageData<OutboundDetailsSnapshot>,
+    ) {
+        if !self.uses_outbound_surface() {
+            return;
+        }
+        if let (Some(current), Some(next)) = (
+            self.runtime.outbound_details.data.as_ref(),
+            observation.data.as_ref(),
+        ) && (current.scope() != next.scope()
+            || next.detail_revision() < current.detail_revision())
+        {
+            return;
+        }
+        if let (Some(inventory), Some(details)) = (
+            self.runtime.outbound_inventory.data.as_ref(),
+            observation.data.as_ref(),
+        ) && inventory.scope() != details.scope()
+        {
+            return;
+        }
+        self.runtime.outbound_details = observation;
+        self.refresh_outbound_inventory_projection();
+        self.refresh_outbound_probe_block();
+    }
+
+    pub(crate) fn apply_outbound_ui_preferences_observation(
+        &mut self,
+        observation: PageData<OutboundUiPreferencesSnapshot>,
+    ) {
+        if !self.uses_outbound_surface() {
+            return;
+        }
+        if let (Some(current), Some(next)) = (
+            self.runtime.outbound_ui_preferences.data.as_ref(),
+            observation.data.as_ref(),
+        ) && (current.scope() != next.scope() || next.revision() < current.revision())
+        {
+            return;
+        }
+        if let (Some(inventory), Some(preferences)) = (
+            self.runtime.outbound_inventory.data.as_ref(),
+            observation.data.as_ref(),
+        ) && inventory.scope() != preferences.scope()
+        {
+            return;
+        }
+        self.runtime.outbound_ui_preferences = observation;
+        self.sync_outbound_ui_preference_fields();
+        self.refresh_outbound_inventory_projection();
+    }
+
+    pub(crate) fn sync_outbound_ui_preference_fields(&mut self) {
+        let Some(preferences) = self.runtime.outbound_ui_preferences.data.as_ref() else {
+            return;
+        };
+        match &self.runtime.proxy_search.phase {
+            crate::state::proxy_search::ProxySearchPhase::Uninitialized
+            | crate::state::proxy_search::ProxySearchPhase::Synchronized { .. } => {
+                self.runtime
+                    .proxy_filter
+                    .clone_from(&preferences.search_query);
+            }
+            crate::state::proxy_search::ProxySearchPhase::Dirty { .. }
+            | crate::state::proxy_search::ProxySearchPhase::Pending { .. }
+            | crate::state::proxy_search::ProxySearchPhase::Failed { .. } => {}
+        }
+        self.runtime.favorite_proxies = preferences
+            .favorite_outbound_ids
+            .iter()
+            .map(|id| id.value().to_owned())
+            .collect();
+        self.runtime.filter_alive_only =
+            preferences.health_filter == OutboundHealthFilter::HealthyOnly;
+        self.runtime.proxy_compact_view = preferences.layout == OutboundLayout::CompactList;
+        self.runtime.outbound_sort_order = preferences.sort_order;
+    }
+
+    pub(crate) fn apply_demo_outbound_ui_preference(
+        &mut self,
+        intent: OutboundUiPreferenceIntent,
+    ) -> bool {
+        if self.is_product_command_ingress() || !self.shell.demo {
             return false;
         }
-        if changed_scope {
-            self.runtime.proxies.clear();
-            self.runtime.proxy_groups.clear();
-            self.runtime.proxy_name_runs.clear();
-            self.runtime.filtered_groups.clear();
-            self.runtime.is_loading_proxies = false;
+        let Some(scope) = self.demo_outbound_scope() else {
+            return false;
+        };
+        let Some(current) = self
+            .runtime
+            .outbound_ui_preferences
+            .data
+            .as_ref()
+            .filter(|current| current.scope() == &scope)
+            .cloned()
+        else {
+            return false;
+        };
+        let Some(inventory) = self
+            .runtime
+            .outbound_inventory
+            .data
+            .as_ref()
+            .filter(|inventory| inventory.scope() == &scope)
+        else {
+            return false;
+        };
+        let OutboundInventoryState::Ready {
+            entries,
+            collections,
+        } = inventory.inventory()
+        else {
+            return false;
+        };
+        let expected_inventory_revision = match &intent {
+            OutboundUiPreferenceIntent::ReorderGroups {
+                inventory_revision, ..
+            }
+            | OutboundUiPreferenceIntent::ResetGroupOrder { inventory_revision } => {
+                Some(*inventory_revision)
+            }
+            _ => None,
+        };
+        if expected_inventory_revision.is_some_and(|expected| expected != inventory.revision()) {
+            return false;
+        }
+        let is_observed = match &intent {
+            OutboundUiPreferenceIntent::SetFavorite { outbound_id, .. } => {
+                entries.iter().any(|entry| &entry.id == outbound_id)
+            }
+            OutboundUiPreferenceIntent::SetGroupExpansion { group_id, .. } => collections
+                .iter()
+                .any(|collection| &collection.id == group_id),
+            OutboundUiPreferenceIntent::ReorderGroups { group_ids, .. } => group_ids
+                .iter()
+                .all(|id| collections.iter().any(|collection| collection.id == *id)),
+            OutboundUiPreferenceIntent::SetSearchQuery(_)
+            | OutboundUiPreferenceIntent::SetSortOrder(_)
+            | OutboundUiPreferenceIntent::SetHealthFilter(_)
+            | OutboundUiPreferenceIntent::SetLayout(_)
+            | OutboundUiPreferenceIntent::ResetGroupOrder { .. } => true,
+        };
+        if !is_observed {
+            return false;
+        }
+        let mut search_query = current.search_query.clone();
+        let mut favorite_outbound_ids = current.favorite_outbound_ids.clone();
+        let mut group_order = current.group_order.clone();
+        let mut collapsed_group_ids = current.collapsed_group_ids.clone();
+        let mut sort_order = current.sort_order;
+        let mut health_filter = current.health_filter;
+        let mut layout = current.layout;
+        match intent {
+            OutboundUiPreferenceIntent::SetSearchQuery(query) => {
+                search_query = query;
+                self.runtime.proxy_search.phase =
+                    crate::state::proxy_search::ProxySearchPhase::Synchronized {
+                        query: search_query.clone(),
+                    };
+            }
+            OutboundUiPreferenceIntent::SetFavorite { outbound_id, state } => match state {
+                OutboundFavoriteState::Pinned => {
+                    if !favorite_outbound_ids.contains(&outbound_id) {
+                        favorite_outbound_ids.push(outbound_id);
+                    }
+                }
+                OutboundFavoriteState::Unpinned => {
+                    favorite_outbound_ids.retain(|favorite| favorite != &outbound_id);
+                }
+            },
+            OutboundUiPreferenceIntent::SetSortOrder(next) => {
+                sort_order = next;
+            }
+            OutboundUiPreferenceIntent::SetHealthFilter(next) => {
+                health_filter = next;
+            }
+            OutboundUiPreferenceIntent::SetLayout(next) => {
+                layout = next;
+            }
+            OutboundUiPreferenceIntent::SetGroupExpansion {
+                group_id,
+                expansion,
+            } => match expansion {
+                OutboundGroupExpansion::Expanded => {
+                    collapsed_group_ids.retain(|collapsed| collapsed != &group_id);
+                }
+                OutboundGroupExpansion::Collapsed => {
+                    if !collapsed_group_ids.contains(&group_id) {
+                        collapsed_group_ids.push(group_id);
+                    }
+                }
+            },
+            OutboundUiPreferenceIntent::ReorderGroups {
+                group_ids: order, ..
+            } => {
+                group_order = order;
+            }
+            OutboundUiPreferenceIntent::ResetGroupOrder { .. } => {
+                group_order.clear();
+            }
+        }
+        let Ok(snapshot) = OutboundUiPreferencesSnapshot::new(
+            scope,
+            SnapshotRevision::new(current.revision().value().wrapping_add(1)),
+            OutboundUiPreferencesValues {
+                search_query,
+                favorite_outbound_ids,
+                group_order,
+                collapsed_group_ids,
+                sort_order,
+                health_filter,
+                layout,
+            },
+        ) else {
+            return false;
+        };
+        self.apply_outbound_ui_preferences_observation(PageData::ready(snapshot));
+        true
+    }
+
+    pub(crate) fn refresh_outbound_inventory_projection(&mut self) {
+        if !self.uses_outbound_surface() {
+            return;
+        }
+        self.runtime.proxy_groups = outbound_inventory::project_groups(
+            &self.runtime.outbound_inventory,
+            &self.runtime.outbound_details,
+            &self.runtime.outbound_ui_preferences,
+            &self.runtime.proxy_groups,
+        );
+        let (filtered, name_runs) = outbound_inventory::filtered_groups(
+            &self.runtime.proxy_groups,
+            &self.runtime.proxy_filter,
+        );
+        self.runtime.filtered_groups = filtered;
+        self.runtime.proxy_name_runs = name_runs;
+        self.sync_runtime_outbound_selection();
+    }
+
+    pub(crate) fn sync_runtime_outbound_selection(&mut self) {
+        self.runtime.runtime_outbound_selection = None;
+        let selected_group = self
+            .runtime
+            .proxy_groups
+            .iter()
+            .find(|group| {
+                group.name == self.runtime.runtime_selected_group
+                    && group.availability == SelectionAvailability::Selectable
+            })
+            .or_else(|| {
+                self.runtime
+                    .proxy_groups
+                    .iter()
+                    .find(|group| group.availability == SelectionAvailability::Selectable)
+            });
+        let Some(group) = selected_group else {
             self.runtime.runtime_selected_group.clear();
             self.runtime.runtime_selected_proxy.clear();
-            self.runtime.inspecting_proxy = None;
-            self.runtime.inspection_read = Default::default();
-            self.diag.connections = None;
-            self.diag.connection_groups.clear_observation();
-            self.diag.connection_rates = Default::default();
-            self.diag.connection_rate_book = Default::default();
-            self.diag.connection_activity = Default::default();
-            self.diag.inspecting_connection_id = None;
-            self.diag.traffic = None;
-            self.diag.traffic_history.clear();
-            self.diag.memory = None;
-            self.diag.public_ip = None;
-            self.diag.public_ip_provider = None;
-            self.diag.public_ip_checked_at = None;
-            self.diag.public_ip_error = None;
-        }
-        self.observe_editor_surface(&snapshot.profile_editor);
-        self.shell.readout = snapshot.shell_readout.clone();
-        self.diag.log_search.observe(
-            snapshot.core.generation,
-            snapshot.core.session_token,
-            &snapshot.pages.logs,
-        );
-        if self.commands.is_some() {
-            self.diag.log_filter.level_filter = snapshot
-                .pages
-                .logs
-                .data
-                .as_ref()
-                .and_then(|logs| logs.active_level.clone())
-                .unwrap_or_default();
-            self.diag.logs = snapshot
-                .pages
-                .logs
-                .data
-                .as_ref()
-                .map(|logs| {
-                    logs.entries
-                        .iter()
-                        .map(|entry| entry.raw.clone().unwrap_or_else(|| entry.message.clone()))
-                        .collect()
-                })
-                .unwrap_or_default();
-            self.diag.logs_stream_state =
-                match snapshot.pages.logs.data.as_ref().map(|logs| &logs.stream) {
-                    Some(LogStreamState::Live) => RuntimeStreamState::Connected,
-                    Some(LogStreamState::Connecting) => RuntimeStreamState::Connecting,
-                    Some(LogStreamState::Reconnecting(_)) => RuntimeStreamState::Reconnecting,
-                    Some(LogStreamState::Failed(failure)) => {
-                        RuntimeStreamState::Failed(failure.message.clone())
-                    }
-                    _ => match &snapshot.pages.logs.status {
-                        PageStatus::Failed { failure } | PageStatus::Unavailable { failure } => {
-                            RuntimeStreamState::Failed(failure.message.clone())
-                        }
-                        PageStatus::Loading => RuntimeStreamState::Connecting,
-                        _ => RuntimeStreamState::Idle,
-                    },
-                };
-        }
+            return;
+        };
+        self.runtime.runtime_selected_group.clone_from(&group.name);
+        self.runtime.runtime_selected_proxy = group.current().unwrap_or_default().to_owned();
+    }
 
-        self.observe_rule_list_page(&snapshot.pages.rules);
-        self.reconcile_proxy_inspection();
-        self.observe_probe_settings(&snapshot.probe_settings);
-        self.observe_language_settings(&snapshot.language_settings);
-        self.observe_group_order();
-        if let Some(proxies) = snapshot.pages.proxies.data.as_ref() {
-            if self.runtime.proxy_search.pending.is_none()
-                && self.runtime.proxy_search.failure.is_none()
-                && self.runtime.proxy_filter == proxies.search_query
-            {
-                self.runtime.proxy_search.draft_dirty = false;
-            }
-            if !self.runtime.proxy_search.draft_dirty {
-                self.runtime.proxy_filter = proxies.search_query.clone();
-            }
-            self.runtime.proxy_groups = proxies.groups.clone();
-            self.runtime.proxy_name_runs = proxies.name_runs.clone();
-            self.runtime.filtered_groups = proxies
-                .groups
-                .iter()
-                .map(|group| {
-                    (
-                        group.name.clone(),
-                        group.proxies.iter().map(|node| node.name.clone()).collect(),
-                    )
-                })
-                .collect();
-            self.runtime.filter_alive_only = proxies.filter_alive.enabled;
-            self.runtime.proxy_compact_view = proxies.compact_view;
-            self.runtime.proxy_delay_sort = proxies.sort_order.as_wire_key().into();
-            self.runtime.favorite_proxies = proxies
-                .groups
-                .iter()
-                .flat_map(|group| &group.proxies)
-                .filter(|node| node.favorite)
-                .map(|node| node.name.clone())
-                .collect();
+    pub(crate) fn outbound_detail(&self, id: &OutboundId) -> Option<OutboundDetail> {
+        let scope = self.current_outbound_scope()?;
+        let inventory = self.runtime.outbound_inventory.data.as_ref()?;
+        if inventory.scope() != &scope {
+            return None;
         }
-        self.runtime.proxy_mode = snapshot
-            .runtime_control
-            .mode
-            .or(snapshot.core.proxy_mode)
-            .map(|mode| mode.to_wire().to_owned());
-        self.runtime.script_block_present = snapshot.runtime_control.script_available == Some(true);
-        self.runtime.mode_actions.observe(
-            snapshot.generation,
-            snapshot.revision,
-            ProxyModeApplication::from_surface(&snapshot),
-        );
-        self.runtime.proxy_mode_state = self.runtime.mode_actions.render_snapshot();
-        self.runtime.proxy_mode = self
-            .runtime
-            .proxy_mode_state
-            .current
-            .map(|mode| mode.to_wire().to_owned());
-        self.runtime.runtime_control = snapshot.runtime_control.clone();
-        if self.commands.is_none()
-            || (snapshot.core.generation, snapshot.core.revision)
-                >= (
-                    self.runtime.core_lifecycle.generation,
-                    self.runtime.core_lifecycle.revision,
-                )
-        {
-            self.runtime.status = RuntimeStatus::from_core_snapshot(&snapshot.core);
-            self.runtime.core_lifecycle = snapshot.core.lifecycle_snapshot();
+        let OutboundInventoryState::Ready { entries, .. } = inventory.inventory() else {
+            return None;
+        };
+        if !entries.iter().any(|entry| &entry.id == id) {
+            return None;
         }
-        self.runtime.mtu = snapshot.mtu.clone();
-        if let Some(settings) = snapshot.pages.settings.data.as_ref()
-            && let Some(ipv6) = settings.ipv6_routing
-        {
-            self.runtime.ipv6_routing = ipv6;
+        let page = &self.runtime.outbound_details;
+        if !matches!(page.status, PageStatus::Ready) {
+            return None;
         }
-        self.runtime.system_proxy = snapshot.system_proxy.clone();
-        self.runtime.system_proxy_recovery = snapshot.system_proxy_recovery.clone();
-        self.runtime.network_roaming = snapshot.network_roaming.clone();
-        self.runtime.vpn = snapshot.vpn.clone();
-        self.runtime.privileged_network = snapshot.privileged_network.clone();
-        self.runtime.traffic_waveform = snapshot.traffic_waveform.clone();
-        self.runtime.traffic_scale = snapshot.traffic_scale.clone();
-        self.runtime.traffic_topology = snapshot.traffic_topology.clone();
-        self.runtime.reconnect_mask = snapshot.reconnect_mask.clone();
-        self.runtime.active_exit = snapshot.active_exit.clone();
-        self.runtime.subscription_quota = snapshot.subscription_quota.clone();
-        self.diag.speedtest = snapshot.speedtest.clone();
-        self.apply_dns_leak_snapshot(&snapshot.dns_leak);
-        self.diag.dns_cache_actions.observe(&snapshot.dns_cache);
-        self.diag.dns_query.observe(&snapshot.dns_query);
-        self.diag.dns_cache_flush = self.diag.dns_cache_actions.snapshot.report.clone();
-        self.editor.dns_hosts_editor.observe(&snapshot.dns_hosts);
-        if let Some(dns) = snapshot.pages.dns.data.as_ref() {
-            // Canonical cross-surface DNS workbench input: re-seed the form
-            // from the shared read model only while the user has no unsaved
-            // edits, so a poll never clobbers typing.
-            if !self.editor.dns_form_dirty && !self.editor.dns_json_dirty {
-                self.editor.dns_form = DnsWorkbenchForm::from_snapshot(dns);
-            }
-            // DUAL-14-06: the observed Fake-IP bindings are a shared fact.
-            self.editor.dns_fake_ip_pool = dns.fake_ip_pool.clone();
-            // DUAL-14-10: the last real probe is a shared fact; a probe in
-            // flight keeps the local optimistic view until the reader
-            // publishes the same report.
-            if !self.editor.is_probing_dns_latency || dns.latency.is_probed() {
-                self.editor.dns_latency = dns.latency.clone();
-            }
-            // DUAL-14-13: the self-heal observation is a shared fact.
-            self.editor.dns_self_heal = dns.self_heal.clone();
-            // DUAL-14-08: the cross-source leak report is a shared fact.
-            // DUAL-14-09 (re-scoped): the STUN UDP-egress report is a shared
-            // fact.
-            self.apply_stun_snapshot(dns);
-            // The read model carries the honest last flush report for the
-            // shared host application; a local report from this session is
-            // never downgraded back to `NotRequested`.
+        let details = page.data.as_ref()?;
+        if details.scope() != &scope {
+            return None;
         }
-        let previous_trace_report = self.editor.rule_trace.snapshot.report_id;
-        if self.editor.rule_trace.observe(snapshot.rule_trace.clone())
-            && let Some(report) = &self.editor.rule_trace.snapshot.report
-        {
-            self.editor.rules_tracer_chain = report.decision_chain.clone();
-        }
-        self.editor.rules_tracer_can_reverse_apply = false;
-        self.editor.rule_hit_audit.observe(&snapshot.pages.rules);
-        if let Some(rules_page) = snapshot.pages.rules.data.as_ref() {
-            // DUAL-12-08: consume the shared reverse-apply facts; the chooser
-            // is gated and seeded from the surface read model, not guessed.
-            self.editor.rules_tracer_can_reverse_apply = rules_page.tracer.can_reverse_apply;
-            self.editor.rules_tracer_suggested_target =
-                rules_page.tracer.suggested_override_target.clone();
-            if previous_trace_report != self.editor.rule_trace.snapshot.report_id {
-                self.editor.rules_tracer_override_target = rules_page
-                    .tracer
-                    .suggested_override_target
-                    .clone()
-                    .unwrap_or_default();
-            }
-            // DUAL-11-03 / 11-04: the MRS acceleration read model and the
-            // declared provider source URLs are shared facts, never UI-local.
-            self.editor.mrs_acceleration = rules_page.mrs_acceleration.clone();
-            self.editor.rule_provider_source_urls = rules_page
-                .providers
-                .iter()
-                .filter_map(|provider| {
-                    provider
-                        .source_url
-                        .as_ref()
-                        .map(|url| (provider.name.clone(), url.clone()))
-                })
-                .collect();
-            self.editor.rule_provider_intervals = rules_page
-                .providers
-                .iter()
-                .filter_map(|provider| {
-                    provider
-                        .refresh_interval_secs
-                        .map(|secs| (provider.name.clone(), secs))
-                })
-                .collect();
-            // DUAL-11-05: the local cache fingerprints the shared reader
-            // observed; the provider row renders them verbatim.
-            self.editor.rule_provider_fingerprints = rules_page
-                .providers
-                .iter()
-                .filter_map(|provider| {
-                    provider
-                        .cache_fingerprint
-                        .as_ref()
-                        .map(|observation| (provider.name.clone(), observation.clone()))
-                })
-                .collect();
-            // DUAL-11-08: the publish cap and the omitted count are shared
-            // facts; the editor keeps its full profile list and says so.
-            self.editor.rule_publish_limit = rules_page.rule_publish_limit;
-            self.editor.rule_publish_omitted = rules_page
-                .is_truncated()
-                .then(|| rules_page.omitted_rule_count());
-            // DUAL-11-07: the observed kernel provider-cache fact is shared
-            // with Bevy; the card renders the same directory/count/size.
-            self.editor.rule_provider_cache = rules_page.provider_cache.clone();
-            // DUAL-11-05: the kernel's real `etag-support` capability declared
-            // by the active profile, projected from the same shared read model.
-            self.editor.rule_etag_support = rules_page.etag_support;
-        }
-        self.diag.overview_card_order = snapshot.overview_layout.order.clone();
-        self.runtime.system_toggles = SystemToggleApplication::from_surface(&snapshot);
-        if matches!(
-            &snapshot.system_proxy.status,
-            SystemProxyStatus::Enabled | SystemProxyStatus::Disabled
-        ) {
-            self.runtime.system_proxy_enabled = snapshot.system_proxy.is_enabled();
-        }
-        self.runtime.runtime_generation = snapshot.core.generation;
-        self.runtime.core_session_token = snapshot.core.session_token;
-        self.runtime.core_versions = snapshot.versions.clone();
-        self.runtime.core_integrity = snapshot.versions.verification.clone();
-        if let Some(settings) = snapshot.pages.settings.data.as_ref()
-            && snapshot.runtime_control.status == RuntimeControlStatus::Ready
-        {
-            if let Some(auto_route) = settings.tun_auto_route {
-                self.editor.tun_auto_route = auto_route;
-            }
-            if let Some(strict_route) = settings.tun_strict_route {
-                self.editor.tun_strict_route = strict_route;
-            }
-            let mut committed = self.runtime.lan_sharing_committed.clone();
-            if let Some(value) = settings.allow_lan {
-                committed.allow_lan = value;
-            }
-            if let Some(value) = settings.mixed_port {
-                committed.mixed_port = value;
-            }
-            if let Some(value) = &settings.lan_bind_address {
-                committed.bind_address = value.clone();
-            }
-            self.runtime.lan_sharing_committed = committed.clone();
-            if !self.runtime.lan_sharing_dirty {
-                self.runtime.lan_sharing = committed;
-            }
+        details.detail(id).cloned()
+    }
 
-            if let Some(security) = &settings.lan_security {
-                let mut security_committed = self.runtime.lan_security_committed.clone();
-                security_committed.allowed_ips = security.allowed_ips.join(", ");
-                security_committed.disallowed_ips = security.disallowed_ips.join(", ");
-                security_committed.skip_auth_prefixes = security.skip_auth_prefixes.join(", ");
-                security_committed.authentication_enabled = security.authentication_enabled;
-                security_committed.authentication_user_count = security.authentication_user_count;
-                if let Some(username) = security.authentication_username.as_ref() {
-                    security_committed.auth_username = username.clone();
-                }
-                security_committed.auth_password.clear();
-                self.runtime.lan_security_committed = security_committed.clone();
-                if !self.runtime.lan_security_dirty {
-                    self.runtime.lan_security = security_committed;
-                    self.runtime.lan_sharing.acl_whitelist_cidrs = security.allowed_ips.join(", ");
-                }
-            }
-        }
-        if !self.shell.uwp_loopback.is_scanning
-            && let Some(app_routing) = snapshot.pages.app_routing.data.as_ref()
-        {
-            let uwp = &app_routing.uwp_loopback;
-            self.shell.uwp_loopback.availability = uwp.availability.clone();
-            self.shell.uwp_loopback.revision = uwp.revision;
-            self.shell.uwp_loopback.apps = uwp
-                .packages
-                .iter()
-                .map(|package| UwpAppItem {
-                    sid: package.sid.clone(),
-                    display_name: package.display_name.clone(),
-                    is_exempt: package.loopback_exempt,
-                })
-                .collect();
-            self.shell.uwp_loopback.is_scanning = false;
-        }
-        if let Some(settings) = snapshot.pages.settings.data.as_ref() {
-            let pac = &mut self.runtime.pac_manager;
-            pac.snapshot = settings.pac.clone();
-            if !pac.dirty {
-                pac.bypass_subnets = settings.pac.bypass_domains.join(", ");
-                match &settings.pac.state {
-                    PacServiceState::Running { url } => {
-                        pac.is_pac_mode_active = true;
-                        pac.pac_url = url.clone();
-                    }
-                    PacServiceState::Disabled | PacServiceState::Unavailable { .. } => {
-                        pac.is_pac_mode_active = false;
-                        pac.pac_url.clear();
-                    }
-                }
-            }
-        }
-        self.runtime.controller_auth = snapshot.controller_auth;
-        self.runtime.service_mode = snapshot.service_mode;
-        self.runtime.port_conflicts = snapshot.port_conflicts.clone();
-        self.runtime.core_resources = snapshot.resources.clone();
-        self.runtime.offline_startup = snapshot.offline_startup.clone();
-        self.diag.crash_watchdog.shared = snapshot.core.watchdog.clone();
-        self.diag.crash_watchdog.last_crash_summary = snapshot
-            .core
-            .watchdog
-            .last_error
+    pub(crate) fn outbound_is_observed(&self, id: &OutboundId) -> bool {
+        let Some(scope) = self.current_outbound_scope() else {
+            return false;
+        };
+        self.runtime
+            .outbound_inventory
+            .data
             .as_ref()
-            .map(|failure| sanitize_ui_text(&failure.message));
-        self.diag.traffic = snapshot
-            .shell_readout
-            .upload_bps
-            .value
-            .zip(snapshot.shell_readout.download_bps.value)
-            .map(|(up, down)| TrafficData {
-                up: up as u64,
-                down: down as u64,
-            });
-        if self.commands.is_some() {
-            self.diag.traffic_history = snapshot
-                .traffic_waveform
-                .samples
-                .iter()
-                .map(|sample| (sample.upload_bps as u64, sample.download_bps as u64))
-                .collect();
+            .filter(|inventory| inventory.scope() == &scope)
+            .is_some_and(|inventory| match inventory.inventory() {
+                OutboundInventoryState::Ready { entries, .. } => {
+                    entries.iter().any(|entry| &entry.id == id)
+                }
+                OutboundInventoryState::Unknown
+                | OutboundInventoryState::Empty
+                | OutboundInventoryState::Unsupported
+                | OutboundInventoryState::Failed { .. } => false,
+            })
+    }
+
+    fn reconcile_outbound_inspection(&mut self) {
+        if self
+            .runtime
+            .outbound_inspecting
+            .as_ref()
+            .is_some_and(|id| !self.outbound_is_observed(id))
+        {
+            self.runtime.outbound_inspecting = None;
+            self.runtime.outbound_probe_pending = None;
+            self.runtime.outbound_probe_result = None;
+            self.runtime.outbound_probe_failure = None;
+            self.runtime.outbound_probe_blocked = None;
         }
-        self.diag.memory = snapshot.core.memory_bytes.map(|in_use| MemoryData {
-            in_use,
-            os_limit: 0,
-        });
-        true
+    }
+
+    /// Capture the accepted outbound scope and inventory revision in the UI
+    /// message itself. A delayed click can therefore never be rebound to a
+    /// newer core activation or inventory revision.
+    pub(crate) fn outbound_selection_message(
+        &self,
+        collection_value: &str,
+        outbound_value: &str,
+    ) -> Option<Message> {
+        let (scope, request) = self.outbound_selection_request(collection_value, outbound_value)?;
+        Some(Message::SelectOutbound { scope, request })
+    }
+
+    pub(crate) fn outbound_selection_request_is_current(
+        &self,
+        scope: &CoreScope,
+        request: &OutboundSelectionRequest,
+    ) -> bool {
+        if self.current_outbound_scope().as_ref() != Some(scope)
+            || request.validate_scope(scope).is_err()
+        {
+            return false;
+        }
+        let Some(inventory) = self
+            .runtime
+            .outbound_inventory
+            .data
+            .as_ref()
+            .filter(|inventory| inventory.scope() == scope)
+            .filter(|inventory| inventory.revision() == request.expected_revision())
+        else {
+            return false;
+        };
+        let OutboundInventoryState::Ready { collections, .. } = inventory.inventory() else {
+            return false;
+        };
+        collections.iter().any(|collection| {
+            collection.id == *request.collection_id()
+                && collection.availability == SelectionAvailability::Selectable
+                && collection.member_ids.contains(request.outbound_id())
+        })
+    }
+
+    pub(crate) fn prepare_runtime_outbound_selection_message(
+        &self,
+        collection_value: &str,
+        outbound_value: &str,
+    ) -> Option<Message> {
+        let (scope, request) = self.outbound_selection_request(collection_value, outbound_value)?;
+        Some(Message::PrepareRuntimeOutboundSelection { scope, request })
+    }
+
+    fn outbound_selection_request(
+        &self,
+        collection_value: &str,
+        outbound_value: &str,
+    ) -> Option<(CoreScope, OutboundSelectionRequest)> {
+        // Product and explicit demo actions are both fenced to the scope in
+        // the latest accepted SurfaceSnapshot. A fixture never invents a
+        // scope when its typed surface observation is absent.
+        let scope = self.current_outbound_scope()?;
+        let inventory = self.runtime.outbound_inventory.data.as_ref()?;
+        if inventory.scope() != &scope {
+            return None;
+        }
+        let OutboundInventoryState::Ready {
+            entries,
+            collections,
+        } = inventory.inventory()
+        else {
+            return None;
+        };
+        let collection = collections.iter().find(|collection| {
+            collection.id.value() == collection_value
+                && collection.availability == SelectionAvailability::Selectable
+        })?;
+        let outbound = entries
+            .iter()
+            .find(|entry| entry.id.value() == outbound_value)?;
+        if !collection.member_ids.contains(&outbound.id) {
+            return None;
+        }
+        let request = OutboundSelectionRequest::new(
+            collection.id.clone(),
+            outbound.id.clone(),
+            inventory.revision(),
+        )
+        .ok()?;
+        Some((scope, request))
+    }
+
+    fn current_outbound_scope(&self) -> Option<CoreScope> {
+        if self.is_product_command_ingress() {
+            return self.command_ingress()?.observed_scope();
+        }
+        self.demo_outbound_scope()
+    }
+
+    fn demo_outbound_scope(&self) -> Option<CoreScope> {
+        if !self.shell.demo {
+            return None;
+        }
+        let snapshot = self.surface.latest()?;
+        (snapshot.origin == SurfaceOrigin::Demo)
+            .then(|| snapshot.core.scope())
+            .flatten()
+    }
+
+    fn uses_outbound_surface(&self) -> bool {
+        self.is_product_command_ingress() || self.demo_outbound_scope().is_some()
+    }
+
+    fn rebind_product_command_scope(&mut self, snapshot: &SurfaceSnapshot) {
+        if self.commands.is_some() {
+            self.command_scope = self.observed_scope_for(snapshot);
+        }
+    }
+
+    fn observed_scope_for(&self, snapshot: &SurfaceSnapshot) -> ObservedCoreScope {
+        self.commands
+            .as_ref()
+            .and_then(|application| {
+                snapshot
+                    .core
+                    .scope()
+                    .map(|scope| ScopedCoreCommandClient::new(application.clone(), scope))
+            })
+            .map(ObservedCoreScope::Bound)
+            .unwrap_or(ObservedCoreScope::Unavailable)
     }
 
     /// Attach the host-composed shared surface input before the Iced runtime
@@ -550,11 +677,9 @@ impl AppState {
     /// the banner, the disabled save button and the guard cannot disagree.
     pub fn edited_profile_write_protection(&self) -> ProfileWriteProtection {
         if let Some((_, document)) = &self.editor.document_latest
-            && self
-                .editor
-                .document_session
-                .source()
-                .is_some_and(|source| source.profile == document.profile)
+            && self.editor.document_session.source().is_some_and(|source| {
+                source.document.profile_id == document.workspace_identity.document.profile_id
+            })
         {
             return document.write_protection;
         }

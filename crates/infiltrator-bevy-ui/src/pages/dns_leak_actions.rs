@@ -12,7 +12,9 @@ use bevy::ecs::system::{Query, Res, ResMut};
 use bevy::ui::widget::Text;
 use bevy::ui::{Display, Node};
 use bevy::ui_widgets::{Activate, Button};
-use infiltrator_application::dns_leak_actions::DnsLeakActionState;
+use infiltrator_application::dns_leak_actions::{
+    DnsLeakActionPhase, DnsLeakActionState, DnsLeakFinish,
+};
 use infiltrator_application::dns_leak_projection::project_leak;
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
@@ -28,19 +30,29 @@ pub struct LeakActions {
 #[derive(Component, Clone, Default)]
 #[require(Button, ButtonDisabled)]
 pub struct RetryLeakButton;
+#[derive(Clone, Copy)]
+enum ProbeAdmission {
+    Start,
+    Retry,
+}
 pub fn activate(
     event: On<Activate>,
-    buttons: Query<(Has<TestDnsLeakButton>, Has<RetryLeakButton>)>,
+    buttons: Query<(Option<&TestDnsLeakButton>, Option<&RetryLeakButton>)>,
     sink: Option<Res<CommandSinkHandle>>,
     mut actions: ResMut<LeakActions>,
 ) {
     let Ok((run, retry)) = buttons.get(event.entity) else {
         return;
     };
-    if !run && !retry || retry && !actions.state.can_retry() {
-        return;
-    }
-    let token = match actions.state.begin() {
+    let admission = match (run, retry) {
+        (Some(_), None) => ProbeAdmission::Start,
+        (None, Some(_)) => ProbeAdmission::Retry,
+        (Some(_), Some(_)) | (None, None) => return,
+    };
+    let token = match match admission {
+        ProbeAdmission::Start => actions.state.begin(),
+        ProbeAdmission::Retry => actions.state.begin_retry(),
+    } {
         Ok(token) => token,
         Err(_) => return,
     };
@@ -61,11 +73,13 @@ pub fn finish(event: On<CommandExecutedEvent>, mut actions: ResMut<LeakActions>)
     if actions.request != Some(event.request_id) || event.command != UiCommand::TestDnsLeak {
         return;
     }
-    let Some(token) = actions.state.pending else {
-        return;
+    let token = match &actions.state.phase {
+        DnsLeakActionPhase::Pending { token } => *token,
+        DnsLeakActionPhase::Idle | DnsLeakActionPhase::Failed { .. } => return,
     };
-    if actions.state.finish(token, event.unit_result()) {
-        actions.request = None;
+    match actions.state.finish(token, event.unit_result()) {
+        DnsLeakFinish::Stale => {}
+        DnsLeakFinish::Applied => actions.request = None,
     }
 }
 #[derive(QueryData)]
@@ -86,8 +100,8 @@ pub fn sync_controls(
     mut feedback: Query<FeedbackText, With<LeakFeedback>>,
 ) {
     let report = &latest.0.dns_leak;
-    let busy =
-        actions.state.pending.is_some() || matches!(report.operation, DnsLeakOperation::Running);
+    let busy = matches!(&actions.state.phase, DnsLeakActionPhase::Pending { .. })
+        || matches!(report.operation, DnsLeakOperation::Running);
     for (mut disabled, run, retry) in &mut buttons {
         if !run && !retry {
             continue;
@@ -97,14 +111,14 @@ pub fn sync_controls(
             disabled.0 = wanted;
         }
     }
-    let copy = if let Some(failure) = &actions.state.failure {
-        failure.message.clone()
-    } else if busy {
-        LocalizedText::plain("dns_leak_probing").render(&locale)
-    } else {
-        project_leak(report, locale.code())
+    let copy = match &actions.state.phase {
+        DnsLeakActionPhase::Failed { failure } => failure.message.clone(),
+        DnsLeakActionPhase::Pending { .. } => {
+            LocalizedText::plain("dns_leak_probing").render(&locale)
+        }
+        DnsLeakActionPhase::Idle => project_leak(report, locale.code())
             .feedback
-            .unwrap_or_default()
+            .unwrap_or_default(),
     };
     for mut feedback in &mut feedback {
         if feedback.text.0 != copy {

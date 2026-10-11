@@ -19,7 +19,7 @@ fn injected_source_drives_the_page_not_the_demo_fixture() {
     let (_, download) = chip_value(world, OverviewChipKind::Download);
     assert_eq!(download, "3.95 KB/s");
     assert!(
-        pill_selected(world, ProxyMode::Direct),
+        pill_selected(world, RoutingIntent::BypassProxy),
         "stub mode selected"
     );
 }

@@ -11,6 +11,8 @@ fn test_rules_json_partition_edits_and_submits_shared_intent() {
         RulesJsonEditButton, RulesJsonSaveButton, RulesJsonState, RulesJsonStatusText,
     };
     use infiltrator_bevy_ui::pages::rules_tabs::{RulesTabChip, RulesTabState};
+    use infiltrator_contract::command::CommandIntent;
+    use infiltrator_contract::profile_configuration::ProfileConfigurationUpdate;
     use infiltrator_contract::rules_workspace::{RulesJsonSection, RulesTab};
 
     let sink = Arc::new(DemoCommandSink::accepting());
@@ -40,7 +42,7 @@ fn test_rules_json_partition_edits_and_submits_shared_intent() {
             .map(|(entity, _)| entity)
             .expect("json editors chip")
     };
-    activate(&mut app, json_chip);
+    select_rules_tab(&mut app, json_chip);
     assert_eq!(
         app.world().resource::<RulesTabState>().tab,
         RulesTab::JsonEditors
@@ -62,16 +64,16 @@ fn test_rules_json_partition_edits_and_submits_shared_intent() {
     app.world_mut()
         .write_message(keyboard_press(Key::End, None));
     app.world_mut()
-        .write_message(keyboard_press(Key::Character("x".into()), Some("x")));
+        .write_message(keyboard_press(Key::Character(" ".into()), Some(" ")));
     app.update();
     {
         let state = app.world().resource::<RulesJsonState>();
-        assert!(state.buffer().full_text().contains('x'));
+        assert!(state.buffer().full_text().ends_with(' '));
         assert!(state.status_label("zh-CN").contains("有未提交改动"));
     }
 
-    // Save submits the edited text through the shared intent, and the status
-    // is honest about the fire-and-forget command bus.
+    // Save submits the decoded typed value with the exact observed source
+    // identity, and the status is honest about the fire-and-forget command bus.
     let save = app
         .world_mut()
         .query_filtered::<Entity, With<RulesJsonSaveButton>>()
@@ -80,40 +82,40 @@ fn test_rules_json_partition_edits_and_submits_shared_intent() {
     activate(&mut app, save);
     let submitted = sink.submitted();
     assert_eq!(submitted.len(), 1);
-    match &submitted[0] {
-        UiCommand::ApplyRulesJsonDocument { section, json } => {
-            assert_eq!(*section, RulesJsonSection::RuleProviders);
-            assert!(json.contains('x'));
+    let (request, canonical_json) = match &submitted[0] {
+        UiCommand::ApplyProfileConfiguration(request) => {
+            assert_eq!(request.update, ProfileConfigurationUpdate::RuleProviders(
+                serde_json::from_str("{\n  \"geosite-geolocation-!cn\": {\n    \"type\": \"http\",\n    \"behavior\": \"domain\",\n    \"url\": \"https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/geolocation-!cn.mrs\",\n    \"interval\": 86400\n  }\n}").unwrap(),
+            ));
+            (
+                request.clone(),
+                serde_json::to_string_pretty(match &request.update {
+                    ProfileConfigurationUpdate::RuleProviders(value) => value,
+                    _ => unreachable!(),
+                })
+                .unwrap(),
+            )
         }
-        other => panic!("expected the shared JSON intent, got {other:?}"),
-    }
+        other => panic!("expected a typed profile update, got {other:?}"),
+    };
     {
         let state = app.world().resource::<RulesJsonState>();
         assert!(state.status_label("zh-CN").contains("已提交共享应用保存"));
     }
     assert_eq!(
-        UiCommand::ApplyRulesJsonDocument {
-            section: RulesJsonSection::RuleProviders,
-            json: "{}".to_owned(),
-        }
-        .to_intent(),
-        Some(CommandIntent::ApplyRulesJsonDocument {
-            section: RulesJsonSection::RuleProviders,
-            json: "{}".to_owned(),
+        UiCommand::ApplyProfileConfiguration(request.clone()).to_intent(),
+        Some(CommandIntent::ApplyProfileConfiguration {
+            request: request.clone(),
         })
     );
 
     // The read model confirms the submitted bytes: the pending flag clears and
     // the status stops claiming unsubmitted work.
-    let edited_json = app
-        .world()
-        .resource::<RulesJsonState>()
-        .buffer()
-        .full_text();
     let mut confirmed = RulesProjection::demo();
     confirmed.json_documents = vec![RulesJsonDocumentSnapshot {
         section: RulesJsonSection::RuleProviders,
-        json: edited_json,
+        identity: request.identity.clone(),
+        json: canonical_json,
     }];
     app.world_mut()
         .commands()

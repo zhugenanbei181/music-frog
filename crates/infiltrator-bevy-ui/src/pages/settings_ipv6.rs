@@ -13,13 +13,14 @@ use bevy::ecs::query::{Has, With};
 use bevy::ecs::system::{Commands, Query, Res};
 use bevy::scene::{Scene, bsn};
 use bevy::ui::Checked;
-use bevy::ui::prelude::{AlignItems, FlexDirection, JustifyContent, Node, UiRect, Val, percent};
+use bevy::ui::prelude::{AlignItems, FlexDirection, JustifyContent, Node, UiRect, percent};
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Checkbox, ValueChange};
 use infiltrator_application::settings_status_projection::format_ipv6;
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
@@ -35,14 +36,14 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                     Node {
                         width: percent(100),
                         flex_direction: FlexDirection::Column,
-                        row_gap: Val::Px(space::S4),
+                        row_gap: rem(space::S4),
                     }
                     Children [
                         Node {
                             width: percent(100),
                             align_items: AlignItems::Center,
                             justify_content: JustifyContent::SpaceBetween,
-                            padding: UiRect::all(Val::Px(space::S8)),
+                            padding: UiRect::all(rem(space::S8)),
                         }
                         Ipv6RoutingToggle
                         Children [

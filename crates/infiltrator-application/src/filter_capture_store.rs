@@ -1,11 +1,15 @@
 //! Isolated complete profile/options transactions for native tests and captures.
 use async_trait::async_trait;
 use infiltrator_contract::capability::Capability;
+use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::profile_document_identity::{
+    ProfileDocument, ProfileDocumentIdentity, ProfileDocumentRevision,
+    ProfileDocumentSourceIdentity, ProfileDocumentSourceKind, ProfileFormatId, ProfileId,
+    ProfileSchemaVersion, ProfileSidecarRevision, ProfileSourceId, ProfileWorkspaceIdentity,
+};
 use infiltrator_contract::profile_protection::ProfileWriteProtection;
-use infiltrator_contract::profile_source::ProfileSourceIdentity;
-use infiltrator_domain::profile_options::{FilterSpec, ProfileOptions};
-use infiltrator_domain::profile_source::identify_profile_source;
+use infiltrator_domain::profile_source::hash_bytes;
 use infiltrator_domain::profiles::{ProfileInfo, ProfileMetadata};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::ProfileStore;
@@ -24,18 +28,44 @@ pub struct FilterCaptureStore {
     pub deny_read: AtomicBool,
     pub writes: AtomicUsize,
 }
-fn workspace(content: String, options: ProfileOptions) -> Result<ProfileWorkspace, PortError> {
-    let raw = if options.is_empty() {
-        None
-    } else {
-        Some(serde_yaml_ng::to_string(&options).map_err(|error| PortError::Io(error.to_string()))?)
+fn workspace(
+    content: String,
+    sidecar_bytes: Option<Vec<u8>>,
+) -> Result<ProfileWorkspace, PortError> {
+    let mut result = workspace_from_raw_bytes(content.into_bytes(), sidecar_bytes)?;
+    result.write_protection = ProfileWriteProtection::Editable;
+    Ok(result)
+}
+
+fn workspace_from_raw_bytes(
+    document_bytes: Vec<u8>,
+    sidecar_bytes: Option<Vec<u8>>,
+) -> Result<ProfileWorkspace, PortError> {
+    let source_id =
+        ProfileSourceId::new(format!("local-{}", hash_bytes(FILTER_PROFILE.as_bytes())))
+            .map_err(|error| PortError::Io(error.to_string()))?;
+    let document_revision = ProfileDocumentRevision::new(hash_bytes(&document_bytes))
+        .map_err(|error| PortError::Io(error.to_string()))?;
+    let sidecar_revision = match sidecar_bytes.as_deref() {
+        Some(bytes) => ProfileSidecarRevision::Present(
+            ProfileDocumentRevision::new(hash_bytes(bytes))
+                .map_err(|error| PortError::Io(error.to_string()))?,
+        ),
+        None => ProfileSidecarRevision::Absent,
     };
+    let identity = ProfileDocumentIdentity::new(
+        ProfileId::new(FILTER_PROFILE).map_err(|error| PortError::Io(error.to_string()))?,
+        EngineId::new("mihomo").map_err(|error| PortError::Io(error.to_string()))?,
+        ProfileDocumentSourceIdentity::new(ProfileDocumentSourceKind::Local, source_id),
+        document_revision,
+        ProfileFormatId::new("mihomo-yaml").map_err(|error| PortError::Io(error.to_string()))?,
+        ProfileSchemaVersion::new(1).map_err(|error| PortError::Io(error.to_string()))?,
+    );
     Ok(ProfileWorkspace {
+        document: ProfileDocument::new(identity, document_bytes),
+        sidecar_revision,
         write_protection: ProfileWriteProtection::Editable,
-        source: identify_profile_source(FILTER_PROFILE.into(), &content, raw.as_deref()),
-        content,
-        options,
-        options_document: raw,
+        sidecar_bytes,
     })
 }
 impl Default for FilterCaptureStore {
@@ -44,13 +74,7 @@ impl Default for FilterCaptureStore {
             workspace: Mutex::new(
                 workspace(
                     FILTER_DOCUMENT.into(),
-                    ProfileOptions {
-                        filter: Some(FilterSpec {
-                            drop_private_ip: true,
-                            ..Default::default()
-                        }),
-                        ..Default::default()
-                    },
+                    Some(b"filter:\n  drop-private-ip: true\n".to_vec()),
                 )
                 .expect("explicit filter fixture"),
             ),
@@ -83,6 +107,10 @@ fn outside() -> PortError {
 }
 #[async_trait]
 impl ProfileStore for FilterCaptureStore {
+    fn engine_id(&self) -> EngineId {
+        EngineId::new("mihomo").expect("test engine ID")
+    }
+
     fn config_dir(&self) -> PathBuf {
         PathBuf::from("/isolated-filter")
     }
@@ -101,7 +129,11 @@ impl ProfileStore for FilterCaptureStore {
     }
     async fn load(&self, profile: &str) -> Result<String, PortError> {
         Self::check_profile(profile)?;
-        Ok(self.observed().content)
+        self.observed()
+            .document
+            .utf8_text()
+            .map(str::to_owned)
+            .map_err(|error| PortError::Io(error.to_string()))
     }
     async fn save(&self, _: &str, _: &str) -> Result<(), PortError> {
         Err(outside())
@@ -119,18 +151,8 @@ impl ProfileStore for FilterCaptureStore {
     async fn delete_subscription_credential(&self, _: &str) -> Result<(), PortError> {
         Err(outside())
     }
-    async fn load_options(&self, profile: &str) -> Result<ProfileOptions, PortError> {
-        Self::check_profile(profile)?;
-        Ok(self.observed().options)
-    }
-    async fn save_options(&self, _: &str, _: &ProfileOptions) -> Result<(), PortError> {
-        Err(outside())
-    }
-    async fn delete_options(&self, _: &str) -> Result<(), PortError> {
-        Err(outside())
-    }
-    async fn load_workspace(&self, profile: &str) -> Result<ProfileWorkspace, PortError> {
-        Self::check_profile(profile)?;
+    async fn load_workspace(&self, profile: &ProfileId) -> Result<ProfileWorkspace, PortError> {
+        Self::check_profile(profile.as_str())?;
         if self.deny_read.load(Ordering::SeqCst) {
             return Err(PortError::PermissionDenied(
                 "isolated editor read denied".into(),
@@ -143,11 +165,11 @@ impl ProfileStore for FilterCaptureStore {
     }
     async fn compare_and_save_workspace(
         &self,
-        expected: &ProfileSourceIdentity,
+        expected: &ProfileWorkspaceIdentity,
         update: &ProfileWorkspaceUpdate,
     ) -> Result<ProfileWorkspace, PortError> {
         let mut current = self.workspace.lock().expect("isolated filter store");
-        if current.source != *expected {
+        if current.identity() != *expected {
             return Err(PortError::Rejected(Failure::new(
                 ErrorCode::NotReady,
                 "The profile or options changed",
@@ -161,7 +183,10 @@ impl ProfileStore for FilterCaptureStore {
                 true,
             )));
         }
-        let committed = workspace(update.content.clone(), update.options.clone())?;
+        let mut committed =
+            workspace_from_raw_bytes(update.document_bytes.clone(), update.sidecar_bytes.clone())?;
+        committed.write_protection = ProfileWriteProtection::Editable;
+        committed.document.identity.profile_id = expected.document.profile_id.clone();
         *current = committed.clone();
         self.writes.fetch_add(1, Ordering::SeqCst);
         Ok(committed)

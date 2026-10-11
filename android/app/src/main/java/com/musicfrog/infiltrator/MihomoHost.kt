@@ -1,41 +1,46 @@
 package com.musicfrog.infiltrator
 
 import android.content.Context
-import android.content.SharedPreferences
-import android.security.keystore.KeyGenParameterSpec
-import android.security.keystore.KeyProperties
-import android.util.Base64
 import android.util.Log
 import java.io.File
 import java.io.IOException
-import java.nio.ByteBuffer
-import java.security.KeyStore
-import javax.crypto.Cipher
-import javax.crypto.KeyGenerator
-import javax.crypto.SecretKey
-import javax.crypto.spec.GCMParameterSpec
+import infiltrator_android.AndroidHostReply
 
 private const val TAG = "MihomoHost"
-private const val ASSET_NAME = "mihomo/mihomo-android-arm64-v8"
-private const val BIN_DIR = "mihomo"
-private const val BIN_NAME = "mihomo-android-arm64-v8"
-private const val CONFIG_DIR = "configs"
-private const val CONFIG_NAME = "default.yaml"
-private const val CONTROLLER_ADDR = "127.0.0.1:9090"
-private const val CONTROLLER_URL = "http://127.0.0.1:9090"
-private const val CREDENTIALS_PREFS = "credentials"
-private const val CREDENTIALS_KEY_ALIAS = "mfdi_credentials_key"
-private const val CREDENTIALS_FORMAT_PREFIX = "v1:"
-private const val CREDENTIALS_GCM_TAG_BITS = 128
 
 class MihomoHost(private val context: Context) : BridgeHost {
-    private val processManager = MihomoProcessManager(context)
+    private val processController = MihomoProcessController(context)
     private val credentialStore = AndroidCredentialStore(context)
+    private val processRole = AndroidProcessRole.current(context)
+    private val controlClient = (context.applicationContext as? MihomoApplication)?.ownerIpcClient
+        ?: throw IllegalStateException("MihomoApplication must own the Android control client")
 
-    override fun coreStart(): Boolean {
+    override fun processRole(): Int = processRole.toWireCode()
+
+    override fun coreStart(launchSpecJson: String): Int = when (processRole) {
+        AndroidProcessRole.VpnOwner -> startCoreLocally(launchSpecJson).wireCode
+        AndroidProcessRole.Ui,
+        is AndroidProcessRole.Unsupported -> CoreProcessStartReceipt.NotVpnOwner.wireCode
+    }
+
+    override fun coreValidateConfiguration(requestJson: String): String =
+        configurationValidationHost.validate(requestJson).toJson()
+
+    private val configurationValidationHost = CoreConfigurationValidationHost(
+        processRole = { processRole },
+        controller = processController,
+    )
+
+    internal fun startCoreLocally(launchSpecJson: String): CoreProcessStartReceipt {
+        val spec = when (val decoded = CoreLaunchSpecWire.decode(launchSpecJson)) {
+            is CoreLaunchSpecDecode.Accepted -> decoded.spec
+            is CoreLaunchSpecDecode.Rejected -> {
+                Log.w(TAG, "Rust owner supplied an invalid Core launch spec: ${decoded.reason}")
+                return CoreProcessStartReceipt.LaunchSpecRejected
+            }
+        }
         ensureCoreAssets()
-        val configFile = processManager.ensureConfigFile()
-        return processManager.start(configFile)
+        return processController.start(spec)
     }
 
     private fun ensureCoreAssets() {
@@ -57,16 +62,47 @@ class MihomoHost(private val context: Context) : BridgeHost {
         }
     }
 
-    override fun coreStop(): Boolean {
-        return processManager.stop()
+    override fun coreStop(): Int = when (processRole) {
+        AndroidProcessRole.VpnOwner -> stopCoreLocally().wireCode
+        AndroidProcessRole.Ui,
+        is AndroidProcessRole.Unsupported -> CoreProcessStopReceipt.NotVpnOwner.wireCode
     }
 
-    override fun coreIsRunning(): Boolean {
-        return processManager.isRunning()
+    internal fun stopCoreLocally(): CoreProcessStopReceipt = processController.stop()
+
+    override fun coreProcessState(): Int {
+        val state = when (processRole) {
+            AndroidProcessRole.VpnOwner -> coreProcessStateLocally()
+            AndroidProcessRole.Ui -> AndroidCoreProcessState.UNAVAILABLE
+            is AndroidProcessRole.Unsupported -> AndroidCoreProcessState.UNAVAILABLE
+        }
+        return state.wireCode
     }
 
-    override fun coreControllerUrl(): String? {
-        return processManager.readControllerUrl() ?: CONTROLLER_URL
+    internal fun coreProcessStateLocally(): AndroidCoreProcessState = processController.state()
+
+    override fun coreLifecycleSnapshot(): String? = when (processRole) {
+        AndroidProcessRole.Ui -> controlClient.readCoreLifecycleSnapshotJson()
+        AndroidProcessRole.VpnOwner,
+        is AndroidProcessRole.Unsupported -> null
+    }
+
+    override fun executeProductCommandJson(commandJson: String): String? = when (processRole) {
+        AndroidProcessRole.Ui -> controlClient.executeProductCommandJson(commandJson)
+        AndroidProcessRole.VpnOwner,
+        is AndroidProcessRole.Unsupported -> null
+    }
+
+    override fun surfaceSnapshotJson(): String? = when (processRole) {
+        AndroidProcessRole.Ui -> controlClient.readSurfaceSnapshotJson()
+        AndroidProcessRole.VpnOwner,
+        is AndroidProcessRole.Unsupported -> null
+    }
+
+    override fun executeOwnerOperationJson(operationJson: String): String? = when (processRole) {
+        AndroidProcessRole.Ui -> controlClient.executeOwnerOperationJson(operationJson)
+        AndroidProcessRole.VpnOwner,
+        is AndroidProcessRole.Unsupported -> null
     }
 
     override fun credentialGet(service: String, key: String): String? {
@@ -89,328 +125,105 @@ class MihomoHost(private val context: Context) : BridgeHost {
         return context.cacheDir.absolutePath
     }
 
-    override fun vpnStart(): Boolean {
-        if (!coreStart()) {
-            return false
+    override fun vpnStartOutcome(): Int {
+        val outcome = when (processRole) {
+            AndroidProcessRole.VpnOwner ->
+                MihomoVpnService.startAndAwaitRunning(context).toWireOutcome()
+            AndroidProcessRole.Ui -> controlClient.startVpnService()
+            is AndroidProcessRole.Unsupported -> VpnStartOutcomeWire.OwnerUnavailable
         }
-        return MihomoVpnService.start(context)
+        return outcome.wireCode
     }
 
-    override fun vpnApplyConfiguration(configJson: String): Boolean {
-        return MihomoVpnService.setPendingConfiguration(context, configJson)
-    }
-
-    override fun vpnStop(): Boolean {
-        if (VpnStateManager.vpnState.value == VpnStateManager.VpnState.STOPPING) {
-            return true
+    override fun vpnAuthorizationState(): Int {
+        val state = when (processRole) {
+            AndroidProcessRole.VpnOwner -> when (android.net.VpnService.prepare(context)) {
+                null -> AndroidHostReply.VPN_AUTHORIZED
+                else -> AndroidHostReply.VPN_PERMISSION_REQUIRED
+            }
+            AndroidProcessRole.Ui ->
+                controlClient.readVpnAuthorization()
+            is AndroidProcessRole.Unsupported -> AndroidHostReply.SERVICE_UNAVAILABLE
         }
-        val stopped = MihomoVpnService.stop(context)
-        val coreStopped = coreStop()
-        return stopped && coreStopped
-    }
-
-    override fun vpnIsRunning(): Boolean {
-        return MihomoVpnService.isRunning()
-    }
-
-    override fun vpnIsForeground(): Boolean {
-        return MihomoVpnService.isForegroundActive()
-    }
-
-    override fun tunSetEnabled(enabled: Boolean): Boolean {
-        return if (enabled) vpnStart() else vpnStop()
-    }
-
-    override fun tunIsEnabled(): Boolean {
-        return vpnIsRunning()
-    }
-}
-
-private class MihomoProcessManager(private val context: Context) {
-    @Volatile
-    private var process: Process? = null
-
-    @Synchronized
-    fun start(configFile: File): Boolean {
-        if (process?.isAlive == true) {
-            return true
+        return when (state) {
+            AndroidHostReply.VPN_AUTHORIZED -> VPN_AUTHORIZATION_GRANTED
+            AndroidHostReply.VPN_PERMISSION_REQUIRED -> VPN_AUTHORIZATION_REQUIRED
+            else -> VPN_AUTHORIZATION_UNAVAILABLE
         }
-        val binary = ensureBinary() ?: return false
-        return try {
-            val builder = ProcessBuilder(
-                binary.absolutePath,
-                "-d",
-                context.filesDir.absolutePath,
-                "-f",
-                configFile.absolutePath
+    }
+
+    override fun vpnApplyConfiguration(configJson: String): Int {
+        val outcome = when (processRole) {
+            AndroidProcessRole.VpnOwner -> MihomoVpnService.setPendingConfiguration(context, configJson)
+            AndroidProcessRole.Ui -> controlClient.applyVpnConfiguration(configJson)
+            is AndroidProcessRole.Unsupported -> VpnConfigurationApplyOutcomeWire.OwnerUnavailable
+        }
+        return outcome.wireCode
+    }
+
+    override fun vpnStopResultJson(targetCode: Int, generation: Long): String? {
+        val target = VpnStopTarget.fromWire(targetCode, generation)
+        if (target == null) {
+            val evidence = if (processRole == AndroidProcessRole.VpnOwner) {
+                (context.applicationContext as? MihomoApplication)
+                    ?.vpnOwnerSnapshotJson()
+                    ?.let(VpnOwnerSnapshotWire::parse)
+                    ?.let { VpnStopReadbackEvidence.OwnerSnapshot(it) }
+                    ?: VpnStopReadbackEvidence.Missing
+            } else {
+                VpnStopReadbackEvidence.Missing
+            }
+            return vpnOwnerStopReceiptJson(
+                VpnStopResult.Failed("VPN stop target is invalid").toOwnerStopReceipt(evidence),
             )
-                .directory(context.filesDir)
-                .redirectErrorStream(true)
-            
-            val p = builder.start()
-            process = p
-            
-            // Start a thread to consume stdout/stderr to prevent blocking and log output
-            Thread {
-                try {
-                    p.inputStream.bufferedReader().use { reader ->
-                        reader.forEachLine { line ->
-                            Log.d("MihomoCore", line)
+        }
+        return when (processRole) {
+            AndroidProcessRole.VpnOwner -> {
+                val result = MihomoVpnService.stopAndAwaitStopped(context, target)
+                if (result is VpnStopResult.Failed) {
+                    Log.e(TAG, "VpnService shutdown failed: ${result.message}")
+                }
+                val snapshotJson = (context.applicationContext as? MihomoApplication)?.vpnOwnerSnapshotJson()
+                val snapshot = snapshotJson?.let(VpnOwnerSnapshotWire::parse)
+                val evidence = when (snapshot) {
+                    null -> VpnStopReadbackEvidence.Missing
+                    else -> VpnStopReadbackEvidence.OwnerSnapshot(snapshot)
+                }
+                vpnOwnerStopReceiptJson(result.toOwnerStopReceipt(evidence))
+            }
+            AndroidProcessRole.Ui -> when (target) {
+                VpnStopTarget.Current -> controlClient.stopVpnService()
+                is VpnStopTarget.Generation -> vpnOwnerStopReceiptJson(
+                    VpnStopResult.Failed("UI VPN stop must use the current owner service").toOwnerStopReceipt(
+                        controlClient.readVpnOwnerSnapshot()?.let {
+                            VpnStopReadbackEvidence.OwnerSnapshot(it)
                         }
-                    }
-                } catch (e: Exception) {
-                    Log.w(TAG, "log reader failed: ${e.message}")
-                }
-            }.start()
-
-            // Wait a bit to see if it crashes immediately
-            Thread.sleep(500)
-            if (p.isAlive) {
-                true
-            } else {
-                val exitCode = try { p.exitValue() } catch(e: Exception) { -1 }
-                Log.w(TAG, "core exited immediately with code $exitCode")
-                process = null
-                false
+                            ?: VpnStopReadbackEvidence.Missing,
+                    ),
+                )
             }
-        } catch (err: IOException) {
-            Log.w(TAG, "start core failed: ${err.message}")
-            false
-        }
-    }
-
-    @Synchronized
-    fun stop(): Boolean {
-        val current = process ?: return true
-        if (!current.isAlive) {
-            process = null
-            return true
-        }
-        current.destroy()
-        return try {
-            current.waitFor()
-            process = null
-            true
-        } catch (err: InterruptedException) {
-            Log.w(TAG, "stop core interrupted: ${err.message}")
-            false
-        }
-    }
-
-    fun isRunning(): Boolean {
-        return process?.isAlive == true
-    }
-
-    fun ensureConfigFile(): File {
-        val configDir = File(context.filesDir, CONFIG_DIR)
-        if (!configDir.exists()) {
-            configDir.mkdirs()
-        }
-        val profileName = resolveCurrentProfileName()
-        var configFile = File(configDir, "$profileName.yaml")
-        if (!configFile.exists()) {
-            if (profileName != "default") {
-                val fallback = File(configDir, CONFIG_NAME)
-                if (!fallback.exists()) {
-                    fallback.writeText(defaultConfig())
-                }
-                Log.w(TAG, "profile config missing: ${configFile.absolutePath}, fallback to default")
-                configFile = fallback
-            } else {
-                configFile.writeText(defaultConfig())
-            }
-        }
-        return configFile
-    }
-
-    fun readControllerUrl(): String? {
-        val configFile = ensureConfigFile()
-        return parseExternalController(configFile)
-    }
-
-    private fun ensureBinary(): File? {
-        // Android 10+ requires executing binaries from nativeLibraryDir
-        val nativeLibraryDir = context.applicationInfo.nativeLibraryDir
-        val binary = File(nativeLibraryDir, "libmihomo.so")
-        if (binary.exists()) {
-            return binary
-        }
-        Log.w(TAG, "native binary not found at ${binary.absolutePath}")
-        return null
-    }
-
-    private fun defaultConfig(): String {
-        return """
-            port: 7890
-            socks-port: 7891
-            allow-lan: false
-            mode: rule
-            log-level: info
-            external-controller: $CONTROLLER_ADDR
-            find-process-name: false
-            
-            tun:
-              enable: false
-        """.trimIndent() + "\n"
-    }
-
-    private fun resolveCurrentProfileName(): String {
-        val settingsFile = File(context.filesDir, "config.toml")
-        if (!settingsFile.exists()) {
-            return "default"
-        }
-        return try {
-            val lines = settingsFile.readLines()
-            var inDefault = false
-            for (rawLine in lines) {
-                val line = rawLine.trim()
-                if (line.isEmpty() || line.startsWith("#")) {
-                    continue
-                }
-                if (line.startsWith("[") && line.endsWith("]")) {
-                    inDefault = line == "[default]"
-                    continue
-                }
-                if (inDefault && line.startsWith("profile")) {
-                    val value = line.substringAfter("=").trim().trim('"')
-                    if (value.isNotEmpty()) {
-                        return value
-                    }
-                }
-            }
-            "default"
-        } catch (err: Exception) {
-            Log.w(TAG, "read current profile failed: ${err.message}")
-            "default"
-        }
-    }
-
-    private fun parseExternalController(configFile: File): String? {
-        if (!configFile.exists()) {
-            return null
-        }
-        return try {
-            val line = configFile.useLines { lines ->
-                lines.map { it.trim() }
-                    .firstOrNull { it.startsWith("external-controller:") }
-            }
-            val raw = line?.substringAfter("external-controller:")?.trim()?.trim('"')
-            normalizeControllerUrl(raw)
-        } catch (err: Exception) {
-            Log.w(TAG, "read controller url failed: ${err.message}")
-            null
-        }
-    }
-
-    private fun normalizeControllerUrl(value: String?): String? {
-        val trimmed = value?.trim().orEmpty()
-        if (trimmed.isEmpty()) {
-            return null
-        }
-        return when {
-            trimmed.startsWith("http://") || trimmed.startsWith("https://") -> trimmed
-            trimmed.startsWith(":") -> "http://127.0.0.1$trimmed"
-            else -> "http://$trimmed"
-        }
-    }
-}
-
-private class AndroidCredentialStore(context: Context) {
-    private val prefs: SharedPreferences = context.getSharedPreferences(
-        CREDENTIALS_PREFS,
-        Context.MODE_PRIVATE
-    )
-
-    fun get(service: String, key: String): String? {
-        val payload = prefs.getString(combineKey(service, key), null) ?: return null
-        return decrypt(payload)
-    }
-
-    fun set(service: String, key: String, value: String): Boolean {
-        val payload = encrypt(value) ?: return false
-        return prefs.edit().putString(combineKey(service, key), payload).commit()
-    }
-
-    fun delete(service: String, key: String): Boolean {
-        return prefs.edit().remove(combineKey(service, key)).commit()
-    }
-
-    private fun combineKey(service: String, key: String): String {
-        return "$service:$key"
-    }
-
-    private fun encrypt(value: String): String? {
-        val key = getOrCreateSecretKey() ?: return null
-        return try {
-            val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-            cipher.init(Cipher.ENCRYPT_MODE, key)
-            val iv = cipher.iv
-            val cipherText = cipher.doFinal(value.toByteArray(Charsets.UTF_8))
-            val buffer = ByteBuffer.allocate(1 + iv.size + cipherText.size)
-            buffer.put(iv.size.toByte())
-            buffer.put(iv)
-            buffer.put(cipherText)
-            CREDENTIALS_FORMAT_PREFIX + Base64.encodeToString(buffer.array(), Base64.NO_WRAP)
-        } catch (err: Exception) {
-            Log.w(TAG, "encrypt credential failed: ${err.message}")
-            null
-        }
-    }
-
-    private fun decrypt(payload: String): String? {
-        if (!payload.startsWith(CREDENTIALS_FORMAT_PREFIX)) {
-            return null
-        }
-        val encoded = payload.removePrefix(CREDENTIALS_FORMAT_PREFIX)
-        return try {
-            val raw = Base64.decode(encoded, Base64.NO_WRAP)
-            if (raw.isEmpty()) {
-                return null
-            }
-            val ivLength = raw[0].toInt() and 0xff
-            val ivStart = 1
-            val ivEnd = ivStart + ivLength
-            if (ivLength <= 0 || ivEnd >= raw.size) {
-                return null
-            }
-            val iv = raw.copyOfRange(ivStart, ivEnd)
-            val cipherText = raw.copyOfRange(ivEnd, raw.size)
-            val key = getOrCreateSecretKey() ?: return null
-            val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-            val spec = GCMParameterSpec(CREDENTIALS_GCM_TAG_BITS, iv)
-            cipher.init(Cipher.DECRYPT_MODE, key, spec)
-            String(cipher.doFinal(cipherText), Charsets.UTF_8)
-        } catch (err: Exception) {
-            Log.w(TAG, "decrypt credential failed: ${err.message}")
-            null
-        }
-    }
-
-    private fun getOrCreateSecretKey(): SecretKey? {
-        return try {
-            val keyStore = KeyStore.getInstance("AndroidKeyStore")
-            keyStore.load(null)
-            val existing = keyStore.getKey(CREDENTIALS_KEY_ALIAS, null) as? SecretKey
-            if (existing != null) {
-                return existing
-            }
-            val keyGen = KeyGenerator.getInstance(
-                KeyProperties.KEY_ALGORITHM_AES,
-                "AndroidKeyStore"
+            is AndroidProcessRole.Unsupported -> vpnOwnerStopReceiptJson(
+                VpnOwnerStopReceiptWire.OwnerUnavailable(
+                    VpnStopFailureWire(
+                        code = VpnStopFailureCode.NotReady,
+                        message = "Android VPN owner is unavailable during stop",
+                        retryable = true,
+                    ),
+                ),
             )
-            val spec = KeyGenParameterSpec.Builder(
-                CREDENTIALS_KEY_ALIAS,
-                KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
-            )
-                .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
-                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
-                .setKeySize(256)
-                .build()
-            keyGen.init(spec)
-            keyGen.generateKey()
-        } catch (err: Exception) {
-            Log.w(TAG, "keystore unavailable: ${err.message}")
-            null
         }
+    }
+
+    override fun vpnOwnerSnapshotJson(): String? = when (processRole) {
+        AndroidProcessRole.VpnOwner ->
+            (context.applicationContext as? MihomoApplication)?.vpnOwnerSnapshotJson()
+        AndroidProcessRole.Ui -> controlClient.readVpnOwnerSnapshotJson()
+        is AndroidProcessRole.Unsupported -> null
+    }
+
+    private companion object {
+        const val VPN_AUTHORIZATION_GRANTED = 0
+        const val VPN_AUTHORIZATION_REQUIRED = 1
+        const val VPN_AUTHORIZATION_UNAVAILABLE = -1
     }
 }

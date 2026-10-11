@@ -1,27 +1,30 @@
 //! test-intent: behavior
-use crate::command_harness::{RecordingHandler, recording_application};
+//! Group order edits are revision-fenced and carry only opaque collection IDs.
+use crate::command_harness::TypedOutboundPreferenceSink;
 use crate::support::headless_plugins;
 use bevy::app::App;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::Children;
 use bevy::ui_widgets::Activate;
-use infiltrator_application::command_application::CommandApplication;
-use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::proxy_group_order_editor::GroupMove;
-use infiltrator_application::proxy_preferences_application::ProxyPreferencesApplication;
-use infiltrator_application::proxy_projection::project_proxy_groups;
 use infiltrator_bevy_ui::app::ShellPlugin;
 use infiltrator_bevy_ui::command::CommandPumpPlugin;
+use infiltrator_bevy_ui::command::UiCommand;
 use infiltrator_bevy_ui::pages::proxies::{ProxyGroupMoveUpButton, ProxyNodeButton};
 use infiltrator_bevy_ui::pages::proxy_group_order::{
-    GroupOrderAction, GroupOrderList, GroupOrderRow, GroupOrderState,
+    GroupOrderAction, GroupOrderDialogState, GroupOrderList, GroupOrderRow, GroupOrderState,
 };
 use infiltrator_bevy_ui::route::{PagesPlugin, Route, RouteChanged};
 use infiltrator_bevy_ui::surface::{
     DemoSurfaceSource, LatestSurfaceSnapshot, SurfaceSnapshotUpdated, SurfaceSource,
 };
-use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::error::ErrorCode;
+use infiltrator_contract::error::Failure;
+use infiltrator_contract::outbound::identity::OutboundId;
+use infiltrator_contract::outbound::inventory::OutboundInventoryState;
+use infiltrator_contract::outbound::preferences::OutboundUiPreferenceIntent;
 use infiltrator_contract::surface_snapshot::PageData;
+use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use std::sync::Arc;
 use std::thread::yield_now;
 use std::time::{Duration, Instant};
@@ -48,10 +51,7 @@ fn settle(app: &mut App) {
         .pending
         .is_some()
     {
-        assert!(
-            Instant::now() < deadline,
-            "native order waits for actual terminal result"
-        );
+        assert!(Instant::now() < deadline, "typed order request must finish");
         app.update();
         yield_now();
     }
@@ -72,39 +72,77 @@ fn rows(app: &mut App) -> Vec<(Entity, String)> {
         .map(|entity| {
             (
                 *entity,
-                app.world().get::<GroupOrderRow>(*entity).unwrap().0.clone(),
+                app.world()
+                    .get::<GroupOrderRow>(*entity)
+                    .unwrap()
+                    .label
+                    .clone(),
             )
         })
         .collect()
 }
-fn setup() -> (App, Arc<CoreApplication>, ProxyPreferencesApplication) {
-    let preferences = ProxyPreferencesApplication::new();
-    let (application, _) = recording_application();
-    application.install_command_handler(Arc::new(
-        CommandApplication::new().with_proxy_preferences(preferences.clone()),
-    ));
-    let application = Arc::new(application);
+fn setup() -> (App, TypedOutboundPreferenceSink) {
+    let mut snapshot = DemoSurfaceSource::running().surface_snapshot();
+    let preferences = snapshot
+        .outbound_ui_preferences
+        .data
+        .clone()
+        .expect("demo has typed preferences");
+    let sink = TypedOutboundPreferenceSink::new(preferences);
     let mut app = App::new();
     headless_plugins(&mut app);
     app.add_plugins(ShellPlugin::default());
-    app.add_plugins(PagesPlugin::demo());
-    app.add_plugins(CommandPumpPlugin::for_application(application.clone()));
+    app.add_plugins(PagesPlugin::new_surface(DemoSurfaceSource::running()));
+    app.add_plugins(CommandPumpPlugin::new(Arc::new(sink.clone())));
     app.update();
     app.world_mut()
         .commands()
         .trigger(RouteChanged(Route::Proxies));
     app.update();
-    (app, application, preferences)
+    snapshot.revision += 1;
+    publish(&mut app, &sink, snapshot);
+    (app, sink)
+}
+fn publish(app: &mut App, sink: &TypedOutboundPreferenceSink, mut snapshot: SurfaceSnapshot) {
+    snapshot.outbound_ui_preferences = PageData::ready(sink.preferences());
+    publish_raw(app, snapshot);
+}
+fn publish_raw(app: &mut App, snapshot: SurfaceSnapshot) {
+    let mut snapshot = snapshot;
+    snapshot.revision = app
+        .world()
+        .resource::<LatestSurfaceSnapshot>()
+        .0
+        .revision
+        .saturating_add(1);
+    app.world_mut()
+        .commands()
+        .trigger(SurfaceSnapshotUpdated(snapshot));
+    app.update();
+}
+fn ids(app: &App) -> Vec<OutboundId> {
+    let latest = app.world().resource::<LatestSurfaceSnapshot>();
+    match latest
+        .0
+        .outbound_inventory
+        .data
+        .as_ref()
+        .unwrap()
+        .inventory()
+    {
+        OutboundInventoryState::Ready { collections, .. } => collections
+            .iter()
+            .map(|collection| collection.id.clone())
+            .collect(),
+        _ => unreachable!("demo inventory is ready"),
+    }
 }
 
 #[test]
-fn native_order_editor_preserves_row_entities_cancel_has_no_shared_effect_and_apply_executes_the_complete_order()
- {
-    let (mut app, _, preferences) = setup();
-    let mut snapshot = app.world().resource::<LatestSurfaceSnapshot>().0.clone();
-    let original = snapshot.pages.proxies.data.as_ref().unwrap().groups.clone();
-    let names: Vec<_> = original.iter().map(|group| group.name.clone()).collect();
-    let selected: Vec<_> = original.iter().map(|group| group.current.clone()).collect();
+fn native_order_editor_reorders_typed_ids_preserves_rows_and_applies_readback() {
+    let (mut app, sink) = setup();
+    let ids = ids(&app);
+    let names: Vec<_> = ids.iter().map(|id| id.value().to_owned()).collect();
     let nodes: Vec<_> = app
         .world_mut()
         .query::<(Entity, &ProxyNodeButton)>()
@@ -119,32 +157,33 @@ fn native_order_editor_preserves_row_entities_cancel_has_no_shared_effect_and_ap
         .unwrap()
         .0;
     activate(&mut app, up);
-    assert!(app.world().resource::<GroupOrderState>().open);
+    assert_eq!(
+        app.world().resource::<GroupOrderState>().dialog,
+        GroupOrderDialogState::Editing
+    );
     let moved = rows(&mut app);
     assert_eq!(moved[0].1, names[1]);
-    assert!(preferences.custom_group_order().unwrap().is_empty());
+    assert!(sink.preferences().group_order.is_empty());
     let down = action(
         &mut app,
-        |action| matches!(action, GroupOrderAction::Move { name, direction: GroupMove::Down } if name == &names[1]),
+        |action| matches!(action, GroupOrderAction::Move { group_id, direction: GroupMove::Down } if group_id.value() == names[1]),
     );
     activate(&mut app, down);
     let restored = rows(&mut app);
     assert_eq!(
         restored
             .iter()
-            .map(|(_, name)| name.clone())
+            .map(|(_, label)| label.clone())
             .collect::<Vec<_>>(),
         names
     );
-    assert!(
-        restored.iter().all(|row| moved.contains(row)),
-        "moving changes child order without replacing surviving native controls"
-    );
+    assert!(restored.iter().all(|row| moved.contains(row)));
     let cancel = action(&mut app, |action| {
         matches!(action, GroupOrderAction::Cancel)
     });
     activate(&mut app, cancel);
-    assert!(preferences.custom_group_order().unwrap().is_empty());
+    assert!(sink.preferences().group_order.is_empty());
+
     activate(&mut app, up);
     let expected = app
         .world()
@@ -152,85 +191,75 @@ fn native_order_editor_preserves_row_entities_cancel_has_no_shared_effect_and_ap
         .editor
         .draft
         .clone();
-    snapshot.revision += 1;
-    snapshot.pages.proxies =
-        PageData::failed(Failure::new(ErrorCode::Network, "read failed", true));
-    app.world_mut()
-        .commands()
-        .trigger(SurfaceSnapshotUpdated(snapshot.clone()));
-    app.update();
+    let mut failed_read = app.world().resource::<LatestSurfaceSnapshot>().0.clone();
+    failed_read.outbound_ui_preferences = PageData::failed(Failure::new(
+        ErrorCode::Network,
+        "preferences read failed",
+        true,
+    ));
+    publish_raw(&mut app, failed_read);
     assert!(!app.world().resource::<GroupOrderState>().editor.can_apply());
     let apply = action(&mut app, |action| matches!(action, GroupOrderAction::Apply));
     activate(&mut app, apply);
-    assert!(preferences.custom_group_order().unwrap().is_empty());
-    snapshot.revision += 1;
-    let mut ready = app.world().resource::<LatestSurfaceSnapshot>().0.clone();
-    ready.pages.proxies = PageData::ready({
-        let mut page = DemoSurfaceSource::running()
-            .surface_snapshot()
-            .pages
-            .proxies
-            .data
-            .unwrap();
-        page.groups = original.clone();
-        page
-    });
-    ready.revision = snapshot.revision;
-    app.world_mut()
-        .commands()
-        .trigger(SurfaceSnapshotUpdated(ready.clone()));
-    app.update();
+    assert!(sink.preferences().group_order.is_empty());
+
+    let ready = app.world().resource::<LatestSurfaceSnapshot>().0.clone();
+    publish(&mut app, &sink, ready);
     assert_eq!(
         app.world().resource::<GroupOrderState>().editor.draft,
         expected
     );
     activate(&mut app, apply);
     settle(&mut app);
-    assert!(!app.world().resource::<GroupOrderState>().open);
-    assert_eq!(preferences.custom_group_order().unwrap(), expected);
-    ready.revision += 1;
-    ready.pages.proxies.data.as_mut().unwrap().groups =
-        project_proxy_groups(original.clone(), &preferences.preferences().unwrap());
-    app.world_mut()
-        .commands()
-        .trigger(SurfaceSnapshotUpdated(ready));
-    app.update();
-    let page = &app
-        .world()
-        .resource::<LatestSurfaceSnapshot>()
-        .0
-        .pages
-        .proxies
-        .data
-        .as_ref()
-        .unwrap();
     assert_eq!(
-        page.groups
-            .iter()
-            .map(|group| group.name.clone())
-            .collect::<Vec<_>>(),
+        app.world().resource::<GroupOrderState>().dialog,
+        GroupOrderDialogState::Closed
+    );
+    assert_eq!(sink.preferences().group_order, expected);
+    let published = app.world().resource::<LatestSurfaceSnapshot>().0.clone();
+    publish(&mut app, &sink, published);
+    assert_eq!(
+        app.world()
+            .resource::<LatestSurfaceSnapshot>()
+            .0
+            .outbound_ui_preferences
+            .data
+            .as_ref()
+            .unwrap()
+            .group_order,
         expected
     );
-    for (index, group) in original.iter().enumerate() {
-        assert_eq!(
-            page.groups
-                .iter()
-                .find(|item| item.name == group.name)
-                .unwrap()
-                .current,
-            selected[index]
-        );
-    }
     assert!(
         nodes
             .iter()
             .all(|entity| app.world().get::<ProxyNodeButton>(*entity).is_some())
     );
+    let command = sink.commands().last().unwrap().clone();
+    let UiCommand::ApplyOutboundUiPreference { request } = command else {
+        panic!("group order submits typed preference command")
+    };
+    assert_eq!(request.expected_revision().value(), 1);
+    let inventory_revision = app
+        .world()
+        .resource::<LatestSurfaceSnapshot>()
+        .0
+        .outbound_inventory
+        .data
+        .as_ref()
+        .expect("typed outbound inventory")
+        .revision();
+    assert_eq!(
+        request.intent(),
+        &OutboundUiPreferenceIntent::ReorderGroups {
+            group_ids: expected,
+            inventory_revision,
+        }
+    );
 }
 
 #[test]
-fn rejected_native_apply_keeps_full_draft_and_retry_publishes_only_real_shared_command_success() {
-    let (mut app, application, preferences) = setup();
+fn rejected_native_order_apply_keeps_typed_draft_and_retry_sends_the_same_revision_fenced_intent() {
+    let (mut app, sink) = setup();
     let up = app
         .world_mut()
         .query::<(Entity, &ProxyGroupMoveUpButton)>()
@@ -245,23 +274,25 @@ fn rejected_native_apply_keeps_full_draft_and_retry_publishes_only_real_shared_c
         .editor
         .draft
         .clone();
-    let failure = Failure::new(ErrorCode::Storage, "shared state refused the order", true);
-    let handler = Arc::new(RecordingHandler::default());
-    *handler.1.lock().unwrap() = Some(failure.clone());
-    application.install_command_handler(handler);
+    let failure = Failure::new(
+        ErrorCode::Storage,
+        "typed preferences refused the order",
+        true,
+    );
+    sink.fail_next(failure.clone());
     let apply = action(&mut app, |action| matches!(action, GroupOrderAction::Apply));
     activate(&mut app, apply);
     settle(&mut app);
     let state = app.world().resource::<GroupOrderState>();
-    assert!(state.open);
+    assert_eq!(state.dialog, GroupOrderDialogState::Editing);
     assert_eq!(state.editor.failure, Some(failure));
     assert_eq!(state.editor.draft, expected);
-    assert!(preferences.custom_group_order().unwrap().is_empty());
-    application.install_command_handler(Arc::new(
-        CommandApplication::new().with_proxy_preferences(preferences.clone()),
-    ));
+    assert!(sink.preferences().group_order.is_empty());
     activate(&mut app, apply);
     settle(&mut app);
-    assert!(!app.world().resource::<GroupOrderState>().open);
-    assert_eq!(preferences.custom_group_order().unwrap(), expected);
+    assert_eq!(
+        app.world().resource::<GroupOrderState>().dialog,
+        GroupOrderDialogState::Closed
+    );
+    assert_eq!(sink.preferences().group_order, expected);
 }

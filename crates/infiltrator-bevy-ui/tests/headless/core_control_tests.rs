@@ -1,16 +1,19 @@
 //! test-intent: behavior
 //! Native controls execute actual lifecycle ports through the production command sink.
-use crate::support::{headless_plugins, subtree_has_text};
+use crate::command_harness::install_test_core_capability_application;
+use crate::support::{command_pump_for_observed_snapshot, headless_plugins, subtree_has_text};
 use bevy::app::App;
 use bevy::ecs::entity::Entity;
 use bevy::ui::{Display, Node};
 use bevy::ui_widgets::Activate;
 use infiltrator_application::core_application::CoreApplication;
+use infiltrator_application::core_application::CoreScopeObservation;
 use infiltrator_bevy_ui::app::ShellPlugin;
-use infiltrator_bevy_ui::command::{CommandPumpPlugin, UiCommand};
+use infiltrator_bevy_ui::command::{UiCommand, UiCommandSink};
 use infiltrator_bevy_ui::command_events::CommandExecutedEvent;
+use infiltrator_bevy_ui::command_execution::ApplicationCommandSink;
 use infiltrator_bevy_ui::pages::overview_lifecycle::{
-    CoreControlButton, CoreControlIssue, CoreControlState,
+    CoreControlButton, CoreControlIssue, CoreControlPhase, CoreControlState,
 };
 use infiltrator_bevy_ui::projection::{OverviewProjection, OverviewSource, SourceKind};
 use infiltrator_bevy_ui::route::PagesPlugin;
@@ -21,13 +24,15 @@ use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::capability::{Availability, Capability, CapabilityStatus};
 use infiltrator_contract::command::RequestId;
+use infiltrator_contract::core_capabilities::{CoreLifecycleOperation, CoreOperation};
+use infiltrator_contract::core_identity::{CoreIdentity, CoreInstanceId, CoreVersion, EngineId};
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface_snapshot::{SurfaceOrigin, SurfaceSnapshot};
 use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
 use infiltrator_ports::error::PortError;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::{Arc, RwLock};
 use std::thread::yield_now;
 use std::time::{Duration, Instant};
 
@@ -40,6 +45,14 @@ struct Process {
 }
 #[async_trait::async_trait]
 impl CoreProcess for Process {
+    fn core_identity(&self) -> Option<CoreIdentity> {
+        Some(CoreIdentity::new(
+            EngineId::new("mihomo").expect("test engine id"),
+            CoreInstanceId::new("lifecycle-test").expect("test instance id"),
+            Some(CoreVersion::new("1.19.12").expect("test engine version")),
+        ))
+    }
+
     async fn start(&self) -> Result<(), PortError> {
         self.starts.fetch_add(1, Ordering::SeqCst);
         if self.deny_start.load(Ordering::SeqCst) {
@@ -70,6 +83,12 @@ impl CoreProcess for Process {
 impl CoreReadiness for Process {
     async fn probe(&self) -> Result<String, PortError> {
         Ok("test-core".into())
+    }
+
+    async fn active_core_version(&self) -> Result<Option<CoreVersion>, PortError> {
+        Ok(Some(
+            CoreVersion::new("1.19.12").expect("test engine version"),
+        ))
     }
 }
 #[derive(Clone)]
@@ -103,12 +122,19 @@ fn setup() -> (App, Arc<Process>, HostSource) {
         process.clone(),
         tokio_application_runtime().unwrap(),
     ));
+    install_test_core_capability_application(
+        &application,
+        [
+            CoreOperation::Lifecycle(CoreLifecycleOperation::Start),
+            CoreOperation::Lifecycle(CoreLifecycleOperation::Stop),
+        ],
+    );
     let source = HostSource(application.clone());
     let mut app = App::new();
     headless_plugins(&mut app);
     app.add_plugins(ShellPlugin::default());
     app.add_plugins(PagesPlugin::new_surface(source.clone()));
-    app.add_plugins(CommandPumpPlugin::for_application(application));
+    app.add_plugins(command_pump_for_observed_snapshot(application));
     app.update();
     (app, process, source)
 }
@@ -141,6 +167,65 @@ fn publish(app: &mut App, source: &HostSource) {
     app.update();
 }
 
+fn wait_for_sink_result(
+    sink: &ApplicationCommandSink,
+    request_id: RequestId,
+) -> CommandExecutedEvent {
+    let deadline = Instant::now() + Duration::from_secs(2);
+    loop {
+        if let Some(result) = sink
+            .drain_results()
+            .into_iter()
+            .find(|result| result.request_id == request_id)
+        {
+            return result;
+        }
+        assert!(Instant::now() < deadline, "scoped sink must acknowledge");
+        yield_now();
+    }
+}
+
+#[test]
+fn surface_observed_sink_rejects_stale_scope_and_accepts_rebound_scope() {
+    let process = Arc::new(Process::default());
+    let application = Arc::new(CoreApplication::new(
+        process.clone(),
+        process.clone(),
+        tokio_application_runtime().unwrap(),
+    ));
+    install_test_core_capability_application(
+        &application,
+        [
+            CoreOperation::Lifecycle(CoreLifecycleOperation::Start),
+            CoreOperation::Lifecycle(CoreLifecycleOperation::Stop),
+        ],
+    );
+    let observed_scope = Arc::new(RwLock::new(CoreScopeObservation::Observed(
+        application.snapshot().scope().expect("initial core scope"),
+    )));
+    let sink = ApplicationCommandSink::new_for_surface(application.clone(), observed_scope.clone());
+
+    let start = sink
+        .submit_tracked(UiCommand::StartCore)
+        .expect("observed scope permits a tracked request");
+    assert!(wait_for_sink_result(&sink, start).result.is_ok());
+    assert_eq!(process.starts.load(Ordering::SeqCst), 1);
+
+    let stale = sink
+        .submit_tracked(UiCommand::StartCore)
+        .expect("stale observed scope returns a terminal rejection");
+    assert!(wait_for_sink_result(&sink, stale).result.is_err());
+    assert_eq!(process.starts.load(Ordering::SeqCst), 1);
+
+    *observed_scope.write().expect("scope observation lock") =
+        CoreScopeObservation::Observed(application.snapshot().scope().expect("new core scope"));
+    let stop = sink
+        .submit_tracked(UiCommand::StopCore)
+        .expect("rebound scope permits a tracked request");
+    assert!(wait_for_sink_result(&sink, stop).result.is_ok());
+    assert_eq!(process.stops.load(Ordering::SeqCst), 1);
+}
+
 #[test]
 fn native_start_and_stop_execute_once_and_wait_for_the_real_snapshot_without_remounting() {
     let (mut app, process, source) = setup();
@@ -149,33 +234,40 @@ fn native_start_and_stop_execute_once_and_wait_for_the_real_snapshot_without_rem
     activate(&mut app, entity);
     activate(&mut app, entity);
     until(&mut app, |app| {
-        app.world()
-            .resource::<CoreControlState>()
-            .pending
-            .as_ref()
-            .is_some_and(|pending| pending.completed)
+        matches!(
+            &app.world().resource::<CoreControlState>().phase,
+            CoreControlPhase::AwaitingSnapshot(_)
+        )
     });
     assert_eq!(process.starts.load(Ordering::SeqCst), 1);
     assert!(app.world().get::<ButtonDisabled>(entity).unwrap().0);
-    assert!(app.world().resource::<CoreControlState>().pending.is_some());
+    assert!(matches!(
+        &app.world().resource::<CoreControlState>().phase,
+        CoreControlPhase::AwaitingSnapshot(_)
+    ));
     publish(&mut app, &source);
-    assert!(app.world().resource::<CoreControlState>().pending.is_none());
+    assert_eq!(
+        app.world().resource::<CoreControlState>().phase,
+        CoreControlPhase::Idle
+    );
     assert!(!app.world().get::<ButtonDisabled>(entity).unwrap().0);
     assert_eq!(button(&mut app), entity);
     activate(&mut app, entity);
     activate(&mut app, entity);
     until(&mut app, |app| {
-        app.world()
-            .resource::<CoreControlState>()
-            .pending
-            .as_ref()
-            .is_some_and(|pending| pending.completed)
+        matches!(
+            &app.world().resource::<CoreControlState>().phase,
+            CoreControlPhase::AwaitingSnapshot(_)
+        )
     });
     assert_eq!(process.stops.load(Ordering::SeqCst), 1);
     publish(&mut app, &source);
     assert_eq!(source.0.snapshot().lifecycle, CoreLifecycle::Stopped);
     assert_eq!(button(&mut app), entity);
-    assert!(app.world().resource::<CoreControlState>().pending.is_none());
+    assert_eq!(
+        app.world().resource::<CoreControlState>().phase,
+        CoreControlPhase::Idle
+    );
 }
 
 #[test]
@@ -185,16 +277,16 @@ fn a_permission_failure_retains_its_identity_and_retry_executes_the_same_native_
     process.deny_start.store(true, Ordering::SeqCst);
     activate(&mut app, entity);
     until(&mut app, |app| {
-        app.world().resource::<CoreControlState>().failure.is_some()
+        matches!(
+            &app.world().resource::<CoreControlState>().phase,
+            CoreControlPhase::Failed(_)
+        )
     });
     publish(&mut app, &source);
-    let failure = app
-        .world()
-        .resource::<CoreControlState>()
-        .failure
-        .as_ref()
-        .unwrap()
-        .clone();
+    let failure = app.world().resource::<CoreControlState>().phase.clone();
+    let CoreControlPhase::Failed(failure) = failure else {
+        panic!("permission failure remains visible until retry")
+    };
     let expected = Failure::from(PortError::PermissionDenied(
         "grant process permission".into(),
     ));
@@ -210,17 +302,26 @@ fn a_permission_failure_retains_its_identity_and_retry_executes_the_same_native_
     process.deny_start.store(false, Ordering::SeqCst);
     activate(&mut app, entity);
     until(&mut app, |app| {
-        app.world()
-            .resource::<CoreControlState>()
-            .pending
-            .as_ref()
-            .is_some_and(|pending| pending.completed)
+        matches!(
+            &app.world().resource::<CoreControlState>().phase,
+            CoreControlPhase::Failed(_) | CoreControlPhase::AwaitingSnapshot(_)
+        )
     });
+    assert!(
+        matches!(
+            &app.world().resource::<CoreControlState>().phase,
+            CoreControlPhase::AwaitingSnapshot(_)
+        ),
+        "retry should reach the current observed owner scope"
+    );
     publish(&mut app, &source);
     assert_eq!(process.starts.load(Ordering::SeqCst), 2);
     assert_eq!(source.0.snapshot().lifecycle, CoreLifecycle::Running);
     assert_eq!(button(&mut app), entity);
-    assert!(app.world().resource::<CoreControlState>().failure.is_none());
+    assert_eq!(
+        app.world().resource::<CoreControlState>().phase,
+        CoreControlPhase::Idle
+    );
 }
 
 #[test]
@@ -228,13 +329,11 @@ fn stale_or_unrelated_terminal_feedback_cannot_unlock_a_pending_lifecycle_contro
     let (mut app, _, _) = setup();
     let entity = button(&mut app);
     activate(&mut app, entity);
-    let id = app
-        .world()
-        .resource::<CoreControlState>()
-        .pending
-        .as_ref()
-        .unwrap()
-        .request_id;
+    let id = app.world().resource::<CoreControlState>().phase.clone();
+    let CoreControlPhase::AwaitingResult(pending) = id else {
+        panic!("the new request awaits its terminal result")
+    };
+    let id = pending.request_id;
     for (request_id, command) in [
         (RequestId(id.0 + 10), UiCommand::StartCore),
         (id, UiCommand::StopCore),
@@ -246,7 +345,9 @@ fn stale_or_unrelated_terminal_feedback_cannot_unlock_a_pending_lifecycle_contro
         });
         app.world_mut().flush();
         let state = app.world().resource::<CoreControlState>();
-        assert_eq!(state.pending.as_ref().unwrap().request_id, id);
-        assert!(state.failure.is_none());
+        assert!(matches!(
+            &state.phase,
+            CoreControlPhase::AwaitingResult(pending) if pending.request_id == id
+        ));
     }
 }

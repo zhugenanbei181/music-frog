@@ -10,6 +10,7 @@ use crate::pages::dns::{
     DnsSwitchTrack, enhanced_mode_pill_label, filter_mode_label,
 };
 use bevy::ecs::hierarchy::Children;
+use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::{Scene, bsn};
 use bevy::text::TextColor;
 use bevy::ui::BorderColor;
@@ -20,10 +21,12 @@ use bevy::ui::prelude::{
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
 use infiltrator_application::dns_status_projection::field_label_key;
+use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
@@ -74,14 +77,14 @@ fn dns_switch_row_scene(
                 width: percent(100),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::SpaceBetween,
-                padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S6)),
-                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                padding: UiRect::axes(rem(space::S8), rem(space::S6)),
+                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
             }
-            BackgroundColor({ palette.surface_elevated })
+            ThemeBackgroundColor({ Token::SurfaceElevated })
             Children [
                 Node {
                     align_items: AlignItems::Center,
-                    column_gap: Val::Px(space::S8),
+                    column_gap: rem(space::S8),
                 }
                 Children [
                     label TextRole(Role::Body)
@@ -89,7 +92,7 @@ fn dns_switch_row_scene(
                 --
                 Node {
                     align_items: AlignItems::Center,
-                    column_gap: Val::Px(space::S8),
+                    column_gap: rem(space::S8),
                 }
                 Children [
                     Text({ status_str.to_owned() })
@@ -98,8 +101,8 @@ fn dns_switch_row_scene(
                     TextColor({ status_color })
                     --
                     Node {
-                        width: px(38.0),
-                        height: px(22.0),
+                        width: rem(38.0),
+                        height: rem(22.0),
                         border: UiRect::all(Val::Px(palette.hairline_px)),
                         border_radius: BorderRadius::all(Val::Px(11.0)),
                         position_type: PositionType::Relative,
@@ -120,8 +123,8 @@ fn dns_switch_row_scene(
                         Node {
                             position_type: PositionType::Absolute,
                             left: { knob_left },
-                            width: px(16.0),
-                            height: px(16.0),
+                            width: rem(16.0),
+                            height: rem(16.0),
                             border_radius: BorderRadius::all(Val::Px(8.0)),
                         }
                         BackgroundColor({ knob_color })
@@ -154,7 +157,7 @@ fn enhanced_mode_pill(
                 height: px(palette.control_height_px * 0.8),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
-                padding: UiRect::horizontal(Val::Px(space::S8)),
+                padding: UiRect::horizontal(rem(space::S8)),
                 border_radius: BorderRadius::all(Val::Px(palette.control_radius_px * 0.75)),
             }
             BackgroundColor({ bg })
@@ -191,7 +194,7 @@ fn filter_mode_pill(
                 height: px(palette.control_height_px * 0.8),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
-                padding: UiRect::horizontal(Val::Px(space::S8)),
+                padding: UiRect::horizontal(rem(space::S8)),
                 border_radius: BorderRadius::all(Val::Px(palette.control_radius_px * 0.75)),
             }
             BackgroundColor({ bg })
@@ -212,11 +215,11 @@ fn segmented_row_scene(pills: Vec<Box<dyn Scene>>, palette: &UiPalette) -> impl 
                 width: percent(100),
                 flex_direction: FlexDirection::Row,
                 align_items: AlignItems::Center,
-                column_gap: Val::Px(space::S4),
-                padding: UiRect::all(Val::Px(space::S4)),
-                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                column_gap: rem(space::S4),
+                padding: UiRect::all(rem(space::S4)),
+                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
             }
-            BackgroundColor({ palette.surface })
+            ThemeBackgroundColor({ Token::Surface })
             Children [
                 { pills }
             ]
@@ -243,13 +246,13 @@ pub(crate) fn dns_form_card_scene(
                                 width: percent(100),
                                 align_items: AlignItems::Center,
                                 justify_content: JustifyContent::SpaceBetween,
-                                padding: UiRect::bottom(Val::Px(space::S8)),
+                                padding: UiRect::bottom(rem(space::S8)),
                             }
                             DnsConfigCard
                             Children [
                                 Node {
                                     align_items: AlignItems::Center,
-                                    column_gap: Val::Px(space::S8),
+                                    column_gap: rem(space::S8),
                                 }
                                 Children [
                                     @{ icon_tile_scene(IconId::Settings, 24.0, palette) }
@@ -264,7 +267,7 @@ pub(crate) fn dns_form_card_scene(
                             Node {
                                 width: percent(100),
                                 flex_direction: FlexDirection::Column,
-                                row_gap: Val::Px(space::S6),
+                                row_gap: rem(space::S6),
                             }
                             Children [
                                 @{ dns_switch_row_scene(DnsSwitchField::Enable, projection.switches, palette) }
@@ -284,8 +287,8 @@ pub(crate) fn dns_form_card_scene(
                             Node {
                                 width: percent(100),
                                 flex_direction: FlexDirection::Column,
-                                row_gap: Val::Px(space::S6),
-                                padding: UiRect::top(Val::Px(space::S6)),
+                                row_gap: rem(space::S6),
+                                padding: UiRect::top(rem(space::S6)),
                             }
                             DnsEnhancedModeControl
                             Children [
@@ -298,8 +301,8 @@ pub(crate) fn dns_form_card_scene(
                             Node {
                                 width: percent(100),
                                 flex_direction: FlexDirection::Column,
-                                row_gap: Val::Px(space::S6),
-                                padding: UiRect::top(Val::Px(space::S4)),
+                                row_gap: rem(space::S6),
+                                padding: UiRect::top(rem(space::S4)),
                             }
                             DnsFilterModeControl
                             Children [

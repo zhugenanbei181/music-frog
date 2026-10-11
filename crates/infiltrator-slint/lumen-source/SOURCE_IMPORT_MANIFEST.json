@@ -1,0 +1,3602 @@
+{
+  "source_archive": "re-Lumen (1).zip",
+  "archive_sha256": "4a5195d205b8e23e00694764e8c5d105a6ba4d43085d6b5533de42d4cfa295e4",
+  "imported_files": 718,
+  "imported_bytes": 8738780,
+  "files": {
+    "assets/flags/ac.svg": {
+      "path": "assets/flags/ac.svg",
+      "bytes": 16658,
+      "sha256": "c835093f65e5c04cd976f9a5065f57266e767f389d334f95962d147fce38df6a"
+    },
+    "assets/flags/ad.svg": {
+      "path": "assets/flags/ad.svg",
+      "bytes": 4594,
+      "sha256": "78e82fa080286ae3a5359f05e5edaa758617f6cd2d12a49c4487293292b0a4a8"
+    },
+    "assets/flags/ae.svg": {
+      "path": "assets/flags/ae.svg",
+      "bytes": 309,
+      "sha256": "a826a33f6fd1cebceeea5d5b559cb241a94110cf9dde6ad8af447513ecb4f6b3"
+    },
+    "assets/flags/af.svg": {
+      "path": "assets/flags/af.svg",
+      "bytes": 24130,
+      "sha256": "14e87464b187fb24519faab1235abde76ed0b6777f9f82b490070405addca7dd"
+    },
+    "assets/flags/ag.svg": {
+      "path": "assets/flags/ag.svg",
+      "bytes": 942,
+      "sha256": "0f8f2f5ea9f2bbf348d9f888c604185e2f1db93e0f65493cea86743a39eb7a99"
+    },
+    "assets/flags/ai.svg": {
+      "path": "assets/flags/ai.svg",
+      "bytes": 3555,
+      "sha256": "84e167953014ec6fefe3ca17a5c8e306514339d2eaea893662042754e0dc2214"
+    },
+    "assets/flags/al.svg": {
+      "path": "assets/flags/al.svg",
+      "bytes": 12429,
+      "sha256": "a977c52edd1c2f3eed229f1362953400f79b1ddeb178fe68cde55412df1ec87f"
+    },
+    "assets/flags/am.svg": {
+      "path": "assets/flags/am.svg",
+      "bytes": 272,
+      "sha256": "a5043d0e1f5191d441f58c0b672301fc87a359d0fbd566bc62dc6f92bb550bf6"
+    },
+    "assets/flags/ao.svg": {
+      "path": "assets/flags/ao.svg",
+      "bytes": 1761,
+      "sha256": "c8d3122c17246241fb72cea51e1f1d9e0c3f4401439907c3a301f1be83ad7f22"
+    },
+    "assets/flags/aq.svg": {
+      "path": "assets/flags/aq.svg",
+      "bytes": 1407,
+      "sha256": "55c30a64e68b54a23ea1c263ec7300888403563582830fc0cd53c25e8f1dfa71"
+    },
+    "assets/flags/ar.svg": {
+      "path": "assets/flags/ar.svg",
+      "bytes": 2333,
+      "sha256": "8d591eb70272a6df309fdf900270540128eb87a32f2ba199bbec3f6eb4d7c742"
+    },
+    "assets/flags/as.svg": {
+      "path": "assets/flags/as.svg",
+      "bytes": 5608,
+      "sha256": "1f0a9e78520f2b6fa9a8a561cac7f419a5d3cfa8497070c4c8a92ac2dc3b4a5b"
+    },
+    "assets/flags/at.svg": {
+      "path": "assets/flags/at.svg",
+      "bytes": 242,
+      "sha256": "3fcbba3f88d08d2796666e854118c70a9ce24c91d9ce25f0b972f49b0f83a8ab"
+    },
+    "assets/flags/au.svg": {
+      "path": "assets/flags/au.svg",
+      "bytes": 1669,
+      "sha256": "c6f7dc707ca937c5efef2f23af04755ac0ee5813e21c9061d7ddf719e8ef4b27"
+    },
+    "assets/flags/aw.svg": {
+      "path": "assets/flags/aw.svg",
+      "bytes": 794,
+      "sha256": "17b6acf0c77a4b14bc103a15d21ffa011efe62ca9f79a447dbec0f584fe826fc"
+    },
+    "assets/flags/ax.svg": {
+      "path": "assets/flags/ax.svg",
+      "bytes": 410,
+      "sha256": "92609a41ab0eafba96da4d6ed29bc3b861ab6afc8e88f4983ab5b95b9bd4fe9c"
+    },
+    "assets/flags/az.svg": {
+      "path": "assets/flags/az.svg",
+      "bytes": 740,
+      "sha256": "cc1737cd8f9c92ad084254669243199c84e8f8458b26a83a6a0a0d1f1736e6fd"
+    },
+    "assets/flags/ba.svg": {
+      "path": "assets/flags/ba.svg",
+      "bytes": 1210,
+      "sha256": "b515d0e0e0bfbfe2c704fec54dfab8a8eb98d25a7d98d63fff539aaf33acc099"
+    },
+    "assets/flags/bb.svg": {
+      "path": "assets/flags/bb.svg",
+      "bytes": 716,
+      "sha256": "47c34705d72eb05a46a2a1c29a12ae6428ec84e46422b0ced31ad39471b3917c"
+    },
+    "assets/flags/bd.svg": {
+      "path": "assets/flags/bd.svg",
+      "bytes": 239,
+      "sha256": "e3cd87d7e5ed0fa1390d4d610dffe7bba79b847db4d694cea7392716de68fd9f"
+    },
+    "assets/flags/be.svg": {
+      "path": "assets/flags/be.svg",
+      "bytes": 269,
+      "sha256": "6b8edce2d19361a4c9bbe34392499c96fd4d1580cd129cef8779cb4d94a37e15"
+    },
+    "assets/flags/bf.svg": {
+      "path": "assets/flags/bf.svg",
+      "bytes": 518,
+      "sha256": "f8bf588507e15e928bb6505b5769bfa9e617f1b2f9add58703b8da855f8faf2b"
+    },
+    "assets/flags/bg.svg": {
+      "path": "assets/flags/bg.svg",
+      "bytes": 268,
+      "sha256": "2adde90f972422244b44de94fcb784711e894667e19af16e032daf3fdf9ad5e5"
+    },
+    "assets/flags/bh.svg": {
+      "path": "assets/flags/bh.svg",
+      "bytes": 316,
+      "sha256": "aed724ec2a2b27e7e470b4dddeb856c8be2352caf63b04d90237673cb099751f"
+    },
+    "assets/flags/bi.svg": {
+      "path": "assets/flags/bi.svg",
+      "bytes": 1910,
+      "sha256": "ed1dcd9825608c66d0d7ffcd9865c0e8a07669b142dd0801ecf9b90096ffeaec"
+    },
+    "assets/flags/bj.svg": {
+      "path": "assets/flags/bj.svg",
+      "bytes": 279,
+      "sha256": "fb85f5d6ffd5ad33b412641227d7b73373e928f2df02d4f3f2e849591f84bc09"
+    },
+    "assets/flags/bl.svg": {
+      "path": "assets/flags/bl.svg",
+      "bytes": 5579,
+      "sha256": "75379421a0b15f8fa438c1434a2657dfad7418957c8ebedb2de925f7e40fb6d4"
+    },
+    "assets/flags/bm.svg": {
+      "path": "assets/flags/bm.svg",
+      "bytes": 5665,
+      "sha256": "34864210fbe2a1ad8e444bff8077dc49f5a46da14d01756a55542f42e9a7891c"
+    },
+    "assets/flags/bn.svg": {
+      "path": "assets/flags/bn.svg",
+      "bytes": 3112,
+      "sha256": "f8952edf492649defc5d2d535537a372a14440bf42815c0d15839ab53facd55f"
+    },
+    "assets/flags/bo.svg": {
+      "path": "assets/flags/bo.svg",
+      "bytes": 5913,
+      "sha256": "085ccfcd546dac5eb3fd375ba9ac3aed6d2daef0204e485f05cace561829d6d5"
+    },
+    "assets/flags/bq.svg": {
+      "path": "assets/flags/bq.svg",
+      "bytes": 948,
+      "sha256": "ce02e680b0d51a1f1c754c2e84818cbf22139f93674e7b7f3c9d1d17786d02c1"
+    },
+    "assets/flags/br.svg": {
+      "path": "assets/flags/br.svg",
+      "bytes": 682,
+      "sha256": "a74ec5e2fe1a2f859edf8c7de03b43379030f58f17b8e57371a347620f5c9b31"
+    },
+    "assets/flags/bs.svg": {
+      "path": "assets/flags/bs.svg",
+      "bytes": 478,
+      "sha256": "f5440544348780f745567c3755008b3aeccd8c3e0a0701484c61229e167dfd6c"
+    },
+    "assets/flags/bt.svg": {
+      "path": "assets/flags/bt.svg",
+      "bytes": 6062,
+      "sha256": "fc5fb0b55b0b44192aaff1bb879b59a93c78d2d2e3dd55ac7a9672055b772e42"
+    },
+    "assets/flags/bv.svg": {
+      "path": "assets/flags/bv.svg",
+      "bytes": 467,
+      "sha256": "b7d41f0b01d6904b859f7749071c1a186e042f202885242e48f8ef6c615bef5c"
+    },
+    "assets/flags/bw.svg": {
+      "path": "assets/flags/bw.svg",
+      "bytes": 282,
+      "sha256": "acb83fa3c414fd865971155ea865598b62cf006b8922a37771eb7048ab316164"
+    },
+    "assets/flags/by.svg": {
+      "path": "assets/flags/by.svg",
+      "bytes": 1921,
+      "sha256": "443e1594d8bb0e496121bf97c021236b4a66070859402e42ec60fce9d83277b9"
+    },
+    "assets/flags/bz.svg": {
+      "path": "assets/flags/bz.svg",
+      "bytes": 13637,
+      "sha256": "a91fd56091814c5dbd84f07fb1aec462a369505b611894ebd9d6c52ea5e9693f"
+    },
+    "assets/flags/ca.svg": {
+      "path": "assets/flags/ca.svg",
+      "bytes": 910,
+      "sha256": "fa546cdc4c1e65f3eac9c2996fcaf37c08b42da266b68fc2526d0248c1d0854a"
+    },
+    "assets/flags/cc.svg": {
+      "path": "assets/flags/cc.svg",
+      "bytes": 1684,
+      "sha256": "97652d77406c11bcb63b415d95252f58082312144dbbb4299f7ec581275876a4"
+    },
+    "assets/flags/cd.svg": {
+      "path": "assets/flags/cd.svg",
+      "bytes": 720,
+      "sha256": "68e82bee9c909d1d51d426286bc7bb495819bb77c017bd8f8a303653b08c0380"
+    },
+    "assets/flags/cf.svg": {
+      "path": "assets/flags/cf.svg",
+      "bytes": 494,
+      "sha256": "370ceadc8f1952bd702c6f6c57f839ab4da2c66e6dcde6991531fc66dfd8a748"
+    },
+    "assets/flags/cg.svg": {
+      "path": "assets/flags/cg.svg",
+      "bytes": 372,
+      "sha256": "02300928659a6aa6c4398fa537c1d6249964aa2161095460ecc583d5c4c54c62"
+    },
+    "assets/flags/ch.svg": {
+      "path": "assets/flags/ch.svg",
+      "bytes": 258,
+      "sha256": "a8dd74c5a29474b0f704b6b7aa652002e84390200e3412a4e18db24bce86e86c"
+    },
+    "assets/flags/ci.svg": {
+      "path": "assets/flags/ci.svg",
+      "bytes": 269,
+      "sha256": "be1c54d64484d2e2618cc2ebc14c4bce35bf503c55108c5e83feea96aa3c528a"
+    },
+    "assets/flags/circle-png/ac.png": {
+      "path": "assets/flags/circle-png/ac.png",
+      "bytes": 10282,
+      "sha256": "60f1ac348ad337b4a74a1473c465b5bbfc607ef68d2578bc4340ce736416de2d"
+    },
+    "assets/flags/circle-png/ad.png": {
+      "path": "assets/flags/circle-png/ad.png",
+      "bytes": 4415,
+      "sha256": "7002377fac5b3ef053e4fde9abe0ccd7ab275d0a766c613e6cf4ac32502a968f"
+    },
+    "assets/flags/circle-png/ae.png": {
+      "path": "assets/flags/circle-png/ae.png",
+      "bytes": 1999,
+      "sha256": "085d4bd55b684ee9006129192533d3213068484e9c048f002cd9aca5d41038ca"
+    },
+    "assets/flags/circle-png/af.png": {
+      "path": "assets/flags/circle-png/af.png",
+      "bytes": 10484,
+      "sha256": "a76616bea7f79054242d25fe3c638a3a4539069ac7f4f8066b55707f9c2e169c"
+    },
+    "assets/flags/circle-png/ag.png": {
+      "path": "assets/flags/circle-png/ag.png",
+      "bytes": 5742,
+      "sha256": "868d94d161c1b3e1ffa919d0e4f119ebcf3d93e0f06d96142346b7769fa7cf32"
+    },
+    "assets/flags/circle-png/ai.png": {
+      "path": "assets/flags/circle-png/ai.png",
+      "bytes": 7722,
+      "sha256": "1dd93d162cd73deb95a75ec36c60b8349bb646d0ff6ee8592f7a5b0374a6bb3f"
+    },
+    "assets/flags/circle-png/al.png": {
+      "path": "assets/flags/circle-png/al.png",
+      "bytes": 7164,
+      "sha256": "cd474cad8696c1918be7b99313a54954691d27b75728aa117140995872fb5bca"
+    },
+    "assets/flags/circle-png/am.png": {
+      "path": "assets/flags/circle-png/am.png",
+      "bytes": 1880,
+      "sha256": "d107406af1931247b3dab749765b0d726ac878775bf37bb0fad826bbbda73733"
+    },
+    "assets/flags/circle-png/ao.png": {
+      "path": "assets/flags/circle-png/ao.png",
+      "bytes": 4757,
+      "sha256": "8c9fcdabcc78e01b29416780e0c8042ebc530f0bef4eaba846ebcc2e46a038b7"
+    },
+    "assets/flags/circle-png/aq.png": {
+      "path": "assets/flags/circle-png/aq.png",
+      "bytes": 3898,
+      "sha256": "1e07b44a6e0285bbeb85409ef68c59d6d30c3bb0f0575f76f485fa99a36f3fb2"
+    },
+    "assets/flags/circle-png/ar.png": {
+      "path": "assets/flags/circle-png/ar.png",
+      "bytes": 5105,
+      "sha256": "05fad3d9d0f8aa6469b90384a070f4df59f0a1db56de37c088aaf49e8b987a98"
+    },
+    "assets/flags/circle-png/as.png": {
+      "path": "assets/flags/circle-png/as.png",
+      "bytes": 7628,
+      "sha256": "930393cf6c353ae04af4f68aa32f21ce97332ca7fd7f816406df086266394459"
+    },
+    "assets/flags/circle-png/at.png": {
+      "path": "assets/flags/circle-png/at.png",
+      "bytes": 1979,
+      "sha256": "8647793594c50df7d11ac04c64454fef41196a51d603cc2c297c5794ff89f3f9"
+    },
+    "assets/flags/circle-png/au.png": {
+      "path": "assets/flags/circle-png/au.png",
+      "bytes": 6938,
+      "sha256": "c21b1e64a901df11d37e6d29ba86c4ed232f2a7677b5be8a3f3c3cda71b7b9d3"
+    },
+    "assets/flags/circle-png/aw.png": {
+      "path": "assets/flags/circle-png/aw.png",
+      "bytes": 3109,
+      "sha256": "d9641a4daa4be1297ccf44146b87fa1f2019aa394c2324957f21b2870ef3890c"
+    },
+    "assets/flags/circle-png/ax.png": {
+      "path": "assets/flags/circle-png/ax.png",
+      "bytes": 1979,
+      "sha256": "3cff3b46407f850369b04b54bc023bd6b0166ffadb7b0f7303534d891606306e"
+    },
+    "assets/flags/circle-png/az.png": {
+      "path": "assets/flags/circle-png/az.png",
+      "bytes": 3204,
+      "sha256": "39125e1bca11945f3e6bdf58edda1675592c1bb6745535bd664ac8b0fc307de1"
+    },
+    "assets/flags/circle-png/ba.png": {
+      "path": "assets/flags/circle-png/ba.png",
+      "bytes": 5597,
+      "sha256": "e79e968e59b0e0f51a7234db2363244e0c237495cf7d129b1bc3d507fee36f93"
+    },
+    "assets/flags/circle-png/bb.png": {
+      "path": "assets/flags/circle-png/bb.png",
+      "bytes": 2938,
+      "sha256": "6cb193c8ffae576c8befa0ef6efc67123b2fb754730760f606a7279e93657ac7"
+    },
+    "assets/flags/circle-png/bd.png": {
+      "path": "assets/flags/circle-png/bd.png",
+      "bytes": 2903,
+      "sha256": "8ef51eca33830b8a666fad856ffa709675985d94a07ef877ea9ee31878269ca9"
+    },
+    "assets/flags/circle-png/be.png": {
+      "path": "assets/flags/circle-png/be.png",
+      "bytes": 1464,
+      "sha256": "e9658abd13feafc3d23995deb91cfdffd8be640feee56a2ba1446d06431121d3"
+    },
+    "assets/flags/circle-png/bf.png": {
+      "path": "assets/flags/circle-png/bf.png",
+      "bytes": 2732,
+      "sha256": "94b5433d19d45ecfe6182751da053ddae9ae979e553e4baacd3a215f356d2af3"
+    },
+    "assets/flags/circle-png/bg.png": {
+      "path": "assets/flags/circle-png/bg.png",
+      "bytes": 1954,
+      "sha256": "204cf0eef76d58a5236185af7bb336fd3770c78496449c7fb4415fd9a994d61c"
+    },
+    "assets/flags/circle-png/bh.png": {
+      "path": "assets/flags/circle-png/bh.png",
+      "bytes": 3801,
+      "sha256": "28e9ed9e984d1636f93fd7fdbdf30f98cf383a7544bba094426a5363a591f065"
+    },
+    "assets/flags/circle-png/bi.png": {
+      "path": "assets/flags/circle-png/bi.png",
+      "bytes": 6968,
+      "sha256": "a3ef5cfabdeb16a0ed8058bb3dbfd6b5ad1774f1ea2f9e96ce91031005f0a211"
+    },
+    "assets/flags/circle-png/bj.png": {
+      "path": "assets/flags/circle-png/bj.png",
+      "bytes": 1944,
+      "sha256": "bf5490f0c6611a3dfd3f1e4ab98789163aa360511e68ea49612355381934ae86"
+    },
+    "assets/flags/circle-png/bl.png": {
+      "path": "assets/flags/circle-png/bl.png",
+      "bytes": 6820,
+      "sha256": "d2c101d30a1f4e18547208f7edc12b2f2af23f78c63c984b502053150ebf2408"
+    },
+    "assets/flags/circle-png/bm.png": {
+      "path": "assets/flags/circle-png/bm.png",
+      "bytes": 7713,
+      "sha256": "e935b0fffeebaf9cb4de5a400d17ce695d0999abd7ac2f4c14b491a46561ba09"
+    },
+    "assets/flags/circle-png/bn.png": {
+      "path": "assets/flags/circle-png/bn.png",
+      "bytes": 7016,
+      "sha256": "561e85bf9ac644d4cf821bc65002a6ad4a2dda1b21e59d503e48b0e404e51003"
+    },
+    "assets/flags/circle-png/bo.png": {
+      "path": "assets/flags/circle-png/bo.png",
+      "bytes": 4543,
+      "sha256": "5968be02457f3d4c890905d83a2c0dc2c7a302ec988476bef7891212466e2868"
+    },
+    "assets/flags/circle-png/bq.png": {
+      "path": "assets/flags/circle-png/bq.png",
+      "bytes": 6564,
+      "sha256": "35ad162c31c4a126fd84f1af8c9f778efaadd0d898142fa7dffa502c10a30b97"
+    },
+    "assets/flags/circle-png/br.png": {
+      "path": "assets/flags/circle-png/br.png",
+      "bytes": 6351,
+      "sha256": "419381a7e3ca165e6453b7cb9b13b79292e8006915c8102c095d88f42f49fc1a"
+    },
+    "assets/flags/circle-png/bs.png": {
+      "path": "assets/flags/circle-png/bs.png",
+      "bytes": 3279,
+      "sha256": "4a11a836fd0caae56a3497f568ff036f30195e55b84170072fe717b05599b7e1"
+    },
+    "assets/flags/circle-png/bt.png": {
+      "path": "assets/flags/circle-png/bt.png",
+      "bytes": 6782,
+      "sha256": "234aa90e6f0ed25c15ea9713e2c306561d50395136a60ce52cae402a3c91aa49"
+    },
+    "assets/flags/circle-png/bv.png": {
+      "path": "assets/flags/circle-png/bv.png",
+      "bytes": 2075,
+      "sha256": "1d0b40dafb874c4f51e66f4f76eb475b822ffd7501e79f0caae0dc5975acdaf1"
+    },
+    "assets/flags/circle-png/bw.png": {
+      "path": "assets/flags/circle-png/bw.png",
+      "bytes": 2014,
+      "sha256": "d008e38a7a8949442393d13f2ffe116905304806a753b77a23a13b8bb2078acb"
+    },
+    "assets/flags/circle-png/by.png": {
+      "path": "assets/flags/circle-png/by.png",
+      "bytes": 5686,
+      "sha256": "76614639524be0c3765a69c8895c78098ba3c56c3e2bbad8320e04e58c446ebd"
+    },
+    "assets/flags/circle-png/bz.png": {
+      "path": "assets/flags/circle-png/bz.png",
+      "bytes": 12792,
+      "sha256": "c9dd19dbd9e892b3ad1de9ec38353feddd1d41d0ba2231cd039c2699e86582f2"
+    },
+    "assets/flags/circle-png/ca.png": {
+      "path": "assets/flags/circle-png/ca.png",
+      "bytes": 3475,
+      "sha256": "ab07f6481c29ac7bbb27a6ed1ee2b05067634646b1e88d93814e725626c8e622"
+    },
+    "assets/flags/circle-png/cc.png": {
+      "path": "assets/flags/circle-png/cc.png",
+      "bytes": 5149,
+      "sha256": "e8e5d2dcf696fde13aa1d8b23729d5f5b9f7818901b666ac05679cc35607fc9e"
+    },
+    "assets/flags/circle-png/cd.png": {
+      "path": "assets/flags/circle-png/cd.png",
+      "bytes": 7873,
+      "sha256": "d90365db433dd29727221f61afa891f4a2abd80dae12eb5c08f8fe4e386ea1ab"
+    },
+    "assets/flags/circle-png/cf.png": {
+      "path": "assets/flags/circle-png/cf.png",
+      "bytes": 2488,
+      "sha256": "cdfff66e136e73669134c9ca21bdd8e055d6a6fa0c079832c56de2403cbec714"
+    },
+    "assets/flags/circle-png/cg.png": {
+      "path": "assets/flags/circle-png/cg.png",
+      "bytes": 4074,
+      "sha256": "97b3f597b32a759b33484273e6dba535491275b768236a0fb5f96be048d11048"
+    },
+    "assets/flags/circle-png/ch.png": {
+      "path": "assets/flags/circle-png/ch.png",
+      "bytes": 1558,
+      "sha256": "133a4fd4a6216aaf76be3eb9292a6cae84f1f15c4cd3b164448f129f3202a0d2"
+    },
+    "assets/flags/circle-png/ci.png": {
+      "path": "assets/flags/circle-png/ci.png",
+      "bytes": 1903,
+      "sha256": "fd9240bcf38d98fe52b93bc7b3e10f6997303e05d1220c4c3f469dd95ac1fa5e"
+    },
+    "assets/flags/circle-png/ck.png": {
+      "path": "assets/flags/circle-png/ck.png",
+      "bytes": 8222,
+      "sha256": "d29b8d42ea950b1d3ea166f55071230162d12531b538b661d2db5ead997c7f55"
+    },
+    "assets/flags/circle-png/cl.png": {
+      "path": "assets/flags/circle-png/cl.png",
+      "bytes": 2668,
+      "sha256": "2f8561a659c713e77581fe6d776a5de6367fedff017eefac0aa968e1602cda51"
+    },
+    "assets/flags/circle-png/cm.png": {
+      "path": "assets/flags/circle-png/cm.png",
+      "bytes": 2514,
+      "sha256": "4af7b297df3ca6dbfe640d8a9d1219fba8fdd6ecc310119d3a7c99bb95492c8d"
+    },
+    "assets/flags/circle-png/cn.png": {
+      "path": "assets/flags/circle-png/cn.png",
+      "bytes": 3135,
+      "sha256": "faca9de35de51019c9f31d0a57d45971868d1c83ed1aae1364ffa8f3b2aacd69"
+    },
+    "assets/flags/circle-png/co.png": {
+      "path": "assets/flags/circle-png/co.png",
+      "bytes": 1985,
+      "sha256": "5d3f0c10035baae256895290ec837cc979af03ebd521fb74156e983f3eece3ac"
+    },
+    "assets/flags/circle-png/cp.png": {
+      "path": "assets/flags/circle-png/cp.png",
+      "bytes": 1948,
+      "sha256": "bd0d8f4cdb55608dcdd55e1180feacd4cf7f66193248cde13182ffd93476b59f"
+    },
+    "assets/flags/circle-png/cr.png": {
+      "path": "assets/flags/circle-png/cr.png",
+      "bytes": 3383,
+      "sha256": "ace7df1932652975fdae296c4087bb5c533a80906dd6adde58f531c1a81d1ac3"
+    },
+    "assets/flags/circle-png/cu.png": {
+      "path": "assets/flags/circle-png/cu.png",
+      "bytes": 3738,
+      "sha256": "c2adc07d2ee0c79b145a5b563d940f1b1cf2855b9662a3496dcd4fdf9bc94592"
+    },
+    "assets/flags/circle-png/cv.png": {
+      "path": "assets/flags/circle-png/cv.png",
+      "bytes": 3796,
+      "sha256": "d792f11e1cb33a204455d8136a7f4087528d0fda00988bcdc1a33ce64af3ca53"
+    },
+    "assets/flags/circle-png/cw.png": {
+      "path": "assets/flags/circle-png/cw.png",
+      "bytes": 2900,
+      "sha256": "2c79ff84ea507912106f9fa68e30607925aac188ee3e7e49c916fd0c72dac969"
+    },
+    "assets/flags/circle-png/cx.png": {
+      "path": "assets/flags/circle-png/cx.png",
+      "bytes": 6199,
+      "sha256": "bab02fa1e59fef504682a62c3608183fd03a9988406521fd790763ddb1edee50"
+    },
+    "assets/flags/circle-png/cy.png": {
+      "path": "assets/flags/circle-png/cy.png",
+      "bytes": 4316,
+      "sha256": "857e1b1bca4aebbba9862dbe4e5aca67356e3e62f44a60aa9228efd7d86fa76c"
+    },
+    "assets/flags/circle-png/cz.png": {
+      "path": "assets/flags/circle-png/cz.png",
+      "bytes": 3343,
+      "sha256": "69afa254db0fdecacd4ff1db5dfbe171edc4157005676e66e5699edf38208768"
+    },
+    "assets/flags/circle-png/de.png": {
+      "path": "assets/flags/circle-png/de.png",
+      "bytes": 1942,
+      "sha256": "c7bd29936644fbb104d7a51bfa902d89004cb85ecd40068fe43d64a1a5db5be9"
+    },
+    "assets/flags/circle-png/dg.png": {
+      "path": "assets/flags/circle-png/dg.png",
+      "bytes": 13874,
+      "sha256": "4c2ef7fd00fd816f1c8a6c1cc3e9b83136ce3868c0b2e0bc89ab182ac769d3de"
+    },
+    "assets/flags/circle-png/dj.png": {
+      "path": "assets/flags/circle-png/dj.png",
+      "bytes": 3898,
+      "sha256": "5afb3689ff892e95cb78c0ffaae93aa9f3dc22fc60d3cdbd35f306f38f335b22"
+    },
+    "assets/flags/circle-png/dk.png": {
+      "path": "assets/flags/circle-png/dk.png",
+      "bytes": 2021,
+      "sha256": "5fd4d734d1fd9c67194fc78595427dd868b84e914ecf4921eafbb4ba8dfa0353"
+    },
+    "assets/flags/circle-png/dm.png": {
+      "path": "assets/flags/circle-png/dm.png",
+      "bytes": 4607,
+      "sha256": "2a749ce5bfeabb89a7405372bfe1b1ce2697f2dd664eb6b12a65ab9fca614677"
+    },
+    "assets/flags/circle-png/do.png": {
+      "path": "assets/flags/circle-png/do.png",
+      "bytes": 3905,
+      "sha256": "145ca00e76a6f7fe0c00ece5b39a69673fef55cd8bac560a609722a91f20705c"
+    },
+    "assets/flags/circle-png/dz.png": {
+      "path": "assets/flags/circle-png/dz.png",
+      "bytes": 3831,
+      "sha256": "49784990db2edc681228c2d5cafe4ea7350d552ba3c027a6ae0574df5fb21cb3"
+    },
+    "assets/flags/circle-png/ea.png": {
+      "path": "assets/flags/circle-png/ea.png",
+      "bytes": 2605,
+      "sha256": "21e1f9223f750b027d8011183c1ea5da1fc29581dc96d3024b71cb5ff384e2f8"
+    },
+    "assets/flags/circle-png/ec.png": {
+      "path": "assets/flags/circle-png/ec.png",
+      "bytes": 4712,
+      "sha256": "bf308af9fabce4de7f20edac04f6f8b80e897ea2868ba99366bcff26a61f771f"
+    },
+    "assets/flags/circle-png/ee.png": {
+      "path": "assets/flags/circle-png/ee.png",
+      "bytes": 1985,
+      "sha256": "73e8bf7de7fdedb0c1230c511cfa7c12c93139d07b176c3b26982c73030dbce8"
+    },
+    "assets/flags/circle-png/eg.png": {
+      "path": "assets/flags/circle-png/eg.png",
+      "bytes": 3617,
+      "sha256": "25f541b5d96119e4acd8bc98f9a2be620d2a8b4406919a66730e10a1891f4c1a"
+    },
+    "assets/flags/circle-png/eh.png": {
+      "path": "assets/flags/circle-png/eh.png",
+      "bytes": 3688,
+      "sha256": "d537f58d3636676ffefb1eac419a29aff644b8d801a15b6ec6e384971fa6083c"
+    },
+    "assets/flags/circle-png/er.png": {
+      "path": "assets/flags/circle-png/er.png",
+      "bytes": 7471,
+      "sha256": "9740418b2ae517f1de699eb1ad07977d22c5b106981810d31e687b62f2491b28"
+    },
+    "assets/flags/circle-png/es.png": {
+      "path": "assets/flags/circle-png/es.png",
+      "bytes": 2605,
+      "sha256": "21e1f9223f750b027d8011183c1ea5da1fc29581dc96d3024b71cb5ff384e2f8"
+    },
+    "assets/flags/circle-png/et.png": {
+      "path": "assets/flags/circle-png/et.png",
+      "bytes": 7434,
+      "sha256": "fbb1a7d7325b5017cb0482f293ed4adcd25fc7fc48b5e262ef3120196096cf1d"
+    },
+    "assets/flags/circle-png/eu.png": {
+      "path": "assets/flags/circle-png/eu.png",
+      "bytes": 4781,
+      "sha256": "f0519183a0cb159c9e09a3d889bbac0985383dbd32e17189d3397b07bb3e4b32"
+    },
+    "assets/flags/circle-png/fi.png": {
+      "path": "assets/flags/circle-png/fi.png",
+      "bytes": 1962,
+      "sha256": "d3c076f0e8ad47a6e362d3c75907bb9f80a15af086f60dec1a35b6d9f2b691c8"
+    },
+    "assets/flags/circle-png/fj.png": {
+      "path": "assets/flags/circle-png/fj.png",
+      "bytes": 8343,
+      "sha256": "6f861f57c664c659ec2d71bc2ad7697ebc896ab379cce9576afe31a7f108d25b"
+    },
+    "assets/flags/circle-png/fk.png": {
+      "path": "assets/flags/circle-png/fk.png",
+      "bytes": 8735,
+      "sha256": "eb15b90b32206eb220b60c2a5cee65932d7df2215df246b129a1be66d0b4bba2"
+    },
+    "assets/flags/circle-png/fm.png": {
+      "path": "assets/flags/circle-png/fm.png",
+      "bytes": 3566,
+      "sha256": "c51184e2cf38aef8c7f5ad7dd894a0239c5e22c3979a46fbedf2842ea6776df0"
+    },
+    "assets/flags/circle-png/fo.png": {
+      "path": "assets/flags/circle-png/fo.png",
+      "bytes": 2025,
+      "sha256": "ea5bddc491a92cdaf264dd4a47b5e727f202f837e9c78292c6cc5175e1a60afb"
+    },
+    "assets/flags/circle-png/fr.png": {
+      "path": "assets/flags/circle-png/fr.png",
+      "bytes": 1948,
+      "sha256": "bd0d8f4cdb55608dcdd55e1180feacd4cf7f66193248cde13182ffd93476b59f"
+    },
+    "assets/flags/circle-png/ga.png": {
+      "path": "assets/flags/circle-png/ga.png",
+      "bytes": 1966,
+      "sha256": "8ed8271844820fd8bf96f0f444c118ed10e1ef0e8652bbfc4e942ce9ce4de3db"
+    },
+    "assets/flags/circle-png/gb.png": {
+      "path": "assets/flags/circle-png/gb.png",
+      "bytes": 7307,
+      "sha256": "0cb517b6c894c2c61b66b1514e0774a639dd2f2b775b3b465b4a80eebb2147b5"
+    },
+    "assets/flags/circle-png/gd.png": {
+      "path": "assets/flags/circle-png/gd.png",
+      "bytes": 6628,
+      "sha256": "21dbcb7792587ace837220b7c593e831c52cb80e11261637dc5dfbcdf7fe34e8"
+    },
+    "assets/flags/circle-png/ge.png": {
+      "path": "assets/flags/circle-png/ge.png",
+      "bytes": 3211,
+      "sha256": "966ec55b82155fecb66ece786b7b6b114ff17aefa64944532aef2feb1779643c"
+    },
+    "assets/flags/circle-png/gf.png": {
+      "path": "assets/flags/circle-png/gf.png",
+      "bytes": 3887,
+      "sha256": "9b5437870f544e95881aaca97ad2970afbb9166e95c3605c003707b85a193bcb"
+    },
+    "assets/flags/circle-png/gg.png": {
+      "path": "assets/flags/circle-png/gg.png",
+      "bytes": 2298,
+      "sha256": "47c488139f9a1b48a048edb3f7f17749a0e144747d1a46391b716231eab7e3c9"
+    },
+    "assets/flags/circle-png/gh.png": {
+      "path": "assets/flags/circle-png/gh.png",
+      "bytes": 2879,
+      "sha256": "31766e710b3445ceee795278d77df06506230eb0da0e02bb71cc86493ba27ab9"
+    },
+    "assets/flags/circle-png/gi.png": {
+      "path": "assets/flags/circle-png/gi.png",
+      "bytes": 3821,
+      "sha256": "3dbbf32e985cab260e3817edac57a9de867ca06980c6557c5dcb21e6f0892a8c"
+    },
+    "assets/flags/circle-png/gl.png": {
+      "path": "assets/flags/circle-png/gl.png",
+      "bytes": 3206,
+      "sha256": "fb0454cb2029996a0dfa628c33404d0455163b9e008c3c59476ce899574fdc27"
+    },
+    "assets/flags/circle-png/gm.png": {
+      "path": "assets/flags/circle-png/gm.png",
+      "bytes": 2042,
+      "sha256": "2cdbd21b3d8527fe034d2d383e938a52258fed060c4eb93fb9dca64730b245f4"
+    },
+    "assets/flags/circle-png/gn.png": {
+      "path": "assets/flags/circle-png/gn.png",
+      "bytes": 1962,
+      "sha256": "151e86667374669d9b2e2510e11dbbfff5d969d2a100759ed177b77d7f147cea"
+    },
+    "assets/flags/circle-png/gp.png": {
+      "path": "assets/flags/circle-png/gp.png",
+      "bytes": 9993,
+      "sha256": "dfe40cb3c25a50516373d71119393e3073d25c99ad2812cbe596776fe0d363c7"
+    },
+    "assets/flags/circle-png/gq.png": {
+      "path": "assets/flags/circle-png/gq.png",
+      "bytes": 4632,
+      "sha256": "10babd27161dc86021c4c2a176f498a59e26ef5f8568a53ba7332209fe3be367"
+    },
+    "assets/flags/circle-png/gr.png": {
+      "path": "assets/flags/circle-png/gr.png",
+      "bytes": 2067,
+      "sha256": "28e53e947b931b504a18690d77bf427533f73fb12bc26a183cb7b051a0132b80"
+    },
+    "assets/flags/circle-png/gs.png": {
+      "path": "assets/flags/circle-png/gs.png",
+      "bytes": 9699,
+      "sha256": "b7a6d735857ad6540805e8d4a150940e8163a6c026b8ba71d61c8bc241fb96a4"
+    },
+    "assets/flags/circle-png/gt.png": {
+      "path": "assets/flags/circle-png/gt.png",
+      "bytes": 5168,
+      "sha256": "f66c8e4c4197cfc744178d1e3ee74215dcbec817b1f7880dc9a23733dba4f052"
+    },
+    "assets/flags/circle-png/gu.png": {
+      "path": "assets/flags/circle-png/gu.png",
+      "bytes": 6532,
+      "sha256": "b39d70b47b473d4f436f80e71a72793f5af2c29b5413d88261da2a650b8a933e"
+    },
+    "assets/flags/circle-png/gw.png": {
+      "path": "assets/flags/circle-png/gw.png",
+      "bytes": 2757,
+      "sha256": "80b7fe689267a4f947ae2985d0f8b89b2a3ee03f4ded72b3c6eea36a8c4abe22"
+    },
+    "assets/flags/circle-png/gy.png": {
+      "path": "assets/flags/circle-png/gy.png",
+      "bytes": 6651,
+      "sha256": "1da61f0ad96d0cb29f25f3a2d6e430fe32870bbfa8f4b9408708ab1fc86ec641"
+    },
+    "assets/flags/circle-png/hk.png": {
+      "path": "assets/flags/circle-png/hk.png",
+      "bytes": 6752,
+      "sha256": "d791b15f1cd6c41503246e0ede035e0e09ea08837b517aac315e1d8e7f4f960f"
+    },
+    "assets/flags/circle-png/hm.png": {
+      "path": "assets/flags/circle-png/hm.png",
+      "bytes": 6938,
+      "sha256": "c21b1e64a901df11d37e6d29ba86c4ed232f2a7677b5be8a3f3c3cda71b7b9d3"
+    },
+    "assets/flags/circle-png/hn.png": {
+      "path": "assets/flags/circle-png/hn.png",
+      "bytes": 2729,
+      "sha256": "d583b92495b6feeca4c6a9682d03093af3c7aec4f4549d378ccfd9b7aadc996d"
+    },
+    "assets/flags/circle-png/hr.png": {
+      "path": "assets/flags/circle-png/hr.png",
+      "bytes": 4671,
+      "sha256": "e6e282216b9c1a7171ebc16d458875f7508dc34c7638f24e5537c9a825d4dbaa"
+    },
+    "assets/flags/circle-png/ht.png": {
+      "path": "assets/flags/circle-png/ht.png",
+      "bytes": 4966,
+      "sha256": "432e1b6e26b37d9f59185038394168afba4ba9c40e73d64d44ca4db904e9e583"
+    },
+    "assets/flags/circle-png/hu.png": {
+      "path": "assets/flags/circle-png/hu.png",
+      "bytes": 2036,
+      "sha256": "36c80b6f0a2d58028957f93dbda8e7a5ffdee22ba5484760950a48ef8fe59da5"
+    },
+    "assets/flags/circle-png/ic.png": {
+      "path": "assets/flags/circle-png/ic.png",
+      "bytes": 4165,
+      "sha256": "45326f071e4048ca6a5bd628fb8d16091efeeaec2af289c7b075d50a00dfb257"
+    },
+    "assets/flags/circle-png/id.png": {
+      "path": "assets/flags/circle-png/id.png",
+      "bytes": 1979,
+      "sha256": "2f5a8fc825df9b19dc07abfc422cbed6f518da4dd4d9bda17c99414c9f6463ac"
+    },
+    "assets/flags/circle-png/ie.png": {
+      "path": "assets/flags/circle-png/ie.png",
+      "bytes": 1980,
+      "sha256": "eadbc7f66b582ace7f4a3975d0879917bb2bebae92aeacf8cb28cc95c8d277cb"
+    },
+    "assets/flags/circle-png/il.png": {
+      "path": "assets/flags/circle-png/il.png",
+      "bytes": 3397,
+      "sha256": "808c15058b9ea9598763cd0143391672f4278812400d40eb73fb9d0b4b8fc9a4"
+    },
+    "assets/flags/circle-png/im.png": {
+      "path": "assets/flags/circle-png/im.png",
+      "bytes": 4252,
+      "sha256": "273b6d45b93aef26a9821346a0ca846317dcaf3a8437a5dadf16d747706c1909"
+    },
+    "assets/flags/circle-png/in.png": {
+      "path": "assets/flags/circle-png/in.png",
+      "bytes": 4630,
+      "sha256": "2ae48a5146b94f3ccd1bd8915931bfec87060fc6897ad4963a205241bdcf3a69"
+    },
+    "assets/flags/circle-png/io.png": {
+      "path": "assets/flags/circle-png/io.png",
+      "bytes": 13874,
+      "sha256": "4c2ef7fd00fd816f1c8a6c1cc3e9b83136ce3868c0b2e0bc89ab182ac769d3de"
+    },
+    "assets/flags/circle-png/iq.png": {
+      "path": "assets/flags/circle-png/iq.png",
+      "bytes": 3388,
+      "sha256": "9ea4f25bae3aeee375889e3a9156580a05a386cedc119c6c819babefbfc4fcef"
+    },
+    "assets/flags/circle-png/ir.png": {
+      "path": "assets/flags/circle-png/ir.png",
+      "bytes": 7234,
+      "sha256": "9f2ece2af5c17b292fe9c62b54a5ac90dbe11b9513e32c4c460aa134ab5c0ac1"
+    },
+    "assets/flags/circle-png/is.png": {
+      "path": "assets/flags/circle-png/is.png",
+      "bytes": 2008,
+      "sha256": "fdfb49ecb9e2ab78e0aaaad1a71815c246b772f6787ef8247285d590577dd168"
+    },
+    "assets/flags/circle-png/it.png": {
+      "path": "assets/flags/circle-png/it.png",
+      "bytes": 1976,
+      "sha256": "56a36fc9c5913c0146af2dbef5c3aa6f2edd6c99b079c139700ff0b96837524c"
+    },
+    "assets/flags/circle-png/je.png": {
+      "path": "assets/flags/circle-png/je.png",
+      "bytes": 7534,
+      "sha256": "2c8bcdc24f24820c88cef7896f3cfe25f5314faac5de4b95256fcad8211c363c"
+    },
+    "assets/flags/circle-png/jm.png": {
+      "path": "assets/flags/circle-png/jm.png",
+      "bytes": 6081,
+      "sha256": "f297a810ffcab6e70d9a472adf5b832937c2e266a9be5f0986a87824499c0220"
+    },
+    "assets/flags/circle-png/jo.png": {
+      "path": "assets/flags/circle-png/jo.png",
+      "bytes": 3506,
+      "sha256": "826cd45881e6df6557f5a1ab49dac0dfa9cdf4b936df7f2ea377f139944c2b39"
+    },
+    "assets/flags/circle-png/jp.png": {
+      "path": "assets/flags/circle-png/jp.png",
+      "bytes": 2887,
+      "sha256": "ba69328a71d2fdac5ea8fb35067cab4ee38092fb250e77bba790e85d0a2adb9a"
+    },
+    "assets/flags/circle-png/ke.png": {
+      "path": "assets/flags/circle-png/ke.png",
+      "bytes": 4344,
+      "sha256": "415cd6e6bad099d0b18f58752b335cd3284d9db959a2d144d2496cc9a2676749"
+    },
+    "assets/flags/circle-png/kg.png": {
+      "path": "assets/flags/circle-png/kg.png",
+      "bytes": 9849,
+      "sha256": "b5060dc7fe59cc5ebacdb584ef38a329683545fa32913bd4f787e1234927fe07"
+    },
+    "assets/flags/circle-png/kh.png": {
+      "path": "assets/flags/circle-png/kh.png",
+      "bytes": 3307,
+      "sha256": "2cd459271b772f2e64d30a5203d0147be553528567877aabbdae766320e1b630"
+    },
+    "assets/flags/circle-png/ki.png": {
+      "path": "assets/flags/circle-png/ki.png",
+      "bytes": 7857,
+      "sha256": "2a6e4135780a9d02fc50a37af694f4e7f754cc5522157d04efbe2e78cf6a3676"
+    },
+    "assets/flags/circle-png/km.png": {
+      "path": "assets/flags/circle-png/km.png",
+      "bytes": 4695,
+      "sha256": "d9e5d74c28a584149276a4dec486a310d914bd8d444d68aed1ac0845d46e7a4f"
+    },
+    "assets/flags/circle-png/kn.png": {
+      "path": "assets/flags/circle-png/kn.png",
+      "bytes": 7940,
+      "sha256": "96e25015ec664f49e404f3a3ff1bd8a55af128c3b76fa81664a7f3928be065f1"
+    },
+    "assets/flags/circle-png/kp.png": {
+      "path": "assets/flags/circle-png/kp.png",
+      "bytes": 3754,
+      "sha256": "d3ac08ade517da002b9bcb3e6c721349ebf93b0a687bee033bed072df5621d23"
+    },
+    "assets/flags/circle-png/kr.png": {
+      "path": "assets/flags/circle-png/kr.png",
+      "bytes": 9891,
+      "sha256": "24c846268cc6dbb7523d3ebaccabd3fad3ddf6220a21b00017145f4257113940"
+    },
+    "assets/flags/circle-png/kw.png": {
+      "path": "assets/flags/circle-png/kw.png",
+      "bytes": 2404,
+      "sha256": "c18765818b032eaf38d2b7b09d688969aea45dd7a0ab0f0f852e2420295bf69e"
+    },
+    "assets/flags/circle-png/ky.png": {
+      "path": "assets/flags/circle-png/ky.png",
+      "bytes": 9067,
+      "sha256": "5b6e9daca4bccb9263415a9e354cf713f30bf966635e5d3efcbbd2f29e36564f"
+    },
+    "assets/flags/circle-png/kz.png": {
+      "path": "assets/flags/circle-png/kz.png",
+      "bytes": 9234,
+      "sha256": "d86f8fb31b60121d218844bc89045e174020d9fee1fba46d4b1b33b0bec46cf1"
+    },
+    "assets/flags/circle-png/la.png": {
+      "path": "assets/flags/circle-png/la.png",
+      "bytes": 2933,
+      "sha256": "ab828a6164fcaae2ee4c20d1a425f4accc3eceb5c5b44a3f8be70a6e5e63a599"
+    },
+    "assets/flags/circle-png/lb.png": {
+      "path": "assets/flags/circle-png/lb.png",
+      "bytes": 4345,
+      "sha256": "fb2b20a4db7711873224a07063246027b3aa31054cccba8075533b585888fd9f"
+    },
+    "assets/flags/circle-png/lc.png": {
+      "path": "assets/flags/circle-png/lc.png",
+      "bytes": 4615,
+      "sha256": "d26876421ae4efa6d441f34349e9804d8d1ad2089de5df1ff043bfca9977b00c"
+    },
+    "assets/flags/circle-png/li.png": {
+      "path": "assets/flags/circle-png/li.png",
+      "bytes": 3751,
+      "sha256": "956b4afc7cdd98cc937b04d1037d2ba0f2330c26b1a7f1c67aff65603a1a0dcc"
+    },
+    "assets/flags/circle-png/lk.png": {
+      "path": "assets/flags/circle-png/lk.png",
+      "bytes": 5957,
+      "sha256": "5346af2934d3e65aa1e96119bbf9417ba41bb5a68cbf58ab0cd831e8d887b0ab"
+    },
+    "assets/flags/circle-png/lr.png": {
+      "path": "assets/flags/circle-png/lr.png",
+      "bytes": 2804,
+      "sha256": "9d5d2bd38f04f44b8620c54f80997b38dc3c9c05a26d01ed0ab5e0f389157ffd"
+    },
+    "assets/flags/circle-png/ls.png": {
+      "path": "assets/flags/circle-png/ls.png",
+      "bytes": 3124,
+      "sha256": "162c2750adfdb250aee1ff70e21d5c35c740597b1bcc9647c20835bd2641b391"
+    },
+    "assets/flags/circle-png/lt.png": {
+      "path": "assets/flags/circle-png/lt.png",
+      "bytes": 1961,
+      "sha256": "8f766262e7858830a7797269553b51cac5be5e9d5c08073f31dde29639b91b68"
+    },
+    "assets/flags/circle-png/lu.png": {
+      "path": "assets/flags/circle-png/lu.png",
+      "bytes": 1937,
+      "sha256": "676059553d5f31025f0f48cd45774693a0348e128a48f835a469daf394f372b2"
+    },
+    "assets/flags/circle-png/lv.png": {
+      "path": "assets/flags/circle-png/lv.png",
+      "bytes": 2034,
+      "sha256": "44e2bf34ce55ad771dd23822e2350452670311255b853d340938a07c2f7736ea"
+    },
+    "assets/flags/circle-png/ly.png": {
+      "path": "assets/flags/circle-png/ly.png",
+      "bytes": 3208,
+      "sha256": "f86e48bcf62625d0380f3f09c8f400a7fff94d5911ad2a1baa9217142d91df33"
+    },
+    "assets/flags/circle-png/ma.png": {
+      "path": "assets/flags/circle-png/ma.png",
+      "bytes": 3105,
+      "sha256": "065818d9e237ec69985463fc1c594a97611b0bdf856109c6d5c8fb15ffb8fb6f"
+    },
+    "assets/flags/circle-png/mc.png": {
+      "path": "assets/flags/circle-png/mc.png",
+      "bytes": 1973,
+      "sha256": "42159b6ae44becd2e2195dd0c60d349eed46a6da255ff0d58e7697f42826bda4"
+    },
+    "assets/flags/circle-png/md.png": {
+      "path": "assets/flags/circle-png/md.png",
+      "bytes": 3531,
+      "sha256": "3adbdbe0882a43b473775a3d0b89f950eb85c56bb42965e7760df9ed9e75e13d"
+    },
+    "assets/flags/circle-png/me.png": {
+      "path": "assets/flags/circle-png/me.png",
+      "bytes": 4480,
+      "sha256": "263dbb6ba2df52b341e351c52649fffafb23e89d86858f28eab08a90c5bdb74e"
+    },
+    "assets/flags/circle-png/mf.png": {
+      "path": "assets/flags/circle-png/mf.png",
+      "bytes": 1948,
+      "sha256": "bd0d8f4cdb55608dcdd55e1180feacd4cf7f66193248cde13182ffd93476b59f"
+    },
+    "assets/flags/circle-png/mg.png": {
+      "path": "assets/flags/circle-png/mg.png",
+      "bytes": 1946,
+      "sha256": "a88d66e73a0c706e58abbf6fa9516c69bbfa3ec88e14cfdb07863481351abc52"
+    },
+    "assets/flags/circle-png/mh.png": {
+      "path": "assets/flags/circle-png/mh.png",
+      "bytes": 6981,
+      "sha256": "7d9ff24983543757c32d02c0aaf3351e6161540818b7215306315dbe900e7a73"
+    },
+    "assets/flags/circle-png/mk.png": {
+      "path": "assets/flags/circle-png/mk.png",
+      "bytes": 6570,
+      "sha256": "8598ce0b293f9f3c2d66026f33cd983d262bd3867e375fe66e7ae4a3f98ac8a4"
+    },
+    "assets/flags/circle-png/ml.png": {
+      "path": "assets/flags/circle-png/ml.png",
+      "bytes": 2001,
+      "sha256": "af9ecb4c4afdd149e9285ba8bfa7758edbbe8a36093d9d693dde9dcde2e99c59"
+    },
+    "assets/flags/circle-png/mm.png": {
+      "path": "assets/flags/circle-png/mm.png",
+      "bytes": 3649,
+      "sha256": "2df4ed4236193c4214708e544972af01f09f0719cd6ad70b320db2a9b6a4fa7b"
+    },
+    "assets/flags/circle-png/mn.png": {
+      "path": "assets/flags/circle-png/mn.png",
+      "bytes": 4114,
+      "sha256": "23008dff558306b529acb493b83820e1809c557cadd7d1c9538cc1c2ac4d777b"
+    },
+    "assets/flags/circle-png/mo.png": {
+      "path": "assets/flags/circle-png/mo.png",
+      "bytes": 6462,
+      "sha256": "5a11452ed045ac986b59f8f9ed1826fb066dbb672ab4a94815b99af89ae7815e"
+    },
+    "assets/flags/circle-png/mp.png": {
+      "path": "assets/flags/circle-png/mp.png",
+      "bytes": 8080,
+      "sha256": "4fd954879933c9313bbbf54850bede4cbf2bb0a277c2345b074b0f1c1265336b"
+    },
+    "assets/flags/circle-png/mq.png": {
+      "path": "assets/flags/circle-png/mq.png",
+      "bytes": 8031,
+      "sha256": "14ef665f74fb5449ad3fc027d8d9834caf8bc8d8964091b57b7198c8ba5c4723"
+    },
+    "assets/flags/circle-png/mr.png": {
+      "path": "assets/flags/circle-png/mr.png",
+      "bytes": 3818,
+      "sha256": "b550e06762591860e95af0690e97597226e4aa3bb7eab77bf1b15ce9bbc3349f"
+    },
+    "assets/flags/circle-png/ms.png": {
+      "path": "assets/flags/circle-png/ms.png",
+      "bytes": 6187,
+      "sha256": "ac8df82840ef44ccf4682b1a8548f8506ef87a756af76be155162a4354ee3be6"
+    },
+    "assets/flags/circle-png/mt.png": {
+      "path": "assets/flags/circle-png/mt.png",
+      "bytes": 2833,
+      "sha256": "02e4e67235b35eb431f2f329e8ec8688460a1c36f798775b8e154f85e7a18344"
+    },
+    "assets/flags/circle-png/mu.png": {
+      "path": "assets/flags/circle-png/mu.png",
+      "bytes": 1941,
+      "sha256": "f2d230e6492e675b4a3c2467c4bfc1b11b38d43551d6dd0dbd8c2b3f5c0692d8"
+    },
+    "assets/flags/circle-png/mv.png": {
+      "path": "assets/flags/circle-png/mv.png",
+      "bytes": 2734,
+      "sha256": "e98f80fa01107cde97f4b6591a785559b34ddb315429a8a6365553ec601040b5"
+    },
+    "assets/flags/circle-png/mw.png": {
+      "path": "assets/flags/circle-png/mw.png",
+      "bytes": 3755,
+      "sha256": "00093961702f83de69f00264656ac8b530b0859dfd5fa6e8827103e498fcf622"
+    },
+    "assets/flags/circle-png/mx.png": {
+      "path": "assets/flags/circle-png/mx.png",
+      "bytes": 5770,
+      "sha256": "e5b9e9371bf5a62b2f915a15370608d2e774b32c276c1a77acdcd32ab0a25d37"
+    },
+    "assets/flags/circle-png/my.png": {
+      "path": "assets/flags/circle-png/my.png",
+      "bytes": 4103,
+      "sha256": "80042a07e0284b3dd10d6f8281d0003177868808ef86f90bed80862caa1dd232"
+    },
+    "assets/flags/circle-png/mz.png": {
+      "path": "assets/flags/circle-png/mz.png",
+      "bytes": 5320,
+      "sha256": "acb74c9b40855865666ca9db0fe5e6df27d365acf76cc1c8fcc9107ed35b8895"
+    },
+    "assets/flags/circle-png/na.png": {
+      "path": "assets/flags/circle-png/na.png",
+      "bytes": 8427,
+      "sha256": "bfb0a48f2d8f9c9cbc99c4335f4b5943ccfb454cdd1a11e4162c66ad244eb9fb"
+    },
+    "assets/flags/circle-png/nc.png": {
+      "path": "assets/flags/circle-png/nc.png",
+      "bytes": 6039,
+      "sha256": "799d436b9ef4d733dfb62d1ba8d4006dbbf2c1d59f870934c9410002a3ce2389"
+    },
+    "assets/flags/circle-png/ne.png": {
+      "path": "assets/flags/circle-png/ne.png",
+      "bytes": 2555,
+      "sha256": "e281dfe6a56e0c24e4fec4375d9a8c6b2a114afb0328fdec71d10139c6eaa740"
+    },
+    "assets/flags/circle-png/nf.png": {
+      "path": "assets/flags/circle-png/nf.png",
+      "bytes": 5330,
+      "sha256": "b69cd89111e1c91410de5ab0d0594505bb1128bca3dab578a1cffcc8380da008"
+    },
+    "assets/flags/circle-png/ng.png": {
+      "path": "assets/flags/circle-png/ng.png",
+      "bytes": 1920,
+      "sha256": "7358d99288ae8b23a97264facd0eb8e61dbee64650f98d654e3ac4e4b77fc763"
+    },
+    "assets/flags/circle-png/ni.png": {
+      "path": "assets/flags/circle-png/ni.png",
+      "bytes": 4161,
+      "sha256": "26345831cf19f191fd03ee6b4532ca8e91e1a383253483b6dfc527ad2032fe86"
+    },
+    "assets/flags/circle-png/nl.png": {
+      "path": "assets/flags/circle-png/nl.png",
+      "bytes": 2016,
+      "sha256": "345143cf4aeff1894c31443aed24270a40d8ceb111b8c9a3c42f18cd5fc86d7d"
+    },
+    "assets/flags/circle-png/no.png": {
+      "path": "assets/flags/circle-png/no.png",
+      "bytes": 2074,
+      "sha256": "2894791b68f0f447dace84b736ef443ef07363cce19e152696dba4c69ce840ca"
+    },
+    "assets/flags/circle-png/np.png": {
+      "path": "assets/flags/circle-png/np.png",
+      "bytes": 4450,
+      "sha256": "8e5a32ddc5e799b99d489eaa96771bbb33fe0c5949a2dd72f3d551037276fffa"
+    },
+    "assets/flags/circle-png/nr.png": {
+      "path": "assets/flags/circle-png/nr.png",
+      "bytes": 3277,
+      "sha256": "ce1611146956809dee81e0fdc6f03c0b322dfc642f21d22868b1af8fbb1cc781"
+    },
+    "assets/flags/circle-png/nu.png": {
+      "path": "assets/flags/circle-png/nu.png",
+      "bytes": 5957,
+      "sha256": "73aa1abc2f22f8e57eeba2a68640218cc55164f60cf4b9a7320f87ff62a49a2c"
+    },
+    "assets/flags/circle-png/nz.png": {
+      "path": "assets/flags/circle-png/nz.png",
+      "bytes": 6246,
+      "sha256": "637f559ae7df5213b41282446da276826f85a5f4db080353137d845f2411b30a"
+    },
+    "assets/flags/circle-png/om.png": {
+      "path": "assets/flags/circle-png/om.png",
+      "bytes": 2707,
+      "sha256": "8d28a94a1656de3724c666f965e4edbe025a87212cb93792b8b0c283acdbfc61"
+    },
+    "assets/flags/circle-png/pa.png": {
+      "path": "assets/flags/circle-png/pa.png",
+      "bytes": 3061,
+      "sha256": "8f73bb2a7c1a7b0140a8d5f5f83384512f016aa146cafb9497b8912877b34909"
+    },
+    "assets/flags/circle-png/pe.png": {
+      "path": "assets/flags/circle-png/pe.png",
+      "bytes": 1980,
+      "sha256": "f060270a4051b228bbdead2c7526e0bab9c919eb9d2611eda0cf8e623ea9ce04"
+    },
+    "assets/flags/circle-png/pf.png": {
+      "path": "assets/flags/circle-png/pf.png",
+      "bytes": 4913,
+      "sha256": "2d5288a28897e147f87b144b8413646ccde96fe32533582ea4bfa23bd6a80105"
+    },
+    "assets/flags/circle-png/pg.png": {
+      "path": "assets/flags/circle-png/pg.png",
+      "bytes": 6715,
+      "sha256": "8aa40e7e1cb3f903feb847e8d1f2a51994a69cbc60eb083029c83b56081ac73a"
+    },
+    "assets/flags/circle-png/ph.png": {
+      "path": "assets/flags/circle-png/ph.png",
+      "bytes": 5812,
+      "sha256": "77ce77f3aa32a1c942c4ee750249279d6699c43363c2b60f5936fe5d7c758cf3"
+    },
+    "assets/flags/circle-png/pk.png": {
+      "path": "assets/flags/circle-png/pk.png",
+      "bytes": 4570,
+      "sha256": "c59de2f145d2433bb8201b9fae87c4bae39e43d5c19f724dbc1968d5da5187ba"
+    },
+    "assets/flags/circle-png/pl.png": {
+      "path": "assets/flags/circle-png/pl.png",
+      "bytes": 1963,
+      "sha256": "bd5f37ed962b4ebe04d96051dd02562cd3fa91eea7cff054390cea9b61e99d78"
+    },
+    "assets/flags/circle-png/pm.png": {
+      "path": "assets/flags/circle-png/pm.png",
+      "bytes": 14748,
+      "sha256": "bbbdc32ec07277ae5b2f4d5226566d7085f7186dedb4a2d8fc35015640e84544"
+    },
+    "assets/flags/circle-png/pn.png": {
+      "path": "assets/flags/circle-png/pn.png",
+      "bytes": 8328,
+      "sha256": "f46af4a79a3252119c172b7523b43a13ed5c78bcea21ea8f8e771b2a086644be"
+    },
+    "assets/flags/circle-png/pr.png": {
+      "path": "assets/flags/circle-png/pr.png",
+      "bytes": 3989,
+      "sha256": "c9d6173f9919357c74a25c32ab42da97d07cac4037fa396d447e4f72ab78ba78"
+    },
+    "assets/flags/circle-png/ps.png": {
+      "path": "assets/flags/circle-png/ps.png",
+      "bytes": 3011,
+      "sha256": "f636ec7c4b9a0e5a3b85b91090600023b667f9bb70bf88a3097b6cdeefc4072e"
+    },
+    "assets/flags/circle-png/pt.png": {
+      "path": "assets/flags/circle-png/pt.png",
+      "bytes": 5716,
+      "sha256": "efc3933e434929f717e9ee5d6a6612ea98bfa19a1ca655146a69a3df065e2225"
+    },
+    "assets/flags/circle-png/pw.png": {
+      "path": "assets/flags/circle-png/pw.png",
+      "bytes": 3251,
+      "sha256": "6de33004bfa55c62a321efe7ecf002ac1a401383ae43cbbf16f9a14f3cb0d8d9"
+    },
+    "assets/flags/circle-png/py.png": {
+      "path": "assets/flags/circle-png/py.png",
+      "bytes": 4732,
+      "sha256": "03c928cbabccd219a8a8a4904f79d67ce2becf1f29b08f83abaa298ba76c638e"
+    },
+    "assets/flags/circle-png/qa.png": {
+      "path": "assets/flags/circle-png/qa.png",
+      "bytes": 4310,
+      "sha256": "c5b34bd975dd5d58e16bc41935ef7c58a79ef7bf5058d3b00b7968e5a7d45aae"
+    },
+    "assets/flags/circle-png/re.png": {
+      "path": "assets/flags/circle-png/re.png",
+      "bytes": 6696,
+      "sha256": "ce0c236e690faa961240677871df3865b309cf8ec654c3251a0913da36b83a60"
+    },
+    "assets/flags/circle-png/ro.png": {
+      "path": "assets/flags/circle-png/ro.png",
+      "bytes": 1954,
+      "sha256": "af6596442db07c73b94d2972842fe18915e2ff46b615f2aed780230a9d8b74a4"
+    },
+    "assets/flags/circle-png/rs.png": {
+      "path": "assets/flags/circle-png/rs.png",
+      "bytes": 6052,
+      "sha256": "8af7883f9a06088bad55b9567fa5dcc3e2a26515d178dceb67b1ce9cc3be166f"
+    },
+    "assets/flags/circle-png/ru.png": {
+      "path": "assets/flags/circle-png/ru.png",
+      "bytes": 1970,
+      "sha256": "e6e727b519454ecaecb9c51e5d85231603240a2d5a50af75f323b6b88c42e67c"
+    },
+    "assets/flags/circle-png/rw.png": {
+      "path": "assets/flags/circle-png/rw.png",
+      "bytes": 7380,
+      "sha256": "21a975054f217d70511550171a39ccaa0d6198d751fa1a4ace5c45c8e15ef0de"
+    },
+    "assets/flags/circle-png/sa.png": {
+      "path": "assets/flags/circle-png/sa.png",
+      "bytes": 8352,
+      "sha256": "6b5b9c1924958192dbd769da3ed1e2c89a2182713a7778159f704f60bb924e60"
+    },
+    "assets/flags/circle-png/sb.png": {
+      "path": "assets/flags/circle-png/sb.png",
+      "bytes": 6472,
+      "sha256": "a3f4b83b29f2b5917b64a7a0f03082cf848acde18119715df157270873beda8a"
+    },
+    "assets/flags/circle-png/sc.png": {
+      "path": "assets/flags/circle-png/sc.png",
+      "bytes": 5790,
+      "sha256": "b68d8290ae5c030efe5c2212fa782157be0bd80d476498b3e0709f545706302e"
+    },
+    "assets/flags/circle-png/sd.png": {
+      "path": "assets/flags/circle-png/sd.png",
+      "bytes": 3064,
+      "sha256": "172afac378563fb814882daf23f4dbbe8f1b8338748743105bb4933a6d82389e"
+    },
+    "assets/flags/circle-png/se.png": {
+      "path": "assets/flags/circle-png/se.png",
+      "bytes": 1936,
+      "sha256": "875827c80401b7dbeac1d2922aae71d5fe375b1d5d9cc691f7ef38bcab9e96d2"
+    },
+    "assets/flags/circle-png/sg.png": {
+      "path": "assets/flags/circle-png/sg.png",
+      "bytes": 3456,
+      "sha256": "76c28adef389b9b4a4a2a0a8340830dd36cc755b1910179821f89c91cddd74ba"
+    },
+    "assets/flags/circle-png/sh.png": {
+      "path": "assets/flags/circle-png/sh.png",
+      "bytes": 7383,
+      "sha256": "f89d85797752451748ffcfea5bc5be27b699cda58774e98d7fa548b056adc1fd"
+    },
+    "assets/flags/circle-png/si.png": {
+      "path": "assets/flags/circle-png/si.png",
+      "bytes": 3876,
+      "sha256": "6cab5f5889e614ca435355cb3b5d3bc8df979760854551bc2cbf54a3dede2150"
+    },
+    "assets/flags/circle-png/sj.png": {
+      "path": "assets/flags/circle-png/sj.png",
+      "bytes": 2074,
+      "sha256": "2894791b68f0f447dace84b736ef443ef07363cce19e152696dba4c69ce840ca"
+    },
+    "assets/flags/circle-png/sk.png": {
+      "path": "assets/flags/circle-png/sk.png",
+      "bytes": 4109,
+      "sha256": "21c5c4dc813de1bd0c7807e14d069cdcfd44a4cecc42c29f44b7743d06c7f20a"
+    },
+    "assets/flags/circle-png/sl.png": {
+      "path": "assets/flags/circle-png/sl.png",
+      "bytes": 1951,
+      "sha256": "8238735342ac3f2b875d31a2d65961650dc105bb0075978dc5264465502e6047"
+    },
+    "assets/flags/circle-png/sm.png": {
+      "path": "assets/flags/circle-png/sm.png",
+      "bytes": 6078,
+      "sha256": "0675a0271e620520ef3acf4da9fe9bc3e9ad77caeb3e90f7718800c3d31da53f"
+    },
+    "assets/flags/circle-png/sn.png": {
+      "path": "assets/flags/circle-png/sn.png",
+      "bytes": 2476,
+      "sha256": "1ca420343de27f8ab0ef882493ddacadee5f77261436824ce3a4f910c3b7bc96"
+    },
+    "assets/flags/circle-png/so.png": {
+      "path": "assets/flags/circle-png/so.png",
+      "bytes": 3033,
+      "sha256": "a4f71c2f119e8ae1ccbdc92ebb27b11147a8a8ea8733e0dcae24d9d4b6769db9"
+    },
+    "assets/flags/circle-png/sr.png": {
+      "path": "assets/flags/circle-png/sr.png",
+      "bytes": 3027,
+      "sha256": "9fb1a79d1187bbc0708ade4f5e9515986354226885557c1102450bda5e5e8f49"
+    },
+    "assets/flags/circle-png/ss.png": {
+      "path": "assets/flags/circle-png/ss.png",
+      "bytes": 3873,
+      "sha256": "38cb170e13a3701e4f7893ea2707f13b7ad8cca3e4de328b41c5635734c8c7c4"
+    },
+    "assets/flags/circle-png/st.png": {
+      "path": "assets/flags/circle-png/st.png",
+      "bytes": 3554,
+      "sha256": "dc70c25ff400787223bddc2d158668fa796698a6a436c2c7072ee8c713a97214"
+    },
+    "assets/flags/circle-png/sv.png": {
+      "path": "assets/flags/circle-png/sv.png",
+      "bytes": 4683,
+      "sha256": "8ce2c393764cc67d03642c97b80424592a885f9480fde4fb46c5018b205a2be5"
+    },
+    "assets/flags/circle-png/sx.png": {
+      "path": "assets/flags/circle-png/sx.png",
+      "bytes": 5709,
+      "sha256": "e437d521d1446df79fea27fe575089f85627d956d829a413accfca5dd55c376b"
+    },
+    "assets/flags/circle-png/sy.png": {
+      "path": "assets/flags/circle-png/sy.png",
+      "bytes": 2911,
+      "sha256": "dc2e2cdd191f24e27195bbc5e4cce2c6622e4c850cd2f6f0a96069c0795a1a9f"
+    },
+    "assets/flags/circle-png/sz.png": {
+      "path": "assets/flags/circle-png/sz.png",
+      "bytes": 6125,
+      "sha256": "c666dabf5490547625c08906ff708757a7ff3f1177ed6fba5b41cd041276acc9"
+    },
+    "assets/flags/circle-png/ta.png": {
+      "path": "assets/flags/circle-png/ta.png",
+      "bytes": 10599,
+      "sha256": "5195572c923db210d6b06377d17fbd02bcd06aa2e4a94b20cb6a8d4c1f00a3d1"
+    },
+    "assets/flags/circle-png/tc.png": {
+      "path": "assets/flags/circle-png/tc.png",
+      "bytes": 6844,
+      "sha256": "aa6f276aaae078c1f955245239558d7c9c6709123a0e02672e517172acfa9e69"
+    },
+    "assets/flags/circle-png/td.png": {
+      "path": "assets/flags/circle-png/td.png",
+      "bytes": 1948,
+      "sha256": "5bab53e39e7d239260c0d0fea21477d750bc231d6fd49119acd513cab277c723"
+    },
+    "assets/flags/circle-png/tf.png": {
+      "path": "assets/flags/circle-png/tf.png",
+      "bytes": 4290,
+      "sha256": "f0a534050ddcce64faba60d08c02db91d99f99d6c5a9be27664e577580b06fae"
+    },
+    "assets/flags/circle-png/tg.png": {
+      "path": "assets/flags/circle-png/tg.png",
+      "bytes": 2894,
+      "sha256": "66e667ea082c4e5f037b42ec0fcb088baa3a4f8202b213448c297c0565d2eab3"
+    },
+    "assets/flags/circle-png/th.png": {
+      "path": "assets/flags/circle-png/th.png",
+      "bytes": 2030,
+      "sha256": "335c26fd3e0eb8d3f7ab7677b54f029852776dfc258ad1a2f48cad6ade5451ba"
+    },
+    "assets/flags/circle-png/tj.png": {
+      "path": "assets/flags/circle-png/tj.png",
+      "bytes": 3727,
+      "sha256": "227c71717876dd8e7f849fd1e7bf328e760f528d2add11e16762957ff8efdf57"
+    },
+    "assets/flags/circle-png/tk.png": {
+      "path": "assets/flags/circle-png/tk.png",
+      "bytes": 4640,
+      "sha256": "c6a787dc1b9367ef252c7872f8a9ccee0488a8642511fce93942d116c04e6d72"
+    },
+    "assets/flags/circle-png/tl.png": {
+      "path": "assets/flags/circle-png/tl.png",
+      "bytes": 5213,
+      "sha256": "e6425c08e3baf0f13f0f1eaf7ba9c3e9665ba6f10c1019b0d387fd9941b16013"
+    },
+    "assets/flags/circle-png/tm.png": {
+      "path": "assets/flags/circle-png/tm.png",
+      "bytes": 8179,
+      "sha256": "003976e4bef601526f2fc62bcd398f83cd03346e271b6988b6cc65b4dae521d7"
+    },
+    "assets/flags/circle-png/tn.png": {
+      "path": "assets/flags/circle-png/tn.png",
+      "bytes": 4400,
+      "sha256": "419fa4ab24d96c8db3711c6b5ab631ce8d5cf0064544c99e951ec61a9b6cb328"
+    },
+    "assets/flags/circle-png/to.png": {
+      "path": "assets/flags/circle-png/to.png",
+      "bytes": 1917,
+      "sha256": "2da96a879b0954f5128b352a158802cfe6e4da9726aaeda5feb71b1e95dee67f"
+    },
+    "assets/flags/circle-png/tr.png": {
+      "path": "assets/flags/circle-png/tr.png",
+      "bytes": 3922,
+      "sha256": "34e5caf12b64e4b2e87841efa5e45b48b138a2009bd6e3292d42983ecce204fc"
+    },
+    "assets/flags/circle-png/tt.png": {
+      "path": "assets/flags/circle-png/tt.png",
+      "bytes": 7329,
+      "sha256": "e278ba6eeb11d02dedfba42b9547994eba16744570242acf7b5ea47729a944d8"
+    },
+    "assets/flags/circle-png/tv.png": {
+      "path": "assets/flags/circle-png/tv.png",
+      "bytes": 7854,
+      "sha256": "bf9cf890380bc4ecc3e8c5b94afcfbfa07252e95cfc67582e2489ce3fdf51f77"
+    },
+    "assets/flags/circle-png/tw.png": {
+      "path": "assets/flags/circle-png/tw.png",
+      "bytes": 4051,
+      "sha256": "77d769e5bc252e7abd82d130ee1a0ddc7317fb73917a1c99afce592b07dcf826"
+    },
+    "assets/flags/circle-png/tz.png": {
+      "path": "assets/flags/circle-png/tz.png",
+      "bytes": 6601,
+      "sha256": "a38369db61e8134313ec29544ec78ea5aba88edc91bd7381ee35ef58fc91637b"
+    },
+    "assets/flags/circle-png/ua.png": {
+      "path": "assets/flags/circle-png/ua.png",
+      "bytes": 1877,
+      "sha256": "2641d884ec98a97d3bea7d97f8d5c087cc93dd2c13177c2de91a8ae35192b7f5"
+    },
+    "assets/flags/circle-png/ug.png": {
+      "path": "assets/flags/circle-png/ug.png",
+      "bytes": 3645,
+      "sha256": "314919a110fea93b3a85aa7633e07382751214207992eb025e71239b461579e2"
+    },
+    "assets/flags/circle-png/um.png": {
+      "path": "assets/flags/circle-png/um.png",
+      "bytes": 4797,
+      "sha256": "996ba9ff8991b8c4ba138df97de60819f378a2d17275c39fd7a50774d2b7762f"
+    },
+    "assets/flags/circle-png/un.png": {
+      "path": "assets/flags/circle-png/un.png",
+      "bytes": 10860,
+      "sha256": "bf24d33297b570c6bcb288ad644946b3000c3d24533674213efb89fff20c8049"
+    },
+    "assets/flags/circle-png/us.png": {
+      "path": "assets/flags/circle-png/us.png",
+      "bytes": 4797,
+      "sha256": "996ba9ff8991b8c4ba138df97de60819f378a2d17275c39fd7a50774d2b7762f"
+    },
+    "assets/flags/circle-png/uy.png": {
+      "path": "assets/flags/circle-png/uy.png",
+      "bytes": 4629,
+      "sha256": "bc3a9817b9369f35ceb5d9c37be5ad857eeac2630d889bb222448d36bff62241"
+    },
+    "assets/flags/circle-png/uz.png": {
+      "path": "assets/flags/circle-png/uz.png",
+      "bytes": 3497,
+      "sha256": "6e1cbe5d6873695b8d84633f1d7834da4a3954211532a940f109ae1129ad1e85"
+    },
+    "assets/flags/circle-png/va.png": {
+      "path": "assets/flags/circle-png/va.png",
+      "bytes": 5199,
+      "sha256": "4cc8b4f1000a0540d17720688c1db178a3f305d63468f8fc7e97a086024dbd25"
+    },
+    "assets/flags/circle-png/vc.png": {
+      "path": "assets/flags/circle-png/vc.png",
+      "bytes": 3505,
+      "sha256": "59495f2ff6a78465282f63943db29309ed6d5026b27bcd7f7f218b61cd1d148c"
+    },
+    "assets/flags/circle-png/ve.png": {
+      "path": "assets/flags/circle-png/ve.png",
+      "bytes": 3593,
+      "sha256": "a429ab80fe14909c3477159b4b1612978a96909f67074dda84a7d01b7fc821e3"
+    },
+    "assets/flags/circle-png/vg.png": {
+      "path": "assets/flags/circle-png/vg.png",
+      "bytes": 9003,
+      "sha256": "f59de035d2703759e492c0704d2dae5b54063b116112e881dac590e221f21715"
+    },
+    "assets/flags/circle-png/vi.png": {
+      "path": "assets/flags/circle-png/vi.png",
+      "bytes": 8830,
+      "sha256": "e10f44058e4666eeae81c0e0e1435b71fe61b610fd00299d4aa57a0b681a30b5"
+    },
+    "assets/flags/circle-png/vn.png": {
+      "path": "assets/flags/circle-png/vn.png",
+      "bytes": 3096,
+      "sha256": "67cebd607ab34ad33030e675bbf8afe7479a9753f8047f7bbe3f2fef0d0333a2"
+    },
+    "assets/flags/circle-png/vu.png": {
+      "path": "assets/flags/circle-png/vu.png",
+      "bytes": 5582,
+      "sha256": "d1aa9e598b7011c352acc6445ed7dcfc8a19bcf7a3455b5c701116e6dae82426"
+    },
+    "assets/flags/circle-png/wf.png": {
+      "path": "assets/flags/circle-png/wf.png",
+      "bytes": 3109,
+      "sha256": "74b8ddaeb357123811cf17fda1bbbf3ddb39465c4e176aa6d894ad9189e5c8c9"
+    },
+    "assets/flags/circle-png/ws.png": {
+      "path": "assets/flags/circle-png/ws.png",
+      "bytes": 3471,
+      "sha256": "5215cf1c612a23d7826af8e7441af5f0770d24bfa8712bd5b07d7b568c034fb3"
+    },
+    "assets/flags/circle-png/xk.png": {
+      "path": "assets/flags/circle-png/xk.png",
+      "bytes": 5153,
+      "sha256": "75b381b4104298c7251689572b1037b9fbdabfe875a1ae85a047f167e43ef939"
+    },
+    "assets/flags/circle-png/ye.png": {
+      "path": "assets/flags/circle-png/ye.png",
+      "bytes": 1987,
+      "sha256": "b853bf032a770a4850c42b0b1a3ca959f53ad0b1fea45b39c3bcffb3c4812c5f"
+    },
+    "assets/flags/circle-png/yt.png": {
+      "path": "assets/flags/circle-png/yt.png",
+      "bytes": 9748,
+      "sha256": "428bfa032c69d785ae093edf02552ef81c50ec8e2fcaefb56e340ca48c247d0a"
+    },
+    "assets/flags/circle-png/za.png": {
+      "path": "assets/flags/circle-png/za.png",
+      "bytes": 6091,
+      "sha256": "4677b6a21afcd9f6e9228f1c61d0fc7cfeadb61e864441ba4834b833bf1f4387"
+    },
+    "assets/flags/circle-png/zm.png": {
+      "path": "assets/flags/circle-png/zm.png",
+      "bytes": 2551,
+      "sha256": "e32adc9be93f908ea580a8e7e79014b5f1ed46df6231aaf78139f6e053262bad"
+    },
+    "assets/flags/circle-png/zw.png": {
+      "path": "assets/flags/circle-png/zw.png",
+      "bytes": 6062,
+      "sha256": "5d172236f6362865d22f235d2229f4cfe75f733c1c2f62d1be1d21e847976ce3"
+    },
+    "assets/flags/ck.svg": {
+      "path": "assets/flags/ck.svg",
+      "bytes": 2308,
+      "sha256": "e46f92a10a93ae572805f8cdbf28dd97f471addb0fe8bedb1750be828a7edefb"
+    },
+    "assets/flags/cl.svg": {
+      "path": "assets/flags/cl.svg",
+      "bytes": 521,
+      "sha256": "ec23ee46eeb42a80108bc249a6bb2214ec44f150647466e57468ebf35e145dc3"
+    },
+    "assets/flags/cm.svg": {
+      "path": "assets/flags/cm.svg",
+      "bytes": 500,
+      "sha256": "618bf566a0cc2e55882bf9964559f038da8717e9a62adc3eda80713c0c9150ba"
+    },
+    "assets/flags/cn.svg": {
+      "path": "assets/flags/cn.svg",
+      "bytes": 696,
+      "sha256": "4db67ee7fc03992f7c0d6cc737441c67aac931442267bf896cd78d4c3e97ddcd"
+    },
+    "assets/flags/co.svg": {
+      "path": "assets/flags/co.svg",
+      "bytes": 271,
+      "sha256": "2f99409d72075c8d0360b2631e86a7be4a07b89f9413e98dd41738ff2c4b536e"
+    },
+    "assets/flags/cp.svg": {
+      "path": "assets/flags/cp.svg",
+      "bytes": 270,
+      "sha256": "861059eae96aea4c38466209edfad68fbd84ada37bae4ccac92d03011046a524"
+    },
+    "assets/flags/cr.svg": {
+      "path": "assets/flags/cr.svg",
+      "bytes": 873,
+      "sha256": "2c8f6672ea23ada62e37e20d29884ded49cc571783c1da2a56bca0b3b5cf502b"
+    },
+    "assets/flags/cu.svg": {
+      "path": "assets/flags/cu.svg",
+      "bytes": 532,
+      "sha256": "dbadc73925508a5e5d9ec2eff9cce03ae7fbe3b50fc898e888ae48e82755b71e"
+    },
+    "assets/flags/cv.svg": {
+      "path": "assets/flags/cv.svg",
+      "bytes": 1240,
+      "sha256": "0a388f40656fb3780d6c928608bb196a433fa47366b9eda5bd33ad92966ee475"
+    },
+    "assets/flags/cw.svg": {
+      "path": "assets/flags/cw.svg",
+      "bytes": 704,
+      "sha256": "818673f1d94454813ecdd1985b505dda82949a0b309591e624ae4777714e23f9"
+    },
+    "assets/flags/cx.svg": {
+      "path": "assets/flags/cx.svg",
+      "bytes": 1896,
+      "sha256": "62117f399fa5c904ae532e8f7c8b6d3d385afd7bd7673c4968aa0d71dd1c67d0"
+    },
+    "assets/flags/cy.svg": {
+      "path": "assets/flags/cy.svg",
+      "bytes": 7597,
+      "sha256": "d32ba1af147b74ea7fda2ca1b1581bb1f8d0989b29d09637984f35f8237ec239"
+    },
+    "assets/flags/cz.svg": {
+      "path": "assets/flags/cz.svg",
+      "bytes": 393,
+      "sha256": "6e5815141a3e2e1f0f7a80d99c8692ee94663db42506d76c19d2f518c492a192"
+    },
+    "assets/flags/de.svg": {
+      "path": "assets/flags/de.svg",
+      "bytes": 271,
+      "sha256": "8e3c8f938c6fc4fc97c81f398a71d0d789b44b6be458469d7056372a2c05837a"
+    },
+    "assets/flags/dg.svg": {
+      "path": "assets/flags/dg.svg",
+      "bytes": 9060,
+      "sha256": "63f2a60c1bf7bba0bbaeb22d97541fa4df0797c8479fb460f600b2466921f82c"
+    },
+    "assets/flags/dj.svg": {
+      "path": "assets/flags/dj.svg",
+      "bytes": 511,
+      "sha256": "c1081c1cd6dbfc2d45a948a55f49223dd4d2ea6c37041c27b04287125e497fe4"
+    },
+    "assets/flags/dk.svg": {
+      "path": "assets/flags/dk.svg",
+      "bytes": 306,
+      "sha256": "06b118400bcb2eb1117f84ebcb16cd7fa8fa5fd4e15f43e5ff237910a25136af"
+    },
+    "assets/flags/dm.svg": {
+      "path": "assets/flags/dm.svg",
+      "bytes": 4023,
+      "sha256": "11e36109dd74a942e6194055512cd1f152509f2831984e3c19eadcbec87a8bef"
+    },
+    "assets/flags/do.svg": {
+      "path": "assets/flags/do.svg",
+      "bytes": 11369,
+      "sha256": "10e5813321c3b70efda50783eb367238c1c36d5a2bedf5c6ae3706eeb4d8dfbc"
+    },
+    "assets/flags/dz.svg": {
+      "path": "assets/flags/dz.svg",
+      "bytes": 629,
+      "sha256": "95920003643bda2571f0ab23f1667820df012cc1c15dd3a24bced4e51b84536b"
+    },
+    "assets/flags/ea.svg": {
+      "path": "assets/flags/ea.svg",
+      "bytes": 629,
+      "sha256": "f8cf69e4d0d285ff8e9be18f239b65e38fe1a235086a8daae53b1baa1e7a3557"
+    },
+    "assets/flags/ec.svg": {
+      "path": "assets/flags/ec.svg",
+      "bytes": 1963,
+      "sha256": "5901f4b62723112f7fd0fbca9c7359f2d47071c62f5a42dbce5e0ca0084e56f7"
+    },
+    "assets/flags/ee.svg": {
+      "path": "assets/flags/ee.svg",
+      "bytes": 270,
+      "sha256": "e7404af4c6f6412c3623a4bdb962ff4a320d610046235294c79864f50c306128"
+    },
+    "assets/flags/eg.svg": {
+      "path": "assets/flags/eg.svg",
+      "bytes": 3081,
+      "sha256": "886ebdcc3d27dbc5e0fe50a66ca693ec7ea15a90099a5087d11fc96b94262635"
+    },
+    "assets/flags/eh.svg": {
+      "path": "assets/flags/eh.svg",
+      "bytes": 749,
+      "sha256": "92ecd0f650b6681a6dc3bf5a0f6e1744829b0c68a7ca3c17d7a4f550e114d7a1"
+    },
+    "assets/flags/er.svg": {
+      "path": "assets/flags/er.svg",
+      "bytes": 3422,
+      "sha256": "5c7767ac46a9483fa9befe37e7e810787bc8b1a062784a03cb79b1475f0766aa"
+    },
+    "assets/flags/es.svg": {
+      "path": "assets/flags/es.svg",
+      "bytes": 629,
+      "sha256": "f8cf69e4d0d285ff8e9be18f239b65e38fe1a235086a8daae53b1baa1e7a3557"
+    },
+    "assets/flags/et.svg": {
+      "path": "assets/flags/et.svg",
+      "bytes": 1034,
+      "sha256": "1b8f70df8f3b58cd4539fbd4b395194e0b33333016ad8fa0f0064d38f02d4185"
+    },
+    "assets/flags/eu.svg": {
+      "path": "assets/flags/eu.svg",
+      "bytes": 1280,
+      "sha256": "8826daac160252ec5a3242fa37081c8e255efaffaa2c228b8499338e7e8dfa0c"
+    },
+    "assets/flags/fi.svg": {
+      "path": "assets/flags/fi.svg",
+      "bytes": 356,
+      "sha256": "70e7c385670d1e278f588b8724d87458e4073920bf605ffecc25871ec0d62828"
+    },
+    "assets/flags/fj.svg": {
+      "path": "assets/flags/fj.svg",
+      "bytes": 6039,
+      "sha256": "ef35cecbff7a8c09e3538f3f612db3134ec3f3e7691813dcf686b5ccb7aa40a9"
+    },
+    "assets/flags/fk.svg": {
+      "path": "assets/flags/fk.svg",
+      "bytes": 6222,
+      "sha256": "0f290cac82258abc4c00d9e50db0444b5af23851725472e7f20aedbc41613b0a"
+    },
+    "assets/flags/fm.svg": {
+      "path": "assets/flags/fm.svg",
+      "bytes": 615,
+      "sha256": "d64a9e6a8bee9dd829ff49bcbc01d522c23bd66cbc69a68b70c42277c22d0031"
+    },
+    "assets/flags/fo.svg": {
+      "path": "assets/flags/fo.svg",
+      "bytes": 503,
+      "sha256": "1f976ffbe4d006d8461e81bb4f3645884d52ac3777507239e7ef9415c00e64ca"
+    },
+    "assets/flags/fr.svg": {
+      "path": "assets/flags/fr.svg",
+      "bytes": 270,
+      "sha256": "861059eae96aea4c38466209edfad68fbd84ada37bae4ccac92d03011046a524"
+    },
+    "assets/flags/ga.svg": {
+      "path": "assets/flags/ga.svg",
+      "bytes": 271,
+      "sha256": "01ef41e2b724b0916dcd56fff35a5107b64451cf50824e9e3a93a7c3a01f35cd"
+    },
+    "assets/flags/gb.svg": {
+      "path": "assets/flags/gb.svg",
+      "bytes": 1183,
+      "sha256": "5ff2f32ed6905d887f7d771029c1e65b1ef059e92260b548908cabb4e886bf19"
+    },
+    "assets/flags/gd.svg": {
+      "path": "assets/flags/gd.svg",
+      "bytes": 1392,
+      "sha256": "6b213790a8bf16791617c4a59b30e2004d45ea47d722c4a207bc1cff76e63f9b"
+    },
+    "assets/flags/ge.svg": {
+      "path": "assets/flags/ge.svg",
+      "bytes": 1918,
+      "sha256": "6f8ea71c949b79153399c80d260e1900d1214bd160d671080c7f09883596f9e2"
+    },
+    "assets/flags/gf.svg": {
+      "path": "assets/flags/gf.svg",
+      "bytes": 603,
+      "sha256": "5112b084ce36745fb2257422eb8b7727211c74b5cfc8c4c100717060b0d96c07"
+    },
+    "assets/flags/gg.svg": {
+      "path": "assets/flags/gg.svg",
+      "bytes": 354,
+      "sha256": "fc6ff3920a29a37b9449de62131d5ed3f5cb2df901858be8fa2f824b79cfe708"
+    },
+    "assets/flags/gh.svg": {
+      "path": "assets/flags/gh.svg",
+      "bytes": 618,
+      "sha256": "bba01aacf4eee8d45cedf8bc78f22470f21e7bb4afe0e56fd42f4c66536fef66"
+    },
+    "assets/flags/gi.svg": {
+      "path": "assets/flags/gi.svg",
+      "bytes": 2461,
+      "sha256": "65491d3d7e1ba6c983275a6c2b4f74e6f7e5b620411e26a6aafeac80e5bb6063"
+    },
+    "assets/flags/gl.svg": {
+      "path": "assets/flags/gl.svg",
+      "bytes": 353,
+      "sha256": "ea02c282e3867b2fb98a0bce0c17c05103e935b616d90377cf49f7d594e6d48b"
+    },
+    "assets/flags/gm.svg": {
+      "path": "assets/flags/gm.svg",
+      "bytes": 320,
+      "sha256": "79828d4aae52942c309dafaff4307f40436a882f0fc44e9f8f169c4143a48c2f"
+    },
+    "assets/flags/gn.svg": {
+      "path": "assets/flags/gn.svg",
+      "bytes": 272,
+      "sha256": "5597fe3e6dc57f1870240d59b56fb8232c5fcf1513395c2241b0f8580bbe3ff3"
+    },
+    "assets/flags/gp.svg": {
+      "path": "assets/flags/gp.svg",
+      "bytes": 5625,
+      "sha256": "03fcfc684ae76c3fd223a96ea7735ae9a3a6491095e59f869d46c794a1f9a91f"
+    },
+    "assets/flags/gq.svg": {
+      "path": "assets/flags/gq.svg",
+      "bytes": 4105,
+      "sha256": "3a5b9868edaeab2f6301e4305744b1ed468263aebcd9c5cefb202a278bdd2060"
+    },
+    "assets/flags/gr.svg": {
+      "path": "assets/flags/gr.svg",
+      "bytes": 747,
+      "sha256": "974c57b8fc316bec01281ea4e434b49510b9743e524441accc9875393b75907b"
+    },
+    "assets/flags/gs.svg": {
+      "path": "assets/flags/gs.svg",
+      "bytes": 8861,
+      "sha256": "ffe30dad920e33a3e3f30b925d267fb234cf1df240c7a1b21ae950ce4e1f12af"
+    },
+    "assets/flags/gt.svg": {
+      "path": "assets/flags/gt.svg",
+      "bytes": 9114,
+      "sha256": "15060143721c0baf335576d626a034b09128f82520387897622c2b92bc35cf5f"
+    },
+    "assets/flags/gu.svg": {
+      "path": "assets/flags/gu.svg",
+      "bytes": 7679,
+      "sha256": "7ed66a12a97c5e590fe6a65cda06868ab76693ae7b3ea1d81a6a61166f2f0480"
+    },
+    "assets/flags/gw.svg": {
+      "path": "assets/flags/gw.svg",
+      "bytes": 500,
+      "sha256": "2d61af8116c2acadb3c4d864e025b8d5d8c147477c65a7f5ff3057f8ff0903e7"
+    },
+    "assets/flags/gy.svg": {
+      "path": "assets/flags/gy.svg",
+      "bytes": 634,
+      "sha256": "73c21c0a3d15c54903915619975201b511ea2dbbc17321ab76f8c63c48aefbeb"
+    },
+    "assets/flags/hk.svg": {
+      "path": "assets/flags/hk.svg",
+      "bytes": 5461,
+      "sha256": "09e586e201b74726d54719f55abcce9d08f96feb7c8c1ef33256097f4f865cfb"
+    },
+    "assets/flags/hm.svg": {
+      "path": "assets/flags/hm.svg",
+      "bytes": 1669,
+      "sha256": "c6f7dc707ca937c5efef2f23af04755ac0ee5813e21c9061d7ddf719e8ef4b27"
+    },
+    "assets/flags/hn.svg": {
+      "path": "assets/flags/hn.svg",
+      "bytes": 722,
+      "sha256": "00ad9e8eacc29b5f37c313e8b19ba857e5ecd4c8dc69392aeee6789693ae0833"
+    },
+    "assets/flags/hr.svg": {
+      "path": "assets/flags/hr.svg",
+      "bytes": 1495,
+      "sha256": "fa133f821bf706804ad764b354384ba7112562dc60c32d671292af001239f366"
+    },
+    "assets/flags/ht.svg": {
+      "path": "assets/flags/ht.svg",
+      "bytes": 4544,
+      "sha256": "f7f12cdb27fb0c7b63cb523d050f493d8c75fe4dfbfff2cba6c372e23a8a8b23"
+    },
+    "assets/flags/hu.svg": {
+      "path": "assets/flags/hu.svg",
+      "bytes": 268,
+      "sha256": "7fcfe9fddc288541d2f907331bae47f172e5d08c9a96b443194bcfc31f1528e7"
+    },
+    "assets/flags/ic.svg": {
+      "path": "assets/flags/ic.svg",
+      "bytes": 5627,
+      "sha256": "ff974f0818bcc816b534a481d82a012f5d08989233d2cc8be95ad18736ca9094"
+    },
+    "assets/flags/id.svg": {
+      "path": "assets/flags/id.svg",
+      "bytes": 230,
+      "sha256": "b2cdbc08b75ed3621492758e61fa8d19b22e9ed2fcd799d4c544e2c0d3ed3a90"
+    },
+    "assets/flags/ie.svg": {
+      "path": "assets/flags/ie.svg",
+      "bytes": 269,
+      "sha256": "8c74dc998f9242503f42537e619dd6539e34036fe701172113cf833cd5a434d1"
+    },
+    "assets/flags/il.svg": {
+      "path": "assets/flags/il.svg",
+      "bytes": 1186,
+      "sha256": "5b44da97607108fd31f0828b84ab10f78ee705f30340185d46b866cc20bb48e9"
+    },
+    "assets/flags/im.svg": {
+      "path": "assets/flags/im.svg",
+      "bytes": 1834,
+      "sha256": "f76d8f9bc212472b994e5a6c1e29dde15e0f91125606dcef86707b6ee36c8e71"
+    },
+    "assets/flags/in.svg": {
+      "path": "assets/flags/in.svg",
+      "bytes": 2301,
+      "sha256": "aa82222076d0dd86dc6f37947faf10333212886549a33c4fcf6b44141b702018"
+    },
+    "assets/flags/io.svg": {
+      "path": "assets/flags/io.svg",
+      "bytes": 9060,
+      "sha256": "63f2a60c1bf7bba0bbaeb22d97541fa4df0797c8479fb460f600b2466921f82c"
+    },
+    "assets/flags/iq.svg": {
+      "path": "assets/flags/iq.svg",
+      "bytes": 1472,
+      "sha256": "255c31a947684d5d1192a4e6308440e3bef7c5ce38970c66fa47849bd011ba61"
+    },
+    "assets/flags/ir.svg": {
+      "path": "assets/flags/ir.svg",
+      "bytes": 27099,
+      "sha256": "aa37d2514374a2ce60cd46e6249daa4763688ddb0a6a07f8a418f5ed17db5b8d"
+    },
+    "assets/flags/is.svg": {
+      "path": "assets/flags/is.svg",
+      "bytes": 459,
+      "sha256": "2f46c9ae14098409087b31a1386b1a7f531e6e66228890c1984d63be24923405"
+    },
+    "assets/flags/it.svg": {
+      "path": "assets/flags/it.svg",
+      "bytes": 270,
+      "sha256": "41b974254f3dd5b0853af7585c0417998a1ffa52e97e000fe2af3eee2c916d57"
+    },
+    "assets/flags/je.svg": {
+      "path": "assets/flags/je.svg",
+      "bytes": 10354,
+      "sha256": "3392a4be9935cc618e469e82ec59f114b8ef3af6717c85abab660f0e625cc55e"
+    },
+    "assets/flags/jm.svg": {
+      "path": "assets/flags/jm.svg",
+      "bytes": 707,
+      "sha256": "c43fd49855b67dab91b261958d286494c2ebf70a04d717cfdf9eb83aedc33cf8"
+    },
+    "assets/flags/jo.svg": {
+      "path": "assets/flags/jo.svg",
+      "bytes": 570,
+      "sha256": "3782c50440adb0ab58261a9b9d49e9635b949afa2d3912d83e6e1bf043cff02c"
+    },
+    "assets/flags/jp.svg": {
+      "path": "assets/flags/jp.svg",
+      "bytes": 234,
+      "sha256": "b964f3dd88f2596555a34c7ca3dc575aa061fa455256f0bcbfffaa62ee771c7b"
+    },
+    "assets/flags/ke.svg": {
+      "path": "assets/flags/ke.svg",
+      "bytes": 2615,
+      "sha256": "af9becbd4b015a57d82968257376266f5add0f7de9a37931d7e971d49ed68ce7"
+    },
+    "assets/flags/kg.svg": {
+      "path": "assets/flags/kg.svg",
+      "bytes": 4981,
+      "sha256": "55d4ab3cf4677b5b99066e589c49a07daa37ab3309895cb284fa72dec69aeef4"
+    },
+    "assets/flags/kh.svg": {
+      "path": "assets/flags/kh.svg",
+      "bytes": 1576,
+      "sha256": "7956b59c23893565e4a37ced989c66528ec98c91dc8e2499843ffae94c57916e"
+    },
+    "assets/flags/ki.svg": {
+      "path": "assets/flags/ki.svg",
+      "bytes": 4766,
+      "sha256": "c54a6046fb043725a530367f53c7166916f34fce4928af1840e15a2fe2e4c80f"
+    },
+    "assets/flags/km.svg": {
+      "path": "assets/flags/km.svg",
+      "bytes": 1009,
+      "sha256": "137b89866ab5b8b5ed3bc11c4f9d7db377fccc39ca7300f983d50ff4a16bd0c0"
+    },
+    "assets/flags/kn.svg": {
+      "path": "assets/flags/kn.svg",
+      "bytes": 665,
+      "sha256": "6f57c635f38699ba608e44fa2f4a90e3ae630bd4c71d746a3f53e35cae825696"
+    },
+    "assets/flags/kp.svg": {
+      "path": "assets/flags/kp.svg",
+      "bytes": 532,
+      "sha256": "f68a00d1cf1bba9eb38e650adc9a69d641815d69335935aefe66554e97441990"
+    },
+    "assets/flags/kr.svg": {
+      "path": "assets/flags/kr.svg",
+      "bytes": 1457,
+      "sha256": "f69a22143e7948606729b9195cb0fa16993642322f9e21cd84533b28e8083ee7"
+    },
+    "assets/flags/kw.svg": {
+      "path": "assets/flags/kw.svg",
+      "bytes": 393,
+      "sha256": "b1be648018e3a6c695ec455399418955798400781a485bb1fe46f82341bae4b0"
+    },
+    "assets/flags/ky.svg": {
+      "path": "assets/flags/ky.svg",
+      "bytes": 6994,
+      "sha256": "942bc243cac8927ec115045a0a33a7154649476c8811b180b195851a42f9d19e"
+    },
+    "assets/flags/kz.svg": {
+      "path": "assets/flags/kz.svg",
+      "bytes": 26578,
+      "sha256": "74204cec9a303c5c7016c55016013651e877027b322eacce2808f63c70e5626e"
+    },
+    "assets/flags/la.svg": {
+      "path": "assets/flags/la.svg",
+      "bytes": 355,
+      "sha256": "701b3288e767de7315a4054c70bf9fd0a6114e5b0c6ae4d2d0d1236a39e79656"
+    },
+    "assets/flags/lb.svg": {
+      "path": "assets/flags/lb.svg",
+      "bytes": 6185,
+      "sha256": "30938a99393e6cd39c19b0935e3877335ded2ec38b1349a2864e2168f1a578e9"
+    },
+    "assets/flags/lc.svg": {
+      "path": "assets/flags/lc.svg",
+      "bytes": 411,
+      "sha256": "4733518580cacafaa9a8ad8691e5fa8b45f0f0f1d5a1c4b85efb1c6a684b8861"
+    },
+    "assets/flags/li.svg": {
+      "path": "assets/flags/li.svg",
+      "bytes": 2412,
+      "sha256": "51e57f3d0b77f24d8ec01dd033eeca155a29bedc7f3c2ff13b2f4241ae2fefb8"
+    },
+    "assets/flags/LICENSE-GRAPHICS": {
+      "path": "assets/flags/LICENSE-GRAPHICS",
+      "bytes": 18917,
+      "sha256": "f7c011ea2361bca6404b53a3e4d7ae8f9ca2d5abdc3916f83787789e71029d07"
+    },
+    "assets/flags/lk.svg": {
+      "path": "assets/flags/lk.svg",
+      "bytes": 4054,
+      "sha256": "b302b68e3ab00a40f02e396e10488771f216d7a829cc550a764a00a9955d6684"
+    },
+    "assets/flags/lr.svg": {
+      "path": "assets/flags/lr.svg",
+      "bytes": 759,
+      "sha256": "803432622cad86b33447eab44e2ae00adc32c421b4e9256ca213b58786a2f653"
+    },
+    "assets/flags/ls.svg": {
+      "path": "assets/flags/ls.svg",
+      "bytes": 1171,
+      "sha256": "a7cbe892cc64c98e79e9063b7f8b4b91831c25410ba178d77b0729c5e6c9c0da"
+    },
+    "assets/flags/lt.svg": {
+      "path": "assets/flags/lt.svg",
+      "bytes": 271,
+      "sha256": "e34822d8ba1bf22f4427535b9d05b6f82e9dbf39e0469d60ff0d541c1c740c23"
+    },
+    "assets/flags/lu.svg": {
+      "path": "assets/flags/lu.svg",
+      "bytes": 268,
+      "sha256": "13f7573c6833107fc9e812b1e07b2f9a5091e401db98a43d87720160b50187ed"
+    },
+    "assets/flags/lv.svg": {
+      "path": "assets/flags/lv.svg",
+      "bytes": 242,
+      "sha256": "7dcad2a895b1a5052dffeae69fcdbf52934fa0bfb65e072c83d7a3cfd5765336"
+    },
+    "assets/flags/ly.svg": {
+      "path": "assets/flags/ly.svg",
+      "bytes": 988,
+      "sha256": "f083af764e1bd723fff8bfaca3f0f091c11e3708bc3a6ebb8c1734fa02f114cb"
+    },
+    "assets/flags/ma.svg": {
+      "path": "assets/flags/ma.svg",
+      "bytes": 584,
+      "sha256": "0e1c14077f0be35a860efc9f479bb475a0f2ed88fb6c49ac6fc306ebdf1db12c"
+    },
+    "assets/flags/mc.svg": {
+      "path": "assets/flags/mc.svg",
+      "bytes": 228,
+      "sha256": "bffb9589212e9c11659d95a3eb8bd372b884104d60ab4360ec19597b4e24c38a"
+    },
+    "assets/flags/md.svg": {
+      "path": "assets/flags/md.svg",
+      "bytes": 1070,
+      "sha256": "365190fa3fbc702c78056b9e6a71c8cccdb4346c589cccc2b8a675f976224d45"
+    },
+    "assets/flags/me.svg": {
+      "path": "assets/flags/me.svg",
+      "bytes": 2666,
+      "sha256": "9c553fa509dd1bc90cf6ec3d2359c04c497fc5651b982debb3a9b1e429bbd911"
+    },
+    "assets/flags/mf.svg": {
+      "path": "assets/flags/mf.svg",
+      "bytes": 270,
+      "sha256": "861059eae96aea4c38466209edfad68fbd84ada37bae4ccac92d03011046a524"
+    },
+    "assets/flags/mg.svg": {
+      "path": "assets/flags/mg.svg",
+      "bytes": 275,
+      "sha256": "ca4b65626ae0d8c304ce0c3a25389362cb49456458f64f725896649106373f0a"
+    },
+    "assets/flags/mh.svg": {
+      "path": "assets/flags/mh.svg",
+      "bytes": 867,
+      "sha256": "6dd006e20e2cf4080ef079448bc0400ff0e84dd1d1f9432084e353edec01dfab"
+    },
+    "assets/flags/mk.svg": {
+      "path": "assets/flags/mk.svg",
+      "bytes": 1187,
+      "sha256": "353c404b159b8bf9d1a4960e58dd69aa9f184ba28a38be8a4d4873ee04d26d52"
+    },
+    "assets/flags/ml.svg": {
+      "path": "assets/flags/ml.svg",
+      "bytes": 272,
+      "sha256": "f1889f06e8fe6f4128ebf8de845e98e142b537012c1c779d43c56929054edd55"
+    },
+    "assets/flags/mm.svg": {
+      "path": "assets/flags/mm.svg",
+      "bytes": 396,
+      "sha256": "5eea94e181f43b22a4db0c8e5d045d3097d17f9c71f7c9e07af78e6cccb25549"
+    },
+    "assets/flags/mn.svg": {
+      "path": "assets/flags/mn.svg",
+      "bytes": 1586,
+      "sha256": "6a9a3c437949130efaa26d2bef6b82e61a7ce9108454e71ca17135efc58150ec"
+    },
+    "assets/flags/mo.svg": {
+      "path": "assets/flags/mo.svg",
+      "bytes": 4772,
+      "sha256": "6bed33268c7c7c7df80afd14e996cd3c11b280c83bb3422d5edabe79d4a91609"
+    },
+    "assets/flags/mp.svg": {
+      "path": "assets/flags/mp.svg",
+      "bytes": 24056,
+      "sha256": "968a1088b4ecaf9310b0c80ddb5f2c9fdcb805a10cc0d9e94bdd61ef0d52413c"
+    },
+    "assets/flags/mq.svg": {
+      "path": "assets/flags/mq.svg",
+      "bytes": 3376,
+      "sha256": "d0ece2fdb1b0cda159b5e6617c69f252e5fefb4c36101b18913dce0407072724"
+    },
+    "assets/flags/mr.svg": {
+      "path": "assets/flags/mr.svg",
+      "bytes": 620,
+      "sha256": "ee8e1b41f9c2590b41a10f8c90932c96cefd99e7d057fdb66137844139083699"
+    },
+    "assets/flags/ms.svg": {
+      "path": "assets/flags/ms.svg",
+      "bytes": 6858,
+      "sha256": "60028af5735a8a9deae9341d2b386cf40ba4fa74365079ed04b9f608580d2119"
+    },
+    "assets/flags/mt.svg": {
+      "path": "assets/flags/mt.svg",
+      "bytes": 3101,
+      "sha256": "44ae7582c7eb02fb122ed1d2f361d5e4cf8143a9948f93a00815835de29b75e6"
+    },
+    "assets/flags/mu.svg": {
+      "path": "assets/flags/mu.svg",
+      "bytes": 323,
+      "sha256": "8d798ea030fda62e595a6f74b3c7861c5fd242bdbc68e8b2098163a0b5a338be"
+    },
+    "assets/flags/mv.svg": {
+      "path": "assets/flags/mv.svg",
+      "bytes": 446,
+      "sha256": "eceffc1c2ed429957b8ea66e90127993f6645d33e2342d63771857e8c97e7fe8"
+    },
+    "assets/flags/mw.svg": {
+      "path": "assets/flags/mw.svg",
+      "bytes": 911,
+      "sha256": "6b54824965271af17cbbfcba718233a052e11350aeb1f309f8fa8be4dafd07c4"
+    },
+    "assets/flags/mx.svg": {
+      "path": "assets/flags/mx.svg",
+      "bytes": 9660,
+      "sha256": "1f969e7c85f68cca244b373f6c4e20f1b88e24b0a458d331505aa97599002225"
+    },
+    "assets/flags/my.svg": {
+      "path": "assets/flags/my.svg",
+      "bytes": 1046,
+      "sha256": "5b88174c2a23482987d743b96a03052c9c9c9c86c85da52b5c5392d896c2d9f5"
+    },
+    "assets/flags/mz.svg": {
+      "path": "assets/flags/mz.svg",
+      "bytes": 1480,
+      "sha256": "75c5bdfd45fb65b27b1bca2f37ce0dfde1556e38bb5dc3eaa65520fde07ef40c"
+    },
+    "assets/flags/na.svg": {
+      "path": "assets/flags/na.svg",
+      "bytes": 931,
+      "sha256": "7fe033cc38e2b6edac2473643e0ad67d941d5c2126b8fa1e9b2a723d07ad01e3"
+    },
+    "assets/flags/nc.svg": {
+      "path": "assets/flags/nc.svg",
+      "bytes": 1747,
+      "sha256": "682a48d724ff324ae8a1d6076dd43bf41f8cf32e37714543c24880726c5b6261"
+    },
+    "assets/flags/ne.svg": {
+      "path": "assets/flags/ne.svg",
+      "bytes": 317,
+      "sha256": "33b6f03a7be0bfcc788819b26d98955c335b3b22eabb317b98d293aeca54791f"
+    },
+    "assets/flags/nf.svg": {
+      "path": "assets/flags/nf.svg",
+      "bytes": 14687,
+      "sha256": "7344b34c53da22a5489f63243fa85208804724bcd0d24631214a9173fafa532f"
+    },
+    "assets/flags/ng.svg": {
+      "path": "assets/flags/ng.svg",
+      "bytes": 269,
+      "sha256": "e7c1c101989a04e6815b06701be39969408083e2d5d70494da47dd8452275788"
+    },
+    "assets/flags/ni.svg": {
+      "path": "assets/flags/ni.svg",
+      "bytes": 2190,
+      "sha256": "9677704c50a71af04915040135e5be738dad118773b08613190c2ccf0e8aa55b"
+    },
+    "assets/flags/nl.svg": {
+      "path": "assets/flags/nl.svg",
+      "bytes": 268,
+      "sha256": "db0e83001003d382a9a626f6b4218bfb53e0f3c4fb72b0e08d397e046b99fcb0"
+    },
+    "assets/flags/no.svg": {
+      "path": "assets/flags/no.svg",
+      "bytes": 459,
+      "sha256": "b757b0ce5e1342e346d6ace2e11ac38252f5dd1d20a62c3b2e608a8254ceb292"
+    },
+    "assets/flags/NOTICE.md": {
+      "path": "reference-docs/assets/flags/NOTICE.md.source",
+      "bytes": 505,
+      "sha256": "6b93c4881232c99bfe95907223b461f86e0da8062df06a9a9e879e11b7b174dc"
+    },
+    "assets/flags/np.svg": {
+      "path": "assets/flags/np.svg",
+      "bytes": 726,
+      "sha256": "ccf04776d07d31ca99af18f4584d4619996c1189a1442e82b71dfbbd069b2779"
+    },
+    "assets/flags/nr.svg": {
+      "path": "assets/flags/nr.svg",
+      "bytes": 522,
+      "sha256": "3a08c97cab3642c95bf9280e70a4255e37cea84c07d15683e9cf35a112e9ca5a"
+    },
+    "assets/flags/nu.svg": {
+      "path": "assets/flags/nu.svg",
+      "bytes": 1439,
+      "sha256": "e0181295d027fa2793b220a102c7f4826f31aea9cf5d5474185398a63337f460"
+    },
+    "assets/flags/nz.svg": {
+      "path": "assets/flags/nz.svg",
+      "bytes": 2049,
+      "sha256": "059031818ee688fedf165be91da6d6852a529ae88277ea0467acba00b9970539"
+    },
+    "assets/flags/om.svg": {
+      "path": "assets/flags/om.svg",
+      "bytes": 1211,
+      "sha256": "220428e944c9ef0f1b8a7894faf70845924fc1cc29e8db2555dba78abe970f1a"
+    },
+    "assets/flags/pa.svg": {
+      "path": "assets/flags/pa.svg",
+      "bytes": 557,
+      "sha256": "e8bbf0442bb7b3232e80e2ad8fe3f69d48fbd0914fa576ddb3ab2cdbdf5c65a4"
+    },
+    "assets/flags/pe.svg": {
+      "path": "assets/flags/pe.svg",
+      "bytes": 269,
+      "sha256": "90ebb6493f3afbd28484353a824ab02b9b4bbedf8017483b7cc2183ca02aaf23"
+    },
+    "assets/flags/pf.svg": {
+      "path": "assets/flags/pf.svg",
+      "bytes": 5224,
+      "sha256": "929161a47b9ea65d588480751807fe93e5cbe4a26dd79a80c7be194247c72a0c"
+    },
+    "assets/flags/pg.svg": {
+      "path": "assets/flags/pg.svg",
+      "bytes": 2815,
+      "sha256": "018e30a41eca0b9972c76a6873933107ee3a522cf2180fb7b4ce1a6164ab1c4e"
+    },
+    "assets/flags/ph.svg": {
+      "path": "assets/flags/ph.svg",
+      "bytes": 1925,
+      "sha256": "fb49e84cc5339444134b0096df022f3926a691f0cd3a9febaab0dafd8b8d295d"
+    },
+    "assets/flags/pk.svg": {
+      "path": "assets/flags/pk.svg",
+      "bytes": 894,
+      "sha256": "3fee83363617ac388bd277fd358668e1930a4022560c2670db96937fa8a0afd9"
+    },
+    "assets/flags/pl.svg": {
+      "path": "assets/flags/pl.svg",
+      "bytes": 228,
+      "sha256": "9f82a0527b8126056d5717789e98aaa33e07c9defae573be6d29e26a7d0ea168"
+    },
+    "assets/flags/pm.svg": {
+      "path": "assets/flags/pm.svg",
+      "bytes": 13650,
+      "sha256": "22035abf3f5e7ecdf0fe62b69109a6f867c7ef0bf1cc245a760081c4b6cef200"
+    },
+    "assets/flags/pn.svg": {
+      "path": "assets/flags/pn.svg",
+      "bytes": 6054,
+      "sha256": "440b20f1a8ea847ccc9ef1d7db1578195acc8856e95600c194b010c574e7fe90"
+    },
+    "assets/flags/pr.svg": {
+      "path": "assets/flags/pr.svg",
+      "bytes": 694,
+      "sha256": "9f307b7a7e8d4363f1497697cf664f3bcee8d747932a7d69cd95dc816c9acc54"
+    },
+    "assets/flags/ps.svg": {
+      "path": "assets/flags/ps.svg",
+      "bytes": 396,
+      "sha256": "9ec253d5f88871eeb1938a94543beaa7b84e7e4831335292938f7eeb5825e987"
+    },
+    "assets/flags/pt.svg": {
+      "path": "assets/flags/pt.svg",
+      "bytes": 1445,
+      "sha256": "3054e3bbce0d049b0ab3d157a16b24f7a572a7a45e73d342e3b7b8d5f28f0a4b"
+    },
+    "assets/flags/pw.svg": {
+      "path": "assets/flags/pw.svg",
+      "bytes": 237,
+      "sha256": "ccda8065bcf41bfc4b3a8c399d0e1309f123875def2dce8d882801a3f7635356"
+    },
+    "assets/flags/py.svg": {
+      "path": "assets/flags/py.svg",
+      "bytes": 2282,
+      "sha256": "baafa56b580d617564ddebe84a2f0610eedf0ae464f0029c6ee36272ae469d65"
+    },
+    "assets/flags/qa.svg": {
+      "path": "assets/flags/qa.svg",
+      "bytes": 422,
+      "sha256": "ca7c3d0b2cf93b10c3a4d857b8dd6bdc4d5293bf2ac857c0104f67b58361131e"
+    },
+    "assets/flags/re.svg": {
+      "path": "assets/flags/re.svg",
+      "bytes": 535,
+      "sha256": "b4eddccbe2d1498f43ec5039bebec0a7bd99b2277ed1fa3c3973a156b34de8f9"
+    },
+    "assets/flags/ro.svg": {
+      "path": "assets/flags/ro.svg",
+      "bytes": 272,
+      "sha256": "8defcfb0f63bbc42b9f857ac138c89dc76609b2c5eb685cfb9d1cf3de9618ab7"
+    },
+    "assets/flags/rs.svg": {
+      "path": "assets/flags/rs.svg",
+      "bytes": 6227,
+      "sha256": "7b206afba0601c5869d6f4cf7bcb72f1360499eecf79b3038cf6a917c79089cb"
+    },
+    "assets/flags/ru.svg": {
+      "path": "assets/flags/ru.svg",
+      "bytes": 271,
+      "sha256": "c120796701b12f5a9869de1fa4f4bfe41cb9127582e27e9fb6e951637a475168"
+    },
+    "assets/flags/rw.svg": {
+      "path": "assets/flags/rw.svg",
+      "bytes": 950,
+      "sha256": "b5a90dbe179a8e25537838696518520a9a1f90e54b04397d8cd30ea21c23cde6"
+    },
+    "assets/flags/sa.svg": {
+      "path": "assets/flags/sa.svg",
+      "bytes": 12286,
+      "sha256": "04e499d316ad07ab9f23f58306b76e0b877f14acce9230a91293cf6a6103e7aa"
+    },
+    "assets/flags/sb.svg": {
+      "path": "assets/flags/sb.svg",
+      "bytes": 1954,
+      "sha256": "0c2a0620ce1b6ad8f31d5e87823da975745eb7dcf1169ae7ee041d1452368f51"
+    },
+    "assets/flags/sc.svg": {
+      "path": "assets/flags/sc.svg",
+      "bytes": 599,
+      "sha256": "640d8be679745208880815080a89b84147e433b993c82466f637d5dfa9efd4c8"
+    },
+    "assets/flags/sd.svg": {
+      "path": "assets/flags/sd.svg",
+      "bytes": 396,
+      "sha256": "237a6a7e07e9afe67ad1fef475264fd8ba324c6c75a7903d9d7d4b97badb3b34"
+    },
+    "assets/flags/se.svg": {
+      "path": "assets/flags/se.svg",
+      "bytes": 352,
+      "sha256": "77fbedc853461f7050d45aee2c27f6cfe98665a08745cb0389becf0061781ada"
+    },
+    "assets/flags/sg.svg": {
+      "path": "assets/flags/sg.svg",
+      "bytes": 881,
+      "sha256": "b122668cf7bc7f858a7fcb3089d34e181550cb6f9acdd1f6b6ff160849e4b061"
+    },
+    "assets/flags/sh.svg": {
+      "path": "assets/flags/sh.svg",
+      "bytes": 4802,
+      "sha256": "d3b591809646498294333ecdf642bb25c93eb008ebe57904b386dc5e4d29f961"
+    },
+    "assets/flags/si.svg": {
+      "path": "assets/flags/si.svg",
+      "bytes": 1710,
+      "sha256": "0dd45ff3fbc9a3a86329334bebb40aea892b6dfbe52b93ec0b6d2c386e8bf033"
+    },
+    "assets/flags/sj.svg": {
+      "path": "assets/flags/sj.svg",
+      "bytes": 459,
+      "sha256": "b757b0ce5e1342e346d6ace2e11ac38252f5dd1d20a62c3b2e608a8254ceb292"
+    },
+    "assets/flags/sk.svg": {
+      "path": "assets/flags/sk.svg",
+      "bytes": 1738,
+      "sha256": "4de1c4413d0a6a168999c600a3139462fe2c906f518b309321d361a077b10501"
+    },
+    "assets/flags/sl.svg": {
+      "path": "assets/flags/sl.svg",
+      "bytes": 268,
+      "sha256": "f9a202e6fb78b554c262a2029d703e4e32c8726e478c7c00442ffdbc54569def"
+    },
+    "assets/flags/sm.svg": {
+      "path": "assets/flags/sm.svg",
+      "bytes": 6308,
+      "sha256": "bd83f92bda5072d4a026fa74f3b11b7be0723068b57569b6a38363a02a84e836"
+    },
+    "assets/flags/sn.svg": {
+      "path": "assets/flags/sn.svg",
+      "bytes": 404,
+      "sha256": "8b599d9ce19d84824f660c0c039c8ebf3bf5a9d8eed7343cfa73445192cfece5"
+    },
+    "assets/flags/so.svg": {
+      "path": "assets/flags/so.svg",
+      "bytes": 328,
+      "sha256": "f70109bae024df03e4c286f03306d0d3acb1b7e6651eef94483359bc905b5074"
+    },
+    "assets/flags/sr.svg": {
+      "path": "assets/flags/sr.svg",
+      "bytes": 602,
+      "sha256": "fcec5fd35ba34f8d3c24ef1480c712cb907382c07e8c1001294ba515a9ba1e18"
+    },
+    "assets/flags/ss.svg": {
+      "path": "assets/flags/ss.svg",
+      "bytes": 576,
+      "sha256": "31d79a76b1bb985873e56e13532851a1aff081b60e5aceef42f345db9b1eac15"
+    },
+    "assets/flags/st.svg": {
+      "path": "assets/flags/st.svg",
+      "bytes": 568,
+      "sha256": "c863ed4eba1c0855845afd69ef7de80b256fac4f6648a2f1e4e5071cbe6e03fe"
+    },
+    "assets/flags/sv.svg": {
+      "path": "assets/flags/sv.svg",
+      "bytes": 3976,
+      "sha256": "3726d4c9023cc898859ef9b07488cc4373895a4332d8c3ea0ac9c2f20486e58e"
+    },
+    "assets/flags/sx.svg": {
+      "path": "assets/flags/sx.svg",
+      "bytes": 2869,
+      "sha256": "f4477f76d8b914f788adc6c174f252964513a013ad3f00a4ed96eaf89b98c9d6"
+    },
+    "assets/flags/sy.svg": {
+      "path": "assets/flags/sy.svg",
+      "bytes": 511,
+      "sha256": "3f3376c07f956fb88c2734fb9996094e5c3466d6a26217052a236f6ebd1b59be"
+    },
+    "assets/flags/sz.svg": {
+      "path": "assets/flags/sz.svg",
+      "bytes": 4460,
+      "sha256": "7f28551dd24d7c8945f39a390658a30840639ac2d460958d428090533938c65a"
+    },
+    "assets/flags/ta.svg": {
+      "path": "assets/flags/ta.svg",
+      "bytes": 10296,
+      "sha256": "06bb64dc494f3258e321ca1c9619292a1547d95f69e6329ae59a856bb7119736"
+    },
+    "assets/flags/tc.svg": {
+      "path": "assets/flags/tc.svg",
+      "bytes": 4717,
+      "sha256": "38874f03442c147096784bfc603c4d6b598dc89cb9ebb960881905bb0f18989b"
+    },
+    "assets/flags/td.svg": {
+      "path": "assets/flags/td.svg",
+      "bytes": 272,
+      "sha256": "e6b5cea6b25d91676059561019292b01fa9e377dac2398683fe88164f9bb8b2e"
+    },
+    "assets/flags/tf.svg": {
+      "path": "assets/flags/tf.svg",
+      "bytes": 1097,
+      "sha256": "69e0a9056c61092a95cd6ca1da62db944d200e1d5cf3d490dd3d9fe8a720f377"
+    },
+    "assets/flags/tg.svg": {
+      "path": "assets/flags/tg.svg",
+      "bytes": 579,
+      "sha256": "57286517a6d67a1735eb531cc8f83b4b4bfe86c66fda9a2fa8a445e1adf6b6d6"
+    },
+    "assets/flags/th.svg": {
+      "path": "assets/flags/th.svg",
+      "bytes": 382,
+      "sha256": "6253a87f1dc0ff3125589a57bb632f89b6f4ef11017639ecb2ac25566bc9d015"
+    },
+    "assets/flags/tj.svg": {
+      "path": "assets/flags/tj.svg",
+      "bytes": 2052,
+      "sha256": "5f35c3b311d53a48085f6ba660d49ab2cd5f869bf2372597704511ccdf2260ad"
+    },
+    "assets/flags/tk.svg": {
+      "path": "assets/flags/tk.svg",
+      "bytes": 775,
+      "sha256": "b72c0641a6806efeed47cd904dc70883bbdf42bffe33c9649fd06cfd18c674f7"
+    },
+    "assets/flags/tl.svg": {
+      "path": "assets/flags/tl.svg",
+      "bytes": 576,
+      "sha256": "1116c64975162b20e43a3cc0aab018c62492f7c4b6e49b8c51bd5c58760b9e1a"
+    },
+    "assets/flags/tm.svg": {
+      "path": "assets/flags/tm.svg",
+      "bytes": 5125,
+      "sha256": "cfdbde3430e7ba396c065d7d72244bb26b7c11dfb5bd39fd36baa481cdfea5e3"
+    },
+    "assets/flags/tn.svg": {
+      "path": "assets/flags/tn.svg",
+      "bytes": 635,
+      "sha256": "049a9a4b0457b282e633a198b1fbdd3a6f6b6420972022d06b53e4362c211bcc"
+    },
+    "assets/flags/to.svg": {
+      "path": "assets/flags/to.svg",
+      "bytes": 324,
+      "sha256": "fb4979e0481b5001be14b55cd9162e8486b6bc6bd4390f86f86b2bde51875ac9"
+    },
+    "assets/flags/tr.svg": {
+      "path": "assets/flags/tr.svg",
+      "bytes": 556,
+      "sha256": "f750c5329bd8315e6575d5f357ca9955468a15321bcb3c7f74065b2ca6abc6ed"
+    },
+    "assets/flags/tt.svg": {
+      "path": "assets/flags/tt.svg",
+      "bytes": 533,
+      "sha256": "6edbdb8154f692aa28bd2bf1cfde71dcb58ce3aa2bbd732053bae8044b32ca97"
+    },
+    "assets/flags/tv.svg": {
+      "path": "assets/flags/tv.svg",
+      "bytes": 2455,
+      "sha256": "2fd03b6cfe1292d396a49f5ff0f69da4ae5baf9cb7e54233e08b0ecad21c6a99"
+    },
+    "assets/flags/tw.svg": {
+      "path": "assets/flags/tw.svg",
+      "bytes": 2113,
+      "sha256": "9117269610759cf21b74506e010109ce600b96adb0fa96a74b15976da5d55783"
+    },
+    "assets/flags/tz.svg": {
+      "path": "assets/flags/tz.svg",
+      "bytes": 412,
+      "sha256": "572324a684c970ed622cd22b378532607de2c7bd294c399a4e7dca4f0b3d2b25"
+    },
+    "assets/flags/ua.svg": {
+      "path": "assets/flags/ua.svg",
+      "bytes": 233,
+      "sha256": "8ad31e4e2ca36d66a9484937b76f003c8534d205da98fc90fe9d8fb7706e043b"
+    },
+    "assets/flags/ug.svg": {
+      "path": "assets/flags/ug.svg",
+      "bytes": 1996,
+      "sha256": "8d90427095737015efc85bc1f1310518d548fcf616c31b7eac8c21e47171bbbe"
+    },
+    "assets/flags/um.svg": {
+      "path": "assets/flags/um.svg",
+      "bytes": 2462,
+      "sha256": "1feca2279a6e78133bf577b99e4f3e82896622c255d29017cec5f5cfa93e4d16"
+    },
+    "assets/flags/un.svg": {
+      "path": "assets/flags/un.svg",
+      "bytes": 26579,
+      "sha256": "cab2f88be8bbe43beeebff013c75a81d317a0ed01c62264a0387790d0e1e41d2"
+    },
+    "assets/flags/us.svg": {
+      "path": "assets/flags/us.svg",
+      "bytes": 2462,
+      "sha256": "1feca2279a6e78133bf577b99e4f3e82896622c255d29017cec5f5cfa93e4d16"
+    },
+    "assets/flags/uy.svg": {
+      "path": "assets/flags/uy.svg",
+      "bytes": 1108,
+      "sha256": "ecb47cc5501366cd5289409fcb2f983dd05b3a5c8f14665116c9d5b9faf2302a"
+    },
+    "assets/flags/uz.svg": {
+      "path": "assets/flags/uz.svg",
+      "bytes": 1555,
+      "sha256": "76a7e459642ccb9564ce4b20234da73d97a2d901becac0e896f2c4e37287faa8"
+    },
+    "assets/flags/va.svg": {
+      "path": "assets/flags/va.svg",
+      "bytes": 7214,
+      "sha256": "3b35bf3417120341fbd611181d23728104a2592188d4a3198a5275fbd1478901"
+    },
+    "assets/flags/vc.svg": {
+      "path": "assets/flags/vc.svg",
+      "bytes": 476,
+      "sha256": "87e76b81b6e21396419e04ab760d21d660e7566d8328f83cc23d4ff82f42aab4"
+    },
+    "assets/flags/ve.svg": {
+      "path": "assets/flags/ve.svg",
+      "bytes": 1828,
+      "sha256": "99a9a9270288d627e5b6e02f1aa6ec80220a6b6d86440115338f75e6fc08b0ee"
+    },
+    "assets/flags/vg.svg": {
+      "path": "assets/flags/vg.svg",
+      "bytes": 8205,
+      "sha256": "81aaea1790ccb809f93212b8468f704886066abbbd8de3ef754fa205eee4a080"
+    },
+    "assets/flags/vi.svg": {
+      "path": "assets/flags/vi.svg",
+      "bytes": 5429,
+      "sha256": "587fbcde42bf6da565004b05bafc4c7a8ed63271646c315b0b22b36cb2a0e599"
+    },
+    "assets/flags/vn.svg": {
+      "path": "assets/flags/vn.svg",
+      "bytes": 328,
+      "sha256": "3afb2ad7114433cc3475c7340088837c62991102f2d69ecad94d51ec79bcce01"
+    },
+    "assets/flags/vu.svg": {
+      "path": "assets/flags/vu.svg",
+      "bytes": 1207,
+      "sha256": "07ba44cc8177165421b9b7eb197349200e4d03e6f04b5a539a8fa7a45548eb64"
+    },
+    "assets/flags/wf.svg": {
+      "path": "assets/flags/wf.svg",
+      "bytes": 498,
+      "sha256": "258764461dfbf97010121ae585e29ba02d1d48519f9749276727f3f734383692"
+    },
+    "assets/flags/ws.svg": {
+      "path": "assets/flags/ws.svg",
+      "bytes": 1244,
+      "sha256": "1a6eecc9f98d69b1947a81519303e4259729fff90a8bb0a9bef1d908c4cec698"
+    },
+    "assets/flags/xk.svg": {
+      "path": "assets/flags/xk.svg",
+      "bytes": 5075,
+      "sha256": "d4075d466951f164fee8d4db81d4437fe7cebb652414849cec3cd8e387a4f5bf"
+    },
+    "assets/flags/ye.svg": {
+      "path": "assets/flags/ye.svg",
+      "bytes": 295,
+      "sha256": "382249585136c0ff400c2ebca8cac116373cbd34dd863297edf4ce5217fb63dd"
+    },
+    "assets/flags/yt.svg": {
+      "path": "assets/flags/yt.svg",
+      "bytes": 8424,
+      "sha256": "fc2e284219d0a2ee46363f77b60dfe985ada6d0b846dc2d2a96f7a453a07a7b9"
+    },
+    "assets/flags/za.svg": {
+      "path": "assets/flags/za.svg",
+      "bytes": 607,
+      "sha256": "e8709441112010abea2220d592fe23a58f9498d985971cc65b719e7597e3dc9d"
+    },
+    "assets/flags/zm.svg": {
+      "path": "assets/flags/zm.svg",
+      "bytes": 2213,
+      "sha256": "0e2921878d03b16538b6b1ee196c2a9120b2fe29fb55bd7cc95de8e4950f920f"
+    },
+    "assets/flags/zw.svg": {
+      "path": "assets/flags/zw.svg",
+      "bytes": 2362,
+      "sha256": "b6e74feb14a6a0c8e980f34882a6aec7e1a0b14753818c6a8e76902e8eb18e5c"
+    },
+    "assets/icons/activity-dark.svg": {
+      "path": "assets/icons/activity-dark.svg",
+      "bytes": 316,
+      "sha256": "95b593191b220b73915e9390773807b13c75399590ba0f7132f4f041d6691e4e"
+    },
+    "assets/icons/activity.svg": {
+      "path": "assets/icons/activity.svg",
+      "bytes": 316,
+      "sha256": "37d193edf676c32191d158f7617df0cb6c51f201a026fafa6d1103c64e014436"
+    },
+    "assets/icons/add-dark.svg": {
+      "path": "assets/icons/add-dark.svg",
+      "bytes": 247,
+      "sha256": "3d03c285ff2d17a1ed03f67d880296669fb24d1493c0378a18fcdd5831b40c36"
+    },
+    "assets/icons/add.svg": {
+      "path": "assets/icons/add.svg",
+      "bytes": 247,
+      "sha256": "10849c9e53facee210cf36304bc3cc5eb8543187cb564a0ad9c3a8df509054c9"
+    },
+    "assets/icons/back.svg": {
+      "path": "assets/icons/back.svg",
+      "bytes": 190,
+      "sha256": "4e961e7a514c555864b9972fb26fe1430c13aa7a106fcd058ad8c0ed77d6e4d1"
+    },
+    "assets/icons/check.svg": {
+      "path": "assets/icons/check.svg",
+      "bytes": 209,
+      "sha256": "566eb35fb5385439ff3a0ce9cf45e0914785c67ea2ec14fac1c1717679bd1960"
+    },
+    "assets/icons/chevron-expand.svg": {
+      "path": "assets/icons/chevron-expand.svg",
+      "bytes": 219,
+      "sha256": "4a28fd8e9dec1da1a02a19edd78652f53833216db5a05255d5fbee9764f78a02"
+    },
+    "assets/icons/chevron-right.svg": {
+      "path": "assets/icons/chevron-right.svg",
+      "bytes": 208,
+      "sha256": "1debe372e639a67d35fc4bb323a68e87359395163ecfd98d8ea51b19323650c8"
+    },
+    "assets/icons/close.svg": {
+      "path": "assets/icons/close.svg",
+      "bytes": 214,
+      "sha256": "9d6ed985704323725566bd0616ed58a3dc7c395cbd87d4ab694fcf3755b111af"
+    },
+    "assets/icons/config-active.svg": {
+      "path": "assets/icons/config-active.svg",
+      "bytes": 405,
+      "sha256": "cb2a60ff6b37e1c0535ec6ca730eaf1865472826fa677189b30bcc1cde1f601b"
+    },
+    "assets/icons/config.svg": {
+      "path": "assets/icons/config.svg",
+      "bytes": 358,
+      "sha256": "ce2de3aa4f65febbaa5859a702bb49c9ad485275da49ac42dfc97968ff527cac"
+    },
+    "assets/icons/connections.svg": {
+      "path": "assets/icons/connections.svg",
+      "bytes": 393,
+      "sha256": "51d5bcba58b6aab5a853ed1ee2a4a685877971766f616132fa5ff8785943c4c8"
+    },
+    "assets/icons/delete.svg": {
+      "path": "assets/icons/delete.svg",
+      "bytes": 293,
+      "sha256": "85ce6e04edc5d7db6b983c34e73c668e274148f72e4649fc002418fb1c5df21c"
+    },
+    "assets/icons/edit-dark.svg": {
+      "path": "assets/icons/edit-dark.svg",
+      "bytes": 390,
+      "sha256": "bd8794bfc74260ea4de2a2aca16b6f5a577a167b41589f619d34eac61017d36d"
+    },
+    "assets/icons/edit.svg": {
+      "path": "assets/icons/edit.svg",
+      "bytes": 390,
+      "sha256": "672009eb7c004ffb83ddf4a6e6dc20950109377ac1bb1e0768d7d9ac7d33e419"
+    },
+    "assets/icons/home-active.svg": {
+      "path": "assets/icons/home-active.svg",
+      "bytes": 356,
+      "sha256": "ab8317e655e9f6436c3335bc06eebb1071a39f4a3208c3384407407fa8cc9326"
+    },
+    "assets/icons/home.svg": {
+      "path": "assets/icons/home.svg",
+      "bytes": 356,
+      "sha256": "a979ec6eaf6beccf3b6d147fe47d5ed52fe2aa91c402a15186c779f356509779"
+    },
+    "assets/icons/LICENSE-LUCIDE.txt": {
+      "path": "assets/icons/LICENSE-LUCIDE.txt",
+      "bytes": 3208,
+      "sha256": "b495047bd93a9b06913511076f504daba17d5bbeb3e0650f3bb53a4220329c57"
+    },
+    "assets/icons/list-checks-white.svg": {
+      "path": "assets/icons/list-checks-white.svg",
+      "bytes": 240,
+      "sha256": "d4deb436cdbf3f6528ecf3c2261ca631a84c6dc844d2531cf2aba197759cb3b4"
+    },
+    "assets/icons/logs-white.svg": {
+      "path": "assets/icons/logs-white.svg",
+      "bytes": 365,
+      "sha256": "c8847ff835bc933be54c30f070272b8452623b5081bb2bee525b8d12be32ba61"
+    },
+    "assets/icons/logs.svg": {
+      "path": "assets/icons/logs.svg",
+      "bytes": 365,
+      "sha256": "c899d28f95ade807fc3c53809538d4f49b9c4b91dbe8531153773b95f8c788cc"
+    },
+    "assets/icons/network-white.svg": {
+      "path": "assets/icons/network-white.svg",
+      "bytes": 393,
+      "sha256": "0f9a88c55ab41a3743e6759c143a46cd5cb9e18c2e7888f88c0f1d4bb1adb013"
+    },
+    "assets/icons/palette.svg": {
+      "path": "assets/icons/palette.svg",
+      "bytes": 539,
+      "sha256": "3c09d8eb213267406bce45b25b10e03e7e84a922acd2e87a78269cdd01ce8f1e"
+    },
+    "assets/icons/ping-spin-000.svg": {
+      "path": "assets/icons/ping-spin-000.svg",
+      "bytes": 284,
+      "sha256": "45063aab38ad7609b56593b290e632b1618e69e564d822a4369822be6f918cca"
+    },
+    "assets/icons/ping-spin-045.svg": {
+      "path": "assets/icons/ping-spin-045.svg",
+      "bytes": 285,
+      "sha256": "baa63e497229f5ae898465a1bcad613adf598f98ed886fdc0204e74426b9c2d8"
+    },
+    "assets/icons/ping-spin-090.svg": {
+      "path": "assets/icons/ping-spin-090.svg",
+      "bytes": 285,
+      "sha256": "e305329cd813bfdf7dd953b73f6cd80f6743b235b2be32b8d2a169e23df88e42"
+    },
+    "assets/icons/ping-spin-135.svg": {
+      "path": "assets/icons/ping-spin-135.svg",
+      "bytes": 286,
+      "sha256": "6960e1c80b09b74d176d2b13ba74d352ea542b6aa90d25a8201a82ecf3a033d5"
+    },
+    "assets/icons/ping-spin-180.svg": {
+      "path": "assets/icons/ping-spin-180.svg",
+      "bytes": 286,
+      "sha256": "96c8ad1a90fe934f10da40a9dd588880fa719a83b3b99b51a3fd127deb3b161a"
+    },
+    "assets/icons/ping-spin-225.svg": {
+      "path": "assets/icons/ping-spin-225.svg",
+      "bytes": 286,
+      "sha256": "48f8f0415041cc39e04212165310d1dfb481d015b6f5095766e083f1110f2171"
+    },
+    "assets/icons/ping-spin-270.svg": {
+      "path": "assets/icons/ping-spin-270.svg",
+      "bytes": 286,
+      "sha256": "af399a799363167c2536a39200350fe91387b80174b31cfa5395137d7e4870ac"
+    },
+    "assets/icons/ping-spin-315.svg": {
+      "path": "assets/icons/ping-spin-315.svg",
+      "bytes": 286,
+      "sha256": "2ab1f11ea89c03d31106d1fb88d660033632b82196fd2e4b3aca620f3ee490e9"
+    },
+    "assets/icons/ping.svg": {
+      "path": "assets/icons/ping.svg",
+      "bytes": 249,
+      "sha256": "9941906399a3eb25c7f993ed8e4bef5b3a634c80092db9e83cf3af32166d17b6"
+    },
+    "assets/icons/providers-white.svg": {
+      "path": "assets/icons/providers-white.svg",
+      "bytes": 296,
+      "sha256": "f22574df7548d3026db77d8135347197b60c66d03254728d68930dafddcf86aa"
+    },
+    "assets/icons/proxy-active.svg": {
+      "path": "assets/icons/proxy-active.svg",
+      "bytes": 235,
+      "sha256": "89cfacfc4f95b21f9ea98f24fe4bf0d57fe92f94e1ae893086d9e07b53f5afc5"
+    },
+    "assets/icons/proxy-dark.svg": {
+      "path": "assets/icons/proxy-dark.svg",
+      "bytes": 235,
+      "sha256": "097b82e2760e59018ae49ebfc775e3b0663dce363a9420a43526a82382785cee"
+    },
+    "assets/icons/proxy.svg": {
+      "path": "assets/icons/proxy.svg",
+      "bytes": 235,
+      "sha256": "2074172461b9d63658359bf6a65a6b93dda740352d2973a111307025d6b5b06d"
+    },
+    "assets/icons/rules.svg": {
+      "path": "assets/icons/rules.svg",
+      "bytes": 240,
+      "sha256": "488e775ba24b149c9779b3e4ae9e36d0978e56da243829773b698e7529095a9a"
+    },
+    "assets/icons/search-dark.svg": {
+      "path": "assets/icons/search-dark.svg",
+      "bytes": 249,
+      "sha256": "08c98fcadc1698160c83efcb599862860fd6b40997c20c1c6696fab0727a91db"
+    },
+    "assets/icons/search.svg": {
+      "path": "assets/icons/search.svg",
+      "bytes": 249,
+      "sha256": "7c7bdb037aa97cb6aa71ea0e0c485e5eec88b68ca9ccef071c1077a91746f73f"
+    },
+    "assets/icons/setting-about.svg": {
+      "path": "assets/icons/setting-about.svg",
+      "bytes": 279,
+      "sha256": "4852aacfd0e0854628cd5f0dd2ab5ba03990dc053134d1d9fcf70b474196c03b"
+    },
+    "assets/icons/setting-app.svg": {
+      "path": "assets/icons/setting-app.svg",
+      "bytes": 257,
+      "sha256": "f7af9ab2a79b0311acca1a73954c241173197d9001efc0253efd45ff0a3d2094"
+    },
+    "assets/icons/setting-meta.svg": {
+      "path": "assets/icons/setting-meta.svg",
+      "bytes": 474,
+      "sha256": "a9f339684c15e001ce051ec02832d4c7316697d55705348c770ebe47858269cf"
+    },
+    "assets/icons/settings-active.svg": {
+      "path": "assets/icons/settings-active.svg",
+      "bytes": 559,
+      "sha256": "75f60fbfc35bdd247eb3f1687fad297bec878e8adf447f1dc7c8521bec41d168"
+    },
+    "assets/icons/settings.svg": {
+      "path": "assets/icons/settings.svg",
+      "bytes": 559,
+      "sha256": "41133c130e02828f5d992f23abcc341d8a2a239358f2d212b08a2718135c157d"
+    },
+    "assets/icons/share.svg": {
+      "path": "assets/icons/share.svg",
+      "bytes": 256,
+      "sha256": "b229abd555cb603222ce5426775b6b1d29a616e6fb024428886145cff176b436"
+    },
+    "assets/icons/sort.svg": {
+      "path": "assets/icons/sort.svg",
+      "bytes": 216,
+      "sha256": "1393d08c457e1bb90177911203d02fa20b09502714677ed6f959a66180d17ea5"
+    },
+    "assets/icons/speed.svg": {
+      "path": "assets/icons/speed.svg",
+      "bytes": 232,
+      "sha256": "1846f1ec65d3623024fd9c71bdb14a8ef7ce558bdce3eb35704bf98e660a0073"
+    },
+    "assets/icons/start-dark.svg": {
+      "path": "assets/icons/start-dark.svg",
+      "bytes": 482,
+      "sha256": "a58e151889ef4cc330bbb8ca2a2c3c4bae57da68de4d0487102d9fb3ce6329c8"
+    },
+    "assets/icons/start.svg": {
+      "path": "assets/icons/start.svg",
+      "bytes": 482,
+      "sha256": "9f52b0f4336b0d307fdee3f56cdef499eed51dbe2d8f67a110bc4e264de0b6ce"
+    },
+    "assets/icons/stop-dark.svg": {
+      "path": "assets/icons/stop-dark.svg",
+      "bytes": 231,
+      "sha256": "df489d9188d7b67c79399ca045f1ae88429ed94a9ada024b44d89f8b1d53b98d"
+    },
+    "assets/icons/stop.svg": {
+      "path": "assets/icons/stop.svg",
+      "bytes": 231,
+      "sha256": "46e22481abb02d14f2bd579285618389b957e6d721efdeb845f83b48a131420b"
+    },
+    "assets/icons/traffic-white.svg": {
+      "path": "assets/icons/traffic-white.svg",
+      "bytes": 215,
+      "sha256": "132f2fb1a102c5a18686a5e44c46f15c785edc322f3522b7aaa5fc94a98d6eeb"
+    },
+    "assets/icons/traffic.svg": {
+      "path": "assets/icons/traffic.svg",
+      "bytes": 215,
+      "sha256": "f4d3f5a48fe206fa03e534e21fab9f8e4367660b801882fb6345ee7db3bf212c"
+    },
+    "assets/icons/vpn-dark.svg": {
+      "path": "assets/icons/vpn-dark.svg",
+      "bytes": 388,
+      "sha256": "b956dbe4cbaf07f0a30b1f995db68ec737565edf71d90b20f139c2760e803e0d"
+    },
+    "assets/icons/vpn.svg": {
+      "path": "assets/icons/vpn.svg",
+      "bytes": 388,
+      "sha256": "e3fd531d2d45394b7740cc1a5867995ab72d09bf7b2b925695487017e427c698"
+    },
+    "assets/manifest.json": {
+      "path": "assets/manifest.json",
+      "bytes": 9828,
+      "sha256": "9ecdc328138a1808c326da5eb8927472ae046948a9d3b6b9f8dbaae3b17c08bb"
+    },
+    "assets/README.md": {
+      "path": "reference-docs/assets/README.md.source",
+      "bytes": 4452,
+      "sha256": "184216602b083e480f5ca68ce0aa24774dec4e896ddba62401e93cd225e198a3"
+    },
+    "assets/third_party_licenses.json": {
+      "path": "assets/third_party_licenses.json",
+      "bytes": 1512442,
+      "sha256": "9b5ceb64f7ca758fe22863d2d9227d4edf7dc8fc445eb636032d3bd455071d09"
+    },
+    "build.rs": {
+      "path": "reference-tools/build.rs",
+      "bytes": 649,
+      "sha256": "2dedab9c4aee382a8d2327a2a2d9563fd47f21e514fb8567d1c8b3d0a6c8fc8f"
+    },
+    "Cargo.toml": {
+      "path": "reference-build/Cargo.toml.source",
+      "bytes": 2549,
+      "sha256": "1267a4db77a2a99a78cad016aa0d4f7ab9051a1d2755625e28c73fcc14a32d5d"
+    },
+    "docs/architecture.md": {
+      "path": "reference-docs/docs/architecture.md.source",
+      "bytes": 26792,
+      "sha256": "8d6e32a61cda63878c0dec17aa37ab16b46982fc0ad86b4b418443a95c157ea6"
+    },
+    "docs/README.md": {
+      "path": "reference-docs/docs/README.md.source",
+      "bytes": 13124,
+      "sha256": "e812332a2ea6af4d1ba4488c19cc0434aa77992855a7567d692bce15a8947faa"
+    },
+    "docs/research.md": {
+      "path": "reference-docs/docs/research.md.source",
+      "bytes": 42741,
+      "sha256": "8be98b13c05abf7a32ecab31d65e563c1c242fd9210f4aaac1f3a8c7bca0d1b6"
+    },
+    "docs/spec.md": {
+      "path": "reference-docs/docs/spec.md.source",
+      "bytes": 29303,
+      "sha256": "6d7527b3d6924383df2e2b4e41a5a5288a9045fbd683f39af1c3b635fe4e82ed"
+    },
+    "docs/ui-design.md": {
+      "path": "reference-docs/docs/ui-design.md.source",
+      "bytes": 67641,
+      "sha256": "8673c547109e7bc934a933a371486238880898924e91383125622df04460f725"
+    },
+    "material-1.1.0/LICENSE.md": {
+      "path": "reference-material-1.1.0/LICENSE.md.source",
+      "bytes": 1071,
+      "sha256": "4560387fe400ee84a80d5bfbf2103b64f7da4cf942930c0c0526313ed58551b7"
+    },
+    "material-1.1.0/LUMEN-PATCHES.md": {
+      "path": "reference-material-1.1.0/LUMEN-PATCHES.md.source",
+      "bytes": 6473,
+      "sha256": "0df287b1db11c8270456fcfb8b3724fcf1411f49d6a31ddcadb52f2ada969cdd"
+    },
+    "material-1.1.0/material.slint": {
+      "path": "material-1.1.0/material.slint",
+      "bytes": 4275,
+      "sha256": "79dc01db770bc1248a8b4777cc581f6caf00f33ae58bac9726b797457f51a0c5"
+    },
+    "material-1.1.0/README.md": {
+      "path": "reference-material-1.1.0/README.md.source",
+      "bytes": 1368,
+      "sha256": "3f8be18adeec5137acf8e15b9edbfa5c584e6ae3a6a12b98b21370b3fcfc85aa"
+    },
+    "material-1.1.0/ui/components/app_bar.slint": {
+      "path": "material-1.1.0/ui/components/app_bar.slint",
+      "bytes": 9087,
+      "sha256": "a2cc874bddde95f6455e116e22c27d0fb3301785dd02df07bd08a2c7dc38938f"
+    },
+    "material-1.1.0/ui/components/badge.slint": {
+      "path": "material-1.1.0/ui/components/badge.slint",
+      "bytes": 1181,
+      "sha256": "fcf1d34199f2213ecf66cf39c560fce3091b122740e69a5eea9196aa24ad3074"
+    },
+    "material-1.1.0/ui/components/base_button.slint": {
+      "path": "material-1.1.0/ui/components/base_button.slint",
+      "bytes": 3041,
+      "sha256": "d931f0748cb43486a66505652ee97634d94b26f7b22cad1eef3eae31dfcfdbed"
+    },
+    "material-1.1.0/ui/components/base_navigation.slint": {
+      "path": "material-1.1.0/ui/components/base_navigation.slint",
+      "bytes": 1366,
+      "sha256": "f19ee2827ee1d8def1c66021bffb3c260ae346afb2ff658a87b15912254628ee"
+    },
+    "material-1.1.0/ui/components/bottom_app_bar.slint": {
+      "path": "material-1.1.0/ui/components/bottom_app_bar.slint",
+      "bytes": 1882,
+      "sha256": "e6793103a3f9d93ed0ca26adbb075e3cf02f80aa208b899a034365ffc183baea"
+    },
+    "material-1.1.0/ui/components/bottom_sheet.slint": {
+      "path": "material-1.1.0/ui/components/bottom_sheet.slint",
+      "bytes": 6252,
+      "sha256": "466cc07a00f6da377ab5f1d2fb2b73cef284ea74d7f50c4558f6fcbd9ea10e49"
+    },
+    "material-1.1.0/ui/components/card.slint": {
+      "path": "material-1.1.0/ui/components/card.slint",
+      "bytes": 2827,
+      "sha256": "a03a4cb5e8c71dbcc264c9317d4bacdac03e69803460fab469428a6b8f133d08"
+    },
+    "material-1.1.0/ui/components/check_box.slint": {
+      "path": "material-1.1.0/ui/components/check_box.slint",
+      "bytes": 4855,
+      "sha256": "5484b96b616196c22881fa6c9faa2050c16ac06c80e679f62355ea93db4a3073"
+    },
+    "material-1.1.0/ui/components/chip.slint": {
+      "path": "material-1.1.0/ui/components/chip.slint",
+      "bytes": 7493,
+      "sha256": "54c62b4b4f78e1ba5783e1417541389708064a2a16cd3bbe7efe7abd7debb504"
+    },
+    "material-1.1.0/ui/components/date_picker.slint": {
+      "path": "material-1.1.0/ui/components/date_picker.slint",
+      "bytes": 19240,
+      "sha256": "20489ae6940cb3901f16ac14f0cf265db7b409ed2ded0452f35e051e586285e4"
+    },
+    "material-1.1.0/ui/components/dialog.slint": {
+      "path": "material-1.1.0/ui/components/dialog.slint",
+      "bytes": 6653,
+      "sha256": "466b1a19fcd6acf19b13fa21d3b8c11e9ae55354dbcb6bd8a38a78f61df14dc6"
+    },
+    "material-1.1.0/ui/components/divider.slint": {
+      "path": "material-1.1.0/ui/components/divider.slint",
+      "bytes": 602,
+      "sha256": "490fb199456bd433be2e322b62fd81a417441d69ad6d991c0336978a1c35b6cc"
+    },
+    "material-1.1.0/ui/components/drawer.slint": {
+      "path": "material-1.1.0/ui/components/drawer.slint",
+      "bytes": 2402,
+      "sha256": "b3074c1ec5ddcdc13ea1ad41feb86324e78c3997c8cbdd2e1fc8c479960be552"
+    },
+    "material-1.1.0/ui/components/drop_down_menu.slint": {
+      "path": "material-1.1.0/ui/components/drop_down_menu.slint",
+      "bytes": 3713,
+      "sha256": "b9f524103af5bce4d432833ae7ccafd9d1b74bb0f4a7175dbdb6da3f45c8b14d"
+    },
+    "material-1.1.0/ui/components/elevated_button.slint": {
+      "path": "material-1.1.0/ui/components/elevated_button.slint",
+      "bytes": 1411,
+      "sha256": "4f870e99f0bf51e978353398e240adcf82e96f041a51df28fbd9435fb973615f"
+    },
+    "material-1.1.0/ui/components/elevation.slint": {
+      "path": "material-1.1.0/ui/components/elevation.slint",
+      "bytes": 5770,
+      "sha256": "edf336ad165148f220212bb1af823fb1d2bc7acfa1aafb1a47a6d9f7b1ac8afb"
+    },
+    "material-1.1.0/ui/components/extended_touch_area.slint": {
+      "path": "material-1.1.0/ui/components/extended_touch_area.slint",
+      "bytes": 1595,
+      "sha256": "52a12cf174b32411dc7860b226c8748ca3c7f2bd60beeca0ae5a79c005bebc2f"
+    },
+    "material-1.1.0/ui/components/filled_button.slint": {
+      "path": "material-1.1.0/ui/components/filled_button.slint",
+      "bytes": 1348,
+      "sha256": "8a3dea3c1475ca97af762fd7980623eb0937947234cff140e0a0d05051f27235"
+    },
+    "material-1.1.0/ui/components/filled_icon_button.slint": {
+      "path": "material-1.1.0/ui/components/filled_icon_button.slint",
+      "bytes": 2062,
+      "sha256": "e19aa4f5a9678d5b94e08522017d51f2ec9b7e21fe352ad19e79e4e46397a8e5"
+    },
+    "material-1.1.0/ui/components/floating_action_button.slint": {
+      "path": "material-1.1.0/ui/components/floating_action_button.slint",
+      "bytes": 2126,
+      "sha256": "69c4f7f3d6bff72a44d7c562b9d1511436e4f1059701cb9267ad1df48c7d5522"
+    },
+    "material-1.1.0/ui/components/grid.slint": {
+      "path": "material-1.1.0/ui/components/grid.slint",
+      "bytes": 362,
+      "sha256": "abaf55f8da2ffd5b9295b8d8bb401f953251c5b2459462382b8e717670325dd2"
+    },
+    "material-1.1.0/ui/components/horizontal.slint": {
+      "path": "material-1.1.0/ui/components/horizontal.slint",
+      "bytes": 309,
+      "sha256": "a944b83881f136113cc2407a9aa0d0eae6787ea05a8646b4f1a5ffc3d4690a26"
+    },
+    "material-1.1.0/ui/components/icon.slint": {
+      "path": "material-1.1.0/ui/components/icon.slint",
+      "bytes": 428,
+      "sha256": "1be485abc46258609019ae9353907d30f0a796ba9c985bbc66fc473cea80c3c7"
+    },
+    "material-1.1.0/ui/components/icon_button.slint": {
+      "path": "material-1.1.0/ui/components/icon_button.slint",
+      "bytes": 2106,
+      "sha256": "5c81e9964b41afdb88901026a081811c6d0ea432404bffe608d213031181712a"
+    },
+    "material-1.1.0/ui/components/list.slint": {
+      "path": "material-1.1.0/ui/components/list.slint",
+      "bytes": 3462,
+      "sha256": "98de4c41c50324d2ff3b62a15feb10115e9c316d49861076531c3410ecbaf203"
+    },
+    "material-1.1.0/ui/components/list_view.slint": {
+      "path": "material-1.1.0/ui/components/list_view.slint",
+      "bytes": 182,
+      "sha256": "631160f764675acb297f906522254b91df43b4887ebc225c8328f0d40a8d93b8"
+    },
+    "material-1.1.0/ui/components/material_text.slint": {
+      "path": "material-1.1.0/ui/components/material_text.slint",
+      "bytes": 493,
+      "sha256": "560fdd3b298c675fcda714b887c0667bb3723708641b14f8ea95073a4432e232"
+    },
+    "material-1.1.0/ui/components/material_window.slint": {
+      "path": "material-1.1.0/ui/components/material_window.slint",
+      "bytes": 468,
+      "sha256": "fe517c7826a498f928b167bf8df13c61088416d75599f392fc8335037e714c4c"
+    },
+    "material-1.1.0/ui/components/menu.slint": {
+      "path": "material-1.1.0/ui/components/menu.slint",
+      "bytes": 9390,
+      "sha256": "9cbe1dcdbd1bc8fab455af1e9823ae2fab8eceb44e128b84c76636377fffa8ec"
+    },
+    "material-1.1.0/ui/components/modal.slint": {
+      "path": "material-1.1.0/ui/components/modal.slint",
+      "bytes": 791,
+      "sha256": "272782e0a3bc7b3c4327b480a85f34f93a8a55dcfc6a04fa0bc06ae531cb1d9b"
+    },
+    "material-1.1.0/ui/components/navigation_bar.slint": {
+      "path": "material-1.1.0/ui/components/navigation_bar.slint",
+      "bytes": 10321,
+      "sha256": "bb73b3584b09b1da5c7817beb77d5305fe921ebfa0c6139df19716917c971a1c"
+    },
+    "material-1.1.0/ui/components/navigation_drawer.slint": {
+      "path": "material-1.1.0/ui/components/navigation_drawer.slint",
+      "bytes": 8429,
+      "sha256": "30029cde51c32573289411ce7d7b312c1afa8a71392764316e79f4bf0c662a69"
+    },
+    "material-1.1.0/ui/components/navigation_rail.slint": {
+      "path": "material-1.1.0/ui/components/navigation_rail.slint",
+      "bytes": 2813,
+      "sha256": "a6e503760679add9afc0453937d0218290281c18404ef9f4c992758dbc85d32f"
+    },
+    "material-1.1.0/ui/components/outline_button.slint": {
+      "path": "material-1.1.0/ui/components/outline_button.slint",
+      "bytes": 1416,
+      "sha256": "489052fc59c52a5a3ab2a2409f7b3179c726033b2fbae7a525cc40939a52053b"
+    },
+    "material-1.1.0/ui/components/outline_icon_button.slint": {
+      "path": "material-1.1.0/ui/components/outline_icon_button.slint",
+      "bytes": 2829,
+      "sha256": "542af0d6885c0f48e7fadab61a54d8ba54776ff2258a106b79a648eaa64470d2"
+    },
+    "material-1.1.0/ui/components/progress_indicator.slint": {
+      "path": "material-1.1.0/ui/components/progress_indicator.slint",
+      "bytes": 4215,
+      "sha256": "ba39612c755a6b06e04ca5fc57133feeb6c3f9fb16dbe257449ebf35c0d80759"
+    },
+    "material-1.1.0/ui/components/radio_button.slint": {
+      "path": "material-1.1.0/ui/components/radio_button.slint",
+      "bytes": 3140,
+      "sha256": "4ba63271b1a5cf9c951c4cea30f4d73f89edc327cde12e71458d92950481c4f4"
+    },
+    "material-1.1.0/ui/components/scroll_view.slint": {
+      "path": "material-1.1.0/ui/components/scroll_view.slint",
+      "bytes": 7079,
+      "sha256": "a39d47c11db37776979e1be324e360b0443aa72106c4f38bbdf7c93443dddeec"
+    },
+    "material-1.1.0/ui/components/search_bar.slint": {
+      "path": "material-1.1.0/ui/components/search_bar.slint",
+      "bytes": 11041,
+      "sha256": "05e93acab60f4b088d589aef8b7aadec2b7950450ea344cab06a342f8a80a95c"
+    },
+    "material-1.1.0/ui/components/segmented_button.slint": {
+      "path": "material-1.1.0/ui/components/segmented_button.slint",
+      "bytes": 3007,
+      "sha256": "5f0578d2161677bd5a4d013b1e876fd485719af49e7561f33f997ede22b21059"
+    },
+    "material-1.1.0/ui/components/slider.slint": {
+      "path": "material-1.1.0/ui/components/slider.slint",
+      "bytes": 5917,
+      "sha256": "6a4081a289bbbc249ba958b5d2687b2701bb3240a7e45532a0a7c4788c505fc5"
+    },
+    "material-1.1.0/ui/components/snack_bar.slint": {
+      "path": "material-1.1.0/ui/components/snack_bar.slint",
+      "bytes": 2838,
+      "sha256": "977e95b17ccdec13c254995ebfc4d445bf60d98d9446b3ed5f5fe85e610863ab"
+    },
+    "material-1.1.0/ui/components/state_layer.slint": {
+      "path": "material-1.1.0/ui/components/state_layer.slint",
+      "bytes": 5293,
+      "sha256": "ede70dd0e8826bd914b530b346589dec89dc394f73e2d8c654c3615e25ad193a"
+    },
+    "material-1.1.0/ui/components/switch.slint": {
+      "path": "material-1.1.0/ui/components/switch.slint",
+      "bytes": 6437,
+      "sha256": "ffff99c6084a1eb9f8cacd14063c10583a994ebb01f4eb738525e63ddd0a63bb"
+    },
+    "material-1.1.0/ui/components/tab_bar.slint": {
+      "path": "material-1.1.0/ui/components/tab_bar.slint",
+      "bytes": 6578,
+      "sha256": "fe32952b2bd501646c170a6b228ec5e2d6d79965a2f6502c9e1c251397bc4690"
+    },
+    "material-1.1.0/ui/components/text_button.slint": {
+      "path": "material-1.1.0/ui/components/text_button.slint",
+      "bytes": 1085,
+      "sha256": "1bf1f9a692ec3fa25b79b5712dc672d30a4c334c70385a61e4c233d9cc913be8"
+    },
+    "material-1.1.0/ui/components/text_field.slint": {
+      "path": "material-1.1.0/ui/components/text_field.slint",
+      "bytes": 8793,
+      "sha256": "df2f56a4dc7c8430b66c55b41f48c129d76496ff80c6fb3ec5ad5e8956f24679"
+    },
+    "material-1.1.0/ui/components/time_picker.slint": {
+      "path": "material-1.1.0/ui/components/time_picker.slint",
+      "bytes": 22021,
+      "sha256": "16cec9a3bb7e47895d5ba916cf6ea63d1269b43269d51af09964de816a9e8b3e"
+    },
+    "material-1.1.0/ui/components/tonal_button.slint": {
+      "path": "material-1.1.0/ui/components/tonal_button.slint",
+      "bytes": 1403,
+      "sha256": "e935fe6587e3803cafa5a1e284f676d6f647ef216de097fac59742d0bfbda655"
+    },
+    "material-1.1.0/ui/components/tonal_icon_button.slint": {
+      "path": "material-1.1.0/ui/components/tonal_icon_button.slint",
+      "bytes": 2002,
+      "sha256": "8783f823f5d80353aeeed56238e7a786647ea9ea9c65213a397fc92b30645fbf"
+    },
+    "material-1.1.0/ui/components/tooltip.slint": {
+      "path": "material-1.1.0/ui/components/tooltip.slint",
+      "bytes": 1139,
+      "sha256": "925616aac456e04b3f5af43b074fcd44bfd67edb609daf7ac1c20041f2c1b45b"
+    },
+    "material-1.1.0/ui/components/vertical.slint": {
+      "path": "material-1.1.0/ui/components/vertical.slint",
+      "bytes": 305,
+      "sha256": "73de029924be012100541335f3948376a5dd4635b19512409bdac16044f41baf"
+    },
+    "material-1.1.0/ui/icons/arrow_back.svg": {
+      "path": "material-1.1.0/ui/icons/arrow_back.svg",
+      "bytes": 162,
+      "sha256": "efb879d247c271123fc180e9264019616359765d3c1247a225483a6aa7304b52"
+    },
+    "material-1.1.0/ui/icons/arrow_drop_down.svg": {
+      "path": "material-1.1.0/ui/icons/arrow_drop_down.svg",
+      "bytes": 119,
+      "sha256": "1b2a73b2efaa669385b6e55f1a391fd8a1fe2c0a608fa81796d68c0080ed2e07"
+    },
+    "material-1.1.0/ui/icons/arrow_drop_up.svg": {
+      "path": "material-1.1.0/ui/icons/arrow_drop_up.svg",
+      "bytes": 118,
+      "sha256": "7af114d5422ae2b8454bd1ca6dba823b06c30eaf08aa1ad2e4a02ac8f04d5b3b"
+    },
+    "material-1.1.0/ui/icons/arrow_right.svg": {
+      "path": "material-1.1.0/ui/icons/arrow_right.svg",
+      "bytes": 121,
+      "sha256": "c7e3b85c039a7e2ca3403c268ce541d9a72a810e5ac9330b9585f203a756b73f"
+    },
+    "material-1.1.0/ui/icons/calendar_today.svg": {
+      "path": "material-1.1.0/ui/icons/calendar_today.svg",
+      "bytes": 325,
+      "sha256": "93a2e9b9df63e00fe0e33c8187bb54dc2816915a8191c7d38b815e7e7b9a686f"
+    },
+    "material-1.1.0/ui/icons/check.svg": {
+      "path": "material-1.1.0/ui/icons/check.svg",
+      "bytes": 151,
+      "sha256": "b1b724fdc8d0e9cae8a5b2e82b71d2d3771425a8af65bf1df6a79282138f1c72"
+    },
+    "material-1.1.0/ui/icons/chevron_backward.svg": {
+      "path": "material-1.1.0/ui/icons/chevron_backward.svg",
+      "bytes": 178,
+      "sha256": "9a3286aef8cf296a30d60a878ed1a54c7ea752695086c750e80bbd6d98194d67"
+    },
+    "material-1.1.0/ui/icons/chevron_forward.svg": {
+      "path": "material-1.1.0/ui/icons/chevron_forward.svg",
+      "bytes": 178,
+      "sha256": "22798576ff2dcf0fb8a8a668122531b618d80941fe6a2be92b952dc289a01e27"
+    },
+    "material-1.1.0/ui/icons/close.svg": {
+      "path": "material-1.1.0/ui/icons/close.svg",
+      "bytes": 203,
+      "sha256": "10718d0112f7761c6eadfbb17bb8857258ba7d77959acc549c7c91eccf56a3ef"
+    },
+    "material-1.1.0/ui/icons/edit.svg": {
+      "path": "material-1.1.0/ui/icons/edit.svg",
+      "bytes": 329,
+      "sha256": "8923210e5421d81fc1459412564ac49c9d83c3b2eee95bdedc32199df4728faa"
+    },
+    "material-1.1.0/ui/icons/icons.slint": {
+      "path": "material-1.1.0/ui/icons/icons.slint",
+      "bytes": 1030,
+      "sha256": "ed241c74893471569bbcb8c5161cac246f18f7ccd49c82796a3d1e06f0923180"
+    },
+    "material-1.1.0/ui/icons/keyboard.svg": {
+      "path": "material-1.1.0/ui/icons/keyboard.svg",
+      "bytes": 401,
+      "sha256": "55ba4d20228341f1df645fa25e35b551b7dbd1e5972de505d5773975e7825a63"
+    },
+    "material-1.1.0/ui/icons/menu.svg": {
+      "path": "material-1.1.0/ui/icons/menu.svg",
+      "bytes": 146,
+      "sha256": "caa8cc99e1be32ab478ebbe12f4515de429a57573bd718a80ffad6d37307368b"
+    },
+    "material-1.1.0/ui/icons/remove.svg": {
+      "path": "material-1.1.0/ui/icons/remove.svg",
+      "bytes": 177,
+      "sha256": "91d2b10ec6b440fd0ba9cdbfd13af2426d7b8f71cef900d2827e1fcbc55936ef"
+    },
+    "material-1.1.0/ui/icons/schedule.svg": {
+      "path": "material-1.1.0/ui/icons/schedule.svg",
+      "bytes": 342,
+      "sha256": "3ffe9e750cf96d567553bc64364bed4e8c3d56f2d248a8c4e4f377965369e060"
+    },
+    "material-1.1.0/ui/items/list_item.slint": {
+      "path": "material-1.1.0/ui/items/list_item.slint",
+      "bytes": 293,
+      "sha256": "05bce1eab67fc7c89ed361ca72b4d6e5370fcf82a55830bb177294cafdb30de7"
+    },
+    "material-1.1.0/ui/items/menu_item.slint": {
+      "path": "material-1.1.0/ui/items/menu_item.slint",
+      "bytes": 187,
+      "sha256": "ac229d9f47947f16495a0346ffc64a3ed6bf9b48ee6d3bffb395a07c339237b8"
+    },
+    "material-1.1.0/ui/items/navigation_item.slint": {
+      "path": "material-1.1.0/ui/items/navigation_item.slint",
+      "bytes": 296,
+      "sha256": "64c639aeaf6a78bb47e60c435cb7e5182c900e220c1ead0dcd964beb312a70c3"
+    },
+    "material-1.1.0/ui/styling/material_animations.slint": {
+      "path": "material-1.1.0/ui/styling/material_animations.slint",
+      "bytes": 846,
+      "sha256": "f928e7c94f560230d9ee9c524e23936fd434fc1bc951743bc32b29f1348c7c94"
+    },
+    "material-1.1.0/ui/styling/material_palette.slint": {
+      "path": "reference-material-1.1.0/ui/styling/material_palette.slint.source",
+      "bytes": 8952,
+      "sha256": "7c4f71ffb7aa964ae8f1bb2464b7cb215836d45abe7cc6f2a7a3d8600cd5e6d7"
+    },
+    "material-1.1.0/ui/styling/material_schemes.slint": {
+      "path": "material-1.1.0/ui/styling/material_schemes.slint",
+      "bytes": 1419,
+      "sha256": "37a72bc066c0ddc5f9ba364feac49553c77a6d730540ca64eeeabd6242daf952"
+    },
+    "material-1.1.0/ui/styling/material_style_metrics.slint": {
+      "path": "material-1.1.0/ui/styling/material_style_metrics.slint",
+      "bytes": 4284,
+      "sha256": "253163c0ad36ec697574c539f91104c233080bd20940a4a95ec2291f6995277e"
+    },
+    "material-1.1.0/ui/styling/material_typography.slint": {
+      "path": "material-1.1.0/ui/styling/material_typography.slint",
+      "bytes": 2513,
+      "sha256": "e48014baaf47e14df2e2e35af7f40d8c7a0c96392bfef9cb7c07fab817bd85a2"
+    },
+    "README.md": {
+      "path": "reference-docs/README.md.source",
+      "bytes": 2998,
+      "sha256": "4395a9c8da99fb6bc8e2d7d4471d2ba114936309b21bc44a5c6c2e10ff34f840"
+    },
+    "src/app.rs": {
+      "path": "reference-rust/src/app.rs.source",
+      "bytes": 3523,
+      "sha256": "5de59a35a460fe2f709b445d2bb411dd4ee08852a2c98bc7bb4fe7ee5f9abc7b"
+    },
+    "src/flag_assets.rs": {
+      "path": "reference-rust/src/flag_assets.rs.source",
+      "bytes": 7219,
+      "sha256": "32ccf3abcd8f56918f0477952acf86a496907f82e2e50c3520dbd13023722778"
+    },
+    "src/licenses.rs": {
+      "path": "reference-rust/src/licenses.rs.source",
+      "bytes": 4969,
+      "sha256": "2759ffef39f1f0362161650a37eefff22228466540b5fe6bea3a17e54c2b1e80"
+    },
+    "src/model.rs": {
+      "path": "reference-rust/src/model.rs.source",
+      "bytes": 8470,
+      "sha256": "90489168c18afe8228ba07cde149a5471cb037482c83828805ab64bcc601461b"
+    },
+    "tools/check-assets.ps1": {
+      "path": "reference-tools/tools/check-assets.ps1",
+      "bytes": 6713,
+      "sha256": "32427eb282134cee5a75515cb254f7b0ad3a5fc9c252ac694cc149352afbf614"
+    },
+    "tools/flag-renderer/Cargo.lock": {
+      "path": "tools/flag-renderer/Cargo.lock",
+      "bytes": 16040,
+      "sha256": "c91d74067ed19b50d608a5ddcda0acc96f3dcb899fd0d96aec0db2fcd4540eb5"
+    },
+    "tools/flag-renderer/Cargo.toml": {
+      "path": "tools/flag-renderer/Cargo.toml",
+      "bytes": 212,
+      "sha256": "ac542c840799857bc41edf38bffed19877585b09c2adb4eafe948f2c011a64bd"
+    },
+    "tools/flag-renderer/src/main.rs": {
+      "path": "tools/flag-renderer/src/main.rs",
+      "bytes": 3892,
+      "sha256": "d585b3bd2f30837c173a2dd3e0e29bd344543afef3f820079fad2eb4372e192e"
+    },
+    "tools/generate_licenses.ps1": {
+      "path": "reference-tools/tools/generate_licenses.ps1",
+      "bytes": 12696,
+      "sha256": "fbdbf2216f7853b6cbc79cfca91644aa531e3cdc3c1daaeb014aacac8ee0f3ed"
+    },
+    "tools/render-flags.ps1": {
+      "path": "reference-tools/tools/render-flags.ps1",
+      "bytes": 354,
+      "sha256": "516eb73a13d46954be5bce4772836b3ea205f3117efe4c8e9f16cce0b0babd0f"
+    },
+    "tools/ui-preview/Cargo.lock": {
+      "path": "tools/ui-preview/Cargo.lock",
+      "bytes": 194035,
+      "sha256": "7169a66cc7ed0b0789f5ef588a20455e7f39db02c8bdb62f1ae18fc803541211"
+    },
+    "tools/ui-preview/Cargo.toml": {
+      "path": "tools/ui-preview/Cargo.toml",
+      "bytes": 362,
+      "sha256": "6d1853066ec069ca6c70c0f75b24526fda001c14b9354f4ef84b722e5794762d"
+    },
+    "tools/ui-preview/src/main.rs": {
+      "path": "tools/ui-preview/src/main.rs",
+      "bytes": 14238,
+      "sha256": "cdf586180d9f629240adc8e931fa690c6d1de7ff4a1c8d71929ead63cff1a2d7"
+    },
+    "tools/ui-preview.ps1": {
+      "path": "reference-tools/tools/ui-preview.ps1",
+      "bytes": 5292,
+      "sha256": "dfb6b1e66426e32f87ee00c9b69dda3805295e1b25b7967eb85baf8ec76056c7"
+    },
+    "translations/en/LC_MESSAGES/lumen.po": {
+      "path": "translations/en/LC_MESSAGES/lumen.po",
+      "bytes": 31568,
+      "sha256": "5ad807858d5d4b0c519d5f7f7ba0c5d6ea909aec05291223a77c8dd350e53754"
+    },
+    "translations/zh-CN/LC_MESSAGES/lumen.po": {
+      "path": "translations/zh-CN/LC_MESSAGES/lumen.po",
+      "bytes": 30703,
+      "sha256": "237359c26d5bbc84255fda6e9488926ab523dbc910c8a4fc750d12ef35bdb021"
+    },
+    "ui/app.slint": {
+      "path": "ui/app.slint",
+      "bytes": 250600,
+      "sha256": "a024fdb1318c6f81fa739320aba82b1a79cc8a48668cc2985a014c48c7d15fb0"
+    },
+    "ui/flag-icons.slint": {
+      "path": "ui/flag-icons.slint",
+      "bytes": 16037,
+      "sha256": "538c863dcdede9c72017a366e8414838168908bbb2b1839e666fbe60c962df26"
+    },
+    "ui/ui-scale.slint": {
+      "path": "ui/ui-scale.slint",
+      "bytes": 155,
+      "sha256": "9ac2de542d0d445ed2848e70c2e11a34fd4314c0e4c2fb694448480023715568"
+    },
+    "yumebox-ui/一级页面/代理.jpg": {
+      "path": "reference-images/yumebox-ui/一级页面/代理.jpg",
+      "bytes": 354077,
+      "sha256": "e2e5b09e84a318eac04fda75783d170a801c68580413261b2f877500248645f4"
+    },
+    "yumebox-ui/一级页面/设置.jpg": {
+      "path": "reference-images/yumebox-ui/一级页面/设置.jpg",
+      "bytes": 322588,
+      "sha256": "c84aa7ecbcda4573b6c9b28f164ca08c0df5fca664ea47872e1e86bf4d148319"
+    },
+    "yumebox-ui/一级页面/配置.jpg": {
+      "path": "reference-images/yumebox-ui/一级页面/配置.jpg",
+      "bytes": 202807,
+      "sha256": "43fe65aa0b2a8dc0f6a5d3b670c82cdf41f46d0dda584f656d0154cd2712f3d3"
+    },
+    "yumebox-ui/一级页面/首页.jpg": {
+      "path": "reference-images/yumebox-ui/一级页面/首页.jpg",
+      "bytes": 203882,
+      "sha256": "d2ed5fc090cb9e78b400e12ba182c5a8088e0b650763d670cd8334c2e4220f61"
+    },
+    "yumebox-ui/三级页面/分享配置.jpg": {
+      "path": "reference-images/yumebox-ui/三级页面/分享配置.jpg",
+      "bytes": 176206,
+      "sha256": "3e96f4ee0043647e2e467b8c31ff61a8c5efe670ce4e22b9d834c8579e1526a1"
+    },
+    "yumebox-ui/三级页面/删除配置.jpg": {
+      "path": "reference-images/yumebox-ui/三级页面/删除配置.jpg",
+      "bytes": 202100,
+      "sha256": "70bc91a6c7214a7f3a38b5f4a2e78c25c51accbf8b693c4cf853de60e87b8649"
+    },
+    "yumebox-ui/三级页面/配置修改.jpg": {
+      "path": "reference-images/yumebox-ui/三级页面/配置修改.jpg",
+      "bytes": 192395,
+      "sha256": "847652d42885c41a204367c893b0d091b4588a4ce99520c79da6456ed3f575f9"
+    },
+    "yumebox-ui/三级页面/配置修改类型.jpg": {
+      "path": "reference-images/yumebox-ui/三级页面/配置修改类型.jpg",
+      "bytes": 229742,
+      "sha256": "115823d2432fd86f38379845eecadec42794f116d7679882353963db6fea48fe"
+    },
+    "yumebox-ui/三级页面/配置编辑.jpg": {
+      "path": "reference-images/yumebox-ui/三级页面/配置编辑.jpg",
+      "bytes": 612148,
+      "sha256": "097a18ab54215547a761464b55f51dea7916d5f20691a3bc6ab89a316b3c55ce"
+    },
+    "yumebox-ui/三级页面/首页启动效果.jpg": {
+      "path": "reference-images/yumebox-ui/三级页面/首页启动效果.jpg",
+      "bytes": 267646,
+      "sha256": "af26b08701e2ef06342a7a40d68f42a0ced2444df30d94c43096b80bce12b529"
+    },
+    "yumebox-ui/二级页面/添加配置.jpg": {
+      "path": "reference-images/yumebox-ui/二级页面/添加配置.jpg",
+      "bytes": 204901,
+      "sha256": "d7c527414060832829402b6e9eacd7a0a9f1f0909fe18a23dfd19db8fc696c21"
+    },
+    "yumebox-ui/二级页面/节点选择.jpg": {
+      "path": "reference-images/yumebox-ui/二级页面/节点选择.jpg",
+      "bytes": 280671,
+      "sha256": "f4751484febc23035714ab95fcc1459904a49d1f56866f6950f2ed1400a9fddc"
+    },
+    "yumebox-ui/应用设置/主题配色.png": {
+      "path": "reference-images/yumebox-ui/应用设置/主题配色.png",
+      "bytes": 53101,
+      "sha256": "bdfd1d68d59131e969a26d6ac6bc164b9940c7e8121c56d60bd6621f42c70627"
+    },
+    "yumebox-ui/应用设置/导航.png": {
+      "path": "reference-images/yumebox-ui/应用设置/导航.png",
+      "bytes": 39078,
+      "sha256": "c8992a47049abcafdc9a8de0b134c84c920d2af4f4a370e6eb786fb7935e35e1"
+    },
+    "yumebox-ui/应用设置/服务.png": {
+      "path": "reference-images/yumebox-ui/应用设置/服务.png",
+      "bytes": 48205,
+      "sha256": "99f873c2f9f1878f96d95b1212d29d1ac42a2b7118ce65b7c1b5634a5bbe95d4"
+    },
+    "yumebox-ui/应用设置/界面.png": {
+      "path": "reference-images/yumebox-ui/应用设置/界面.png",
+      "bytes": 53101,
+      "sha256": "bdfd1d68d59131e969a26d6ac6bc164b9940c7e8121c56d60bd6621f42c70627"
+    },
+    "yumebox-ui/应用设置/网络.png": {
+      "path": "reference-images/yumebox-ui/应用设置/网络.png",
+      "bytes": 27056,
+      "sha256": "ad349d1c1eaaace6b07076b02ba9dba0943da6bfe43b35d4ab0520a2ca7c68fa"
+    },
+    "yumebox-ui/应用设置/行为.png": {
+      "path": "reference-images/yumebox-ui/应用设置/行为.png",
+      "bytes": 41136,
+      "sha256": "de712dbca933d9e779f4610c9343a018f354fffebb6c8146772b1f663c014911"
+    },
+    "yumebox-ui/应用设置/隐私.png": {
+      "path": "reference-images/yumebox-ui/应用设置/隐私.png",
+      "bytes": 18903,
+      "sha256": "58b5a689b42f7f4c50345fbf812a0f8c07448f6f0e4b0c82f7c44e0901e3d115"
+    },
+    "yumebox-ui/应用设置/首页.png": {
+      "path": "reference-images/yumebox-ui/应用设置/首页.png",
+      "bytes": 47043,
+      "sha256": "79f89d550b52cad1915275d8b4bbb5cbb0b061a9ef6296359d9ec1317de2dbf3"
+    },
+    ".gitattributes": {
+      "path": "reference-metadata/gitattributes.source",
+      "bytes": 122,
+      "sha256": "ad2b3cdff109c481c701e6fe86b12460a6ada7881af4917c29d9e9e930a55c79"
+    },
+    ".gitignore": {
+      "path": "reference-metadata/gitignore.source",
+      "bytes": 63,
+      "sha256": "6fbfa256794e6cf11dd187701c22814a2d72a2591734df4a68efab06d13481a9"
+    },
+    "AGENTS.md": {
+      "path": "reference-metadata/AGENTS.md.source",
+      "bytes": 8350,
+      "sha256": "c7e9827ed7ac0948d362c6e98cb9fcaec25709b46a797bd9c441c70bdb51ba57"
+    },
+    "Cargo.lock": {
+      "path": "reference-build/Cargo.lock.source",
+      "bytes": 193918,
+      "sha256": "c3afc241784321f7ee55e1c5e8377df9e19995651b0500035487f35bddafed09"
+    },
+    "android/AndroidManifest.xml": {
+      "path": "reference-android/android/AndroidManifest.xml.source",
+      "bytes": 2628,
+      "sha256": "fa6daf18270b851b050bbd9b7b9ed2123de31896bd37184546e4068cb45da5b4"
+    },
+    "android/res/drawable/ic_lumen_launcher.xml": {
+      "path": "reference-android/android/res/drawable/ic_lumen_launcher.xml.source",
+      "bytes": 663,
+      "sha256": "795cf22d86d4da8f89847324f00146abaf4203a5f7ec74c8f030b444a469125e"
+    },
+    "android/src/main/java/org/lumen/client/LumenActivity.java": {
+      "path": "reference-android/android/src/main/java/org/lumen/client/LumenActivity.java.source",
+      "bytes": 20786,
+      "sha256": "1f7875a436e66644d0d9c58c5ae293b783f9e1a48c6ddcd5061dc75cba6d0a3b"
+    },
+    "android/src/main/java/org/lumen/client/LumenBootReceiver.java": {
+      "path": "reference-android/android/src/main/java/org/lumen/client/LumenBootReceiver.java.source",
+      "bytes": 3334,
+      "sha256": "749fcf02c122fb3516663d09d71ccfa72f9d5ebed5f102d2ba5b102cbea9d47c"
+    },
+    "android/src/main/java/org/lumen/client/LumenVpnService.java": {
+      "path": "reference-android/android/src/main/java/org/lumen/client/LumenVpnService.java.source",
+      "bytes": 7266,
+      "sha256": "76c28b3cd9507d22f89518b8b8b3d94c1912ad97990361bf2412bda63d11cf43"
+    },
+    "src/credentials.rs": {
+      "path": "reference-rust/src/credentials.rs.source",
+      "bytes": 14947,
+      "sha256": "f2f510363305fab377c298a5e17fb314be08eaeffa3a144203b94dfd1fe25982"
+    },
+    "src/lib.rs": {
+      "path": "reference-rust/src/lib.rs.source",
+      "bytes": 945,
+      "sha256": "5e50e2b0ff8402696cc4ef4eb8a1f8adda7d4f90cc5f2136d9f1e035b55a3e66"
+    },
+    "src/main.rs": {
+      "path": "reference-rust/src/main.rs.source",
+      "bytes": 102,
+      "sha256": "373af80813a0a47dab9bdd64eb9989ddd1c36c4b5b15bc638d6f4c46937d93f8"
+    },
+    "src/mihomo.rs": {
+      "path": "reference-rust/src/mihomo.rs.source",
+      "bytes": 33631,
+      "sha256": "368eda8a92118e4c3472b1c6cc86591ca721af0fe83b11c00896e55449bf731c"
+    },
+    "src/platform.rs": {
+      "path": "reference-rust/src/platform.rs.source",
+      "bytes": 61264,
+      "sha256": "0c20a88a148e21fb36a83f933ac4f12b5782c5ead952d964de36681bbcc61951"
+    },
+    "src/services.rs": {
+      "path": "reference-rust/src/services.rs.source",
+      "bytes": 284547,
+      "sha256": "65035e36831268696eb2802e723a1405c5b4a131a49678b7a3dc5ceb3c6c961d"
+    },
+    "tools/build_android.ps1": {
+      "path": "reference-tools/tools/build_android.ps1.source",
+      "bytes": 18720,
+      "sha256": "0fd4bcc8e9aafcdcada53d70a49c89b6065d8dcaec1e49069fd07a6a2af3e825"
+    }
+  },
+  "excluded_by_design": [
+    "Only the archive .git/ directory is excluded; all 718 non-.git source and metadata files are preserved byte-for-byte under this directory. Original Cargo.lock, Rust services, Android entry points, build scripts, docs, and metadata are retained as .source reference files when they are not part of the MusicFrog build.",
+    "The active MusicFrog Rust adapters, shared UI catalogs/assets, and patched Material palette are separate workspace-owned files; the original archive bytes remain in the reference paths recorded above."
+  ]
+}

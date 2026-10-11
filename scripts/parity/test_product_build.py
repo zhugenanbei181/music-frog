@@ -82,6 +82,41 @@ class ProductBuildTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'compiled input changed'):
             archive(self.root, 'iced', self.binary, self.manifest)
 
+    def test_declared_external_sources_affect_build_identity_and_impact(self):
+        external = self.root.parent / (self.root.name + '-shared')
+        external.mkdir()
+        self.addCleanup(shutil.rmtree, external)
+        source = external / 'src.rs'
+        source.write_text('pub fn current() {}')
+        self.binary.with_suffix('.d').write_text(
+            f'{self.binary}: {str(source).replace(" ", chr(92) + " ")}\n')
+        patch('product_build.local_package_roots', return_value={self.root, external}).start()
+        os.utime(self.binary, ns=(source.stat().st_mtime_ns + 1_000_000,) * 2)
+        record = archive(self.root, 'iced', self.binary, self.manifest)
+        relative = os.path.relpath(source, self.root)
+        self.assertIn(relative, record['inputs'])
+        self.assertEqual(impact(self.root, record)['status'], 'unchanged')
+        source.write_text('pub fn changed() {}')
+        self.assertEqual(impact(self.root, record)['changed_inputs'], [relative])
+        forged = dict(record, inputs={'../undeclared/private.rs': '0' * 64})
+        with self.assertRaisesRegex(ValueError, 'outside declared Cargo packages'):
+            impact(self.root, forged)
+
+    def test_workspace_inheritance_and_product_configuration_are_build_inputs(self):
+        package = self.source.parent.parent
+        (package / 'Cargo.toml').write_text('[package]\nname="fixture"\n')
+        (self.root / 'Cargo.toml').write_text('[workspace]\n')
+        (self.root / 'Cargo.lock').write_text('version=4\n')
+        configuration = self.root / '.cargo/config.toml'
+        configuration.parent.mkdir()
+        configuration.write_text('[build]\njobs=4\n')
+        patch('product_build.local_package_roots', return_value={self.root, package}).start()
+        record = archive(self.root, 'iced', self.binary, self.manifest)
+        self.assertTrue({'Cargo.toml', 'Cargo.lock', '.cargo/config.toml',
+                         'crates/iced/Cargo.toml'} <= record['inputs'].keys())
+        (self.root / 'Cargo.toml').write_text('[workspace]\nresolver="3"\n')
+        self.assertEqual(impact(self.root, record)['changed_inputs'], ['Cargo.toml'])
+
     def test_runtime_resource_is_archived_and_changes_only_request_reverification(self):
         self.binary = self.binary.with_name('infiltrator-bevy-ui')
         icon = self.root / 'crates/infiltrator-bevy-widgets/assets/icons/one.png'

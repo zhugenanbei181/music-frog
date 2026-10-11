@@ -1,6 +1,6 @@
 //! test-intent: behavior
 //! Native locale replay must preserve the result, active modal and input owner.
-use crate::native_input::{click_entity, press, replace_text};
+use crate::native_input::click_entity;
 use crate::support::headless_plugins;
 use bevy::app::App;
 use bevy::ecs::component::Component;
@@ -14,13 +14,12 @@ use infiltrator_bevy_ui::command::{CommandPumpPlugin, DemoCommandSink};
 use infiltrator_bevy_ui::pages::overview::{LastOverviewProjection, OverviewProjectionUpdated};
 use infiltrator_bevy_ui::pages::overview_speedtest::{
     OverviewSpeedtestDetailBodyText, OverviewSpeedtestDetailButton, OverviewSpeedtestHistoryText,
-    OverviewSpeedtestMetricsText, OverviewSpeedtestUrlField,
+    OverviewSpeedtestMetricsText,
 };
 use infiltrator_bevy_ui::projection::{DemoOverviewSource, OverviewSource};
 use infiltrator_bevy_ui::route::PagesPlugin;
 use infiltrator_bevy_widgets::adaptive_modal::ModalState;
 use infiltrator_bevy_widgets::localization::UiLocale;
-use infiltrator_bevy_widgets::text_input::{TextField, TextFieldFocused};
 use infiltrator_contract::speedtest::SpeedtestSnapshot;
 use std::sync::Arc;
 
@@ -35,7 +34,7 @@ fn text(app: &App, entity: Entity) -> &str {
 }
 
 #[test]
-fn locale_replay_keeps_speedtest_results_partial_facts_modal_and_native_draft() {
+fn locale_replay_keeps_speedtest_results_partial_facts_and_modal() {
     let sink = Arc::new(DemoCommandSink::accepting());
     let mut app = App::new();
     headless_plugins(&mut app);
@@ -48,15 +47,11 @@ fn locale_replay_keeps_speedtest_results_partial_facts_modal_and_native_draft() 
     app.update();
     let mut projection = DemoOverviewSource::running().current();
     projection.speedtest = SpeedtestSnapshot::demo_fixture();
-    let mut node = projection.speedtest.fastest_node().unwrap().clone();
-    node.node_name = "node {stars}/中文🙂".into();
-    node.bandwidth_mbps = Some(0.0);
-    node.jitter = None;
-    projection.speedtest.node_results.clear();
-    projection
-        .speedtest
-        .node_results
-        .insert(node.node_name.clone(), node);
+    let mut result = projection.speedtest.results.remove(0);
+    result.display_name = Some("node {stars}/中文🙂".into());
+    result.samples =
+        vec![infiltrator_contract::speedtest::SpeedtestSampleOutcome::Measured { delay_ms: 0 }];
+    projection.speedtest.results = vec![result];
     app.world_mut()
         .trigger(OverviewProjectionUpdated(projection.clone()));
     app.update();
@@ -72,21 +67,7 @@ fn locale_replay_keeps_speedtest_results_partial_facts_modal_and_native_draft() 
     let tun_label = *app.world().get::<Children>(tun).unwrap().first().unwrap();
     assert_eq!(text(&app, proxy_label), "开");
     assert_eq!(text(&app, tun_label), "开");
-    assert!(text(&app, metrics).contains("带宽 0.0 Mbps · 抖动 — · 丢包 — · — · —"));
-    let url_owner = entity::<OverviewSpeedtestUrlField>(&mut app);
-    let field = app
-        .world()
-        .get::<Children>(url_owner)
-        .unwrap()
-        .iter()
-        .copied()
-        .find(|child| app.world().get::<TextField>(*child).is_some())
-        .unwrap();
-    press(&mut app, field);
-    let draft = "https://test.example/{locale}/中文🙂";
-    replace_text(&mut app, draft);
-    let mut expected = app.world().get::<TextField>(field).unwrap().0.clone();
-    expected.set_placeholder("Speedtest URL (leave blank to use the default)");
+    assert!(text(&app, metrics).contains("抖动 — · 丢包 0.0%"));
     app.world_mut()
         .resource_mut::<UiLocale>()
         .apply_preference("en-US");
@@ -97,15 +78,12 @@ fn locale_replay_keeps_speedtest_results_partial_facts_modal_and_native_draft() 
     assert_eq!(text(&app, tun_label), "On");
     assert_eq!(entity::<OverviewSpeedtestMetricsText>(&mut app), metrics);
     assert_eq!(entity::<OverviewSpeedtestDetailBodyText>(&mut app), detail);
-    assert_eq!(app.world().get::<TextField>(field).unwrap().0, expected);
-    assert_eq!(app.world().get::<TextField>(field).unwrap().0.text(), draft);
-    assert!(app.world().get::<TextFieldFocused>(field).unwrap().0);
     assert!(app.world().resource::<ModalState>().is_open);
-    assert!(text(&app, metrics).starts_with("node {stars}/中文🙂 · Bandwidth 0.0 Mbps"));
-    assert!(text(&app, metrics).contains("Jitter — · Loss — · — · —"));
+    assert!(text(&app, metrics).starts_with("node {stars}/中文🙂"));
+    assert!(text(&app, metrics).contains("Jitter — · Loss 0.0%"));
     assert!(text(&app, history).starts_with("Recent tests:"));
-    assert!(text(&app, detail).contains("Stars —"));
-    assert!(!text(&app, detail).contains('★'));
+    assert!(text(&app, detail).contains("node {stars}/中文🙂 · Shadowsocks"));
+    assert!(text(&app, detail).contains("0 ms"));
     assert_eq!(
         app.world()
             .resource::<LastOverviewProjection>()

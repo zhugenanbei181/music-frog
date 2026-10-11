@@ -1,6 +1,7 @@
 //! Default shared Settings projection used by demo and empty compositions.
 
 use super::settings_core::SettingsProjection;
+use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::lan::DEFAULT_BIND_ADDRESS;
 use infiltrator_contract::network_roaming::{
     NetworkInterfaceKind, NetworkInterfaceSnapshot, NetworkRoamingEvent, NetworkRoamingSnapshot,
@@ -12,7 +13,7 @@ use infiltrator_contract::surface_snapshot::PageStatus;
 use infiltrator_contract::system_proxy::{SystemProxyRecoverySnapshot, SystemProxySnapshot};
 use infiltrator_contract::tun::TunStack;
 use infiltrator_contract::version::CoreVersionSnapshot;
-use infiltrator_contract::vpn::VpnSessionSnapshot;
+use infiltrator_contract::vpn::VpnSurfaceObservation;
 
 impl SettingsProjection {
     pub fn demo() -> Self {
@@ -21,6 +22,7 @@ impl SettingsProjection {
             notifications_enabled: Some(true),
             preference_status: PageStatus::Ready,
             runtime_status: RuntimeControlStatus::Ready,
+            theme: "system".into(),
             autostart: true,
             system_proxy: true,
             system_proxy_snapshot: SystemProxySnapshot::default(),
@@ -32,10 +34,9 @@ impl SettingsProjection {
             ipv6_routing: Some(Default::default()),
             pac: Default::default(),
             network_roaming: demo_network_roaming(),
-            vpn: VpnSessionSnapshot::unsupported(
-                1,
-                "Android VpnService is not part of the desktop demo host",
-            ),
+            vpn: VpnSurfaceObservation::Unsupported {
+                reason: "Android VpnService is not part of the desktop demo host".to_owned(),
+            },
             privileged_network: PrivilegedNetworkSnapshot::unsupported(
                 1,
                 "privileged network regression is a host-test capability",
@@ -47,7 +48,9 @@ impl SettingsProjection {
             controller_port: Some(9090),
             log_level: Some("info".to_owned()),
             core_channel: "stable".to_owned(),
-            core_versions: CoreVersionSnapshot::default(),
+            core_versions: CoreVersionSnapshot::for_engine(
+                EngineId::new("mihomo").expect("demo Mihomo engine ID is valid"),
+            ),
             core_integrity: Default::default(),
             controller_auth: Default::default(),
             service_mode: Default::default(),

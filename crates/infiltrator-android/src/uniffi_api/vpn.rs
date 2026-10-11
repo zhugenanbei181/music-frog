@@ -1,131 +1,709 @@
-//! VPN/TUN surface: tun2proxy lifecycle (`start_vpn`/`stop_vpn`), live TUN
-//! status via the Android bridge, and the persisted VPN TUN settings
-//! (MTU/routes/stack plus DNS servers patched into the DNS config).
+//! VPN/TUN surface: tun2proxy worker lifecycle (`start_vpn`/`stop_vpn_worker`), live TUN
+//! status via the Android bridge, and owner-only persisted TUN configuration.
 
 use crate::ffi::{FfiErrorCode, FfiStatus};
 #[cfg(target_os = "android")]
-use crate::host_support::build_config_manager;
+use crate::host_session::shared_core;
 use crate::host_support::{
-    build_configuration_application, get_runtime, map_application_failure, map_mihomo_error,
+    build_configuration_application, get_runtime, map_application_failure,
     normalize_optional_string,
 };
 #[cfg(target_os = "android")]
 use crate::vpn_route::VpnRouteConfig;
 use crate::vpn_service::AndroidVpnServicePort;
+#[cfg(any(target_os = "android", test))]
+use crate::vpn_service::WorkerStopOutcome;
+#[cfg(target_os = "android")]
+use crate::vpn_service::stop_data_plane_worker;
 use infiltrator_application::vpn_application::VpnServiceApplication;
+#[cfg(target_os = "android")]
+use infiltrator_application::vpn_preparation::{
+    VpnConfigurationActivationBeginOutcome, VpnConfigurationActivationConsumeOutcome,
+    VpnPreparationInstallOutcome, VpnPreparationReadyOutcome, VpnPreparationStore,
+};
+use infiltrator_application::vpn_preparation::{
+    VpnConfigurationActivationReleaseOutcome, VpnConfigurationActivationStatus,
+};
+#[cfg(target_os = "android")]
+use infiltrator_contract::android_control::AndroidHostProcessRole;
+#[cfg(target_os = "android")]
+use infiltrator_contract::core_identity::CoreScope;
+#[cfg(target_os = "android")]
+use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::vpn;
+use infiltrator_contract::vpn::VpnConfigurationActivationLease;
+#[cfg(target_os = "android")]
 use infiltrator_contract::vpn::VpnSessionState;
 #[cfg(target_os = "android")]
-use infiltrator_contract::vpn::{VpnConfiguration, VpnRoute, VpnStartRequest};
-use infiltrator_domain::{dns, tun};
-use mihomo_platform::android_bridge::get_android_bridge;
+use infiltrator_contract::vpn::{
+    PreparedVpnConfiguration, VpnConfiguration, VpnGeneration, VpnPreparationId, VpnRoute,
+    VpnStartRequest,
+};
+use infiltrator_domain::tun;
 #[cfg(target_os = "android")]
-use serde_yaml_ng::Value;
+use mihomo_platform::android_bridge::get_android_bridge;
 #[cfg(target_os = "android")]
 use std::net::IpAddr;
 use std::sync::Arc;
+#[cfg(target_os = "android")]
+use std::sync::OnceLock;
+#[cfg(target_os = "android")]
+use std::sync::atomic::{AtomicU64, Ordering};
 
+#[cfg(target_os = "android")]
+static VPN_PREPARATION_STORE: OnceLock<VpnPreparationStore> = OnceLock::new();
+#[cfg(target_os = "android")]
+static NEXT_VPN_PREPARATION_ID: AtomicU64 = AtomicU64::new(1);
+#[cfg(target_os = "android")]
+static NEXT_VPN_CONFIGURATION_ACTIVATION_LEASE_ID: AtomicU64 = AtomicU64::new(1);
+
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct VpnPreparationResult {
+    pub status: FfiStatus,
+    pub preparation_id: Option<u64>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct AndroidVpnConfigurationActivationLease {
+    pub lease_id: u64,
+    pub preparation_id: u64,
+    pub vpn_generation: u64,
+    pub owner_data_revision: u64,
+}
+
+impl From<VpnConfigurationActivationLease> for AndroidVpnConfigurationActivationLease {
+    fn from(lease: VpnConfigurationActivationLease) -> Self {
+        Self {
+            lease_id: lease.lease_id,
+            preparation_id: lease.preparation_id.value(),
+            vpn_generation: lease.vpn_generation.value(),
+            owner_data_revision: lease.owner_data_revision,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Enum)]
+pub enum AndroidVpnConfigurationActivationResult {
+    Acquired {
+        lease: AndroidVpnConfigurationActivationLease,
+    },
+    StaleOwnerData {
+        expected_revision: u64,
+        observed_revision: u64,
+    },
+    PreparedRevisionMismatch {
+        prepared_revision: u64,
+        requested_revision: u64,
+    },
+    Busy,
+    Missing,
+    NotReady,
+    TransactionMismatch,
+    StaleGeneration,
+    Failed {
+        status: FfiStatus,
+    },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, uniffi::Enum)]
+pub enum AndroidVpnConfigurationActivationReleaseResult {
+    ReleasedBeforeConsume,
+    ReleasedAfterConsume,
+    LeaseMissing,
+    LeaseMismatch,
+}
+
+/// Start tun2proxy from the one prepared configuration owned by this VPN and
+/// Core activation. The owner-data revision is rechecked and the preparation
+/// consumed atomically while the activation lease still blocks owner writes.
 #[uniffi::export]
-pub fn start_vpn(fd: i32) -> FfiStatus {
+pub fn start_vpn(
+    fd: i32,
+    vpn_generation: u64,
+    preparation_id: u64,
+    activation_lease_id: u64,
+) -> FfiStatus {
     log::info!("Rust received VPN File Descriptor: {}", fd);
 
     #[cfg(target_os = "android")]
     {
-        if fd <= 0 {
+        if fd <= 0 || vpn_generation == 0 || preparation_id == 0 || activation_lease_id == 0 {
             return FfiStatus::err(
                 FfiErrorCode::InvalidInput,
-                "VpnService supplied an invalid tunnel file descriptor",
+                "VpnService supplied an invalid descriptor, transaction, or activation lease identity",
             );
         }
-        let proxy_endpoint = resolve_proxy_url().unwrap_or_else(default_proxy_url);
-        let request = match get_runtime().block_on(build_vpn_start_request(fd, proxy_endpoint)) {
-            Ok(request) => request,
-            Err(status) => return status,
-        };
-        let application = VpnServiceApplication::new(Arc::new(AndroidVpnServicePort::shared()));
-        match get_runtime().block_on(application.start(request)) {
-            Ok(snapshot) if snapshot.is_running() => FfiStatus::ok(),
-            Ok(snapshot) => FfiStatus::err(
-                FfiErrorCode::NotReady,
-                format!(
-                    "VPN start did not reach foreground Running: {:?}",
-                    snapshot.state
+        let generation = VpnGeneration::new(vpn_generation);
+        get_runtime().block_on(async {
+            let request = {
+                let _owner_data_fence = super::owner_operation::owner_data_revision_fence().await;
+                let core_scope = match active_core_scope().await {
+                    Ok(scope) => scope,
+                    Err(status) => return status,
+                };
+                let observed_revision = super::owner_operation::android_owner_data_revision();
+                match vpn_preparation_store().consume_activation(
+                    activation_lease_id,
+                    VpnPreparationId::new(preparation_id),
+                    generation,
+                    &core_scope,
+                    observed_revision,
+                    fd,
+                ) {
+                    VpnConfigurationActivationConsumeOutcome::Consumed(request) => request,
+                    VpnConfigurationActivationConsumeOutcome::LeaseMissing => {
+                        return FfiStatus::err(
+                            FfiErrorCode::NotReady,
+                            "VPN configuration activation lease is no longer active",
+                        );
+                    }
+                    VpnConfigurationActivationConsumeOutcome::LeaseMismatch => {
+                        return FfiStatus::err(
+                            FfiErrorCode::InvalidInput,
+                            "VPN start request does not match its activation lease",
+                        );
+                    }
+                    VpnConfigurationActivationConsumeOutcome::StaleOwnerData {
+                        expected_revision,
+                        observed_revision,
+                    } => {
+                        return FfiStatus::err(
+                            FfiErrorCode::NotReady,
+                            format!(
+                                "VPN frozen owner-data revision is stale (expected {expected_revision}, observed {observed_revision})"
+                            ),
+                        );
+                    }
+                    VpnConfigurationActivationConsumeOutcome::CoreScopeChanged => {
+                        return FfiStatus::err(
+                            FfiErrorCode::InvalidState,
+                            "Core identity, generation, or session changed after VPN preparation",
+                        );
+                    }
+                    VpnConfigurationActivationConsumeOutcome::InvalidTunnelDescriptor => {
+                        return FfiStatus::err(
+                            FfiErrorCode::InvalidInput,
+                            "VpnService supplied an invalid tunnel descriptor",
+                        );
+                    }
+                }
+            };
+            start_prepared_vpn(request).await
+        })
+    }
+
+    #[cfg(not(target_os = "android"))]
+    {
+        let _android_transaction = (fd, vpn_generation, preparation_id, activation_lease_id);
+        FfiStatus::err(
+            FfiErrorCode::NotSupported,
+            "Android VpnService is unavailable on this target",
+        )
+    }
+}
+
+/// Compare the frozen revision under the same serializer used by owner writes
+/// and admit exactly one Builder activation lease.
+#[uniffi::export]
+pub fn android_begin_vpn_configuration_activation(
+    preparation_id: u64,
+    vpn_generation: u64,
+    requested_owner_data_revision: u64,
+) -> AndroidVpnConfigurationActivationResult {
+    #[cfg(target_os = "android")]
+    {
+        if preparation_id == 0 || vpn_generation == 0 {
+            return AndroidVpnConfigurationActivationResult::Failed {
+                status: FfiStatus::err(
+                    FfiErrorCode::InvalidInput,
+                    "VPN activation requires non-zero preparation and generation identities",
                 ),
+            };
+        }
+        get_runtime().block_on(async {
+            let _owner_data_fence = super::owner_operation::owner_data_revision_fence().await;
+            let observed_revision = super::owner_operation::android_owner_data_revision();
+            let lease_id = NEXT_VPN_CONFIGURATION_ACTIVATION_LEASE_ID.try_update(
+                Ordering::SeqCst,
+                Ordering::SeqCst,
+                |next| next.checked_add(1),
+            );
+            let Ok(lease_id) = lease_id else {
+                return AndroidVpnConfigurationActivationResult::Failed {
+                    status: FfiStatus::err(
+                        FfiErrorCode::InvalidState,
+                        "VPN configuration activation lease identifiers are exhausted",
+                    ),
+                };
+            };
+            match vpn_preparation_store().begin_activation(
+                VpnPreparationId::new(preparation_id),
+                VpnGeneration::new(vpn_generation),
+                requested_owner_data_revision,
+                observed_revision,
+                lease_id,
+            ) {
+                VpnConfigurationActivationBeginOutcome::Acquired(lease) => {
+                    AndroidVpnConfigurationActivationResult::Acquired {
+                        lease: lease.into(),
+                    }
+                }
+                VpnConfigurationActivationBeginOutcome::Busy => {
+                    AndroidVpnConfigurationActivationResult::Busy
+                }
+                VpnConfigurationActivationBeginOutcome::Missing => {
+                    AndroidVpnConfigurationActivationResult::Missing
+                }
+                VpnConfigurationActivationBeginOutcome::NotReady => {
+                    AndroidVpnConfigurationActivationResult::NotReady
+                }
+                VpnConfigurationActivationBeginOutcome::TransactionMismatch => {
+                    AndroidVpnConfigurationActivationResult::TransactionMismatch
+                }
+                VpnConfigurationActivationBeginOutcome::StaleGeneration => {
+                    AndroidVpnConfigurationActivationResult::StaleGeneration
+                }
+                VpnConfigurationActivationBeginOutcome::PreparedRevisionMismatch {
+                    prepared_revision,
+                    requested_revision,
+                } => AndroidVpnConfigurationActivationResult::PreparedRevisionMismatch {
+                    prepared_revision,
+                    requested_revision,
+                },
+                VpnConfigurationActivationBeginOutcome::StaleOwnerData {
+                    expected_revision,
+                    observed_revision,
+                } => AndroidVpnConfigurationActivationResult::StaleOwnerData {
+                    expected_revision,
+                    observed_revision,
+                },
+                VpnConfigurationActivationBeginOutcome::InvalidLeaseId => {
+                    AndroidVpnConfigurationActivationResult::Failed {
+                        status: FfiStatus::err(
+                            FfiErrorCode::InvalidState,
+                            "VPN configuration activation lease identifier is invalid",
+                        ),
+                    }
+                }
+            }
+        })
+    }
+
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = (
+            preparation_id,
+            vpn_generation,
+            requested_owner_data_revision,
+        );
+        AndroidVpnConfigurationActivationResult::Failed {
+            status: FfiStatus::err(
+                FfiErrorCode::NotSupported,
+                "Android VpnService is unavailable on this target",
             ),
-            Err(failure) => map_application_failure(failure),
+        }
+    }
+}
+
+/// Release the activation admission after Kotlin has published its terminal
+/// Start receipt or completed failure/cancellation cleanup.
+#[uniffi::export]
+pub fn android_finish_vpn_configuration_activation(
+    activation_lease_id: u64,
+) -> AndroidVpnConfigurationActivationReleaseResult {
+    #[cfg(target_os = "android")]
+    {
+        if activation_lease_id == 0 {
+            return AndroidVpnConfigurationActivationReleaseResult::LeaseMismatch;
+        }
+        get_runtime().block_on(async {
+            let _owner_data_fence = super::owner_operation::owner_data_revision_fence().await;
+            map_activation_release(vpn_preparation_store().finish_activation(activation_lease_id))
+        })
+    }
+
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = activation_lease_id;
+        AndroidVpnConfigurationActivationReleaseResult::LeaseMissing
+    }
+}
+
+fn map_activation_release(
+    outcome: VpnConfigurationActivationReleaseOutcome,
+) -> AndroidVpnConfigurationActivationReleaseResult {
+    match outcome {
+        VpnConfigurationActivationReleaseOutcome::ReleasedBeforeConsume => {
+            AndroidVpnConfigurationActivationReleaseResult::ReleasedBeforeConsume
+        }
+        VpnConfigurationActivationReleaseOutcome::ReleasedAfterConsume => {
+            AndroidVpnConfigurationActivationReleaseResult::ReleasedAfterConsume
+        }
+        VpnConfigurationActivationReleaseOutcome::LeaseMissing => {
+            AndroidVpnConfigurationActivationReleaseResult::LeaseMissing
+        }
+        VpnConfigurationActivationReleaseOutcome::LeaseMismatch => {
+            AndroidVpnConfigurationActivationReleaseResult::LeaseMismatch
+        }
+    }
+}
+
+/// Freeze and apply the exact configuration that Kotlin's Builder and the
+/// later Rust worker will consume for this VPN generation.
+#[uniffi::export]
+pub fn prepare_vpn(vpn_generation: u64) -> VpnPreparationResult {
+    #[cfg(target_os = "android")]
+    {
+        if vpn_generation == 0 {
+            return VpnPreparationResult {
+                status: FfiStatus::err(
+                    FfiErrorCode::InvalidInput,
+                    "VPN preparation requires a non-zero service generation",
+                ),
+                preparation_id: None,
+            };
+        }
+        get_runtime().block_on(async move {
+            let _owner_data_fence = super::owner_operation::owner_data_revision_fence().await;
+            if vpn_configuration_activation_status() != VpnConfigurationActivationStatus::Available {
+                return VpnPreparationResult {
+                    status: FfiStatus::err(
+                        FfiErrorCode::NotReady,
+                        "VPN configuration activation is still holding the prepared revision",
+                    ),
+                    preparation_id: None,
+                };
+            }
+            let owner_data_revision = super::owner_operation::android_owner_data_revision();
+            let core_scope = match active_core_scope().await {
+                Ok(scope) => scope,
+                Err(status) => {
+                    return VpnPreparationResult {
+                        status,
+                        preparation_id: None,
+                    };
+                }
+            };
+            let proxy_endpoint = match resolve_proxy_url().await {
+                Ok(Some(endpoint)) => endpoint,
+                Ok(None) => default_proxy_url(),
+                Err(status) => {
+                    return VpnPreparationResult {
+                        status,
+                        preparation_id: None,
+                    };
+                }
+            };
+            let observed_core_scope = match active_core_scope().await {
+                Ok(scope) => scope,
+                Err(status) => {
+                    return VpnPreparationResult {
+                        status,
+                        preparation_id: None,
+                    };
+                }
+            };
+            if observed_core_scope != core_scope {
+                return VpnPreparationResult {
+                    status: FfiStatus::err(
+                        FfiErrorCode::NotReady,
+                        "Core identity, generation, or session changed during VPN preparation",
+                    ),
+                    preparation_id: None,
+                };
+            }
+            let configuration = match build_vpn_configuration(proxy_endpoint).await {
+                Ok(configuration) => configuration,
+                Err(status) => {
+                    return VpnPreparationResult {
+                        status,
+                        preparation_id: None,
+                    };
+                }
+            };
+            let observed_owner_data_revision =
+                super::owner_operation::android_owner_data_revision();
+            if observed_owner_data_revision != owner_data_revision {
+                return VpnPreparationResult {
+                    status: FfiStatus::err(
+                        FfiErrorCode::NotReady,
+                        format!(
+                            "owner data changed during VPN preparation (expected {owner_data_revision}, observed {observed_owner_data_revision})"
+                        ),
+                    ),
+                    preparation_id: None,
+                };
+            }
+            match active_core_scope().await {
+                Ok(observed) if observed == core_scope => {}
+                Ok(_) => {
+                    return VpnPreparationResult {
+                        status: FfiStatus::err(
+                            FfiErrorCode::NotReady,
+                            "Core identity, generation, or session changed while VPN settings were read",
+                        ),
+                        preparation_id: None,
+                    };
+                }
+                Err(status) => {
+                    return VpnPreparationResult {
+                        status,
+                        preparation_id: None,
+                    };
+                }
+            }
+            let Some(preparation_id) = next_vpn_preparation_id() else {
+                return VpnPreparationResult {
+                    status: FfiStatus::err(
+                        FfiErrorCode::InvalidState,
+                        "VPN preparation ID space is exhausted",
+                    ),
+                    preparation_id: None,
+                };
+            };
+            let prepared = PreparedVpnConfiguration {
+                preparation_id,
+                vpn_generation: VpnGeneration::new(vpn_generation),
+                owner_data_revision,
+                core_scope,
+                configuration,
+            };
+            match vpn_preparation_store().install(prepared.clone()) {
+                VpnPreparationInstallOutcome::Installed
+                | VpnPreparationInstallOutcome::ReplacedOlder(_) => {}
+                VpnPreparationInstallOutcome::RejectedCurrent(current_id) => {
+                    return VpnPreparationResult {
+                        status: FfiStatus::err(
+                            FfiErrorCode::InvalidState,
+                            format!(
+                                "VPN generation already has prepared transaction {}",
+                                current_id.value()
+                            ),
+                        ),
+                        preparation_id: None,
+                    };
+                }
+            }
+            let application = VpnServiceApplication::new(Arc::new(AndroidVpnServicePort::shared()));
+            match application.prepare(prepared.clone()).await {
+                Ok(snapshot) if snapshot.foreground => match active_core_scope().await {
+                    Ok(current_scope)
+                        if current_scope == prepared.core_scope
+                            && super::owner_operation::android_owner_data_revision()
+                                == prepared.owner_data_revision =>
+                    {
+                        match vpn_preparation_store().mark_prepared(preparation_id) {
+                            VpnPreparationReadyOutcome::Ready => VpnPreparationResult {
+                                status: FfiStatus::ok(),
+                                preparation_id: Some(preparation_id.value()),
+                            },
+                            VpnPreparationReadyOutcome::Missing
+                            | VpnPreparationReadyOutcome::Stale => {
+                                let _ = vpn_preparation_store().clear_transaction(preparation_id);
+                                VpnPreparationResult {
+                                    status: FfiStatus::err(
+                                        FfiErrorCode::NotReady,
+                                        "VPN preparation was superseded before Builder readback",
+                                    ),
+                                    preparation_id: None,
+                                }
+                            }
+                        }
+                    }
+                    Ok(_) => {
+                        let _ = vpn_preparation_store().clear_transaction(preparation_id);
+                        VpnPreparationResult {
+                            status: FfiStatus::err(FfiErrorCode::NotReady, "Core scope or owner-data revision changed during Builder preparation"),
+                            preparation_id: None,
+                        }
+                    }
+                    Err(status) => {
+                        let _ = vpn_preparation_store().clear_transaction(preparation_id);
+                        VpnPreparationResult {
+                            status,
+                            preparation_id: None,
+                        }
+                    }
+                },
+                Ok(snapshot) => {
+                    let _ = vpn_preparation_store().clear_transaction(preparation_id);
+                    VpnPreparationResult {
+                        status: FfiStatus::err(
+                            FfiErrorCode::NotReady,
+                            format!(
+                                "VPN Builder configuration is not foreground-protected: {:?}",
+                                snapshot.state
+                            ),
+                        ),
+                        preparation_id: None,
+                    }
+                }
+                Err(failure) => {
+                    let _ = vpn_preparation_store().clear_transaction(preparation_id);
+                    VpnPreparationResult {
+                        status: map_application_failure(failure),
+                        preparation_id: None,
+                    }
+                }
+            }
+        })
+    }
+
+    #[cfg(not(target_os = "android"))]
+    {
+        let _android_generation = vpn_generation;
+        VpnPreparationResult {
+            status: FfiStatus::err(
+                FfiErrorCode::NotSupported,
+                "Android VpnService is unavailable on this target",
+            ),
+            preparation_id: None,
+        }
+    }
+}
+
+/// Clear any prepared transaction at or before the stopping/revoked owner
+/// generation. A late cleanup cannot erase a newer activation.
+#[uniffi::export]
+pub fn cancel_vpn_preparation(vpn_generation: u64) -> FfiStatus {
+    #[cfg(target_os = "android")]
+    {
+        if vpn_generation == 0 {
+            return FfiStatus::err(
+                FfiErrorCode::InvalidInput,
+                "VPN preparation cleanup requires a non-zero service generation",
+            );
+        }
+        get_runtime().block_on(async {
+            let _owner_data_fence = super::owner_operation::owner_data_revision_fence().await;
+            let _ = vpn_preparation_store().clear_through(VpnGeneration::new(vpn_generation));
+        });
+        FfiStatus::ok()
+    }
+
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = vpn_generation;
+        FfiStatus::err(
+            FfiErrorCode::NotSupported,
+            "Android VpnService is unavailable on this target",
+        )
+    }
+}
+
+#[cfg(target_os = "android")]
+fn vpn_preparation_store() -> &'static VpnPreparationStore {
+    VPN_PREPARATION_STORE.get_or_init(VpnPreparationStore::default)
+}
+
+#[cfg(target_os = "android")]
+pub(super) fn vpn_configuration_activation_status() -> VpnConfigurationActivationStatus {
+    vpn_preparation_store().activation_status()
+}
+
+#[cfg(not(target_os = "android"))]
+pub(super) fn vpn_configuration_activation_status() -> VpnConfigurationActivationStatus {
+    VpnConfigurationActivationStatus::Available
+}
+
+#[cfg(target_os = "android")]
+fn next_vpn_preparation_id() -> Option<VpnPreparationId> {
+    NEXT_VPN_PREPARATION_ID
+        .try_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
+            current.checked_add(1)
+        })
+        .ok()
+        .map(VpnPreparationId::new)
+}
+
+#[cfg(target_os = "android")]
+async fn active_core_scope() -> Result<CoreScope, FfiStatus> {
+    let core = shared_core().await?;
+    let snapshot = core.application.snapshot();
+    if snapshot.lifecycle != CoreLifecycle::Running {
+        return Err(FfiStatus::err(
+            FfiErrorCode::NotReady,
+            format!(
+                "VPN configuration requires a Running Core, observed {:?}",
+                snapshot.lifecycle
+            ),
+        ));
+    }
+    let scope = snapshot.scope().ok_or_else(|| {
+        FfiStatus::err(
+            FfiErrorCode::NotReady,
+            "VPN configuration requires an observed Core identity",
+        )
+    })?;
+    if !scope.session_token.is_some_and(|token| token.is_valid()) {
+        return Err(FfiStatus::err(
+            FfiErrorCode::NotReady,
+            "VPN configuration requires an active Core session token",
+        ));
+    }
+    Ok(scope)
+}
+
+#[cfg(target_os = "android")]
+async fn start_prepared_vpn(request: VpnStartRequest) -> FfiStatus {
+    let expected_core_scope = request.prepared.core_scope.clone();
+    let application = VpnServiceApplication::new(Arc::new(AndroidVpnServicePort::shared()));
+    match application.start(request).await {
+        Ok(snapshot) if snapshot.is_running() => match active_core_scope().await {
+            Ok(current_scope) if current_scope == expected_core_scope => FfiStatus::ok(),
+            Ok(_) => FfiStatus::err(
+                FfiErrorCode::InvalidState,
+                "Core identity, generation, or session changed while the VPN worker started",
+            ),
+            Err(status) => status,
+        },
+        Ok(snapshot) => FfiStatus::err(
+            FfiErrorCode::NotReady,
+            format!(
+                "VPN data-plane start receipt/readback did not reach foreground Running: {:?}",
+                snapshot.state
+            ),
+        ),
+        Err(failure) => map_application_failure(failure),
+    }
+}
+
+#[uniffi::export]
+pub fn stop_vpn_worker() -> FfiStatus {
+    #[cfg(target_os = "android")]
+    {
+        match get_android_bridge().map(|bridge| bridge.process_role()) {
+            Some(AndroidHostProcessRole::CoreOwner) => worker_stop_status(stop_data_plane_worker()),
+            Some(AndroidHostProcessRole::UiClient) => FfiStatus::err(
+                FfiErrorCode::NotReady,
+                "only the :vpn owner may stop its local tun2proxy worker",
+            ),
+            Some(AndroidHostProcessRole::Unsupported) | None => FfiStatus::err(
+                FfiErrorCode::NotReady,
+                "Android VPN worker lifecycle owner is unavailable",
+            ),
         }
     }
 
     #[cfg(not(target_os = "android"))]
     FfiStatus::err(
         FfiErrorCode::NotSupported,
-        "Android VpnService is unavailable on this target",
+        "Android tun2proxy worker is unavailable on this target",
     )
 }
 
-/// Prepare the native Android `VpnService.Builder` before it calls
-/// `Builder.establish()`. The later `start_vpn(fd)` callback only owns the
-/// established TUN descriptor and starts tun2proxy.
-#[uniffi::export]
-pub fn prepare_vpn() -> FfiStatus {
-    #[cfg(target_os = "android")]
-    {
-        let proxy_endpoint = resolve_proxy_url().unwrap_or_else(default_proxy_url);
-        let configuration = match get_runtime().block_on(build_vpn_configuration(proxy_endpoint)) {
-            Ok(configuration) => configuration,
-            Err(status) => return status,
-        };
-        let application = VpnServiceApplication::new(Arc::new(AndroidVpnServicePort::shared()));
-        match get_runtime().block_on(application.prepare(configuration)) {
-            Ok(snapshot) if snapshot.foreground => FfiStatus::ok(),
-            Ok(snapshot) => FfiStatus::err(
-                FfiErrorCode::NotReady,
-                format!(
-                    "VPN Builder configuration is not foreground-protected: {:?}",
-                    snapshot.state
-                ),
-            ),
-            Err(failure) => map_application_failure(failure),
-        }
-    }
-
-    #[cfg(not(target_os = "android"))]
-    {
-        FfiStatus::err(
-            FfiErrorCode::NotSupported,
-            "Android VpnService is unavailable on this target",
-        )
-    }
-}
-
-#[uniffi::export]
-pub fn stop_vpn() -> FfiStatus {
-    #[cfg(target_os = "android")]
-    {
-        let application = VpnServiceApplication::new(Arc::new(AndroidVpnServicePort::shared()));
-        match get_runtime().block_on(application.stop()) {
-            Ok(snapshot)
-                if matches!(
-                    snapshot.state,
-                    VpnSessionState::Stopped | VpnSessionState::Revoked
-                ) =>
-            {
-                FfiStatus::ok()
-            }
-            Ok(snapshot) => FfiStatus::err(
-                FfiErrorCode::InvalidState,
-                format!("VPN stop did not settle: {:?}", snapshot.state),
-            ),
-            Err(failure) => map_application_failure(failure),
-        }
-    }
-
-    #[cfg(not(target_os = "android"))]
-    {
-        FfiStatus::err(
-            FfiErrorCode::NotSupported,
-            "Android VpnService is unavailable on this target",
-        )
+#[cfg(any(target_os = "android", test))]
+fn worker_stop_status(outcome: WorkerStopOutcome) -> FfiStatus {
+    match outcome {
+        WorkerStopOutcome::Stopped => FfiStatus::ok(),
+        WorkerStopOutcome::TimedOut => FfiStatus::err(
+            FfiErrorCode::NotReady,
+            "timed out waiting for Android tun2proxy worker exit",
+        ),
+        WorkerStopOutcome::Unavailable => FfiStatus::err(
+            FfiErrorCode::NotReady,
+            "Android tun2proxy worker lifecycle is unavailable",
+        ),
     }
 }
 
@@ -133,14 +711,27 @@ pub fn stop_vpn() -> FfiStatus {
 pub fn revoke_vpn() -> FfiStatus {
     #[cfg(target_os = "android")]
     {
-        let application = VpnServiceApplication::new(Arc::new(AndroidVpnServicePort::shared()));
-        match get_runtime().block_on(application.revoke()) {
-            Ok(snapshot) if snapshot.state == VpnSessionState::Revoked => FfiStatus::ok(),
-            Ok(snapshot) => FfiStatus::err(
-                FfiErrorCode::InvalidState,
-                format!("VPN revoke did not settle: {:?}", snapshot.state),
+        match get_android_bridge().map(|bridge| bridge.process_role()) {
+            Some(AndroidHostProcessRole::CoreOwner) => {
+                let application =
+                    VpnServiceApplication::new(Arc::new(AndroidVpnServicePort::shared()));
+                match get_runtime().block_on(application.revoke()) {
+                    Ok(snapshot) if snapshot.state == VpnSessionState::Revoked => FfiStatus::ok(),
+                    Ok(snapshot) => FfiStatus::err(
+                        FfiErrorCode::InvalidState,
+                        format!("VPN revoke did not settle: {:?}", snapshot.state),
+                    ),
+                    Err(failure) => map_application_failure(failure),
+                }
+            }
+            Some(AndroidHostProcessRole::UiClient) => FfiStatus::err(
+                FfiErrorCode::NotReady,
+                "VPN revocation must be finalized by the :vpn owner",
             ),
-            Err(failure) => map_application_failure(failure),
+            Some(AndroidHostProcessRole::Unsupported) | None => FfiStatus::err(
+                FfiErrorCode::NotReady,
+                "Android VPN lifecycle owner is unavailable",
+            ),
         }
     }
 
@@ -153,224 +744,41 @@ pub fn revoke_vpn() -> FfiStatus {
     }
 }
 
-#[derive(Debug, Clone, uniffi::Record)]
-pub struct TunStatusResult {
-    pub status: FfiStatus,
-    pub enabled: bool,
-}
-
-#[derive(Debug, Clone, uniffi::Record)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, uniffi::Record)]
+#[serde(deny_unknown_fields)]
 pub struct VpnTunSettings {
     pub mtu: Option<u32>,
     pub auto_route: Option<bool>,
     pub strict_route: Option<bool>,
-    pub dns_servers: Vec<String>,
-    pub ipv6: Option<bool>,
     pub stack: Option<String>,
     pub auto_detect_interface: Option<bool>,
 }
 
-#[derive(Debug, Clone, uniffi::Record)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, uniffi::Record)]
+#[serde(deny_unknown_fields)]
 pub struct VpnTunSettingsPatch {
     pub mtu: Option<u32>,
     pub auto_route: Option<bool>,
     pub strict_route: Option<bool>,
-    pub dns_servers: Option<Vec<String>>,
-    pub ipv6: Option<bool>,
     pub stack: Option<String>,
     pub auto_detect_interface: Option<bool>,
 }
 
-#[derive(Debug, Clone, uniffi::Record)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, uniffi::Record)]
+#[serde(deny_unknown_fields)]
 pub struct VpnTunSettingsResult {
     pub status: FfiStatus,
     pub settings: Option<VpnTunSettings>,
 }
 
-#[derive(Debug, Clone, uniffi::Record)]
-pub struct VpnSessionSnapshot {
-    pub state: String,
-    pub foreground: bool,
-    pub mtu: Option<u32>,
-    pub route_count: u32,
-    pub dns_servers: Vec<String>,
-    pub ipv6: bool,
-    pub revision: u64,
-}
-
-#[derive(Debug, Clone, uniffi::Record)]
-pub struct VpnSessionResult {
-    pub status: FfiStatus,
-    pub snapshot: Option<VpnSessionSnapshot>,
-}
-
-#[uniffi::export]
-pub async fn vpn_session_status() -> VpnSessionResult {
-    get_runtime()
-        .spawn(async move {
-            let application = VpnServiceApplication::new(Arc::new(AndroidVpnServicePort::shared()));
-            let snapshot = application.snapshot().await;
-            let status = match &snapshot.state {
-                VpnSessionState::Unsupported { reason } => {
-                    FfiStatus::err(FfiErrorCode::NotSupported, reason.clone())
-                }
-                VpnSessionState::Failed { failure } => map_application_failure(failure.clone()),
-                _ => FfiStatus::ok(),
-            };
-            VpnSessionResult {
-                status,
-                snapshot: Some(map_vpn_snapshot(snapshot)),
-            }
-        })
-        .await
-        .unwrap_or_else(|error| VpnSessionResult {
-            status: FfiStatus::err(
-                FfiErrorCode::Unknown,
-                format!("runtime join error: {error}"),
-            ),
-            snapshot: None,
-        })
-}
-
-fn map_vpn_snapshot(snapshot: vpn::VpnSessionSnapshot) -> VpnSessionSnapshot {
-    VpnSessionSnapshot {
-        state: match snapshot.state {
-            VpnSessionState::Idle => "idle",
-            VpnSessionState::PermissionRequired => "permission_required",
-            VpnSessionState::Starting => "starting",
-            VpnSessionState::Running => "running",
-            VpnSessionState::Stopping => "stopping",
-            VpnSessionState::Stopped => "stopped",
-            VpnSessionState::Revoked => "revoked",
-            VpnSessionState::Unsupported { .. } => "unsupported",
-            VpnSessionState::Failed { .. } => "failed",
-        }
-        .to_owned(),
-        foreground: snapshot.foreground,
-        mtu: snapshot.mtu,
-        route_count: u32::try_from(snapshot.route_count).unwrap_or(u32::MAX),
-        dns_servers: snapshot.dns_servers,
-        ipv6: snapshot.ipv6,
-        revision: snapshot.revision,
-    }
-}
-
-#[uniffi::export]
-pub async fn tun_status() -> TunStatusResult {
-    get_runtime()
-        .spawn(async move {
-            match tun_status_internal().await {
-                Ok(enabled) => TunStatusResult {
-                    status: FfiStatus::ok(),
-                    enabled,
-                },
-                Err(status) => TunStatusResult {
-                    status,
-                    enabled: false,
-                },
-            }
-        })
-        .await
-        .unwrap_or_else(|e| TunStatusResult {
-            status: FfiStatus::err(FfiErrorCode::Unknown, format!("runtime join error: {}", e)),
-            enabled: false,
-        })
-}
-
-#[uniffi::export]
-pub async fn vpn_tun_settings() -> VpnTunSettingsResult {
-    get_runtime()
-        .spawn(async move {
-            match load_vpn_tun_settings().await {
-                Ok(settings) => VpnTunSettingsResult {
-                    status: FfiStatus::ok(),
-                    settings: Some(settings),
-                },
-                Err(status) => VpnTunSettingsResult {
-                    status,
-                    settings: None,
-                },
-            }
-        })
-        .await
-        .unwrap_or_else(|e| VpnTunSettingsResult {
-            status: FfiStatus::err(FfiErrorCode::Unknown, format!("runtime join error: {}", e)),
-            settings: None,
-        })
-}
-
-#[uniffi::export]
-pub async fn vpn_tun_settings_save(patch: VpnTunSettingsPatch) -> VpnTunSettingsResult {
-    get_runtime()
-        .spawn(async move {
-            match save_vpn_tun_settings(patch).await {
-                Ok(settings) => VpnTunSettingsResult {
-                    status: FfiStatus::ok(),
-                    settings: Some(settings),
-                },
-                Err(status) => VpnTunSettingsResult {
-                    status,
-                    settings: None,
-                },
-            }
-        })
-        .await
-        .unwrap_or_else(|e| VpnTunSettingsResult {
-            status: FfiStatus::err(FfiErrorCode::Unknown, format!("runtime join error: {}", e)),
-            settings: None,
-        })
-}
-
-async fn tun_status_internal() -> Result<bool, FfiStatus> {
-    let bridge = get_android_bridge()
-        .ok_or_else(|| FfiStatus::err(FfiErrorCode::NotReady, "android bridge not ready"))?;
-    let enabled = bridge.tun_is_enabled().await.map_err(map_mihomo_error)?;
-    Ok(enabled)
-}
-
 // Android-only helpers for tun2proxy URL resolution
 #[cfg(target_os = "android")]
-fn resolve_proxy_url() -> Option<String> {
-    get_runtime()
-        .block_on(async {
-            let manager = build_config_manager().await?;
-            let profile = manager.get_current().await.map_err(map_mihomo_error)?;
-            let content = manager.load(&profile).await.map_err(map_mihomo_error)?;
-            let doc: Value = serde_yaml_ng::from_str(&content)
-                .map_err(|err| FfiStatus::err(FfiErrorCode::InvalidState, err.to_string()))?;
-            Ok::<Option<String>, FfiStatus>(build_proxy_url(&doc))
-        })
-        .ok()
-        .flatten()
-}
-
-#[cfg(target_os = "android")]
-fn build_proxy_url(doc: &Value) -> Option<String> {
-    let candidates = [
-        ("mixed-port", "socks5"),
-        ("socks-port", "socks5"),
-        ("port", "http"),
-    ];
-    for (key, scheme) in candidates {
-        if let Some(value) = doc.get(key)
-            && let Some(port) = port_from_value(value)
-        {
-            return Some(format!("{}://127.0.0.1:{}", scheme, port));
-        }
-    }
-    None
-}
-
-#[cfg(target_os = "android")]
-fn port_from_value(value: &Value) -> Option<u16> {
-    match value {
-        Value::Number(number) => number
-            .as_u64()
-            .and_then(|v| u16::try_from(v).ok())
-            .filter(|v| *v > 0),
-        Value::String(raw) => raw.trim().parse::<u16>().ok().filter(|v| *v > 0),
-        _ => None,
-    }
+async fn resolve_proxy_url() -> Result<Option<String>, FfiStatus> {
+    let configuration = build_configuration_application().await?;
+    configuration
+        .load_proxy_endpoint()
+        .await
+        .map_err(map_application_failure)
 }
 
 #[cfg(target_os = "android")]
@@ -379,32 +787,29 @@ fn default_proxy_url() -> String {
 }
 
 #[cfg(target_os = "android")]
-async fn build_vpn_start_request(
-    fd: i32,
-    proxy_endpoint: String,
-) -> Result<VpnStartRequest, FfiStatus> {
-    let configuration = build_vpn_configuration(proxy_endpoint).await?;
-    Ok(VpnStartRequest {
-        tun_fd: fd,
-        proxy_endpoint: configuration.proxy_endpoint,
-        mtu: configuration.mtu,
-        routes: configuration.routes,
-        dns_servers: configuration.dns_servers,
-        ipv6: configuration.ipv6,
-        foreground_requested: configuration.foreground_requested,
-    })
-}
-
-#[cfg(target_os = "android")]
 async fn build_vpn_configuration(proxy_endpoint: String) -> Result<VpnConfiguration, FfiStatus> {
-    let settings = load_vpn_tun_settings().await?;
-    let mtu = settings.mtu.unwrap_or(1500);
-    let ipv6 = settings.ipv6.unwrap_or(true);
-    let dns_servers = settings
-        .dns_servers
-        .into_iter()
-        .filter(|server| server.parse::<IpAddr>().is_ok())
-        .collect::<Vec<_>>();
+    let tun_settings = load_vpn_tun_settings().await?;
+    let dns_result = super::settings::dns_settings().await;
+    let dns_settings = match (dns_result.status.code, dns_result.settings) {
+        (FfiErrorCode::Ok, Some(settings)) => settings,
+        (FfiErrorCode::Ok, None) => {
+            return Err(FfiStatus::err(
+                FfiErrorCode::NotReady,
+                "DNS settings owner returned no settings readback",
+            ));
+        }
+        (_, _) => return Err(dns_result.status),
+    };
+    let mtu = tun_settings.mtu.unwrap_or(1500);
+    let ipv6 = dns_settings.ipv6.unwrap_or(true);
+    let dns_servers = if dns_settings.nameserver_configured {
+        dns_settings.nameserver
+    } else {
+        dns_settings.default_nameserver
+    }
+    .into_iter()
+    .filter(|server| server.parse::<IpAddr>().is_ok())
+    .collect::<Vec<_>>();
     let route_plan = VpnRouteConfig {
         bypass_lan: false,
         bypass_china: false,
@@ -440,111 +845,116 @@ async fn build_vpn_configuration(proxy_endpoint: String) -> Result<VpnConfigurat
     })
 }
 
+pub(super) async fn owner_tun_settings_read() -> VpnTunSettingsResult {
+    match load_vpn_tun_settings().await {
+        Ok(settings) => VpnTunSettingsResult {
+            status: FfiStatus::ok(),
+            settings: Some(settings),
+        },
+        Err(status) => VpnTunSettingsResult {
+            status,
+            settings: None,
+        },
+    }
+}
+
+pub(super) async fn owner_tun_settings_save(patch: VpnTunSettingsPatch) -> VpnTunSettingsResult {
+    match save_vpn_tun_settings(patch).await {
+        Ok(settings) => VpnTunSettingsResult {
+            status: FfiStatus::ok(),
+            settings: Some(settings),
+        },
+        Err(status) => VpnTunSettingsResult {
+            status,
+            settings: None,
+        },
+    }
+}
+
 async fn load_vpn_tun_settings() -> Result<VpnTunSettings, FfiStatus> {
     let application = build_configuration_application().await?;
     let tun_config = application
         .load_tun_config()
         .await
         .map_err(map_application_failure)?;
-    let dns_config = application
-        .load_dns_config()
-        .await
-        .map_err(map_application_failure)?;
-    Ok(build_vpn_tun_settings(tun_config, dns_config))
+    Ok(build_vpn_tun_settings(tun_config))
 }
 
 async fn save_vpn_tun_settings(patch: VpnTunSettingsPatch) -> Result<VpnTunSettings, FfiStatus> {
-    let (tun_patch, has_tun) = build_tun_patch(&patch);
-    let has_dns = patch.dns_servers.is_some() || patch.ipv6.is_some();
+    let tun_patch = build_tun_patch(&patch);
 
     let application = build_configuration_application().await?;
-    let tun_config = if has_tun {
-        application
-            .save_tun_config(tun_patch)
-            .await
-            .map_err(map_application_failure)?
-    } else {
-        application
-            .load_tun_config()
-            .await
-            .map_err(map_application_failure)?
-    };
-    let dns_config = if has_dns {
-        let current = application
-            .load_dns_config()
-            .await
-            .map_err(map_application_failure)?;
-        let dns_patch = build_dns_patch(&patch, &current);
-        application
-            .save_dns_config(dns_patch)
-            .await
-            .map_err(map_application_failure)?
-    } else {
-        application
-            .load_dns_config()
-            .await
-            .map_err(map_application_failure)?
-    };
-
-    Ok(build_vpn_tun_settings(tun_config, dns_config))
+    let tun_config = application
+        .save_tun_config(tun_patch)
+        .await
+        .map_err(map_application_failure)?;
+    Ok(build_vpn_tun_settings(tun_config))
 }
 
-fn build_vpn_tun_settings(
-    tun_config: tun::TunConfig,
-    dns_config: dns::DnsConfig,
-) -> VpnTunSettings {
-    let dns_servers = dns_config
-        .nameserver
-        .or(dns_config.default_nameserver)
-        .unwrap_or_default();
+fn build_vpn_tun_settings(tun_config: tun::TunConfig) -> VpnTunSettings {
     VpnTunSettings {
         mtu: tun_config.mtu,
         auto_route: tun_config.auto_route,
         strict_route: tun_config.strict_route,
-        dns_servers,
-        ipv6: dns_config.ipv6,
         stack: tun_config.stack,
         auto_detect_interface: tun_config.auto_detect_interface,
     }
 }
 
-pub(super) fn build_tun_patch(patch: &VpnTunSettingsPatch) -> (tun::TunConfigPatch, bool) {
+pub(super) fn build_tun_patch(patch: &VpnTunSettingsPatch) -> tun::TunConfigPatch {
     let mut core_patch = tun::TunConfigPatch::default();
-    let mut has_patch = false;
     if let Some(value) = patch.mtu {
         core_patch.mtu = Some(value);
-        has_patch = true;
     }
     if let Some(value) = patch.auto_route {
         core_patch.auto_route = Some(value);
-        has_patch = true;
     }
     if let Some(value) = patch.strict_route {
         core_patch.strict_route = Some(value);
-        has_patch = true;
     }
     if let Some(value) = normalize_optional_string(patch.stack.clone()) {
         core_patch.stack = Some(value);
-        has_patch = true;
     }
     if let Some(value) = patch.auto_detect_interface {
         core_patch.auto_detect_interface = Some(value);
-        has_patch = true;
-    }
-    (core_patch, has_patch)
-}
-
-fn build_dns_patch(patch: &VpnTunSettingsPatch, current: &dns::DnsConfig) -> dns::DnsConfigPatch {
-    let mut core_patch = dns::DnsConfigPatch::default();
-    if let Some(value) = patch.ipv6 {
-        core_patch.ipv6 = Some(value);
-    }
-    if let Some(value) = patch.dns_servers.clone() {
-        if current.nameserver.is_some() {
-            core_patch.nameserver = Some(value);
-        } else {
-            core_patch.default_nameserver = Some(value);
-        }
     }
     core_patch
+}
+
+#[cfg(test)]
+mod worker_stop_tests {
+    use super::*;
+
+    #[test]
+    fn stop_ffi_success_requires_worker_exit_readback() {
+        assert_eq!(
+            worker_stop_status(WorkerStopOutcome::Stopped),
+            FfiStatus::ok()
+        );
+        assert_eq!(
+            worker_stop_status(WorkerStopOutcome::TimedOut).code,
+            FfiErrorCode::NotReady,
+        );
+        assert_eq!(
+            worker_stop_status(WorkerStopOutcome::Unavailable).code,
+            FfiErrorCode::NotReady,
+        );
+    }
+
+    #[test]
+    fn tun_settings_patch_only_contains_tun_configuration() {
+        let patch = VpnTunSettingsPatch {
+            mtu: Some(1420),
+            auto_route: Some(false),
+            strict_route: Some(true),
+            stack: Some("system".to_owned()),
+            auto_detect_interface: Some(true),
+        };
+        let result = build_tun_patch(&patch);
+        assert_eq!(result.mtu, Some(1420));
+        assert_eq!(result.auto_route, Some(false));
+        assert_eq!(result.strict_route, Some(true));
+        assert_eq!(result.stack.as_deref(), Some("system"));
+        assert_eq!(result.auto_detect_interface, Some(true));
+    }
 }

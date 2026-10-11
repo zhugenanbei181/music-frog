@@ -27,19 +27,21 @@ use bevy::ecs::observer::On;
 use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
+use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::{CommandsSceneExt, Scene, bsn};
 use bevy::text::TextColor;
 use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, Val,
-    percent, px,
+    AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, percent,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
 use infiltrator_application::snapshot_presentation;
+use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
@@ -142,20 +144,20 @@ pub fn snapshot_diff_scene(
                                 width: percent(100),
                                 align_items: AlignItems::Center,
                                 justify_content: JustifyContent::SpaceBetween,
-                                padding: UiRect::bottom(Val::Px(space::S8)),
+                                padding: UiRect::bottom(rem(space::S8)),
                             }
                             SnapshotDiffRoot
                             Children [
                                 Node {
                                     align_items: AlignItems::Center,
-                                    column_gap: Val::Px(space::S8),
+                                    column_gap: rem(space::S8),
                                 }
                                 Children [
                                     @{ icon_tile_scene(IconId::FileText, 24.0, palette) }
                                     --
                                     Node {
                                         flex_direction: FlexDirection::Column,
-                                        row_gap: Val::Px(space::S4),
+                                        row_gap: rem(space::S4),
                                     }
                                     Children [
                                         LocalizedText::plain("profiles_snapshot_diff_title") TextRole(Role::BodyStrong)
@@ -166,7 +168,7 @@ pub fn snapshot_diff_scene(
                                 --
                                 Node {
                                     align_items: AlignItems::Center,
-                                    column_gap: Val::Px(space::S8),
+                                    column_gap: rem(space::S8),
                                 }
                                 Children [
                                     @{ mode_button("snapshot_diff_inline", false, palette) }
@@ -183,24 +185,24 @@ pub fn snapshot_diff_scene(
                             Node {
                                 width: percent(100),
                                 flex_direction: FlexDirection::Column,
-                                row_gap: Val::Px(space::S4),
-                                padding: UiRect::all(Val::Px(space::S8)),
-                                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                row_gap: rem(space::S4),
+                                padding: UiRect::all(rem(space::S8)),
+                                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                             }
-                            BackgroundColor({ palette.window_clear })
+                            ThemeBackgroundColor({ Token::WindowClear })
                             Children [
                                 Node {
                                     width: percent(100),
                                     align_items: AlignItems::Center,
                                     justify_content: JustifyContent::SpaceBetween,
-                                    column_gap: Val::Px(space::S8),
+                                    column_gap: rem(space::S8),
                                 }
                                 Children [
                                     Text({ history_summary }) SnapshotHistorySummaryText TextRole(Role::Caption)
                                     --
                                     Node {
                                         align_items: AlignItems::Center,
-                                        column_gap: Val::Px(space::S8),
+                                        column_gap: rem(space::S8),
                                     }
                                     Children [
                                         @{ backup_button(palette) }
@@ -216,7 +218,7 @@ pub fn snapshot_diff_scene(
                                 Node {
                                     width: percent(100),
                                     flex_direction: FlexDirection::Column,
-                                    row_gap: Val::Px(space::S2),
+                                    row_gap: rem(space::S2),
                                 }
                                 SnapshotHistoryBody
                                 Children [
@@ -226,14 +228,14 @@ pub fn snapshot_diff_scene(
                                 Node {
                                     width: percent(100),
                                     flex_direction: FlexDirection::Column,
-                                    row_gap: Val::Px(space::S4),
-                                    padding: UiRect::top(Val::Px(space::S4)),
+                                    row_gap: rem(space::S4),
+                                    padding: UiRect::top(rem(space::S4)),
                                 }
                                 Children [
                                     Node {
                                         width: percent(100),
                                         flex_direction: FlexDirection::Column,
-                                        row_gap: Val::Px(space::S2),
+                                        row_gap: rem(space::S2),
                                     }
                                     SnapshotDiffBody
                                     Children [
@@ -256,11 +258,11 @@ fn mode_button(key: &'static str, split: bool, palette: &UiPalette) -> Box<dyn S
     let label = LocalizedText::plain(key);
     Box::new(bsn! {
             Node {
-                min_height: px(palette.control_height_px),
-                padding: UiRect::horizontal(Val::Px(space::S8)),
+                min_height: rem(palette.control_height_px),
+                padding: UiRect::horizontal(rem(space::S8)),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
-                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
             }
             BackgroundColor({ background })
             Button
@@ -274,13 +276,13 @@ fn mode_button(key: &'static str, split: bool, palette: &UiPalette) -> Box<dyn S
 fn refresh_button(palette: &UiPalette) -> Box<dyn Scene> {
     Box::new(bsn! {
             Node {
-                min_height: px(palette.control_height_px),
-                padding: UiRect::horizontal(Val::Px(space::S12)),
+                min_height: rem(palette.control_height_px),
+                padding: UiRect::horizontal(rem(space::S12)),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
-                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
             }
-            BackgroundColor({ palette.surface_elevated })
+            ThemeBackgroundColor({ Token::SurfaceElevated })
             Button
             RefreshSnapshotDiffButton
             Children [
@@ -297,11 +299,11 @@ fn rollback_button(available: bool, palette: &UiPalette) -> Box<dyn Scene> {
     };
     Box::new(bsn! {
             Node {
-                min_height: px(palette.control_height_px),
-                padding: UiRect::horizontal(Val::Px(space::S12)),
+                min_height: rem(palette.control_height_px),
+                padding: UiRect::horizontal(rem(space::S12)),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
-                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
             }
             BackgroundColor({ background })
             Button
@@ -399,7 +401,7 @@ fn diff_rows_scene(
             Node {
                 width: percent(100),
                 flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(space::S2),
+                row_gap: rem(space::S2),
             }
             Children [
                 { rows }

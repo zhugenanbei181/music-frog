@@ -14,7 +14,7 @@ use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::script_export::{
     ScriptExportKind, ScriptExportReceipt, ScriptExportRequest,
 };
-use infiltrator_contract::script_export_review::ScriptExportDraft;
+use infiltrator_contract::script_export_review::{ScriptExportDraft, ScriptExportValidationScope};
 use infiltrator_contract::script_run::{ScriptOperationId, ScriptRunRequest};
 use infiltrator_contract::script_sandbox::{ScriptEngineCapabilities, ScriptEngineKind};
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
@@ -57,6 +57,7 @@ fn run_request(operation: u64) -> ScriptRunRequest {
 fn draft() -> ScriptExportDraft {
     ScriptExportDraft {
         kind: ScriptExportKind::DirectiveDslScript,
+        validation_scope: ScriptExportValidationScope::Unscoped,
         profile: None,
         base_yaml: String::new(),
         mixin_yaml: String::new(),

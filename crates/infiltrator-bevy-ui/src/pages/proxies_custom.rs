@@ -19,15 +19,18 @@ use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::prelude::*;
 use bevy::ecs::system::SystemParam;
+use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::{Scene, bsn};
-use bevy::ui::prelude::{BackgroundColor, FlexDirection, FlexWrap, Node, UiRect, percent, px};
+use bevy::ui::prelude::{FlexDirection, FlexWrap, Node, UiRect, percent};
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
 use infiltrator_application::protocol_codec_application::ProtocolCodecApplication;
 use infiltrator_application::protocol_form::field_projection;
 use infiltrator_application::protocol_studio_projection::slot_text;
+use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::text_input::{TextField, text_field_with_placeholder_scene};
 use infiltrator_contract::protocol_fidelity::ProtocolStudioSnapshot;
@@ -127,7 +130,7 @@ pub fn custom_node_scene(
         }) as Box<dyn Scene>
     }).collect();
     bsn! {
-        Node { width: percent(100), flex_direction: FlexDirection::Column, row_gap: px(12.0), flex_shrink: 0.0 }
+        Node { width: percent(100), flex_direction: FlexDirection::Column, row_gap: rem(12.0), flex_shrink: 0.0 }
         CustomNodeEditorRoot
         Children [
             Node { width: percent(100), flex_shrink: 0.0 }
@@ -137,18 +140,18 @@ pub fn custom_node_scene(
             CustomNodeUriField CustomNodeInputField(CustomNodeInput::Uri)
             Children [ @{ text_field_with_placeholder_scene(String::new(), lang.tr("custom_node_uri_placeholder").into_owned(), palette) } ]
             --
-            Node { width: percent(100), flex_wrap: FlexWrap::Wrap, column_gap: px(8.0), row_gap: px(8.0), flex_shrink: 0.0 }
+            Node { width: percent(100), flex_wrap: FlexWrap::Wrap, column_gap: rem(8.0), row_gap: rem(8.0), flex_shrink: 0.0 }
             Children [
-                Node { min_height: px(palette.control_height_px), padding: UiRect::all(px(8.0)) }
-                BackgroundColor({ palette.accent }) Button ImportUriButton CustomNodeActionButton(CustomNodeAction::ImportUri)
+                Node { min_height: rem(palette.control_height_px), padding: UiRect::all(rem(8.0)) }
+                ThemeBackgroundColor({ Token::Accent }) Button ImportUriButton CustomNodeActionButton(CustomNodeAction::ImportUri)
                 Children [ Text({ lang.tr("custom_node_btn_import_uri").into_owned() }) TextRole(Role::Body) ]
                 --
-                Node { min_height: px(palette.control_height_px), padding: UiRect::all(px(8.0)) }
-                BackgroundColor({ palette.surface_elevated }) Button CustomNodeActionButton(CustomNodeAction::ExportUri)
+                Node { min_height: rem(palette.control_height_px), padding: UiRect::all(rem(8.0)) }
+                ThemeBackgroundColor({ Token::SurfaceElevated }) Button CustomNodeActionButton(CustomNodeAction::ExportUri)
                 Children [ Text({ lang.tr("custom_node_btn_export_uri").into_owned() }) TextRole(Role::Body) ]
                 --
-                Node { min_height: px(palette.control_height_px), padding: UiRect::all(px(8.0)) }
-                BackgroundColor({ palette.success }) Button SaveCustomNodeButton CustomNodeActionButton(CustomNodeAction::SaveDraft)
+                Node { min_height: rem(palette.control_height_px), padding: UiRect::all(rem(8.0)) }
+                ThemeBackgroundColor({ Token::Success }) Button SaveCustomNodeButton CustomNodeActionButton(CustomNodeAction::SaveDraft)
                 Children [ Text({ lang.tr("btn_save").into_owned() }) TextRole(Role::BodyStrong) ]
             ]
             --
@@ -159,13 +162,13 @@ pub fn custom_node_scene(
             --
             { slots }
             --
-            Node { width: percent(100), flex_wrap: FlexWrap::Wrap, column_gap: px(8.0), row_gap: px(8.0), flex_shrink: 0.0 }
+            Node { width: percent(100), flex_wrap: FlexWrap::Wrap, column_gap: rem(8.0), row_gap: rem(8.0), flex_shrink: 0.0 }
             Children [
-                Node { min_height: px(palette.control_height_px), padding: UiRect::all(px(8.0)) }
+                Node { min_height: rem(palette.control_height_px), padding: UiRect::all(rem(8.0)) }
                 Button ScanDialerChainsButton CustomNodeActionButton(CustomNodeAction::ScanDialer)
                 Children [ Text({ lang.tr("custom_node_dialer_scan").into_owned() }) TextRole(Role::Body) ]
                 --
-                Node { min_height: px(palette.control_height_px), padding: UiRect::all(px(8.0)) }
+                Node { min_height: rem(palette.control_height_px), padding: UiRect::all(rem(8.0)) }
                 Button VerifyCustomNodeCaButton CustomNodeActionButton(CustomNodeAction::VerifyCa)
                 Children [ Text({ lang.tr("custom_node_ca_verify").into_owned() }) TextRole(Role::Body) ]
             ]

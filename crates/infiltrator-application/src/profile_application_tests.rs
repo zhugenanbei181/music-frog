@@ -2,10 +2,14 @@
 //! conditional subscription lifecycle.
 
 use super::*;
-use crate::profile_workspace_test_support::workspace;
+use crate::profile_document_codec_test_support::TestProfileDocumentCodec;
+use crate::profile_workspace_test_support::{workspace_with_origin, workspace_with_raw_sidecar};
 use async_trait::async_trait;
 use chrono::Timelike;
 use infiltrator_contract::capability::Capability;
+use infiltrator_contract::core_identity::EngineId;
+use infiltrator_contract::profile_document_identity::{ProfileId, ProfileWorkspaceIdentity};
+use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
 use infiltrator_domain::profile_options::ProfileOptions;
 use infiltrator_domain::profiles::ProfileMetadata;
 use infiltrator_ports::error::PortError;
@@ -13,19 +17,30 @@ use infiltrator_ports::profile_workspace::ProfileWorkspace;
 use infiltrator_ports::subscription_source::SubscriptionDocument;
 use std::collections::BTreeMap;
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 #[derive(Default)]
 struct FakeStore {
     current: Mutex<String>,
     profiles: Mutex<BTreeMap<String, (String, ProfileMetadata)>>,
-    options: Mutex<BTreeMap<String, ProfileOptions>>,
+    sidecars: Mutex<BTreeMap<String, Vec<u8>>>,
     options_read_error: Mutex<Option<PortError>>,
+    workspace_write_error: Mutex<Option<PortError>>,
     list_read_error: Mutex<Option<PortError>>,
     metadata_read_error: Mutex<Option<PortError>>,
     deleted_options: Mutex<Vec<String>>,
     cleared_backups: Mutex<Vec<String>>,
     restorable_backups: Mutex<Vec<String>>,
     restored_backups: Mutex<Vec<String>>,
+    workspace_reads: AtomicUsize,
+    workspace_writes: AtomicUsize,
+    foreign_workspace_receipt: AtomicBool,
+    stale_document_revision_receipt: AtomicBool,
+    stale_sidecar_revision_receipt: AtomicBool,
+}
+
+fn profiles_with_mihomo_codec(store: Arc<dyn ProfileStore>) -> ProfileApplication {
+    ProfileApplication::new(store).with_document_codec(Arc::new(TestProfileDocumentCodec::mihomo()))
 }
 
 impl FakeStore {
@@ -45,37 +60,78 @@ impl FakeStore {
             ..Self::default()
         }
     }
+
+    fn set_options(&self, profile: &str, options: &ProfileOptions) {
+        let bytes = serde_yaml_ng::to_string(options)
+            .expect("serialize Mihomo options fixture")
+            .into_bytes();
+        self.sidecars
+            .lock()
+            .expect("sidecars lock")
+            .insert(profile.to_owned(), bytes);
+    }
+}
+
+async fn load_workspace(store: &FakeStore, profile: &str) -> ProfileWorkspace {
+    let profile = ProfileId::new(profile).expect("valid profile ID");
+    ProfileStore::load_workspace(store, &profile)
+        .await
+        .expect("profile workspace")
 }
 
 #[async_trait]
 impl ProfileStore for FakeStore {
-    async fn load_workspace(&self, profile: &str) -> Result<ProfileWorkspace, PortError> {
+    fn engine_id(&self) -> EngineId {
+        EngineId::new("mihomo").expect("test engine ID")
+    }
+
+    async fn load_workspace(&self, profile: &ProfileId) -> Result<ProfileWorkspace, PortError> {
+        self.workspace_reads.fetch_add(1, Ordering::SeqCst);
+        let profile = profile.as_str();
         if let Some(error) = self.options_read_error.lock().unwrap().clone() {
             return Err(error);
         }
         let profiles = self.profiles.lock().unwrap();
-        let options = self.options.lock().unwrap();
+        let sidecars = self.sidecars.lock().unwrap();
         let (content, metadata) = profiles
             .get(profile)
             .ok_or_else(|| PortError::NotFound(profile.into()))?;
-        let mut result = workspace(profile, content, options.get(profile))?;
+        let mut result = workspace_with_raw_sidecar(
+            profile,
+            content.as_bytes(),
+            sidecars.get(profile).cloned(),
+            metadata.subscription_url.as_deref(),
+        )?;
         result.write_protection = ProfileWriteProtection::from_subscription_url(
             metadata.subscription_url.as_deref().unwrap_or_default(),
         );
         Ok(result)
     }
 
+    async fn load_active_workspace(&self) -> Result<ProfileWorkspace, PortError> {
+        let profile = self.current.lock().unwrap().clone();
+        let profile = ProfileId::new(profile).map_err(|error| PortError::Io(error.to_string()))?;
+        self.load_workspace(&profile).await
+    }
+
     async fn compare_and_save_workspace(
         &self,
-        expected: &ProfileSourceIdentity,
+        expected: &ProfileWorkspaceIdentity,
         update: &ProfileWorkspaceUpdate,
     ) -> Result<ProfileWorkspace, PortError> {
+        let profile = expected.document.profile_id.as_str();
         let mut profiles = self.profiles.lock().unwrap();
-        let mut options = self.options.lock().unwrap();
+        let mut sidecars = self.sidecars.lock().unwrap();
         let (content, metadata) = profiles
-            .get(&expected.profile)
-            .ok_or_else(|| PortError::NotFound(expected.profile.clone()))?;
-        if workspace(&expected.profile, content, options.get(&expected.profile))?.source
+            .get(profile)
+            .ok_or_else(|| PortError::NotFound(profile.into()))?;
+        if workspace_with_raw_sidecar(
+            profile,
+            content.as_bytes(),
+            sidecars.get(profile).cloned(),
+            metadata.subscription_url.as_deref(),
+        )?
+        .identity()
             != *expected
         {
             return Err(PortError::Rejected(Failure::new(
@@ -90,7 +146,7 @@ impl ProfileStore for FakeStore {
         if matches!(
             update.purpose,
             ProfileWorkspacePurpose::DirectEdit {
-                allow_protected: false
+                authorization: ProfileWriteAuthorization::RequireUnlock
             }
         ) && protection.is_protected()
         {
@@ -100,23 +156,53 @@ impl ProfileStore for FakeStore {
                 false,
             )));
         }
-        let stored_options = (!update.options.is_empty()).then_some(&update.options);
-        let mut result = workspace(&expected.profile, &update.content, stored_options)?;
+        if let Some(error) = self.workspace_write_error.lock().unwrap().clone() {
+            return Err(error);
+        }
+        let content = String::from_utf8(update.document_bytes.clone())
+            .map_err(|error| PortError::Io(error.to_string()))?;
+        let mut result = workspace_with_raw_sidecar(
+            profile,
+            &update.document_bytes,
+            update.sidecar_bytes.clone(),
+            metadata.subscription_url.as_deref(),
+        )?;
         result.write_protection = protection;
-        profiles
-            .get_mut(&expected.profile)
-            .unwrap()
-            .0
-            .clone_from(&update.content);
-        match stored_options {
-            Some(stored) => {
-                options.insert(expected.profile.clone(), stored.clone());
+        profiles.get_mut(profile).unwrap().0.clone_from(&content);
+        match update.sidecar_bytes.as_ref() {
+            Some(sidecar) => {
+                sidecars.insert(profile.to_owned(), sidecar.clone());
             }
             None => {
-                options.remove(&expected.profile);
+                sidecars.remove(profile);
             }
         }
+        self.workspace_writes.fetch_add(1, Ordering::SeqCst);
+        if self.foreign_workspace_receipt.load(Ordering::SeqCst) {
+            result.document.identity.engine_id = EngineId::new("sing-box").expect("test engine ID");
+        }
+        if self.stale_document_revision_receipt.load(Ordering::SeqCst) {
+            result.document.identity.revision = expected.document.revision.clone();
+        }
+        if self.stale_sidecar_revision_receipt.load(Ordering::SeqCst) {
+            result.sidecar_revision = expected.sidecar_revision.clone();
+        }
         Ok(result)
+    }
+
+    async fn compare_and_save_active_workspace(
+        &self,
+        expected: &ProfileWorkspaceIdentity,
+        update: &ProfileWorkspaceUpdate,
+    ) -> Result<ProfileWorkspace, PortError> {
+        if self.current.lock().unwrap().as_str() != expected.document.profile_id.as_str() {
+            return Err(PortError::Rejected(Failure::new(
+                ErrorCode::NotReady,
+                "active profile changed",
+                true,
+            )));
+        }
+        self.compare_and_save_workspace(expected, update).await
     }
     fn config_dir(&self) -> PathBuf {
         PathBuf::from("/fake/configs")
@@ -204,7 +290,13 @@ impl ProfileStore for FakeStore {
             .expect("profiles lock")
             .remove(profile)
             .map(|_| ())
-            .ok_or_else(|| PortError::NotFound(profile.to_string()))
+            .ok_or_else(|| PortError::NotFound(profile.to_string()))?;
+        self.deleted_options
+            .lock()
+            .expect("options lock")
+            .push(profile.to_owned());
+        self.sidecars.lock().expect("sidecars lock").remove(profile);
+        Ok(())
     }
 
     async fn get_profile_metadata(&self, profile: &str) -> Result<ProfileMetadata, PortError> {
@@ -233,41 +325,6 @@ impl ProfileStore for FakeStore {
     }
 
     async fn delete_subscription_credential(&self, _profile: &str) -> Result<(), PortError> {
-        Ok(())
-    }
-
-    async fn delete_options(&self, profile: &str) -> Result<(), PortError> {
-        self.deleted_options
-            .lock()
-            .expect("options lock")
-            .push(profile.to_string());
-        self.options.lock().expect("options lock").remove(profile);
-        Ok(())
-    }
-
-    async fn load_options(&self, profile: &str) -> Result<ProfileOptions, PortError> {
-        if let Some(error) = self
-            .options_read_error
-            .lock()
-            .expect("options error lock")
-            .clone()
-        {
-            return Err(error);
-        }
-        Ok(self
-            .options
-            .lock()
-            .expect("options lock")
-            .get(profile)
-            .cloned()
-            .unwrap_or_default())
-    }
-
-    async fn save_options(&self, profile: &str, options: &ProfileOptions) -> Result<(), PortError> {
-        self.options
-            .lock()
-            .expect("options lock")
-            .insert(profile.to_string(), options.clone());
         Ok(())
     }
 
@@ -453,7 +510,14 @@ mod editor_observations;
 #[path = "profile_application_tests/source_bound_edits.rs"]
 mod source_bound_edits;
 
+#[path = "profile_application_tests/engine_scope.rs"]
+mod engine_scope;
+#[path = "profile_application_tests/namespace.rs"]
+mod namespace;
 #[path = "profile_application_tests/quota_reader.rs"]
 mod quota_reader;
 #[path = "profile_application_tests/read_status.rs"]
 mod read_status;
+
+#[path = "profile_application_tests/configuration_codec.rs"]
+mod configuration_codec;

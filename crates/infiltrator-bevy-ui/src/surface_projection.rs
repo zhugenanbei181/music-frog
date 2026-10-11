@@ -1,11 +1,15 @@
-use super::surface_demo::{
+use super::surface_projection_defaults::{
     empty_app_routing, empty_connections, empty_dns, empty_doctor, empty_logs, empty_profiles,
-    empty_proxies, empty_rules, empty_sync,
+    empty_rules, empty_sync,
 };
 use super::surface_settings::empty_settings;
 use super::*;
 use crate::pages::app_routing::AppItem;
-use infiltrator_domain::app_routing::{AppRoutingMode, AppRoutingRule};
+use infiltrator_contract::outbound::details::OutboundDetail;
+use infiltrator_contract::outbound::identity::OutboundId;
+use infiltrator_contract::outbound::preferences::OutboundLayout;
+use std::cmp::Ordering;
+use std::collections::HashMap;
 
 use crate::pages::doctor::{DoctorCheckItem, DoctorProjection};
 use crate::pages::logs::LogEntry;
@@ -14,11 +18,20 @@ use crate::pages::profiles::ProfileItem;
 use crate::pages::proxies::{ProxyGroup, ProxyNode};
 use crate::pages::rules::{RuleItem, RuleProviderItem};
 use crate::pages::sync::{ConflictingKey, SnapshotItem, SyncConflictInfo};
-use crate::projection::OverviewState;
-use infiltrator_application::proxy_mode_application::ProxyModeApplication;
+use crate::projection::{OverviewOrigin, OverviewProjection, OverviewState};
+use infiltrator_application::routing_intent_application::RoutingIntentApplication;
 use infiltrator_application::system_toggle_application::SystemToggleApplication;
 use infiltrator_contract::connection::ConnectionStreamPhase;
 use infiltrator_contract::logs::LogLevel;
+use infiltrator_contract::outbound::{
+    details::{
+        OutboundCollectionKind, OutboundDetailsState, OutboundFeature, OutboundHealthObservation,
+        OutboundObservation, OutboundProtocolObservation, OutboundSnapshot,
+    },
+    inventory::{OutboundInventoryState, OutboundSelectionState, SelectionAvailability},
+    preferences::{OutboundHealthFilter, OutboundSortOrder},
+};
+use infiltrator_contract::proxies::ProxyGroupClassification;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use std::time;
 
@@ -60,12 +73,23 @@ pub(super) fn overview_projection(
             .as_ref()
             .or(core.failure.as_ref())
             .map(|failure| failure.message.clone()),
-        origin: if snapshot.surface == SurfaceKind::BevyDesktop
-            && snapshot.origin == surface_snapshot::SurfaceOrigin::Demo
-        {
-            OverviewOrigin::Demo
-        } else {
-            OverviewOrigin::LiveCore
+        origin: {
+            #[cfg(any(feature = "capture-tools", test))]
+            {
+                match snapshot.origin {
+                    surface_snapshot::SurfaceOrigin::Demo
+                        if snapshot.surface == SurfaceKind::BevyDesktop =>
+                    {
+                        OverviewOrigin::Demo
+                    }
+                    surface_snapshot::SurfaceOrigin::Demo
+                    | surface_snapshot::SurfaceOrigin::Live => OverviewOrigin::LiveCore,
+                }
+            }
+            #[cfg(not(any(feature = "capture-tools", test)))]
+            {
+                OverviewOrigin::LiveCore
+            }
         },
         core_version: page
             .and_then(|value| value.core_version.clone())
@@ -80,7 +104,7 @@ pub(super) fn overview_projection(
         viewport: snapshot.viewport.clone(),
         subscription_quota: snapshot.subscription_quota.clone(),
         system_toggles: SystemToggleApplication::from_surface(snapshot),
-        proxy_mode: ProxyModeApplication::from_surface(snapshot),
+        routing_intent: RoutingIntentApplication::from_surface(snapshot),
         speedtest: snapshot.speedtest.clone(),
         cpu_percent: snapshot.resources.cpu_percent,
         total_traffic_bytes: snapshot
@@ -95,44 +119,271 @@ pub(super) fn overview_projection(
 pub(super) fn proxies_projection(
     snapshot: &surface_snapshot::SurfaceSnapshot,
 ) -> ProxiesProjection {
-    snapshot
-        .pages
-        .proxies
-        .data
-        .as_ref()
-        .map(|value| ProxiesProjection {
-            name_runs: value.name_runs.clone(),
-            search_query: value.search_query.clone(),
-            groups: value
-                .groups
+    use crate::pages::proxies_filter::{matches_proxy_filter, name_runs};
+    use infiltrator_contract::surface_snapshot::PageStatus;
+
+    let scope = snapshot.core.scope();
+    let inventory = matches!(
+        snapshot.outbound_inventory.status,
+        PageStatus::Ready | PageStatus::Empty
+    )
+    .then_some(snapshot.outbound_inventory.data.as_ref())
+    .flatten()
+    .filter(|inventory| scope.as_ref() == Some(inventory.scope()));
+    let details = matches!(
+        snapshot.outbound_details.status,
+        PageStatus::Ready | PageStatus::Empty
+    )
+    .then_some(snapshot.outbound_details.data.as_ref())
+    .flatten()
+    .filter(|details| scope.as_ref() == Some(details.scope()));
+    let preferences = matches!(
+        snapshot.outbound_ui_preferences.status,
+        PageStatus::Ready | PageStatus::Empty
+    )
+    .then_some(snapshot.outbound_ui_preferences.data.as_ref())
+    .flatten()
+    .filter(|preferences| scope.as_ref() == Some(preferences.scope()));
+
+    let mut groups = Vec::new();
+    if let Some(inventory) = inventory
+        && let OutboundInventoryState::Ready {
+            entries,
+            collections,
+        } = inventory.inventory()
+    {
+        let detail_snapshot = details.filter(|details| details.scope() == inventory.scope());
+        let detail_rows = detail_snapshot.and_then(|details| match details.state() {
+            OutboundDetailsState::Ready { details } => Some(details.as_slice()),
+            OutboundDetailsState::Unknown
+            | OutboundDetailsState::Empty
+            | OutboundDetailsState::Unsupported
+            | OutboundDetailsState::Failed { .. } => None,
+        });
+        for collection in collections {
+            let selected = match &collection.selection {
+                OutboundSelectionState::Ready { selected } => Some(selected),
+                OutboundSelectionState::Unknown
+                | OutboundSelectionState::Empty
+                | OutboundSelectionState::Unsupported
+                | OutboundSelectionState::Failed { .. } => None,
+            };
+            let collection_detail =
+                detail_rows.and_then(|rows| rows.iter().find(|detail| detail.id == collection.id));
+            let (group_type, classification) =
+                collection_kind(collection_detail.map(|detail| &detail.collection_kind));
+            let mut proxies: Vec<_> = collection
+                .member_ids
                 .iter()
-                .map(|group| ProxyGroup {
-                    name: group.name.clone(),
-                    group_type: group.group_type.clone(),
-                    classification: group.resolved_classification(),
-                    current: group.current.clone(),
-                    expanded: group.expanded,
-                    proxies: group
-                        .proxies
-                        .iter()
-                        .map(|proxy| ProxyNode {
-                            name: proxy.name.clone(),
-                            node_type: proxy.node_type.clone(),
-                            delay_ms: proxy.delay_ms,
-                            selected: proxy.selected,
-                            favorite: proxy.favorite,
-                            features: proxy.features.clone(),
-                        })
-                        .collect(),
+                .filter_map(|id| {
+                    let entry = entries.iter().find(|entry| entry.id == *id)?;
+                    let detail =
+                        detail_rows.and_then(|rows| rows.iter().find(|detail| detail.id == *id));
+                    let node_type = detail.map_or_else(String::new, protocol_name);
+                    let delay_ms = detail.and_then(latency_ms);
+                    let health =
+                        detail.map_or(OutboundHealthObservation::Unknown, |detail| detail.health);
+                    let favorite = preferences
+                        .is_some_and(|preferences| preferences.favorite_outbound_ids.contains(id));
+                    let features = detail.map_or_else(Vec::new, feature_names);
+                    let node = ProxyNode {
+                        outbound_id: Some(id.clone()),
+                        name: entry
+                            .display_name
+                            .clone()
+                            .unwrap_or_else(|| id.value().to_owned()),
+                        node_type,
+                        delay_ms,
+                        health,
+                        selected: selected.is_some_and(|selected| selected == id),
+                        favorite,
+                        features,
+                    };
+                    if preferences.is_some_and(|preferences| {
+                        preferences.health_filter == OutboundHealthFilter::HealthyOnly
+                            && node.health != OutboundHealthObservation::Healthy
+                    }) {
+                        return None;
+                    }
+                    Some(node)
                 })
-                .collect(),
-            testing: value.testing,
-            filter_alive: value.filter_alive.enabled,
-            compact_view: value.compact_view,
-            active_exit: value.active_exit.clone(),
-            custom_node: value.custom_node.clone(),
-        })
-        .unwrap_or_else(empty_proxies)
+                .collect();
+
+            if let Some(preferences) = preferences {
+                let group_matches = collection
+                    .id
+                    .value()
+                    .to_ascii_lowercase()
+                    .contains(&preferences.search_query.trim().to_ascii_lowercase());
+                if !preferences.search_query.trim().is_empty() && !group_matches {
+                    proxies.retain(|node| matches_proxy_filter(node, &preferences.search_query));
+                }
+                sort_outbound_nodes(&mut proxies, preferences.sort_order);
+            }
+            let expanded = preferences.is_none_or(|preferences| {
+                !preferences.collapsed_group_ids.contains(&collection.id)
+            });
+            groups.push(ProxyGroup {
+                collection_id: Some(collection.id.clone()),
+                name: collection.id.value().to_owned(),
+                group_type,
+                classification,
+                current: selected
+                    .map(|id| outbound_display_name(id, entries))
+                    .unwrap_or_default(),
+                outbound_selection_available: collection.availability
+                    == SelectionAvailability::Selectable,
+                expanded,
+                proxies,
+            });
+        }
+    }
+
+    if let Some(preferences) = preferences {
+        let positions: HashMap<_, _> = preferences
+            .group_order
+            .iter()
+            .enumerate()
+            .map(|(index, id)| (id, index))
+            .collect();
+        groups.sort_by_key(|group| {
+            group
+                .collection_id
+                .as_ref()
+                .and_then(|id| positions.get(id).copied())
+                .unwrap_or(usize::MAX)
+        });
+    }
+
+    let search_query =
+        preferences.map_or_else(String::new, |preferences| preferences.search_query.clone());
+    let name_runs = groups
+        .iter()
+        .flat_map(|group| group.proxies.iter())
+        .map(|node| (node.name.clone(), name_runs(node, &search_query)))
+        .collect();
+    ProxiesProjection {
+        name_runs,
+        search_query,
+        groups,
+        testing: false,
+        filter_alive: preferences.is_some_and(|preferences| {
+            preferences.health_filter == OutboundHealthFilter::HealthyOnly
+        }),
+        compact_view: preferences
+            .is_some_and(|preferences| preferences.layout == OutboundLayout::CompactList),
+        active_exit: snapshot.active_exit.name.clone().unwrap_or_default(),
+        custom_node: matches!(
+            snapshot.protocol_studio.status,
+            PageStatus::Ready | PageStatus::Empty
+        )
+        .then_some(snapshot.protocol_studio.data.as_ref())
+        .flatten()
+        .cloned()
+        .unwrap_or_default(),
+    }
+}
+
+fn collection_kind(
+    observation: Option<&OutboundObservation<OutboundCollectionKind>>,
+) -> (String, ProxyGroupClassification) {
+    match observation {
+        Some(OutboundObservation::Observed(OutboundCollectionKind::ManualSelection)) => {
+            ("Selector".to_owned(), ProxyGroupClassification::Selector)
+        }
+        Some(OutboundObservation::Observed(OutboundCollectionKind::AutomaticSelection)) => {
+            ("Automatic".to_owned(), ProxyGroupClassification::UrlTest)
+        }
+        Some(OutboundObservation::Observed(OutboundCollectionKind::Failover)) => {
+            ("Failover".to_owned(), ProxyGroupClassification::Fallback)
+        }
+        Some(OutboundObservation::Observed(OutboundCollectionKind::LoadBalancing)) => (
+            "LoadBalance".to_owned(),
+            ProxyGroupClassification::LoadBalance,
+        ),
+        Some(OutboundObservation::Observed(OutboundCollectionKind::Relay)) => {
+            ("Relay".to_owned(), ProxyGroupClassification::Relay)
+        }
+        Some(OutboundObservation::Unknown | OutboundObservation::Unsupported) | None => {
+            ("Collection".to_owned(), ProxyGroupClassification::Selector)
+        }
+    }
+}
+
+fn protocol_name(detail: &OutboundDetail) -> String {
+    match &detail.protocol {
+        OutboundProtocolObservation::Reported(protocol) => detail
+            .protocol_display_name
+            .clone()
+            .unwrap_or_else(|| protocol.value().to_owned()),
+        OutboundProtocolObservation::Unknown | OutboundProtocolObservation::Unsupported => {
+            String::new()
+        }
+    }
+}
+
+fn latency_ms(detail: &OutboundDetail) -> Option<u32> {
+    match detail.current_latency_ms {
+        OutboundObservation::Observed(delay) => Some(delay),
+        OutboundObservation::Unknown | OutboundObservation::Unsupported => None,
+    }
+}
+
+fn feature_names(detail: &OutboundDetail) -> Vec<String> {
+    match &detail.features {
+        OutboundObservation::Observed(features) => features
+            .iter()
+            .map(|feature| match feature {
+                OutboundFeature::Udp => "UDP".to_owned(),
+            })
+            .collect(),
+        OutboundObservation::Unknown | OutboundObservation::Unsupported => Vec::new(),
+    }
+}
+
+fn sort_outbound_nodes(nodes: &mut [ProxyNode], order: OutboundSortOrder) {
+    nodes.sort_by(|left, right| {
+        let favorite_order = || right.favorite.cmp(&left.favorite);
+        match order {
+            OutboundSortOrder::LatencyAscending => favorite_order()
+                .then_with(|| delay_ascending(left.delay_ms, right.delay_ms))
+                .then_with(|| left.name.to_lowercase().cmp(&right.name.to_lowercase())),
+            OutboundSortOrder::LatencyDescending => favorite_order()
+                .then_with(|| delay_descending(left.delay_ms, right.delay_ms))
+                .then_with(|| left.name.to_lowercase().cmp(&right.name.to_lowercase())),
+            OutboundSortOrder::NameAscending => {
+                left.name.to_lowercase().cmp(&right.name.to_lowercase())
+            }
+            OutboundSortOrder::NameDescending => {
+                right.name.to_lowercase().cmp(&left.name.to_lowercase())
+            }
+        }
+    });
+}
+
+fn delay_ascending(left: Option<u32>, right: Option<u32>) -> Ordering {
+    match (
+        left.filter(|delay| *delay > 0),
+        right.filter(|delay| *delay > 0),
+    ) {
+        (Some(left), Some(right)) => left.cmp(&right),
+        (Some(_), None) => Ordering::Less,
+        (None, Some(_)) => Ordering::Greater,
+        (None, None) => Ordering::Equal,
+    }
+}
+
+fn delay_descending(left: Option<u32>, right: Option<u32>) -> Ordering {
+    delay_ascending(right, left)
+}
+
+fn outbound_display_name(id: &OutboundId, entries: &[OutboundSnapshot]) -> String {
+    entries
+        .iter()
+        .find(|entry| entry.id == *id)
+        .and_then(|entry| entry.display_name.as_deref())
+        .unwrap_or_else(|| id.value())
+        .to_owned()
 }
 
 pub(super) fn profiles_projection(
@@ -376,11 +627,7 @@ pub(super) fn app_routing_projection(
         .data
         .as_ref()
         .map(|value| AppRoutingProjection {
-            mode: match value.mode.to_ascii_lowercase().as_str() {
-                "proxy_selected" | "proxy_list" | "whitelist" => AppRoutingMode::ProxySelected,
-                "bypass_selected" | "bypass_list" | "blacklist" => AppRoutingMode::BypassSelected,
-                _ => AppRoutingMode::ProxyAll,
-            },
+            mode: value.mode.into(),
             include_system: value.include_system,
             uwp_loopback: value.uwp_loopback.clone(),
             apps: value
@@ -390,11 +637,7 @@ pub(super) fn app_routing_projection(
                     id: app.id.clone(),
                     name: app.name.clone(),
                     process_name: app.process_name.clone(),
-                    rule: match app.rule.to_ascii_lowercase().as_str() {
-                        "direct" => AppRoutingRule::Direct,
-                        "block" => AppRoutingRule::Block,
-                        _ => AppRoutingRule::Proxy,
-                    },
+                    rule: app.rule.into(),
                     is_system: app.is_system,
                 })
                 .collect(),
@@ -460,6 +703,7 @@ pub(super) fn settings_projection(
             notifications_enabled: value.notifications_enabled,
             preference_status: snapshot.pages.settings.status.clone(),
             runtime_status: snapshot.runtime_control.status.clone(),
+            theme: value.theme.clone(),
             autostart: value.autostart,
             system_proxy: value.system_proxy,
             system_proxy_snapshot: snapshot.system_proxy.clone(),

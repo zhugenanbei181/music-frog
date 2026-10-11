@@ -311,8 +311,12 @@ impl CameraScanSession {
 pub enum PlatformViewState {
     #[default]
     Unmounted,
-    Mounted,
-    Paused,
+    Mounted {
+        handle_id: u64,
+    },
+    Paused {
+        handle_id: u64,
+    },
 }
 
 /// A completed native platform view transition.
@@ -321,7 +325,7 @@ pub enum PlatformViewTransition {
     Mounted,
     Paused,
     Resumed,
-    Unmounted,
+    Unmounted { released_handle_id: u64 },
 }
 
 /// Typed rejection of a platform view transition the current state forbids.
@@ -333,14 +337,12 @@ pub enum PlatformViewTransitionError {
     NotPaused,
 }
 
-/// RAII lifecycle host managing native OS platform view compositing (Android SurfaceView / iOS CALayer).
+/// Typed lifecycle for a native OS platform view compositing slot.
 ///
-/// Guarantees clean detach and GPU unbind on drop ("严禁管杀不管埋").
+/// `unmount` returns the opaque handle ID so the native host can release it.
 #[derive(Debug, PartialEq)]
 pub struct PlatformViewLifecycleHost {
     pub view_id: String,
-    pub is_attached: bool,
-    pub native_handle_id: Option<u64>,
     state: PlatformViewState,
 }
 
@@ -348,28 +350,12 @@ impl PlatformViewLifecycleHost {
     pub fn new(view_id: impl Into<String>) -> Self {
         Self {
             view_id: view_id.into(),
-            is_attached: false,
-            native_handle_id: None,
             state: PlatformViewState::Unmounted,
         }
     }
 
     pub fn state(&self) -> PlatformViewState {
         self.state
-    }
-
-    /// Attach native view handle.
-    pub fn attach(&mut self, handle_id: u64) {
-        self.is_attached = true;
-        self.native_handle_id = Some(handle_id);
-        self.state = PlatformViewState::Mounted;
-    }
-
-    /// Explicitly detach and release native view handle.
-    pub fn detach(&mut self) -> Option<u64> {
-        self.is_attached = false;
-        self.state = PlatformViewState::Unmounted;
-        self.native_handle_id.take()
     }
 
     /// Mount a native view region. Illegal unless currently unmounted.
@@ -379,10 +365,10 @@ impl PlatformViewLifecycleHost {
     ) -> Result<PlatformViewTransition, PlatformViewTransitionError> {
         match self.state {
             PlatformViewState::Unmounted => {
-                self.attach(handle_id);
+                self.state = PlatformViewState::Mounted { handle_id };
                 Ok(PlatformViewTransition::Mounted)
             }
-            PlatformViewState::Mounted | PlatformViewState::Paused => {
+            PlatformViewState::Mounted { .. } | PlatformViewState::Paused { .. } => {
                 Err(PlatformViewTransitionError::AlreadyMounted)
             }
         }
@@ -391,11 +377,11 @@ impl PlatformViewLifecycleHost {
     /// Pause a mounted view region without releasing its native handle.
     pub fn pause(&mut self) -> Result<PlatformViewTransition, PlatformViewTransitionError> {
         match self.state {
-            PlatformViewState::Mounted => {
-                self.state = PlatformViewState::Paused;
+            PlatformViewState::Mounted { handle_id } => {
+                self.state = PlatformViewState::Paused { handle_id };
                 Ok(PlatformViewTransition::Paused)
             }
-            PlatformViewState::Paused => Err(PlatformViewTransitionError::AlreadyPaused),
+            PlatformViewState::Paused { .. } => Err(PlatformViewTransitionError::AlreadyPaused),
             PlatformViewState::Unmounted => Err(PlatformViewTransitionError::NotMounted),
         }
     }
@@ -403,31 +389,25 @@ impl PlatformViewLifecycleHost {
     /// Resume a paused view region.
     pub fn resume(&mut self) -> Result<PlatformViewTransition, PlatformViewTransitionError> {
         match self.state {
-            PlatformViewState::Paused => {
-                self.state = PlatformViewState::Mounted;
+            PlatformViewState::Paused { handle_id } => {
+                self.state = PlatformViewState::Mounted { handle_id };
                 Ok(PlatformViewTransition::Resumed)
             }
-            PlatformViewState::Mounted => Err(PlatformViewTransitionError::NotPaused),
+            PlatformViewState::Mounted { .. } => Err(PlatformViewTransitionError::NotPaused),
             PlatformViewState::Unmounted => Err(PlatformViewTransitionError::NotMounted),
         }
     }
 
-    /// Unmount the view region, releasing the native handle exactly once.
+    /// Unmount the view region and return its native handle to the host for release.
     pub fn unmount(&mut self) -> Result<PlatformViewTransition, PlatformViewTransitionError> {
         match self.state {
             PlatformViewState::Unmounted => Err(PlatformViewTransitionError::NotMounted),
-            PlatformViewState::Mounted | PlatformViewState::Paused => {
-                self.detach();
-                Ok(PlatformViewTransition::Unmounted)
+            PlatformViewState::Mounted { handle_id } | PlatformViewState::Paused { handle_id } => {
+                self.state = PlatformViewState::Unmounted;
+                Ok(PlatformViewTransition::Unmounted {
+                    released_handle_id: handle_id,
+                })
             }
-        }
-    }
-}
-
-impl Drop for PlatformViewLifecycleHost {
-    fn drop(&mut self) {
-        if self.is_attached {
-            self.detach();
         }
     }
 }
@@ -439,14 +419,18 @@ mod tests {
     #[test]
     fn test_platform_view_lifecycle_host() {
         let mut host = PlatformViewLifecycleHost::new("native-map");
-        assert!(!host.is_attached);
-
-        host.attach(123456);
-        assert!(host.is_attached);
-        assert_eq!(host.native_handle_id, Some(123456));
-
-        let detached = host.detach();
-        assert!(!host.is_attached);
-        assert_eq!(detached, Some(123456));
+        assert_eq!(host.state(), PlatformViewState::Unmounted);
+        assert_eq!(host.mount(123456), Ok(PlatformViewTransition::Mounted));
+        assert_eq!(
+            host.state(),
+            PlatformViewState::Mounted { handle_id: 123456 }
+        );
+        assert_eq!(
+            host.unmount(),
+            Ok(PlatformViewTransition::Unmounted {
+                released_handle_id: 123456,
+            })
+        );
+        assert_eq!(host.state(), PlatformViewState::Unmounted);
     }
 }

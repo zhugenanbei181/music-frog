@@ -1,39 +1,23 @@
-//! DUAL-09-14: per-profile option sidecar use-cases (Mixin overlay + filter).
+//! Source-bound application workflows for engine-owned profile option schemas.
 //!
-//! Both surfaces edit the same two stored documents, so both call this one
-//! application service:
-//!
-//! * [`ProfileOptionsApplication::load`] reads the sidecar, renders the stored
-//!   `MixinConfig` back into the editor's YAML buffer, converts the stored
-//!   filter spec into the shared surface draft and publishes the snapshot for
-//!   the surface projection;
-//! * [`ProfileOptionsApplication::save_mixin`] is the Mixin editor's commit:
-//!   strip the outgoing mixin's injected rule lines (so repeated edits stay
-//!   idempotent), merge with the byte-faithful engine
-//!   ([`infiltrator_domain::mixin::merge_profile_with_config_fidelity`]),
-//!   validate, apply through the shared transaction and persist the sidecar;
-//! * [`ProfileOptionsApplication::save_filter`] is the filter editor's commit:
-//!   parse the shared draft and run the shared filter application, which
-//!   re-runs the pipeline in place and persists the spec.
-//!
-//! Keeping the composition here is what retires the surface-local copy: a
-//! surface may render the buffers, but it never owns the strip/merge/persist
-//! rules or the regex compilation.
-use infiltrator_domain::filter_policy_form;
-
+//! The selected document codec owns sidecar decoding, Mixin/filter schema
+//! transforms, and format validation. This service resolves a coherent
+//! workspace, delegates the pure transform to that scoped adapter, then
+//! commits the returned opaque document and sidecar bytes through the shared
+//! compare-and-save transaction.
 use crate::profile_application::{ProfileApplication, valid_name};
 use crate::profile_document_application::document_snapshot;
 use crate::profile_editor_observations::EditorFacet;
-use infiltrator_contract::error::{ErrorCode, Failure, FailureReason};
+use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document::ProfileWorkspaceReceipt;
+use infiltrator_contract::profile_document_identity::{
+    ProfileDocumentIdentity, ProfileWorkspaceIdentity,
+};
 use infiltrator_contract::profile_options::ProfileOptionsSnapshot;
-use infiltrator_contract::profile_source::ProfileSourceIdentity;
 use infiltrator_contract::subscription_filter_result::SubscriptionFilterApplied;
 use infiltrator_contract::subscription_import::SubscriptionFilterDraft;
-use infiltrator_domain::config::validate_yaml;
-use infiltrator_domain::mixin::{MixinConfig, merge_profile_with_config_fidelity};
-use infiltrator_domain::profile_options;
-use infiltrator_domain::profile_options::ProfileOptions;
+use infiltrator_ports::profile_document_codec::ProfileMixinStudioProjection;
+use infiltrator_ports::profile_document_codec::ProfileMixinToggleId;
 use infiltrator_ports::profile_workspace::{
     ProfileWorkspace, ProfileWorkspacePurpose, ProfileWorkspaceUpdate,
 };
@@ -61,6 +45,54 @@ impl ProfileOptionsApplication {
         Self { profiles }
     }
 
+    /// Validate a live Mixin draft with the engine-scoped codec used by the
+    /// sidecar save path. This is a pure operation: it parses and composes in
+    /// memory, and performs no store or runtime I/O.
+    pub fn inspect_mixin_draft(
+        &self,
+        identity: &ProfileDocumentIdentity,
+        document_content: &str,
+        mixin_yaml: &str,
+    ) -> Result<(), Failure> {
+        self.profiles
+            .apply_profile_mixin(identity, document_content.as_bytes(), None, mixin_yaml)
+            .map(|_| ())
+    }
+
+    pub fn inspect_mixin_toggle(
+        &self,
+        identity: &ProfileDocumentIdentity,
+        mixin_yaml: &str,
+        toggle_id: ProfileMixinToggleId,
+    ) -> Result<bool, Failure> {
+        self.profiles
+            .inspect_profile_mixin_toggle(identity, mixin_yaml, toggle_id)
+    }
+
+    pub fn set_mixin_toggle(
+        &self,
+        identity: &ProfileDocumentIdentity,
+        mixin_yaml: &str,
+        toggle_id: ProfileMixinToggleId,
+        enabled: bool,
+    ) -> Result<String, Failure> {
+        self.profiles
+            .set_profile_mixin_toggle(identity, mixin_yaml, toggle_id, enabled)
+    }
+
+    pub fn inspect_mixin_studio(
+        &self,
+        identity: &ProfileDocumentIdentity,
+        document_content: &str,
+        mixin_yaml: &str,
+    ) -> Result<ProfileMixinStudioProjection, Failure> {
+        self.profiles.inspect_profile_mixin_studio(
+            identity,
+            document_content.as_bytes(),
+            mixin_yaml,
+        )
+    }
+
     /// Load the sidecar, publish it for the surface projection and return it.
     /// `profile = None` selects the active profile.
     pub async fn load(&self, profile: Option<&str>) -> Result<ProfileOptionsSnapshot, Failure> {
@@ -71,7 +103,7 @@ impl ProfileOptionsApplication {
             .profiles
             .load_workspace(&name)
             .await
-            .and_then(project_options);
+            .and_then(|workspace| project_options(&self.profiles, workspace));
         let snapshot = match result {
             Ok(snapshot) => snapshot,
             Err(failure) => {
@@ -93,58 +125,50 @@ impl ProfileOptionsApplication {
     pub async fn save_mixin<R: ManagedRuntime + ?Sized>(
         &self,
         runtime: Option<Arc<R>>,
-        expected: &ProfileSourceIdentity,
+        expected: &ProfileWorkspaceIdentity,
         mixin_yaml: &str,
     ) -> Result<ProfileWorkspaceReceipt, Failure> {
-        let mixin: MixinConfig = serde_yaml_ng::from_str(mixin_yaml).map_err(|error| {
-            Failure::new(ErrorCode::InvalidInput, error.to_string(), false)
-                .with_reason(FailureReason::MixinYaml)
-        })?;
-        let profile = valid_name(&expected.profile)?;
+        self.profiles
+            .validate_profile_options_scope(&expected.document)?;
+        let profile = expected.document.profile_id.as_str();
         let read = self
             .profiles
-            .begin_editor_read(&profile, EditorFacet::Options);
+            .begin_editor_read(profile, EditorFacet::Options);
         let document_read = self
             .profiles
-            .begin_editor_read(&profile, EditorFacet::Document);
-        let workspace = self.profiles.load_workspace(&profile).await?;
-        if workspace.source != *expected {
+            .begin_editor_read(profile, EditorFacet::Document);
+        let workspace = self
+            .profiles
+            .load_workspace_id(&expected.document.profile_id)
+            .await?;
+        if workspace.identity() != *expected {
             return Err(Failure::new(
                 ErrorCode::NotReady,
                 "The observed Mixin document or options changed; inspect before saving",
                 true,
             ));
         }
-        let old = &workspace.options;
-        // Mixin rule injection is cumulative (`prepend ++ base ++ append`), so
-        // re-applying an edited mixin onto an already-composed profile would
-        // duplicate the old lines unless the outgoing mixin's lines are
-        // removed first — exactly what the Iced editor has always done.
-        let removals: Vec<String> = old
-            .mixin
-            .rules
-            .iter()
-            .flat_map(|rules| rules.prepend.iter().chain(rules.append.iter()).cloned())
-            .collect();
-        let base = profile_options::strip_rule_lines(&workspace.content, &removals);
-        let merged = merge_profile_with_config_fidelity(&base, &mixin)
-            .map_err(|error| Failure::new(ErrorCode::Configuration, error.to_string(), false))?;
-        validate_yaml(&merged)
-            .map_err(|error| Failure::new(ErrorCode::Configuration, error.to_string(), false))?;
+        let mutation = self.profiles.apply_profile_mixin(
+            &workspace.document.identity,
+            &workspace.document.raw_bytes,
+            workspace.sidecar_bytes.as_deref(),
+            mixin_yaml,
+        )?;
         let update = ProfileWorkspaceUpdate {
             purpose: ProfileWorkspacePurpose::Derived,
-            content: merged,
-            options: ProfileOptions {
-                mixin,
-                filter: old.filter.clone(),
-            },
+            document_bytes: mutation.document_bytes,
+            sidecar_bytes: mutation.sidecar_bytes,
         };
         let committed = self
             .profiles
             .commit_workspace(runtime, expected, &update)
             .await?;
-        let document = document_snapshot(committed.clone());
-        let options = project_options(committed)?;
+        let document = document_snapshot(&self.profiles, committed.clone())?;
+        let options = ProfileOptionsSnapshot::new(
+            committed.identity(),
+            mutation.projection.mixin_yaml,
+            mutation.projection.filter,
+        );
         self.profiles
             .observe_document(&document_read, document.clone());
         self.profiles.observe_options(&read, options.clone());
@@ -156,63 +180,74 @@ impl ProfileOptionsApplication {
         })
     }
 
-    /// Parse a surface filter draft and run the shared filter application.
+    /// Apply a neutral filter draft through the selected engine codec and
+    /// commit its opaque document and sidecar mutation atomically.
     pub async fn save_filter<R: ManagedRuntime + ?Sized>(
         &self,
         runtime: Option<Arc<R>>,
-        expected: &ProfileSourceIdentity,
+        expected: &ProfileWorkspaceIdentity,
         draft: &SubscriptionFilterDraft,
     ) -> Result<SubscriptionFilterApplied, Failure> {
-        let spec = filter_policy_form::filter_spec_from_draft(draft)
-            .map_err(|error| Failure::new(ErrorCode::InvalidInput, error.to_string(), false))?;
+        self.profiles
+            .validate_profile_options_scope(&expected.document)?;
         let read = self
             .profiles
-            .begin_editor_read(&expected.profile, EditorFacet::Options);
-        let workspace = self.profiles.load_workspace(&expected.profile).await?;
-        if workspace.source != *expected {
+            .begin_editor_read(expected.document.profile_id.as_str(), EditorFacet::Options);
+        let workspace = self
+            .profiles
+            .load_workspace_id(&expected.document.profile_id)
+            .await?;
+        if workspace.identity() != *expected {
             return Err(Failure::new(
                 ErrorCode::NotReady,
                 "The filter source changed; inspect the current profile and options",
                 true,
             ));
         }
-        let spec = filter_policy_form::filter_spec_with_form_fields(
-            workspace.options.filter.as_ref(),
-            spec,
-            draft.advanced_policy.is_some(),
-        );
-        let mixin_yaml = serde_yaml_ng::to_string(&workspace.options.mixin)
-            .map_err(|error| Failure::new(ErrorCode::Configuration, error.to_string(), false))?;
-        let stored_draft = filter_policy_form::filter_spec_to_draft(&spec)
-            .map_err(|error| Failure::new(ErrorCode::InvalidInput, error.to_string(), false))?;
-        let report = self
+        let mutation = self.profiles.apply_profile_filter(
+            &workspace.document.identity,
+            &workspace.document.raw_bytes,
+            workspace.sidecar_bytes.as_deref(),
+            draft,
+        )?;
+        let update = ProfileWorkspaceUpdate {
+            purpose: ProfileWorkspacePurpose::Derived,
+            document_bytes: mutation.document_bytes,
+            sidecar_bytes: mutation.sidecar_bytes,
+        };
+        let committed = self
             .profiles
-            .apply_subscription_filter(runtime, expected, spec)
+            .commit_workspace(runtime, expected, &update)
             .await?;
+        let report = SubscriptionFilterApplied {
+            workspace_identity: committed.identity(),
+            report: mutation.report,
+        };
         // Publish the stored draft so a surface that just applied it (and any
         // other surface reading the same projection) sees the persisted form.
         self.profiles.observe_options(
             &read,
-            ProfileOptionsSnapshot::new(report.source.clone(), mixin_yaml, stored_draft),
+            ProfileOptionsSnapshot::new(
+                report.workspace_identity.clone(),
+                mutation.projection.mixin_yaml,
+                mutation.projection.filter,
+            ),
         );
         Ok(report)
     }
 }
 
-fn project_options(workspace: ProfileWorkspace) -> Result<ProfileOptionsSnapshot, Failure> {
-    let mixin_yaml = serde_yaml_ng::to_string(&workspace.options.mixin)
-        .map_err(|error| Failure::new(ErrorCode::Configuration, error.to_string(), false))?;
-    let filter = workspace
-        .options
-        .filter
-        .as_ref()
-        .map(filter_policy_form::filter_spec_to_draft)
-        .transpose()
-        .map_err(|error| Failure::new(ErrorCode::Configuration, error.to_string(), false))?
-        .unwrap_or_default();
+fn project_options(
+    profiles: &ProfileApplication,
+    workspace: ProfileWorkspace,
+) -> Result<ProfileOptionsSnapshot, Failure> {
+    let projection = profiles.inspect_profile_options(
+        &workspace.document.identity,
+        workspace.sidecar_bytes.as_deref(),
+    )?;
     Ok(ProfileOptionsSnapshot::new(
-        workspace.source,
-        mixin_yaml,
-        filter,
+        workspace.identity(),
+        projection.mixin_yaml,
+        projection.filter,
     ))
 }

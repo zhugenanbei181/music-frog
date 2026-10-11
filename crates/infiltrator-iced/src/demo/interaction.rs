@@ -1,28 +1,22 @@
 //! Deterministic interaction fixtures use the production update pipeline.
 use crate::state::AppState;
+use crate::state::runtime::ProbeSettingsDialogState;
 use crate::types::app::ConfirmAction;
 use crate::types::message::Message;
 use infiltrator_application::connection_grouping_fixtures::{grouping_snapshot, grouping_surface};
 use infiltrator_application::doctor_capture_fixtures::CHECK_ID;
 use infiltrator_application::filter_capture_store::{FILTER_POLICY, FILTER_PROFILE};
-use infiltrator_application::proxy_group_order_fixtures::{
-    FIRST_GROUP, LAST_GROUP, MOVED_GROUP, observed_groups,
-};
-use infiltrator_application::proxy_inspection_fixtures::{
-    INSPECTION_GROUP, INSPECTION_NODE, observed_proxy,
-};
-use infiltrator_application::proxy_search_fixtures::{
-    SEARCH_GROUP, SEARCH_QUERY, observed_proxies,
-};
-use infiltrator_contract::command::ProxyMode;
 use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::fixture_identities::HK_PRIMARY;
+use infiltrator_contract::outbound::details::OutboundObservation;
 use infiltrator_contract::parity::FeatureId;
+use infiltrator_contract::routing_intent::RoutingIntent;
 use infiltrator_contract::rules_workspace::RulesTab;
 use infiltrator_contract::speedtest::SpeedtestSnapshot;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_domain::connection_view::ConnectionGroupingMode;
-use infiltrator_domain::proxy::{Proxy, ProxyGroup};
+use infiltrator_presentation::traffic_readout::TrafficFreshness;
 
 pub(super) fn parse(raw: &str) -> FeatureId {
     FeatureId::ALL
@@ -58,22 +52,33 @@ pub(super) fn activate(state: &mut AppState, feature: FeatureId) {
         return;
     }
     if feature == FeatureId::ProxiesGroupReorder {
-        state.runtime.proxies = observed_groups();
-        state.recompute_filtered_groups();
+        let group = state
+            .runtime
+            .proxy_groups
+            .get(1)
+            .expect("typed outbound fixture has reorderable groups")
+            .id
+            .clone();
         assert_eq!(
             state
-                .update(Message::MoveProxyGroupUp(MOVED_GROUP.into()))
+                .update(Message::MoveProxyGroupUp(
+                    group.expect("typed group identity")
+                ))
                 .units(),
             0
         );
         return;
     }
     if feature == FeatureId::ProxiesProbeSettings {
-        state.runtime.probe_options_editor.can_persist = true;
-        assert_eq!(state.update(Message::OpenProxyProbeOptions).units(), 0);
+        state.runtime.runtime_probe_settings_editor.observe(
+            &infiltrator_contract::runtime_settings::RuntimeProbeSettingsState::Available {
+                settings: infiltrator_contract::runtime_settings::RuntimeProbeSettings::default(),
+            },
+        );
+        assert_eq!(state.update(Message::OpenRuntimeProbeSettings).units(), 0);
         assert_eq!(
             state
-                .update(Message::UpdateDelayTestUrl(
+                .update(Message::UpdateRuntimeProbeUrlDraft(
                     "https://probe.example.test/204".into()
                 ))
                 .units(),
@@ -81,41 +86,28 @@ pub(super) fn activate(state: &mut AppState, feature: FeatureId) {
         );
         assert_eq!(
             state
-                .update(Message::UpdateDelayTimeoutMs("32767".into()))
+                .update(Message::UpdateRuntimeProbeTimeoutDraft("60000".into()))
                 .units(),
             0
         );
         return;
     }
     if feature == FeatureId::ProxiesSearchHighlight {
-        state.runtime.proxies = observed_proxies();
-        state.recompute_filtered_groups();
-        assert_eq!(
-            state
-                .update(Message::FilterProxies(SEARCH_QUERY.into()))
-                .units(),
-            0
-        );
+        assert_eq!(state.update(Message::FilterProxies("HK".into())).units(), 0);
         return;
     }
     if feature == FeatureId::ProxiesNodeDetailDrawer {
-        state
+        let outbound_id = state
             .runtime
-            .proxies
-            .insert(INSPECTION_NODE.into(), observed_proxy());
-        state.runtime.proxies.insert(
-            INSPECTION_GROUP.into(),
-            Proxy::Selector(ProxyGroup {
-                name: INSPECTION_GROUP.into(),
-                all: vec![INSPECTION_NODE.into()],
-                now: INSPECTION_NODE.into(),
-                ..Default::default()
-            }),
-        );
-        state.recompute_filtered_groups();
+            .proxy_groups
+            .iter()
+            .flat_map(|group| &group.proxies)
+            .find(|member| member.id.is_some())
+            .and_then(|member| member.id.clone())
+            .expect("typed outbound fixture has detail rows");
         assert_eq!(
             state
-                .update(Message::InspectProxy(Some(INSPECTION_NODE.into())))
+                .update(Message::InspectOutbound(Some(outbound_id)))
                 .units(),
             0
         );
@@ -129,10 +121,17 @@ pub(super) fn activate(state: &mut AppState, feature: FeatureId) {
             .expect("proxy fixture")
             .0
             .clone();
+        let group_id = state
+            .runtime
+            .proxy_groups
+            .iter()
+            .find(|candidate| candidate.name == group)
+            .and_then(|candidate| candidate.id.clone())
+            .expect("typed demo collection ID");
         for _ in 0..2 {
             assert_eq!(
                 state
-                    .update(Message::ToggleProxyGroupExpanded(group.clone()))
+                    .update(Message::ToggleOutboundGroupExpanded(group_id.clone()))
                     .units(),
                 0
             );
@@ -192,7 +191,7 @@ pub(super) fn ready(state: &AppState, feature: FeatureId) -> bool {
                     .traffic_readout()
                     .failure
                     .contains("isolated telemetry read denied")
-                && !state.traffic_readout().current
+                && matches!(state.traffic_readout().freshness, TrafficFreshness::Failed)
         }
         FeatureId::LogsRedactedExport => {
             state.diag.log_export.open
@@ -222,9 +221,9 @@ pub(super) fn ready(state: &AppState, feature: FeatureId) -> bool {
                 && state.diag.log_search.source_count() == 3
                 && state.diag.log_search.matched_count() == 2
         }
-        FeatureId::ShellProxyModeControl | FeatureId::ShellProxyModeAuthentication => {
-            let actions = &state.runtime.mode_actions;
-            let failed = if feature == FeatureId::ShellProxyModeAuthentication {
+        FeatureId::ShellRoutingIntentControl | FeatureId::ShellRoutingIntentAuthentication => {
+            let actions = &state.runtime.routing_intent_actions;
+            let failed = if feature == FeatureId::ShellRoutingIntentAuthentication {
                 actions.needs_controller_settings()
                     && actions.retry_target().is_none()
                     && actions
@@ -232,13 +231,15 @@ pub(super) fn ready(state: &AppState, feature: FeatureId) -> bool {
                         .as_ref()
                         .is_some_and(|failure| failure.code == ErrorCode::Authentication)
             } else {
-                actions.retry_target() == Some(ProxyMode::Global)
+                actions.retry_target() == Some(RoutingIntent::RouteAllThroughProxy)
                     && actions
                         .failure
                         .as_ref()
                         .is_some_and(|failure| failure.code == ErrorCode::Network)
             };
-            failed && actions.pending.is_none() && actions.observed.current == Some(ProxyMode::Rule)
+            failed
+                && actions.pending.is_none()
+                && actions.observed.current == Some(RoutingIntent::FollowRules)
         }
         FeatureId::ProfilesSnapshotRestoreConfirm => {
             let model = &state.editor.snapshot_restore;
@@ -328,33 +329,34 @@ pub(super) fn ready(state: &AppState, feature: FeatureId) -> bool {
                 })
         }
         FeatureId::DnsLeakAlert => {
-            state.diag.dns_leak_action.pending.is_none()
-                && state.diag.dns_leak_action.failure.is_none()
-                && state.editor.dns_leak.conclusion().is_divergent()
+            matches!(
+                state.diag.dns_leak_action.phase,
+                infiltrator_application::dns_leak_actions::DnsLeakActionPhase::Idle
+            ) && state.editor.dns_leak.conclusion().is_divergent()
                 && state.editor.dns_leak.observations.len() == 2
         }
         FeatureId::DoctorFailureRecovery => {
-            state.diag.doctor.action.can_retry()
-                && state
-                    .diag
+            matches!(
+                &state.diag.doctor.action.phase,
+                infiltrator_application::doctor_actions::DoctorActionPhase::Failed {
+                    failure,
+                    ..
+                } if failure.code == ErrorCode::Permission
+            ) && state.surface.latest().is_some_and(|snapshot| {
+                snapshot
+                    .pages
                     .doctor
-                    .action
-                    .failure
+                    .data
                     .as_ref()
-                    .is_some_and(|failure| failure.code == ErrorCode::Permission)
-                && state.surface.latest().is_some_and(|snapshot| {
-                    snapshot
-                        .pages
-                        .doctor
-                        .data
-                        .as_ref()
-                        .is_some_and(|data| data.checks.iter().any(|check| check.id == CHECK_ID))
-                })
+                    .is_some_and(|data| data.checks.iter().any(|check| check.id == CHECK_ID))
+            })
         }
         FeatureId::SettingsLanguageChoice => {
             state.shell.lang == "en-US"
-                && state.shell.language_choice.pending.is_none()
-                && state.shell.language_choice.failure.is_none()
+                && matches!(
+                    &state.shell.language_choice.phase,
+                    infiltrator_application::language_choice::LanguageChoicePhase::Ready
+                )
                 && state.shell.language_user_selected
         }
         FeatureId::ConnectionsCloseAllConfirm => {
@@ -396,7 +398,7 @@ pub(super) fn ready(state: &AppState, feature: FeatureId) -> bool {
                     .is_some_and(|s| s.connections.iter().any(|c| &c.id == id))
             }),
         FeatureId::SpeedtestDetailsModal => {
-            state.diag.speedtest_detail_open && !state.diag.speedtest.node_results.is_empty()
+            state.diag.speedtest_detail_open && !state.diag.speedtest.results.is_empty()
         }
         FeatureId::ShellCommandPalette => {
             state.shell.command_palette_open
@@ -421,42 +423,54 @@ pub(super) fn ready(state: &AppState, feature: FeatureId) -> bool {
                 .runtime
                 .filtered_groups
                 .first()
-                .is_some_and(|(name, group)| {
-                    !group.is_empty() && state.runtime.proxy_ui_preferences.is_group_expanded(name)
+                .is_some_and(|(name, members)| {
+                    let expanded = state
+                        .runtime
+                        .proxy_groups
+                        .iter()
+                        .find(|group| &group.name == name)
+                        .is_some_and(|group| group.expanded);
+                    !members.is_empty() && expanded
                 })
         }
         FeatureId::ProxiesGroupReorder => {
-            state.runtime.group_order_open
+            state.runtime.group_order_dialog
+                == crate::state::runtime::ProxyGroupOrderDialogState::Editing
                 && state.runtime.group_order_editor.can_apply()
-                && state.runtime.group_order_editor.draft == [MOVED_GROUP, FIRST_GROUP, LAST_GROUP]
         }
         FeatureId::ProxiesProbeSettings => {
-            state.runtime.probe_options_open
-                && state.runtime.probe_options_editor.can_apply()
-                && state.runtime.probe_options_editor.draft.timeout_ms == "32767"
+            matches!(
+                state.runtime.probe_settings_dialog,
+                ProbeSettingsDialogState::Editing
+            ) && state.runtime.runtime_probe_settings_editor.can_apply()
+                && state
+                    .runtime
+                    .runtime_probe_settings_editor
+                    .draft()
+                    .is_some_and(|draft| draft.timeout_ms == "60000")
         }
         FeatureId::ProxiesSearchHighlight => {
-            state.runtime.proxy_filter == SEARCH_QUERY
+            state.runtime.proxy_filter == "HK"
                 && state
                     .runtime
                     .proxy_groups
                     .iter()
-                    .any(|group| group.name == SEARCH_GROUP && group.proxies.len() == 1)
+                    .any(|group| group.name == "PROXIES" && group.proxies.len() == 2)
                 && state
                     .runtime
                     .proxy_name_runs
-                    .get(INSPECTION_NODE)
-                    .is_some_and(|runs| {
-                        runs.iter()
-                            .any(|run| run.highlighted && run.text == SEARCH_QUERY)
-                    })
+                    .get(HK_PRIMARY)
+                    .is_some_and(|runs| runs.iter().any(|run| run.highlighted && run.text == "HK"))
         }
-        FeatureId::ProxiesNodeDetailDrawer => {
-            state.runtime.inspecting_proxy.as_deref() == Some(INSPECTION_NODE)
-                && state
-                    .proxy_inspection(INSPECTION_NODE)
-                    .is_some_and(|detail| detail.history.len() == 3 && detail.delay_ms == Some(42))
-        }
+        FeatureId::ProxiesNodeDetailDrawer => state
+            .runtime
+            .outbound_inspecting
+            .as_ref()
+            .is_some_and(|id| {
+                state.outbound_detail(id).is_some_and(|detail| {
+                    matches!(detail.current_latency_ms, OutboundObservation::Observed(_))
+                })
+            }),
         _ => true,
     }
 }

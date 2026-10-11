@@ -102,8 +102,8 @@ fn native_all_filter_fields_survive_read_replay_and_source_change_until_explicit
             }
             .into(),
         );
-        profile.filter_source =
-            observation(&profile.id, FIXTURE_DOCUMENT, profile.filter.clone()).map(|o| o.source);
+        profile.filter_source = observation(&profile.id, FIXTURE_DOCUMENT, profile.filter.clone())
+            .map(|observation| observation.workspace_identity);
         app.world_mut()
             .commands()
             .trigger(ProfilesProjectionUpdated(projection));

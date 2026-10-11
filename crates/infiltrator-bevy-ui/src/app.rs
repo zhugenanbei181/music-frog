@@ -1,6 +1,6 @@
 //! The app shell: left sidebar/rail/bottom-nav and content column composed with `bsn!`.
 //! Seams: Responsive layout breakpoints (Compact, Medium, Expanded, Ultra), theme/density toggles,
-//! AccessKit semantic nodes, and mode segment control (BEVY-005).
+//! AccessKit semantic nodes, and routing intent segment control (BEVY-005).
 
 #[path = "app_query_access.rs"]
 pub mod query_access;
@@ -36,14 +36,15 @@ use crate::shell_rail::{
     sync_sidebar_rail_morphology,
 };
 use crate::shell_readout::{sync_core_status, sync_quota, sync_text};
-use crate::shell_scene::shell_scene_with_toggles;
+use crate::shell_scene::{shell_scene_with_toggles, stamp_status_dot};
 use crate::shell_waveform;
 use crate::shortcuts::ShortcutsPlugin;
 use crate::surface::host_insets::{HostInsetsPlugin, KeyboardAvoidance};
 use crate::toast::ShellToastPlugin;
 use crate::tray_status::TrayStatusPlugin;
-use crate::{shell_mode_issue, shell_modes};
+use crate::{shell_routing_intent, shell_routing_intent_issue};
 use bevy::app::{App, Plugin, Startup, Update};
+use bevy::asset::{AssetApp, Assets, Handle};
 use bevy::camera::{Camera2d, ClearColor};
 use bevy::ecs::change_detection::DetectChanges;
 use bevy::ecs::component::Component;
@@ -54,30 +55,32 @@ use bevy::ecs::query::{With, Without};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
+use bevy::image::{Image, ImagePlugin};
 use bevy::scene::CommandsSceneExt;
 use bevy::ui::prelude::{BackgroundColor, Display, Node, UiRect, Val, px};
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Activate;
 use bevy::window::{PrimaryWindow, Window};
-use infiltrator_application::proxy_mode_actions::{PendingModeChange, ProxyModeActions};
+use infiltrator_application::routing_intent_actions::{
+    PendingRoutingIntentChange, RoutingIntentActions,
+};
 use infiltrator_application::system_toggle_application::SystemToggleApplication;
 use infiltrator_application::system_toggle_projection::compact_label;
 use infiltrator_bevy_widgets::WidgetsPlugin;
 use infiltrator_bevy_widgets::button::{ButtonDisabled, ControlVisual, PillLabel};
+use infiltrator_bevy_widgets::icon::status_dot_image;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::responsive::{
     Density, DensitySwitch, ResponsiveContext, SafeAreaInsets,
 };
 use infiltrator_bevy_widgets::theme::{Breakpoint, Theme, space};
-use infiltrator_contract::command::ProxyMode;
-use infiltrator_contract::error::Failure;
+use infiltrator_contract::command::RequestId;
 use infiltrator_contract::shell_gesture;
 use infiltrator_contract::system_toggle::{SystemToggle, SystemToggleSnapshot};
 use infiltrator_contract::theme::ThemePreference;
 use infiltrator_contract::window_chrome::CHROME_DRAG_STRIP_HEIGHT_PX;
-use std::sync::Mutex;
-use std::sync::mpsc::Receiver;
 
 /// Sidebar rail standard width (px).
 pub const SIDEBAR_WIDTH_PX: f32 = 240.0;
@@ -87,8 +90,8 @@ pub const SIDEBAR_RAIL_WIDTH_PX: f32 = 64.0;
 pub const SIDEBAR_WIDE_WIDTH_PX: f32 = 280.0;
 /// Identity tile edge (px).
 pub const IDENTITY_TILE_PX: f32 = 40.0;
-/// Standard height of the bottom navigation bar in Compact mode (px).
-pub const BOTTOM_NAV_HEIGHT_PX: f32 = 58.0;
+/// Content height of the compact bottom navigation in Bevy logical UI units.
+pub const BOTTOM_NAV_CONTENT_HEIGHT: f32 = 58.0;
 
 /// Shell layout mode corresponding to responsive breakpoints.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
@@ -216,13 +219,14 @@ pub struct HistoryForwardButton;
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct GlobalStatusDot;
 
-/// Marker on global proxy mode capsule (BEVY-GAP-007).
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct GlobalModeCapsule;
+/// The inline status dot's shared image asset (capability norm ⑤). One
+/// generated circle, one owner, inserted once at startup.
+#[derive(Resource, Clone)]
+pub struct StatusDotImage(pub Handle<Image>);
 
-/// Marker on the sidebar Script proxy mode pill.
+/// Marker on the global routing intent capsule (BEVY-GAP-007).
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct SidebarScriptModePill;
+pub struct RoutingIntentStatusCapsule;
 
 /// Marker on the sidebar system proxy toggle card.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -284,9 +288,9 @@ pub struct SidebarFoot;
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct SidebarIdentityText;
 
-/// Marker on the sidebar proxy mode segmented control, hidden in rail mode.
+/// Marker on the sidebar routing intent segmented control, hidden in rail mode.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct SidebarModeSegment;
+pub struct SidebarRoutingIntentSegment;
 
 /// Marker on the sidebar bottom footer row, hidden in rail mode.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -304,18 +308,18 @@ pub struct RailNavTooltip(pub Route);
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct SidebarExpandedOnly;
 
-/// The receipt channel of the in-flight mode command.
+/// Correlates the shared routing transition with its command sink receipt.
 #[derive(Resource, Debug, Default)]
-pub struct PendingModeAck(pub Option<ModeAckSlot>);
+pub struct PendingRoutingIntentRequest(pub Option<RoutingIntentRequest>);
 
 #[derive(Debug)]
-pub struct ModeAckSlot {
-    pub request: PendingModeChange,
-    pub receiver: Mutex<Receiver<Result<ProxyMode, Failure>>>,
+pub struct RoutingIntentRequest {
+    pub transition: PendingRoutingIntentChange,
+    pub request_id: RequestId,
 }
 
 #[derive(Resource, Clone, Debug, Default)]
-pub struct ModeActionState(pub ProxyModeActions);
+pub struct RoutingIntentActionState(pub RoutingIntentActions);
 
 /// Density toggle observer.
 fn on_density_pill_activated(
@@ -516,35 +520,41 @@ impl Plugin for ShellPlugin {
         app.add_plugins(HostInsetsPlugin);
         app.insert_resource(ThemeMode(self.preference));
         app.init_resource::<SystemAppearance>();
+        // ImagePlugin owns the live store, including the renderer's 3D LUTs.
+        // Reinitializing it would recycle their handles into product textures.
+        if !app.is_plugin_added::<ImagePlugin>() {
+            app.init_asset::<Image>();
+        }
 
         let width = self.initial_width_px.unwrap_or(1180.0);
         let initial_layout = ShellLayoutState::from_width(width);
         app.insert_resource(initial_layout);
         app.insert_resource(ResponsiveContext::new(width, 760.0));
 
-        app.init_resource::<PendingModeAck>();
-        app.init_resource::<ModeActionState>();
+        app.init_resource::<PendingRoutingIntentRequest>();
+        app.init_resource::<RoutingIntentActionState>();
         app.init_resource::<SidebarToggleProjection>();
         app.add_systems(Update, (sync_text, sync_quota, sync_core_status));
         app.add_systems(Update, shell_waveform::sync);
         app.add_systems(
             Update,
             (
-                shell_modes::sync,
-                shell_modes::sync_segments,
-                shell_mode_issue::sync,
+                shell_routing_intent::sync,
+                shell_routing_intent::sync_segments,
+                shell_routing_intent_issue::sync,
             )
-                .chain()
-                .after(shell_modes::drain_ack),
+                .chain(),
         );
         app.init_resource::<SafeAreaInsets>();
+        app.add_observer(stamp_status_dot);
         app.add_observer(on_theme_pill_activated);
         app.add_observer(on_density_pill_activated);
-        app.add_observer(shell_modes::activate);
-        app.add_observer(shell_modes::request);
-        app.add_observer(shell_mode_issue::retry);
-        app.add_observer(shell_mode_issue::dismiss);
-        app.add_observer(shell_mode_issue::settings);
+        app.add_observer(shell_routing_intent::activate);
+        app.add_observer(shell_routing_intent::request);
+        app.add_observer(shell_routing_intent::completed);
+        app.add_observer(shell_routing_intent_issue::retry);
+        app.add_observer(shell_routing_intent_issue::dismiss);
+        app.add_observer(shell_routing_intent_issue::settings);
         app.add_observer(on_bottom_nav_activated);
         app.add_observer(on_sidebar_nav_activated);
         app.add_observer(on_sidebar_shortcut_tile_activated);
@@ -553,7 +563,10 @@ impl Plugin for ShellPlugin {
         app.add_observer(on_history_back_activated);
         app.add_observer(on_history_forward_activated);
         app.init_resource::<ClearColor>();
-        app.add_systems(Startup, (spawn_camera, spawn_shell));
+        app.add_systems(
+            Startup,
+            (spawn_camera, spawn_status_dot_image, spawn_shell).chain(),
+        );
         app.add_systems(
             Update,
             (
@@ -568,10 +581,15 @@ impl Plugin for ShellPlugin {
                 sync_safe_area_insets.after(sync_responsive_shell),
                 sync_window_clear,
                 sync_system_appearance,
-                shell_modes::drain_ack,
             ),
         );
     }
+}
+
+/// Build the inline status dot image once (capability norm ⑤).
+fn spawn_status_dot_image(mut images: ResMut<Assets<Image>>, mut commands: Commands) {
+    let handle = images.add(status_dot_image());
+    commands.insert_resource(StatusDotImage(handle));
 }
 
 fn spawn_camera(mut commands: Commands) {
@@ -715,18 +733,18 @@ fn sync_responsive_shell(
                 node.display = Display::Flex;
             }
             let target_w = match layout.mode {
-                LayoutMode::Rail => px(SIDEBAR_RAIL_WIDTH_PX),
-                LayoutMode::Sidebar => px(SIDEBAR_WIDTH_PX),
-                LayoutMode::Wide => px(SIDEBAR_WIDE_WIDTH_PX),
+                LayoutMode::Rail => rem(SIDEBAR_RAIL_WIDTH_PX),
+                LayoutMode::Sidebar => rem(SIDEBAR_WIDTH_PX),
+                LayoutMode::Wide => rem(SIDEBAR_WIDE_WIDTH_PX),
                 LayoutMode::BottomNav => px(0.0),
             };
             if node.width != target_w {
                 node.width = target_w;
             }
             let target_padding = if is_rail {
-                UiRect::all(Val::Px(space::S8))
+                UiRect::all(rem(space::S8))
             } else {
-                UiRect::all(Val::Px(space::S12))
+                UiRect::all(rem(space::S12))
             };
             if node.padding != target_padding {
                 node.padding = target_padding;
@@ -746,14 +764,14 @@ fn sync_responsive_shell(
     }
 
     let col_pad = if is_compact {
-        UiRect::all(Val::Px(space::S12))
+        UiRect::all(rem(space::S12))
     } else {
-        UiRect::all(Val::Px(space::S16))
+        UiRect::all(rem(space::S16))
     };
     let col_gap = if is_compact {
-        Val::Px(space::S12)
+        rem(space::S12)
     } else {
-        Val::Px(space::S16)
+        rem(space::S16)
     };
     for mut node in &mut content_cols {
         if node.padding != col_pad {
@@ -776,7 +794,7 @@ fn sync_responsive_shell(
     }
 }
 
-/// Synchronize safe-area insets (status bar, gesture navigation bar, camera cutouts)
+/// Synchronize logical safe-area insets (system bars, gesture region, cutouts)
 /// across ShellRoot, ChromeDragBar, and BottomNavBar.
 pub fn sync_safe_area_insets(
     mut safe_insets: Option<ResMut<SafeAreaInsets>>,
@@ -847,8 +865,9 @@ pub fn sync_safe_area_insets(
     let keyboard_bottom = keyboard.as_ref().map_or(0.0, |k| k.bottom_px);
     let avoidance_bottom = insets_bottom.max(keyboard_bottom);
 
-    // 1. Bottom Navigation Bar safe area avoidance (bottom gesture bar / IME)
-    let bottom_nav_height = Val::Px(BOTTOM_NAV_HEIGHT_PX + avoidance_bottom);
+    // 1. The compact bar extends through the host's bottom inset, while its
+    //    content padding moves every navigation hit target above that region.
+    let bottom_nav_height = Val::Px(BOTTOM_NAV_CONTENT_HEIGHT + avoidance_bottom);
     let bottom_nav_padding = if avoidance_bottom > 0.0 || insets_left > 0.0 || insets_right > 0.0 {
         UiRect::new(
             Val::Px(insets_left),
@@ -857,7 +876,7 @@ pub fn sync_safe_area_insets(
             Val::Px(space::S6 + avoidance_bottom),
         )
     } else {
-        UiRect::bottom(Val::Px(space::S6))
+        UiRect::bottom(rem(space::S6))
     };
 
     for mut node in &mut bottom_navs {
@@ -882,7 +901,7 @@ pub fn sync_safe_area_insets(
             Val::Px(0.0),
         )
     } else {
-        UiRect::horizontal(Val::Px(space::S12))
+        UiRect::horizontal(rem(space::S12))
     };
 
     let chrome_bar_count = chrome_bars.iter().count();

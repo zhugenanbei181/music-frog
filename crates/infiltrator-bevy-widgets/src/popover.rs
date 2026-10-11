@@ -16,7 +16,7 @@
 //! re-projects scrim and panel chrome compare-and-set, so a theme switch
 //! repaints in place.
 
-use crate::palette::UiPalette;
+use crate::palette::{UiPalette, rem};
 use crate::theme::space;
 use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
@@ -177,9 +177,9 @@ pub fn popover_scene(
                     width: px(rect.w),
                     height: px(rect.h),
                     flex_direction: FlexDirection::Column,
-                    padding: UiRect::all(Val::Px(space::S12)),
+                    padding: UiRect::all(rem(space::S12)),
                     border: UiRect::all(Val::Px(palette.hairline_px)),
-                    border_radius: BorderRadius::all(Val::Px(palette.card_radius_px)),
+                    border_radius: BorderRadius::all(rem(palette.card_radius_px)),
                 }
                 BackgroundColor({ palette.surface })
                 BorderColor { top: edge, right: edge, bottom: edge, left: edge }

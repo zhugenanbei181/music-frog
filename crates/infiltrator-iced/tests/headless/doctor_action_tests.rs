@@ -1,14 +1,16 @@
 //! test-intent: behavior
 use crate::command_harness::recording_application;
 use crate::doctor_port::DiagnosticPort;
+use crate::host_command_harness::host_test_command_application;
 use crate::test_support::demo_env;
 use futures_util::StreamExt;
 use iced::Task;
 use iced::advanced::widget::Tree;
 use iced_runtime::{Action, task::into_stream};
-use infiltrator_application::command_application::CommandApplication;
+use infiltrator_application::doctor_actions::DoctorActionPhase;
 use infiltrator_application::doctor_application::DoctorApplication;
 use infiltrator_application::surface_reader::ApplicationSurfaceReader;
+use infiltrator_contract::capability::Capability;
 use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::parity::FeatureId;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
@@ -51,7 +53,7 @@ fn actual_doctor_command_failure_retry_single_repair_and_bootstrap_share_reader_
     let doctor = DoctorApplication::new(port.clone());
     let (application, _) = recording_application();
     application.install_command_handler(Arc::new(
-        CommandApplication::new().with_doctor(doctor.clone()),
+        host_test_command_application([Capability::CoreLifecycle]).with_doctor(doctor.clone()),
     ));
     let application = Arc::new(application);
     let reader = ApplicationSurfaceReader::new(
@@ -60,17 +62,26 @@ fn actual_doctor_command_failure_retry_single_repair_and_bootstrap_share_reader_
         HostKind::Desktop,
     )
     .with_doctor(doctor);
-    let (mut state, _) = AppState::demo(&demo_env(Route::Doctor));
-    state.commands = Some((*application).clone());
+    let (mut state, _) = AppState::new();
+    state.shell.current_route = Route::Doctor;
+    state.attach_product_application((*application).clone());
     publish(&mut state, &reader);
     let task = state.update(Message::RunDoctor);
-    let token = state.diag.doctor.action.pending.as_ref().unwrap().token;
+    let token = match &state.diag.doctor.action.phase {
+        DoctorActionPhase::Pending(pending) => pending.token,
+        DoctorActionPhase::Idle | DoctorActionPhase::Failed { .. } => {
+            panic!("doctor command must be pending")
+        }
+    };
     assert_eq!(state.update(Message::RunDoctor).units(), 0);
     let _ = state.update(Message::DoctorCommandFinished {
         token: token + 1,
         result: Ok(()),
     });
-    assert!(state.diag.doctor.action.pending.is_some());
+    assert!(matches!(
+        &state.diag.doctor.action.phase,
+        DoctorActionPhase::Pending(_)
+    ));
     let _ = state.update(terminal(task));
     publish(&mut state, &reader);
     let first = state.surface.latest().unwrap().pages.doctor.clone();
@@ -82,7 +93,12 @@ fn actual_doctor_command_failure_retry_single_repair_and_bootstrap_share_reader_
     let _ = state.update(terminal(task));
     publish(&mut state, &reader);
     assert_eq!(
-        state.diag.doctor.action.failure.as_ref().unwrap().code,
+        match &state.diag.doctor.action.phase {
+            DoctorActionPhase::Failed { failure, .. } => failure.code.clone(),
+            DoctorActionPhase::Idle | DoctorActionPhase::Pending(_) => {
+                panic!("doctor command failure must be retained")
+            }
+        },
         ErrorCode::Permission
     );
     assert_eq!(
@@ -131,8 +147,10 @@ fn actual_doctor_command_failure_retry_single_repair_and_bootstrap_share_reader_
     publish(&mut state, &reader);
     assert_eq!(port.bootstraps.load(Ordering::SeqCst), 1);
     assert_eq!(port.runs.load(Ordering::SeqCst), 5);
-    assert!(state.diag.doctor.action.pending.is_none());
-    assert!(state.diag.doctor.action.failure.is_none());
+    assert!(matches!(
+        &state.diag.doctor.action.phase,
+        DoctorActionPhase::Idle
+    ));
 }
 
 #[test]
@@ -140,7 +158,10 @@ fn doctor_capture_initializes_without_prior_snapshot_and_actual_task_retains_fin
     let mut env = demo_env(Route::Doctor);
     env.scenario = Some(FeatureId::DoctorFailureRecovery);
     let (mut state, task) = AppState::demo(&env);
-    assert!(state.diag.doctor.action.pending.is_some());
+    assert!(matches!(
+        &state.diag.doctor.action.phase,
+        DoctorActionPhase::Pending(_)
+    ));
     let _ = state.update(terminal(task));
     assert!(state.diag.doctor.action.can_retry());
     let page = &state.surface.latest().unwrap().pages.doctor;
@@ -150,7 +171,12 @@ fn doctor_capture_initializes_without_prior_snapshot_and_actual_task_retains_fin
         "Configuration requires repair"
     );
     assert_eq!(
-        state.diag.doctor.action.failure.as_ref().unwrap().code,
+        match &state.diag.doctor.action.phase {
+            DoctorActionPhase::Failed { failure, .. } => failure.code.clone(),
+            DoctorActionPhase::Idle | DoctorActionPhase::Pending(_) => {
+                panic!("captured doctor failure must be retained")
+            }
+        },
         ErrorCode::Permission
     );
     let tree = Tree::new(state.view().as_widget());

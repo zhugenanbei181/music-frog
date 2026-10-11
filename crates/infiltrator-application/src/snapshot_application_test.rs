@@ -5,13 +5,12 @@
 //! cache after a restore — the facts both surfaces render.
 //!
 use super::*;
+use crate::profile_workspace_test_support::{workspace_with_origin, workspace_with_raw_sidecar};
 use crate::snapshot_presentation;
 use async_trait::async_trait;
-use infiltrator_contract::profile_protection::ProfileWriteProtection;
-use infiltrator_contract::profile_source::ProfileSourceIdentity;
+use infiltrator_contract::core_identity::EngineId;
+use infiltrator_contract::profile_document_identity::{ProfileId, ProfileWorkspaceIdentity};
 use infiltrator_contract::snapshot_restore::SnapshotRestoreTarget;
-use infiltrator_domain::profile_options::ProfileOptions;
-use infiltrator_domain::profile_source::identify_profile_source;
 use infiltrator_domain::profiles::{ProfileInfo, ProfileMetadata};
 use infiltrator_domain::snapshots::content_hash;
 use infiltrator_ports::error::PortError;
@@ -47,6 +46,10 @@ impl FakeProfileStore {
 
 #[async_trait]
 impl ProfileStore for FakeProfileStore {
+    fn engine_id(&self) -> EngineId {
+        EngineId::new("mihomo").expect("test engine ID")
+    }
+
     fn config_dir(&self) -> PathBuf {
         PathBuf::from("/fake/configs")
     }
@@ -131,39 +134,18 @@ impl ProfileStore for FakeProfileStore {
         Ok(())
     }
 
-    async fn load_options(&self, _profile: &str) -> Result<ProfileOptions, PortError> {
-        Ok(Default::default())
-    }
-
-    async fn save_options(
-        &self,
-        _profile: &str,
-        _options: &ProfileOptions,
-    ) -> Result<(), PortError> {
-        Ok(())
-    }
-
-    async fn delete_options(&self, _profile: &str) -> Result<(), PortError> {
-        Ok(())
-    }
-
-    async fn load_workspace(&self, profile: &str) -> Result<ProfileWorkspace, PortError> {
+    async fn load_workspace(&self, profile: &ProfileId) -> Result<ProfileWorkspace, PortError> {
+        let profile = profile.as_str();
         let profiles = self.profiles.lock().unwrap();
         let content = &profiles
             .get(profile)
             .ok_or_else(|| PortError::NotFound(profile.into()))?
             .0;
-        Ok(ProfileWorkspace {
-            write_protection: ProfileWriteProtection::Editable,
-            source: identify_profile_source(profile.into(), content, None),
-            content: content.clone(),
-            options: Default::default(),
-            options_document: None,
-        })
+        workspace_with_origin(profile, content.as_bytes(), None, None)
     }
     async fn compare_and_save_workspace(
         &self,
-        expected: &ProfileSourceIdentity,
+        expected: &ProfileWorkspaceIdentity,
         update: &ProfileWorkspaceUpdate,
     ) -> Result<ProfileWorkspace, PortError> {
         if self.denied.load(Ordering::SeqCst) {
@@ -172,10 +154,11 @@ impl ProfileStore for FakeProfileStore {
             ));
         }
         let mut profiles = self.profiles.lock().unwrap();
+        let profile = expected.document.profile_id.as_str();
         let entry = profiles
-            .get_mut(&expected.profile)
-            .ok_or_else(|| PortError::NotFound(expected.profile.clone()))?;
-        if identify_profile_source(expected.profile.clone(), &entry.0, None) != *expected {
+            .get_mut(profile)
+            .ok_or_else(|| PortError::NotFound(profile.into()))?;
+        if workspace_with_origin(profile, entry.0.as_bytes(), None, None)?.identity() != *expected {
             return Err(PortError::Rejected(Failure::new(
                 ErrorCode::NotReady,
                 "source changed",
@@ -183,14 +166,14 @@ impl ProfileStore for FakeProfileStore {
             )));
         }
         self.writes.fetch_add(1, Ordering::SeqCst);
-        entry.0 = update.content.clone();
-        Ok(ProfileWorkspace {
-            write_protection: ProfileWriteProtection::Editable,
-            source: identify_profile_source(expected.profile.clone(), &update.content, None),
-            content: update.content.clone(),
-            options: update.options.clone(),
-            options_document: None,
-        })
+        entry.0 = String::from_utf8(update.document_bytes.clone())
+            .map_err(|error| PortError::Io(error.to_string()))?;
+        workspace_with_raw_sidecar(
+            profile,
+            &update.document_bytes,
+            update.sidecar_bytes.clone(),
+            None,
+        )
     }
     async fn clear_backup(&self, _profile: &str) -> Result<(), PortError> {
         Ok(())
@@ -201,9 +184,20 @@ impl ProfileStore for FakeProfileStore {
     }
 }
 
-#[derive(Default)]
 struct FakeSnapshotStore {
+    engine_id: EngineId,
+    calls: AtomicUsize,
     snapshots: Mutex<BTreeMap<String, Vec<(SnapshotMeta, String)>>>,
+}
+
+impl Default for FakeSnapshotStore {
+    fn default() -> Self {
+        Self {
+            engine_id: EngineId::new("mihomo").expect("test engine ID"),
+            calls: AtomicUsize::default(),
+            snapshots: Mutex::default(),
+        }
+    }
 }
 
 impl FakeSnapshotStore {
@@ -239,7 +233,12 @@ impl FakeSnapshotStore {
 
 #[async_trait]
 impl SnapshotStore for FakeSnapshotStore {
+    fn engine_id(&self) -> EngineId {
+        self.engine_id.clone()
+    }
+
     async fn save(&self, profile: &str, content: &str) -> Result<SnapshotMeta, PortError> {
+        self.calls.fetch_add(1, Ordering::SeqCst);
         let millis = 1_750_000_000_000;
         let timestamp = chrono::DateTime::from_timestamp_millis(millis).expect("timestamp");
         let path = PathBuf::from(format!(
@@ -261,6 +260,7 @@ impl SnapshotStore for FakeSnapshotStore {
     }
 
     async fn list(&self, profile: &str) -> Result<Vec<SnapshotMeta>, PortError> {
+        self.calls.fetch_add(1, Ordering::SeqCst);
         Ok(self
             .snapshots
             .lock()
@@ -271,6 +271,7 @@ impl SnapshotStore for FakeSnapshotStore {
     }
 
     async fn read(&self, profile: &str, path: &Path) -> Result<String, PortError> {
+        self.calls.fetch_add(1, Ordering::SeqCst);
         self.snapshots
             .lock()
             .expect("snapshots lock")
@@ -285,6 +286,7 @@ impl SnapshotStore for FakeSnapshotStore {
     }
 
     async fn delete(&self, profile: &str, path: &Path) -> Result<(), PortError> {
+        self.calls.fetch_add(1, Ordering::SeqCst);
         let mut guard = self.snapshots.lock().expect("snapshots lock");
         let items = guard
             .get_mut(profile)
@@ -307,6 +309,20 @@ fn application(profile_content: &str, snapshot_content: &str) -> SnapshotApplica
             snapshot_content,
         )),
     )
+}
+
+#[tokio::test]
+async fn profile_history_rejects_a_foreign_engine_store_before_io() {
+    let profiles = Arc::new(FakeProfileStore::with_profile("main", "mode: rule\n"));
+    let mut snapshots = FakeSnapshotStore::default();
+    snapshots.engine_id = EngineId::new("sing-box").unwrap();
+    let snapshots = Arc::new(snapshots);
+    let application = SnapshotApplication::new(profiles, snapshots.clone());
+
+    let failure = application.list("main").await.unwrap_err();
+
+    assert_eq!(failure.code, ErrorCode::Unsupported);
+    assert_eq!(snapshots.calls.load(Ordering::SeqCst), 0);
 }
 
 #[tokio::test]

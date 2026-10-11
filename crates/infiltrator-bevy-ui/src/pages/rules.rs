@@ -58,6 +58,7 @@ use bevy::ecs::observer::On;
 use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Query, Res};
+use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, Overflow,
@@ -72,11 +73,13 @@ use infiltrator_application::rule_provider_projection::{
 use infiltrator_application::rule_row_projection::row_hits_key;
 use infiltrator_application::rule_statistics_projection::project_statistics;
 use infiltrator_bevy_widgets::button::ButtonDisabled;
+use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::gesture::{PullToRefreshState, pull_to_refresh_scene};
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
 use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText};
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::{SurfacePanel, surface_scene};
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
@@ -225,7 +228,7 @@ pub fn rules_page(projection: &RulesProjection, palette: &UiPalette) -> impl Sce
                 height: percent(100),
                 min_height: px(0.0),
                 flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(space::S16),
+                row_gap: rem(space::S16),
                 overflow: Overflow::scroll_y(),
             }
             PageRoot(Route::Rules)
@@ -277,7 +280,7 @@ fn rules_list_partition(
             Node {
                 width: percent(100),
                 flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(space::S16),
+                row_gap: rem(space::S16),
             }
             Children [
                 @{ rules_draft::scene(palette) }
@@ -309,7 +312,7 @@ fn providers_partition(
             Node {
                 width: percent(100),
                 flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(space::S16),
+                row_gap: rem(space::S16),
             }
             Children [
                 @{ rules_mrs_scene(palette, mrs, provider_cache) }
@@ -335,20 +338,20 @@ fn header_card_scene(
                         width: percent(100),
                         align_items: AlignItems::Center,
                         justify_content: JustifyContent::SpaceBetween,
-                        column_gap: Val::Px(space::S16),
+                        column_gap: rem(space::S16),
                     }
                     AccessibilityNode(header_a11y) LocalizedLabel::plain("rules_title")
                     Children [
                         Node {
                             align_items: AlignItems::Center,
-                            column_gap: Val::Px(space::S12),
+                            column_gap: rem(space::S12),
                         }
                         Children [
                             @{ icon_tile_scene(IconId::Zap, 36.0, palette) }
                             --
                             Node {
                                 flex_direction: FlexDirection::Column,
-                                row_gap: Val::Px(space::S4),
+                                row_gap: rem(space::S4),
                             }
                             Children [
                                 Text(summary) RulesLine(RulesLineKind::Summary) TextRole(Role::Heading)
@@ -363,17 +366,17 @@ fn header_card_scene(
                         --
                         Node {
                             align_items: AlignItems::Center,
-                            column_gap: Val::Px(space::S8),
+                            column_gap: rem(space::S8),
                         }
                         Children [
                             Node {
-                                min_height: px(palette.control_height_px),
-                                padding: UiRect::horizontal(Val::Px(space::S12)),
+                                min_height: rem(palette.control_height_px),
+                                padding: UiRect::horizontal(rem(space::S12)),
                                 align_items: AlignItems::Center,
                                 justify_content: JustifyContent::Center,
-                                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                             }
-                            BackgroundColor({ palette.surface_elevated })
+                            ThemeBackgroundColor({ Token::SurfaceElevated })
                             Button
                             RefreshRuleProvidersButton
                             Children [
@@ -381,13 +384,13 @@ fn header_card_scene(
                             ]
                             --
                             Node {
-                                min_height: px(palette.control_height_px),
-                                padding: UiRect::horizontal(Val::Px(space::S12)),
+                                min_height: rem(palette.control_height_px),
+                                padding: UiRect::horizontal(rem(space::S12)),
                                 align_items: AlignItems::Center,
                                 justify_content: JustifyContent::Center,
-                                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                             }
-                            BackgroundColor({ palette.surface_elevated })
+                            ThemeBackgroundColor({ Token::SurfaceElevated })
                             Button
                             ClearRuleHitCountersButton ButtonDisabled(true)
                             Children [
@@ -413,7 +416,7 @@ fn providers_card_scene(
                                 width: percent(100),
                                 align_items: AlignItems::Center,
                                 justify_content: JustifyContent::SpaceBetween,
-                                padding: UiRect::bottom(Val::Px(space::S8)),
+                                padding: UiRect::bottom(rem(space::S8)),
                             }
                             Children [
                                 LocalizedText::plain("rules_providers_title") TextRole(Role::BodyStrong)
@@ -424,7 +427,7 @@ fn providers_card_scene(
             Box::new(bsn! {
                             Node {
                                 width: percent(100),
-                                padding: UiRect::bottom(Val::Px(space::S8)),
+                                padding: UiRect::bottom(rem(space::S8)),
                             }
                             Children [
                                 Text(etag_line) RulesLine(RulesLineKind::EtagSupport) TextRole(Role::Caption)
@@ -434,7 +437,7 @@ fn providers_card_scene(
                             Node {
                                 width: percent(100),
                                 flex_direction: FlexDirection::Column,
-                                row_gap: Val::Px(space::S8),
+                                row_gap: rem(space::S8),
                             }
                             Children [
                                 { provider_scenes }
@@ -472,16 +475,16 @@ fn provider_item_scene(
     bsn! {
             Node {
                 width: percent(100),
-                padding: UiRect::all(Val::Px(space::S8)),
+                padding: UiRect::all(rem(space::S8)),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::SpaceBetween,
-                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
             }
-            BackgroundColor({ palette.surface_elevated })
+            ThemeBackgroundColor({ Token::SurfaceElevated })
             Children [
                 Node {
                     align_items: AlignItems::Center,
-                    column_gap: Val::Px(space::S8),
+                    column_gap: rem(space::S8),
                 }
                 Children [
                     Text(name) ProviderNameText(idx) TextRole(Role::Body)
@@ -502,7 +505,7 @@ fn rules_table_scene(rule_scenes: Vec<Box<dyn Scene>>, palette: &UiPalette) -> i
                                 width: percent(100),
                                 align_items: AlignItems::Center,
                                 justify_content: JustifyContent::SpaceBetween,
-                                padding: UiRect::bottom(Val::Px(space::S8)),
+                                padding: UiRect::bottom(rem(space::S8)),
                             }
                             Children [
                                 LocalizedText::plain("rules_flow_title") TextRole(Role::BodyStrong)
@@ -514,8 +517,8 @@ fn rules_table_scene(rule_scenes: Vec<Box<dyn Scene>>, palette: &UiPalette) -> i
                             Node {
                                 width: percent(100),
                                 align_items: AlignItems::Center,
-                                column_gap: Val::Px(space::S8),
-                                padding: UiRect::bottom(Val::Px(space::S8)),
+                                column_gap: rem(space::S8),
+                                padding: UiRect::bottom(rem(space::S8)),
                             }
                             Children [
                                 Node {
@@ -530,13 +533,13 @@ fn rules_table_scene(rule_scenes: Vec<Box<dyn Scene>>, palette: &UiPalette) -> i
                                 ]
                                 --
                                 Node {
-                                    min_height: px(palette.control_height_px),
-                                    padding: UiRect::horizontal(Val::Px(space::S8)),
+                                    min_height: rem(palette.control_height_px),
+                                    padding: UiRect::horizontal(rem(space::S8)),
                                     align_items: AlignItems::Center,
                                     justify_content: JustifyContent::Center,
-                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                    border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                                 }
-                                BackgroundColor({ palette.surface_elevated })
+                                ThemeBackgroundColor({ Token::SurfaceElevated })
                                 Button
                                 RulesPagePrevButton
                                 Children [
@@ -546,13 +549,13 @@ fn rules_table_scene(rule_scenes: Vec<Box<dyn Scene>>, palette: &UiPalette) -> i
                                 LocalizedText::plain("rules_empty_pagination") RulesPageIndicator TextRole(Role::Caption)
                                 --
                                 Node {
-                                    min_height: px(palette.control_height_px),
-                                    padding: UiRect::horizontal(Val::Px(space::S8)),
+                                    min_height: rem(palette.control_height_px),
+                                    padding: UiRect::horizontal(rem(space::S8)),
                                     align_items: AlignItems::Center,
                                     justify_content: JustifyContent::Center,
-                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                    border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                                 }
-                                BackgroundColor({ palette.surface_elevated })
+                                ThemeBackgroundColor({ Token::SurfaceElevated })
                                 Button
                                 RulesPageNextButton
                                 Children [
@@ -566,7 +569,7 @@ fn rules_table_scene(rule_scenes: Vec<Box<dyn Scene>>, palette: &UiPalette) -> i
                                 // DUAL-11-08: the fixed-height list viewport. Only the
                                 // shared render window is mounted inside it; the spacers
                                 // keep the scrollable range the full list height.
-                                height: px(RULE_DEFAULT_VIEWPORT_PX),
+                                height: rem(RULE_DEFAULT_VIEWPORT_PX),
                                 flex_direction: FlexDirection::Column,
                                 overflow: Overflow::scroll_y(),
                             }
@@ -614,10 +617,10 @@ pub(crate) fn rule_row_scene(
                 max_width: percent(100),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::SpaceBetween,
-                padding: UiRect::all(Val::Px(space::S16)),
-                border_radius: BorderRadius::all(Val::Px(palette.card_radius_px)),
+                padding: UiRect::all(rem(space::S16)),
+                border_radius: BorderRadius::all(rem(palette.card_radius_px)),
             }
-            BackgroundColor({ palette.surface })
+            ThemeBackgroundColor({ Token::Surface })
             SurfacePanel
             RuleRow(idx)
             Children [
@@ -626,7 +629,7 @@ pub(crate) fn rule_row_scene(
                     flex_basis: px(0.0),
                     flex_grow: 1.0,
                     align_items: AlignItems::Center,
-                    column_gap: Val::Px(space::S12),
+                    column_gap: rem(space::S12),
                 }
                 Children [
                     Node { flex_shrink: 0.0 }
@@ -649,7 +652,7 @@ pub(crate) fn rule_row_scene(
                 Node {
                     flex_shrink: 0.0,
                     align_items: AlignItems::Center,
-                    column_gap: Val::Px(space::S12),
+                    column_gap: rem(space::S12),
                 }
                 Children [
                     Text(proxy) RuleProxyText(idx) TextRole(Role::Body)
@@ -670,9 +673,9 @@ fn rule_type_chip_scene(idx: usize, rule_type: &str, palette: &UiPalette) -> imp
     bsn! {
             Node {
                 flex_shrink: 0.0,
-                min_width: px(8.0),
-                min_height: px(18.0),
-                padding: UiRect::horizontal(Val::Px(space::S6)),
+                min_width: rem(8.0),
+                min_height: rem(18.0),
+                padding: UiRect::horizontal(rem(space::S6)),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
                 border_radius: BorderRadius::all(Val::Px(4.0)),
@@ -695,17 +698,17 @@ fn rule_row_controls_scene(id: Option<RuleRowId>, palette: &UiPalette) -> impl S
     bsn! {
             Node {
                 align_items: AlignItems::Center,
-                column_gap: Val::Px(space::S4),
+                column_gap: rem(space::S4),
             }
             Children [
                 Node {
-                    min_height: px(24.0),
-                    padding: UiRect::horizontal(Val::Px(space::S8)),
+                    min_height: rem(24.0),
+                    padding: UiRect::horizontal(rem(space::S8)),
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::Center,
                     border_radius: BorderRadius::all(Val::Px(4.0)),
                 }
-                BackgroundColor({ palette.surface_elevated })
+                ThemeBackgroundColor({ Token::SurfaceElevated })
                 Button
                 RuleToggleButton(id) RuleDraftMutationButton ButtonDisabled(true)
                 toggle_node LocalizedLabel::plain("rules_toggle_row")
@@ -714,13 +717,13 @@ fn rule_row_controls_scene(id: Option<RuleRowId>, palette: &UiPalette) -> impl S
                 ]
                 --
                 Node {
-                    min_height: px(24.0),
-                    padding: UiRect::horizontal(Val::Px(space::S6)),
+                    min_height: rem(24.0),
+                    padding: UiRect::horizontal(rem(space::S6)),
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::Center,
                     border_radius: BorderRadius::all(Val::Px(4.0)),
                 }
-                BackgroundColor({ palette.border })
+                ThemeBackgroundColor({ Token::Border })
                 Button
                 RuleMoveUpButton(id) RuleDraftMutationButton ButtonDisabled(true)
                 up_node LocalizedLabel::plain("rules_move_up")
@@ -729,13 +732,13 @@ fn rule_row_controls_scene(id: Option<RuleRowId>, palette: &UiPalette) -> impl S
                 ]
                 --
                 Node {
-                    min_height: px(24.0),
-                    padding: UiRect::horizontal(Val::Px(space::S6)),
+                    min_height: rem(24.0),
+                    padding: UiRect::horizontal(rem(space::S6)),
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::Center,
                     border_radius: BorderRadius::all(Val::Px(4.0)),
                 }
-                BackgroundColor({ palette.border })
+                ThemeBackgroundColor({ Token::Border })
                 Button
                 RuleMoveDownButton(id) RuleDraftMutationButton ButtonDisabled(true)
                 down_node LocalizedLabel::plain("rules_move_down")

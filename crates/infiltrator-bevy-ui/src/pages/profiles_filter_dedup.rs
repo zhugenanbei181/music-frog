@@ -12,12 +12,13 @@ use bevy::ecs::query::{QueryData, QueryFilter, With, Without};
 use bevy::ecs::schedule::{ApplyDeferred, IntoScheduleConfigs};
 use bevy::ecs::system::{Query, Res, ResMut};
 use bevy::scene::{Scene, bsn};
-use bevy::ui::prelude::{Display, FlexWrap, Node, px};
+use bevy::ui::prelude::{Display, FlexWrap, Node};
 use bevy::ui_widgets::Activate;
 use infiltrator_bevy_widgets::button::{ButtonDisabled, ControlVisual, sync_button_disabled};
 use infiltrator_bevy_widgets::button::{sync_control_labels, sync_control_visuals};
 use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText};
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text;
 use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::text_input::render::sync_text_fields;
@@ -49,7 +50,7 @@ pub(super) fn scene(index: usize, palette: &UiPalette) -> impl Scene + use<> {
         })
         .collect::<Vec<_>>();
     bsn! {
-        Node { flex_wrap: FlexWrap::Wrap, column_gap: px(space::S4), row_gap: px(space::S4) }
+        Node { flex_wrap: FlexWrap::Wrap, column_gap: rem(space::S4), row_gap: rem(space::S4) }
         FilterFormRoot
         AccessibilityNode({ accesskit::Node::new(Role::RadioGroup) })
         LocalizedLabel::plain("profiles_filter_deduplicate")

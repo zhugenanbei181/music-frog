@@ -32,6 +32,7 @@ use crate::window_chrome::{MIN_WINDOW_SIZE, window_settings};
 use iced::Task;
 use infiltrator_contract::parity::FeatureId;
 use std::env::{args, var};
+mod capabilities;
 mod capture;
 mod dns_hosts;
 mod dns_leak;
@@ -44,8 +45,9 @@ mod geometry;
 mod interaction;
 mod language;
 mod logs;
+mod owner;
 mod proxy_fixtures;
-mod proxy_mode;
+mod routing_intent;
 mod rule_list;
 mod rule_statistics;
 mod rule_trace;
@@ -211,11 +213,14 @@ pub fn run(env: DemoEnv) -> iced::Result {
         .theme(AppState::theme)
         .subscription(AppState::subscription)
         // Bundled typography: identical to the production window (see main.rs).
-        .font(include_bytes!("../assets/fonts/Inter-Regular.ttf").as_slice())
-        .font(include_bytes!("../assets/fonts/Inter-Medium.ttf").as_slice())
-        .font(include_bytes!("../assets/fonts/Inter-SemiBold.ttf").as_slice())
-        .font(include_bytes!("../assets/fonts/JetBrainsMono-Regular.ttf").as_slice())
-        .font(include_bytes!("../assets/fonts/CJK-Regular.ttf").as_slice())
+        .font(include_bytes!("../../infiltrator-shared/assets/fonts/Inter-Regular.ttf").as_slice())
+        .font(include_bytes!("../../infiltrator-shared/assets/fonts/Inter-Medium.ttf").as_slice())
+        .font(include_bytes!("../../infiltrator-shared/assets/fonts/Inter-SemiBold.ttf").as_slice())
+        .font(
+            include_bytes!("../../infiltrator-shared/assets/fonts/JetBrainsMono-Regular.ttf")
+                .as_slice(),
+        )
+        .font(include_bytes!("../../infiltrator-shared/assets/fonts/CJK-Regular.ttf").as_slice())
         .default_font(iced::Font::with_name("Inter"))
         .window(window_settings(window_size, MIN_WINDOW_SIZE))
         .run()

@@ -10,73 +10,41 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Android 14+ requires specific foreground service types -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SYSTEM_EXEMPTED" />
-    <!-- Request exemption from aggressive Doze mode and OEM battery savers -->
-    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
-
     <application
         android:name=".MihomoApplication"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:enableOnBackInvokedCallback="true"
         android:fullBackupContent="@xml/backup_rules"
-        android:icon="@drawable/ic_app_icon"
         android:label="@string/app_name"
-        android:roundIcon="@drawable/ic_app_icon"
         android:supportsRtl="true"
         android:theme="@style/Theme.Infiltrator"
         tools:targetApi="31">
 
-        <activity
-            android:name=".MainActivity"
-            android:exported="true"
-            android:label="@string/app_name"
-            android:theme="@style/Theme.Infiltrator"
-            android:launchMode="singleTask"
-            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|mnc|colorMode|density|fontScale|fontWeightAdjustment|keyboard|layoutDirection|locale|navigation|smallestScreenSize|touchscreen|uiMode">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-
-            <!-- URL Scheme for Clash import -->
-            <intent-filter android:label="Import Clash Config">
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="clash" android:host="install-config" />
-            </intent-filter>
-        </activity>
-
-        <!-- BANDROID-003: Bevy product host. Not the default launcher until the
-             native driver is packaged and BANDROID-003 selects the shipping
-             surface; see docs/android/BEVY_ANDROID_PRODUCT.md §4. -->
-        <activity
-            android:name=".BevyHostActivity"
-            android:exported="false"
-            android:label="@string/app_name"
-            android:theme="@style/Theme.Infiltrator"
-            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|mnc|colorMode|density|fontScale|fontWeightAdjustment|keyboard|layoutDirection|locale|navigation|smallestScreenSize|touchscreen|uiMode">
-            <meta-data
-                android:name="android.app.lib_name"
-                android:value="infiltrator_bevy_android" />
-        </activity>
+        <service
+            android:name=".MihomoControlService"
+            android:process=":vpn"
+            android:exported="false" />
 
         <service
             android:name=".MihomoVpnService"
             android:process=":vpn"
-            android:exported="false"
+            android:exported="true"
             android:foregroundServiceType="systemExempted"
             android:permission="android.permission.BIND_VPN_SERVICE">
             <intent-filter>
                 <action android:name="android.net.VpnService" />
             </intent-filter>
+            <meta-data
+                android:name="android.net.VpnService.SUPPORTS_ALWAYS_ON"
+                android:value="false" />
         </service>
 
         <service
             android:name=".InfiltratorTileService"
             android:exported="true"
             android:label="@string/app_name"
-            android:icon="@drawable/ic_launcher_foreground"
+            android:icon="@drawable/ic_app_icon"
             android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
             <intent-filter>
                 <action android:name="android.service.quicksettings.action.QS_TILE" />

@@ -1,0 +1,175 @@
+#!/usr/bin/env bash
+# Provision the pinned Android SDK inputs and test every registered APK on a
+# disposable Gradle Managed Device. This script never selects a physical adb device.
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ANDROID_DIR="$REPO_ROOT/android"
+SDK_ROOT=""
+if [[ -f "$ANDROID_DIR/local.properties" ]]; then
+    SDK_ROOT="$(sed -n 's/^sdk\.dir=//p' "$ANDROID_DIR/local.properties" | tail -1 | tr -d '\r')"
+fi
+if [[ -z "$SDK_ROOT" ]]; then SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-$HOME/Android/Sdk}}"; fi
+SDK_ROOT="${SDK_ROOT/#\~/$HOME}"
+[[ -d "$SDK_ROOT" ]] || { printf 'Android SDK directory does not exist: %s\n' "$SDK_ROOT" >&2; exit 2; }
+
+if [[ -z "${JAVA_HOME:-}" ]]; then
+    if [[ -x /opt/android-studio/jbr/bin/java ]]; then
+        export JAVA_HOME=/opt/android-studio/jbr
+        export PATH="$JAVA_HOME/bin:$PATH"
+    elif ! command -v java >/dev/null 2>&1; then
+        printf 'JDK missing: set JAVA_HOME or install Android Studio with its bundled JBR.\n' >&2
+        exit 2
+    fi
+fi
+
+find_sdkmanager() {
+    local candidate
+    local candidates=(
+        "$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+        "${ANDROID_SDK_MANAGER:-}"
+        "${ANDROID_HOME:-}/cmdline-tools/latest/bin/sdkmanager"
+        "${ANDROID_SDK_ROOT:-}/cmdline-tools/latest/bin/sdkmanager"
+    )
+    shopt -s nullglob
+    candidates+=("$HOME"/android-tools*/android/cmdline-tools/latest/bin/sdkmanager)
+    shopt -u nullglob
+    for candidate in "${candidates[@]}"; do
+        if [[ -n "$candidate" && -x "$candidate" ]]; then printf '%s\n' "$candidate"; return 0; fi
+    done
+    return 1
+}
+SDKMANAGER="$(find_sdkmanager || true)"
+if [[ -z "$SDKMANAGER" ]]; then
+    printf 'sdkmanager missing: install Command-line Tools (latest) in Android Studio or set ANDROID_SDK_MANAGER.\n' >&2
+    exit 2
+fi
+
+EVIDENCE_DIR="${ANDROID_EMULATOR_EVIDENCE_DIR:-$REPO_ROOT/target/android-emulator-evidence/$(date -u +%Y%m%dT%H%M%SZ)}"
+mkdir -p "$EVIDENCE_DIR"
+
+host_network_digest() {
+    python3 - <<'PY'
+import hashlib
+import json
+import subprocess
+
+def read_ip(*arguments):
+    result = subprocess.run(["ip", "-j", *arguments], check=True, capture_output=True, text=True)
+    return json.loads(result.stdout)
+
+address_fields = ("ifindex", "ifname", "flags", "mtu", "operstate", "link_type", "address", "broadcast")
+address_info_fields = ("family", "local", "prefixlen", "scope", "label", "flags", "peer", "broadcast", "anycast")
+route_fields = ("dst", "gateway", "dev", "protocol", "scope", "type", "table", "prefsrc", "metric", "mtu", "onlink", "flags", "nexthops")
+addresses = read_ip("address", "show")
+routes = (read_ip("route", "show", "table", "all"), read_ip("-6", "route", "show", "table", "all"))
+stable_addresses = []
+for device in addresses:
+    normalized = {key: device[key] for key in address_fields if key in device}
+    normalized["addr_info"] = [
+        {key: row[key] for key in address_info_fields if key in row}
+        for row in device.get("addr_info", [])
+    ]
+    stable_addresses.append(normalized)
+stable_routes = [
+    [{key: row[key] for key in route_fields if key in row} for row in family]
+    for family in routes
+]
+payload = json.dumps([stable_addresses, stable_routes], sort_keys=True, separators=(",", ":"))
+print(hashlib.sha256(payload.encode()).hexdigest())
+PY
+}
+
+HOST_NETWORK_BEFORE="$(host_network_digest)"
+printf 'host_address_and_route_sha256_before=%s\n' "$HOST_NETWORK_BEFORE" > "$EVIDENCE_DIR/host-network.txt"
+verify_host_network() {
+    local original_status=$?
+    local after
+    trap - EXIT
+    if ! after="$(host_network_digest)"; then
+        printf 'host_network_check=FAILED_TO_READ\n' >> "$EVIDENCE_DIR/host-network.txt"
+        if [[ "$original_status" -eq 0 ]]; then exit 90; fi
+        exit "$original_status"
+    fi
+    printf 'host_address_and_route_sha256_after=%s\n' "$after" >> "$EVIDENCE_DIR/host-network.txt"
+    if [[ "$after" != "$HOST_NETWORK_BEFORE" ]]; then
+        printf 'host_network_check=CHANGED; no repair attempted\n' >> "$EVIDENCE_DIR/host-network.txt"
+        printf 'Host network state changed during testing; no host network repair was attempted.\n' >&2
+        if [[ "$original_status" -eq 0 ]]; then exit 91; fi
+        exit "$original_status"
+    fi
+    printf 'host_network_check=UNCHANGED\n' >> "$EVIDENCE_DIR/host-network.txt"
+    exit "$original_status"
+}
+trap verify_host_network EXIT
+
+if [[ ! -x "$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" ]]; then
+    set +o pipefail
+    yes | "$SDKMANAGER" --sdk_root="$SDK_ROOT" --licenses >/dev/null
+    license_status=$?
+    set -o pipefail
+    [[ "$license_status" -eq 0 ]] || exit "$license_status"
+    "$SDKMANAGER" --sdk_root="$SDK_ROOT" --install 'cmdline-tools;latest'
+fi
+SDKMANAGER="$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+set +o pipefail
+yes | "$SDKMANAGER" --sdk_root="$SDK_ROOT" --licenses >/dev/null
+license_status=$?
+set -o pipefail
+[[ "$license_status" -eq 0 ]] || exit "$license_status"
+"$SDKMANAGER" --sdk_root="$SDK_ROOT" --install \
+    'platform-tools' \
+    'emulator' \
+    'platforms;android-37.0' \
+    'build-tools;37.0.0' \
+    'ndk;29.0.14206865' \
+    'system-images;android-36;default;x86_64'
+
+for required_path in \
+    "$SDK_ROOT/platform-tools/adb" \
+    "$SDK_ROOT/emulator/emulator" \
+    "$SDK_ROOT/build-tools/37.0.0/aapt" \
+    "$SDK_ROOT/ndk/29.0.14206865/source.properties" \
+    "$SDK_ROOT/system-images/android-36/default/x86_64/source.properties"; do
+    [[ -e "$required_path" ]] || { printf 'Required Android SDK package file missing: %s\n' "$required_path" >&2; exit 2; }
+done
+
+export ANDROID_HOME="$SDK_ROOT"
+export ANDROID_SDK_ROOT="$SDK_ROOT"
+export ANDROID_NDK_HOME="$SDK_ROOT/ndk/29.0.14206865"
+export ANDROID_NDK_ROOT="$ANDROID_NDK_HOME"
+export PATH="$SDK_ROOT/platform-tools:$SDK_ROOT/emulator:$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH"
+{
+    printf 'git_head=%s\n' "$(git -C "$REPO_ROOT" rev-parse HEAD)"
+    printf 'git_dirty_sha256=%s\n' "$(git -C "$REPO_ROOT" status --porcelain | sha256sum | awk '{print $1}')"
+    printf 'sdk_root=%s\n' "$SDK_ROOT"
+    printf 'emulator_version=%s\n' "$("$SDK_ROOT/emulator/emulator" -version 2>&1 | head -1)"
+    printf 'managed_device=pixel6Api36 (AOSP x86_64)\n'
+    printf 'guest_network=airplane-mode during instrumentation; restored by test runner\n'
+} > "$EVIDENCE_DIR/provenance.txt"
+
+(
+    cd "$ANDROID_DIR"
+    ./gradlew --no-daemon --stacktrace --console=plain \
+        -Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader_indirect \
+        :app:assembleComposeDebug :app:testComposeDebugUnitTest :app:pixel6Api36ComposeDebugAndroidTest \
+        :app:assembleBevyDebug :app:testBevyDebugUnitTest :app:pixel6Api36BevyDebugAndroidTest \
+        :app:assembleSlintDebug :app:testSlintDebugUnitTest :app:pixel6Api36SlintDebugAndroidTest
+) 2>&1 | tee "$EVIDENCE_DIR/gradle.log"
+
+python3 "$REPO_ROOT/scripts/quality/android-product-identity-guard.py" \
+    --aapt "$SDK_ROOT/build-tools/37.0.0/aapt" \
+    --apk "compose=$ANDROID_DIR/app/build/outputs/apk/compose/debug/app-compose-universal-debug.apk" \
+    --apk "bevy=$ANDROID_DIR/app/build/outputs/apk/bevy/debug/app-bevy-universal-debug.apk" \
+    --apk "slint=$ANDROID_DIR/app/build/outputs/apk/slint/debug/app-slint-universal-debug.apk"
+for package_apk in \
+    "compose=$ANDROID_DIR/app/build/outputs/apk/compose/debug/app-compose-universal-debug.apk" \
+    "bevy=$ANDROID_DIR/app/build/outputs/apk/bevy/debug/app-bevy-universal-debug.apk" \
+    "slint=$ANDROID_DIR/app/build/outputs/apk/slint/debug/app-slint-universal-debug.apk"; do
+    package_name="${package_apk%%=*}"
+    apk_path="${package_apk#*=}"
+    printf 'apk_%s_sha256=%s\n' "$package_name" "$(sha256sum "$apk_path" | awk '{print $1}')" \
+        >> "$EVIDENCE_DIR/provenance.txt"
+done
+printf '[android-emulator-tests] all managed-emulator tests passed\n'
+printf '[android-emulator-tests] evidence: %s\n' "$EVIDENCE_DIR"

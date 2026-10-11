@@ -1,6 +1,8 @@
 //! test-intent: behavior
 //! Telemetry blocked at the real port boundary cannot cross a core-stop/session fence.
 use super::*;
+use crate::core_application::test_execute_result_at_current_scope;
+use infiltrator_ports::overview::OverviewSample;
 use tokio::sync::oneshot;
 
 struct PausedOverview {
@@ -21,9 +23,6 @@ impl OverviewReader for PausedOverview {
         release
             .await
             .map_err(|_| PortError::Failed("fixture disconnected".into()))
-    }
-    async fn set_mode(&self, mode: ProxyMode) -> Result<ProxyMode, PortError> {
-        Ok(mode)
     }
 }
 
@@ -47,18 +46,18 @@ async fn stopped_core_rejects_the_actual_inflight_old_telemetry_result_without_r
         }),
         runtime(),
     );
+    super::install_lifecycle_capabilities(&app);
     assert!(app.adopt_if_running().await.unwrap());
     let reader = app.clone();
     let pending = tokio::spawn(async move { reader.read_telemetry().await });
     observed.await.unwrap();
     assert!(matches!(
-        app.execute(CommandIntent::StopCore).await,
+        test_execute_result_at_current_scope(&app, CommandIntent::StopCore).await,
         CommandResult::Completed { .. }
     ));
     release
         .send(OverviewSample {
             lifecycle: CoreLifecycle::Running,
-            mode: Some(ProxyMode::Global),
             upload_total: 100,
             download_total: 200,
             active_connections: 10,

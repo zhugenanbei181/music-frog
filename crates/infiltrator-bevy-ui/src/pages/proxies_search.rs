@@ -1,7 +1,10 @@
 //! Native search editing submits shared preferences without rebuilding focused controls.
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::command_events::CommandExecutedEvent;
-use crate::pages::proxies::LastProxiesProjection;
+use crate::pages::proxies::{
+    LastProxiesProjection, outbound_ui_preference_request, outbound_ui_preferences,
+};
+use crate::surface::LatestSurfaceSnapshot;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::Children;
@@ -15,11 +18,13 @@ use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
 use infiltrator_bevy_widgets::localization::{LocalizedPlaceholder, LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::text_input::state::TextFieldInput;
 use infiltrator_bevy_widgets::text_input::{TextField, text_field_with_placeholder_scene};
 use infiltrator_contract::command::RequestId;
 use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::outbound::preferences::OutboundUiPreferenceIntent;
 
 #[derive(Component, Clone, Copy, Default)]
 pub struct ProxySearchInput;
@@ -30,28 +35,57 @@ pub struct RetryProxySearch;
 #[derive(Component, Clone, Copy, Default)]
 pub struct ProxySearchStatus;
 
-#[derive(Resource, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub enum ProxySearchPhase {
+    #[default]
+    Uninitialized,
+    Submitted {
+        query: String,
+    },
+    Pending {
+        request_id: RequestId,
+        query: String,
+    },
+    Failed {
+        query: String,
+        failure: Failure,
+    },
+    RetryRequested {
+        query: String,
+    },
+}
+
+#[derive(Resource, Clone, Debug, Default, PartialEq, Eq)]
 pub struct ProxySearchState {
-    pub submitted: Option<String>,
-    pub pending: Option<(RequestId, String)>,
-    pub failure: Option<Failure>,
-    pub force_retry: bool,
+    pub phase: ProxySearchPhase,
+}
+
+impl ProxySearchState {
+    pub fn failure(&self) -> Option<&Failure> {
+        match &self.phase {
+            ProxySearchPhase::Failed { failure, .. } => Some(failure),
+            ProxySearchPhase::Uninitialized
+            | ProxySearchPhase::Submitted { .. }
+            | ProxySearchPhase::Pending { .. }
+            | ProxySearchPhase::RetryRequested { .. } => None,
+        }
+    }
 }
 
 pub fn search_input_scene(query: &str, palette: &UiPalette) -> impl Scene + use<> {
     bsn! {
-        Node { flex_grow: 1.0, min_width: px(220.0), flex_direction: FlexDirection::Column }
+        Node { flex_grow: 1.0, min_width: rem(220.0), flex_direction: FlexDirection::Column }
         Children [
             Node { width: percent(100), align_items: AlignItems::Center, column_gap: Val::Px(8.0) }
             Children [
                 Node { flex_grow: 1.0, min_width: px(0.0) } ProxySearchInput
                 Children [ @{ text_field_with_placeholder_scene(query.into(), String::new(), palette) } ]
                 --
-                Node { min_height: px(palette.control_height_px), align_items: AlignItems::Center }
+                Node { min_height: rem(palette.control_height_px), align_items: AlignItems::Center }
                 Button ClearProxySearch
                 Children [ LocalizedText::plain("proxies_search_clear") TextRole(Role::Caption) ]
                 --
-                Node { min_height: px(palette.control_height_px), align_items: AlignItems::Center }
+                Node { min_height: rem(palette.control_height_px), align_items: AlignItems::Center }
                 Button RetryProxySearch
                 Children [ LocalizedText::plain("proxies_search_retry") TextRole(Role::Caption) ]
             ]
@@ -67,6 +101,7 @@ pub fn sync_search_input(
     fields: Query<(Entity, &TextField, Option<&LocalizedPlaceholder>)>,
     mut state: ResMut<ProxySearchState>,
     last: Option<Res<LastProxiesProjection>>,
+    latest: Res<LatestSurfaceSnapshot>,
     sink: Option<Res<CommandSinkHandle>>,
     mut commands: Commands,
 ) {
@@ -81,41 +116,50 @@ pub fn sync_search_input(
                     .insert(LocalizedPlaceholder::plain("proxies_search_placeholder"));
             }
             let query = field.0.text();
-            if state.submitted.as_deref() == Some(query) && !state.force_retry {
-                continue;
-            }
-            let observed = last
-                .as_ref()
-                .and_then(|last| last.0.as_ref())
-                .map(|projection| projection.search_query.as_str());
-            if !state.force_retry
-                && state.submitted.is_none()
-                && (observed == Some(query) || (observed.is_none() && query.is_empty()))
-            {
-                state.submitted = Some(query.into());
-                continue;
-            }
-            if state.pending.is_some() {
-                continue;
-            }
-            state.force_retry = false;
-            state.submitted = Some(query.into());
-            state.failure = None;
-            state.pending = sink
-                .as_ref()
-                .and_then(|sink| {
-                    sink.submit_tracked(UiCommand::SetProxySearchQuery {
+            if matches!(&state.phase, ProxySearchPhase::Uninitialized) {
+                let observed = last
+                    .as_ref()
+                    .and_then(|last| last.0.as_ref())
+                    .map(|projection| projection.search_query.as_str());
+                if observed == Some(query) || (observed.is_none() && query.is_empty()) {
+                    state.phase = ProxySearchPhase::Submitted {
                         query: query.into(),
-                    })
-                })
-                .map(|id| (id, query.into()));
-            if state.pending.is_none() {
-                state.failure = Some(Failure::new(
-                    ErrorCode::NotReady,
-                    "search command service supplies no terminal acknowledgment",
-                    true,
-                ));
+                    };
+                    continue;
+                }
             }
+            match &state.phase {
+                ProxySearchPhase::Submitted { query: submitted } if submitted == query => continue,
+                ProxySearchPhase::Pending { .. } => continue,
+                ProxySearchPhase::Failed { query: failed, .. } if failed == query => continue,
+                ProxySearchPhase::RetryRequested { .. }
+                | ProxySearchPhase::Submitted { .. }
+                | ProxySearchPhase::Failed { .. }
+                | ProxySearchPhase::Uninitialized => {}
+            }
+            let request = outbound_ui_preferences(&latest.0).and_then(|_| {
+                outbound_ui_preference_request(
+                    &latest.0,
+                    OutboundUiPreferenceIntent::SetSearchQuery(query.into()),
+                )
+            });
+            state.phase = request
+                .zip(sink.as_ref())
+                .and_then(|(request, sink)| {
+                    sink.submit_tracked(UiCommand::ApplyOutboundUiPreference { request })
+                })
+                .map(|request_id| ProxySearchPhase::Pending {
+                    request_id,
+                    query: query.into(),
+                })
+                .unwrap_or_else(|| ProxySearchPhase::Failed {
+                    query: query.into(),
+                    failure: Failure::new(
+                    ErrorCode::NotReady,
+                    "outbound search preferences have no terminal command service or accepted observation",
+                    true,
+                    ),
+                });
         }
     }
 }
@@ -139,16 +183,29 @@ pub fn on_clear_search(
 }
 
 pub fn finish_search(result: On<CommandExecutedEvent>, mut state: ResMut<ProxySearchState>) {
-    let Some((id, query)) = &state.pending else {
-        return;
+    let (request_id, query) = match &state.phase {
+        ProxySearchPhase::Pending { request_id, query } => (*request_id, query.clone()),
+        ProxySearchPhase::Uninitialized
+        | ProxySearchPhase::Submitted { .. }
+        | ProxySearchPhase::Failed { .. }
+        | ProxySearchPhase::RetryRequested { .. } => return,
     };
-    if *id != result.request_id
-        || !matches!(&result.command, UiCommand::SetProxySearchQuery { query: submitted } if submitted == query)
+    if request_id != result.request_id
+        || !matches!(
+            &result.command,
+            UiCommand::ApplyOutboundUiPreference { request }
+                if request.intent() == &OutboundUiPreferenceIntent::SetSearchQuery(query.clone())
+        )
     {
         return;
     }
-    state.pending = None;
-    state.failure = result.result.as_ref().err().cloned();
+    state.phase = match result.result.as_ref() {
+        Ok(_) => ProxySearchPhase::Submitted { query },
+        Err(failure) => ProxySearchPhase::Failed {
+            query,
+            failure: failure.clone(),
+        },
+    };
 }
 
 pub fn sync_search_status(
@@ -157,21 +214,29 @@ pub fn sync_search_status(
     locale: Res<UiLocale>,
     mut labels: Query<&mut Text, With<ProxySearchStatus>>,
 ) {
-    let copy = if let Some(failure) = &state.failure {
-        LocalizedText::new(
-            "proxies_search_failed",
-            vec![("reason", failure.message.clone())],
-        )
-    } else if last
+    let empty_result = last
         .as_ref()
         .and_then(|last| last.0.as_ref())
         .is_some_and(|projection| {
             !projection.search_query.trim().is_empty() && projection.total_nodes() == 0
-        })
-    {
-        LocalizedText::plain("proxies_search_empty")
-    } else {
-        LocalizedText::plain("proxies_search_hint")
+        });
+    let copy = match &state.phase {
+        ProxySearchPhase::Failed { failure, .. } => LocalizedText::new(
+            "proxies_search_failed",
+            vec![("reason", failure.message.clone())],
+        ),
+        ProxySearchPhase::Uninitialized
+        | ProxySearchPhase::Submitted { .. }
+        | ProxySearchPhase::Pending { .. }
+        | ProxySearchPhase::RetryRequested { .. }
+            if empty_result =>
+        {
+            LocalizedText::plain("proxies_search_empty")
+        }
+        ProxySearchPhase::Uninitialized
+        | ProxySearchPhase::Submitted { .. }
+        | ProxySearchPhase::Pending { .. }
+        | ProxySearchPhase::RetryRequested { .. } => LocalizedText::plain("proxies_search_hint"),
     };
     for mut text in &mut labels {
         text.0 = copy.render(&locale);
@@ -183,7 +248,14 @@ pub fn on_retry_search(
     buttons: Query<(), With<RetryProxySearch>>,
     mut state: ResMut<ProxySearchState>,
 ) {
-    if buttons.get(activated.entity).is_ok() && state.pending.is_none() && state.failure.is_some() {
-        state.force_retry = true;
+    match (buttons.get(activated.entity), state.phase.clone()) {
+        (Ok(()), ProxySearchPhase::Failed { query, .. }) => {
+            state.phase = ProxySearchPhase::RetryRequested { query };
+        }
+        (Ok(()), ProxySearchPhase::Uninitialized)
+        | (Ok(()), ProxySearchPhase::Submitted { .. })
+        | (Ok(()), ProxySearchPhase::Pending { .. })
+        | (Ok(()), ProxySearchPhase::RetryRequested { .. })
+        | (Err(_), _) => {}
     }
 }

@@ -16,68 +16,88 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.testTag
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.musicfrog.infiltrator.MihomoHost
+import com.musicfrog.infiltrator.AndroidActivityState
+import com.musicfrog.infiltrator.AndroidVpnAuthorizationUiState
 import com.musicfrog.infiltrator.R
-import com.musicfrog.infiltrator.VpnStateManager
 import com.musicfrog.infiltrator.ui.common.ErrorDialog
-import infiltrator_android.LogEntry
-import infiltrator_android.LogLevel
-import infiltrator_android.TrafficSnapshot
+import com.musicfrog.infiltrator.ui.common.toLocalizedFailure
+import com.musicfrog.infiltrator.ui.common.asDisplayString
+import com.musicfrog.infiltrator.ui.common.LogEntry
+import com.musicfrog.infiltrator.ui.common.LogLevel
+import com.musicfrog.infiltrator.ui.common.TrafficSnapshot
+import com.musicfrog.infiltrator.ui.common.OwnerVpnObservation
+import com.musicfrog.infiltrator.VpnOwnerDataPlaneState
+import infiltrator_android.AndroidCoreLifecycle
+import infiltrator_android.AndroidControlIntent
 
 @Composable
-fun OverviewScreen(
-    host: MihomoHost?,
-    vpnPermissionGranted: Boolean,
+internal fun OverviewScreen(
+    vpnAuthorization: AndroidVpnAuthorizationUiState,
     onRequestVpnPermission: () -> Unit,
+    onControlIntent: (AndroidControlIntent) -> Unit,
     isExpanded: Boolean,
     viewModel: OverviewViewModel = viewModel()
 ) {
     val state by viewModel.state.collectAsState()
-    val vpnState by VpnStateManager.vpnState.collectAsState()
-    val coreRunning by VpnStateManager.coreRunning.collectAsState()
-    val vpnErrorMessage by VpnStateManager.errorMessage.collectAsState()
-    
-    val context = LocalContext.current
+    val activityError by AndroidActivityState.error.collectAsState()
 
-    val vpnRunning = vpnState == VpnStateManager.VpnState.RUNNING
-    val vpnStarting = vpnState == VpnStateManager.VpnState.STARTING
-    val vpnStopping = vpnState == VpnStateManager.VpnState.STOPPING
-
-    val displayError = state.error ?: vpnErrorMessage
+    val displayError = state.error ?: state.coreLifecycleError ?: state.vpnStateError ?: activityError
 
     if (displayError != null) {
         ErrorDialog(
-            message = displayError,
+            failure = displayError,
             onDismiss = { viewModel.clearError() }
         )
     }
 
-    val cards = remember(state, coreRunning, vpnRunning, vpnStarting, vpnStopping, vpnPermissionGranted) {
+    val cards = remember(state, vpnAuthorization) {
         overviewCards(
-            coreRunning = coreRunning,
-            vpnRunning = vpnRunning,
-            vpnStarting = vpnStarting,
-            vpnStopping = vpnStopping,
-            vpnPermissionGranted = vpnPermissionGranted,
-            currentMode = state.currentMode,
+            coreLifecycle = state.coreLifecycle,
+            vpnOwnerObservation = state.vpnOwnerObservation,
+            vpnAuthorization = vpnAuthorization,
+            routingIntent = state.routingIntent,
             traffic = state.traffic,
-            trafficLoading = state.trafficLoading,
             logs = state.logs,
-            logsLoading = state.logsLoading,
             egressIp = state.egressIp,
-            egressLocation = state.egressLocation,
-            ipLoading = state.ipLoading,
             onRequestVpnPermission = onRequestVpnPermission,
-            onToggleVpn = { viewModel.toggleVpn(host) },
-            onRestartCore = { viewModel.restartCore(host) },
-            onModeChange = { mode -> viewModel.changeMode(mode, context) },
+            onToggleVpn = {
+                when (val observation = state.vpnOwnerObservation) {
+                    is ObservationState.Loading,
+                    ObservationState.Empty,
+                    is ObservationState.Unavailable -> Unit
+                    is ObservationState.Observed -> when (val vpn = observation.value) {
+                        is OwnerVpnObservation.AndroidOwner -> when (vpn.snapshot.dataPlaneState()) {
+                            VpnOwnerDataPlaneState.Running ->
+                                onControlIntent(AndroidControlIntent.STOP_PROXY)
+                            VpnOwnerDataPlaneState.PermissionRequired,
+                            VpnOwnerDataPlaneState.Stopped,
+                            VpnOwnerDataPlaneState.Revoked -> onRequestVpnPermission()
+                            is VpnOwnerDataPlaneState.Failed -> if (
+                                canStartVpnSession(observation, vpnAuthorization)
+                            ) {
+                                onRequestVpnPermission()
+                            }
+                            VpnOwnerDataPlaneState.Starting,
+                            VpnOwnerDataPlaneState.Stopping,
+                            is VpnOwnerDataPlaneState.CleanupPending,
+                            is VpnOwnerDataPlaneState.Unavailable -> Unit
+                        }
+                        is OwnerVpnObservation.Unsupported,
+                        OwnerVpnObservation.NotApplicable,
+                        is OwnerVpnObservation.Unavailable -> Unit
+                    }
+                }
+            },
+            onResumeCore = { onControlIntent(AndroidControlIntent.RESUME_KERNEL) },
+            onRestartCore = { onControlIntent(AndroidControlIntent.RESTART_KERNEL) },
+            onRoutingIntentChange = viewModel::changeRoutingIntent,
             onRefreshIp = { viewModel.refreshIpCheck() },
         )
     }
@@ -109,7 +129,7 @@ fun OverviewScreen(
         }
     } else {
         LazyColumn(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxSize(),
             contentPadding = contentPadding,
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
@@ -122,50 +142,73 @@ fun OverviewScreen(
 }
 
 private fun overviewCards(
-    coreRunning: Boolean,
-    vpnRunning: Boolean,
-    vpnStarting: Boolean,
-    vpnStopping: Boolean,
-    vpnPermissionGranted: Boolean,
-    currentMode: String,
-    traffic: TrafficSnapshot?,
-    trafficLoading: Boolean,
-    logs: List<LogEntry>,
-    logsLoading: Boolean,
-    egressIp: String?,
-    egressLocation: String?,
-    ipLoading: Boolean,
+    coreLifecycle: ObservationState<AndroidCoreLifecycle>,
+    vpnOwnerObservation: ObservationState<OwnerVpnObservation>,
+    vpnAuthorization: AndroidVpnAuthorizationUiState,
+    routingIntent: RoutingIntentUiState,
+    traffic: ObservationState<TrafficSnapshot>,
+    logs: ObservationState<List<LogEntry>>,
+    egressIp: ObservationState<EgressIpObservation>,
     onRequestVpnPermission: () -> Unit,
     onToggleVpn: () -> Unit,
+    onResumeCore: () -> Unit,
     onRestartCore: () -> Unit,
-    onModeChange: (String) -> Unit,
+    onRoutingIntentChange: (RoutingIntentOption) -> Unit,
     onRefreshIp: () -> Unit,
 ): List<@Composable () -> Unit> {
     return listOf(
         {
             // Hero VPN Card
             VpnHeroCard(
-                vpnRunning = vpnRunning,
-                vpnStarting = vpnStarting,
-                vpnStopping = vpnStopping,
-                vpnPermissionGranted = vpnPermissionGranted,
+                vpnOwnerObservation = vpnOwnerObservation,
+                vpnAuthorization = vpnAuthorization,
                 onRequestVpnPermission = onRequestVpnPermission,
                 onToggleVpn = onToggleVpn
             )
         },
         {
             var expanded by remember { mutableStateOf(false) }
+            val currentIntent = when (routingIntent) {
+                is RoutingIntentUiState.Ready -> routingIntent.current
+                is RoutingIntentUiState.Updating -> routingIntent.current
+                is RoutingIntentUiState.Pending -> routingIntent.snapshot.current
+                is RoutingIntentUiState.Unsupported -> routingIntent.snapshot.current
+                is RoutingIntentUiState.Failed,
+                RoutingIntentUiState.Unobserved,
+                RoutingIntentUiState.Loading,
+                RoutingIntentUiState.Unavailable -> null
+            }
+            val currentOption = RoutingIntentOption.fromObserved(currentIntent)
+            val canChangeIntent = routingIntent is RoutingIntentUiState.Ready
+            val subtitle = when {
+                routingIntent is RoutingIntentUiState.Updating ->
+                    sharedRoutingIntentCopy(infiltrator_android.AndroidRoutingIntentCopyKey.UPDATING)
+                routingIntent is RoutingIntentUiState.Pending ->
+                    sharedRoutingIntentCopy(infiltrator_android.AndroidRoutingIntentCopyKey.UPDATING)
+                routingIntent is RoutingIntentUiState.Unsupported ->
+                    sharedRoutingIntentCopy(infiltrator_android.AndroidRoutingIntentCopyKey.UNSUPPORTED)
+                routingIntent is RoutingIntentUiState.Failed ->
+                    routingIntent.failure?.toLocalizedFailure()?.asDisplayString()
+                        ?: sharedRoutingIntentCopy(infiltrator_android.AndroidRoutingIntentCopyKey.UNAVAILABLE)
+                routingIntent == RoutingIntentUiState.Unavailable ->
+                    sharedRoutingIntentCopy(infiltrator_android.AndroidRoutingIntentCopyKey.UNAVAILABLE)
+                currentOption != null -> sharedRoutingIntentCopy(currentOption.copyKey)
+                currentIntent is com.musicfrog.infiltrator.ui.common.RoutingIntentObservation.EngineDefined ->
+                    sharedEngineDefinedRoutingIntentCopy(currentIntent.extensionId)
+                else -> stringResource(R.string.status_unknown)
+            }
             StatusCard(
-                title = stringResource(R.string.status_proxy_mode),
-                subtitle = currentMode.uppercase(),
+                title = sharedRoutingIntentCopy(infiltrator_android.AndroidRoutingIntentCopyKey.TITLE),
+                subtitle = subtitle,
                 icon = Icons.Outlined.Tune,
                 actions = {
                     Box {
                         FilledTonalButton(
                             onClick = { expanded = true },
+                            enabled = canChangeIntent,
                             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
                         ) {
-                            Text(stringResource(R.string.action_change_mode))
+                            Text(sharedRoutingIntentCopy(infiltrator_android.AndroidRoutingIntentCopyKey.CHANGE_ACTION))
                             Spacer(Modifier.width(8.dp))
                             Icon(Icons.Outlined.ArrowDropDown, null, modifier = Modifier.size(18.dp))
                         }
@@ -173,78 +216,44 @@ private fun overviewCards(
                             expanded = expanded,
                             onDismissRequest = { expanded = false }
                         ) {
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.mode_rule)) },
-                                onClick = { onModeChange("rule"); expanded = false }
-                            )
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.mode_global)) },
-                                onClick = { onModeChange("global"); expanded = false }
-                            )
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.mode_direct)) },
-                                onClick = { onModeChange("direct"); expanded = false }
-                            )
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.mode_script)) },
-                                onClick = { onModeChange("script"); expanded = false }
-                            )
+                            RoutingIntentOption.commonChoices.forEach { intent ->
+                                DropdownMenuItem(
+                                    text = { Text(sharedRoutingIntentCopy(intent.copyKey)) },
+                                    enabled = canChangeIntent && currentOption != intent,
+                                    onClick = {
+                                        onRoutingIntentChange(intent)
+                                        expanded = false
+                                    }
+                                )
+                            }
                         }
                     }
                 }
             )
         },
         {
-            TrafficCard(traffic, trafficLoading)
+            TrafficCard(traffic)
         },
         {
-            // Core Runtime
-            if (!coreRunning) {
-               Card(
-                   colors = CardDefaults.cardColors(
-                       containerColor = MaterialTheme.colorScheme.errorContainer,
-                       contentColor = MaterialTheme.colorScheme.onErrorContainer
-                   )
-               ) {
-                   Column(
-                       modifier = Modifier.padding(16.dp).fillMaxWidth(),
-                       verticalArrangement = Arrangement.spacedBy(8.dp)
-                   ) {
-                       Row(verticalAlignment = Alignment.CenterVertically) {
-                           Icon(Icons.Outlined.Warning, null)
-                           Spacer(Modifier.width(8.dp))
-                           Text(
-                               stringResource(R.string.status_core_runtime), 
-                               style = MaterialTheme.typography.titleMedium,
-                               fontWeight = FontWeight.Bold
-                           )
-                       }
-                       Text(stringResource(R.string.status_stopped))
-                       Button(
-                           onClick = onRestartCore, 
-                           colors = ButtonDefaults.buttonColors(
-                               containerColor = MaterialTheme.colorScheme.onErrorContainer,
-                               contentColor = MaterialTheme.colorScheme.errorContainer
-                           )
-                       ) {
-                           Text(stringResource(R.string.action_restart))
-                       }
-                   }
-               }
-            } else {
-                 StatusCard(
-                    title = stringResource(R.string.status_core_runtime),
-                    subtitle = stringResource(R.string.status_running),
-                    icon = Icons.Outlined.Memory
-                 )
-            }
+            CoreRuntimeCard(
+                observation = coreLifecycle,
+                onResumeCore = onResumeCore,
+                onRestartCore = onRestartCore,
+            )
         },
         {
-            val subtitle = when {
-                ipLoading -> stringResource(R.string.text_loading)
-                egressIp.isNullOrBlank() -> stringResource(R.string.text_ip_unavailable)
-                egressLocation.isNullOrBlank() -> stringResource(R.string.label_exit_ip, egressIp)
-                else -> "${stringResource(R.string.label_exit_ip, egressIp)}\n${stringResource(R.string.label_ip_location, egressLocation)}"
+            val subtitle = when (egressIp) {
+                is ObservationState.Loading -> stringResource(R.string.text_loading)
+                ObservationState.Empty,
+                is ObservationState.Unavailable -> stringResource(R.string.text_ip_unavailable)
+                is ObservationState.Observed -> when {
+                    egressIp.value.location == null -> stringResource(
+                        R.string.label_exit_ip,
+                        egressIp.value.ip,
+                    )
+                    else -> "${stringResource(R.string.label_exit_ip, egressIp.value.ip)}\n" +
+                        stringResource(R.string.label_ip_location, egressIp.value.location)
+                }
             }
             StatusCard(
                 title = stringResource(R.string.card_network_diagnostics),
@@ -258,21 +267,23 @@ private fun overviewCards(
             )
         },
         {
-            LogPreviewCard(logs, logsLoading)
+            LogPreviewCard(logs)
         }
     )
 }
 
 @Composable
 private fun VpnHeroCard(
-    vpnRunning: Boolean,
-    vpnStarting: Boolean,
-    vpnStopping: Boolean,
-    vpnPermissionGranted: Boolean,
+    vpnOwnerObservation: ObservationState<OwnerVpnObservation>,
+    vpnAuthorization: AndroidVpnAuthorizationUiState,
     onRequestVpnPermission: () -> Unit,
     onToggleVpn: () -> Unit
 ) {
-    val isBusy = vpnStarting || vpnStopping
+    val observedOwner = (vpnOwnerObservation as? ObservationState.Observed)?.value
+        as? OwnerVpnObservation.AndroidOwner
+    val observedState = observedOwner?.snapshot?.dataPlaneState()
+    val vpnRunning = vpnSessionIsRunning(vpnOwnerObservation, vpnAuthorization)
+    val canAct = vpnRunning || canStartVpnSession(vpnOwnerObservation, vpnAuthorization)
     
     val containerColor by animateColorAsState(
         targetValue = if (vpnRunning) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -302,11 +313,26 @@ private fun VpnHeroCard(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             val statusText = when {
-                !vpnPermissionGranted -> stringResource(R.string.status_permission_required)
-                vpnStarting -> stringResource(R.string.status_starting)
-                vpnStopping -> stringResource(R.string.status_stopping)
+                vpnAuthorization == AndroidVpnAuthorizationUiState.Required ->
+                    stringResource(R.string.status_permission_required)
+                vpnAuthorization == AndroidVpnAuthorizationUiState.Unknown ->
+                    stringResource(R.string.status_unknown)
+                vpnAuthorization == AndroidVpnAuthorizationUiState.Unavailable ->
+                    stringResource(R.string.status_unknown)
+                vpnOwnerObservation is ObservationState.Loading ->
+                    stringResource(R.string.text_loading)
+                vpnOwnerObservation is ObservationState.Unavailable ||
+                    vpnOwnerObservation == ObservationState.Empty -> stringResource(R.string.status_unknown)
+                observedState == VpnOwnerDataPlaneState.PermissionRequired ->
+                    stringResource(R.string.status_permission_required)
+                observedState == VpnOwnerDataPlaneState.Starting -> stringResource(R.string.status_starting)
+                observedState == VpnOwnerDataPlaneState.Stopping ||
+                    observedState is VpnOwnerDataPlaneState.CleanupPending -> stringResource(R.string.status_stopping)
                 vpnRunning -> stringResource(R.string.status_active)
-                else -> stringResource(R.string.status_idle)
+                observedState is VpnOwnerDataPlaneState.Unavailable ||
+                    observedState is VpnOwnerDataPlaneState.Failed || observedState == null ->
+                    stringResource(R.string.status_unknown)
+                else -> stringResource(R.string.status_stopped)
             }
             
             Row(
@@ -329,10 +355,10 @@ private fun VpnHeroCard(
                  
                  FilledIconButton(
                      onClick = { 
-                        if (!vpnPermissionGranted) onRequestVpnPermission() else onToggleVpn()
+                        if (vpnRunning) onToggleVpn() else onRequestVpnPermission()
                      },
-                     enabled = !isBusy,
-                     modifier = Modifier.size(64.dp),
+                     enabled = canAct,
+                     modifier = Modifier.size(64.dp).testTag("vpn-action"),
                      colors = IconButtonDefaults.filledIconButtonColors(
                          containerColor = if (vpnRunning) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.primary,
                          contentColor = if (vpnRunning) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onPrimary
@@ -340,10 +366,101 @@ private fun VpnHeroCard(
                  ) {
                      Icon(
                          Icons.Rounded.PowerSettingsNew,
-                         contentDescription = null,
+                         contentDescription = stringResource(
+                             if (vpnRunning) R.string.action_stop else R.string.action_start,
+                         ),
                          modifier = Modifier.size(32.dp)
                      )
                  }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CoreRuntimeCard(
+    observation: ObservationState<AndroidCoreLifecycle>,
+    onResumeCore: () -> Unit,
+    onRestartCore: () -> Unit,
+) {
+    val title = stringResource(R.string.status_core_runtime)
+    when (observation) {
+        is ObservationState.Loading -> StatusCard(
+            title = title,
+            subtitle = stringResource(R.string.text_loading),
+            icon = Icons.Outlined.Memory,
+        )
+        ObservationState.Empty,
+        is ObservationState.Unavailable -> StatusCard(
+            title = title,
+            subtitle = stringResource(R.string.status_unknown),
+            icon = Icons.Outlined.Warning,
+        )
+        is ObservationState.Observed -> when (observation.value) {
+            AndroidCoreLifecycle.READY,
+            AndroidCoreLifecycle.RUNNING -> StatusCard(
+                title = title,
+                subtitle = stringResource(R.string.status_running),
+                icon = Icons.Outlined.Memory,
+            )
+            AndroidCoreLifecycle.STARTING -> StatusCard(
+                title = title,
+                subtitle = stringResource(R.string.status_starting),
+                icon = Icons.Outlined.Memory,
+            )
+            AndroidCoreLifecycle.STOPPING -> StatusCard(
+                title = title,
+                subtitle = stringResource(R.string.status_stopping),
+                icon = Icons.Outlined.Memory,
+            )
+            AndroidCoreLifecycle.STOPPED -> StoppedCoreCard(
+                statusLabel = R.string.status_stopped,
+                actionLabel = R.string.action_start,
+                onAction = onResumeCore,
+            )
+            AndroidCoreLifecycle.FAILED -> StoppedCoreCard(
+                statusLabel = R.string.status_unknown,
+                actionLabel = R.string.action_restart,
+                onAction = onRestartCore,
+            )
+        }
+    }
+}
+
+@Composable
+private fun StoppedCoreCard(
+    statusLabel: Int,
+    actionLabel: Int,
+    onAction: () -> Unit,
+) {
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.errorContainer,
+            contentColor = MaterialTheme.colorScheme.onErrorContainer,
+        ),
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp).fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Outlined.Warning, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    stringResource(R.string.status_core_runtime),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+            Text(stringResource(statusLabel))
+            Button(
+                onClick = onAction,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.onErrorContainer,
+                    contentColor = MaterialTheme.colorScheme.errorContainer,
+                ),
+            ) {
+                Text(stringResource(actionLabel))
             }
         }
     }
@@ -404,8 +521,7 @@ private fun StatusCard(
 
 @Composable
 private fun TrafficCard(
-    snapshot: TrafficSnapshot?,
-    isLoading: Boolean
+    observation: ObservationState<TrafficSnapshot>,
 ) {
     ElevatedCard(
         modifier = Modifier.fillMaxWidth().animateContentSize(),
@@ -430,11 +546,32 @@ private fun TrafficCard(
                 )
             }
             
-            if (isLoading || snapshot == null) {
-                 Box(Modifier.fillMaxWidth().height(80.dp), contentAlignment = Alignment.Center) {
-                     CircularProgressIndicator()
-                 }
-            } else {
+            when (observation) {
+                is ObservationState.Loading -> Box(
+                    Modifier.fillMaxWidth().height(80.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    CircularProgressIndicator()
+                }
+                ObservationState.Empty,
+                is ObservationState.Unavailable -> Box(
+                    Modifier.fillMaxWidth().height(80.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = stringResource(R.string.status_unknown),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                is ObservationState.Observed -> TrafficSnapshotContent(observation.value)
+            }
+        }
+    }
+}
+
+@Composable
+private fun TrafficSnapshotContent(snapshot: TrafficSnapshot) {
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
@@ -451,7 +588,7 @@ private fun TrafficCard(
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = formatBytes(snapshot.upTotal.toLong()),
+                            text = formatBytes(snapshot.upTotal),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -471,7 +608,7 @@ private fun TrafficCard(
                             color = MaterialTheme.colorScheme.primary
                         )
                         Text(
-                            text = formatBytes(snapshot.downTotal.toLong()),
+                            text = formatBytes(snapshot.downTotal),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -490,15 +627,12 @@ private fun TrafficCard(
                         color = MaterialTheme.colorScheme.onSurface
                     )
                 }
-            }
-        }
     }
 }
 
 @Composable
 private fun LogPreviewCard(
-    logs: List<LogEntry>,
-    isLoading: Boolean
+    observation: ObservationState<List<LogEntry>>,
 ) {
     ElevatedCard(
         modifier = Modifier.fillMaxWidth().animateContentSize(),
@@ -523,23 +657,12 @@ private fun LogPreviewCard(
                 )
             }
             
-            if (isLoading) {
-                Text(
-                    text = stringResource(R.string.text_loading),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 36.dp)
-                )
-            } else if (logs.isEmpty()) {
-                Text(
-                    text = stringResource(R.string.text_no_logs),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 36.dp)
-                )
-            } else {
-                Column(modifier = Modifier.padding(start = 36.dp)) {
-                    logs.reversed().take(5).forEach { entry ->
+            when (observation) {
+                is ObservationState.Loading -> ObservationLabel(R.string.text_loading)
+                ObservationState.Empty -> ObservationLabel(R.string.text_no_logs)
+                is ObservationState.Unavailable -> ObservationLabel(R.string.status_unknown)
+                is ObservationState.Observed -> Column(modifier = Modifier.padding(start = 36.dp)) {
+                    observation.value.reversed().take(5).forEach { entry ->
                         val levelColor = when (entry.level) {
                             LogLevel.ERROR -> MaterialTheme.colorScheme.error
                             LogLevel.WARNING -> MaterialTheme.colorScheme.tertiary
@@ -560,6 +683,16 @@ private fun LogPreviewCard(
     }
 }
 
+@Composable
+private fun ObservationLabel(resourceId: Int) {
+    Text(
+        text = stringResource(resourceId),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(start = 36.dp),
+    )
+}
+
 private fun formatSpeed(bytesPerSec: Long): String {
     return when {
         bytesPerSec >= 1_000_000_000 -> String.format("%.1f GB/s", bytesPerSec / 1_000_000_000.0)
@@ -569,11 +702,13 @@ private fun formatSpeed(bytesPerSec: Long): String {
     }
 }
 
-private fun formatBytes(bytes: Long): String {
+private fun formatBytes(bytes: ULong?): String {
+    if (bytes == null) return "—"
+    val value = bytes.toDouble()
     return when {
-        bytes >= 1_000_000_000 -> String.format("%.1f GB", bytes / 1_000_000_000.0)
-        bytes >= 1_000_000 -> String.format("%.1f MB", bytes / 1_000_000.0)
-        bytes >= 1_000 -> String.format("%.1f KB", bytes / 1_000.0)
+        value >= 1_000_000_000 -> String.format("%.1f GB", value / 1_000_000_000.0)
+        value >= 1_000_000 -> String.format("%.1f MB", value / 1_000_000.0)
+        value >= 1_000 -> String.format("%.1f KB", value / 1_000.0)
         else -> "$bytes B"
     }
 }

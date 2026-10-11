@@ -15,12 +15,14 @@ use bevy::ecs::observer::On;
 use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
+use bevy::feathers::theme::ThemeBackgroundColor;
+use bevy::feathers::theme::ThemeTextColor;
 use bevy::picking::hover::PickingInteraction;
 use bevy::scene::{Scene, bsn};
 use bevy::text::TextColor;
 use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderRadius, Display, FlexDirection, FlexWrap, JustifyContent,
-    Node, UiRect, Val, percent, px,
+    AlignItems, BorderRadius, Display, FlexDirection, FlexWrap, JustifyContent, Node, UiRect, Val,
+    percent, px,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
@@ -29,9 +31,10 @@ use infiltrator_application::traffic_topology_projection::status_label;
 use infiltrator_bevy_widgets::chart::topology::{
     NodeCategory, TopologyLink, TopologyNode, TopologyPlate, TopologySpec, topology_scene,
 };
+use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::icon::{IconId, icon_scene};
 use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText, UiLocale};
-use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::{UiPalette, rem};
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
@@ -41,6 +44,7 @@ use infiltrator_contract::traffic_topology::{
 };
 
 /// Explicit fixture adapter retained for deterministic demo/screenshot hosts.
+#[cfg(any(feature = "capture-tools", test))]
 pub fn topology_chain_scene(palette: &UiPalette) -> impl Scene + use<> {
     topology_chain_scene_with_snapshot(&TrafficTopologySnapshot::demo_fixture(), palette)
 }
@@ -60,7 +64,7 @@ pub fn topology_chain_scene_with_snapshot(
                     Node {
                         width: percent(100),
                         flex_direction: FlexDirection::Column,
-                        row_gap: Val::Px(space::S12),
+                        row_gap: rem(space::S12),
                     }
                     AccessibilityNode(header_a11y) LocalizedLabel::plain("overview_topology_label")
                     TopologyChainCard
@@ -73,7 +77,7 @@ pub fn topology_chain_scene_with_snapshot(
                         Children [
                             Node {
                                 align_items: AlignItems::Center,
-                                column_gap: Val::Px(space::S8),
+                                column_gap: rem(space::S8),
                             }
                             Children [
                                 @{ icon_scene(IconId::Network, 16.0, palette.accent) }
@@ -82,13 +86,13 @@ pub fn topology_chain_scene_with_snapshot(
                             ]
                             --
                             Node {
-                                padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S2)),
-                                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                padding: UiRect::axes(rem(space::S8), rem(space::S2)),
+                                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                             }
-                            BackgroundColor({ palette.accent_container })
+                            ThemeBackgroundColor({ Token::AccentContainer })
                             AccentContainerFill
                             Children [
-                                Text({ header }) TopologyText { stage: TrafficTopologyStage::Inbound, kind: TopologyTextKind::HeaderBadge } TextRole(Role::Caption) TextColor({ palette.success })
+                                Text({ header }) TopologyText { stage: TrafficTopologyStage::Inbound, kind: TopologyTextKind::HeaderBadge } TextRole(Role::Caption) ThemeTextColor({ Token::Success })
                             ]
                         ]
                         --
@@ -102,8 +106,8 @@ pub fn topology_chain_scene_with_snapshot(
                             flex_wrap: FlexWrap::Wrap,
                             align_items: AlignItems::Center,
                             justify_content: JustifyContent::SpaceBetween,
-                            row_gap: Val::Px(space::S8),
-                            column_gap: Val::Px(space::S6),
+                            row_gap: rem(space::S8),
+                            column_gap: rem(space::S6),
                         }
                         Children [
                             @{ topology_stage_chip_scene(snapshot, TrafficTopologyStage::Inbound, IconId::Activity, palette.success, palette) }
@@ -221,28 +225,28 @@ fn topology_stage_chip_scene(
             Node {
                 flex_grow: 1.0,
                 flex_shrink: 1.0,
-                flex_basis: px(140.0),
-                min_width: px(110.0),
+                flex_basis: rem(140.0),
+                min_width: rem(110.0),
                 flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(space::S6),
-                padding: UiRect::all(Val::Px(space::S8)),
-                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                row_gap: rem(space::S6),
+                padding: UiRect::all(rem(space::S8)),
+                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
             }
             TopologyStageButton { stage, enabled: { snapshot.is_drawable() } }
             Button
-            BackgroundColor({ palette.surface_elevated })
+            ThemeBackgroundColor({ Token::SurfaceElevated })
             SurfaceElevatedFill
             Children [
                 Node {
                     width: percent(100),
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::SpaceBetween,
-                    column_gap: Val::Px(space::S6),
+                    column_gap: rem(space::S6),
                 }
                 Children [
                     Node {
                         align_items: AlignItems::Center,
-                        column_gap: Val::Px(space::S6),
+                        column_gap: rem(space::S6),
                     }
                     Children [
                         @{ icon_scene(icon, 14.0, palette.ink_dim) }
@@ -251,10 +255,10 @@ fn topology_stage_chip_scene(
                     ]
                     --
                     Node {
-                        padding: UiRect::axes(Val::Px(space::S6), Val::Px(space::S2)),
+                        padding: UiRect::axes(rem(space::S6), rem(space::S2)),
                         border_radius: BorderRadius::all(Val::Px(4.0)),
                     }
-                    BackgroundColor({ palette.accent_container })
+                    ThemeBackgroundColor({ Token::AccentContainer })
                     AccentContainerFill
                     Children [
                         Text({ badge }) TopologyText { stage, kind: TopologyTextKind::Badge } TextRole(Role::Caption) TextColor({ badge_fg })
@@ -263,10 +267,10 @@ fn topology_stage_chip_scene(
                 --
                 Node {
                     width: percent(100),
-                    padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S4)),
+                    padding: UiRect::axes(rem(space::S8), rem(space::S4)),
                     border_radius: BorderRadius::all(Val::Px(4.0)),
                 }
-                BackgroundColor({ palette.surface })
+                ThemeBackgroundColor({ Token::Surface })
                 SurfaceFill
                 Children [
                     Text({ detail }) TopologyText { stage, kind: TopologyTextKind::Detail } TextRole(Role::BodyStrong)
@@ -286,17 +290,17 @@ fn stage_label(stage: TrafficTopologyStage) -> String {
     .to_owned()
 }
 
-fn topology_arrow_scene(palette: &UiPalette) -> impl Scene + use<> {
+fn topology_arrow_scene(_palette: &UiPalette) -> impl Scene + use<> {
     bsn! {
             Node {
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
                 flex_shrink: 0.0,
-                padding: UiRect::horizontal(Val::Px(space::S2)),
+                padding: UiRect::horizontal(rem(space::S2)),
             }
             TopologyArrow
             Children [
-                Text({ ">".to_owned() }) TextRole(Role::BodyStrong) TextColor({ palette.ink_dim })
+                Text({ ">".to_owned() }) TextRole(Role::BodyStrong) ThemeTextColor({ Token::InkDim })
             ]
     }
 }

@@ -12,6 +12,7 @@ use toml::map::Map;
 
 impl<S: SecureStore> ConfigManager<S> {
     pub async fn set_current(&self, profile: &str) -> Result<()> {
+        self.initialize_profile_namespace().await?;
         let _guard = self.lock_profile_writes().await;
         self.existing_profile_yaml_path(profile).await?;
 
@@ -72,6 +73,14 @@ impl<S: SecureStore> ConfigManager<S> {
     }
 
     pub async fn get_current(&self) -> Result<String> {
+        self.initialize_profile_namespace().await?;
+        self.get_current_unlocked().await
+    }
+
+    /// Read the active pointer after the caller has initialized the namespace.
+    /// Lock-owning operations use this helper to avoid reacquiring the
+    /// namespace migration/write mutex.
+    pub(crate) async fn get_current_unlocked(&self) -> Result<String> {
         if !self.settings_file.exists() {
             return Ok("default".to_string());
         }

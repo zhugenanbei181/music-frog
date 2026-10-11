@@ -4,24 +4,49 @@
 //! the application facade or host port that implements it. Split out of the
 //! application module so the composition/accessor surface stays readable.
 
+use super::vpn_start_result::confirmed;
 use super::*;
 use crate::profile_aggregation_application::ProfileAggregationApplication;
 use crate::protocol_codec_application::ProtocolCodecApplication;
-use crate::proxy_application::test_proxy_delays;
+use crate::runtime_configuration_application::RuntimeConfigurationApplication;
 use crate::subscription_import_application::SubscriptionImportApplication;
+use infiltrator_contract::android_control::VpnAuthorizationState;
+use infiltrator_contract::core_identity::CoreScope;
+use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::network_roaming::NetworkRoamingStatus;
 use infiltrator_contract::pac::PacRequest;
 use infiltrator_contract::privileged_network::PrivilegedNetworkRequest;
 use infiltrator_contract::rule_edit::RuleDraft;
-use infiltrator_contract::speedtest::SpeedtestScope;
-use infiltrator_contract::vpn::VpnSessionState;
 use infiltrator_domain::apply::ApplyStrategy;
+use infiltrator_ports::runtime_configuration::ObservedValue;
 use std::sync::Mutex;
 
 impl CommandApplication {
-    /// Route one inbound command. Lifecycle and proxy-mode commands are
+    fn configuration_for_scope(
+        &self,
+        scope: Option<&CoreScope>,
+    ) -> Result<RuntimeConfigurationApplication, Failure> {
+        let scope = scope.ok_or_else(|| {
+            Failure::new(
+                ErrorCode::NotReady,
+                "Core configuration command has no validated scope",
+                false,
+            )
+        })?;
+        let gateway = self.runtime()?;
+        Ok(RuntimeConfigurationApplication::from_gateway(
+            scope.clone(),
+            gateway.as_ref(),
+        ))
+    }
+
+    /// Route one inbound command. Lifecycle and routing-intent commands are
     /// owned by `CoreApplication`; everything else is dispatched here.
-    pub(super) async fn execute_dispatch(&self, intent: CommandIntent) -> Result<(), Failure> {
+    pub(super) async fn execute_dispatch(
+        &self,
+        scope: Option<&CoreScope>,
+        intent: CommandIntent,
+    ) -> Result<(), Failure> {
         match intent {
             CommandIntent::SwitchProfile { profile_id } => {
                 let profile = self.profile()?;
@@ -34,160 +59,15 @@ impl CommandApplication {
                     profile.select_profile(&profile_id).await.map(|_| ())
                 }
             }
-            CommandIntent::SelectProxyNode { group, node } => self
-                .runtime()?
-                .switch_proxy(&group, &node)
-                .await
-                .map_err(Failure::from),
-            CommandIntent::ToggleProxyGroupExpand { group } => {
-                self.proxy_preferences()?.toggle_group_expand(&group)?;
-                Ok(())
-            }
-            CommandIntent::SetProxyGroupExpanded { group, expanded } => {
-                self.proxy_preferences()?
-                    .set_group_expanded(&group, expanded)?;
-                Ok(())
-            }
-            CommandIntent::SetProxySortOrder { order } => {
-                self.proxy_preferences()?.set_sort_order(order)?;
-                Ok(())
-            }
-            CommandIntent::SetProxyProbeOptions { options } => {
-                self.save_probe_options(options).await
-            }
-            CommandIntent::SetProxySearchQuery { query } => {
-                self.proxy_preferences()?.set_search_query(query)?;
-                Ok(())
-            }
-            CommandIntent::ToggleFilterAlive { enabled } => {
-                self.proxy_preferences()?.set_filter_alive(enabled)?;
-                Ok(())
-            }
-            CommandIntent::ToggleFavoriteProxy { proxy } => {
-                self.proxy_preferences()?.toggle_favorite(&proxy)?;
-                Ok(())
-            }
-            CommandIntent::SetProxyCompactView { compact } => {
-                self.proxy_preferences()?.set_compact_view(compact)?;
-                Ok(())
-            }
-            CommandIntent::ReorderProxyGroups { group_names } => {
-                self.apply_group_order(group_names).await
-            }
-            CommandIntent::ResetProxyGroupOrder => {
-                self.proxy_preferences()?.reset_group_order()?;
-                Ok(())
-            }
-            CommandIntent::TestDelay {
-                group,
-                url,
-                timeout_ms,
-            } => {
-                let options = self.resolve_probe_options(url, timeout_ms).await?;
-                if let Ok(speedtest) = self.speedtest() {
-                    let scope = match group {
-                        Some(g) => SpeedtestScope::SingleGroup(g),
-                        None => SpeedtestScope::AllGroups,
-                    };
-                    speedtest
-                        .test_delays(
-                            scope,
-                            Some(options.test_url.clone()),
-                            Some(options.timeout_ms),
-                        )
-                        .await?;
-                    return Ok(());
-                }
-                let runtime = self.runtime()?;
-                let proxies = runtime.get_proxies().await.map_err(Failure::from)?;
-                let candidates = delay_candidates(&proxies, group.as_deref())?;
-                let outcomes = test_proxy_delays(
-                    runtime,
-                    candidates,
-                    options.test_url,
-                    options.timeout_ms,
-                    DEFAULT_DELAY_CONCURRENCY,
-                )
-                .await;
-                if let Some(failed) = outcomes
-                    .iter()
-                    .filter(|outcome| outcome.result.is_err())
-                    .min_by(|left, right| left.proxy_name.cmp(&right.proxy_name))
-                {
-                    let failure = failed.result.as_ref().unwrap_err();
-                    let failed_count = outcomes
-                        .iter()
-                        .filter(|outcome| outcome.result.is_err())
-                        .count();
-                    return Err(Failure::new(
-                        failure.code.clone(),
-                        format!(
-                            "{failed_count}/{} proxy probes failed; {}: {}",
-                            outcomes.len(),
-                            failed.proxy_name,
-                            failure.message
-                        ),
-                        failure.retryable,
-                    ));
-                }
-                Ok(())
-            }
-            CommandIntent::TestNodeDelay {
-                node,
-                url,
-                timeout_ms,
-            } => {
-                let options = self.resolve_probe_options(url, timeout_ms).await?;
-                let runtime = self.runtime()?;
-                let proxies = runtime.get_proxies().await.map_err(Failure::from)?;
-                let proxy = proxies.get(&node).ok_or_else(|| {
-                    Failure::new(
-                        ErrorCode::InvalidInput,
-                        "proxy identity is no longer present",
-                        false,
-                    )
-                })?;
-                if proxy.is_group() || matches!(proxy, Proxy::Unknown) {
-                    return Err(Failure::new(
-                        ErrorCode::InvalidInput,
-                        "latency probing requires a known leaf proxy",
-                        false,
-                    ));
-                }
-                runtime
-                    .test_delay(&node, &options.test_url, options.timeout_ms)
-                    .await
-                    .map_err(Failure::from)?;
-                Ok(())
-            }
-            CommandIntent::RunSpeedtest { node, url } => {
-                let speedtest = self.speedtest()?;
-                speedtest.probe_node_jitter(&node, 5, url, None).await?;
-                Ok(())
-            }
-            CommandIntent::RecordSpeedtestBandwidth {
-                node,
-                total_bytes,
-                duration_ms,
-            } => {
-                let speedtest = self.speedtest()?;
-                speedtest.record_bandwidth(&node, total_bytes, duration_ms)?;
-                Ok(())
-            }
-            CommandIntent::RecordSpeedtestOutboundIp { node, ip, country } => {
-                let speedtest = self.speedtest()?;
-                speedtest.record_outbound_ip(&node, &ip, country.as_deref())?;
-                Ok(())
-            }
-            CommandIntent::SetSpeedtestConcurrency { limit } => {
-                let speedtest = self.speedtest()?;
-                speedtest.set_concurrency(limit);
-                Ok(())
-            }
-            CommandIntent::CancelSpeedtest => {
-                let speedtest = self.speedtest()?;
-                speedtest.cancel();
-                Ok(())
+            CommandIntent::ReadOutboundInventory
+            | CommandIntent::SelectOutbound { .. }
+            | CommandIntent::ProbeOutbound { .. }
+            | CommandIntent::ProbeOutboundBatch { .. }
+            | CommandIntent::ApplyOutboundUiPreference { .. } => Err(Failure::unsupported(
+                "outbound commands require their typed output route",
+            )),
+            CommandIntent::SetRuntimeProbeSettings { settings } => {
+                self.save_runtime_probe_settings(settings).await
             }
             CommandIntent::UpdateProfile { profile_id } => {
                 let profile = self.profile()?;
@@ -221,6 +101,9 @@ impl CommandApplication {
             }
             CommandIntent::SaveSubscriptionFilter { .. } => {
                 unreachable!("typed filter output is handled before unit dispatch")
+            }
+            CommandIntent::ClearDnsCache { .. } => {
+                unreachable!("typed DNS cache output is handled before unit dispatch")
             }
             CommandIntent::ImportSubscription {
                 profile_id,
@@ -414,19 +297,6 @@ impl CommandApplication {
                 .close_all_connections()
                 .await
                 .map_err(Failure::from),
-            CommandIntent::ClearDnsCache { operation } => match self.dns_cache.as_ref() {
-                Some(dns_cache) => {
-                    let report = dns_cache.flush_with_id(operation).await?;
-                    if report.fake_ip.is_flushed() || report.os_cache.is_flushed() {
-                        Ok(())
-                    } else {
-                        Err(Failure::unsupported(
-                            "neither DNS cache target has a drivable host adapter",
-                        ))
-                    }
-                }
-                None => Err(Failure::unsupported("DNS cache application is unavailable")),
-            },
             CommandIntent::ApplyDnsSettings { patch } => self
                 .configuration()?
                 .apply_dns_settings_with_runtime(self.managed_runtime.clone(), patch)
@@ -438,16 +308,12 @@ impl CommandApplication {
                 self.doctor()?.fix(Some(check_id)).await.map(|_| ())
             }
             CommandIntent::RepairAllDoctorIssues => self.doctor()?.fix(None).await.map(|_| ()),
-            CommandIntent::ToggleAppRouting { app_id, enabled } => {
-                self.routing()?.set_package_enabled(&app_id, enabled)
-            }
-            CommandIntent::SetAppRoutingMode { mode } => {
-                let mode = parse_routing_mode(&mode)?;
-                self.routing()?.set_mode(mode)
-            }
+            CommandIntent::SetAppRoutingPackageSelection { app_id, selection } => self
+                .routing()?
+                .set_package_selection(&app_id, selection.into()),
+            CommandIntent::SetAppRoutingMode { mode } => self.routing()?.set_mode(mode.into()),
             CommandIntent::SetAppRule { app_id, rule } => {
-                let rule = parse_routing_rule(&rule)?;
-                self.routing()?.set_rule(&app_id, rule)
+                self.routing()?.set_rule(&app_id, rule.into())
             }
             CommandIntent::SyncNow => {
                 let settings = self.settings()?.load_hydrated().await?;
@@ -476,47 +342,54 @@ impl CommandApplication {
             CommandIntent::RepairPortConflicts => self.port_conflicts()?.repair().await.map(|_| ()),
             CommandIntent::CheckUpdates => {
                 let settings = self.settings()?.load().await?;
-                let channel = parse_release_channel(&settings.core_channel)?;
-                self.versions()?.latest(channel).await.map(|_| ())
+                let versions = self.versions()?;
+                let channel = parse_release_channel(&settings.core_channel, versions.engine_id())?;
+                versions.latest(channel).await.map(|_| ())
             }
             CommandIntent::SetLanguage { preference } => {
                 self.update_setting("language", preference.as_setting())
                     .await
             }
             CommandIntent::UpdateSetting { key, value } => self.update_setting(&key, &value).await,
-            CommandIntent::SetProxyMode { mode } => {
-                RuntimeQueryApplication::new(self.runtime()?)
-                    .set_proxy_mode(mode)
-                    .await
-            }
+            CommandIntent::SetRoutingIntent { .. } | CommandIntent::GetRoutingIntent => Err(
+                Failure::unsupported("routing intent requires its validated Core scope route"),
+            ),
             CommandIntent::SetCoreLogLevel { level } => {
                 RuntimeQueryApplication::new(self.runtime()?)
+                    .with_core_log_level_port(self.core_log_level_port()?)
                     .set_core_log_level(level)
                     .await
             }
-            CommandIntent::SetTunStack { stack } => {
-                RuntimeQueryApplication::new(self.runtime()?)
-                    .set_tun_stack(stack)
-                    .await
-            }
-            CommandIntent::ToggleTun { enabled } => {
-                RuntimeQueryApplication::new(self.runtime()?)
-                    .set_tun_enabled(enabled)
-                    .await
-            }
-            CommandIntent::SetTunAutoRoute { enabled } => {
-                RuntimeQueryApplication::new(self.runtime()?)
-                    .set_tun_auto_route(enabled)
-                    .await
-            }
-            CommandIntent::SetTunStrictRoute { enabled } => {
-                RuntimeQueryApplication::new(self.runtime()?)
-                    .set_tun_strict_route(enabled)
-                    .await
-            }
+            CommandIntent::SetTunStack { stack } => self
+                .configuration_for_scope(scope)?
+                .set_tun_stack(stack)
+                .await
+                .map(|_| ()),
+            CommandIntent::ToggleTun { enabled } => self
+                .configuration_for_scope(scope)?
+                .set_tun_enabled(enabled)
+                .await
+                .map(|_| ()),
+            CommandIntent::SetTunAutoRoute { enabled } => self
+                .configuration_for_scope(scope)?
+                .set_tun_auto_route(enabled)
+                .await
+                .map(|_| ()),
+            CommandIntent::SetTunStrictRoute { enabled } => self
+                .configuration_for_scope(scope)?
+                .set_tun_strict_route(enabled)
+                .await
+                .map(|_| ()),
             CommandIntent::ProbeTunMtu => {
                 let runtime = self.runtime()?.clone();
-                let snapshot = self.mtu()?.probe_and_apply(runtime).await;
+                let scope = scope.ok_or_else(|| {
+                    Failure::new(
+                        ErrorCode::NotReady,
+                        "TUN MTU apply has no validated Core scope",
+                        false,
+                    )
+                })?;
+                let snapshot = self.mtu()?.probe_and_apply(runtime, scope.clone()).await;
                 match snapshot.state {
                     MtuProbeState::Ready => Ok(()),
                     MtuProbeState::Unsupported => Err(Failure::unsupported(
@@ -532,11 +405,14 @@ impl CommandApplication {
             }
             CommandIntent::SetSystemProxy { enabled } => {
                 let endpoint = if enabled {
-                    let config = self.runtime()?.get_config().await.map_err(Failure::from)?;
-                    let port = if config.mixed_port > 0 {
-                        config.mixed_port
+                    let config = self.configuration_for_scope(scope)?;
+                    let ports = config.observe_proxy_ports().await?;
+                    let mixed_port = reported_port(&ports.value.mixed_port);
+                    let http_port = reported_port(&ports.value.http_port);
+                    let port = if mixed_port > 0 {
+                        mixed_port
                     } else {
-                        config.port
+                        http_port
                     };
                     (port > 0)
                         .then(|| format!("127.0.0.1:{port}"))
@@ -560,7 +436,8 @@ impl CommandApplication {
                 enabled,
                 mixed_port,
                 bind_address,
-            } => RuntimeQueryApplication::new(self.runtime()?)
+            } => self
+                .configuration_for_scope(scope)?
                 .set_lan_sharing(enabled, mixed_port, &bind_address)
                 .await
                 .map(|_| ()),
@@ -570,22 +447,34 @@ impl CommandApplication {
                 skip_auth_prefixes,
                 authentication_enabled,
                 credentials,
-            } => RuntimeQueryApplication::new(self.runtime()?)
+            } => self
+                .configuration_for_scope(scope)?
                 .set_lan_security(
                     &allowed_ips,
                     &disallowed_ips,
                     &skip_auth_prefixes,
-                    authentication_enabled,
-                    credentials.as_ref(),
+                    if authentication_enabled {
+                        let credentials = credentials.ok_or_else(|| {
+                            Failure::new(
+                                ErrorCode::InvalidInput,
+                                "LAN authentication requires credentials",
+                                false,
+                            )
+                        })?;
+                        infiltrator_ports::runtime_configuration::LanAuthenticationUpdate::Enabled(
+                            credentials,
+                        )
+                    } else {
+                        infiltrator_ports::runtime_configuration::LanAuthenticationUpdate::Disabled
+                    },
                 )
                 .await
                 .map(|_| ()),
-            CommandIntent::SetIpv6Routing { enabled } => {
-                RuntimeQueryApplication::new(self.runtime()?)
-                    .set_ipv6_routing(enabled)
-                    .await
-                    .map(|_| ())
-            }
+            CommandIntent::SetIpv6Routing { enabled } => self
+                .configuration_for_scope(scope)?
+                .set_ipv6_routing(enabled)
+                .await
+                .map(|_| ()),
             CommandIntent::ScanUwpApps => {
                 self.uwp_loopback()?.snapshot().await;
                 Ok(())
@@ -605,12 +494,23 @@ impl CommandApplication {
                 minify,
             } => self
                 .pac()?
-                .apply(PacRequest {
-                    enabled,
-                    bypass_domains,
-                    bypass_lan,
-                    minify,
-                })
+                .apply_scoped(
+                    scope
+                        .ok_or_else(|| {
+                            Failure::new(
+                                ErrorCode::NotReady,
+                                "PAC configuration has no validated Core scope",
+                                false,
+                            )
+                        })?
+                        .clone(),
+                    PacRequest {
+                        enabled,
+                        bypass_domains,
+                        bypass_lan,
+                        minify,
+                    },
+                )
                 .await
                 .map(|_| ()),
             CommandIntent::RefreshNetworkRoaming => {
@@ -626,13 +526,26 @@ impl CommandApplication {
             CommandIntent::RepairNetworkRoutes => {
                 self.network_roaming()?.force_repair().await.map(|_| ())
             }
+            CommandIntent::CheckVpnAuthorization => {
+                match self.vpn()?.authorization_state().await? {
+                    VpnAuthorizationState::Granted => Ok(()),
+                    VpnAuthorizationState::Required => Err(Failure::new(
+                        ErrorCode::Permission,
+                        "Android VPN authorization is required before starting the proxy",
+                        false,
+                    )),
+                }
+            }
+            CommandIntent::StartProxy
+            | CommandIntent::StopProxy
+            | CommandIntent::ResumeKernel
+            | CommandIntent::PauseKernel
+            | CommandIntent::RestartKernel => Err(Failure::unsupported(
+                "product lifecycle intents must be executed by CoreApplication",
+            )),
             CommandIntent::StartVpn => {
                 let snapshot = self.vpn()?.request_start().await?;
-                match snapshot.state {
-                    VpnSessionState::Unsupported { reason } => Err(Failure::unsupported(reason)),
-                    VpnSessionState::Failed { failure } => Err(failure),
-                    _ => Ok(()),
-                }
+                confirmed(snapshot)
             }
             CommandIntent::StopVpn => self.vpn()?.stop().await.map(|_| ()),
             CommandIntent::ResetRuleHitCounters { expected_source } => self
@@ -640,15 +553,6 @@ impl CommandApplication {
                 .clear_hits(&expected_source)
                 .await
                 .map(|_| ()),
-            CommandIntent::SimulateRuleTrace { operation, request } => {
-                let proxies = match &self.runtime {
-                    Some(runtime) => runtime.get_proxies().await.ok(),
-                    None => None,
-                };
-                self.rule_tracer()?
-                    .simulate(operation, request, proxies.as_ref())
-                    .await
-            }
             CommandIntent::ApplyTracerRuleOverride { request } => {
                 let result = self.rule_tracer()?.apply_override(&request).await;
                 match result.into_failure() {
@@ -699,12 +603,11 @@ impl CommandApplication {
                 .upgrade_geo()
                 .await
                 .map_err(|error| Failure::new(ErrorCode::Network, error.to_string(), true)),
-            // DUAL-11-14: validate the edited document and hand it to the same
-            // shared configuration use-case the profile writers use. An invalid
-            // document is a typed input error and never a silent no-op.
-            CommandIntent::ApplyRulesJsonDocument { section, json } => {
-                self.apply_rules_json_document(section, &json).await
-            }
+            CommandIntent::ApplyProfileConfiguration { request } => self
+                .configuration()?
+                .apply_profile_configuration_request(*request)
+                .await
+                .map(|_| ()),
             // DUAL-11-06: import a provider's real rules through the same
             // read/modify/write seam the other rule edits use.
             CommandIntent::UnpackRuleProvider { provider_name } => {
@@ -740,6 +643,7 @@ impl CommandApplication {
                 .ok_or_else(|| Failure::unsupported("log buffer is not composed"))?
                 .set_filter(level),
             CommandIntent::RefreshPublicIpProbe
+            | CommandIntent::SimulateRuleTrace { .. }
             | CommandIntent::RunScriptSandbox { .. }
             | CommandIntent::ClearScriptSandbox { .. }
             | CommandIntent::PrepareScriptExport { .. }
@@ -753,9 +657,18 @@ impl CommandApplication {
             | CommandIntent::StartCore
             | CommandIntent::StopCore
             | CommandIntent::RestartCore
-            | CommandIntent::ToggleIncludeSystemApps { .. }
+            | CommandIntent::StartSpeedtest { .. }
+            | CommandIntent::CancelSpeedtestRun { .. }
+            | CommandIntent::SetSpeedtestConcurrency { .. }
             | CommandIntent::ResolveConflictKeepLocal
             | CommandIntent::ResolveConflictTakeRemote => Err(unsupported()),
         }
+    }
+}
+
+fn reported_port(value: &ObservedValue<u16>) -> u16 {
+    match value {
+        ObservedValue::Unreported => 0,
+        ObservedValue::Reported(port) => *port,
     }
 }

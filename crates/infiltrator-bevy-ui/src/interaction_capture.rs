@@ -22,8 +22,12 @@ use bevy::ecs::system::SystemParam;
 use bevy::ui::UiSystems;
 use bevy::ui_widgets::Activate;
 use bevy::window::{PrimaryWindow, Window};
+use infiltrator_application::configuration_application::ConfigurationApplication;
+use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_contract::parity::FeatureId;
+use infiltrator_ports::profile_store::ProfileStore;
 use std::env;
+use std::sync::Arc;
 
 mod connections;
 mod dns_cache;
@@ -39,11 +43,13 @@ mod language;
 mod logs;
 mod logs_export;
 pub mod observation;
+mod outbound_fixture;
+mod outbound_preferences;
 mod probe_settings;
 mod protocol;
 mod proxies;
 mod proxy_inspection;
-mod proxy_mode;
+mod routing_intent;
 mod rule_list;
 mod rule_statistics;
 mod rule_trace;
@@ -80,6 +86,25 @@ pub fn selected(
     state.feature == feature && route.0 == Some(page)
 }
 
+/// Capture fixtures explicitly select the engine adapter for their Mihomo profile fixtures.
+pub(crate) fn mihomo_configuration_application(
+    store: Arc<dyn ProfileStore>,
+) -> ConfigurationApplication {
+    let profiles = ProfileApplication::new(store).with_document_codec(Arc::new(
+        mihomo_config::profile_document_codec::MihomoProfileDocumentCodec,
+    ));
+    ConfigurationApplication::from_profile_application(profiles)
+}
+
+pub(crate) fn mihomo_rule_trace_fixture()
+-> Arc<infiltrator_application::rule_trace_fixtures::RuleTraceStore> {
+    Arc::new(
+        infiltrator_application::rule_trace_fixtures::RuleTraceStore::with_document_codec(
+            Arc::new(mihomo_config::profile_document_codec::MihomoProfileDocumentCodec),
+        ),
+    )
+}
+
 pub fn supported(_feature: FeatureId) -> bool {
     true
 }
@@ -102,13 +127,13 @@ impl InteractionCapture {
         }
         if matches!(
             feature,
-            FeatureId::ShellProxyModeControl | FeatureId::ShellProxyModeAuthentication
+            FeatureId::ShellRoutingIntentControl | FeatureId::ShellRoutingIntentAuthentication
         ) {
-            proxy_mode::install(app, feature);
-            app.add_systems(Update, proxy_mode::activate);
+            routing_intent::install(app, feature);
+            app.add_systems(Update, routing_intent::activate);
             app.add_systems(
                 PostUpdate,
-                proxy_mode::observe.in_set(CaptureObservationSet),
+                routing_intent::observe.in_set(CaptureObservationSet),
             );
         }
         if matches!(
@@ -178,7 +203,10 @@ impl InteractionCapture {
         }
         if feature == FeatureId::ProxiesGroupReorder {
             group_order::install(app);
-            app.add_systems(Update, group_order::activate);
+            app.add_systems(
+                Update,
+                (group_order::initialize, group_order::activate).chain(),
+            );
             app.add_systems(
                 PostUpdate,
                 group_order::observe.in_set(CaptureObservationSet),
@@ -229,12 +257,12 @@ impl InteractionCapture {
         }
         if feature == FeatureId::ProxiesGroupExpanded {
             proxies::install(app);
-            app.add_systems(Update, proxies::activate);
+            app.add_systems(Update, (proxies::initialize, proxies::activate).chain());
             app.add_systems(PostUpdate, proxies::observe.in_set(CaptureObservationSet));
         }
         if feature == FeatureId::ProxiesSearchHighlight {
             search::install(app);
-            app.add_systems(Update, search::activate);
+            app.add_systems(Update, (search::initialize, search::activate).chain());
             app.add_systems(PostUpdate, search::observe.in_set(CaptureObservationSet));
         }
         if feature == FeatureId::ProxiesNodeDetailDrawer {
@@ -324,8 +352,8 @@ fn has_specialized_activator(feature: FeatureId) -> bool {
             | FeatureId::ConnectionsDetailsDrawer
             | FeatureId::SpeedtestDetailsModal
             | FeatureId::ShellCommandPalette
-            | FeatureId::ShellProxyModeControl
-            | FeatureId::ShellProxyModeAuthentication
+            | FeatureId::ShellRoutingIntentControl
+            | FeatureId::ShellRoutingIntentAuthentication
             | FeatureId::ProxiesCustomNodeModal
             | FeatureId::ProxiesUriImportPreview
             | FeatureId::ProxiesGroupExpanded

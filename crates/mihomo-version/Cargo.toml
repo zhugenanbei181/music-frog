@@ -20,6 +20,7 @@ url = { workspace = true }
 zip = { workspace = true }
 futures-util = { workspace = true }
 toml = { workspace = true }
+infiltrator-contract = { path = "../infiltrator-contract" }
 
 [target.'cfg(target_os = "android")'.dependencies]
 reqwest = { workspace = true, default-features = false, features = ["rustls-no-provider"] }

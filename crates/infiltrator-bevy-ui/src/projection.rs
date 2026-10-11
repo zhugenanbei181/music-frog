@@ -7,30 +7,27 @@
 //! be exercised headless against the demo fixture and, later, against the
 //! real core without a single scene change.
 //!
-//! **Honesty note:** the demo fixture and the live mihomo pump
-//! ([`crate::controller::MihomoOverviewSource`]) are both plain
+//! **Honesty note:** the capture-only demo fixture and the owner-backed
+//! product source (plus the optional capture controller source) are all plain
 //! [`OverviewSource`] implementations behind the same seam. Which one a
 //! projection came from is typed data — [`OverviewOrigin`] — so pages can
-//! stay honest about what feeds them (the demo banner says 演示数据, a live
-//! core names its real version, and the stop button only exists where a
-//! demo source supplies it).
+//! stay honest about what feeds them (the demo banner says 演示数据, the
+//! product source names the real core version it observed, and fixture-only
+//! controls stay out of product builds).
 //!
 //! The typed **success / failure / unavailable tri-state** required by
-//! docs/FRONTENDS.md lives in [`OverviewState`]: `Running` and `Stopped`
+//! crates/infiltrator-contract/docs/UI_PARITY_AUDIT.md lives in [`OverviewState`]: `Running` and `Stopped`
 //! are successful reads of a reachable core, `Unavailable` carries a
 //! human-readable [`OverviewProjection::failure`] reason. A projection
 //! never fabricates zeros for a core it could not reach — rates and
 //! connection counts are only meaningful in a successful state.
 
-use infiltrator_application::shell_readout_projection::observed_rate;
 use infiltrator_contract::active_exit::ActiveExitSnapshot;
-use infiltrator_contract::command::ProxyMode;
-use infiltrator_contract::error::Failure;
 use infiltrator_contract::overview_layout::OverviewLayoutSnapshot;
-use infiltrator_contract::proxy_mode::ProxyModeSnapshot;
 use infiltrator_contract::public_ip::PublicIpProbeSnapshot;
 use infiltrator_contract::reconnect_mask::ReconnectMaskSnapshot;
 use infiltrator_contract::responsive_viewport::ResponsiveViewportSnapshot;
+use infiltrator_contract::routing_intent::RoutingIntentSnapshot;
 use infiltrator_contract::shell_readout::ShellReadoutSnapshot;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::speedtest::SpeedtestSnapshot;
@@ -39,9 +36,12 @@ use infiltrator_contract::system_toggle::SystemToggleSnapshot;
 use infiltrator_contract::traffic_scale::TrafficScaleSnapshot;
 use infiltrator_contract::traffic_topology::TrafficTopologySnapshot;
 use infiltrator_contract::traffic_waveform::TrafficWaveformSnapshot;
+#[cfg(any(feature = "capture-tools", test))]
+use infiltrator_presentation::shell_readout::observed_rate;
+#[cfg(any(feature = "capture-tools", test))]
 use std::sync::Arc;
+#[cfg(any(feature = "capture-tools", test))]
 use std::sync::atomic::{AtomicU8, Ordering};
-use std::sync::mpsc::Sender;
 use std::time::Duration;
 
 /// The typed tri-state of an Overview read (FRONTENDS matrix: success /
@@ -60,25 +60,24 @@ pub enum OverviewState {
 
 /// Where a projection came from. Typed, not inferred: a page can only stay
 /// honest about "演示数据" vs a live core when the source declares itself.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum OverviewOrigin {
     /// The bundled demo fixture — nothing here touched a real core.
-    #[default]
+    #[cfg(any(feature = "capture-tools", test))]
     Demo,
-    /// The live mihomo controller pump sampled a real core.
+    /// The owner-backed product surface sampled a real core.
     LiveCore,
 }
 
 /// Which kind of [`OverviewSource`] is mounted behind the page. Known at
-/// plugin-assembly time (BEVY-005: the launcher picks the demo fixture or
-/// the live pump) and constant for the source's lifetime — chrome like the
+/// plugin-assembly time and constant for the source's lifetime — chrome like the
 /// sidebar foot reads it instead of sniffing individual projections.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SourceKind {
     /// The bundled demo fixture.
-    #[default]
+    #[cfg(any(feature = "capture-tools", test))]
     Demo,
-    /// The live mihomo controller pump.
+    /// The owner-backed product surface.
     LiveCore,
 }
 
@@ -106,11 +105,11 @@ pub struct OverviewProjection {
     /// Why the core is unavailable — `Some` exactly when
     /// [`OverviewState::Unavailable`], `None` otherwise.
     pub failure: Option<String>,
-    /// Which source produced this snapshot (BEVY-005: the demo fixture vs
-    /// the live mihomo controller pump).
+    /// Which source produced this snapshot (capture fixture vs owner-backed
+    /// product surface).
     pub origin: OverviewOrigin,
     /// The core's self-reported version string (`GET /version`), once the
-    /// live pump has read it. The demo fixture carries `None`; the banner
+    /// product owner has read it. The demo fixture carries `None`; the banner
     /// shows the real version only when a real core reported one.
     pub core_version: Option<String>,
     /// Application-owned live samples used by the shared waveform renderer.
@@ -129,9 +128,9 @@ pub struct OverviewProjection {
     pub subscription_quota: SubscriptionQuotaSnapshot,
     /// Shared system proxy/TUN state used by Overview master controls.
     pub system_toggles: SystemToggleSnapshot,
-    /// Shared proxy mode snapshot used by Overview mode segment controls.
-    pub proxy_mode: ProxyModeSnapshot,
-    /// Shared speedtest engine read model driving the Overview speedtest button.
+    /// Shared routing intent snapshot used by Overview policy controls.
+    pub routing_intent: RoutingIntentSnapshot,
+    /// Core-owned speedtest snapshot driving the Overview speedtest button.
     pub speedtest: SpeedtestSnapshot,
     /// CPU utilization percentage, if observed.
     pub cpu_percent: Option<f32>,
@@ -166,7 +165,7 @@ impl OverviewProjection {
             viewport: Default::default(),
             subscription_quota: Default::default(),
             system_toggles: Default::default(),
-            proxy_mode: Default::default(),
+            routing_intent: Default::default(),
             speedtest: Default::default(),
             cpu_percent: None,
             total_traffic_bytes: None,
@@ -174,75 +173,54 @@ impl OverviewProjection {
     }
 }
 
-/// Where the Overview page reads its projection from. The shell holds one
-/// boxed implementation as a resource; tests inject their own. Two access
-/// paths, one trait:
-///
-/// - [`OverviewSource::current`] — the pull path. Cheap, side-effect free:
-///   the last known snapshot (the demo fixture computes it, the live pump
-///   hands back what its background thread last stored).
-/// - [`OverviewSource::set_mode`] — the command path (BEVY-005 mode
-///   switching). Send-only: the implementation may apply the command
-///   synchronously (demo fixture) or forward it to a background thread
-///   (live pump); either way the typed receipt rides the caller's
-///   `std::sync::mpsc` channel. The default implementation refuses, so
-///   read-only sources stay one-method traits.
+/// Where the Overview page reads its projection from. Commands use the
+/// shared command sink; this trait only supplies a read projection.
 pub trait OverviewSource: Send + Sync {
     /// The current snapshot. Cheap and side-effect free.
     fn current(&self) -> OverviewProjection;
 
     /// Which kind of source this is — constant for the implementation's
-    /// lifetime (the demo fixture default; the live pump overrides it).
+    /// lifetime. Product sources report LiveCore; capture sources report Demo.
     /// Chrome that must reflect the data source reads this, not probes.
-    fn kind(&self) -> SourceKind {
-        SourceKind::Demo
-    }
-
-    /// Request a proxy-mode switch. The implementation sends exactly one
-    /// receipt on `ack`: `Ok(())` once the mode is applied (the next
-    /// [`OverviewProjection`] read reflects it or will shortly), or
-    /// `Err(reason)` when the core refused / the command could not be
-    /// delivered. Dropping `ack` without sending is a bug — the UI's
-    /// in-flight latch would never clear.
-    fn set_mode(&self, _mode: ProxyMode, ack: Sender<Result<ProxyMode, Failure>>) {
-        let _ = ack.send(Err(Failure::unsupported(
-            "This data source cannot switch proxy mode",
-        )));
-    }
+    fn kind(&self) -> SourceKind;
 }
 
-/// The demo fixture source: fixed, believable numbers in the spirit of
+/// The capture-only demo fixture source: fixed, believable numbers in the spirit of
 /// the iced demo fixtures (isolated from any real transport — nothing in
-/// this type can touch the network). State and mode live in atomics (Arc
-/// because this toolchain's `Atomic<u8>` is not `Clone`) so `set_mode` can
-/// flip the fixture through the shared `&self` seam; the state is
-/// switchable so tests can exercise all three projections of the tri-state
-/// through the same seam the real source plugs into.
+/// this type can touch the network). The state is switchable so tests can
+/// exercise all three projections of the tri-state through the same seam the
+/// real source plugs into.
+#[cfg(any(feature = "capture-tools", test))]
 #[derive(Clone, Debug)]
 pub struct DemoOverviewSource {
     state: Arc<AtomicU8>,
-    mode: Arc<AtomicU8>,
 }
 
 /// Uplink fixture: ~1.4 MiB/s.
+#[cfg(any(feature = "capture-tools", test))]
 const DEMO_UPLOAD_BPS: f64 = 1_468_006.3;
 /// Downlink fixture: ~8.6 MiB/s.
+#[cfg(any(feature = "capture-tools", test))]
 const DEMO_DOWNLOAD_BPS: f64 = 9_018_431.5;
 /// Connection fixture: a believable idle-plus-browsing count.
+#[cfg(any(feature = "capture-tools", test))]
 const DEMO_CONNECTIONS: u32 = 12;
 /// Memory fixture: 96 MiB — a plausible mihomo RSS on a small box.
+#[cfg(any(feature = "capture-tools", test))]
 const DEMO_MEMORY_BYTES: u64 = 96 * 1024 * 1024;
 /// Sample fixture: 42 s into the source's (fake) clock.
+#[cfg(any(feature = "capture-tools", test))]
 const DEMO_SAMPLE: Duration = Duration::from_secs(42);
 /// Why the demo core is unavailable when it is.
+#[cfg(any(feature = "capture-tools", test))]
 const DEMO_UNAVAILABLE_REASON: &str = "demo: external controller unreachable (connection refused)";
 
+#[cfg(any(feature = "capture-tools", test))]
 impl DemoOverviewSource {
     /// The default fixture: a running core with live-looking traffic.
     pub fn running() -> Self {
         Self {
             state: Arc::new(AtomicU8::new(OverviewState::Running as u8)),
-            mode: Arc::new(AtomicU8::new(ProxyMode::default().to_index())),
         }
     }
 
@@ -250,7 +228,6 @@ impl DemoOverviewSource {
     pub fn stopped() -> Self {
         Self {
             state: Arc::new(AtomicU8::new(OverviewState::Stopped as u8)),
-            mode: Arc::new(AtomicU8::new(ProxyMode::default().to_index())),
         }
     }
 
@@ -258,7 +235,6 @@ impl DemoOverviewSource {
     pub fn unavailable() -> Self {
         Self {
             state: Arc::new(AtomicU8::new(OverviewState::Unavailable as u8)),
-            mode: Arc::new(AtomicU8::new(ProxyMode::default().to_index())),
         }
     }
 
@@ -277,11 +253,37 @@ impl DemoOverviewSource {
     }
 }
 
+#[cfg(any(feature = "capture-tools", test))]
 impl OverviewSource for DemoOverviewSource {
     fn current(&self) -> OverviewProjection {
         let state = self.state_value();
-        let mode = ProxyMode::from_index(self.mode.load(Ordering::Relaxed));
-        let live = state == OverviewState::Running;
+        let (
+            upload_bps,
+            download_bps,
+            active_connections,
+            memory_bytes,
+            cpu_percent,
+            total_traffic_bytes,
+        ) = match state {
+            OverviewState::Running => (
+                DEMO_UPLOAD_BPS,
+                DEMO_DOWNLOAD_BPS,
+                DEMO_CONNECTIONS,
+                Some(DEMO_MEMORY_BYTES),
+                Some(2.4),
+                Some(1024 * 1024 * 1024 * 12 + 1024 * 1024 * 512),
+            ),
+            OverviewState::Stopped | OverviewState::Unavailable => (0.0, 0.0, 0, None, None, None),
+        };
+        let (upload_observation, download_observation) = match state {
+            OverviewState::Running => (
+                observed_rate(Some(upload_bps)),
+                observed_rate(Some(download_bps)),
+            ),
+            OverviewState::Stopped | OverviewState::Unavailable => {
+                (observed_rate(None), observed_rate(None))
+            }
+        };
         OverviewProjection {
             lifecycle: match state {
                 OverviewState::Running => CoreLifecycle::Running,
@@ -289,15 +291,15 @@ impl OverviewSource for DemoOverviewSource {
                 OverviewState::Unavailable => CoreLifecycle::Failed,
             },
             readout: ShellReadoutSnapshot {
-                upload_bps: observed_rate(live.then_some(DEMO_UPLOAD_BPS)),
-                download_bps: observed_rate(live.then_some(DEMO_DOWNLOAD_BPS)),
+                upload_bps: upload_observation,
+                download_bps: download_observation,
                 ..Default::default()
             },
             state,
-            upload_bps: if live { DEMO_UPLOAD_BPS } else { 0.0 },
-            download_bps: if live { DEMO_DOWNLOAD_BPS } else { 0.0 },
-            active_connections: if live { DEMO_CONNECTIONS } else { 0 },
-            memory_bytes: live.then_some(DEMO_MEMORY_BYTES),
+            upload_bps,
+            download_bps,
+            active_connections,
+            memory_bytes,
             sampled_at: DEMO_SAMPLE,
             failure: match state {
                 OverviewState::Unavailable => Some(DEMO_UNAVAILABLE_REASON.to_string()),
@@ -315,21 +317,14 @@ impl OverviewSource for DemoOverviewSource {
             viewport: Default::default(),
             subscription_quota: SubscriptionQuotaSnapshot::demo_fixture(),
             system_toggles: SystemToggleSnapshot::from_legacy(true, Some(false), 1),
-            proxy_mode: ProxyModeSnapshot {
-                current: Some(mode),
-                ..ProxyModeSnapshot::demo_fixture()
-            },
+            routing_intent: RoutingIntentSnapshot::demo_fixture(),
             speedtest: SpeedtestSnapshot::demo_fixture(),
-            cpu_percent: live.then_some(2.4),
-            total_traffic_bytes: live.then_some(1024 * 1024 * 1024 * 12 + 1024 * 1024 * 512),
+            cpu_percent,
+            total_traffic_bytes,
         }
     }
 
-    /// Flip the fixture's mode and acknowledge immediately — the demo has
-    /// no controller to refuse, so the receipt is always `Ok` and the very
-    /// next [`OverviewSource::current`] read reports the new mode.
-    fn set_mode(&self, mode: ProxyMode, ack: Sender<Result<ProxyMode, Failure>>) {
-        self.mode.store(mode.to_index(), Ordering::Relaxed);
-        let _ = ack.send(Ok(mode));
+    fn kind(&self) -> SourceKind {
+        SourceKind::Demo
     }
 }

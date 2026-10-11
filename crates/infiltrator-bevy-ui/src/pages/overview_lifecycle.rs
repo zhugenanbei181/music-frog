@@ -14,14 +14,13 @@ use bevy::ecs::system::{Query, Res, ResMut};
 use bevy::scene::{Scene, bsn};
 use bevy::text::TextColor;
 use bevy::ui::widget::Text;
-use bevy::ui::{
-    BackgroundColor, BorderRadius, Display, FlexDirection, Node, UiRect, Val, percent, px,
-};
+use bevy::ui::{BackgroundColor, BorderRadius, Display, FlexDirection, Node, UiRect, percent, px};
 use bevy::ui_widgets::{Activate, Button};
 use infiltrator_application::core_control_projection::project_core_control;
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::capability::{Availability, Capability};
@@ -39,18 +38,24 @@ pub struct CoreControlIssue;
 #[derive(Component, Clone, Copy, Debug, Default)]
 pub struct CoreControlIssueText;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PendingCoreControl {
     pub request_id: RequestId,
     pub action: CoreControlAction,
     pub generation: u64,
     pub revision: u64,
-    pub completed: bool,
 }
-#[derive(Resource, Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub enum CoreControlPhase {
+    #[default]
+    Idle,
+    AwaitingResult(PendingCoreControl),
+    AwaitingSnapshot(PendingCoreControl),
+    Failed(Failure),
+}
+#[derive(Resource, Clone, Debug, Default, PartialEq, Eq)]
 pub struct CoreControlState {
-    pub pending: Option<PendingCoreControl>,
-    pub failure: Option<Failure>,
+    pub phase: CoreControlPhase,
 }
 
 fn availability(snapshot: &LatestSurfaceSnapshot) -> Option<&Availability> {
@@ -71,25 +76,25 @@ fn projection(
     if !has_sink {
         return project_core_control(core, None, false, None);
     }
-    project_core_control(
-        core,
-        availability(snapshot),
-        state.pending.is_some(),
-        state.failure.as_ref(),
-    )
+    let (pending, failure) = match &state.phase {
+        CoreControlPhase::Idle => (false, None),
+        CoreControlPhase::AwaitingResult(_) | CoreControlPhase::AwaitingSnapshot(_) => (true, None),
+        CoreControlPhase::Failed(failure) => (false, Some(failure)),
+    };
+    project_core_control(core, availability(snapshot), pending, failure)
 }
 
 pub fn core_control_scene(palette: &UiPalette) -> impl Scene + use<> {
     bsn! {
-        Node { min_width: px(0.0), max_width: px(320.0), flex_direction: FlexDirection::Column, row_gap: px(space::S4) }
+        Node { min_width: px(0.0), max_width: rem(320.0), flex_direction: FlexDirection::Column, row_gap: rem(space::S4) }
         Children [
             Node {
-                min_height: px(palette.control_height_px), padding: UiRect::horizontal(Val::Px(space::S12)),
-                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                min_height: rem(palette.control_height_px), padding: UiRect::horizontal(rem(space::S12)),
+                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
             }
             BackgroundColor({ palette.accent })
             CoreControlButton Button ButtonDisabled(true)
-            Children [ LocalizedText::plain("start_proxy") CoreControlCaption TextRole(Role::BodyStrong) ]
+            Children [ LocalizedText::plain("start_core") CoreControlCaption TextRole(Role::BodyStrong) ]
             --
             Node { width: percent(100), min_width: px(0.0), display: Display::None }
             CoreControlIssue
@@ -100,19 +105,18 @@ pub fn core_control_scene(palette: &UiPalette) -> impl Scene + use<> {
 
 fn on_core_control_activated(
     activated: On<Activate>,
-    buttons: Query<&ButtonDisabled>,
     controls: Query<&CoreControlButton>,
     core: Res<LatestCoreLifecycle>,
     snapshot: Res<LatestSurfaceSnapshot>,
     mut state: ResMut<CoreControlState>,
     sink: Option<Res<CommandSinkHandle>>,
 ) {
-    if !controls.contains(activated.entity)
-        || buttons
-            .get(activated.entity)
-            .is_ok_and(|disabled| disabled.0)
-    {
+    if !controls.contains(activated.entity) {
         return;
+    }
+    match &state.phase {
+        CoreControlPhase::AwaitingResult(_) | CoreControlPhase::AwaitingSnapshot(_) => return,
+        CoreControlPhase::Idle | CoreControlPhase::Failed(_) => {}
     }
     let Some(sink) = sink else {
         return;
@@ -125,25 +129,26 @@ fn on_core_control_activated(
         CoreControlAction::Stop => UiCommand::StopCore,
     };
     let Some(request_id) = sink.submit_tracked(command) else {
-        state.failure = Some(Failure::new(
+        state.phase = CoreControlPhase::Failed(Failure::new(
             ErrorCode::NotReady,
             "core command sink supplies no terminal acknowledgment",
             true,
         ));
         return;
     };
-    state.failure = None;
-    state.pending = Some(PendingCoreControl {
+    state.phase = CoreControlPhase::AwaitingResult(PendingCoreControl {
         request_id,
         action,
         generation: core.0.generation,
         revision: core.0.revision,
-        completed: false,
     });
 }
 fn finish_core_control(result: On<CommandExecutedEvent>, mut state: ResMut<CoreControlState>) {
-    let Some(pending) = state.pending.as_mut() else {
-        return;
+    let pending = match &state.phase {
+        CoreControlPhase::AwaitingResult(pending) => pending.clone(),
+        CoreControlPhase::Idle
+        | CoreControlPhase::AwaitingSnapshot(_)
+        | CoreControlPhase::Failed(_) => return,
     };
     let matches_action = matches!(
         (&result.command, pending.action),
@@ -153,20 +158,18 @@ fn finish_core_control(result: On<CommandExecutedEvent>, mut state: ResMut<CoreC
     if pending.request_id != result.request_id || !matches_action {
         return;
     }
-    if result.result.is_ok() {
-        pending.completed = true;
-    } else {
-        state.failure = result.result.as_ref().err().cloned();
-        state.pending = None;
-    }
+    state.phase = match &result.result {
+        Ok(_) => CoreControlPhase::AwaitingSnapshot(pending),
+        Err(failure) => CoreControlPhase::Failed(failure.clone()),
+    };
 }
 fn reconcile_core_control(core: Res<LatestCoreLifecycle>, mut state: ResMut<CoreControlState>) {
-    let Some(pending) = &state.pending else {
-        return;
+    let pending = match &state.phase {
+        CoreControlPhase::AwaitingSnapshot(pending) => pending.clone(),
+        CoreControlPhase::Idle
+        | CoreControlPhase::AwaitingResult(_)
+        | CoreControlPhase::Failed(_) => return,
     };
-    if !pending.completed {
-        return;
-    }
     let advanced = core.0.generation > pending.generation || core.0.revision > pending.revision;
     let reached = match pending.action {
         CoreControlAction::Start => matches!(
@@ -176,10 +179,15 @@ fn reconcile_core_control(core: Res<LatestCoreLifecycle>, mut state: ResMut<Core
         CoreControlAction::Stop => core.0.lifecycle == CoreLifecycle::Stopped,
     };
     if advanced && core.0.lifecycle == CoreLifecycle::Failed {
-        state.failure = core.0.failure.clone();
-        state.pending = None;
+        state.phase = CoreControlPhase::Failed(core.0.failure.clone().unwrap_or_else(|| {
+            Failure::new(
+                ErrorCode::InvalidState,
+                "core lifecycle failed without a reported failure",
+                true,
+            )
+        }));
     } else if advanced && reached {
-        state.pending = None;
+        state.phase = CoreControlPhase::Idle;
     }
 }
 

@@ -1,11 +1,9 @@
 //! Transport adapter selection; all rate and peak semantics are folded by application.
 use crate::state::AppState;
-use infiltrator_application::shell_readout_projection::observed_rate;
-use infiltrator_application::traffic_readout_projection::{
-    TrafficReadout, project_traffic_readout,
-};
 use infiltrator_contract::shell_readout::ShellReadoutSnapshot;
 use infiltrator_contract::traffic_waveform::{TrafficSample, TrafficWaveformSnapshot};
+use infiltrator_presentation::shell_readout::observed_rate;
+use infiltrator_presentation::traffic_readout::{TrafficReadout, project_traffic_readout};
 impl AppState {
     pub(crate) fn traffic_readout(&self) -> TrafficReadout {
         if self.commands.is_some() || self.surface.latest().is_some() {

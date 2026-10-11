@@ -1,6 +1,4 @@
 <resources>
-    <string name="app_name">MusicFrog Infiltrator</string>
-
     <!-- Navigation -->
     <string name="nav_overview">Overview</string>
     <string name="nav_profiles">Profiles</string>
@@ -18,19 +16,13 @@
     <string name="status_stopped">Stopped</string>
     <string name="status_active">Active</string>
     <string name="status_idle">Idle</string>
+    <string name="status_unknown">Unknown</string>
     <string name="action_grant_permission">Grant permission</string>
     <string name="action_start">Start</string>
     <string name="action_stop">Stop</string>
     <string name="action_restart">Restart</string>
     <string name="action_refresh_ip">Refresh IP</string>
     
-    <string name="status_proxy_mode">Proxy Mode</string>
-    <string name="action_change_mode">Change Mode</string>
-    <string name="mode_rule">Rule</string>
-    <string name="mode_global">Global</string>
-    <string name="mode_direct">Direct</string>
-    <string name="mode_script">Script</string>
-
     <string name="card_traffic">Traffic</string>
     <string name="card_network_diagnostics">Network Diagnostics</string>
     <string name="label_upload">Upload</string>
@@ -72,8 +64,6 @@
     <string name="error_load_profiles">Failed to load profiles</string>
 
     <!-- Proxies -->
-    <string name="text_proxy_group_none">None</string>
-    <string name="text_empty_proxies">No proxy groups found</string>
 
     <!-- Settings Main -->
     <string name="setting_battery_title">Battery Optimization</string>
@@ -104,6 +94,8 @@
     <string name="routing_mode_proxy_all">Proxy All Apps</string>
     <string name="routing_mode_proxy_selected">Proxy Selected (Allowlist)</string>
     <string name="routing_mode_bypass_selected">Bypass Selected (Blocklist)</string>
+    <string name="routing_mode_unavailable">Routing state unavailable</string>
+    <string name="action_retry">Retry</string>
     <string name="search_apps_hint">Search Apps</string>
     <string name="tab_user_apps">User Apps</string>
     <string name="tab_system_apps">System Apps</string>
@@ -134,6 +126,7 @@
     <string name="action_disconnect">Disconnect</string>
     <string name="action_close_all">Close All</string>
     <string name="text_saved">Settings Saved</string>
+    <string name="setting_not_explicit">Using Mihomo default</string>
 
     <!-- Connections -->
     <string name="label_host_filter">Host Filter</string>
@@ -149,6 +142,9 @@
     <string name="dns_enable_desc">Enable internal DNS server</string>
     <string name="label_enhanced_mode">Enhanced Mode</string>
     <string name="desc_enhanced_mode">fake-ip / redir-host</string>
+    <string name="enhanced_mode_disabled">Disabled</string>
+    <string name="enhanced_mode_fake_ip">Fake-IP</string>
+    <string name="enhanced_mode_redir_host">Redir-Host</string>
     <string name="option_auto">Auto</string>
     <string name="option_enabled">Enabled</string>
     <string name="option_disabled">Disabled</string>
@@ -166,10 +162,13 @@
     <string name="fakeip_store">Store Fake-IP</string>
     <string name="fakeip_store_desc">Persist Fake-IP pool to disk</string>
     <string name="label_fakeip_range">Fake-IP Range</string>
+    <string name="fakeip_default_range">Mihomo default (198.18.0.1/16)</string>
     <string name="desc_cidr">CIDR notation (e.g., 198.18.0.1/16)</string>
     <string name="label_fakeip_filter">Fake-IP Filter</string>
     <string name="desc_fakeip_filter">Domains to exclude from Fake-IP (one per line)</string>
-    <string name="action_clear_cache">Clear Fake-IP Cache</string>
+    <string name="action_clear_host_fakeip_file_cache">Clear host Fake-IP file cache</string>
+    <string name="fakeip_host_cache_cleared">Host Fake-IP file cache cleared</string>
+    <string name="fakeip_host_cache_already_empty">Host Fake-IP file cache was already empty</string>
 
     <!-- Rules Settings -->
     <string name="rules_settings_title">Rules</string>
@@ -177,6 +176,9 @@
     <string name="label_new_rule">Rule (e.g., DOMAIN-SUFFIX,google.com,Proxy)</string>
     <string name="section_active_rules">Active Rules</string>
     <string name="text_no_rules">No rules configured</string>
+    <string name="text_rules_unavailable">Rule data is not available. Reload to try again.</string>
+    <string name="text_rule_providers_unavailable">Rule provider data is not available. Reload to try again.</string>
+    <string name="text_save_before_reload">Save your changes before reloading.</string>
     <string name="action_remove">Remove</string>
     <string name="action_save_rules">Save Rules</string>
     <string name="section_providers">Rule Providers</string>
@@ -199,6 +201,8 @@
     <string name="notification_title">MusicFrog Infiltrator VPN</string>
     <string name="notification_starting">Starting...</string>
     <string name="notification_active">Protection Active</string>
+    <string name="notification_permission_denied">Notifications are off. The proxy can still run, but its status notification may be hidden.</string>
+    <string name="notification_permission_prompt_failed">Could not request notification permission. The proxy will still start, but its status notification may be hidden.</string>
 
     <!-- Sync / WebDAV -->
     <string name="title_webdav_sync">WebDAV Sync</string>
@@ -212,4 +216,61 @@
     <string name="action_sync_now">Sync Now</string>
     <string name="text_sync_saved">Saved</string>
     <string name="text_sync_loading">Loading...</string>
+    <string name="text_sync_connection_tested">Connection test succeeded.</string>
+    <string name="text_sync_summary">Sync actions: %1$s/%2$s succeeded; %3$s failed.</string>
+    <string name="failure_invalid_input">Invalid input.</string>
+    <string name="failure_invalid_state">This operation is not valid in the current state.</string>
+    <string name="failure_not_ready">The operation is not ready.</string>
+    <string name="failure_unsupported">This operation is not supported.</string>
+    <string name="failure_network">A network operation failed.</string>
+    <string name="failure_authentication">Authentication failed.</string>
+    <string name="failure_sync">Synchronization failed.</string>
+    <string name="failure_configuration">Configuration is invalid.</string>
+    <string name="failure_storage">A storage operation failed.</string>
+    <string name="failure_permission">Permission was denied.</string>
+    <string name="failure_canceled">The operation was canceled.</string>
+    <string name="failure_internal">An internal operation failed.</string>
+    <string name="failure_yaml_syntax">YAML syntax error at line %1$s, column %2$s.</string>
+    <string name="failure_mixin_yaml">The mixin override is not valid YAML.</string>
+    <string name="failure_active_profile_inconsistent">The active profile observation is inconsistent.</string>
+    <string name="failure_quota_source_changed">The subscription changed during quota observation.</string>
+    <string name="failure_current_time_unavailable">The current time is unavailable.</string>
+    <string name="download_canceled">Download canceled.</string>
+    <string name="failure_diagnostic_detail">Diagnostic detail: %1$s</string>
+    <string name="empty_profiles">No profiles available.</string>
+    <string name="empty_outbounds">No outbound nodes available.</string>
+    <string name="error_title">Error</string>
+    <string name="action_ok">OK</string>
+    <string name="failure_sync_interval_invalid">Enter a valid synchronization interval in minutes.</string>
+    <string name="failure_tun_mtu_invalid">Enter a positive MTU value.</string>
+    <string name="failure_tun_mtu_zero">MTU must be greater than zero.</string>
+    <string name="failure_rule_empty">Enter a rule before adding it.</string>
+    <string name="owner_outbound_inventory_unknown">Outbound inventory has not been observed.</string>
+    <string name="owner_outbound_inventory_unsupported">Outbound inventory is not supported by this core.</string>
+    <string name="owner_outbound_details_loading">Loading outbound details.</string>
+    <string name="owner_outbound_details_unknown">Outbound details have not been observed.</string>
+    <string name="empty_outbound_details">No outbound details available.</string>
+    <string name="owner_outbound_details_unsupported">Outbound details are not supported by this core.</string>
+    <string name="owner_outbound_preferences_loading">Loading outbound preferences.</string>
+    <string name="owner_outbound_details_not_observed">Outbound details have not been observed yet.</string>
+    <string name="owner_value_unknown">Unknown</string>
+    <string name="owner_value_unsupported">Unsupported</string>
+    <string name="empty_latency_samples">No latency samples available.</string>
+    <string name="empty_egress_samples">No egress samples available.</string>
+    <string name="owner_probe_availability_unknown">Probe availability is unknown.</string>
+    <string name="owner_probe_unsupported">Probing is not supported for this outbound.</string>
+    <string name="owner_probe_capability_unknown">Probe capability is not available yet.</string>
+    <string name="owner_probe_available">Probe is available.</string>
+    <string name="owner_probe_timed_out">Probe timed out.</string>
+    <string name="owner_probe_working">Probe in progress.</string>
+    <string name="owner_selection_unknown">Selection state is unknown.</string>
+    <string name="empty_outbound_selection">No outbound selected.</string>
+    <string name="owner_selection_unsupported">Selection is not supported.</string>
+    <string name="owner_selection_read_only">Read only.</string>
+    <string name="owner_selection_automatic">Automatic selection.</string>
+    <string name="owner_selection_capability_unknown">Selection capability is unknown.</string>
+    <string name="owner_health_healthy">Healthy</string>
+    <string name="owner_health_unhealthy">Unhealthy</string>
+    <string name="owner_outbound_selected">Selected: %1$s</string>
+    <string name="owner_outbound_preferences_unavailable">Outbound preferences are not available from the owner.</string>
 </resources>

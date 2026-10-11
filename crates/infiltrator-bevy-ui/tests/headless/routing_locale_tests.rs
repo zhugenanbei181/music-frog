@@ -13,6 +13,7 @@ use infiltrator_bevy_ui::pages::app_routing::{
 };
 use infiltrator_bevy_ui::route::{Route, RouteChanged};
 use infiltrator_bevy_widgets::localization::UiLocale;
+use infiltrator_contract::app_routing::AppRoutingRule;
 use infiltrator_domain::app_routing::AppRoutingMode;
 use std::sync::Arc;
 
@@ -84,7 +85,7 @@ fn native_routing_copy_matches_domain_policy_and_keeps_raw_identity_and_command_
         sink.submitted(),
         vec![UiCommand::SetAppRule {
             app_id: "app-1".into(),
-            rule: "Direct".into()
+            rule: AppRoutingRule::Direct,
         }]
     );
     let policy = rows.iter().find(|(_, kind)| *kind == 3).unwrap().0;

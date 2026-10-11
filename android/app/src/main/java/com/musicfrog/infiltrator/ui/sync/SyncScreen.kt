@@ -2,6 +2,7 @@ package com.musicfrog.infiltrator.ui.sync
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -9,13 +10,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -32,90 +33,110 @@ import com.musicfrog.infiltrator.ui.common.ErrorDialog
 fun SyncScreen() {
     val viewModel = remember { SyncViewModel() }
     val state by viewModel.state.collectAsState()
+    val form = state.settings.displayForm()
+    val draft = form?.draft ?: SyncSettingsDraft(
+        enabled = false,
+        url = "",
+        username = "",
+        password = "",
+        intervalMinutes = "60",
+        syncOnStartup = false,
+    )
+    val inputEnabled = state.inputAvailability() == SyncInputAvailability.Enabled
+    val reloadEnabled = state.requestAvailability() == SyncRequestAvailability.Available
 
-    androidx.compose.foundation.lazy.LazyColumn(
+    LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item {
             Text(text = stringResource(R.string.title_webdav_sync), style = MaterialTheme.typography.titleLarge)
         }
 
-        if (state.isLoading) {
-            item {
+        when (state.screenActivity()) {
+            SyncScreenActivity.Loading,
+            SyncScreenActivity.Busy -> item {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     CircularProgressIndicator(modifier = Modifier.height(20.dp))
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(text = stringResource(R.string.text_sync_loading))
                 }
             }
+            SyncScreenActivity.Ready,
+            SyncScreenActivity.Unavailable -> Unit
         }
 
-        if (state.error != null) {
-            item {
-                ErrorDialog(
-                    message = state.error ?: "",
-                    onDismiss = { viewModel.clearError() }
-                )
+        when (val action = state.action) {
+            is SyncActionState.Failed -> item {
+                ErrorDialog(failure = action.failure, onDismiss = viewModel::clearError)
             }
+            is SyncActionState.Cancelled -> item {
+                ErrorDialog(failure = action.failure, onDismiss = viewModel::clearError)
+            }
+            is SyncActionState.TimedOut -> item {
+                ErrorDialog(failure = action.failure, onDismiss = viewModel::clearError)
+            }
+            is SyncActionState.Unconfirmed -> item {
+                ErrorDialog(failure = action.failure, onDismiss = viewModel::clearError)
+            }
+            SyncActionState.Idle,
+            is SyncActionState.Working,
+            SyncActionState.Saved,
+            SyncActionState.ConnectionTested,
+            is SyncActionState.Synchronized -> Unit
         }
 
         item {
             androidx.compose.material3.ElevatedCard(
-                 colors = androidx.compose.material3.CardDefaults.elevatedCardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-                )
+                colors = androidx.compose.material3.CardDefaults.elevatedCardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                ),
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     ToggleRow(
                         title = stringResource(R.string.label_enable_webdav),
-                        checked = state.enabled,
-                        onCheckedChange = { viewModel.updateEnabled(it) },
-                        enabled = !state.isLoading
+                        checked = draft.enabled,
+                        onCheckedChange = viewModel::updateEnabled,
+                        enabled = inputEnabled,
                     )
-
                     OutlinedTextField(
-                        value = state.url,
-                        onValueChange = { viewModel.updateUrl(it) },
+                        value = draft.url,
+                        onValueChange = viewModel::updateUrl,
                         label = { Text(stringResource(R.string.label_webdav_url)) },
                         modifier = Modifier.fillMaxWidth(),
-                        enabled = !state.isLoading
+                        enabled = inputEnabled,
                     )
-
                     OutlinedTextField(
-                        value = state.username,
-                        onValueChange = { viewModel.updateUsername(it) },
+                        value = draft.username,
+                        onValueChange = viewModel::updateUsername,
                         label = { Text(stringResource(R.string.label_username)) },
                         modifier = Modifier.fillMaxWidth(),
-                        enabled = !state.isLoading
+                        enabled = inputEnabled,
                     )
-
                     OutlinedTextField(
-                        value = state.password,
-                        onValueChange = { viewModel.updatePassword(it) },
+                        value = draft.password,
+                        onValueChange = viewModel::updatePassword,
                         label = { Text(stringResource(R.string.label_password)) },
                         modifier = Modifier.fillMaxWidth(),
-                        enabled = !state.isLoading,
-                        visualTransformation = PasswordVisualTransformation()
+                        enabled = inputEnabled,
+                        visualTransformation = PasswordVisualTransformation(),
                     )
-
                     OutlinedTextField(
-                        value = state.syncInterval,
-                        onValueChange = { viewModel.updateSyncInterval(it) },
+                        value = draft.intervalMinutes,
+                        onValueChange = viewModel::updateSyncInterval,
                         label = { Text(stringResource(R.string.label_sync_interval)) },
                         modifier = Modifier.fillMaxWidth(),
-                        enabled = !state.isLoading
+                        enabled = inputEnabled,
                     )
-
                     ToggleRow(
                         title = stringResource(R.string.label_sync_on_startup),
-                        checked = state.syncOnStartup,
-                        onCheckedChange = { viewModel.updateSyncOnStartup(it) },
-                        enabled = !state.isLoading
+                        checked = draft.syncOnStartup,
+                        onCheckedChange = viewModel::updateSyncOnStartup,
+                        enabled = inputEnabled,
                     )
                 }
             }
@@ -124,73 +145,78 @@ fun SyncScreen() {
         item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Button(
-                    onClick = { viewModel.save() },
-                    enabled = !state.isLoading,
-                    modifier = Modifier.weight(1f)
+                    onClick = viewModel::save,
+                    enabled = inputEnabled,
+                    modifier = Modifier.weight(1f),
                 ) {
                     Text(text = stringResource(R.string.action_save))
                 }
                 androidx.compose.material3.OutlinedButton(
-                    onClick = { viewModel.testConnection() },
-                    enabled = !state.isLoading
+                    onClick = viewModel::testConnection,
+                    enabled = inputEnabled,
                 ) {
                     Text(text = stringResource(R.string.action_test))
                 }
             }
         }
-        
+
         item {
-             Row(
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 androidx.compose.material3.FilledTonalButton(
-                    onClick = { viewModel.syncNow() },
-                    enabled = !state.isLoading,
-                    modifier = Modifier.weight(1f)
+                    onClick = viewModel::syncNow,
+                    enabled = inputEnabled,
+                    modifier = Modifier.weight(1f),
                 ) {
                     Text(text = stringResource(R.string.action_sync_now))
                 }
                 androidx.compose.material3.TextButton(
-                    onClick = { viewModel.load() },
-                    enabled = !state.isLoading
+                    onClick = viewModel::load,
+                    enabled = reloadEnabled,
                 ) {
                     Text(text = stringResource(R.string.action_reload))
                 }
             }
         }
 
-        if (state.saved) {
-            item {
+        when (val action = state.action) {
+            SyncActionState.Saved -> item {
                 Text(
                     text = stringResource(R.string.text_sync_saved),
                     color = MaterialTheme.colorScheme.primary,
-                    style = MaterialTheme.typography.bodyMedium
+                    style = MaterialTheme.typography.bodyMedium,
                 )
             }
-        }
-
-        if (state.testMessage != null) {
-            item {
+            SyncActionState.ConnectionTested -> item {
                 Text(
-                    text = state.testMessage ?: "",
+                    text = stringResource(R.string.text_sync_connection_tested),
                     color = MaterialTheme.colorScheme.primary,
-                    style = MaterialTheme.typography.bodyMedium
+                    style = MaterialTheme.typography.bodyMedium,
                 )
             }
-        }
-
-        if (state.syncSummary != null) {
-            item {
+            is SyncActionState.Synchronized -> item {
                 Text(
-                    text = state.syncSummary ?: "",
+                    text = stringResource(
+                        R.string.text_sync_summary,
+                        action.summary.successCount.toString(),
+                        action.summary.totalActions.toString(),
+                        action.summary.failedCount.toString(),
+                    ),
                     color = MaterialTheme.colorScheme.primary,
-                    style = MaterialTheme.typography.bodyMedium
+                    style = MaterialTheme.typography.bodyMedium,
                 )
             }
+            SyncActionState.Idle,
+            is SyncActionState.Working,
+            is SyncActionState.Failed,
+            is SyncActionState.Cancelled,
+            is SyncActionState.TimedOut,
+            is SyncActionState.Unconfirmed -> Unit
         }
     }
 }
@@ -200,21 +226,21 @@ private fun ToggleRow(
     title: String,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
-    enabled: Boolean
+    enabled: Boolean,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
             text = title,
             modifier = Modifier.weight(1f),
-            style = MaterialTheme.typography.bodyMedium
+            style = MaterialTheme.typography.bodyMedium,
         )
         Switch(
             checked = checked,
             onCheckedChange = onCheckedChange,
-            enabled = enabled
+            enabled = enabled,
         )
     }
 }

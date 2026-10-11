@@ -1,0 +1,489 @@
+use super::super::rules;
+use super::super::settings;
+use super::wire::{
+    android_dispatch_owner_operation_wire_json, android_execute_owner_operation, execute_operation,
+    owner_data_fence_matches, validate_owner_operation_reply,
+};
+use super::*;
+use crate::host_support::build_routing_application;
+use infiltrator_application::vpn_preparation::VpnConfigurationActivationStatus;
+use infiltrator_domain::app_routing::AppRoutingMode;
+use infiltrator_domain::app_routing::AppRoutingRule;
+use mihomo_config::manager::ConfigManager;
+use mihomo_platform::TEST_LOCK;
+use mihomo_platform::android_bridge::{
+    AndroidBridge, clear_android_bridge, get_android_bridge, set_android_bridge,
+};
+use mihomo_platform::defaults::DefaultCredentialStore;
+use mihomo_platform::paths::{clear_home_dir_override, set_home_dir_override};
+use std::collections::BTreeMap;
+use std::env::temp_dir;
+use std::fs;
+use std::path::PathBuf;
+use std::sync::Arc;
+use std::time::{SystemTime, UNIX_EPOCH};
+
+fn test_home() -> PathBuf {
+    let id = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("system clock is after epoch")
+        .as_nanos();
+    let home = temp_dir().join(format!("android-owner-operation-{id}"));
+    fs::create_dir_all(&home).expect("create owner operation test home");
+    home
+}
+
+#[test]
+fn owner_mutations_are_explicitly_busy_while_vpn_configuration_lease_is_active() {
+    let mutation = AndroidOwnerOperation::ProfileCreate {
+        name: "new-profile".to_owned(),
+        url: "https://profiles.example.test/config.yaml".to_owned(),
+    };
+
+    assert_eq!(
+        owner_operation_mutation_admission(
+            &mutation,
+            VpnConfigurationActivationStatus::BuilderAdmitted,
+        ),
+        OwnerOperationMutationAdmission::VpnConfigurationBusy,
+    );
+    assert_eq!(
+        owner_operation_mutation_admission(
+            &mutation,
+            VpnConfigurationActivationStatus::DataPlaneStarting,
+        ),
+        OwnerOperationMutationAdmission::VpnConfigurationBusy,
+    );
+    assert_eq!(
+        owner_operation_mutation_admission(
+            &AndroidOwnerOperation::ProfilesList,
+            VpnConfigurationActivationStatus::BuilderAdmitted,
+        ),
+        OwnerOperationMutationAdmission::ReadOnly,
+    );
+    assert_eq!(
+        owner_operation_mutation_admission(&mutation, VpnConfigurationActivationStatus::Available,),
+        OwnerOperationMutationAdmission::WriteAllowed,
+    );
+}
+
+#[test]
+fn busy_owner_mutation_keeps_a_typed_ipc_terminal() {
+    let result = rejected_result(
+        test_context(19),
+        7,
+        19,
+        FfiStatus::err(
+            FfiErrorCode::NotReady,
+            "VPN configuration activation holds the owner-data revision fence",
+        ),
+        AndroidOwnerOperationIpcState::VpnConfigurationBusy,
+    );
+
+    assert_eq!(
+        result.state,
+        AndroidOwnerOperationIpcState::VpnConfigurationBusy
+    );
+    assert_eq!(result.status_code, FfiErrorCode::NotReady);
+    let reply: AndroidOwnerOperationReply =
+        serde_json::from_str(&result.outcome_json).expect("typed busy owner reply JSON");
+    assert!(matches!(
+        reply.readback,
+        AndroidOwnerOperationReadback::Rejected(FfiStatus {
+            code: FfiErrorCode::NotReady,
+            ..
+        })
+    ));
+}
+
+#[tokio::test]
+async fn owner_write_reports_busy_instead_of_waiting_for_revision_fence() {
+    let _test_guard = TEST_LOCK.lock().await;
+    let _revision_fence = owner_data_revision_fence().await;
+
+    assert!(matches!(
+        try_owner_data_revision_fence(),
+        OwnerDataRevisionFenceAcquire::Busy,
+    ));
+}
+
+fn test_context(expected_data_revision: u64) -> AndroidOwnerOperationContext {
+    test_context_for_generation(0, expected_data_revision)
+}
+
+fn test_context_for_generation(
+    expected_core_generation: u64,
+    expected_data_revision: u64,
+) -> AndroidOwnerOperationContext {
+    AndroidOwnerOperationContext {
+        client_session_id: "client-test".to_owned(),
+        expected_owner_session_id: "owner-test".to_owned(),
+        owner_session_id: "owner-test".to_owned(),
+        expected_core_generation,
+        expected_data_revision,
+    }
+}
+
+#[test]
+fn vpn_routing_activation_lease_is_revision_fenced_and_typed() {
+    let mut state = AppRoutingActivationState::Available;
+    assert_eq!(
+        state.begin(6, 7, 40),
+        AndroidVpnRoutingActivationResult::Stale {
+            observed_routing_revision: 7,
+        },
+    );
+    assert_eq!(state, AppRoutingActivationState::Available);
+
+    let lease = AndroidVpnRoutingActivationLease {
+        lease_id: 41,
+        routing_revision: 7,
+    };
+    assert_eq!(
+        state.begin(7, 7, lease.lease_id),
+        AndroidVpnRoutingActivationResult::Acquired { lease },
+    );
+    assert!(state.blocks_mutations());
+    assert_eq!(
+        state.begin(7, 7, 42),
+        AndroidVpnRoutingActivationResult::Busy,
+    );
+    assert_eq!(
+        state.finish(lease.lease_id + 1),
+        AndroidVpnRoutingActivationReleaseResult::LeaseMismatch,
+    );
+    assert_eq!(
+        state.finish(lease.lease_id),
+        AndroidVpnRoutingActivationReleaseResult::Released,
+    );
+    assert!(!state.blocks_mutations());
+    assert_eq!(
+        state.finish(lease.lease_id),
+        AndroidVpnRoutingActivationReleaseResult::LeaseMissing,
+    );
+}
+
+struct TestOwnerEnvironment {
+    home: PathBuf,
+    previous_bridge: Option<Arc<dyn AndroidBridge>>,
+}
+
+impl Drop for TestOwnerEnvironment {
+    fn drop(&mut self) {
+        clear_home_dir_override();
+        let _ = fs::remove_dir_all(&self.home);
+        clear_android_bridge();
+        if let Some(bridge) = self.previous_bridge.take() {
+            set_android_bridge(bridge);
+        }
+    }
+}
+
+#[test]
+fn owner_operation_json_is_a_versioned_exhaustive_rust_enum() {
+    let request = AndroidOwnerOperationRequest {
+        protocol: AndroidOwnerOperationProtocolVersion::V3,
+        operation: AndroidOwnerOperation::ProfileSubscriptionSave {
+            name: "main".to_owned(),
+            url: "https://example.invalid/sub".to_owned(),
+            auto_update_enabled: true,
+            update_interval_hours: Some(12),
+        },
+    };
+    let encoded = serde_json::to_string(&request).expect("typed request serializes");
+    assert_eq!(
+        serde_json::from_str::<AndroidOwnerOperationRequest>(&encoded)
+            .expect("typed request decodes"),
+        request,
+    );
+    assert!(
+        serde_json::from_str::<AndroidOwnerOperationRequest>(
+            r#"{"protocol":"V3","operation":{"Unknown":{"name":"main"}}}"#,
+        )
+        .is_err()
+    );
+    assert!(
+        serde_json::from_str::<AndroidOwnerOperationRequest>(
+            r#"{"protocol":"V3","operation":"ProfilesList","action":"save"}"#,
+        )
+        .is_err()
+    );
+    assert!(
+        serde_json::from_str::<AndroidOwnerOperationRequest>(
+            r#"{"protocol":"V1","operation":"ProfilesList"}"#,
+        )
+        .is_err(),
+        "the replaced V1 operation protocol is retired",
+    );
+    assert!(
+        serde_json::from_str::<AndroidOwnerOperationRequest>(
+            r#"{"protocol":"V2","operation":"ProfilesList"}"#,
+        )
+        .is_err(),
+        "the replaced V2 operation protocol is retired",
+    );
+    let app_routing_request = AndroidOwnerOperationRequest {
+        protocol: AndroidOwnerOperationProtocolVersion::V3,
+        operation: AndroidOwnerOperation::AppRoutingPackagesSet {
+            packages: vec!["com.example.app".to_owned()],
+            selection: AndroidAppRoutingPackageSelection::Selected,
+        },
+    };
+    let app_routing_json =
+        serde_json::to_string(&app_routing_request).expect("typed app-routing request serializes");
+    assert_eq!(
+        serde_json::from_str::<AndroidOwnerOperationRequest>(&app_routing_json)
+            .expect("typed app-routing request decodes"),
+        app_routing_request,
+    );
+    let dns_request = AndroidOwnerOperationRequest {
+        protocol: AndroidOwnerOperationProtocolVersion::V3,
+        operation: AndroidOwnerOperation::DnsSettingsSave {
+            patch: settings::DnsSettingsPatch {
+                enable: Some(false),
+                ipv6: Some(true),
+                enhanced_mode: None,
+                nameserver: Some(vec!["1.1.1.1".to_owned()]),
+                default_nameserver: None,
+                fallback: None,
+                fallback_filter: None,
+            },
+        },
+    };
+    let dns_json = serde_json::to_string(&dns_request).expect("DNS DTO serializes");
+    assert_eq!(
+        serde_json::from_str::<AndroidOwnerOperationRequest>(&dns_json).expect("DNS DTO decodes"),
+        dns_request,
+    );
+    assert!(serde_json::from_str::<AndroidOwnerOperationRequest>(
+        r#"{"protocol":"V3","operation":{"DnsSettingsSave":{"patch":{"enable":true,"unknown":1}}}}"#,
+    )
+    .is_err());
+    let tun_request = AndroidOwnerOperationRequest {
+        protocol: AndroidOwnerOperationProtocolVersion::V3,
+        operation: AndroidOwnerOperation::TunSettingsSave {
+            patch: VpnTunSettingsPatch {
+                mtu: Some(1420),
+                auto_route: Some(true),
+                strict_route: Some(false),
+                stack: Some("system".to_owned()),
+                auto_detect_interface: Some(true),
+            },
+        },
+    };
+    let tun_json = serde_json::to_string(&tun_request).expect("TUN DTO serializes");
+    assert_eq!(
+        serde_json::from_str::<AndroidOwnerOperationRequest>(&tun_json)
+            .expect("typed TUN DTO decodes"),
+        tun_request,
+    );
+    assert!(serde_json::from_str::<AndroidOwnerOperationRequest>(
+        r#"{"protocol":"V3","operation":{"TunSettingsSave":{"patch":{"mtu":1420,"dns_servers":["1.1.1.1"]}}}}"#,
+    )
+    .is_err());
+    let rules_request = AndroidOwnerOperationRequest {
+        protocol: AndroidOwnerOperationProtocolVersion::V3,
+        operation: AndroidOwnerOperation::RulesSave {
+            rules: vec![AndroidRuleEntry {
+                rule: "MATCH,DIRECT".to_owned(),
+                enabled: true,
+            }],
+        },
+    };
+    let rules_json = serde_json::to_string(&rules_request).expect("typed Rules DTO serializes");
+    assert_eq!(
+        serde_json::from_str::<AndroidOwnerOperationRequest>(&rules_json)
+            .expect("typed Rules DTO decodes"),
+        rules_request,
+    );
+    assert!(serde_json::from_str::<AndroidOwnerOperationRequest>(
+        r#"{"protocol":"V3","operation":{"RulesSave":{"rules":[{"rule":"MATCH,DIRECT","enabled":true,"unexpected":1}]}}}"#,
+    )
+    .is_err());
+    assert!(serde_json::from_str::<AndroidOwnerOperationRequest>(
+        r#"{"protocol":"V3","operation":{"RuleProvidersSave":{"providers":{},"unexpected":1}}}"#,
+    )
+    .is_err());
+    let providers_request = AndroidOwnerOperationRequest {
+        protocol: AndroidOwnerOperationProtocolVersion::V3,
+        operation: AndroidOwnerOperation::RuleProvidersSave {
+            providers: vec![AndroidRuleProviderEntry {
+                name: "remote".to_owned(),
+                configuration: AndroidJsonValue::ObjectValue {
+                    value: vec![AndroidJsonEntry {
+                        key: "type".to_owned(),
+                        value: AndroidJsonValue::StringValue {
+                            value: "http".to_owned(),
+                        },
+                    }],
+                },
+            }],
+        },
+    };
+    let providers_json = serde_json::to_string(&providers_request)
+        .expect("provider operation serializes as typed JSON");
+    assert_eq!(
+        serde_json::from_str::<AndroidOwnerOperationRequest>(&providers_json)
+            .expect("provider operation decodes exhaustively"),
+        providers_request,
+    );
+    assert!(serde_json::from_str::<AndroidOwnerOperationRequest>(
+        r#"{"protocol":"V3","operation":{"RuleProvidersSave":{"providers":[{"name":"remote","configuration":{"kind":"StringValue","value":"http","extra":1}}]}}}"#,
+    )
+    .is_err());
+
+    let webdav = WebDavSettings {
+        enabled: true,
+        url: "https://dav.example.invalid".to_owned(),
+        username: "alice".to_owned(),
+        password: "secret".to_owned(),
+        sync_interval_mins: 30,
+        sync_on_startup: false,
+    };
+    for operation in [
+        AndroidOwnerOperation::WebDavSettings,
+        AndroidOwnerOperation::WebDavSettingsSave {
+            settings: webdav.clone(),
+        },
+        AndroidOwnerOperation::WebDavTest {
+            settings: webdav.clone(),
+        },
+        AndroidOwnerOperation::WebDavSyncNow,
+    ] {
+        let request = AndroidOwnerOperationRequest {
+            protocol: AndroidOwnerOperationProtocolVersion::V3,
+            operation,
+        };
+        let encoded = serde_json::to_string(&request).expect("WebDAV operation serializes");
+        assert_eq!(
+            serde_json::from_str::<AndroidOwnerOperationRequest>(&encoded)
+                .expect("WebDAV operation decodes"),
+            request,
+        );
+    }
+}
+
+#[test]
+fn read_operations_do_not_advance_the_persisted_data_revision() {
+    assert!(!AndroidOwnerOperation::ProfilesList.mutates_data());
+    assert!(
+        !AndroidOwnerOperation::ProfileDetail {
+            name: "main".to_owned()
+        }
+        .mutates_data()
+    );
+    assert!(
+        AndroidOwnerOperation::ProfileSelect {
+            name: "main".to_owned()
+        }
+        .mutates_data()
+    );
+    assert!(!AndroidOwnerOperation::DnsSettings.mutates_data());
+    assert!(!AndroidOwnerOperation::WebDavSettings.mutates_data());
+    assert!(matches!(
+        AndroidOwnerOperation::WebDavTest {
+            settings: WebDavSettings {
+                enabled: false,
+                url: String::new(),
+                username: String::new(),
+                password: String::new(),
+                sync_interval_mins: 60,
+                sync_on_startup: false,
+            }
+        }
+        .mutates_data(),
+        false
+    ));
+    assert!(!AndroidOwnerOperation::WebDavSyncNow.mutates_data());
+    let webdav_save = AndroidOwnerOperation::WebDavSettingsSave {
+        settings: WebDavSettings {
+            enabled: false,
+            url: String::new(),
+            username: String::new(),
+            password: String::new(),
+            sync_interval_mins: 60,
+            sync_on_startup: false,
+        },
+    };
+    assert!(webdav_save.mutates_data());
+    assert!(webdav_save.advances_revision_even_on_failure());
+    assert_eq!(webdav_save.data_domain(), AndroidOwnerDataDomain::WebDav);
+    let failed_webdav_write = FfiStatus::err(FfiErrorCode::InvalidInput, "invalid WebDAV settings");
+    assert!(should_advance_revision(
+        webdav_save.mutates_data(),
+        webdav_save.advances_revision_even_on_failure(),
+        &AndroidOwnerOperationReadback::WebDavSettings(WebDavSettingsResult {
+            status: failed_webdav_write.clone(),
+            settings: None,
+        }),
+        failed_webdav_write.code,
+    ));
+    assert!(!AndroidOwnerOperation::RulesList.mutates_data());
+    assert!(!AndroidOwnerOperation::RuleProviders.mutates_data());
+    assert!(
+        AndroidOwnerOperation::DnsSettingsSave {
+            patch: settings::DnsSettingsPatch {
+                enable: Some(false),
+                ipv6: None,
+                enhanced_mode: None,
+                nameserver: None,
+                default_nameserver: None,
+                fallback: None,
+                fallback_filter: None,
+            },
+        }
+        .mutates_data()
+    );
+}
+
+#[test]
+fn rules_requests_are_fenced_by_core_generation_and_profile_data_revision() {
+    let context = test_context_for_generation(4, 17);
+    assert!(owner_data_fence_matches(&context, 4, 17));
+    assert!(!owner_data_fence_matches(&context, 5, 17));
+    assert!(!owner_data_fence_matches(&context, 4, 18));
+}
+
+#[test]
+fn failed_dns_or_fake_ip_mutations_leave_the_data_revision_unchanged() {
+    let failure = FfiStatus::err(FfiErrorCode::InvalidInput, "invalid patch");
+    assert!(!should_advance_revision(
+        true,
+        false,
+        &AndroidOwnerOperationReadback::DnsSettings(settings::DnsSettingsResult {
+            status: failure.clone(),
+            settings: None,
+        }),
+        failure.code,
+    ));
+    assert!(!should_advance_revision(
+        true,
+        false,
+        &AndroidOwnerOperationReadback::FakeIpSettings(settings::FakeIpSettingsResult {
+            status: failure.clone(),
+            settings: None,
+        },),
+        failure.code,
+    ));
+    assert!(!should_advance_revision(
+        true,
+        false,
+        &AndroidOwnerOperationReadback::FakeIpCacheClear(FfiBoolResult {
+            status: FfiStatus::ok(),
+            value: false,
+        }),
+        FfiErrorCode::Ok,
+    ));
+    assert!(should_advance_revision(
+        true,
+        false,
+        &AndroidOwnerOperationReadback::FakeIpCacheClear(FfiBoolResult {
+            status: FfiStatus::ok(),
+            value: true,
+        }),
+        FfiErrorCode::Ok,
+    ));
+}
+
+#[path = "owner_operation_tests/dispatch.rs"]
+mod dispatch;

@@ -1,0 +1,175 @@
+// Copyright © SixtyFPS GmbH <info@slint.dev>
+// SPDX-License-Identifier: MIT
+
+import { LumenUiScale } from "../../../ui/ui-scale.slint";
+import { Elevation } from "./elevation.slint";
+import { MaterialPalette } from "../styling/material_palette.slint";
+import { MaterialStyleMetrics } from "../styling/material_style_metrics.slint";
+import { Horizontal } from "./horizontal.slint";
+import { MaterialAnimations } from "../styling/material_animations.slint";
+import { Modal } from "./modal.slint";
+
+component BottomSheet {
+    in property <color> surface_color: MaterialPalette.surface_container_low;
+    in property <length> corner_radius: MaterialStyleMetrics.border_radius_28;
+    in property <length> bottom_safe_inset: 0px * LumenUiScale.factor;
+    in property <int> elevation_level: 3;
+    callback drag_moved(offset_y: length);
+    callback pressed();
+    callback released();
+
+    elevation := Elevation {
+        width: 100%;
+        height: 100%;
+        level: root.elevation_level;
+        border_radius: root.corner_radius;
+    }
+
+    TouchArea {
+        Rectangle {
+            background: root.surface_color;
+            border_top_left_radius: root.corner_radius;
+            border_top_right_radius: root.corner_radius;
+            border_bottom_left_radius: root.corner_radius;
+            border_bottom_right_radius: root.corner_radius;
+
+            VerticalLayout {
+                alignment: start;
+
+                drag_handle := TouchArea {
+                    height: MaterialStyleMetrics.size_36;
+
+                    Rectangle {
+                        width: MaterialStyleMetrics.size_32;
+                        height: MaterialStyleMetrics.size_4;
+                        background: MaterialPalette.outline;
+                        border_radius: self.height / 2;
+                    }
+
+                    moved => {
+                        root.drag_moved(self.pressed_y - self.mouse_y);
+                    }
+
+                    changed pressed => {
+                        if self.pressed {
+                            root.pressed();
+                            return;
+                        }
+
+                        root.released();
+                    }
+                }
+
+                Horizontal {
+                    @children
+                }
+            }
+        }
+    }
+}
+
+export component ModalBottomSheet inherits PopupWindow {
+    callback dismissed();
+    close_policy: no_auto_close;
+
+    in property <color> scrim_color: MaterialPalette.background_modal;
+    in property <color> surface_color: MaterialPalette.surface_container_low;
+    in property <length> corner_radius: MaterialStyleMetrics.border_radius_28;
+    in property <length> side_inset: 24px * LumenUiScale.factor;
+    in property <length> bottom_safe_inset: 0px * LumenUiScale.factor;
+    in property <int> sheet_elevation_level: 3;
+    in property <bool> show_layout_bounds: false;
+
+    property <length> drag_margin: MaterialStyleMetrics.padding_56;
+
+        modal := Modal {
+            width: 100%;
+            height: 100%;
+            scrim_color: root.scrim_color;
+
+            sheet := BottomSheet {
+                surface_color: root.surface_color;
+                corner_radius: root.corner_radius;
+                bottom_safe_inset: root.bottom_safe_inset;
+                elevation_level: root.sheet_elevation_level;
+            property <duration> y_duration: MaterialAnimations.standard_accelerate_duration;
+            property <length> y_drag_start;
+            property <length> height_drag_start;
+            property <bool> drag_active: false;
+
+            x: (parent.width - self.width) / 2;
+            y: parent.height;
+            // Lumen uses edge-to-edge sheets on phones; the upstream 56 px side inset
+            // made the form too narrow on compact Android viewports.
+            width: min(MaterialStyleMetrics.size_640, max(0px * LumenUiScale.factor, parent.width - 2 * root.side_inset));
+
+            @children
+
+            drag_moved(offset_y) => {
+                self.y_duration = 0;
+                self.y = max(self.y - offset_y, self.y_drag_start);
+                self.height += offset_y;
+            }
+
+            pressed => {
+                self.drag_active = true;
+                self.y_drag_start = self.y;
+                self.height_drag_start = self.height;
+            }
+
+            released => {
+                self.drag_active = false;
+                if self.y >= root.height - root.bottom_safe_inset - root.drag_margin {
+                    root.close();
+                    root.dismissed();
+                    return;
+                }
+
+                self.y_duration = MaterialAnimations.standard_accelerate_duration;
+                self.height = self.height_drag_start;
+                self.y = self.y_drag_start;
+            }
+
+            animate y, height {
+                duration: self.y_duration;
+                easing: MaterialAnimations.standard_easing;
+            }
+
+            changed height => {
+                if !self.drag_active {
+                    self.y = max(0px * LumenUiScale.factor, parent.height - root.bottom_safe_inset - self.height);
+                }
+            }
+        }
+
+        clicked => {
+            root.close();
+            root.dismissed();
+        }
+    }
+
+    Timer {
+        interval: 50ms;
+
+        triggered => {
+            sheet.y = max(0px * LumenUiScale.factor, modal.height - root.bottom_safe_inset - sheet.height);
+            self.running = false;
+        }
+    }
+
+    changed height => {
+        sheet.y = max(0px * LumenUiScale.factor, modal.height - root.bottom_safe_inset - sheet.height);
+    }
+    changed bottom_safe_inset => {
+        sheet.y = max(0px * LumenUiScale.factor, modal.height - root.bottom_safe_inset - sheet.height);
+    }
+
+    if root.show_layout_bounds: Rectangle {
+        x: modal.x; y: modal.y; width: modal.width; height: modal.height;
+        background: transparent; border_width: 1px * LumenUiScale.factor; border_color: #00A6A6; z: 2000;
+    }
+    if root.show_layout_bounds: Rectangle {
+        x: sheet.x; y: sheet.y; width: sheet.width; height: sheet.height;
+        background: transparent; border_width: 1px * LumenUiScale.factor; border_color: #FF2D55; z: 2001;
+    }
+}

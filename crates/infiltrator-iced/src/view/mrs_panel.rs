@@ -5,7 +5,7 @@
 use crate::state::AppState;
 use crate::types::message::Message;
 use crate::types::options::MrsProviderDetail;
-use infiltrator_application::byte_format::format_bytes;
+use infiltrator_shared::byte_units::format_bytes;
 
 use crate::view::component_card::card;
 use crate::view::component_forms::{row_card_surface, style_ghost};

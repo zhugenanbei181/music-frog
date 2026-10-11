@@ -4,9 +4,13 @@
 //! paths (and the generated FFI names) stay stable.
 
 mod app_routing;
+mod control;
 mod controller;
 mod doctor;
+mod localization;
 mod logs;
+mod owner_operation;
+mod product;
 mod profiles;
 mod rules;
 mod settings;
@@ -15,34 +19,54 @@ mod webdav;
 
 // Public record surface re-exported by the crate root (lib.rs).
 pub use app_routing::{
-    AndroidAppCategory, AndroidAppInfo, AndroidVpnPerAppPlan, MobileCloudProvider,
+    AndroidAppRoutingMode, AndroidAppRoutingPackageSelection, AndroidAppRoutingResult,
+    AndroidAppRoutingSnapshot, AndroidVpnRoutingActivationLease,
+    AndroidVpnRoutingActivationReleaseResult, AndroidVpnRoutingActivationResult,
+    AndroidVpnRoutingSnapshot, android_begin_vpn_routing_activation,
+    android_finish_vpn_routing_activation, android_vpn_routing_snapshot,
 };
-pub use controller::{
-    ConnectionRecord, ConnectionsResult, IpCheckResult, IpResult, ProxyGroupSummary,
-    ProxyGroupsResult, TrafficResult, TrafficSnapshot,
+pub use control::{
+    AndroidControlIntent, AndroidCoreLifecycle, AndroidCoreLifecycleResult,
+    AndroidHostProtocolVersion, AndroidHostReply, AndroidHostRequest, VpnAuthorizationResult,
+    android_control, android_core_lifecycle_status, vpn_authorization_result,
 };
+pub use controller::{IpCheckResult, IpResult};
 pub use doctor::{
     BootstrapResult, BootstrapStepRecord, DoctorCheckMetaRecord, DoctorCheckMetaResult,
     DoctorCheckResultRecord, DoctorFixActionRecord, DoctorFixResult, DoctorReportRecord,
 };
+pub use localization::{
+    AndroidRoutingIntentCopyKey, android_engine_defined_routing_intent_copy,
+    android_routing_intent_copy,
+};
+pub use owner_operation::wire::{
+    android_dispatch_owner_operation_wire_json, android_execute_owner_operation,
+};
+pub use owner_operation::{
+    AndroidOwnerDataDomain, AndroidOwnerDataSnapshot, AndroidOwnerDataSnapshotData,
+    AndroidOwnerOperation, AndroidOwnerOperationClientResult, AndroidOwnerOperationContext,
+    AndroidOwnerOperationIpcResult, AndroidOwnerOperationIpcState,
+    AndroidOwnerOperationProtocolVersion, AndroidOwnerOperationReadback,
+    AndroidOwnerOperationReply, android_owner_data_revision,
+};
+pub use product::{android_execute_product_command_json, android_surface_snapshot_json};
 pub use profiles::{ProfileSummary, ProfilesResult};
-pub use rules::{RuleEntryRecord, RuleProvidersResult, RulesResult};
+pub use rules::{
+    AndroidJsonEntry, AndroidJsonValue, AndroidRuleEntry, AndroidRuleProviderEntry,
+    AndroidRuleProvidersResult, AndroidRulesResult,
+};
 pub use settings::{
     DnsFallbackFilterSettings, DnsSettings, DnsSettingsPatch, DnsSettingsResult, FakeIpSettings,
     FakeIpSettingsPatch, FakeIpSettingsResult,
 };
 pub use vpn::{
-    TunStatusResult, VpnSessionResult, VpnSessionSnapshot, VpnTunSettings, VpnTunSettingsPatch,
-    VpnTunSettingsResult,
+    AndroidVpnConfigurationActivationLease, AndroidVpnConfigurationActivationReleaseResult,
+    AndroidVpnConfigurationActivationResult, VpnPreparationResult, VpnTunSettings,
+    VpnTunSettingsPatch, VpnTunSettingsResult, android_begin_vpn_configuration_activation,
+    android_finish_vpn_configuration_activation, cancel_vpn_preparation, prepare_vpn, start_vpn,
 };
 pub use webdav::{WebDavSettings, WebDavSettingsResult, WebDavSyncResult};
 
-// Names referenced by the unit tests below via `use super::*`.
-#[cfg(test)]
-use app_routing::{
-    AppRoutingMode, app_routing_load, app_routing_save, app_routing_set_mode,
-    app_routing_toggle_package,
-};
 #[cfg(test)]
 use settings::{
     build_dns_settings_patch, core_dns_fallback_filter_to_record,
@@ -73,114 +97,8 @@ pub fn bridge_shutdown() -> FfiStatus {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ffi::FfiErrorCode;
     #[cfg(test)]
     use infiltrator_domain::dns::FallbackFilter;
-    #[cfg(test)]
-    use std::env::temp_dir;
-    #[cfg(test)]
-    use tokio::sync::MutexGuard;
-
-    use mihomo_platform::TEST_LOCK;
-    use mihomo_platform::paths::set_home_dir_override;
-    use std::fs;
-    use std::path::PathBuf;
-    use std::time::{SystemTime, UNIX_EPOCH};
-
-    /// 串行化全局 home override：doctor.rs / support.rs 的测试同样切换
-    /// override 并以 TEST_LOCK 互斥，这里保持同一把锁，避免并行测试在
-    /// 「写配置 → 读回」之间被换走 home 目录。
-    async fn test_lock() -> MutexGuard<'static, ()> {
-        TEST_LOCK.lock().await
-    }
-
-    fn make_test_home(tag: &str) -> PathBuf {
-        let unique = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_nanos();
-        let path = temp_dir().join(format!("infiltrator-android-{tag}-{unique}"));
-        let _ = fs::remove_dir_all(&path);
-        fs::create_dir_all(&path).expect("create test home dir");
-        path
-    }
-
-    #[tokio::test]
-    async fn test_app_routing_load_defaults() {
-        let _guard = test_lock().await;
-        let home = make_test_home("routing-default");
-        set_home_dir_override(home.clone());
-
-        let result = app_routing_load();
-        assert_eq!(result.status.code, FfiErrorCode::Ok);
-        let config = result.config.expect("config should be present");
-        assert_eq!(config.mode, AppRoutingMode::ProxyAll);
-        assert!(config.packages.is_empty());
-
-        let _ = fs::remove_dir_all(home);
-    }
-
-    #[tokio::test]
-    async fn test_app_routing_set_mode_and_toggle_package() {
-        let _guard = test_lock().await;
-        let home = make_test_home("routing-toggle");
-        set_home_dir_override(home.clone());
-
-        let set_status = app_routing_set_mode(AppRoutingMode::ProxySelected);
-        assert_eq!(set_status.code, FfiErrorCode::Ok);
-
-        let toggle_first = app_routing_toggle_package("com.example.app".to_string());
-        assert_eq!(toggle_first.status.code, FfiErrorCode::Ok);
-        assert!(toggle_first.is_selected);
-
-        let loaded = app_routing_load();
-        assert_eq!(loaded.status.code, FfiErrorCode::Ok);
-        let config = loaded.config.expect("config should be present");
-        assert_eq!(config.mode, AppRoutingMode::ProxySelected);
-        assert!(config.packages.contains(&"com.example.app".to_string()));
-
-        let toggle_second = app_routing_toggle_package("com.example.app".to_string());
-        assert_eq!(toggle_second.status.code, FfiErrorCode::Ok);
-        assert!(!toggle_second.is_selected);
-
-        let loaded_again = app_routing_load();
-        assert_eq!(loaded_again.status.code, FfiErrorCode::Ok);
-        let config_again = loaded_again.config.expect("config should be present");
-        assert!(
-            !config_again
-                .packages
-                .contains(&"com.example.app".to_string())
-        );
-
-        let _ = fs::remove_dir_all(home);
-    }
-
-    #[tokio::test]
-    async fn test_app_routing_save_deduplicates_packages() {
-        let _guard = test_lock().await;
-        let home = make_test_home("routing-save");
-        set_home_dir_override(home.clone());
-
-        let status = app_routing_save(
-            AppRoutingMode::BypassSelected,
-            vec![
-                "com.alpha".to_string(),
-                "com.alpha".to_string(),
-                "com.beta".to_string(),
-            ],
-        );
-        assert_eq!(status.code, FfiErrorCode::Ok);
-
-        let loaded = app_routing_load();
-        assert_eq!(loaded.status.code, FfiErrorCode::Ok);
-        let config = loaded.config.expect("config should be present");
-        assert_eq!(config.mode, AppRoutingMode::BypassSelected);
-        assert_eq!(config.packages.len(), 2);
-        assert!(config.packages.contains(&"com.alpha".to_string()));
-        assert!(config.packages.contains(&"com.beta".to_string()));
-
-        let _ = fs::remove_dir_all(home);
-    }
 
     #[test]
     fn test_build_tun_patch_includes_stack_and_auto_detect_interface() {
@@ -188,14 +106,11 @@ mod tests {
             mtu: None,
             auto_route: None,
             strict_route: None,
-            dns_servers: None,
-            ipv6: None,
             stack: Some(" gvisor ".to_string()),
             auto_detect_interface: Some(true),
         };
 
-        let (core_patch, has_patch) = build_tun_patch(&patch);
-        assert!(has_patch);
+        let core_patch = build_tun_patch(&patch);
         assert_eq!(core_patch.stack, Some("gvisor".to_string()));
         assert_eq!(core_patch.auto_detect_interface, Some(true));
     }

@@ -1,249 +1,369 @@
-//! Demo proxy-table fixtures: provider groups, exit nodes with mixed latency
-//! tiers and the deterministic `filtered_groups` ordering.
+//! Typed outbound observations used by explicit Iced demo captures.
 
-use infiltrator_composition::demo_identities::{
+use infiltrator_contract::core_identity::{
+    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
+};
+use infiltrator_contract::error::Failure;
+use infiltrator_contract::fixture_identities::{
     AI, AUTO, CAMPUS, DIRECT_GROUP, GAMING, HK_PRIMARY, HK_SECONDARY, JP, PROXIES, SG, US,
 };
-use infiltrator_domain::proxy::{
-    Direct, Hysteria2, Proxy, ProxyBase, ProxyGroup, ProxyHistory, Reject, Shadowsocks, Trojan,
-    Vmess,
+use infiltrator_contract::outbound::details::OutboundFeature;
+use infiltrator_contract::outbound::{
+    details::{
+        OutboundCollectionKind, OutboundDetail, OutboundDetailsSnapshot, OutboundDetailsState,
+        OutboundEndpoint, OutboundHealthObservation, OutboundLatencySample, OutboundObservation,
+        OutboundProbeAvailability, OutboundProtocolObservation, OutboundSnapshot,
+        OutboundUdpSupport,
+    },
+    identity::{OutboundCipherId, OutboundId, OutboundProtocolId, SnapshotRevision},
+    inventory::{
+        OutboundInventorySnapshot, OutboundInventoryState, OutboundSelectionSet,
+        OutboundSelectionState, SelectionAvailability,
+    },
+    preferences::{
+        OutboundHealthFilter, OutboundLayout, OutboundSortOrder, OutboundUiPreferencesSnapshot,
+        OutboundUiPreferencesValues,
+    },
 };
-use std::collections::HashMap;
+use infiltrator_contract::routing_intent::RoutingIntentSnapshot;
+use infiltrator_contract::session::SessionToken;
+use infiltrator_contract::snapshot::CoreLifecycle;
+use infiltrator_contract::surface::{HostKind, SurfaceKind};
+use infiltrator_contract::surface_snapshot::{PageData, SurfaceOrigin, SurfaceSnapshot};
 
-/// Proxy group name constants shared between the table builder and the
-/// runtime-selection fixture.
-const G_MAIN: &str = PROXIES;
-const G_DIRECT: &str = DIRECT_GROUP;
-const G_CAMPUS: &str = CAMPUS;
-const G_AI: &str = AI;
-const G_GAME: &str = GAMING;
-const G_AUTO: &str = AUTO;
-const G_GLOBAL: &str = "GLOBAL";
+const GLOBAL: &str = "GLOBAL";
+const DMIT: &str = "DMIT";
+const ZGO: &str = "ZGO";
+const DIRECT: &str = "DIRECT";
+const REJECT: &str = "REJECT";
 
-const N_HK1: &str = HK_PRIMARY;
-const N_HK2: &str = HK_SECONDARY;
-const N_JP: &str = JP;
-const N_SG: &str = SG;
-const N_US: &str = US;
-const N_DMIT: &str = "DMIT";
-const N_ZGO: &str = "ZGO";
+#[derive(Clone, Copy)]
+struct MemberFixture {
+    name: &'static str,
+    protocol: &'static str,
+    protocol_label: &'static str,
+    cipher: Option<&'static str>,
+    cipher_label: Option<&'static str>,
+    host: Option<&'static str>,
+    port: Option<u16>,
+    latency_ms: Option<u32>,
+}
 
-/// Proxy table plus deterministic `filtered_groups` ordering.
-pub(super) type ProxyTables = (HashMap<String, Proxy>, Vec<(String, Vec<String>)>);
+const MEMBERS: [MemberFixture; 9] = [
+    MemberFixture {
+        name: HK_PRIMARY,
+        protocol: "shadowsocks",
+        protocol_label: "Shadowsocks",
+        cipher: Some("aes-256-gcm"),
+        cipher_label: Some("AES-256-GCM"),
+        host: Some("hk-iepl-01.example.com"),
+        port: Some(8443),
+        latency_ms: Some(148),
+    },
+    MemberFixture {
+        name: DMIT,
+        protocol: "vmess",
+        protocol_label: "VMess",
+        cipher: Some("auto"),
+        cipher_label: Some("auto"),
+        host: Some("dmit.example.com"),
+        port: Some(443),
+        latency_ms: Some(189),
+    },
+    MemberFixture {
+        name: HK_SECONDARY,
+        protocol: "shadowsocks",
+        protocol_label: "Shadowsocks",
+        cipher: Some("aes-256-gcm"),
+        cipher_label: Some("AES-256-GCM"),
+        host: Some("hk-iepl-02.example.com"),
+        port: Some(8443),
+        latency_ms: Some(233),
+    },
+    MemberFixture {
+        name: SG,
+        protocol: "trojan",
+        protocol_label: "Trojan",
+        cipher: None,
+        cipher_label: None,
+        host: Some("sg-bgp.example.com"),
+        port: Some(443),
+        latency_ms: Some(254),
+    },
+    MemberFixture {
+        name: JP,
+        protocol: "vmess",
+        protocol_label: "VMess",
+        cipher: Some("auto"),
+        cipher_label: Some("auto"),
+        host: Some("jp-ntt.example.com"),
+        port: Some(443),
+        latency_ms: Some(312),
+    },
+    MemberFixture {
+        name: US,
+        protocol: "trojan",
+        protocol_label: "Trojan",
+        cipher: None,
+        cipher_label: None,
+        host: Some("us-cn2.example.com"),
+        port: Some(443),
+        latency_ms: Some(512),
+    },
+    MemberFixture {
+        name: ZGO,
+        protocol: "hysteria2",
+        protocol_label: "Hysteria2",
+        cipher: None,
+        cipher_label: None,
+        host: Some("zgo.example.com"),
+        port: Some(36712),
+        latency_ms: None,
+    },
+    MemberFixture {
+        name: DIRECT,
+        protocol: "direct",
+        protocol_label: "Direct",
+        cipher: None,
+        cipher_label: None,
+        host: None,
+        port: None,
+        latency_ms: None,
+    },
+    MemberFixture {
+        name: REJECT,
+        protocol: "reject",
+        protocol_label: "Reject",
+        cipher: None,
+        cipher_label: None,
+        host: None,
+        port: None,
+        latency_ms: None,
+    },
+];
 
-/// Build the demo proxy map plus a deterministic `filtered_groups` ordering
-/// (GLOBAL last so the capture always sees the business groups first).
-pub(super) fn demo_proxy_tables() -> ProxyTables {
-    let mut proxies: HashMap<String, Proxy> = HashMap::new();
+struct CollectionFixture {
+    id: &'static str,
+    selected: &'static str,
+    kind: OutboundCollectionKind,
+    availability: SelectionAvailability,
+    members: &'static [&'static str],
+}
 
-    let mut insert_group = |name: &str, now: &str, all: Vec<&str>| {
-        proxies.insert(
-            name.to_string(),
-            Proxy::Selector(ProxyGroup {
-                name: name.to_string(),
-                now: now.to_string(),
-                all: all.iter().map(|s| s.to_string()).collect(),
-                history: vec![ProxyHistory {
-                    time: "2026-08-29T15:30:00.000000+08:00".to_string(),
-                    delay: 0,
-                }],
-            }),
-        );
+const COLLECTIONS: [CollectionFixture; 7] = [
+    CollectionFixture {
+        id: PROXIES,
+        selected: HK_PRIMARY,
+        kind: OutboundCollectionKind::ManualSelection,
+        availability: SelectionAvailability::Selectable,
+        members: &[HK_PRIMARY, DMIT, HK_SECONDARY, SG, JP, US, ZGO],
+    },
+    CollectionFixture {
+        id: DIRECT_GROUP,
+        selected: DIRECT,
+        kind: OutboundCollectionKind::ManualSelection,
+        availability: SelectionAvailability::Selectable,
+        members: &[DIRECT, HK_PRIMARY, DMIT],
+    },
+    CollectionFixture {
+        id: CAMPUS,
+        selected: DIRECT,
+        kind: OutboundCollectionKind::ManualSelection,
+        availability: SelectionAvailability::Selectable,
+        members: &[DIRECT, REJECT, HK_SECONDARY, DMIT],
+    },
+    CollectionFixture {
+        id: AI,
+        selected: US,
+        kind: OutboundCollectionKind::ManualSelection,
+        availability: SelectionAvailability::Selectable,
+        members: &[US, SG, JP, DMIT],
+    },
+    CollectionFixture {
+        id: GAMING,
+        selected: JP,
+        kind: OutboundCollectionKind::ManualSelection,
+        availability: SelectionAvailability::Selectable,
+        members: &[JP, HK_PRIMARY, HK_SECONDARY, US],
+    },
+    CollectionFixture {
+        id: AUTO,
+        selected: HK_PRIMARY,
+        kind: OutboundCollectionKind::AutomaticSelection,
+        availability: SelectionAvailability::Automatic,
+        members: &[HK_PRIMARY, DMIT, HK_SECONDARY, SG, JP],
+    },
+    CollectionFixture {
+        id: GLOBAL,
+        selected: PROXIES,
+        kind: OutboundCollectionKind::ManualSelection,
+        availability: SelectionAvailability::Selectable,
+        members: &[PROXIES, DIRECT_GROUP, CAMPUS, AI, GAMING, AUTO],
+    },
+];
+
+/// A fully explicit demo surface with typed inventory, details and preferences.
+/// Core capability evidence stays unavailable, so demo data never enables a
+/// product probe command.
+pub(super) fn demo_outbound_surface() -> SurfaceSnapshot {
+    let engine = EngineId::new("mihomo").expect("valid fixture engine");
+    let scope = CoreScope {
+        identity: CoreIdentity::new(
+            engine.clone(),
+            CoreInstanceId::new("iced-demo").expect("valid fixture core instance"),
+            Some(CoreVersion::new("1.19.32").expect("valid fixture core version")),
+        ),
+        generation: CoreGeneration::new(1),
+        session_token: Some(SessionToken::new(1)),
     };
+    let id = |value: &str| OutboundId::new(engine.clone(), value).expect("valid fixture outbound");
+    let group_ids = COLLECTIONS
+        .iter()
+        .map(|group| id(group.id))
+        .collect::<Vec<_>>();
+    let mut entries = group_ids
+        .iter()
+        .map(|group_id| OutboundSnapshot {
+            id: group_id.clone(),
+            display_name: Some(group_id.value().to_owned()),
+        })
+        .collect::<Vec<_>>();
+    entries.extend(MEMBERS.iter().map(|member| OutboundSnapshot {
+        id: id(member.name),
+        display_name: Some(member.name.to_owned()),
+    }));
+    let collections = COLLECTIONS
+        .iter()
+        .map(|group| {
+            let selected = id(group.selected);
+            OutboundSelectionSet {
+                id: id(group.id),
+                member_ids: group.members.iter().map(|member| id(member)).collect(),
+                availability: group.availability,
+                selection: OutboundSelectionState::Ready { selected },
+            }
+        })
+        .collect::<Vec<_>>();
+    let inventory = OutboundInventorySnapshot::new(
+        scope.clone(),
+        SnapshotRevision::new(1),
+        OutboundInventoryState::Ready {
+            entries,
+            collections,
+        },
+    )
+    .expect("valid demo outbound inventory");
 
-    insert_group(
-        G_MAIN,
-        N_HK1,
-        vec![N_HK1, N_DMIT, N_HK2, N_SG, N_JP, N_US, N_ZGO],
+    let mut details = COLLECTIONS
+        .iter()
+        .map(|group| OutboundDetail {
+            id: id(group.id),
+            protocol: OutboundProtocolObservation::Unknown,
+            protocol_display_name: None,
+            cipher: OutboundObservation::Unsupported,
+            cipher_display_name: None,
+            collection_kind: OutboundObservation::Observed(group.kind),
+            features: OutboundObservation::Unknown,
+            endpoint: OutboundObservation::Unsupported,
+            udp: OutboundUdpSupport::Unsupported,
+            health: OutboundHealthObservation::Unsupported,
+            current_latency_ms: OutboundObservation::Unsupported,
+            latency_history: OutboundObservation::Unsupported,
+            rtt: OutboundObservation::Unsupported,
+            historical_egress: OutboundObservation::Unsupported,
+            probe_availability: OutboundProbeAvailability::Unknown,
+        })
+        .collect::<Vec<_>>();
+    details.extend(MEMBERS.iter().map(|member| {
+        let current_latency_ms = member
+            .latency_ms
+            .map(OutboundObservation::Observed)
+            .unwrap_or(OutboundObservation::Unknown);
+        let latency_history = OutboundObservation::Observed(
+            member
+                .latency_ms
+                .map(|delay_ms| {
+                    vec![OutboundLatencySample {
+                        observed_at: "2026-08-29T15:31:00.000000+08:00".to_owned(),
+                        delay_ms,
+                    }]
+                })
+                .unwrap_or_default(),
+        );
+        OutboundDetail {
+            id: id(member.name),
+            protocol: OutboundProtocolObservation::Reported(
+                OutboundProtocolId::new(engine.clone(), member.protocol)
+                    .expect("valid fixture protocol"),
+            ),
+            protocol_display_name: Some(member.protocol_label.to_owned()),
+            cipher: member
+                .cipher
+                .map_or(OutboundObservation::Unsupported, |cipher| {
+                    OutboundObservation::Observed(
+                        OutboundCipherId::new(engine.clone(), cipher)
+                            .expect("valid fixture cipher"),
+                    )
+                }),
+            cipher_display_name: member.cipher_label.map(str::to_owned),
+            collection_kind: OutboundObservation::Unknown,
+            features: OutboundObservation::Observed(vec![OutboundFeature::Udp]),
+            endpoint: member
+                .host
+                .map_or(OutboundObservation::Unsupported, |host| {
+                    OutboundObservation::Observed(OutboundEndpoint {
+                        host: host.to_owned(),
+                        port: member
+                            .port
+                            .map_or(OutboundObservation::Unknown, OutboundObservation::Observed),
+                    })
+                }),
+            udp: OutboundUdpSupport::Supported,
+            health: OutboundHealthObservation::Healthy,
+            current_latency_ms,
+            latency_history,
+            rtt: OutboundObservation::Unknown,
+            historical_egress: OutboundObservation::Unknown,
+            probe_availability: OutboundProbeAvailability::Unknown,
+        }
+    }));
+    let details = OutboundDetailsSnapshot::new(
+        scope.clone(),
+        SnapshotRevision::new(1),
+        OutboundDetailsState::Ready { details },
+    )
+    .expect("valid demo outbound details");
+    let preferences = OutboundUiPreferencesSnapshot::new(
+        scope.clone(),
+        SnapshotRevision::new(1),
+        OutboundUiPreferencesValues {
+            search_query: String::new(),
+            favorite_outbound_ids: Vec::new(),
+            group_order: group_ids,
+            collapsed_group_ids: Vec::new(),
+            sort_order: OutboundSortOrder::LatencyAscending,
+            health_filter: OutboundHealthFilter::All,
+            layout: OutboundLayout::CompactList,
+        },
+    )
+    .expect("valid demo outbound preferences");
+
+    let mut snapshot = SurfaceSnapshot::unavailable(
+        SurfaceKind::IcedDesktop,
+        HostKind::Desktop,
+        Failure::unsupported("demo surface uses explicit fixtures"),
     );
-    insert_group(G_DIRECT, "DIRECT", vec!["DIRECT", N_HK1, N_DMIT]);
-    insert_group(G_CAMPUS, "DIRECT", vec!["DIRECT", "REJECT", N_HK2, N_DMIT]);
-    insert_group(G_AI, N_US, vec![N_US, N_SG, N_JP, N_DMIT]);
-    insert_group(G_GAME, N_JP, vec![N_JP, N_HK1, N_HK2, N_US]);
-    insert_group(
-        G_GLOBAL,
-        G_MAIN,
-        vec![G_MAIN, G_DIRECT, G_CAMPUS, G_AI, G_GAME, G_AUTO],
-    );
-    proxies.insert(
-        G_AUTO.to_string(),
-        Proxy::URLTest(ProxyGroup {
-            name: G_AUTO.to_string(),
-            now: N_HK1.to_string(),
-            all: vec![
-                N_HK1.to_string(),
-                N_DMIT.to_string(),
-                N_HK2.to_string(),
-                N_SG.to_string(),
-                N_JP.to_string(),
-            ],
-            history: vec![ProxyHistory {
-                time: "2026-08-29T15:30:00.000000+08:00".to_string(),
-                delay: 0,
-            }],
-        }),
-    );
-
-    // Node fixtures with mixed latency tiers so every badge color renders:
-    // 148 (fast) / 189 / 233 / 254 / 312 / 512 (slow) / untested ("—").
-    let nodes: Vec<Proxy> = vec![
-        ss_node(N_HK1, 148, "hk-iepl-01.example.com", 8443),
-        vmess_node(N_DMIT, 189, "dmit.example.com", 443),
-        ss_node(N_HK2, 233, "hk-iepl-02.example.com", 8443),
-        trojan_node(N_SG, 254, "sg-bgp.example.com", 443),
-        vmess_node(N_JP, 312, "jp-ntt.example.com", 443),
-        trojan_node(N_US, 512, "us-cn2.example.com", 443),
-        hysteria2_node(N_ZGO, "zgo.example.com", 36712),
-        Proxy::Direct(direct_base("DIRECT")),
-        Proxy::Reject(reject_base("REJECT")),
-    ];
-    for node in nodes {
-        let name = node.name().to_string();
-        proxies.insert(name, node);
-    }
-
-    let filtered_groups: Vec<(String, Vec<String>)> = vec![
-        (
-            G_MAIN.to_string(),
-            vec![
-                N_HK1.to_string(),
-                N_DMIT.to_string(),
-                N_HK2.to_string(),
-                N_SG.to_string(),
-                N_JP.to_string(),
-                N_US.to_string(),
-                N_ZGO.to_string(),
-            ],
-        ),
-        (
-            G_DIRECT.to_string(),
-            vec!["DIRECT".to_string(), N_HK1.to_string(), N_DMIT.to_string()],
-        ),
-        (
-            G_CAMPUS.to_string(),
-            vec![
-                "DIRECT".to_string(),
-                "REJECT".to_string(),
-                N_HK2.to_string(),
-                N_DMIT.to_string(),
-            ],
-        ),
-        (
-            G_AI.to_string(),
-            vec![
-                N_US.to_string(),
-                N_SG.to_string(),
-                N_JP.to_string(),
-                N_DMIT.to_string(),
-            ],
-        ),
-        (
-            G_GAME.to_string(),
-            vec![
-                N_JP.to_string(),
-                N_HK1.to_string(),
-                N_HK2.to_string(),
-                N_US.to_string(),
-            ],
-        ),
-        (
-            G_AUTO.to_string(),
-            vec![
-                N_HK1.to_string(),
-                N_DMIT.to_string(),
-                N_HK2.to_string(),
-                N_SG.to_string(),
-                N_JP.to_string(),
-            ],
-        ),
-        (
-            G_GLOBAL.to_string(),
-            vec![
-                G_MAIN.to_string(),
-                G_DIRECT.to_string(),
-                G_CAMPUS.to_string(),
-                G_AI.to_string(),
-                G_GAME.to_string(),
-                G_AUTO.to_string(),
-            ],
-        ),
-    ];
-
-    (proxies, filtered_groups)
-}
-
-/// A tested node base with one historical sample.
-fn node_base(name: &str, delay: u32) -> ProxyBase {
-    ProxyBase {
-        name: name.to_string(),
-        udp: true,
-        history: vec![ProxyHistory {
-            time: "2026-08-29T15:31:00.000000+08:00".to_string(),
-            delay,
-        }],
-        alive: true,
-        delay: Some(delay),
-    }
-}
-
-/// An untested node base (no history) — renders the "—" latency tier.
-fn untested_base(name: &str) -> ProxyBase {
-    ProxyBase {
-        name: name.to_string(),
-        udp: true,
-        history: Vec::new(),
-        alive: true,
-        delay: None,
-    }
-}
-
-fn ss_node(name: &str, delay: u32, server: &str, port: u16) -> Proxy {
-    Proxy::Shadowsocks(Shadowsocks {
-        base: node_base(name, delay),
-        server: server.to_string(),
-        port,
-        cipher: "aes-256-gcm".to_string(),
-        plugin: None,
-        plugin_opts: None,
-    })
-}
-
-fn vmess_node(name: &str, delay: u32, server: &str, port: u16) -> Proxy {
-    Proxy::Vmess(Vmess {
-        base: node_base(name, delay),
-        server: server.to_string(),
-        port,
-        uuid: "88888888-4444-4444-4444-cccccccccccc".to_string(),
-        ..Vmess::default()
-    })
-}
-
-fn trojan_node(name: &str, delay: u32, server: &str, port: u16) -> Proxy {
-    Proxy::Trojan(Trojan {
-        base: node_base(name, delay),
-        server: server.to_string(),
-        port,
-        ..Trojan::default()
-    })
-}
-
-fn hysteria2_node(name: &str, server: &str, port: u16) -> Proxy {
-    Proxy::Hysteria2(Hysteria2 {
-        base: untested_base(name),
-        server: server.to_string(),
-        port,
-        ..Hysteria2::default()
-    })
-}
-
-fn direct_base(name: &str) -> Direct {
-    Direct {
-        base: untested_base(name),
-    }
-}
-
-fn reject_base(name: &str) -> Reject {
-    Reject {
-        base: untested_base(name),
-    }
+    snapshot.origin = SurfaceOrigin::Demo;
+    snapshot.generation = 1;
+    snapshot.revision = 1;
+    snapshot.core.identity = Some(scope.identity.clone());
+    snapshot.core.generation = 1;
+    snapshot.core.session_token = scope.session_token;
+    snapshot.core.lifecycle = CoreLifecycle::Stopped;
+    snapshot.core.routing_intent = RoutingIntentSnapshot::demo_fixture();
+    snapshot.core.core_version = Some("1.19.32".to_owned());
+    snapshot.outbound_inventory = PageData::ready(inventory);
+    snapshot.outbound_details = PageData::ready(details);
+    snapshot.outbound_ui_preferences = PageData::ready(preferences);
+    snapshot
 }

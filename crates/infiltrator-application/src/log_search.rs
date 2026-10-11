@@ -1,11 +1,11 @@
 //! Shared regex compilation, filtering, highlight spans and source availability.
 use crate::log_follow::LogFollowState;
-use crate::search_text::project_match_ranges;
 use infiltrator_contract::logs::LogLevel;
-use infiltrator_contract::search_text::SearchTextRun;
 use infiltrator_contract::session::SessionToken;
 use infiltrator_contract::surface_snapshot::{LogSnapshot, LogsPageSnapshot, PageData, PageStatus};
 use regex::{Regex, RegexBuilder};
+use zhuge_ui_core::text::SearchTextRun;
+use zhuge_ui_core::text::project_match_ranges;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LogSearchRow {

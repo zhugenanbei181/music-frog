@@ -11,6 +11,8 @@
 use crate::jni_bridge::map_jni_error;
 use crate::jni_bridge::parse_method_signature;
 use crate::native_host::clipboard::NativeClipboardChannel;
+use crate::native_host::clipboard::NativeClipboardWriteReceipt;
+use infiltrator_contract::capability::Capability;
 use infiltrator_ports::error::PortError;
 use jni::JavaVM;
 use jni::errors;
@@ -23,7 +25,7 @@ use jni::strings::JNIString;
 use mihomo_api::error::MihomoError;
 
 const SIG_NOARGS_STRING: &str = "()Ljava/lang/String;";
-const SIG_STRING_BOOL: &str = "(Ljava/lang/String;)Z";
+const SIG_STRING_INT: &str = "(Ljava/lang/String;)I";
 
 /// The JNI-backed clipboard channel. It owns the global ref of the Activity
 /// adapter; dropping it (on re-registration or clear) releases that ref.
@@ -54,18 +56,24 @@ impl JniClipboardChannel {
             .map_err(|err| map_jni_error("readClipboard", err))
     }
 
-    fn write(&self, text: &str) -> Result<bool, MihomoError> {
+    fn write(&self, text: &str) -> Result<NativeClipboardWriteReceipt, MihomoError> {
         let name = JNIString::new("writeClipboard");
-        let signature = parse_method_signature("writeClipboard", SIG_STRING_BOOL)?;
+        let signature = parse_method_signature("writeClipboard", SIG_STRING_INT)?;
         let signature = signature.method_signature();
-        self.vm
-            .attach_current_thread(|env| -> errors::Result<bool> {
+        let code = self
+            .vm
+            .attach_current_thread(|env| -> errors::Result<i32> {
                 let value = env.new_string(text)?;
                 let args = [JValue::Object(value.as_ref())];
                 env.call_method(self.host.as_obj(), &name, &signature, &args)?
-                    .z()
+                    .i()
             })
-            .map_err(|err| map_jni_error("writeClipboard", err))
+            .map_err(|err| map_jni_error("writeClipboard", err))?;
+        NativeClipboardWriteReceipt::from_wire_code(code).ok_or_else(|| {
+            MihomoError::Service(format!(
+                "Android host returned unknown clipboard write receipt code {code}"
+            ))
+        })
     }
 }
 
@@ -77,9 +85,16 @@ impl NativeClipboardChannel for JniClipboardChannel {
 
     fn write_clipboard(&self, text: &str) -> Result<(), PortError> {
         match self.write(text) {
-            Ok(true) => Ok(()),
-            Ok(false) => Err(PortError::PermissionDenied(
-                "the Android host rejected the clipboard write".to_string(),
+            Ok(NativeClipboardWriteReceipt::Written) => Ok(()),
+            Ok(NativeClipboardWriteReceipt::Unavailable) => Err(PortError::unsupported(
+                Capability::Profiles,
+                "no Android clipboard manager is available",
+            )),
+            Ok(NativeClipboardWriteReceipt::PermissionDenied) => Err(PortError::PermissionDenied(
+                "Android denied the clipboard write".to_string(),
+            )),
+            Ok(NativeClipboardWriteReceipt::Failed) => Err(PortError::Failed(
+                "Android clipboard write failed".to_string(),
             )),
             Err(err) => Err(PortError::Failed(err.to_string())),
         }

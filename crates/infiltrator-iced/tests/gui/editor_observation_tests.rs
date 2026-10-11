@@ -1,17 +1,18 @@
 //! Actual command replies and independent reader facts preserve the native TEA editor.
 //! test-intent: behavior
 use crate::state::AppState;
+use crate::test_mounts::command_harness::{
+    attach_product_application_with_accepted_snapshot, core_test_command_application,
+};
+use crate::test_mounts::identified_core_application::identified_core_application;
 use crate::types::message::Message;
 use futures_util::StreamExt;
 use iced::Task;
 use iced_runtime::{Action, task::into_stream};
-use infiltrator_application::command_application::CommandApplication;
-use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::filter_capture_store::{FILTER_PROFILE, FilterCaptureStore};
-use infiltrator_application::language_choice_fixtures::LanguageCaptureProcess;
 use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::surface_reader::ApplicationSurfaceReader;
-use infiltrator_composition::tokio_application_runtime;
+use infiltrator_contract::core_capabilities::{CoreOperation, ProfileOperation};
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::PageStatus;
@@ -42,13 +43,10 @@ fn tea_read_failure_retains_actual_document_keeps_typed_error_and_recovers_witho
  {
     let store = Arc::new(FilterCaptureStore::default());
     let profiles = ProfileApplication::new(store.clone());
-    let core = CoreApplication::new(
-        Arc::new(LanguageCaptureProcess),
-        Arc::new(LanguageCaptureProcess),
-        tokio_application_runtime().unwrap(),
-    );
+    let core = identified_core_application();
     core.install_command_handler(Arc::new(
-        CommandApplication::new().with_profile(profiles.clone()),
+        core_test_command_application([CoreOperation::Profile(ProfileOperation::Apply)])
+            .with_profile(profiles.clone()),
     ));
     let reader = ApplicationSurfaceReader::new(
         Arc::new(core.clone()),
@@ -57,7 +55,8 @@ fn tea_read_failure_retains_actual_document_keeps_typed_error_and_recovers_witho
     )
     .with_profiles(profiles);
     let (mut state, _) = AppState::new();
-    state.commands = Some(core);
+    let initial = run(reader.read()).unwrap();
+    attach_product_application_with_accepted_snapshot(&mut state, core, initial);
     let path = PathBuf::from(format!("/isolated/{FILTER_PROFILE}.yaml"));
     let task = state.update(Message::EditProfile(path.clone()));
     let reply = terminal(task);
@@ -71,8 +70,12 @@ fn tea_read_failure_retains_actual_document_keeps_typed_error_and_recovers_witho
     assert_eq!(state.editor.editor_content.text(), initial);
     assert!(!state.editor.document_session.can_save());
     assert!(
-        state.editor.document_session.failure.is_none(),
-        "read failure is distinct from save failure"
+        matches!(
+            &state.editor.document_session.operation,
+            infiltrator_application::profile_edit_session::ProfileEditOperationPhase::Ready
+        ),
+        "read failure remains separate from the save operation phase: {:?}",
+        state.editor.document_session.operation
     );
     assert!(
         state
@@ -97,6 +100,14 @@ fn tea_read_failure_retains_actual_document_keeps_typed_error_and_recovers_witho
     let _ = state.update(Message::SurfaceSnapshotUpdated(Box::new(snapshot)));
     assert!(state.editor.document_session.can_save());
     assert_eq!(state.editor.editor_content.text(), initial);
-    assert!(!state.editor.document_session.saved);
+    assert!(
+        matches!(
+            &state.editor.document_session.operation,
+            infiltrator_application::profile_edit_session::ProfileEditOperationPhase::Failed(failure)
+                if failure.code == ErrorCode::NotReady
+        ),
+        "the blocked save remains a typed NotReady result after read recovery: {:?}",
+        state.editor.document_session.operation
+    );
     assert_eq!(store.writes.load(Ordering::SeqCst), 0);
 }

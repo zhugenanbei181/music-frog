@@ -6,20 +6,21 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.stringResource
+import com.musicfrog.infiltrator.R
 
 @Composable
 fun ErrorDialog(
-    message: String,
+    failure: LocalizedFailure,
     onDismiss: () -> Unit,
-    title: String = "Error"
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text("OK") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_ok)) }
         },
-        title = { Text(title) },
-        text = { Text(message) }
+        title = { Text(stringResource(R.string.error_title)) },
+        text = { LocalizedFailureText(failure) },
     )
 }
 

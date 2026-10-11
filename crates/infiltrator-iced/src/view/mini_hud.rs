@@ -9,8 +9,9 @@
 use crate::accessibility::labelled;
 use crate::state::AppState;
 use crate::types::message::Message;
-use infiltrator_application::byte_format::format_bytes;
+use infiltrator_application::routing_intent_projection::routing_intent_copy;
 use infiltrator_application::system_toggle_projection::compact_status_line;
+use infiltrator_shared::byte_units::format_bytes;
 
 use crate::view::components::{BadgeKind, badge, icon_button};
 use crate::view::svg_icons::Icon;
@@ -80,10 +81,13 @@ pub fn mini_hud_view<'a>(state: &'a AppState) -> Element<'a, Message> {
         header_title,
     ]
     .align_y(Alignment::Center);
-    if !model.mode_zh.is_empty() {
+    if let Some(intent) = model.routing_intent.current.as_ref() {
         header_row = header_row
             .push(Space::new().width(theme::SP_SM))
-            .push(badge(model.mode_zh.clone(), BadgeKind::Neutral));
+            .push(badge(
+                routing_intent_copy(intent, lang.0),
+                BadgeKind::Neutral,
+            ));
     }
     header_row = header_row
         .push(Space::new().width(Length::Fill))

@@ -10,9 +10,6 @@ use std::fmt;
 pub(super) fn fmt(m: &Message, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result> {
     Some(match m {
         // ui-wave2-p
-        Message::ToggleProxyGroupExpanded(name) => {
-            write!(f, "ToggleProxyGroupExpanded({})", name)
-        }
         Message::SetEditorPane(pane) => write!(f, "SetEditorPane({:?})", pane),
         Message::EditProfileAs(path, pane) => {
             write!(f, "EditProfileAs({},{:?})", path.display(), pane)
@@ -24,7 +21,7 @@ pub(super) fn fmt(m: &Message, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result
             write!(f, "MixinSaved(operation={})", reply.pending.operation)
         }
         Message::ToggleMixinPreset(id, enabled) => {
-            write!(f, "ToggleMixinPreset({id}, {enabled})")
+            write!(f, "ToggleMixinPreset({}, {enabled})", id.as_str())
         }
         Message::DiscardProfileFilter => write!(f, "DiscardProfileFilter"),
         Message::LoadProfileFilter => write!(f, "LoadProfileFilter"),
@@ -132,8 +129,8 @@ pub(super) fn fmt(m: &Message, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result
             write!(f, "SetAppRouteRule({process}: {rule:?})")
         }
         Message::SetAppRoutingCategory(c) => write!(f, "SetAppRoutingCategory({c:?})"),
-        Message::MoveProxyGroupUp(g) => write!(f, "MoveProxyGroupUp({g})"),
-        Message::MoveProxyGroupDown(g) => write!(f, "MoveProxyGroupDown({g})"),
+        Message::MoveProxyGroupUp(g) => write!(f, "MoveProxyGroupUp({:?})", g.value()),
+        Message::MoveProxyGroupDown(g) => write!(f, "MoveProxyGroupDown({:?})", g.value()),
         Message::ResetProxyGroupOrder => write!(f, "ResetProxyGroupOrder"),
         Message::ToggleMiniHudMode => write!(f, "ToggleMiniHudMode"),
         Message::SetAlwaysOnTop(v) => write!(f, "SetAlwaysOnTop({v})"),

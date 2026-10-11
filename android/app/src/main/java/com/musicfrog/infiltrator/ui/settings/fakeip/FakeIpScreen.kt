@@ -29,11 +29,37 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.musicfrog.infiltrator.R
 import com.musicfrog.infiltrator.ui.common.ErrorDialog
 import com.musicfrog.infiltrator.ui.common.InputDialog
+import com.musicfrog.infiltrator.ui.common.LocalizedFailureText
 import com.musicfrog.infiltrator.ui.common.StandardListItem
+import com.musicfrog.infiltrator.ui.common.toLocalizedFailure
 
 @Composable
 fun FakeIpScreen(viewModel: FakeIpViewModel = viewModel()) {
     val state by viewModel.state.collectAsState()
+    val settingsBusy = state.settingsActivity == FakeIpSettingsActivity.Busy
+    val cacheBusy = state.hostCacheOperation is HostFakeIpFileCacheState.Clearing
+    val canEdit = lastAcceptedFakeIp(state.observation) != null
+    val operationFailure = when (val operation = state.settingsOperation) {
+        is FakeIpSettingsOperationState.Failed -> operation.failure
+        is FakeIpSettingsOperationState.Cancelled -> operation.failure
+        is FakeIpSettingsOperationState.TimedOut -> operation.failure
+        is FakeIpSettingsOperationState.Unconfirmed -> operation.failure
+        FakeIpSettingsOperationState.Idle,
+        FakeIpSettingsOperationState.Reading,
+        FakeIpSettingsOperationState.Saving,
+        is FakeIpSettingsOperationState.Saved -> (state.hostCacheOperation as? HostFakeIpFileCacheState.Failed)?.failure
+    }
+    val resultText = when (state.hostCacheOperation) {
+        HostFakeIpFileCacheState.Cleared -> stringResource(R.string.fakeip_host_cache_cleared)
+        HostFakeIpFileCacheState.AlreadyEmpty -> stringResource(R.string.fakeip_host_cache_already_empty)
+        HostFakeIpFileCacheState.Idle,
+        HostFakeIpFileCacheState.Clearing,
+        is HostFakeIpFileCacheState.Failed -> null
+    } ?: if (state.settingsOperation is FakeIpSettingsOperationState.Saved) {
+        stringResource(R.string.text_saved)
+    } else {
+        null
+    }
     var showRangeDialog by remember { mutableStateOf(false) }
     var showFilterDialog by remember { mutableStateOf(false) }
 
@@ -71,56 +97,80 @@ fun FakeIpScreen(viewModel: FakeIpViewModel = viewModel()) {
                 ) {
                     Button(
                         onClick = { viewModel.save() },
-                        enabled = !state.isLoading,
+                        enabled = canEdit && !settingsBusy,
                         modifier = Modifier.weight(1f)
                     ) {
                         Text(stringResource(R.string.action_save))
                     }
                     TextButton(
                         onClick = { viewModel.load() },
-                        enabled = !state.isLoading
+                        enabled = !settingsBusy
                     ) {
                         Text(stringResource(R.string.action_reload))
                     }
                 }
                 TextButton(
-                    onClick = { viewModel.clearCache() },
-                    enabled = !state.isLoading,
+                    onClick = { viewModel.clearHostFakeIpFileCache() },
+                    enabled = !cacheBusy,
                     modifier = Modifier.align(Alignment.CenterHorizontally),
                     colors = androidx.compose.material3.ButtonDefaults.textButtonColors(
                         contentColor = MaterialTheme.colorScheme.error
                     )
                 ) {
-                    Text(stringResource(R.string.action_clear_cache))
+                    Text(stringResource(R.string.action_clear_host_fakeip_file_cache))
                 }
             }
         }
     ) { padding ->
         Box(modifier = Modifier.padding(padding).fillMaxSize()) {
-            if (state.isLoading) {
-                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-            }
-
-            if (state.error != null) {
+            if (operationFailure != null) {
                 ErrorDialog(
-                    message = state.error ?: "",
+                    failure = operationFailure.toLocalizedFailure(),
                     onDismiss = { viewModel.clearError() }
                 )
             }
 
-            LazyColumn(modifier = Modifier.fillMaxSize()) {
+            if (canEdit) {
+                if (settingsBusy || cacheBusy) {
+                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                }
+                if (state.observation is FakeIpSettingsReadState.Unavailable) {
+                    LocalizedFailureText(
+                        failure = state.observation.failure.toLocalizedFailure(),
+                        modifier = Modifier.align(Alignment.TopCenter).padding(16.dp),
+                    )
+                }
+                LazyColumn(modifier = Modifier.fillMaxSize()) {
                 item {
                     StandardListItem(
                         headline = stringResource(R.string.fakeip_store),
-                        supporting = stringResource(R.string.fakeip_store_desc),
+                        supporting = if (state.storeFakeIp == FakeIpBooleanSetting.Unspecified) {
+                            stringResource(R.string.setting_not_explicit)
+                        } else {
+                            stringResource(R.string.fakeip_store_desc)
+                        },
                         trailingContent = {
                             Switch(
-                                checked = state.storeFakeIp,
-                                onCheckedChange = { viewModel.updateStoreFakeIp(it) },
-                                enabled = !state.isLoading
+                                checked = state.storeFakeIp == FakeIpBooleanSetting.Enabled,
+                                onCheckedChange = {
+                                    viewModel.updateStoreFakeIp(
+                                        if (it) FakeIpBooleanSetting.Enabled else FakeIpBooleanSetting.Disabled,
+                                    )
+                                },
+                                enabled = canEdit && !settingsBusy
                             )
                         },
-                        onClick = { if (!state.isLoading) viewModel.updateStoreFakeIp(!state.storeFakeIp) }
+                        onClick = {
+                            if (canEdit && !settingsBusy) {
+                                viewModel.updateStoreFakeIp(
+                                    if (state.storeFakeIp == FakeIpBooleanSetting.Enabled) {
+                                        FakeIpBooleanSetting.Disabled
+                                    } else {
+                                        FakeIpBooleanSetting.Enabled
+                                    },
+                                )
+                            }
+                        }
                     )
                     HorizontalDivider()
                 }
@@ -128,8 +178,8 @@ fun FakeIpScreen(viewModel: FakeIpViewModel = viewModel()) {
                 item {
                     StandardListItem(
                         headline = stringResource(R.string.label_fakeip_range),
-                        supporting = state.fakeIpRange.ifBlank { "Default (198.18.0.1/16)" },
-                        onClick = { if (!state.isLoading) showRangeDialog = true }
+                        supporting = state.fakeIpRange.ifBlank { stringResource(R.string.fakeip_default_range) },
+                        onClick = { if (canEdit && !settingsBusy) showRangeDialog = true }
                     )
                     HorizontalDivider()
                 }
@@ -138,20 +188,31 @@ fun FakeIpScreen(viewModel: FakeIpViewModel = viewModel()) {
                     StandardListItem(
                         headline = stringResource(R.string.label_fakeip_filter),
                         supporting = state.fakeIpFilter.replace("\n", ", "),
-                        onClick = { if (!state.isLoading) showFilterDialog = true }
+                        onClick = { if (canEdit && !settingsBusy) showFilterDialog = true }
                     )
                     HorizontalDivider()
                 }
-                
-                if (state.saved || state.cacheMessage != null) {
+
+                if (resultText != null) {
                     item {
                         Box(modifier = Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
                             Text(
-                                text = state.cacheMessage ?: stringResource(R.string.text_saved),
+                                text = resultText,
                                 color = MaterialTheme.colorScheme.primary,
                                 style = MaterialTheme.typography.labelLarge
                             )
                         }
+                    }
+                }
+                }
+            } else {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    when (val observation = state.observation) {
+                        is FakeIpSettingsReadState.Loading -> CircularProgressIndicator()
+                        is FakeIpSettingsReadState.Unavailable -> LocalizedFailureText(
+                            failure = observation.failure.toLocalizedFailure(),
+                        )
+                        is FakeIpSettingsReadState.Observed -> Text(stringResource(R.string.status_unknown))
                     }
                 }
             }

@@ -1,7 +1,5 @@
 //! Pure [`TraySpec`] builder: turns one [`TraySpecContext`] snapshot into the
-//! complete localized menu tree (0.20 full-feature tray, aligned with the
-//! retired Tauri tray minus the browser entries — see
-//! `docs/archive/TAURI_WEBUI_RETIREMENT_LEDGER.md` §1.1).
+//! complete localized menu tree for the native Iced product.
 //!
 //! Red line: a pure function of the snapshot — no app-state access, no I/O,
 //! no backend calls — so the whole menu is testable headlessly.
@@ -11,20 +9,23 @@ use super::spec::{
     TRAY_ACTION_CHECK_CORE_UPDATE, TRAY_ACTION_FACTORY_RESET, TRAY_ACTION_FLUSH_FAKEIP,
     TRAY_ACTION_INFO_ADMIN, TRAY_ACTION_INFO_CONTROLLER, TRAY_ACTION_INFO_DOWNLOAD,
     TRAY_ACTION_INFO_KERNEL_DEFAULT, TRAY_ACTION_INFO_KERNEL_STATUS,
-    TRAY_ACTION_INFO_KERNEL_VERSION, TRAY_ACTION_INFO_MODE, TRAY_ACTION_INFO_RATE,
-    TRAY_ACTION_INFO_STATUS, TRAY_ACTION_INFO_SYNC, TRAY_ACTION_MODE_DIRECT,
-    TRAY_ACTION_MODE_GLOBAL, TRAY_ACTION_MODE_RULE, TRAY_ACTION_MODE_SCRIPT,
-    TRAY_ACTION_NAVIGATE_SYNC, TRAY_ACTION_NO_PROFILES, TRAY_ACTION_NO_PROXIES, TRAY_ACTION_QUIT,
-    TRAY_ACTION_SELECT_PROXY, TRAY_ACTION_SET_DEFAULT_KERNEL, TRAY_ACTION_SET_PROFILE_AUTO_UPDATE,
-    TRAY_ACTION_SHOW, TRAY_ACTION_SYNC_DOWNLOAD, TRAY_ACTION_SYNC_UPLOAD,
-    TRAY_ACTION_TOGGLE_AUTOSTART, TRAY_ACTION_TOGGLE_SYSTEM_PROXY, TRAY_ACTION_TOGGLE_THEME,
-    TRAY_ACTION_TOGGLE_TUN, TRAY_ACTION_UNINSTALL_KERNEL, TRAY_ACTION_UPDATE_ALL_PROFILES,
-    TRAY_MAX_NODES_PER_GROUP, TRAY_SUBMENU_INFO, TRAY_SUBMENU_KERNEL,
-    TRAY_SUBMENU_KERNEL_VERSION_BASE, TRAY_SUBMENU_MODE, TRAY_SUBMENU_PROFILES,
+    TRAY_ACTION_INFO_KERNEL_VERSION, TRAY_ACTION_INFO_RATE, TRAY_ACTION_INFO_ROUTING_INTENT,
+    TRAY_ACTION_INFO_STATUS, TRAY_ACTION_INFO_SYNC, TRAY_ACTION_NAVIGATE_SYNC,
+    TRAY_ACTION_NO_PROFILES, TRAY_ACTION_NO_PROXIES, TRAY_ACTION_QUIT,
+    TRAY_ACTION_ROUTING_ALL_THROUGH_PROXY, TRAY_ACTION_ROUTING_BYPASS_PROXY,
+    TRAY_ACTION_ROUTING_FOLLOW_RULES, TRAY_ACTION_SELECT_PROXY, TRAY_ACTION_SET_DEFAULT_KERNEL,
+    TRAY_ACTION_SET_PROFILE_AUTO_UPDATE, TRAY_ACTION_SHOW, TRAY_ACTION_SYNC_DOWNLOAD,
+    TRAY_ACTION_SYNC_UPLOAD, TRAY_ACTION_TOGGLE_AUTOSTART, TRAY_ACTION_TOGGLE_SYSTEM_PROXY,
+    TRAY_ACTION_TOGGLE_THEME, TRAY_ACTION_TOGGLE_TUN, TRAY_ACTION_UNINSTALL_KERNEL,
+    TRAY_ACTION_UPDATE_ALL_PROFILES, TRAY_MAX_NODES_PER_GROUP, TRAY_SUBMENU_INFO,
+    TRAY_SUBMENU_KERNEL, TRAY_SUBMENU_KERNEL_VERSION_BASE, TRAY_SUBMENU_PROFILES,
     TRAY_SUBMENU_PROXIES, TRAY_SUBMENU_PROXY_GROUP_BASE, TRAY_SUBMENU_PROXY_MORE_BASE,
-    TRAY_SUBMENU_SYNC, TrayActionId, TrayMenuItem, TrayMenuSpec, TrayProxyGroup, TrayProxyNode,
-    TraySpec, TraySpecContext, encode_pair_payload, load_icon_rgba, tray_status_key,
+    TRAY_SUBMENU_ROUTING_INTENT, TRAY_SUBMENU_SYNC, TrayActionId, TrayMenuItem, TrayMenuSpec,
+    TrayProxyGroup, TrayProxyNode, TraySpec, TraySpecContext, encode_pair_payload, load_icon_rgba,
+    tray_status_key,
 };
+use infiltrator_application::routing_intent_projection::routing_intent_copy;
+use infiltrator_contract::routing_intent::RoutingIntent;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 /// Translation closure type shared by the section builders below.
@@ -37,7 +38,7 @@ pub fn build_tray_spec(ctx: &TraySpecContext<'_>) -> TraySpec {
     let items = vec![
         TrayMenuItem::action(TRAY_ACTION_SHOW, tr("tray_show_window")),
         TrayMenuItem::Separator,
-        mode_submenu(ctx, &tr),
+        routing_intent_submenu(ctx, &tr),
         proxies_submenu(ctx, &tr),
         TrayMenuItem::Separator,
         TrayMenuItem::checkmark(
@@ -69,16 +70,11 @@ pub fn build_tray_spec(ctx: &TraySpecContext<'_>) -> TraySpec {
     }
 }
 
-/// Localized display text for the current proxy mode (`-` when unset).
-fn mode_text(ctx: &TraySpecContext<'_>, tr: Tr<'_>) -> String {
-    match ctx.mode {
-        Some("rule") => tr("mode_rule"),
-        Some("global") => tr("mode_global"),
-        Some("direct") => tr("mode_direct"),
-        Some("script") => tr("tray_mode_script"),
-        Some(other) => other.to_string(),
-        None => "-".to_string(),
-    }
+/// Localized display text for the current routing intent (`-` when unset).
+fn routing_intent_text(ctx: &TraySpecContext<'_>) -> String {
+    ctx.routing_intent
+        .map(|intent| routing_intent_copy(intent, ctx.lang))
+        .unwrap_or_else(|| "-".to_string())
 }
 
 fn default_kernel_version<'a>(ctx: &TraySpecContext<'a>) -> Option<&'a str> {
@@ -88,7 +84,7 @@ fn default_kernel_version<'a>(ctx: &TraySpecContext<'a>) -> Option<&'a str> {
         .map(|kernel| kernel.version.as_str())
 }
 
-/// Localized tooltip carrying the static state lines (mode/status/version)
+/// Localized tooltip carrying the static state lines (routing intent/status/version)
 /// plus the shared live rate badge when the host has delivered a real sample.
 ///
 /// The badge is rebuilt from the same snapshot the shell renders; the update
@@ -99,8 +95,8 @@ fn tooltip(ctx: &TraySpecContext<'_>, tr: Tr<'_>) -> String {
     let mut tooltip = format!(
         "{}\n{}: {} · {}: {}\n{}: {}",
         tr("app_title"),
-        tr("tray_info_mode"),
-        mode_text(ctx, tr),
+        tr("routing_intent_title"),
+        routing_intent_text(ctx),
         tr("tray_info_status"),
         tr(tray_status_key(ctx.status)),
         tr("tray_kernel_version"),
@@ -116,47 +112,37 @@ fn tooltip(ctx: &TraySpecContext<'_>, tr: Tr<'_>) -> String {
     tooltip
 }
 
-/// The 代理模式 submenu: rule / global / direct / script, the active mode
-/// marked with `● `; script stays disabled without a profile script block.
-fn mode_submenu(ctx: &TraySpecContext<'_>, tr: Tr<'_>) -> TrayMenuItem {
-    let marked = |id: TrayActionId, mode_key: &str, label: String| {
-        let active = ctx.mode.is_some_and(|current| current == mode_key);
-        TrayMenuItem::Action {
-            id,
-            label: if active {
-                format!("● {label}")
-            } else {
-                label
-            },
-            enabled: true,
-            payload: None,
-        }
-    };
-    let script_label = if ctx.script_block_present {
-        tr("tray_mode_script")
-    } else {
-        tr("tray_mode_script_unavailable")
-    };
-    let script_active = ctx.mode == Some("script") && ctx.script_block_present;
+/// The three common routing choices, with the observed choice marked.
+fn routing_intent_submenu(ctx: &TraySpecContext<'_>, tr: Tr<'_>) -> TrayMenuItem {
+    let choices = [
+        (TRAY_ACTION_ROUTING_FOLLOW_RULES, RoutingIntent::FollowRules),
+        (
+            TRAY_ACTION_ROUTING_ALL_THROUGH_PROXY,
+            RoutingIntent::RouteAllThroughProxy,
+        ),
+        (TRAY_ACTION_ROUTING_BYPASS_PROXY, RoutingIntent::BypassProxy),
+    ];
     TrayMenuItem::Submenu {
-        id: TRAY_SUBMENU_MODE,
-        label: tr("tray_mode"),
+        id: TRAY_SUBMENU_ROUTING_INTENT,
+        label: tr("routing_intent_title"),
         enabled: true,
-        items: vec![
-            marked(TRAY_ACTION_MODE_RULE, "rule", tr("mode_rule")),
-            marked(TRAY_ACTION_MODE_GLOBAL, "global", tr("mode_global")),
-            marked(TRAY_ACTION_MODE_DIRECT, "direct", tr("mode_direct")),
-            TrayMenuItem::Action {
-                id: TRAY_ACTION_MODE_SCRIPT,
-                label: if script_active {
-                    format!("● {script_label}")
-                } else {
-                    script_label
-                },
-                enabled: ctx.script_block_present,
-                payload: None,
-            },
-        ],
+        items: choices
+            .into_iter()
+            .map(|(id, intent)| {
+                let active = ctx.routing_intent == Some(&intent);
+                let label = routing_intent_copy(&intent, ctx.lang);
+                TrayMenuItem::Action {
+                    id,
+                    label: if active {
+                        format!("● {label}")
+                    } else {
+                        label
+                    },
+                    enabled: true,
+                    payload: None,
+                }
+            })
+            .collect(),
     }
 }
 
@@ -416,7 +402,7 @@ fn sync_submenu(ctx: &TraySpecContext<'_>, tr: Tr<'_>) -> TrayMenuItem {
     }
 }
 
-/// The 信息 submenu: five always-disabled state lines (mode, run status,
+/// The 信息 submenu: five always-disabled state lines (routing intent, run status,
 /// controller URL, admin port, kernel version) plus the shared live rate
 /// badge while a real traffic sample exists. The static lines never churn
 /// D-Bus on their own; the optional rate line is throttled by the update path
@@ -424,8 +410,12 @@ fn sync_submenu(ctx: &TraySpecContext<'_>, tr: Tr<'_>) -> TrayMenuItem {
 fn info_submenu(ctx: &TraySpecContext<'_>, tr: Tr<'_>) -> TrayMenuItem {
     let mut items = vec![
         TrayMenuItem::info(
-            TRAY_ACTION_INFO_MODE,
-            format!("{}: {}", tr("tray_info_mode"), mode_text(ctx, tr)),
+            TRAY_ACTION_INFO_ROUTING_INTENT,
+            format!(
+                "{}: {}",
+                tr("routing_intent_title"),
+                routing_intent_text(ctx)
+            ),
         ),
         TrayMenuItem::info(
             TRAY_ACTION_INFO_STATUS,

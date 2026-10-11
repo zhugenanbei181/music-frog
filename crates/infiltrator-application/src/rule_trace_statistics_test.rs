@@ -5,7 +5,7 @@ use crate::command_application::CommandApplication;
 use crate::rule_trace_fixtures::{NAMED_TRACE_DOCUMENT, RuleTraceStore};
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::rule_trace_run::{RuleTraceOperationId, RuleTraceRequest};
-use infiltrator_ports::rule_tracer::RuleOverridePort;
+use infiltrator_ports::rule_tracer::{RuleOverridePort, RuleWorkspace};
 use std::sync::atomic::Ordering;
 
 const DOCUMENT: &str = "rules:\n  - DOMAIN,example.com,DIRECT\n  - MATCH,REJECT\n";
@@ -14,6 +14,32 @@ fn request() -> RuleTraceRequest {
         query: "example.com".into(),
         context: TrafficContextSnapshot::default(),
     }
+}
+
+async fn simulate_for_workspace(
+    application: &RuleTracerApplication,
+    operation: RuleTraceOperationId,
+    request: RuleTraceRequest,
+    workspace: &RuleWorkspace,
+) -> Result<(), Failure> {
+    let (scope, observed_workspace, request) =
+        crate::rule_trace_fixtures::scoped_rule_trace_request(
+            request,
+            workspace.profile_identity.clone(),
+        );
+    let outbound_observation =
+        crate::rule_trace_fixtures::unknown_rule_trace_observation(scope.clone());
+    application
+        .simulate_scoped(
+            &scope,
+            &observed_workspace,
+            operation,
+            request,
+            &infiltrator_contract::rule_trace_run::RuleTraceOutboundFacts::Observed(
+                outbound_observation.clone(),
+            ),
+        )
+        .await
 }
 
 #[tokio::test]
@@ -28,12 +54,10 @@ async fn source_names_and_hashes_fence_counts_latency_and_read_only_replay() {
             .statistics_for(&first.source, &first.rules)
             .is_none()
     );
-    application
-        .simulate(RuleTraceOperationId(1), request(), None)
+    simulate_for_workspace(&application, RuleTraceOperationId(1), request(), &first)
         .await
         .unwrap();
-    application
-        .simulate(RuleTraceOperationId(2), request(), None)
+    simulate_for_workspace(&application, RuleTraceOperationId(2), request(), &first)
         .await
         .unwrap();
     let observed = application
@@ -71,8 +95,7 @@ async fn source_names_and_hashes_fence_counts_latency_and_read_only_replay() {
         application.replay(&second.source).source,
         Some(first.source.clone())
     );
-    application
-        .simulate(RuleTraceOperationId(3), request(), None)
+    simulate_for_workspace(&application, RuleTraceOperationId(3), request(), &second)
         .await
         .unwrap();
     let second_read = application
@@ -111,8 +134,7 @@ async fn source_names_and_hashes_fence_counts_latency_and_read_only_replay() {
             .statistics_for(&changed.source, &changed.rules)
             .is_none()
     );
-    application
-        .simulate(RuleTraceOperationId(4), request(), None)
+    simulate_for_workspace(&application, RuleTraceOperationId(4), request(), &changed)
         .await
         .unwrap();
     let changed_read = application
@@ -156,19 +178,17 @@ async fn failed_source_load_retains_same_source_statistics_without_counting_anot
     store.select_profile("one.yaml", DOCUMENT);
     let application = RuleTracerApplication::new();
     application.set_override_port(store.clone());
-    application
-        .simulate(RuleTraceOperationId(1), request(), None)
+    let source = store.load_rule_workspace().await.unwrap();
+    simulate_for_workspace(&application, RuleTraceOperationId(1), request(), &source)
         .await
         .unwrap();
-    let source = store.load_rule_workspace().await.unwrap();
     let before = application
         .statistics_for(&source.source, &source.rules)
         .unwrap()
         .audit;
     store.deny_read.store(true, Ordering::SeqCst);
     assert_eq!(
-        application
-            .simulate(RuleTraceOperationId(2), request(), None)
+        simulate_for_workspace(&application, RuleTraceOperationId(2), request(), &source)
             .await
             .unwrap_err()
             .code,
@@ -189,8 +209,8 @@ async fn duplicate_raw_rules_and_named_descents_record_the_actual_root_identity_
     store.replace("rules:\n  - '# DOMAIN,example.com,DIRECT'\n  - DOMAIN,example.com,DIRECT\n  - MATCH,REJECT\n");
     let application = RuleTracerApplication::new();
     application.set_override_port(store.clone());
-    application
-        .simulate(RuleTraceOperationId(1), request(), None)
+    let initial = store.load_rule_workspace().await.unwrap();
+    simulate_for_workspace(&application, RuleTraceOperationId(1), request(), &initial)
         .await
         .unwrap();
     let source = store.load_rule_workspace().await.unwrap();
@@ -202,17 +222,18 @@ async fn duplicate_raw_rules_and_named_descents_record_the_actual_root_identity_
     assert_eq!(read.row_count(1), 1);
     assert_eq!(read.audit.total_hits, 1);
     store.replace(NAMED_TRACE_DOCUMENT);
-    application
-        .simulate(
-            RuleTraceOperationId(2),
-            RuleTraceRequest {
-                query: "google.com:443".into(),
-                context: TrafficContextSnapshot::default(),
-            },
-            None,
-        )
-        .await
-        .unwrap();
+    let named = store.load_rule_workspace().await.unwrap();
+    simulate_for_workspace(
+        &application,
+        RuleTraceOperationId(2),
+        RuleTraceRequest {
+            query: "google.com:443".into(),
+            context: TrafficContextSnapshot::default(),
+        },
+        &named,
+    )
+    .await
+    .unwrap();
     let source = store.load_rule_workspace().await.unwrap();
     let read = application
         .statistics_for(&source.source, &source.rules)

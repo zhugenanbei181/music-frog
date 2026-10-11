@@ -1,5 +1,6 @@
 //! test-intent: behavior
-use crate::command_harness::{RecordingHandler, recording_application};
+//! Native proxy search persists typed shared preferences and retains text input state.
+use crate::command_harness::TypedOutboundPreferenceSink;
 use crate::support::headless_plugins;
 use bevy::app::{App, Update};
 use bevy::ecs::change_detection::{DetectChanges, Ref};
@@ -10,39 +11,65 @@ use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Query, ResMut};
-use bevy::text::TextSpan;
 use bevy::ui::widget::Text;
 use bevy::ui::{Node, Val};
 use bevy::ui_widgets::Activate;
-use infiltrator_application::command_application::CommandApplication;
-use infiltrator_application::core_application::CoreApplication;
-use infiltrator_application::proxy_preferences_application::ProxyPreferencesApplication;
-use infiltrator_application::proxy_projection::project_proxy_groups;
-use infiltrator_application::proxy_search_projection::project_name_runs;
 use infiltrator_bevy_ui::app::ShellPlugin;
 use infiltrator_bevy_ui::command::{CommandPumpPlugin, UiCommand};
 use infiltrator_bevy_ui::command_events::CommandExecutedEvent;
 use infiltrator_bevy_ui::pages::proxies::{
-    LastProxiesProjection, NodeNameText, ProxiesProjectionUpdated, ProxiesScrollArea,
-    ProxyNodeButton,
+    LastProxiesProjection, NodeNameText, ProxiesScrollArea, ProxyNodeButton,
 };
 use infiltrator_bevy_ui::pages::proxies_highlight::sync_name_highlights;
 use infiltrator_bevy_ui::pages::proxies_search::{
-    ClearProxySearch, ProxySearchInput, ProxySearchState, ProxySearchStatus, RetryProxySearch,
+    ClearProxySearch, ProxySearchInput, ProxySearchPhase, ProxySearchState, ProxySearchStatus,
+    RetryProxySearch,
 };
+use infiltrator_bevy_ui::projection::{OverviewProjection, OverviewSource, SourceKind};
 use infiltrator_bevy_ui::route::{PagesPlugin, Route, RouteChanged};
-use infiltrator_bevy_ui::surface::{DemoSurfaceSource, SurfaceSource, proxies_projection};
+use infiltrator_bevy_ui::surface::overview_projection;
+use infiltrator_bevy_ui::surface::{
+    DemoSurfaceSource, LatestSurfaceSnapshot, SurfaceSnapshotUpdated, SurfaceSource,
+};
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::responsive::ResponsiveContext;
 use infiltrator_bevy_widgets::text_input::state::TextFieldInput;
 use infiltrator_bevy_widgets::text_input::{TextField, TextFieldFocused};
+use infiltrator_bevy_widgets::text_runs::TextRuns;
 use infiltrator_contract::command::RequestId;
 use infiltrator_contract::command_output::CommandOutput;
-use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::surface_snapshot::ProxyGroupSnapshot;
+use infiltrator_contract::error::ErrorCode;
+use infiltrator_contract::error::Failure;
+use infiltrator_contract::outbound::inventory::OutboundInventorySnapshot;
+use infiltrator_contract::outbound::inventory::OutboundInventoryState;
+use infiltrator_contract::outbound::{
+    details::{
+        OutboundDetailsSnapshot, OutboundDetailsState, OutboundObservation, OutboundSnapshot,
+    },
+    identity::SnapshotRevision,
+    preferences::{OutboundUiPreferenceIntent, OutboundUiPreferenceRequest},
+};
+use infiltrator_contract::surface_snapshot::{PageData, SurfaceSnapshot};
+use infiltrator_contract::theme::{ThemePreference, ThemeSkin};
 use std::sync::Arc;
 use std::thread::yield_now;
 use std::time::{Duration, Instant};
+
+#[derive(Clone)]
+struct Source(SurfaceSnapshot);
+impl OverviewSource for Source {
+    fn current(&self) -> OverviewProjection {
+        overview_projection(&self.0)
+    }
+    fn kind(&self) -> SourceKind {
+        SourceKind::Demo
+    }
+}
+impl SurfaceSource for Source {
+    fn surface_snapshot(&self) -> SurfaceSnapshot {
+        self.0.clone()
+    }
+}
 
 fn entity<T: Component>(app: &mut App) -> Entity {
     app.world_mut()
@@ -52,49 +79,62 @@ fn entity<T: Component>(app: &mut App) -> Entity {
         .unwrap()
         .0
 }
-fn setup() -> (
-    App,
-    Arc<CoreApplication>,
-    ProxyPreferencesApplication,
-    Vec<ProxyGroupSnapshot>,
-) {
-    let preferences = ProxyPreferencesApplication::new();
-    let (application, _) = recording_application();
-    application.install_command_handler(Arc::new(
-        CommandApplication::new().with_proxy_preferences(preferences.clone()),
-    ));
-    let application = Arc::new(application);
-    let mut groups = DemoSurfaceSource::running()
-        .surface_snapshot()
-        .pages
-        .proxies
+fn base_snapshot() -> SurfaceSnapshot {
+    let mut snapshot = DemoSurfaceSource::running().surface_snapshot();
+    let inventory = snapshot.outbound_inventory.data.as_ref().unwrap();
+    let OutboundInventoryState::Ready { entries, .. } = inventory.inventory() else {
+        unreachable!("demo inventory is ready")
+    };
+    let entries = entries
+        .iter()
+        .map(|entry| OutboundSnapshot {
+            id: entry.id.clone(),
+            display_name: Some(if entry.id.value().starts_with("HK-") {
+                format!("🇭🇰 香港 {}", entry.id.value())
+            } else {
+                entry.id.value().to_owned()
+            }),
+        })
+        .collect();
+    snapshot.outbound_inventory = PageData::ready(
+        OutboundInventorySnapshot::new(
+            inventory.scope().clone(),
+            inventory.revision(),
+            OutboundInventoryState::Ready {
+                entries,
+                collections: match inventory.inventory() {
+                    OutboundInventoryState::Ready { collections, .. } => collections.clone(),
+                    _ => unreachable!(),
+                },
+            },
+        )
+        .unwrap(),
+    );
+    snapshot
+}
+fn setup() -> (App, TypedOutboundPreferenceSink, SurfaceSnapshot) {
+    let snapshot = base_snapshot();
+    let preferences = snapshot
+        .outbound_ui_preferences
         .data
-        .unwrap()
-        .groups;
-    // Unicode here is actual opaque controller data in the isolated native search test.
-    for group in &mut groups {
-        for node in &mut group.proxies {
-            if node.name.starts_with("HK-") {
-                node.name = format!("🇭🇰 香港 {}", node.name);
-            }
-        }
-        if group.current.starts_with("HK-") {
-            group.current = format!("🇭🇰 香港 {}", group.current);
-        }
-    }
+        .clone()
+        .expect("demo has typed preferences");
+    let sink = TypedOutboundPreferenceSink::new(preferences);
     let mut app = App::new();
     headless_plugins(&mut app);
-    app.add_plugins(ShellPlugin::default());
-    app.add_plugins(PagesPlugin::demo());
-    app.add_plugins(CommandPumpPlugin::for_application(application.clone()));
+    app.add_plugins(ShellPlugin::new_with_width(
+        ThemePreference::Fixed(ThemeSkin::Dark),
+        1180.0,
+    ));
+    app.add_plugins(PagesPlugin::new_surface(Source(snapshot.clone())));
+    app.add_plugins(CommandPumpPlugin::new(Arc::new(sink.clone())));
     app.update();
     app.world_mut()
         .commands()
         .trigger(RouteChanged(Route::Proxies));
     app.update();
-    app.update();
-    publish(&mut app, &groups, &preferences);
-    (app, application, preferences, groups)
+    publish(&mut app, &sink, &snapshot);
+    (app, sink, snapshot)
 }
 fn field(app: &mut App) -> Entity {
     let wrapper = entity::<ProxySearchInput>(app);
@@ -106,33 +146,29 @@ fn field(app: &mut App) -> Entity {
         .find(|child| app.world().get::<TextField>(*child).is_some())
         .unwrap()
 }
-fn publish(
-    app: &mut App,
-    groups: &[ProxyGroupSnapshot],
-    preferences: &ProxyPreferencesApplication,
-) {
-    let prefs = preferences
-        .preferences()
-        .expect("shared preference state available");
-    let mut snapshot = DemoSurfaceSource::running().surface_snapshot();
-    let page = snapshot.pages.proxies.data.as_mut().unwrap();
-    page.search_query = prefs.search_query.clone();
-    page.groups = project_proxy_groups(groups.to_vec(), &prefs);
-    page.name_runs = project_name_runs(&page.groups, &prefs.search_query);
+fn publish(app: &mut App, sink: &TypedOutboundPreferenceSink, base: &SurfaceSnapshot) {
+    let mut snapshot = base.clone();
+    snapshot.revision = app
+        .world()
+        .resource::<LatestSurfaceSnapshot>()
+        .0
+        .revision
+        .saturating_add(1);
+    snapshot.outbound_ui_preferences = PageData::ready(sink.preferences());
     app.world_mut()
         .commands()
-        .trigger(ProxiesProjectionUpdated(proxies_projection(&snapshot)));
+        .trigger(SurfaceSnapshotUpdated(snapshot));
     app.update();
     app.update();
 }
 fn settle(app: &mut App) {
     app.update();
     let deadline = Instant::now() + Duration::from_secs(3);
-    while app.world().resource::<ProxySearchState>().pending.is_some() {
-        assert!(
-            Instant::now() < deadline,
-            "search must receive its real terminal result"
-        );
+    while matches!(
+        &app.world().resource::<ProxySearchState>().phase,
+        ProxySearchPhase::Pending { .. }
+    ) {
+        assert!(Instant::now() < deadline, "typed search must finish");
         app.update();
         yield_now();
     }
@@ -148,9 +184,9 @@ fn edit(app: &mut App, field: Entity, query: &str) {
 }
 
 #[test]
-fn native_search_executes_shared_preferences_renders_highlights_and_clear_restores_nodes_without_losing_focus()
- {
-    let (mut app, _, preferences, groups) = setup();
+fn native_search_uses_pinyin_preferences_highlights_and_clear_restores_nodes_without_losing_focus()
+{
+    let (mut app, sink, base) = setup();
     let field = field(&mut app);
     app.world_mut()
         .get_mut::<TextFieldFocused>(field)
@@ -161,15 +197,9 @@ fn native_search_executes_shared_preferences_renders_highlights_and_clear_restor
         .query::<&ProxyNodeButton>()
         .iter(app.world())
         .count();
-    edit(&mut app, field, "香港");
-    assert_eq!(
-        preferences
-            .preferences()
-            .expect("shared preference state available")
-            .search_query,
-        "香港"
-    );
-    publish(&mut app, &groups, &preferences);
+    edit(&mut app, field, "xg");
+    assert_eq!(sink.preferences().search_query, "xg");
+    publish(&mut app, &sink, &base);
     let nodes: Vec<_> = app
         .world_mut()
         .query::<&ProxyNodeButton>()
@@ -179,25 +209,21 @@ fn native_search_executes_shared_preferences_renders_highlights_and_clear_restor
     assert!(!nodes.is_empty());
     assert!(nodes.len() < initial);
     assert!(nodes.iter().all(|node| node.contains("香港")));
-    assert!(
-        app.world_mut()
-            .query::<&TextSpan>()
-            .iter(app.world())
-            .any(|span| span.0 == "香港")
-    );
     let name = entity::<NodeNameText>(&mut app);
-    let mut rendered = app.world().get::<Text>(name).unwrap().0.clone();
-    if let Some(children) = app.world().get::<Children>(name) {
-        for child in children {
-            if let Some(span) = app.world().get::<TextSpan>(*child) {
-                rendered.push_str(&span.0);
-            }
-        }
-    }
-    assert!(
-        nodes.contains(&rendered),
-        "native text runs must preserve the complete observed name"
-    );
+    assert!(app.world().get::<TextRuns>(name).is_some_and(|runs| {
+        runs.0
+            .iter()
+            .any(|run| run.highlighted && run.text.contains("香港"))
+    }));
+    let rendered = app
+        .world()
+        .get::<TextRuns>(name)
+        .unwrap()
+        .0
+        .iter()
+        .map(|run| run.text.as_str())
+        .collect::<String>();
+    assert!(nodes.contains(&rendered));
     assert!(app.world().get::<TextFieldFocused>(field).unwrap().0);
     app.world_mut()
         .get_mut::<TextField>(field)
@@ -210,28 +236,45 @@ fn native_search_executes_shared_preferences_renders_highlights_and_clear_restor
         app.world().get::<TextField>(field).unwrap().0.preedit(),
         "draft"
     );
-    assert!(app.world().resource::<ProxySearchState>().pending.is_none());
-    let mut refreshed = groups.clone();
-    let matching = refreshed
-        .iter_mut()
-        .flat_map(|group| &mut group.proxies)
-        .find(|node| node.name.contains("香港"))
-        .unwrap();
-    matching.delay_ms = Some(142);
-    publish(&mut app, &refreshed, &preferences);
+    assert!(matches!(
+        &app.world().resource::<ProxySearchState>().phase,
+        ProxySearchPhase::Submitted { query } if query == "xg"
+    ));
+
+    let mut refreshed = base.clone();
+    let details_snapshot = refreshed.outbound_details.data.as_ref().unwrap();
+    let OutboundDetailsState::Ready { details } = details_snapshot.state() else {
+        unreachable!()
+    };
+    let mut rows = details.clone();
+    let matching_id = rows
+        .iter()
+        .find(|row| row.id.value().starts_with("HK-"))
+        .unwrap()
+        .id
+        .clone();
+    let matching = rows.iter_mut().find(|row| row.id == matching_id).unwrap();
+    matching.current_latency_ms = OutboundObservation::Observed(142);
+    refreshed.outbound_details = PageData::ready(
+        OutboundDetailsSnapshot::new(
+            details_snapshot.scope().clone(),
+            SnapshotRevision::new(details_snapshot.detail_revision().value() + 1),
+            OutboundDetailsState::Ready { details: rows },
+        )
+        .unwrap(),
+    );
+    publish(&mut app, &sink, &refreshed);
     assert!(
         app.world_mut()
             .query::<&Text>()
             .iter(app.world())
             .any(|text| text.0 == "142 ms")
     );
-    assert_eq!(
-        app.world().get::<TextField>(field).unwrap().0.text(),
-        "香港"
-    );
+    assert_eq!(app.world().get::<TextField>(field).unwrap().0.text(), "xg");
     assert!(app.world().get::<TextFieldFocused>(field).unwrap().0);
+
     edit(&mut app, field, "missing-node");
-    publish(&mut app, &groups, &preferences);
+    publish(&mut app, &sink, &base);
     assert_eq!(
         app.world_mut()
             .query::<&ProxyNodeButton>()
@@ -250,14 +293,8 @@ fn native_search_executes_shared_preferences_renders_highlights_and_clear_restor
         .trigger(Activate { entity: clear });
     app.update();
     settle(&mut app);
-    publish(&mut app, &groups, &preferences);
-    assert!(
-        preferences
-            .preferences()
-            .expect("shared preference state available")
-            .search_query
-            .is_empty()
-    );
+    publish(&mut app, &sink, &base);
+    assert!(sink.preferences().search_query.is_empty());
     assert_eq!(
         app.world_mut()
             .query::<&ProxyNodeButton>()
@@ -274,44 +311,41 @@ fn native_search_executes_shared_preferences_renders_highlights_and_clear_restor
             .unwrap()
             .groups[0]
             .current,
-        groups[0].current,
-        "search and clear preserve the actual observed controller selection"
+        "🇭🇰 香港 HK-01",
+        "search and clear preserve the typed selection observation"
     );
 }
 
 #[test]
-fn native_search_preserves_rejected_drafts_ignores_stale_results_and_retries_through_the_real_owner()
- {
-    let (mut app, application, preferences, groups) = setup();
-    let rejected = Arc::new(RecordingHandler::default());
+fn native_search_keeps_rejected_draft_ignores_stale_result_and_retries() {
+    let (mut app, sink, base) = setup();
     let failure = Failure::new(ErrorCode::Permission, "search denied", false);
-    *rejected.1.lock().unwrap() = Some(failure.clone());
-    application.install_command_handler(rejected);
+    sink.fail_next(failure.clone());
     let field = field(&mut app);
     edit(&mut app, field, "hk");
-    assert_eq!(
-        app.world().resource::<ProxySearchState>().failure,
-        Some(failure)
-    );
+    assert!(matches!(
+        &app.world().resource::<ProxySearchState>().phase,
+        ProxySearchPhase::Failed { query, failure: actual }
+            if query == "hk" && actual == &failure
+    ));
     assert_eq!(app.world().get::<TextField>(field).unwrap().0.text(), "hk");
-    assert!(
-        preferences
-            .preferences()
-            .expect("shared preference state available")
-            .search_query
-            .is_empty()
-    );
+    assert!(sink.preferences().search_query.is_empty());
     app.world_mut().commands().trigger(CommandExecutedEvent {
         request_id: RequestId(999999),
-        command: UiCommand::SetProxySearchQuery {
-            query: "old".into(),
+        command: UiCommand::ApplyOutboundUiPreference {
+            request: OutboundUiPreferenceRequest::new(
+                SnapshotRevision::new(1),
+                OutboundUiPreferenceIntent::SetSearchQuery("stale".to_owned()),
+            )
+            .unwrap(),
         },
         result: Ok(CommandOutput::Unit),
     });
     app.update();
-    assert!(app.world().resource::<ProxySearchState>().failure.is_some());
-    application.install_command_handler(Arc::new(
-        CommandApplication::new().with_proxy_preferences(preferences.clone()),
+    assert!(matches!(
+        &app.world().resource::<ProxySearchState>().phase,
+        ProxySearchPhase::Failed { query, failure: actual }
+            if query == "hk" && actual == &failure
     ));
     let retry = entity::<RetryProxySearch>(&mut app);
     app.world_mut()
@@ -319,15 +353,12 @@ fn native_search_preserves_rejected_drafts_ignores_stale_results_and_retries_thr
         .trigger(Activate { entity: retry });
     app.update();
     settle(&mut app);
-    publish(&mut app, &groups, &preferences);
-    assert_eq!(
-        preferences
-            .preferences()
-            .expect("shared preference state available")
-            .search_query,
-        "hk"
-    );
-    assert!(app.world().resource::<ProxySearchState>().failure.is_none());
+    publish(&mut app, &sink, &base);
+    assert_eq!(sink.preferences().search_query, "hk");
+    assert!(matches!(
+        &app.world().resource::<ProxySearchState>().phase,
+        ProxySearchPhase::Submitted { query } if query == "hk"
+    ));
 }
 
 #[derive(Resource, Default)]
@@ -340,8 +371,8 @@ fn observe_name_changes(
 }
 
 #[test]
-fn idle_highlights_do_not_relayout_text_and_short_spacing_restores_without_replacing_the_input() {
-    let (mut app, _, _, _) = setup();
+fn idle_highlights_do_not_relayout_text_and_short_spacing_keeps_input_entity() {
+    let (mut app, _, _) = setup();
     let input = field(&mut app);
     app.init_resource::<NameChanges>();
     app.add_systems(Update, observe_name_changes.after(sync_name_highlights));
@@ -350,11 +381,7 @@ fn idle_highlights_do_not_relayout_text_and_short_spacing_restores_without_repla
     for _ in 0..3 {
         app.update();
     }
-    assert_eq!(
-        app.world().resource::<NameChanges>().0,
-        0,
-        "idle frames must not dirty every node's glyph layout"
-    );
+    assert_eq!(app.world().resource::<NameChanges>().0, 0);
     let scroll = entity::<ProxiesScrollArea>(&mut app);
     for (height, gap) in [(480.0, 8.0), (780.0, 16.0)] {
         app.world_mut()

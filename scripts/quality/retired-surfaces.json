@@ -1,0 +1,980 @@
+{
+  "version": 1,
+  "retired_surfaces": [
+    {
+      "id": "iced-local-virtual-viewport",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "VirtualViewport",
+      "rationale": "The local Iced viewport type and duplicate algorithm were replaced by the shared zhuge-ui-core VirtualWindow and its bounded fixed-extent geometry.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-iced/tests/gui/iced_six_advancements_tests.rs"
+      ]
+    },
+    {
+      "id": "bevy-local-variable-extent-index",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "DynamicHeightIndex",
+      "rationale": "Variable-extent prefix indexing moved to the shared toolkit-neutral zhuge-ui-core owner as VariableExtentIndex; Bevy retains only scroll physics, identity, and entity-recycling adapters.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-bevy-widgets/tests/headless/list_tests.rs",
+        "crates/infiltrator-bevy-widgets/tests/headless/advanced_fifteen_routes_tests.rs"
+      ]
+    },
+    {
+      "id": "bevy-list-dynamic-constructor",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "new_dynamic",
+      "rationale": "The ambiguous dynamic-row constructor was replaced by the explicit new_variable_extent typed mode.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-bevy-widgets/tests/headless/list_tests.rs"
+      ]
+    },
+    {
+      "id": "bevy-list-measured-row-bool-outcome",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "update_measured_row_height",
+      "rationale": "The boolean measurement result was replaced by RowMeasurementOutcome and shared ExtentUpdate typed outcomes.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-bevy-widgets/tests/headless/list_tests.rs"
+      ]
+    },
+    {
+      "id": "bevy-list-implicit-row-height-reset",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "set_row_height",
+      "rationale": "The setter could silently replace a measured variable index; set_fixed_extent now reports when the selected height mode rejects the operation.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-bevy-widgets/tests/headless/list_tests.rs"
+      ]
+    },
+    {
+      "id": "bevy-list-duplicate-physics-step",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "tick_physics",
+      "rationale": "The unused list-local physics implementation was retired; Bevy ScrollArea owns touch drag and bounded coast motion.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-bevy-widgets/tests/headless/scrollarea_touch_tests.rs",
+        "crates/infiltrator-bevy-widgets/tests/headless/scrollarea_inertia_tests.rs"
+      ]
+    },
+    {
+      "id": "bevy-list-duplicate-inertial-scroller",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "InertialScroller",
+      "rationale": "The unused list-local fling API duplicated touch drag/coast motion owned by the ScrollArea adapter.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-bevy-widgets/tests/headless/scrollarea_touch_tests.rs",
+        "crates/infiltrator-bevy-widgets/tests/headless/scrollarea_inertia_tests.rs"
+      ]
+    },
+    {
+      "id": "bevy-list-duplicate-fling-message",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "VirtualListFling",
+      "rationale": "The unused list-specific fling message was retired; ScrollArea gesture input is the sole product scroll-motion path.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-bevy-widgets/tests/headless/scrollarea_touch_tests.rs",
+        "crates/infiltrator-bevy-widgets/tests/headless/scrollarea_inertia_tests.rs"
+      ]
+    },
+    {
+      "id": "bevy-list-duplicate-advance-physics",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "advance_physics",
+      "rationale": "The unused list-local physics update API was retired; the ScrollArea adapter owns typed touch/coast transitions.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-bevy-widgets/tests/headless/scrollarea_touch_tests.rs",
+        "crates/infiltrator-bevy-widgets/tests/headless/scrollarea_inertia_tests.rs"
+      ]
+    },
+    {
+      "id": "bevy-list-duplicate-smooth-scroll",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "smooth_scroll_to_index",
+      "rationale": "The unused second list motion API was retired; list geometry remains in the shared UI core and gesture motion in ScrollArea.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-bevy-widgets/tests/headless/scrollarea_touch_tests.rs",
+        "crates/infiltrator-bevy-widgets/tests/headless/scrollarea_inertia_tests.rs"
+      ]
+    },
+    {
+      "id": "android-vpn-state-manager",
+      "kind": "public_symbol",
+      "language": "kotlin",
+      "text": "VpnStateManager",
+      "rationale": "The process-global VPN state holder was replaced by the typed VPN lifecycle coordinator and host authorization flow.",
+      "replacement_behavior_tests": [
+        "android/app/src/test/java/com/musicfrog/infiltrator/VpnProcessStateTest.kt",
+        "android/app/src/test/java/com/musicfrog/infiltrator/AndroidVpnAuthorizationFlowTest.kt"
+      ]
+    },
+    {
+      "id": "core-command-test-delay",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "TestDelay",
+      "rationale": "The unproduced UI delay command was removed with the old dispatch path after typed outbound probing became the supported behavior.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-application/src/command_outbound_tests.rs"
+      ]
+    },
+    {
+      "id": "core-command-test-node-delay",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "TestNodeDelay",
+      "rationale": "The unproduced node-delay command was removed with the old dispatch path after typed outbound probing became the supported behavior.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-application/src/command_outbound_tests.rs"
+      ]
+    },
+    {
+      "id": "cli-proxy-action-api",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "ProxyAction",
+      "rationale": "The CLI proxy parser was retired when the command surface moved to typed outbound operations.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-cli/src/commands_test.rs",
+        "crates/infiltrator-application/src/command_outbound_tests.rs"
+      ]
+    },
+    {
+      "id": "cli-proxy-groups-command",
+      "kind": "product_command",
+      "language": "cli",
+      "text": "proxy groups",
+      "rationale": "The former CLI group-list command was replaced by `outbound list`.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-cli/src/commands_test.rs",
+        "crates/infiltrator-application/src/command_outbound_tests.rs"
+      ]
+    },
+    {
+      "id": "cli-proxy-switch-command",
+      "kind": "product_command",
+      "language": "cli",
+      "text": "proxy switch",
+      "rationale": "The former CLI proxy-switch command was replaced by typed `outbound select`.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-cli/src/commands_test.rs",
+        "crates/infiltrator-application/src/command_outbound_tests.rs"
+      ]
+    },
+    {
+      "id": "cli-proxy-list-command",
+      "kind": "product_command",
+      "language": "cli",
+      "text": "proxy list",
+      "rationale": "The former CLI proxy listing command was replaced by typed `outbound list`.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-cli/src/commands_test.rs",
+        "crates/infiltrator-application/src/command_outbound_tests.rs"
+      ]
+    },
+    {
+      "id": "cli-proxy-test-command",
+      "kind": "product_command",
+      "language": "cli",
+      "text": "proxy test",
+      "rationale": "The former CLI delay-test command was replaced by typed `outbound probe`.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-cli/src/commands_test.rs",
+        "crates/infiltrator-application/src/command_outbound_tests.rs"
+      ]
+    },
+    {
+      "id": "cli-proxy-current-command",
+      "kind": "product_command",
+      "language": "cli",
+      "text": "proxy current",
+      "rationale": "The former CLI current-proxy query was replaced by typed `outbound list` selection readback.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-cli/src/commands_test.rs",
+        "crates/infiltrator-application/src/command_outbound_tests.rs"
+      ]
+    },
+    {
+      "id": "bevy-ui-application-surface-entry",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "run_with_application_and_surface",
+      "rationale": "The erased Bevy host-composition entry had no production consumer and was replaced by injected host-owned SurfaceSource and UiCommandSink composition.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-bevy-ui/tests/headless/product_launch_tests.rs"
+      ]
+    },
+    {
+      "id": "bevy-ui-android-application-control-entry",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "run_with_application_surface_pump_and_control",
+      "rationale": "Android product control now enters through the typed owner IPC UiCommandSink; Bevy UI no longer accepts the AndroidControlApplication host adapter.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-bevy-ui/tests/headless/core_control_tests.rs"
+      ]
+    },
+    {
+      "id": "bevy-ui-application-command-pump-constructor",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "for_surface",
+      "rationale": "The convenience constructor created an application command sink inside the Bevy UI crate and had no production consumer; hosts now inject UiCommandSink explicitly.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-bevy-ui/tests/headless/core_control_tests.rs"
+      ]
+    },
+    {
+      "id": "bevy-ui-application-control-attachment",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "with_android_control",
+      "rationale": "Android lifecycle control is handled by the NativeActivity owner's typed IPC client rather than an application control adapter attached to a Bevy UI sink.",
+      "replacement_behavior_tests": [
+        "android/bevy-host/driver/src/owner_client_tests.rs"
+      ]
+    },
+    {
+      "id": "bevy-ui-command-scope-observation",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "command_scope_observation",
+      "rationale": "The UI surface contract no longer exposes an application-owned scope lock; owner snapshots carry their accepted scope and hosts provide typed command clients.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-bevy-ui/tests/headless/surface_tests.rs",
+        "crates/infiltrator-bevy-ui/tests/headless/core_control_tests.rs"
+      ]
+    },
+    {
+      "id": "composition-demo-identities",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "demo_identities",
+      "rationale": "Cross-surface fixture identities moved from host composition into the shared contract so UI packages no longer depend on runtime composition for demo literals.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-bevy-ui/tests/headless/proxy_identity_tests.rs",
+        "crates/infiltrator-iced/tests/headless/proxy_inspection_tests.rs"
+      ]
+    },
+    {
+      "id": "application-byte-format-module",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "byte_format",
+      "rationale": "The cross-surface byte display helper moved from the application layer to the runtime-neutral shared presentation utilities; the application-owned module is retired.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-shared/tests/byte_units_tests.rs"
+      ]
+    },
+    {
+      "id": "application-shell-readout-projection",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "shell_readout_projection",
+      "rationale": "Pure cross-surface shell readout copy and status folding moved to infiltrator-presentation; application no longer owns this view-only module.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-application/src/shell_readout_application_test.rs"
+      ]
+    },
+    {
+      "id": "application-traffic-readout-projection",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "traffic_readout_projection",
+      "rationale": "The pure traffic readout reducer and freshness result moved to infiltrator-presentation, removing this view-only reducer from application.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/tests/traffic_readout_tests.rs"
+      ]
+    },
+    {
+      "id": "connection-rate-observed-boolean",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "rate_observed",
+      "rationale": "The connection-rate boolean was replaced by the shared ConnectionRateObservation enum so an unmeasured rate cannot masquerade as a measured zero.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-application/src/connection_rate_application_test.rs"
+      ]
+    },
+    {
+      "id": "core-proxy-probe-options-module",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "proxy_probe_options",
+      "rationale": "The settings module was replaced by the engine-neutral runtime_settings owner and Core-only versioned persistence migration.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-application/src/command_application_settings_tests.rs",
+        "crates/infiltrator-application/src/speedtest_application_tests.rs"
+      ]
+    },
+    {
+      "id": "core-proxy-probe-options-value",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "ProxyProbeOptions",
+      "rationale": "The unvalidated settings DTO was replaced by validated RuntimeProbeSettings shared by the settings owner and all surfaces.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-application/src/command_application_settings_tests.rs",
+        "crates/infiltrator-application/src/speedtest_application_tests.rs"
+      ]
+    },
+    {
+      "id": "core-proxy-probe-draft-value",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "ProxyProbeDraft",
+      "rationale": "The duplicated raw draft was replaced by RuntimeProbeSettingsDraft and the shared settings editor state model.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-iced/tests/headless/probe_settings_tests.rs",
+        "crates/infiltrator-bevy-ui/tests/headless/probe_settings_tests.rs"
+      ]
+    },
+    {
+      "id": "core-proxy-probe-settings-snapshot",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "ProxyProbeSettingsSnapshot",
+      "rationale": "The mixed options/boolean/failure snapshot was replaced by RuntimeProbeSettingsState with explicit Available and Unavailable cases.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-iced/tests/headless/probe_settings_tests.rs",
+        "crates/infiltrator-bevy-ui/tests/headless/probe_settings_tests.rs"
+      ]
+    },
+    {
+      "id": "core-default-probe-url-constant",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "DEFAULT_PROBE_URL",
+      "rationale": "The probe default moved under the typed RuntimeProbeSettings owner; its old unscoped constant is retired.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-application/src/speedtest_application_tests.rs",
+        "crates/infiltrator-application/src/command_application_settings_tests.rs"
+      ]
+    },
+    {
+      "id": "core-neutral-mihomo-probe-cap",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "MAX_PROBE_TIMEOUT_MS",
+      "rationale": "The engine-specific signed timeout cap now belongs to the Mihomo adapter instead of the neutral contract.",
+      "replacement_behavior_tests": [
+        "crates/mihomo-api/src/client_tests.rs",
+        "crates/mihomo-api/src/outbound_tests.rs"
+      ]
+    },
+    {
+      "id": "core-set-proxy-probe-options-command",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "SetProxyProbeOptions",
+      "rationale": "The old command was replaced by SetRuntimeProbeSettings carrying the validated canonical value.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-application/src/command_application_settings_tests.rs",
+        "crates/infiltrator-application/src/command_probe_tests.rs"
+      ]
+    },
+    {
+      "id": "core-untyped-speedtest-config",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "SpeedtestConfig",
+      "rationale": "The URL/duration/bandwidth DTO and duplicate core speedtester were replaced by the accepted RuntimeProbeSettings owner and typed multi-round SpeedtestTarget contract.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-application/src/speedtest_application_tests.rs"
+      ]
+    },
+    {
+      "id": "core-name-keyed-speedtest-report",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "SpeedtestReport",
+      "rationale": "The name-keyed throughput report was replaced by typed OutboundId results retaining per-round sample outcomes, jitter, and loss semantics.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-application/src/speedtest_application_tests.rs"
+      ]
+    },
+    {
+      "id": "core-priority-proxy-speedtest-target",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "PriorityProxy",
+      "rationale": "String proxy names and priority scheduling were replaced by a validated typed target tied to an accepted inventory revision and scope.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-application/src/speedtest_application_tests.rs"
+      ]
+    },
+    {
+      "id": "core-duplicate-batch-speedtester",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "BatchSpeedtester",
+      "rationale": "This unused core implementation was retired; SpeedtestApplication now performs preflight-fenced multi-round Outbound probes with typed cancellation, timeout, and sample outcomes.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-application/src/speedtest_application_tests.rs"
+      ]
+    },
+    {
+      "id": "core-string-speedtest-scope",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "SpeedtestScope",
+      "rationale": "String scope identity was replaced by OutboundProbeBatchScope carried inside a CoreScope- and inventory-revision-fenced SpeedtestTarget.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-application/src/speedtest_application_tests.rs"
+      ]
+    },
+    {
+      "id": "core-untyped-speedtest-target-config",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "SpeedtestTargetConfig",
+      "rationale": "The raw config was replaced by validated SpeedtestTarget and accepted RuntimeProbeSettings owners.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-application/src/speedtest_application_tests.rs"
+      ]
+    },
+    {
+      "id": "core-name-keyed-node-speedtest-result",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "NodeSpeedtestResult",
+      "rationale": "Name-keyed node rows were replaced by SpeedtestOutboundResult keyed by engine-owned OutboundId.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-application/src/speedtest_application_tests.rs",
+        "crates/infiltrator-application/src/speedtest_detail_projection_test.rs"
+      ]
+    },
+    {
+      "id": "core-speedtest-egress-country-match",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "EgressCountryMatch",
+      "rationale": "Speedtest no longer infers egress location from display names or joins speedtest rows to adapter egress; only typed outbound observations remain authoritative.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-application/src/speedtest_application_tests.rs"
+      ]
+    },
+    {
+      "id": "domain-unowned-speedtest-result",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "SpeedtestResult",
+      "rationale": "The domain-owned legacy result was replaced by the shared typed Outbound speedtest result and sample outcome contract.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-application/src/speedtest_application_tests.rs"
+      ]
+    },
+    {
+      "id": "domain-unowned-speedtest-calculator",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "SpeedtestCalculator",
+      "rationale": "The domain calculator was replaced by JitterCalculation over preserved multi-round typed samples in the neutral contract.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-application/src/speedtest_application_tests.rs"
+      ]
+    },
+    {
+      "id": "core-string-run-speedtest-command",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "RunSpeedtest",
+      "rationale": "The name-based command was replaced by StartSpeedtest carrying a typed SpeedtestTarget.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-application/src/speedtest_application_tests.rs",
+        "crates/infiltrator-bevy-ui/tests/headless/overview_tests/overview_speedtest.rs"
+      ]
+    },
+    {
+      "id": "iced-string-run-node-speedtest-message",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "RunNodeSpeedtest",
+      "rationale": "The string message was replaced by the typed StartSpeedtest surface intent built from the accepted outbound inventory.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-iced/tests/gui/iced_six_advancements_wave3_tests.rs",
+        "crates/infiltrator-bevy-ui/tests/headless/overview_tests/overview_speedtest.rs"
+      ]
+    },
+    {
+      "id": "core-speedtest-port",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "SpeedtestPort",
+      "rationale": "The UI-facing speedtest port was retired; CoreApplication now owns run admission, cancellation, completion fencing, and the canonical snapshot.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-application/src/core_application/speedtest_actor_tests.rs"
+      ]
+    },
+    {
+      "id": "core-speedtest-runtime-port-field",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "speedtest_port",
+      "rationale": "HostRuntime no longer exposes a second speedtest owner; product surfaces submit Core intents and read the Core-authored snapshot.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-application/src/core_application/speedtest_actor_tests.rs"
+      ]
+    },
+    {
+      "id": "desktop-speedtest-port",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "DesktopSpeedtestPort",
+      "rationale": "The desktop-specific speedtest adapter was removed with the direct host port; speedtests now use the shared Core application path.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-application/src/core_application/speedtest_actor_tests.rs"
+      ]
+    },
+    {
+      "id": "desktop-unsupported-speedtest-port",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "UnsupportedSpeedtestPort",
+      "rationale": "The per-surface unsupported port was removed; unsupported scheduling is represented by typed Core runtime admission outcomes.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-application/src/core_application/speedtest_actor_tests.rs",
+        "crates/infiltrator-composition/src/background_runtime_tests.rs"
+      ]
+    },
+    {
+      "id": "core-speedtest-cancel-without-run-id",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "CancelSpeedtest",
+      "rationale": "The run-ambiguous cancellation command was replaced by CancelSpeedtestRun carrying the admitted SpeedtestRunId.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-application/src/core_application/speedtest_actor_tests.rs"
+      ]
+    },
+    {
+      "id": "iced-speedtest-snapshot-message",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "SpeedtestSnapshotUpdated",
+      "rationale": "UI-pushed speedtest snapshots were retired; Iced now reads the Core owner snapshot after typed command receipts.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-iced/tests/gui/iced_six_advancements_wave3_tests.rs"
+      ]
+    },
+    {
+      "id": "core-speedtest-composition-injection",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "with_speedtest",
+      "rationale": "UI composition no longer injects an independent speedtest application; CoreApplication owns the shared speedtest service.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-application/src/core_application/speedtest_actor_tests.rs"
+      ]
+    },
+    {
+      "id": "core-speedtest-not-running-cancel-outcome",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "NotRunning",
+      "rationale": "Cancellation now distinguishes an already-finished run from an unknown/stale run using RunAlreadyFinished and StaleRun.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-application/src/core_application/speedtest_actor_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-contract/src",
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "core-speedtest-delay-loop-api",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "test_delays",
+      "rationale": "The old delay loop API was replaced by the Core-owned prepared run and executor-neutral task scheduler.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-application/src/core_application/speedtest_actor_tests.rs"
+      ]
+    },
+    {
+      "id": "core-speedtest-jitter-node-probe-api",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "probe_node_jitter",
+      "rationale": "The direct node probe API was replaced by preflight-fenced typed outbound probes owned by SpeedtestApplication.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-application/src/speedtest_application_tests.rs"
+      ]
+    },
+    {
+      "id": "core-speedtest-bandwidth-recorder",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "record_bandwidth",
+      "rationale": "The legacy bandwidth recorder was retired; speedtest results are recorded as typed outbound observations and samples.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-application/src/speedtest_application_tests.rs"
+      ]
+    },
+    {
+      "id": "core-speedtest-outbound-ip-recorder",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "record_outbound_ip",
+      "rationale": "The UI-side outbound IP mutation hook was retired; results are recorded under the Core owner and its accepted run identity.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-application/src/core_application/speedtest_actor_tests.rs"
+      ]
+    },
+    {
+      "id": "core-speedtest-history-getter",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "get_history",
+      "rationale": "History reads now come from the Core-authored SpeedtestSnapshot instead of a UI-owned getter surface.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-application/src/speedtest_application_tests.rs"
+      ]
+    },
+    {
+      "id": "android-local-tun-settings-read",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "vpn_tun_settings",
+      "rationale": "The direct UniFFI read entry was retired; Compose now reads revisioned TUN state through the typed :vpn owner operation.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-android/src/uniffi_api/owner_operation_tests.rs"
+      ]
+    },
+    {
+      "id": "android-local-tun-settings-write",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "vpn_tun_settings_save",
+      "rationale": "The direct UniFFI write entry was retired; TUN writes now use typed owner operation readback and the shared owner data revision.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-android/src/uniffi_api/owner_operation_tests.rs"
+      ]
+    },
+    {
+      "id": "android-local-webdav-settings-read",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "webdav_settings",
+      "rationale": "The direct WebDAV UniFFI read entry was retired; Compose reads the revision-fenced settings snapshot through AndroidOwnerOperation.",
+      "replacement_behavior_tests": [
+        "android/app/src/test/java/com/musicfrog/infiltrator/ui/sync/SyncRepositoryTest.kt"
+      ]
+    },
+    {
+      "id": "android-local-webdav-settings-write",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "webdav_settings_save",
+      "rationale": "The direct WebDAV UniFFI write entry was retired; settings writes now return the owner snapshot and advance the owner data revision.",
+      "replacement_behavior_tests": [
+        "android/app/src/test/java/com/musicfrog/infiltrator/ui/sync/SyncRepositoryTest.kt",
+        "crates/infiltrator-android/src/uniffi_api/owner_operation_tests.rs"
+      ]
+    },
+    {
+      "id": "android-local-webdav-test",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "webdav_test",
+      "rationale": "The direct WebDAV connection-test entry was retired; tests now carry a typed operation result and accepted owner settings snapshot.",
+      "replacement_behavior_tests": [
+        "android/app/src/test/java/com/musicfrog/infiltrator/ui/sync/SyncRepositoryTest.kt"
+      ]
+    },
+    {
+      "id": "android-local-webdav-sync-now",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "webdav_sync_now",
+      "rationale": "The direct WebDAV sync entry was retired; sync-now now returns a typed summary with the owner snapshot and revision.",
+      "replacement_behavior_tests": [
+        "android/app/src/test/java/com/musicfrog/infiltrator/ui/sync/SyncRepositoryTest.kt"
+      ]
+    },
+    {
+      "id": "android-local-webdav-settings-read-kotlin",
+      "kind": "public_symbol",
+      "language": "kotlin",
+      "text": "webdavSettings",
+      "rationale": "The generated direct WebDAV Kotlin binding was retired; Compose now calls the typed AndroidOwnerOperation gateway.",
+      "replacement_behavior_tests": [
+        "android/app/src/test/java/com/musicfrog/infiltrator/ui/sync/SyncRepositoryTest.kt"
+      ]
+    },
+    {
+      "id": "android-local-webdav-settings-write-kotlin",
+      "kind": "public_symbol",
+      "language": "kotlin",
+      "text": "webdavSettingsSave",
+      "rationale": "The generated direct WebDAV Kotlin binding was retired; Compose now calls the typed AndroidOwnerOperation gateway.",
+      "replacement_behavior_tests": [
+        "android/app/src/test/java/com/musicfrog/infiltrator/ui/sync/SyncRepositoryTest.kt"
+      ]
+    },
+    {
+      "id": "android-local-webdav-test-kotlin",
+      "kind": "public_symbol",
+      "language": "kotlin",
+      "text": "webdavTest",
+      "rationale": "The generated direct WebDAV Kotlin binding was retired; Compose now calls the typed AndroidOwnerOperation gateway.",
+      "replacement_behavior_tests": [
+        "android/app/src/test/java/com/musicfrog/infiltrator/ui/sync/SyncRepositoryTest.kt"
+      ]
+    },
+    {
+      "id": "android-local-webdav-sync-now-kotlin",
+      "kind": "public_symbol",
+      "language": "kotlin",
+      "text": "webdavSyncNow",
+      "rationale": "The generated direct WebDAV Kotlin binding was retired; Compose now calls the typed AndroidOwnerOperation gateway.",
+      "replacement_behavior_tests": [
+        "android/app/src/test/java/com/musicfrog/infiltrator/ui/sync/SyncRepositoryTest.kt"
+      ]
+    },
+    {
+      "id": "android-local-profiles-list-rust",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "profiles_list",
+      "rationale": "The direct per-action UniFFI entry was retired; profile actions now use the typed AndroidOwnerOperation through the :vpn owner.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-android/src/uniffi_api/owner_operation_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-android/src/uniffi_api"
+      ]
+    },
+    {
+      "id": "android-local-profiles-list-kotlin",
+      "kind": "public_symbol",
+      "language": "kotlin",
+      "text": "profilesList",
+      "rationale": "The direct per-action UniFFI entry was retired; profile actions now use the typed AndroidOwnerOperation through the :vpn owner.",
+      "replacement_behavior_tests": [
+        "android/app/src/test/java/com/musicfrog/infiltrator/ui/profiles/ProfilesRepositoryTest.kt"
+      ],
+      "source_roots": [
+        "android/app/src/main/java/infiltrator_android"
+      ]
+    },
+    {
+      "id": "android-local-profile-create-rust",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "profile_create",
+      "rationale": "The direct per-action UniFFI entry was retired; profile actions now use the typed AndroidOwnerOperation through the :vpn owner.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-android/src/uniffi_api/owner_operation_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-android/src/uniffi_api"
+      ]
+    },
+    {
+      "id": "android-local-profile-create-kotlin",
+      "kind": "public_symbol",
+      "language": "kotlin",
+      "text": "profileCreate",
+      "rationale": "The direct per-action UniFFI entry was retired; profile actions now use the typed AndroidOwnerOperation through the :vpn owner.",
+      "replacement_behavior_tests": [
+        "android/app/src/test/java/com/musicfrog/infiltrator/ui/profiles/ProfilesRepositoryTest.kt"
+      ],
+      "source_roots": [
+        "android/app/src/main/java/infiltrator_android"
+      ]
+    },
+    {
+      "id": "android-local-profile-select-rust",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "profile_select",
+      "rationale": "The direct per-action UniFFI entry was retired; profile actions now use the typed AndroidOwnerOperation through the :vpn owner.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-android/src/uniffi_api/owner_operation_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-android/src/uniffi_api"
+      ]
+    },
+    {
+      "id": "android-local-profile-select-kotlin",
+      "kind": "public_symbol",
+      "language": "kotlin",
+      "text": "profileSelect",
+      "rationale": "The direct per-action UniFFI entry was retired; profile actions now use the typed AndroidOwnerOperation through the :vpn owner.",
+      "replacement_behavior_tests": [
+        "android/app/src/test/java/com/musicfrog/infiltrator/ui/profiles/ProfilesRepositoryTest.kt"
+      ],
+      "source_roots": [
+        "android/app/src/main/java/infiltrator_android"
+      ]
+    },
+    {
+      "id": "android-local-profile-update-rust",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "profile_update",
+      "rationale": "The direct per-action UniFFI entry was retired; profile actions now use the typed AndroidOwnerOperation through the :vpn owner.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-android/src/uniffi_api/owner_operation_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-android/src/uniffi_api"
+      ]
+    },
+    {
+      "id": "android-local-profile-update-kotlin",
+      "kind": "public_symbol",
+      "language": "kotlin",
+      "text": "profileUpdate",
+      "rationale": "The direct per-action UniFFI entry was retired; profile actions now use the typed AndroidOwnerOperation through the :vpn owner.",
+      "replacement_behavior_tests": [
+        "android/app/src/test/java/com/musicfrog/infiltrator/ui/profiles/ProfilesRepositoryTest.kt"
+      ],
+      "source_roots": [
+        "android/app/src/main/java/infiltrator_android"
+      ]
+    },
+    {
+      "id": "android-local-profile-detail-rust",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "profile_detail",
+      "rationale": "The direct per-action UniFFI entry was retired; profile actions now use the typed AndroidOwnerOperation through the :vpn owner.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-android/src/uniffi_api/owner_operation_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-android/src/uniffi_api"
+      ]
+    },
+    {
+      "id": "android-local-profile-detail-kotlin",
+      "kind": "public_symbol",
+      "language": "kotlin",
+      "text": "profileDetail",
+      "rationale": "The direct per-action UniFFI entry was retired; profile actions now use the typed AndroidOwnerOperation through the :vpn owner.",
+      "replacement_behavior_tests": [
+        "android/app/src/test/java/com/musicfrog/infiltrator/ui/profiles/ProfilesRepositoryTest.kt"
+      ],
+      "source_roots": [
+        "android/app/src/main/java/infiltrator_android"
+      ]
+    },
+    {
+      "id": "android-local-profile-save-rust",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "profile_save",
+      "rationale": "The direct per-action UniFFI entry was retired; profile actions now use the typed AndroidOwnerOperation through the :vpn owner.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-android/src/uniffi_api/owner_operation_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-android/src/uniffi_api"
+      ]
+    },
+    {
+      "id": "android-local-profile-save-kotlin",
+      "kind": "public_symbol",
+      "language": "kotlin",
+      "text": "profileSave",
+      "rationale": "The direct per-action UniFFI entry was retired; profile actions now use the typed AndroidOwnerOperation through the :vpn owner.",
+      "replacement_behavior_tests": [
+        "android/app/src/test/java/com/musicfrog/infiltrator/ui/profiles/ProfilesRepositoryTest.kt"
+      ],
+      "source_roots": [
+        "android/app/src/main/java/infiltrator_android"
+      ]
+    },
+    {
+      "id": "android-local-profile-delete-rust",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "profile_delete",
+      "rationale": "The direct per-action UniFFI entry was retired; profile actions now use the typed AndroidOwnerOperation through the :vpn owner.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-android/src/uniffi_api/owner_operation_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-android/src/uniffi_api"
+      ]
+    },
+    {
+      "id": "android-local-profile-delete-kotlin",
+      "kind": "public_symbol",
+      "language": "kotlin",
+      "text": "profileDelete",
+      "rationale": "The direct per-action UniFFI entry was retired; profile actions now use the typed AndroidOwnerOperation through the :vpn owner.",
+      "replacement_behavior_tests": [
+        "android/app/src/test/java/com/musicfrog/infiltrator/ui/profiles/ProfilesRepositoryTest.kt"
+      ],
+      "source_roots": [
+        "android/app/src/main/java/infiltrator_android"
+      ]
+    },
+    {
+      "id": "android-local-profile-subscription-save-rust",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "profile_subscription_save",
+      "rationale": "The direct per-action UniFFI entry was retired; profile actions now use the typed AndroidOwnerOperation through the :vpn owner.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-android/src/uniffi_api/owner_operation_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-android/src/uniffi_api"
+      ]
+    },
+    {
+      "id": "android-local-profile-subscription-save-kotlin",
+      "kind": "public_symbol",
+      "language": "kotlin",
+      "text": "profileSubscriptionSave",
+      "rationale": "The direct per-action UniFFI entry was retired; profile actions now use the typed AndroidOwnerOperation through the :vpn owner.",
+      "replacement_behavior_tests": [
+        "android/app/src/test/java/com/musicfrog/infiltrator/ui/profiles/ProfilesRepositoryTest.kt"
+      ],
+      "source_roots": [
+        "android/app/src/main/java/infiltrator_android"
+      ]
+    },
+    {
+      "id": "android-local-profile-subscription-clear-rust",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "profile_subscription_clear",
+      "rationale": "The direct per-action UniFFI entry was retired; profile actions now use the typed AndroidOwnerOperation through the :vpn owner.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-android/src/uniffi_api/owner_operation_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-android/src/uniffi_api"
+      ]
+    },
+    {
+      "id": "android-local-profile-subscription-clear-kotlin",
+      "kind": "public_symbol",
+      "language": "kotlin",
+      "text": "profileSubscriptionClear",
+      "rationale": "The direct per-action UniFFI entry was retired; profile actions now use the typed AndroidOwnerOperation through the :vpn owner.",
+      "replacement_behavior_tests": [
+        "android/app/src/test/java/com/musicfrog/infiltrator/ui/profiles/ProfilesRepositoryTest.kt"
+      ],
+      "source_roots": [
+        "android/app/src/main/java/infiltrator_android"
+      ]
+    }
+  ]
+}

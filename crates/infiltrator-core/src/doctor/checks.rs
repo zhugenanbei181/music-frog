@@ -3,7 +3,7 @@
 
 use super::pidfile::{PidFileState, ProcessState, read_pid_state, service_running};
 use super::{DoctorCheckResult, DoctorEnv, DoctorStatus};
-use infiltrator_domain::settings::AppSettings;
+use crate::settings_io::parse_settings_toml;
 use mihomo_api::client::MihomoClient;
 use mihomo_api::error::MihomoError;
 #[cfg(unix)]
@@ -41,11 +41,11 @@ pub(super) async fn check_settings_parse(env: &DoctorEnv) -> DoctorCheckResult {
             );
         }
     };
-    match toml::from_str::<AppSettings>(&content) {
+    match parse_settings_toml(&content) {
         Ok(_) => pass(
             "config.settings_parse",
             "config",
-            "Settings file parses as AppSettings TOML",
+            "Settings file parses and validates through the current typed schema",
             Some(path.display().to_string()),
             None,
         ),

@@ -15,6 +15,7 @@ use bevy::ui::widget::Text;
 use infiltrator_application::connection_grouping::ConnectionGroupRow;
 use infiltrator_bevy_widgets::localization::LocalizedText;
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::SurfacePanel;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
@@ -40,7 +41,7 @@ fn row_scene(row: &ConnectionGroupRow, palette: &UiPalette) -> impl Scene + use<
     let row = row.clone();
     let bg = palette.surface;
     bsn! {
-        Node {width:percent(100),flex_wrap:FlexWrap::Wrap,align_items:AlignItems::Center,column_gap:px(space::S12),row_gap:px(space::S4),padding:UiRect::all(px(space::S8)),border_radius:BorderRadius::all(px(4.0))}
+        Node {width:percent(100),flex_wrap:FlexWrap::Wrap,align_items:AlignItems::Center,column_gap:rem(space::S12),row_gap:rem(space::S4),padding:UiRect::all(rem(space::S8)),border_radius:BorderRadius::all(rem(4.0))}
         BackgroundColor(bg) SurfacePanel
         ConnectionGroupCard({row.key.clone()})
         Children [

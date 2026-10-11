@@ -1,6 +1,10 @@
 //! Open and move a full shared fixture through actual native order observers.
 use super::geometry::CaptureGeometry;
+use super::host::{CaptureCapability, CaptureCommandSink};
+use super::outbound_fixture::{FIRST_GROUP, LAST_GROUP, MOVED_GROUP, set_capture_inventory};
+use super::outbound_preferences::OutboundPreferenceCaptureOwner;
 use super::{InteractionCapture, ObservedInteraction, selected};
+use crate::command::CommandSinkHandle;
 use crate::pages::proxies::ProxyGroupMoveUpButton;
 use crate::pages::proxy_group_order::{
     GroupOrderAction, GroupOrderCard, GroupOrderList, GroupOrderRow, GroupOrderState,
@@ -14,19 +18,44 @@ use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
 use bevy::ui_widgets::Activate;
-use infiltrator_application::proxy_group_order_fixtures::{
-    FIRST_GROUP, LAST_GROUP, MOVED_GROUP, observed_groups,
-};
-use infiltrator_application::proxy_projection::project_groups_snapshot;
+use infiltrator_application::command_application::CommandApplication;
 use infiltrator_bevy_widgets::button::ButtonDisabled;
+use infiltrator_contract::outbound::inventory::SelectionAvailability;
 use infiltrator_contract::parity::FeatureId;
+use infiltrator_contract::surface_snapshot::PageData;
+use std::sync::Arc;
 
-#[derive(Resource, Default)]
-struct OrderCapture {
+#[derive(Resource)]
+pub(super) struct OrderCapture {
     injected: bool,
+    preferences: Option<OutboundPreferenceCaptureOwner>,
 }
 pub fn install(app: &mut App) {
-    app.init_resource::<OrderCapture>();
+    app.insert_resource(OrderCapture {
+        injected: false,
+        preferences: None,
+    });
+}
+pub(super) fn initialize(
+    latest: Res<LatestSurfaceSnapshot>,
+    mut capture: ResMut<OrderCapture>,
+    mut commands: Commands,
+) {
+    if capture.preferences.is_some() {
+        return;
+    }
+    let Some(preferences) = latest.0.outbound_ui_preferences.data.clone() else {
+        return;
+    };
+    let owner = OutboundPreferenceCaptureOwner::new(preferences);
+    commands.insert_resource(CommandSinkHandle(Arc::new(
+        CaptureCommandSink::with_outbound_preferences(
+            CommandApplication::new(),
+            CaptureCapability::GroupOrder,
+            owner.clone(),
+        ),
+    )));
+    capture.preferences = Some(owner);
 }
 #[derive(SystemParam)]
 pub struct OrderSurface<'w, 's> {
@@ -50,23 +79,37 @@ pub fn activate(mut surface: OrderSurface, state: Res<InteractionCapture>, mut c
         return;
     }
     if !surface.capture.injected {
+        let Some(preferences) = &surface.capture.preferences else {
+            return;
+        };
         let mut snapshot = surface.latest.0.clone();
         snapshot.revision += 1;
-        let page = snapshot
-            .pages
-            .proxies
-            .data
-            .as_mut()
-            .expect("order fixture page");
-        let (groups, filter_alive) =
-            project_groups_snapshot(&observed_groups(), &Default::default());
-        page.groups = groups;
-        page.filter_alive = filter_alive;
+        set_capture_inventory(
+            &mut snapshot,
+            &[
+                (
+                    FIRST_GROUP,
+                    &["Inspection node"],
+                    SelectionAvailability::Selectable,
+                ),
+                (
+                    MOVED_GROUP,
+                    &["Inspection node"],
+                    SelectionAvailability::Selectable,
+                ),
+                (
+                    LAST_GROUP,
+                    &["Inspection node"],
+                    SelectionAvailability::Selectable,
+                ),
+            ],
+        );
+        snapshot.outbound_ui_preferences = PageData::ready(preferences.snapshot());
         commands.trigger(SurfaceSnapshotUpdated(snapshot));
         surface.capture.injected = true;
         return;
     }
-    if !surface.editor.open
+    if surface.editor.dialog != crate::pages::proxy_group_order::GroupOrderDialogState::Editing
         && let Some((entity, _)) = surface
             .moves
             .iter()
@@ -79,9 +122,13 @@ impl OrderSurface<'_, '_> {
     fn bounds(&self, geometry: &mut CaptureGeometry) -> Option<[f32; 4]> {
         let state = &self.editor;
         if !self.capture.injected
-            || !state.open
+            || state.dialog != crate::pages::proxy_group_order::GroupOrderDialogState::Editing
             || !state.editor.can_apply()
-            || state.editor.draft != [MOVED_GROUP, FIRST_GROUP, LAST_GROUP]
+            || !state.editor.draft.iter().map(|id| id.value()).eq([
+                MOVED_GROUP,
+                FIRST_GROUP,
+                LAST_GROUP,
+            ])
         {
             return None;
         }
@@ -90,7 +137,7 @@ impl OrderSurface<'_, '_> {
             || !children
                 .iter()
                 .zip(&state.editor.draft)
-                .all(|(entity, name)| self.rows.get(*entity).is_ok_and(|row| &row.0 == name))
+                .all(|(entity, id)| self.rows.get(*entity).is_ok_and(|row| &row.id == id))
         {
             return None;
         }

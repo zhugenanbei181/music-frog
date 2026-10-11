@@ -4,14 +4,18 @@ use crate::command_events::CommandExecutedEvent;
 use infiltrator_contract::command::RequestId;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
+#[cfg(feature = "capture-tools")]
+use std::env;
+use std::mem;
 use std::sync::Mutex;
-use std::{env, mem};
 
+#[cfg(feature = "capture-tools")]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LaunchMode {
     Product,
     Demo,
 }
+#[cfg(feature = "capture-tools")]
 impl LaunchMode {
     pub fn from_demo_flag(flag: Option<&str>) -> Self {
         if flag == Some("1") {
@@ -37,14 +41,29 @@ pub fn missing_host_failure() -> Failure {
 }
 
 pub(crate) fn run() {
-    let demo = env::var("INFILTRATOR_DEMO").ok();
-    match LaunchMode::from_demo_flag(demo.as_deref()) {
+    #[cfg(feature = "capture-tools")]
+    {
+        let demo = env::var("INFILTRATOR_DEMO").ok();
+        run_with_mode(LaunchMode::from_demo_flag(demo.as_deref()));
+    }
+    #[cfg(not(feature = "capture-tools"))]
+    run_product();
+}
+
+/// Launch an explicit composition mode. Screenshot and packaging drivers use
+/// `Demo`; applications should select `Product` through [`run`].
+#[cfg(feature = "capture-tools")]
+pub fn run_with_mode(mode: LaunchMode) {
+    match mode {
         LaunchMode::Demo => crate::run_demo(),
         LaunchMode::Product => run_product(),
     }
 }
 
-#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
+#[cfg(all(
+    feature = "desktop-host",
+    any(target_os = "linux", target_os = "windows", target_os = "macos")
+))]
 fn run_product() {
     use crate::surface::ApplicationSurfaceSource;
     use infiltrator_desktop::product::DesktopProductSession;
@@ -52,10 +71,7 @@ fn run_product() {
     match DesktopProductSession::open(SurfaceKind::BevyDesktop) {
         Ok(session) => {
             let application = session.application();
-            let source = ApplicationSurfaceSource::from_application(
-                session.surface_pump(),
-                application.clone(),
-            );
+            let source = ApplicationSurfaceSource::from_pump(session.surface_pump());
             crate::run_with_application_surface_pump(application, source);
             drop(session);
         }
@@ -67,31 +83,28 @@ fn run_product() {
     }
 }
 
-#[cfg(not(any(target_os = "linux", target_os = "windows", target_os = "macos")))]
+#[cfg(not(all(
+    feature = "desktop-host",
+    any(target_os = "linux", target_os = "windows", target_os = "macos")
+)))]
 fn run_product() {
-    if let Some(app) = crate::attached_application() {
-        crate::run_with_application(app);
-        return;
-    }
-    // No native host attached an application. A silently interactive showcase
-    // here would present working-looking controls over no VPN/kernel, so the
-    // product reports the real terminal state instead (BANDROID-004: do not
-    // turn "not composed" into fake success). `fixture-demo` is an explicit
-    // build-time opt-in used only by the packaging smoke driver; the shipping
-    // Gradle host must never enable it.
-    #[cfg(feature = "fixture-demo")]
-    {
-        crate::run_demo();
-        return;
-    }
-    #[cfg(not(feature = "fixture-demo"))]
-    {
-        #[cfg(target_os = "android")]
-        let (surface, host) = (SurfaceKind::BevyAndroid, HostKind::Android);
-        #[cfg(not(target_os = "android"))]
-        let (surface, host) = (SurfaceKind::IosCompose, HostKind::Ios);
-        crate::run_unavailable(surface, host, missing_host_failure());
-    }
+    // Product mode has no scoped host composition. It reports unavailable;
+    // screenshot tooling selects the explicit demo entrypoint.
+    #[cfg(target_os = "android")]
+    let (surface, host) = (SurfaceKind::BevyAndroid, HostKind::Android);
+    #[cfg(all(
+        not(target_os = "android"),
+        any(target_os = "linux", target_os = "windows", target_os = "macos")
+    ))]
+    let (surface, host) = (SurfaceKind::BevyDesktop, HostKind::Desktop);
+    #[cfg(not(any(
+        target_os = "android",
+        target_os = "linux",
+        target_os = "windows",
+        target_os = "macos"
+    )))]
+    let (surface, host) = (SurfaceKind::IosCompose, HostKind::Ios);
+    crate::run_unavailable(surface, host, missing_host_failure());
 }
 
 /// A failed composition returns terminal rejection for every attempted operation.

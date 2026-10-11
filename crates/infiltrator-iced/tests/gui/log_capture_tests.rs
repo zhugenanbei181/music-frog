@@ -33,5 +33,5 @@ fn actual_follow_capture_sequence_locks_before_continued_receipts_and_retains_al
     );
     assert!(state.diag.log_search.source_current());
     assert!(state.diag.connections.is_none());
-    assert!(state.runtime.proxies.is_empty());
+    assert!(state.runtime.proxy_groups.is_empty());
 }

@@ -2,7 +2,7 @@
 //! redacted UI text (CORE-001).
 
 use super::*;
-use infiltrator_application::byte_format::format_bytes;
+use infiltrator_shared::byte_units::format_bytes;
 
 #[test]
 fn test_format_bytes() {

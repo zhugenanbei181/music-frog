@@ -5,10 +5,12 @@
 use bevy::MinimalPlugins;
 use bevy::app::{App, Startup};
 use bevy::asset::AssetPlugin;
+use bevy::color::Color;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::system::{Commands, Res};
 use bevy::ecs::world::World;
+use bevy::feathers::theme::{SurfaceLevel, UiTheme};
 use bevy::scene::{CommandsSceneExt, ScenePlugin};
 use bevy::ui::BackgroundColor;
 use infiltrator_bevy_widgets::WidgetsPlugin;
@@ -16,13 +18,18 @@ use infiltrator_bevy_widgets::list::scroll_core::{
     clamp_scroll_offset, visible_window, visible_window_with_overscan,
 };
 use infiltrator_bevy_widgets::list::{
+    FixedExtentUpdate, RowHeightMode, RowMeasurementOutcome, ScrollOffsetOutcome,
+    ScrollToItemOutcome, SelectionAndRevealOutcome, SelectionOutcome,
+};
+use infiltrator_bevy_widgets::list::{
     List, ListSelection, VirtualList, VirtualListScroll, VirtualListSelect, VirtualListState,
     list_row_scene, list_scene,
 };
-use infiltrator_bevy_widgets::nav::{NavActive, NavItem, nav_fill};
+use infiltrator_bevy_widgets::nav::{NavActive, NavItem, nav_fill_token};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::switch::ThemeSwitch;
 use infiltrator_bevy_widgets::theme::{Breakpoint, Theme, ThemeSkin};
+use zhuge_ui_core::virtual_list::{ExtentUpdate, VirtualListConfig};
 
 fn headless_app() -> App {
     let mut app = App::new();
@@ -30,6 +37,12 @@ fn headless_app() -> App {
     app.add_plugins((AssetPlugin::default(), ScenePlugin));
     app.add_plugins(WidgetsPlugin::new(&Theme::dark()));
     app
+}
+
+fn expected_fill(world: &World, selected: bool) -> Color {
+    world
+        .resource::<UiTheme>()
+        .context_color(&nav_fill_token(selected).theme_token(), SurfaceLevel::Base)
 }
 
 #[test]
@@ -63,7 +76,10 @@ fn virtual_list_massive_dataset_o1_geometry() {
     );
 
     // Jump to middle: item 500,000.
-    state.scroll_to_index_centered(500_000);
+    assert!(matches!(
+        state.scroll_to_index_centered(500_000),
+        ScrollToItemOutcome::Scrolled { index: 500_000, .. }
+    ));
     assert!(!state.is_at_top());
     assert!(!state.is_at_bottom());
     assert!((state.scroll_progress() - 0.5).abs() < 0.01);
@@ -78,7 +94,7 @@ fn virtual_list_massive_dataset_o1_geometry() {
     );
 
     // Scroll to bottom.
-    state.scroll_to_bottom();
+    let _ = state.scroll_to_bottom();
     assert!(state.is_at_bottom());
     assert_eq!(state.scroll_progress(), 1.0);
     let end_win = state.window();
@@ -95,33 +111,74 @@ fn virtual_list_scrolling_and_navigation_actions() {
     let mut state = VirtualListState::new(100, 30.0, 300.0).with_overscan(2);
 
     // scroll_by delta
-    assert!(state.scroll_by(90.0));
+    assert_eq!(
+        state.scroll_by(90.0),
+        ScrollOffsetOutcome::Changed {
+            previous_offset_px: 0.0,
+            offset_px: 90.0,
+        }
+    );
     assert_eq!(state.scroll_offset_px(), 90.0);
     assert_eq!(state.visible_range(), (3, 13));
 
     // page_down & page_up
-    assert!(state.page_down());
+    assert_eq!(
+        state.page_down(),
+        ScrollOffsetOutcome::Changed {
+            previous_offset_px: 90.0,
+            offset_px: 390.0,
+        }
+    );
     assert_eq!(state.scroll_offset_px(), 390.0);
-    assert!(state.page_up());
+    assert_eq!(
+        state.page_up(),
+        ScrollOffsetOutcome::Changed {
+            previous_offset_px: 390.0,
+            offset_px: 90.0,
+        }
+    );
     assert_eq!(state.scroll_offset_px(), 90.0);
 
     // scroll_to_index: item already visible -> no scroll
-    assert!(!state.scroll_to_index(5));
+    assert_eq!(
+        state.scroll_to_index(5),
+        ScrollToItemOutcome::AlreadyVisible { index: 5 }
+    );
     assert_eq!(state.scroll_offset_px(), 90.0);
 
     // scroll_to_index: item below viewport -> scrolls so item bottom aligns with viewport bottom
-    assert!(state.scroll_to_index(20));
+    assert_eq!(
+        state.scroll_to_index(20),
+        ScrollToItemOutcome::Scrolled {
+            index: 20,
+            previous_offset_px: 90.0,
+            offset_px: 330.0,
+        }
+    );
     let expected_offset = (21.0 * 30.0) - 300.0;
     assert_eq!(state.scroll_offset_px(), expected_offset);
     assert!(state.is_item_visible(20));
 
     // scroll_to_index: item above viewport -> scrolls so item top aligns with viewport top
-    assert!(state.scroll_to_index(2));
+    assert_eq!(
+        state.scroll_to_index(2),
+        ScrollToItemOutcome::Scrolled {
+            index: 2,
+            previous_offset_px: 330.0,
+            offset_px: 60.0,
+        }
+    );
     assert_eq!(state.scroll_offset_px(), 60.0);
     assert!(state.is_item_visible(2));
 
     // scroll_to_top
-    assert!(state.scroll_to_top());
+    assert_eq!(
+        state.scroll_to_top(),
+        ScrollOffsetOutcome::Changed {
+            previous_offset_px: 60.0,
+            offset_px: 0.0,
+        }
+    );
     assert_eq!(state.scroll_offset_px(), 0.0);
     assert!(state.is_at_top());
 }
@@ -138,43 +195,92 @@ fn virtual_list_hit_testing_and_item_queries() {
     assert_eq!(state.item_at_offset(1999.0), Some(49));
     assert_eq!(state.item_at_offset(2000.0), None);
     assert_eq!(state.item_at_offset(-10.0), None);
+    assert_eq!(state.item_at_offset(f32::NAN), None);
 
     // Item offsets and rects
-    assert_eq!(state.item_offset_y(0), Some(0.0));
-    assert_eq!(state.item_offset_y(5), Some(200.0));
+    assert_eq!(state.item_offset(0), Some(0.0));
+    assert_eq!(state.item_offset(5), Some(200.0));
     assert_eq!(state.item_rect_y(5), Some((200.0, 240.0)));
-    assert_eq!(state.item_offset_y(100), None);
+    assert_eq!(state.item_offset(100), None);
     assert_eq!(state.item_rect_y(100), None);
 }
 
 #[test]
-fn virtual_list_selection_state_machine() {
+fn virtual_list_selection_reports_typed_transitions() {
     let mut state = VirtualListState::new(10, 30.0, 150.0);
 
     assert_eq!(state.selected_index(), None);
-    assert!(state.select(Some(3)));
+    assert_eq!(
+        state.select(Some(3)),
+        SelectionOutcome::Changed {
+            previous_index: None,
+            selected_index: Some(3),
+        }
+    );
     assert_eq!(state.selected_index(), Some(3));
-    assert!(!state.select(Some(3))); // no-op returns false
+    assert_eq!(
+        state.select(Some(3)),
+        SelectionOutcome::Unchanged {
+            selected_index: Some(3),
+        }
+    );
 
     // select_next
-    assert!(state.select_next());
+    assert_eq!(
+        state.select_next(),
+        SelectionOutcome::Changed {
+            previous_index: Some(3),
+            selected_index: Some(4),
+        }
+    );
     assert_eq!(state.selected_index(), Some(4));
 
     // select_previous
-    assert!(state.select_previous());
+    assert_eq!(
+        state.select_previous(),
+        SelectionOutcome::Changed {
+            previous_index: Some(4),
+            selected_index: Some(3),
+        }
+    );
     assert_eq!(state.selected_index(), Some(3));
 
     // select_and_reveal
-    assert!(state.select_and_reveal(9));
+    assert_eq!(
+        state.select_and_reveal(9),
+        SelectionAndRevealOutcome {
+            selection: SelectionOutcome::Changed {
+                previous_index: Some(3),
+                selected_index: Some(9),
+            },
+            reveal: ScrollToItemOutcome::Scrolled {
+                index: 9,
+                previous_offset_px: 0.0,
+                offset_px: 150.0,
+            },
+        }
+    );
     assert_eq!(state.selected_index(), Some(9));
     assert!(state.is_item_visible(9));
 
     // Out of bounds selection is rejected, keeping previous selection
-    assert!(!state.select(Some(100)));
+    assert_eq!(
+        state.select(Some(100)),
+        SelectionOutcome::IndexOutOfRange {
+            index: 100,
+            item_count: 10,
+        }
+    );
     assert_eq!(state.selected_index(), Some(9));
 
     // Clear selection
-    assert!(state.select(None));
+    assert_eq!(
+        state.select(None),
+        SelectionOutcome::Changed {
+            previous_index: Some(9),
+            selected_index: None,
+        }
+    );
     assert_eq!(state.selected_index(), None);
 }
 
@@ -200,9 +306,124 @@ fn virtual_list_dynamic_updates_and_clamping() {
     assert_eq!(state.max_scroll_offset(), 100.0);
 
     // Update row height
-    state.set_row_height(50.0);
+    assert_eq!(
+        state.set_fixed_extent(50.0),
+        FixedExtentUpdate::Updated {
+            previous_extent_px: 30.0,
+            extent_px: 50.0,
+        }
+    );
     assert_eq!(state.row_height_px(), 50.0);
     assert_eq!(state.total_height_px(), 500.0);
+}
+
+#[test]
+fn variable_extent_adapter_reports_measurement_and_mode_outcomes() {
+    let mut variable = VirtualListState::new_variable_extent(4, 20.0, 40.0);
+    assert_eq!(
+        variable.update_measured_extent(1, 35.0),
+        RowMeasurementOutcome::VariableExtent(ExtentUpdate::Updated {
+            index: 1,
+            previous_extent: 20.0,
+            extent: 35.0,
+        })
+    );
+    assert_eq!(variable.total_height_px(), 95.0);
+    assert_eq!(
+        variable.update_measured_extent(8, 10.0),
+        RowMeasurementOutcome::VariableExtent(ExtentUpdate::IndexOutOfRange {
+            index: 8,
+            item_count: 4,
+        })
+    );
+    assert_eq!(
+        variable.set_fixed_extent(24.0),
+        FixedExtentUpdate::VariableExtentMode
+    );
+
+    let mut fixed = VirtualListState::new(4, 20.0, 40.0);
+    assert_eq!(
+        fixed.update_measured_extent(1, 35.0),
+        RowMeasurementOutcome::FixedExtentMode
+    );
+}
+
+#[test]
+fn variable_extent_window_uses_shared_core_geometry_after_measurements() {
+    let mut state = VirtualListState::new_variable_extent(6, 20.0, 50.0).with_overscan(1);
+    assert!(matches!(
+        state.update_measured_extent(1, 40.0),
+        RowMeasurementOutcome::VariableExtent(ExtentUpdate::Updated { index: 1, .. })
+    ));
+    assert!(matches!(
+        state.update_measured_extent(2, 10.0),
+        RowMeasurementOutcome::VariableExtent(ExtentUpdate::Updated { index: 2, .. })
+    ));
+    assert!(matches!(
+        state.update_measured_extent(4, 35.0),
+        RowMeasurementOutcome::VariableExtent(ExtentUpdate::Updated { index: 4, .. })
+    ));
+    assert_eq!(state.total_height_px(), 145.0);
+    assert_eq!(
+        state.set_scroll_offset(45.0),
+        ScrollOffsetOutcome::Changed {
+            previous_offset_px: 0.0,
+            offset_px: 45.0,
+        }
+    );
+
+    let RowHeightMode::VariableExtent(shared) = state.height_mode() else {
+        panic!("variable-extent state must retain the shared index");
+    };
+    let visible = shared.compute_window(state.viewport_height_px(), state.scroll_offset_px(), 0);
+    let mounted = shared.compute_window(
+        state.viewport_height_px(),
+        state.scroll_offset_px(),
+        state.overscan(),
+    );
+
+    assert_eq!(state.visible_range(), (visible.start, visible.end));
+    let product = state.window();
+    assert_eq!((product.start, product.end), (mounted.start, mounted.end));
+    assert_eq!(product.visible_count, mounted.materialized_len());
+    assert_eq!(product.top_spacer_px, mounted.top);
+    assert_eq!(product.bottom_spacer_px, mounted.bottom);
+    assert_eq!(product.total_height_px, shared.total_extent());
+}
+
+#[test]
+fn scroll_offset_outcomes_preserve_state_on_invalid_input_and_report_clamping() {
+    let mut state = VirtualListState::new(10, 30.0, 90.0).with_scroll_offset(30.0);
+    assert!(matches!(
+        state.set_scroll_offset(f32::NAN),
+        ScrollOffsetOutcome::InvalidRequest {
+            requested_offset_px,
+            current_offset_px: 30.0,
+        } if requested_offset_px.is_nan()
+    ));
+    assert_eq!(state.scroll_offset_px(), 30.0);
+    assert_eq!(
+        state.set_scroll_offset(f32::MAX),
+        ScrollOffsetOutcome::Clamped {
+            requested_offset_px: f32::MAX,
+            previous_offset_px: 30.0,
+            offset_px: 210.0,
+        }
+    );
+}
+
+#[test]
+fn empty_viewport_keeps_full_virtual_extent_without_mounting_rows() {
+    let window = visible_window_with_overscan(100, 0.0, 30.0, 0.0, 4);
+    assert_eq!((window.start, window.end, window.visible_count), (0, 0, 0));
+    assert_eq!(
+        (
+            window.top_spacer_px,
+            window.bottom_spacer_px,
+            window.total_height_px,
+        ),
+        (3000.0, 0.0, 3000.0)
+    );
 }
 
 #[test]
@@ -230,21 +451,6 @@ fn virtual_list_ecs_message_advancement() {
     let mut lists = world.query::<&VirtualList>();
     let list = lists.single(world).expect("virtual list");
     assert_eq!(list.0.selected_index(), Some(7));
-}
-
-#[test]
-fn virtual_list_inertial_fling_advances_physics_with_friction_decay() {
-    let mut state = VirtualListState::new(100, 30.0, 300.0);
-    assert_eq!(state.scroll_offset_px(), 0.0);
-
-    state.fling(500.0);
-    let changed = state.advance_physics(0.1);
-    assert!(changed);
-    assert!(state.scroll_offset_px() > 0.0);
-
-    let offset_after_100ms = state.scroll_offset_px();
-    state.advance_physics(0.1);
-    assert!(state.scroll_offset_px() > offset_after_100ms);
 }
 
 #[test]
@@ -303,6 +509,8 @@ fn visible_window_covers_the_viewport_with_clamping() {
     assert_eq!(visible_window(10, 300.0, 30.0, 0.0), (0, 10));
     // Partially visible rows count as visible.
     assert_eq!(visible_window(100, 250.0, 30.0, 0.0), (0, 9));
+    // A fractional first row still includes the partial row at the viewport end.
+    assert_eq!(visible_window(100, 300.0, 30.0, 15.0), (0, 11));
     // A scrolled offset moves the window.
     assert_eq!(visible_window(100, 300.0, 30.0, 450.0), (15, 25));
     // Scrolling past the end pins to the last full window.
@@ -312,7 +520,11 @@ fn visible_window_covers_the_viewport_with_clamping() {
     // Degenerate inputs stay total.
     assert_eq!(visible_window(0, 300.0, 30.0, 0.0), (0, 0));
     assert_eq!(visible_window(10, 0.0, 30.0, 0.0), (0, 0));
-    assert_eq!(visible_window(10, 300.0, 0.0, 0.0), (0, 0));
+    assert_eq!(
+        visible_window(10, 300.0, 0.0, 0.0),
+        (0, 10),
+        "invalid row extent uses the shared core's one-unit fallback"
+    );
     assert_eq!(
         visible_window(3, 300.0, 30.0, 0.0),
         (0, 3),
@@ -365,6 +577,39 @@ fn scroll_offset_clamps_to_valid_extent() {
 }
 
 #[test]
+fn fixed_list_adapter_delegates_geometry_to_zhuge_ui_core() {
+    for (item_count, viewport, row_height, offset, overscan) in [
+        (100, 300.0, 30.0, 0.0, 0),
+        (100, 250.0, 30.0, 15.0, 2),
+        (100, 300.0, 30.0, 450.0, 5),
+        (100, 300.0, 30.0, f32::MAX, 5),
+    ] {
+        let shared = VirtualListConfig::new(item_count, row_height, viewport)
+            .with_scroll_offset(offset)
+            .with_overscan(overscan);
+        let visible = shared.compute_visible_viewport();
+        assert_eq!(
+            visible_window(item_count, viewport, row_height, offset),
+            (visible.start, visible.end)
+        );
+
+        let shared = shared.compute_viewport();
+        let product =
+            visible_window_with_overscan(item_count, viewport, row_height, offset, overscan);
+        assert_eq!((product.start, product.end), shared.key());
+        assert_eq!(product.top_spacer_px, shared.top);
+        assert_eq!(product.bottom_spacer_px, shared.bottom);
+        assert_eq!(product.total_height_px, shared.total_extent(row_height));
+        assert_eq!(
+            clamp_scroll_offset(offset, item_count, viewport, row_height),
+            VirtualListConfig::new(item_count, row_height, viewport)
+                .with_scroll_offset(offset)
+                .clamped_scroll_offset()
+        );
+    }
+}
+
+#[test]
 fn list_scene_mounts_rows_and_selection_flip_reprojects_in_place() {
     let mut app = headless_app();
     app.add_systems(
@@ -373,7 +618,7 @@ fn list_scene_mounts_rows_and_selection_flip_reprojects_in_place() {
             let rows = (0..4)
                 .map(|index| list_row_scene(format!("proxy {index}"), index == 1, &palette))
                 .collect();
-            commands.spawn_scene(list_scene(rows, Some(1), &palette));
+            commands.spawn_scene(list_scene(rows, Some(1)));
         },
     );
     app.update();
@@ -386,13 +631,13 @@ fn list_scene_mounts_rows_and_selection_flip_reprojects_in_place() {
     let ids = row_ids(app.world_mut());
     assert_eq!(ids.len(), 4);
 
-    let palette = UiPalette::new(&Theme::dark());
+    let expected_selected_fill = expected_fill(app.world(), true);
     let active_of =
         |world: &World, entity: Entity| world.get::<NavActive>(entity).expect("row active bit").0;
     let fill_of =
         |world: &World, entity: Entity| world.get::<BackgroundColor>(entity).expect("row fill").0;
     assert!(active_of(app.world_mut(), ids[1]), "row 1 selected");
-    assert_eq!(fill_of(app.world_mut(), ids[1]), nav_fill(true, &palette));
+    assert_eq!(fill_of(app.world_mut(), ids[1]), expected_selected_fill);
 
     // Flip the selection to row 3: bits restamp, ids stay, paints follow.
     let world = app.world_mut();
@@ -403,10 +648,11 @@ fn list_scene_mounts_rows_and_selection_flip_reprojects_in_place() {
         .insert(ListSelection(Some(3)));
     app.update();
 
+    let expected_selected_fill = expected_fill(app.world(), true);
     let world = app.world_mut();
     assert!(!active_of(world, ids[1]), "row 1 deselected in place");
     assert!(active_of(world, ids[3]), "row 3 selected in place");
-    assert_eq!(fill_of(world, ids[3]), nav_fill(true, &palette));
+    assert_eq!(fill_of(world, ids[3]), expected_selected_fill);
     assert!(
         world.get::<NavItem>(ids[1]).is_some() && world.get::<NavItem>(ids[3]).is_some(),
         "the rows kept their entity ids across the flip"
@@ -422,7 +668,7 @@ fn theme_flip_repaints_the_list_and_rows_without_respawn() {
             let rows = (0..3)
                 .map(|index| list_row_scene(format!("proxy {index}"), index == 0, &palette))
                 .collect();
-            commands.spawn_scene(list_scene(rows, Some(0), &palette));
+            commands.spawn_scene(list_scene(rows, Some(0)));
         },
     );
     app.update();
@@ -439,14 +685,14 @@ fn theme_flip_repaints_the_list_and_rows_without_respawn() {
         .trigger(ThemeSwitch(ThemeSkin::Light));
     app.update();
 
-    let light = UiPalette::new(&Theme::light());
+    let expected_selected_fill = expected_fill(app.world(), true);
     let world = app.world_mut();
     assert_eq!(
         world
             .get::<BackgroundColor>(ids[0])
             .expect("row survives")
             .0,
-        nav_fill(true, &light),
+        expected_selected_fill,
         "the selected row re-derives from the light accent"
     );
     let mut lists = world.query::<&List>();

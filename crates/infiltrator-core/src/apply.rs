@@ -243,8 +243,8 @@ async fn atomic_write(path: &Path, content: &str) -> io::Result<()> {
 /// Hot-reload path: keep the process, reload, then prove the controller is
 /// still healthy. Returns `Err(cause)` when either step fails; the caller
 /// falls back to the restart path without rolling back yet.
-pub(crate) async fn reload_and_check(
-    session: &impl CoreLifecyclePort,
+pub(crate) async fn reload_and_check<C: CoreLifecyclePort + ?Sized>(
+    session: &C,
     reloader: &dyn ConfigReloader,
     path: &Path,
     params: &ApplyParams,
@@ -281,8 +281,8 @@ pub(crate) async fn reload_and_check(
     })
 }
 
-pub(crate) async fn restart_and_check(
-    session: &impl CoreLifecyclePort,
+pub(crate) async fn restart_and_check<C: CoreLifecyclePort + ?Sized>(
+    session: &C,
     params: &ApplyParams,
 ) -> Result<ApplyOutcome, ApplyError> {
     let generation = session
@@ -303,8 +303,8 @@ pub(crate) async fn restart_and_check(
     })
 }
 
-pub(crate) async fn start_and_check(
-    session: &impl CoreLifecyclePort,
+pub(crate) async fn start_and_check<C: CoreLifecyclePort + ?Sized>(
+    session: &C,
     params: &ApplyParams,
 ) -> Result<ApplyOutcome, ApplyError> {
     let generation = session
@@ -377,6 +377,10 @@ async fn apply_profile_transaction<S: SecureStore>(
     expected: Option<&RuleSourceIdentity>,
 ) -> ApplyResult<ApplyOutcome> {
     validate_config(new_content).map_err(ApplyError::Validation)?;
+    config
+        .initialize_profile_namespace()
+        .await
+        .map_err(config_apply_error)?;
 
     let status = session.lifecycle();
     if matches!(status, CoreLifecycle::Starting | CoreLifecycle::Stopping) {
@@ -442,10 +446,12 @@ async fn apply_profile_transaction<S: SecureStore>(
             if params.snapshot_history
                 && let Some(config_dir) = path.parent()
             {
-                match save_snapshot(config_dir, &current, new_content).await {
+                match save_snapshot(&config.engine_id(), config_dir, &current, new_content).await {
                     Ok(meta) => {
                         log::info!("config snapshot stored: {}", meta.path.display());
-                        if let Err(err) = prune_snapshots(config_dir, &current, DEFAULT_KEEP).await
+                        if let Err(err) =
+                            prune_snapshots(&config.engine_id(), config_dir, &current, DEFAULT_KEEP)
+                                .await
                         {
                             log::warn!("snapshot prune failed: {err}");
                         }

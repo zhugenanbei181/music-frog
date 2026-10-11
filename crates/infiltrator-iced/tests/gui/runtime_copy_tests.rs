@@ -1,11 +1,13 @@
 //! Real TEA terminal paths resolve shared runtime copy and preserve typed cancellation.
 //! test-intent: behavior
 use crate::state::AppState;
+use crate::state::core_operations::{CoreDownloadCompletionAdmission, CoreDownloadStart};
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use futures_util::StreamExt;
 use iced::Task;
 use iced_runtime::{Action, task::into_stream};
+use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::error::{ErrorCode, Failure, FailureReason, InfiltratorError};
 use infiltrator_contract::version::CoreArtifactVerification;
 use infiltrator_contract::vpn::{VpnSessionSnapshot, VpnSessionState};
@@ -76,16 +78,35 @@ fn current_download_cancellation_uses_the_typed_result_and_stale_replies_cannot_
     for locale in ["zh-CN", "en-US"] {
         let (mut state, _) = AppState::new();
         state.shell.lang = locale.into();
-        state.runtime.core_download_token = 7;
-        state.runtime.is_downloading_core = true;
-        let task = state.update(Message::CoreDownloadFinished(Err(failure.clone()), 6));
+        let stale_run = match state.runtime.core_download.start() {
+            CoreDownloadStart::Started { run_id, .. } => run_id,
+            CoreDownloadStart::AlreadyDownloading => panic!("first download must start"),
+        };
+        assert_eq!(
+            state.runtime.core_download.complete(stale_run),
+            CoreDownloadCompletionAdmission::Applied
+        );
+        let current_run = match state.runtime.core_download.start() {
+            CoreDownloadStart::Started { run_id, .. } => run_id,
+            CoreDownloadStart::AlreadyDownloading => panic!("second download must start"),
+        };
+        let engine_id = EngineId::new("test-engine").unwrap();
+        let task = state.update(Message::CoreDownloadFinished {
+            result: Err(failure.clone()),
+            engine_id: Some(engine_id.clone()),
+            run_id: stale_run,
+        });
         assert_eq!(task.units(), 0);
-        assert!(state.runtime.is_downloading_core);
-        let (copy, severity) =
-            notice(state.update(Message::CoreDownloadFinished(Err(failure.clone()), 7)));
-        assert_eq!(copy, Lang(locale).tr("download_canceled"));
+        assert!(state.runtime.core_download.is_downloading());
+        let (copy, severity) = notice(state.update(Message::CoreDownloadFinished {
+            result: Err(failure.clone()),
+            engine_id: Some(engine_id.clone()),
+            run_id: current_run,
+        }));
+        assert!(copy.starts_with(Lang(locale).tr("download_canceled").as_ref()));
+        assert!(copy.contains("opaque transport detail"));
         assert_eq!(severity, ToastStatus::Warning);
-        assert!(!state.runtime.is_downloading_core);
+        assert!(!state.runtime.core_download.is_downloading());
         assert!(
             state.shell.error_msg.is_none(),
             "cancellation is not a product failure"
@@ -93,6 +114,7 @@ fn current_download_cancellation_uses_the_typed_result_and_stale_replies_cannot_
         assert_eq!(
             state.runtime.core_integrity,
             CoreArtifactVerification::Rejected {
+                engine_id,
                 version: "unknown".into(),
                 failure: failure.clone(),
             }

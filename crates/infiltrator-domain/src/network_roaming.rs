@@ -152,7 +152,13 @@ mod tests {
             )],
             observed_at_epoch_ms: Some(2),
         };
-        let decision = decide(Some(&previous), &current, Some(true), Some(true), Some("Meta"));
+        let decision = decide(
+            Some(&previous),
+            &current,
+            Some(true),
+            Some(true),
+            Some("Meta"),
+        );
         assert!(decision.changed);
         assert!(decision.route_repair_required);
         assert_eq!(decision.previous_interface.as_deref(), Some("wlan0"));
@@ -179,7 +185,13 @@ mod tests {
             )],
             observed_at_epoch_ms: Some(2),
         };
-        let decision = decide(Some(&previous), &current, Some(false), Some(true), Some("Meta"));
+        let decision = decide(
+            Some(&previous),
+            &current,
+            Some(false),
+            Some(true),
+            Some("Meta"),
+        );
         assert!(decision.changed);
         assert!(!decision.route_repair_required);
     }

@@ -13,6 +13,7 @@
 use crate::icon::IconId;
 use crate::icon_tile::icon_tile_scene;
 use crate::palette::UiPalette;
+use crate::palette::rem;
 use crate::popover::{ANCHOR_GAP_PX, AnchorHint, placement};
 use crate::text::{Role, TextRole};
 use crate::theme::{metrics, space};
@@ -358,10 +359,10 @@ pub fn combobox_scene(
     bsn! {
             Node {
                 width: percent(100),
-                height: px(palette.control_height_px),
-                padding: UiRect::horizontal(Val::Px(space::S12)),
+                height: rem(palette.control_height_px),
+                padding: UiRect::horizontal(rem(space::S12)),
                 border: UiRect::all(Val::Px(metrics::HAIRLINE)),
-                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::SpaceBetween,
             }
@@ -408,7 +409,7 @@ pub fn combobox_dropdown_scene(
                 Node {
                     width: percent(100),
                     height: px(palette.control_height_px * 0.85),
-                    padding: UiRect::horizontal(Val::Px(space::S8)),
+                    padding: UiRect::horizontal(rem(space::S8)),
                     align_items: AlignItems::Center,
                     border_radius: BorderRadius::all(Val::Px(palette.control_radius_px * 0.5)),
                 }
@@ -430,10 +431,10 @@ pub fn combobox_dropdown_scene(
                 width: px(rect.w),
                 max_height: px(rect.h),
                 flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(space::S4),
-                padding: UiRect::all(Val::Px(space::S8)),
+                row_gap: rem(space::S4),
+                padding: UiRect::all(rem(space::S8)),
                 border: UiRect::all(Val::Px(palette.hairline_px)),
-                border_radius: BorderRadius::all(Val::Px(palette.card_radius_px)),
+                border_radius: BorderRadius::all(rem(palette.card_radius_px)),
             }
             BackgroundColor({ palette.surface })
             BorderColor { top: edge, right: edge, bottom: edge, left: edge }

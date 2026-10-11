@@ -11,18 +11,20 @@ use bevy::ecs::lifecycle::Insert;
 use bevy::ecs::observer::On;
 use bevy::ecs::query::{Or, QueryData, QueryFilter, With};
 use bevy::ecs::system::{Query, Res};
+use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, Val,
-    percent, px,
+    AlignItems, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, percent,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
 use infiltrator_application::network_status_projection::{
     roaming_interfaces, roaming_route, roaming_status,
 };
+use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
@@ -51,7 +53,7 @@ pub(super) fn scene(_projection: &SettingsProjection, palette: &UiPalette) -> Bo
                     Node {
                         width: percent(100),
                         flex_direction: FlexDirection::Column,
-                        row_gap: Val::Px(space::S6),
+                        row_gap: rem(space::S6),
                     }
                     Children [
                         LocalizedText::plain("settings_network_roaming_title") TextRole(Role::BodyStrong)
@@ -59,11 +61,11 @@ pub(super) fn scene(_projection: &SettingsProjection, palette: &UiPalette) -> Bo
                         Node {
                             width: percent(100),
                             flex_direction: FlexDirection::Column,
-                            row_gap: Val::Px(space::S4),
-                            padding: UiRect::all(Val::Px(space::S8)),
-                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                            row_gap: rem(space::S4),
+                            padding: UiRect::all(rem(space::S8)),
+                            border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                         }
-                        BackgroundColor({ palette.surface_elevated })
+                        ThemeBackgroundColor({ Token::SurfaceElevated })
                         Children [
                             Text({ String::new() }) NetworkRoamingStatusLine TextRole(Role::Mono)
                             --
@@ -75,17 +77,17 @@ pub(super) fn scene(_projection: &SettingsProjection, palette: &UiPalette) -> Bo
                                 width: percent(100),
                                 align_items: AlignItems::Center,
                                 justify_content: JustifyContent::FlexEnd,
-                                column_gap: Val::Px(space::S6),
+                                column_gap: rem(space::S6),
                             }
                             Children [
                                 Node {
-                                    min_height: px(palette.control_height_px),
-                                    padding: UiRect::horizontal(Val::Px(space::S12)),
+                                    min_height: rem(palette.control_height_px),
+                                    padding: UiRect::horizontal(rem(space::S12)),
                                     align_items: AlignItems::Center,
                                     justify_content: JustifyContent::Center,
-                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                    border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                                 }
-                                BackgroundColor({ palette.surface_elevated })
+                                ThemeBackgroundColor({ Token::SurfaceElevated })
                                 NetworkRoamingRefreshButton
                                 Button
                                 Children [
@@ -93,13 +95,13 @@ pub(super) fn scene(_projection: &SettingsProjection, palette: &UiPalette) -> Bo
                                 ]
                                 --
                                 Node {
-                                    min_height: px(palette.control_height_px),
-                                    padding: UiRect::horizontal(Val::Px(space::S12)),
+                                    min_height: rem(palette.control_height_px),
+                                    padding: UiRect::horizontal(rem(space::S12)),
                                     align_items: AlignItems::Center,
                                     justify_content: JustifyContent::Center,
-                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                    border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                                 }
-                                BackgroundColor({ palette.accent })
+                                ThemeBackgroundColor({ Token::Accent })
                                 NetworkRoamingRepairButton
                                 Button
                                 Children [

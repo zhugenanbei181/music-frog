@@ -19,17 +19,20 @@ use bevy::ecs::hierarchy::{ChildOf, Children};
 use bevy::ecs::observer::On;
 use bevy::ecs::query::With;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
+use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::{CommandsSceneExt, Scene, bsn};
 use bevy::text::TextColor;
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, Val,
-    percent, px,
+    percent,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
 use infiltrator_application::snapshot_presentation;
+use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::snapshot_history::{SnapshotEntry, SnapshotHistorySnapshot};
@@ -77,8 +80,8 @@ pub(super) fn backup_button(palette: &UiPalette) -> Box<dyn Scene> {
     let background = palette.surface_elevated;
     Box::new(bsn! {
             Node {
-                min_height: px(24.0),
-                padding: UiRect::horizontal(Val::Px(space::S8)),
+                min_height: rem(24.0),
+                padding: UiRect::horizontal(rem(space::S8)),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
                 border_radius: BorderRadius::all(Val::Px(4.0)),
@@ -96,8 +99,8 @@ pub(super) fn history_refresh_button(palette: &UiPalette) -> Box<dyn Scene> {
     let background = palette.surface_elevated;
     Box::new(bsn! {
             Node {
-                min_height: px(24.0),
-                padding: UiRect::horizontal(Val::Px(space::S8)),
+                min_height: rem(24.0),
+                padding: UiRect::horizontal(rem(space::S8)),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
                 border_radius: BorderRadius::all(Val::Px(4.0)),
@@ -117,8 +120,8 @@ pub(super) fn prune_keep_row(palette: &UiPalette) -> Box<dyn Scene> {
     for keep in [5usize, 10, 20, 50] {
         chips.push(Box::new(bsn! {
                     Node {
-                        min_height: px(24.0),
-                        padding: UiRect::horizontal(Val::Px(space::S4)),
+                        min_height: rem(24.0),
+                        padding: UiRect::horizontal(rem(space::S4)),
                         align_items: AlignItems::Center,
                         justify_content: JustifyContent::Center,
                         border_radius: BorderRadius::all(Val::Px(4.0)),
@@ -134,7 +137,7 @@ pub(super) fn prune_keep_row(palette: &UiPalette) -> Box<dyn Scene> {
     Box::new(bsn! {
             Node {
                 align_items: AlignItems::Center,
-                column_gap: Val::Px(space::S2),
+                column_gap: rem(space::S2),
             }
             Children [
                 LocalizedText::plain("common_keep") TextRole(Role::Caption)
@@ -148,8 +151,8 @@ pub(super) fn prune_button(palette: &UiPalette) -> Box<dyn Scene> {
     let background = palette.surface_elevated;
     Box::new(bsn! {
             Node {
-                min_height: px(24.0),
-                padding: UiRect::horizontal(Val::Px(space::S8)),
+                min_height: rem(24.0),
+                padding: UiRect::horizontal(rem(space::S8)),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
                 border_radius: BorderRadius::all(Val::Px(4.0)),
@@ -178,19 +181,19 @@ fn history_row_scene(entry: &SnapshotEntry, selected: bool, palette: &UiPalette)
     Box::new(bsn! {
             Node {
                 width: percent(100),
-                min_height: px(20.0),
+                min_height: rem(20.0),
                 align_items: AlignItems::Center,
-                column_gap: Val::Px(space::S4),
+                column_gap: rem(space::S4),
             }
             Children [
                 Node {
                     width: percent(70),
-                    min_height: px(20.0),
-                    padding: UiRect::horizontal(Val::Px(space::S4)),
+                    min_height: rem(20.0),
+                    padding: UiRect::horizontal(rem(space::S4)),
                     align_items: AlignItems::Center,
                     border_radius: BorderRadius::all(Val::Px(4.0)),
                 }
-                BackgroundColor({ if selected { palette.surface_elevated } else { palette.window_clear } })
+                ThemeBackgroundColor({ if selected { Token::SurfaceElevated } else { Token::WindowClear } })
                 Button
                 SnapshotHistoryEntryButton { id }
                 Children [
@@ -198,8 +201,8 @@ fn history_row_scene(entry: &SnapshotEntry, selected: bool, palette: &UiPalette)
                 ]
                 --
                 Node {
-                    min_height: px(20.0),
-                    padding: UiRect::horizontal(Val::Px(space::S4)),
+                    min_height: rem(20.0),
+                    padding: UiRect::horizontal(rem(space::S4)),
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::Center,
                     border_radius: BorderRadius::all(Val::Px(4.0)),
@@ -232,7 +235,7 @@ pub(super) fn history_rows_scene(
             Node {
                 width: percent(100),
                 flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(space::S2),
+                row_gap: rem(space::S2),
             }
             Children [
                 { rows }

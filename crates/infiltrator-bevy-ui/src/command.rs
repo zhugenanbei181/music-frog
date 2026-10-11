@@ -1,42 +1,71 @@
 //! Strongly typed UI Command Bus and EntityObserver/Trigger Infrastructure.
 //!
-//! Charter law (docs/bevy-ui/BEVY_UI_FRONTEND.md):
-//! All UI user interactions (button clicks, switches, mode selections,
+//! Charter law (crates/infiltrator-bevy-ui/docs/BEVY_UI_FRONTEND.md):
+//! All UI user interactions (button clicks, switches, routing-intent selections,
 //! reconnects, clears) dispatch through typed commands into a centralized
 //! command sink handle. No direct blocking calls in UI systems.
 
 use crate::command_events::CommandExecutedEvent;
-use crate::command_execution::{ApplicationCommandSink, drain_command_results};
+use crate::command_execution::drain_command_results;
 use bevy::app::{App, Plugin, Update};
 use bevy::ecs::resource::Resource;
-use infiltrator_application::core_application::CoreApplication;
 use infiltrator_contract::aggregator::AggregationDraft;
-use infiltrator_contract::command::{CommandIntent, CoreLogLevel, ProxyMode, RequestId};
+use infiltrator_contract::app_routing::{
+    AppRoutingMode, AppRoutingPackageSelection, AppRoutingRule,
+};
+use infiltrator_contract::command::{CommandIntent, CoreLogLevel, RequestId};
+#[cfg(any(feature = "capture-tools", test))]
+use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::dns::DnsSettingsPatch;
 use infiltrator_contract::dns_cache::DnsCacheOperationId;
 use infiltrator_contract::dns_query::{DnsQueryOperationId, DnsQueryRequest};
+use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::lan::LanCredentials;
 use infiltrator_contract::language::LanguagePreference;
 use infiltrator_contract::log_export::LogExportIdentity;
+use infiltrator_contract::outbound::{
+    preferences::OutboundUiPreferenceRequest,
+    probe::{OutboundSelectionRequest, ProbeOutboundBatchRequest, ProbeOutboundRequest},
+};
 use infiltrator_contract::overview_layout::OverviewCardKind;
-use infiltrator_contract::profile_source::ProfileSourceIdentity;
+use infiltrator_contract::profile_configuration::ProfileConfigurationRequest;
+use infiltrator_contract::profile_document::DocumentInspection;
+#[cfg(any(feature = "capture-tools", test))]
+use infiltrator_contract::profile_document::DocumentValidation;
+use infiltrator_contract::profile_document_identity::ProfileDocumentIdentity;
+use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
+use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
 use infiltrator_contract::protocol_fidelity::ProtocolDraft;
 use infiltrator_contract::protocol_trust::TlsTrustParams;
-use infiltrator_contract::proxies::ProxySortOrder;
-use infiltrator_contract::proxy_probe_options::ProxyProbeOptions;
+use infiltrator_contract::routing_intent::RoutingIntent;
 use infiltrator_contract::rule_document::RuleListCommit;
 use infiltrator_contract::rule_source::RuleSourceIdentity;
 use infiltrator_contract::rule_trace_run::{RuleTraceOperationId, RuleTraceRequest};
 use infiltrator_contract::rule_tracer::TracerRuleOverride;
-use infiltrator_contract::rules_workspace::RulesJsonSection;
+use infiltrator_contract::runtime_settings::RuntimeProbeSettings;
 use infiltrator_contract::script_export_review::{ScriptExportDraft, ScriptExportIdentity};
 use infiltrator_contract::script_run::{ScriptOperationId, ScriptRunRequest};
+use infiltrator_contract::speedtest::{SpeedtestConcurrency, SpeedtestTarget};
 use infiltrator_contract::subscription_import::{
     SubscriptionFilterDraft, SubscriptionImportChannel, SubscriptionScheduleDraft,
 };
 use infiltrator_contract::tun::TunStack;
+use infiltrator_ports::profile_document_codec::ProfileDocumentSnippetOutcome;
+use infiltrator_ports::profile_document_codec::{
+    ProfileMixinCascade, ProfileMixinCascadeStage, ProfileMixinCascadeStageId, ProfileMixinColumn,
+    ProfileMixinColumnRole, ProfileMixinComposition, ProfileMixinPreflight,
+    ProfileMixinStageDeclaration, ProfileMixinStudioProjection, ProfileMixinToggle,
+    ProfileMixinToggleId, ProfileMixinToggleProjection,
+};
+#[cfg(any(feature = "capture-tools", test))]
+use std::collections::VecDeque;
+#[cfg(any(feature = "capture-tools", test))]
+use std::mem::take;
+use std::sync::Arc;
+#[cfg(any(feature = "capture-tools", test))]
+use std::sync::Mutex;
+#[cfg(any(feature = "capture-tools", test))]
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Mutex};
 
 /// All user action commands emitted from Bevy UI pages and controls.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -67,38 +96,23 @@ pub enum UiCommand {
     MoveOverviewCardUp(OverviewCardKind),
     MoveOverviewCardDown(OverviewCardKind),
     ResetOverviewCardOrder,
-    /// Switch core proxy mode (Rule / Global / Direct).
-    SetProxyMode(ProxyMode),
-    /// Select a specific proxy node in a policy group.
-    SelectProxyNode { group: String, node: String },
-    /// Run latency benchmark across all proxy groups.
-    TestAllProxyGroups,
-    /// DUAL-06-03: run the all-groups benchmark with a custom target URL typed
-    /// in the Overview field.
-    TestAllProxyGroupsWithUrl { url: String },
-    /// DUAL-06-01: set the shared speedtest engine's concurrency bound.
-    SetSpeedtestConcurrency { limit: usize },
-    /// Cancel the active shared speedtest batch.
-    CancelSpeedtest,
-    /// Run latency benchmark for a specific proxy group.
-    TestProxyGroup { group: String },
-    TestProxyNode { node: String },
-    /// Toggle expand/fold of a proxy group card.
-    ToggleProxyGroupExpand { group: String },
-    /// Change the proxy node sorting order.
-    SetProxySortOrder(ProxySortOrder),
-    SetProxySearchQuery { query: String },
-    SetProxyProbeOptions { options: ProxyProbeOptions },
-    /// Toggle Filter Alive (只看可用) mode.
-    ToggleFilterAlive(bool),
-    /// Toggle favorite status of a proxy node.
-    ToggleFavoriteProxy(String),
-    /// Toggle compact list vs grid view for proxy nodes.
-    SetProxyCompactView(bool),
-    /// Reorder proxy groups by custom order.
-    ReorderProxyGroups { group_names: Vec<String> },
-    /// Reset proxy group custom ordering to default.
-    ResetProxyGroupOrder,
+    /// Choose a shared traffic-routing policy.
+    SetRoutingIntent(RoutingIntent),
+    /// Select a member from a neutral outbound collection, fenced to its
+    /// observed inventory revision.
+    SelectOutbound { request: OutboundSelectionRequest },
+    /// Probe one outbound using its opaque identity and observed inventory revision.
+    ProbeOutbound { request: ProbeOutboundRequest },
+    /// Probe an observed neutral outbound set at one exact inventory revision.
+    ProbeOutboundBatch { request: ProbeOutboundBatchRequest },
+    /// Apply an outbound presentation preference using its observed revision.
+    ApplyOutboundUiPreference { request: OutboundUiPreferenceRequest },
+    /// Set the Core-owned speedtest runner's bounded concurrency value.
+    StartSpeedtest { target: SpeedtestTarget },
+    SetSpeedtestConcurrency { concurrency: SpeedtestConcurrency },
+    /// Cancel exactly the run shown in the Core-owned speedtest snapshot.
+    CancelSpeedtestRun { run_id: infiltrator_contract::speedtest::SpeedtestRunId },
+    SetRuntimeProbeSettings { settings: RuntimeProbeSettings },
     /// Activate a subscription configuration profile.
     ActivateProfile { id: String },
     /// Trigger an immediate remote update for a profile.
@@ -126,7 +140,7 @@ pub enum UiCommand {
     /// DUAL-07-08: apply a profile's node-keyword filter through the shared
     /// pipeline.
     SaveSubscriptionFilter {
-        source: ProfileSourceIdentity,
+        source: ProfileWorkspaceIdentity,
         filter: SubscriptionFilterDraft,
     },
     /// DUAL-07-01: import a profile through the shared multi-channel path.
@@ -207,8 +221,8 @@ pub enum UiCommand {
     ApplyGameRoutingPresets { target: String },
     /// DUAL-11-14: trigger the kernel's GeoIP/GeoSite database upgrade.
     UpgradeGeoDatabases,
-    /// DUAL-11-14: replace one rules-workspace JSON document.
-    ApplyRulesJsonDocument { section: RulesJsonSection, json: String },
+    /// Apply a typed profile configuration update bound to its observed revision.
+    ApplyProfileConfiguration(Box<ProfileConfigurationRequest>),
     /// DUAL-12-10: set the simulated sandbox source IP the tracer replays.
 
     /// Re-run the shared rule tracer for a target query.
@@ -295,14 +309,15 @@ pub enum UiCommand {
     RepairDoctorIssue { check_id: String },
     /// Repair all detected doctor issues.
     RepairAllDoctorIssues,
-    /// Toggle split tunneling rule for an application.
-    ToggleAppRouting { app_id: String, enabled: bool },
+    /// Set one application's split-tunneling selection explicitly.
+    SetAppRoutingPackageSelection {
+        app_id: String,
+        selection: AppRoutingPackageSelection,
+    },
     /// Set app routing split tunneling mode.
-    SetAppRoutingMode { mode: String },
-    /// Toggle include system apps in split tunneling.
-    ToggleIncludeSystemApps { include: bool },
+    SetAppRoutingMode { mode: AppRoutingMode },
     /// Set specific app routing action rule.
-    SetAppRule { app_id: String, rule: String },
+    SetAppRule { app_id: String, rule: AppRoutingRule },
     /// Immediate WebDAV sync action.
     SyncNow,
     /// Create backup snapshot.
@@ -324,14 +339,14 @@ pub enum UiCommand {
     LoadProfileDocument { profile: Option<String> },
     /// DUAL-09-14: commit the editor buffer through the shared guarded write.
     SaveProfileDocument {
-        source: ProfileSourceIdentity,
+        source: ProfileWorkspaceIdentity,
         content: String,
-        allow_protected: bool,
+        authorization: ProfileWriteAuthorization,
     },
     /// DUAL-09-14: load a profile's Mixin/filter sidecar for the editor panes.
     LoadProfileOptions { profile: Option<String> },
     /// DUAL-09-14: commit an edited Mixin overlay through the shared use-case.
-    SaveMixinOverlay { source: ProfileSourceIdentity, mixin_yaml: String },
+    SaveMixinOverlay { source: ProfileWorkspaceIdentity, mixin_yaml: String },
     /// Select the last installed, locally recorded core version.
     RollbackCore,
     /// Update a core or UI setting.
@@ -355,6 +370,68 @@ pub trait UiCommandSink: Send + Sync {
     fn drain_results(&self) -> Vec<CommandExecutedEvent> {
         Vec::new()
     }
+    /// Pure, identity-scoped editor codec operations. These synchronous
+    /// queries do not enter the Core command pump or mutate storage/runtime.
+    fn inspect_profile_buffer(
+        &self,
+        _identity: &ProfileDocumentIdentity,
+        _content: &str,
+    ) -> Result<DocumentInspection, Failure> {
+        Err(Failure::unsupported(
+            "profile document inspection is not composed",
+        ))
+    }
+    fn insert_profile_snippet(
+        &self,
+        _identity: &ProfileDocumentIdentity,
+        _content: &str,
+        _snippet_id: &str,
+        _line: usize,
+        _column: usize,
+    ) -> Result<ProfileDocumentSnippetOutcome, Failure> {
+        Err(Failure::unsupported(
+            "profile document snippet insertion is not composed",
+        ))
+    }
+    fn inspect_mixin_draft(
+        &self,
+        _identity: &ProfileDocumentIdentity,
+        _document_content: &str,
+        _mixin_yaml: &str,
+    ) -> Result<(), Failure> {
+        Err(Failure::unsupported(
+            "profile Mixin draft inspection is not composed",
+        ))
+    }
+    fn inspect_mixin_toggle(
+        &self,
+        _identity: &ProfileDocumentIdentity,
+        _mixin_yaml: &str,
+        _toggle_id: ProfileMixinToggleId,
+    ) -> Result<bool, Failure> {
+        Err(Failure::unsupported(
+            "Mixin toggle inspection is not composed",
+        ))
+    }
+    fn set_mixin_toggle(
+        &self,
+        _identity: &ProfileDocumentIdentity,
+        _mixin_yaml: &str,
+        _toggle_id: ProfileMixinToggleId,
+        _enabled: bool,
+    ) -> Result<String, Failure> {
+        Err(Failure::unsupported("Mixin toggle editing is not composed"))
+    }
+    fn inspect_mixin_studio(
+        &self,
+        _identity: &ProfileDocumentIdentity,
+        _document_content: &str,
+        _mixin_yaml: &str,
+    ) -> Result<ProfileMixinStudioProjection, Failure> {
+        Err(Failure::unsupported(
+            "Mixin studio projection is not composed",
+        ))
+    }
 }
 
 /// ECS resource handle wrapping a thread-safe UI command sink.
@@ -369,22 +446,141 @@ impl CommandSinkHandle {
     pub fn submit_tracked(&self, command: UiCommand) -> Option<RequestId> {
         self.0.submit_tracked(command)
     }
+    pub fn inspect_profile_buffer(
+        &self,
+        identity: &ProfileDocumentIdentity,
+        content: &str,
+    ) -> Result<DocumentInspection, Failure> {
+        self.0.inspect_profile_buffer(identity, content)
+    }
+    pub fn insert_profile_snippet(
+        &self,
+        identity: &ProfileDocumentIdentity,
+        content: &str,
+        snippet_id: &str,
+        line: usize,
+        column: usize,
+    ) -> Result<ProfileDocumentSnippetOutcome, Failure> {
+        self.0
+            .insert_profile_snippet(identity, content, snippet_id, line, column)
+    }
+    pub fn inspect_mixin_draft(
+        &self,
+        identity: &ProfileDocumentIdentity,
+        document_content: &str,
+        mixin_yaml: &str,
+    ) -> Result<(), Failure> {
+        self.0
+            .inspect_mixin_draft(identity, document_content, mixin_yaml)
+    }
+    pub fn inspect_mixin_toggle(
+        &self,
+        identity: &ProfileDocumentIdentity,
+        mixin_yaml: &str,
+        toggle_id: ProfileMixinToggleId,
+    ) -> Result<bool, Failure> {
+        self.0.inspect_mixin_toggle(identity, mixin_yaml, toggle_id)
+    }
+    pub fn set_mixin_toggle(
+        &self,
+        identity: &ProfileDocumentIdentity,
+        mixin_yaml: &str,
+        toggle_id: ProfileMixinToggleId,
+        enabled: bool,
+    ) -> Result<String, Failure> {
+        self.0
+            .set_mixin_toggle(identity, mixin_yaml, toggle_id, enabled)
+    }
+    pub fn inspect_mixin_studio(
+        &self,
+        identity: &ProfileDocumentIdentity,
+        document_content: &str,
+        mixin_yaml: &str,
+    ) -> Result<ProfileMixinStudioProjection, Failure> {
+        self.0
+            .inspect_mixin_studio(identity, document_content, mixin_yaml)
+    }
 }
 
-/// Demo/in-memory command sink recording submitted commands for testing and mock runs.
+/// Explicit demo/headless command sink recording commands and returning a
+/// typed routing-intent readback. Product composition injects its owner sink.
+#[cfg(any(feature = "capture-tools", test))]
 #[derive(Clone, Debug, Default)]
 pub struct DemoCommandSink {
     next_request: Arc<AtomicU64>,
     history: Arc<Mutex<Vec<UiCommand>>>,
+    results: Arc<Mutex<Vec<CommandExecutedEvent>>>,
+    editor_inspections: Arc<Mutex<VecDeque<Result<DocumentInspection, Failure>>>>,
+    editor_snippets: Arc<Mutex<VecDeque<Result<ProfileDocumentSnippetOutcome, Failure>>>>,
+    mixin_preflights: Arc<Mutex<VecDeque<Result<(), Failure>>>>,
+    mixin_studios: Arc<Mutex<VecDeque<Result<ProfileMixinStudioProjection, Failure>>>>,
+    mixin_toggle_inspections: Arc<Mutex<VecDeque<Result<bool, Failure>>>>,
+    mixin_toggle_updates: Arc<Mutex<VecDeque<Result<String, Failure>>>>,
 }
 
+#[cfg(any(feature = "capture-tools", test))]
 impl DemoCommandSink {
     /// Create an active demo command sink.
     pub fn accepting() -> Self {
         Self {
             history: Arc::new(Mutex::new(Vec::new())),
             next_request: Arc::new(AtomicU64::new(0)),
+            results: Arc::new(Mutex::new(Vec::new())),
+            editor_inspections: Arc::new(Mutex::new(VecDeque::new())),
+            editor_snippets: Arc::new(Mutex::new(VecDeque::new())),
+            mixin_preflights: Arc::new(Mutex::new(VecDeque::new())),
+            mixin_studios: Arc::new(Mutex::new(VecDeque::new())),
+            mixin_toggle_inspections: Arc::new(Mutex::new(VecDeque::new())),
+            mixin_toggle_updates: Arc::new(Mutex::new(VecDeque::new())),
         }
+    }
+
+    /// Queue a deterministic codec inspection for the next buffer check.
+    pub fn queue_profile_inspection(&self, result: Result<DocumentInspection, Failure>) {
+        self.editor_inspections
+            .lock()
+            .expect("demo editor inspection queue")
+            .push_back(result);
+    }
+
+    /// Queue a deterministic codec result for the next snippet insertion.
+    pub fn queue_profile_snippet(&self, result: Result<ProfileDocumentSnippetOutcome, Failure>) {
+        self.editor_snippets
+            .lock()
+            .expect("demo editor snippet queue")
+            .push_back(result);
+    }
+
+    /// Queue a deterministic result for the next Mixin codec preflight.
+    pub fn queue_mixin_preflight(&self, result: Result<(), Failure>) {
+        self.mixin_preflights
+            .lock()
+            .expect("demo Mixin preflight queue")
+            .push_back(result);
+    }
+
+    /// Queue the next engine-neutral Mixin studio projection for this fake host.
+    pub fn queue_mixin_studio(&self, result: Result<ProfileMixinStudioProjection, Failure>) {
+        self.mixin_studios
+            .lock()
+            .expect("demo Mixin studio queue")
+            .push_back(result);
+    }
+
+    /// Queue the next typed toggle inspection for this fake host.
+    pub fn queue_mixin_toggle_inspection(&self, result: Result<bool, Failure>) {
+        self.mixin_toggle_inspections
+            .lock()
+            .expect("demo Mixin toggle inspection queue")
+            .push_back(result);
+    }
+
+    /// Queue the next typed toggle update for this fake host.
+    pub fn queue_mixin_toggle_update(&self, result: Result<String, Failure>) {
+        self.mixin_toggle_updates
+            .lock()
+            .expect("demo Mixin toggle update queue")
+            .push_back(result);
     }
 
     /// Read all commands submitted so far.
@@ -392,20 +588,183 @@ impl DemoCommandSink {
         self.history.lock().expect("sink poisoned").clone()
     }
 
-    /// Clear recorded command history.
+    /// Clear recorded command history and queued demo results.
     pub fn clear(&self) {
         self.history.lock().expect("sink poisoned").clear();
+        self.results.lock().expect("sink poisoned").clear();
     }
 }
 
+#[cfg(any(feature = "capture-tools", test))]
 impl UiCommandSink for DemoCommandSink {
     fn submit_tracked(&self, command: UiCommand) -> Option<RequestId> {
         let id = RequestId(self.next_request.fetch_add(1, Ordering::Relaxed) + 1);
-        self.submit(command);
+        self.submit(command.clone());
+        if let UiCommand::SetRoutingIntent(intent) = command.clone() {
+            self.results
+                .lock()
+                .expect("sink poisoned")
+                .push(CommandExecutedEvent {
+                    command,
+                    request_id: id,
+                    result: Ok(CommandOutput::RoutingIntentApplied { observed: intent }),
+                });
+        }
         Some(id)
     }
     fn submit(&self, command: UiCommand) {
         self.history.lock().expect("sink poisoned").push(command);
+    }
+    fn drain_results(&self) -> Vec<CommandExecutedEvent> {
+        take(&mut *self.results.lock().expect("sink poisoned"))
+    }
+    fn inspect_profile_buffer(
+        &self,
+        _identity: &ProfileDocumentIdentity,
+        _content: &str,
+    ) -> Result<DocumentInspection, Failure> {
+        self.editor_inspections
+            .lock()
+            .expect("demo editor inspection queue")
+            .pop_front()
+            .unwrap_or(Ok(DocumentInspection::Inspected(DocumentValidation::Valid)))
+    }
+    fn insert_profile_snippet(
+        &self,
+        _identity: &ProfileDocumentIdentity,
+        _content: &str,
+        _snippet_id: &str,
+        _line: usize,
+        _column: usize,
+    ) -> Result<ProfileDocumentSnippetOutcome, Failure> {
+        self.editor_snippets
+            .lock()
+            .expect("demo editor snippet queue")
+            .pop_front()
+            .unwrap_or_else(|| {
+                Err(Failure::unsupported(
+                    "profile snippet fixture is not queued",
+                ))
+            })
+    }
+    fn inspect_mixin_draft(
+        &self,
+        _identity: &ProfileDocumentIdentity,
+        _document_content: &str,
+        _mixin_yaml: &str,
+    ) -> Result<(), Failure> {
+        self.mixin_preflights
+            .lock()
+            .expect("demo Mixin preflight queue")
+            .pop_front()
+            .unwrap_or(Ok(()))
+    }
+    fn inspect_mixin_toggle(
+        &self,
+        _identity: &ProfileDocumentIdentity,
+        _mixin_yaml: &str,
+        _toggle_id: ProfileMixinToggleId,
+    ) -> Result<bool, Failure> {
+        self.mixin_toggle_inspections
+            .lock()
+            .expect("demo Mixin toggle inspection queue")
+            .pop_front()
+            .unwrap_or(Ok(false))
+    }
+    fn set_mixin_toggle(
+        &self,
+        _identity: &ProfileDocumentIdentity,
+        mixin_yaml: &str,
+        toggle_id: ProfileMixinToggleId,
+        enabled: bool,
+    ) -> Result<String, Failure> {
+        self.mixin_toggle_updates
+            .lock()
+            .expect("demo Mixin toggle update queue")
+            .pop_front()
+            .unwrap_or_else(|| Ok(format!("{mixin_yaml}{}: {enabled}\n", toggle_id.as_str())))
+    }
+    fn inspect_mixin_studio(
+        &self,
+        _identity: &ProfileDocumentIdentity,
+        document_content: &str,
+        mixin_yaml: &str,
+    ) -> Result<ProfileMixinStudioProjection, Failure> {
+        self.mixin_studios
+            .lock()
+            .expect("demo Mixin studio queue")
+            .pop_front()
+            .unwrap_or_else(|| Ok(demo_mixin_studio_projection(document_content, mixin_yaml)))
+    }
+}
+
+#[cfg(any(feature = "capture-tools", test))]
+fn demo_mixin_studio_projection(
+    document_content: &str,
+    mixin_yaml: &str,
+) -> ProfileMixinStudioProjection {
+    let base_lines = document_content.lines().count();
+    let overlay_lines = mixin_yaml.lines().count();
+    let composed = format!("{document_content}{mixin_yaml}");
+    let composed_lines = composed.lines().count();
+    ProfileMixinStudioProjection {
+        preflight: ProfileMixinPreflight::Accepted,
+        cascade: ProfileMixinCascade::Merged {
+            stages: vec![
+                ProfileMixinCascadeStage {
+                    id: ProfileMixinCascadeStageId::Base,
+                    declaration: ProfileMixinStageDeclaration::Applied,
+                    line_count: base_lines,
+                },
+                ProfileMixinCascadeStage {
+                    id: ProfileMixinCascadeStageId::Subscription,
+                    declaration: ProfileMixinStageDeclaration::Undeclared,
+                    line_count: 0,
+                },
+                ProfileMixinCascadeStage {
+                    id: ProfileMixinCascadeStageId::Merge,
+                    declaration: ProfileMixinStageDeclaration::Applied,
+                    line_count: composed_lines,
+                },
+                ProfileMixinCascadeStage {
+                    id: ProfileMixinCascadeStageId::PreMixin,
+                    declaration: ProfileMixinStageDeclaration::Undeclared,
+                    line_count: 0,
+                },
+                ProfileMixinCascadeStage {
+                    id: ProfileMixinCascadeStageId::PostMixin,
+                    declaration: ProfileMixinStageDeclaration::Undeclared,
+                    line_count: 0,
+                },
+            ],
+            line_count: composed_lines,
+        },
+        columns: infiltrator_ports::profile_document_codec::ProfileMixinColumns {
+            base: ProfileMixinColumn {
+                role: ProfileMixinColumnRole::Base,
+                content: document_content.into(),
+                editable: false,
+                line_count: base_lines,
+            },
+            overlay: ProfileMixinColumn {
+                role: ProfileMixinColumnRole::Overlay,
+                content: mixin_yaml.into(),
+                editable: true,
+                line_count: overlay_lines,
+            },
+            composed: ProfileMixinComposition::Produced(ProfileMixinColumn {
+                role: ProfileMixinColumnRole::Composed,
+                content: composed,
+                editable: false,
+                line_count: composed_lines,
+            }),
+        },
+        toggles: ProfileMixinToggleProjection::Available(
+            ProfileMixinToggleId::ALL
+                .into_iter()
+                .map(|id| ProfileMixinToggle { id, enabled: false })
+                .collect(),
+        ),
     }
 }
 
@@ -419,21 +778,6 @@ impl CommandPumpPlugin {
     pub fn new(sink: Arc<dyn UiCommandSink>) -> Self {
         Self { sink }
     }
-
-    /// Create a production command pump backed by the shared application
-    /// service. The application owns execution and runtime details; Bevy
-    /// only emits the UI-local command vocabulary.
-    pub fn for_application(application: Arc<CoreApplication>) -> Self {
-        Self::new(Arc::new(ApplicationCommandSink::new(application)))
-    }
-}
-
-impl Default for CommandPumpPlugin {
-    fn default() -> Self {
-        Self {
-            sink: Arc::new(DemoCommandSink::accepting()),
-        }
-    }
 }
 
 impl Plugin for CommandPumpPlugin {
@@ -446,6 +790,17 @@ impl Plugin for CommandPumpPlugin {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use infiltrator_contract::android_control::AndroidControlIntent;
+    use infiltrator_contract::core_identity::EngineId;
+    use infiltrator_contract::outbound::identity::OutboundId;
+    use infiltrator_contract::outbound::identity::SnapshotRevision;
+    use infiltrator_contract::outbound::preferences::OutboundSortOrder;
+    use infiltrator_contract::outbound::preferences::OutboundUiPreferenceIntent;
+    use infiltrator_contract::outbound::preferences::OutboundUiPreferenceRequest;
+    use infiltrator_contract::outbound::probe::OutboundProbeBatchScope;
+    use infiltrator_contract::outbound::probe::OutboundProbeConcurrency;
+    use infiltrator_contract::outbound::probe::ProbeOutboundBatchRequest;
+    use infiltrator_contract::outbound::probe::ProbeOutboundRequest;
 
     #[test]
     fn demo_command_sink_records_and_clears() {
@@ -466,36 +821,51 @@ mod tests {
 
     #[test]
     fn business_commands_map_to_the_shared_contract() {
+        let outbound_request = OutboundSelectionRequest::new(
+            OutboundId::new(EngineId::new("mihomo").unwrap(), "GLOBAL").unwrap(),
+            OutboundId::new(EngineId::new("mihomo").unwrap(), "HK-01").unwrap(),
+            SnapshotRevision::new(9),
+        )
+        .unwrap();
         assert_eq!(
-            UiCommand::SetProxyMode(ProxyMode::Global).to_intent(),
-            Some(CommandIntent::SetProxyMode {
-                mode: ProxyMode::Global,
-            })
-        );
-        assert_eq!(
-            UiCommand::ToggleProxyGroupExpand {
-                group: "auto".to_string(),
+            UiCommand::SelectOutbound {
+                request: outbound_request.clone(),
             }
             .to_intent(),
-            Some(CommandIntent::ToggleProxyGroupExpand {
-                group: "auto".to_string(),
+            Some(CommandIntent::SelectOutbound {
+                request: outbound_request,
             })
         );
         assert_eq!(
-            UiCommand::SetProxySortOrder(ProxySortOrder::LatencyDesc).to_intent(),
-            Some(CommandIntent::SetProxySortOrder {
-                order: ProxySortOrder::LatencyDesc,
+            UiCommand::SetRoutingIntent(RoutingIntent::RouteAllThroughProxy).to_intent(),
+            Some(CommandIntent::SetRoutingIntent {
+                intent: RoutingIntent::RouteAllThroughProxy,
             })
         );
-        assert_eq!(
-            UiCommand::ToggleFilterAlive(true).to_intent(),
-            Some(CommandIntent::ToggleFilterAlive { enabled: true })
+        assert!(
+            UiCommand::ApplyOutboundUiPreference {
+                request: OutboundUiPreferenceRequest::new(
+                    SnapshotRevision::new(9),
+                    OutboundUiPreferenceIntent::SetSortOrder(OutboundSortOrder::LatencyDescending,),
+                )
+                .unwrap(),
+            }
+            .to_intent()
+            .is_some()
         );
+        let probe = ProbeOutboundRequest::new(
+            OutboundId::new(EngineId::new("mihomo").unwrap(), "HK-01").unwrap(),
+            SnapshotRevision::new(9),
+            "https://example.test/204",
+            5000,
+        )
+        .unwrap();
         assert_eq!(
-            UiCommand::ToggleFavoriteProxy("HK-01".into()).to_intent(),
-            Some(CommandIntent::ToggleFavoriteProxy {
-                proxy: "HK-01".into()
-            })
+            UiCommand::ProbeOutbound {
+                request: probe.clone(),
+            }
+            .to_intent(),
+            Some(CommandIntent::ProbeOutbound { request: probe })
         );
         assert_eq!(
             UiCommand::RollbackCore.to_intent(),
@@ -603,31 +973,35 @@ mod tests {
     }
 
     #[test]
-    fn speedtest_commands_carry_concurrency_and_custom_url() {
-        // DUAL-06-01: the runtime concurrency bound maps to the shared intent.
+    fn speedtest_commands_carry_validated_concurrency_and_typed_batch_request() {
+        let concurrency = SpeedtestConcurrency::new(12).expect("bounded concurrency");
         assert_eq!(
-            UiCommand::SetSpeedtestConcurrency { limit: 12 }.to_intent(),
-            Some(CommandIntent::SetSpeedtestConcurrency { limit: 12 })
+            UiCommand::SetSpeedtestConcurrency { concurrency }.to_intent(),
+            Some(CommandIntent::SetSpeedtestConcurrency { concurrency })
         );
-        // DUAL-06-03: a typed target URL rides into the shared delay intent.
+        let run_id = infiltrator_contract::speedtest::SpeedtestRunId::new(7)
+            .expect("valid speedtest run ID");
         assert_eq!(
-            UiCommand::TestAllProxyGroupsWithUrl {
-                url: "https://cp.cloudflare.com/generate_204".to_owned(),
+            UiCommand::CancelSpeedtestRun { run_id }.to_intent(),
+            Some(CommandIntent::CancelSpeedtestRun { run_id })
+        );
+        // The request is built from accepted probe settings, neutral scope,
+        // and the observed inventory revision.
+        let batch_request = ProbeOutboundBatchRequest::new(
+            OutboundProbeBatchScope::All,
+            SnapshotRevision::new(9),
+            "https://cp.cloudflare.com/generate_204",
+            5000,
+            OutboundProbeConcurrency::new(4).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            UiCommand::ProbeOutboundBatch {
+                request: batch_request.clone(),
             }
             .to_intent(),
-            Some(CommandIntent::TestDelay {
-                group: None,
-                url: Some("https://cp.cloudflare.com/generate_204".to_owned()),
-                timeout_ms: None,
-            })
-        );
-        // The plain all-groups command keeps the engine's default target.
-        assert_eq!(
-            UiCommand::TestAllProxyGroups.to_intent(),
-            Some(CommandIntent::TestDelay {
-                group: None,
-                url: None,
-                timeout_ms: None,
+            Some(CommandIntent::ProbeOutboundBatch {
+                request: batch_request,
             })
         );
     }
@@ -646,5 +1020,19 @@ mod tests {
             UiCommand::RestartCore.to_intent(),
             Some(CommandIntent::RestartCore)
         );
+        assert_eq!(
+            UiCommand::StartCore.android_control_intent(),
+            Some(AndroidControlIntent::ResumeKernel)
+        );
+        assert_eq!(
+            UiCommand::StopCore.android_control_intent(),
+            Some(AndroidControlIntent::PauseKernel)
+        );
+        assert_eq!(
+            UiCommand::StartVpn.android_control_intent(),
+            Some(AndroidControlIntent::StartProxy)
+        );
+        assert_eq!(UiCommand::StopVpn.android_control_intent(), None);
+        assert_eq!(UiCommand::StopVpn.to_intent(), Some(CommandIntent::StopVpn));
     }
 }

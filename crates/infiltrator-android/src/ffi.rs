@@ -1,6 +1,6 @@
 use infiltrator_contract::error::InfiltratorError;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum, serde::Serialize, serde::Deserialize)]
 #[repr(u32)]
 pub enum FfiErrorCode {
     Ok = 0,
@@ -17,10 +17,43 @@ pub enum FfiErrorCode {
     Unknown = 255,
 }
 
-#[derive(Debug, Clone, uniffi::Record)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum, serde::Serialize, serde::Deserialize)]
+#[repr(u32)]
+pub enum FfiFailureLocalizationKey {
+    InvalidInput = 0,
+    InvalidState = 1,
+    NotReady = 2,
+    Unsupported = 3,
+    Network = 4,
+    Authentication = 5,
+    Sync = 6,
+    Configuration = 7,
+    Storage = 8,
+    Permission = 9,
+    Canceled = 10,
+    Internal = 11,
+    YamlSyntax = 12,
+    MixinYaml = 13,
+    ActiveProfileInconsistent = 14,
+    QuotaSourceChanged = 15,
+    CurrentTimeUnavailable = 16,
+    DownloadCanceled = 17,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record, serde::Serialize, serde::Deserialize)]
+pub struct FfiFailureLocalization {
+    pub key: FfiFailureLocalizationKey,
+    pub line: Option<u64>,
+    pub column: Option<u64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record, serde::Serialize, serde::Deserialize)]
 pub struct FfiStatus {
     pub code: FfiErrorCode,
+    /// Opaque platform/application diagnostic. Present separately from the
+    /// stable localization projection so UI never needs to parse this text.
     pub message: Option<String>,
+    pub localization: Option<FfiFailureLocalization>,
 }
 
 impl FfiStatus {
@@ -28,13 +61,46 @@ impl FfiStatus {
         Self {
             code: FfiErrorCode::Ok,
             message: None,
+            localization: None,
         }
     }
 
     pub fn err(code: FfiErrorCode, message: impl Into<String>) -> Self {
+        Self::err_with_localization(code, message, FfiFailureLocalization::for_code(code))
+    }
+
+    pub fn err_with_localization(
+        code: FfiErrorCode,
+        message: impl Into<String>,
+        localization: FfiFailureLocalization,
+    ) -> Self {
         Self {
             code,
             message: Some(message.into()),
+            localization: Some(localization),
+        }
+    }
+}
+
+impl FfiFailureLocalization {
+    pub fn for_code(code: FfiErrorCode) -> Self {
+        let key = match code {
+            FfiErrorCode::Ok | FfiErrorCode::Unknown => FfiFailureLocalizationKey::Internal,
+            FfiErrorCode::InvalidState => FfiFailureLocalizationKey::InvalidState,
+            FfiErrorCode::InvalidInput => FfiFailureLocalizationKey::InvalidInput,
+            FfiErrorCode::NotReady => FfiFailureLocalizationKey::NotReady,
+            FfiErrorCode::NotSupported => FfiFailureLocalizationKey::Unsupported,
+            FfiErrorCode::Io => FfiFailureLocalizationKey::Storage,
+            FfiErrorCode::Network => FfiFailureLocalizationKey::Network,
+            FfiErrorCode::Auth => FfiFailureLocalizationKey::Authentication,
+            FfiErrorCode::Sync => FfiFailureLocalizationKey::Sync,
+            FfiErrorCode::Config => FfiFailureLocalizationKey::Configuration,
+            FfiErrorCode::Canceled => FfiFailureLocalizationKey::Canceled,
+        };
+        Self {
+            key,
+            line: None,
+            column: None,
         }
     }
 }
@@ -42,7 +108,7 @@ impl FfiStatus {
 impl From<InfiltratorError> for FfiStatus {
     fn from(err: InfiltratorError) -> Self {
         let code = match err {
-            InfiltratorError::Mihomo(_) => FfiErrorCode::Network,
+            InfiltratorError::Backend(_) => FfiErrorCode::Network,
             InfiltratorError::Config(_) => FfiErrorCode::Config,
             InfiltratorError::Io(_) => FfiErrorCode::Io,
             InfiltratorError::Download(_) => FfiErrorCode::Network,
@@ -55,7 +121,7 @@ impl From<InfiltratorError> for FfiStatus {
     }
 }
 
-#[derive(Debug, Clone, uniffi::Record)]
+#[derive(Debug, Clone, uniffi::Record, serde::Serialize, serde::Deserialize)]
 pub struct FfiStringResult {
     pub status: FfiStatus,
     pub value: Option<String>,
@@ -77,7 +143,7 @@ impl FfiStringResult {
     }
 }
 
-#[derive(Debug, Clone, uniffi::Record)]
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record, serde::Serialize, serde::Deserialize)]
 pub struct FfiBoolResult {
     pub status: FfiStatus,
     pub value: bool,
@@ -99,20 +165,6 @@ impl FfiBoolResult {
     }
 }
 
-pub trait FfiApi: Send + Sync {
-    fn core_start(&self) -> FfiStatus;
-    fn core_stop(&self) -> FfiStatus;
-    fn core_is_running(&self) -> FfiBoolResult;
-    fn controller_url(&self) -> FfiStringResult;
-
-    fn credential_get(&self, service: &str, key: &str) -> FfiStringResult;
-    fn credential_set(&self, service: &str, key: &str, value: &str) -> FfiStatus;
-    fn credential_delete(&self, service: &str, key: &str) -> FfiStatus;
-
-    fn data_dir(&self) -> FfiStringResult;
-    fn cache_dir(&self) -> FfiStringResult;
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -122,6 +174,7 @@ mod tests {
         let status = FfiStatus::ok();
         assert_eq!(status.code, FfiErrorCode::Ok);
         assert!(status.message.is_none());
+        assert!(status.localization.is_none());
     }
 
     #[test]
@@ -129,6 +182,14 @@ mod tests {
         let status = FfiStatus::err(FfiErrorCode::InvalidInput, "bad input");
         assert_eq!(status.code, FfiErrorCode::InvalidInput);
         assert_eq!(status.message, Some("bad input".to_string()));
+        assert_eq!(
+            status.localization,
+            Some(FfiFailureLocalization {
+                key: FfiFailureLocalizationKey::InvalidInput,
+                line: None,
+                column: None,
+            })
+        );
     }
 
     #[test]
@@ -137,5 +198,19 @@ mod tests {
         let status: FfiStatus = err.into();
         assert_eq!(status.code, FfiErrorCode::Auth);
         assert!(status.message.unwrap().contains("invalid pass"));
+    }
+
+    #[test]
+    fn backend_error_keeps_the_existing_network_classification() {
+        let status = FfiStatus::from(InfiltratorError::Backend("backend unavailable".to_owned()));
+        assert_eq!(status.code, FfiErrorCode::Network);
+        assert_eq!(
+            status.message.as_deref(),
+            Some("Backend error: backend unavailable")
+        );
+        assert_eq!(
+            status.localization.unwrap().key,
+            FfiFailureLocalizationKey::Network
+        );
     }
 }

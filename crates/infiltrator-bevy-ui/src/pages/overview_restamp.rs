@@ -12,8 +12,8 @@ use crate::history::{
 };
 use crate::pages::overview::{
     AccentContainerFill, AccentFill, BorderFill, LastOverviewProjection, OnAccentText,
-    OverviewCardState, OverviewChipKind, OverviewLineKind, OverviewModeChip,
-    OverviewProjectionUpdated, OverviewScrubberStatus, OverviewTrafficChart, StatusDot,
+    OverviewCardState, OverviewChipKind, OverviewLineKind, OverviewProjectionUpdated,
+    OverviewRoutingIntentChip, OverviewScrubberStatus, OverviewTrafficChart, StatusDot,
     SurfaceElevatedFill, SurfaceFill, banner_note, card_fill, chart_dims, chip_label, format_cpu,
     format_memory, format_scale, format_total_traffic, state_ink, status_dot_color,
 };
@@ -34,8 +34,7 @@ use bevy::ui::prelude::{BackgroundColor, Display, percent};
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Activate;
 use infiltrator_application::core_status_projection::{failure_copy, lifecycle_copy};
-use infiltrator_application::proxy_mode_projection::mode_status_copy;
-use infiltrator_application::shell_readout_projection::{rate_copy, rate_status};
+use infiltrator_application::routing_intent_projection::routing_intent_status_copy;
 use infiltrator_application::subscription_quota_projection::{QuotaPresentation, project_quota};
 use infiltrator_application::system_toggle_application::SystemToggleApplication;
 use infiltrator_application::system_toggle_projection::{action_label, status_label};
@@ -48,6 +47,7 @@ use infiltrator_contract::active_exit::{ActiveExitSnapshot, ActiveExitStatus};
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::public_ip::PublicIpProbeStatus;
 use infiltrator_contract::system_toggle::{SystemToggle, SystemToggleSnapshot, SystemToggleState};
+use infiltrator_presentation::shell_readout::{rate_copy, rate_status};
 
 /// Marker on the high-fidelity active-exit card's mutable facts.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -129,8 +129,8 @@ pub(crate) fn active_exit_text_value(
             .as_ref()
             .map(|group| format!("group · {group}"))
             .unwrap_or_else(|| "group · not reported".to_owned()),
-        ActiveExitTextKind::Status => match snapshot.status {
-            ActiveExitStatus::Ready => match snapshot.alive {
+        ActiveExitTextKind::Status => match &snapshot.status {
+            ActiveExitStatus::Ready { .. } => match snapshot.alive {
                 Some(true) => "selected · alive".to_owned(),
                 Some(false) => "selected · offline".to_owned(),
                 None => "selected · liveness unknown".to_owned(),
@@ -326,8 +326,8 @@ pub(crate) fn apply_overview_projection(
                     language,
                 )
             }
-            OverviewLineKind::ModeChip => {
-                text.0 = mode_status_copy(&projection.proxy_mode, language)
+            OverviewLineKind::RoutingIntentChip => {
+                text.0 = routing_intent_status_copy(&projection.routing_intent, language)
             }
             OverviewLineKind::BannerNote => text.0 = banner_note(projection, language),
             OverviewLineKind::Scale => text.0 = format_scale(&projection.traffic_scale),
@@ -555,7 +555,7 @@ pub struct OverviewFill {
     fill: &'static mut BackgroundColor,
     card: Option<&'static OverviewCardState>,
     dot: Has<StatusDot>,
-    chip: Has<OverviewModeChip>,
+    chip: Has<OverviewRoutingIntentChip>,
     elevated: Has<SurfaceElevatedFill>,
     accent_container: Has<AccentContainerFill>,
     surface: Has<SurfaceFill>,

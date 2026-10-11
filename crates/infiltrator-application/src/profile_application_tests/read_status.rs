@@ -2,7 +2,7 @@
 //! test-intent: behavior
 use super::*;
 use crate::profile_document_application::ProfileDocumentApplication;
-use crate::profile_edit_session::ProfileEditSession;
+use crate::profile_edit_session::{ProfileEditReadTarget, ProfileEditSession};
 use crate::profile_editor_observations::EditorFacet;
 use crate::profile_options_application::ProfileOptionsApplication;
 use infiltrator_contract::profile_editor_read::ProfileReadStatus;
@@ -11,7 +11,7 @@ use infiltrator_contract::profile_editor_read::ProfileReadStatus;
 async fn failed_document_read_retains_both_facts_and_a_successful_options_read_cannot_erase_its_failure()
  {
     let store = Arc::new(FakeStore::with_profile("main", "mode: rule\n", true));
-    let profiles = ProfileApplication::new(store.clone());
+    let profiles = profiles_with_mihomo_codec(store.clone());
     let documents = ProfileDocumentApplication::new(profiles.clone());
     let options = ProfileOptionsApplication::new(profiles.clone());
     let document = documents.load(None).await.unwrap();
@@ -44,16 +44,23 @@ async fn failed_document_read_retains_both_facts_and_a_successful_options_read_c
         ProfileReadStatus::Failed(_)
     ));
     let mut session = ProfileEditSession::default();
-    session.observe(document.source.as_ref().unwrap(), &document.content, "");
-    session.observe_read_status(&recovered_options.read, false);
+    session.observe(&document.workspace_identity, &document.content, "");
+    session.observe_read_status(&recovered_options.read, ProfileEditReadTarget::Document);
     assert!(!session.can_save());
+    let mut options_session = ProfileEditSession::default();
+    options_session.observe(&document.workspace_identity, &document.content, "");
+    options_session.observe_read_status(&recovered_options.read, ProfileEditReadTarget::Options);
+    assert!(options_session.can_save());
     assert!(
         session
             .status(&document.content, "en-US")
             .starts_with("Editor read failed:")
     );
     documents.load(None).await.unwrap();
-    session.observe_read_status(&profiles.verified_editor_snapshot().await.read, false);
+    session.observe_read_status(
+        &profiles.verified_editor_snapshot().await.read,
+        ProfileEditReadTarget::Document,
+    );
     assert!(session.can_save());
 }
 
@@ -67,16 +74,19 @@ async fn an_external_write_without_a_reload_is_verified_stale_and_does_not_repla
         .await
         .unwrap();
     let mut session = ProfileEditSession::default();
-    session.observe(document.source.as_ref().unwrap(), &document.content, "");
+    session.observe(&document.workspace_identity, &document.content, "");
     store
         .save("main", "# external\nmode: direct\n")
         .await
         .unwrap();
     let snapshot = profiles.verified_editor_snapshot().await;
     assert_eq!(snapshot.document, Some(document));
-    assert_ne!(snapshot.read.observed_source, snapshot.read.verified_source);
+    assert_ne!(
+        snapshot.read.observed_workspace_identity,
+        snapshot.read.verified_workspace_identity
+    );
     assert!(!snapshot.read.source_current());
-    session.observe_read_status(&snapshot.read, false);
+    session.observe_read_status(&snapshot.read, ProfileEditReadTarget::Document);
     assert!(!session.can_save());
     assert!(session.dirty("mode: global\n"));
     assert!(
@@ -106,10 +116,16 @@ async fn late_read_failure_cannot_replace_a_newer_success_and_metadata_protectio
     mark_subscription(&store, "main", "https://provider.test/subscription");
     let snapshot = profiles.verified_editor_snapshot().await;
     assert_eq!(snapshot.read.document, ProfileReadStatus::Ready);
-    assert!(snapshot.read.source_current());
+    assert!(!snapshot.read.source_current());
+    assert_ne!(
+        snapshot.read.observed_workspace_identity,
+        snapshot.read.verified_workspace_identity
+    );
     assert_eq!(
         snapshot.document.as_ref().unwrap().content,
         document.content
     );
-    assert!(snapshot.document.unwrap().write_protection.is_protected());
+    assert!(!snapshot.document.unwrap().write_protection.is_protected());
+    let protected = documents.load(None).await.unwrap();
+    assert!(protected.write_protection.is_protected());
 }

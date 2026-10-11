@@ -1,7 +1,9 @@
 //! Destructive confirmation drives the production update path with an isolated demo.
 //! test-intent: behavior
 
-use crate::command_harness::recording_application;
+use crate::command_harness::{
+    attach_product_application_with_accepted_owner_snapshot, recording_application,
+};
 use iced_runtime::Action;
 use iced_runtime::task::into_stream;
 use infiltrator_contract::command::CommandIntent;
@@ -28,7 +30,7 @@ fn close_all_confirmation_cancel_keeps_connections_and_schedules_no_work() {
     };
     let (mut state, _) = AppState::demo(&env);
     let (application, handler) = recording_application();
-    state.commands = Some(application);
+    attach_product_application_with_accepted_owner_snapshot(&mut state, application);
     // Drive production dispatch against the injected recording application.
     // The demo constructor supplies only data; no real host runtime is present.
     state.shell.demo = false;

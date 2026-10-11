@@ -13,7 +13,8 @@ use crate::pages::rules_tracer::{
 use crate::pages::rules_tracer_confirm::{
     TraceConfirmationAction, TraceConfirmationCard, TraceConfirmationCopy, TraceConfirmationRoot,
 };
-use crate::route::{ActiveRoute, Route, replay_surface_snapshot};
+use crate::route::surface_projection::replay_surface_snapshot;
+use crate::route::{ActiveRoute, Route};
 use crate::surface::LatestSurfaceSnapshot;
 use bevy::app::App;
 use bevy::camera::NormalizedRenderTarget;
@@ -31,7 +32,6 @@ use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
 use bevy::window::{PrimaryWindow, Window};
 use infiltrator_application::command_application::CommandApplication;
-use infiltrator_application::configuration_application::ConfigurationApplication;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::language_choice_fixtures::LanguageCaptureProcess;
 use infiltrator_application::profile_application::ProfileApplication;
@@ -58,7 +58,7 @@ struct TraceCapture {
     stage: u8,
 }
 pub fn install(app: &mut App) {
-    let store = Arc::new(RuleTraceStore::default());
+    let store = super::mihomo_rule_trace_fixture();
     let owner = RuleTracerApplication::new();
     owner.set_override_port(store.clone());
     let handler = CommandApplication::new().with_rule_tracer(owner.clone());
@@ -71,7 +71,7 @@ pub fn install(app: &mut App) {
         ApplicationSurfaceReader::new(core, SurfaceKind::BevyDesktop, HostKind::Desktop)
             .with_rule_tracer(owner.clone())
             .with_profiles(ProfileApplication::new(store.clone()))
-            .with_configuration(ConfigurationApplication::new(store.clone())),
+            .with_configuration(super::mihomo_configuration_application(store.clone())),
     );
     app.insert_resource(CommandSinkHandle(Arc::new(CaptureCommandSink::new(
         handler,

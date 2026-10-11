@@ -1,7 +1,5 @@
 use crate::android_bridge::{AndroidBridge, get_android_bridge};
 use async_trait::async_trait;
-use infiltrator_contract::snapshot::CoreLifecycle;
-use infiltrator_ports::core_process::CoreProcess;
 use infiltrator_ports::data_dir::DataDirProvider;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::secure_store::SecureStore;
@@ -9,41 +7,6 @@ use mihomo_api::error::MihomoError;
 use std::path::PathBuf;
 use std::result;
 use std::sync::Arc;
-
-pub struct AndroidCoreController;
-
-#[async_trait]
-impl CoreProcess for AndroidCoreController {
-    async fn start(&self) -> result::Result<(), PortError> {
-        require_bridge("core start")?
-            .core_start()
-            .await
-            .map_err(map_port_error)
-    }
-
-    async fn stop(&self) -> result::Result<(), PortError> {
-        require_bridge("core stop")?
-            .core_stop()
-            .await
-            .map_err(map_port_error)
-    }
-
-    async fn status(&self) -> result::Result<CoreLifecycle, PortError> {
-        let running = require_bridge("core status")?
-            .core_is_running()
-            .await
-            .map_err(map_port_error)?;
-        Ok(if running {
-            CoreLifecycle::Running
-        } else {
-            CoreLifecycle::Stopped
-        })
-    }
-
-    fn controller_endpoint(&self) -> Option<String> {
-        get_android_bridge().and_then(|bridge| bridge.core_controller_url())
-    }
-}
 
 pub struct AndroidCredentialStore;
 

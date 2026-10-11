@@ -28,20 +28,23 @@ use bevy::ecs::hierarchy::Children;
 use bevy::ecs::observer::On;
 use bevy::ecs::query::{Has, With};
 use bevy::ecs::system::{Commands, Query, Res};
+use bevy::feathers::theme::ThemeBackgroundColor;
+use bevy::feathers::theme::ThemeTextColor;
 use bevy::scene::{Scene, bsn};
-use bevy::text::TextColor;
 use bevy::ui::Checked;
 use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderColor, BorderRadius, FlexDirection, JustifyContent, Node,
-    PositionType, UiRect, Val, percent, px,
+    AlignItems, BorderColor, BorderRadius, FlexDirection, JustifyContent, Node, PositionType,
+    UiRect, Val, percent,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button, Checkbox};
 use infiltrator_bevy_widgets::button::ButtonDisabled;
+use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
 use infiltrator_bevy_widgets::localization::LocalizedText;
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::text_input::native::NativeTextField;
@@ -125,13 +128,13 @@ pub fn profiles_import_card_scene(
                                 width: percent(100),
                                 align_items: AlignItems::Center,
                                 justify_content: JustifyContent::SpaceBetween,
-                                padding: UiRect::bottom(Val::Px(space::S4)),
+                                padding: UiRect::bottom(rem(space::S4)),
                             }
                             ProfilesImportRoot
                             Children [
                                 Node {
                                     align_items: AlignItems::Center,
-                                    column_gap: Val::Px(space::S8),
+                                    column_gap: rem(space::S8),
                                 }
                                 Children [
                                     @{ icon_tile_scene(IconId::FileText, 24.0, palette) }
@@ -145,19 +148,19 @@ pub fn profiles_import_card_scene(
                             Node {
                                 width: percent(100),
                                 align_items: AlignItems::Center,
-                                column_gap: Val::Px(space::S8),
-                                padding: UiRect::vertical(Val::Px(space::S4)),
+                                column_gap: rem(space::S8),
+                                padding: UiRect::vertical(rem(space::S4)),
                             }
                             Children [
                                 Node {
                                     flex_grow: 1.0,
-                                    min_height: px(palette.control_height_px),
+                                    min_height: rem(palette.control_height_px),
                                     align_items: AlignItems::Center,
-                                    padding: UiRect::horizontal(Val::Px(space::S12)),
-                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                    padding: UiRect::horizontal(rem(space::S12)),
+                                    border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                                     border: UiRect::all(Val::Px(palette.hairline_px)),
                                 }
-                                BackgroundColor({ palette.window_clear })
+                                ThemeBackgroundColor({ Token::WindowClear })
                                 BorderColor {
                                     top: { palette.border },
                                     right: { palette.border },
@@ -165,17 +168,17 @@ pub fn profiles_import_card_scene(
                                     left: { palette.border },
                                 }
                                 Children [
-                                    LocalizedText::plain("profiles_local_import_path_hint") TextRole(Role::Caption) TextColor({ palette.ink_dim })
+                                    LocalizedText::plain("profiles_local_import_path_hint") TextRole(Role::Caption) ThemeTextColor({ Token::InkDim })
                                 ]
                                 --
                                 Node {
-                                    min_height: px(palette.control_height_px),
-                                    padding: UiRect::horizontal(Val::Px(space::S12)),
+                                    min_height: rem(palette.control_height_px),
+                                    padding: UiRect::horizontal(rem(space::S12)),
                                     align_items: AlignItems::Center,
                                     justify_content: JustifyContent::Center,
-                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                    border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                                 }
-                                BackgroundColor({ palette.surface_elevated })
+                                ThemeBackgroundColor({ Token::SurfaceElevated })
                                 Button
                                 ChooseLocalFileButton
                                 Children [
@@ -183,17 +186,17 @@ pub fn profiles_import_card_scene(
                                 ]
                                 --
                                 Node {
-                                    min_height: px(palette.control_height_px),
-                                    padding: UiRect::horizontal(Val::Px(space::S12)),
+                                    min_height: rem(palette.control_height_px),
+                                    padding: UiRect::horizontal(rem(space::S12)),
                                     align_items: AlignItems::Center,
                                     justify_content: JustifyContent::Center,
-                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                    border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                                 }
-                                BackgroundColor({ palette.accent })
+                                ThemeBackgroundColor({ Token::Accent })
                                 Button
                                 ImportLocalFileButton
                                 Children [
-                                    LocalizedText::plain("profiles_local_import_action") TextRole(Role::BodyStrong) TextColor({ palette.on_accent })
+                                    LocalizedText::plain("profiles_local_import_action") TextRole(Role::BodyStrong) ThemeTextColor({ Token::OnAccent })
                                 ]
                             ]
             }),
@@ -203,14 +206,14 @@ pub fn profiles_import_card_scene(
                                 width: percent(100),
                                 align_items: AlignItems::Center,
                                 justify_content: JustifyContent::SpaceBetween,
-                                padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S6)),
-                                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                padding: UiRect::axes(rem(space::S8), rem(space::S6)),
+                                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                             }
-                            BackgroundColor({ palette.window_clear })
+                            ThemeBackgroundColor({ Token::WindowClear })
                             Children [
                                 Node {
                                     align_items: AlignItems::Center,
-                                    column_gap: Val::Px(space::S8),
+                                    column_gap: rem(space::S8),
                                 }
                                 Children [
                                     LocalizedText::plain("profiles_import_activate") TextRole(Role::Body)
@@ -218,20 +221,20 @@ pub fn profiles_import_card_scene(
                                 --
                                 Node {
                                     align_items: AlignItems::Center,
-                                    column_gap: Val::Px(space::S8),
+                                    column_gap: rem(space::S8),
                                 }
                                 Children [
-                                    LocalizedText::plain("overview_toggle_enabled") TextRole(Role::Caption) TextColor({ palette.success })
+                                    LocalizedText::plain("overview_toggle_enabled") TextRole(Role::Caption) ThemeTextColor({ Token::Success })
                                     --
                                     Node {
-                                        width: px(38.0),
-                                        height: px(22.0),
+                                        width: rem(38.0),
+                                        height: rem(22.0),
                                         border: UiRect::all(Val::Px(palette.hairline_px)),
                                         border_radius: BorderRadius::all(Val::Px(11.0)),
                                         position_type: PositionType::Relative,
                                         align_items: AlignItems::Center,
                                     }
-                                    BackgroundColor({ palette.accent })
+                                    ThemeBackgroundColor({ Token::Accent })
                                     BorderColor {
                                         top: { palette.accent },
                                         right: { palette.accent },
@@ -242,11 +245,11 @@ pub fn profiles_import_card_scene(
                                         Node {
                                             position_type: PositionType::Absolute,
                                             left: Val::Px(18.0),
-                                            width: px(16.0),
-                                            height: px(16.0),
+                                            width: rem(16.0),
+                                            height: rem(16.0),
                                             border_radius: BorderRadius::all(Val::Px(8.0)),
                                         }
-                                        BackgroundColor({ palette.on_accent })
+                                        ThemeBackgroundColor({ Token::OnAccent })
                                     ]
                                 ]
                             ]
@@ -256,8 +259,8 @@ pub fn profiles_import_card_scene(
                             Node {
                                 width: percent(100),
                                 align_items: AlignItems::Center,
-                                column_gap: Val::Px(space::S8),
-                                padding: UiRect::top(Val::Px(space::S8)),
+                                column_gap: rem(space::S8),
+                                padding: UiRect::top(rem(space::S8)),
                             }
                             Children [
                                 @{ icon_tile_scene(IconId::Settings, 24.0, palette) }
@@ -270,8 +273,8 @@ pub fn profiles_import_card_scene(
                             Node {
                                 width: percent(100),
                                 align_items: AlignItems::Center,
-                                column_gap: Val::Px(space::S8),
-                                padding: UiRect::vertical(Val::Px(space::S4)),
+                                column_gap: rem(space::S8),
+                                padding: UiRect::vertical(rem(space::S4)),
                             }
                             Children [
                                 Node {
@@ -283,17 +286,17 @@ pub fn profiles_import_card_scene(
                                 ]
                                 --
                                 Node {
-                                    min_height: px(palette.control_height_px),
-                                    padding: UiRect::horizontal(Val::Px(space::S12)),
+                                    min_height: rem(palette.control_height_px),
+                                    padding: UiRect::horizontal(rem(space::S12)),
                                     align_items: AlignItems::Center,
                                     justify_content: JustifyContent::Center,
-                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                    border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                                 }
-                                BackgroundColor({ palette.accent })
+                                ThemeBackgroundColor({ Token::Accent })
                                 Button
                                 SaveUserAgentButton
                                 Children [
-                                    LocalizedText::plain("profiles_request_settings_save") TextRole(Role::BodyStrong) TextColor({ palette.on_accent })
+                                    LocalizedText::plain("profiles_request_settings_save") TextRole(Role::BodyStrong) ThemeTextColor({ Token::OnAccent })
                                 ]
                             ]
             }),
@@ -303,19 +306,19 @@ pub fn profiles_import_card_scene(
                                 width: percent(100),
                                 align_items: AlignItems::Center,
                                 justify_content: JustifyContent::SpaceBetween,
-                                padding: UiRect::vertical(Val::Px(space::S4)),
+                                padding: UiRect::vertical(rem(space::S4)),
                             }
                             Children [
                                 Node {
                                     align_items: AlignItems::Center,
-                                    column_gap: Val::Px(space::S8),
+                                    column_gap: rem(space::S8),
                                 }
                                 SubscriptionInsecureToggle
                                 Children [
                                     @{ localized_checkbox_scene(LocalizedText::plain("profiles_skip_tls_verification"), insecure_skip_verify, palette) }
                                 ]
                                 --
-                                LocalizedText::new(conditional.key, conditional.params.clone()) SubscriptionConditionalStatus SubscriptionStatusKind::Conditional TextRole(Role::Caption) TextColor({ palette.ink_dim })
+                                LocalizedText::new(conditional.key, conditional.params.clone()) SubscriptionConditionalStatus SubscriptionStatusKind::Conditional TextRole(Role::Caption) ThemeTextColor({ Token::InkDim })
                             ]
             }),
             // Section 2: Safe pre-save backup status + restore action
@@ -324,19 +327,19 @@ pub fn profiles_import_card_scene(
                                 width: percent(100),
                                 align_items: AlignItems::Center,
                                 justify_content: JustifyContent::SpaceBetween,
-                                padding: UiRect::vertical(Val::Px(space::S4)),
+                                padding: UiRect::vertical(rem(space::S4)),
                             }
                             Children [
-                                LocalizedText::new(backup_status.key, backup_status.params.clone()) SubscriptionBackupStatus SubscriptionStatusKind::Backup TextRole(Role::Caption) TextColor({ palette.ink_dim })
+                                LocalizedText::new(backup_status.key, backup_status.params.clone()) SubscriptionBackupStatus SubscriptionStatusKind::Backup TextRole(Role::Caption) ThemeTextColor({ Token::InkDim })
                                 --
                                 Node {
-                                    min_height: px(palette.control_height_px),
-                                    padding: UiRect::horizontal(Val::Px(space::S12)),
+                                    min_height: rem(palette.control_height_px),
+                                    padding: UiRect::horizontal(rem(space::S12)),
                                     align_items: AlignItems::Center,
                                     justify_content: JustifyContent::Center,
-                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                    border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                                 }
-                                BackgroundColor({ palette.surface_elevated })
+                                ThemeBackgroundColor({ Token::SurfaceElevated })
                                 Button
                                 RestoreSubscriptionBackupButton
                                 Children [
@@ -349,35 +352,35 @@ pub fn profiles_import_card_scene(
                             Node {
                                 width: percent(100),
                                 align_items: AlignItems::Center,
-                                column_gap: Val::Px(space::S8),
-                                padding: UiRect::top(Val::Px(space::S2)),
+                                column_gap: rem(space::S8),
+                                padding: UiRect::top(rem(space::S2)),
                             }
                             Children [
-                                LocalizedText::plain("profiles_user_agent_presets") TextRole(Role::Caption) TextColor({ palette.ink_dim })
+                                LocalizedText::plain("profiles_user_agent_presets") TextRole(Role::Caption) ThemeTextColor({ Token::InkDim })
                                 --
                                 Node {
-                                    padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S4)),
+                                    padding: UiRect::axes(rem(space::S8), rem(space::S4)),
                                     border_radius: BorderRadius::all(Val::Px(4.0)),
                                 }
-                                BackgroundColor({ palette.surface_elevated })
+                                ThemeBackgroundColor({ Token::SurfaceElevated })
                                 Children [
                                     Text({ "Clash.Meta".to_owned() }) TextRole(Role::Caption)
                                 ]
                                 --
                                 Node {
-                                    padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S4)),
+                                    padding: UiRect::axes(rem(space::S8), rem(space::S4)),
                                     border_radius: BorderRadius::all(Val::Px(4.0)),
                                 }
-                                BackgroundColor({ palette.surface_elevated })
+                                ThemeBackgroundColor({ Token::SurfaceElevated })
                                 Children [
                                     Text({ "ClashVerge".to_owned() }) TextRole(Role::Caption)
                                 ]
                                 --
                                 Node {
-                                    padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S4)),
+                                    padding: UiRect::axes(rem(space::S8), rem(space::S4)),
                                     border_radius: BorderRadius::all(Val::Px(4.0)),
                                 }
-                                BackgroundColor({ palette.surface_elevated })
+                                ThemeBackgroundColor({ Token::SurfaceElevated })
                                 Children [
                                     Text({ "Shadowrocket".to_owned() }) TextRole(Role::Caption)
                                 ]
@@ -388,23 +391,23 @@ pub fn profiles_import_card_scene(
                             Node {
                                 width: percent(100),
                                 align_items: AlignItems::Center,
-                                column_gap: Val::Px(space::S8),
-                                padding: UiRect::top(Val::Px(space::S8)),
+                                column_gap: rem(space::S8),
+                                padding: UiRect::top(rem(space::S8)),
                             }
                             Children [
                                 @{ icon_tile_scene(IconId::Settings, 24.0, palette) }
                                 --
                                 LocalizedText::plain("profiles_filter_pipeline_title") TextRole(Role::BodyStrong)
                                 --
-                                LocalizedText::new(schedule_status.key, schedule_status.params.clone()) SubscriptionScheduleStatus SubscriptionStatusKind::Schedule TextRole(Role::Caption) TextColor({ palette.ink_dim })
+                                LocalizedText::new(schedule_status.key, schedule_status.params.clone()) SubscriptionScheduleStatus SubscriptionStatusKind::Schedule TextRole(Role::Caption) ThemeTextColor({ Token::InkDim })
                             ]
             }),
             Box::new(bsn! {
                             Node {
                                 width: percent(100),
                                 flex_direction: FlexDirection::Column,
-                                row_gap: Val::Px(space::S6),
-                                padding: UiRect::vertical(Val::Px(space::S4)),
+                                row_gap: rem(space::S6),
+                                padding: UiRect::vertical(rem(space::S4)),
                             }
                             Children [
                                 Node { width: percent(100) }
@@ -446,17 +449,17 @@ pub fn profiles_import_card_scene(
                                 width: percent(100),
                                 align_items: AlignItems::Center,
                                 justify_content: JustifyContent::SpaceBetween,
-                                padding: UiRect::vertical(Val::Px(space::S4)),
+                                padding: UiRect::vertical(rem(space::S4)),
                             }
                             Children [
                                 @{ profiles_filter_dedup::scene(filter.dedup_index, palette) }
                                 --
                                 Node {
                                     align_items: AlignItems::Center,
-                                    column_gap: Val::Px(space::S8),
+                                    column_gap: rem(space::S8),
                                 }
                                 Children [
-                                    LocalizedText::new(filter_status.key, filter_status.params.clone()) SubscriptionFilterStatus SubscriptionStatusKind::Filter TextRole(Role::Caption) TextColor({ palette.ink_dim })
+                                    LocalizedText::new(filter_status.key, filter_status.params.clone()) SubscriptionFilterStatus SubscriptionStatusKind::Filter TextRole(Role::Caption) ThemeTextColor({ Token::InkDim })
                                     --
                                     @{ localized_pill_scene(LocalizedText::plain("profiles_filter_pipeline_apply"), true, palette) }
                                     SaveSubscriptionFilterButton
@@ -470,8 +473,8 @@ pub fn profiles_import_card_scene(
                             Node {
                                 width: percent(100),
                                 align_items: AlignItems::Center,
-                                column_gap: Val::Px(space::S8),
-                                padding: UiRect::top(Val::Px(space::S8)),
+                                column_gap: rem(space::S8),
+                                padding: UiRect::top(rem(space::S8)),
                             }
                             Children [
                                 @{ icon_tile_scene(IconId::FileText, 24.0, palette) }
@@ -483,8 +486,8 @@ pub fn profiles_import_card_scene(
                             Node {
                                 width: percent(100),
                                 flex_direction: FlexDirection::Column,
-                                row_gap: Val::Px(space::S6),
-                                padding: UiRect::vertical(Val::Px(space::S4)),
+                                row_gap: rem(space::S6),
+                                padding: UiRect::vertical(rem(space::S4)),
                             }
                             Children [
                                 Node { width: percent(100) }
@@ -510,32 +513,32 @@ pub fn profiles_import_card_scene(
                             Node {
                                 width: percent(100),
                                 align_items: AlignItems::Center,
-                                column_gap: Val::Px(space::S8),
-                                padding: UiRect::vertical(Val::Px(space::S4)),
+                                column_gap: rem(space::S8),
+                                padding: UiRect::vertical(rem(space::S4)),
                             }
                             Children [
                                 Node {
-                                    min_height: px(palette.control_height_px),
-                                    padding: UiRect::horizontal(Val::Px(space::S12)),
+                                    min_height: rem(palette.control_height_px),
+                                    padding: UiRect::horizontal(rem(space::S12)),
                                     align_items: AlignItems::Center,
                                     justify_content: JustifyContent::Center,
-                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                    border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                                 }
-                                BackgroundColor({ palette.accent })
+                                ThemeBackgroundColor({ Token::Accent })
                                 Button
                                 ImportSubscriptionUrlButton
                                 Children [
-                                    LocalizedText::plain("profiles_import_url_action") TextRole(Role::BodyStrong) TextColor({ palette.on_accent })
+                                    LocalizedText::plain("profiles_import_url_action") TextRole(Role::BodyStrong) ThemeTextColor({ Token::OnAccent })
                                 ]
                                 --
                                 Node {
-                                    min_height: px(palette.control_height_px),
-                                    padding: UiRect::horizontal(Val::Px(space::S12)),
+                                    min_height: rem(palette.control_height_px),
+                                    padding: UiRect::horizontal(rem(space::S12)),
                                     align_items: AlignItems::Center,
                                     justify_content: JustifyContent::Center,
-                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                    border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                                 }
-                                BackgroundColor({ palette.surface_elevated })
+                                ThemeBackgroundColor({ Token::SurfaceElevated })
                                 Button
                                 ImportLocalSubscriptionButton
                                 Children [
@@ -543,13 +546,13 @@ pub fn profiles_import_card_scene(
                                 ]
                                 --
                                 Node {
-                                    min_height: px(palette.control_height_px),
-                                    padding: UiRect::horizontal(Val::Px(space::S12)),
+                                    min_height: rem(palette.control_height_px),
+                                    padding: UiRect::horizontal(rem(space::S12)),
                                     align_items: AlignItems::Center,
                                     justify_content: JustifyContent::Center,
-                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                    border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                                 }
-                                BackgroundColor({ palette.surface_elevated })
+                                ThemeBackgroundColor({ Token::SurfaceElevated })
                                 Button
                                 ImportClipboardSubscriptionButton
                                 Children [

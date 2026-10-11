@@ -1,6 +1,5 @@
 use crate::types::script::ScriptAction;
 use crate::types::snapshot_restore::RestoreAction;
-use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::overview_layout::OverviewCardKind;
 use infiltrator_contract::responsive_viewport::ResponsiveViewportSnapshot;
 pub mod aggregator;
@@ -22,8 +21,10 @@ mod ui_wave4;
 mod ui_wave5;
 
 use crate::state::AppState;
+use crate::state::runtime::{ProbeSettingsDialogState, ProxyGroupOrderDialogState};
 use crate::types::message::Message;
 use iced::Task;
+use infiltrator_application::runtime_probe_settings_editor::RuntimeProbeSettingsWriteOutcome;
 
 impl AppState {
     pub fn update(&mut self, message: Message) -> Task<Message> {
@@ -94,7 +95,7 @@ impl AppState {
         // because the demo keeps `AppState::runtime` unset).
         if self.shell.demo {
             match message {
-                Message::SetProxyMode(_) if self.commands.is_none() => return Task::none(),
+                Message::SetRoutingIntent(_) if self.commands.is_none() => return Task::none(),
                 Message::SaveProfileFilter | Message::LoadProfileFilter
                     if self.commands.is_none() =>
                 {
@@ -111,8 +112,8 @@ impl AppState {
                 Message::RefreshAppRoutingProcesses
                 | Message::AppRoutingConfigLoaded(_)
                 | Message::AppRoutingPersisted(_) => return Task::none(),
-                Message::StartProxy
-                | Message::StopProxy
+                Message::StartCore
+                | Message::StopCore
                 | Message::FetchIpInfo
                 | Message::SetSystemProxy(_)
                 | Message::SetCoreLogLevel(_)
@@ -173,7 +174,7 @@ impl AppState {
                 | Message::InstallTunService
                 | Message::RefreshTunServiceStatus
                 | Message::RunDnsLatencyProbe
-                | Message::DnsLeakProbed(_)
+                | Message::DnsLeakProbed { .. }
                 | Message::RunStunProbe
                 | Message::StunProbed(_)
                 | Message::RunPrivilegedNetworkRegression
@@ -204,58 +205,44 @@ impl AppState {
                 self.finish_language_choice(token, result);
                 Task::none()
             }
-            Message::RetryLanguageChoice => self
-                .shell
-                .language_choice
-                .requested
-                .map(|preference| self.set_language_choice(preference.as_setting().into()))
-                .unwrap_or_else(Task::none),
-            Message::OpenProxyGroupOrder => self.open_group_order(None),
+            Message::RetryLanguageChoice => self.retry_language_choice(),
             Message::ApplyProxyGroupOrder => self.apply_group_order(),
             Message::CancelProxyGroupOrder => {
                 if self.runtime.group_order_editor.pending.is_none() {
                     self.runtime.group_order_editor.cancel();
-                    self.runtime.group_order_open = false;
+                    self.runtime.group_order_dialog = ProxyGroupOrderDialogState::Closed;
                 }
                 Task::none()
             }
-            Message::ProxyGroupOrderApplied { token, result } => {
-                let success = result.is_ok();
-                if self.runtime.group_order_editor.finish(token, result) && success {
-                    self.runtime.group_order_open = false;
-                }
+            Message::OpenRuntimeProbeSettings => {
+                self.runtime.probe_settings_dialog = ProbeSettingsDialogState::Editing;
                 Task::none()
             }
-            Message::OpenProxyProbeOptions => {
-                self.runtime.probe_options_open = true;
-                Task::none()
-            }
-            Message::ApplyProxyProbeOptions => self.apply_probe_options(),
-            Message::CancelProxyProbeOptions => {
-                if self.runtime.probe_options_editor.pending.is_some() {
+            Message::ApplyRuntimeProbeSettings => self.apply_runtime_probe_settings(),
+            Message::CancelRuntimeProbeSettings => {
+                if self.runtime.runtime_probe_settings_editor.is_pending() {
                     return Task::none();
                 }
-                self.runtime.probe_options_open = false;
-                self.runtime.probe_options_editor.cancel();
+                self.runtime.probe_settings_dialog = ProbeSettingsDialogState::Closed;
+                self.runtime.runtime_probe_settings_editor.cancel();
                 self.sync_probe_draft_fields();
                 Task::none()
             }
-            Message::ProxyProbeOptionsApplied { token, result } => {
-                let succeeded = result.is_ok();
-                if self.runtime.probe_options_editor.finish(token, result) && succeeded {
-                    self.runtime.probe_options_open = false;
+            Message::RuntimeProbeSettingsApplied { token, result } => {
+                match self
+                    .runtime
+                    .runtime_probe_settings_editor
+                    .finish(token, result)
+                {
+                    RuntimeProbeSettingsWriteOutcome::Saved => {
+                        self.runtime.probe_settings_dialog = ProbeSettingsDialogState::Closed;
+                    }
+                    RuntimeProbeSettingsWriteOutcome::Failed
+                    | RuntimeProbeSettingsWriteOutcome::Stale => {}
                 }
                 self.sync_probe_draft_fields();
                 Task::none()
             }
-            Message::ProxyPreferenceFinished { token, result } => {
-                self.finish_proxy_preference(token, result)
-            }
-            Message::ProxySearchFinished {
-                token,
-                query,
-                result,
-            } => self.finish_proxy_search(token, query, result),
             Message::SurfaceSnapshotUpdated(snapshot) => {
                 self.apply_shared_surface_snapshot(*snapshot);
                 // DUAL-15-02: a live traffic sample may have arrived; push the
@@ -392,7 +379,7 @@ impl AppState {
             | Message::SetSnapshotDiffMode(_)
             | Message::RefreshSnapshotDiff
             | Message::RollbackToSnapshot(_)
-            | Message::SetProfileProtectionOverride(_)
+            | Message::SetProfileWriteAuthorization(_)
             | Message::ToggleHotkeyEnabled(_)
             | Message::TogglePcapCapture
             | Message::ExportPcapBuffer
@@ -401,8 +388,10 @@ impl AppState {
             | Message::RemoveSubRuleCondition(_)
             | Message::UpdateSubRuleTarget(_)
             | Message::InsertSubRuleIntoRules
-            | Message::RunNodeSpeedtest(_)
-            | Message::SpeedtestSnapshotUpdated(_)
+            | Message::StartSpeedtest(_)
+            | Message::SpeedtestStarted(_)
+            | Message::SpeedtestCancelled(_)
+            | Message::SpeedtestConcurrencySet(_)
             | Message::OpenSpeedtestDetail
             | Message::CloseSpeedtestDetail
             | Message::CheckGeoDataUpdates
@@ -606,33 +595,6 @@ impl AppState {
             | Message::TickWebDavSync => self.update_profile(message),
 
             // Core & Network
-            Message::ToggleProxyGroupExpanded(group) => {
-                if self.commands.is_some() {
-                    if !self
-                        .runtime
-                        .proxy_groups
-                        .iter()
-                        .any(|entry| entry.name == group)
-                    {
-                        return Task::none();
-                    }
-                    return self
-                        .submit_proxy_preference(CommandIntent::ToggleProxyGroupExpand { group });
-                }
-                if !self
-                    .runtime
-                    .proxies
-                    .get(&group)
-                    .is_some_and(|proxy| proxy.is_group())
-                {
-                    return Task::none();
-                }
-                self.runtime
-                    .proxy_ui_preferences
-                    .toggle_group_expand(&group);
-                self.recompute_filtered_groups();
-                Task::none()
-            }
             _ => self.update_core(message),
         }
     }

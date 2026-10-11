@@ -1,4 +1,5 @@
 //! Capture the real typed options read and denied filter transaction through TEA.
+use crate::demo::owner::attach_capture_owner;
 use crate::state::AppState;
 use crate::types::message::Message;
 use crate::types::options::EditorPane;
@@ -32,7 +33,11 @@ pub(super) fn activate(state: &mut AppState) -> Task<Message> {
     core.install_command_handler(Arc::new(
         CommandApplication::new().with_profile(profiles.clone()),
     ));
-    state.commands = Some(core.clone());
+    attach_capture_owner(state, core.clone());
+    let commands = state
+        .command_ingress()
+        .expect("attached capture application")
+        .clone();
     let reader = ApplicationSurfaceReader::new(
         Arc::new(core.clone()),
         SurfaceKind::IcedDesktop,
@@ -45,13 +50,14 @@ pub(super) fn activate(state: &mut AppState) -> Task<Message> {
     )));
     Task::perform(
         async move {
-            core.execute(CommandIntent::LoadProfileDocument {
-                profile: Some(FILTER_PROFILE.into()),
-            })
-            .await
-            .into_output()
-            .and_then(|output| output.into_profile_document())
-            .expect("actual isolated profile document");
+            commands
+                .execute(CommandIntent::LoadProfileDocument {
+                    profile: Some(FILTER_PROFILE.into()),
+                })
+                .await
+                .into_output()
+                .and_then(|output| output.into_profile_document())
+                .expect("actual isolated profile document");
             let mut snapshot = reader.read().await.expect("actual isolated surface");
             snapshot.origin = SurfaceOrigin::Demo;
             snapshot.revision = revision;

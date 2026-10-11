@@ -49,7 +49,11 @@ async fn test_activate_core_version_route() {
     assert_eq!(status_json["last_error"], serde_json::Value::Null);
     assert_eq!(status_json["last_reason"], "core-activate");
 
-    let config_file = temp_dir.path().join("config.toml");
+    let config_file = temp_dir
+        .path()
+        .join("engines")
+        .join("mihomo")
+        .join("config.toml");
     let content = read_to_string(config_file).await.unwrap();
     assert!(content.contains(&format!("version = \"{}\"", version)));
     clear_home_dir_override();

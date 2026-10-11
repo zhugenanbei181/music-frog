@@ -12,7 +12,8 @@ use crate::pages::profiles_editor_panes::{
     EditorFilterSaveButton, EditorFilterStatusText, ProfileEditorOptionsState, ProfileEditorPane,
     ProfileEditorPaneButton,
 };
-use crate::route::{ActiveRoute, Route, replay_surface_snapshot};
+use crate::route::surface_projection::replay_surface_snapshot;
+use crate::route::{ActiveRoute, Route};
 use crate::surface::LatestSurfaceSnapshot;
 use bevy::app::App;
 use bevy::camera::NormalizedRenderTarget;
@@ -30,7 +31,9 @@ use bevy::ui::widget::Text;
 use bevy::ui_widgets::Activate;
 use bevy::window::{PrimaryWindow, Window};
 use infiltrator_application::command_application::CommandApplication;
-use infiltrator_application::core_application::CoreApplication;
+use infiltrator_application::core_application::{
+    CoreApplication, CoreScopeObservation, ScopedCoreCommandClient,
+};
 use infiltrator_application::filter_capture_store::{
     FILTER_POLICY, FILTER_PROFILE, FilterCaptureStore,
 };
@@ -47,7 +50,7 @@ use infiltrator_contract::subscription_filter_form::FilterField;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::SurfaceOrigin;
 use infiltrator_ports::surface::SurfaceReader;
-use std::sync::{Arc, Mutex, atomic::Ordering};
+use std::sync::{Arc, Mutex, RwLock, atomic::Ordering};
 
 #[derive(Resource)]
 struct FilterCapture {
@@ -72,9 +75,13 @@ pub fn install(app: &mut App) {
         ApplicationSurfaceReader::new(core.clone(), SurfaceKind::BevyDesktop, HostKind::Desktop)
             .with_profiles(ProfileApplication::new(store.clone())),
     );
-    app.insert_resource(CommandSinkHandle(Arc::new(ApplicationCommandSink::new(
-        core.clone(),
-    ))));
+    let scope = core.snapshot().scope().expect("identified capture owner");
+    app.insert_resource(CommandSinkHandle(Arc::new(
+        ApplicationCommandSink::new_for_surface(
+            core.clone(),
+            Arc::new(RwLock::new(CoreScopeObservation::Observed(scope))),
+        ),
+    )));
     app.insert_resource(FilterCapture {
         core,
         reader,
@@ -147,25 +154,32 @@ pub fn activate(
     }
     if probe.capture.stage == 0 {
         let core = probe.capture.core.clone();
+        let scoped_commands = ScopedCoreCommandClient::new(
+            core.as_ref().clone(),
+            core.snapshot().scope().expect("identified capture owner"),
+        );
         let reader = probe.capture.reader.clone();
         let result = Arc::new(Mutex::new(None));
         let reply = result.clone();
         tokio_application_runtime()
             .expect("filter runtime")
             .block_on(Box::pin(async move {
-                core.execute(CommandIntent::LoadProfileDocument {
-                    profile: Some(FILTER_PROFILE.into()),
-                })
-                .await
-                .into_output()
-                .expect("actual fixture document")
-                .into_profile_document()
-                .expect("typed document");
-                let options = core
+                scoped_commands
+                    .execute(CommandIntent::LoadProfileDocument {
+                        profile: Some(FILTER_PROFILE.into()),
+                    })
+                    .await
+                    .result
+                    .into_output()
+                    .expect("actual fixture document")
+                    .into_profile_document()
+                    .expect("typed document");
+                let options = scoped_commands
                     .execute(CommandIntent::LoadProfileOptions {
                         profile: Some(FILTER_PROFILE.into()),
                     })
                     .await
+                    .result
                     .into_output()
                     .expect("actual fixture options")
                     .into_profile_options()
@@ -181,9 +195,11 @@ pub fn activate(
         let mut snapshot = snapshot.expect("actual page");
         snapshot.origin = SurfaceOrigin::Demo;
         snapshot.revision = probe.latest.0.revision + 1;
-        probe
-            .options
-            .adopt_snapshot(&options.source, &options.mixin_yaml, &options.filter);
+        probe.options.adopt_snapshot(
+            &options.workspace_identity,
+            &options.mixin_yaml,
+            &options.filter,
+        );
         probe.latest.0 = snapshot;
         replay_surface_snapshot(probe.latest.0.clone(), &mut commands);
         probe.capture.stage = 1;

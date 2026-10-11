@@ -12,7 +12,7 @@ use crate::view::overview_hero::{hero_card, overview_speedtest_button};
 use crate::view::overview_ip::current_ip_card;
 use crate::view::overview_latency::latency_card;
 use crate::view::overview_master_switches::overview_master_switches;
-use crate::view::overview_mode_segment::overview_mode_segment;
+use crate::view::overview_routing_intent_segment::overview_routing_intent_segment;
 use crate::view::overview_stats::stats_grid;
 use crate::view::overview_topology::topology_card;
 use crate::view::overview_traffic::traffic_card;
@@ -45,7 +45,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     );
 
     let hero = hero_card(state, &lang);
-    let mode_segment = overview_mode_segment(state, &lang);
+    let routing_intent_segment = overview_routing_intent_segment(state, &lang);
     let stats = stats_grid(state, &lang);
     let masters = overview_master_switches(state, &lang);
     let traffic = traffic_card(state, &lang);
@@ -122,7 +122,10 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     // Active-exit / public-IP / latency are the fixed support row and are not
     // part of the reorderable set.
     let mut reorderable: Vec<(OverviewCardKind, Element<'_, Message>)> = vec![
-        (OverviewCardKind::ModeSegment, mode_segment),
+        (
+            OverviewCardKind::RoutingIntentSegment,
+            routing_intent_segment,
+        ),
         (OverviewCardKind::Traffic, traffic),
         (OverviewCardKind::Metrics, stats),
         (OverviewCardKind::MasterSwitches, masters),

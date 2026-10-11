@@ -13,15 +13,15 @@ use modals::dns_cache::cache_modal;
 use modals::dns_hosts::hosts_editor_modal;
 use modals::dns_query::query_modal;
 use modals::log_export;
+use modals::outbound_inspect::inspect_outbound_modal;
 use modals::proxy_group_order::group_order_modal;
-use modals::proxy_inspect::inspect_proxy_modal;
 use modals::proxy_probe_settings::probe_settings_modal;
 use modals::rule_provider_diff::rule_provider_diff_modal;
 use modals::script_export;
 use modals::snapshot_restore;
 use view::chrome::chrome_strip;
 use view::mini_hud::mini_hud_view;
-use view::mode_issue::mode_issue;
+use view::routing_intent_issue::routing_intent_issue;
 use view::sidebar::sidebar_for_tier;
 use view::{
     app_routing, dns, doctor, editor, overview, profiles, proxies, rules, runtime, settings, sync,
@@ -36,6 +36,7 @@ mod snapshot_diff_modal;
 pub(crate) mod speedtest_detail_modal;
 
 use crate::state::AppState;
+use crate::state::runtime::ProbeSettingsDialogState;
 use crate::types::app::{Route, ToastStatus};
 use crate::types::message::Message;
 use crate::types::runtime::RebuildFlowState;
@@ -78,8 +79,8 @@ impl AppState {
             Route::AppRouting => app_routing::view(self),
             Route::Doctor => doctor::view(self),
         };
-        let body = if self.runtime.mode_actions.failure.is_some() {
-            Element::from(column![mode_issue(self), page].spacing(8))
+        let body = if self.runtime.routing_intent_actions.failure.is_some() {
+            Element::from(column![routing_intent_issue(self), page].spacing(8))
         } else {
             page
         };
@@ -125,10 +126,15 @@ impl AppState {
         if self.editor.dns_hosts_editor.open {
             layers.push(hosts_editor_modal(self));
         }
-        if self.runtime.group_order_open {
+        if self.runtime.group_order_dialog
+            == crate::state::runtime::ProxyGroupOrderDialogState::Editing
+        {
             layers.push(group_order_modal(self));
         }
-        if self.runtime.probe_options_open {
+        if matches!(
+            self.runtime.probe_settings_dialog,
+            ProbeSettingsDialogState::Editing
+        ) {
             layers.push(probe_settings_modal(self));
         }
 
@@ -311,8 +317,8 @@ impl AppState {
             );
         }
 
-        if let Some(proxy_name) = &self.runtime.inspecting_proxy {
-            layers.push(inspect_proxy_modal(self, proxy_name));
+        if let Some(outbound_id) = &self.runtime.outbound_inspecting {
+            layers.push(inspect_outbound_modal(self, outbound_id));
         }
 
         if self.runtime.is_adding_custom_node {

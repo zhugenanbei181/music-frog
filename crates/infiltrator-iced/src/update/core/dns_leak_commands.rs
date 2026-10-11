@@ -3,16 +3,35 @@ use crate::state::AppState;
 use crate::types::message::Message;
 use iced::Task;
 use infiltrator_contract::command::CommandIntent;
+
+#[derive(Clone, Copy)]
+pub(crate) enum DnsLeakProbeAdmission {
+    Start,
+    Retry,
+}
+
 impl AppState {
-    pub(crate) fn shared_dns_leak_command(&mut self) -> Task<Message> {
-        let Some(application) = self.commands.clone() else {
+    pub(crate) fn begin_dns_leak_probe(
+        &mut self,
+        admission: DnsLeakProbeAdmission,
+    ) -> Result<u64, infiltrator_contract::error::Failure> {
+        match admission {
+            DnsLeakProbeAdmission::Start => self.diag.dns_leak_action.begin(),
+            DnsLeakProbeAdmission::Retry => self.diag.dns_leak_action.begin_retry(),
+        }
+    }
+
+    pub(crate) fn shared_dns_leak_command(
+        &mut self,
+        admission: DnsLeakProbeAdmission,
+    ) -> Task<Message> {
+        let Some(application) = self.command_ingress() else {
             return Task::none();
         };
-        let token = match self.diag.dns_leak_action.begin() {
+        let token = match self.begin_dns_leak_probe(admission) {
             Ok(token) => token,
             Err(_) => return Task::none(),
         };
-        self.diag.is_probing_dns_leak = true;
         Task::perform(
             async move {
                 match (application.execute(CommandIntent::TestDnsLeak).await).into_unit() {

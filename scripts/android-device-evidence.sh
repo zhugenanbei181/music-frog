@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # BANDROID-023 — explicit Android real-device / long-running evidence stage.
 #
-# This is the L3/L4 evidence layer of docs/android/BEVY_ANDROID_PRODUCT.md §8/§9: VPN
+# This is the L3/L4 evidence layer of android/docs/BEVY_ANDROID_PRODUCT.md §8/§9: VPN
 # traffic, no-loopback, a >=8h background soak, network switch and power. It is
 # an EXPLICIT stage and MUST NOT be wired into the ordinary PR CI — it needs a
 # physical ARM64 device attached over adb, which no hosted runner provides.
@@ -9,7 +9,7 @@
 # It refuses to claim success without a real device: `adb get-state` must report
 # `device`, otherwise the script exits non-zero before writing any report. Even
 # with a device attached, report.md stays `STATUS: incomplete` whenever a
-# required step (APK install, instrumented tests) was skipped.
+# required physical-device step (APK install or background evidence) was skipped.
 #
 # Cleanup discipline: processes are never killed by name. Only the known app
 # packages are stopped, via `adb shell am force-stop <package>`.
@@ -23,15 +23,26 @@ TS="$(date -u +%Y%m%dT%H%M%SZ)"
 EVIDENCE_DIR="${EVIDENCE_DIR:-$REPO_ROOT/target/android-evidence/$TS}"
 BEVY_APK="${BEVY_APK:-}"
 COMPOSE_APK="${COMPOSE_APK:-}"
-RUN_INSTRUMENTED="${RUN_INSTRUMENTED:-1}"
 BACKGROUND_SECONDS="${BACKGROUND_SECONDS:-0}"
 # Bounded sampling cadence for the long soak (seconds); 8h at 600s = 48 files.
 SAMPLE_INTERVAL_SECONDS="${SAMPLE_INTERVAL_SECONDS:-600}"
 
-COMPOSE_PKG="com.musicfrog.infiltrator"
-COMPOSE_ACTIVITY="$COMPOSE_PKG/.MainActivity"
-BEVY_PKG="app.musicfrog.infiltrator_bevy_ui"
-BEVY_ACTIVITY="$BEVY_PKG/android.app.NativeActivity"
+identity_value() {
+    python3 "$REPO_ROOT/scripts/product_identity.py" --get "$1"
+}
+ANDROID_NAMESPACE="$(identity_value android.namespace)"
+COMPOSE_PKG="$(identity_value compose.application_id)"
+BEVY_PKG="$(identity_value bevy.application_id)"
+launcher_class() {
+    local activity="$1"
+    if [[ "$activity" == .* ]]; then
+        printf '%s%s' "$ANDROID_NAMESPACE" "$activity"
+    else
+        printf '%s' "$activity"
+    fi
+}
+COMPOSE_ACTIVITY="$COMPOSE_PKG/$(launcher_class "$(identity_value compose.launcher_activity)")"
+BEVY_ACTIVITY="$BEVY_PKG/$(launcher_class "$(identity_value bevy.launcher_activity)")"
 
 # --- locate adb --------------------------------------------------------------
 if [ -n "${ANDROID_HOME:-}" ] && [ -x "$ANDROID_HOME/platform-tools/adb" ]; then
@@ -73,11 +84,24 @@ detect_apk() {
 }
 
 COMPOSE_APK="$(detect_apk "$COMPOSE_APK" \
+    "$REPO_ROOT/android/app/build/outputs/apk/compose/release/app-compose-universal-release.apk" \
+    "$REPO_ROOT/android/app/build/outputs/apk/compose/debug/app-compose-universal-debug.apk" \
     "$REPO_ROOT/android/app/build/outputs/apk/debug/app-debug.apk" \
     "$REPO_ROOT/android/app/build/outputs/apk/release/app-release.apk")"
 BEVY_APK="$(detect_apk "$BEVY_APK" \
-    "$REPO_ROOT/target/android-tools/apk-driver/target/release/apk/infiltrator-bevy-ui.apk" \
-    "$REPO_ROOT/target/android-tools/apk-driver/target/debug/apk/infiltrator-bevy-ui.apk")"
+    "$REPO_ROOT/android/app/build/outputs/apk/bevy/release/app-bevy-universal-release.apk" \
+    "$REPO_ROOT/android/app/build/outputs/apk/bevy/debug/app-bevy-universal-debug.apk")"
+
+if [ -n "$COMPOSE_APK" ] && [ -n "$BEVY_APK" ]; then
+    SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+    AAPT="$SDK_ROOT/build-tools/37.0.0/aapt"
+    if [ ! -x "$AAPT" ]; then
+        echo "ERROR: Android build-tools aapt not found at $AAPT" >&2
+        exit 1
+    fi
+    python3 scripts/quality/android-product-identity-guard.py \
+        --aapt "$AAPT" --apk "compose=$COMPOSE_APK" --apk "bevy=$BEVY_APK"
+fi
 
 # --- step 1: provenance ------------------------------------------------------
 HEAD_SHA="$(git rev-parse HEAD)"
@@ -163,46 +187,10 @@ fi
         || echo "(none)"
 } > "$EVIDENCE_DIR/pm-list-our-packages.txt"
 
-# --- step 3: instrumented tests ----------------------------------------------
-instrumented_state="SKIPPED"
-instrumented_skipped=0
-instrumented_failed=0
-instrumented_skip_reason=""
+# --- step 3: instrumentation is emulator-only -------------------------------
+instrumented_state="NOT RUN (isolated Gradle Managed Device workflow)"
 INSTR="$EVIDENCE_DIR/instrumented.txt"
-
-if [ "$RUN_INSTRUMENTED" = "1" ]; then
-    if [ -f "$REPO_ROOT/android/gradlew" ] && [ -d "$REPO_ROOT/android/app/src/androidTest" ]; then
-        chmod +x "$REPO_ROOT/android/gradlew" 2>/dev/null || true
-        echo "[device-evidence] running Gradle connectedDebugAndroidTest"
-        rc=0
-        ( cd "$REPO_ROOT/android" && ./gradlew --no-daemon --connectedDebugAndroidTest ) > "$INSTR" 2>&1 || rc=$?
-        if [ "$rc" -eq 0 ]; then
-            instrumented_state="RAN (gradle connectedDebugAndroidTest, rc=0)"
-        else
-            instrumented_state="RAN (gradle connectedDebugAndroidTest, rc=$rc)"
-            instrumented_failed=1
-        fi
-    else
-        RUNNER="$("$ADB" shell pm list instrumentation 2>/dev/null | tr -d '\r' \
-            | grep -F "$COMPOSE_PKG" | head -n1 \
-            | sed -e 's/^instrumentation://' -e 's/ .*$//' || true)"
-        if [ -n "$RUNNER" ]; then
-            echo "[device-evidence] running am instrument -w $RUNNER"
-            rc=0
-            "$ADB" shell am instrument -w "$RUNNER" > "$INSTR" 2>&1 || rc=$?
-            instrumented_state="RAN (am instrument -w $RUNNER, rc=$rc)"
-            [ "$rc" -eq 0 ] || instrumented_failed=1
-        else
-            instrumented_skipped=1
-            instrumented_skip_reason="no android/gradlew project with androidTest sources and no installed instrumentation runner for $COMPOSE_PKG"
-            echo "SKIPPED: $instrumented_skip_reason" > "$INSTR"
-            instrumented_state="SKIPPED ($instrumented_skip_reason)"
-        fi
-    fi
-else
-    instrumented_state="SKIPPED (RUN_INSTRUMENTED=$RUN_INSTRUMENTED)"
-    echo "SKIPPED: RUN_INSTRUMENTED=$RUN_INSTRUMENTED" > "$INSTR"
-fi
+echo "NOT RUN: Android instrumentation runs only on the isolated Gradle Managed Device via scripts/android-emulator-tests.sh." > "$INSTR"
 
 # --- step 4: raw reports -----------------------------------------------------
 collect_reports() {
@@ -272,14 +260,6 @@ if [ "$install_failed" -eq 1 ]; then
     status="incomplete"
     reasons+="- an APK install failed (see install-*.txt)"$'\n'
 fi
-if [ "$instrumented_failed" -eq 1 ]; then
-    status="incomplete"
-    reasons+="- instrumented tests ran but returned non-zero (see instrumented.txt)"$'\n'
-fi
-if [ "$instrumented_skipped" -eq 1 ]; then
-    status="incomplete"
-    reasons+="- instrumented tests skipped: $instrumented_skip_reason"$'\n'
-fi
 [ -n "$reasons" ] || reasons="- (none)"
 
 {
@@ -289,7 +269,7 @@ fi
     echo
     echo "STATUS: $status"
     echo
-    echo "> Explicit physical-device stage of docs/android/BEVY_ANDROID_PRODUCT.md §8/§9."
+    echo "> Explicit physical-device stage of android/docs/BEVY_ANDROID_PRODUCT.md §8/§9."
     echo "> Not a PR gate. STATUS stays incomplete whenever a required step was skipped."
     echo
     echo "## Device / OS"

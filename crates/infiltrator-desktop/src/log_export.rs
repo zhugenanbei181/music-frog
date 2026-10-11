@@ -40,7 +40,7 @@ impl DesktopLogExportPort {
         fs::create_dir_all(&self.directory).map_err(storage)?;
         let target = self.directory.join(format!(
             "logs-{:x}-{:032x}-{:x}-{}.log",
-            identity.session.generation,
+            identity.session.generation.value(),
             identity.session.token.value(),
             identity.sequence,
             identity.sha256

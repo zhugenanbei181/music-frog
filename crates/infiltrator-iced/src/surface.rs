@@ -59,6 +59,13 @@ impl SurfaceBridge {
             .collect()
     }
 
+    /// Initial read model installed by the product composition before Iced
+    /// accepts user input. Later rebinding follows only accepted surface
+    /// events in `AppState::apply_shared_surface_snapshot`.
+    pub fn current_snapshot(&self) -> Option<SurfaceSnapshot> {
+        self._pump.as_ref().map(SurfacePump::current)
+    }
+
     /// Poll the bounded application bridge from Iced's declarative
     /// subscription system. The bridge is the only cross-thread input; no
     /// executor, task handle, or toolkit state crosses the application port.
@@ -125,7 +132,7 @@ impl SurfaceModel {
         self.latest.as_ref().map_or(0, |snapshot| snapshot.revision)
     }
 
-    pub fn page_status(&self, page: PageId) -> Option<&PageStatus> {
+    pub fn page_status(&self, page: PageId) -> Option<PageStatus> {
         self.latest
             .as_ref()
             .map(|snapshot| snapshot.page_status(page))

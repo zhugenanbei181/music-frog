@@ -7,21 +7,24 @@ use bevy::ecs::hierarchy::{ChildOf, Children};
 use bevy::ecs::query::{Has, QueryData, With};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
+use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::CommandsSceneExt;
 use bevy::scene::{Scene, bsn};
 use bevy::text::TextColor;
 use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, Val,
+    AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, UiRect,
     percent, px,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
 use infiltrator_application::sync_projection;
 use infiltrator_bevy_widgets::button::ButtonDisabled;
+use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
@@ -67,7 +70,7 @@ fn field_scenes(conflict: Option<&SyncConflictInfo>, locale: &UiLocale) -> Vec<B
     fields.iter().enumerate().map(|(index, field)| {
         let copy = sync_projection::conflict_field(&field.key, &field.local_value, &field.remote_value, locale.code());
         Box::new(bsn! {
-            Node { width: percent(100), min_width: px(0.0), padding: UiRect::vertical(px(space::S4)) }
+            Node { width: percent(100), min_width: px(0.0), padding: UiRect::vertical(rem(space::S4)) }
             Text(copy) SyncMergeRow(index) TextRole(Role::Body)
         }) as Box<dyn Scene>
     }).collect()
@@ -87,13 +90,13 @@ pub fn sync_three_way_merge_scene(
                                 width: percent(100),
                                 align_items: AlignItems::Center,
                                 justify_content: JustifyContent::SpaceBetween,
-                                padding: UiRect::bottom(Val::Px(space::S8)),
+                                padding: UiRect::bottom(rem(space::S8)),
                             }
                             SyncMergeRoot
                             Children [
                                 Node {
                                     align_items: AlignItems::Center,
-                                    column_gap: Val::Px(space::S8),
+                                    column_gap: rem(space::S8),
                                 }
                                 Children [
                                     @{ icon_tile_scene(IconId::Network, 24.0, palette) }
@@ -106,11 +109,11 @@ pub fn sync_three_way_merge_scene(
                             Node {
                                 width: percent(100),
                                 flex_direction: FlexDirection::Column,
-                                row_gap: Val::Px(space::S4),
-                                padding: UiRect::all(Val::Px(space::S8)),
-                                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                row_gap: rem(space::S4),
+                                padding: UiRect::all(rem(space::S8)),
+                                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                             }
-                            BackgroundColor({ palette.window_clear }) SyncMergeFieldsSlot
+                            ThemeBackgroundColor({ Token::WindowClear }) SyncMergeFieldsSlot
                             Children [
                                 { conflict_rows }
                             ]
@@ -119,18 +122,18 @@ pub fn sync_three_way_merge_scene(
                             Node {
                                 width: percent(100),
                                 align_items: AlignItems::Center,
-                                column_gap: Val::Px(space::S8),
-                                padding: UiRect::vertical(Val::Px(space::S4)),
+                                column_gap: rem(space::S8),
+                                padding: UiRect::vertical(rem(space::S4)),
                             }
                             Children [
                                 Node {
                                     min_height: px(palette.control_height_px * 0.85),
-                                    padding: UiRect::horizontal(Val::Px(space::S12)),
+                                    padding: UiRect::horizontal(rem(space::S12)),
                                     align_items: AlignItems::Center,
                                     justify_content: JustifyContent::Center,
-                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                    border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                                 }
-                                BackgroundColor({ palette.surface_elevated })
+                                ThemeBackgroundColor({ Token::SurfaceElevated })
                                 Button
                                 AcceptLocalButton SyncMergeChoice ButtonDisabled(unavailable)
                                 Children [
@@ -139,12 +142,12 @@ pub fn sync_three_way_merge_scene(
                                 --
                                 Node {
                                     min_height: px(palette.control_height_px * 0.85),
-                                    padding: UiRect::horizontal(Val::Px(space::S12)),
+                                    padding: UiRect::horizontal(rem(space::S12)),
                                     align_items: AlignItems::Center,
                                     justify_content: JustifyContent::Center,
-                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                    border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                                 }
-                                BackgroundColor({ palette.surface_elevated })
+                                ThemeBackgroundColor({ Token::SurfaceElevated })
                                 Button
                                 AcceptCloudButton SyncMergeChoice ButtonDisabled(unavailable)
                                 Children [
@@ -153,12 +156,12 @@ pub fn sync_three_way_merge_scene(
                                 --
                                 Node {
                                     min_height: px(palette.control_height_px * 0.85),
-                                    padding: UiRect::horizontal(Val::Px(space::S12)),
+                                    padding: UiRect::horizontal(rem(space::S12)),
                                     align_items: AlignItems::Center,
                                     justify_content: JustifyContent::Center,
-                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                    border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                                 }
-                                BackgroundColor({ palette.accent })
+                                ThemeBackgroundColor({ Token::Accent })
                                 Button
                                 MergeBothButton SyncMergeChoice ButtonDisabled(unavailable)
                                 Children [
@@ -169,7 +172,7 @@ pub fn sync_three_way_merge_scene(
             Box::new(bsn! {
                             Node {
                                 width: percent(100),
-                                padding: UiRect::top(Val::Px(space::S4)),
+                                padding: UiRect::top(rem(space::S4)),
                             }
                             Children [
                                 LocalizedText::plain("sync_merge_hint") TextRole(Role::Caption)
@@ -212,7 +215,7 @@ pub fn replay_fields(
         let scenes = field_scenes(conflict, &locale);
         commands.spawn_scene(bsn! {
             Node { width: percent(100), min_width: px(0.0), flex_direction: FlexDirection::Column,
-                row_gap: px(space::S4) } ChildOf(slot) Children [{ scenes }]
+                row_gap: rem(space::S4) } ChildOf(slot) Children [{ scenes }]
         });
         cache.slot = Some(slot);
         cache.keys = keys;

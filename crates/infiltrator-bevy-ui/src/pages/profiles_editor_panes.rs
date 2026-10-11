@@ -38,6 +38,7 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
+use infiltrator_application::profile_edit_session::ProfileEditObservation;
 use infiltrator_application::profile_editor_projection;
 use infiltrator_application::subscription_filter_copy::status;
 use infiltrator_application::subscription_filter_editor::SubscriptionFilterEditor;
@@ -45,15 +46,18 @@ use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::editor::state::CodeEditorState;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::text_input::native::NativeTextField;
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::command::RequestId;
-use infiltrator_contract::profile_source::ProfileSourceIdentity;
+use infiltrator_contract::error::Failure;
+use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use infiltrator_contract::subscription_filter_form::{FilterField, FilterObservation};
 use infiltrator_contract::subscription_import::SubscriptionFilterDedup;
 use infiltrator_contract::subscription_import::SubscriptionFilterDraft;
 use infiltrator_contract::yaml_snippets::YAML_SNIPPETS;
+use infiltrator_ports::profile_document_codec::ProfileMixinStudioProjection;
 
 /// Which document the editor card shows.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -147,6 +151,8 @@ pub struct ProfileEditorOptionsState {
     /// The Mixin overlay buffer — the same pure state machine the profile
     /// document uses, so the window/gutter/preflight rules cannot drift.
     pub mixin: ProfileEditorState,
+    /// Typed projection authored by the identity-scoped Mihomo codec.
+    pub mixin_studio: MixinStudioState,
     /// The last stored Mixin YAML adopted from the shared snapshot.
     pub mixin_loaded: Option<String>,
     /// The shared filter draft currently rendered by the Filter pane.
@@ -165,11 +171,20 @@ pub struct ProfileEditorOptionsState {
     pub studio_generation: (u64, u64),
 }
 
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub enum MixinStudioState {
+    #[default]
+    NotRequested,
+    Available(ProfileMixinStudioProjection),
+    Unavailable(Failure),
+}
+
 impl Default for ProfileEditorOptionsState {
     fn default() -> Self {
         Self {
             pane: ProfileEditorPane::Profile,
             mixin: ProfileEditorState::default(),
+            mixin_studio: MixinStudioState::NotRequested,
             mixin_loaded: None,
             filter: SubscriptionFilterEditor::default(),
             filter_focus: None,
@@ -187,7 +202,11 @@ impl ProfileEditorOptionsState {
     pub fn from_projection(projection: &ProfilesProjection) -> Self {
         let mut state = Self::default();
         if let Some(options) = projection.profile_options.as_ref() {
-            state.adopt_snapshot(&options.source, &options.mixin_yaml, &options.filter);
+            state.adopt_snapshot(
+                &options.workspace_identity,
+                &options.mixin_yaml,
+                &options.filter,
+            );
         }
         state
     }
@@ -197,29 +216,31 @@ impl ProfileEditorOptionsState {
     /// cache never overwrites an in-progress edit.
     pub fn adopt_snapshot(
         &mut self,
-        source: &ProfileSourceIdentity,
+        source: &ProfileWorkspaceIdentity,
         mixin_yaml: &str,
         filter: &SubscriptionFilterDraft,
     ) {
-        if self
+        match self
             .mixin
             .session
             .observe(source, mixin_yaml, &self.mixin.buffer.full_text())
         {
-            self.mixin.profile = source.profile.clone();
-            self.mixin.buffer = CodeEditorState::new(mixin_yaml);
-            self.mixin.loaded_content = Some(mixin_yaml.to_owned());
-            self.mixin_loaded = Some(mixin_yaml.to_owned());
-            self.mixin.dirty = false;
-            self.mixin.notice = None;
-            self.mixin.generation = self.mixin.generation.wrapping_add(1);
-            self.mixin.refresh_preflight();
+            ProfileEditObservation::Updated => {
+                self.mixin.profile = source.document.profile_id.as_str().to_owned();
+                self.mixin.buffer = CodeEditorState::new(mixin_yaml);
+                self.mixin.loaded_content = Some(mixin_yaml.to_owned());
+                self.mixin_loaded = Some(mixin_yaml.to_owned());
+                self.mixin.dirty = false;
+                self.mixin.notice = None;
+                self.mixin.generation = self.mixin.generation.wrapping_add(1);
+            }
+            ProfileEditObservation::DraftProtected | ProfileEditObservation::Unchanged => {}
         }
         let before = self.filter.draft.clone();
         self.filter.observe_profile(
-            &source.profile,
+            source.document.profile_id.as_str(),
             Ok(FilterObservation {
-                source: source.clone(),
+                workspace_identity: source.clone(),
                 filter: filter.clone(),
             }),
         );
@@ -241,8 +262,8 @@ pub fn pane_switch_scene(state: &ProfileEditorOptionsState, palette: &UiPalette)
             let pane = *pane;
             Box::new(bsn! {
                             Node {
-                                min_height: px(24.0),
-                                padding: UiRect::horizontal(Val::Px(space::S8)),
+                                min_height: rem(24.0),
+                                padding: UiRect::horizontal(rem(space::S8)),
                                 align_items: AlignItems::Center,
                                 justify_content: JustifyContent::Center,
                                 border_radius: BorderRadius::all(Val::Px(4.0)),
@@ -262,8 +283,8 @@ pub fn pane_switch_scene(state: &ProfileEditorOptionsState, palette: &UiPalette)
                 width: percent(100),
                 align_items: AlignItems::Center,
                 flex_wrap: FlexWrap::Wrap,
-                column_gap: Val::Px(space::S4),
-                row_gap: Val::Px(space::S4),
+                column_gap: rem(space::S4),
+                row_gap: rem(space::S4),
             }
             Children [
                 { buttons }
@@ -275,22 +296,24 @@ pub fn pane_switch_scene(state: &ProfileEditorOptionsState, palette: &UiPalette)
     })
 }
 
-/// The Mixin pane: hint, status, shared preflight, the three-column workspace,
+/// The Mixin pane: hint, status, codec inspection, the three-column workspace,
 /// snippet bar and actions.
 pub fn mixin_pane_scene(state: &ProfileEditorOptionsState, palette: &UiPalette) -> Box<dyn Scene> {
-    let (diagnostic_text, has_error) = diagnostic_line(&state.mixin, UiLocale::default().code());
+    let (diagnostic_text, validation_status) =
+        diagnostic_line(&state.mixin, UiLocale::default().code());
     let status = status_line(&state.mixin, None, UiLocale::default().code());
-    let error_color = if has_error {
-        palette.danger
-    } else {
-        palette.success
+    let error_color = match validation_status {
+        profile_editor_projection::DocumentValidationStatus::Valid => palette.success,
+        profile_editor_projection::DocumentValidationStatus::Invalid => palette.danger,
+        profile_editor_projection::DocumentValidationStatus::Unavailable => palette.warning,
     };
-    let pill_label = profile_editor_projection::syntax_label(has_error, UiLocale::default().code());
+    let pill_label =
+        profile_editor_projection::syntax_label(validation_status, UiLocale::default().code());
     Box::new(bsn! {
             Node {
                 width: percent(100),
                 flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(space::S8),
+                row_gap: rem(space::S8),
             }
             Children [
                 Node {
@@ -308,8 +331,8 @@ pub fn mixin_pane_scene(state: &ProfileEditorOptionsState, palette: &UiPalette) 
                     width: percent(100),
                     align_items: AlignItems::Center,
                     flex_wrap: FlexWrap::Wrap,
-                    column_gap: Val::Px(space::S8),
-                    row_gap: Val::Px(space::S4),
+                    column_gap: rem(space::S8),
+                    row_gap: rem(space::S4),
                 }
                 Children [
                     Node {
@@ -337,12 +360,12 @@ fn mixin_actions_scene(palette: &UiPalette) -> Box<dyn Scene> {
     Box::new(bsn! {
             Node {
                 align_items: AlignItems::Center,
-                column_gap: Val::Px(space::S4),
+                column_gap: rem(space::S4),
             }
             Children [
                 Node {
-                    min_height: px(24.0),
-                    padding: UiRect::horizontal(Val::Px(space::S8)),
+                    min_height: rem(24.0),
+                    padding: UiRect::horizontal(rem(space::S8)),
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::Center,
                     border_radius: BorderRadius::all(Val::Px(4.0)),
@@ -356,8 +379,8 @@ fn mixin_actions_scene(palette: &UiPalette) -> Box<dyn Scene> {
                 ]
                 --
                 Node {
-                    min_height: px(24.0),
-                    padding: UiRect::horizontal(Val::Px(space::S8)),
+                    min_height: rem(24.0),
+                    padding: UiRect::horizontal(rem(space::S8)),
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::Center,
                     border_radius: BorderRadius::all(Val::Px(4.0)),
@@ -370,8 +393,8 @@ fn mixin_actions_scene(palette: &UiPalette) -> Box<dyn Scene> {
                 ]
                 --
                 Node {
-                    min_height: px(24.0),
-                    padding: UiRect::horizontal(Val::Px(space::S8)),
+                    min_height: rem(24.0),
+                    padding: UiRect::horizontal(rem(space::S8)),
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::Center,
                     border_radius: BorderRadius::all(Val::Px(4.0)),
@@ -398,8 +421,8 @@ fn mixin_snippet_bar(palette: &UiPalette) -> Box<dyn Scene> {
             let background = palette.surface_elevated;
             Box::new(bsn! {
                             Node {
-                                min_height: px(20.0),
-                                padding: UiRect::horizontal(Val::Px(space::S6)),
+                                min_height: rem(20.0),
+                                padding: UiRect::horizontal(rem(space::S6)),
                                 align_items: AlignItems::Center,
                                 justify_content: JustifyContent::Center,
                                 border_radius: BorderRadius::all(Val::Px(4.0)),
@@ -419,8 +442,8 @@ fn mixin_snippet_bar(palette: &UiPalette) -> Box<dyn Scene> {
                 width: percent(100),
                 align_items: AlignItems::Center,
                 flex_wrap: FlexWrap::Wrap,
-                column_gap: Val::Px(space::S4),
-                row_gap: Val::Px(space::S4),
+                column_gap: rem(space::S4),
+                row_gap: rem(space::S4),
             }
             Children [
                 LocalizedText::plain("profiles_snippet_insert_action") TextRole(Role::Caption)
@@ -449,7 +472,7 @@ pub fn filter_pane_scene(state: &ProfileEditorOptionsState, palette: &UiPalette)
             Node {
                 width: percent(100),
                 flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(space::S8),
+                row_gap: rem(space::S8),
             }
             Children [
                 LocalizedText::plain("profiles_filter_save_hint")
@@ -457,7 +480,7 @@ pub fn filter_pane_scene(state: &ProfileEditorOptionsState, palette: &UiPalette)
                 --
                 { fields }
                 --
-                Node {width: percent(100), flex_direction: FlexDirection::Column, row_gap: px(space::S8), border: UiRect::all(px(1.0)), padding: UiRect::all(px(space::S6))}
+                Node {width: percent(100), flex_direction: FlexDirection::Column, row_gap: rem(space::S8), border: UiRect::all(px(1.0)), padding: UiRect::all(rem(space::S6))}
                 BorderColor::all(border)
                 EditorFilterTransaction
                 Children [
@@ -469,8 +492,8 @@ pub fn filter_pane_scene(state: &ProfileEditorOptionsState, palette: &UiPalette)
                     width: percent(100),
                     align_items: AlignItems::Center,
                     flex_wrap: FlexWrap::Wrap,
-                    column_gap: Val::Px(space::S4),
-                    row_gap: Val::Px(space::S4),
+                    column_gap: rem(space::S4),
+                    row_gap: rem(space::S4),
                 }
                 Children [
                     LocalizedText::plain("profiles_filter_deduplicate") TextRole(Role::Caption)
@@ -482,7 +505,7 @@ pub fn filter_pane_scene(state: &ProfileEditorOptionsState, palette: &UiPalette)
                     width: percent(100),
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::SpaceBetween,
-                    column_gap: Val::Px(space::S8),
+                    column_gap: rem(space::S8),
                 }
                 Children [
                     Text(status) EditorFilterStatusText TextRole(Role::Caption)

@@ -7,25 +7,39 @@ pub struct PendingDoctorAction {
     pub token: u64,
     pub action: DoctorAction,
 }
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub enum DoctorActionPhase {
+    #[default]
+    Idle,
+    Pending(PendingDoctorAction),
+    Failed {
+        failure: Failure,
+        retry_action: DoctorAction,
+    },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DoctorActionFinish {
+    Stale,
+    Applied,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct DoctorActionState {
-    pub pending: Option<PendingDoctorAction>,
-    pub failure: Option<Failure>,
-    pub retry_action: Option<DoctorAction>,
+    pub phase: DoctorActionPhase,
     next_token: u64,
 }
 impl DoctorActionState {
     /// Permission recovery is manual: the user retries after following the visible host error.
     pub fn can_retry(&self) -> bool {
-        self.pending.is_none()
-            && self.retry_action.is_some()
-            && self
-                .failure
-                .as_ref()
-                .is_some_and(|failure| failure.retryable || failure.code == ErrorCode::Permission)
+        matches!(
+            &self.phase,
+            DoctorActionPhase::Failed { failure, .. }
+                if failure.retryable || failure.code == ErrorCode::Permission
+        )
     }
     pub fn begin(&mut self, action: DoctorAction) -> Result<PendingDoctorAction, Failure> {
-        if self.pending.is_some() {
+        if matches!(&self.phase, DoctorActionPhase::Pending(_)) {
             return Err(Failure::new(
                 ErrorCode::InvalidState,
                 "a diagnostic operation is already pending",
@@ -37,31 +51,42 @@ impl DoctorActionState {
             token: self.next_token,
             action,
         };
-        self.pending = Some(pending.clone());
-        self.failure = None;
-        self.retry_action = None;
+        self.phase = DoctorActionPhase::Pending(pending.clone());
         Ok(pending)
     }
-    pub fn finish(&mut self, token: u64, result: Result<(), Failure>) -> bool {
-        let Some(pending) = self
-            .pending
-            .as_ref()
-            .filter(|pending| pending.token == token)
-        else {
-            return false;
+    pub fn begin_retry(&mut self) -> Result<PendingDoctorAction, Failure> {
+        let action = match &self.phase {
+            DoctorActionPhase::Failed {
+                failure,
+                retry_action,
+            } if failure.retryable || failure.code == ErrorCode::Permission => retry_action.clone(),
+            DoctorActionPhase::Idle
+            | DoctorActionPhase::Pending(_)
+            | DoctorActionPhase::Failed { .. } => {
+                return Err(Failure::new(
+                    ErrorCode::InvalidState,
+                    "diagnostic action has no retryable failure",
+                    false,
+                ));
+            }
         };
-        match result {
-            Ok(()) => {
-                self.failure = None;
-                self.retry_action = None;
-            }
-            Err(failure) => {
-                self.failure = Some(failure);
-                self.retry_action = Some(pending.action.clone());
-            }
-        }
-        self.pending = None;
-        true
+        self.begin(action)
+    }
+    pub fn finish(&mut self, token: u64, result: Result<(), Failure>) -> DoctorActionFinish {
+        let pending = match &self.phase {
+            DoctorActionPhase::Pending(pending) if pending.token == token => pending.clone(),
+            DoctorActionPhase::Idle
+            | DoctorActionPhase::Pending(_)
+            | DoctorActionPhase::Failed { .. } => return DoctorActionFinish::Stale,
+        };
+        self.phase = match result {
+            Ok(()) => DoctorActionPhase::Idle,
+            Err(failure) => DoctorActionPhase::Failed {
+                failure,
+                retry_action: pending.action,
+            },
+        };
+        DoctorActionFinish::Applied
     }
 }
 
@@ -71,23 +96,36 @@ mod tests {
     #[test]
     fn busy_and_stale_results_cannot_complete_or_replace_a_request_and_retry_keeps_its_identity() {
         let mut state = DoctorActionState::default();
+        assert!(state.begin_retry().is_err());
         let first = state
             .begin(DoctorAction::RepairOne("config.integrity".into()))
             .unwrap();
         assert!(state.begin(DoctorAction::Bootstrap).is_err());
-        assert!(!state.finish(first.token + 1, Ok(())));
-        assert_eq!(state.pending.as_ref(), Some(&first));
+        assert_eq!(
+            state.finish(first.token + 1, Ok(())),
+            DoctorActionFinish::Stale
+        );
+        assert_eq!(state.phase, DoctorActionPhase::Pending(first.clone()));
         let failure = Failure::new(ErrorCode::Permission, "privilege required", true);
-        assert!(state.finish(first.token, Err(failure.clone())));
-        assert_eq!(state.failure, Some(failure));
-        assert_eq!(state.retry_action, Some(first.action.clone()));
-        let second = state.begin(state.retry_action.clone().unwrap()).unwrap();
+        assert_eq!(
+            state.finish(first.token, Err(failure.clone())),
+            DoctorActionFinish::Applied
+        );
+        assert_eq!(
+            state.phase,
+            DoctorActionPhase::Failed {
+                failure,
+                retry_action: first.action.clone(),
+            }
+        );
+        let second = state.begin_retry().unwrap();
         assert!(second.token > first.token);
-        assert!(!state.finish(first.token, Ok(())));
-        assert_eq!(state.pending.as_ref(), Some(&second));
-        assert!(state.finish(second.token, Ok(())));
-        assert!(state.pending.is_none());
-        assert!(state.failure.is_none());
-        assert!(state.retry_action.is_none());
+        assert_eq!(state.finish(first.token, Ok(())), DoctorActionFinish::Stale);
+        assert_eq!(state.phase, DoctorActionPhase::Pending(second.clone()));
+        assert_eq!(
+            state.finish(second.token, Ok(())),
+            DoctorActionFinish::Applied
+        );
+        assert_eq!(state.phase, DoctorActionPhase::Idle);
     }
 }

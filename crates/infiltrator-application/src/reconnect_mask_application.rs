@@ -52,11 +52,12 @@ mod tests {
 
     fn sample_core(lifecycle: CoreLifecycle, watchdog: CoreWatchdogState) -> CoreSnapshot {
         CoreSnapshot {
+            identity: None,
             lifecycle,
             generation: 1,
             revision: 1,
             session_token: None,
-            proxy_mode: None,
+            routing_intent: Default::default(),
             core_version: None,
             sampled_at_epoch_ms: None,
             failure: None,

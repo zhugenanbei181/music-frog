@@ -1,18 +1,22 @@
 //! High-fidelity verification tests for Wave 5 of the 6 Iced Core Maturity Advancements.
 //!
-//! Complies strictly with docs/TEST_GOVERNANCE.md (Zero-Tautology Rule) and user instructions:
+//! Complies strictly with TESTING.md zero-tautology assertion rule and user instructions:
 //! 100% backend automated, zero GUI/browser popups, zero lingering resources.
 //! Every assertion validates concrete business contracts, state transitions,
 //! exact string/integer values, and mathematical invariants.
 
 use crate::state::AppState;
-use crate::types::message::{Message, MtuProbeCompletion};
+use crate::state::proxy_probe;
+use crate::types::message::Message;
+use crate::types::message::mtu_probe::MtuProbeCompletion;
 use infiltrator_application::rule_list_fixtures::list_document;
 use infiltrator_application::rule_statistics_workbench::StatisticsAction;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::ipv6::Ipv6RoutingSnapshot;
 use infiltrator_contract::lan::{LanSecuritySnapshot, LanSharingSnapshot};
 use infiltrator_contract::mtu::{MtuNegotiationSnapshot, PhysicalMtuSnapshot};
+use infiltrator_contract::outbound::details::OutboundLatencySample;
+use infiltrator_contract::outbound::details::OutboundObservation;
 use infiltrator_contract::provider_cache::ProviderCachePurge;
 use infiltrator_contract::rule_hit_audit::{RuleDeadEntry, RuleDeadReason, RuleHitAuditSnapshot};
 use infiltrator_contract::rule_tracer::RuleTracerSnapshot;
@@ -27,6 +31,9 @@ use infiltrator_contract::system_proxy::{
 };
 use infiltrator_contract::tun::{TunStack, TunStackAvailability};
 use infiltrator_domain::rules::RuleEntry;
+use infiltrator_iced::demo::DemoEnv;
+use infiltrator_iced::types::app;
+use infiltrator_iced::types::options;
 
 fn rules_page_with_hit_audit(
     mut audit: RuleHitAuditSnapshot,
@@ -209,54 +216,66 @@ fn test_clear_rule_hit_counters_without_host_port_is_honest() {
 }
 
 #[test]
-fn test_advancement_w5_2_latency_time_series_and_stability_radar() {
-    use infiltrator_application::proxy_inspection_fixtures::{INSPECTION_NODE, observed_proxy};
-    let (mut state, _) = AppState::new();
-    assert!(state.proxy_inspection(INSPECTION_NODE).is_none());
-    assert_eq!(
-        state
-            .update(Message::InspectProxy(Some(INSPECTION_NODE.into())))
-            .units(),
-        0
-    );
-    assert!(
-        state.runtime.inspecting_proxy.is_none(),
-        "unobserved node selection cannot create latency samples"
-    );
-    state
+fn test_advancement_w5_2_typed_outbound_latency_history_is_observed_and_probe_fails_closed() {
+    let env = DemoEnv {
+        enabled: true,
+        page: app::Route::Proxies,
+        pane: options::EditorPane::Profile,
+        providers_tab: false,
+        lang: "zh-CN".to_owned(),
+        skin: iced::Theme::Dark,
+        window_size: (1180.0, 780.0),
+        capture_marker: None,
+        scenario: None,
+    };
+    let (mut state, _) = AppState::demo(&env);
+    let outbound_id = state
         .runtime
-        .proxies
-        .insert(INSPECTION_NODE.into(), observed_proxy());
+        .proxy_groups
+        .iter()
+        .flat_map(|group| &group.proxies)
+        .find(|member| member.name == "HK-01")
+        .and_then(|member| member.id.clone())
+        .expect("typed demo inventory publishes HK-01");
+    let detail = state
+        .outbound_detail(&outbound_id)
+        .expect("same-scope details are accepted from the demo surface");
+    assert_eq!(
+        detail.current_latency_ms,
+        OutboundObservation::Observed(148)
+    );
+    assert_eq!(
+        detail.latency_history,
+        OutboundObservation::Observed(vec![OutboundLatencySample {
+            observed_at: "2026-08-29T15:31:00.000000+08:00".to_owned(),
+            delay_ms: 148,
+        }])
+    );
+    assert_eq!(detail.cipher_display_name.as_deref(), Some("AES-256-GCM"));
+
     assert_eq!(
         state
-            .update(Message::InspectProxy(Some(INSPECTION_NODE.into())))
+            .update(Message::InspectOutbound(Some(outbound_id.clone())))
             .units(),
         0
     );
     assert_eq!(
-        state.runtime.inspecting_proxy.as_deref(),
-        Some(INSPECTION_NODE)
+        state.runtime.outbound_inspecting.as_ref(),
+        Some(&outbound_id)
     );
-    let observation = state.proxy_inspection(INSPECTION_NODE).unwrap();
-    assert_eq!(observation.history_total, 3);
+    assert_eq!(state.update(Message::ProbeInspectedOutbound).units(), 0);
+    assert_eq!(state.runtime.outbound_probe_pending, None);
     assert_eq!(
-        observation
-            .history
-            .iter()
-            .map(|sample| sample.delay_ms)
-            .collect::<Vec<_>>(),
-        vec![18, 0, 42]
+        state.runtime.outbound_probe_blocked,
+        Some(proxy_probe::OutboundProbeActionAvailability::CoreUnknown),
+        "demo observations without owner capability evidence cannot probe"
     );
-    assert_eq!(observation.rtt.min_ms, Some(18));
-    assert_eq!(observation.rtt.max_ms, Some(42));
-    assert_eq!(observation.rtt.avg_ms, Some(30));
-    assert_eq!(observation.rtt.valid_count, 2);
-    assert_eq!(state.update(Message::InspectProxy(None)).units(), 0);
-    assert!(state.runtime.inspecting_proxy.is_none());
+    assert_eq!(state.update(Message::InspectOutbound(None)).units(), 0);
+    assert!(state.runtime.outbound_inspecting.is_none());
     assert_eq!(
-        state.proxy_inspection(INSPECTION_NODE).unwrap(),
-        observation,
-        "opening and cancelling details cannot manufacture a measurement"
+        state.outbound_detail(&outbound_id),
+        Some(detail),
+        "opening and closing details cannot manufacture a measurement"
     );
 }
 
@@ -365,6 +384,7 @@ fn test_shared_surface_route_flags_update_the_iced_projection() {
         close_to_tray: None,
         notifications_enabled: None,
         language: "zh-CN".into(),
+        theme: "system".into(),
         autostart: false,
         system_proxy: false,
         mixed_port: Some(7890),
@@ -616,6 +636,7 @@ fn test_shared_surface_keeps_a_dirty_lan_draft_until_apply_result() {
         close_to_tray: None,
         notifications_enabled: None,
         language: "zh-CN".into(),
+        theme: "system".into(),
         autostart: false,
         system_proxy: false,
         mixed_port: Some(7890),

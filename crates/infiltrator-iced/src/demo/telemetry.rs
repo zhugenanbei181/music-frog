@@ -1,4 +1,5 @@
 //! Capture actual stale-zero telemetry through production reader and update paths.
+use crate::demo::owner::attach_capture_owner;
 use crate::state::AppState;
 use crate::types::message::Message;
 use iced::Task;
@@ -21,7 +22,7 @@ pub(super) fn activate(state: &mut AppState) -> Task<Message> {
         telemetry.clone(),
         tokio_application_runtime().expect("isolated telemetry executor"),
     );
-    state.commands = Some(core.clone());
+    attach_capture_owner(state, core.clone());
     let reader = ApplicationSurfaceReader::new(
         Arc::new(core.clone()),
         SurfaceKind::IcedDesktop,

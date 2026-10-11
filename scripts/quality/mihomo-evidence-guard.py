@@ -1,0 +1,333 @@
+#!/usr/bin/env python3
+"""Validate Mihomo real-binary evidence identity and provider wiring."""
+
+from __future__ import annotations
+
+import argparse
+import copy
+import json
+from pathlib import Path
+import re
+import sys
+
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+EVIDENCE_LOCK = Path("packaging/mihomo-evidence-assets.json")
+PRODUCT_LOCK = Path("packaging/mihomo-assets.json")
+PROVIDER_SOURCE = Path("crates/mihomo-api/src/core_capability_provider.rs")
+SMOKE_SOURCE = Path("scripts/core-backend-smoke-mihomo.sh")
+REAL_PROCESS_TEST = Path("crates/mihomo-api/tests/real_process_smoke.rs")
+REAL_PROFILE_TEST = Path("crates/infiltrator-core/tests/real_process_profile_smoke.rs")
+REQUIRED_VERSIONS = {"v1.19.18", "v1.19.32"}
+REQUIRED_OPERATIONS = (
+    "profile.validate",
+    "profile.apply",
+    "outbound.list",
+    "outbound.select",
+    "outbound.probe",
+    "logs.set_level",
+    "routing.set_intent",
+    "routing.get_intent",
+)
+LINUX_AMD64_TARGET = "x86_64-unknown-linux-gnu"
+
+
+def is_canonical_release_version(version: object) -> bool:
+    if not isinstance(version, str) or re.fullmatch(r"v[0-9]+\.[0-9]+\.[0-9]+", version) is None:
+        return False
+    return all(
+        component == "0" or not component.startswith("0")
+        for component in version[1:].split(".")
+    )
+
+
+def validate_documents(evidence: object, product: object) -> list[str]:
+    problems: list[str] = []
+    if not isinstance(evidence, dict) or evidence.get("schema_version") != 2:
+        return ["evidence lock must be an object with target-scoped schema_version 2"]
+    if evidence.get("engine") != "mihomo":
+        problems.append("evidence lock engine must be mihomo")
+
+    assets = evidence.get("assets")
+    if not isinstance(assets, list):
+        return problems + ["evidence lock assets must be an array"]
+    assets_by_version: dict[str, list[dict[str, object]]] = {}
+    seen_scopes: set[tuple[str, str, int]] = set()
+    for index, asset in enumerate(assets):
+        where = f"evidence asset {index}"
+        if not isinstance(asset, dict):
+            problems.append(f"{where} must be an object")
+            continue
+        version = asset.get("version")
+        if not is_canonical_release_version(version):
+            problems.append(f"{where} has a non-canonical release version")
+            continue
+        assets_by_version.setdefault(version, []).append(asset)
+
+        binary_target = asset.get("binary_target")
+        if binary_target != LINUX_AMD64_TARGET:
+            problems.append(
+                f"{where} binary_target must match the locked {LINUX_AMD64_TARGET} product target until other targets are evidenced"
+            )
+        adapter_revision = asset.get("adapter_revision")
+        if type(adapter_revision) is not int or adapter_revision <= 0:
+            problems.append(f"{where} adapter_revision must be a positive integer")
+        elif isinstance(binary_target, str):
+            scope = (version, binary_target, adapter_revision)
+            if scope in seen_scopes:
+                problems.append(f"{where} duplicates a version/target/adapter revision scope")
+            seen_scopes.add(scope)
+
+        expected_release = f"https://github.com/MetaCubeX/mihomo/releases/tag/{version}"
+        if asset.get("release_url") != expected_release:
+            problems.append(f"{where} release_url does not identify the official release")
+        if asset.get("archive") != f"mihomo-linux-amd64-v1-{version}.gz":
+            problems.append(f"{where} archive does not match the official Linux amd64 asset name")
+        if asset.get("binary") != "mihomo-linux-amd64":
+            problems.append(f"{where} binary must be mihomo-linux-amd64")
+        for digest_key in ("archive_sha256", "binary_sha256"):
+            digest = asset.get(digest_key)
+            if not isinstance(digest, str) or re.fullmatch(r"[0-9a-f]{64}", digest) is None:
+                problems.append(f"{where} has an invalid {digest_key}")
+        operations = asset.get("operations")
+        if not isinstance(operations, list) or tuple(operations) != REQUIRED_OPERATIONS:
+            problems.append(f"{where} operations do not match the eight verified behaviors")
+
+    if set(assets_by_version) != REQUIRED_VERSIONS:
+        problems.append(
+            "evidence lock must contain exactly v1.19.18 and v1.19.32 canonical releases"
+        )
+
+    if not isinstance(product, dict):
+        problems.append("product Mihomo lock must be an object")
+        return problems
+    product_version = product.get("version")
+    evidence_product_assets = [
+        asset
+        for asset in assets_by_version.get(product_version, [])
+        if asset.get("binary_target") == LINUX_AMD64_TARGET
+    ]
+    if len(evidence_product_assets) != 1:
+        problems.append("evidence lock must include the product lock's current version")
+        evidence_product_asset = None
+    else:
+        evidence_product_asset = evidence_product_assets[0]
+    product_assets = product.get("assets")
+    if not isinstance(product_assets, list):
+        problems.append("product Mihomo lock assets must be an array")
+        return problems
+    matching_product_assets = [
+        item for item in product_assets
+        if isinstance(item, dict) and item.get("target") == LINUX_AMD64_TARGET
+    ]
+    if len(matching_product_assets) != 1:
+        problems.append("product lock must contain exactly one Linux amd64 asset")
+    elif evidence_product_asset is not None:
+        product_asset = matching_product_assets[0]
+        for evidence_key, product_key in (
+            ("archive", "archive"),
+            ("archive_sha256", "archive_sha256"),
+            ("binary", "binary"),
+            ("binary_sha256", "binary_sha256"),
+        ):
+            if evidence_product_asset.get(evidence_key) != product_asset.get(product_key):
+                problems.append(
+                    f"evidence product asset {evidence_key} does not match packaging/mihomo-assets.json"
+                )
+    return problems
+
+
+def load_json(path: Path) -> object:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def source_problems(repo_root: Path) -> list[str]:
+    problems: list[str] = []
+    provider_path = repo_root / PROVIDER_SOURCE
+    smoke_path = repo_root / SMOKE_SOURCE
+    real_process_test_path = repo_root / REAL_PROCESS_TEST
+    real_profile_test_path = repo_root / REAL_PROFILE_TEST
+    if not provider_path.is_file():
+        problems.append(f"{provider_path}: capability provider source is missing")
+    if not smoke_path.is_file():
+        problems.append(f"{smoke_path}: binary smoke source is missing")
+    if not real_process_test_path.is_file():
+        problems.append(f"{real_process_test_path}: typed adapter smoke test is missing")
+    if not real_profile_test_path.is_file():
+        problems.append(f"{real_profile_test_path}: real-process Profile transaction test is missing")
+    if problems:
+        return problems
+
+    provider = provider_path.read_text(encoding="utf-8")
+    smoke = smoke_path.read_text(encoding="utf-8")
+    real_process_test = real_process_test_path.read_text(encoding="utf-8")
+    real_profile_test = real_profile_test_path.read_text(encoding="utf-8")
+    if 'include_str!("../../../packaging/mihomo-evidence-assets.json")' not in provider:
+        problems.append(f"{provider_path}: provider must read the evidence manifest at compile time")
+    if (
+        "MIHOMO_OPERATION_DECLARATION" not in provider
+        or "ValidatedAdapterOperationDeclarations::validate" not in provider
+        or "declarations.support(operation)" not in provider
+        or "has_verified_support_for_scope" not in provider
+    ):
+        problems.append(
+            f"{provider_path}: capability decisions must use the validated typed declaration and exact version/target/revision evidence"
+        )
+    if "has_registered_target" not in provider or "binary_target.host_kind()" not in provider:
+        problems.append(
+            f"{provider_path}: capabilities must fail closed for target/host mismatch or unregistered target evidence"
+        )
+    for retired in (
+        "has_exact_active_version_evidence",
+        "has_host_target_evidence",
+        "host_evidence_platform",
+    ):
+        if retired in provider:
+            problems.append(f"{provider_path}: retired unscoped evidence helper `{retired}` remains")
+    if "mihomo-evidence-assets.json" not in smoke:
+        problems.append(f"{smoke_path}: smoke must load the evidence asset lock")
+    for required in ("archive_sha256", "binary_sha256", "curl", "gzip"):
+        if required not in smoke:
+            problems.append(f"{smoke_path}: smoke must verify locked {required} data")
+    if "mihomo-evidence-guard.py" not in smoke:
+        problems.append(f"{smoke_path}: smoke must run the dedicated evidence guard")
+    for required in ("cargo nextest run", "--test real_process_smoke", "--run-ignored only"):
+        if required not in smoke:
+            problems.append(f"{smoke_path}: explicit Rust adapter smoke must use `{required}`")
+    for required in (
+        "MIHOMO_REAL_CONTROLLER_URL",
+        "MIHOMO_REAL_CONTROLLER_SECRET",
+        "MIHOMO_REAL_VERSION",
+    ):
+        if required not in smoke or required not in real_process_test:
+            problems.append(
+                f"{smoke_path}: typed adapter smoke must pass `{required}` to the ignored test"
+            )
+    if "#[ignore" not in real_process_test:
+        problems.append(
+            f"{real_process_test_path}: real-process test must be ignored in ordinary nextest runs"
+        )
+    for required in (
+        "MihomoOutboundAdapter",
+        "MihomoRoutingIntentAdapter",
+        "OutboundPort",
+        "RoutingIntentPort",
+    ):
+        if required not in real_process_test:
+            problems.append(
+                f"{real_process_test_path}: smoke must drive typed adapter `{required}`"
+            )
+    for required in (
+        "MIHOMO_REAL_CONTROLLER_URL",
+        "MIHOMO_REAL_CONTROLLER_SECRET",
+        "MIHOMO_REAL_VERSION",
+        "MIHOMO_REAL_PROFILE_PATH",
+        "EndpointConfigReloader",
+        "ProfileEndpointSource",
+        "MihomoProfileConfigurationTransactionAdapter",
+        "ProfileConfigurationTransactionPort",
+        "ProfileConfigurationTransactionRequest",
+        "ProfileConfigurationTransactionOutcome::Committed",
+        "ProfileConfigurationTransactionOutcome::RolledBack",
+        "ProfileConfigurationTransactionOutcome::RollbackFailed",
+        "ConfigReloader::preflight_check",
+        "ProfileStore::load_active_workspace",
+        "get_config",
+        "log_level",
+        "let restored =",
+        "restored_config",
+    ):
+        if required not in real_profile_test:
+            problems.append(
+                f"{real_profile_test_path}: real Profile evidence must exercise `{required}`"
+            )
+    if "#[ignore" not in real_profile_test:
+        problems.append(
+            f"{real_profile_test_path}: real-process Profile test must be ignored in ordinary nextest runs"
+        )
+    for required in (
+        "MIHOMO_REAL_CONTROLLER_URL",
+        "MIHOMO_REAL_CONTROLLER_SECRET",
+        "MIHOMO_REAL_VERSION",
+        "MIHOMO_REAL_PROFILE_PATH",
+        "-p infiltrator-core",
+        "--test real_process_profile_smoke",
+        "--run-ignored only",
+    ):
+        if required not in smoke:
+            problems.append(
+                f"{smoke_path}: locked real-process Profile smoke must pass `{required}`"
+            )
+    for source_path, source in (
+        (provider_path, provider),
+        (smoke_path, smoke),
+        (real_profile_test_path, real_profile_test),
+    ):
+        if re.search(r"\bv1\.19\.(?:18|32)\b", source) or re.search(r"\b[0-9a-f]{64}\b", source):
+            problems.append(f"{source_path}: version/hash literals must stay in the evidence manifest")
+    return problems
+
+
+def check(repo_root: Path) -> list[str]:
+    try:
+        evidence = load_json(repo_root / EVIDENCE_LOCK)
+        product = load_json(repo_root / PRODUCT_LOCK)
+    except (OSError, json.JSONDecodeError) as error:
+        return [f"cannot load Mihomo evidence/product lock: {error}"]
+    return validate_documents(evidence, product) + source_problems(repo_root)
+
+
+def self_test(repo_root: Path) -> int:
+    for version in sorted(REQUIRED_VERSIONS):
+        assert is_canonical_release_version(version)
+    for version in (
+        "1.19.32",
+        "v01.19.32",
+        "v1.19.032",
+        "v1.19.32-rc.1",
+        "v1.19.32+build.1",
+        "v1.19.33.1",
+    ):
+        assert not is_canonical_release_version(version), version
+
+    evidence = load_json(repo_root / EVIDENCE_LOCK)
+    product = load_json(repo_root / PRODUCT_LOCK)
+    assert not validate_documents(evidence, product)
+
+    unsupported = copy.deepcopy(evidence)
+    unsupported["assets"][1]["version"] = "v1.19.33"
+    assert any("exactly v1.19.18 and v1.19.32" in issue
+               for issue in validate_documents(unsupported, product))
+
+    prerelease = copy.deepcopy(evidence)
+    prerelease["assets"][1]["version"] = "v1.19.18-rc.1"
+    assert any("non-canonical release version" in issue
+               for issue in validate_documents(prerelease, product))
+
+    mismatched = copy.deepcopy(evidence)
+    mismatched["assets"][0]["binary_sha256"] = "0" * 64
+    assert any("binary_sha256 does not match packaging/mihomo-assets.json" in issue
+               for issue in validate_documents(mismatched, product))
+    print("Mihomo evidence guard self-test: PASS")
+    return 0
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--self-test", action="store_true")
+    args = parser.parse_args()
+    if args.self_test:
+        return self_test(REPO_ROOT)
+
+    problems = check(REPO_ROOT)
+    if problems:
+        for problem in problems:
+            print(f"VIOLATION: {problem}", file=sys.stderr)
+        print(f"Mihomo evidence guard: violations={len(problems)}", file=sys.stderr)
+        return 1
+    print("Mihomo evidence guard: valid")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

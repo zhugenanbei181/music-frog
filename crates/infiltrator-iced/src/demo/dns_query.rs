@@ -1,4 +1,5 @@
 //! Capture submits a real shared query and reads the same owner's published response.
+use crate::demo::owner::attach_capture_owner;
 use crate::state::AppState;
 use crate::types::dns_query::QueryAction;
 use crate::types::message::Message;
@@ -36,7 +37,7 @@ pub(super) fn activate(state: &mut AppState) -> Task<Message> {
         )
         .with_dns_query(owner),
     );
-    state.commands = Some(core);
+    attach_capture_owner(state, core);
     let _ = state.update(Message::DnsQuery(QueryAction::Open));
     let _ = state.update(Message::DnsQuery(QueryAction::Name("music.test".into())));
     let _ = state.update(Message::DnsQuery(QueryAction::RecordType(

@@ -1,4 +1,4 @@
-//! DUAL-06-13: per-node speedtest detail modal.
+//! Typed outbound speedtest detail modal.
 //!
 //! The modal is a pure projection of the shared [`SpeedtestSnapshot`]: every
 //! row reads the same canonical result the card does, and empty / failed states
@@ -13,8 +13,8 @@ use crate::view::theme::{FONT_SEMIBOLD, HAIRLINE, MONO, R_SM, tokens};
 use crate::view_root::interaction_regions::InteractionRegion;
 use iced::widget::{Space, button, column, container, row, scrollable, text};
 use iced::{Alignment, Border, Element, Length, Theme, border};
-use infiltrator_application::speedtest_detail_projection::{notice, project_details, summary};
-use infiltrator_contract::speedtest::EgressCountryMatch;
+use infiltrator_application::speedtest_detail_projection::project_details;
+use infiltrator_contract::speedtest::{SpeedtestPhase, SpeedtestResultState};
 use infiltrator_contract::speedtest_details::{SpeedtestDetailRow, SpeedtestDetails};
 use infiltrator_shared::locales::{Lang, Localizer};
 
@@ -29,25 +29,20 @@ fn metric(label: String, value: String) -> Element<'static, Message> {
     .into()
 }
 
-fn egress_badge(matched: EgressCountryMatch, lang: &Lang<'_>) -> Element<'static, Message> {
-    let (key, kind) = match matched {
-        EgressCountryMatch::Match => ("speedtest_detail_match", BadgeKind::Success),
-        EgressCountryMatch::Mismatch => ("speedtest_detail_mismatch", BadgeKind::Danger),
-        EgressCountryMatch::Unlabelled => ("speedtest_detail_unlabelled", BadgeKind::Neutral),
-        EgressCountryMatch::Unknown => ("speedtest_detail_unknown", BadgeKind::Neutral),
-    };
-    badge(lang.tr(key).to_string(), kind)
-}
-
 fn node_row(node: &SpeedtestDetailRow, lang: &Lang<'_>) -> Element<'static, Message> {
+    let name = node
+        .display_name
+        .as_deref()
+        .unwrap_or_else(|| node.outbound_id.value());
+    let protocol = node.protocol_display_name.as_deref().unwrap_or("—");
     container(
         column![
             row![
-                text(node.node_name.clone())
+                text(name.to_owned())
                     .size(12)
                     .font(FONT_SEMIBOLD)
                     .width(Length::Fill),
-                text(node.proxy_type.clone())
+                text(protocol.to_owned())
                     .size(10)
                     .style(|t: &Theme| text::Style {
                         color: Some(tokens(t).text_secondary)
@@ -58,34 +53,32 @@ fn node_row(node: &SpeedtestDetailRow, lang: &Lang<'_>) -> Element<'static, Mess
             row![
                 metric(
                     lang.tr("speedtest_detail_delay").to_string(),
-                    node.delay.clone()
+                    node.delay
+                        .map(|delay| format!("{delay} ms"))
+                        .unwrap_or_else(|| "—".to_owned())
                 ),
-                metric(lang.tr("speedtest_jitter").to_string(), node.jitter.clone()),
+                metric(
+                    lang.tr("speedtest_jitter").to_string(),
+                    node.jitter_ms
+                        .map(|jitter| format!("{jitter:.1} ms"))
+                        .unwrap_or_else(|| "—".to_owned()),
+                ),
                 metric(
                     lang.tr("speedtest_packet_loss").to_string(),
-                    node.loss.clone()
+                    node.loss_percent
+                        .map(|loss| format!("{loss:.1}%"))
+                        .unwrap_or_else(|| "—".to_owned())
                 ),
             ]
             .spacing(8),
             row![
                 metric(
-                    lang.tr("speedtest_bandwidth").to_string(),
-                    node.bandwidth.clone()
+                    lang.tr("speedtest_detail_samples").to_string(),
+                    node.sample_count.to_string()
                 ),
-                metric(
-                    lang.tr("speedtest_detail_stars").to_string(),
-                    node.stars.clone()
-                ),
+                outcome_badge(&node.state, lang),
             ]
             .spacing(8),
-            row![
-                metric(
-                    lang.tr("speedtest_detail_egress").to_string(),
-                    node.egress.clone()
-                ),
-                egress_badge(node.egress_match, lang),
-            ]
-            .align_y(Alignment::Center),
         ]
         .spacing(2),
     )
@@ -103,14 +96,33 @@ fn node_row(node: &SpeedtestDetailRow, lang: &Lang<'_>) -> Element<'static, Mess
     .into()
 }
 
+fn outcome_badge(outcome: &SpeedtestResultState, lang: &Lang<'_>) -> Element<'static, Message> {
+    let (key, kind) = match outcome {
+        SpeedtestResultState::Completed => ("speedtest_result_completed", BadgeKind::Success),
+        SpeedtestResultState::TimedOut => ("speedtest_result_timed_out", BadgeKind::Danger),
+        SpeedtestResultState::Unsupported => ("speedtest_result_unsupported", BadgeKind::Neutral),
+        SpeedtestResultState::Failed { .. } => ("speedtest_result_failed", BadgeKind::Danger),
+        SpeedtestResultState::Cancelled => ("speedtest_result_cancelled", BadgeKind::Warning),
+    };
+    badge(lang.tr(key).to_string(), kind)
+}
+
 fn body(snapshot: &SpeedtestDetails, lang: &Lang<'_>, height: f32) -> Element<'static, Message> {
     let mut content = column![].spacing(6);
 
-    if let Some(message) = notice(snapshot, &|key| lang.tr(key).into_owned()) {
-        content = content.push(text(message).size(11).style(|t: &Theme| text::Style {
-            color: Some(tokens(t).danger),
-        }));
-    }
+    let phase_label = match &snapshot.phase {
+        SpeedtestPhase::Idle => lang.tr("speedtest_phase_idle").into_owned(),
+        SpeedtestPhase::Probing => lang.tr("speedtest_phase_probing").into_owned(),
+        SpeedtestPhase::CancelRequested => lang.tr("speedtest_phase_cancel_requested").into_owned(),
+        SpeedtestPhase::Completed => lang.tr("speedtest_phase_completed").into_owned(),
+        SpeedtestPhase::Cancelled => lang.tr("speedtest_phase_cancelled").into_owned(),
+        SpeedtestPhase::Failed { failure } | SpeedtestPhase::Unavailable { failure } => {
+            failure.message.clone()
+        }
+    };
+    content = content.push(text(phase_label).size(11).style(|t: &Theme| text::Style {
+        color: Some(tokens(t).text_secondary),
+    }));
 
     let nodes = &snapshot.rows;
     if nodes.is_empty() {
@@ -141,12 +153,16 @@ pub(crate) fn speedtest_detail_modal(state: &AppState) -> Element<'_, Message> {
             text(lang.tr("speedtest_detail_title").to_string())
                 .size(14)
                 .font(FONT_SEMIBOLD),
-            text(summary(&snapshot, &|key| lang.tr(key).into_owned()))
-                .size(11)
-                .font(MONO)
-                .style(|t: &Theme| text::Style {
-                    color: Some(tokens(t).text_secondary)
-                }),
+            text(format!(
+                "{} {}",
+                snapshot.rows.len(),
+                lang.tr("speedtest_detail_targets")
+            ))
+            .size(11)
+            .font(MONO)
+            .style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_secondary)
+            }),
         ]
         .width(Length::Fill),
         button(text(lang.tr("modal_close").to_string()).size(11))

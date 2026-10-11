@@ -9,10 +9,11 @@ use bevy::ecs::system::{Commands, Query, Res};
 use bevy::scene::{CommandsSceneExt, Scene, bsn};
 use bevy::text::TextColor;
 use bevy::ui::widget::Text;
-use bevy::ui::{Display, FlexDirection, Node, percent, px};
+use bevy::ui::{Display, FlexDirection, Node, percent};
 use infiltrator_application::dns_leak_projection::{LeakDisplay, LeakRow, project_leak};
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 use std::collections::HashMap;
@@ -42,7 +43,7 @@ pub fn rows_scene(display: &LeakDisplay, palette: &UiPalette) -> impl Scene + us
         .map(|row| Box::new(row_scene(row, palette)) as Box<dyn Scene>)
         .collect();
     bsn! {
-        Node { width: percent(100), flex_direction: FlexDirection::Column, row_gap: px(space::S8) }
+        Node { width: percent(100), flex_direction: FlexDirection::Column, row_gap: rem(space::S8) }
         LeakRows
         Children [
             Text({ display.empty.clone() }) LeakEmpty TextRole(Role::Caption)
@@ -55,7 +56,7 @@ fn row_scene(row: &LeakRow, palette: &UiPalette) -> impl Scene + use<> {
     let source = format!("{} → {}", row.resolver, row.authority);
     let id = identity(row);
     bsn! {
-        Node { width: percent(100), flex_direction: FlexDirection::Column, row_gap: px(space::S4) }
+        Node { width: percent(100), flex_direction: FlexDirection::Column, row_gap: rem(space::S4) }
         LeakRowIdentity({ id.0.clone() }, { id.1.clone() }, { id.2.clone() })
         Children [
             Text(source) LeakRowLabel({ id.clone() }, false) TextRole(Role::Mono)

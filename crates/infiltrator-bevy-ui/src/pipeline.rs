@@ -1,6 +1,6 @@
 //! Unified Async-to-ECS lock-free drain pipeline.
 //!
-//! Charter law (docs/bevy-ui/BEVY_UI_FRONTEND.md):
+//! Charter law (crates/infiltrator-bevy-ui/docs/BEVY_UI_FRONTEND.md):
 //! - Non-blocking drain on the app thread every frame (never stalls UI).
 //! - Newest snapshot coalescing: drops stale intermediates when frame rendering
 //!   falls behind high-frequency polling.
@@ -10,7 +10,6 @@
 //!   tasks without leaking threads.
 //! - MultiPageCadenceGovernor: route-aware and focus-aware polling throttling (0.00% CPU when minimized).
 
-use crate::controller::FailureDwell;
 use crate::domain_state::{DomainPhase, DomainResource, DomainState, DomainStateUpdated};
 use crate::route::Route;
 use bevy::app::{App, Plugin, Update};
@@ -24,6 +23,39 @@ use std::time::{Duration, Instant};
 
 /// Default capacity for async-to-ecs drain pipelines.
 pub const DEFAULT_PIPELINE_CAPACITY: usize = 16;
+pub const MIN_FAILURE_DWELL: Duration = Duration::from_secs(5);
+
+#[derive(Resource, Clone, Copy, Debug)]
+pub struct FailureDwell {
+    pub min_dwell: Duration,
+    pub latched_at: Option<Instant>,
+}
+
+impl FailureDwell {
+    pub fn new(min_dwell: Duration) -> Self {
+        Self {
+            min_dwell,
+            latched_at: None,
+        }
+    }
+
+    pub fn latch(&mut self, now: Instant) {
+        self.latched_at = Some(now);
+    }
+
+    pub fn success_may_pass(&self, now: Instant) -> bool {
+        match self.latched_at {
+            Some(latched_at) => now.duration_since(latched_at) >= self.min_dwell,
+            None => true,
+        }
+    }
+}
+
+impl Default for FailureDwell {
+    fn default() -> Self {
+        Self::new(MIN_FAILURE_DWELL)
+    }
+}
 
 /// Producer handle for sending domain snapshots into the ECS pipeline.
 #[derive(Clone)]
@@ -143,7 +175,7 @@ pub fn drain_domain_pipeline<T: Send + Sync + Clone + 'static>(
 
 /// Multi-page energy-efficient polling cadence governor.
 ///
-/// Implements charter law (docs/bevy-ui/BEVY_UI_FRONTEND.md §8.2):
+/// Implements the asset lifecycle rules in the Bevy UI charter:
 /// Standby CPU 0.0% ~ 0.05%, Background/Minimized CPU 0.00%.
 #[derive(Resource, Clone, Debug, PartialEq)]
 pub struct MultiPageCadenceGovernor {

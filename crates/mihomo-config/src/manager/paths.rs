@@ -3,6 +3,7 @@
 //! Also resolves the configs storage directory (cloud-sync redirect).
 
 use super::ConfigManager;
+use infiltrator_contract::core_identity::EngineId;
 use infiltrator_ports::secure_store::SecureStore;
 use mihomo_api::error::{MihomoError, Result};
 use std::env::{home_dir, var};
@@ -12,6 +13,36 @@ use tokio::fs;
 
 /// 环境变量形式的 configs 目录覆盖，优先级高于 settings 的 `configs_dir`。
 pub const CONFIGS_DIR_ENV: &str = "INFILTRATOR_CONFIGS_DIR";
+
+/// Return the filesystem namespace owned by one engine below a shared config
+/// root. Profile IDs are only unique inside this directory.
+pub fn engine_config_dir(config_root: &Path, engine: &EngineId) -> PathBuf {
+    config_root.join("engines").join(engine.as_str())
+}
+
+/// Resolve a shared config root or an already scoped engine directory to the
+/// owned namespace. Reject an explicitly foreign `engines/<id>` path so a
+/// profile ID can never redirect Mihomo persistence into another engine.
+pub fn scope_config_dir(config_root_or_scoped: &Path, engine: &EngineId) -> Result<PathBuf> {
+    let file_name = config_root_or_scoped
+        .file_name()
+        .and_then(|name| name.to_str());
+    let parent_name = config_root_or_scoped
+        .parent()
+        .and_then(Path::file_name)
+        .and_then(|name| name.to_str());
+    match (parent_name, file_name) {
+        (Some("engines"), Some(namespace)) if namespace == engine.as_str() => {
+            Ok(config_root_or_scoped.to_path_buf())
+        }
+        (Some("engines"), Some(namespace)) => Err(MihomoError::Config(format!(
+            "config namespace `{namespace}` does not match `{}`",
+            engine.as_str()
+        ))),
+        (_, Some("engines")) => Ok(config_root_or_scoped.join(engine.as_str())),
+        _ => Ok(engine_config_dir(config_root_or_scoped, engine)),
+    }
+}
 
 /// 由调用方提供 home，解析 env/settings 目录重定向。
 pub fn resolve_configs_dir_in(explicit: Option<&str>, home: &Path) -> Result<PathBuf> {
@@ -188,6 +219,20 @@ mod tests {
         );
     }
 
+    #[test]
+    fn config_scope_accepts_shared_or_owned_roots_and_rejects_siblings() {
+        let engine = EngineId::new("mihomo").unwrap();
+        let shared = PathBuf::from("/shared/configs");
+        let scoped = engine_config_dir(&shared, &engine);
+        assert_eq!(scope_config_dir(&shared, &engine).unwrap(), scoped);
+        assert_eq!(scope_config_dir(&scoped, &engine).unwrap(), scoped);
+        assert_eq!(
+            scope_config_dir(&shared.join("engines"), &engine).unwrap(),
+            scoped
+        );
+        assert!(scope_config_dir(&shared.join("engines/sing-box"), &engine).is_err());
+    }
+
     #[tokio::test]
     async fn blank_explicit_falls_back_to_default() {
         let _guard = test_lock().await;
@@ -282,7 +327,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn manager_with_home_redirects_configs_but_keeps_settings_file() {
+    async fn manager_with_home_redirects_the_engine_namespace_and_keeps_app_settings_separate() {
         let _guard = test_lock().await;
         let temp_dir = TempDir::new().unwrap();
         let home = temp_dir.path().to_path_buf();
@@ -292,9 +337,19 @@ mod tests {
         let manager = manager::ConfigManager::with_home_and_store(home.clone(), TestStore).unwrap();
         clear_env();
 
-        assert_eq!(manager.config_dir, cloud);
-        // settings 文件（当前 profile 指针）不跟随云同步目录。
-        assert_eq!(manager.settings_file, home.join("config.toml"));
+        assert_eq!(
+            manager.config_root, cloud,
+            "the configured directory remains the shared root"
+        );
+        assert_eq!(
+            manager.config_dir,
+            engine_config_dir(&manager.config_root, &crate::engine_id())
+        );
+        assert_eq!(
+            manager.settings_file,
+            manager.config_dir.join("profile-state.toml")
+        );
+        assert_eq!(manager.legacy_settings_file, home.join("config.toml"));
     }
 
     #[tokio::test]
@@ -309,8 +364,14 @@ mod tests {
         );
         assert!(manager.is_ok());
         let manager = manager.unwrap();
-        assert_eq!(manager.config_dir, temp_dir.path().join("cloud/profiles"));
-        assert_eq!(manager.settings_file, temp_dir.path().join("config.toml"));
+        assert_eq!(
+            manager.config_dir,
+            engine_config_dir(&temp_dir.path().join("cloud/profiles"), &crate::engine_id())
+        );
+        assert_eq!(
+            manager.settings_file,
+            manager.config_dir.join("profile-state.toml")
+        );
 
         // 空白值等价于未设置。
         let manager = manager::ConfigManager::with_home_configs_dir_and_store(
@@ -319,7 +380,10 @@ mod tests {
             TestStore,
         )
         .unwrap();
-        assert_eq!(manager.config_dir, temp_dir.path().join("configs"));
+        assert_eq!(
+            manager.config_dir,
+            engine_config_dir(&temp_dir.path().join("configs"), &crate::engine_id())
+        );
     }
 
     struct TestStore;

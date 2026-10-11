@@ -19,11 +19,10 @@ use bevy::input::keyboard::{Key, KeyCode, KeyboardInput};
 use bevy::ui::prelude::{Display, Node};
 use bevy::ui::widget::Text;
 use bevy::ui::{Checked, ScrollPosition};
-use bevy::ui_widgets::Activate;
+use bevy::ui_widgets::{Activate, ValueChange};
 use editor_support::{editor_options_page_projection, editor_page_projection};
 use filter_support::{filter_field_entity, filter_field_text};
 use infiltrator_application::logical_rule_projection::project_logical_rule;
-use infiltrator_application::rule_source_identity::rule_workspace;
 use infiltrator_application::rule_tracer_application::RuleTracerApplication;
 use infiltrator_application::subscription_filter_fixture::{FIXTURE_DOCUMENT, observation};
 use infiltrator_bevy_ui::app::ShellPlugin;
@@ -77,6 +76,7 @@ use infiltrator_bevy_ui::pages::rules_subrules::{
     RulesSubRuleState, SubRuleConditionRow, SubRuleInsertButton, SubRuleOperatorChip,
     SubRulePresetButton, SubRulePreviewLine, SubRuleRemoveConditionButton, SubRuleTargetField,
 };
+use infiltrator_bevy_ui::pages::rules_tabs::RulesTabStrip;
 use infiltrator_bevy_ui::pages::rules_tracer::{
     ApplyTracerRuleOverrideButton, SimulateRuleTraceButton, TracerOverrideTargetField,
     TracerQueryField, TracerSourceIpField,
@@ -85,7 +85,6 @@ use infiltrator_bevy_ui::pages::rules_view::{
     RuleRow, RuleSearchField, RulesListScrollArea, RulesPageIndicator, RulesPageNextButton,
     RulesViewState, RulesWindowRows,
 };
-use infiltrator_bevy_ui::projection::DemoOverviewSource;
 use infiltrator_bevy_ui::projection::{OverviewProjection, OverviewSource, SourceKind};
 use infiltrator_bevy_ui::route::{ActiveRoute, PagesPlugin, Route, RouteChanged};
 use infiltrator_bevy_ui::surface::{SurfaceSource, overview_projection};
@@ -123,7 +122,7 @@ fn setup_matrix_a_app(sink: Arc<DemoCommandSink>) -> App {
     let mut app = App::new();
     headless_plugins(&mut app);
     app.add_plugins(ShellPlugin::default());
-    app.add_plugins(PagesPlugin::new(DemoOverviewSource::running()));
+    app.add_plugins(PagesPlugin::demo());
     app.add_plugins(CommandPumpPlugin::new(sink as Arc<dyn UiCommandSink>));
     app.update();
     app
@@ -253,7 +252,7 @@ fn tracer_test_workspace(rules: &[RuleEntry]) -> RuleWorkspace {
         "proxy-groups:\n  - name: PROXY\n    type: select\n    proxies: [DIRECT]\nrules: {}\n",
         serde_json::to_string(&raw).expect("rules flow sequence")
     );
-    let mut workspace = rule_workspace("test.yaml".to_owned(), &yaml).expect("test workspace");
+    let mut workspace = crate::configuration_codec::mihomo_rule_workspace("test.yaml", &yaml);
     workspace.rules = rules.to_vec();
     workspace
 }
@@ -324,6 +323,22 @@ fn mounted_rule_rows(app: &mut App) -> Vec<usize> {
 
 fn activate(app: &mut App, entity: Entity) {
     app.world_mut().commands().trigger(Activate { entity });
+    app.update();
+}
+
+fn select_rules_tab(app: &mut App, tab: Entity) {
+    let source = {
+        let world = app.world_mut();
+        let mut strips = world.query_filtered::<Entity, With<RulesTabStrip>>();
+        strips.single(world).expect("Rules TabList is mounted")
+    };
+    app.world_mut()
+        .commands()
+        .trigger(ValueChange::<Option<Entity>> {
+            source,
+            value: Some(tab),
+            is_final: true,
+        });
     app.update();
 }
 
@@ -410,7 +425,7 @@ fn subscription_fetch_projection() -> ProfilesProjection {
                     ..Default::default()
                 },
             )
-            .map(|o| o.source),
+            .map(|observation| observation.workspace_identity),
             filter: SubscriptionFilterDraft {
                 include: "香港".to_owned(),
                 exclude: "广告".to_owned(),
@@ -646,7 +661,7 @@ fn snapshot_diff_page_projection(diff: Option<YamlAstDiffSnapshot>) -> ProfilesP
             auto_reload_core: true,
             filter: Default::default(),
             filter_source: observation("main", FIXTURE_DOCUMENT, Default::default())
-                .map(|o| o.source),
+                .map(|observation| observation.workspace_identity),
             write_protection: ProfileWriteProtection::RemoteSubscription,
         }],
         auto_update_interval_hours: 0,

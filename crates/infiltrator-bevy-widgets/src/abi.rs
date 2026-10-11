@@ -1,6 +1,6 @@
 //! Universal Widget Engine ABI contract and cross-project runner host interfaces.
 //!
-//! Charter (docs/bevy-ui/BEVY_UI_FRONTEND.md §8.1.15, §8.3): the widget layer is
+//! Charter (crates/infiltrator-bevy-ui/docs/BEVY_UI_FRONTEND.md): the widget layer is
 //! the extraction candidate shared across projects, so the boundary is a stable,
 //! versioned ABI. A host *advertises* its ABI version and capability set; a
 //! widget *requires* a version and a set of capabilities; [`negotiate`] returns a

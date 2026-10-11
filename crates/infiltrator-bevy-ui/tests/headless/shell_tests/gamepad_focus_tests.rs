@@ -20,7 +20,7 @@ use infiltrator_bevy_ui::app::shell_focus::{
 };
 use infiltrator_bevy_ui::route::NavigateBack;
 use infiltrator_bevy_widgets::focus::Focused;
-use infiltrator_bevy_widgets::gamepad_ui::GamepadNavAction;
+use infiltrator_bevy_widgets::gamepad_ui::{GamepadFocusController, GamepadNavAction};
 
 #[derive(Resource, Default)]
 struct Activated(Vec<Entity>);
@@ -187,6 +187,8 @@ fn no_measured_controls_is_a_typed_no_focus_state() {
 #[test]
 fn mounted_page_buttons_are_reachable_without_a_shell_marker() {
     let mut app = mounted_shell();
+    // Spawn the lower row first so initial focus cannot inherit query order.
+    let bottom = measured(&mut app, -100.0, 100.0);
     let marked = measured(&mut app, 0.0, 0.0);
     let page_button = app
         .world_mut()
@@ -200,6 +202,18 @@ fn mounted_page_buttons_are_reachable_without_a_shell_marker() {
         ))
         .id();
     app.update();
+    let ordered_targets: Vec<_> = app
+        .world()
+        .resource::<GamepadFocusController>()
+        .targets
+        .iter()
+        .map(|target| target.entity)
+        .collect();
+    assert_eq!(
+        ordered_targets,
+        vec![marked, page_button, bottom],
+        "focus targets use top-to-bottom, then left-to-right screen order"
+    );
     assert_eq!(state(&app), ShellFocusState::Focused(marked));
 
     app.world_mut()
@@ -210,4 +224,8 @@ fn mounted_page_buttons_are_reachable_without_a_shell_marker() {
         ShellFocusState::Focused(page_button),
         "a mounted page button is a D-pad target"
     );
+    app.world_mut()
+        .write_message(ShellFocusNav::Action(GamepadNavAction::DpadDown));
+    app.update();
+    assert_eq!(state(&app), ShellFocusState::Focused(bottom));
 }

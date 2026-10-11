@@ -10,21 +10,26 @@ use bevy::ecs::observer::On;
 use bevy::ecs::query::{Has, Or, With};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Query, Res, ResMut};
+use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::input::ButtonInput;
 use bevy::input::keyboard::KeyCode;
 use bevy::scene::{Scene, bsn};
 use bevy::ui::GlobalZIndex;
 use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, Display, FlexDirection, JustifyContent, Node, Overflow,
-    PositionType, UiRect, percent, px,
+    AlignItems, Display, FlexDirection, JustifyContent, Node, Overflow, PositionType, UiRect,
+    percent, px,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button, ScrollArea};
-use infiltrator_application::proxy_probe_editor::ProxyProbeEditor;
+use infiltrator_application::runtime_probe_settings_editor::{
+    RuntimeProbeSettingsEditor, RuntimeProbeSettingsWriteOutcome,
+};
 use infiltrator_bevy_widgets::button::ButtonDisabled;
+use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::modal::{ModalDialogCard, ModalScrim};
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::text_input::state::TextFieldInput;
 use infiltrator_bevy_widgets::text_input::{
@@ -32,6 +37,13 @@ use infiltrator_bevy_widgets::text_input::{
 };
 use infiltrator_contract::command::RequestId;
 use infiltrator_contract::error::{ErrorCode, Failure};
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum ProbeSettingsDialogState {
+    #[default]
+    Closed,
+    Editing,
+}
 
 #[derive(Component, Clone, Copy, Default)]
 pub struct OpenProbeSettings;
@@ -56,15 +68,15 @@ pub struct ProbeTimeoutField;
 
 #[derive(Resource, Default)]
 pub struct ProbeSettingsState {
-    pub open: bool,
-    pub editor: ProxyProbeEditor,
+    pub dialog: ProbeSettingsDialogState,
+    pub editor: RuntimeProbeSettingsEditor,
     pub request: Option<(RequestId, u64)>,
     sync_fields: bool,
 }
 
 pub fn launcher(palette: &UiPalette) -> impl Scene + use<> {
     bsn! {
-        Node { min_height: px(palette.control_height_px), padding: UiRect::axes(px(12.0), px(8.0)), align_items: AlignItems::Center, column_gap: px(8.0) }
+        Node { min_height: rem(palette.control_height_px), padding: UiRect::axes(rem(12.0), rem(8.0)), align_items: AlignItems::Center, column_gap: rem(8.0) }
         Button OpenProbeSettings LocalizedLabel::plain("proxy_probe_settings_title")
         Children [
             LocalizedText::plain("proxy_probe_settings_title") TextRole(Role::Caption)
@@ -80,25 +92,25 @@ pub fn modal(palette: &UiPalette) -> impl Scene + use<> {
         ProbeSettingsRoot GlobalZIndex(110)
         Children [
             Node { position_type: PositionType::Absolute, width: percent(100), height: percent(100) }
-            BackgroundColor({ palette.scrim }) ModalScrim Button CancelProbeSettings ButtonDisabled(false)
+            ThemeBackgroundColor({ Token::Scrim }) ModalScrim Button CancelProbeSettings ButtonDisabled(false)
             --
-            Node { width: percent(90), max_width: px(520.0), max_height: percent(90), padding: UiRect::all(px(16.0)), flex_direction: FlexDirection::Column, row_gap: px(12.0) }
-            BackgroundColor({ palette.surface }) ModalDialogCard ProbeSettingsCard
+            Node { width: percent(90), max_width: rem(520.0), max_height: percent(90), padding: UiRect::all(rem(16.0)), flex_direction: FlexDirection::Column, row_gap: rem(12.0) }
+            ThemeBackgroundColor({ Token::Surface }) ModalDialogCard ProbeSettingsCard
             AccessibilityNode(semantic) LocalizedLabel::plain("proxy_probe_settings_title")
             Children [
                 LocalizedText::plain("proxy_probe_settings_title") TextRole(Role::Heading)
                 --
-                Node { width: percent(100), min_height: px(0.0), flex_shrink: 1.0, flex_direction: FlexDirection::Column, row_gap: px(12.0), overflow: Overflow::scroll_y() }
+                Node { width: percent(100), min_height: px(0.0), flex_shrink: 1.0, flex_direction: FlexDirection::Column, row_gap: rem(12.0), overflow: Overflow::scroll_y() }
                 ScrollArea ProbeSettingsScrollArea
                 Children [
                 LocalizedText::plain("proxy_probe_settings_description") TextRole(Role::Caption)
                 --
-                LocalizedText::plain("proxies_delay_test_url_label") TextRole(Role::Body)
+                LocalizedText::plain("runtime_probe_url_label") TextRole(Role::Body)
                 --
                 Node { width: percent(100) } ProbeUrlField
                 Children [ @{ text_field_with_placeholder_scene(String::new(), "https://example.test/204".into(), palette) } ]
                 --
-                LocalizedText::plain("proxies_delay_timeout_label") TextRole(Role::Body)
+                LocalizedText::plain("runtime_probe_timeout_label") TextRole(Role::Body)
                 --
                 Node { width: percent(100) } ProbeTimeoutField
                 Children [ @{ text_field_with_placeholder_scene(String::new(), "5000".into(), palette) } ]
@@ -108,11 +120,11 @@ pub fn modal(palette: &UiPalette) -> impl Scene + use<> {
                 --
                 Node { width: percent(100), justify_content: JustifyContent::SpaceBetween, flex_shrink: 0.0 }
                 Children [
-                    Node { min_height: px(palette.control_height_px), padding: UiRect::axes(px(12.0), px(8.0)) }
+                    Node { min_height: rem(palette.control_height_px), padding: UiRect::axes(rem(12.0), rem(8.0)) }
                     Button CancelProbeSettings ButtonDisabled(false)
                     Children [ LocalizedText::plain("modal_cancel") TextRole(Role::Body) ]
                     --
-                    Node { min_height: px(palette.control_height_px), padding: UiRect::axes(px(12.0), px(8.0)) }
+                    Node { min_height: rem(palette.control_height_px), padding: UiRect::axes(rem(12.0), rem(8.0)) }
                     Button ApplyProbeSettings ButtonDisabled(true)
                     Children [ LocalizedText::plain("proxy_probe_settings_apply") TextRole(Role::BodyStrong) ]
                 ]
@@ -132,20 +144,26 @@ pub fn activate(
 ) {
     if open.contains(event.entity) {
         state.editor.observe(&latest.0.probe_settings);
-        state.open = true;
+        state.dialog = ProbeSettingsDialogState::Editing;
         state.sync_fields = true;
-    } else if cancel.contains(event.entity) && state.open && state.editor.pending.is_none() {
+    } else if cancel.contains(event.entity)
+        && state.dialog == ProbeSettingsDialogState::Editing
+        && !state.editor.is_pending()
+    {
         state.editor.cancel();
-        state.open = false;
+        state.dialog = ProbeSettingsDialogState::Closed;
         state.sync_fields = true;
-    } else if apply.contains(event.entity) && state.open && state.editor.can_apply() {
+    } else if apply.contains(event.entity)
+        && state.dialog == ProbeSettingsDialogState::Editing
+        && state.editor.can_apply()
+    {
         let pending = match state.editor.begin() {
             Ok(pending) => pending,
             Err(_) => return,
         };
         if let Some(request) = sink.and_then(|sink| {
-            sink.submit_tracked(UiCommand::SetProxyProbeOptions {
-                options: pending.options,
+            sink.submit_tracked(UiCommand::SetRuntimeProbeSettings {
+                settings: pending.settings,
             })
         }) {
             state.request = Some((request, pending.token));
@@ -166,25 +184,26 @@ pub fn finish(event: On<CommandExecutedEvent>, mut state: ResMut<ProbeSettingsSt
     let Some((request, token)) = state.request else {
         return;
     };
-    let UiCommand::SetProxyProbeOptions { options } = &event.command else {
+    let UiCommand::SetRuntimeProbeSettings { settings } = &event.command else {
         return;
     };
-    if request != event.request_id
-        || !state
-            .editor
-            .pending
-            .as_ref()
-            .is_some_and(|pending| pending.token == token && pending.options == *options)
-    {
+    let Some(pending) = state.editor.pending() else {
+        return;
+    };
+    if request != event.request_id || pending.token != token || pending.settings != *settings {
         return;
     }
-    let success = event.unit_result().is_ok();
-    if state.editor.finish(token, event.unit_result()) {
-        state.request = None;
-        state.sync_fields = true;
-        if success {
-            state.open = false;
+    match state.editor.finish(token, event.unit_result()) {
+        RuntimeProbeSettingsWriteOutcome::Saved => {
+            state.request = None;
+            state.sync_fields = true;
+            state.dialog = ProbeSettingsDialogState::Closed;
         }
+        RuntimeProbeSettingsWriteOutcome::Failed => {
+            state.request = None;
+            state.sync_fields = true;
+        }
+        RuntimeProbeSettingsWriteOutcome::Stale => {}
     }
 }
 
@@ -202,16 +221,22 @@ pub fn sync_fields(
             let Ok((mut field, mut focus)) = fields.get_mut(*child) else {
                 continue;
             };
-            let value = if url {
-                &state.editor.draft.test_url
-            } else {
-                &state.editor.draft.timeout_ms
-            };
+            let value = state.editor.draft().map_or("", |draft| {
+                if url {
+                    draft.url.as_str()
+                } else {
+                    draft.timeout_ms.as_str()
+                }
+            });
             if state.sync_fields {
                 if field.0.text() != value {
-                    field.0.apply(TextFieldInput::SetText(value.clone()));
+                    field.0.apply(TextFieldInput::SetText(value.to_owned()));
                 }
-            } else if state.open && state.editor.pending.is_none() && field.0.text() != value {
+            } else if state.dialog == ProbeSettingsDialogState::Editing
+                && !state.editor.is_pending()
+                && state.editor.applied().is_some()
+                && field.0.text() != value
+            {
                 let value = field.0.text().to_owned();
                 if url {
                     state.editor.edit_url(value);
@@ -219,7 +244,9 @@ pub fn sync_fields(
                     state.editor.edit_timeout(value);
                 }
             }
-            let disabled = !state.open || state.editor.pending.is_some();
+            let disabled = state.dialog != ProbeSettingsDialogState::Editing
+                || state.editor.is_pending()
+                || state.editor.applied().is_none();
             if field.0.is_disabled() != disabled {
                 field.0.set_disabled(disabled);
             }
@@ -237,22 +264,22 @@ pub fn sync_editor(
     latest: Res<LatestSurfaceSnapshot>,
     mut state: ResMut<ProbeSettingsState>,
 ) {
-    let previous = state.editor.draft.clone();
+    let previous = state.editor.draft().cloned();
     state.editor.observe(&latest.0.probe_settings);
-    state.sync_fields |= state.editor.draft != previous;
-    if route.0 != Some(Route::Proxies) && state.open {
-        if state.editor.pending.is_none() {
+    state.sync_fields |= state.editor.draft().cloned() != previous;
+    if route.0 != Some(Route::Proxies) && state.dialog == ProbeSettingsDialogState::Editing {
+        if !state.editor.is_pending() {
             state.editor.cancel();
         }
-        state.open = false;
+        state.dialog = ProbeSettingsDialogState::Closed;
         state.sync_fields = true;
     }
     if keys.is_some_and(|keys| keys.just_pressed(KeyCode::Escape))
-        && state.open
-        && state.editor.pending.is_none()
+        && state.dialog == ProbeSettingsDialogState::Editing
+        && !state.editor.is_pending()
     {
         state.editor.cancel();
-        state.open = false;
+        state.dialog = ProbeSettingsDialogState::Closed;
         state.sync_fields = true;
     }
 }
@@ -265,10 +292,9 @@ pub fn sync_surface(
     mut text_rows: Query<(&mut Text, Has<ProbeAppliedSummary>), ProbeCopyRows>,
 ) {
     for mut root in &mut roots {
-        let display = if state.open {
-            Display::Flex
-        } else {
-            Display::None
+        let display = match state.dialog {
+            ProbeSettingsDialogState::Closed => Display::None,
+            ProbeSettingsDialogState::Editing => Display::Flex,
         };
         if root.display != display {
             root.display = display;
@@ -278,20 +304,20 @@ pub fn sync_surface(
         let disabled = if apply {
             !state.editor.can_apply()
         } else {
-            state.editor.pending.is_some()
+            state.editor.is_pending()
         };
         if button.0 != disabled {
             button.0 = disabled;
         }
     }
+    let validation = state.editor.validation();
     let message = state
         .editor
-        .failure
-        .as_ref()
-        .or(state.editor.validation.as_ref())
+        .failure()
+        .or(validation.as_ref())
         .map(|failure| failure.message.clone())
         .unwrap_or_else(|| {
-            if state.editor.pending.is_some() {
+            if state.editor.is_pending() {
                 LocalizedText::plain("proxy_probe_settings_pending").render(&locale)
             } else {
                 String::new()
@@ -299,9 +325,8 @@ pub fn sync_surface(
         });
     let applied = state
         .editor
-        .applied
-        .as_ref()
-        .map(|options| format!("{} · {} ms", options.test_url, options.timeout_ms))
+        .applied()
+        .map(|settings| format!("{} · {} ms", settings.url(), settings.timeout_ms()))
         .unwrap_or_else(|| {
             LocalizedText::plain("proxy_probe_settings_unavailable").render(&locale)
         });

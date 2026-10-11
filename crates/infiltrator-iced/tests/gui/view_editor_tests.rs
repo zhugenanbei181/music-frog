@@ -1,4 +1,7 @@
 use super::*;
+use crate::test_mounts::command_harness::{
+    attach_product_application_with_accepted_owner_snapshot, recording_application,
+};
 use crate::test_mounts::profile_edit_fixture;
 use iced::widget::text_editor::{Action, Cursor, Motion, Position};
 use infiltrator_contract::error::InfiltratorError;
@@ -84,6 +87,8 @@ fn the_snippet_bar_renders_the_shared_catalogue_and_not_a_local_copy() {
 #[test]
 fn insert_yaml_snippet_splices_through_the_shared_application() {
     let (mut state, _) = AppState::new();
+    let (application, _) = recording_application();
+    attach_product_application_with_accepted_owner_snapshot(&mut state, application);
     state.editor.editor_pane = EditorPane::Profile;
     seed_document(&mut state, "proxies:\n  - name: keep\n");
     state.editor.editor_content.move_to(caret_on(1, 16));
@@ -108,10 +113,26 @@ fn insert_yaml_snippet_splices_through_the_shared_application() {
 #[test]
 fn a_snippet_that_would_break_the_document_is_refused_and_the_buffer_survives() {
     let (mut state, _) = AppState::new();
+    let (application, handler) = recording_application();
+    attach_product_application_with_accepted_owner_snapshot(&mut state, application);
     state.editor.editor_pane = EditorPane::Profile;
     seed_document(&mut state, "mode: rule\n");
     // Splitting the scalar to open a block sequence is not valid YAML.
     state.editor.editor_content.move_to(caret_on(0, 6));
+
+    handler.4.lock().unwrap().push_back(Ok(
+        infiltrator_ports::profile_document_codec::ProfileDocumentSnippetOutcome::Rejected {
+            validation: infiltrator_contract::profile_document::DocumentValidation::Invalid {
+                diagnostics: vec![
+                    infiltrator_contract::profile_document::DocumentDiagnosticSnapshot {
+                        line: Some(1),
+                        column: Some(7),
+                        message: "snippet would make document invalid".into(),
+                    },
+                ],
+            },
+        },
+    ));
 
     let _ = state.update(Message::InsertYamlSnippet("select"));
 

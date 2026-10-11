@@ -1,0 +1,161 @@
+use std::collections::HashMap;
+
+use serde::Deserialize;
+
+const EMBEDDED_CATALOG: &str = include_str!("../assets/third_party_licenses.json");
+const MAX_CATALOG_BYTES: usize = 16 * 1024 * 1024;
+const MAX_PACKAGES: usize = 1024;
+const MAX_DOCUMENT_BYTES: usize = 1024 * 1024;
+
+#[derive(Deserialize)]
+struct CatalogFile {
+    format_version: u32,
+    packages: Vec<Package>,
+    documents: HashMap<String, String>,
+}
+
+#[derive(Deserialize)]
+struct Package {
+    id: String,
+    name: String,
+    version: String,
+    license: String,
+    documents: Vec<DocumentReference>,
+    error: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct DocumentReference {
+    id: String,
+    name: String,
+}
+
+pub struct Catalog {
+    packages: Vec<Package>,
+    documents: HashMap<String, String>,
+}
+
+#[derive(Clone)]
+pub struct Detail {
+    pub name: String,
+    pub version: String,
+    pub license: String,
+    pub text: String,
+    pub error: String,
+}
+
+impl Catalog {
+    pub fn load_embedded() -> anyhow::Result<Self> {
+        anyhow::ensure!(
+            EMBEDDED_CATALOG.len() <= MAX_CATALOG_BYTES,
+            "内置许可证清单超过大小限制"
+        );
+        #[allow(unused_mut)]
+        let mut catalog: CatalogFile = serde_json::from_str(EMBEDDED_CATALOG)?;
+        anyhow::ensure!(catalog.format_version == 1, "不支持此许可证清单版本");
+        anyhow::ensure!(
+            catalog.packages.len() <= MAX_PACKAGES,
+            "内置许可证依赖数量超过上限"
+        );
+        anyhow::ensure!(
+            catalog
+                .documents
+                .values()
+                .all(|text| text.len() <= MAX_DOCUMENT_BYTES),
+            "内置许可证正文超过大小限制"
+        );
+
+        #[cfg(target_os = "android")]
+        {
+            anyhow::ensure!(
+                catalog.packages.len() < MAX_PACKAGES,
+                "内置许可证依赖数量超过上限"
+            );
+            catalog.packages.push(Package {
+                id: "bundled:mihomo-android-core".into(),
+                name: "Mihomo Core".into(),
+                version: "v1.19.32".into(),
+                license: "GPL-3.0-only".into(),
+                documents: vec![DocumentReference {
+                    id: "2a58a6bf30890c2ecd016248bacc9186d725fbf6e6b79ae779ae7242572e0e15".into(),
+                    name: "GPL-3.0-only".into(),
+                }],
+                error: None,
+            });
+        }
+
+        Ok(Self {
+            packages: catalog.packages,
+            documents: catalog.documents,
+        })
+    }
+
+    pub fn rows(&self, query: &str) -> Vec<crate::LicenseRow> {
+        let query = query
+            .trim()
+            .chars()
+            .take(256)
+            .collect::<String>()
+            .to_lowercase();
+        self.packages
+            .iter()
+            .filter(|package| {
+                query.is_empty()
+                    || package.name.to_lowercase().contains(&query)
+                    || package.version.to_lowercase().contains(&query)
+                    || package.license.to_lowercase().contains(&query)
+            })
+            .map(|package| crate::LicenseRow {
+                id: package.id.clone().into(),
+                name: package.name.clone().into(),
+                version: package.version.clone().into(),
+                identifier: package.license.clone().into(),
+            })
+            .collect()
+    }
+
+    pub fn detail(&self, package_id: &str) -> Option<Detail> {
+        let package = self
+            .packages
+            .iter()
+            .find(|package| package.id == package_id)?;
+        let mut text = String::new();
+        let mut missing_document = false;
+        for reference in &package.documents {
+            if let Some(body) = self.documents.get(&reference.id) {
+                if !text.is_empty() {
+                    text.push_str("\n\n");
+                }
+                text.push_str("--- ");
+                text.push_str(&reference.name);
+                text.push_str(" ---\n\n");
+                text.push_str(body);
+            } else {
+                missing_document = true;
+            }
+        }
+        let error = package
+            .error
+            .clone()
+            .or_else(|| missing_document.then(|| "许可证正文文件不完整，请重试读取。".into()))
+            .or_else(|| {
+                text.is_empty()
+                    .then(|| "此依赖没有可读取的许可证正文，请重试读取。".into())
+            })
+            .unwrap_or_default();
+
+        if package.id == "bundled:mihomo-android-core" {
+            text.insert_str(
+                0,
+                "Mihomo source code: https://github.com/MetaCubeX/mihomo/tree/v1.19.32\n\n",
+            );
+        }
+        Some(Detail {
+            name: package.name.clone(),
+            version: package.version.clone(),
+            license: package.license.clone(),
+            text,
+            error,
+        })
+    }
+}

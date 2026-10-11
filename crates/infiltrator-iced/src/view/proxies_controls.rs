@@ -8,16 +8,24 @@ use crate::view::theme::{self, tokens};
 use iced::advanced::widget::Id;
 use iced::widget::{Space, button, column, container, row, text, text_input};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
+use infiltrator_contract::outbound::{
+    inventory::OutboundInventoryState, preferences::OutboundSortOrder,
+};
 use infiltrator_shared::i18n_interpolator::interpolate;
 use infiltrator_shared::locales::{Lang, Localizer};
 
-/// Sort options already understood by `Message::UpdateProxyDelaySort`.
-pub(super) const SORT_KEYS: [&str; 4] = ["delay_asc", "delay_desc", "name_asc", "name_desc"];
+/// Product outbound sorting uses the shared typed preference vocabulary.
+pub(super) const SORT_ORDERS: [OutboundSortOrder; 4] = [
+    OutboundSortOrder::LatencyAscending,
+    OutboundSortOrder::LatencyDescending,
+    OutboundSortOrder::NameAscending,
+    OutboundSortOrder::NameDescending,
+];
 pub(super) const SORT_LABEL_KEYS: [&str; 4] = [
-    "runtime_delay_sort_delay_asc",
-    "runtime_delay_sort_delay_desc",
-    "runtime_delay_sort_name_asc",
-    "runtime_delay_sort_name_desc",
+    "outbound_sort_latency_ascending",
+    "outbound_sort_latency_descending",
+    "outbound_sort_name_ascending",
+    "outbound_sort_name_descending",
 ];
 
 pub fn controls<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a, Message> {
@@ -56,8 +64,8 @@ pub fn controls<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a, Message
     .align_y(Alignment::Center);
 
     let mut sort_segment = row![].spacing(2);
-    for (index, key) in SORT_KEYS.iter().enumerate() {
-        let active = state.runtime.proxy_delay_sort == *key;
+    for (index, order) in SORT_ORDERS.iter().copied().enumerate() {
+        let active = state.runtime.outbound_sort_order == order;
         let label = text(lang.tr(SORT_LABEL_KEYS[index]))
             .size(11)
             .font(if active {
@@ -102,7 +110,7 @@ pub fn controls<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a, Message
         );
 
         if !active {
-            segment = segment.on_press(Message::UpdateProxyDelaySort((*key).to_string()));
+            segment = segment.on_press(Message::SetOutboundSortOrder(order));
         }
 
         sort_segment = sort_segment.push(segment);
@@ -141,7 +149,16 @@ pub fn controls<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a, Message
         .width(Length::Fill)
         .into()
     };
-    let status = if let Some(failure) = &state.runtime.proxy_search.failure {
+    let typed_inventory_ready = state.is_product_command_ingress()
+        && state
+            .runtime
+            .outbound_inventory
+            .data
+            .as_ref()
+            .is_some_and(|snapshot| {
+                matches!(snapshot.inventory(), OutboundInventoryState::Ready { .. })
+            });
+    let status = if let Some(failure) = state.runtime.proxy_search.failure() {
         row![
             text(interpolate(
                 lang.tr("proxies_search_failed").as_ref(),
@@ -153,7 +170,7 @@ pub fn controls<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a, Message
         ]
         .spacing(theme::SP_SM)
         .into()
-    } else if let Some(failure) = &state.runtime.proxy_preferences.failure {
+    } else if let Some(failure) = state.runtime.proxy_preferences.failure() {
         Element::from(
             text(interpolate(
                 lang.tr("proxies_preferences_failed").as_ref(),
@@ -161,6 +178,8 @@ pub fn controls<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a, Message
             ))
             .size(12),
         )
+    } else if typed_inventory_ready && state.runtime.filter_alive_only {
+        Element::from(text(lang.tr("proxies_alive_filter_unknown")).size(12))
     } else if !state.runtime.proxy_filter.trim().is_empty()
         && state
             .runtime
@@ -180,14 +199,14 @@ pub fn controls<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a, Message
 
 /// Compact bordered control group for the delay-test endpoint.
 fn delay_test_group<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {
-    let options = state.runtime.probe_options_editor.applied.as_ref();
-    let caption = options
-        .map(|options| format!("{} · {} ms", options.test_url, options.timeout_ms))
+    let settings = state.runtime.runtime_probe_settings_editor.applied();
+    let caption = settings
+        .map(|settings| format!("{} · {} ms", settings.url(), settings.timeout_ms()))
         .unwrap_or_else(|| lang.tr("proxy_probe_settings_unavailable").into_owned());
     container(
         row![
             button(text(lang.tr("proxy_probe_settings_title")).size(12))
-                .on_press(Message::OpenProxyProbeOptions),
+                .on_press(Message::OpenRuntimeProbeSettings),
             text(caption).size(11).width(Length::Fill),
         ]
         .spacing(theme::SP_SM)

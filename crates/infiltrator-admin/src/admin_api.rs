@@ -20,15 +20,15 @@ use self::handlers::kernel::{
     list_core_versions_http, update_stable_core_http,
 };
 use self::handlers::log_admin_request;
+use self::handlers::outbounds::{
+    get_outbounds_http, probe_outbound_http, probe_outbounds_batch_http, select_outbound_http,
+};
 use self::handlers::profiles::{
     clear_profile_subscription_http, clear_profiles_http, delete_profile_http, get_profile_http,
     import_profile_http, list_profiles_http, save_profile_http, set_profile_subscription_http,
     switch_profile_http, update_profile_now_http,
 };
-use self::handlers::proxies::{
-    get_proxies_http, list_runtime_proxy_delays_http, select_proxy_http, set_proxy_mode_http,
-    test_all_runtime_proxy_delays_http, test_runtime_proxy_delay_http,
-};
+use self::handlers::routing_intent::{apply_routing_intent_http, get_routing_intent_http};
 use self::handlers::runtime::{
     close_all_runtime_connections_http, close_runtime_connection_http, get_runtime_ip_http,
     get_runtime_memory_http, get_runtime_status_http, get_runtime_traffic_http,
@@ -84,9 +84,20 @@ pub fn router<C: AdminApiContext>(state: AdminApiState<C>) -> Router {
             get(get_app_settings_http::<C>).post(save_app_settings_http::<C>),
         )
         .route("/admin/api/capabilities", get(get_capabilities_http::<C>))
-        .route("/admin/api/proxies", get(get_proxies_http::<C>))
-        .route("/admin/api/proxy/mode", post(set_proxy_mode_http::<C>))
-        .route("/admin/api/proxy/select", post(select_proxy_http::<C>))
+        .route("/admin/api/outbounds", get(get_outbounds_http::<C>))
+        .route(
+            "/admin/api/outbounds/select",
+            post(select_outbound_http::<C>),
+        )
+        .route("/admin/api/outbounds/probe", post(probe_outbound_http::<C>))
+        .route(
+            "/admin/api/outbounds/probe-batch",
+            post(probe_outbounds_batch_http::<C>),
+        )
+        .route(
+            "/admin/api/routing-intent",
+            get(get_routing_intent_http::<C>).post(apply_routing_intent_http::<C>),
+        )
         .route(
             "/admin/api/dns",
             get(get_dns_config_http::<C>).post(save_dns_config_http::<C>),
@@ -150,18 +161,6 @@ pub fn router<C: AdminApiContext>(state: AdminApiState<C>) -> Router {
         .route(
             "/admin/api/runtime/connections/{id}",
             delete(close_runtime_connection_http::<C>),
-        )
-        .route(
-            "/admin/api/runtime/proxies",
-            get(list_runtime_proxy_delays_http::<C>),
-        )
-        .route(
-            "/admin/api/runtime/delay/test",
-            post(test_runtime_proxy_delay_http::<C>),
-        )
-        .route(
-            "/admin/api/runtime/delay/test-all",
-            post(test_all_runtime_proxy_delays_http::<C>),
         )
         .route(
             "/admin/api/runtime/logs",

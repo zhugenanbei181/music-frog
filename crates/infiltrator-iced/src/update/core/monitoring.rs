@@ -11,8 +11,7 @@ use iced::Task;
 use iced::widget::Id;
 use iced::widget::operation::{scroll_to, snap_to};
 use iced::widget::scrollable::{AbsoluteOffset, RelativeOffset};
-use infiltrator_application::runtime_query_application::RuntimeQueryApplication;
-use infiltrator_contract::command::{CommandIntent, CoreLogLevel};
+use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_domain::connection_view::matches_search;
 use infiltrator_domain::runtime::ConnectionSnapshot;
@@ -93,7 +92,7 @@ impl AppState {
         ];
 
         if poll_tick.is_multiple_of(2) {
-            tasks.push(Task::done(Message::LoadProxies));
+            tasks.push(Task::done(Message::RefreshOutboundInventory));
         }
         if poll_tick.is_multiple_of(6) {
             tasks.push(Task::done(Message::FetchRuntimeConfig));
@@ -214,30 +213,26 @@ impl AppState {
                 self.diag.observe_log_records();
                 self.sync_logs_viewport_task()
             }
-            Message::RuntimeStreamLogReceived(generation, log) => {
-                if generation == self.runtime.runtime_generation {
+            Message::RuntimeStreamLogReceived(scope, log) => {
+                if self.core_lifecycle_snapshot().scope().as_ref() == Some(&scope) {
                     return self.update_core_monitoring(Message::LogReceived(log));
                 }
                 Task::none()
             }
-            Message::RuntimeStreamTrafficReceived(generation, data) => {
-                if generation == self.runtime.runtime_generation {
+            Message::RuntimeStreamTrafficReceived(scope, data) => {
+                if self.core_lifecycle_snapshot().scope().as_ref() == Some(&scope) {
                     return self.update_core_monitoring(Message::TrafficReceived(data));
                 }
                 Task::none()
             }
-            Message::RuntimeStreamConnectionsReceived(generation, data) => {
-                if generation == self.runtime.runtime_generation {
+            Message::RuntimeStreamConnectionsReceived(scope, data) => {
+                if self.core_lifecycle_snapshot().scope().as_ref() == Some(&scope) {
                     return self.update_core_monitoring(Message::ConnectionsReceived(data));
                 }
                 Task::none()
             }
-            Message::RuntimeStreamStateChanged {
-                kind,
-                generation,
-                state,
-            } => {
-                if generation != self.runtime.runtime_generation {
+            Message::RuntimeStreamStateChanged { kind, scope, state } => {
+                if self.core_lifecycle_snapshot().scope().as_ref() != Some(&scope) {
                     return Task::none();
                 }
                 match kind {
@@ -248,7 +243,7 @@ impl AppState {
                     }
                 }
                 if let RuntimeStreamState::Failed(error) = state {
-                    self.set_error(InfiltratorError::Mihomo(format!(
+                    self.set_error(InfiltratorError::Backend(format!(
                         "{} stream unavailable: {error}",
                         stream_kind_label(kind)
                     )));
@@ -256,7 +251,7 @@ impl AppState {
                 Task::none()
             }
             Message::RuntimePollFailed(error) => {
-                self.set_error(InfiltratorError::Mihomo(error));
+                self.set_error(InfiltratorError::Backend(error));
                 Task::none()
             }
             Message::LogsCommandFinished { generation, result } => {
@@ -281,7 +276,7 @@ impl AppState {
                 Task::none()
             }
             Message::ClearRuntimeLogs => {
-                if let Some(application) = self.commands.clone() {
+                if let Some(application) = self.command_ingress() {
                     let generation = self.runtime.core_lifecycle.generation;
                     return Task::perform(
                         async move {
@@ -299,34 +294,29 @@ impl AppState {
                 self.diag.observe_log_records();
                 Task::none()
             }
-            Message::SetLogLevel(level) => {
-                self.update_core_monitoring(Message::SetCoreLogLevel(level))
-            }
-            Message::SetCoreLogLevel(raw) => {
-                let Some(level) = CoreLogLevel::parse(&raw) else {
-                    let error =
-                        InfiltratorError::Internal(format!("unsupported core log level: {raw}"));
-                    self.set_error(&error);
-                    return Task::none();
-                };
-                let Some(runtime) = self.runtime.runtime.clone() else {
-                    let error = InfiltratorError::Internal(
-                        "core is not running; log level was not changed".to_owned(),
+            Message::SetCoreLogLevel(level) => {
+                if let Some(application) = self.command_ingress() {
+                    let previous = self.diag.log_level.clone();
+                    self.diag.log_level = level.as_key().to_owned();
+                    return Task::perform(
+                        async move {
+                            application
+                                .execute(CommandIntent::SetCoreLogLevel { level })
+                                .await
+                                .into_unit()
+                                .map_err(|failure| InfiltratorError::Internal(failure.message))
+                        },
+                        move |result| Message::CoreLogLevelFinished(result, previous),
                     );
-                    self.set_error(&error);
-                    return Task::none();
+                }
+                let message = if self.runtime.runtime.is_none() {
+                    "core is not running; log level was not changed"
+                } else {
+                    "Core owner command interface is unavailable; log level was not changed"
                 };
-                let previous = self.diag.log_level.clone();
-                self.diag.log_level = level.as_str().to_owned();
-                Task::perform(
-                    async move {
-                        RuntimeQueryApplication::new(runtime)
-                            .set_core_log_level(level)
-                            .await
-                            .map_err(|failure| InfiltratorError::Internal(failure.message))
-                    },
-                    move |result| Message::CoreLogLevelFinished(result, previous),
-                )
+                let error = InfiltratorError::Internal(message.to_owned());
+                self.set_error(&error);
+                Task::none()
             }
             Message::CoreLogLevelFinished(result, previous) => {
                 if let Err(error) = result {
@@ -339,7 +329,7 @@ impl AppState {
                 if self.diag.inspecting_connection_id.as_ref() == Some(&id) {
                     self.diag.inspecting_connection_id = None;
                 }
-                if let Some(application) = self.commands.clone() {
+                if let Some(application) = self.command_ingress() {
                     return Task::perform(
                         async move {
                             match (application
@@ -368,7 +358,7 @@ impl AppState {
                 }
             }
             Message::CloseAllConnections => {
-                if let Some(application) = self.commands.clone() {
+                if let Some(application) = self.command_ingress() {
                     Task::perform(
                         async move {
                             match (application

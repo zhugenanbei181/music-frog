@@ -1,5 +1,7 @@
 # THIRD-PARTY NOTICES / 第三方组件声明
 
+> 层级：L1
+
 This repository redistributes or vendored-builds the following third-party
 content. Each item keeps its upstream license. / 本仓库包含以下第三方内容，
 均遵循其上游许可协议。
@@ -36,24 +38,23 @@ Tauri 宿主于 release/0.20 一并移除，本仓库不再分发其任何产物
 
 This file covers vendored binaries and prebuilt third-party assets. Rust
 crates and npm packages are dependencies declared in `Cargo.toml` /
-`package.json` files and are governed by their own licenses. Since BEVY-008
-the bevy dependency stack added for the bevy-based desktop client is also
-recorded below (sections 7–11); other Rust crates and npm packages remain
-governed by their own licenses. / 本文件覆盖入库的二进制与预构建第三方资源；
-Rust crate 与 npm 依赖以其各自声明文件及许可证为准。自 BEVY-008 起，bevy 桌面
-客户端引入的 bevy 依赖栈另行登记于下方第 7–11 节；其余 Rust crate 与 npm 依赖
-仍以其各自声明文件及许可证为准。
+`package.json` files and are governed by their own licenses. The Bevy
+dependency stack for the desktop client is recorded below; other Rust crates
+and npm packages remain governed by their own declarations. / 本文件覆盖入库的
+二进制与预构建第三方资源；Rust crate 与 npm 依赖以其各自声明文件及许可证为准。
+Bevy 桌面客户端的依赖栈另行登记于下方；其余依赖以各自声明为准。
 
-## 4. Fonts bundled with the iced desktop client (`crates/infiltrator-iced/assets/fonts/`)
+## 4. Fonts shared by the native UI products (`crates/infiltrator-shared/assets/fonts/`)
 
-The native iced desktop client embeds the following fonts at build time
-(`include_bytes!`, loaded in `src/main.rs`; both under the **SIL Open Font
-License 1.1** with the standard font-name reservation clause):
+The Iced and Bevy desktop/mobile clients embed the following shared fonts at
+build time (`include_bytes!`; Inter and JetBrains Mono are under the **SIL Open
+Font License 1.1** with the standard font-name reservation clause):
 
 | File | Typeface / upstream | Version | License |
 |---|---|---|---|
 | `Inter-Regular.ttf`, `Inter-Medium.ttf`, `Inter-SemiBold.ttf` | [Inter](https://github.com/rsms/inter) by Rasmus Andersson | v4.1 | SIL OFL 1.1 |
 | `JetBrainsMono-Regular.ttf` | [JetBrains Mono](https://github.com/JetBrains/JetBrainsMono) by JetBrains | v2.304 | SIL OFL 1.1 |
+| `CJK-Regular.ttf` | HarmonyOS Sans SC, Huawei Device Co., Ltd. | Copyright 2021 | HarmonyOS Sans Fonts License Agreement |
 
 - Inter is the default UI face (Regular / Medium / SemiBold map to
   `font::Weight::Normal / Medium / Semibold`); JetBrains Mono is used for
@@ -65,15 +66,35 @@ License 1.1** with the standard font-name reservation clause):
   (<https://github.com/rsms/inter/blob/master/LICENSE.txt>,
   <https://github.com/JetBrains/JetBrainsMono/blob/master/OFL.txt>).
 - Reserved Font Names: none invoked; files keep their upstream names.
+- HarmonyOS Sans SC is embedded unmodified. The complete agreement is kept at
+  `crates/infiltrator-shared/assets/fonts/HarmonyOS-Sans-LICENSE.txt`; the
+  Iced and Bevy surfaces display its required product attribution in their
+  shell/settings UI, and the Slint UI does not embed this face.
 
-## 5. Icons bundled with the iced desktop client (`crates/infiltrator-iced/assets/icons/*.svg`)
+## 5. Shared functional icons (`crates/infiltrator-shared/assets/ui/`)
 
-The 28 monochrome stroke icons in `crates/infiltrator-iced/assets/icons/`
+The 30 monochrome stroke icons in `crates/infiltrator-shared/assets/ui/iced/svg/`
 are original hand-written SVGs modeled on the **Lucide** icon style
 (24x24 viewBox, `stroke-width="2"`, round caps/joins, `fill="none"`,
 `stroke="currentColor"`). Lucide itself is ISC-licensed; these files are not
 copies of upstream path data and are distributed with this project's license.
 For attribution of inspiration: <https://lucide.dev> (ISC).
+
+The 10 white-ink 64px PNG plates in `assets/ui/bevy/png/` are renderer-ready
+rasters derived from that SVG set. The imported Lumen SVGs and flag source/runtime
+assets carry the license files beside the shared catalog entries; their exact
+IDs, formats, variants, and provenance are recorded in
+`crates/infiltrator-shared/assets/asset-catalog.json`.
+
+The imported Slint screen and its reference source are retained under
+`crates/infiltrator-slint/lumen-source/`; the archive hash and per-file import
+manifest are recorded in `lumen-source/SOURCE_IMPORT_MANIFEST.json`. The
+upstream project README in the supplied archive states that Lumen is MIT
+licensed, but the archive did not contain a separate Lumen `LICENSE` file.
+MusicFrog keeps that attribution and records the upstream statement in the
+About view; this notice does not claim that an upstream license text was
+included in the archive. The vendored Material Slint component package keeps
+its own license at `crates/infiltrator-slint/lumen-source/material-1.1.0/LICENSE.md`.
 
 ## 6. Bevy 0.20.0 engine family (`bevy` facade + sub-crates)
 
@@ -242,6 +263,18 @@ checkouts (`~/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/`). /
   `boa_string`, `icu_normalizer` and friends) keep their own upstream licenses
   (MIT / Apache-2.0 / ICU and similar permissive terms) and are governed by
   their own manifests, per §3 above.
-- Purpose: the opt-in real ECMAScript interpreter behind the shared
-  `ScriptEnginePort` seam. See `docs/archive/SCRIPT_ENGINE_DECISION.md` §5.1/§7 for the
-  migration record and its honest limits (no heap quota, loop-budget timeout).
+- Purpose: real ECMAScript interpretation behind the shared `ScriptEnginePort`
+  seam. The sandbox does not currently enforce a heap quota or instruction-budget
+  timeout.
+
+## 12. Slint UI framework (`slint`, `slint-build`)
+
+- Source: crates.io, upstream [slint-ui/slint](https://github.com/slint-ui/slint),
+  pinned to the latest stable `1.18.1` release in `Cargo.toml` and `Cargo.lock`.
+  Product integration and platform build entry points are documented in the
+  [Slint crate guide](crates/infiltrator-slint/docs/README.md).
+- The upstream crate manifests declare
+  `GPL-3.0-only OR LicenseRef-Slint-Royalty-free-2.0 OR LicenseRef-Slint-Software-3.0`.
+  The selected distribution terms and accompanying license texts must follow
+  Slint's upstream license materials; the Rust crates are fetched at build time
+  and are not vendored in this repository.

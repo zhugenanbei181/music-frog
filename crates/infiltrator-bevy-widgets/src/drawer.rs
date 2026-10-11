@@ -7,7 +7,7 @@
 //! **Scene Adapter**: [`drawer_scene`] builds a declarative full-viewport scrim
 //! hosting the edge-docked panel at token borders and surface fills.
 
-use crate::palette::UiPalette;
+use crate::palette::{UiPalette, rem};
 use crate::popover::Rect;
 use crate::theme::space;
 use bevy::ecs::component::Component;
@@ -162,9 +162,9 @@ pub fn drawer_scene(
                 Val::Auto,
                 BorderRadius {
                     top_left: Val::Px(0.0).into(),
-                    top_right: Val::Px(palette.card_radius_px).into(),
+                    top_right: rem(palette.card_radius_px).into(),
                     bottom_left: Val::Px(0.0).into(),
-                    bottom_right: Val::Px(palette.card_radius_px).into(),
+                    bottom_right: rem(palette.card_radius_px).into(),
                 },
             ),
             DrawerPlacement::Right => (
@@ -175,9 +175,9 @@ pub fn drawer_scene(
                 px(0.0),
                 Val::Auto,
                 BorderRadius {
-                    top_left: Val::Px(palette.card_radius_px).into(),
+                    top_left: rem(palette.card_radius_px).into(),
                     top_right: Val::Px(0.0).into(),
-                    bottom_left: Val::Px(palette.card_radius_px).into(),
+                    bottom_left: rem(palette.card_radius_px).into(),
                     bottom_right: Val::Px(0.0).into(),
                 },
             ),
@@ -191,8 +191,8 @@ pub fn drawer_scene(
                 BorderRadius {
                     top_left: Val::Px(0.0).into(),
                     top_right: Val::Px(0.0).into(),
-                    bottom_left: Val::Px(palette.card_radius_px).into(),
-                    bottom_right: Val::Px(palette.card_radius_px).into(),
+                    bottom_left: rem(palette.card_radius_px).into(),
+                    bottom_right: rem(palette.card_radius_px).into(),
                 },
             ),
             DrawerPlacement::Bottom => (
@@ -203,8 +203,8 @@ pub fn drawer_scene(
                 Val::Auto,
                 px(0.0),
                 BorderRadius {
-                    top_left: Val::Px(palette.card_radius_px).into(),
-                    top_right: Val::Px(palette.card_radius_px).into(),
+                    top_left: rem(palette.card_radius_px).into(),
+                    top_right: rem(palette.card_radius_px).into(),
                     bottom_left: Val::Px(0.0).into(),
                     bottom_right: Val::Px(0.0).into(),
                 },
@@ -230,7 +230,7 @@ pub fn drawer_scene(
                     width: width_val,
                     height: height_val,
                     flex_direction: FlexDirection::Column,
-                    padding: UiRect::all(Val::Px(space::S16)),
+                    padding: UiRect::all(rem(space::S16)),
                     border: UiRect::all(Val::Px(palette.hairline_px)),
                     border_radius: radius_val,
                 }

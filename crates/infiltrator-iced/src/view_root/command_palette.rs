@@ -19,8 +19,8 @@ use iced::widget::{Space, button, column, container, row, text, text_input};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
 use infiltrator_application::command_palette_projection::localized_title;
 use infiltrator_contract::a11y::ShellA11yNode;
-use infiltrator_contract::command::ProxyMode;
 use infiltrator_contract::command_catalogue::{CommandCategory, CommandTarget, ShellPage};
+use infiltrator_contract::routing_intent::RoutingIntent;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 /// The Iced icon for a shared command target (presentation only).
@@ -39,11 +39,11 @@ pub fn command_icon(target: &CommandTarget) -> Icon {
             ShellPage::Sync => Icon::RefreshCw,
             ShellPage::Settings => Icon::Settings,
         },
-        CommandTarget::SetProxyMode(mode) => match mode {
-            ProxyMode::Rule => Icon::Target,
-            ProxyMode::Global => Icon::Globe,
-            ProxyMode::Direct => Icon::Zap,
-            ProxyMode::Script => Icon::Code2,
+        CommandTarget::SetRoutingIntent(intent) => match intent {
+            RoutingIntent::FollowRules => Icon::Target,
+            RoutingIntent::RouteAllThroughProxy => Icon::Globe,
+            RoutingIntent::BypassProxy => Icon::Zap,
+            RoutingIntent::EngineDefined(_) => Icon::Settings,
         },
         CommandTarget::SwitchProfile { .. } => Icon::Pin,
         CommandTarget::ToggleSystemProxy => Icon::Plug,
@@ -51,7 +51,7 @@ pub fn command_icon(target: &CommandTarget) -> Icon {
         CommandTarget::ToggleMiniHud => Icon::Activity,
         CommandTarget::CycleTheme => Icon::Settings,
         CommandTarget::FlushDnsCache => Icon::Trash2,
-        CommandTarget::TestAllProxyGroups => Icon::Zap,
+        CommandTarget::ProbeAllOutbounds => Icon::Zap,
         CommandTarget::RunDoctor => Icon::ListChecks,
         CommandTarget::CloseAllConnections => Icon::X,
         CommandTarget::RestartKernel => Icon::RefreshCw,
@@ -62,7 +62,7 @@ pub fn command_icon(target: &CommandTarget) -> Icon {
 pub fn command_category_badge(category: CommandCategory) -> BadgeKind {
     match category {
         CommandCategory::Navigation => BadgeKind::Accent,
-        CommandCategory::Modes => BadgeKind::Success,
+        CommandCategory::Routing => BadgeKind::Success,
         CommandCategory::Maintenance => BadgeKind::Warning,
         CommandCategory::Appearance => BadgeKind::Neutral,
         CommandCategory::Profiles => BadgeKind::Neutral,

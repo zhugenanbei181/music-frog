@@ -20,6 +20,7 @@ use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
 use bevy::scene::{Scene, bsn};
 use bevy::ui::{BackgroundColor, Node, UiRect, Val};
 use bevy::ui_widgets::{Activate, Button};
+use infiltrator_application::profile_edit_session::{ProfileEditFinish, ProfileEditOperationPhase};
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::editor::state::CodeEditorState;
 use infiltrator_bevy_widgets::localization::LocalizedText;
@@ -32,18 +33,18 @@ use infiltrator_contract::error::{ErrorCode, Failure};
 pub fn submit_document(state: &mut ProfileEditorState, handle: &CommandSinkHandle) {
     let pending = match state
         .session
-        .begin_document(state.buffer.full_text(), state.protection_override)
+        .begin_document(state.buffer.full_text(), state.write_authorization)
     {
         Ok(pending) => pending,
         Err(failure) => {
-            state.session.failure = Some(failure);
+            state.session.reject(failure);
             return;
         }
     };
     let CommandIntent::SaveProfileDocument {
-        source,
+        workspace_identity,
         content,
-        allow_protected,
+        authorization,
     } = pending.intent.clone()
     else {
         unreachable!()
@@ -52,9 +53,9 @@ pub fn submit_document(state: &mut ProfileEditorState, handle: &CommandSinkHandl
         state,
         handle,
         UiCommand::SaveProfileDocument {
-            source,
+            source: workspace_identity,
             content,
-            allow_protected,
+            authorization,
         },
         pending.operation,
     );
@@ -63,17 +64,24 @@ pub fn submit_mixin(state: &mut ProfileEditorState, handle: &CommandSinkHandle) 
     let pending = match state.session.begin_mixin(state.buffer.full_text()) {
         Ok(pending) => pending,
         Err(failure) => {
-            state.session.failure = Some(failure);
+            state.session.reject(failure);
             return;
         }
     };
-    let CommandIntent::SaveMixinOverlay { source, mixin_yaml } = pending.intent.clone() else {
+    let CommandIntent::SaveMixinOverlay {
+        workspace_identity,
+        mixin_yaml,
+    } = pending.intent.clone()
+    else {
         unreachable!()
     };
     submit(
         state,
         handle,
-        UiCommand::SaveMixinOverlay { source, mixin_yaml },
+        UiCommand::SaveMixinOverlay {
+            source: workspace_identity,
+            mixin_yaml,
+        },
         pending.operation,
     );
 }
@@ -86,13 +94,14 @@ fn submit(
     if let Some(id) = handle.submit_tracked(command) {
         state.save_request = Some((id, operation));
     } else {
-        let intent = state
-            .session
-            .pending
-            .as_ref()
-            .expect("prepared editor operation")
-            .intent
-            .clone();
+        let intent = match &state.session.operation {
+            ProfileEditOperationPhase::Pending(pending) => pending.intent.clone(),
+            ProfileEditOperationPhase::Ready
+            | ProfileEditOperationPhase::Failed(_)
+            | ProfileEditOperationPhase::Saved => {
+                unreachable!("prepared editor operation must retain its pending phase")
+            }
+        };
         state.session.finish(
             operation,
             &intent,
@@ -104,23 +113,27 @@ fn submit(
         );
     }
 }
-fn finish(state: &mut ProfileEditorState, event: &CommandExecutedEvent) -> bool {
+fn finish(state: &mut ProfileEditorState, event: &CommandExecutedEvent) -> ProfileEditFinish {
     let Some((id, operation)) = state.save_request else {
-        return false;
+        return ProfileEditFinish::Stale;
     };
-    let Some(pending) = state.session.pending.clone() else {
-        return false;
+    let pending = match &state.session.operation {
+        ProfileEditOperationPhase::Pending(pending) => pending.clone(),
+        ProfileEditOperationPhase::Ready
+        | ProfileEditOperationPhase::Failed(_)
+        | ProfileEditOperationPhase::Saved => return ProfileEditFinish::Stale,
     };
     if id != event.request_id || event.command.to_intent().as_ref() != Some(&pending.intent) {
-        return false;
+        return ProfileEditFinish::Stale;
     }
-    let accepted = state
+    let result = state
         .session
         .finish(operation, &pending.intent, event.result.clone());
-    if accepted {
-        state.save_request = None;
+    match result {
+        ProfileEditFinish::Stale => {}
+        ProfileEditFinish::Applied => state.save_request = None,
     }
-    accepted
+    result
 }
 pub fn receive(
     event: On<CommandExecutedEvent>,
@@ -128,22 +141,29 @@ pub fn receive(
     mut options: ResMut<ProfileEditorOptionsState>,
 ) {
     if matches!(event.command, UiCommand::SaveProfileDocument { .. }) {
-        if finish(&mut document, &event)
-            && let Ok(CommandOutput::ProfileDocumentSaved(saved)) = &event.result
-        {
-            document.loaded_content = Some(saved.document.content.clone());
-            document.dirty = false;
+        match finish(&mut document, &event) {
+            ProfileEditFinish::Stale => {}
+            ProfileEditFinish::Applied => {
+                if let Ok(CommandOutput::ProfileDocumentSaved(saved)) = &event.result {
+                    document.loaded_content = Some(saved.document.content.clone());
+                    document.dirty = false;
+                }
+            }
         }
-    } else if matches!(event.command, UiCommand::SaveMixinOverlay { .. })
-        && finish(&mut options.mixin, &event)
-        && let Ok(CommandOutput::ProfileMixinSaved(saved)) = &event.result
-    {
-        options.mixin.buffer = CodeEditorState::new(&saved.options.mixin_yaml);
-        options.mixin.loaded_content = Some(saved.options.mixin_yaml.clone());
-        options.mixin_loaded = Some(saved.options.mixin_yaml.clone());
-        options.mixin.dirty = false;
-        options.mixin.generation += 1;
-        document.load_document(&saved.document);
+    } else if matches!(event.command, UiCommand::SaveMixinOverlay { .. }) {
+        match finish(&mut options.mixin, &event) {
+            ProfileEditFinish::Stale => {}
+            ProfileEditFinish::Applied => {
+                if let Ok(CommandOutput::ProfileMixinSaved(saved)) = &event.result {
+                    options.mixin.buffer = CodeEditorState::new(&saved.options.mixin_yaml);
+                    options.mixin.loaded_content = Some(saved.options.mixin_yaml.clone());
+                    options.mixin_loaded = Some(saved.options.mixin_yaml.clone());
+                    options.mixin.dirty = false;
+                    options.mixin.generation += 1;
+                    document.load_document(&saved.document);
+                }
+            }
+        }
     }
 }
 #[derive(QueryData)]
@@ -190,7 +210,8 @@ pub fn controls(mut view: SaveControls) {
             } else {
                 &view.document.session
             };
-            session.pending.is_some() || session.source().is_none()
+            matches!(&session.operation, ProfileEditOperationPhase::Pending(_))
+                || session.source().is_none()
         } else {
             false
         };
@@ -236,13 +257,14 @@ pub fn discard(
             .session
             .source()
             .expect("discard adopted source")
-            .profile
-            .clone();
+            .document
+            .profile_id
+            .as_str()
+            .to_owned();
         state.loaded_content = Some(content);
         state.dirty = false;
-        state.protection_override = false;
+        state.write_authorization = Default::default();
         state.notice = None;
         state.generation += 1;
-        state.refresh_preflight();
     }
 }

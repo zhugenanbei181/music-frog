@@ -3,13 +3,14 @@
 
 use super::*;
 use crate::profile_document_application::ProfileDocumentApplication;
+use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
 
 #[tokio::test]
 async fn edited_writes_refuse_protected_subscriptions_until_unlocked() {
     let store = Arc::new(FakeStore::with_profile("main", "mode: rule\n", true));
     mark_subscription(&store, "main", "https://example.com/sub");
-    let profiles = ProfileApplication::new(Arc::clone(&store) as Arc<dyn ProfileStore>);
-    let source = profiles.load_workspace("main").await.unwrap().source;
+    let profiles = profiles_with_mihomo_codec(Arc::clone(&store) as Arc<dyn ProfileStore>);
+    let source = profiles.load_workspace("main").await.unwrap().identity();
     let application = ProfileDocumentApplication::new(profiles);
 
     let failure = application
@@ -17,7 +18,7 @@ async fn edited_writes_refuse_protected_subscriptions_until_unlocked() {
             None::<Arc<dyn ManagedRuntime>>,
             &source,
             "mode: global\n",
-            false,
+            ProfileWriteAuthorization::RequireUnlock,
         )
         .await
         .expect_err("direct edit of a protected subscription must fail");
@@ -33,7 +34,7 @@ async fn edited_writes_refuse_protected_subscriptions_until_unlocked() {
             None::<Arc<dyn ManagedRuntime>>,
             &source,
             "mode: global\n",
-            true,
+            ProfileWriteAuthorization::ExplicitUnlock,
         )
         .await
         .expect("the explicit unlock commits");

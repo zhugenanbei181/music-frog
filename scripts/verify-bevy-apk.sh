@@ -12,10 +12,14 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ROOT="${ANDROID_TOOLS_ROOT:-$HOME/android-tools-bevy}"
 SDK="$ROOT/android"
 AVD_NAME="bevy-smoke"
-PACKAGE="app.musicfrog.infiltrator_bevy_ui"
+identity_value() {
+    python3 "$REPO_ROOT/scripts/product_identity.py" --get "$1"
+}
+PACKAGE="$(identity_value bevy.application_id)"
+APK_NAME="$(identity_value bevy.smoke.apk_name)"
 ACTIVITY="$PACKAGE/android.app.NativeActivity"
 DRIVER="$REPO_ROOT/target/android-tools/apk-driver"
-APK="$DRIVER/target/debug/apk/infiltrator-bevy-ui.apk"
+APK="$DRIVER/target/debug/apk/$APK_NAME.apk"
 EVIDENCE="${EVIDENCE_DIR:-$ROOT/logs/evidence}"
 
 export JAVA_HOME="$ROOT/jdk"

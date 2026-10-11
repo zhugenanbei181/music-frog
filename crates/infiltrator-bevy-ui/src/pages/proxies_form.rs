@@ -7,6 +7,7 @@ use crate::pages::proxies_custom::{
     CustomNodeUriField, slot_initial,
 };
 use bevy::ecs::prelude::*;
+use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::*;
 use bevy::ui::widget::Text;
@@ -17,8 +18,10 @@ use infiltrator_application::protocol_codec_application::{
 use infiltrator_application::protocol_form::{
     ProtocolInputs, field_projection, special_projection, visible,
 };
+use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::text_input::TextField;
 use infiltrator_bevy_widgets::text_input::state::{TextFieldInput, ValidationStatus};
@@ -108,14 +111,14 @@ pub fn protocol_fields_scene(
         let display = if visible(id, draft) { Display::Flex } else { Display::None };
         let mut scene: Box<dyn Scene> = if field.toggle {
             Box::new(bsn! {
-                Node { width: percent(100), min_height: px(palette.control_height_px), flex_shrink: 0.0,
-                    padding: UiRect::all(px(8.0)), align_items: AlignItems::Center }
-                BackgroundColor({ palette.surface_elevated }) Button ProtocolToggle(id)
+                Node { width: percent(100), min_height: rem(palette.control_height_px), flex_shrink: 0.0,
+                    padding: UiRect::all(rem(8.0)), align_items: AlignItems::Center }
+                ThemeBackgroundColor({ Token::SurfaceElevated }) Button ProtocolToggle(id)
                 Children [ Text({ format!("{label}: {}", field.value) }) ProtocolFormText(ProtocolFormTextKind::Toggle(id)) TextRole(Role::Body) ]
             })
         } else {
             Box::new(bsn! {
-                Node { width: percent(100), flex_direction: FlexDirection::Column, row_gap: px(4.0), flex_shrink: 0.0 }
+                Node { width: percent(100), flex_direction: FlexDirection::Column, row_gap: rem(4.0), flex_shrink: 0.0 }
                 Children [
                     Text(label) TextRole(Role::Caption)
                     --
@@ -126,7 +129,7 @@ pub fn protocol_fields_scene(
         };
         if id == ProtocolField::Dialer {
             scene = Box::new(bsn! {
-                Node { width: percent(100), flex_direction: FlexDirection::Column, flex_shrink: 0.0, row_gap: px(4.0) }
+                Node { width: percent(100), flex_direction: FlexDirection::Column, flex_shrink: 0.0, row_gap: rem(4.0) }
                 Children [ Text({ lang.tr("custom_node_dialer_proxy").into_owned() }) TextRole(Role::Caption)
                     --
                     Node { width: percent(100), flex_shrink: 0.0 } CustomNodeDialerField CustomNodeInputField(CustomNodeInput::Dialer)
@@ -135,7 +138,7 @@ pub fn protocol_fields_scene(
             });
         } else if id == ProtocolField::CaPath {
             scene = Box::new(bsn! {
-                Node { width: percent(100), flex_direction: FlexDirection::Column, flex_shrink: 0.0, row_gap: px(4.0) }
+                Node { width: percent(100), flex_direction: FlexDirection::Column, flex_shrink: 0.0, row_gap: rem(4.0) }
                 Children [ Text({ lang.tr("custom_node_ca_path").into_owned() }) TextRole(Role::Caption)
                     --
                     Node { width: percent(100), flex_shrink: 0.0 } CustomNodeCaField CustomNodeInputField(CustomNodeInput::Ca)
@@ -151,7 +154,7 @@ pub fn protocol_fields_scene(
     }).collect();
     // The editor is a full field list with native scrolling supplied by its modal body.
     bsn! {
-        Node { width: percent(100), flex_direction: FlexDirection::Column, row_gap: px(10.0), flex_shrink: 0.0 }
+        Node { width: percent(100), flex_direction: FlexDirection::Column, row_gap: rem(10.0), flex_shrink: 0.0 }
         Children [ { fields } ]
     }
 }

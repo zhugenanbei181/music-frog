@@ -8,6 +8,7 @@ use crate::state::AppState;
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use iced::Task;
+use infiltrator_application::doctor_actions::DoctorActionFinish;
 use infiltrator_contract::doctor::DoctorAction;
 use infiltrator_contract::doctor::{BootstrapReport, DoctorFixReport, DoctorReport};
 use infiltrator_contract::error::InfiltratorError;
@@ -52,25 +53,24 @@ impl AppState {
             }
             Message::DoctorCommandFinished { token, result } => {
                 let failure = result.as_ref().err().cloned();
-                if self.diag.doctor.action.finish(token, result) {
-                    self.diag.doctor.error = failure.map(|failure| failure.message);
-                    if self.shell.demo
-                        && let Some(doctor) = &self.diag.doctor.capture_observation
-                    {
-                        let mut snapshot =
-                            self.surface.latest().expect("capture observation").clone();
-                        snapshot.revision += 1;
-                        snapshot.pages.doctor = doctor.page();
-                        self.apply_shared_surface_snapshot(snapshot);
+                match self.diag.doctor.action.finish(token, result) {
+                    DoctorActionFinish::Stale => {}
+                    DoctorActionFinish::Applied => {
+                        self.diag.doctor.error = failure.map(|failure| failure.message);
+                        if self.shell.demo
+                            && let Some(doctor) = &self.diag.doctor.capture_observation
+                        {
+                            let mut snapshot =
+                                self.surface.latest().expect("capture observation").clone();
+                            snapshot.revision += 1;
+                            snapshot.pages.doctor = doctor.page();
+                            self.apply_shared_surface_snapshot(snapshot);
+                        }
                     }
                 }
                 Task::none()
             }
-            Message::RetryDoctorCommand if !self.diag.doctor.action.can_retry() => Task::none(),
-            Message::RetryDoctorCommand => match self.diag.doctor.action.retry_action.clone() {
-                Some(action) => self.shared_doctor_command(action),
-                None => Task::none(),
-            },
+            Message::RetryDoctorCommand => self.shared_retry_doctor_command(),
             Message::DoctorReportReady(result) => {
                 self.diag.doctor.is_running = false;
                 match result {

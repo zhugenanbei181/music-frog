@@ -2,12 +2,16 @@
 //! (DUAL-07-05 retry/backoff, DUAL-07-06 single-flight).
 
 use super::*;
-use crate::profile_workspace_test_support::workspace;
+use crate::profile_document_codec_test_support::TestProfileDocumentCodec;
+use crate::profile_options_application::ProfileOptionsApplication;
+use crate::profile_workspace_test_support::workspace_with_raw_sidecar;
 use async_trait::async_trait;
 use chrono::Timelike;
-use infiltrator_contract::profile_source::ProfileSourceIdentity;
-use infiltrator_contract::subscription_import::SubscriptionImportChannel;
-use infiltrator_domain::profile_options::{FilterSpec, ProfileOptions};
+use infiltrator_contract::core_identity::EngineId;
+use infiltrator_contract::profile_document_identity::{ProfileId, ProfileWorkspaceIdentity};
+use infiltrator_contract::subscription_import::{
+    SubscriptionFilterDraft, SubscriptionImportChannel,
+};
 use infiltrator_domain::profiles::{ProfileInfo, ProfileMetadata};
 use infiltrator_domain::subscription::CheckedSubscriptionUrl;
 use infiltrator_ports::application_runtime::{
@@ -58,7 +62,7 @@ struct FakeStore {
     dir: PathBuf,
     current: Mutex<String>,
     profiles: Mutex<BTreeMap<String, (String, ProfileMetadata)>>,
-    options: Mutex<BTreeMap<String, ProfileOptions>>,
+    sidecars: Mutex<BTreeMap<String, Vec<u8>>>,
 }
 
 impl FakeStore {
@@ -73,33 +77,51 @@ impl FakeStore {
             dir: PathBuf::from(dir),
             current: Mutex::new(profile.to_string()),
             profiles: Mutex::new(profiles),
-            options: Mutex::new(BTreeMap::new()),
+            sidecars: Mutex::new(BTreeMap::new()),
         }
     }
 }
 
 #[async_trait]
 impl ProfileStore for FakeStore {
-    async fn load_workspace(&self, profile: &str) -> Result<ProfileWorkspace, PortError> {
+    fn engine_id(&self) -> EngineId {
+        EngineId::new("mihomo").expect("test engine ID")
+    }
+
+    async fn load_workspace(&self, profile: &ProfileId) -> Result<ProfileWorkspace, PortError> {
+        let profile = profile.as_str();
         let profiles = self.profiles.lock().unwrap();
-        let options = self.options.lock().unwrap();
-        let (content, _) = profiles
+        let sidecars = self.sidecars.lock().unwrap();
+        let (content, metadata) = profiles
             .get(profile)
             .ok_or_else(|| PortError::NotFound(profile.into()))?;
-        workspace(profile, content, options.get(profile))
+        workspace_with_raw_sidecar(
+            profile,
+            content.as_bytes(),
+            sidecars.get(profile).cloned(),
+            metadata.subscription_url.as_deref(),
+        )
     }
 
     async fn compare_and_save_workspace(
         &self,
-        expected: &ProfileSourceIdentity,
+        expected: &ProfileWorkspaceIdentity,
         update: &ProfileWorkspaceUpdate,
     ) -> Result<ProfileWorkspace, PortError> {
         let mut profiles = self.profiles.lock().unwrap();
-        let mut options = self.options.lock().unwrap();
+        let mut sidecars = self.sidecars.lock().unwrap();
+        let profile = expected.document.profile_id.as_str();
         let (content, _) = profiles
-            .get(&expected.profile)
-            .ok_or_else(|| PortError::NotFound(expected.profile.clone()))?;
-        if workspace(&expected.profile, content, options.get(&expected.profile))?.source
+            .get(profile)
+            .ok_or_else(|| PortError::NotFound(profile.into()))?;
+        let metadata = &profiles.get(profile).expect("profile exists").1;
+        if workspace_with_raw_sidecar(
+            profile,
+            content.as_bytes(),
+            sidecars.get(profile).cloned(),
+            metadata.subscription_url.as_deref(),
+        )?
+        .identity()
             != *expected
         {
             return Err(PortError::Rejected(Failure::new(
@@ -108,19 +130,22 @@ impl ProfileStore for FakeStore {
                 true,
             )));
         }
-        let stored_options = (!update.options.is_empty()).then_some(&update.options);
-        let result = workspace(&expected.profile, &update.content, stored_options)?;
-        profiles
-            .get_mut(&expected.profile)
-            .unwrap()
-            .0
-            .clone_from(&update.content);
-        match stored_options {
-            Some(stored) => {
-                options.insert(expected.profile.clone(), stored.clone());
+        let result = workspace_with_raw_sidecar(
+            profile,
+            &update.document_bytes,
+            update.sidecar_bytes.clone(),
+            metadata.subscription_url.as_deref(),
+        )?;
+        profiles.get_mut(profile).unwrap().0.clone_from(
+            &String::from_utf8(update.document_bytes.clone())
+                .map_err(|error| PortError::Io(error.to_string()))?,
+        );
+        match update.sidecar_bytes.as_ref() {
+            Some(sidecar) => {
+                sidecars.insert(profile.to_owned(), sidecar.clone());
             }
             None => {
-                options.remove(&expected.profile);
+                sidecars.remove(profile);
             }
         }
         Ok(result)
@@ -217,28 +242,6 @@ impl ProfileStore for FakeStore {
     }
 
     async fn delete_subscription_credential(&self, _profile: &str) -> Result<(), PortError> {
-        Ok(())
-    }
-
-    async fn delete_options(&self, _profile: &str) -> Result<(), PortError> {
-        Ok(())
-    }
-
-    async fn load_options(&self, profile: &str) -> Result<ProfileOptions, PortError> {
-        Ok(self
-            .options
-            .lock()
-            .expect("options lock")
-            .get(profile)
-            .cloned()
-            .unwrap_or_default())
-    }
-
-    async fn save_options(&self, profile: &str, options: &ProfileOptions) -> Result<(), PortError> {
-        self.options
-            .lock()
-            .expect("options lock")
-            .insert(profile.to_string(), options.clone());
         Ok(())
     }
 
@@ -515,7 +518,8 @@ async fn subscription_update_pipeline_regression_matrix() {
         metadata.update_interval_hours = None;
         metadata.cron_expression = Some("0 */6 * * *".to_string());
     }
-    let profile = ProfileApplication::new(Arc::clone(&store) as Arc<dyn ProfileStore>);
+    let profile = ProfileApplication::new(Arc::clone(&store) as Arc<dyn ProfileStore>)
+        .with_document_codec(Arc::new(TestProfileDocumentCodec::mihomo()));
 
     // 07-05/07-10: retry a transient failure then notify success.
     let notifier = Arc::new(RecordingNotifier::default());
@@ -562,16 +566,16 @@ async fn subscription_update_pipeline_regression_matrix() {
         )
         .await
         .expect("seed document");
-    let spec = FilterSpec {
-        exclude_keywords: vec!["广告".to_string()],
+    let draft = SubscriptionFilterDraft {
+        exclude: "广告".to_string(),
         ..Default::default()
     };
     let runtime: Option<Arc<dyn ManagedRuntime>> = None;
-    let report = profile
-        .apply_subscription_filter(
+    let report = ProfileOptionsApplication::new(profile.clone())
+        .save_filter(
             runtime,
-            &profile.load_workspace("main").await.unwrap().source,
-            spec,
+            &profile.load_workspace("main").await.unwrap().identity(),
+            &draft,
         )
         .await
         .expect("filter pipeline")
@@ -599,6 +603,7 @@ async fn subscription_update_pipeline_regression_matrix() {
 #[tokio::test]
 async fn command_application_update_profile_uses_the_shared_retry_seam() {
     use crate::command_application::CommandApplication;
+    use crate::core_capability_test_support::{execute_core_command, with_test_capabilities};
     use infiltrator_contract::command::CommandIntent;
 
     let store = Arc::new(FakeStore::new(
@@ -609,17 +614,21 @@ async fn command_application_update_profile_uses_the_shared_retry_seam() {
     let profile = ProfileApplication::new(store);
     let runtime = Arc::new(RecordingRuntime::default());
     let source = Arc::new(FlakySource::new(2));
-    let application = CommandApplication::new()
-        .with_profile(profile)
-        .with_subscription_source(source.clone() as Arc<dyn SubscriptionSource>)
-        .with_application_runtime(runtime.clone());
+    let application = with_test_capabilities(
+        CommandApplication::new()
+            .with_profile(profile)
+            .with_subscription_source(source.clone() as Arc<dyn SubscriptionSource>)
+            .with_application_runtime(runtime.clone()),
+    );
 
-    application
-        .execute(CommandIntent::UpdateProfile {
+    execute_core_command(
+        &application,
+        CommandIntent::UpdateProfile {
             profile_id: "main".to_owned(),
-        })
-        .await
-        .expect("the shared command path retries to success");
+        },
+    )
+    .await
+    .expect("the shared command path retries to success");
 
     assert_eq!(
         source.calls(),

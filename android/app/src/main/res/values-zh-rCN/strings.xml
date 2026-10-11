@@ -1,6 +1,4 @@
 <resources>
-    <string name="app_name">MusicFrog Infiltrator</string>
-
     <!-- Navigation -->
     <string name="nav_overview">概览</string>
     <string name="nav_profiles">配置</string>
@@ -18,19 +16,13 @@
     <string name="status_stopped">已停止</string>
     <string name="status_active">已激活</string>
     <string name="status_idle">未运行</string>
+    <string name="status_unknown">未知</string>
     <string name="action_grant_permission">授予权限</string>
     <string name="action_start">启动</string>
     <string name="action_stop">停止</string>
     <string name="action_restart">重启</string>
     <string name="action_refresh_ip">刷新 IP</string>
     
-    <string name="status_proxy_mode">代理模式</string>
-    <string name="action_change_mode">切换模式</string>
-    <string name="mode_rule">规则</string>
-    <string name="mode_global">全局</string>
-    <string name="mode_direct">直连</string>
-    <string name="mode_script">脚本</string>
-
     <string name="card_traffic">流量统计</string>
     <string name="card_network_diagnostics">网络诊断</string>
     <string name="label_upload">上传</string>
@@ -72,8 +64,6 @@
     <string name="error_load_profiles">加载配置失败</string>
 
     <!-- Proxies -->
-    <string name="text_proxy_group_none">无</string>
-    <string name="text_empty_proxies">未找到代理组</string>
 
     <!-- Settings Main -->
     <string name="setting_battery_title">后台运行与电池优化</string>
@@ -104,6 +94,8 @@
     <string name="routing_mode_proxy_all">代理所有应用</string>
     <string name="routing_mode_proxy_selected">仅代理选中 (白名单)</string>
     <string name="routing_mode_bypass_selected">仅绕过选中 (黑名单)</string>
+    <string name="routing_mode_unavailable">路由状态不可用</string>
+    <string name="action_retry">重试</string>
     <string name="search_apps_hint">搜索应用</string>
     <string name="tab_user_apps">用户应用</string>
     <string name="tab_system_apps">系统应用</string>
@@ -134,6 +126,7 @@
     <string name="action_disconnect">断开</string>
     <string name="action_close_all">全部断开</string>
     <string name="text_saved">设置已保存</string>
+    <string name="setting_not_explicit">使用 Mihomo 默认值</string>
 
     <!-- Connections -->
     <string name="label_host_filter">主机过滤</string>
@@ -149,6 +142,9 @@
     <string name="dns_enable_desc">启用内部 DNS 服务器</string>
     <string name="label_enhanced_mode">增强模式</string>
     <string name="desc_enhanced_mode">fake-ip / redir-host</string>
+    <string name="enhanced_mode_disabled">禁用</string>
+    <string name="enhanced_mode_fake_ip">Fake-IP</string>
+    <string name="enhanced_mode_redir_host">Redir-Host</string>
     <string name="option_auto">自动</string>
     <string name="option_enabled">启用</string>
     <string name="option_disabled">禁用</string>
@@ -166,10 +162,13 @@
     <string name="fakeip_store">持久化 Fake-IP</string>
     <string name="fakeip_store_desc">将映射表保存到磁盘</string>
     <string name="label_fakeip_range">Fake-IP 网段</string>
+    <string name="fakeip_default_range">Mihomo 默认值 (198.18.0.1/16)</string>
     <string name="desc_cidr">CIDR 格式 (如 198.18.0.1/16)</string>
     <string name="label_fakeip_filter">Fake-IP 过滤</string>
     <string name="desc_fakeip_filter">排除的域名 (每行一个)</string>
-    <string name="action_clear_cache">清除缓存</string>
+    <string name="action_clear_host_fakeip_file_cache">清除宿主 Fake-IP 文件缓存</string>
+    <string name="fakeip_host_cache_cleared">宿主 Fake-IP 文件缓存已清除</string>
+    <string name="fakeip_host_cache_already_empty">宿主 Fake-IP 文件缓存已经为空</string>
 
     <!-- Rules Settings -->
     <string name="rules_settings_title">规则管理</string>
@@ -177,6 +176,9 @@
     <string name="label_new_rule">规则 (如 DOMAIN-SUFFIX,google.com,Proxy)</string>
     <string name="section_active_rules">当前规则</string>
     <string name="text_no_rules">暂无规则</string>
+    <string name="text_rules_unavailable">规则数据不可用，请重新加载。</string>
+    <string name="text_rule_providers_unavailable">规则提供者数据不可用，请重新加载。</string>
+    <string name="text_save_before_reload">重新加载前请先保存更改。</string>
     <string name="action_remove">移除</string>
     <string name="action_save_rules">保存规则</string>
     <string name="section_providers">规则提供者</string>
@@ -199,6 +201,8 @@
     <string name="notification_title">MusicFrog Infiltrator VPN</string>
     <string name="notification_starting">正在启动...</string>
     <string name="notification_active">保护已开启</string>
+    <string name="notification_permission_denied">通知未开启。代理仍可运行，但状态通知可能不会显示在通知栏。</string>
+    <string name="notification_permission_prompt_failed">无法请求通知权限。代理仍会启动，但状态通知可能不会显示在通知栏。</string>
 
     <!-- Sync / WebDAV -->
     <string name="title_webdav_sync">WebDAV 同步</string>
@@ -212,4 +216,61 @@
     <string name="action_sync_now">立即同步</string>
     <string name="text_sync_saved">已保存</string>
     <string name="text_sync_loading">加载中...</string>
+    <string name="text_sync_connection_tested">连接测试成功。</string>
+    <string name="text_sync_summary">同步操作：%2$s 项中成功 %1$s 项，失败 %3$s 项。</string>
+    <string name="failure_invalid_input">输入无效。</string>
+    <string name="failure_invalid_state">当前状态下无法执行此操作。</string>
+    <string name="failure_not_ready">操作尚未就绪。</string>
+    <string name="failure_unsupported">不支持此操作。</string>
+    <string name="failure_network">网络操作失败。</string>
+    <string name="failure_authentication">身份验证失败。</string>
+    <string name="failure_sync">同步失败。</string>
+    <string name="failure_configuration">配置无效。</string>
+    <string name="failure_storage">存储操作失败。</string>
+    <string name="failure_permission">权限被拒绝。</string>
+    <string name="failure_canceled">操作已取消。</string>
+    <string name="failure_internal">内部操作失败。</string>
+    <string name="failure_yaml_syntax">YAML 语法错误（第 %1$s 行，第 %2$s 列）。</string>
+    <string name="failure_mixin_yaml">Mixin 覆盖内容不是有效的 YAML。</string>
+    <string name="failure_active_profile_inconsistent">活动配置状态不一致。</string>
+    <string name="failure_quota_source_changed">读取流量配额期间订阅源发生了变化。</string>
+    <string name="failure_current_time_unavailable">当前时间不可用。</string>
+    <string name="download_canceled">下载已取消。</string>
+    <string name="failure_diagnostic_detail">诊断详情：%1$s</string>
+    <string name="empty_profiles">暂无配置。</string>
+    <string name="empty_outbounds">暂无代理节点。</string>
+    <string name="error_title">错误</string>
+    <string name="action_ok">确定</string>
+    <string name="failure_sync_interval_invalid">请输入有效的同步间隔分钟数。</string>
+    <string name="failure_tun_mtu_invalid">请输入大于零的 MTU 值。</string>
+    <string name="failure_tun_mtu_zero">MTU 必须大于零。</string>
+    <string name="failure_rule_empty">请先输入规则。</string>
+    <string name="owner_outbound_inventory_unknown">尚未读取代理节点列表。</string>
+    <string name="owner_outbound_inventory_unsupported">此内核不支持代理节点列表。</string>
+    <string name="owner_outbound_details_loading">正在加载节点详情。</string>
+    <string name="owner_outbound_details_unknown">尚未读取节点详情。</string>
+    <string name="empty_outbound_details">暂无节点详情。</string>
+    <string name="owner_outbound_details_unsupported">此内核不支持节点详情。</string>
+    <string name="owner_outbound_preferences_loading">正在加载节点偏好设置。</string>
+    <string name="owner_outbound_details_not_observed">尚未读取节点详情。</string>
+    <string name="owner_value_unknown">未知</string>
+    <string name="owner_value_unsupported">不支持</string>
+    <string name="empty_latency_samples">暂无延迟测量记录。</string>
+    <string name="empty_egress_samples">暂无出口地址记录。</string>
+    <string name="owner_probe_availability_unknown">测速可用状态未知。</string>
+    <string name="owner_probe_unsupported">此节点不支持测速。</string>
+    <string name="owner_probe_capability_unknown">测速能力尚不可用。</string>
+    <string name="owner_probe_available">可以测速。</string>
+    <string name="owner_probe_timed_out">测速超时。</string>
+    <string name="owner_probe_working">正在测速。</string>
+    <string name="owner_selection_unknown">节点选择状态未知。</string>
+    <string name="empty_outbound_selection">尚未选择代理节点。</string>
+    <string name="owner_selection_unsupported">不支持节点选择。</string>
+    <string name="owner_selection_read_only">只读。</string>
+    <string name="owner_selection_automatic">自动选择。</string>
+    <string name="owner_selection_capability_unknown">节点选择能力未知。</string>
+    <string name="owner_health_healthy">健康</string>
+    <string name="owner_health_unhealthy">异常</string>
+    <string name="owner_outbound_selected">已选择：%1$s</string>
+    <string name="owner_outbound_preferences_unavailable">Owner 暂未提供节点偏好设置。</string>
 </resources>

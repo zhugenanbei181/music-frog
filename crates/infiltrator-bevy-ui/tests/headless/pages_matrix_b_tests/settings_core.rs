@@ -3,6 +3,7 @@
 
 use super::*;
 use bevy::ecs::query::With;
+use infiltrator_contract::core_identity::EngineId;
 
 #[test]
 fn test_settings_core_rollback_button_submits_shared_command() {
@@ -12,6 +13,7 @@ fn test_settings_core_rollback_button_submits_shared_command() {
 
     let mut projection = SettingsProjection::demo();
     projection.core_versions.rollback = CoreRollbackSnapshot {
+        engine_id: EngineId::new("mihomo").unwrap(),
         current: Some("v1.19.30".to_owned()),
         target: Some("v1.19.29".to_owned()),
         history: vec!["v1.19.29".to_owned()],

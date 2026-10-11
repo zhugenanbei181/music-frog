@@ -1,32 +1,55 @@
 //! DUAL-09-03/05/14: pure state of the Bevy profile document editor.
 //!
 //! Split out of `profiles_editor.rs` to keep both files inside the business
-//! line budget: this module owns the open buffer, the live shared-preflight
-//! verdict and the formatter state machine; the scene module owns the `bsn!`
+//! line budget: this module owns the open buffer, the snapshot inspection,
+//! codec-authored buffer validation and formatter state; the scene owns the `bsn!`
 //! composition, the keyboard seam and the command submission.
 
 use crate::pages::profiles::ProfilesProjection;
 use bevy::color::Color;
 use bevy::ecs::resource::Resource;
 use bevy::input::keyboard::Key;
-use infiltrator_application::profile_document_application::insert_snippet;
-use infiltrator_application::profile_edit_session::ProfileEditSession;
+use infiltrator_application::profile_edit_session::{ProfileEditObservation, ProfileEditSession};
 use infiltrator_application::profile_editor_projection::{self, EditorStatus};
 use infiltrator_bevy_widgets::editor::state::CodeEditorState;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_contract::command::RequestId;
 use infiltrator_contract::editor_viewport::{EditorViewport, line_indent_level};
-use infiltrator_contract::profile_document::{ProfileDocumentSnapshot, SyntaxDiagnosticSnapshot};
-use infiltrator_contract::profile_protection::ProfileWriteProtection;
-use infiltrator_contract::yaml_snippets::{byte_offset_of_column, column_of_byte_offset};
-use infiltrator_domain::config::preflight_yaml_syntax;
+use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::profile_document::{
+    DocumentDiagnosticSnapshot, DocumentInspection, DocumentInspectionUnavailableReason,
+    DocumentValidation, ProfileDocumentSnapshot,
+};
+use infiltrator_contract::profile_protection::{ProfileWriteAuthorization, ProfileWriteProtection};
+use infiltrator_contract::yaml_snippets::{
+    SyntaxDiagnosticSnapshot, byte_offset_of_column, column_of_byte_offset,
+};
 use infiltrator_domain::yaml_edit::format::{FormatSkipReason, format_yaml};
+use infiltrator_ports::profile_document_codec::ProfileDocumentSnippetOutcome;
+use infiltrator_ports::profile_document_codec::ProfileMixinPreflight;
 
 /// Maximum number of lines rendered per frame (no virtual scroll; see the
 /// scene module docs). The window follows the cursor, so editing never leaves
 /// the window, and it is the `window_lines` parameter of the *shared*
 /// [`EditorViewport`] — the same window arithmetic the Iced editor uses.
 pub const PROFILE_EDITOR_RENDER_LIMIT: usize = 240;
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum ProfileValidationSource {
+    #[default]
+    Snapshot,
+    LocalYamlBuffer,
+    MixinDraft,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub enum MixinPreflightState {
+    #[default]
+    NotRequested,
+    Accepted,
+    Blocked(Failure),
+    Unavailable(Failure),
+}
 
 /// Surface-local editor state. The document itself stays owned by the shared
 /// application projection; this is only the open buffer plus the live
@@ -43,13 +66,16 @@ pub struct ProfileEditorState {
     pub dirty: bool,
     /// Content the shared application last published (used to detect new loads).
     pub loaded_content: Option<String>,
-    /// Live shared-preflight verdict for the current buffer.
+    /// Live identity-scoped codec inspection diagnostic for the current buffer.
     pub diagnostic: Option<SyntaxDiagnosticSnapshot>,
+    pub document_inspection: Option<DocumentInspection>,
+    pub mixin_preflight: MixinPreflightState,
+    pub validation_source: ProfileValidationSource,
     /// Honest note: formatter refusals and skipped layout rules.
     pub notice: Option<String>,
     pub format_note: Option<FormatSkipReason>,
     /// Explicit unlock toggle for a protected subscription.
-    pub protection_override: bool,
+    pub write_authorization: ProfileWriteAuthorization,
     /// Bumped on every buffer mutation; the body rebuilds when it moved.
     pub generation: u64,
     /// Last generation the scene body was rendered for.
@@ -58,44 +84,107 @@ pub struct ProfileEditorState {
 
 impl ProfileEditorState {
     /// Adopt a document published by the shared application.
-    pub fn load_document(&mut self, document: &ProfileDocumentSnapshot) -> bool {
-        let Some(source) = document.source.as_ref() else {
-            return false;
-        };
+    pub fn load_document(&mut self, document: &ProfileDocumentSnapshot) -> ProfileEditObservation {
         if self.protection != document.write_protection {
-            self.protection_override = false;
+            self.write_authorization = ProfileWriteAuthorization::RequireUnlock;
         }
         self.protection = document.write_protection;
-        let changed = self
-            .session
-            .observe(source, &document.content, &self.buffer.full_text());
-        if changed {
-            self.profile = document.profile.clone();
+        let observation = self.session.observe(
+            &document.workspace_identity,
+            &document.content,
+            &self.buffer.full_text(),
+        );
+        if matches!(observation, ProfileEditObservation::Updated) {
+            self.profile = document
+                .workspace_identity
+                .document
+                .profile_id
+                .as_str()
+                .to_owned();
             self.buffer = CodeEditorState::new(&document.content);
             self.loaded_content = Some(document.content.clone());
             self.dirty = false;
-            self.protection_override = false;
+            self.write_authorization = ProfileWriteAuthorization::RequireUnlock;
             self.generation += 1;
-            self.diagnostic = document.syntax.clone();
+            self.document_inspection = Some(document.inspection.clone());
+            self.mixin_preflight = MixinPreflightState::NotRequested;
+            self.validation_source = ProfileValidationSource::Snapshot;
+            self.diagnostic = None;
         }
-        changed
+        observation
     }
 
-    /// Run the shared preflight over the buffer (called after every edit).
-    pub fn refresh_preflight(&mut self) {
-        self.diagnostic = preflight_yaml_syntax(&self.buffer.full_text())
-            .err()
-            .map(|diagnostic| SyntaxDiagnosticSnapshot {
-                line: diagnostic.line,
-                column: diagnostic.column,
-                message: diagnostic.message,
-            });
+    /// Adopt the neutral result returned by the selected document codec.
+    pub fn record_profile_inspection(&mut self, inspection: DocumentInspection) {
+        self.validation_source = ProfileValidationSource::LocalYamlBuffer;
+        self.diagnostic = match &inspection {
+            DocumentInspection::Inspected(DocumentValidation::Invalid { diagnostics }) => {
+                diagnostics.first().and_then(|diagnostic| {
+                    Some(SyntaxDiagnosticSnapshot {
+                        line: diagnostic.line?,
+                        column: diagnostic.column.unwrap_or_default(),
+                        message: diagnostic.message.clone(),
+                    })
+                })
+            }
+            DocumentInspection::Inspected(DocumentValidation::Valid)
+            | DocumentInspection::Unavailable(_)
+            | DocumentInspection::Unsupported(_) => None,
+        };
+        self.document_inspection = Some(inspection);
+    }
+
+    /// Adopt the neutral, engine-scoped Mixin preflight returned by the codec.
+    pub fn record_mixin_preflight(&mut self, result: Result<(), Failure>) {
+        self.validation_source = ProfileValidationSource::MixinDraft;
+        self.mixin_preflight = match result {
+            Ok(()) => {
+                self.document_inspection =
+                    Some(DocumentInspection::Inspected(DocumentValidation::Valid));
+                self.diagnostic = None;
+                MixinPreflightState::Accepted
+            }
+            Err(failure)
+                if matches!(
+                    &failure.code,
+                    ErrorCode::InvalidInput | ErrorCode::Configuration
+                ) =>
+            {
+                self.document_inspection =
+                    Some(DocumentInspection::Inspected(DocumentValidation::Invalid {
+                        diagnostics: vec![DocumentDiagnosticSnapshot {
+                            line: None,
+                            column: None,
+                            message: failure.message.clone(),
+                        }],
+                    }));
+                self.diagnostic = None;
+                MixinPreflightState::Blocked(failure)
+            }
+            Err(failure) => {
+                self.document_inspection = Some(DocumentInspection::Unavailable(
+                    DocumentInspectionUnavailableReason::AdapterUnavailable {
+                        detail: failure.message.clone(),
+                    },
+                ));
+                self.diagnostic = None;
+                MixinPreflightState::Unavailable(failure)
+            }
+        };
+    }
+
+    pub fn record_mixin_preflight_status(&mut self, preflight: &ProfileMixinPreflight) {
+        match preflight {
+            ProfileMixinPreflight::Accepted => self.record_mixin_preflight(Ok(())),
+            ProfileMixinPreflight::Blocked { reason } => self.record_mixin_preflight(Err(
+                Failure::new(ErrorCode::Configuration, reason.clone(), false),
+            )),
+        }
     }
 
     fn after_edit(&mut self) {
         self.dirty = true;
         self.generation += 1;
-        self.refresh_preflight();
     }
 
     pub fn insert_text(&mut self, text: &str) {
@@ -196,7 +285,8 @@ impl ProfileEditorState {
 
     /// Whether the buffer may be saved right now.
     pub fn can_save(&self, protection: ProfileWriteProtection) -> bool {
-        self.session.can_save() && (!protection.is_protected() || self.protection_override)
+        self.session.can_save()
+            && (!protection.is_protected() || self.write_authorization.allows_protected_write())
     }
 
     /// DUAL-09-02: the shared window the body renders. The caret follows the
@@ -219,31 +309,32 @@ impl ProfileEditorState {
             .collect()
     }
 
-    /// DUAL-09-04: insert a catalogue snippet at the caret through the shared
-    /// application use-case — the same splice and the same preflight gate the
-    /// Iced surface runs.
-    pub fn insert_snippet(&mut self, snippet_id: &str) -> Result<(), String> {
-        let text = self.buffer.full_text();
-        let caret_line = self.buffer.cursor_row.min(self.buffer.line_count() - 1);
-        let line_text = self.buffer.lines[caret_line].as_str();
-        let caret_column = column_of_byte_offset(line_text, self.buffer.cursor_col);
-        match insert_snippet(&text, snippet_id, caret_line + 1, caret_column) {
-            Ok(insertion) => {
+    /// Adopt a splice returned by the identity-scoped document codec.
+    pub fn adopt_snippet(&mut self, outcome: ProfileDocumentSnippetOutcome) -> Result<(), String> {
+        match outcome {
+            ProfileDocumentSnippetOutcome::Inserted(insertion) => {
                 let cursor_row = insertion.cursor_line - 1;
                 self.buffer = CodeEditorState::new(&insertion.content);
                 self.buffer.cursor_row = cursor_row.min(self.buffer.line_count().saturating_sub(1));
                 let inserted_line = &self.buffer.lines[self.buffer.cursor_row];
                 self.buffer.cursor_col =
                     byte_offset_of_column(inserted_line, insertion.cursor_column);
-                self.notice = insertion.syntax.as_ref().map(|diagnostic| {
-                    format!("{} · {}", diagnostic.line_label(), diagnostic.message)
-                });
+                self.record_profile_inspection(insertion.validation);
+                self.notice = None;
                 self.after_edit();
                 Ok(())
             }
-            Err(failure) => {
-                self.notice = Some(failure.message.clone());
-                Err(failure.message)
+            ProfileDocumentSnippetOutcome::Rejected { validation } => {
+                let message = match &validation {
+                    DocumentValidation::Invalid { diagnostics } => diagnostics
+                        .first()
+                        .map(|diagnostic| diagnostic.message.clone())
+                        .unwrap_or_else(|| "Snippet would make the document invalid".into()),
+                    DocumentValidation::Valid => "Snippet was rejected by the codec".into(),
+                };
+                self.record_profile_inspection(DocumentInspection::Inspected(validation));
+                self.notice = Some(message.clone());
+                Err(message)
             }
         }
     }
@@ -280,9 +371,42 @@ pub(crate) fn status_line(
     .collect::<Vec<_>>()
     .join(" · ")
 }
-pub(crate) fn diagnostic_line(state: &ProfileEditorState, locale: &str) -> (String, bool) {
-    profile_editor_projection::diagnostic(state.diagnostic.as_ref(), locale)
+pub(crate) fn diagnostic_line(
+    state: &ProfileEditorState,
+    locale: &str,
+) -> (String, profile_editor_projection::DocumentValidationStatus) {
+    match state.validation_source {
+        ProfileValidationSource::Snapshot => profile_editor_projection::document_inspection(
+            state.document_inspection.as_ref(),
+            locale,
+        ),
+        ProfileValidationSource::LocalYamlBuffer | ProfileValidationSource::MixinDraft => {
+            profile_editor_projection::document_inspection(
+                state.document_inspection.as_ref(),
+                locale,
+            )
+        }
+    }
 }
+
+pub(crate) fn diagnostic_label(
+    source: ProfileValidationSource,
+    status: profile_editor_projection::DocumentValidationStatus,
+    locale: &str,
+) -> String {
+    match source {
+        ProfileValidationSource::Snapshot => {
+            profile_editor_projection::document_validation_label(status, locale)
+        }
+        ProfileValidationSource::LocalYamlBuffer => {
+            profile_editor_projection::syntax_label(status, locale)
+        }
+        ProfileValidationSource::MixinDraft => {
+            profile_editor_projection::document_validation_label(status, locale)
+        }
+    }
+}
+
 pub(crate) fn protection_toggle_visual(
     protection: ProfileWriteProtection,
     unlocked: bool,

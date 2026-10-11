@@ -9,6 +9,7 @@ use crate::types::message::Message;
 use crate::types::runtime::RuntimeStatus;
 use crate::update::core::profile_apply::activate_profile;
 use iced::Task;
+use infiltrator_application::profile_application::ProfileActivationOutcome;
 use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_ports::runtime_gateway::ManagedRuntime;
@@ -60,7 +61,7 @@ impl AppState {
                         if let Some(runtime) = runtime {
                             ManagedRuntime::shutdown(runtime.as_ref())
                                 .await
-                                .map_err(|error| InfiltratorError::Mihomo(error.to_string()))?;
+                                .map_err(|error| InfiltratorError::Backend(error.to_string()))?;
                         }
                         reset_profiles_to_default()
                             .await
@@ -86,7 +87,7 @@ impl AppState {
                             )),
                         ];
                         if restart {
-                            tasks.push(Task::done(Message::StartProxy));
+                            tasks.push(Task::done(Message::StartCore));
                         }
                         Task::batch(tasks)
                     }
@@ -103,14 +104,15 @@ impl AppState {
                 let runtime = self.runtime.runtime.clone();
                 Task::perform(
                     async move { activate_profile(runtime, &name).await },
-                    |result: Result<bool, InfiltratorError>| match result {
-                        Ok(was_running) => Message::ProfileActivationFinished(Ok(was_running)),
-                        Err(e) => Message::ProfileActivationFinished(Err(e)),
-                    },
+                    Message::ProfileActivationFinished,
                 )
             }
             Message::ProfileActivationFinished(result) => match result {
-                Ok(true) => {
+                Ok(
+                    ProfileActivationOutcome::AlreadySelectedWithRuntime
+                    | ProfileActivationOutcome::SelectedAndApplied
+                    | ProfileActivationOutcome::CurrentProfileUpdatedAndApplied,
+                ) => {
                     if let Some(runtime) = self.runtime.runtime.clone() {
                         self.sync_runtime_slot(Some(runtime));
                     }
@@ -123,9 +125,12 @@ impl AppState {
                         )),
                     ])
                 }
-                Ok(false) => Task::batch(vec![
+                Ok(
+                    ProfileActivationOutcome::AlreadySelectedWithoutRuntime
+                    | ProfileActivationOutcome::SelectedWithoutRuntime,
+                ) => Task::batch(vec![
                     Task::done(Message::LoadProfiles),
-                    Task::done(Message::StartProxy),
+                    Task::done(Message::StartCore),
                 ]),
                 Err(error) => {
                     self.set_error(&error);

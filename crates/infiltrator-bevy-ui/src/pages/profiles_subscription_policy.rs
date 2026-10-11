@@ -22,19 +22,21 @@ use bevy::ecs::hierarchy::Children;
 use bevy::ecs::observer::On;
 use bevy::ecs::query::{QueryFilter, With, Without};
 use bevy::ecs::system::{Commands, Query, Res};
+use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::{Scene, bsn};
 use bevy::ui::Checked;
 use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, Val,
-    percent, px,
+    AlignItems, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, percent,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
 use infiltrator_application::subscription_status_projection::{reload_status, schedule_status};
+use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::text_input::TextField;
@@ -144,8 +146,8 @@ pub fn subscription_policy_card_scene(
                             Node {
                                 width: percent(100),
                                 align_items: AlignItems::Center,
-                                column_gap: Val::Px(space::S8),
-                                padding: UiRect::top(Val::Px(space::S8)),
+                                column_gap: rem(space::S8),
+                                padding: UiRect::top(rem(space::S8)),
                             }
                             Children [
                                 @{ icon_tile_scene(IconId::Settings, 24.0, palette) }
@@ -157,8 +159,8 @@ pub fn subscription_policy_card_scene(
                             Node {
                                 width: percent(100),
                                 flex_direction: FlexDirection::Column,
-                                row_gap: Val::Px(space::S6),
-                                padding: UiRect::vertical(Val::Px(space::S4)),
+                                row_gap: rem(space::S6),
+                                padding: UiRect::vertical(rem(space::S4)),
                             }
                             Children [
                                 Node { width: percent(100) }
@@ -185,12 +187,12 @@ pub fn subscription_policy_card_scene(
                                 width: percent(100),
                                 align_items: AlignItems::Center,
                                 justify_content: JustifyContent::SpaceBetween,
-                                padding: UiRect::vertical(Val::Px(space::S4)),
+                                padding: UiRect::vertical(rem(space::S4)),
                             }
                             Children [
                                 Node {
                                     align_items: AlignItems::Center,
-                                    column_gap: Val::Px(space::S8),
+                                    column_gap: rem(space::S8),
                                 }
                                 SubscriptionAutoUpdateToggle
                                 Children [
@@ -199,19 +201,19 @@ pub fn subscription_policy_card_scene(
                                 --
                                 Node {
                                     align_items: AlignItems::Center,
-                                    column_gap: Val::Px(space::S8),
+                                    column_gap: rem(space::S8),
                                 }
                                 Children [
                                     Text({ status.clone() }) SubscriptionPolicyStatus TextRole(Role::Caption)
                                     --
                                     Node {
-                                        min_height: px(palette.control_height_px),
-                                        padding: UiRect::horizontal(Val::Px(space::S12)),
+                                        min_height: rem(palette.control_height_px),
+                                        padding: UiRect::horizontal(rem(space::S12)),
                                         align_items: AlignItems::Center,
                                         justify_content: JustifyContent::Center,
-                                        border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                        border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                                     }
-                                    BackgroundColor({ palette.accent })
+                                    ThemeBackgroundColor({ Token::Accent })
                                     Button
                                     SaveSubscriptionPolicyButton
                                     Children [
@@ -225,12 +227,12 @@ pub fn subscription_policy_card_scene(
                                 width: percent(100),
                                 align_items: AlignItems::Center,
                                 justify_content: JustifyContent::SpaceBetween,
-                                padding: UiRect::vertical(Val::Px(space::S4)),
+                                padding: UiRect::vertical(rem(space::S4)),
                             }
                             Children [
                                 Node {
                                     align_items: AlignItems::Center,
-                                    column_gap: Val::Px(space::S8),
+                                    column_gap: rem(space::S8),
                                 }
                                 SubscriptionAutoReloadToggle
                                 Children [
@@ -239,19 +241,19 @@ pub fn subscription_policy_card_scene(
                                 --
                                 Node {
                                     align_items: AlignItems::Center,
-                                    column_gap: Val::Px(space::S8),
+                                    column_gap: rem(space::S8),
                                 }
                                 Children [
                                     Text({ reload_status.clone() }) SubscriptionAutoReloadStatus TextRole(Role::Caption)
                                     --
                                     Node {
-                                        min_height: px(palette.control_height_px),
-                                        padding: UiRect::horizontal(Val::Px(space::S12)),
+                                        min_height: rem(palette.control_height_px),
+                                        padding: UiRect::horizontal(rem(space::S12)),
                                         align_items: AlignItems::Center,
                                         justify_content: JustifyContent::Center,
-                                        border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                        border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                                     }
-                                    BackgroundColor({ palette.surface_elevated })
+                                    ThemeBackgroundColor({ Token::SurfaceElevated })
                                     Button
                                     SaveSubscriptionAutoReloadButton
                                     Children [

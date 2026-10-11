@@ -4,13 +4,16 @@
 //! async legs, verified against the temp-HOME filesystem.
 //!
 //! test-intent: behavior
-use crate::test_mounts::command_harness::recording_application;
+use crate::test_mounts::command_harness::{
+    attach_product_application_with_accepted_owner_snapshot, core_test_command_application,
+    recording_application,
+};
+use crate::test_mounts::identified_core_application::identified_core_application;
 use crate::test_mounts::profile_edit_fixture;
 use crate::test_mounts::script_workbench_tests::complete;
 use crate::types::script::ScriptAction;
 use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::script_application::ScriptApplication;
-use infiltrator_domain::filter_policy_form;
 
 use super::support::{SAMPLE_PROFILE_YAML, TempHome, block_on, feed, fresh_state, last_toast};
 use crate::configs_dir::config_manager;
@@ -23,18 +26,16 @@ use futures_util::StreamExt;
 use iced::Task;
 use iced::widget::text_editor::{Action, Edit};
 use iced_runtime::task::into_stream;
-use infiltrator_application::core_application::CoreApplication;
-use infiltrator_application::language_choice_fixtures::LanguageCaptureProcess;
 use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::profile_options_application::ProfileOptionsApplication;
 use infiltrator_application::script_export_application::ScriptExportApplication;
-use infiltrator_composition::tokio_application_runtime;
+use infiltrator_contract::core_capabilities::{CoreOperation, ProfileOperation};
 use infiltrator_contract::error::ErrorCode;
+use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_contract::subscription_filter_form::FilterObservation;
 use infiltrator_desktop::script_export::DesktopScriptExportPort;
-use infiltrator_domain::filter::NodeSortOrder;
-use infiltrator_domain::mixin_studio::mixin_editor_columns;
-use mihomo_config::profile_option_store;
+use infiltrator_ports::profile_document_codec::{ProfileMixinComposition, ProfileMixinToggleId};
+use mihomo_config::profile_document_codec::MihomoProfileDocumentCodec;
 use std::fs::read_to_string;
 use std::sync::Arc;
 
@@ -59,14 +60,18 @@ fn mixin_three_pane_journey_rejects_bad_yaml_then_persists_sidecar_and_merge() {
     let mut state = fresh_state();
 
     let store = block_on(config_manager()).unwrap();
-    let profiles = ProfileApplication::new(store.clone());
-    let commands = CoreApplication::new(
-        Arc::new(LanguageCaptureProcess),
-        Arc::new(LanguageCaptureProcess),
-        tokio_application_runtime().unwrap(),
-    );
-    commands.install_command_handler(Arc::new(CommandApplication::new().with_profile(profiles)));
-    state.commands = Some(commands);
+    let profiles = ProfileApplication::new(store.clone())
+        .with_document_codec(Arc::new(MihomoProfileDocumentCodec));
+    let commands = identified_core_application();
+    commands.install_command_handler(Arc::new(
+        core_test_command_application([
+            CoreOperation::Profile(ProfileOperation::Apply),
+            CoreOperation::Profile(ProfileOperation::ApplyFeature),
+            CoreOperation::Profile(ProfileOperation::Validate),
+        ])
+        .with_profile(profiles),
+    ));
+    attach_product_application_with_accepted_owner_snapshot(&mut state, commands);
     // Native TEA load and save tasks execute the actual application and store boundary.
     let task = state.update(Message::EditProfile(profile_path.clone()));
     let reply = filter_terminal(task);
@@ -94,7 +99,10 @@ fn mixin_three_pane_journey_rejects_bad_yaml_then_persists_sidecar_and_merge() {
         units, 1,
         "preflight rejection exposes the validation failure"
     );
-    assert!(!state.editor.is_saving_mixin);
+    assert!(!matches!(
+        &state.editor.mixin_session.operation,
+        infiltrator_application::profile_edit_session::ProfileEditOperationPhase::Pending(_)
+    ));
     assert!(
         state
             .shell
@@ -113,7 +121,10 @@ fn mixin_three_pane_journey_rejects_bad_yaml_then_persists_sidecar_and_merge() {
         Message::MixinEditorAction(Action::Edit(Edit::Paste(Arc::new("mode: global\n".into())))),
     );
     let task = state.update(Message::SaveMixin);
-    assert!(state.editor.is_saving_mixin);
+    assert!(matches!(
+        &state.editor.mixin_session.operation,
+        infiltrator_application::profile_edit_session::ProfileEditOperationPhase::Pending(_)
+    ));
     let before_wait = state.editor.mixin_content.text();
     feed(
         &mut state,
@@ -126,9 +137,10 @@ fn mixin_three_pane_journey_rejects_bad_yaml_then_persists_sidecar_and_merge() {
     );
     let reply = filter_terminal(task);
     let units = feed(&mut state, reply);
-    assert!(!state.editor.is_saving_mixin);
-    assert!(state.editor.mixin_session.saved);
-    assert!(state.editor.mixin_session.failure.is_none());
+    assert!(matches!(
+        &state.editor.mixin_session.operation,
+        infiltrator_application::profile_edit_session::ProfileEditOperationPhase::Saved
+    ));
     assert_eq!(
         units, 1,
         "only history refresh follows the actual save receipt"
@@ -142,10 +154,10 @@ fn mixin_three_pane_journey_rejects_bad_yaml_then_persists_sidecar_and_merge() {
         "mixin merged into profile: {on_disk}"
     );
     assert!(on_disk.contains("HK-1"), "proxies survive the merge");
-    let sidecar = block_on(profile_option_store::load_options(&home.configs(), "alpha")).unwrap();
-    assert_eq!(
-        sidecar.mixin.mode.as_deref(),
-        Some("global"),
+    let sidecar =
+        block_on(ProfileOptionsApplication::new(profiles.clone()).load(Some("alpha"))).unwrap();
+    assert!(
+        sidecar.mixin_yaml.contains("mode: global"),
         "sidecar persisted"
     );
 }
@@ -158,16 +170,19 @@ fn filter_pane_journey_persists_sidecar_and_filters_proxies_on_disk() {
     home.seed_profile("alpha", SAMPLE_PROFILE_YAML);
     let profile_path = home.configs().join("alpha.yaml");
     let mut state = fresh_state();
-    let commands = CoreApplication::new(
-        Arc::new(LanguageCaptureProcess),
-        Arc::new(LanguageCaptureProcess),
-        tokio_application_runtime().unwrap(),
-    );
+    let commands = identified_core_application();
     commands.install_command_handler(Arc::new(
-        CommandApplication::new()
-            .with_profile(ProfileApplication::new(block_on(config_manager()).unwrap())),
+        core_test_command_application([
+            CoreOperation::Profile(ProfileOperation::Apply),
+            CoreOperation::Profile(ProfileOperation::ApplyFeature),
+            CoreOperation::Profile(ProfileOperation::Validate),
+        ])
+        .with_profile(
+            ProfileApplication::new(block_on(config_manager()).unwrap())
+                .with_document_codec(Arc::new(MihomoProfileDocumentCodec)),
+        ),
     ));
-    state.commands = Some(commands);
+    attach_product_application_with_accepted_owner_snapshot(&mut state, commands);
 
     let reply =
         profile_edit_fixture::document(&mut state, profile_path, SAMPLE_PROFILE_YAML.into());
@@ -236,15 +251,15 @@ fn filter_pane_journey_persists_sidecar_and_filters_proxies_on_disk() {
         "three seed proxies entered the pipeline"
     );
     assert_eq!(
-        report.source,
+        report.workspace_identity,
         block_on(async {
             config_manager()
                 .await
                 .unwrap()
-                .load_workspace("alpha")
+                .load_workspace(&ProfileId::new("alpha").unwrap())
                 .await
                 .unwrap()
-                .source
+                .identity()
         })
     );
     feed(
@@ -278,20 +293,26 @@ fn filter_pane_journey_persists_sidecar_and_filters_proxies_on_disk() {
         vec!["HK-1".to_string()],
         "whitelist applied: {kept_names:?}"
     );
-    let sidecar = block_on(profile_option_store::load_options(&home.configs(), "alpha")).unwrap();
-    let stored_spec = sidecar.filter.expect("filter spec persisted");
-    assert_eq!(stored_spec.include_keywords, vec!["HK".to_string()]);
-    assert!(stored_spec.remove_emojis);
-    assert_eq!(stored_spec.sort_by, NodeSortOrder::NameDesc);
-    let reopened = filter_policy_form::filter_spec_to_draft(&stored_spec).unwrap();
+    let reopened = block_on(async {
+        ProfileOptionsApplication::new(
+            ProfileApplication::new(config_manager().await.unwrap())
+                .with_document_codec(Arc::new(MihomoProfileDocumentCodec)),
+        )
+        .load(Some("alpha"))
+        .await
+        .unwrap()
+    });
+    assert_eq!(reopened.filter.include, "HK");
+    assert!(
+        reopened
+            .filter
+            .advanced_policy
+            .as_deref()
+            .is_some_and(|policy| policy.contains("remove-emojis") && policy.contains("name-desc"))
+    );
     feed(&mut state, Message::LoadProfileFilter);
     let token = state.editor.filter_load.as_ref().unwrap().0;
-    let snapshot = block_on(async {
-        ProfileOptionsApplication::new(ProfileApplication::new(config_manager().await.unwrap()))
-            .load(Some("alpha"))
-            .await
-            .unwrap()
-    });
+    let snapshot = reopened;
     assert_eq!(snapshot.filter, reopened);
     feed(
         &mut state,
@@ -299,7 +320,7 @@ fn filter_pane_journey_persists_sidecar_and_filters_proxies_on_disk() {
             token,
             profile: "alpha".into(),
             result: Ok(FilterObservation {
-                source: snapshot.source,
+                workspace_identity: snapshot.workspace_identity,
                 filter: snapshot.filter,
             }),
         },
@@ -330,6 +351,12 @@ fn mixin_studio_toggles_preflight_and_cascade_ride_the_shared_module() {
     home.seed_profile("alpha", SAMPLE_PROFILE_YAML);
     let profile_path = home.configs().join("alpha.yaml");
     let mut state = fresh_state();
+    let manager = block_on(config_manager()).unwrap();
+    let profiles =
+        ProfileApplication::new(manager).with_document_codec(Arc::new(MihomoProfileDocumentCodec));
+    let core = identified_core_application();
+    core.install_command_handler(Arc::new(CommandApplication::new().with_profile(profiles)));
+    attach_product_application_with_accepted_owner_snapshot(&mut state, core);
     let reply =
         profile_edit_fixture::document(&mut state, profile_path, SAMPLE_PROFILE_YAML.into());
     feed(&mut state, reply);
@@ -339,7 +366,10 @@ fn mixin_studio_toggles_preflight_and_cascade_ride_the_shared_module() {
     feed(&mut state, reply);
 
     // DUAL-10-11: toggling flips a real MixinConfig field, not a text splice.
-    feed(&mut state, Message::ToggleMixinPreset("ipv6".into(), true));
+    feed(
+        &mut state,
+        Message::ToggleMixinPreset(ProfileMixinToggleId::Ipv6, true),
+    );
     assert!(
         state.editor.mixin_content.text().contains("ipv6: true"),
         "toggle wrote the real field: {}",
@@ -347,7 +377,7 @@ fn mixin_studio_toggles_preflight_and_cascade_ride_the_shared_module() {
     );
     feed(
         &mut state,
-        Message::ToggleMixinPreset("dns-fake-ip".into(), true),
+        Message::ToggleMixinPreset(ProfileMixinToggleId::DnsFakeIp, true),
     );
     assert!(state.editor.mixin_content.text().contains("fake-ip"));
     assert!(
@@ -365,15 +395,32 @@ fn mixin_studio_toggles_preflight_and_cascade_ride_the_shared_module() {
         // reduction over the open base document.
         let _columns = three_column_row(&state);
     }
-    let columns = mixin_editor_columns(
-        &state.editor.editor_content.text(),
-        &state.editor.mixin_content.text(),
+    let identity = state
+        .editor
+        .document_session
+        .source()
+        .expect("opened profile document identity")
+        .document
+        .clone();
+    let projection = state
+        .command_ingress()
+        .expect("composed profile options codec")
+        .inspect_mixin_studio(
+            &identity,
+            &state.editor.editor_content.text(),
+            &state.editor.mixin_content.text(),
+        )
+        .expect("typed Mixin studio projection");
+    assert_eq!(
+        projection.columns.base.content,
+        state.editor.editor_content.text()
     );
-    assert_eq!(columns.base.content, state.editor.editor_content.text());
-    assert!(columns.is_composed());
-    assert!(columns.composed.content.contains("ipv6: true"));
+    let ProfileMixinComposition::Produced(composed) = projection.columns.composed else {
+        panic!("valid mixin should compose")
+    };
+    assert!(composed.content.contains("ipv6: true"));
     assert!(
-        columns.composed.content.contains("HK-1"),
+        composed.content.contains("HK-1"),
         "the composed column carries the real base document content"
     );
 
@@ -387,19 +434,29 @@ fn mixin_studio_toggles_preflight_and_cascade_ride_the_shared_module() {
     );
     let units = feed(&mut state, Message::SaveMixin);
     assert_eq!(units, 1, "gate rejection arms only the error toast");
-    assert!(!state.editor.is_saving_mixin);
+    assert!(!matches!(
+        &state.editor.mixin_session.operation,
+        infiltrator_application::profile_edit_session::ProfileEditOperationPhase::Pending(_)
+    ));
     assert!(
         !home.configs().join("options/alpha.yaml").exists(),
         "blocked overlay must not write a sidecar"
     );
     // DUAL-10-09: a blocked overlay empties the composed column with the real
     // reason instead of a mock document.
-    let blocked = mixin_editor_columns(
-        &state.editor.editor_content.text(),
-        &state.editor.mixin_content.text(),
-    );
-    assert!(blocked.is_blocked());
-    assert!(blocked.composed.content.is_empty());
+    let blocked = state
+        .command_ingress()
+        .expect("composed profile options codec")
+        .inspect_mixin_studio(
+            &identity,
+            &state.editor.editor_content.text(),
+            &state.editor.mixin_content.text(),
+        )
+        .expect("blocked YAML returns typed projection");
+    assert!(matches!(
+        blocked.columns.composed,
+        ProfileMixinComposition::Blocked { .. }
+    ));
 }
 
 /// DUAL-10-12 — the Mixin pane export is a real file: the routed message arms
@@ -425,11 +482,16 @@ fn mixin_export_writes_a_real_yaml_file_and_reports_the_host_outcome() {
 
     let exports =
         ScriptExportApplication::new(Some(Arc::new(DesktopScriptExportPort::new(home.configs()))));
-    let (commands, _) = recording_application();
+    let store = block_on(config_manager()).unwrap();
+    let profiles =
+        ProfileApplication::new(store).with_document_codec(Arc::new(MihomoProfileDocumentCodec));
+    let commands = identified_core_application();
     commands.install_command_handler(Arc::new(
-        CommandApplication::new().with_scripts(ScriptApplication::new(), exports.clone()),
+        core_test_command_application([])
+            .with_profile(profiles)
+            .with_scripts(ScriptApplication::new(), exports.clone()),
     ));
-    state.commands = Some(commands);
+    attach_product_application_with_accepted_owner_snapshot(&mut state, commands);
     let task = state.update(Message::Script(ScriptAction::Export(
         ScriptExportKind::MixinOverlayYaml,
     )));

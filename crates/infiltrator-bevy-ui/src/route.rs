@@ -1,6 +1,6 @@
 //! The routing seam: bounded subtree replacement under the shell's
 //! [`ContentSlot`] (charter law — page remount = replace a bounded
-//! subtree, docs/bevy-ui/BEVY_UI_FRONTEND.md).
+//! subtree, crates/infiltrator-bevy-ui/docs/BEVY_UI_FRONTEND.md).
 //!
 //! Architecture:
 //! - [`Route`] / [`RouteChanged`]: typed navigation vocabulary across all 11 pages.
@@ -13,6 +13,7 @@
 //!   one active page tree without leaked entities.
 
 use crate::app::{ContentSlot, SidebarFoot, SidebarToggleProjection};
+#[cfg(feature = "capture-tools")]
 use crate::capture::page_from_env;
 use crate::command_execution::drain_command_results;
 use crate::history::TrafficHistory;
@@ -113,13 +114,14 @@ use crate::pages::sync::{SyncProjectionUpdated, sync_page};
 use crate::pages::{dns_hosts_actions, dns_hosts_rows, dns_hosts_scene, dns_hosts_sync};
 use crate::projection::OverviewSource;
 use crate::route::mount::sync_route;
+#[cfg(feature = "capture-tools")]
+use crate::surface::{DemoSurfaceSource, LegacyOverviewSurfaceSource};
 use crate::surface::{
-    DemoSurfaceSource, LatestCoreLifecycle, LatestSurfaceSnapshot, LegacyOverviewSurfaceSource,
-    SurfaceOverviewAdapter, SurfaceSnapshotUpdated, SurfaceSource, SurfaceStatusBanner,
-    UnavailableSurfaceSource, app_routing_projection, connections_projection,
-    core_lifecycle_projection, dns_projection, doctor_projection, logs_projection,
-    overview_projection, profiles_projection, proxies_projection, rules_projection,
-    settings_projection, status_banner_scene, sync_projection,
+    LatestCoreLifecycle, LatestSurfaceSnapshot, SurfaceOverviewAdapter, SurfaceSnapshotUpdated,
+    SurfaceSource, SurfaceStatusBanner, UnavailableSurfaceSource, app_routing_projection,
+    connections_projection, core_lifecycle_projection, dns_projection, doctor_projection,
+    logs_projection, overview_projection, profiles_projection, proxies_projection,
+    rules_projection, settings_projection, status_banner_scene, sync_projection,
 };
 use bevy::app::{App, Plugin, Startup, Update};
 use bevy::ecs::component::Component;
@@ -152,9 +154,12 @@ use self::host_back::{BackLayerStack, on_host_back};
 
 /// The app's pages. New pages append a variant and an arm in
 /// [`page_scene`] — never a second mount path.
+#[path = "route/surface_projection.rs"]
+pub(crate) mod surface_projection;
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum Route {
-    /// 核心概览 (Home / Overview: run state, proxy mode, traffic, connections).
+    /// 核心概览 (Home / Overview: run state, routing intent, traffic, connections).
     #[default]
     Overview,
     /// 代理策略 (Proxies & Groups: selector, latency, test).
@@ -375,8 +380,8 @@ pub struct SurfaceSourceHandle(pub Arc<dyn SurfaceSource>);
 
 /// Installs routing and the first page. Reads the shell ([`ContentSlot`],
 /// [`UiPalette`]) — add it after [`ShellPlugin`](crate::app::ShellPlugin).
-/// The default source is the demo fixture; inject any [`OverviewSource`]
-/// with [`PagesPlugin::new`].
+/// The default source is unavailable. Capture builds also expose an isolated
+/// demo source; product hosts inject a complete source with `new_surface`.
 pub struct PagesPlugin {
     overview_source: Arc<dyn OverviewSource>,
     surface_source: Arc<dyn SurfaceSource>,
@@ -386,6 +391,7 @@ impl PagesPlugin {
     /// Inject an Overview source. Demo sources receive the complete demo
     /// snapshot; live Overview-only sources receive typed unavailable state
     /// for pages that have not been composed.
+    #[cfg(feature = "capture-tools")]
     pub fn new(source: impl OverviewSource + 'static) -> Self {
         let overview_source: Arc<dyn OverviewSource> = Arc::new(source);
         let surface_source: Arc<dyn SurfaceSource> = Arc::new(
@@ -413,6 +419,7 @@ impl PagesPlugin {
     }
 
     /// Explicit deterministic demo composition for screenshot/test hosts.
+    #[cfg(feature = "capture-tools")]
     pub fn demo() -> Self {
         Self::new_surface(DemoSurfaceSource::running())
     }
@@ -575,13 +582,17 @@ impl Plugin for PagesPlugin {
         app.add_observer(finish_custom_node);
         app.add_systems(
             Update,
-            (
-                (cancel_panel, sync_protocol_form)
-                    .chain()
-                    .after(drain_command_results),
-                dismiss_speedtest_detail,
-                dismiss_connection_inspection,
-            ),
+            (cancel_panel, sync_protocol_form)
+                .chain()
+                .after(drain_command_results),
+        );
+        app.add_systems(
+            Update,
+            dismiss_speedtest_detail.after(drain_command_results),
+        );
+        app.add_systems(
+            Update,
+            dismiss_connection_inspection.after(drain_command_results),
         );
         app.add_observer(request_confirmation);
         app.add_systems(Update, cancel_on_escape_or_navigation);
@@ -602,6 +613,7 @@ impl Plugin for PagesPlugin {
         // here (a windowed composition reuses the same queue).
         app.add_message::<KeyboardInput>();
         let initial_snapshot = self.surface_source.surface_snapshot();
+        self.surface_source.observe_snapshot(&initial_snapshot);
         app.insert_resource(LatestCoreLifecycle(core_lifecycle_projection(
             &initial_snapshot,
         )));
@@ -611,7 +623,7 @@ impl Plugin for PagesPlugin {
         ));
         app.add_observer(on_content_slot_added);
         app.add_observer(sync_route);
-        app.add_observer(apply_surface_snapshot);
+        app.add_observer(surface_projection::apply_surface_snapshot);
         app.init_resource::<GroupOrderState>();
         app.add_observer(activate_order);
         app.add_observer(finish_order);
@@ -653,7 +665,7 @@ impl Plugin for PagesPlugin {
         app.add_observer(on_clear_search);
         app.add_observer(on_retry_search);
         app.add_systems(Update, (sync_search_input, sync_search_status).chain());
-        app.add_observer(reconcile_surface_status);
+        app.add_observer(surface_projection::reconcile_surface_status);
         app.add_observer(on_page_root_added);
         app.add_observer(on_navigate_back);
         app.add_observer(on_navigate_forward);
@@ -761,7 +773,10 @@ fn sync_sidebar_foot(
 /// Mount the default route the moment the shell's content slot lands —
 /// the routing bootstrap with zero schedule-ordering assumptions.
 fn on_content_slot_added(_ready: On<Add<ContentSlot>>, mut commands: Commands) {
+    #[cfg(feature = "capture-tools")]
     let initial = page_from_env().unwrap_or_default();
+    #[cfg(not(feature = "capture-tools"))]
+    let initial = Route::Overview;
     commands.trigger(RouteChanged(initial));
 }
 
@@ -779,49 +794,13 @@ fn on_page_root_added(
         return;
     };
     let page = page_id_for_route(root.0);
-    let status = latest.0.page_status(page).clone();
+    let status = surface_projection::route_page_status(&latest.0, page);
     if matches!(status, PageStatus::Ready) {
         return;
     }
     commands
         .spawn_scene(status_banner_scene(page, &status, &palette))
         .insert(ChildOf(entity));
-}
-
-#[derive(Event, Clone, Debug, PartialEq)]
-struct SurfaceStatusChanged(pub SurfaceSnapshot);
-
-/// Reconcile the status banner after a live snapshot replaces the initial
-/// placeholder. A page keeps exactly one banner for each non-ready status;
-/// Ready removes it, and a changed failure/loading message replaces it.
-fn reconcile_surface_status(
-    update: On<SurfaceStatusChanged>,
-    roots: Query<(Entity, &PageRoot)>,
-    banners: Query<(Entity, &SurfaceStatusBanner)>,
-    palette: Res<UiPalette>,
-    mut commands: Commands,
-) {
-    let snapshot = &update.0;
-    let mut retained_pages = HashSet::new();
-    for (entity, banner) in &banners {
-        let wanted = snapshot.page_status(banner.page);
-        if matches!(wanted, PageStatus::Ready) || wanted != &banner.status {
-            commands.entity(entity).despawn_children();
-            commands.entity(entity).despawn();
-        } else {
-            retained_pages.insert(banner.page);
-        }
-    }
-
-    for (root_entity, root) in &roots {
-        let page = page_id_for_route(root.0);
-        let status = snapshot.page_status(page);
-        if !matches!(status, PageStatus::Ready) && !retained_pages.contains(&page) {
-            commands
-                .spawn_scene(status_banner_scene(page, status, &palette))
-                .insert(ChildOf(root_entity));
-        }
-    }
 }
 
 pub(crate) const fn page_id_for_route(route: Route) -> PageId {
@@ -843,7 +822,7 @@ pub(crate) const fn page_id_for_route(route: Route) -> PageId {
 
 /// The route → scene table. The only place that knows which page backs
 /// which route.
-fn page_scene(
+pub(super) fn page_scene(
     route: Route,
     snapshot: &SurfaceSnapshot,
     history: &TrafficHistory,
@@ -872,13 +851,9 @@ fn page_scene(
 /// cross-surface contract.
 fn trigger_page_projection_events(snapshot: &SurfaceSnapshot, commands: &mut Commands) {
     commands.trigger(OverviewProjectionUpdated(overview_projection(snapshot)));
-    if matches!(
-        snapshot.pages.proxies.status,
-        PageStatus::Ready | PageStatus::Empty
-    ) && snapshot.pages.proxies.data.is_some()
-    {
-        commands.trigger(ProxiesProjectionUpdated(proxies_projection(snapshot)));
-    }
+    // Proxies collection/member projection is sourced from the neutral outbound
+    // inventory and must clear stale rows when that read becomes unavailable.
+    commands.trigger(ProxiesProjectionUpdated(proxies_projection(snapshot)));
     commands.trigger(ProfilesProjectionUpdated(profiles_projection(snapshot)));
     commands.trigger(RulesProjectionUpdated(rules_projection(snapshot)));
     commands.trigger(ConnectionsProjectionUpdated(connections_projection(
@@ -892,30 +867,6 @@ fn trigger_page_projection_events(snapshot: &SurfaceSnapshot, commands: &mut Com
     )));
     commands.trigger(SyncProjectionUpdated(sync_projection(snapshot)));
     commands.trigger(SettingsProjectionUpdated(settings_projection(snapshot)));
-}
-
-fn apply_surface_snapshot(
-    update: On<SurfaceSnapshotUpdated>,
-    latest: Res<LatestSurfaceSnapshot>,
-    mut commands: Commands,
-) {
-    let snapshot = update.0.clone();
-    if !snapshot.is_newer_than(&latest.0) {
-        return;
-    }
-    replay_surface_snapshot(snapshot, &mut commands);
-}
-
-/// Replay one composed source coherently. Capture-host initialization uses the
-/// same projection wiring when it replaces its initial explicit demo source.
-pub(crate) fn replay_surface_snapshot(snapshot: SurfaceSnapshot, commands: &mut Commands) {
-    commands.insert_resource(LatestSurfaceSnapshot(snapshot.clone()));
-    commands.insert_resource(LatestCoreLifecycle(core_lifecycle_projection(&snapshot)));
-    commands.insert_resource(SidebarToggleProjection(
-        SystemToggleApplication::from_surface(&snapshot),
-    ));
-    trigger_page_projection_events(&snapshot, commands);
-    commands.trigger(SurfaceStatusChanged(snapshot));
 }
 
 #[cfg(test)]

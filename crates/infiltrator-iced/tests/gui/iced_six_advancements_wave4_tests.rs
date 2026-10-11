@@ -1,6 +1,6 @@
 //! High-fidelity verification tests for Wave 4 of the 6 Iced Core Maturity Advancements.
 //!
-//! Complies strictly with docs/TEST_GOVERNANCE.md (Zero-Tautology Rule):
+//! Complies strictly with TESTING.md zero-tautology assertion rule:
 //! Every assertion validates concrete business contracts, state transitions,
 //! exact string/integer values, and mathematical invariants.
 

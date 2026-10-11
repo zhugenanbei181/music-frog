@@ -1,14 +1,82 @@
 use super::*;
-use crate::rule_source_identity::rule_workspace;
 use crate::rule_trace_projection::present_chain;
-use infiltrator_contract::active_exit::ActiveExitStatus;
+use crate::rule_workspace_test_support::rule_workspace;
+use infiltrator_contract::core_identity::CoreScope;
+use infiltrator_contract::outbound::details::{
+    OutboundDetail, OutboundDetailsSnapshot, OutboundDetailsState, OutboundEgressSample,
+    OutboundHealthObservation, OutboundObservation, OutboundProbeAvailability,
+    OutboundProtocolObservation, OutboundSnapshot, OutboundUdpSupport,
+};
+use infiltrator_contract::outbound::identity::{OutboundId, OutboundProtocolId, SnapshotRevision};
+use infiltrator_contract::outbound::inventory::{
+    OutboundInventorySnapshot, OutboundInventoryState, OutboundObservationSnapshot,
+    OutboundSelectionSet, OutboundSelectionState, SelectionAvailability,
+};
 use infiltrator_contract::rule_condition::{ConditionIssue, TrafficField};
 use infiltrator_contract::rule_trace_facts::DecisionStageFacts;
-use infiltrator_contract::rule_trace_run::{RuleTraceOperationId, RuleTraceRequest};
-use infiltrator_contract::rule_tracer::DecisionStageKind;
-use infiltrator_domain::proxy::ProxyGroup;
+use infiltrator_contract::rule_trace_run::{
+    RuleTraceOperationId, RuleTraceOutboundFacts, RuleTraceOwnerBinding, RuleTraceRequest,
+    ScopedRuleTraceRequest,
+};
+use infiltrator_contract::rule_tracer::RuleTracerStatus;
+use infiltrator_contract::rule_tracer::{
+    DecisionStageKind, RuleTraceOutboundResolution, RuleTraceRuntimeMode,
+};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::rule_tracer::{RuleOverridePort, RuleWorkspace};
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+fn scoped_for_test(
+    request: RuleTraceRequest,
+    workspace: &RuleWorkspace,
+) -> (
+    infiltrator_contract::core_identity::CoreScope,
+    infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity,
+    ScopedRuleTraceRequest,
+) {
+    let scope = crate::rule_trace_fixtures::rule_trace_test_scope();
+    let observed_workspace = workspace.profile_identity.clone();
+    let owner = RuleTraceOwnerBinding::new(scope.clone(), observed_workspace.clone())
+        .expect("fixture owner engine matches workspace");
+    (
+        scope,
+        observed_workspace,
+        ScopedRuleTraceRequest { owner, request },
+    )
+}
+
+async fn simulate_for_test(
+    app: &RuleTracerApplication,
+    operation: RuleTraceOperationId,
+    request: RuleTraceRequest,
+    workspace: &RuleWorkspace,
+) -> Result<(), Failure> {
+    let (scope, observed_workspace, request) = scoped_for_test(request, workspace);
+    let outbound_observation =
+        crate::rule_trace_fixtures::unknown_rule_trace_observation(scope.clone());
+    app.simulate_scoped(
+        &scope,
+        &observed_workspace,
+        operation,
+        request,
+        &RuleTraceOutboundFacts::Observed(outbound_observation.clone()),
+    )
+    .await
+}
+
+async fn simulate_for_sample(
+    app: &RuleTracerApplication,
+    operation: RuleTraceOperationId,
+    request: RuleTraceRequest,
+) -> Result<(), Failure> {
+    simulate_for_test(
+        app,
+        operation,
+        request,
+        &override_workspace(&sample_rules()),
+    )
+    .await
+}
 
 fn sample_rules() -> Vec<RuleEntry> {
     vec![
@@ -35,13 +103,126 @@ fn sample_rules() -> Vec<RuleEntry> {
     ]
 }
 
+fn typed_rule_trace_observation(scope: &CoreScope) -> OutboundObservationSnapshot {
+    let engine = scope.identity.engine.clone();
+    let collection_id = OutboundId::new(engine.clone(), "PROXY").unwrap();
+    let selected_id = OutboundId::new(engine.clone(), "selected-outbound").unwrap();
+    let inventory = OutboundInventorySnapshot::new(
+        scope.clone(),
+        SnapshotRevision::new(6),
+        OutboundInventoryState::Ready {
+            entries: vec![OutboundSnapshot {
+                id: selected_id.clone(),
+                display_name: Some("Selected node".to_owned()),
+            }],
+            collections: vec![OutboundSelectionSet {
+                id: collection_id,
+                member_ids: vec![selected_id.clone()],
+                availability: SelectionAvailability::Selectable,
+                selection: OutboundSelectionState::Ready {
+                    selected: selected_id.clone(),
+                },
+            }],
+        },
+    )
+    .unwrap();
+    let details = OutboundDetailsSnapshot::new(
+        scope.clone(),
+        SnapshotRevision::new(9),
+        OutboundDetailsState::Ready {
+            details: vec![OutboundDetail {
+                id: selected_id,
+                protocol: OutboundProtocolObservation::Reported(
+                    OutboundProtocolId::new(engine, "vless").unwrap(),
+                ),
+                protocol_display_name: Some("VLESS".to_owned()),
+                cipher: OutboundObservation::Unknown,
+                cipher_display_name: None,
+                collection_kind: OutboundObservation::Unknown,
+                features: OutboundObservation::Unknown,
+                endpoint: OutboundObservation::Unknown,
+                udp: OutboundUdpSupport::Unknown,
+                health: OutboundHealthObservation::Unknown,
+                current_latency_ms: OutboundObservation::Observed(26),
+                latency_history: OutboundObservation::Unknown,
+                rtt: OutboundObservation::Unknown,
+                historical_egress: OutboundObservation::Observed(vec![OutboundEgressSample {
+                    ip: "203.0.113.9".to_owned(),
+                    country: Some("JP".to_owned()),
+                    observed_at_epoch_ms: Some(1_760_000_000_001),
+                }]),
+                probe_availability: OutboundProbeAvailability::Unknown,
+            }],
+        },
+    )
+    .unwrap();
+    OutboundObservationSnapshot::new(inventory, details).unwrap()
+}
+
+fn unknown_rule_trace_detail(id: OutboundId) -> OutboundDetail {
+    OutboundDetail {
+        id,
+        protocol: OutboundProtocolObservation::Unknown,
+        protocol_display_name: None,
+        cipher: OutboundObservation::Unknown,
+        cipher_display_name: None,
+        collection_kind: OutboundObservation::Unknown,
+        features: OutboundObservation::Unknown,
+        endpoint: OutboundObservation::Unknown,
+        udp: OutboundUdpSupport::Unknown,
+        health: OutboundHealthObservation::Unknown,
+        current_latency_ms: OutboundObservation::Unknown,
+        latency_history: OutboundObservation::Unknown,
+        rtt: OutboundObservation::Unknown,
+        historical_egress: OutboundObservation::Unknown,
+        probe_availability: OutboundProbeAvailability::Unknown,
+    }
+}
+
+fn ambiguous_rule_trace_observation(scope: &CoreScope) -> OutboundObservationSnapshot {
+    let engine = scope.identity.engine.clone();
+    let first_id = OutboundId::new(engine.clone(), "first-node").unwrap();
+    let second_id = OutboundId::new(engine.clone(), "second-node").unwrap();
+    let inventory = OutboundInventorySnapshot::new(
+        scope.clone(),
+        SnapshotRevision::new(6),
+        OutboundInventoryState::Ready {
+            entries: vec![
+                OutboundSnapshot {
+                    id: first_id.clone(),
+                    display_name: Some("Shared display name".to_owned()),
+                },
+                OutboundSnapshot {
+                    id: second_id.clone(),
+                    display_name: Some("Shared display name".to_owned()),
+                },
+            ],
+            collections: Vec::new(),
+        },
+    )
+    .unwrap();
+    let details = OutboundDetailsSnapshot::new(
+        scope.clone(),
+        SnapshotRevision::new(9),
+        OutboundDetailsState::Ready {
+            details: vec![
+                unknown_rule_trace_detail(first_id),
+                unknown_rule_trace_detail(second_id),
+            ],
+        },
+    )
+    .unwrap();
+    OutboundObservationSnapshot::new(inventory, details).unwrap()
+}
+
 fn running_core() -> CoreSnapshot {
     CoreSnapshot {
+        identity: None,
         lifecycle: CoreLifecycle::Running,
         generation: 1,
         revision: 2,
         session_token: None,
-        proxy_mode: None,
+        routing_intent: Default::default(),
         core_version: None,
         sampled_at_epoch_ms: None,
         failure: None,
@@ -54,12 +235,12 @@ fn running_core() -> CoreSnapshot {
 }
 
 #[test]
-fn tracer_empty_query_projects_ready_sandbox_with_presets() {
+fn tracer_empty_query_projects_empty_sandbox_with_presets() {
     let app = RuleTracerApplication::new();
     let snapshot = app
-        .simulate_snapshot(Some(&running_core()), &sample_rules(), None, None)
+        .simulate_snapshot(&running_core(), &sample_rules())
         .expect("complete sandbox");
-    assert_eq!(snapshot.status, RuleTracerStatus::Ready);
+    assert_eq!(snapshot.status, RuleTracerStatus::Empty);
     assert!(snapshot.active_query.is_empty());
     assert!(!snapshot.presets.is_empty());
     assert!(snapshot.decision_chain.is_none());
@@ -69,7 +250,7 @@ fn tracer_empty_query_projects_ready_sandbox_with_presets() {
 fn tracer_simulates_domain_suffix_match() {
     let app = RuleTracerApplication::with_query("www.google.com");
     let snapshot = app
-        .simulate_snapshot(Some(&running_core()), &sample_rules(), None, None)
+        .simulate_snapshot(&running_core(), &sample_rules())
         .expect("complete sandbox");
     assert_eq!(snapshot.status, RuleTracerStatus::Ready);
     let chain = snapshot.decision_chain.expect("decision chain");
@@ -86,7 +267,7 @@ fn tracer_simulates_domain_suffix_match() {
 fn tracer_simulates_nested_logical_subrule() {
     let app = RuleTracerApplication::with_query("api.openai.com:443");
     let snapshot = app
-        .simulate_snapshot(Some(&running_core()), &sample_rules(), None, None)
+        .simulate_snapshot(&running_core(), &sample_rules())
         .expect("complete sandbox");
     let chain = snapshot.decision_chain.expect("decision chain");
     assert_eq!(chain.target_proxy, "AI_PROXY");
@@ -103,7 +284,7 @@ fn tracer_simulates_nested_logical_subrule() {
 fn tracer_simulates_ip_cidr_match() {
     let app = RuleTracerApplication::with_query("1.1.1.1:53");
     let snapshot = app
-        .simulate_snapshot(Some(&running_core()), &sample_rules(), None, None)
+        .simulate_snapshot(&running_core(), &sample_rules())
         .expect("complete sandbox");
     let chain = snapshot.decision_chain.expect("decision chain");
     assert_eq!(chain.target_proxy, "DNS_DIRECT");
@@ -114,7 +295,7 @@ fn tracer_simulates_ip_cidr_match() {
 fn tracer_fallback_when_unmatched() {
     let app = RuleTracerApplication::with_query("unknown-domain.xyz");
     let snapshot = app
-        .simulate_snapshot(Some(&running_core()), &sample_rules(), None, None)
+        .simulate_snapshot(&running_core(), &sample_rules())
         .expect("complete sandbox");
     let chain = snapshot.decision_chain.expect("decision chain");
     assert_eq!(chain.target_proxy, "FALLBACK");
@@ -128,10 +309,10 @@ fn tracer_supports_offline_ast_trace_when_core_stopped() {
     core.lifecycle = CoreLifecycle::Stopped;
     let app = RuleTracerApplication::with_query("bilibili.com");
     let snapshot = app
-        .simulate_snapshot(Some(&core), &sample_rules(), None, None)
+        .simulate_snapshot(&core, &sample_rules())
         .expect("complete sandbox");
     assert_eq!(snapshot.status, RuleTracerStatus::Ready);
-    assert!(snapshot.failure.as_deref().unwrap_or("").contains("离线"));
+    assert_eq!(snapshot.runtime_mode, RuleTraceRuntimeMode::Offline);
     let chain = snapshot.decision_chain.expect("decision chain");
     assert_eq!(chain.target_proxy, "DIRECT");
 }
@@ -211,11 +392,11 @@ fn hit_audit_publishes_trace_latency_contribution() {
     let app = RuleTracerApplication::new();
     let rules = sample_rules();
     let first = app
-        .trace(&rules, "www.google.com", None, None)
+        .trace(&rules, "www.google.com")
         .expect("first simulation")
         .1;
     let second = app
-        .trace(&rules, "bilibili.com", None, None)
+        .trace(&rules, "bilibili.com")
         .expect("second simulation")
         .1;
 
@@ -231,14 +412,16 @@ fn hit_audit_publishes_trace_latency_contribution() {
 #[tokio::test]
 async fn clear_hits_resets_the_audit() {
     let app = RuleTracerApplication::new();
-    app.set_override_port(Arc::new(FakeOverridePort::with_rules(sample_rules())));
-    app.simulate(
+    let rules = sample_rules();
+    app.set_override_port(Arc::new(FakeOverridePort::with_rules(rules.clone())));
+    simulate_for_test(
+        &app,
         RuleTraceOperationId(1),
         RuleTraceRequest {
             query: "www.google.com".into(),
             context: TrafficContextSnapshot::default(),
         },
-        None,
+        &override_workspace(&rules),
     )
     .await
     .unwrap();
@@ -257,13 +440,14 @@ async fn project_publishes_the_hit_audit_for_the_surface() {
     let app = RuleTracerApplication::new();
     let rules = sample_rules();
     app.set_override_port(Arc::new(FakeOverridePort::with_rules(rules.clone())));
-    app.simulate(
+    simulate_for_test(
+        &app,
         RuleTraceOperationId(1),
         RuleTraceRequest {
             query: "www.google.com".into(),
             context: TrafficContextSnapshot::default(),
         },
-        None,
+        &override_workspace(&rules),
     )
     .await
     .unwrap();
@@ -288,7 +472,7 @@ async fn tracer_port_drives_the_shared_query_state() {
     assert_eq!(app.query(), "www.google.com");
 
     let chain = port
-        .trace(&sample_rules(), "www.google.com", None, None)
+        .trace(&sample_rules(), "www.google.com")
         .expect("complete sandbox")
         .1;
     assert_eq!(chain.hit_rule_index, Some(0));
@@ -300,13 +484,14 @@ async fn tracer_port_drives_the_shared_query_state() {
     assert_eq!(chain.final_node_delay_ms, None);
 
     app.set_override_port(Arc::new(FakeOverridePort::with_rules(sample_rules())));
-    port.simulate(
+    simulate_for_test(
+        &port,
         RuleTraceOperationId(1),
         RuleTraceRequest {
             query: "example.org".into(),
             context: TrafficContextSnapshot::default(),
         },
-        None,
+        &override_workspace(&sample_rules()),
     )
     .await
     .unwrap();
@@ -327,7 +512,7 @@ fn tracer_stored_source_ip_drives_inbound_stage_and_context() {
     });
 
     let snapshot = app
-        .simulate_snapshot(Some(&running_core()), &sample_rules(), None, None)
+        .simulate_snapshot(&running_core(), &sample_rules())
         .expect("complete sandbox");
     assert_eq!(
         snapshot.simulated_context.src_ip.as_deref(),
@@ -367,7 +552,7 @@ fn tracer_stored_source_ip_drives_src_ip_cidr_rule_match() {
 
     let app = RuleTracerApplication::with_query("example.org");
     let baseline = app
-        .simulate_snapshot(Some(&running_core()), &rules, None, None)
+        .simulate_snapshot(&running_core(), &rules)
         .expect_err("missing source IP");
     assert_eq!(
         baseline.issue,
@@ -379,7 +564,7 @@ fn tracer_stored_source_ip_drives_src_ip_cidr_rule_match() {
         ..TrafficContextSnapshot::default()
     });
     let snapshot = app
-        .simulate_snapshot(Some(&running_core()), &rules, None, None)
+        .simulate_snapshot(&running_core(), &rules)
         .expect("complete sandbox");
     let chain = snapshot.decision_chain.expect("decision chain");
     assert_eq!(chain.matched_rule_type, "SRC-IP-CIDR");
@@ -398,7 +583,7 @@ fn tracer_port_set_context_updates_shared_environment() {
     assert_eq!(app.context().src_ip.as_deref(), Some("192.168.1.77"));
 
     let chain = port
-        .trace(&sample_rules(), "www.google.com", None, None)
+        .trace(&sample_rules(), "www.google.com")
         .expect("complete sandbox")
         .1;
     assert!(
@@ -408,7 +593,7 @@ fn tracer_port_set_context_updates_shared_environment() {
     );
 
     let snapshot = app
-        .simulate_snapshot(Some(&running_core()), &sample_rules(), None, None)
+        .simulate_snapshot(&running_core(), &sample_rules())
         .expect("complete sandbox");
     assert_eq!(
         snapshot.simulated_context.src_ip.as_deref(),
@@ -422,6 +607,7 @@ fn tracer_port_set_context_updates_shared_environment() {
 struct FakeOverridePort {
     rules: Arc<Mutex<Vec<RuleEntry>>>,
     applied: Arc<Mutex<Vec<Vec<RuleEntry>>>>,
+    load_calls: AtomicUsize,
     fail_apply: bool,
     source_changed_at_commit: bool,
     failure: Option<PortError>,
@@ -432,6 +618,7 @@ impl FakeOverridePort {
         Self {
             rules: Arc::new(Mutex::new(rules)),
             applied: Arc::new(Mutex::new(Vec::new())),
+            load_calls: AtomicUsize::new(0),
             fail_apply: false,
             source_changed_at_commit: false,
             failure: None,
@@ -449,6 +636,7 @@ impl FakeOverridePort {
 #[async_trait::async_trait]
 impl RuleOverridePort for FakeOverridePort {
     async fn load_rule_workspace(&self) -> Result<RuleWorkspace, PortError> {
+        self.load_calls.fetch_add(1, Ordering::SeqCst);
         Ok(override_workspace(&self.rules.lock().expect("rules lock")))
     }
 
@@ -661,50 +849,279 @@ async fn reverse_apply_rechecks_commit_source_and_preserves_typed_failures() {
     }
 }
 
-#[test]
-fn tracer_keeps_exact_source_rule_and_does_not_borrow_unrelated_exit_facts() {
+#[tokio::test]
+async fn typed_inventory_resolves_group_selection_and_details_by_outbound_id() {
     let app = RuleTracerApplication::new();
     let rules = sample_rules();
-    let unrelated = ActiveExitSnapshot {
-        status: ActiveExitStatus::Ready,
-        group: Some("OTHER".to_owned()),
-        name: Some("Other node".to_owned()),
-        country_code: Some("US".to_owned()),
-        protocol: Some("VLESS".to_owned()),
-        delay_ms: Some(5),
-        ..ActiveExitSnapshot::default()
-    };
-    let chain = app
-        .trace(&rules, "www.google.com", Some(&unrelated), None)
-        .expect("complete sandbox")
-        .1;
+    let host = Arc::new(FakeOverridePort::with_rules(rules.clone()));
+    app.set_override_port(host.clone());
+    let workspace = override_workspace(&rules);
+    let (scope, observed_workspace, request) = scoped_for_test(
+        RuleTraceRequest {
+            query: "www.google.com".to_owned(),
+            context: TrafficContextSnapshot::default(),
+        },
+        &workspace,
+    );
+    let observation = typed_rule_trace_observation(&scope);
+    app.simulate_scoped(
+        &scope,
+        &observed_workspace,
+        RuleTraceOperationId(1),
+        request,
+        &RuleTraceOutboundFacts::Observed(observation),
+    )
+    .await
+    .unwrap();
+    let execution = app.execution();
+    let report = execution.report.clone().unwrap();
+    assert_eq!(report.generation, scope.generation.value());
+    assert_eq!(report.revision, execution.revision);
+    assert_eq!(report.runtime_mode, RuleTraceRuntimeMode::Live);
+    assert_eq!(
+        report.outbound_resolution,
+        RuleTraceOutboundResolution::Resolved {
+            outbound_id: OutboundId::new(scope.identity.engine.clone(), "selected-outbound",)
+                .unwrap(),
+            inventory_revision: SnapshotRevision::new(6),
+            details_revision: SnapshotRevision::new(9),
+        }
+    );
+    let chain = report.decision_chain.unwrap();
     assert_eq!(chain.matched_rule_raw, rules[0].rule);
-    assert_eq!(chain.final_node_delay_ms, None);
-    assert_eq!(chain.final_node_country, None);
-    let proxies = HashMap::from([(
-        "PROXY".to_owned(),
-        Proxy::Selector(ProxyGroup {
-            name: "PROXY".to_owned(),
-            now: "Selected node".to_owned(),
-            all: vec!["Selected node".to_owned()],
-            history: Vec::new(),
-        }),
-    )]);
-    let chain = app
-        .trace(&rules, "www.google.com", Some(&unrelated), Some(&proxies))
-        .expect("complete sandbox")
-        .1;
     assert_eq!(chain.final_outbound, "Selected node");
-    assert_eq!(chain.final_node_delay_ms, None);
-    assert_eq!(chain.final_node_country, None);
-    let mut selected = unrelated.clone();
-    selected.name = Some("Selected node".to_owned());
-    selected.country_code = Some("JP".to_owned());
-    let chain = app
-        .trace(&rules, "www.google.com", Some(&selected), Some(&proxies))
-        .expect("complete sandbox")
-        .1;
+    assert_eq!(chain.final_node_protocol.as_deref(), Some("VLESS"));
+    assert_eq!(chain.final_node_delay_ms, Some(26));
     assert_eq!(chain.final_node_country.as_deref(), Some("JP"));
+    assert_eq!(host.load_calls.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn typed_unknown_outbound_facts_keep_the_outbound_stage_neutral() {
+    let app = RuleTracerApplication::new();
+    let rules = sample_rules();
+    app.set_override_port(Arc::new(FakeOverridePort::with_rules(rules.clone())));
+    let workspace = override_workspace(&rules);
+    simulate_for_test(
+        &app,
+        RuleTraceOperationId(1),
+        RuleTraceRequest {
+            query: "www.google.com".to_owned(),
+            context: TrafficContextSnapshot::default(),
+        },
+        &workspace,
+    )
+    .await
+    .unwrap();
+    let report = app.execution().report.unwrap();
+    assert_eq!(report.runtime_mode, RuleTraceRuntimeMode::Live);
+    assert_eq!(
+        report.outbound_resolution,
+        RuleTraceOutboundResolution::Unknown
+    );
+    let chain = report.decision_chain.unwrap();
+    let outbound = chain
+        .nodes
+        .iter()
+        .find(|node| node.stage == DecisionStageKind::Outbound)
+        .unwrap();
+    assert_eq!(
+        outbound.status,
+        infiltrator_contract::rule_tracer::DecisionNodeStatus::Neutral
+    );
+    assert!(chain.final_outbound.is_empty());
+    assert_eq!(chain.final_node_protocol, None);
+    assert_eq!(chain.final_node_delay_ms, None);
+}
+
+#[tokio::test]
+async fn no_session_keeps_local_trace_explicitly_offline_with_unavailable_outbounds() {
+    let rules = sample_rules();
+    let host = Arc::new(FakeOverridePort::with_rules(rules.clone()));
+    let app = RuleTracerApplication::new();
+    app.set_override_port(host.clone());
+    let workspace = override_workspace(&rules);
+    let mut scope = crate::rule_trace_fixtures::rule_trace_test_scope();
+    scope.session_token = None;
+    scope.generation = infiltrator_contract::core_identity::CoreGeneration::new(7);
+    let observed_workspace = workspace.profile_identity.clone();
+    let request = ScopedRuleTraceRequest {
+        owner: RuleTraceOwnerBinding::new(scope.clone(), observed_workspace.clone()).unwrap(),
+        request: RuleTraceRequest {
+            query: "www.google.com".to_owned(),
+            context: TrafficContextSnapshot::default(),
+        },
+    };
+    let offline_failure = Failure::new(
+        ErrorCode::NotReady,
+        "Core session is unavailable; local AST simulation only",
+        true,
+    );
+
+    app.simulate_scoped(
+        &scope,
+        &observed_workspace,
+        RuleTraceOperationId(1),
+        request,
+        &RuleTraceOutboundFacts::Unavailable(offline_failure.clone()),
+    )
+    .await
+    .unwrap();
+
+    let execution = app.execution();
+    let report = execution.report.unwrap();
+    assert_eq!(report.generation, 7);
+    assert_eq!(report.revision, execution.revision);
+    assert_eq!(report.status, RuleTracerStatus::Ready);
+    assert_eq!(report.runtime_mode, RuleTraceRuntimeMode::Offline);
+    assert!(report.failure.is_none());
+    assert!(execution.failure.is_none());
+    assert_eq!(
+        report.outbound_resolution,
+        RuleTraceOutboundResolution::Unavailable {
+            failure: offline_failure,
+        }
+    );
+    assert_eq!(host.load_calls.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn live_session_rejects_unavailable_outbound_read_before_profile_adapter() {
+    let rules = sample_rules();
+    let host = Arc::new(FakeOverridePort::with_rules(rules.clone()));
+    let app = RuleTracerApplication::new();
+    app.set_override_port(host.clone());
+    let workspace = override_workspace(&rules);
+    let (scope, observed_workspace, request) = scoped_for_test(
+        RuleTraceRequest {
+            query: "www.google.com".to_owned(),
+            context: TrafficContextSnapshot::default(),
+        },
+        &workspace,
+    );
+    let observation_failure = Failure::new(
+        ErrorCode::Permission,
+        "Outbound observation was denied",
+        true,
+    );
+
+    assert_eq!(
+        app.simulate_scoped(
+            &scope,
+            &observed_workspace,
+            RuleTraceOperationId(1),
+            request,
+            &RuleTraceOutboundFacts::Unavailable(observation_failure.clone()),
+        )
+        .await
+        .unwrap_err(),
+        observation_failure
+    );
+    assert_eq!(host.load_calls.load(Ordering::SeqCst), 0);
+    assert_eq!(app.execution(), RuleTraceExecution::default());
+}
+
+#[tokio::test]
+async fn no_session_rejects_live_outbound_observation_before_profile_adapter() {
+    let rules = sample_rules();
+    let host = Arc::new(FakeOverridePort::with_rules(rules.clone()));
+    let app = RuleTracerApplication::new();
+    app.set_override_port(host.clone());
+    let workspace = override_workspace(&rules);
+    let mut scope = crate::rule_trace_fixtures::rule_trace_test_scope();
+    scope.session_token = None;
+    let observed_workspace = workspace.profile_identity.clone();
+    let request = ScopedRuleTraceRequest {
+        owner: RuleTraceOwnerBinding::new(scope.clone(), observed_workspace.clone()).unwrap(),
+        request: RuleTraceRequest {
+            query: "www.google.com".to_owned(),
+            context: TrafficContextSnapshot::default(),
+        },
+    };
+    let observation = crate::rule_trace_fixtures::unknown_rule_trace_observation(scope.clone());
+
+    assert_eq!(
+        app.simulate_scoped(
+            &scope,
+            &observed_workspace,
+            RuleTraceOperationId(1),
+            request,
+            &RuleTraceOutboundFacts::Observed(observation),
+        )
+        .await
+        .unwrap_err()
+        .code,
+        ErrorCode::NotReady
+    );
+    assert_eq!(host.load_calls.load(Ordering::SeqCst), 0);
+    assert_eq!(app.execution(), RuleTraceExecution::default());
+}
+
+#[tokio::test]
+async fn builtin_direct_and_reject_targets_do_not_require_outbound_observation() {
+    for rule in ["DOMAIN,example.org,DIRECT", "DOMAIN,example.org,REJECT"] {
+        let rules = vec![RuleEntry {
+            rule: rule.to_owned(),
+            enabled: true,
+        }];
+        let workspace = override_workspace(&rules);
+        let app = RuleTracerApplication::new();
+        app.set_override_port(Arc::new(FakeOverridePort::with_rules(rules.clone())));
+        simulate_for_test(
+            &app,
+            RuleTraceOperationId(1),
+            RuleTraceRequest {
+                query: "example.org".to_owned(),
+                context: TrafficContextSnapshot::default(),
+            },
+            &workspace,
+        )
+        .await
+        .unwrap();
+        let report = app.execution().report.unwrap();
+        assert_eq!(report.runtime_mode, RuleTraceRuntimeMode::Live);
+        assert_eq!(
+            report.outbound_resolution,
+            RuleTraceOutboundResolution::NotRequired
+        );
+    }
+}
+
+#[tokio::test]
+async fn ambiguous_typed_display_name_keeps_rule_trace_outbound_unknown() {
+    let scope = crate::rule_trace_fixtures::rule_trace_test_scope();
+    let observation = ambiguous_rule_trace_observation(&scope);
+    assert!(super::resolve_rule_target("Shared display name", &observation).is_none());
+    let rules = vec![RuleEntry {
+        rule: "DOMAIN,example.org,Shared display name".to_owned(),
+        enabled: true,
+    }];
+    let workspace = override_workspace(&rules);
+    let app = RuleTracerApplication::new();
+    app.set_override_port(Arc::new(FakeOverridePort::with_rules(rules)));
+    let observed_workspace = workspace.profile_identity.clone();
+    let request = ScopedRuleTraceRequest {
+        owner: RuleTraceOwnerBinding::new(scope.clone(), observed_workspace.clone()).unwrap(),
+        request: RuleTraceRequest {
+            query: "example.org".to_owned(),
+            context: TrafficContextSnapshot::default(),
+        },
+    };
+    app.simulate_scoped(
+        &scope,
+        &observed_workspace,
+        RuleTraceOperationId(1),
+        request,
+        &RuleTraceOutboundFacts::Observed(observation),
+    )
+    .await
+    .unwrap();
+    let report = app.execution().report.unwrap();
+    assert_eq!(
+        report.outbound_resolution,
+        RuleTraceOutboundResolution::Unknown
+    );
+    assert!(report.decision_chain.unwrap().final_outbound.is_empty());
 }
 
 #[path = "rule_tracer_application_test/execution.rs"]

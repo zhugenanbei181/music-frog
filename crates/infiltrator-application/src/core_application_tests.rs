@@ -1,25 +1,49 @@
 use super::*;
-use crate::command_application::{CommandFuture, CommandHandler};
-use infiltrator_contract::command::{CommandIntent, CommandResult, ProxyMode};
-use infiltrator_contract::snapshot::CoreWatchdogState;
-use infiltrator_domain::watchdog::WatchdogConfig;
+use crate::command_application::handler::{
+    CommandFuture, CommandHandler, CommandOutputFuture, ValidatedCoreCommandScope,
+};
+use infiltrator_contract::command::{CommandIntent, CommandKind, CommandResult};
+use infiltrator_contract::command_output::CommandOutput;
+use infiltrator_contract::core_capabilities::{
+    AdapterCapabilityDecision, AdapterRevision, CoreCapabilityEntry, CoreCapabilityMatrix,
+    CoreCapabilityScope, CoreLifecycleOperation, CoreOperation, EngineCapabilityDecision,
+    HostCapabilityDecision,
+};
+use infiltrator_contract::core_identity::{
+    CoreCommandRequest, CoreIdentity, CoreInstanceId, CoreVersion, EngineId,
+};
+use infiltrator_contract::outbound::{
+    identity::{OutboundId, SnapshotRevision},
+    probe::OutboundSelectionRequest,
+};
+use infiltrator_contract::routing_intent::RoutingIntent;
+use infiltrator_contract::surface::HostKind;
 use infiltrator_ports::application_runtime::{
     ApplicationFuture, ApplicationRuntime, ApplicationSleep,
 };
+use infiltrator_ports::core_capability_provider::{
+    CoreCapabilityProvider, CoreCapabilityProviderError,
+};
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
-use infiltrator_ports::core_watchdog::{CoreWatchdogPort, WatchdogTick};
 use infiltrator_ports::error::PortError;
-use infiltrator_ports::overview::{OverviewReader, OverviewSample};
-use std::sync::atomic::AtomicBool;
+use infiltrator_ports::outbound::OutboundScopeSource;
+use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, AtomicUsize};
 use std::{thread, time};
 use tokio::runtime::Builder;
 use tokio::time::sleep;
 
+#[path = "core_application/ownership_tests.rs"]
+mod ownership_tests;
+#[path = "core_application/speedtest_actor_tests.rs"]
+mod speedtest_actor_tests;
 #[path = "core_application/telemetry_tests.rs"]
 mod telemetry_tests;
 #[path = "core_application/transaction_tests.rs"]
 mod transaction_tests;
+#[path = "core_application/watchdog_tests.rs"]
+mod watchdog_tests;
 
 struct FakeProcess {
     running: AtomicBool,
@@ -35,6 +59,14 @@ struct WatchdogProcess {
 
 #[async_trait::async_trait]
 impl CoreProcess for WatchdogProcess {
+    fn core_identity(&self) -> Option<CoreIdentity> {
+        Some(CoreIdentity::new(
+            EngineId::new("mihomo").ok()?,
+            CoreInstanceId::new("watchdog-test").ok()?,
+            None,
+        ))
+    }
+
     async fn start(&self) -> Result<(), PortError> {
         self.starts.fetch_add(1, Ordering::SeqCst);
         if self.fail_starts.load(Ordering::SeqCst) > 0 {
@@ -65,6 +97,14 @@ impl CoreProcess for WatchdogProcess {
 
 #[async_trait::async_trait]
 impl CoreProcess for FakeProcess {
+    fn core_identity(&self) -> Option<CoreIdentity> {
+        Some(CoreIdentity::new(
+            EngineId::new("fake-core").ok()?,
+            CoreInstanceId::new("test-instance").ok()?,
+            None,
+        ))
+    }
+
     async fn start(&self) -> Result<(), PortError> {
         if self.fail_start {
             return Err(PortError::Failed("fake start failure".to_string()));
@@ -100,6 +140,41 @@ struct FakeReadiness {
     endpoint: Result<String, PortError>,
 }
 
+struct ReadinessRollbackProcess {
+    state: Arc<Mutex<CoreLifecycle>>,
+    stop_calls: Arc<AtomicUsize>,
+}
+
+#[async_trait::async_trait]
+impl CoreProcess for ReadinessRollbackProcess {
+    fn core_identity(&self) -> Option<CoreIdentity> {
+        Some(CoreIdentity::new(
+            EngineId::new("mihomo").ok()?,
+            CoreInstanceId::new("readiness-rollback-test").ok()?,
+            None,
+        ))
+    }
+
+    async fn start(&self) -> Result<(), PortError> {
+        *self.state.lock().expect("process state lock") = CoreLifecycle::Running;
+        Ok(())
+    }
+
+    async fn stop(&self) -> Result<(), PortError> {
+        self.stop_calls.fetch_add(1, Ordering::SeqCst);
+        *self.state.lock().expect("process state lock") = CoreLifecycle::Stopped;
+        Ok(())
+    }
+
+    async fn status(&self) -> Result<CoreLifecycle, PortError> {
+        Ok(self.state.lock().expect("process state lock").clone())
+    }
+
+    fn controller_endpoint(&self) -> Option<String> {
+        Some("http://127.0.0.1:9090".to_owned())
+    }
+}
+
 struct CleanupTrackingProcess {
     running: AtomicBool,
     cleanup_called: AtomicBool,
@@ -107,6 +182,14 @@ struct CleanupTrackingProcess {
 
 #[async_trait::async_trait]
 impl CoreProcess for CleanupTrackingProcess {
+    fn core_identity(&self) -> Option<CoreIdentity> {
+        Some(CoreIdentity::new(
+            EngineId::new("mihomo").ok()?,
+            CoreInstanceId::new("cleanup-test").ok()?,
+            None,
+        ))
+    }
+
     async fn start(&self) -> Result<(), PortError> {
         assert!(
             self.cleanup_called.load(Ordering::SeqCst),
@@ -147,10 +230,21 @@ impl CoreReadiness for FakeReadiness {
             Err(error) => Err(error.clone()),
         }
     }
+
+    async fn active_core_version(&self) -> Result<Option<CoreVersion>, PortError> {
+        Ok(Some(
+            CoreVersion::new("1.19.12").expect("valid reported test version"),
+        ))
+    }
 }
 
-struct FakeOverview {
-    mode: Result<ProxyMode, PortError>,
+struct VersionUnavailableReadiness;
+
+#[async_trait::async_trait]
+impl CoreReadiness for VersionUnavailableReadiness {
+    async fn probe(&self) -> Result<String, PortError> {
+        Ok("http://127.0.0.1:9090".to_string())
+    }
 }
 
 struct FakeCommandHandler;
@@ -164,6 +258,23 @@ impl CommandHandler for FakeCommandHandler {
                 Err(Failure::unsupported("fake handler rejected command"))
             }
         })
+    }
+
+    fn handle_output_scoped(
+        &self,
+        scope: ValidatedCoreCommandScope,
+        intent: CommandIntent,
+    ) -> CommandOutputFuture {
+        if scope.as_ref().is_some() && matches!(intent, CommandIntent::ClearLogs) {
+            let handled = self.handle(intent);
+            Box::pin(async move { handled.await.map(|()| CommandOutput::Unit) })
+        } else {
+            Box::pin(async {
+                Err(Failure::unsupported(
+                    "test fake only handles scoped log clear",
+                ))
+            })
+        }
     }
 }
 
@@ -187,21 +298,53 @@ fn runtime() -> Arc<dyn ApplicationRuntime> {
     Arc::new(TestRuntime)
 }
 
-#[async_trait::async_trait]
-impl OverviewReader for FakeOverview {
-    async fn sample(&self) -> Result<OverviewSample, PortError> {
-        Err(PortError::Failed(
-            "sample not needed in this test".to_string(),
-        ))
-    }
+struct TestLifecycleCapabilityProvider;
 
-    async fn set_mode(&self, _mode: ProxyMode) -> Result<ProxyMode, PortError> {
-        self.mode.clone()
+impl CoreCapabilityProvider for TestLifecycleCapabilityProvider {
+    fn matrix_for(
+        &self,
+        engine_id: &EngineId,
+        core_version: Option<&CoreVersion>,
+    ) -> Result<CoreCapabilityMatrix, CoreCapabilityProviderError> {
+        let scope = CoreCapabilityScope::new(
+            engine_id.clone(),
+            core_version.cloned(),
+            HostKind::Desktop,
+            AdapterRevision::new(1),
+        );
+        let entries = [
+            CoreOperation::Lifecycle(CoreLifecycleOperation::Start),
+            CoreOperation::Lifecycle(CoreLifecycleOperation::Stop),
+            CoreOperation::Lifecycle(CoreLifecycleOperation::Restart),
+        ]
+        .into_iter()
+        .map(|operation| {
+            CoreCapabilityEntry::new(
+                operation,
+                EngineCapabilityDecision::Supported,
+                HostCapabilityDecision::Supported,
+                AdapterCapabilityDecision::Supported,
+            )
+        })
+        .collect();
+        CoreCapabilityMatrix::new(scope, entries).map_err(|error| {
+            CoreCapabilityProviderError::MatrixUnavailable {
+                reason: error.to_string(),
+            }
+        })
     }
 }
 
+pub(crate) fn install_lifecycle_capabilities(application: &CoreApplication) {
+    application
+        .install_core_capability_application(CoreCapabilityApplication::new(Arc::new(
+            TestLifecycleCapabilityProvider,
+        )))
+        .expect("test lifecycle capabilities install before use");
+}
+
 fn application(process: FakeProcess, readiness: Result<String, PortError>) -> CoreApplication {
-    CoreApplication::new_with_policy(
+    let application = CoreApplication::new_with_policy(
         Arc::new(process),
         Arc::new(FakeReadiness {
             endpoint: readiness,
@@ -211,484 +354,29 @@ fn application(process: FakeProcess, readiness: Result<String, PortError>) -> Co
             poll_interval: time::Duration::from_millis(1),
         },
         runtime(),
-    )
+    );
+    install_lifecycle_capabilities(&application);
+    application
 }
 
-#[tokio::test]
-async fn lifecycle_commands_publish_only_contract_values() {
-    let app = application(
-        FakeProcess {
-            running: AtomicBool::new(false),
-            fail_start: false,
-            fail_stop: false,
-        },
-        Ok("http://127.0.0.1:9090".to_string()),
-    );
-
-    let started = app.execute(CommandIntent::StartCore).await;
-    assert_eq!(
-        started,
-        CommandResult::Completed {
-            request_id: RequestId(1)
-        }
-    );
-    assert_eq!(app.snapshot().lifecycle, CoreLifecycle::Running);
-    assert_eq!(app.snapshot().generation, 1);
-    let lifecycle = app.lifecycle_snapshot();
-    assert_eq!(lifecycle.lifecycle, CoreLifecycle::Running);
-    assert_eq!(lifecycle.generation, 1);
-    assert_eq!(lifecycle.session_token, app.snapshot().session_token);
-    assert_eq!(lifecycle.revision, app.snapshot().revision);
-    let first_session = app
-        .snapshot()
-        .session_token
-        .expect("running core must expose a session token");
-    assert!(first_session.is_valid());
-    assert_eq!(app.snapshot().revision, 2);
-
-    let events = app.drain_events();
-    assert!(matches!(
-        events.first(),
-        Some(CoreEvent::CommandAccepted { .. })
-    ));
-    assert!(matches!(events.get(1), Some(CoreEvent::SnapshotUpdated(_))));
-    assert!(matches!(events.get(2), Some(CoreEvent::SnapshotUpdated(_))));
-    assert!(matches!(
-        events.get(3),
-        Some(CoreEvent::CommandCompleted { .. })
-    ));
-
-    let stopped = app.execute(CommandIntent::StopCore).await;
-    assert_eq!(
-        stopped,
-        CommandResult::Completed {
-            request_id: RequestId(2)
-        }
-    );
-    assert_eq!(app.snapshot().lifecycle, CoreLifecycle::Stopped);
-    assert_eq!(app.snapshot().generation, 1);
-    assert!(app.snapshot().session_token.is_none());
-
-    let restarted = app.execute(CommandIntent::StartCore).await;
-    assert!(matches!(restarted, CommandResult::Completed { .. }));
-    let second_session = app
-        .snapshot()
-        .session_token
-        .expect("restarted core must expose a session token");
-    assert_ne!(first_session, second_session);
-    assert_eq!(app.snapshot().generation, 2);
-}
-
-#[tokio::test]
-async fn adapter_failures_become_typed_contract_failures() {
-    let app = application(
-        FakeProcess {
-            running: AtomicBool::new(false),
-            fail_start: true,
-            fail_stop: false,
-        },
-        Ok("http://127.0.0.1:9090".to_string()),
-    );
-
-    let result = app.execute(CommandIntent::StartCore).await;
-    let CommandResult::Rejected { failure, .. } = result else {
-        panic!("expected rejected command");
-    };
-    assert_eq!(failure.code, ErrorCode::Internal);
-    assert_eq!(app.snapshot().lifecycle, CoreLifecycle::Failed);
-    assert_eq!(app.snapshot().generation, 1);
-
-    let events = app.drain_events();
-    assert!(events.iter().any(|event| matches!(
-        event,
-        CoreEvent::CommandFailed { failure, .. } if failure.code == ErrorCode::Internal
-    )));
-}
-
-#[tokio::test]
-async fn readiness_failures_never_report_running() {
-    let app = application(
-        FakeProcess {
-            running: AtomicBool::new(false),
-            fail_start: false,
-            fail_stop: false,
-        },
-        Err(PortError::Network("controller unavailable".to_string())),
-    );
-
-    let result = app.execute(CommandIntent::StartCore).await;
-    let CommandResult::Rejected { failure, .. } = result else {
-        panic!("expected rejected command");
-    };
-    assert_eq!(failure.code, ErrorCode::Network);
-    assert_eq!(app.snapshot().lifecycle, CoreLifecycle::Failed);
-    assert!(
-        !app.drain_events()
-            .iter()
-            .any(|event| matches!(event, CoreEvent::CommandCompleted { .. }))
-    );
-}
-
-#[tokio::test]
-async fn dispatch_returns_id_and_completes_through_event_queue() {
-    let app = application(
-        FakeProcess {
-            running: AtomicBool::new(false),
-            fail_start: false,
-            fail_stop: false,
-        },
-        Ok("http://127.0.0.1:9090".to_string()),
-    );
-
-    let request_id = app.dispatch(CommandIntent::StartCore);
-    assert_eq!(request_id, RequestId(1));
-
-    let deadline = time::Instant::now() + time::Duration::from_secs(5);
-    loop {
-        for event in app.drain_events() {
-            match event {
-                CoreEvent::CommandCompleted {
-                    request_id: completed,
-                    ..
-                } if completed == request_id => {
-                    assert_eq!(app.snapshot().lifecycle, CoreLifecycle::Running);
-                    assert_eq!(app.snapshot().generation, 1);
-                    assert!(app.snapshot().session_token.is_some());
-                    return;
-                }
-                CoreEvent::CommandFailed {
-                    request_id: failed,
-                    failure,
-                    ..
-                } if failed == request_id => {
-                    panic!("dispatched start command failed: {failure:?}");
-                }
-                _ => {}
-            }
-        }
-        assert!(
-            time::Instant::now() < deadline,
-            "dispatched start command has no correlated terminal event"
-        );
-        sleep(time::Duration::from_millis(1)).await;
-    }
-}
-
-#[tokio::test]
-async fn adopt_checks_host_status_without_starting_the_process() {
-    let process = FakeProcess {
-        running: AtomicBool::new(true),
-        fail_start: false,
-        fail_stop: false,
-    };
-    let app = application(process, Ok("http://127.0.0.1:9090".to_string()));
-
-    assert!(app.adopt_if_running().await.expect("adopt succeeds"));
-    assert_eq!(app.snapshot().lifecycle, CoreLifecycle::Running);
-    assert_eq!(app.snapshot().generation, 1);
-    assert!(app.snapshot().session_token.is_some());
-}
-
-#[tokio::test]
-async fn mode_commands_use_the_injected_overview_port() {
-    let app = CoreApplication::new_with_overview(
-        Arc::new(FakeProcess {
-            running: AtomicBool::new(true),
-            fail_start: false,
-            fail_stop: false,
+fn readiness_rollback_application(
+    process_state: Arc<Mutex<CoreLifecycle>>,
+    stop_calls: Arc<AtomicUsize>,
+) -> CoreApplication {
+    let application = CoreApplication::new_with_policy(
+        Arc::new(ReadinessRollbackProcess {
+            state: process_state,
+            stop_calls,
         }),
         Arc::new(FakeReadiness {
-            endpoint: Ok("http://127.0.0.1:9090".to_string()),
-        }),
-        Arc::new(FakeOverview {
-            mode: Ok(ProxyMode::Global),
-        }),
-        runtime(),
-    );
-
-    let result = app
-        .execute(CommandIntent::SetProxyMode {
-            mode: ProxyMode::Global,
-        })
-        .await;
-    assert!(matches!(result, CommandResult::Completed { .. }));
-}
-
-#[tokio::test]
-async fn non_lifecycle_commands_use_the_installed_handler() {
-    let app = application(
-        FakeProcess {
-            running: AtomicBool::new(false),
-            fail_start: false,
-            fail_stop: false,
-        },
-        Ok("http://127.0.0.1:9090".to_string()),
-    );
-    app.install_command_handler(Arc::new(FakeCommandHandler));
-
-    let result = app.execute(CommandIntent::ClearLogs).await;
-    assert_eq!(
-        result,
-        CommandResult::Completed {
-            request_id: RequestId(1)
-        }
-    );
-}
-
-#[tokio::test]
-async fn stale_session_tokens_are_rejected_after_stop_and_restart() {
-    let app = application(
-        FakeProcess {
-            running: AtomicBool::new(false),
-            fail_start: false,
-            fail_stop: false,
-        },
-        Ok("http://127.0.0.1:9090".to_string()),
-    );
-
-    app.execute(CommandIntent::StartCore).await;
-    let old_token = app.session_token().expect("session token after start");
-    assert!(app.check_session(old_token).is_ok());
-
-    app.execute(CommandIntent::StopCore).await;
-    assert!(app.check_session(old_token).is_err());
-
-    app.execute(CommandIntent::StartCore).await;
-    let new_token = app.session_token().expect("session token after restart");
-    assert_ne!(old_token, new_token);
-    assert!(app.check_session(old_token).is_err());
-    assert!(app.check_session(new_token).is_ok());
-}
-
-#[tokio::test]
-async fn start_reconciles_orphan_state_before_spawning_a_new_session() {
-    let process = Arc::new(CleanupTrackingProcess {
-        running: AtomicBool::new(false),
-        cleanup_called: AtomicBool::new(false),
-    });
-    let app = CoreApplication::new_with_policy(
-        process.clone(),
-        Arc::new(FakeReadiness {
-            endpoint: Ok("http://127.0.0.1:9090".to_string()),
+            endpoint: Err(PortError::Network("controller unavailable".to_owned())),
         }),
         ReadinessPolicy {
-            timeout: time::Duration::from_millis(100),
+            timeout: time::Duration::from_millis(10),
             poll_interval: time::Duration::from_millis(1),
         },
         runtime(),
     );
-
-    let result = app.execute(CommandIntent::StartCore).await;
-    assert!(matches!(result, CommandResult::Completed { .. }));
-    assert!(process.cleanup_called.load(Ordering::SeqCst));
-    assert_eq!(app.snapshot().generation, 1);
-    assert!(app.snapshot().session_token.is_some());
-}
-
-#[tokio::test]
-async fn hot_reload_fences_to_the_current_session_without_bumping_generation() {
-    let app = application(
-        FakeProcess {
-            running: AtomicBool::new(false),
-            fail_start: false,
-            fail_stop: false,
-        },
-        Ok("http://127.0.0.1:9090".to_string()),
-    );
-    app.execute(CommandIntent::StartCore).await;
-    let before = app.snapshot();
-    let token = CoreLifecyclePort::begin_reload(&app).expect("begin reload");
-    assert_eq!(Some(token), before.session_token);
-    assert_eq!(app.snapshot().generation, before.generation);
-    assert_eq!(app.snapshot().lifecycle, CoreLifecycle::Ready);
-
-    CoreLifecyclePort::complete_reload(&app, token).expect("complete reload");
-    assert_eq!(app.snapshot().lifecycle, CoreLifecycle::Running);
-    assert_eq!(app.snapshot().generation, before.generation);
-
-    let token = CoreLifecyclePort::begin_reload(&app).expect("begin second reload");
-    CoreLifecyclePort::fail_reload(&app, token, "invalid config".to_string())
-        .expect("record reload failure");
-    assert_eq!(app.snapshot().lifecycle, CoreLifecycle::Running);
-    assert_eq!(app.snapshot().session_token, Some(token));
-}
-
-#[tokio::test]
-async fn watchdog_detects_exit_and_restarts_with_a_new_session() {
-    let running = Arc::new(AtomicBool::new(false));
-    let starts = Arc::new(AtomicU64::new(0));
-    let process = Arc::new(WatchdogProcess {
-        running: running.clone(),
-        starts: starts.clone(),
-        fail_starts: Arc::new(AtomicU64::new(0)),
-    });
-    let app = CoreApplication::new_with_policy(
-        process,
-        Arc::new(FakeReadiness {
-            endpoint: Ok("http://127.0.0.1:9090".to_string()),
-        }),
-        ReadinessPolicy {
-            timeout: time::Duration::from_millis(100),
-            poll_interval: time::Duration::from_millis(1),
-        },
-        runtime(),
-    );
-    app.configure_watchdog(WatchdogConfig {
-        initial_retry_delay: time::Duration::ZERO,
-        max_retry_delay: time::Duration::from_millis(1),
-        max_restart_attempts: 2,
-    });
-
-    assert!(matches!(
-        app.execute(CommandIntent::StartCore).await,
-        CommandResult::Completed { .. }
-    ));
-    let before = app.snapshot();
-    running.store(false, Ordering::SeqCst);
-
-    assert!(matches!(
-        CoreWatchdogPort::watchdog_tick(&app)
-            .await
-            .expect("detect exit"),
-        WatchdogTick::Waiting {
-            attempt: 1,
-            retry_in_ms: 0,
-            ..
-        }
-    ));
-    assert_eq!(app.snapshot().lifecycle, CoreLifecycle::Failed);
-
-    assert!(matches!(
-        CoreWatchdogPort::watchdog_tick(&app)
-            .await
-            .expect("recover exit"),
-        WatchdogTick::Recovered { attempts: 1, .. }
-    ));
-    let after = app.snapshot();
-    assert_eq!(after.lifecycle, CoreLifecycle::Running);
-    assert!(after.generation > before.generation);
-    assert_ne!(after.session_token, before.session_token);
-    assert!(matches!(
-        after.watchdog.state,
-        CoreWatchdogState::Recovered { attempts: 1 }
-    ));
-    assert_eq!(starts.load(Ordering::SeqCst), 2);
-}
-
-#[tokio::test]
-async fn watchdog_opens_the_circuit_after_repeated_restart_failures() {
-    let running = Arc::new(AtomicBool::new(false));
-    let starts = Arc::new(AtomicU64::new(0));
-    let fail_starts = Arc::new(AtomicU64::new(0));
-    let process = Arc::new(WatchdogProcess {
-        running: running.clone(),
-        starts: starts.clone(),
-        fail_starts: fail_starts.clone(),
-    });
-    let app = CoreApplication::new_with_policy(
-        process,
-        Arc::new(FakeReadiness {
-            endpoint: Ok("http://127.0.0.1:9090".to_string()),
-        }),
-        ReadinessPolicy {
-            timeout: time::Duration::from_millis(100),
-            poll_interval: time::Duration::from_millis(1),
-        },
-        runtime(),
-    );
-    app.configure_watchdog(WatchdogConfig {
-        initial_retry_delay: time::Duration::ZERO,
-        max_retry_delay: time::Duration::from_millis(1),
-        max_restart_attempts: 2,
-    });
-
-    assert!(matches!(
-        app.execute(CommandIntent::StartCore).await,
-        CommandResult::Completed { .. }
-    ));
-    fail_starts.store(2, Ordering::SeqCst);
-    let before = app.snapshot();
-    running.store(false, Ordering::SeqCst);
-
-    assert!(matches!(
-        CoreWatchdogPort::watchdog_tick(&app)
-            .await
-            .expect("detect exit"),
-        WatchdogTick::Waiting { attempt: 1, .. }
-    ));
-    assert!(matches!(
-        CoreWatchdogPort::watchdog_tick(&app)
-            .await
-            .expect("first failed restart"),
-        WatchdogTick::Waiting { attempt: 2, .. }
-    ));
-    assert!(matches!(
-        CoreWatchdogPort::watchdog_tick(&app)
-            .await
-            .expect("second failed restart"),
-        WatchdogTick::Tripped { attempts: 2, .. }
-    ));
-    assert!(matches!(
-        app.snapshot().watchdog.state,
-        CoreWatchdogState::Tripped { attempts: 2 }
-    ));
-    assert_eq!(app.snapshot().generation, before.generation + 2);
-    assert_eq!(starts.load(Ordering::SeqCst), 3);
-}
-
-#[test]
-fn dispatch_does_not_require_a_caller_owned_runtime() {
-    let app = application(
-        FakeProcess {
-            running: AtomicBool::new(false),
-            fail_start: false,
-            fail_stop: false,
-        },
-        Ok("http://127.0.0.1:9090".to_string()),
-    );
-
-    assert_eq!(app.dispatch(CommandIntent::StartCore), RequestId(1));
-    for _ in 0..100 {
-        if app
-            .drain_events()
-            .iter()
-            .any(|event| matches!(event, CoreEvent::CommandCompleted { .. }))
-        {
-            assert_eq!(app.snapshot().lifecycle, CoreLifecycle::Running);
-            return;
-        }
-        thread::sleep(time::Duration::from_millis(1));
-    }
-    panic!("dispatched command did not complete without a caller runtime");
-}
-
-#[test]
-fn tracked_completion_survives_lifecycle_event_ring_eviction() {
-    let app = application(
-        FakeProcess {
-            running: AtomicBool::new(false),
-            fail_start: false,
-            fail_stop: false,
-        },
-        Ok("http://127.0.0.1:9090".into()),
-    );
-    app.install_command_handler(Arc::new(FakeCommandHandler));
-    let (id, first) = app.dispatch_tracked(CommandIntent::ClearLogs);
-    for _ in 0..300 {
-        let (next_id, reply) = app.dispatch_tracked(CommandIntent::ClearLogs);
-        assert_eq!(
-            reply.recv_timeout(time::Duration::from_secs(5)).unwrap(),
-            CommandResult::Completed {
-                request_id: next_id
-            }
-        );
-    }
-    // The transient lifecycle queue has lost the first event, but its private acknowledgment survives.
-    assert!(!app.drain_events().iter().any(
-        |event| matches!(event, CoreEvent::CommandCompleted { request_id, .. } if *request_id == id)
-    ));
-    assert_eq!(
-        first.recv_timeout(time::Duration::from_secs(5)).unwrap(),
-        CommandResult::Completed { request_id: id }
-    );
+    install_lifecycle_capabilities(&application);
+    application
 }

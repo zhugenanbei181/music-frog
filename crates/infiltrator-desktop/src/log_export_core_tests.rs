@@ -2,17 +2,76 @@
 use super::DesktopLogExportPort;
 use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::core_application::CoreApplication;
+use infiltrator_application::core_capability_application::CoreCapabilityApplication;
 use infiltrator_application::log_capture_fixtures::{
     LogCaptureProcess, append_follow_records, populate_logs,
 };
 use infiltrator_application::log_export_application::LogExportApplication;
 use infiltrator_composition::tokio_application_runtime;
-use infiltrator_contract::command::CommandIntent;
+use infiltrator_contract::command::{CommandIntent, CommandResult};
+use infiltrator_contract::core_capabilities::{
+    AdapterCapabilityDecision, AdapterRevision, CoreCapabilityEntry, CoreCapabilityMatrix,
+    CoreCapabilityScope, CoreLifecycleOperation, CoreOperation, EngineCapabilityDecision,
+    HostCapabilityDecision,
+};
+use infiltrator_contract::core_identity::CoreCommandRequest;
+use infiltrator_contract::core_identity::{CoreVersion, EngineId};
 use infiltrator_contract::error::ErrorCode;
+use infiltrator_contract::surface::HostKind;
+use infiltrator_ports::core_capability_provider::{
+    CoreCapabilityProvider, CoreCapabilityProviderError,
+};
 use infiltrator_ports::runtime_gateway::RuntimeStreamEvent;
 use std::fs;
 use std::sync::Arc;
 use tempfile::tempdir;
+
+async fn execute_at_observed_scope(core: &CoreApplication, intent: CommandIntent) -> CommandResult {
+    let scope = core
+        .snapshot()
+        .scope()
+        .expect("desktop test observes the Core owner scope");
+    core.execute_scoped(CoreCommandRequest { scope, intent })
+        .await
+        .result
+}
+
+struct LifecycleTestCapabilities;
+
+impl CoreCapabilityProvider for LifecycleTestCapabilities {
+    fn matrix_for(
+        &self,
+        engine_id: &EngineId,
+        core_version: Option<&CoreVersion>,
+    ) -> Result<CoreCapabilityMatrix, CoreCapabilityProviderError> {
+        let scope = CoreCapabilityScope::new(
+            engine_id.clone(),
+            core_version.cloned(),
+            HostKind::Desktop,
+            AdapterRevision::new(1),
+        );
+        let entries = [
+            CoreLifecycleOperation::Start,
+            CoreLifecycleOperation::Stop,
+            CoreLifecycleOperation::Restart,
+        ]
+        .into_iter()
+        .map(|operation| {
+            CoreCapabilityEntry::new(
+                CoreOperation::Lifecycle(operation),
+                EngineCapabilityDecision::Supported,
+                HostCapabilityDecision::Supported,
+                AdapterCapabilityDecision::Supported,
+            )
+        })
+        .collect();
+        CoreCapabilityMatrix::new(scope, entries).map_err(|error| {
+            CoreCapabilityProviderError::MatrixUnavailable {
+                reason: error.to_string(),
+            }
+        })
+    }
+}
 
 #[tokio::test]
 async fn actual_typed_commands_cancel_without_files_save_frozen_bytes_and_retire_old_confirmations_on_restart()
@@ -24,6 +83,10 @@ async fn actual_typed_commands_cancel_without_files_save_frozen_bytes_and_retire
         process,
         tokio_application_runtime().unwrap(),
     );
+    core.install_core_capability_application(CoreCapabilityApplication::new(Arc::new(
+        LifecycleTestCapabilities,
+    )))
+    .expect("explicit lifecycle test capabilities install before use");
     core.install_command_handler(Arc::new(
         CommandApplication::new()
             .with_logs(core.log_application())
@@ -34,14 +97,16 @@ async fn actual_typed_commands_cancel_without_files_save_frozen_bytes_and_retire
             )),
     ));
     populate_logs(&core).await.unwrap();
-    core.execute(CommandIntent::SetLogLevelFilter {
-        level: Some("WARN".into()),
-    })
+    execute_at_observed_scope(
+        &core,
+        CommandIntent::SetLogLevelFilter {
+            level: Some("WARN".into()),
+        },
+    )
     .await
     .into_unit()
     .unwrap();
-    let cancelled = core
-        .execute(CommandIntent::PrepareLogExport)
+    let cancelled = execute_at_observed_scope(&core, CommandIntent::PrepareLogExport)
         .await
         .into_output()
         .unwrap()
@@ -52,16 +117,22 @@ async fn actual_typed_commands_cancel_without_files_save_frozen_bytes_and_retire
         "viewer filtering cannot change export scope"
     );
     assert!(!directory.path().join("exports").exists());
-    core.execute(CommandIntent::CancelLogExport {
-        identity: cancelled.identity.clone(),
-    })
+    execute_at_observed_scope(
+        &core,
+        CommandIntent::CancelLogExport {
+            identity: cancelled.identity.clone(),
+        },
+    )
     .await
     .into_unit()
     .unwrap();
     assert_eq!(
-        core.execute(CommandIntent::SaveLogExport {
-            identity: cancelled.identity
-        })
+        execute_at_observed_scope(
+            &core,
+            CommandIntent::SaveLogExport {
+                identity: cancelled.identity
+            }
+        )
         .await
         .into_output()
         .unwrap_err()
@@ -69,42 +140,50 @@ async fn actual_typed_commands_cancel_without_files_save_frozen_bytes_and_retire
         ErrorCode::InvalidState
     );
     assert!(!directory.path().join("exports").exists());
-    let summary = core
-        .execute(CommandIntent::PrepareLogExport)
+    let summary = execute_at_observed_scope(&core, CommandIntent::PrepareLogExport)
         .await
         .into_output()
         .unwrap()
         .into_log_export_summary()
         .unwrap();
     append_follow_records(&core).unwrap();
-    let receipt = core
-        .execute(CommandIntent::SaveLogExport {
+    let receipt = execute_at_observed_scope(
+        &core,
+        CommandIntent::SaveLogExport {
             identity: summary.identity.clone(),
-        })
-        .await
-        .into_output()
-        .unwrap()
-        .into_log_export_receipt()
-        .unwrap();
+        },
+    )
+    .await
+    .into_output()
+    .unwrap()
+    .into_log_export_receipt()
+    .unwrap();
     assert_eq!(receipt.summary, summary);
     let content = fs::read_to_string(&receipt.path).unwrap();
     assert_eq!(content.lines().count(), 3);
     assert!(content.contains("API.EXAMPLE dial TIMEOUT"));
     assert!(!content.contains("continued controller record"));
     assert_eq!(receipt.bytes_written, content.len());
-    core.execute(CommandIntent::RestartCore)
+    execute_at_observed_scope(&core, CommandIntent::RestartCore)
         .await
         .into_unit()
         .unwrap();
-    assert!(!core.log_application().bind(Some(summary.identity.session)));
+    assert!(
+        !core
+            .log_application()
+            .bind(Some(summary.identity.session.clone()))
+    );
     assert!(!core.log_application().ingest(
-        summary.identity.session,
+        summary.identity.session.clone(),
         RuntimeStreamEvent::Item("ERROR[old] rejected stale worker".into())
     ));
     assert!(
-        core.execute(CommandIntent::SaveLogExport {
-            identity: summary.identity
-        })
+        execute_at_observed_scope(
+            &core,
+            CommandIntent::SaveLogExport {
+                identity: summary.identity
+            }
+        )
         .await
         .into_output()
         .is_err()

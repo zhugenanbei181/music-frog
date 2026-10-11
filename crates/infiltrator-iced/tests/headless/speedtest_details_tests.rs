@@ -2,9 +2,9 @@
 //! Inspection consumes the shared fold without running probes or commands.
 use crate::test_support::demo_env;
 use infiltrator_application::speedtest_detail_projection::{listing, project_details};
-use infiltrator_contract::capability::Availability;
+use infiltrator_contract::error::Failure;
 use infiltrator_contract::shortcuts::KeyModifiers;
-use infiltrator_contract::speedtest::SpeedtestSnapshot;
+use infiltrator_contract::speedtest::{SpeedtestRunState, SpeedtestSnapshot};
 use infiltrator_iced::state::AppState;
 use infiltrator_iced::types::app::Route;
 use infiltrator_iced::types::message::Message;
@@ -18,10 +18,10 @@ fn speedtest_detail_preserves_shared_facts_and_closes_without_effects() {
     assert_eq!(state.update(Message::OpenSpeedtestDetail).units(), 0);
     assert!(state.diag.speedtest_detail_open);
     let details = project_details(&state.diag.speedtest);
-    assert_eq!(details.rows.len(), original.node_results.len());
+    assert_eq!(details.rows.len(), original.results.len());
     assert_eq!(
-        details.rows[0].node_name,
-        original.sorted_by_latency()[0].node_name
+        details.rows[0].display_name,
+        original.sorted_by_latency()[0].display_name
     );
     drop(state.view());
     assert_eq!(state.update(Message::CloseSpeedtestDetail).units(), 0);
@@ -57,15 +57,19 @@ fn speedtest_detail_keeps_unsupported_failure_and_empty_distinct() {
         })
     };
     let empty = text(&state);
-    state.diag.speedtest.failure = Some("probe refused".into());
+    let fixture = SpeedtestSnapshot::demo_fixture();
+    state.diag.speedtest.state = SpeedtestRunState::Failed {
+        run_id: fixture.state.run_id().expect("fixture run ID"),
+        target: fixture.state.target().expect("fixture target").clone(),
+        failure: Failure::unsupported("probe refused"),
+    };
     let failure = text(&state);
-    state.diag.speedtest.availability = Some(Availability::Unsupported {
-        reason: "missing host engine".into(),
-    });
+    state.diag.speedtest =
+        SpeedtestSnapshot::unavailable(Failure::unsupported("missing Core speedtest owner"));
     let unsupported = text(&state);
     assert_ne!(unsupported, failure);
     assert_ne!(unsupported, empty);
-    assert!(unsupported.contains("missing host engine"));
+    assert!(unsupported.contains("missing Core speedtest owner"));
     assert_eq!(state.update(Message::OpenSpeedtestDetail).units(), 0);
     assert!(state.diag.speedtest_detail_open);
     drop(state.view());

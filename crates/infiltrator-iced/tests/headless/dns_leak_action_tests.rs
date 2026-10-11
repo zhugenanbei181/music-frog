@@ -1,14 +1,16 @@
 //! test-intent: behavior
 use crate::command_harness::recording_application;
+use crate::host_command_harness::host_test_command_application;
 use crate::test_support::demo_env;
 use futures_util::StreamExt;
 use iced::Task;
 use iced::advanced::widget::Tree;
 use iced_runtime::{Action, task::into_stream};
-use infiltrator_application::command_application::CommandApplication;
+use infiltrator_application::dns_leak_actions::DnsLeakActionPhase;
 use infiltrator_application::dns_leak_application::{DnsLeakApplication, default_echo_sources};
 use infiltrator_application::dns_leak_fixtures::{EchoMode, IsolatedEcho};
 use infiltrator_application::surface_reader::ApplicationSurfaceReader;
+use infiltrator_contract::capability::Capability;
 use infiltrator_contract::dns_leak::DnsLeakOperation;
 use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::parity::FeatureId;
@@ -51,7 +53,7 @@ fn actual_dns_probe_reports_divergence_and_preserves_facts_on_permission_failure
     let leak = DnsLeakApplication::new(Some(echo.clone()), default_echo_sources());
     let (application, _) = recording_application();
     application.install_command_handler(Arc::new(
-        CommandApplication::new().with_dns_leak(leak.clone()),
+        host_test_command_application([Capability::Dns]).with_dns_leak(leak.clone()),
     ));
     let reader = ApplicationSurfaceReader::new(
         Arc::new(application.clone()),
@@ -59,21 +61,30 @@ fn actual_dns_probe_reports_divergence_and_preserves_facts_on_permission_failure
         HostKind::Desktop,
     )
     .with_dns_leak(leak.clone());
-    let (mut state, _) = AppState::demo(&demo_env(Route::Dns));
-    state.commands = Some(application);
+    let (mut state, _) = AppState::new();
+    state.shell.current_route = Route::Dns;
+    state.attach_product_application(application.clone());
     publish(&mut state, &reader);
     assert!(matches!(
         state.surface.latest().unwrap().pages.dns.status,
         PageStatus::Unavailable { .. }
     ));
     let task = state.update(Message::RunDnsLeakProbe);
-    let token = state.diag.dns_leak_action.pending.unwrap();
+    let token = match &state.diag.dns_leak_action.phase {
+        DnsLeakActionPhase::Pending { token } => *token,
+        DnsLeakActionPhase::Idle | DnsLeakActionPhase::Failed { .. } => {
+            panic!("probe command must be pending")
+        }
+    };
     assert_eq!(state.update(Message::RunDnsLeakProbe).units(), 0);
     let _ = state.update(Message::DnsLeakCommandFinished {
         token: token + 1,
         result: Ok(()),
     });
-    assert_eq!(state.diag.dns_leak_action.pending, Some(token));
+    assert_eq!(
+        state.diag.dns_leak_action.phase,
+        DnsLeakActionPhase::Pending { token }
+    );
     let _ = state.update(terminal(task));
     publish(&mut state, &reader);
     assert!(state.editor.dns_leak.conclusion().is_divergent());
@@ -85,7 +96,12 @@ fn actual_dns_probe_reports_divergence_and_preserves_facts_on_permission_failure
     let _ = state.update(terminal(task));
     publish(&mut state, &reader);
     assert_eq!(
-        state.diag.dns_leak_action.failure.as_ref().unwrap().code,
+        match &state.diag.dns_leak_action.phase {
+            DnsLeakActionPhase::Failed { failure } => failure.code.clone(),
+            DnsLeakActionPhase::Idle | DnsLeakActionPhase::Pending { .. } => {
+                panic!("permission failure must be retained")
+            }
+        },
         ErrorCode::Permission
     );
     assert!(state.diag.dns_leak_action.can_retry());
@@ -100,7 +116,10 @@ fn actual_dns_probe_reports_divergence_and_preserves_facts_on_permission_failure
     let _ = state.update(terminal(task));
     publish(&mut state, &reader);
     assert!(state.editor.dns_leak.conclusion().is_consistent());
-    assert!(state.diag.dns_leak_action.failure.is_none());
+    assert!(matches!(
+        &state.diag.dns_leak_action.phase,
+        DnsLeakActionPhase::Idle
+    ));
     echo.set_mode(EchoMode::AllSourcesFailed);
     let task = state.update(Message::RunDnsLeakProbe);
     let _ = state.update(terminal(task));
@@ -114,7 +133,7 @@ fn unsupported_probe_keeps_its_typed_refusal_visible_without_observations_or_net
     let leak = DnsLeakApplication::unconfigured();
     let (application, _) = recording_application();
     application.install_command_handler(Arc::new(
-        CommandApplication::new().with_dns_leak(leak.clone()),
+        host_test_command_application([Capability::Dns]).with_dns_leak(leak.clone()),
     ));
     let reader = ApplicationSurfaceReader::new(
         Arc::new(application.clone()),
@@ -122,13 +141,20 @@ fn unsupported_probe_keeps_its_typed_refusal_visible_without_observations_or_net
         HostKind::Desktop,
     )
     .with_dns_leak(leak);
-    let (mut state, _) = AppState::demo(&demo_env(Route::Dns));
-    state.commands = Some(application);
+    let (mut state, _) = AppState::new();
+    state.shell.current_route = Route::Dns;
+    state.attach_product_application(application.clone());
+    publish(&mut state, &reader);
     let task = state.update(Message::RunDnsLeakProbe);
     let _ = state.update(terminal(task));
     publish(&mut state, &reader);
     assert_eq!(
-        state.diag.dns_leak_action.failure.as_ref().unwrap().code,
+        match &state.diag.dns_leak_action.phase {
+            DnsLeakActionPhase::Failed { failure } => failure.code.clone(),
+            DnsLeakActionPhase::Idle | DnsLeakActionPhase::Pending { .. } => {
+                panic!("unsupported failure must be retained")
+            }
+        },
         ErrorCode::Unsupported
     );
     assert!(state.editor.dns_leak.observations.is_empty());
@@ -151,9 +177,15 @@ fn capture_activation_executes_the_actual_command_and_publishes_two_real_echo_ob
     let mut env = demo_env(Route::Dns);
     env.scenario = Some(FeatureId::DnsLeakAlert);
     let (mut state, task) = AppState::demo(&env);
-    assert!(state.diag.dns_leak_action.pending.is_some());
+    assert!(matches!(
+        &state.diag.dns_leak_action.phase,
+        DnsLeakActionPhase::Pending { .. }
+    ));
     let _ = state.update(terminal(task));
-    assert!(state.diag.dns_leak_action.failure.is_none());
+    assert!(matches!(
+        &state.diag.dns_leak_action.phase,
+        DnsLeakActionPhase::Idle
+    ));
     assert!(state.editor.dns_leak.conclusion().is_divergent());
     assert_eq!(state.editor.dns_leak.observations.len(), 2);
     let tree = Tree::new(state.view().as_widget());

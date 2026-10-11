@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
-# BEVY-006 back half: build the bevy frontend as an aarch64-linux-android APK
-# entirely in userspace (no sudo / system package manager). Idempotent:
-# every stage is skipped when its artifact already exists.
+# Legacy Bevy diagnostic smoke only: build an APK whose generated driver
+# explicitly selects the demo composition with cargo-apk in userspace (no
+# sudo / system package manager). This is not the
+# Bevy Android product or release builder; those use the Gradle `bevy` flavor.
+# Idempotent: each stage is skipped when its smoke artifact already exists.
 #
 # Layout under the toolchain root (default "$HOME/android-tools-bevy",
 # override with ANDROID_TOOLS_ROOT; nothing here is tracked by the repo):
@@ -37,9 +39,33 @@ API="android-36"
 BUILD_TOOLS="36.0.0"
 AVD_NAME="bevy-smoke"
 DRIVER="$REPO_ROOT/target/android-tools/apk-driver"
-PACKAGE="app.musicfrog.infiltrator_bevy_ui"
-ACTIVITY="$PACKAGE/android.app.NativeActivity"
 DRIVER_PKG="infiltrator-bevy-apk-driver"
+identity_value() {
+    python3 "$REPO_ROOT/scripts/product_identity.py" --get "$1"
+}
+PRODUCT_VERSION_NAME="$(identity_value version.name)"
+BEVY_APPLICATION_ID="$(identity_value bevy.application_id)"
+BEVY_DISPLAY_NAME="$(identity_value bevy.display_name)"
+BEVY_ICON_RESOURCE="$(identity_value bevy.icon_resource)"
+BEVY_ICON_ASSET="$(identity_value bevy.icon_asset)"
+BEVY_APK_NAME="$(identity_value bevy.smoke.apk_name)"
+ACTIVITY="$BEVY_APPLICATION_ID/android.app.NativeActivity"
+RELEASE_BUILD=0
+if [ "${1:-}" = "--release" ] || [ "${RELEASE:-0}" = "1" ]; then
+    RELEASE_BUILD=1
+    if [ -z "${CARGO_APK_RELEASE_KEYSTORE:-}" ]; then
+        printf '[build-bevy-apk] ERROR: CARGO_APK_RELEASE_KEYSTORE is required for release APK signing\n' >&2
+        exit 1
+    fi
+    if [ ! -f "$CARGO_APK_RELEASE_KEYSTORE" ]; then
+        printf '[build-bevy-apk] ERROR: release keystore does not exist at CARGO_APK_RELEASE_KEYSTORE\n' >&2
+        exit 1
+    fi
+    if [ -z "${CARGO_APK_RELEASE_KEYSTORE_PASSWORD:-}" ]; then
+        printf '[build-bevy-apk] ERROR: CARGO_APK_RELEASE_KEYSTORE_PASSWORD is required for release APK signing\n' >&2
+        exit 1
+    fi
+fi
 
 # Toolchain source.
 #   default (0): install a self-contained userspace JDK+SDK+NDK under $ROOT —
@@ -157,6 +183,8 @@ command -v cargo-apk >/dev/null 2>&1 || cargo install cargo-apk --locked
 log "generating APK driver crate under target/android-tools/apk-driver"
 mkdir -p "$DRIVER/src" "$DRIVER/res"
 cp -r "$REPO_ROOT/android/app/src/main/res/"* "$DRIVER/res/"
+mkdir -p "$DRIVER/res/drawable"
+cp "$REPO_ROOT/$BEVY_ICON_ASSET" "$DRIVER/res/drawable/$BEVY_ICON_RESOURCE.png"
 # The Gradle product theme (values/themes.xml) inherits from AppCompat, which a
 # cargo-apk build does not provide; the driver uses a framework theme via
 # `application.theme`, so the copied theme resource must be dropped or aapt
@@ -173,7 +201,7 @@ cat > "$DRIVER/Cargo.toml" <<'EOF'
 # This cdylib driver provides exactly that and calls the real shell's run().
 [package]
 name = "infiltrator-bevy-apk-driver"
-version = "0.1.0"
+version = "__PRODUCT_VERSION_NAME__"
 edition = "2024"
 publish = false
 
@@ -182,17 +210,16 @@ name = "infiltrator_bevy_apk_driver"
 crate-type = ["cdylib"]
 
 [dependencies]
-# BANDROID-004/015: `fixture-demo` is enabled ONLY for this packaging smoke so
-# the APK renders the shell for screenshot forensics. The shipping Gradle host
-# must NOT enable it, so a real product build reports typed `NotReady` instead
-# of a working-looking showcase over an unattached host.
-infiltrator-bevy-ui = { path = "../../../crates/infiltrator-bevy-ui", features = ["fixture-demo"] }
+# BANDROID-004/015: this generated smoke driver is an explicit capture build;
+# the shipped Android product driver has its own default-features=false
+# manifest and consumes the owner IPC surface.
+infiltrator-bevy-ui = { path = "../../../crates/infiltrator-bevy-ui", default-features = false, features = ["capture-tools"] }
 android-activity = { version = "0.6.1", features = ["native-activity"] }
 bevy_android = "=0.20.0"
 
 [package.metadata.android]
-package = "app.musicfrog.infiltrator_bevy_ui"
-apk_name = "infiltrator-bevy-ui"
+package = "__BEVY_APPLICATION_ID__"
+apk_name = "__BEVY_APK_NAME__"
 # cargo-apk 0.10 renamed the resource-directory key from `res` to `resources`;
 # with the old key the dir is silently ignored and aapt cannot resolve the icon.
 resources = "res"
@@ -203,7 +230,7 @@ build_targets = ["aarch64-linux-android", "x86_64-linux-android"]
 # BANDROID-019: the mobile product host needs these permissions. cargo-apk can
 # only express uses_permission; the VPN <service>/foregroundServiceType and the
 # BootReceiver live in the Gradle product manifest
-# (android/app/src/main/AndroidManifest.xml) — see docs/android/BEVY_ANDROID_PRODUCT.md.
+# (android/app/src/main/AndroidManifest.xml) — see android/docs/BEVY_ANDROID_PRODUCT.md.
 [[package.metadata.android.uses_permission]]
 name = "android.permission.INTERNET"
 
@@ -228,25 +255,34 @@ min_sdk_version = 29
 target_sdk_version = 36
 
 [package.metadata.android.application]
-label = "MusicFrog Infiltrator Bevy"
+label = "__BEVY_DISPLAY_NAME__"
 theme = "@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen"
-icon = "@drawable/ic_app_icon"
+icon = "@drawable/__BEVY_ICON_RESOURCE__"
 
 [workspace]
 EOF
+sed -i \
+    -e "s|__PRODUCT_VERSION_NAME__|$PRODUCT_VERSION_NAME|g" \
+    -e "s|__BEVY_APPLICATION_ID__|$BEVY_APPLICATION_ID|g" \
+    -e "s|__BEVY_APK_NAME__|$BEVY_APK_NAME|g" \
+    -e "s|__BEVY_DISPLAY_NAME__|$BEVY_DISPLAY_NAME|g" \
+    -e "s|__BEVY_ICON_RESOURCE__|$BEVY_ICON_RESOURCE|g" \
+    "$DRIVER/Cargo.toml"
 cat > "$DRIVER/src/lib.rs" <<'EOF'
 //! Generated by scripts/build-bevy-apk.sh (BEVY-006 back half). See the
 //! Cargo.toml header for why this shim exists.
 //!
 //! bevy's own mobile example shape: export `android_main` (android-activity
 //! native-activity contract), hand the `AndroidApp` to
-//! `bevy_android::ANDROID_APP`, then run the real shell entrypoint.
+//! `bevy_android::ANDROID_APP`, then explicitly select `LaunchMode::Demo`.
 #[unsafe(no_mangle)]
 fn android_main(app: android_activity::AndroidApp) {
     bevy_android::ANDROID_APP
         .set(app)
         .expect("ANDROID_APP must only be set once, by android_main");
-    infiltrator_bevy_ui::run();
+    infiltrator_bevy_ui::launch::run_with_mode(
+        infiltrator_bevy_ui::launch::LaunchMode::Demo,
+    );
 }
 EOF
 
@@ -255,7 +291,7 @@ EOF
 # one fat APK. With `--target aarch64-linux-android` it packages arm64 only,
 # which the x86_64 emulator image refuses to install.
 BUILD_FLAGS=""
-if [ "${1:-}" = "--release" ] || [ "${RELEASE:-0}" = "1" ]; then
+if [ "$RELEASE_BUILD" = "1" ]; then
     BUILD_FLAGS="--release"
     APK_SUBDIR="release"
 else
@@ -264,12 +300,14 @@ fi
 log "building APK (cargo apk build -p $DRIVER_PKG $BUILD_FLAGS, build_targets from metadata)"
 (cd "$DRIVER" && cargo apk build -p "$DRIVER_PKG" $BUILD_FLAGS)
 
-APK="$DRIVER/target/$APK_SUBDIR/apk/infiltrator-bevy-ui.apk"
+APK="$DRIVER/target/$APK_SUBDIR/apk/$BEVY_APK_NAME.apk"
 [ -f "$APK" ] || { log "ERROR: APK not found at $APK"; exit 1; }
 
 # --- 8. L1 verification: aapt badging + packaged .so -------------------------
 AAPT="$SDK/build-tools/$BUILD_TOOLS/aapt"
 log "aapt badging: $APK"
+python3 "$REPO_ROOT/scripts/quality/android-product-identity-guard.py" \
+    --aapt "$AAPT" --apk "bevy=$APK"
 "$AAPT" dump badging "$APK" | grep -E "^package|native-code|launchable-activity|sdkVersion|application-label" | tee "$ROOT/logs/aapt-badging.txt"
 "$AAPT" dump xmltree "$APK" AndroidManifest.xml | grep -E "lib_name|NativeActivity|theme" | tee "$ROOT/logs/aapt-manifest.txt"
 unzip -l "$APK" | grep -E "\.so" | tee "$ROOT/logs/apk-libs.txt"

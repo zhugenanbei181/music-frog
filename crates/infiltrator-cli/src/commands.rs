@@ -36,10 +36,10 @@ pub enum Commands {
         #[command(subcommand)]
         action: ServiceAction,
     },
-    /// Inspect and switch proxies through the controller API
-    Proxy {
+    /// List, select, and probe engine-neutral outbounds
+    Outbound {
         #[command(subcommand)]
-        action: ProxyAction,
+        action: OutboundAction,
     },
     /// Inspect and close active connections
     Connection {
@@ -198,33 +198,26 @@ pub enum ServiceAction {
 }
 
 #[derive(Subcommand)]
-pub enum ProxyAction {
-    /// List proxy nodes
+pub enum OutboundAction {
+    /// List the active engine's outbound inventory and current selections
     List,
-    /// List selectable proxy groups
-    Groups,
-    /// Select a proxy for a group
-    Switch {
-        /// Group name
-        group: String,
-        /// Proxy name to select
-        proxy: String,
+    /// Select an outbound from an observed selection collection
+    Select {
+        /// Selection collection's opaque ID as shown by `outbound list`
+        collection_id: String,
+        /// Outbound's opaque ID as shown by `outbound list`
+        outbound_id: String,
     },
-    /// Test one proxy's delay
-    Test {
-        /// Proxy name
-        name: String,
-        /// Delay test URL
+    /// Probe one outbound from the observed inventory
+    Probe {
+        /// Outbound's opaque ID as shown by `outbound list`
+        outbound_id: String,
+        /// HTTP(S) probe target
         #[arg(long, default_value = "http://www.gstatic.com/generate_204")]
         url: String,
-        /// Delay test timeout in milliseconds
+        /// Probe timeout in milliseconds
         #[arg(long, default_value_t = 5000)]
-        timeout_ms: u32,
-    },
-    /// Show the current proxy selection of a group
-    Current {
-        /// Group name
-        group: String,
+        timeout_ms: u64,
     },
 }
 

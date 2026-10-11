@@ -1,9 +1,9 @@
 use super::*;
 
-use infiltrator_application::byte_format::format_bytes;
 use infiltrator_contract::traffic_waveform::{TrafficSample, TrafficWaveformSnapshot};
 use infiltrator_domain::traffic_scale::compute_from_peak;
 use infiltrator_domain::traffic_waveform::smooth_dual_series;
+use infiltrator_shared::byte_units::format_bytes;
 
 #[test]
 fn shared_live_samples_are_the_input_to_the_same_bezier_projection() {

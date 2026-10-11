@@ -8,9 +8,11 @@ use infiltrator_domain::sub_rules;
 use std::sync::mpsc::sync_channel;
 pub mod active_exit_application;
 pub mod aggregation_preview_projection;
+pub mod android_control_application;
 pub mod cache_application;
 pub mod certificate_authority_application;
 pub mod command_application;
+pub mod command_capability;
 pub mod command_palette_projection;
 pub mod configuration_application;
 pub mod connection_application;
@@ -20,7 +22,12 @@ pub mod connection_grouping_fixtures;
 pub mod connection_rate_application;
 pub mod connection_search;
 pub mod core_application;
+pub mod core_capability_application;
+#[cfg(test)]
+pub mod core_capability_test_support;
 pub mod core_control_projection;
+#[cfg(test)]
+mod core_product_control_tests;
 pub mod core_status_projection;
 pub mod dialer_chain_application;
 pub mod dns_cache_actions;
@@ -29,6 +36,7 @@ pub mod dns_cache_fixtures;
 pub mod dns_cache_projection;
 pub mod dns_health_projection;
 pub mod dns_hosts_editor;
+#[cfg(test)]
 pub mod dns_hosts_fixtures;
 pub mod dns_hosts_projection;
 pub mod dns_latency_application;
@@ -63,6 +71,7 @@ pub mod network_application;
 pub mod network_roaming_application;
 pub mod network_status_projection;
 pub mod offline_startup_application;
+pub mod outbound_application;
 pub mod overview;
 pub mod overview_layout_application;
 pub mod pac_application;
@@ -71,6 +80,8 @@ pub mod privileged_network_application;
 pub mod profile_aggregation_application;
 pub mod profile_application;
 pub mod profile_document_application;
+#[cfg(test)]
+pub(crate) mod profile_document_codec_test_support;
 pub mod profile_editor_projection;
 pub mod profile_metadata_projection;
 pub mod profile_options_application;
@@ -81,42 +92,37 @@ pub mod protocol_codec_application;
 pub mod protocol_codec_matrix_application;
 pub mod protocol_node_params;
 pub mod protocol_node_projection;
-pub mod proxy_application;
 pub mod proxy_group_order_editor;
-pub mod proxy_group_order_fixtures;
-pub mod proxy_inspection_fixtures;
-pub mod proxy_inspection_projection;
-pub mod proxy_inspection_reader;
-pub mod proxy_mode_actions;
-pub mod proxy_mode_application;
-pub mod proxy_mode_fixtures;
-pub mod proxy_mode_projection;
-pub mod proxy_preferences_application;
-pub mod proxy_probe_editor;
-pub mod proxy_probe_options_projection;
-pub mod proxy_projection;
-pub mod proxy_search_fixtures;
-pub mod proxy_search_projection;
 pub mod public_ip_application;
 pub mod reconnect_mask_application;
 pub mod resource_application;
 pub mod responsive_viewport_application;
 pub mod routing_application;
+pub mod routing_intent_actions;
+pub mod routing_intent_application;
+pub mod routing_intent_fixtures;
+pub mod routing_intent_projection;
 pub mod routing_projection;
 pub mod rule_condition_projection;
 pub mod rule_form_binding;
 pub mod rule_list_application;
 pub mod rule_list_editor;
+#[cfg(test)]
 pub mod rule_list_fixtures;
 pub mod rule_list_projection;
 pub mod rule_provider_application;
 pub mod rule_row_projection;
-pub mod rule_source_identity;
 pub mod rule_trace_actions;
+#[cfg(test)]
 pub mod rule_trace_fixtures;
 pub mod rule_trace_projection;
 pub mod rule_tracer_application;
+#[cfg(test)]
+mod rule_workspace_test_support;
+pub mod runtime_configuration_application;
 pub mod runtime_control_projection;
+pub mod runtime_probe_settings;
+pub mod runtime_probe_settings_editor;
 pub mod runtime_query_application;
 pub mod script_application;
 pub mod script_console_projection;
@@ -132,17 +138,16 @@ pub mod settings_application;
 pub mod settings_preference_projection;
 pub mod settings_status_projection;
 pub mod shell_readout_application;
-pub mod shell_readout_projection;
 pub mod shortcut_application;
 pub mod snapshot_application;
 pub mod snapshot_restore_projection;
 pub mod snapshot_restore_workbench;
 pub mod speedtest_application;
-pub mod speedtest_matrix_application;
 pub mod stun_probe_application;
 pub mod stun_projection;
 pub mod subscription_filter_copy;
 pub mod subscription_filter_editor;
+#[cfg(test)]
 pub mod subscription_filter_fixture;
 pub mod subscription_import_application;
 pub mod subscription_quota_application;
@@ -156,7 +161,6 @@ pub mod system_proxy_application;
 pub mod system_toggle_application;
 pub mod system_toggle_projection;
 pub mod telemetry_observation_fixtures;
-pub mod traffic_readout_projection;
 pub mod traffic_scale_application;
 pub mod traffic_topology_application;
 pub mod traffic_topology_navigation_application;
@@ -165,6 +169,7 @@ pub mod traffic_waveform_application;
 pub mod uwp_loopback_application;
 pub mod version_application;
 pub mod vpn_application;
+pub mod vpn_preparation;
 
 use infiltrator_ports::application_runtime::ApplicationRuntime;
 use std::future::Future;
@@ -194,15 +199,12 @@ pub fn validate_logical_rule_syntax(rule: &str) -> Result<(), String> {
     sub_rules::validate_logical_rule_syntax(rule).map_err(|error| error.to_string())
 }
 
-pub mod byte_format;
 pub mod speedtest_detail_projection;
 pub mod speedtest_summary_projection;
 
 pub mod protocol_form;
 
 pub mod protocol_studio_projection;
-
-pub mod search_text;
 
 pub mod log_capture_fixtures;
 pub mod log_projection;
@@ -247,3 +249,15 @@ pub mod subscription_quota_projection;
 mod profile_editor_observations;
 
 pub mod profile_edit_session;
+
+#[cfg(test)]
+#[path = "outbound_application_tests.rs"]
+mod outbound_application_tests;
+
+#[cfg(test)]
+#[path = "outbound_batch_tests.rs"]
+mod outbound_batch_tests;
+
+#[cfg(test)]
+#[path = "command_outbound_tests.rs"]
+mod command_outbound_tests;

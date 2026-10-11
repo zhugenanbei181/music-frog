@@ -24,8 +24,8 @@ mod monitoring;
 mod mrs;
 pub(crate) mod profile_apply;
 mod proxies;
-mod proxy_mode;
 mod rebuild;
+mod routing_intent;
 mod rule_list;
 mod rules;
 mod rules_provider;
@@ -50,16 +50,16 @@ impl AppState {
                 | Message::SetTunAutoRoute(_)
                 | Message::SetTunStrictRoute(_)
                 | Message::SetSnifferEnabled(_)
-        ) && (self.runtime.mode_actions.pending.is_some()
+        ) && (self.runtime.routing_intent_actions.pending.is_some()
             || self.runtime.pending_runtime_patch.is_some())
         {
             return Task::none();
         }
         match message {
-            Message::SetProxyMode(_)
-            | Message::ProxyModeFinished { .. }
-            | Message::RetryProxyMode
-            | Message::DismissProxyModeFailure => self.update_proxy_mode(message),
+            Message::SetRoutingIntent(_)
+            | Message::RoutingIntentFinished { .. }
+            | Message::RetryRoutingIntent
+            | Message::DismissRoutingIntentFailure => self.update_routing_intent(message),
             other => self.update_core_lifecycle(other),
         }
     }

@@ -1,18 +1,15 @@
 name: android
 
-# BANDROID-018: the L0/L1 Android gate. It compiles and lints every
+# BANDROID-018: the L0/L1 Android Rust gate. It compiles and Clippy-checks every
 # Android-only surface on PRs and pushes so Android breakage fails before a
 # release tag, instead of only inside the tag-only packaging job.
 #
 # Scope: L0 = cargo check (aarch64 + x86_64), L1 = clippy -D warnings on
-# aarch64. It also compiles the Compose host (Gradle `:app:assembleDebug`) and
-# the Bevy APK driver. It does NOT run on a device or emulator and therefore
-# does NOT replace device/emulator evidence (aapt badging, crash-free launch,
-# screenshots) — those stay in the packaging + device matrices.
+# aarch64. It builds all registered APK flavors and runs their JVM and Android
+# Emulator suites on an isolated Gradle Managed Device.
 #
-# Note: Gradle `assembleDebug` invokes `scripts/android-build.sh` (the cargoBuild
-# task) by design, which builds the release .so for BOTH ABIs. That is expected:
-# the Compose host always consumes the release cdylib, debug or not.
+# Note: Gradle's shared cargoBuild creates the Android Rust service library for
+# both ABIs; Bevy and Slint flavor tasks build their native UI libraries too.
 on:
   workflow_call:
   push:
@@ -28,9 +25,19 @@ on:
       - "crates/infiltrator-android/**"
       - "crates/infiltrator-bevy-ui/**"
       - "crates/infiltrator-bevy-widgets/**"
+      - "crates/infiltrator-slint/**"
       - "android/**"
+      - "product-identity.properties"
       - "scripts/android-build.sh"
+      - "scripts/android-slint-build.sh"
       - "scripts/android-check.sh"
+      - "scripts/product_identity.py"
+      - "scripts/render-product-template.py"
+      - "scripts/quality/android-product-identity-guard.py"
+      - "scripts/quality/tests/test_android_product_identity_guard.py"
+      - "scripts/quality/tests/test_product_template_render.py"
+      - "scripts/quality/check-structure.sh"
+      - "scripts/android-emulator-tests.sh"
       - "scripts/build-bevy-apk.sh"
       - "scripts/verify-bevy-apk.sh"
   pull_request:
@@ -43,9 +50,19 @@ on:
       - "crates/infiltrator-android/**"
       - "crates/infiltrator-bevy-ui/**"
       - "crates/infiltrator-bevy-widgets/**"
+      - "crates/infiltrator-slint/**"
       - "android/**"
+      - "product-identity.properties"
       - "scripts/android-build.sh"
+      - "scripts/android-slint-build.sh"
       - "scripts/android-check.sh"
+      - "scripts/product_identity.py"
+      - "scripts/render-product-template.py"
+      - "scripts/quality/android-product-identity-guard.py"
+      - "scripts/quality/tests/test_android_product_identity_guard.py"
+      - "scripts/quality/tests/test_product_template_render.py"
+      - "scripts/quality/check-structure.sh"
+      - "scripts/android-emulator-tests.sh"
       - "scripts/build-bevy-apk.sh"
       - "scripts/verify-bevy-apk.sh"
 
@@ -64,11 +81,11 @@ env:
 
 jobs:
   android:
-    name: Android compile + lint gate
+    name: Android Rust compile + Clippy gate
     # 显式钉最新 LTS（ubuntu-26.04 已 GA），不跟 ubuntu-latest 的静默迁移走。
     runs-on: ubuntu-26.04
-    # iced(gradle) 与 bevy(cargo-apk) 串行跑在同一 runner，共享一套工具链。
-    timeout-minutes: 120
+    # Compose、Bevy 与 Slint Gradle flavors 共用同一套 Android owner 和工具链。
+    timeout-minutes: 240
 
     steps:
       - name: Checkout repository
@@ -83,16 +100,16 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v4
 
-      # BANDROID-024: the latest stable AndroidX/Compose require compileSdk 37.
-      # Install the platform and build-tools explicitly so the Gradle build does
-      # not depend on whatever the runner image happens to ship.
-      - name: Install Android platform 37 and build-tools
+      # Pin the SDK packages used by APK builds and the Gradle Managed Device.
+      - name: Install Android platform, emulator, and system image
         shell: bash
         run: |
           set -euo pipefail
           SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
           set +o pipefail
-          yes | "$SDKMANAGER" --sdk_root="$ANDROID_HOME" "platforms;android-37.0" "build-tools;37.0.0"
+          yes | "$SDKMANAGER" --sdk_root="$ANDROID_HOME" \
+            "platform-tools" "emulator" "platforms;android-37.0" "build-tools;37.0.0" \
+            "system-images;android-36;default;x86_64"
           rc=$?
           set -o pipefail
           [ "$rc" -eq 0 ] || { echo "::error::sdkmanager failed to install platform 37 (rc=$rc)"; exit "$rc"; }
@@ -131,32 +148,26 @@ jobs:
           echo "ANDROID_NDK_HOME=$NDK_ROOT" >> "$GITHUB_ENV"
           echo "$NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin" >> "$GITHUB_PATH"
 
-      - name: Android compile + lint gate
+      - name: Android Rust compile + Clippy gate
         shell: bash
         run: bash scripts/android-check.sh
 
-      # BANDROID-021 & BANDROID-022: Build Compose host, run JVM unit tests, and
-      # compile instrumented tests in a unified Gradle invocation.
-      # Single-invocation Gradle execution constructs a shared task execution graph,
-      # preventing cross-invocation incremental JNI merger collisions.
-      - name: Build Compose host and test APKs
+      # Gradle creates, runs and tears down its temporary emulator. One task graph
+      # builds every registered flavor, runs JVM tests and executes device suites.
+      - name: Build and test every Android flavor in an isolated emulator
         shell: bash
-        run: |
-          set -euo pipefail
-          chmod +x android/gradlew
-          # Gradle resolves the project from the CWD, so run inside android/;
-          # invoking ./android/gradlew from the repo root makes it look for a
-          # settings.gradle at the root and fail ("does not contain a Gradle build").
-          ( cd android && ./gradlew --no-daemon --stacktrace :app:assembleDebug :app:testDebugUnitTest :app:assembleDebugAndroidTest )
+        run: bash scripts/android-emulator-tests.sh
 
-      # Bevy reuses the exact SDK/NDK/JDK this job already provisioned
-      # (BEVY_APK_USE_SYSTEM_TOOLCHAIN=1), so no second ~1.2 GB userspace
-      # toolchain is downloaded or cached. BEVY_APK_SKIP_EMULATOR drops the
-      # emulator/system image this gate never uses. Building the APK is what
-      # makes its manifest/permission assertions run.
-      - name: Build Bevy APK
-        shell: bash
-        env:
-          BEVY_APK_USE_SYSTEM_TOOLCHAIN: "1"
-          BEVY_APK_SKIP_EMULATOR: "1"
-        run: bash scripts/build-bevy-apk.sh
+      - name: Upload Android Emulator reports and provenance
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: android-emulator-test-evidence
+          path: |
+            android/app/build/reports/androidTests/**
+            android/app/build/outputs/androidTest-results/**
+            android/app/build/reports/tests/**
+            android/app/build/outputs/apk/**
+            android/app/build/outputs/androidTest-apk/**
+            target/android-emulator-evidence/**
+          if-no-files-found: warn

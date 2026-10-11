@@ -10,8 +10,6 @@ mod tests {
     use crate::types::{
         ConfigResponse, Connection, ConnectionSnapshot, MemoryData, Rule, TrafficData, Version,
     };
-    #[cfg(test)]
-    use infiltrator_domain::runtime::ConfigSnapshot;
 
     // ──────────────────────────────────────────────
     // ConfigResponse：核心配置读取
@@ -24,13 +22,11 @@ mod tests {
             "mixed-port": 0, "mode": "rule", "log-level": "info", "allow-lan": false,
             "tun": {}
         });
-        let missing: ConfigSnapshot = serde_json::from_value::<ConfigResponse>(base.clone())
-            .unwrap()
-            .into();
+        let missing: ConfigResponse = serde_json::from_value(base.clone()).unwrap();
         assert_eq!(missing.ipv6, None);
         assert_eq!(missing.bind_address, None);
         assert_eq!(missing.lan_allowed_ips, None);
-        assert_eq!(missing.authentication_enabled, None);
+        assert_eq!(missing.authentication, None);
         assert_eq!(missing.tun.as_ref().unwrap().enable, None);
         assert_eq!(missing.tun.as_ref().unwrap().strict_route, None);
         let mut explicit = base;
@@ -41,14 +37,11 @@ mod tests {
         explicit["skip-auth-prefixes"] = serde_json::json!([]);
         explicit["authentication"] = serde_json::json!([]);
         explicit["tun"] = serde_json::json!({"enable": false, "auto-route": false, "strict-route": false, "stack": "system"});
-        let observed: ConfigSnapshot = serde_json::from_value::<ConfigResponse>(explicit)
-            .unwrap()
-            .into();
+        let observed: ConfigResponse = serde_json::from_value(explicit).unwrap();
         assert_eq!(observed.ipv6, Some(false));
         assert_eq!(observed.bind_address.as_deref(), Some("*"));
         assert_eq!(observed.lan_allowed_ips, Some(Vec::new()));
-        assert_eq!(observed.authentication_enabled, Some(false));
-        assert_eq!(observed.authentication_user_count, Some(0));
+        assert_eq!(observed.authentication, Some(Vec::new()));
         assert_eq!(observed.mixed_port, 0);
         assert_eq!(observed.tun.as_ref().unwrap().enable, Some(false));
         assert_eq!(observed.tun.as_ref().unwrap().strict_route, Some(false));
@@ -100,24 +93,21 @@ mod tests {
             Some(vec!["127.0.0.0/8".to_owned()])
         );
         assert_eq!(config.authentication.as_ref().map(Vec::len), Some(1));
-
-        let domain: ConfigSnapshot = config.into();
-        assert_eq!(domain.authentication_enabled, Some(true));
-        assert_eq!(domain.authentication_user_count, Some(1));
-        assert_eq!(domain.authentication_username.as_deref(), Some("lan-user"));
     }
 
     #[test]
-    fn config_response_mode_reflects_current_proxy_routing_strategy() {
-        // mode 字段决定流量路由策略：rule / global / direct
-        // 该字段直接影响 UI 中代理模式的显示与切换
+    fn config_response_preserves_mihomo_controller_routing_field() {
+        // Preserve the Mihomo-owned `mode` wire field for the adapter.
         for mode in ["rule", "global", "direct"] {
             let json = format!(
                 r#"{{"port":7890,"socks-port":0,"redir-port":0,"tproxy-port":0,"mixed-port":0,"mode":"{}","log-level":"info","allow-lan":false}}"#,
                 mode
             );
             let config: ConfigResponse = serde_json::from_str(&json).unwrap();
-            assert_eq!(config.mode, mode, "代理模式 {mode} 应能正确反序列化");
+            assert_eq!(
+                config.mode, mode,
+                "Mihomo config.mode {mode} should deserialize"
+            );
         }
     }
 

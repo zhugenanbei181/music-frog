@@ -6,15 +6,18 @@ use crate::pages::profiles_diff::snapshot_diff_scene;
 use crate::pages::proxies_form::CustomNodeForm;
 use crate::route::{ActiveRoute, Route};
 use bevy::ecs::prelude::*;
+use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::input::ButtonInput;
 use bevy::input::keyboard::KeyCode;
 use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::*;
 use bevy::ui_widgets::ScrollArea;
 use bevy::ui_widgets::{Activate, Button};
+use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::LocalizedText;
 use infiltrator_bevy_widgets::modal::{ModalDialogCard, ModalScrim};
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -58,11 +61,11 @@ pub fn launcher_scene(kind: PanelKind, palette: &UiPalette) -> impl Scene + use<
     let title = LocalizedText::plain(kind.title_key());
     bsn! {
         Node {
-            padding: UiRect::axes(px(16.0), px(12.0)),
-            min_height: px(palette.control_height_px), align_items: AlignItems::Center,
-            border_radius: BorderRadius::all(px(palette.control_radius_px)),
+            padding: UiRect::axes(rem(16.0), rem(12.0)),
+            min_height: rem(palette.control_height_px), align_items: AlignItems::Center,
+            border_radius: BorderRadius::all(rem(palette.control_radius_px)),
         }
-        BackgroundColor({ palette.surface_elevated })
+        ThemeBackgroundColor({ Token::SurfaceElevated })
         Button OpenBusinessPanel(kind)
         Children [ title TextRole(Role::BodyStrong) ]
     }
@@ -88,23 +91,23 @@ pub fn panel_scene(
                 position_type: PositionType::Absolute,
                 width: percent(100), height: percent(100),
             }
-            BackgroundColor({ palette.scrim }) Button CloseBusinessPanel(kind)
+            ThemeBackgroundColor({ Token::Scrim }) Button CloseBusinessPanel(kind)
             ModalScrim
             --
             Node {
-                width: percent(90), max_width: px(960.0), max_height: percent(90),
+                width: percent(90), max_width: rem(960.0), max_height: percent(90),
                 min_width: px(0.0), flex_direction: FlexDirection::Column,
-                padding: UiRect::all(px(16.0)), row_gap: px(12.0),
-                border_radius: BorderRadius::all(px(palette.card_radius_px)),
+                padding: UiRect::all(rem(16.0)), row_gap: rem(12.0),
+                border_radius: BorderRadius::all(rem(palette.card_radius_px)),
             }
-            BackgroundColor({ palette.surface })
+            ThemeBackgroundColor({ Token::Surface })
             ModalDialogCard BusinessPanelCard(kind)
             Children [
                 Node { width: percent(100), align_items: AlignItems::Center, justify_content: JustifyContent::SpaceBetween }
                 Children [
                     title TextRole(Role::Heading)
                     --
-                    Node { padding: UiRect::axes(px(12.0), px(8.0)), min_height: px(palette.control_height_px) }
+                    Node { padding: UiRect::axes(rem(12.0), rem(8.0)), min_height: rem(palette.control_height_px) }
                     Button CloseBusinessPanel(kind)
                     Children [ close TextRole(Role::Body) ]
                 ]

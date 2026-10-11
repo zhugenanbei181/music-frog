@@ -1,0 +1,11 @@
+[package]
+name = "lumen-ui-preview"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+anyhow = "1"
+image = { version = "0.25", default-features = false, features = ["png"] }
+lumen = { path = "../.." }
+slint = { version = "1.18", default-features = false, features = ["compat-1-18", "renderer-software", "software-renderer-systemfonts", "std"] }

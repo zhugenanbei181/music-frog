@@ -1,0 +1,32 @@
+mod app;
+mod credentials;
+mod flag_assets;
+mod licenses;
+mod mihomo;
+mod model;
+mod platform;
+mod services;
+
+slint::include_modules!();
+
+pub fn run() -> Result<(), slint::PlatformError> {
+    app::run(cfg!(target_os = "android"))
+}
+
+#[cfg(target_os = "android")]
+#[unsafe(no_mangle)]
+fn android_main(app: slint::android::AndroidApp) {
+    let data_path = app
+        .internal_data_path()
+        .expect("Android did not provide the app's private data directory");
+    platform::configure_android_activity(app.clone());
+    model::configure_android_data_path(data_path.clone());
+    if let Err(error) = credentials::configure_android(app.vm_as_ptr(), data_path) {
+        eprintln!("Lumen Android credential storage initialization failed: {error}");
+        return;
+    }
+    slint::android::init(app).expect("failed to initialize Slint Android backend");
+    if let Err(error) = run() {
+        eprintln!("Lumen UI stopped: {error}");
+    }
+}

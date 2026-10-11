@@ -1,5 +1,7 @@
 //! test-intent: behavior
-use crate::command_harness::recording_application;
+use crate::command_harness::{
+    attach_product_application_with_accepted_owner_snapshot, recording_application,
+};
 use crate::probe_settings_store::ProbeSettingsStore;
 use crate::test_support::demo_env;
 use futures_util::StreamExt;
@@ -11,6 +13,7 @@ use iced_runtime::Action;
 use iced_runtime::task::into_stream;
 use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::language_choice::project_language;
+use infiltrator_application::language_choice::{LanguageChoicePhase, LanguageReadPhase};
 use infiltrator_application::settings_application::SettingsApplication;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::ime::ImeCompositionEvent;
@@ -67,8 +70,7 @@ fn native_language_save_failure_retry_and_refresh_preserve_widget_focus_selectio
     application.install_command_handler(Arc::new(
         CommandApplication::new().with_settings(SettingsApplication::new(store.clone())),
     ));
-    state.commands = Some(application);
-    state.shell.demo = false;
+    attach_product_application_with_accepted_owner_snapshot(&mut state, application);
     replay(&mut state, &store);
     state.editor.editor_path_setting = "unsaved editor {name}".into();
     state
@@ -84,7 +86,15 @@ fn native_language_save_failure_retry_and_refresh_preserve_widget_focus_selectio
     store.reject.store(true, Ordering::SeqCst);
     let original = state.shell.lang.clone();
     let task = state.update(Message::SetLanguage("en-US".into()));
-    let token = state.shell.language_choice.pending.unwrap().token;
+    let token = match &state.shell.language_choice.phase {
+        LanguageChoicePhase::Pending(pending) => pending.token,
+        LanguageChoicePhase::Ready
+        | LanguageChoicePhase::Rejected(_)
+        | LanguageChoicePhase::Failed { .. }
+        | LanguageChoicePhase::AwaitingObservation { .. } => {
+            panic!("language save must be pending")
+        }
+    };
     assert_eq!(
         state.shell.lang, original,
         "an accepted save cannot apply the language early"
@@ -97,15 +107,32 @@ fn native_language_save_failure_retry_and_refresh_preserve_widget_focus_selectio
         token: token + 1,
         result: Ok(()),
     });
-    assert!(state.shell.language_choice.pending.is_some());
+    assert!(matches!(
+        &state.shell.language_choice.phase,
+        LanguageChoicePhase::Pending(_)
+    ));
     let _ = state.update(terminal(task));
     assert_eq!(state.shell.lang, original);
     assert_eq!(
-        state.shell.language_choice.failure.as_ref().unwrap().code,
+        match &state.shell.language_choice.phase {
+            LanguageChoicePhase::Failed { failure, .. } => failure.code.clone(),
+            LanguageChoicePhase::Ready
+            | LanguageChoicePhase::Pending(_)
+            | LanguageChoicePhase::Rejected(_)
+            | LanguageChoicePhase::AwaitingObservation { .. } => {
+                panic!("write failure must be represented by its phase")
+            }
+        },
         ErrorCode::Storage
     );
     assert_eq!(
-        state.shell.language_choice.requested,
+        match &state.shell.language_choice.phase {
+            LanguageChoicePhase::Failed { requested, .. } => Some(*requested),
+            LanguageChoicePhase::Ready
+            | LanguageChoicePhase::Pending(_)
+            | LanguageChoicePhase::Rejected(_)
+            | LanguageChoicePhase::AwaitingObservation { .. } => None,
+        },
         Some(LanguagePreference::English)
     );
     assert_eq!(store.writes.load(Ordering::SeqCst), 0);
@@ -130,12 +157,23 @@ fn native_language_save_failure_retry_and_refresh_preserve_widget_focus_selectio
     );
     replay(&mut state, &store);
     assert_eq!(
-        state.shell.language_choice.applied,
+        match &state.shell.language_choice.read {
+            LanguageReadPhase::Observed { preference } => *preference,
+            LanguageReadPhase::Unobserved | LanguageReadPhase::Failed { .. } => None,
+        },
         Some(LanguagePreference::English)
     );
     let _ = state.update(Message::SetLanguage("unknown".into()));
     assert_eq!(
-        state.shell.language_choice.failure.as_ref().unwrap().code,
+        match &state.shell.language_choice.phase {
+            LanguageChoicePhase::Rejected(failure) => failure.code.clone(),
+            LanguageChoicePhase::Ready
+            | LanguageChoicePhase::Pending(_)
+            | LanguageChoicePhase::Failed { .. }
+            | LanguageChoicePhase::AwaitingObservation { .. } => {
+                panic!("invalid language input must be rejected")
+            }
+        },
         ErrorCode::InvalidInput
     );
     assert_eq!(state.shell.lang, "en-US");

@@ -172,7 +172,7 @@ impl StaticByteTable {
 
 /// Per-frame heap allocation budget meter enforcing zero-allocation steady-state rendering.
 ///
-/// Implements charter law (docs/bevy-ui/BEVY_UI_FRONTEND.md §8.2):
+/// Implements the asset lifecycle rules in the Bevy UI charter:
 /// Once scenes are spawned and pipelines are warm, per-frame restamping must cost 0 heap allocations.
 #[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ZeroAllocBudgetMeter {

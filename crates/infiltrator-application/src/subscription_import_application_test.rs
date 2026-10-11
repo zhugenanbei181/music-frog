@@ -3,9 +3,9 @@
 use super::*;
 use async_trait::async_trait;
 use infiltrator_contract::capability::Capability;
+use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::subscription_import::SubscriptionFormat;
-use infiltrator_domain::profile_options::ProfileOptions;
 use infiltrator_domain::profiles::{ProfileInfo, ProfileMetadata};
 use infiltrator_domain::subscription::CheckedSubscriptionUrl;
 use infiltrator_ports::error::PortError;
@@ -25,6 +25,10 @@ struct FakeStore {
 
 #[async_trait]
 impl ProfileStore for FakeStore {
+    fn engine_id(&self) -> EngineId {
+        EngineId::new("mihomo").expect("test engine ID")
+    }
+
     fn config_dir(&self) -> PathBuf {
         PathBuf::from("/fake/configs")
     }
@@ -95,22 +99,6 @@ impl ProfileStore for FakeStore {
     }
 
     async fn delete_subscription_credential(&self, _profile: &str) -> Result<(), PortError> {
-        Ok(())
-    }
-
-    async fn load_options(&self, _profile: &str) -> Result<ProfileOptions, PortError> {
-        Ok(ProfileOptions::default())
-    }
-
-    async fn save_options(
-        &self,
-        _profile: &str,
-        _options: &ProfileOptions,
-    ) -> Result<(), PortError> {
-        Ok(())
-    }
-
-    async fn delete_options(&self, _profile: &str) -> Result<(), PortError> {
         Ok(())
     }
 

@@ -152,7 +152,14 @@ fn every_chart_repairs_missing_assets_even_without_changed_samples() {
             .unwrap();
         assert_eq!((image.width(), image.height()), (32, 24));
     }
-    assert_eq!(app.world().resource::<Assets<Image>>().len(), 4);
+    let repaired_ids = entities.map(|entity| image_handle(&app, entity).id());
+    assert_eq!(
+        repaired_ids
+            .into_iter()
+            .collect::<std::collections::HashSet<_>>()
+            .len(),
+        4
+    );
 }
 
 #[test]
@@ -362,7 +369,16 @@ fn removing_render_roles_on_retained_entities_releases_owned_assets() {
     let card = surface(&mut app);
     let [wave, donut, histogram, topology] = charts(&mut app);
     app.update();
-    assert_eq!(app.world().resource::<Assets<Image>>().len(), 4);
+    let chart_images =
+        [wave, donut, histogram, topology].map(|entity| image_handle(&app, entity).id());
+    for image_id in chart_images {
+        assert!(
+            app.world()
+                .resource::<Assets<Image>>()
+                .get(image_id)
+                .is_some()
+        );
+    }
     assert_eq!(
         app.world()
             .resource::<Assets<ModernSurfaceMaterial>>()
@@ -382,7 +398,14 @@ fn removing_render_roles_on_retained_entities_releases_owned_assets() {
     app.world_mut().entity_mut(card).remove::<SurfacePanel>();
     app.update();
     app.update();
-    assert_eq!(app.world().resource::<Assets<Image>>().len(), 0);
+    for image_id in chart_images {
+        assert!(
+            app.world()
+                .resource::<Assets<Image>>()
+                .get(image_id)
+                .is_none()
+        );
+    }
     assert_eq!(
         app.world()
             .resource::<Assets<ModernSurfaceMaterial>>()

@@ -1,7 +1,7 @@
 //! iOS-style control sidebar (Clash Party reference).
 //!
 //! Top-to-bottom: app header (logo tile + version + refresh/settings actions),
-//! proxy-mode segmented control, system-proxy / TUN toggle cards, active profile
+//! routing-intent segmented control, system-proxy / TUN toggle cards, active profile
 //! card with traffic usage progress, shortcut matrix grid (Proxies, Rules,
 //! Runtime, DNS) with count badges, live speed footer with mini sparkline
 //! waveform, and the main nav entries (Overview, Sync, Settings) separated by
@@ -13,12 +13,14 @@ use crate::state::AppState;
 use crate::types::app::Route;
 use crate::types::message::Message;
 use crate::types::runtime::RuntimeStatus;
-use infiltrator_application::proxy_mode_projection::{mode_copy_key, mode_status_copy};
-use infiltrator_application::shell_readout_projection::{
+use infiltrator_application::routing_intent_projection::{
+    routing_intent_copy_key, routing_intent_status_copy,
+};
+use infiltrator_contract::routing_intent::RoutingIntent;
+use infiltrator_contract::surface_snapshot::PageId;
+use infiltrator_presentation::shell_readout::{
     count_copy, profile_kind, profile_name, profile_percent, profile_usage, rate_copy, rate_status,
 };
-use infiltrator_contract::command::ProxyMode;
-use infiltrator_contract::surface_snapshot::PageId;
 
 use crate::view::components::{
     BadgeKind, badge, card_surface, icon_button, nav_button, nav_rail_icon,
@@ -38,10 +40,13 @@ use infiltrator_shared::locales::{Lang, Localizer};
 /// `responsive_viewport::SidebarForm::Standard`, the authoritative value.
 pub(crate) const SIDEBAR_WIDTH: f32 = 240.0;
 
-/// Canonical mihomo proxy-mode identifiers, in segmented-control order.
-/// All choices remain visible; observations determine which can be activated.
-fn mode_ids() -> Vec<&'static str> {
-    ProxyMode::ALL.iter().map(|mode| mode.to_wire()).collect()
+/// The common routing choices exposed by both UI surfaces.
+fn common_routing_intents() -> [RoutingIntent; 3] {
+    [
+        RoutingIntent::FollowRules,
+        RoutingIntent::RouteAllThroughProxy,
+        RoutingIntent::BypassProxy,
+    ]
 }
 
 /// Full labelled sidebar at the default expanded width. Kept as a stable
@@ -50,14 +55,14 @@ pub fn sidebar(state: &AppState) -> Element<'_, Message> {
     sidebar_with_form(state, SidebarForm::Standard)
 }
 
-/// Sidebar content column (header, mode control, toggles, nav shortcuts).
+/// Sidebar content column (header, routing control, toggles, nav shortcuts).
 /// Padding is owned by the surrounding container so rail/standard/wide share it.
 fn sidebar_inner(state: &AppState) -> Element<'_, Message> {
     let lang = Lang(&state.shell.lang);
 
     column![
         header(state),
-        mode_control(state, &lang),
+        routing_intent_control(state, &lang),
         toggles(state, &lang),
         profile_card(state, &lang),
         shortcut_matrix(state, &lang),
@@ -250,7 +255,7 @@ pub fn sidebar_rail(state: &AppState) -> Element<'_, Message> {
 // Header
 // ---------------------------------------------------------------------------
 
-/// Logo mark in an accent tile + app name with version `v0.20.0`,
+/// Logo mark in an accent tile + app name with package version,
 /// accompanied by restart/refresh and settings gear action buttons on right.
 fn header(state: &AppState) -> Element<'_, Message> {
     let logo_tile = container(icon_themed(Icon::Server, 20.0, |t| {
@@ -360,40 +365,33 @@ fn header(state: &AppState) -> Element<'_, Message> {
 }
 
 // ---------------------------------------------------------------------------
-// Proxy mode segmented control
+// Routing intent segmented control
 // ---------------------------------------------------------------------------
 
-fn mode_control<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
-    let ids = mode_ids();
-    let labels: Vec<String> = ids
+fn routing_intent_control<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
+    let intents = common_routing_intents();
+    let labels: Vec<String> = intents
         .iter()
-        .map(|id| {
-            let mode = ProxyMode::from_wire(id).expect("canonical mode control identity");
-            lang.tr(mode_copy_key(mode)).into_owned()
-        })
+        .map(|intent| lang.tr(routing_intent_copy_key(intent)).into_owned())
         .collect();
 
     let selected = state
         .runtime
-        .proxy_mode
-        .as_deref()
-        .and_then(|mode| ids.iter().position(|id| *id == mode))
+        .routing_intent
+        .as_ref()
+        .and_then(|current| intents.iter().position(|intent| intent == current))
         .unwrap_or(usize::MAX);
 
-    let ids_for_callback = ids.clone();
+    let intents_for_callback = intents.clone();
     let pending = state.runtime.pending_runtime_patch.is_some();
-    let mode_state = state.runtime.proxy_mode_state.clone();
+    let routing_state = state.runtime.routing_intent_state.clone();
     let control = segmented_control_with_actions(&labels, selected, move |index| {
-        let mode = ids_for_callback
-            .get(index)
-            .copied()
-            .unwrap_or(ids_for_callback[0]);
-        let target = ProxyMode::from_wire(mode)?;
-        (!pending && mode_state.is_mode_selectable(target))
-            .then(|| Message::SetProxyMode(mode.to_string()))
+        let target = intents_for_callback.get(index)?;
+        (!pending && routing_state.is_intent_selectable(target))
+            .then(|| Message::SetRoutingIntent(target.clone()))
     });
 
-    let caption = mode_status_copy(&state.runtime.proxy_mode_state, lang.0);
+    let caption = routing_intent_status_copy(&state.runtime.routing_intent_state, lang.0);
     container(column![control, text(caption).size(10)].spacing(theme::SP_XS))
         .width(Length::Fill)
         .into()
@@ -489,7 +487,7 @@ fn short_label(value: &str) -> String {
 /// and informative subtitle.
 fn profile_card<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
     let readout = &state.shell.readout;
-    let active = readout.profile.value.as_ref();
+    let active = readout.profile.value();
     let name = profile_name(readout, &state.shell.lang);
     let is_subscription = active.is_some_and(|profile| profile.subscription);
     let subtitle = profile_kind(readout, &state.shell.lang);

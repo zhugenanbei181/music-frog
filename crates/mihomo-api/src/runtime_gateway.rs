@@ -4,55 +4,34 @@ use crate::client::{MihomoClient, StreamEvent};
 use crate::error::MihomoError;
 use async_trait::async_trait;
 use futures_util::stream::unfold;
-use infiltrator_contract::command::ProxyMode;
 use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_domain::proxy::Proxy;
-use infiltrator_domain::rules::RuleEntry;
 use infiltrator_domain::runtime::{
-    ConfigSnapshot, ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider, TrafficData,
+    ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider, TrafficData,
 };
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::runtime_gateway::{RuntimeGateway, RuntimeStream, RuntimeStreamEvent};
-use serde_json::Value;
-use std::collections::HashMap;
 use tokio::sync::mpsc::UnboundedReceiver;
 
 #[async_trait]
 impl RuntimeGateway for MihomoClient {
-    async fn get_config(&self) -> Result<ConfigSnapshot, PortError> {
-        MihomoClient::get_config(self)
-            .await
-            .map(Into::into)
-            .map_err(network_error)
+    fn current_core_scope(
+        &self,
+    ) -> Result<infiltrator_contract::core_identity::CoreScope, PortError> {
+        self.configuration_scope_resolver().ok_or_else(|| {
+            PortError::unsupported(
+                infiltrator_contract::capability::Capability::CoreLifecycle,
+                "Mihomo client has no Core scope resolver",
+            )
+        })?()
     }
 
-    async fn patch_config(&self, updates: Value) -> Result<(), PortError> {
-        MihomoClient::patch_config(self, updates)
-            .await
-            .map_err(network_error)
-    }
-
-    async fn get_rules(&self) -> Result<Vec<RuleEntry>, PortError> {
-        MihomoClient::get_rules(self)
-            .await
-            .map(|rules| {
-                rules
-                    .into_iter()
-                    .map(|rule| RuleEntry {
-                        rule: format!("{},{},{}", rule.rule_type, rule.payload, rule.proxy),
-                        enabled: true,
-                    })
-                    .collect()
-            })
-            .map_err(network_error)
-    }
-
-    async fn set_proxy_mode(&self, mode: ProxyMode) -> Result<(), PortError> {
-        RuntimeGateway::patch_config(self, serde_json::json!({"mode": mode.to_wire()})).await
-    }
-
-    async fn get_proxies(&self) -> Result<HashMap<String, Proxy>, PortError> {
-        MihomoClient::get_proxies(self).await.map_err(network_error)
+    fn configuration_ports(
+        &self,
+    ) -> infiltrator_ports::runtime_configuration::RuntimeConfigurationPorts {
+        crate::runtime_configuration::MihomoRuntimeConfigurationAdapter::ports(
+            self.clone(),
+            self.configuration_scope_resolver(),
+        )
     }
 
     async fn switch_proxy(&self, group: &str, proxy: &str) -> Result<(), PortError> {
@@ -95,12 +74,6 @@ impl RuntimeGateway for MihomoClient {
 
     async fn rule_provider_payload(&self, name: &str) -> Result<Option<Vec<String>>, PortError> {
         MihomoClient::get_rule_provider_payload(self, name)
-            .await
-            .map_err(network_error)
-    }
-
-    async fn flush_fakeip_cache(&self) -> Result<(), PortError> {
-        MihomoClient::flush_fakeip_cache(self)
             .await
             .map_err(network_error)
     }

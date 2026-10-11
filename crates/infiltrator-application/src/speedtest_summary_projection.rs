@@ -1,16 +1,15 @@
-//! One fact-to-copy fold for speedtest metrics, history and egress on both peers.
+//! Shared fact-to-copy projection for typed multi-round speedtest results.
 
-use crate::speedtest_detail_projection::match_key;
 use chrono::{DateTime, Utc};
+use infiltrator_contract::outbound::probe::OutboundProbeBatchScope;
 use infiltrator_contract::speedtest::{
-    NodeSpeedtestResult, PacketLossRating, SpeedtestScope, SpeedtestSnapshot,
+    PacketLossRating, SpeedtestOutboundResult, SpeedtestSnapshot,
 };
 use infiltrator_shared::i18n_interpolator::localize;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct NodeMetrics {
-    pub bandwidth: String,
     pub jitter: String,
     pub loss: String,
     pub rating: Option<PacketLossRating>,
@@ -22,25 +21,23 @@ pub fn stars(value: u8) -> String {
     format!("{}{}", "★".repeat(filled), "☆".repeat(5 - filled))
 }
 
-pub fn node_metrics(node: &NodeSpeedtestResult) -> NodeMetrics {
-    let jitter = node.jitter.as_ref().filter(|value| value.sample_count > 0);
+pub fn node_metrics(node: &SpeedtestOutboundResult) -> NodeMetrics {
+    let calculation = node.calculation();
+    let jitter = calculation
+        .as_ref()
+        .filter(|value| value.successful_probes >= 2);
     NodeMetrics {
-        bandwidth: node
-            .bandwidth_mbps
-            .map(|value| format!("{value:.1} Mbps"))
-            .unwrap_or_else(|| "—".into()),
         jitter: jitter
-            .filter(|value| value.successful_probes >= 2)
             .map(|value| format!("{:.1} ms", value.jitter_ms))
             .unwrap_or_else(|| "—".into()),
-        loss: jitter
+        loss: calculation
+            .as_ref()
             .map(|value| format!("{:.1}%", value.loss_percent))
             .unwrap_or_else(|| "—".into()),
-        // Bandwidth-only and egress-only observations carry legacy placeholder
-        // ratings; they do not prove packet loss or stability was measured.
-        rating: jitter.map(|value| value.loss_rating),
-        stars: jitter
-            .map(|_| stars(node.star_rating))
+        rating: calculation.as_ref().map(|value| value.loss_rating),
+        stars: calculation
+            .as_ref()
+            .map(|value| stars(value.star_rating))
             .unwrap_or_else(|| "—".into()),
     }
 }
@@ -73,25 +70,38 @@ pub fn history_lines(snapshot: &SpeedtestSnapshot, locale: &str) -> Vec<String> 
                 .and_then(DateTime::<Utc>::from_timestamp_millis)
                 .map(|time| time.format("%m-%d %H:%M").to_string())
                 .unwrap_or_else(|| "—".into());
-            let scope = match &record.scope {
-                SpeedtestScope::AllGroups => lang.tr("speedtest_scope_all_groups").into_owned(),
-                SpeedtestScope::SingleGroup(name) | SpeedtestScope::SingleNode(name) => localize(
-                    locale,
-                    "speedtest_summary_scope",
-                    &[
-                        (
-                            "kind",
-                            lang.tr(if matches!(record.scope, SpeedtestScope::SingleGroup(_)) {
-                                "speedtest_scope_group"
-                            } else {
-                                "speedtest_scope_node"
-                            })
-                            .into_owned(),
-                        ),
-                        ("name", name.clone()),
-                    ],
-                ),
-            };
+            let scope = record.target.as_ref().map_or_else(
+                || lang.tr("speedtest_scope_unattributed").into_owned(),
+                |target| match target.outbound_scope() {
+                    OutboundProbeBatchScope::All => {
+                        lang.tr("speedtest_scope_all_groups").into_owned()
+                    }
+                    OutboundProbeBatchScope::One(id) => localize(
+                        locale,
+                        "speedtest_summary_scope",
+                        &[
+                            ("kind", lang.tr("speedtest_scope_node").into_owned()),
+                            ("name", id.value().to_owned()),
+                        ],
+                    ),
+                    OutboundProbeBatchScope::Collection(id) => localize(
+                        locale,
+                        "speedtest_summary_scope",
+                        &[
+                            ("kind", lang.tr("speedtest_scope_group").into_owned()),
+                            ("name", id.value().to_owned()),
+                        ],
+                    ),
+                    OutboundProbeBatchScope::Selected(ids) => localize(
+                        locale,
+                        "speedtest_summary_scope",
+                        &[
+                            ("kind", lang.tr("speedtest_scope_selection").into_owned()),
+                            ("name", ids.len().to_string()),
+                        ],
+                    ),
+                },
+            );
             localize(
                 locale,
                 "speedtest_summary_run",
@@ -99,11 +109,11 @@ pub fn history_lines(snapshot: &SpeedtestSnapshot, locale: &str) -> Vec<String> 
                     ("time", time),
                     ("scope", scope),
                     (
-                        "alive_label",
-                        lang.tr("speedtest_history_alive").into_owned(),
+                        "completed_label",
+                        lang.tr("speedtest_history_completed").into_owned(),
                     ),
-                    ("alive", record.alive_nodes.to_string()),
-                    ("total", record.total_nodes.to_string()),
+                    ("completed", record.completed_targets.to_string()),
+                    ("total", record.total_targets.to_string()),
                     (
                         "latency_label",
                         lang.tr("speedtest_history_latency").into_owned(),
@@ -126,18 +136,6 @@ pub fn history_lines(snapshot: &SpeedtestSnapshot, locale: &str) -> Vec<String> 
                             .map(|value| format!("{value:.1} ms"))
                             .unwrap_or_else(|| "—".into()),
                     ),
-                    (
-                        "bandwidth_label",
-                        lang.tr("speedtest_history_bandwidth").into_owned(),
-                    ),
-                    (
-                        "bandwidth",
-                        record
-                            .avg_bandwidth_mbps
-                            .map(|value| format!("{value:.1} Mbps"))
-                            .unwrap_or_else(|| "—".into()),
-                    ),
-                    ("stars", stars(record.overall_star_rating)),
                 ],
             )
         })
@@ -152,12 +150,16 @@ pub struct DeadArchive {
 }
 
 pub fn dead_archive(snapshot: &SpeedtestSnapshot, locale: &str) -> DeadArchive {
-    let nodes = snapshot.dead_nodes();
+    let nodes = snapshot.timed_out();
     let count = nodes.len();
     let mut names = nodes
         .iter()
         .take(4)
-        .map(|node| node.node_name.as_str())
+        .map(|node| {
+            node.display_name
+                .as_deref()
+                .unwrap_or_else(|| node.outbound_id.value())
+        })
         .collect::<Vec<_>>()
         .join(" · ");
     let extra = count.saturating_sub(4);
@@ -180,26 +182,7 @@ pub fn dead_archive(snapshot: &SpeedtestSnapshot, locale: &str) -> DeadArchive {
     }
 }
 
-pub fn egress_label(node: Option<&NodeSpeedtestResult>, locale: &str) -> String {
-    node.map(|node| {
-        localize(
-            locale,
-            "speedtest_summary_egress",
-            &[
-                ("endpoint", node.egress_endpoint_label()),
-                (
-                    "status",
-                    Lang(locale)
-                        .tr(match_key(node.egress_country_match()))
-                        .into_owned(),
-                ),
-            ],
-        )
-    })
-    .unwrap_or_else(|| "—".into())
-}
-
-pub fn metrics_label(node: Option<&NodeSpeedtestResult>, locale: &str) -> String {
+pub fn metrics_label(node: Option<&SpeedtestOutboundResult>, locale: &str) -> String {
     let Some(node) = node else {
         return "—".into();
     };
@@ -208,7 +191,6 @@ pub fn metrics_label(node: Option<&NodeSpeedtestResult>, locale: &str) -> String
         locale,
         "speedtest_summary_metrics",
         &[
-            ("bandwidth", metrics.bandwidth),
             ("jitter", metrics.jitter),
             ("loss", metrics.loss),
             ("rating", rating_label(metrics.rating, locale)),
@@ -218,7 +200,15 @@ pub fn metrics_label(node: Option<&NodeSpeedtestResult>, locale: &str) -> String
     localize(
         locale,
         "speedtest_summary_node",
-        &[("node", node.node_name.clone()), ("metrics", label)],
+        &[
+            (
+                "node",
+                node.display_name
+                    .clone()
+                    .unwrap_or_else(|| node.outbound_id.value().to_owned()),
+            ),
+            ("metrics", label),
+        ],
     )
 }
 
@@ -234,7 +224,3 @@ pub fn history_caption(snapshot: &SpeedtestSnapshot, locale: &str) -> String {
         )
     }
 }
-
-#[cfg(test)]
-#[path = "speedtest_summary_projection_tests.rs"]
-mod tests;

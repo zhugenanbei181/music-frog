@@ -1,88 +1,52 @@
-use super::*;
-use infiltrator_contract::capability::Availability;
+use super::{listing, project_details};
+use infiltrator_contract::core_identity::EngineId;
+use infiltrator_contract::outbound::identity::OutboundId;
+use infiltrator_contract::speedtest::{
+    SpeedtestOutboundResult, SpeedtestResultState, SpeedtestSampleOutcome, SpeedtestSnapshot,
+};
 
-#[test]
-fn detail_rows_preserve_order_metrics_missing_facts_and_all_five_stars() {
-    let snapshot = SpeedtestSnapshot::demo_fixture();
-    let details = project_details(&snapshot);
-    assert_eq!(details.rows.len(), snapshot.node_count());
-    for (row, node) in details.rows.iter().zip(snapshot.sorted_by_latency()) {
-        assert_eq!(row.node_name, node.node_name);
-        assert_eq!(row.proxy_type, node.proxy_type);
-        assert_eq!(row.egress, node.egress_endpoint_label());
-        assert_eq!(row.egress_match, node.egress_country_match());
-        assert_eq!(row.stars.chars().count(), 5);
+fn result(id: &str, name: &str, delay: u32) -> SpeedtestOutboundResult {
+    SpeedtestOutboundResult {
+        outbound_id: OutboundId::new(EngineId::new("fixture").unwrap(), id).unwrap(),
+        display_name: Some(name.to_owned()),
+        protocol_display_name: Some("VLESS".to_owned()),
+        samples: vec![
+            SpeedtestSampleOutcome::Measured { delay_ms: delay },
+            SpeedtestSampleOutcome::Measured {
+                delay_ms: delay + 4,
+            },
+        ],
+        state: SpeedtestResultState::Completed,
+        tested_at_epoch_ms: 1,
     }
-    let dead = details.rows.iter().find(|r| r.delay == "—").unwrap();
-    assert_eq!(dead.bandwidth, "—");
-    assert_eq!(dead.jitter, "—");
-    assert_eq!(dead.loss, "100.0%");
-    assert_eq!(dead.egress, "—");
-    assert_eq!(details.availability, Some(Availability::Supported));
-    assert!(listing(&details, &english).contains("Mbps"));
 }
 
 #[test]
-fn unknown_empty_failure_and_typed_unsupported_remain_distinct() {
-    let mut snapshot = SpeedtestSnapshot::default();
-    let lang = english;
-    assert_eq!(project_details(&snapshot).availability, None);
-    assert_eq!(
-        listing(&project_details(&snapshot), &lang),
-        "No speedtest results yet"
-    );
-    snapshot.failure = Some("probe refused".into());
-    assert_eq!(
-        listing(&project_details(&snapshot), &lang),
-        "Speedtest failed: probe refused"
-    );
-    snapshot.availability = Some(Availability::Unsupported {
-        reason: "missing host engine".into(),
-    });
-    assert_eq!(
-        listing(&project_details(&snapshot), &lang),
-        "Speedtest unsupported by this host: missing host engine"
-    );
-    snapshot.availability = Some(Availability::Unavailable {
-        reason: "host disconnected".into(),
-    });
-    assert_eq!(
-        listing(&project_details(&snapshot), &lang),
-        "Speedtest engine unavailable: host disconnected"
-    );
-}
-
-fn english(key: &str) -> String {
-    match key {
-        "speedtest_detail_empty" => "No speedtest results yet",
-        "speedtest_detail_failed" => "Speedtest failed",
-        "speedtest_detail_unsupported" => "Speedtest unsupported by this host",
-        "speedtest_detail_unavailable" => "Speedtest engine unavailable",
-        _ => key,
-    }
-    .into()
-}
-
-#[test]
-fn detail_partial_probes_keep_unknown_stability_and_measured_zero() {
-    use infiltrator_contract::speedtest::JitterCalculation;
+fn detail_rows_keep_outbound_ids_and_all_jitter_samples_in_stable_latency_order() {
     let mut snapshot = SpeedtestSnapshot::demo_fixture();
-    let mut node = snapshot.fastest_node().unwrap().clone();
-    snapshot.node_results.clear();
-    node.jitter = None;
-    node.bandwidth_mbps = Some(0.0);
-    snapshot
-        .node_results
-        .insert(node.node_name.clone(), node.clone());
-    let row = project_details(&snapshot).rows.remove(0);
-    assert_eq!(
-        (row.jitter.as_str(), row.loss.as_str(), row.stars.as_str()),
-        ("—", "—", "—")
+    snapshot.results = vec![result("second", "Second", 35), result("first", "First", 20)];
+
+    let details = project_details(&snapshot);
+
+    assert_eq!(details.rows[0].outbound_id.value(), "first");
+    assert_eq!(details.rows[0].sample_count, 2);
+    assert_eq!(details.rows[0].delay, Some(20));
+    assert_eq!(details.rows[0].jitter_ms, Some(4.0));
+    assert!(listing(&details, &str::to_owned).contains("First · VLESS"));
+    assert!(listing(&details, &str::to_owned).contains("2"));
+}
+
+#[test]
+fn unavailable_empty_detail_snapshot_stays_empty_and_explicit() {
+    let snapshot = SpeedtestSnapshot::unavailable(
+        infiltrator_contract::error::Failure::unsupported("outbound owner is unavailable"),
     );
-    assert_eq!(row.bandwidth, "0.0 Mbps");
-    node.jitter = Some(JitterCalculation::from_samples(&[Some(0), Some(0)]));
-    snapshot.node_results.insert(node.node_name.clone(), node);
-    let row = project_details(&snapshot).rows.remove(0);
-    assert_eq!((row.jitter.as_str(), row.loss.as_str()), ("0.0 ms", "0.0%"));
-    assert_eq!(row.stars.chars().count(), 5);
+
+    let details = project_details(&snapshot);
+    assert!(details.rows.is_empty());
+    assert_eq!(details.phase, snapshot.phase());
+    assert_eq!(
+        listing(&details, &str::to_owned),
+        "speedtest_phase_unavailable: outbound owner is unavailable"
+    );
 }

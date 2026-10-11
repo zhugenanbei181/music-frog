@@ -28,24 +28,28 @@ impl LogApplication {
     pub(crate) fn same_owner(&self, other: &Self) -> bool {
         Arc::ptr_eq(&self.state, &other.state)
     }
-    pub(crate) fn has_export_scope(&self, session: LogSession) -> bool {
-        self.state.lock().expect("log facts").observed_session == Some(session)
+    pub(crate) fn has_export_scope(&self, session: &LogSession) -> bool {
+        self.state
+            .lock()
+            .expect("log facts")
+            .observed_session
+            .as_ref()
+            == Some(session)
     }
     /// The lifecycle owner retires old facts synchronously, before publishing
     /// the new Core snapshot. A stream worker must not rebind an older scope.
     pub fn observe_core(&self, core: &CoreSnapshot) {
         let mut state = self.state.lock().expect("log facts");
         state.core_owned = true;
-        let scope = core.session_token.map(|token| LogSession {
-            generation: core.generation,
-            token,
-        });
-        if state.observed_session.is_some_and(|observed| {
-            observed.generation != core.generation || scope.is_some_and(|scope| scope != observed)
+        let scope = core.scope().and_then(LogSession::from_core_scope);
+        if state.observed_session.as_ref().is_some_and(|observed| {
+            observed.generation.value() != core.generation
+                || observed.identity() != core.identity.as_ref()
+                || scope.as_ref().is_some_and(|scope| scope != observed)
         }) {
             state.entries.clear();
             state.observed = false;
-            state.observed_session = scope;
+            state.observed_session = scope.clone();
         }
         let session = matches!(
             core.lifecycle,
@@ -54,7 +58,7 @@ impl LogApplication {
         .then_some(scope)
         .flatten();
         if state.session != session {
-            state.session = session;
+            state.session = session.clone();
             state.stream = if session.is_some() {
                 LogStreamState::Connecting
             } else {
@@ -62,11 +66,11 @@ impl LogApplication {
             };
         }
         if let Some(session) = session
-            && state.observed_session != Some(session)
+            && state.observed_session.as_ref() != Some(&session)
         {
             state.entries.clear();
             state.observed = false;
-            state.observed_session = Some(session);
+            state.observed_session = Some(session.clone());
         }
     }
     /// Export all observed records, independently of the page's severity filter.
@@ -74,7 +78,9 @@ impl LogApplication {
         let state = self.state.lock().expect("log facts");
         let session = state
             .observed_session
+            .as_ref()
             .filter(|_| state.observed)
+            .cloned()
             .ok_or_else(|| {
                 Failure::new(
                     ErrorCode::NotReady,
@@ -107,11 +113,11 @@ impl LogApplication {
         if state.session == session {
             return true;
         }
-        state.session = session;
-        if let Some(session) = session
-            && state.observed_session != Some(session)
+        state.session = session.clone();
+        if let Some(session) = session.as_ref()
+            && state.observed_session.as_ref() != Some(session)
         {
-            state.observed_session = Some(session);
+            state.observed_session = Some(session.clone());
             state.observed = false;
             state.entries.clear();
         }
@@ -124,7 +130,7 @@ impl LogApplication {
     }
     pub fn ingest(&self, session: LogSession, event: RuntimeStreamEvent<String>) -> bool {
         let mut state = self.state.lock().expect("log facts");
-        if state.session != Some(session) {
+        if state.session.as_ref() != Some(&session) {
             return false;
         }
         match event {
@@ -155,7 +161,7 @@ impl LogApplication {
     }
     pub fn fail(&self, session: LogSession, failure: Failure) {
         let mut state = self.state.lock().expect("log facts");
-        if state.session == Some(session) {
+        if state.session.as_ref() == Some(&session) {
             state.stream = LogStreamState::Failed(failure);
         }
     }
@@ -182,10 +188,7 @@ impl LogApplication {
     }
     pub fn page(&self, core: &CoreSnapshot) -> PageData<LogsPageSnapshot> {
         let state = self.state.lock().expect("log facts");
-        let scope = core.session_token.map(|token| LogSession {
-            generation: core.generation,
-            token,
-        });
+        let scope = core.scope().and_then(LogSession::from_core_scope);
         let running = matches!(
             core.lifecycle,
             CoreLifecycle::Running | CoreLifecycle::Ready
@@ -214,8 +217,9 @@ impl LogApplication {
             return PageData {
                 status: PageStatus::Unavailable { failure },
                 data: (state.observed
-                    && state.observed_session.is_some_and(|observed| {
-                        observed.generation == core.generation
+                    && state.observed_session.as_ref().is_some_and(|observed| {
+                        observed.generation.value() == core.generation
+                            && observed.identity() == core.identity.as_ref()
                             && core
                                 .session_token
                                 .is_none_or(|token| token == observed.token)

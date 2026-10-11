@@ -1,5 +1,7 @@
 //! test-intent: behavior
 use crate::state::AppState;
+use crate::test_mounts::command_harness::install_lifecycle_test_capabilities;
+use crate::test_mounts::execute_at_observed_scope;
 use crate::test_mounts::native_widgets::native;
 use crate::types::message::Message;
 use crate::view::runtime::logs_controls::{follow, search};
@@ -114,7 +116,8 @@ fn native_log_query_keeps_failed_facts_and_retires_them_on_actual_core_restart()
     let runtime = tokio_application_runtime().unwrap();
     let process = Arc::new(LogCaptureProcess::default());
     let core = CoreApplication::new(process.clone(), process, runtime.clone());
-    state.commands = Some(core.clone());
+    install_lifecycle_test_capabilities(&core);
+    state.attach_product_application(core.clone());
     let reader = ApplicationSurfaceReader::new(
         Arc::new(core.clone()),
         SurfaceKind::IcedDesktop,
@@ -137,10 +140,8 @@ fn native_log_query_keeps_failed_facts_and_retires_them_on_actual_core_restart()
     edit(&mut state, "api\\.example");
     assert_eq!(state.diag.log_search.matched_count(), 2);
     let current = core.snapshot();
-    let scope = LogSession {
-        generation: current.generation,
-        token: current.session_token.unwrap(),
-    };
+    let scope = LogSession::from_core_scope(current.scope().expect("current core scope"))
+        .expect("current log session");
     core.log_application().fail(
         scope,
         Failure::new(ErrorCode::Permission, "controller denied", false),
@@ -153,8 +154,7 @@ fn native_log_query_keeps_failed_facts_and_retires_them_on_actual_core_restart()
     assert_eq!(state.diag.log_search.matched_count(), 2);
     let restarting = core.clone();
     runtime.block_on(Box::pin(async move {
-        restarting
-            .execute(CommandIntent::RestartCore)
+        execute_at_observed_scope(&restarting, CommandIntent::RestartCore)
             .await
             .into_unit()
             .unwrap();
@@ -163,11 +163,9 @@ fn native_log_query_keeps_failed_facts_and_retires_them_on_actual_core_restart()
     assert_eq!(state.diag.log_search.query(), "api\\.example");
     assert!(state.diag.log_search.rows().is_empty());
     let current = core.snapshot();
-    let scope = LogSession {
-        generation: current.generation,
-        token: current.session_token.unwrap(),
-    };
-    core.log_application().bind(Some(scope));
+    let scope = LogSession::from_core_scope(current.scope().expect("current core scope"))
+        .expect("current log session");
+    core.log_application().bind(Some(scope.clone()));
     core.log_application()
         .ingest(scope, RuntimeStreamEvent::Connected);
     read(&mut state);

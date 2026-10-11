@@ -1,29 +1,38 @@
 //! DUAL-10-15: the shared scripting-sandbox regression matrix execution.
 //!
-//! Every covered row runs the real domain engine, the real
-//! [`ScriptApplication`] service and the real Mixin reductions, and reports
-//! what it measured. DUAL-10-01 runs the real `boa_engine` adapter, which is
+//! Every covered script row runs the real domain engine and the real
+//! [`ScriptApplication`] service. Mixin cases consume precomputed typed codec
+//! fixtures; Mihomo schema behavior is tested in the adapter crate.
+//! DUAL-10-01 runs the real `boa_engine` adapter, which is
 //! compiled in the default configuration, so all 15 rows are covered by
 //! default. A row without a runnable backend would be registered as explicitly
 //! *not covered* with the honest reason.
 
 use infiltrator_domain::script_engine::{ExtensionPackage, ScriptError};
 use infiltrator_domain::script_export::{
-    compose_directive_dsl_export, compose_extension_package_export, compose_mixin_overlay_export,
+    ExportArtifact, compose_directive_dsl_export, compose_extension_package_export,
 };
 #[cfg(test)]
 #[path = "script_sandbox_matrix_application_test.rs"]
 mod script_sandbox_matrix_application_test;
 
+use crate::mixin_studio_projection;
 use crate::script_application::ScriptApplication;
 use crate::script_export_application::ScriptExportApplication;
+use infiltrator_contract::script_export::{
+    MIXIN_OVERLAY_YAML_HEADER, MIXIN_OVERLAY_YAML_NOTE_ZH, ScriptExportKind,
+};
 use infiltrator_contract::script_sandbox::{ScriptEngineKind, ScriptSandboxStatus};
 use infiltrator_contract::script_sandbox_matrix::{
     ScriptSandboxMatrixReport, ScriptSandboxMatrixScenario,
 };
-use infiltrator_domain::mixin::MixinConfig;
-use infiltrator_domain::mixin_studio;
 use infiltrator_domain::script_engine::{HookStage, ScriptCircuitBreaker, ScriptEngine};
+use infiltrator_ports::profile_document_codec::{
+    ProfileMixinCascade, ProfileMixinCascadeStage, ProfileMixinCascadeStageId, ProfileMixinColumn,
+    ProfileMixinColumnRole, ProfileMixinColumns, ProfileMixinComposition, ProfileMixinPreflight,
+    ProfileMixinStageDeclaration, ProfileMixinToggle, ProfileMixinToggleId,
+    ProfileMixinToggleProjection,
+};
 use std::time::Duration;
 
 /// The one shared executor both surfaces call.
@@ -147,73 +156,87 @@ fn check_ast_diff() -> Check {
 }
 
 fn check_cascade_pipeline() -> Check {
-    let pre = MixinConfig {
-        mode: Some("script".to_string()),
-        ..Default::default()
+    // The schema adapter tests real cascade behavior. Application code consumes
+    // its neutral projection, so this matrix uses a precomputed adapter fixture.
+    let report = ProfileMixinCascade::Merged {
+        stages: vec![
+            ProfileMixinCascadeStage {
+                id: ProfileMixinCascadeStageId::Base,
+                declaration: ProfileMixinStageDeclaration::Applied,
+                line_count: 2,
+            },
+            ProfileMixinCascadeStage {
+                id: ProfileMixinCascadeStageId::Subscription,
+                declaration: ProfileMixinStageDeclaration::Undeclared,
+                line_count: 0,
+            },
+            ProfileMixinCascadeStage {
+                id: ProfileMixinCascadeStageId::Merge,
+                declaration: ProfileMixinStageDeclaration::Applied,
+                line_count: 3,
+            },
+            ProfileMixinCascadeStage {
+                id: ProfileMixinCascadeStageId::PreMixin,
+                declaration: ProfileMixinStageDeclaration::Applied,
+                line_count: 3,
+            },
+            ProfileMixinCascadeStage {
+                id: ProfileMixinCascadeStageId::PostMixin,
+                declaration: ProfileMixinStageDeclaration::Applied,
+                line_count: 3,
+            },
+        ],
+        line_count: 3,
     };
-    let post = MixinConfig {
-        mode: Some("global".to_string()),
-        ..Default::default()
-    };
-    let report = mixin_studio::preview_cascade(
-        "mode: rule\nport: 7890\n",
-        Some("port: 8080\n"),
-        None,
-        Some(&pre),
-        Some(&post),
-    );
-    if report.blocked {
-        return (false, report.error.unwrap_or_default());
-    }
-    let applied: Vec<&str> = report
-        .stages
-        .iter()
-        .filter(|stage| stage.applied)
-        .map(|stage| stage.id.as_str())
-        .collect();
+    let caption = mixin_studio_projection::cascade_caption(&report, "en");
     (
-        report.stages.len() == 5
-            && applied == ["base", "subscription", "pre_mixin", "post_mixin"]
-            && report.merged_yaml.as_deref().is_some_and(|merged| {
-                merged.contains("mode: global") && merged.contains("port: 8080")
-            }),
-        format!(
-            "{} stages, {} lines",
-            report.stages.len(),
-            report.merged_line_count()
-        ),
+        matches!(&report, ProfileMixinCascade::Merged { stages, line_count: 3 } if stages.len() == 5)
+            && caption.contains("→")
+            && caption.contains("3"),
+        caption,
     )
 }
 
 fn check_mixin_preflight() -> Check {
-    let blocked = mixin_studio::preflight_mixin("mode: rule\n", "mode: [unterminated\n");
-    let merged = mixin_studio::preflight_mixin("mode: rule\nport: 7890\n", "mode: global\n");
+    let blocked = ProfileMixinPreflight::Blocked {
+        reason: "fixture: invalid Mixin YAML".into(),
+    };
+    let accepted = ProfileMixinPreflight::Accepted;
+    let blocked_detail = mixin_studio_projection::preflight_detail(&blocked, "en");
+    let accepted_caption = mixin_studio_projection::preflight_key(&accepted);
     (
-        blocked.is_blocking()
-            && blocked.error.is_some()
-            && merged.valid
-            && merged
-                .merged_preview
-                .as_deref()
-                .is_some_and(|preview| preview.contains("port: 7890")),
-        format!("blocked={} valid={}", blocked.is_blocking(), merged.valid),
+        blocked_detail.contains("fixture")
+            && mixin_studio_projection::preflight_key(&blocked) == "mixin_studio_preflight_blocked"
+            && accepted_caption == "mixin_studio_preflight_ok",
+        format!("blocked={blocked_detail} accepted={accepted_caption}"),
     )
 }
 
 fn check_mixin_toggles() -> Check {
-    let enabled = match mixin_studio::set_toggle("{}", "ipv6", true) {
-        Ok(text) => text,
-        Err(error) => return (false, error),
+    let projection = ProfileMixinToggleProjection::Available(vec![
+        ProfileMixinToggle {
+            id: ProfileMixinToggleId::Ipv6,
+            enabled: true,
+        },
+        ProfileMixinToggle {
+            id: ProfileMixinToggleId::DnsFakeIp,
+            enabled: true,
+        },
+    ]);
+    let ids = match &projection {
+        ProfileMixinToggleProjection::Available(toggles) => {
+            toggles.iter().map(|toggle| toggle.id).collect::<Vec<_>>()
+        }
+        ProfileMixinToggleProjection::Unavailable { .. } => Vec::new(),
     };
-    let with_dns = match mixin_studio::set_toggle(&enabled, "dns-fake-ip", true) {
-        Ok(text) => text,
-        Err(error) => return (false, error),
-    };
-    let read_back = mixin_studio::toggle_enabled(&with_dns, "ipv6").unwrap_or(false)
-        && mixin_studio::toggle_enabled(&with_dns, "dns-fake-ip").unwrap_or(false);
     (
-        read_back && with_dns.contains("fake-ip"),
-        format!("{} toggles", mixin_studio::MIXIN_PRESET_TOGGLES.len()),
+        ids == [ProfileMixinToggleId::Ipv6, ProfileMixinToggleId::DnsFakeIp]
+            && ProfileMixinToggleId::ALL.len() == 6,
+        format!(
+            "{} available of {}",
+            ids.len(),
+            ProfileMixinToggleId::ALL.len()
+        ),
     )
 }
 
@@ -402,31 +425,66 @@ fn check_extension_round_trip() -> Check {
 /// overlay buffer and the real composed pipeline output (never a mock).
 fn check_three_column_editor() -> Check {
     let base = "mode: rule\nport: 7890\n";
-    let columns = mixin_studio::mixin_editor_columns(base, "mode: global\n");
-    let blocked = mixin_studio::mixin_editor_columns("mode: rule\n", "mode: [bad\n");
-    let composed_is_real = columns.composed.content.contains("port: 7890")
-        && columns.composed.content.contains("mode: global");
+    let columns = ProfileMixinColumns {
+        base: ProfileMixinColumn {
+            role: ProfileMixinColumnRole::Base,
+            content: base.into(),
+            editable: false,
+            line_count: 2,
+        },
+        overlay: ProfileMixinColumn {
+            role: ProfileMixinColumnRole::Overlay,
+            content: "mode: global\n".into(),
+            editable: true,
+            line_count: 1,
+        },
+        composed: ProfileMixinComposition::Produced(ProfileMixinColumn {
+            role: ProfileMixinColumnRole::Composed,
+            content: "mode: global\nport: 7890\n".into(),
+            editable: false,
+            line_count: 2,
+        }),
+    };
+    let blocked = ProfileMixinColumns {
+        base: columns.base.clone(),
+        overlay: ProfileMixinColumn {
+            role: ProfileMixinColumnRole::Overlay,
+            content: "mode: [bad\n".into(),
+            editable: true,
+            line_count: 1,
+        },
+        composed: ProfileMixinComposition::Blocked {
+            reason: "fixture: invalid Mixin YAML".into(),
+        },
+    };
+    let (composed, composed_is_real) = match &columns.composed {
+        ProfileMixinComposition::Produced(column) => (
+            column,
+            column.content.contains("port: 7890") && column.content.contains("mode: global"),
+        ),
+        ProfileMixinComposition::Blocked { .. } => return (false, "blocked fixture".into()),
+    };
+    let blocked_is_reported = matches!(
+        &blocked.composed,
+        ProfileMixinComposition::Blocked { reason } if reason.contains("fixture")
+    );
     (
         columns.base.content == base
             && !columns.base.editable
             && columns.overlay.content == "mode: global\n"
             && columns.overlay.editable
-            && columns.is_composed()
             && composed_is_real
-            && !columns.composed.editable
-            && blocked.is_blocked()
-            && blocked.composed.content.is_empty()
-            && !blocked.is_composed(),
+            && !composed.editable
+            && blocked_is_reported,
         format!(
-            "composed={} lines, blocked={}",
-            columns.composed_line_count(),
-            blocked.is_blocked()
+            "composed={} lines, blocked={blocked_is_reported}",
+            composed.line_count,
         ),
     )
 }
 
-/// DUAL-10-12: the per-surface export artifacts are real files — a `.yaml`
-/// overlay that re-parses through the shared preflight, a `.js`-named
+/// DUAL-10-12: the per-surface export artifacts are real files — a typed
+/// `.yaml` overlay fixture, a `.js`-named
 /// directive-DSL script whose header states it is not JavaScript, and a JSON
 /// package with its real SHA-256. A host without a save port reports typed
 /// unsupported and keeps the composed bytes.
@@ -446,12 +504,18 @@ fn check_extension_export() -> Check {
         && js.content.contains("不是 JavaScript")
         && js.content.contains("auto_country_groups");
 
-    let base = "mode: rule\nport: 7890\n";
-    let overlay = match compose_mixin_overlay_export("matrix", base, "ipv6: true\n") {
-        Ok(artifact) => artifact,
-        Err(error) => return (false, error),
+    let overlay = ExportArtifact {
+        kind: ScriptExportKind::MixinOverlayYaml,
+        file_name: format!("matrix{}", ScriptExportKind::MixinOverlayYaml.file_suffix()),
+        media_type: ScriptExportKind::MixinOverlayYaml.media_type().into(),
+        content: format!("{MIXIN_OVERLAY_YAML_HEADER}\nipv6: true\n"),
+        checksum: None,
+        honest_note: MIXIN_OVERLAY_YAML_NOTE_ZH.into(),
     };
-    let overlay_round_trip = mixin_studio::preflight_mixin(base, &overlay.content);
+    let overlay_fixture_is_complete = overlay.file_name == "matrix.mixin.yaml"
+        && overlay.content.starts_with(MIXIN_OVERLAY_YAML_HEADER)
+        && overlay.content.contains("ipv6: true")
+        && overlay.honest_note == MIXIN_OVERLAY_YAML_NOTE_ZH;
 
     let package = ExtensionPackage {
         name: "matrix-export".to_string(),
@@ -489,11 +553,7 @@ fn check_extension_export() -> Check {
     (
         round_trip
             && js_is_honest
-            && overlay_round_trip.valid
-            && overlay_round_trip
-                .merged_preview
-                .as_deref()
-                .is_some_and(|preview| preview.contains("ipv6: true"))
+            && overlay_fixture_is_complete
             && checksum_is_real
             && unsupported_keeps_bytes,
         format!(

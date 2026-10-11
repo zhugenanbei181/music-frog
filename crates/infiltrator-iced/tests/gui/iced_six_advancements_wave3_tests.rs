@@ -1,6 +1,6 @@
 //! High-fidelity verification tests for Wave 3 of the 6 Iced Core Maturity Advancements.
 //!
-//! Complies strictly with docs/TEST_GOVERNANCE.md (Zero-Tautology Rule):
+//! Complies strictly with TESTING.md zero-tautology assertion rule:
 //! Every assertion validates concrete business contracts, state transitions,
 //! exact string/integer values, and mathematical invariants.
 
@@ -11,15 +11,23 @@ use crate::view::speedtest_modal::speedtest_card;
 use crate::view_root::speedtest_detail_modal::speedtest_detail_modal;
 use infiltrator_application::rule_list_fixtures::list_document;
 use infiltrator_application::speedtest_summary_projection::history_lines;
-use infiltrator_contract::capability::Capability;
+use infiltrator_contract::error::Failure;
 use infiltrator_contract::speedtest::{PacketLossRating, SpeedtestPhase, SpeedtestSnapshot};
-use infiltrator_contract::speedtest_matrix::SpeedtestRegressionMatrixReport;
 use infiltrator_contract::uwp::{UwpLoopbackAvailability, UwpLoopbackSnapshot, UwpPackageSnapshot};
 use infiltrator_domain::rules::edit::DEFAULT_RULE_TARGET;
 use infiltrator_domain::sub_rules::validate_logical_rule_syntax;
-use infiltrator_ports::error::PortError;
 use infiltrator_shared::locales::Lang;
 use std::fs::read;
+
+fn apply_speedtest_snapshot(state: &mut AppState, snapshot: SpeedtestSnapshot) {
+    let receipt = infiltrator_contract::speedtest::SpeedtestStartReceipt {
+        run_id: snapshot
+            .state
+            .run_id()
+            .expect("fixture snapshot has a run ID"),
+    };
+    let _ = state.update(Message::SpeedtestStarted(Ok((receipt, snapshot))));
+}
 
 #[test]
 fn test_advancement_w3_1_pcap_capture_and_export_lifecycle() {
@@ -116,35 +124,40 @@ fn test_advancement_w3_3_speedtest_and_jitter_benchmark_result() {
     let (mut state, _) = AppState::new();
 
     // Initial state is the shared engine default: idle, no measured nodes.
-    assert_eq!(state.diag.speedtest.phase, SpeedtestPhase::Idle);
+    assert_eq!(state.diag.speedtest.phase(), SpeedtestPhase::Idle);
     assert!(!state.diag.speedtest.is_running());
-    assert!(state.diag.speedtest.node_results.is_empty());
+    assert!(state.diag.speedtest.results.is_empty());
 
     // A real engine snapshot drives the read model (no UI-local fabrication).
     let snapshot = SpeedtestSnapshot::demo_fixture();
-    let _ = state.update(Message::SpeedtestSnapshotUpdated(Ok(snapshot)));
+    apply_speedtest_snapshot(&mut state, snapshot);
 
-    assert_eq!(state.diag.speedtest.node_results.len(), 3);
+    assert_eq!(state.diag.speedtest.results.len(), 3);
     let fastest = state
         .diag
         .speedtest
-        .fastest_node()
+        .fastest()
         .expect("demo fixture has a fastest node");
-    assert_eq!(fastest.node_name, "🇭🇰 香港 01 · BGP 专线");
-    assert_eq!(fastest.bandwidth_mbps, Some(184.5));
-    assert_eq!(fastest.star_rating, 5);
-    assert_eq!(fastest.packet_loss, PacketLossRating::Excellent);
+    assert_eq!(fastest.outbound_id.value(), "hk-primary");
+    assert_eq!(
+        fastest.display_name.as_deref(),
+        Some("🇭🇰 香港 01 · BGP 专线")
+    );
+    assert_eq!(
+        fastest.calculation().unwrap().loss_rating,
+        PacketLossRating::Excellent
+    );
 }
 
 #[test]
 fn test_advancement_w3_3_speedtest_error_surfaces_toast() {
     let (mut state, _) = AppState::new();
-    // A host without a speedtest engine must not fabricate a "success": the
+    // A Core owner without a speedtest service must not fabricate a "success": the
     // read model stays empty and the failure is surfaced (the update returns
     // a ShowToast task, which the runtime applies).
-    let task = state.update(Message::SpeedtestSnapshotUpdated(Err(
-        PortError::unsupported(Capability::Speedtest, "no engine"),
-    )));
+    let task = state.update(Message::SpeedtestStarted(Err(Failure::unsupported(
+        "no engine",
+    ))));
     // Applying the produced toast message lands it in the shell queue.
     let _ = task;
     let _ = state.update(Message::ShowToast(
@@ -152,42 +165,16 @@ fn test_advancement_w3_3_speedtest_error_surfaces_toast() {
         ToastStatus::Error,
     ));
     assert!(!state.shell.toasts.is_empty());
-    assert!(state.diag.speedtest.node_results.is_empty());
-}
-
-#[test]
-fn test_advancement_w3_3_speedtest_scope_and_cancel_share_the_engine() {
-    let (mut state, _) = AppState::new();
-
-    // A scope-wide result lands in the same shared read model and clears the
-    // UI spinner; no UI-local metrics are computed.
-    state.runtime.runtime_testing_all_delays = true;
-    let _ = state.update(Message::SpeedtestScopeUpdated(Ok(
-        SpeedtestSnapshot::demo_fixture(),
-    )));
-    assert_eq!(state.diag.speedtest.node_results.len(), 3);
-    assert!(!state.runtime.runtime_testing_all_delays);
-
-    // Hostless: no engine port, so a scope test cannot start and nothing is
-    // fabricated as running.
-    let _ = state.update(Message::TestAllProxyDelays);
-    assert!(!state.runtime.runtime_testing_all_delays);
-
-    // Cancel without a port stays honest (error toast), never a fake success.
-    let _ = state.update(Message::CancelSpeedtest);
-    assert!(!state.runtime.runtime_testing_all_delays);
+    assert!(state.diag.speedtest.results.is_empty());
 }
 
 #[test]
 fn test_advancement_w3_3_speedtest_dead_node_archive_renders() {
     let (mut state, _) = AppState::new();
-    let _ = state.update(Message::SpeedtestSnapshotUpdated(Ok(
-        SpeedtestSnapshot::demo_fixture(),
-    )));
+    apply_speedtest_snapshot(&mut state, SpeedtestSnapshot::demo_fixture());
 
-    // The shared snapshot archives the timed-out node; the card renders it
-    // from `dead_nodes()` instead of hiding it.
-    assert_eq!(state.diag.speedtest.dead_nodes().len(), 1);
+    // The shared snapshot archives the timed-out outbound by its stable ID.
+    assert_eq!(state.diag.speedtest.timed_out().len(), 1);
     let lang = Lang("zh-CN");
     let _card = speedtest_card(&state, &lang);
 }
@@ -195,53 +182,18 @@ fn test_advancement_w3_3_speedtest_dead_node_archive_renders() {
 #[test]
 fn test_advancement_w3_3_speedtest_history_renders_shared_snapshot() {
     let (mut state, _) = AppState::new();
-    let _ = state.update(Message::SpeedtestSnapshotUpdated(Ok(
-        SpeedtestSnapshot::demo_fixture(),
-    )));
+    apply_speedtest_snapshot(&mut state, SpeedtestSnapshot::demo_fixture());
 
     // The history lines are read straight off the shared snapshot's
     // `recent_history`; the view owns no store.
     let lang = Lang("zh-CN");
     let lines = history_lines(&state.diag.speedtest, lang.0);
     assert_eq!(lines.len(), 1);
-    assert!(
-        lines[0].contains("平均带宽 154.8 Mbps"),
-        "line={}",
-        lines[0]
-    );
-    assert!(lines[0].contains("★★★★★"), "line={}", lines[0]);
-    assert!(lines[0].contains("全部节点"), "line={}", lines[0]);
+    assert!(lines[0].contains("50.5 ms"), "line={}", lines[0]);
+    assert!(lines[0].contains("全部出口"), "line={}", lines[0]);
 
     // The full card still renders with the history section.
     let _card = speedtest_card(&state, &lang);
-}
-
-#[test]
-fn test_advancement_w3_3_speedtest_custom_url_flows_into_the_port_call() {
-    let (mut state, _) = AppState::new();
-
-    // Blank input defers to the shared engine's own default target.
-    assert_eq!(state.speedtest_target_url(), None);
-
-    // The typed value is stored in state and trimmed before it rides into
-    // `run_scope` / `probe_node` as the port's URL argument.
-    let _ = state.update(Message::UpdateSpeedtestTestUrl(
-        "  https://cp.cloudflare.com/generate_204  ".to_string(),
-    ));
-    assert_eq!(
-        state.speedtest_target_url(),
-        Some("https://cp.cloudflare.com/generate_204".to_string())
-    );
-
-    // The card still renders with the typed target.
-    let lang = Lang("zh-CN");
-    let _card = speedtest_card(&state, &lang);
-
-    // The debug arm is exhaustive and names the message.
-    assert!(
-        format!("{:?}", Message::UpdateSpeedtestTestUrl("x".to_string()))
-            .contains("UpdateSpeedtestTestUrl")
-    );
 }
 
 #[test]
@@ -250,22 +202,22 @@ fn test_advancement_w3_3_speedtest_concurrency_reads_shared_and_clamps() {
 
     // The card reads the bound from the shared snapshot, not a UI-local value.
     let mut snapshot = SpeedtestSnapshot::demo_fixture();
-    snapshot.config.concurrency = 12;
-    let _ = state.update(Message::SpeedtestScopeUpdated(Ok(snapshot)));
-    assert_eq!(state.diag.speedtest.config.concurrency, 12);
+    snapshot.concurrency = infiltrator_contract::speedtest::SpeedtestConcurrency::new(12).unwrap();
+    apply_speedtest_snapshot(&mut state, snapshot);
+    assert_eq!(state.diag.speedtest.concurrency.get(), 12);
     let lang = Lang("zh-CN");
     {
         let _card = speedtest_card(&state, &lang);
     }
 
-    // Stepping is clamped into the supported 1..=64 window.
+    // Stepping is clamped into the supported 1..=30 window.
     assert_eq!(AppState::stepped_speedtest_concurrency(1, -5), 1);
-    assert_eq!(AppState::stepped_speedtest_concurrency(30, 5), 35);
-    assert_eq!(AppState::stepped_speedtest_concurrency(64, 5), 64);
+    assert_eq!(AppState::stepped_speedtest_concurrency(30, 5), 30);
+    assert_eq!(AppState::stepped_speedtest_concurrency(30, -5), 25);
 
-    // Without a host port the adjustment stays honest: no fabricated change.
+    // Without a product Core ingress the adjustment stays honest: no fabricated change.
     let _ = state.update(Message::AdjustSpeedtestConcurrency(5));
-    assert_eq!(state.diag.speedtest.config.concurrency, 12);
+    assert_eq!(state.diag.speedtest.concurrency.get(), 12);
     assert!(
         format!("{:?}", Message::AdjustSpeedtestConcurrency(-1))
             .contains("AdjustSpeedtestConcurrency")
@@ -273,26 +225,16 @@ fn test_advancement_w3_3_speedtest_concurrency_reads_shared_and_clamps() {
 }
 
 #[test]
-fn test_advancement_w3_3_speedtest_egress_detail_and_matrix() {
+fn test_advancement_w3_3_speedtest_typed_detail_modal() {
     let (mut state, _) = AppState::new();
+    apply_speedtest_snapshot(&mut state, SpeedtestSnapshot::demo_fixture());
+    assert_eq!(state.diag.speedtest.results.len(), 3);
+    assert_eq!(
+        state.diag.speedtest.results[0].outbound_id.value(),
+        "hk-primary"
+    );
 
-    // DUAL-06-12: a label of HK with a US egress is an honest mismatch.
-    let mut snapshot = SpeedtestSnapshot::demo_fixture();
-    if let Some(node) = snapshot.node_results.get_mut("💀 超时不可用节点 01") {
-        node.is_alive = true;
-        node.delay_ms = Some(210);
-        node.label_country = Some("HK".to_owned());
-        node.outbound_ip = Some("45.32.1.9".to_owned());
-        node.outbound_country = Some("US".to_owned());
-    }
-    let _ = state.update(Message::SpeedtestScopeUpdated(Ok(snapshot)));
-    assert_eq!(state.diag.speedtest.egress_country_mismatches().len(), 1);
-    assert_eq!(state.diag.speedtest.egress_reported_count(), 3);
-    let mismatches = state.diag.speedtest.egress_country_mismatches();
-    let mismatched = *mismatches.first().expect("mismatch node present");
-    assert_eq!(mismatched.egress_endpoint_label(), "45.32.1.9 (US)");
-
-    // DUAL-06-13: the detail modal is pure view state over the shared snapshot.
+    // The detail modal is pure view state over the shared typed snapshot.
     assert!(!state.diag.speedtest_detail_open);
     let _ = state.update(Message::OpenSpeedtestDetail);
     assert!(state.diag.speedtest_detail_open);
@@ -304,10 +246,6 @@ fn test_advancement_w3_3_speedtest_egress_detail_and_matrix() {
     let _ = state.update(Message::CloseSpeedtestDetail);
     assert!(!state.diag.speedtest_detail_open);
 
-    // DUAL-06-14: both surfaces are driven by the one shared matrix report.
-    let report = SpeedtestRegressionMatrixReport::run_deterministic_matrix();
-    assert!(report.is_all_passed());
-    assert_eq!(report.total_scenarios, 15);
     assert_eq!(
         format!("{:?}", Message::OpenSpeedtestDetail),
         "OpenSpeedtestDetail"

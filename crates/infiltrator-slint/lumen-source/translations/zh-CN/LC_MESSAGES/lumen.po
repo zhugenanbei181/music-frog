@@ -1,0 +1,1214 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: zh-CN\n"
+"MIME-Version: 1.0\n"
+
+msgid "日均上传"
+msgstr "日均上传"
+
+msgid "上传"
+msgstr "上传"
+
+msgid "上传 "
+msgstr "上传 "
+
+msgid "下载"
+msgstr "下载"
+
+msgid "下载 "
+msgstr "下载 "
+
+msgid " 个配置"
+msgstr " 个配置"
+
+msgid " 项"
+msgstr " 项"
+
+msgid "✓ 本周"
+msgstr "✓ 本周"
+
+msgid "✓ 活动中"
+msgstr "✓ 活动中"
+
+msgid "✓ 今日"
+msgstr "✓ 今日"
+
+msgid "✓ 已关闭"
+msgstr "✓ 已关闭"
+
+msgid "85%–115% · 以逻辑尺寸缩放文字、图标、间距和控件"
+msgstr "85%–115% · 以逻辑尺寸缩放文字、图标、间距和控件"
+
+msgid "按本地时间从 Mihomo 累计计数差分；仅统计 Lumen 观察到的核心总流量，最多保留近 7 日。"
+msgstr "按本地时间从 Mihomo 累计计数差分；仅统计 Lumen 观察到的核心总流量，最多保留近 7 日。"
+
+msgid "按名称排序"
+msgstr "按名称排序"
+
+msgid "按延迟排序"
+msgstr "按延迟排序"
+
+msgid "按依赖名、版本或 SPDX 许可证标识搜索"
+msgstr "按依赖名、版本或 SPDX 许可证标识搜索"
+
+msgid "版本 0.1.0 · Mihomo "
+msgstr "版本 0.1.0 · Mihomo "
+
+msgid "版本与许可证"
+msgstr "版本与许可证"
+
+msgid "饱和度"
+msgstr "饱和度"
+
+msgid "保存"
+msgstr "保存"
+
+msgid "保存覆写"
+msgstr "保存覆写"
+
+msgid "保存设置"
+msgstr "保存设置"
+
+msgid "保存中…"
+msgstr "保存中…"
+
+msgid "本次运行  ↓ "
+msgstr "本次运行  ↓ "
+
+msgid "本次运行累计下载 "
+msgstr "本次运行累计下载 "
+
+msgid "本地 Mihomo 活动连接；最多显示 500 条。"
+msgstr "本地 Mihomo 活动连接；最多显示 500 条。"
+
+msgid "本地来源："
+msgstr "本地来源："
+
+msgid "本地来源配置保持只读；名称可在此修改。"
+msgstr "本地来源配置保持只读；名称可在此修改。"
+
+msgid "本地配置来源以解密后的 YAML 保存，无需继续保留 Age 私钥。"
+msgstr "本地配置来源以解密后的 YAML 保存，无需继续保留 Age 私钥。"
+
+msgid "本地文件"
+msgstr "本地文件"
+
+msgid "本周"
+msgstr "本周"
+
+msgid "本周暂无统计数据；运行 Mihomo 后开始记录。"
+msgstr "本周暂无统计数据；运行 Mihomo 后开始记录。"
+
+msgid "编辑"
+msgstr "编辑"
+
+msgid "编辑配置"
+msgstr "编辑配置"
+
+msgid "编辑器打开"
+msgstr "编辑器打开"
+
+msgid "测试策略组全部节点"
+msgstr "测试策略组全部节点"
+
+msgid "策略模式"
+msgstr "策略模式"
+
+msgid "查看并管理活动连接"
+msgstr "查看并管理活动连接"
+
+msgid "查看第三方依赖许可"
+msgstr "查看第三方依赖许可"
+
+msgid "查看和临时启停规则"
+msgstr "查看和临时启停规则"
+
+msgid "查看今日和本周流量"
+msgstr "查看今日和本周流量"
+
+msgid "查看流量统计"
+msgstr "查看流量统计"
+
+msgid "出口 IP"
+msgstr "出口 IP"
+
+msgid "创建覆写"
+msgstr "创建覆写"
+
+msgid "此连接已从当前有界观测缓存中移除。返回列表刷新状态。"
+msgstr "此连接已从当前有界观测缓存中移除。返回列表刷新状态。"
+
+msgid "从 PATH 运行 Mihomo；当前版本："
+msgstr "从 PATH 运行 Mihomo；当前版本："
+
+msgid "从 YAML/YML 文件导入"
+msgstr "从 YAML/YML 文件导入"
+
+msgid "从链接导入"
+msgstr "从链接导入"
+
+msgid "打断"
+msgstr "打断"
+
+msgid "打断连接"
+msgstr "打断连接"
+
+msgid "代理"
+msgstr "代理"
+
+msgid "代理节点旗帜图形使用 Twemoji，© Twitter, Inc. 和贡献者，CC BY 4.0。"
+msgstr "代理节点旗帜图形使用 Twemoji，© Twitter, Inc. 和贡献者，CC BY 4.0。"
+
+msgid "代理链路"
+msgstr "代理链路"
+
+msgid "代理模式"
+msgstr "代理模式"
+
+msgid "代理模式、核心与平台接管"
+msgstr "代理模式、核心与平台接管"
+
+msgid "代理排序和操作"
+msgstr "代理排序和操作"
+
+msgid "代理提供者和规则提供者均来自核心回读。"
+msgstr "代理提供者和规则提供者均来自核心回读。"
+
+msgid "代理组"
+msgstr "代理组"
+
+msgid "当前比例："
+msgstr "当前比例："
+
+msgid "当前地址："
+msgstr "当前地址："
+
+msgid "当前节点"
+msgstr "当前节点"
+
+msgid "当前配置"
+msgstr "当前配置"
+
+msgid "当前配置未包含外部 Provider"
+msgstr "当前配置未包含外部 Provider"
+
+msgid "当前许可证清单为空"
+msgstr "当前许可证清单为空"
+
+msgid "当前选择："
+msgstr "当前选择："
+
+msgid "当前用户登录时启动 Lumen"
+msgstr "当前用户登录时启动 Lumen"
+
+msgid "当前主题色："
+msgstr "当前主题色："
+
+msgid "当前组没有可选节点"
+msgstr "当前组没有可选节点"
+
+msgid "导出"
+msgstr "导出"
+
+msgid "导出日志"
+msgstr "导出日志"
+
+msgid "导航"
+msgstr "导航"
+
+msgid "等待 Mihomo 日志流"
+msgstr "等待 Mihomo 日志流"
+
+msgid "第三方依赖许可证"
+msgstr "第三方依赖许可证"
+
+msgid "电池优化无限制"
+msgstr "电池优化无限制"
+
+msgid "订阅或导入 YAML 配置后，可以选择当前配置并启动 Mihomo。"
+msgstr "订阅或导入 YAML 配置后，可以选择当前配置并启动 Mihomo。"
+
+msgid "订阅链接"
+msgstr "订阅链接"
+
+msgid "订阅设置"
+msgstr "订阅设置"
+
+msgid "订阅信息"
+msgstr "订阅信息"
+
+msgid "定位当前节点"
+msgstr "定位当前节点"
+
+msgid "定位当前节点与排序"
+msgstr "定位当前节点与排序"
+
+msgid "二维码扫描尚未接入。请先使用订阅链接或本地文件。"
+msgstr "二维码扫描尚未接入。请先使用订阅链接或本地文件。"
+
+msgid "反转语义文本颜色，保留强调色和状态色"
+msgstr "反转语义文本颜色，保留强调色和状态色"
+
+msgid "反转主题前景色"
+msgstr "反转主题前景色"
+
+msgid "返回"
+msgstr "返回"
+
+msgid "返回关于"
+msgstr "返回关于"
+
+msgid "返回许可证列表"
+msgstr "返回许可证列表"
+
+msgid "分享配置"
+msgstr "分享配置"
+
+msgid "分享配置文件"
+msgstr "分享配置文件"
+
+msgid "服务"
+msgstr "服务"
+
+msgid "覆写"
+msgstr "覆写"
+
+msgid "覆写配置"
+msgstr "覆写配置"
+
+msgid "跟随系统"
+msgstr "跟随系统"
+
+msgid "更多"
+msgstr "更多"
+
+msgid "更新"
+msgstr "更新"
+
+msgid "更新代理与规则提供者"
+msgstr "更新代理与规则提供者"
+
+msgid "更新中…"
+msgstr "更新中…"
+
+msgid "关闭"
+msgstr "关闭"
+
+msgid "关闭提示"
+msgstr "关闭提示"
+
+msgid "关闭添加配置"
+msgstr "关闭添加配置"
+
+msgid "关于"
+msgstr "关于"
+
+msgid "官方 Android v1.19.32 · 随 Lumen APK 提供，独立进程运行；GPL-3.0 许可与源码见关于页。当前："
+msgstr "官方 Android v1.19.32 · 随 Lumen APK 提供，独立进程运行；GPL-3.0 许可与源码见关于页。当前："
+
+msgid "规则"
+msgstr "规则"
+
+msgid "过去 24 小时"
+msgstr "过去 24 小时"
+
+msgid "核心运行规则；启停仅影响当前会话，重启后恢复配置值。"
+msgstr "核心运行规则；启停仅影响当前会话，重启后恢复配置值。"
+
+msgid "后台隐藏时释放界面"
+msgstr "后台隐藏时释放界面"
+
+msgid "滑动隐藏底栏"
+msgstr "滑动隐藏底栏"
+
+msgid "活动连接"
+msgstr "活动连接"
+
+msgid "活动中"
+msgstr "活动中"
+
+msgid "检查版本"
+msgstr "检查版本"
+
+msgid "简体中文"
+msgstr "简体中文"
+
+msgid "将停止当前 Mihomo，再以「"
+msgstr "将停止当前 Mihomo，再以「"
+
+msgid "」重新启动；切换期间网络可能短暂中断。若配置校验或平台状态确认失败，Runtime 会保持停止并显示恢复提示。"
+msgstr "」重新启动；切换期间网络可能短暂中断。若配置校验或平台状态确认失败，Runtime 会保持停止并显示恢复提示。"
+
+msgid "节点"
+msgstr "节点"
+
+msgid "界面设置"
+msgstr "界面设置"
+
+msgid "今日"
+msgstr "今日"
+
+msgid "今日流量"
+msgstr "今日流量"
+
+msgid "仅用户 Override 可编辑；JavaScript 尚未通过安全沙箱验证，因此不执行。"
+msgstr "仅用户 Override 可编辑；JavaScript 尚未通过安全沙箱验证，因此不执行。"
+
+msgid "进程："
+msgstr "进程："
+
+msgid "开始时间："
+msgstr "开始时间："
+
+msgid "开源许可"
+msgstr "开源许可"
+
+msgid "控制 API 绑定 127.0.0.1，随机密钥仅驻留内存；未实现或未确认的系统接管能力不会报告为已生效。"
+msgstr "控制 API 绑定 127.0.0.1，随机密钥仅驻留内存；未实现或未确认的系统接管能力不会报告为已生效。"
+
+msgid "跨平台 Mihomo 客户端，使用 Rust + Slint。"
+msgstr "跨平台 Mihomo 客户端，使用 Rust + Slint。"
+
+msgid "来源配置可能包含节点认证信息；导出仅包含来源 YAML，不含订阅凭据或绑定的覆写。"
+msgstr "来源配置可能包含节点认证信息；导出仅包含来源 YAML，不含订阅凭据或绑定的覆写。"
+
+msgid "累计统计"
+msgstr "累计统计"
+
+msgid "连接"
+msgstr "连接"
+
+msgid "连接、日志、规则和流量统计"
+msgstr "连接、日志、规则和流量统计"
+
+msgid "连接不可用"
+msgstr "连接不可用"
+
+msgid "连接详情"
+msgstr "连接详情"
+
+msgid "连接信息"
+msgstr "连接信息"
+
+msgid "流量"
+msgstr "流量"
+
+msgid "流量统计"
+msgstr "流量统计"
+
+msgid "留空使用默认值 Lumen/0.1.0"
+msgstr "留空使用默认值 Lumen/0.1.0"
+
+msgid "没有匹配的活动连接"
+msgstr "没有匹配的活动连接"
+
+msgid "没有匹配的节点"
+msgstr "没有匹配的节点"
+
+msgid "没有匹配的日志"
+msgstr "没有匹配的日志"
+
+msgid "没有匹配的依赖或许可证"
+msgstr "没有匹配的依赖或许可证"
+
+msgid "没有匹配的已关闭连接"
+msgstr "没有匹配的已关闭连接"
+
+msgid "没有匹配的运行规则"
+msgstr "没有匹配的运行规则"
+
+msgid "敏感字段已遮蔽 · 修改行为请使用覆写配置"
+msgstr "敏感字段已遮蔽 · 修改行为请使用覆写配置"
+
+msgid "明度"
+msgstr "明度"
+
+msgid "默认顺序"
+msgstr "默认顺序"
+
+msgid "目标地址："
+msgstr "目标地址："
+
+msgid "内核未启动：Ping 测 TCP 连通性，切换节点需启动"
+msgstr "内核未启动：Ping 测 TCP 连通性，切换节点需启动"
+
+msgid "配置"
+msgstr "配置"
+
+msgid "配置类型"
+msgstr "配置类型"
+
+msgid "配置名称"
+msgstr "配置名称"
+
+msgid "配置名称（可选）"
+msgstr "配置名称（可选）"
+
+msgid "匹配 "
+msgstr "匹配 "
+
+msgid "启动 VPN"
+msgstr "启动 VPN"
+
+msgid "启动代理"
+msgstr "启动代理"
+
+msgid "启动更新配置"
+msgstr "启动更新配置"
+
+msgid "启动中…"
+msgstr "启动中…"
+
+msgid "启用"
+msgstr "启用"
+
+msgid "启用时将请求 Android 通知权限"
+msgstr "启用时将请求 Android 通知权限"
+
+msgid "浅色"
+msgstr "浅色"
+
+msgid "切换并重启"
+msgstr "切换并重启"
+
+msgid "切换网络接管模式？"
+msgstr "切换网络接管模式？"
+
+msgid "轻触启动"
+msgstr "轻触启动"
+
+msgid "清空"
+msgstr "清空"
+
+msgid "清空统计"
+msgstr "清空统计"
+
+msgid "清空统计？"
+msgstr "清空统计？"
+
+msgid "请输入订阅链接"
+msgstr "请输入订阅链接"
+
+msgid "取消"
+msgstr "取消"
+
+msgid "取消编辑"
+msgstr "取消编辑"
+
+msgid "取消当前配置"
+msgstr "取消当前配置"
+
+msgid "全部"
+msgstr "全部"
+
+msgid "全局"
+msgstr "全局"
+
+msgid "确定要删除「"
+msgstr "确定要删除「"
+
+msgid "确认添加"
+msgstr "确认添加"
+
+msgid "日均下载 "
+msgstr "日均下载 "
+
+msgid "日志"
+msgstr "日志"
+
+msgid "日志流断开，正在重连；保留最近 300 条并脱敏。"
+msgstr "日志流断开，正在重连；保留最近 300 条并脱敏。"
+
+msgid "扫码添加"
+msgstr "扫码添加"
+
+msgid "色相"
+msgstr "色相"
+
+msgid "筛选和导出 Mihomo 日志"
+msgstr "筛选和导出 Mihomo 日志"
+
+msgid "删除"
+msgstr "删除"
+
+msgid "删除配置"
+msgstr "删除配置"
+
+msgid "上传："
+msgstr "上传："
+
+msgid "上移"
+msgstr "上移"
+
+msgid "尚未观察到已关闭连接"
+msgstr "尚未观察到已关闭连接"
+
+msgid "尚未启动 Mihomo"
+msgstr "尚未启动 Mihomo"
+
+msgid "尚未添加配置"
+msgstr "尚未添加配置"
+
+msgid "设备重启后显示启动通知，点按进入 Lumen"
+msgstr "设备重启后显示启动通知，点按进入 Lumen"
+
+msgid "设为当前配置"
+msgstr "设为当前配置"
+
+msgid "设置"
+msgstr "设置"
+
+msgid "设置类型"
+msgstr "设置类型"
+
+msgid "深色"
+msgstr "深色"
+
+msgid "时间"
+msgstr "时间"
+
+msgid "实时流量"
+msgstr "实时流量"
+
+msgid "实时流重连中；速率显示为 0，保留的统计仍可查看。"
+msgstr "实时流重连中；速率显示为 0，保留的统计仍可查看。"
+
+msgid "实时日志"
+msgstr "实时日志"
+
+msgid "实时下载速度"
+msgstr "实时下载速度"
+
+msgid "首页"
+msgstr "首页"
+
+msgid "输入新订阅链接；留空不更改"
+msgstr "输入新订阅链接；留空不更改"
+
+msgid "输入新私钥以添加或替换；留空保留已保存的私钥。"
+msgstr "输入新私钥以添加或替换；留空保留已保存的私钥。"
+
+msgid "刷新"
+msgstr "刷新"
+
+msgid "搜索"
+msgstr "搜索"
+
+msgid "搜索规则"
+msgstr "搜索规则"
+
+msgid "搜索日志"
+msgstr "搜索日志"
+
+msgid "搜索依赖或 SPDX 标识"
+msgstr "搜索依赖或 SPDX 标识"
+
+msgid "搜索主机或进程"
+msgstr "搜索主机或进程"
+
+msgid "添加订阅或导入 YAML 文件后即可启动 Mihomo。"
+msgstr "添加订阅或导入 YAML 文件后即可启动 Mihomo。"
+
+msgid "添加配置"
+msgstr "添加配置"
+
+msgid "添加配置文件"
+msgstr "添加配置文件"
+
+msgid "填写 YAML 覆写内容"
+msgstr "填写 YAML 覆写内容"
+
+msgid "停止 VPN"
+msgstr "停止 VPN"
+
+msgid "停止代理"
+msgstr "停止代理"
+
+msgid "停止中…"
+msgstr "停止中…"
+
+msgid "通知栏常驻显示实际速率"
+msgstr "通知栏常驻显示实际速率"
+
+msgid "外部资源"
+msgstr "外部资源"
+
+msgid "网络"
+msgstr "网络"
+
+msgid "网络接管"
+msgstr "网络接管"
+
+msgid "网络设置"
+msgstr "网络设置"
+
+msgid "未设置，使用默认值"
+msgstr "未设置，使用默认值"
+
+msgid "未知"
+msgstr "未知"
+
+msgid "无法读取内置许可证清单："
+msgstr "无法读取内置许可证清单："
+
+msgid "系统代理"
+msgstr "系统代理"
+
+msgid "系统代理 ✓"
+msgstr "系统代理 ✓"
+
+msgid "系统已加入不优化名单"
+msgstr "系统已加入不优化名单"
+
+msgid "系统正在优化 Lumen"
+msgstr "系统正在优化 Lumen"
+
+msgid "下移"
+msgstr "下移"
+
+msgid "显示布局边界（调试）"
+msgstr "显示布局边界（调试）"
+
+msgid "显示流量通知"
+msgstr "显示流量通知"
+
+msgid "协议："
+msgstr "协议："
+
+msgid "新建 YAML Override"
+msgstr "新建 YAML Override"
+
+msgid "行为"
+msgstr "行为"
+
+msgid "许可证标识："
+msgstr "许可证标识："
+
+msgid "许可证全文可选择并复制；Windows/Linux 可使用 Ctrl+C。"
+msgstr "许可证全文可选择并复制；Windows/Linux 可使用 Ctrl+C。"
+
+msgid "选择 YAML / YML 文件"
+msgstr "选择 YAML / YML 文件"
+
+msgid "选择当前配置后，可先查看配置中的代理组和节点。启动 Mihomo 后即可切换。"
+msgstr "选择当前配置后，可先查看配置中的代理组和节点。启动 Mihomo 后即可切换。"
+
+msgid "选择配置"
+msgstr "选择配置"
+
+msgid "选中的覆写会按列表顺序合并；更改先保存为 Profile 绑定。"
+msgstr "选中的覆写会按列表顺序合并；更改先保存为 Profile 绑定。"
+
+msgid "选中项按列表顺序应用。修改暂存到草稿，保存后生效。"
+msgstr "选中项按列表顺序应用。修改暂存到草稿，保存后生效。"
+
+msgid "延迟"
+msgstr "延迟"
+
+msgid "颜色代码"
+msgstr "颜色代码"
+
+msgid "颜色预览"
+msgstr "颜色预览"
+
+msgid "洋红：外框 · 青色：内容区/输入框 · 蓝色：图标框"
+msgstr "洋红：外框 · 青色：内容区/输入框 · 蓝色：图标框"
+
+msgid "页面缩放"
+msgstr "页面缩放"
+
+msgid "已关闭"
+msgstr "已关闭"
+
+msgid "已停止"
+msgstr "已停止"
+
+msgid "已连接"
+msgstr "已连接"
+
+msgid "隐藏后台卡片"
+msgstr "隐藏后台卡片"
+
+msgid "隐私"
+msgstr "隐私"
+
+msgid "应用"
+msgstr "应用"
+
+msgid "应用到当前配置"
+msgstr "应用到当前配置"
+
+msgid "应用后会从 Mihomo 核心回读实际值"
+msgstr "应用后会从 Mihomo 核心回读实际值"
+
+msgid "应用后由 Mihomo 核心回读实际模式。"
+msgstr "应用后由 Mihomo 核心回读实际模式。"
+
+msgid "应用设置"
+msgstr "应用设置"
+
+msgid "应用颜色"
+msgstr "应用颜色"
+
+msgid "应用语言"
+msgstr "应用语言"
+
+msgid "有效配置"
+msgstr "有效配置"
+
+msgid "预测返回手势"
+msgstr "预测返回手势"
+
+msgid "源地址："
+msgstr "源地址："
+
+msgid "运行安全"
+msgstr "运行安全"
+
+msgid "运行概况"
+msgstr "运行概况"
+
+msgid "运行观测"
+msgstr "运行观测"
+
+msgid "运行规则"
+msgstr "运行规则"
+
+msgid "运行模式"
+msgstr "运行模式"
+
+msgid "运行中"
+msgstr "运行中"
+
+msgid "暂无代理组"
+msgstr "暂无代理组"
+
+msgid "暂无活动连接"
+msgstr "暂无活动连接"
+
+msgid "暂无可绑定的 YAML 覆写"
+msgstr "暂无可绑定的 YAML 覆写"
+
+msgid "暂无可绑定的用户 Override"
+msgstr "暂无可绑定的用户 Override"
+
+msgid "暂无可用节点"
+msgstr "暂无可用节点"
+
+msgid "暂无配置文件"
+msgstr "暂无配置文件"
+
+msgid "暂无统计数据；运行 Mihomo 后开始记录。"
+msgstr "暂无统计数据；运行 Mihomo 后开始记录。"
+
+msgid "暂无运行规则"
+msgstr "暂无运行规则"
+
+msgid "这会删除本地保留的近 7 日流量汇总，无法撤销。"
+msgstr "这会删除本地保留的近 7 日流量汇总，无法撤销。"
+
+msgid "正在测试组内节点…"
+msgstr "正在测试组内节点…"
+
+msgid "正在测速"
+msgstr "正在测速"
+
+msgid "正在打断…"
+msgstr "正在打断…"
+
+msgid "正在打断连接…"
+msgstr "正在打断连接…"
+
+msgid "正在导入…"
+msgstr "正在导入…"
+
+msgid "正在导入并校验 YAML Override…"
+msgstr "正在导入并校验 YAML Override…"
+
+msgid "正在读取代理组…"
+msgstr "正在读取代理组…"
+
+msgid "正在读取当前 Mihomo 状态。"
+msgstr "正在读取当前 Mihomo 状态。"
+
+msgid "正在连接 Mihomo 实时日志流。"
+msgstr "正在连接 Mihomo 实时日志流。"
+
+msgid "正在重连"
+msgstr "正在重连"
+
+msgid "正在重连日志流"
+msgstr "正在重连日志流"
+
+msgid "执行命令：mihomo"
+msgstr "执行命令：mihomo"
+
+msgid "直连"
+msgstr "直连"
+
+msgid "只读"
+msgstr "只读"
+
+msgid "重试"
+msgstr "重试"
+
+msgid "重试读取"
+msgstr "重试读取"
+
+msgid "重试恢复上次系统代理"
+msgstr "重试恢复上次系统代理"
+
+msgid "主机"
+msgstr "主机"
+
+msgid "主题、语言与启动行为"
+msgstr "主题、语言与启动行为"
+
+msgid "主题模式"
+msgstr "主题模式"
+
+msgid "主题配色"
+msgstr "主题配色"
+
+msgid "桌面接管模式与 Mihomo 的 Rule/Global/Direct 代理策略相互独立。"
+msgstr "桌面接管模式与 Mihomo 的 Rule/Global/Direct 代理策略相互独立。"
+
+msgid "自定义 User-Agent"
+msgstr "自定义 User-Agent"
+
+msgid "自动启动"
+msgstr "自动启动"
+
+msgid "Age 私钥（可选）"
+msgstr "Age 私钥（可选）"
+
+msgid "Android 14及以上支持系统手势进度"
+msgstr "Android 14及以上支持系统手势进度"
+
+msgid "Android 通过系统 VPN 接管其他应用流量；Lumen 核心与转发器自身流量直连以避免回环。"
+msgstr "Android 通过系统 VPN 接管其他应用流量；Lumen 核心与转发器自身流量直连以避免回环。"
+
+msgid "Android 应用级流量统计待接入；此处仅显示 Mihomo 核心总量。"
+msgstr "Android 应用级流量统计待接入；此处仅显示 Mihomo 核心总量。"
+
+msgid "Android ABI 核心"
+msgstr "Android ABI 核心"
+
+msgid "HTTP/HTTPS YAML 链接"
+msgstr "HTTP/HTTPS YAML 链接"
+
+msgid "Lumen 本次运行中观察到的已关闭连接；最多保留 500 条。"
+msgstr "Lumen 本次运行中观察到的已关闭连接；最多保留 500 条。"
+
+msgid "Lumen 源码许可：MIT。"
+msgstr "Lumen 源码许可：MIT。"
+
+msgid "Meta 功能"
+msgstr "Meta 功能"
+
+msgid "Mihomo /traffic 实时流已连接。"
+msgstr "Mihomo /traffic 实时流已连接。"
+
+msgid "Mihomo 核心"
+msgstr "Mihomo 核心"
+
+msgid "Mihomo 核心由用户安装在 PATH 中。第三方依赖许可正文随应用离线提供。"
+msgstr "Mihomo 核心由用户安装在 PATH 中。第三方依赖许可正文随应用离线提供。"
+
+msgid "Mihomo 实时日志流已连接；保留最近 300 条并脱敏。"
+msgstr "Mihomo 实时日志流已连接；保留最近 300 条并脱敏。"
+
+msgid "Mihomo v1.19.32 是独立 GPL-3.0 核心进程，随本 ABI APK 提供；在依赖许可列表中搜索 Mihomo Core 可查看许可证和源码标签。"
+msgstr "Mihomo v1.19.32 是独立 GPL-3.0 核心进程，随本 ABI APK 提供；在依赖许可列表中搜索 Mihomo Core 可查看许可证和源码标签。"
+
+msgid "Ping 测速"
+msgstr "Ping 测速"
+
+msgid "Runtime 未运行，规则不可用"
+msgstr "Runtime 未运行，规则不可用"
+
+msgid "Runtime 未运行，日志不可用"
+msgstr "Runtime 未运行，日志不可用"
+
+msgid "Runtime 未运行；不显示缓存数据作为实时状态。"
+msgstr "Runtime 未运行；不显示缓存数据作为实时状态。"
+
+msgid "Runtime 未运行；活动连接不可用"
+msgstr "Runtime 未运行；活动连接不可用"
+
+msgid "Runtime 未运行；实时采样已停止，保留的统计仍可查看。"
+msgstr "Runtime 未运行；实时采样已停止，保留的统计仍可查看。"
+
+msgid "Runtime 未运行；已关闭连接不可用"
+msgstr "Runtime 未运行；已关闭连接不可用"
+
+msgid "Runtime 已启动，正在连接流量采样。"
+msgstr "Runtime 已启动，正在连接流量采样。"
+
+msgid "TUN 平台适配未验证"
+msgstr "TUN 平台适配未验证"
+
+msgid "YAML 与规则覆写"
+msgstr "YAML 与规则覆写"
+
+msgid "本地配置文件"
+msgstr "本地配置文件"
+
+msgid "。留空保持已保存地址；新地址会先下载并校验。"
+msgstr "。留空保持已保存地址；新地址会先下载并校验。"
+
+msgid "。来源文件保持只读。"
+msgstr "。来源文件保持只读。"
+
+msgid "，上传 "
+msgstr "，上传 "
+
+msgid "‹ 返回连接列表"
+msgstr "‹ 返回连接列表"
+
+msgid "持续时间："
+msgstr "持续时间："
+
+msgid "下载："
+msgstr "下载："
+
+msgid "下载  "
+msgstr "下载  "
+
+msgid "下载   "
+msgstr "下载   "
+
+msgid "正在应用…"
+msgstr "正在应用…"
+
+msgid "正在验证订阅链接…"
+msgstr "正在验证订阅链接…"
+
+msgid "  ·  绑定到 "
+msgstr "  ·  绑定到 "
+
+msgid "日均上传 "
+msgstr "日均上传 "
+
+msgid "」吗？如果该配置正在运行，会先停止代理。"
+msgstr "」吗？如果该配置正在运行，会先停止代理。"
+
+msgid "上传  "
+msgstr "上传  "
+
+msgid "订阅链接无效；只接受 HTTP 或 HTTPS URL"
+msgstr "订阅链接无效；只接受 HTTP 或 HTTPS URL"
+
+msgid "无法安全保存订阅链接："
+msgstr "无法安全保存订阅链接："
+
+msgid "无法安全保存 Age 私钥"
+msgstr "无法安全保存 Age 私钥"
+
+msgid "无法保存订阅配置到应用数据目录"
+msgstr "无法保存订阅配置到应用数据目录"
+
+msgid "无法保存来源配置"
+msgstr "无法保存来源配置"
+
+msgid "本地 YAML 导入成功；Profile 来源按只读数据保存"
+msgstr "本地 YAML 导入成功；Profile 来源按只读数据保存"
+
+msgid "配置文件超过 20 MiB 上限"
+msgstr "配置文件超过 20 MiB 上限"
+
+msgid "无法读取所选文件"
+msgstr "无法读取所选文件"
+
+msgid "配置文件不是有效 UTF-8 文本"
+msgstr "配置文件不是有效 UTF-8 文本"
+
+msgid "无法读取所选文件名"
+msgstr "无法读取所选文件名"
+
+msgid "仅支持 .yaml 或 .yml 格式的配置文件"
+msgstr "仅支持 .yaml 或 .yml 格式的配置文件"
+
+msgid "找不到该 Profile"
+msgstr "找不到该 Profile"
+
+msgid "此配置已经是当前 Profile"
+msgstr "此配置已经是当前 Profile"
+
+msgid "Profile 顺序已保存"
+msgstr "Profile 顺序已保存"
+
+msgid "本地文件来源无法在线更新"
+msgstr "本地文件来源无法在线更新"
+
+msgid "订阅凭据引用不存在，请重新添加此订阅"
+msgstr "订阅凭据引用不存在，请重新添加此订阅"
+
+msgid "无法从系统安全凭据库读取 Age 私钥"
+msgstr "无法从系统安全凭据库读取 Age 私钥"
+
+msgid "无法读取现有来源配置"
+msgstr "无法读取现有来源配置"
+
+msgid "无法写入更新的来源配置"
+msgstr "无法写入更新的来源配置"
+
+msgid "订阅更新成功"
+msgstr "订阅更新成功"
+
+msgid "Profile 设置已失效；请重新打开设置页"
+msgstr "Profile 设置已失效；请重新打开设置页"
+
+msgid "配置名称不能为空"
+msgstr "配置名称不能为空"
+
+msgid "本地文件来源不能转换为订阅链接"
+msgstr "本地文件来源不能转换为订阅链接"
+
+msgid "订阅地址未更改："
+msgstr "订阅地址未更改："
+
+msgid "Profile 设置已保存"
+msgstr "Profile 设置已保存"
+
+msgid "配置预览失败："
+msgstr "配置预览失败："
+
+msgid "上次系统代理状态仍待恢复；请先重试恢复或手动还原系统代理"
+msgstr "上次系统代理状态仍待恢复；请先重试恢复或手动还原系统代理"
+
+msgid "Mihomo 已在运行"
+msgstr "Mihomo 已在运行"
+
+msgid "请先在配置页面选择当前 Profile"
+msgstr "请先在配置页面选择当前 Profile"
+
+msgid "当前 Profile 不存在，请重新选择配置"
+msgstr "当前 Profile 不存在，请重新选择配置"
+
+msgid "配置生成失败："
+msgstr "配置生成失败："
+
+msgid "Runtime 当前未运行"
+msgstr "Runtime 当前未运行"
+
+msgid "请先停止当前 Runtime，再恢复上次系统代理状态"
+msgstr "请先停止当前 Runtime，再恢复上次系统代理状态"
+
+msgid "检测到系统代理已被外部修改；已保留当前设置，现在可以启动 Runtime"
+msgstr "检测到系统代理已被外部修改；已保留当前设置，现在可以启动 Runtime"
+
+msgid "已恢复上次系统代理设置，现在可以启动 Runtime"
+msgstr "已恢复上次系统代理设置，现在可以启动 Runtime"
+
+msgid "Runtime 停止失败："
+msgstr "Runtime 停止失败："
+
+msgid "不支持的核心模式"
+msgstr "不支持的核心模式"
+
+msgid "核心模式切换失败："
+msgstr "核心模式切换失败："
+
+msgid "核心未确认新的代理模式；仍显示上次实际值"
+msgstr "核心未确认新的代理模式；仍显示上次实际值"
+
+msgid "核心代理模式已回读确认"
+msgstr "核心代理模式已回读确认"
+
+msgid "Windows TUN 需要管理员权限；请以管理员身份重新启动 Lumen"
+msgstr "Windows TUN 需要管理员权限；请以管理员身份重新启动 Lumen"
+
+msgid "已校验 APK 附带的 Mihomo Android 核心"
+msgstr "已校验 APK 附带的 Mihomo Android 核心"
+
+msgid "已读取 PATH 中 Mihomo 核心版本"
+msgstr "已读取 PATH 中 Mihomo 核心版本"
+
+msgid "请输入 Override 名称"
+msgstr "请输入 Override 名称"
+
+msgid "Override 顶层必须是 YAML 对象"
+msgstr "Override 顶层必须是 YAML 对象"
+
+msgid "YAML Override 已创建"
+msgstr "YAML Override 已创建"
+
+msgid "YAML Override 已导入"
+msgstr "YAML Override 已导入"
+
+msgid "YAML Override 已从文件导入"
+msgstr "YAML Override 已从文件导入"
+
+msgid "Override 不存在"
+msgstr "Override 不存在"
+
+msgid "YAML Override 已导出"
+msgstr "YAML Override 已导出"
+
+msgid "Override 导出失败；请检查目标位置权限"
+msgstr "Override 导出失败；请检查目标位置权限"
+
+msgid "配置不存在"
+msgstr "配置不存在"
+
+msgid "无法读取配置来源文件；请确认配置仍可用"
+msgstr "无法读取配置来源文件；请确认配置仍可用"
+
+msgid "Profile 配置已导出"
+msgstr "Profile 配置已导出"
+
+msgid "配置导出失败；请检查目标位置权限"
+msgstr "配置导出失败；请检查目标位置权限"
+
+msgid "请选择保存位置"
+msgstr "请选择保存位置"
+
+msgid "YAML Override 已保存"
+msgstr "YAML Override 已保存"
+
+msgid "Override 已删除"
+msgstr "Override 已删除"
+
+msgid "请先选择当前 Profile"
+msgstr "请先选择当前 Profile"
+
+msgid "当前 Profile 不存在"
+msgstr "当前 Profile 不存在"
+
+msgid "Override 绑定已保存；执行顺序按列表顺序"
+msgstr "Override 绑定已保存；执行顺序按列表顺序"
+
+msgid "Mihomo 未运行"
+msgstr "Mihomo 未运行"
+
+msgid "节点切换已由 Mihomo 接受并回读"
+msgstr "节点切换已由 Mihomo 接受并回读"
+
+msgid "连接已请求打断"
+msgstr "连接已请求打断"
+
+msgid "运行规则序号无效"
+msgstr "运行规则序号无效"
+
+msgid "运行规则临时状态已更新；重启后恢复配置值"
+msgstr "运行规则临时状态已更新；重启后恢复配置值"
+
+msgid "Provider 更新请求已接受"
+msgstr "Provider 更新请求已接受"
+
+msgid "当前筛选结果没有可导出的 Mihomo 日志"
+msgstr "当前筛选结果没有可导出的 Mihomo 日志"
+
+msgid "日志已导出"
+msgstr "日志已导出"
+
+msgid "未选择配置"
+msgstr "未选择配置"
+
+msgid "未运行"
+msgstr "未运行"
+
+msgid "Runtime 未运行"
+msgstr "Runtime 未运行"

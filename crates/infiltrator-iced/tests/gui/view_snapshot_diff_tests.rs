@@ -7,6 +7,7 @@
 use super::*;
 use crate::types::app::SnapshotDiffMode;
 use infiltrator_application::profile_editor_projection::protection_label;
+use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
 use infiltrator_domain::profiles::ProfileInfo;
 use std::path::PathBuf;
 
@@ -137,11 +138,21 @@ fn editor_protection_follows_the_shared_subscription_metadata() {
         "远程订阅 · 只读保护"
     );
 
-    let _ = state.update(Message::SetProfileProtectionOverride(true));
-    assert!(state.editor.profile_protection_override);
+    let _ = state.update(Message::SetProfileWriteAuthorization(
+        ProfileWriteAuthorization::ExplicitUnlock,
+    ));
+    assert!(
+        state
+            .editor
+            .profile_write_authorization
+            .allows_protected_write()
+    );
     assert!(
         !(state.edited_profile_write_protection().is_protected()
-            && !state.editor.profile_protection_override),
+            && !state
+                .editor
+                .profile_write_authorization
+                .allows_protected_write()),
         "the explicit unlock is what lets the surface offer a save"
     );
 

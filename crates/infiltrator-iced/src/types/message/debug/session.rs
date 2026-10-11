@@ -24,25 +24,45 @@ pub(super) fn fmt(m: &Message, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result
         }
         Message::NavigateBack => write!(f, "NavigateBack"),
         Message::NavigateForward => write!(f, "NavigateForward"),
-        Message::StartProxy => write!(f, "StartProxy"),
-        Message::StopProxy => write!(f, "StopProxy"),
-        Message::TestInspectedProxy => write!(f, "TestInspectedProxy"),
-        Message::ProxyInspectionProbed {
-            name,
+        Message::StartCore => write!(f, "StartCore"),
+        Message::StopCore => write!(f, "StopCore"),
+        Message::ProbeInspectedOutbound => write!(f, "ProbeInspectedOutbound"),
+        Message::StartOutboundProbe { scope, request } => {
+            write!(
+                f,
+                "StartOutboundProbe(scope={scope:?}, request={request:?})"
+            )
+        }
+        Message::StartOutboundProbeBatch {
+            scope,
+            target_scope,
+            expected_inventory_revision,
+        } => write!(
+            f,
+            "StartOutboundProbeBatch(scope={scope:?}, target={target_scope:?}, revision={expected_inventory_revision:?})"
+        ),
+        Message::OutboundProbeFinished {
             token,
+            scope,
+            request,
+            terminal_scope,
             result,
         } => write!(
             f,
-            "ProxyInspectionProbed({name}, token={token}, {result:?})"
+            "OutboundProbeFinished(token={token}, scope={scope:?}, request={request:?}, terminal={terminal_scope:?}, {result:?})"
         ),
-        Message::ProxyStarted(Ok(_), token) => write!(f, "ProxyStarted(Ok, token={token})"),
-        Message::ProxyStarted(Err(e), token) => {
-            write!(f, "ProxyStarted(Err({:?}), token={token})", e)
-        }
-        Message::ProxyStopFinished(result, token) => {
-            write!(f, "ProxyStopFinished({result:?}, token={token})")
-        }
-        Message::ProxyStopped => write!(f, "ProxyStopped"),
+        Message::OutboundProbeBatchFinished {
+            token,
+            scope,
+            request,
+            terminal_scope,
+            result,
+        } => write!(
+            f,
+            "OutboundProbeBatchFinished(token={token}, scope={scope:?}, request={request:?}, terminal={terminal_scope:?}, {result:?})"
+        ),
+        Message::DismissOutboundProbeBatch => write!(f, "DismissOutboundProbeBatch"),
+        Message::CoreStopped => write!(f, "CoreStopped"),
         Message::CoreControlFinished {
             action,
             token,
@@ -60,8 +80,8 @@ pub(super) fn fmt(m: &Message, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result
         Message::ProfilesLoaded(Ok(p)) => write!(f, "ProfilesLoaded(Ok({} profiles))", p.len()),
         Message::ProfilesLoaded(Err(e)) => write!(f, "ProfilesLoaded(Err({:?}))", e),
         Message::SetActiveProfile(name) => write!(f, "SetActiveProfile({})", name),
-        Message::ProfileActivationFinished(Ok(reloaded)) => {
-            write!(f, "ProfileActivationFinished(Ok(reloaded={}))", reloaded)
+        Message::ProfileActivationFinished(Ok(outcome)) => {
+            write!(f, "ProfileActivationFinished(Ok({outcome:?}))")
         }
         Message::ProfileActivationFinished(Err(error)) => {
             write!(f, "ProfileActivationFinished(Err({:?}))", error)
@@ -72,9 +92,10 @@ pub(super) fn fmt(m: &Message, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result
             write!(f, "UpdateImportActivate({})", enabled)
         }
         Message::ImportProfile => write!(f, "ImportProfile"),
-        Message::ProfileImported(Ok(reloaded)) => {
-            write!(f, "ProfileImported(Ok(reloaded={}))", reloaded)
+        Message::ProfileImported(Ok(Some(outcome))) => {
+            write!(f, "ProfileImported(Ok({outcome:?}))")
         }
+        Message::ProfileImported(Ok(None)) => write!(f, "ProfileImported(Ok(no activation))"),
         Message::ProfileImported(Err(e)) => write!(f, "ProfileImported(Err({:?}))", e),
         Message::DeleteProfile(name) => write!(f, "DeleteProfile({})", name),
         Message::ProfileDeleted(Ok(_)) => write!(f, "ProfileDeleted(Ok)"),
@@ -90,8 +111,11 @@ pub(super) fn fmt(m: &Message, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result
             write!(f, "UpdateLocalImportActivate({})", enabled)
         }
         Message::ImportLocalProfile => write!(f, "ImportLocalProfile"),
-        Message::LocalProfileImported(Ok(reloaded)) => {
-            write!(f, "LocalProfileImported(Ok(reloaded={}))", reloaded)
+        Message::LocalProfileImported(Ok(Some(outcome))) => {
+            write!(f, "LocalProfileImported(Ok({outcome:?}))")
+        }
+        Message::LocalProfileImported(Ok(None)) => {
+            write!(f, "LocalProfileImported(Ok(no activation))")
         }
         Message::LocalProfileImported(Err(e)) => {
             write!(f, "LocalProfileImported(Err({:?}))", e)
@@ -172,24 +196,28 @@ pub(super) fn fmt(m: &Message, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result
         Message::ClearProfiles => write!(f, "ClearProfiles"),
         Message::ProfilesCleared(Ok(_)) => write!(f, "ProfilesCleared(Ok)"),
         Message::ProfilesCleared(Err(e)) => write!(f, "ProfilesCleared(Err({:?}))", e),
-        Message::LoadProxies => write!(f, "LoadProxies"),
-        Message::ProxiesLoadedForSession {
-            generation,
-            session_token,
+        Message::RefreshOutboundInventory => write!(f, "RefreshOutboundInventory"),
+        Message::SelectOutbound { scope, request } => {
+            write!(f, "SelectOutbound(scope={scope:?}, request={request:?})")
+        }
+        Message::PrepareRuntimeOutboundSelection { scope, request } => write!(
+            f,
+            "PrepareRuntimeOutboundSelection(scope={scope:?}, request={request:?})"
+        ),
+        Message::OutboundUiPreferenceFinished {
+            token,
+            scope,
+            request,
+            terminal_scope,
             result,
         } => write!(
             f,
-            "ProxiesLoadedForSession(generation={generation}, token={session_token:?}, success={})",
-            result.is_ok()
+            "OutboundUiPreferenceFinished(token={token}, scope={scope:?}, request={request:?}, terminal={terminal_scope:?}, {result:?})"
         ),
-        Message::ProxiesLoaded(Ok(p)) => write!(f, "ProxiesLoaded(Ok({} proxies))", p.len()),
-        Message::ProxiesLoaded(Err(e)) => write!(f, "ProxiesLoaded(Err({:?}))", e),
-        Message::SelectProxy(g, n) => write!(f, "SelectProxy({}, {})", g, n),
         Message::FilterProxies(s) => write!(f, "FilterProxies({})", s),
         Message::ToggleFilterAlive(v) => write!(f, "ToggleFilterAlive({v})"),
-        Message::ToggleFavoriteProxy(p) => write!(f, "ToggleFavoriteProxy({p})"),
         Message::ToggleProxyCompactView => write!(f, "ToggleProxyCompactView"),
-        Message::InspectProxy(p) => write!(f, "InspectProxy({p:?})"),
+        Message::InspectOutbound(id) => write!(f, "InspectOutbound({id:?})"),
         Message::OpenAddCustomNodeModal(b) => write!(f, "OpenAddCustomNodeModal({b})"),
         Message::UpdateNewNodeType(s) => write!(f, "UpdateNewNodeType({s})"),
         Message::UpdateNewNodeName(s) => write!(f, "UpdateNewNodeName({s})"),
@@ -201,15 +229,16 @@ pub(super) fn fmt(m: &Message, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result
         Message::SubmitAddCustomNode => write!(f, "SubmitAddCustomNode"),
         Message::CustomNodeAdded(Ok(_)) => write!(f, "CustomNodeAdded(Ok)"),
         Message::CustomNodeAdded(Err(e)) => write!(f, "CustomNodeAdded(Err({:?}))", e),
-        Message::ToggleProxySort => write!(f, "ToggleProxySort"),
-        Message::UpdateProxyDelaySort(s) => write!(f, "UpdateProxyDelaySort({})", s),
-        Message::UpdateDelayTestUrl(s) => write!(f, "UpdateDelayTestUrl({})", s),
-        Message::UpdateDelayTimeoutMs(s) => write!(f, "UpdateDelayTimeoutMs({})", s),
+        Message::SetOutboundSortOrder(order) => write!(f, "SetOutboundSortOrder({order:?})"),
+        Message::SetRuntimePanelDelaySort(order) => {
+            write!(f, "SetRuntimePanelDelaySort({order:?})")
+        }
+        Message::UpdateRuntimeProbeUrlDraft(s) => write!(f, "UpdateRuntimeProbeUrlDraft({})", s),
+        Message::UpdateRuntimeProbeTimeoutDraft(s) => {
+            write!(f, "UpdateRuntimeProbeTimeoutDraft({})", s)
+        }
         Message::UpdateRuntimeSelectedGroup(s) => {
             write!(f, "UpdateRuntimeSelectedGroup({})", s)
-        }
-        Message::UpdateRuntimeSelectedProxy(s) => {
-            write!(f, "UpdateRuntimeSelectedProxy({})", s)
         }
         Message::ApplyRuntimeSelectedProxy => write!(f, "ApplyRuntimeSelectedProxy"),
         Message::UpdateRuntimeConnectionFilter(s) => {
@@ -243,27 +272,22 @@ pub(super) fn fmt(m: &Message, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result
             c.connections.len()
         ),
         Message::LogReceived(l) => write!(f, "LogReceived({})", l),
-        Message::RuntimeStreamLogReceived(generation, _) => {
-            write!(f, "RuntimeStreamLogReceived(generation={generation})")
+        Message::RuntimeStreamLogReceived(scope, _) => {
+            write!(f, "RuntimeStreamLogReceived(scope={scope:?})")
         }
-        Message::RuntimeStreamTrafficReceived(generation, data) => write!(
+        Message::RuntimeStreamTrafficReceived(scope, data) => write!(
             f,
-            "RuntimeStreamTrafficReceived(generation={}, up={}, down={})",
-            generation, data.up, data.down
+            "RuntimeStreamTrafficReceived(scope={scope:?}, up={}, down={})",
+            data.up, data.down
         ),
-        Message::RuntimeStreamConnectionsReceived(generation, snapshot) => write!(
+        Message::RuntimeStreamConnectionsReceived(scope, snapshot) => write!(
             f,
-            "RuntimeStreamConnectionsReceived(generation={}, connections={})",
-            generation,
+            "RuntimeStreamConnectionsReceived(scope={scope:?}, connections={})",
             snapshot.connections.len()
         ),
-        Message::RuntimeStreamStateChanged {
-            kind,
-            generation,
-            state,
-        } => write!(
+        Message::RuntimeStreamStateChanged { kind, scope, state } => write!(
             f,
-            "RuntimeStreamStateChanged({kind:?}, generation={generation}, state={state:?})"
+            "RuntimeStreamStateChanged({kind:?}, scope={scope:?}, state={state:?})"
         ),
         Message::RuntimePollFailed(error) => write!(f, "RuntimePollFailed({error})"),
         Message::LogsCommandFinished { generation, result } => write!(
@@ -280,7 +304,6 @@ pub(super) fn fmt(m: &Message, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result
             "LogsScrolled(offset={offset}, content={content}, viewport={viewport})"
         ),
         Message::ClearRuntimeLogs => write!(f, "ClearRuntimeLogs"),
-        Message::SetLogLevel(l) => write!(f, "SetLogLevel({})", l),
         Message::SetCoreLogLevel(l) => write!(f, "SetCoreLogLevel({})", l),
         Message::CoreLogLevelFinished(Ok(_), previous) => {
             write!(f, "CoreLogLevelFinished(Ok, previous={})", previous)
@@ -300,23 +323,24 @@ pub(super) fn fmt(m: &Message, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result
         Message::ConnectionsPrevPage => write!(f, "ConnectionsPrevPage"),
         Message::ConnectionsNextPage => write!(f, "ConnectionsNextPage"),
         Message::FetchRuntimeConfig => write!(f, "FetchRuntimeConfig"),
-        Message::RuntimeConfigReadFinished {
-            generation,
-            mode_epoch,
-            result,
-        } => write!(
-            f,
-            "RuntimeConfigReadFinished(gen={generation}, epoch={mode_epoch}, success={})",
-            result.is_ok()
-        ),
         Message::FetchIpInfo => write!(f, "FetchIpInfo"),
         Message::RuntimeConfigFetched(Ok(config), generation) => {
+            let tun = match &config.tun.value.enabled {
+                infiltrator_ports::runtime_configuration::ObservedValue::Unreported => "unknown",
+                infiltrator_ports::runtime_configuration::ObservedValue::Reported(true) => {
+                    "enabled"
+                }
+                infiltrator_ports::runtime_configuration::ObservedValue::Reported(false) => {
+                    "disabled"
+                }
+            };
+            let dns_observed = matches!(
+                &config.dns.value.nameserver,
+                infiltrator_ports::runtime_configuration::ObservedValue::Reported(_)
+            );
             write!(
                 f,
-                "RuntimeConfigFetched(gen={generation}, mode={}, tun={:?}, DNS observed={})",
-                config.mode,
-                config.tun.as_ref().and_then(|tun| tun.enable),
-                config.dns.is_some()
+                "RuntimeConfigFetched(gen={generation}, tun={tun}, DNS observed={dns_observed})"
             )
         }
         Message::RuntimeConfigFetched(Err(e), generation) => {
@@ -326,7 +350,9 @@ pub(super) fn fmt(m: &Message, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result
                 e, generation
             )
         }
-        Message::SetProxyMode(m) => write!(f, "SetProxyMode({})", m),
+        Message::SetRoutingIntent(intent) => {
+            write!(f, "SetRoutingIntent({intent:?})")
+        }
         Message::SetIpv6Routing(enabled) => write!(f, "SetIpv6Routing({enabled})"),
         Message::SetTunEnabled(t) => write!(f, "SetTunEnabled({})", t),
         Message::InstallTunService => write!(f, "InstallTunService"),
@@ -358,13 +384,13 @@ pub(super) fn fmt(m: &Message, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result
         Message::SetTunAutoRoute(a) => write!(f, "SetTunAutoRoute({})", a),
         Message::SetTunStrictRoute(s) => write!(f, "SetTunStrictRoute({})", s),
         Message::SetSnifferEnabled(s) => write!(f, "SetSnifferEnabled({})", s),
-        Message::ProxyModeFinished { request, result } => write!(
+        Message::RoutingIntentFinished { request, result } => write!(
             f,
-            "ProxyModeFinished({request:?}, success={})",
+            "RoutingIntentFinished({request:?}, success={})",
             result.is_ok()
         ),
-        Message::RetryProxyMode => write!(f, "RetryProxyMode"),
-        Message::DismissProxyModeFailure => write!(f, "DismissProxyModeFailure"),
+        Message::RetryRoutingIntent => write!(f, "RetryRoutingIntent"),
+        Message::DismissRoutingIntentFailure => write!(f, "DismissRoutingIntentFailure"),
         Message::RuntimePatchResult(Ok(_), token, generation) => write!(
             f,
             "RuntimePatchResult(Ok, token={token}, generation={generation})"

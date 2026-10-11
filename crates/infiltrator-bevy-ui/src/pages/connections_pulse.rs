@@ -8,7 +8,7 @@
 //! with `Display::None`, so no slow connection glows.
 
 use crate::cadence::CadenceActivity;
-use crate::host_capabilities::HostPreferences;
+use crate::host_capabilities::{HostPreferences, MotionPreference};
 use crate::pages::connections::LastConnectionsProjection;
 use bevy::color::Alpha;
 use bevy::ecs::component::Component;
@@ -21,10 +21,17 @@ use bevy::time::{Time, Virtual};
 use bevy::ui::prelude::{AlignItems, BackgroundColor, BorderRadius, Display, Node, UiRect, Val};
 use infiltrator_bevy_widgets::localization::LocalizedText;
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::surface_snapshot::ConnectionSnapshot;
 use infiltrator_domain::connection_rate;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ConnectionPulseActivity {
+    HighThroughput,
+    Idle,
+}
 
 /// Marker on the pulse chip of one flat row; the payload is the projection row
 /// index the chip reports.
@@ -53,7 +60,7 @@ pub fn connection_pulse_scene(
             Node {
                 display: { if visible { Display::Flex } else { Display::None } },
                 align_items: AlignItems::Center,
-                padding: UiRect::axes(Val::Px(space::S4), Val::Px(0.0)),
+                padding: UiRect::axes(rem(space::S4), Val::Px(0.0)),
                 border_radius: BorderRadius::all(Val::Px(4.0)),
             }
             BackgroundColor({ glow })
@@ -77,30 +84,36 @@ pub(crate) fn animate_connection_pulses(
     mut pulses: Query<(&mut BackgroundColor, &mut Node, &ConnHighThroughputPulse)>,
 ) {
     let projection = last.as_ref().and_then(|last| last.0.as_ref());
-    let active = projection.is_some_and(|projection| {
-        projection
-            .connections
-            .iter()
-            .any(|conn| connection_rate::is_high_throughput(conn.upload_bps, conn.download_bps))
-    });
+    let pulse_activity = match projection {
+        Some(projection)
+            if projection.connections.iter().any(|conn| {
+                connection_rate::is_high_throughput(conn.upload_bps, conn.download_bps)
+            }) =>
+        {
+            ConnectionPulseActivity::HighThroughput
+        }
+        Some(_) | None => ConnectionPulseActivity::Idle,
+    };
 
     let Some(state) = state.as_deref_mut() else {
         return;
     };
-    let animations_suppressed = preferences
+    let motion = preferences
         .as_deref()
-        .is_some_and(|prefs| prefs.animations_suppressed());
+        .map_or(MotionPreference::Standard, |prefs| prefs.effective_motion());
     // BANDROID-014: reduce-motion / energy saver drops the breathing animation
     // and its cadence engagement, leaving a static high-throughput glow.
-    if active && !animations_suppressed {
-        state.phase =
-            (state.phase + time.delta_secs() * connection_rate::PULSE_BREATH_HZ).rem_euclid(1.0);
-        // A running visible animation keeps the shell on the active cadence.
-        if let Some(activity) = activity.as_deref_mut() {
-            activity.wake_animation();
+    match (pulse_activity, motion) {
+        (ConnectionPulseActivity::HighThroughput, MotionPreference::Standard) => {
+            state.phase = (state.phase + time.delta_secs() * connection_rate::PULSE_BREATH_HZ)
+                .rem_euclid(1.0);
+            // A running visible animation keeps the shell on the active cadence.
+            if let Some(activity) = activity.as_deref_mut() {
+                activity.wake_animation();
+            }
         }
-    } else {
-        state.phase = 0.0;
+        (ConnectionPulseActivity::HighThroughput, MotionPreference::Reduced)
+        | (ConnectionPulseActivity::Idle, _) => state.phase = 0.0,
     }
     let phase = state.phase;
 
@@ -127,6 +140,7 @@ pub(crate) fn animate_connection_pulses(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use infiltrator_contract::connection::ConnectionRateObservation;
     use infiltrator_domain::connection_rate::PULSE_MIN_INTENSITY;
 
     fn item(id: &str, upload_bps: f64, download_bps: f64) -> ConnectionSnapshot {
@@ -145,7 +159,7 @@ mod tests {
             source_port: "50000".to_owned(),
             destination_ip: "1.1.1.1".to_owned(),
             destination_port: "443".to_owned(),
-            rate_observed: true,
+            rate_observation: ConnectionRateObservation::Measured,
             upload_bps,
             download_bps,
             upload_total: 0,

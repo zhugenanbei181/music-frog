@@ -2,7 +2,7 @@
 //! Actual SDK controls share source-qualified statistics and transactional cleanup.
 use crate::command_harness::recording_application;
 use crate::native_input::{click_entity, press, type_text};
-use crate::support::headless_plugins;
+use crate::support::{command_pump_for_observed_snapshot, headless_plugins};
 use bevy::a11y::AccessibilityNode;
 use bevy::app::App;
 use bevy::ecs::entity::Entity;
@@ -12,13 +12,11 @@ use bevy::ui::{InteractionDisabled, Pressed};
 use bevy::ui_widgets::ButtonPlugin;
 use bevy::window::{PrimaryWindow, Window};
 use infiltrator_application::command_application::CommandApplication;
-use infiltrator_application::configuration_application::ConfigurationApplication;
 use infiltrator_application::rule_statistics_workbench::StatisticsTab;
 use infiltrator_application::rule_trace_fixtures::RuleTraceStore;
 use infiltrator_application::rule_tracer_application::RuleTracerApplication;
 use infiltrator_application::surface_reader::ApplicationSurfaceReader;
 use infiltrator_bevy_ui::app::ShellPlugin;
-use infiltrator_bevy_ui::command::CommandPumpPlugin;
 use infiltrator_bevy_ui::pages::rules_builder_input::{RuleBuilderField, RuleBuilderFieldKind};
 use infiltrator_bevy_ui::pages::rules_draft::RulesDraftState;
 use infiltrator_bevy_ui::pages::rules_edit::RuleToggleButton;
@@ -36,6 +34,7 @@ use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::rule_trace_run::{RuleTraceOperationId, RuleTraceRequest};
 use infiltrator_contract::rule_tracer::TrafficContextSnapshot;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
+use infiltrator_ports::rule_tracer::RuleOverridePort;
 use infiltrator_ports::surface::SurfaceReader;
 use std::mem::discriminant;
 use std::sync::{Arc, atomic::Ordering};
@@ -44,16 +43,18 @@ use std::time::{Duration, Instant};
 use tokio::runtime::Builder;
 
 fn setup(trace: bool) -> (App, ApplicationSurfaceReader, Arc<RuleTraceStore>) {
-    let store = Arc::new(RuleTraceStore::default());
+    let store = crate::configuration_codec::mihomo_rule_trace_fixture();
     let owner = RuleTracerApplication::new();
     owner.set_override_port(store.clone());
     if trace {
-        Builder::new_current_thread()
+        let workspace = Builder::new_current_thread()
             .enable_all()
             .build()
             .unwrap()
-            .block_on(owner.simulate(
-                RuleTraceOperationId(1),
+            .block_on(store.load_rule_workspace())
+            .unwrap();
+        let (scope, observed_workspace, request) =
+            infiltrator_application::rule_trace_fixtures::scoped_rule_trace_request(
                 RuleTraceRequest {
                     query: "special.com".into(),
                     context: TrafficContextSnapshot {
@@ -61,7 +62,24 @@ fn setup(trace: bool) -> (App, ApplicationSurfaceReader, Arc<RuleTraceStore>) {
                         ..Default::default()
                     },
                 },
-                None,
+                workspace.profile_identity,
+            );
+        let outbound_observation =
+            infiltrator_application::rule_trace_fixtures::unknown_rule_trace_observation(
+                scope.clone(),
+            );
+        Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap()
+            .block_on(owner.simulate_scoped(
+                &scope,
+                &observed_workspace,
+                RuleTraceOperationId(1),
+                request,
+                &infiltrator_contract::rule_trace_run::RuleTraceOutboundFacts::Observed(
+                    outbound_observation.clone(),
+                ),
             ))
             .unwrap();
     }
@@ -76,14 +94,16 @@ fn setup(trace: bool) -> (App, ApplicationSurfaceReader, Arc<RuleTraceStore>) {
         HostKind::Desktop,
     )
     .with_rule_tracer(owner)
-    .with_configuration(ConfigurationApplication::new(store.clone()));
+    .with_configuration(crate::configuration_codec::mihomo_configuration(
+        store.clone(),
+    ));
     let mut app = App::new();
     headless_plugins(&mut app);
     app.add_plugins((
         ButtonPlugin,
         ShellPlugin::default(),
         PagesPlugin::default(),
-        CommandPumpPlugin::for_application(application),
+        command_pump_for_observed_snapshot(application),
     ));
     app.world_mut().spawn((Window::default(), PrimaryWindow));
     app.update();

@@ -234,9 +234,20 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         .spacing(theme::SP_SM),
     );
 
+    let font_attribution = card(
+        Some(lang.tr("settings_font_attribution_title").into_owned()),
+        column![
+            secondary_text(lang.tr("settings_font_attribution_copy").into_owned(),),
+            text(infiltrator_shared::assets::harmonyos_font_license_text())
+                .size(10)
+                .font(MONO),
+        ]
+        .spacing(theme::SP_SM),
+    );
     let language_card = language::language_card(state);
     let mut content = column![
         header,
+        font_attribution,
         language_card,
         text(format_runtime_status(
             &state.runtime.runtime_control.status,

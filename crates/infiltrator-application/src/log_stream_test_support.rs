@@ -1,17 +1,21 @@
 //! test-intent: support
 use async_trait::async_trait;
+use futures_util::StreamExt;
 use futures_util::stream::pending;
-use infiltrator_contract::command::ProxyMode;
-use infiltrator_domain::proxy::Proxy;
+use infiltrator_contract::core_identity::CoreScope;
 use infiltrator_domain::runtime::{
-    ConfigSnapshot, ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider, TrafficData,
+    ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider, TrafficData,
 };
 use infiltrator_ports::application_runtime::{
     ApplicationFuture, ApplicationRuntime, ApplicationSleep,
 };
 use infiltrator_ports::error::PortError;
-use infiltrator_ports::runtime_gateway::{RuntimeGateway, RuntimeStream};
-use std::collections::HashMap;
+use infiltrator_ports::runtime_gateway::{
+    RuntimeGateway, RuntimeStream, ScopedRuntimeStream, ScopedRuntimeStreamEvent,
+};
+use mem::take;
+use std::collections::VecDeque;
+use std::mem;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -35,14 +39,15 @@ impl ApplicationRuntime for TestRuntime {
 #[derive(Default)]
 pub struct LogGateway {
     pub streams: Mutex<Vec<RuntimeStream<String>>>,
+    pub event_scopes: Mutex<VecDeque<CoreScope>>,
     pub calls: AtomicUsize,
     pub opened: Arc<Notify>,
+    pub current_scope: Option<CoreScope>,
     pub opening_gate: Option<Arc<Notify>>,
     pub failure: Option<PortError>,
 }
-#[async_trait]
-impl RuntimeGateway for LogGateway {
-    async fn stream_logs(&self, level: Option<String>) -> Result<RuntimeStream<String>, PortError> {
+impl LogGateway {
+    async fn open_stream(&self, level: Option<String>) -> Result<RuntimeStream<String>, PortError> {
         assert_eq!(level.as_deref(), Some("debug"));
         self.calls.fetch_add(1, Ordering::SeqCst);
         self.opened.notify_one();
@@ -59,17 +64,36 @@ impl RuntimeGateway for LogGateway {
             Ok(streams.remove(0))
         }
     }
-    async fn get_config(&self) -> Result<ConfigSnapshot, PortError> {
-        panic!("unexpected config read")
+}
+#[async_trait]
+impl RuntimeGateway for LogGateway {
+    async fn stream_logs(&self, level: Option<String>) -> Result<RuntimeStream<String>, PortError> {
+        self.open_stream(level).await
     }
-    async fn patch_config(&self, _: serde_json::Value) -> Result<(), PortError> {
-        panic!("unexpected config write")
-    }
-    async fn set_proxy_mode(&self, _: ProxyMode) -> Result<(), PortError> {
-        panic!("unexpected mode write")
-    }
-    async fn get_proxies(&self) -> Result<HashMap<String, Proxy>, PortError> {
-        panic!("unexpected proxy read")
+    async fn stream_logs_scoped(
+        &self,
+        scope: CoreScope,
+        level: Option<String>,
+    ) -> Result<ScopedRuntimeStream<String>, PortError> {
+        if self
+            .current_scope
+            .as_ref()
+            .is_some_and(|current| current != &scope)
+        {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            self.opened.notify_one();
+            return Err(PortError::Failed(
+                "test gateway scope does not match the request".to_string(),
+            ));
+        }
+        let stream = self.open_stream(level).await?;
+        let scopes = take(&mut *self.event_scopes.lock().unwrap());
+        let mut event_scopes = scopes.into_iter();
+        let scoped = stream.map(move |event| ScopedRuntimeStreamEvent {
+            scope: event_scopes.next().unwrap_or_else(|| scope.clone()),
+            event,
+        });
+        Ok(Box::pin(scoped))
     }
     async fn switch_proxy(&self, _: &str, _: &str) -> Result<(), PortError> {
         panic!("unexpected proxy write")
@@ -88,9 +112,6 @@ impl RuntimeGateway for LogGateway {
     }
     async fn update_rule_provider(&self, _: &str) -> Result<(), PortError> {
         panic!("unexpected provider write")
-    }
-    async fn flush_fakeip_cache(&self) -> Result<(), PortError> {
-        panic!("unexpected cache write")
     }
     async fn get_connections(&self) -> Result<ConnectionSnapshot, PortError> {
         panic!("unexpected connection read")

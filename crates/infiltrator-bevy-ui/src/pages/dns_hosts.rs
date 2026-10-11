@@ -4,12 +4,13 @@ use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::resource::Resource;
 use bevy::scene::{Scene, bsn};
-use bevy::ui::{FlexDirection, Node, percent, px};
+use bevy::ui::{FlexDirection, Node, percent};
 use bevy::ui_widgets::Button;
 use infiltrator_application::dns_hosts_editor::DnsHostsEditor;
 use infiltrator_bevy_widgets::button::{ButtonDisabled, ButtonVariant};
 use infiltrator_bevy_widgets::localization::LocalizedText;
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_contract::command::RequestId;
@@ -61,7 +62,7 @@ pub struct HostRowText(pub u64, pub bool);
 pub fn dns_hosts_card_scene(palette: &UiPalette) -> impl Scene + use<> {
     surface_scene(
         vec![Box::new(bsn! {
-            Node { width: percent(100), flex_direction: FlexDirection::Column, row_gap: px(8.0) }
+            Node { width: percent(100), flex_direction: FlexDirection::Column, row_gap: rem(8.0) }
             Children [
                 LocalizedText::plain("dns_hosts_title") TextRole(Role::BodyStrong)
                 --

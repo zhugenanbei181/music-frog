@@ -1,554 +1,513 @@
-//! Focused unit tests for the shared speedtest application engine.
-
 use super::*;
 use async_trait::async_trait;
-use infiltrator_contract::capability::Capability;
-use infiltrator_contract::command::ProxyMode;
-use infiltrator_contract::error::ErrorCode;
-use infiltrator_contract::speedtest::EgressCountryMatch;
-use infiltrator_domain::proxy::{ProxyBase, ProxyGroup, Shadowsocks, Vmess};
-use infiltrator_domain::runtime::{
-    ConfigSnapshot, ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider, TrafficData,
+use infiltrator_contract::core_identity::{
+    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId,
 };
+use infiltrator_contract::outbound::details::{
+    OutboundCollectionKind, OutboundDetail, OutboundDetailsSnapshot, OutboundDetailsState,
+    OutboundHealthObservation, OutboundObservation, OutboundProbeAvailability,
+    OutboundProtocolObservation, OutboundSnapshot, OutboundUdpSupport,
+};
+use infiltrator_contract::outbound::identity::{OutboundId, SnapshotRevision};
+use infiltrator_contract::outbound::inventory::{
+    OutboundInventorySnapshot, OutboundInventoryState, OutboundObservationSnapshot,
+    OutboundProbeSnapshot, OutboundProbeState, OutboundSelectionSet, OutboundSelectionState,
+    SelectionAvailability,
+};
+use infiltrator_contract::outbound::probe::OutboundProbeBatchScope;
+use infiltrator_contract::runtime_settings::RuntimeProbeSettings;
+use infiltrator_contract::speedtest::{
+    SpeedtestResultState, SpeedtestRounds, SpeedtestRunState, SpeedtestTarget,
+};
+use infiltrator_domain::settings::AppSettings;
 use infiltrator_ports::error::PortError;
-use infiltrator_ports::runtime_gateway::RuntimeStream;
-use infiltrator_ports::speedtest_history::SpeedtestHistoryStore;
-use std::collections::HashMap;
-use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
-use std::thread::sleep;
-use std::time;
+use infiltrator_ports::outbound::{OutboundPort, OutboundProbeRequest};
+use infiltrator_ports::settings_store::SettingsStore;
+use std::collections::VecDeque;
+use std::sync::{Arc, Mutex};
+use tokio::sync::Notify;
 
-type DelayFn = dyn Fn(&str, &str, u32) -> Result<u32, PortError> + Send + Sync;
-
-struct TestGateway {
-    proxies: HashMap<String, Proxy>,
-    delay_probe_count: AtomicUsize,
-    active_concurrency: AtomicUsize,
-    max_concurrency: AtomicUsize,
-    delay_fn: Box<DelayFn>,
+struct ProbeSettingsStore {
+    settings: AppSettings,
 }
 
-impl TestGateway {
-    fn new(proxies: HashMap<String, Proxy>) -> Self {
+#[async_trait]
+impl SettingsStore for ProbeSettingsStore {
+    async fn load(&self) -> Result<AppSettings, PortError> {
+        Ok(self.settings.clone())
+    }
+
+    async fn load_hydrated(&self) -> Result<AppSettings, PortError> {
+        self.load().await
+    }
+
+    async fn save(&self, _settings: &AppSettings) -> Result<(), PortError> {
+        Ok(())
+    }
+}
+
+struct FailedSettingsStore;
+
+#[async_trait]
+impl SettingsStore for FailedSettingsStore {
+    async fn load(&self) -> Result<AppSettings, PortError> {
+        Err(PortError::Io("probe settings unavailable".to_owned()))
+    }
+
+    async fn load_hydrated(&self) -> Result<AppSettings, PortError> {
+        self.load().await
+    }
+
+    async fn save(&self, _settings: &AppSettings) -> Result<(), PortError> {
+        Err(PortError::Io("probe settings unavailable".to_owned()))
+    }
+}
+
+#[derive(Default)]
+pub(crate) struct ProbeGate {
+    pub(crate) started: Notify,
+    release: Notify,
+}
+
+pub(crate) struct FakeOutboundPort {
+    observation: OutboundObservationSnapshot,
+    outcomes: Mutex<VecDeque<OutboundProbeState>>,
+    calls: Mutex<Vec<OutboundId>>,
+    gate: Option<Arc<ProbeGate>>,
+}
+
+impl FakeOutboundPort {
+    fn new(
+        observation: OutboundObservationSnapshot,
+        outcomes: impl IntoIterator<Item = OutboundProbeState>,
+    ) -> Self {
         Self {
-            proxies,
-            delay_probe_count: AtomicUsize::new(0),
-            active_concurrency: AtomicUsize::new(0),
-            max_concurrency: AtomicUsize::new(0),
-            delay_fn: Box::new(|_proxy, _url, _timeout| Ok(45)),
+            observation,
+            outcomes: Mutex::new(outcomes.into_iter().collect()),
+            calls: Mutex::new(Vec::new()),
+            gate: None,
         }
     }
 
-    fn with_delay_fn<F>(mut self, f: F) -> Self
-    where
-        F: Fn(&str, &str, u32) -> Result<u32, PortError> + Send + Sync + 'static,
-    {
-        self.delay_fn = Box::new(f);
-        self
+    pub(crate) fn gated(observation: OutboundObservationSnapshot, gate: Arc<ProbeGate>) -> Self {
+        Self {
+            observation,
+            outcomes: Mutex::new(VecDeque::from([OutboundProbeState::Measured {
+                delay_ms: 24,
+            }])),
+            calls: Mutex::new(Vec::new()),
+            gate: Some(gate),
+        }
+    }
+
+    fn calls(&self) -> Vec<OutboundId> {
+        self.calls.lock().expect("probe call log").clone()
     }
 }
 
 #[async_trait]
-impl RuntimeGateway for TestGateway {
-    async fn get_config(&self) -> Result<ConfigSnapshot, PortError> {
-        Ok(ConfigSnapshot::default())
+impl OutboundPort for FakeOutboundPort {
+    async fn inventory(&self, _scope: CoreScope) -> Result<OutboundInventorySnapshot, PortError> {
+        Ok(self.observation.inventory().clone())
     }
-    async fn patch_config(&self, _updates: serde_json::Value) -> Result<(), PortError> {
-        Ok(())
-    }
-    async fn set_proxy_mode(&self, _mode: ProxyMode) -> Result<(), PortError> {
-        Ok(())
-    }
-    async fn get_proxies(&self) -> Result<HashMap<String, Proxy>, PortError> {
-        Ok(self.proxies.clone())
-    }
-    async fn switch_proxy(&self, _group: &str, _proxy: &str) -> Result<(), PortError> {
-        Ok(())
-    }
-    async fn test_delay(&self, proxy: &str, url: &str, timeout_ms: u32) -> Result<u32, PortError> {
-        self.delay_probe_count.fetch_add(1, Ordering::SeqCst);
-        let current = self.active_concurrency.fetch_add(1, Ordering::SeqCst) + 1;
-        let mut max = self.max_concurrency.load(Ordering::SeqCst);
-        while current > max {
-            match self.max_concurrency.compare_exchange_weak(
-                max,
-                current,
-                Ordering::SeqCst,
-                Ordering::SeqCst,
-            ) {
-                Ok(_) => break,
-                Err(actual) => max = actual,
-            }
-        }
 
-        let res = (self.delay_fn)(proxy, url, timeout_ms);
-        self.active_concurrency.fetch_sub(1, Ordering::SeqCst);
-        res
-    }
-    async fn get_proxy_providers(&self) -> Result<Vec<ProxyProvider>, PortError> {
-        Ok(Vec::new())
-    }
-    async fn get_rule_providers(&self) -> Result<Vec<RuleProvider>, PortError> {
-        Ok(Vec::new())
-    }
-    async fn update_proxy_provider(&self, _name: &str) -> Result<(), PortError> {
-        Ok(())
-    }
-    async fn update_rule_provider(&self, _name: &str) -> Result<(), PortError> {
-        Ok(())
-    }
-    async fn flush_fakeip_cache(&self) -> Result<(), PortError> {
-        Ok(())
-    }
-    async fn get_connections(&self) -> Result<ConnectionSnapshot, PortError> {
-        Ok(ConnectionSnapshot::default())
-    }
-    async fn get_memory(&self) -> Result<MemoryData, PortError> {
-        Ok(MemoryData::default())
-    }
-    async fn close_connection(&self, _id: &str) -> Result<(), PortError> {
-        Ok(())
-    }
-    async fn close_all_connections(&self) -> Result<(), PortError> {
-        Ok(())
-    }
-    async fn stream_logs(
+    async fn observation(
         &self,
-        _level: Option<String>,
-    ) -> Result<RuntimeStream<String>, PortError> {
-        Err(PortError::unsupported(
-            Capability::CoreLifecycle,
-            "not supported",
-        ))
+        _scope: CoreScope,
+    ) -> Result<OutboundObservationSnapshot, PortError> {
+        Ok(self.observation.clone())
     }
-    async fn stream_traffic(&self) -> Result<RuntimeStream<TrafficData>, PortError> {
-        Err(PortError::unsupported(
-            Capability::CoreLifecycle,
-            "not supported",
-        ))
+
+    async fn details(
+        &self,
+        _scope: CoreScope,
+        _expected_revision: SnapshotRevision,
+    ) -> Result<OutboundDetailsSnapshot, PortError> {
+        Ok(self.observation.details().clone())
     }
-    async fn stream_connections(&self) -> Result<RuntimeStream<ConnectionSnapshot>, PortError> {
-        Err(PortError::unsupported(
-            Capability::CoreLifecycle,
-            "not supported",
-        ))
+
+    async fn select(
+        &self,
+        _scope: CoreScope,
+        _expected_revision: SnapshotRevision,
+        _collection_id: OutboundId,
+        _outbound_id: OutboundId,
+    ) -> Result<OutboundInventorySnapshot, PortError> {
+        unreachable!("speedtest does not select an outbound")
+    }
+
+    async fn probe(
+        &self,
+        scope: CoreScope,
+        expected_revision: SnapshotRevision,
+        outbound_id: OutboundId,
+        _request: OutboundProbeRequest,
+    ) -> Result<OutboundProbeSnapshot, PortError> {
+        self.calls
+            .lock()
+            .expect("probe call log")
+            .push(outbound_id.clone());
+        if let Some(gate) = &self.gate {
+            gate.started.notify_one();
+            gate.release.notified().await;
+        }
+        let outcome = self
+            .outcomes
+            .lock()
+            .expect("probe outcomes")
+            .pop_front()
+            .unwrap_or(OutboundProbeState::Measured { delay_ms: 25 });
+        OutboundProbeSnapshot::new(
+            scope,
+            expected_revision,
+            SnapshotRevision::new(3),
+            outbound_id,
+            outcome,
+        )
+        .map_err(|error| PortError::Failed(error.to_string()))
     }
 }
 
-fn sample_proxies() -> HashMap<String, Proxy> {
-    let mut map = HashMap::new();
-    map.insert(
-        "HK-Node-1".to_string(),
-        Proxy::Shadowsocks(Shadowsocks {
-            base: ProxyBase {
-                name: "HK-Node-1".to_string(),
-                alive: true,
-                delay: Some(35),
-                ..Default::default()
-            },
-            ..Default::default()
-        }),
-    );
-    map.insert(
-        "HK-Node-2".to_string(),
-        Proxy::Shadowsocks(Shadowsocks {
-            base: ProxyBase {
-                name: "HK-Node-2".to_string(),
-                alive: true,
-                delay: Some(40),
-                ..Default::default()
-            },
-            ..Default::default()
-        }),
-    );
-    map.insert(
-        "JP-Node-1".to_string(),
-        Proxy::Vmess(Vmess {
-            base: ProxyBase {
-                name: "JP-Node-1".to_string(),
-                alive: true,
-                delay: Some(70),
-                ..Default::default()
-            },
-            ..Default::default()
-        }),
-    );
-    map.insert(
-        "HongKong".to_string(),
-        Proxy::Selector(ProxyGroup {
-            name: "HongKong".to_string(),
-            now: "HK-Node-1".to_string(),
-            all: vec!["HK-Node-1".to_string(), "HK-Node-2".to_string()],
-            history: Vec::new(),
-        }),
-    );
-    map.insert(
-        "GLOBAL".to_string(),
-        Proxy::Selector(ProxyGroup {
-            name: "GLOBAL".to_string(),
-            now: "HK-Node-1".to_string(),
-            all: vec![
-                "HK-Node-1".to_string(),
-                "HK-Node-2".to_string(),
-                "JP-Node-1".to_string(),
+pub(crate) fn scope(engine: &str, generation: u64) -> CoreScope {
+    CoreScope {
+        identity: CoreIdentity::new(
+            EngineId::new(engine).expect("engine ID"),
+            CoreInstanceId::new("primary").expect("instance ID"),
+            None,
+        ),
+        generation: CoreGeneration::new(generation),
+        session_token: None,
+    }
+}
+
+pub(crate) fn id(engine: &str, value: &str) -> OutboundId {
+    OutboundId::new(EngineId::new(engine).expect("engine ID"), value).expect("outbound ID")
+}
+
+pub(crate) fn observation(scope: CoreScope, revision: u64) -> OutboundObservationSnapshot {
+    let engine = scope.identity.engine.clone();
+    let group = id(engine.as_str(), "group/main");
+    let first = id(engine.as_str(), "outbound-a");
+    let second = id(engine.as_str(), "outbound-b");
+    let inventory = OutboundInventorySnapshot::new(
+        scope.clone(),
+        SnapshotRevision::new(revision),
+        OutboundInventoryState::Ready {
+            entries: vec![
+                OutboundSnapshot {
+                    id: group.clone(),
+                    display_name: Some("Main group".to_owned()),
+                },
+                OutboundSnapshot {
+                    id: first.clone(),
+                    display_name: Some("Outbound A".to_owned()),
+                },
+                OutboundSnapshot {
+                    id: second.clone(),
+                    display_name: Some("Outbound B".to_owned()),
+                },
             ],
-            history: Vec::new(),
-        }),
-    );
-    map
-}
-
-#[tokio::test]
-async fn test_single_group_independent_speedtest() {
-    let gateway = Arc::new(TestGateway::new(sample_proxies()));
-    let app = SpeedtestApplication::new(gateway.clone());
-
-    // Test only "HongKong" group
-    let snapshot = app
-        .test_delays(
-            SpeedtestScope::SingleGroup("HongKong".to_string()),
-            None,
-            None,
-        )
-        .await
-        .expect("test delays should succeed");
-
-    assert_eq!(snapshot.phase, SpeedtestPhase::Completed);
-    assert_eq!(snapshot.node_results.len(), 2);
-    assert!(snapshot.node_results.contains_key("HK-Node-1"));
-    assert!(snapshot.node_results.contains_key("HK-Node-2"));
-    assert!(!snapshot.node_results.contains_key("JP-Node-1"));
-    assert_eq!(gateway.delay_probe_count.load(Ordering::SeqCst), 2);
-}
-
-#[tokio::test]
-async fn test_concurrency_limiting_semaphore_30() {
-    let mut map = HashMap::new();
-    for i in 0..45 {
-        let name = format!("Node-{i:02}");
-        map.insert(
-            name.clone(),
-            Proxy::Shadowsocks(Shadowsocks {
-                base: ProxyBase {
-                    name,
-                    alive: true,
-                    ..Default::default()
+            collections: vec![OutboundSelectionSet {
+                id: group.clone(),
+                member_ids: vec![first.clone(), second.clone()],
+                availability: SelectionAvailability::Selectable,
+                selection: OutboundSelectionState::Ready {
+                    selected: first.clone(),
                 },
-                ..Default::default()
-            }),
-        );
-    }
+            }],
+        },
+    )
+    .expect("valid inventory");
+    let details = OutboundDetailsSnapshot::new(
+        scope,
+        SnapshotRevision::new(2),
+        OutboundDetailsState::Ready {
+            details: [group, first, second]
+                .into_iter()
+                .map(|outbound_id| {
+                    let is_group = outbound_id.value() == "group/main";
+                    OutboundDetail {
+                        id: outbound_id,
+                        protocol: OutboundProtocolObservation::Unknown,
+                        protocol_display_name: None,
+                        cipher: OutboundObservation::Unsupported,
+                        cipher_display_name: None,
+                        collection_kind: if is_group {
+                            OutboundObservation::Observed(OutboundCollectionKind::ManualSelection)
+                        } else {
+                            OutboundObservation::Unsupported
+                        },
+                        features: OutboundObservation::Unknown,
+                        endpoint: OutboundObservation::Unknown,
+                        udp: OutboundUdpSupport::Unknown,
+                        health: OutboundHealthObservation::Unknown,
+                        current_latency_ms: OutboundObservation::Unknown,
+                        latency_history: OutboundObservation::Unknown,
+                        rtt: OutboundObservation::Unknown,
+                        historical_egress: OutboundObservation::Unsupported,
+                        probe_availability: OutboundProbeAvailability::Supported,
+                    }
+                })
+                .collect(),
+        },
+    )
+    .expect("valid details");
+    OutboundObservationSnapshot::new(inventory, details).expect("coherent observation")
+}
 
-    let gateway = Arc::new(
-        TestGateway::new(map).with_delay_fn(|_name, _url, _timeout| {
-            sleep(time::Duration::from_millis(15));
-            Ok(50)
-        }),
+pub(crate) fn app_settings() -> SettingsApplication {
+    let mut settings = AppSettings::default();
+    settings.runtime_panel.probe_settings =
+        RuntimeProbeSettings::new("https://probe.example.test/health", 1500)
+            .expect("valid accepted probe settings");
+    SettingsApplication::new(Arc::new(ProbeSettingsStore { settings }))
+}
+
+#[tokio::test]
+async fn unavailable_accepted_probe_settings_fail_closed_without_default_fallback() {
+    let owner_scope = scope("mihomo", 4);
+    let port = Arc::new(FakeOutboundPort::new(
+        observation(owner_scope.clone(), 11),
+        [OutboundProbeState::Measured { delay_ms: 20 }],
+    ));
+    let application =
+        SpeedtestApplication::new(SettingsApplication::new(Arc::new(FailedSettingsStore)));
+    application
+        .install_outbound_application(OutboundApplication::new(port.clone()))
+        .expect("install one outbound owner");
+    let request = target(
+        owner_scope,
+        11,
+        OutboundProbeBatchScope::One(id("mihomo", "outbound-a")),
+        3,
     );
 
-    let app = SpeedtestApplication::new(gateway.clone()).with_concurrency(30);
+    assert!(application.prepare(request).await.is_err());
+    assert!(matches!(
+        application.snapshot().state,
+        SpeedtestRunState::Idle
+    ));
+    assert!(port.calls().is_empty());
+}
 
-    let snapshot = app
-        .test_delays(SpeedtestScope::AllGroups, None, None)
-        .await
-        .expect("batch test success");
-
-    assert_eq!(snapshot.node_results.len(), 45);
-    assert!(gateway.max_concurrency.load(Ordering::SeqCst) <= 30);
+pub(crate) fn target(
+    scope: CoreScope,
+    revision: u64,
+    outbound_scope: OutboundProbeBatchScope,
+    rounds: u8,
+) -> SpeedtestTarget {
+    SpeedtestTarget::new(
+        scope,
+        SnapshotRevision::new(revision),
+        outbound_scope,
+        SpeedtestRounds::new(rounds).expect("bounded rounds"),
+    )
+    .expect("valid typed target")
 }
 
 #[tokio::test]
-async fn test_runtime_set_concurrency_updates_config_and_effective_bound() {
-    let mut map = HashMap::new();
-    for i in 0..45 {
-        let name = format!("Node-{i:02}");
-        map.insert(
-            name.clone(),
-            Proxy::Shadowsocks(Shadowsocks {
-                base: ProxyBase {
-                    name,
-                    alive: true,
-                    ..Default::default()
-                },
-                ..Default::default()
-            }),
-        );
-    }
-
-    let gateway = Arc::new(
-        TestGateway::new(map).with_delay_fn(|_name, _url, _timeout| {
-            sleep(time::Duration::from_millis(15));
-            Ok(50)
-        }),
+async fn one_observed_collection_runs_multiple_typed_probe_rounds_per_member() {
+    let owner_scope = scope("mihomo", 4);
+    let port = Arc::new(FakeOutboundPort::new(
+        observation(owner_scope.clone(), 11),
+        [
+            OutboundProbeState::Measured { delay_ms: 20 },
+            OutboundProbeState::TimedOut,
+            OutboundProbeState::Measured { delay_ms: 28 },
+            OutboundProbeState::Measured { delay_ms: 30 },
+            OutboundProbeState::Measured { delay_ms: 34 },
+            OutboundProbeState::Measured { delay_ms: 32 },
+        ],
+    ));
+    let application = SpeedtestApplication::new(app_settings());
+    application
+        .install_outbound_application(OutboundApplication::new(port.clone()))
+        .expect("install one outbound owner");
+    application.set_concurrency(SpeedtestConcurrency::new(1).unwrap());
+    let request = target(
+        owner_scope.clone(),
+        11,
+        OutboundProbeBatchScope::Collection(id("mihomo", "group/main")),
+        3,
     );
 
-    let app = SpeedtestApplication::new(gateway.clone());
-
-    // The live bound is published into the shared config read model, and a
-    // zero request is clamped to 1 rather than stalling the batch.
-    app.set_concurrency(0);
-    assert_eq!(app.snapshot().config.concurrency, 1);
-    assert_eq!(app.concurrency(), 1);
-
-    app.set_concurrency(4);
-    assert_eq!(app.snapshot().config.concurrency, 4);
-
-    let snapshot = app
-        .test_delays(SpeedtestScope::AllGroups, None, None)
+    let prepared = application
+        .prepare(request.clone())
         .await
-        .expect("batch test success");
+        .expect("preflight accepted");
+    let snapshot = run_prepared(&application, prepared).await;
 
-    // The batch honored the runtime bound, not the constructor default.
-    assert_eq!(snapshot.node_results.len(), 45);
-    assert_eq!(snapshot.config.concurrency, 4);
-    assert!(gateway.max_concurrency.load(Ordering::SeqCst) <= 4);
+    assert_eq!(port.calls().len(), 6);
+    assert_eq!(snapshot.results.len(), 2);
+    assert_eq!(snapshot.state.target(), Some(&request));
+    assert_eq!(snapshot.results[0].samples.len(), 3);
+    assert!(matches!(
+        &snapshot.results[0].state,
+        SpeedtestResultState::Completed
+    ));
+    let calculation = snapshot.results[0].calculation().expect("sample metrics");
+    assert_eq!(calculation.sample_count, 3);
+    assert_eq!(calculation.successful_probes, 2);
+    assert_eq!(calculation.lost_probes, 1);
+    assert_eq!(snapshot.results[1].outbound_id.value(), "outbound-b");
 }
 
 #[tokio::test]
-async fn test_dynamic_custom_url_and_timeout_propagation() {
-    let observed_url = Arc::new(Mutex::new(String::new()));
-    let observed_timeout = Arc::new(AtomicU32::new(0));
-
-    let u_clone = Arc::clone(&observed_url);
-    let t_clone = Arc::clone(&observed_timeout);
-
-    let gateway = Arc::new(TestGateway::new(sample_proxies()).with_delay_fn(
-        move |_node, url, timeout| {
-            *u_clone.lock().unwrap() = url.to_string();
-            t_clone.store(timeout, Ordering::SeqCst);
-            Ok(35)
-        },
+async fn foreign_core_and_stale_inventory_targets_fail_before_any_probe() {
+    let owner_scope = scope("mihomo", 4);
+    let port = Arc::new(FakeOutboundPort::new(
+        observation(owner_scope.clone(), 11),
+        [OutboundProbeState::Measured { delay_ms: 20 }],
     ));
+    let application = SpeedtestApplication::new(app_settings());
+    application
+        .install_outbound_application(OutboundApplication::new(port.clone()))
+        .expect("install one outbound owner");
 
-    let app = SpeedtestApplication::new(gateway);
+    let stale = target(
+        owner_scope.clone(),
+        12,
+        OutboundProbeBatchScope::One(id("mihomo", "outbound-a")),
+        3,
+    );
+    assert!(application.prepare(stale).await.is_err());
+    assert!(port.calls().is_empty());
 
-    let custom_url = "https://cp.cloudflare.com/generate_204".to_string();
-    let custom_timeout = 8888;
+    let non_member = target(
+        owner_scope.clone(),
+        11,
+        OutboundProbeBatchScope::One(id("mihomo", "not-in-inventory")),
+        3,
+    );
+    assert!(application.prepare(non_member).await.is_err());
+    assert!(port.calls().is_empty());
 
-    let snapshot = app
-        .test_delays(
-            SpeedtestScope::SingleNode("HK-Node-1".to_string()),
-            Some(custom_url.clone()),
-            Some(custom_timeout),
+    let foreign_value = serde_json::to_value(target(
+        owner_scope,
+        11,
+        OutboundProbeBatchScope::One(id("mihomo", "outbound-a")),
+        3,
+    ))
+    .expect("encode target");
+    let mut foreign_value = foreign_value;
+    foreign_value["core_scope"]["identity"]["engine"] = serde_json::json!("sing-box");
+    let foreign: SpeedtestTarget = serde_json::from_value(foreign_value).expect("typed wire value");
+    assert!(application.prepare(foreign).await.is_err());
+    assert!(port.calls().is_empty());
+}
+
+#[tokio::test]
+async fn cancellation_aborts_the_probe_future_and_old_run_messages_cannot_replace_a_new_run() {
+    let owner_scope = scope("mihomo", 4);
+    let gate = Arc::new(ProbeGate::default());
+    let port = Arc::new(FakeOutboundPort::gated(
+        observation(owner_scope.clone(), 11),
+        gate.clone(),
+    ));
+    let application = SpeedtestApplication::new(app_settings());
+    application
+        .install_outbound_application(OutboundApplication::new(port))
+        .expect("install one outbound owner");
+    let request = target(
+        owner_scope.clone(),
+        11,
+        OutboundProbeBatchScope::One(id("mihomo", "outbound-a")),
+        4,
+    );
+    let prepared = application
+        .prepare(request)
+        .await
+        .expect("preflight accepted");
+    let admission = application.admit(prepared).expect("run accepted");
+    let run_id = admission.receipt.run_id;
+    let run_scope = admission.prepared.target.core_scope().clone();
+    let super::SpeedtestRunAdmission {
+        receipt,
+        registration,
+        prepared,
+        concurrency,
+    } = admission;
+    let start = gate.started.notified();
+    tokio::pin!(start);
+    let run_application = application.clone();
+    let run = tokio::spawn(async move {
+        let outcome = match futures_util::future::Abortable::new(
+            run_application.execute_prepared(receipt.run_id, prepared, concurrency),
+            registration,
         )
         .await
-        .expect("success");
-
-    assert_eq!(*observed_url.lock().unwrap(), custom_url);
-    assert_eq!(observed_timeout.load(Ordering::SeqCst), custom_timeout);
-    assert_eq!(snapshot.config.test_url, custom_url);
-    assert_eq!(snapshot.config.timeout_ms, custom_timeout);
-}
-
-#[tokio::test]
-async fn test_probe_node_jitter_and_rtt_standard_deviation() {
-    let probe_index = Arc::new(AtomicUsize::new(0));
-    let p_clone = Arc::clone(&probe_index);
-
-    // Sequence of RTTs: 40, 50, 40, 50
-    // Mean = 45.0
-    // Sample std dev = sqrt((( -5 )^2 * 4) / 3) = sqrt(100 / 3) ≈ 5.7735
-    let gateway = Arc::new(TestGateway::new(sample_proxies()).with_delay_fn(
-        move |_node, _url, _timeout| {
-            let idx = p_clone.fetch_add(1, Ordering::SeqCst);
-            if idx.is_multiple_of(2) {
-                Ok(40)
-            } else {
-                Ok(50)
-            }
-        },
+        {
+            Ok(()) => SpeedtestTaskOutcome::Completed,
+            Err(_) => SpeedtestTaskOutcome::Cancelled,
+        };
+        (receipt.run_id, outcome)
+    });
+    start.await;
+    assert!(matches!(
+        application.snapshot().state,
+        SpeedtestRunState::Probing { run_id: active, .. } if active == run_id
+    ));
+    assert!(matches!(
+        application.cancel_run(run_id),
+        SpeedtestCancelOutcome::Requested { run_id: cancelled } if cancelled == run_id
+    ));
+    let (completed_run, outcome) = run.await.expect("probe future join");
+    assert_eq!(completed_run, run_id);
+    assert_eq!(outcome, SpeedtestTaskOutcome::Cancelled);
+    assert_eq!(
+        application.finish(run_id, &run_scope, Some(&run_scope), outcome),
+        SpeedtestCompletionAdmission::Applied
+    );
+    assert!(matches!(
+        application.snapshot().state,
+        SpeedtestRunState::Cancelled { .. }
     ));
 
-    let app = SpeedtestApplication::new(gateway);
-    let jitter = app
-        .probe_node_jitter("HK-Node-1", 4, None, None)
+    let next_scope = scope("mihomo", 4);
+    let next_prepared = application
+        .prepare(target(
+            next_scope.clone(),
+            11,
+            OutboundProbeBatchScope::One(id("mihomo", "outbound-a")),
+            1,
+        ))
         .await
-        .expect("jitter probe success");
-
-    assert_eq!(jitter.sample_count, 4);
-    assert_eq!(jitter.successful_probes, 4);
-    assert_eq!(jitter.loss_percent, 0.0);
-    assert_eq!(jitter.loss_rating, PacketLossRating::Excellent);
-    assert!((jitter.mean_rtt_ms - 45.0).abs() < 1e-4);
-    assert!((jitter.std_dev_ms - 5.7735).abs() < 1e-3);
-    assert_eq!(jitter.min_rtt_ms, Some(40));
-    assert_eq!(jitter.max_rtt_ms, Some(50));
-}
-
-#[tokio::test]
-async fn test_cancellation_and_safe_interruption() {
-    let app_holder: Arc<Mutex<Option<SpeedtestApplication>>> = Arc::new(Mutex::new(None));
-    let app_holder_clone = Arc::clone(&app_holder);
-
-    let gateway = Arc::new(TestGateway::new(sample_proxies()).with_delay_fn(
-        move |_node, _url, _timeout| {
-            if let Some(ref app) = *app_holder_clone.lock().unwrap() {
-                app.cancel();
-            }
-            Ok(40)
-        },
+        .expect("next preflight accepted");
+    let next = application.admit(next_prepared).expect("next run accepted");
+    let next_run_id = next.receipt.run_id;
+    assert!(next_run_id > run_id);
+    assert!(matches!(
+        application.finish(run_id, &run_scope, Some(&next_scope), SpeedtestTaskOutcome::Completed),
+        SpeedtestCompletionAdmission::IgnoredStaleRun { current: Some(active), .. }
+            if active == next_run_id
     ));
-
-    let app = SpeedtestApplication::new(gateway);
-    *app_holder.lock().unwrap() = Some(app.clone());
-
-    let snapshot = app
-        .test_delays(SpeedtestScope::AllGroups, None, None)
-        .await
-        .expect("test returns snapshot");
-
-    assert_eq!(snapshot.phase, SpeedtestPhase::Cancelled);
+    assert!(matches!(
+        application.snapshot().state,
+        SpeedtestRunState::Probing { run_id: active, .. } if active == next_run_id
+    ));
 }
 
-#[tokio::test]
-async fn test_history_caching_last_3_runs() {
-    let gateway = Arc::new(TestGateway::new(sample_proxies()));
-    let app = SpeedtestApplication::new(gateway);
-
-    for _ in 0..5 {
-        let _ = app
-            .test_delays(
-                SpeedtestScope::SingleNode("HK-Node-1".to_string()),
-                None,
-                None,
-            )
-            .await;
-    }
-
-    let history = app.get_history();
-    assert_eq!(history.len(), 3);
-    assert_eq!(history[0].target_url, DEFAULT_PROBE_URL);
-}
-
-#[tokio::test]
-async fn test_record_bandwidth_populates_shared_snapshot() {
-    let gateway = Arc::new(TestGateway::new(sample_proxies()));
-    let app = SpeedtestApplication::new(gateway);
-
-    // 10 MiB over 1000 ms == 80 Mbps, rounded by the domain calculator.
-    let mbps = app
-        .record_bandwidth("HK-Node-1", 10 * 1024 * 1024, 1000)
-        .expect("bandwidth recorded");
-    assert!((mbps - 80.0).abs() < 0.01);
-
-    let snapshot = app.snapshot();
-    let entry = snapshot
-        .node_results
-        .get("HK-Node-1")
-        .expect("node result published");
-    assert_eq!(entry.bandwidth_mbps, Some(mbps));
-
-    // A zero-duration sample is honest 0.0, never a divide-by-zero fiction.
-    assert_eq!(app.record_bandwidth("HK-Node-1", 4096, 0).unwrap(), 0.0);
-}
-
-#[tokio::test]
-async fn test_record_outbound_ip_populates_and_compares_label_country() {
-    let gateway = Arc::new(TestGateway::new(sample_proxies()));
-    let app = SpeedtestApplication::new(gateway);
-
-    // "HK-Node-1" carries an HK label; a report of a HK egress is a match.
-    app.record_outbound_ip("HK-Node-1", "103.242.175.12", Some("HK"))
-        .expect("egress recorded");
-    let snapshot = app.snapshot();
-    let entry = snapshot
-        .node_results
-        .get("HK-Node-1")
-        .expect("node published");
-    assert_eq!(entry.label_country.as_deref(), Some("HK"));
-    assert_eq!(entry.outbound_ip.as_deref(), Some("103.242.175.12"));
-    assert_eq!(entry.outbound_country.as_deref(), Some("HK"));
-    assert_eq!(entry.egress_country_match(), EgressCountryMatch::Match);
-    assert!(snapshot.egress_country_mismatches().is_empty());
-
-    // A different egress country is an honest mismatch, not silently rewritten.
-    app.record_outbound_ip("HK-Node-2", "45.32.1.9", Some("US"))
-        .expect("egress recorded");
-    let snapshot = app.snapshot();
-    let entry = snapshot.node_results.get("HK-Node-2").unwrap();
-    assert_eq!(entry.egress_country_match(), EgressCountryMatch::Mismatch);
-    assert_eq!(snapshot.egress_country_mismatches().len(), 1);
-    assert_eq!(snapshot.egress_reported_count(), 2);
-
-    // An empty IP is rejected rather than stored as a fiction.
-    let err = app
-        .record_outbound_ip("HK-Node-1", "   ", Some("HK"))
-        .expect_err("empty ip rejected");
-    assert_eq!(err.code, ErrorCode::InvalidInput);
-
-    // A probe with no geolocation is honest `Unlabelled`, never a guessed CC.
-    app.record_outbound_ip("HK-Node-1", "1.2.3.4", None)
-        .expect("egress without country recorded");
-    let snapshot = app.snapshot();
-    let entry = snapshot.node_results.get("HK-Node-1").unwrap();
-    assert_eq!(entry.outbound_country, None);
-    assert_eq!(entry.egress_country_match(), EgressCountryMatch::Unknown);
-}
-
-#[tokio::test]
-async fn test_test_delays_publishes_label_country_not_egress_fiction() {
-    let gateway = Arc::new(TestGateway::new(sample_proxies()));
-    let app = SpeedtestApplication::new(gateway);
-
-    let snapshot = app
-        .test_delays(
-            SpeedtestScope::SingleNode("JP-Node-1".to_string()),
-            None,
-            None,
-        )
-        .await
-        .expect("probe succeeds");
-
-    let entry = snapshot.node_results.get("JP-Node-1").unwrap();
-    // The label fact is published; the egress fact stays honestly absent until
-    // a real host probe reports it.
-    assert_eq!(entry.label_country.as_deref(), Some("JP"));
-    assert_eq!(entry.outbound_ip, None);
-    assert_eq!(entry.outbound_country, None);
-    assert_eq!(entry.egress_country_match(), EgressCountryMatch::Unknown);
-}
-
-#[derive(Default)]
-struct MemoryHistoryStore {
-    records: Mutex<Vec<HistoricalSpeedtestRecord>>,
-}
-
-impl SpeedtestHistoryStore for MemoryHistoryStore {
-    fn load(&self) -> Result<Vec<HistoricalSpeedtestRecord>, PortError> {
-        Ok(self.records.lock().unwrap().clone())
-    }
-
-    fn save(&self, records: &[HistoricalSpeedtestRecord]) -> Result<(), PortError> {
-        *self.records.lock().unwrap() = records.to_vec();
-        Ok(())
-    }
-}
-
-#[tokio::test]
-async fn test_history_store_round_trip_restores_across_restart() {
-    let store = Arc::new(MemoryHistoryStore::default());
-    let gateway = Arc::new(TestGateway::new(sample_proxies()));
-    let app = SpeedtestApplication::new(gateway.clone()).with_history_store(store.clone());
-
-    for i in 0..4 {
-        let _ = app
-            .test_delays(
-                SpeedtestScope::AllGroups,
-                Some(format!("http://run-{i}.local")),
-                None,
-            )
-            .await;
-    }
-
-    // Bounded to the existing cap and written through to the host store.
-    assert_eq!(store.load().unwrap().len(), 3);
-    assert_eq!(app.get_history().len(), 3);
-
-    // A fresh application over the same store restores identical history:
-    // the cross-restart proof.
-    let restarted = SpeedtestApplication::new(gateway).with_history_store(store);
-    let restored = restarted.get_history();
-    assert_eq!(restored, app.get_history());
-    assert_eq!(restored[0].target_url, "http://run-1.local");
-    assert_eq!(restored[2].target_url, "http://run-3.local");
+async fn run_prepared(
+    application: &SpeedtestApplication,
+    prepared: super::PreparedSpeedtestRun,
+) -> SpeedtestSnapshot {
+    let admission = application.admit(prepared).expect("run accepted");
+    let super::SpeedtestRunAdmission {
+        receipt,
+        registration,
+        prepared,
+        concurrency,
+    } = admission;
+    let scope = prepared.target.core_scope().clone();
+    let outcome = match futures_util::future::Abortable::new(
+        application.execute_prepared(receipt.run_id, prepared, concurrency),
+        registration,
+    )
+    .await
+    {
+        Ok(()) => SpeedtestTaskOutcome::Completed,
+        Err(_) => SpeedtestTaskOutcome::Cancelled,
+    };
+    application.finish(receipt.run_id, &scope, Some(&scope), outcome);
+    application.snapshot()
 }

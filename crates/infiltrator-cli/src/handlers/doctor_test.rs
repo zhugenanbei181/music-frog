@@ -2,6 +2,7 @@ use infiltrator_application::doctor_application::DoctorApplication;
 use infiltrator_contract::doctor::DoctorStatus;
 use infiltrator_core::bootstrap;
 use infiltrator_core::doctor_port::MihomoDoctor;
+use infiltrator_core::version_port::MihomoVersionPort;
 use mihomo_version::manager::VersionManager;
 #[cfg(unix)]
 use std::fs::Permissions;
@@ -19,13 +20,13 @@ use std::sync::Arc;
 use super::{render_explanation, report_rows, report_summary, status_label};
 use crate::test_support::EnvGuard;
 
-/// Plant a runnable fake kernel (`<home>/versions/<version>/mihomo`) so the
+/// Plant a runnable fake kernel (`<home>/engines/mihomo/versions/<version>/mihomo`) so the
 /// `version.binary_available` check and `set_default`'s smoke check pass.
 #[cfg(unix)]
 fn plant_runnable_kernel(home: &path::Path) {
     use std::os::unix::fs::PermissionsExt;
 
-    let dir = home.join("versions").join("v0.0.0-test");
+    let dir = home.join("engines/mihomo/versions").join("v0.0.0-test");
     create_dir_all(&dir).unwrap();
     let binary = dir.join("mihomo");
     write(&binary, "#!/bin/sh\necho \"Mihomo Meta v0.0.0-test\"\n").unwrap();
@@ -41,7 +42,8 @@ async fn doctor_report_passes_on_bootstrapped_home() {
 
     bootstrap::ensure_bootstrap_at(&home).await.unwrap();
     plant_runnable_kernel(&home);
-    let version_manager = VersionManager::with_home(home.clone()).unwrap();
+    let version_manager =
+        VersionManager::for_engine(home.clone(), MihomoVersionPort::engine_identifier()).unwrap();
     version_manager.set_default("v0.0.0-test").await.unwrap();
 
     let application = DoctorApplication::new(Arc::new(MihomoDoctor::with_home(home)));

@@ -28,7 +28,7 @@ use infiltrator_bevy_ui::pages::overview_speedtest::{
 };
 use infiltrator_bevy_ui::pages::proxies::NodeDetailButton;
 use infiltrator_bevy_ui::pages::proxy_inspection::{
-    ProxyInspectionScrollArea, ProxyInspectionState,
+    ProxyInspectionPhase, ProxyInspectionScrollArea, ProxyInspectionState,
 };
 use infiltrator_bevy_ui::route::{PagesPlugin, Route, RouteChanged};
 use std::sync::Arc;
@@ -131,22 +131,19 @@ fn command_palette_scrolls_to_its_remaining_rows_without_executing() {
 #[test]
 fn proxy_inspection_scrolls_to_metadata_and_history_without_selecting_or_probing() {
     let (mut app, sink) = setup(Route::Proxies);
-    let (entity, name) = app
+    let (entity, outbound_id) = app
         .world_mut()
         .query::<(Entity, &NodeDetailButton)>()
         .iter(app.world())
         .next()
-        .map(|(entity, button)| (entity, button.node_name.clone()))
+        .map(|(entity, button)| (entity, button.outbound_id.clone().unwrap()))
         .unwrap();
     app.world_mut().commands().trigger(Activate { entity });
     app.update();
-    assert_eq!(
-        app.world()
-            .resource::<ProxyInspectionState>()
-            .selected
-            .as_deref(),
-        Some(name.as_str())
-    );
+    assert!(matches!(
+        &app.world().resource::<ProxyInspectionState>().phase,
+        ProxyInspectionPhase::Open(session) if session.selected == outbound_id
+    ));
     verify_scroll::<ProxyInspectionScrollArea>(&mut app);
     assert!(sink.submitted().is_empty());
 }

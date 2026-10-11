@@ -12,7 +12,9 @@ use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Query, Res, ResMut};
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
-use infiltrator_application::doctor_actions::DoctorActionState;
+use infiltrator_application::doctor_actions::{
+    DoctorActionFinish, DoctorActionPhase, DoctorActionState,
+};
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_contract::command::RequestId;
@@ -34,6 +36,16 @@ pub struct RetryDoctorButton;
 #[derive(Component, Clone, Default)]
 pub struct DoctorFeedbackText;
 
+enum DoctorActionAdmission {
+    Start(DoctorAction),
+    Retry(DoctorAction),
+}
+
+enum DoctorRepairAvailability {
+    Available,
+    Unavailable,
+}
+
 pub fn on_action(
     event: On<Activate>,
     buttons: Query<DoctorButtons>,
@@ -44,44 +56,67 @@ pub fn on_action(
     let Ok(button) = buttons.get(event.entity) else {
         return;
     };
-    let action = if button.run.is_some() {
-        Some(DoctorAction::Diagnose)
+    let admission = if button.run.is_some() {
+        Some(DoctorActionAdmission::Start(DoctorAction::Diagnose))
     } else if button.repair_all.is_some() {
-        Some(DoctorAction::RepairAll)
+        Some(DoctorActionAdmission::Start(DoctorAction::RepairAll))
     } else if let Some(row) = button.repair_one {
-        Some(DoctorAction::RepairOne(row.check_id.clone()))
+        Some(DoctorActionAdmission::Start(DoctorAction::RepairOne(
+            row.check_id.clone(),
+        )))
     } else if button.bootstrap.is_some() {
-        Some(DoctorAction::Bootstrap)
+        Some(DoctorActionAdmission::Start(DoctorAction::Bootstrap))
     } else if button.retry.is_some() {
-        if !actions.state.can_retry() {
-            return;
+        match &actions.state.phase {
+            DoctorActionPhase::Failed { retry_action, .. } => {
+                Some(DoctorActionAdmission::Retry(retry_action.clone()))
+            }
+            DoctorActionPhase::Idle | DoctorActionPhase::Pending(_) => return,
         }
-        actions.state.retry_action.clone()
     } else {
         None
     };
-    let Some(action) = action else { return };
-    if matches!(action, DoctorAction::RepairAll | DoctorAction::RepairOne(_)) {
+    let Some(admission) = admission else { return };
+    let candidate = match &admission {
+        DoctorActionAdmission::Start(action) | DoctorActionAdmission::Retry(action) => action,
+    };
+    if matches!(
+        candidate,
+        DoctorAction::RepairAll | DoctorAction::RepairOne(_)
+    ) {
         let page = &latest.0.pages.doctor;
-        let available = matches!(page.status, PageStatus::Ready)
-            && page.data.as_ref().is_some_and(|data| {
-                data.checks.iter().any(|check| {
+        let availability = match &page.status {
+            PageStatus::Ready => match &page.data {
+                Some(data) => match data.checks.iter().find(|check| {
                     check.fix_available
-                        && match &action {
+                        && match candidate {
                             DoctorAction::RepairOne(id) => check.id == *id,
                             _ => true,
                         }
-                })
-            });
-        if !available {
-            return;
+                }) {
+                    Some(_) => DoctorRepairAvailability::Available,
+                    None => DoctorRepairAvailability::Unavailable,
+                },
+                None => DoctorRepairAvailability::Unavailable,
+            },
+            PageStatus::Empty
+            | PageStatus::Loading
+            | PageStatus::Failed { .. }
+            | PageStatus::Unavailable { .. } => DoctorRepairAvailability::Unavailable,
+        };
+        match availability {
+            DoctorRepairAvailability::Available => {}
+            DoctorRepairAvailability::Unavailable => return,
         }
     }
-    let pending = match actions.state.begin(action.clone()) {
+    let pending = match match admission {
+        DoctorActionAdmission::Start(action) => actions.state.begin(action),
+        DoctorActionAdmission::Retry(_) => actions.state.begin_retry(),
+    } {
         Ok(pending) => pending,
         Err(_) => return,
     };
-    let command = match action {
+    let command = match pending.action {
         DoctorAction::Diagnose => UiCommand::RunDoctorDiagnostics,
         DoctorAction::RepairAll => UiCommand::RepairAllDoctorIssues,
         DoctorAction::RepairOne(check_id) => UiCommand::RepairDoctorIssue { check_id },
@@ -101,8 +136,9 @@ pub fn on_action(
     }
 }
 pub fn on_result(event: On<CommandExecutedEvent>, mut actions: ResMut<DoctorActions>) {
-    let Some(pending) = actions.state.pending.as_ref() else {
-        return;
+    let pending = match &actions.state.phase {
+        DoctorActionPhase::Pending(pending) => pending.clone(),
+        DoctorActionPhase::Idle | DoctorActionPhase::Failed { .. } => return,
     };
     if actions.request != Some(event.request_id)
         || event.command.to_intent().as_ref() != Some(&pending.action.intent())
@@ -110,8 +146,9 @@ pub fn on_result(event: On<CommandExecutedEvent>, mut actions: ResMut<DoctorActi
         return;
     }
     let token = pending.token;
-    if actions.state.finish(token, event.unit_result()) {
-        actions.request = None
+    match actions.state.finish(token, event.unit_result()) {
+        DoctorActionFinish::Stale => {}
+        DoctorActionFinish::Applied => actions.request = None,
     }
 }
 #[derive(QueryData)]
@@ -139,7 +176,7 @@ pub fn sync_controls(
     mut controls: Query<DoctorControls>,
     mut feedback: Query<&mut Text, With<DoctorFeedbackText>>,
 ) {
-    let busy = actions.state.pending.is_some();
+    let busy = matches!(&actions.state.phase, DoctorActionPhase::Pending(_));
     let page = &latest.0.pages.doctor;
     for mut control in &mut controls {
         if control.run.is_none()
@@ -170,18 +207,13 @@ pub fn sync_controls(
             control.disabled.0 = disabled
         }
     }
-    let value = actions
-        .state
-        .failure
-        .as_ref()
-        .map(|failure| failure.message.clone())
-        .unwrap_or_else(|| {
-            if busy {
-                LocalizedText::plain("doctor_operation_pending").render(&locale)
-            } else {
-                String::new()
-            }
-        });
+    let value = match &actions.state.phase {
+        DoctorActionPhase::Idle => String::new(),
+        DoctorActionPhase::Pending(_) => {
+            LocalizedText::plain("doctor_operation_pending").render(&locale)
+        }
+        DoctorActionPhase::Failed { failure, .. } => failure.message.clone(),
+    };
     for mut text in &mut feedback {
         if text.0 != value {
             text.0 = value.clone()

@@ -89,9 +89,9 @@ fn tea_filter_typed_failure_and_tokens_keep_error_in_place_and_discard_has_no_wr
     let _ = state.update(Message::ProfileFilterSaved {
         token,
         result: Ok(SubscriptionFilterApplied {
-            source: observation("alpha", FIXTURE_DOCUMENT, Default::default())
+            workspace_identity: observation("alpha", FIXTURE_DOCUMENT, Default::default())
                 .unwrap()
-                .source,
+                .workspace_identity,
             report: FilterReport::default(),
         }),
     });

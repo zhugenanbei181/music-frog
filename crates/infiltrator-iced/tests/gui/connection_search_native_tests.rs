@@ -77,7 +77,7 @@ fn native_connection_search_refresh_and_core_stop_retire_observations_without_lo
         ),
         (1, 1)
     );
-    let _ = state.update(Message::ProxyStopped);
+    let _ = state.update(Message::CoreStopped);
     assert_eq!(state.runtime.runtime_connection_filter, "API-0");
     assert!(!state.diag.connection_groups.source_current());
     assert!(!state.diag.connection_groups.summary_empty());

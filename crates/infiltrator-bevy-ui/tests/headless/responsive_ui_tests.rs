@@ -16,11 +16,11 @@ use bevy::scene::{CommandsSceneExt, Scene, bsn};
 use bevy::ui::prelude::{Display, JustifyContent, Node, UiRect, Val, px};
 use bevy::ui::widget;
 use infiltrator_bevy_ui::app::{
-    BOTTOM_NAV_HEIGHT_PX, BottomNavBar, LayoutMode, NavSpacer, RailNavTooltip,
+    BOTTOM_NAV_CONTENT_HEIGHT, BottomNavBar, LayoutMode, NavSpacer, RailNavTooltip,
     SIDEBAR_RAIL_WIDTH_PX, SIDEBAR_WIDTH_PX, ShellLayoutState, ShellPlugin, ShellRoot,
-    SidebarActiveProfileCard, SidebarFooterRow, SidebarIdentityText, SidebarModeSegment,
-    SidebarNavItem, SidebarPanel, SidebarShortcutMatrix, SidebarSpeedFooter,
-    SidebarSystemProxyCard, SidebarTunCard,
+    SidebarActiveProfileCard, SidebarFooterRow, SidebarIdentityText, SidebarNavItem, SidebarPanel,
+    SidebarRoutingIntentSegment, SidebarShortcutMatrix, SidebarSpeedFooter, SidebarSystemProxyCard,
+    SidebarTunCard,
 };
 use infiltrator_bevy_ui::chrome::ChromeDragBar;
 use infiltrator_bevy_ui::command::{CommandPumpPlugin, DemoCommandSink, UiCommandSink};
@@ -45,6 +45,7 @@ use infiltrator_contract::window_chrome::CHROME_DRAG_STRIP_HEIGHT_PX;
 use std::sync::Arc;
 
 use crate::support::*;
+use infiltrator_bevy_widgets::palette::rem;
 
 /// Compile-time cross-check that the Bevy widget layer's mirrored breakpoint
 /// thresholds agree with the authoritative shared contract. `bevy-widgets`
@@ -286,7 +287,7 @@ fn test_polymorphic_navigation_switching_and_route_preservation() {
 
         let (node, _) = sidebars.single(world).unwrap();
         assert_eq!(node.display, Display::Flex);
-        assert_eq!(node.width, px(64.0));
+        assert_eq!(node.width, rem(64.0));
         assert_eq!(bottom_navs.single(world).unwrap().0.display, Display::None);
     }
 }
@@ -454,7 +455,7 @@ fn test_sidebar_rail_morphology_and_floating_tooltips() {
         let mut sidebars = world.query::<(&Node, &SidebarPanel)>();
         let (sidebar_node, _) = sidebars.single(world).unwrap();
         assert_eq!(sidebar_node.display, Display::Flex);
-        assert_eq!(sidebar_node.width, px(SIDEBAR_WIDTH_PX));
+        assert_eq!(sidebar_node.width, rem(SIDEBAR_WIDTH_PX));
 
         // Nav items have FlexStart alignment and visible labels
         let mut nav_items = world.query_filtered::<&Node, With<SidebarNavItem>>();
@@ -473,13 +474,13 @@ fn test_sidebar_rail_morphology_and_floating_tooltips() {
             assert_eq!(node.display, Display::Flex);
         }
 
-        // Identity text and mode segment are visible in Expanded
+        // Identity text and routing intent segment are visible in Expanded
         let mut identity_texts = world.query_filtered::<&Node, With<SidebarIdentityText>>();
         for node in identity_texts.iter(world) {
             assert_eq!(node.display, Display::Flex);
         }
 
-        let mut mode_segments = world.query_filtered::<&Node, With<SidebarModeSegment>>();
+        let mut mode_segments = world.query_filtered::<&Node, With<SidebarRoutingIntentSegment>>();
         for node in mode_segments.iter(world) {
             assert_eq!(node.display, Display::Flex);
         }
@@ -506,7 +507,7 @@ fn test_sidebar_rail_morphology_and_floating_tooltips() {
         let mut sidebars = world.query::<(&Node, &SidebarPanel)>();
         let (sidebar_node, _) = sidebars.single(world).unwrap();
         assert_eq!(sidebar_node.display, Display::Flex);
-        assert_eq!(sidebar_node.width, px(SIDEBAR_RAIL_WIDTH_PX));
+        assert_eq!(sidebar_node.width, rem(SIDEBAR_RAIL_WIDTH_PX));
 
         // Nav items are centered in Rail mode
         let mut nav_items = world.query_filtered::<&Node, With<SidebarNavItem>>();
@@ -514,7 +515,7 @@ fn test_sidebar_rail_morphology_and_floating_tooltips() {
             assert_eq!(node.justify_content, JustifyContent::Center);
         }
 
-        // Labels, spacers, identity text, and mode segment hidden in Rail mode
+        // Labels, spacers, identity text, and routing segment hidden in Rail mode
         let mut nav_labels = world.query_filtered::<&Node, With<NavLabel>>();
         for node in nav_labels.iter(world) {
             assert_eq!(node.display, Display::None);
@@ -530,7 +531,7 @@ fn test_sidebar_rail_morphology_and_floating_tooltips() {
             assert_eq!(node.display, Display::None);
         }
 
-        let mut mode_segments = world.query_filtered::<&Node, With<SidebarModeSegment>>();
+        let mut mode_segments = world.query_filtered::<&Node, With<SidebarRoutingIntentSegment>>();
         for node in mode_segments.iter(world) {
             assert_eq!(node.display, Display::None);
         }
@@ -647,9 +648,9 @@ fn test_safe_area_insets_android_and_ios_adaptation() {
         let world = app.world_mut();
         let mut bottom_navs = world.query::<(&Node, &BottomNavBar)>();
         let (nav_node, _) = bottom_navs.single(world).unwrap();
-        assert_eq!(nav_node.height, px(BOTTOM_NAV_HEIGHT_PX));
-        assert_eq!(nav_node.min_height, px(BOTTOM_NAV_HEIGHT_PX));
-        assert_eq!(nav_node.padding, UiRect::bottom(Val::Px(space::S6)));
+        assert_eq!(nav_node.height, px(BOTTOM_NAV_CONTENT_HEIGHT));
+        assert_eq!(nav_node.min_height, px(BOTTOM_NAV_CONTENT_HEIGHT));
+        assert_eq!(nav_node.padding, UiRect::bottom(rem(space::S6)));
 
         let mut chrome_bars = world.query::<(&Node, &ChromeDragBar)>();
         let (chrome_node, _) = chrome_bars.single(world).unwrap();
@@ -658,24 +659,24 @@ fn test_safe_area_insets_android_and_ios_adaptation() {
             chrome_node.min_height,
             px(CHROME_DRAG_STRIP_HEIGHT_PX as f32)
         );
-        assert_eq!(chrome_node.padding, UiRect::horizontal(Val::Px(space::S12)));
+        assert_eq!(chrome_node.padding, UiRect::horizontal(rem(space::S12)));
 
         let safe_insets = world.resource::<SafeAreaInsets>();
         assert_eq!(safe_insets.top_px, 0.0);
         assert_eq!(safe_insets.bottom_px, 0.0);
     }
 
-    // 2. Android default insets (24px status bar, 16px bottom gesture pill)
+    // 2. Simulated Android logical insets (24dp status bar, 16dp gesture edge)
     app.world_mut()
-        .insert_resource(SafeAreaInsets::android_default());
+        .insert_resource(SafeAreaInsets::new(24.0, 16.0, 0.0, 0.0));
     app.update();
 
     {
         let world = app.world_mut();
         let mut bottom_navs = world.query::<(&Node, &BottomNavBar)>();
         let (nav_node, _) = bottom_navs.single(world).unwrap();
-        // Height = 58 + 16 = 74.0px, padding.bottom = 6 + 16 = 22.0px
-        assert_eq!(nav_node.height, px(BOTTOM_NAV_HEIGHT_PX + 16.0));
+        // Height = 58 + 16 logical units; content stays above the gesture edge.
+        assert_eq!(nav_node.height, px(BOTTOM_NAV_CONTENT_HEIGHT + 16.0));
         assert_eq!(nav_node.padding.bottom, Val::Px(space::S6 + 16.0));
 
         let mut chrome_bars = world.query::<(&Node, &ChromeDragBar)>();
@@ -693,17 +694,17 @@ fn test_safe_area_insets_android_and_ios_adaptation() {
         assert_eq!(host_report.insets.bottom, 16.0);
     }
 
-    // 3. iOS default insets with Dynamic Island (48px status bar, 34px home indicator)
+    // 3. Simulated iOS logical insets (48dp status bar, 34dp home-indicator edge)
     app.world_mut()
-        .insert_resource(SafeAreaInsets::ios_default());
+        .insert_resource(SafeAreaInsets::new(48.0, 34.0, 0.0, 0.0));
     app.update();
 
     {
         let world = app.world_mut();
         let mut bottom_navs = world.query::<(&Node, &BottomNavBar)>();
         let (nav_node, _) = bottom_navs.single(world).unwrap();
-        // Height = 58 + 34 = 92.0px, padding.bottom = 6 + 34 = 40.0px
-        assert_eq!(nav_node.height, px(BOTTOM_NAV_HEIGHT_PX + 34.0));
+        // Height and padding follow the measured logical safe-area edges.
+        assert_eq!(nav_node.height, px(BOTTOM_NAV_CONTENT_HEIGHT + 34.0));
         assert_eq!(nav_node.padding.bottom, Val::Px(space::S6 + 34.0));
 
         let mut chrome_bars = world.query::<(&Node, &ChromeDragBar)>();
@@ -737,7 +738,7 @@ fn test_safe_area_insets_android_and_ios_adaptation() {
 
         let mut bottom_navs = world.query::<(&Node, &BottomNavBar)>();
         let (nav_node, _) = bottom_navs.single(world).unwrap();
-        assert_eq!(nav_node.height, px(BOTTOM_NAV_HEIGHT_PX + 34.0));
+        assert_eq!(nav_node.height, px(BOTTOM_NAV_CONTENT_HEIGHT + 34.0));
         assert_eq!(nav_node.padding.bottom, Val::Px(space::S6 + 34.0));
         assert_eq!(nav_node.padding.left, Val::Px(12.0));
         assert_eq!(nav_node.padding.right, Val::Px(12.0));

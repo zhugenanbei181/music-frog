@@ -11,7 +11,11 @@ if [[ "${1:-}" == "--guards-only" ]]; then exit 0; fi
 # Peer evidence remains a two-surface check even when only Bevy tests are run.
 python3 scripts/parity/resolve_surface_evidence.py --report-json target/parity/evidence.json
 for crate_name in infiltrator-bevy-widgets infiltrator-bevy-ui; do
-  cargo nextest run -p "$crate_name" --build-jobs 4 --test-threads 4
-  cargo clippy -p "$crate_name" --all-targets -- -D warnings
+  feature_args=()
+  if [[ "$crate_name" == "infiltrator-bevy-ui" ]]; then
+    feature_args=(--features capture-tools)
+  fi
+  cargo nextest run -p "$crate_name" "${feature_args[@]}" --build-jobs 4 --test-threads 4
+  cargo clippy -p "$crate_name" "${feature_args[@]}" --all-targets -- -D warnings
   cargo fmt -p "$crate_name" --check
 done

@@ -1,0 +1,46 @@
+{
+  "schema_version": 2,
+  "engine": "mihomo",
+  "assets": [
+    {
+      "version": "v1.19.32",
+      "binary_target": "x86_64-unknown-linux-gnu",
+      "adapter_revision": 1,
+      "release_url": "https://github.com/MetaCubeX/mihomo/releases/tag/v1.19.32",
+      "archive": "mihomo-linux-amd64-v1-v1.19.32.gz",
+      "archive_sha256": "306f81e723e60ce6b828899a6fe83e1d00e9ecefb2dc8d4d849312a5bc00efdc",
+      "binary": "mihomo-linux-amd64",
+      "binary_sha256": "6de241191ca39f9ac1cd6e3194fc9303c19055d3549c8bdb4ff1349c89173819",
+      "operations": [
+        "profile.validate",
+        "profile.apply",
+        "outbound.list",
+        "outbound.select",
+        "outbound.probe",
+        "logs.set_level",
+        "routing.set_intent",
+        "routing.get_intent"
+      ]
+    },
+    {
+      "version": "v1.19.18",
+      "binary_target": "x86_64-unknown-linux-gnu",
+      "adapter_revision": 1,
+      "release_url": "https://github.com/MetaCubeX/mihomo/releases/tag/v1.19.18",
+      "archive": "mihomo-linux-amd64-v1-v1.19.18.gz",
+      "archive_sha256": "4b7f2a8cd5c772153ec975f0cee74efbc8f294d6d3e64623b079674d8a903b49",
+      "binary": "mihomo-linux-amd64",
+      "binary_sha256": "8ae1d3853544408f346775d409dadf12aef3fd86ac522a5cf344b22e1b6a3164",
+      "operations": [
+        "profile.validate",
+        "profile.apply",
+        "outbound.list",
+        "outbound.select",
+        "outbound.probe",
+        "logs.set_level",
+        "routing.set_intent",
+        "routing.get_intent"
+      ]
+    }
+  ]
+}

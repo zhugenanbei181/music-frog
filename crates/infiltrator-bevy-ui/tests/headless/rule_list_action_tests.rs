@@ -1,8 +1,8 @@
 //! test-intent: behavior
 //! Native SDK clicks stage a full source-bound list, then explicitly commit or discard it.
-use crate::command_harness::recording_application;
+use crate::command_harness::{identified_recording_application, test_command_application};
 use crate::native_input::{click_before_frame, click_entity, press, type_text};
-use crate::support::headless_plugins;
+use crate::support::{command_pump_for_observed_snapshot, headless_plugins};
 use bevy::app::App;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::query::With;
@@ -11,15 +11,12 @@ use bevy::input::keyboard::{Key, KeyCode, KeyboardInput};
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::ButtonPlugin;
 use bevy::window::{Ime, PrimaryWindow, Window};
-use infiltrator_application::command_application::CommandApplication;
-use infiltrator_application::configuration_application::ConfigurationApplication;
 use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::rule_list_application::RuleListApplication;
 use infiltrator_application::rule_trace_fixtures::{RuleTraceStore, TRACE_DOCUMENT};
 use infiltrator_application::surface_reader::ApplicationSurfaceReader;
 use infiltrator_bevy_ui::app::ShellPlugin;
 use infiltrator_bevy_ui::app::SidebarActiveProfileCard;
-use infiltrator_bevy_ui::command::CommandPumpPlugin;
 use infiltrator_bevy_ui::pages::rules::LastRulesProjection;
 use infiltrator_bevy_ui::pages::rules_builder::{
     AddCustomRuleButton, DiscardRuleFormButton, RuleFormStatus, RulesBuilderState,
@@ -35,6 +32,7 @@ use infiltrator_bevy_ui::surface::{LatestSurfaceSnapshot, SurfaceSnapshotUpdated
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::text_input::{TextField, TextFieldFocused};
+use infiltrator_contract::core_capabilities::{CoreOperation, RulesOperation};
 use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::rules_workspace::RulesTab;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
@@ -127,23 +125,26 @@ fn settle(app: &mut App) {
     app.update();
 }
 pub(crate) fn setup() -> (App, ApplicationSurfaceReader, Arc<RuleTraceStore>) {
-    let store = Arc::new(RuleTraceStore::default());
-    let (core, _) = recording_application();
+    let store = crate::configuration_codec::mihomo_rule_trace_fixture();
+    let (core, _) = identified_recording_application();
     core.install_command_handler(Arc::new(
-        CommandApplication::new().with_rule_list(RuleListApplication::new(store.clone())),
+        test_command_application([CoreOperation::Rules(RulesOperation::Apply)])
+            .with_rule_list(RuleListApplication::new(store.clone())),
     ));
     let core = Arc::new(core);
     let reader =
         ApplicationSurfaceReader::new(core.clone(), SurfaceKind::BevyDesktop, HostKind::Desktop)
             .with_profiles(ProfileApplication::new(store.clone()))
-            .with_configuration(ConfigurationApplication::new(store.clone()));
+            .with_configuration(crate::configuration_codec::mihomo_configuration(
+                store.clone(),
+            ));
     let mut app = App::new();
     headless_plugins(&mut app);
     app.add_plugins((
         ButtonPlugin,
         ShellPlugin::default(),
         PagesPlugin::default(),
-        CommandPumpPlugin::for_application(core),
+        command_pump_for_observed_snapshot(core),
     ));
     app.world_mut().spawn((Window::default(), PrimaryWindow));
     app.update();

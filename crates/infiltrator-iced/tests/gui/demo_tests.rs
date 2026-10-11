@@ -11,6 +11,8 @@ use crate::view::theme::{FOREST, forest_theme, is_forest, theme_to_name, tokens}
 use iced::Size;
 use iced::window::Screenshot;
 use infiltrator_contract::mini_hud::MiniHudWaveformStrip;
+use infiltrator_contract::outbound::inventory::OutboundInventoryState;
+use infiltrator_contract::routing_intent::RoutingIntent;
 use std::env::temp_dir;
 use std::fs::{create_dir_all, read_to_string, remove_dir_all};
 use std::process::id;
@@ -40,23 +42,30 @@ fn demo_fixture_inventory_covers_all_pages() {
     assert!(state.runtime.runtime.is_none());
 
     // runtime status
-    assert!(matches!(state.runtime.status, RuntimeStatus::Running));
-    assert_eq!(state.runtime.proxy_mode.as_deref(), Some("rule"));
+    assert!(matches!(state.runtime.status, RuntimeStatus::Stopped));
+    assert_eq!(
+        state.runtime.routing_intent.as_ref(),
+        Some(&RoutingIntent::FollowRules)
+    );
     assert!(state.runtime.system_proxy_enabled);
     assert_eq!(state.runtime.tun_enabled, Some(false));
 
-    // proxies: >0 groups & profiles (hard requirement)
-    assert!(
-        state
-            .runtime
-            .proxies
-            .values()
-            .filter(|p| p.is_group())
-            .count()
-            >= 6
-    );
+    // The demo proxy page is projected from typed owner snapshots.
+    let Some(OutboundInventoryState::Ready {
+        entries,
+        collections,
+    }) = state
+        .runtime
+        .outbound_inventory
+        .data
+        .as_ref()
+        .map(|inventory| inventory.inventory())
+    else {
+        panic!("demo publishes a typed outbound inventory")
+    };
+    assert!(collections.len() >= 6);
+    assert!(entries.len() >= 10);
     assert!(!state.runtime.filtered_groups.is_empty());
-    assert!(!state.runtime.proxies.is_empty());
     assert!(state.profile.profiles.len() >= 2);
     assert!(state.profile.profiles.iter().any(|p| p.active));
 

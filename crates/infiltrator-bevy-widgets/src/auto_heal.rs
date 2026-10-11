@@ -916,21 +916,23 @@ mod tests {
     }
     #[test]
     fn test_auto_rollback_transaction_lifecycle() {
-        let mut tx =
-            AutoRollbackTransaction::new("proxy_mode=rule".to_string(), Duration::from_secs(5));
-        assert_eq!(tx.current_state, "proxy_mode=rule");
+        let mut tx = AutoRollbackTransaction::new(
+            "routing_intent=follow_rules".to_string(),
+            Duration::from_secs(5),
+        );
+        assert_eq!(tx.current_state, "routing_intent=follow_rules");
 
-        tx.apply_mutation("proxy_mode=global".to_string());
-        assert_eq!(tx.current_state, "proxy_mode=global");
+        tx.apply_mutation("routing_intent=route_all_through_proxy".to_string());
+        assert_eq!(tx.current_state, "routing_intent=route_all_through_proxy");
 
         // Tick 3s -> not timed out
         assert!(!tx.tick(Duration::from_secs(3)));
-        assert_eq!(tx.current_state, "proxy_mode=global");
+        assert_eq!(tx.current_state, "routing_intent=route_all_through_proxy");
 
         // Tick 3s more (total 6s >= 5s) -> auto rollback triggered
         assert!(tx.tick(Duration::from_secs(3)));
         assert!(tx.is_rolled_back);
-        assert_eq!(tx.current_state, "proxy_mode=rule");
+        assert_eq!(tx.current_state, "routing_intent=follow_rules");
     }
     #[test]
     fn test_failover_routing_graph_resolution_and_cycle() {

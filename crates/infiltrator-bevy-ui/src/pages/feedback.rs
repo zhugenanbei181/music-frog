@@ -6,7 +6,7 @@
 //! muted host turns every one of these into a no-op without any page knowing.
 
 use crate::pages::connections_confirm::CloseAllConfirmationAction;
-use crate::pages::overview_cards::OverviewModeSegmentPill;
+use crate::pages::overview_cards::OverviewRoutingIntentSegmentPill;
 use crate::pages::proxies::ProxyNodeButton;
 use bevy::app::{App, Plugin};
 use bevy::ecs::observer::On;
@@ -17,8 +17,8 @@ use infiltrator_bevy_widgets::haptics::{FeedbackTriggerEvent, HapticPattern};
 
 /// Feedback for selecting a proxy node (also the pin / node-detail path).
 pub const PROXY_SELECT_FEEDBACK: HapticPattern = HapticPattern::SelectionTick;
-/// Feedback for switching the proxy mode segment.
-pub const MODE_TOGGLE_FEEDBACK: HapticPattern = HapticPattern::LightTick;
+/// Feedback for selecting a routing intent.
+pub const ROUTING_INTENT_SELECTION_FEEDBACK: HapticPattern = HapticPattern::LightTick;
 /// Feedback for confirming a destructive action.
 pub const DESTRUCTIVE_CONFIRM_FEEDBACK: HapticPattern = HapticPattern::WarningDoublePulse;
 
@@ -40,14 +40,14 @@ pub fn on_proxy_select_feedback(
     }
 }
 
-/// A proxy-mode segment switch fires the light tick.
-pub fn on_mode_toggle_feedback(
+/// A routing intent selection fires the light tick.
+pub fn on_routing_intent_selection_feedback(
     activate: On<Activate>,
-    buttons: Query<(), With<OverviewModeSegmentPill>>,
+    buttons: Query<(), With<OverviewRoutingIntentSegmentPill>>,
     mut commands: Commands,
 ) {
     if buttons.contains(activate.entity) {
-        emit(&mut commands, MODE_TOGGLE_FEEDBACK);
+        emit(&mut commands, ROUTING_INTENT_SELECTION_FEEDBACK);
     }
 }
 
@@ -73,7 +73,7 @@ pub struct FeedbackPlugin;
 impl Plugin for FeedbackPlugin {
     fn build(&self, app: &mut App) {
         app.add_observer(on_proxy_select_feedback);
-        app.add_observer(on_mode_toggle_feedback);
+        app.add_observer(on_routing_intent_selection_feedback);
         app.add_observer(on_destructive_confirm_feedback);
     }
 }

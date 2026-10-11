@@ -2,7 +2,8 @@
 
 use bevy::ecs::component::Component;
 use bevy::math::Vec2;
-use std::mem::take;
+use mem::take;
+use std::mem;
 
 /// Classification of a preedit segment in CJK IME composition.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]

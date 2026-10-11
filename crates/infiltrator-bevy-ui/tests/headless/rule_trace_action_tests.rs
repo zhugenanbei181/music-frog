@@ -1,8 +1,8 @@
 //! test-intent: behavior
 //! Actual SDK controls, typed command terminals and a shared profile-backed reader.
-use crate::command_harness::recording_application;
+use crate::command_harness::{identified_recording_application, test_command_application};
 use crate::native_input::{click_entity, press, type_text};
-use crate::support::headless_plugins;
+use crate::support::{command_pump_for_observed_snapshot, headless_plugins};
 use bevy::app::App;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
@@ -10,18 +10,15 @@ use bevy::ecs::query::With;
 use bevy::input::ButtonState;
 use bevy::input::keyboard::{Key, KeyCode, KeyboardInput};
 use bevy::ui::widget::Text;
-use bevy::ui_widgets::{Button, ButtonPlugin};
+use bevy::ui_widgets::{Button, ButtonPlugin, ValueChange};
 use bevy::window::{Ime, PrimaryWindow, Window};
-use infiltrator_application::command_application::CommandApplication;
-use infiltrator_application::configuration_application::ConfigurationApplication;
 use infiltrator_application::rule_trace_fixtures::{
     NAMED_TRACE_DOCUMENT, RuleTraceStore, TRACE_DOCUMENT,
 };
 use infiltrator_application::rule_tracer_application::RuleTracerApplication;
 use infiltrator_application::surface_reader::ApplicationSurfaceReader;
 use infiltrator_bevy_ui::app::ShellPlugin;
-use infiltrator_bevy_ui::command::CommandPumpPlugin;
-use infiltrator_bevy_ui::pages::rules_tabs::RulesTabChip;
+use infiltrator_bevy_ui::pages::rules_tabs::{RulesTabChip, RulesTabStrip};
 use infiltrator_bevy_ui::pages::rules_tracer::{
     ApplyTracerRuleOverrideButton, RulesTraceState, SimulateRuleTraceButton, TracerNativeField,
     TracerPresetChip, TracerText,
@@ -35,6 +32,7 @@ use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::modal::ModalScrim;
 use infiltrator_bevy_widgets::text_input::native::NativeTextField;
 use infiltrator_bevy_widgets::text_input::{TextField, TextFieldFocused};
+use infiltrator_contract::core_capabilities::{CoreOperation, RulesOperation};
 use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::rule_condition::TrafficField;
 use infiltrator_contract::rule_tracer::RuleTracerSnapshot;
@@ -47,12 +45,16 @@ use std::time::{Duration, Instant};
 use tokio::runtime::Builder;
 
 fn setup() -> (App, ApplicationSurfaceReader, Arc<RuleTraceStore>) {
-    let store = Arc::new(RuleTraceStore::default());
+    let store = crate::configuration_codec::mihomo_rule_trace_fixture();
     let owner = RuleTracerApplication::new();
     owner.set_override_port(store.clone());
-    let (application, _) = recording_application();
+    let (application, _) = identified_recording_application();
     application.install_command_handler(Arc::new(
-        CommandApplication::new().with_rule_tracer(owner.clone()),
+        test_command_application([
+            CoreOperation::Rules(RulesOperation::Trace),
+            CoreOperation::Rules(RulesOperation::Apply),
+        ])
+        .with_rule_tracer(owner.clone()),
     ));
     let application = Arc::new(application);
     let reader = ApplicationSurfaceReader::new(
@@ -61,14 +63,16 @@ fn setup() -> (App, ApplicationSurfaceReader, Arc<RuleTraceStore>) {
         HostKind::Desktop,
     )
     .with_rule_tracer(owner)
-    .with_configuration(ConfigurationApplication::new(store.clone()));
+    .with_configuration(crate::configuration_codec::mihomo_configuration(
+        store.clone(),
+    ));
     let mut app = App::new();
     headless_plugins(&mut app);
     app.add_plugins((
         ButtonPlugin,
         ShellPlugin::default(),
         PagesPlugin::default(),
-        CommandPumpPlugin::for_application(application),
+        command_pump_for_observed_snapshot(application),
     ));
     app.world_mut().spawn((Window::default(), PrimaryWindow));
     app.update();
@@ -82,7 +86,19 @@ fn setup() -> (App, ApplicationSurfaceReader, Arc<RuleTraceStore>) {
         .find(|(_, chip)| chip.0 == 3)
         .unwrap()
         .0;
-    click_entity(&mut app, tab);
+    let strip = {
+        let world = app.world_mut();
+        let mut strips = world.query_filtered::<Entity, With<RulesTabStrip>>();
+        strips.single(world).unwrap()
+    };
+    app.world_mut()
+        .commands()
+        .trigger(ValueChange::<Option<Entity>> {
+            source: strip,
+            value: Some(tab),
+            is_final: true,
+        });
+    app.update();
     (app, reader, store)
 }
 fn publish(app: &mut App, reader: &ApplicationSurfaceReader) {

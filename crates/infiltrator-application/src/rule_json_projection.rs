@@ -27,7 +27,9 @@ pub fn json_editor_status(
             "{focus} · {saved} · {}",
             lang.tr(match feedback {
                 RuleJsonFeedback::HostUnavailable => "rules_json_host_unavailable",
+                RuleJsonFeedback::SourceUnavailable => "rules_json_source_unavailable",
                 RuleJsonFeedback::Empty => "rules_json_empty",
+                RuleJsonFeedback::InvalidDocument => "rules_json_invalid_document",
                 RuleJsonFeedback::AwaitingReadback => "rules_json_waiting_readback",
             })
         ),

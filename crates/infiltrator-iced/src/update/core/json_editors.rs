@@ -5,12 +5,15 @@ use crate::types::app::ToastStatus;
 use crate::types::editor::EditorLazyState;
 use crate::types::message::Message;
 use crate::types::runtime::RebuildFlowState;
-use crate::update::core::profile_apply::save_task;
 use iced::Task;
 use iced::widget::text_editor::Content;
-use infiltrator_domain::proxy_providers::{ProxyProviders, apply_proxy_providers_to_yaml};
-use infiltrator_domain::rules::{RuleProviders, apply_rule_providers_to_yaml};
-use infiltrator_domain::sniffer::apply_sniffer_to_yaml;
+use infiltrator_contract::command::CommandIntent;
+use infiltrator_contract::error::{ErrorCode, Failure, InfiltratorError};
+use infiltrator_contract::profile_configuration::{
+    ProfileConfigurationRequest, ProfileConfigurationUpdate,
+};
+use infiltrator_contract::profile_document_identity::ProfileDocumentIdentity;
+use infiltrator_contract::rules_workspace::RulesJsonSection;
 use std::time::Instant;
 use tokio::time;
 use tokio::time::sleep;
@@ -81,13 +84,9 @@ impl AppState {
                 let text = self.editor.rule_providers_json_content.text();
                 self.editor.is_saving_rule_providers_json = true;
                 self.begin_save_phase("Rule Providers");
-                save_task(
-                    self.runtime.runtime.clone(),
-                    move |content| {
-                        let providers = serde_json::from_str::<RuleProviders>(&text)
-                            .map_err(|e| anyhow::anyhow!("Invalid rule providers JSON: {e}"))?;
-                        apply_rule_providers_to_yaml(content, &providers)
-                    },
+                self.save_rules_configuration(
+                    RulesJsonSection::RuleProviders,
+                    text,
                     Message::RuleProvidersJsonSaved,
                 )
             }
@@ -130,13 +129,9 @@ impl AppState {
                 let text = self.editor.proxy_providers_json_content.text();
                 self.editor.is_saving_proxy_providers_json = true;
                 self.begin_save_phase("Proxy Providers");
-                save_task(
-                    self.runtime.runtime.clone(),
-                    move |content| {
-                        let providers = serde_json::from_str::<ProxyProviders>(&text)
-                            .map_err(|e| anyhow::anyhow!("Invalid proxy providers JSON: {e}"))?;
-                        apply_proxy_providers_to_yaml(content, &providers)
-                    },
+                self.save_rules_configuration(
+                    RulesJsonSection::ProxyProviders,
+                    text,
                     Message::ProxyProvidersJsonSaved,
                 )
             }
@@ -179,13 +174,9 @@ impl AppState {
                 let text = self.editor.sniffer_json_content.text();
                 self.editor.is_saving_sniffer_json = true;
                 self.begin_save_phase("Sniffer");
-                save_task(
-                    self.runtime.runtime.clone(),
-                    move |content| {
-                        let config = serde_json::from_str::<serde_json::Value>(&text)
-                            .map_err(|e| anyhow::anyhow!("Invalid sniffer JSON: {e}"))?;
-                        apply_sniffer_to_yaml(content, &config)
-                    },
+                self.save_rules_configuration(
+                    RulesJsonSection::Sniffer,
+                    text,
                     Message::SnifferJsonSaved,
                 )
             }
@@ -219,5 +210,78 @@ impl AppState {
             }
             other => self.update_core_mrs(other),
         }
+    }
+}
+
+impl AppState {
+    fn save_rules_configuration(
+        &self,
+        section: RulesJsonSection,
+        text: String,
+        result_message: fn(Result<(), InfiltratorError>) -> Message,
+    ) -> Task<Message> {
+        let identity = match self.rules_json_identity(section) {
+            Some(identity) => identity,
+            None => {
+                return Task::done(result_message(Err(InfiltratorError::Config(
+                    "The rules editor has no observed profile revision".to_owned(),
+                ))));
+            }
+        };
+        let update = match typed_rules_update(section, &text) {
+            Ok(update) => update,
+            Err(error) => return Task::done(result_message(Err(error))),
+        };
+        let Some(commands) = self.command_ingress() else {
+            return Task::done(result_message(Err(InfiltratorError::Config(
+                Failure::new(
+                    ErrorCode::NotReady,
+                    "The profile configuration command service is unavailable",
+                    true,
+                )
+                .message,
+            ))));
+        };
+        Task::perform(
+            async move {
+                commands
+                    .execute(CommandIntent::ApplyProfileConfiguration {
+                        request: Box::new(ProfileConfigurationRequest { identity, update }),
+                    })
+                    .await
+                    .into_unit()
+                    .map_err(|failure| InfiltratorError::Config(failure.message))
+            },
+            result_message,
+        )
+    }
+
+    fn rules_json_identity(&self, section: RulesJsonSection) -> Option<ProfileDocumentIdentity> {
+        match section {
+            RulesJsonSection::RuleProviders => self.editor.rule_providers_json_identity.clone(),
+            RulesJsonSection::ProxyProviders => self.editor.proxy_providers_json_identity.clone(),
+            RulesJsonSection::Sniffer => self.editor.sniffer_json_identity.clone(),
+        }
+    }
+}
+
+fn typed_rules_update(
+    section: RulesJsonSection,
+    text: &str,
+) -> Result<ProfileConfigurationUpdate, InfiltratorError> {
+    match section {
+        RulesJsonSection::RuleProviders => serde_json::from_str(text)
+            .map(ProfileConfigurationUpdate::RuleProviders)
+            .map_err(|error| {
+                InfiltratorError::Config(format!("Invalid rule providers JSON: {error}"))
+            }),
+        RulesJsonSection::ProxyProviders => serde_json::from_str(text)
+            .map(ProfileConfigurationUpdate::ProxyProviders)
+            .map_err(|error| {
+                InfiltratorError::Config(format!("Invalid proxy providers JSON: {error}"))
+            }),
+        RulesJsonSection::Sniffer => serde_json::from_str(text)
+            .map(ProfileConfigurationUpdate::Sniffer)
+            .map_err(|error| InfiltratorError::Config(format!("Invalid sniffer JSON: {error}"))),
     }
 }

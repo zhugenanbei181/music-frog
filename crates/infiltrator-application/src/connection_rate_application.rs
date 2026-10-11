@@ -98,7 +98,7 @@ pub fn project_connection(
         destination_port: metadata.destination_port.clone(),
         destination_geo_ip: metadata.destination_geo_ip.clone(),
         destination_ip_asn: metadata.destination_ip_asn.clone(),
-        rate_observed: rate.observed,
+        rate_observation: rate.observation,
         upload_bps: rate.upload_bps,
         download_bps: rate.download_bps,
         upload_total: connection.upload,

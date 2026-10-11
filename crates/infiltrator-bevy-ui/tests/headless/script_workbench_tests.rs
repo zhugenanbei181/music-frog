@@ -2,7 +2,7 @@
 //! Real native input and product command terminals share the reviewed export owner.
 use crate::command_harness::recording_application;
 use crate::native_input::{click_before_frame, click_entity, press};
-use crate::support::headless_plugins;
+use crate::support::{command_pump_for_observed_snapshot, headless_plugins};
 use bevy::a11y::AccessibilityNode;
 use bevy::app::App;
 use bevy::ecs::entity::Entity;
@@ -17,9 +17,7 @@ use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::script_application::ScriptApplication;
 use infiltrator_application::script_export_application::ScriptExportApplication;
 use infiltrator_bevy_ui::app::ShellPlugin;
-use infiltrator_bevy_ui::command::{
-    CommandPumpPlugin, CommandSinkHandle, DemoCommandSink, UiCommand,
-};
+use infiltrator_bevy_ui::command::{CommandSinkHandle, DemoCommandSink, UiCommand};
 use infiltrator_bevy_ui::command_events::CommandExecutedEvent;
 use infiltrator_bevy_ui::pages::profiles_script_scene::ScriptReviewControl;
 use infiltrator_bevy_ui::pages::profiles_script_workbench::{
@@ -75,7 +73,7 @@ fn setup(host: Arc<ExportHost>) -> (App, ScriptApplication, ScriptExportApplicat
         ButtonPlugin,
         ShellPlugin::default(),
         PagesPlugin::default(),
-        CommandPumpPlugin::for_application(Arc::new(application)),
+        command_pump_for_observed_snapshot(Arc::new(application)),
     ));
     let window = app
         .world_mut()

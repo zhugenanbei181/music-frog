@@ -6,7 +6,7 @@ use bevy::ecs::hierarchy::ChildOf;
 use bevy::ecs::query::With;
 use bevy::ecs::system::{Commands, Query, Res};
 use infiltrator_bevy_widgets::text_runs::TextRuns;
-use infiltrator_contract::search_text::SearchTextRun;
+use zhuge_ui_core::text::SearchTextRun;
 
 pub fn sync_name_highlights(
     mut commands: Commands,

@@ -52,6 +52,10 @@ use infiltrator_bevy_ui::surface::{DemoSurfaceSource, SurfaceSnapshotUpdated, Su
 use infiltrator_bevy_widgets::button::{ControlVisual, PillLabel};
 use infiltrator_bevy_widgets::text_input::TextField;
 use infiltrator_bevy_widgets::text_input::state::TextFieldInput;
+use infiltrator_contract::android_control::{
+    VpnOwnerCoreReadback, VpnOwnerLifecycle, VpnOwnerReadiness, VpnOwnerResourceFact,
+    VpnOwnerResourceKind, VpnOwnerResourceState, VpnOwnerSnapshot,
+};
 use infiltrator_contract::command::CoreLogLevel;
 use infiltrator_contract::dns::{DnsEnhancedMode, DnsFakeIpFilterMode, DnsSwitchField};
 use infiltrator_contract::dns_form::DnsFormField;
@@ -70,8 +74,8 @@ use infiltrator_contract::system_proxy::{
 };
 use infiltrator_contract::tun::TunStack;
 use infiltrator_contract::version::CoreRollbackSnapshot;
-use infiltrator_contract::vpn::{VpnSessionSnapshot, VpnSessionState};
-use infiltrator_domain::app_routing::{AppRoutingMode, AppRoutingRule};
+use infiltrator_contract::vpn::{VpnGeneration, VpnSurfaceObservation};
+use infiltrator_domain::app_routing::AppRoutingMode;
 use std::sync::Arc;
 
 use crate::support::*;
@@ -84,6 +88,46 @@ pub(crate) fn setup_matrix_b_app(sink: Arc<DemoCommandSink>) -> App {
     app.add_plugins(CommandPumpPlugin::new(sink as Arc<dyn UiCommandSink>));
     app.update();
     app
+}
+
+pub(crate) fn owner_vpn_observation(
+    lifecycle: VpnOwnerLifecycle,
+    readiness: VpnOwnerReadiness,
+) -> VpnSurfaceObservation {
+    let active = matches!(&lifecycle, VpnOwnerLifecycle::Running);
+    let generation = 3;
+    VpnSurfaceObservation::AndroidOwner(VpnOwnerSnapshot {
+        owner_session_id: "settings-test-owner".to_owned(),
+        revision: 4,
+        vpn_generation: VpnGeneration::new(generation),
+        vpn_state: lifecycle,
+        readiness,
+        resources: [
+            VpnOwnerResourceKind::PreparedConfiguration,
+            VpnOwnerResourceKind::Worker,
+            VpnOwnerResourceKind::TunnelDescriptor,
+            VpnOwnerResourceKind::RoutingLease,
+        ]
+        .into_iter()
+        .map(|kind| VpnOwnerResourceFact {
+            kind,
+            state: match (active, kind) {
+                (true, VpnOwnerResourceKind::Worker | VpnOwnerResourceKind::TunnelDescriptor) => {
+                    VpnOwnerResourceState::Held { generation }
+                }
+                _ => VpnOwnerResourceState::Absent,
+            },
+        })
+        .collect(),
+        foreground: active,
+        mtu: Some(1500),
+        route_count: 1,
+        dns_servers: vec!["1.1.1.1".to_owned()],
+        ipv6: false,
+        core: VpnOwnerCoreReadback::Unavailable {
+            failure_message: "settings test does not compose Core".to_owned(),
+        },
+    })
 }
 
 fn navigate_to(app: &mut App, route: Route) -> (Entity, Entity) {

@@ -210,6 +210,7 @@ use infiltrator_bevy_widgets::editor::code_editor_scene;
 use infiltrator_bevy_widgets::focus::{FocusRingStyle, focus_ring_scene};
 use infiltrator_bevy_widgets::gesture::{PullToRefreshIndicator, pull_to_refresh_scene};
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 
 #[test]
 fn test_cadence_governor_lifecycle_and_decay() {
@@ -272,7 +273,7 @@ fn test_focus_ring_and_code_editor_scenes() {
 
     let mut gutters = world.query::<(&CodeEditorGutter, &Node)>();
     let (_, gutter_node) = gutters.iter(world).next().expect("gutter mounted");
-    assert_eq!(gutter_node.width, Val::Px(48.0));
+    assert_eq!(gutter_node.width, rem(48.0));
 }
 
 /// A host bridge stand-in: only activation is handled, everything else is the
@@ -420,28 +421,29 @@ fn test_platform_view_lifecycle_transitions_and_no_leak() {
     assert_eq!(host.unmount(), Err(PlatformViewTransitionError::NotMounted));
 
     assert_eq!(host.mount(77), Ok(PlatformViewTransition::Mounted));
-    assert_eq!(host.state(), PlatformViewState::Mounted);
-    assert_eq!(host.native_handle_id, Some(77));
+    assert_eq!(host.state(), PlatformViewState::Mounted { handle_id: 77 });
     assert_eq!(
         host.mount(78),
         Err(PlatformViewTransitionError::AlreadyMounted)
     );
 
     assert_eq!(host.pause(), Ok(PlatformViewTransition::Paused));
-    assert_eq!(host.state(), PlatformViewState::Paused);
-    assert!(host.is_attached, "a paused view keeps its native handle");
+    assert_eq!(host.state(), PlatformViewState::Paused { handle_id: 77 });
     assert_eq!(
         host.pause(),
         Err(PlatformViewTransitionError::AlreadyPaused)
     );
 
     assert_eq!(host.resume(), Ok(PlatformViewTransition::Resumed));
-    assert_eq!(host.state(), PlatformViewState::Mounted);
+    assert_eq!(host.state(), PlatformViewState::Mounted { handle_id: 77 });
     assert_eq!(host.resume(), Err(PlatformViewTransitionError::NotPaused));
 
-    assert_eq!(host.unmount(), Ok(PlatformViewTransition::Unmounted));
+    assert_eq!(
+        host.unmount(),
+        Ok(PlatformViewTransition::Unmounted {
+            released_handle_id: 77,
+        })
+    );
     assert_eq!(host.state(), PlatformViewState::Unmounted);
-    assert_eq!(host.native_handle_id, None, "unmount releases the handle");
-    assert!(!host.is_attached);
     assert_eq!(host.unmount(), Err(PlatformViewTransitionError::NotMounted));
 }

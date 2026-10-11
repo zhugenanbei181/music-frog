@@ -1,6 +1,6 @@
 //! Fine-grained reactive primitives and change-tracking state for Bevy UI.
 //!
-//! Charter law (docs/bevy-ui/BEVY_UI_FRONTEND.md):
+//! Charter law (crates/infiltrator-bevy-ui/docs/BEVY_UI_FRONTEND.md):
 //! Observers and systems restamp components in place and avoid full-tree
 //! rebuilding or continuous full-table polling. This module provides pure,
 //! zero-allocation change detection and memoization tools to support

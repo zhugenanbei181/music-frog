@@ -1,17 +1,14 @@
-//! Shared plumbing for the FFI surface: the global tokio runtime, generic
-//! string/list normalization helpers, error mapping into [`FfiStatus`], and
-//! the mihomo controller client used by every live-query passthrough.
+//! Shared plumbing for Android FFI: the global tokio runtime, config and
+//! application adapters, and error mapping into [`FfiStatus`].
 
-use crate::ffi::{FfiErrorCode, FfiStatus};
-use crate::host_session::shared_core;
+use crate::ffi::{FfiErrorCode, FfiFailureLocalization, FfiFailureLocalizationKey, FfiStatus};
 use infiltrator_application::cache_application::CacheApplication;
 use infiltrator_application::configuration_application::ConfigurationApplication;
-use infiltrator_application::connection_application::ConnectionApplication;
 use infiltrator_application::doctor_application::DoctorApplication;
+use infiltrator_application::failure_projection::{FailureLocalizationKey, project_failure};
 use infiltrator_application::network_application::NetworkApplication;
-use infiltrator_application::proxy_application::ProxyApplication;
+use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::routing_application::RoutingApplication;
-use infiltrator_application::runtime_query_application::RuntimeQueryApplication;
 use infiltrator_application::settings_application::SettingsApplication;
 use infiltrator_application::sync_application::SyncApplication;
 use infiltrator_contract::error::{ErrorCode, Failure};
@@ -23,12 +20,10 @@ use infiltrator_core::settings_io;
 use infiltrator_core::settings_store::for_current_home;
 use infiltrator_core::subscription_io::HttpSubscriptionSource;
 use infiltrator_core::sync_port::FileWebDavSync;
-use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use infiltrator_ports::subscription_source::SubscriptionSource;
-use mihomo_api::client::MihomoClient;
 use mihomo_api::error::MihomoError;
 use mihomo_config::manager::ConfigManager;
-use mihomo_platform::android_bridge::get_android_bridge;
+use mihomo_config::profile_document_codec::MihomoProfileDocumentCodec;
 use mihomo_platform::defaults::DefaultCredentialStore;
 use mihomo_platform::paths::get_home_dir;
 use std::sync::{Arc, OnceLock};
@@ -92,7 +87,9 @@ pub(super) async fn build_settings_application() -> Result<SettingsApplication, 
 pub(super) async fn build_configuration_application() -> Result<ConfigurationApplication, FfiStatus>
 {
     let manager = build_config_manager().await?;
-    Ok(ConfigurationApplication::new(Arc::new(manager)))
+    let profiles = ProfileApplication::new(Arc::new(manager))
+        .with_document_codec(Arc::new(MihomoProfileDocumentCodec));
+    Ok(ConfigurationApplication::from_profile_application(profiles))
 }
 
 pub(super) fn subscription_source() -> impl SubscriptionSource {
@@ -140,59 +137,6 @@ pub(crate) async fn build_config_manager()
     .map_err(map_mihomo_error)
 }
 
-pub(super) async fn build_controller_client() -> Result<MihomoClient, FfiStatus> {
-    // Prefer the shared endpoint port: URL and secret are re-resolved from
-    // the current profile on every call (port rotation and secret aware).
-    if let Ok(core) = shared_core().await {
-        match core.endpoints.resolve().await {
-            Ok(endpoint) => match MihomoClient::new(&endpoint.url, endpoint.secret) {
-                Ok(client) => return Ok(client),
-                Err(err) => {
-                    log::debug!(
-                        "application endpoint client unavailable, using legacy resolution: {err}"
-                    );
-                }
-            },
-            Err(err) => {
-                log::debug!("application endpoint unavailable, using legacy resolution: {err}");
-            }
-        }
-    }
-    let manager = build_config_manager().await?;
-    let controller_url = match manager.get_external_controller().await {
-        Ok(url) => url,
-        Err(err) => {
-            if let Some(bridge) = get_android_bridge()
-                && let Some(url) = bridge.core_controller_url()
-            {
-                return MihomoClient::new(&url, None).map_err(map_mihomo_error);
-            }
-            return Err(map_mihomo_error(err));
-        }
-    };
-    MihomoClient::new(&controller_url, None).map_err(map_mihomo_error)
-}
-
-/// Build the controller port at the Android composition boundary. FFI
-/// modules consume application facades rather than retaining a concrete
-/// `MihomoClient` or its Tokio receiver types.
-pub(super) async fn build_runtime_gateway() -> Result<Arc<dyn RuntimeGateway>, FfiStatus> {
-    Ok(Arc::new(build_controller_client().await?))
-}
-
-pub(super) async fn build_proxy_application() -> Result<ProxyApplication, FfiStatus> {
-    Ok(ProxyApplication::new(build_runtime_gateway().await?))
-}
-
-pub(super) async fn build_connection_application() -> Result<ConnectionApplication, FfiStatus> {
-    Ok(ConnectionApplication::new(build_runtime_gateway().await?))
-}
-
-pub(super) async fn build_runtime_query_application() -> Result<RuntimeQueryApplication, FfiStatus>
-{
-    Ok(RuntimeQueryApplication::new(build_runtime_gateway().await?))
-}
-
 pub(super) fn network_application() -> NetworkApplication {
     NetworkApplication::new(Arc::new(HttpPublicIpProbe::with_geolocation_client()))
 }
@@ -211,7 +155,7 @@ pub(super) fn map_anyhow_error(err: anyhow::Error) -> FfiStatus {
 }
 
 pub(super) fn map_application_failure(failure: Failure) -> FfiStatus {
-    let code = match failure.code {
+    let code = match &failure.code {
         ErrorCode::InvalidInput => FfiErrorCode::InvalidInput,
         ErrorCode::InvalidState => FfiErrorCode::InvalidState,
         ErrorCode::NotReady => FfiErrorCode::NotReady,
@@ -224,7 +168,37 @@ pub(super) fn map_application_failure(failure: Failure) -> FfiStatus {
         ErrorCode::Canceled => FfiErrorCode::Canceled,
         ErrorCode::Internal => FfiErrorCode::Unknown,
     };
-    FfiStatus::err(code, failure.message)
+    let projection = project_failure(&failure);
+    let localization = FfiFailureLocalization {
+        key: match projection.key {
+            FailureLocalizationKey::InvalidInput => FfiFailureLocalizationKey::InvalidInput,
+            FailureLocalizationKey::InvalidState => FfiFailureLocalizationKey::InvalidState,
+            FailureLocalizationKey::NotReady => FfiFailureLocalizationKey::NotReady,
+            FailureLocalizationKey::Unsupported => FfiFailureLocalizationKey::Unsupported,
+            FailureLocalizationKey::Network => FfiFailureLocalizationKey::Network,
+            FailureLocalizationKey::Authentication => FfiFailureLocalizationKey::Authentication,
+            FailureLocalizationKey::Configuration => FfiFailureLocalizationKey::Configuration,
+            FailureLocalizationKey::Storage => FfiFailureLocalizationKey::Storage,
+            FailureLocalizationKey::Permission => FfiFailureLocalizationKey::Permission,
+            FailureLocalizationKey::Canceled => FfiFailureLocalizationKey::Canceled,
+            FailureLocalizationKey::Internal => FfiFailureLocalizationKey::Internal,
+            FailureLocalizationKey::YamlSyntax => FfiFailureLocalizationKey::YamlSyntax,
+            FailureLocalizationKey::MixinYaml => FfiFailureLocalizationKey::MixinYaml,
+            FailureLocalizationKey::ActiveProfileInconsistent => {
+                FfiFailureLocalizationKey::ActiveProfileInconsistent
+            }
+            FailureLocalizationKey::QuotaSourceChanged => {
+                FfiFailureLocalizationKey::QuotaSourceChanged
+            }
+            FailureLocalizationKey::CurrentTimeUnavailable => {
+                FfiFailureLocalizationKey::CurrentTimeUnavailable
+            }
+            FailureLocalizationKey::DownloadCanceled => FfiFailureLocalizationKey::DownloadCanceled,
+        },
+        line: projection.line.map(|line| line as u64),
+        column: projection.column.map(|column| column as u64),
+    };
+    FfiStatus::err_with_localization(code, failure.message, localization)
 }
 
 pub(crate) fn map_mihomo_error(err: MihomoError) -> FfiStatus {
@@ -247,6 +221,30 @@ fn map_mihomo_error_ref(err: &MihomoError) -> FfiStatus {
             FfiStatus::err(FfiErrorCode::NotReady, err.to_string())
         }
         MihomoError::Canceled => FfiStatus::err(FfiErrorCode::Canceled, err.to_string()),
+    }
+}
+
+#[cfg(test)]
+mod failure_localization_tests {
+    use super::*;
+    use infiltrator_contract::error::FailureReason;
+
+    #[test]
+    fn application_failure_keeps_machine_code_diagnostic_and_typed_reason() {
+        let status = map_application_failure(
+            Failure::new(ErrorCode::Configuration, "parser detail", false)
+                .with_reason(FailureReason::YamlSyntax { line: 7, column: 3 }),
+        );
+        assert_eq!(status.code, FfiErrorCode::Config);
+        assert_eq!(status.message.as_deref(), Some("parser detail"));
+        assert_eq!(
+            status.localization,
+            Some(FfiFailureLocalization {
+                key: FfiFailureLocalizationKey::YamlSyntax,
+                line: Some(7),
+                column: Some(3),
+            })
+        );
     }
 }
 
@@ -316,7 +314,7 @@ mod tests {
         }
     }
 
-    async fn configs_parent(manager: &ConfigManager<DefaultCredentialStore>) -> PathBuf {
+    async fn mihomo_namespace(manager: &ConfigManager<DefaultCredentialStore>) -> PathBuf {
         manager
             .get_current_path()
             .await
@@ -337,8 +335,11 @@ mod tests {
             .await
             .expect("manager builds with settings override");
         assert_eq!(
-            configs_parent(&manager).await,
-            home.join("cloud").join("profiles")
+            mihomo_namespace(&manager).await,
+            home.join("cloud")
+                .join("profiles")
+                .join("engines")
+                .join("mihomo")
         );
 
         clear_home_dir_override();
@@ -357,7 +358,10 @@ mod tests {
         set_env(env_dir.to_str().unwrap());
 
         let manager = build_config_manager().await.expect("manager builds");
-        assert_eq!(configs_parent(&manager).await, env_dir);
+        assert_eq!(
+            mihomo_namespace(&manager).await,
+            env_dir.join("engines").join("mihomo")
+        );
 
         restore_env(saved);
         clear_home_dir_override();
@@ -374,7 +378,10 @@ mod tests {
         clear_env();
 
         let manager = build_config_manager().await.expect("manager builds");
-        assert_eq!(configs_parent(&manager).await, home.join("configs"));
+        assert_eq!(
+            mihomo_namespace(&manager).await,
+            home.join("configs").join("engines").join("mihomo")
+        );
 
         restore_env(saved);
         clear_home_dir_override();

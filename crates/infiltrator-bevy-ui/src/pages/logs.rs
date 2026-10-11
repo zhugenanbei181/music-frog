@@ -25,24 +25,28 @@ use bevy::ecs::observer::On;
 use bevy::ecs::query::{QueryData, With};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Query, Res, ResMut};
+use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::{Scene, bsn};
 use bevy::text::TextColor;
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, FlexDirection, FlexWrap, JustifyContent, Node,
-    Overflow, UiRect, Val, percent, px,
+    Overflow, UiRect, percent, px,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button, ScrollArea};
 use infiltrator_bevy_widgets::button::ControlVisual;
+use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
 use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText};
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::text_runs::{TextRuns, TextRunsInk};
 use infiltrator_bevy_widgets::theme::space;
-use infiltrator_composition::demo_identities::{HK_PRIMARY, PROXIES, US};
+#[cfg(any(feature = "capture-tools", test))]
+use infiltrator_contract::fixture_identities::{HK_PRIMARY, PROXIES, US};
 use infiltrator_contract::logs::LogLevel;
 use infiltrator_contract::session::SessionToken;
 use infiltrator_contract::surface_snapshot::PageStatus;
@@ -135,6 +139,7 @@ pub struct LogsProjection {
 
 impl LogsProjection {
     /// Believable demo fixture for the Logs page.
+    #[cfg(any(feature = "capture-tools", test))]
     pub fn demo() -> Self {
         Self {
             status: PageStatus::Ready,
@@ -216,7 +221,7 @@ pub fn logs_page(projection: &LogsProjection, palette: &UiPalette) -> impl Scene
                 height: percent(100),
                 min_height: px(0.0),
                 flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(space::S16),
+                row_gap: rem(space::S16),
                 overflow: Overflow::scroll_y(),
             }
             PageRoot(Route::Logs)
@@ -241,15 +246,15 @@ pub fn header_card_scene(total_entries: usize, palette: &UiPalette) -> impl Scen
                         width: percent(100),
                         align_items: AlignItems::Center,
                         justify_content: JustifyContent::SpaceBetween,
-                        column_gap: Val::Px(space::S16),
+                        column_gap: rem(space::S16),
                         flex_wrap: FlexWrap::Wrap,
-                        row_gap: Val::Px(space::S8),
+                        row_gap: rem(space::S8),
                     }
                     AccessibilityNode(header_a11y) LocalizedLabel::plain("logs_toolbar_label")
                     Children [
                         Node {
                             align_items: AlignItems::Center,
-                            column_gap: Val::Px(space::S12),
+                            column_gap: rem(space::S12),
                         }
                         Children [
                             @{ icon_tile_scene(IconId::FileText, 36.0, palette) }
@@ -259,17 +264,17 @@ pub fn header_card_scene(total_entries: usize, palette: &UiPalette) -> impl Scen
                         --
                         Node {
                             align_items: AlignItems::Center,
-                            column_gap: Val::Px(space::S8),
+                            column_gap: rem(space::S8),
                         }
                         Children [
                             Node {
-                                min_height: px(palette.control_height_px),
-                                padding: UiRect::horizontal(Val::Px(space::S12)),
+                                min_height: rem(palette.control_height_px),
+                                padding: UiRect::horizontal(rem(space::S12)),
                                 align_items: AlignItems::Center,
                                 justify_content: JustifyContent::Center,
-                                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                             }
-                            BackgroundColor({ palette.surface_elevated })
+                            ThemeBackgroundColor({ Token::SurfaceElevated })
                             PauseLogsButton
                             Button
                             Children [
@@ -277,13 +282,13 @@ pub fn header_card_scene(total_entries: usize, palette: &UiPalette) -> impl Scen
                             ]
                             --
                             Node {
-                                min_height: px(palette.control_height_px),
-                                padding: UiRect::horizontal(Val::Px(space::S12)),
+                                min_height: rem(palette.control_height_px),
+                                padding: UiRect::horizontal(rem(space::S12)),
                                 align_items: AlignItems::Center,
                                 justify_content: JustifyContent::Center,
-                                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                             }
-                            BackgroundColor({ palette.surface_elevated })
+                            ThemeBackgroundColor({ Token::SurfaceElevated })
                             ExportLogsButton
                             Button
                             Children [
@@ -291,13 +296,13 @@ pub fn header_card_scene(total_entries: usize, palette: &UiPalette) -> impl Scen
                             ]
                             --
                             Node {
-                                min_height: px(palette.control_height_px),
-                                padding: UiRect::horizontal(Val::Px(space::S12)),
+                                min_height: rem(palette.control_height_px),
+                                padding: UiRect::horizontal(rem(space::S12)),
                                 align_items: AlignItems::Center,
                                 justify_content: JustifyContent::Center,
-                                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                             }
-                            BackgroundColor({ palette.surface_elevated })
+                            ThemeBackgroundColor({ Token::SurfaceElevated })
                             ClearLogsButton
                             Button
                             Children [
@@ -332,10 +337,10 @@ fn level_filter_pill(
     bsn! {
             Node {
                 height: px(palette.control_height_px * 0.8),
-                padding: UiRect::horizontal(Val::Px(space::S8)),
+                padding: UiRect::horizontal(rem(space::S8)),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
-                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
             }
             BackgroundColor({ bg })
             ControlVisual({ active })
@@ -371,7 +376,7 @@ fn logs_container_scene(
             Node {
                 width: percent(100),
                 flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(space::S4),
+                row_gap: rem(space::S4),
             }
             LogRowsContainer
             Children [
@@ -386,8 +391,8 @@ fn logs_container_scene(
                                 width: percent(100),
                                 align_items: AlignItems::Center,
                                 flex_direction: FlexDirection::Column,
-                                row_gap: Val::Px(space::S8),
-                                padding: UiRect::bottom(Val::Px(space::S8)),
+                                row_gap: rem(space::S8),
+                                padding: UiRect::bottom(rem(space::S8)),
                             }
                             Children [
                                 LocalizedText::plain("logs_stream_title") TextRole(Role::BodyStrong)
@@ -395,9 +400,9 @@ fn logs_container_scene(
                                 Node {
                                     width: percent(100),
                                     align_items: AlignItems::Center,
-                                    column_gap: Val::Px(space::S6),
+                                    column_gap: rem(space::S6),
                                     flex_wrap: FlexWrap::Wrap,
-                                    row_gap: Val::Px(space::S4),
+                                    row_gap: rem(space::S4),
                                 }
                                 Children [
                                     @{ level_filter_pill("", None, active_level.is_none(), palette) }
@@ -438,11 +443,11 @@ pub(super) fn log_row_scene(
                 min_height: px(palette.control_height_px * 0.8),
                 flex_shrink: 0.0,
                 align_items: AlignItems::Center,
-                column_gap: Val::Px(space::S8),
-                padding: UiRect::horizontal(Val::Px(space::S8)),
-                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                column_gap: rem(space::S8),
+                padding: UiRect::horizontal(rem(space::S8)),
+                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
             }
-            BackgroundColor({ palette.surface_elevated })
+            ThemeBackgroundColor({ Token::SurfaceElevated })
             LogRowIdentity(id)
             Children [
                 Text(time) LogTimestampText(idx) TextRole(Role::Caption)

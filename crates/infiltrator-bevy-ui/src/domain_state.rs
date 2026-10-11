@@ -1,6 +1,6 @@
 //! Unified DomainState<T> state machine for Bevy UI data models.
 //!
-//! Charter law (docs/bevy-ui/BEVY_UI_FRONTEND.md & docs/FRONTENDS.md):
+//! Charter law (crates/infiltrator-bevy-ui/docs/BEVY_UI_FRONTEND.md & crates/infiltrator-contract/docs/UI_PARITY_AUDIT.md):
 //! Every domain surface (Overview, Proxies, Profiles, Rules, Connections,
 //! Logs, DNS, Doctor, App Routing, Sync, Settings) projects state through
 //! an explicit, typed state machine (Idle / Loading / Ready / Error)

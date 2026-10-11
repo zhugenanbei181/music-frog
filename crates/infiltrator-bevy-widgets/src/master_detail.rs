@@ -3,9 +3,11 @@
 //! On Compact (<600px) viewports: functions as a single-pane stacked view with back button navigation.
 //! On Medium/Expanded/Ultra (>=600px) viewports: functions as a dual-pane side-by-side split screen.
 
+use crate::feathers_theme::Token;
 use crate::icon::IconId;
 use crate::icon_tile::icon_tile_scene;
 use crate::palette::UiPalette;
+use crate::palette::rem;
 use crate::responsive::{MasterDetailMode, ResponsiveContext};
 use crate::text::{Role, TextRole};
 use crate::theme::space;
@@ -16,10 +18,9 @@ use bevy::ecs::observer::On;
 use bevy::ecs::query::{QueryFilter, With, Without};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
+use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::{Scene, bsn};
-use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, Display, FlexDirection, Node, UiRect, Val, percent, px,
-};
+use bevy::ui::prelude::{AlignItems, Display, FlexDirection, Node, UiRect, percent};
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
 
@@ -131,7 +132,7 @@ pub fn master_detail_scene(
             Children [
                 Node {
                     flex_direction: FlexDirection::Column,
-                    width: px(320.0),
+                    width: rem(320.0),
                     flex_shrink: 0.0,
                 }
                 MasterPane
@@ -159,10 +160,10 @@ pub fn master_back_button_scene(label: &str, palette: &UiPalette) -> Box<dyn Sce
     Box::new(bsn! {
             Node {
                 align_items: AlignItems::Center,
-                column_gap: Val::Px(space::S8),
-                padding: UiRect::all(Val::Px(space::S8)),
+                column_gap: rem(space::S8),
+                padding: UiRect::all(rem(space::S8)),
             }
-            BackgroundColor({ palette.surface_elevated })
+            ThemeBackgroundColor({ Token::SurfaceElevated })
             Button
             MasterBackButton
             Children [
@@ -228,7 +229,7 @@ pub fn sync_master_detail_layout(
         match mode {
             MasterDetailMode::Split => {
                 master.display = Display::Flex;
-                master.width = px(320.0);
+                master.width = rem(320.0);
             }
             MasterDetailMode::Stacked => {
                 master.width = percent(100);

@@ -8,13 +8,16 @@ use bevy::ecs::hierarchy::{ChildOf, Children};
 use bevy::ecs::observer::On;
 use bevy::ecs::query::With;
 use bevy::ecs::system::{Query, Res};
+use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::{Scene, bsn};
-use bevy::ui::prelude::{AlignItems, BackgroundColor, JustifyContent, Node, UiRect, Val, percent};
+use bevy::ui::prelude::{AlignItems, JustifyContent, Node, UiRect, percent};
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::ValueChange;
 use infiltrator_application::network_status_projection::system_proxy_status;
+use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::LocalizedText;
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::system_proxy::{SystemProxyRecoverySnapshot, SystemProxySnapshot};
@@ -27,7 +30,7 @@ pub(super) fn toggle_scene(checked: bool, palette: &UiPalette) -> Box<dyn Scene>
     Box::new(bsn! {
             Node {
                 width: percent(100),
-                padding: UiRect::horizontal(Val::Px(space::S4)),
+                padding: UiRect::horizontal(rem(space::S4)),
             }
             SystemProxyToggle
             Children [
@@ -39,16 +42,16 @@ pub(super) fn toggle_scene(checked: bool, palette: &UiPalette) -> Box<dyn Scene>
 pub(super) fn status_row(
     snapshot: &SystemProxySnapshot,
     recovery: &SystemProxyRecoverySnapshot,
-    palette: &UiPalette,
+    _palette: &UiPalette,
 ) -> Box<dyn Scene> {
     Box::new(bsn! {
             Node {
                 width: percent(100),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::SpaceBetween,
-                padding: UiRect::all(Val::Px(space::S8)),
+                padding: UiRect::all(rem(space::S8)),
             }
-            BackgroundColor({ palette.surface_elevated })
+            ThemeBackgroundColor({ Token::SurfaceElevated })
             Children [
                 LocalizedText::plain("settings_system_proxy_status_title") TextRole(Role::Body)
                 --

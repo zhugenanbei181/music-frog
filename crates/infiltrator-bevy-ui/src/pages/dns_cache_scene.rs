@@ -4,16 +4,19 @@ use crate::pages::dns_cache::{CacheAction, CacheLine, CacheModalCard, CacheModal
 use bevy::a11y::AccessibilityNode;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::system::{Commands, Res};
+use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::{CommandsSceneExt, Scene, bsn};
 use bevy::ui::widget::Text;
 use bevy::ui::{
-    AlignItems, BackgroundColor, Display, FlexDirection, GlobalZIndex, JustifyContent, Node,
-    PositionType, UiRect, percent, px,
+    AlignItems, Display, FlexDirection, GlobalZIndex, JustifyContent, Node, PositionType, UiRect,
+    percent,
 };
 use infiltrator_bevy_widgets::button::ButtonVariant;
+use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText};
 use infiltrator_bevy_widgets::modal::{ModalDialogCard, ModalScrim};
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 pub fn spawn(mut commands: Commands, palette: Res<UiPalette>) {
     commands.spawn_scene(modal(&palette));
@@ -31,15 +34,15 @@ fn modal(palette: &UiPalette) -> impl Scene + use<> {
         CacheModalRoot GlobalZIndex(115)
         Children [
             Node { position_type: PositionType::Absolute, width: percent(100), height: percent(100) }
-            ModalScrim BackgroundColor({ palette.scrim }) CacheAction::Cancel
+            ModalScrim ThemeBackgroundColor({ Token::Scrim }) CacheAction::Cancel
             --
             Node {
-                width: percent(90), max_width: px(560.0), max_height: percent(90),
-                padding: UiRect::all(px(20.0)),
+                width: percent(90), max_width: rem(560.0), max_height: percent(90),
+                padding: UiRect::all(rem(20.0)),
                 flex_direction: FlexDirection::Column,
-                row_gap: px(12.0),
+                row_gap: rem(12.0),
             }
-            ModalDialogCard CacheModalCard BackgroundColor({ palette.surface })
+            ModalDialogCard CacheModalCard ThemeBackgroundColor({ Token::Surface })
             AccessibilityNode(semantic) LocalizedLabel::plain("dns_cache_title")
             Children [
                 LocalizedText::plain("dns_cache_title") TextRole(Role::Heading)
@@ -52,7 +55,7 @@ fn modal(palette: &UiPalette) -> impl Scene + use<> {
                 --
                 Text(String::new()) CacheLine::System TextRole(Role::Caption)
                 --
-                Node { width: percent(100), column_gap: px(12.0), justify_content: JustifyContent::FlexEnd }
+                Node { width: percent(100), column_gap: rem(12.0), justify_content: JustifyContent::FlexEnd }
                 Children [
                     @{ (localized_button_scene(LocalizedText::plain("dns_cache_cancel"), ButtonVariant::Default, palette), bsn! { CacheAction::Cancel }) }
                     --

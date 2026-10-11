@@ -1,4 +1,5 @@
 use crate::error::{MihomoError, Result};
+use crate::runtime_configuration::RuntimeScopeResolver;
 use crate::runtime_proxy::ControllerProxy;
 use crate::types::*;
 use infiltrator_contract::error::Failure;
@@ -6,8 +7,21 @@ use infiltrator_domain::proxy::Proxy;
 use reqwest::Client;
 use serde_json::{Value, json};
 use std::collections::HashMap;
+use std::sync::{Arc, RwLock};
 use std::time::Duration;
+use tokio::sync::Mutex;
 use url::Url;
+
+pub(crate) const MAX_MIHOMO_DELAY_TIMEOUT_MS: u32 = i16::MAX as u32;
+
+pub(crate) fn validate_mihomo_delay_timeout(timeout_ms: u32) -> Result<()> {
+    if timeout_ms == 0 || timeout_ms > MAX_MIHOMO_DELAY_TIMEOUT_MS {
+        return Err(MihomoError::Config(format!(
+            "Mihomo delay timeout must be in 1..={MAX_MIHOMO_DELAY_TIMEOUT_MS} milliseconds"
+        )));
+    }
+    Ok(())
+}
 
 mod stream;
 
@@ -29,6 +43,8 @@ pub struct MihomoClient {
     client: Client,
     base_url: Url,
     secret: Option<String>,
+    configuration_write_lock: Arc<Mutex<()>>,
+    configuration_scope_resolver: Arc<RwLock<Option<RuntimeScopeResolver>>>,
 }
 
 impl MihomoClient {
@@ -39,7 +55,32 @@ impl MihomoClient {
             client,
             base_url,
             secret,
+            configuration_write_lock: Arc::new(Mutex::new(())),
+            configuration_scope_resolver: Arc::new(RwLock::new(None)),
         })
+    }
+
+    pub fn with_configuration_scope_resolver(mut self, resolver: RuntimeScopeResolver) -> Self {
+        self.set_configuration_scope_resolver(resolver);
+        self
+    }
+
+    pub(crate) fn configuration_scope_resolver(&self) -> Option<RuntimeScopeResolver> {
+        self.configuration_scope_resolver
+            .read()
+            .expect("configuration scope resolver lock")
+            .clone()
+    }
+
+    pub fn set_configuration_scope_resolver(&self, resolver: RuntimeScopeResolver) {
+        *self
+            .configuration_scope_resolver
+            .write()
+            .expect("configuration scope resolver lock") = Some(resolver);
+    }
+
+    pub(crate) fn configuration_write_lock(&self) -> Arc<Mutex<()>> {
+        self.configuration_write_lock.clone()
     }
 
     fn build_url(&self, path: &str) -> Result<Url> {
@@ -129,7 +170,7 @@ impl MihomoClient {
     }
 
     pub async fn switch_proxy(&self, group: &str, name: &str) -> Result<()> {
-        let url = self.build_url(&format!("/proxies/{}", group))?;
+        let url = self.build_url_with_segments(&["proxies", group])?;
         let req = self.client.put(url).json(&json!({ "name": name }));
         let req = self.add_auth(req);
         req.send().await?.error_for_status()?;
@@ -137,11 +178,13 @@ impl MihomoClient {
     }
 
     pub async fn test_delay(&self, name: &str, url: &str, timeout: u32) -> Result<u32> {
-        let url = self.build_url_with_query(
-            &format!("/proxies/{}/delay", name),
-            &[("url", url.to_string()), ("timeout", timeout.to_string())],
-        )?;
-        let req = self.client.get(url);
+        validate_mihomo_delay_timeout(timeout)?;
+        let mut request_url = self.build_url_with_segments(&["proxies", name, "delay"])?;
+        request_url
+            .query_pairs_mut()
+            .append_pair("url", url)
+            .append_pair("timeout", &timeout.to_string());
+        let req = self.client.get(request_url);
         let req = self.add_auth(req);
         let resp = req.send().await?.error_for_status()?;
         let data: DelayTestResponse = resp.json().await?;
@@ -226,7 +269,7 @@ impl MihomoClient {
         Ok(())
     }
 
-    pub async fn flush_fakeip_cache(&self) -> Result<()> {
+    pub(crate) async fn flush_fakeip_cache(&self) -> Result<()> {
         let url = self.build_url("/cache/fakeip/flush")?;
         let req = self.client.post(url);
         let req = self.add_auth(req);

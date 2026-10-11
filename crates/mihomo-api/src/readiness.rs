@@ -4,6 +4,7 @@
 //! application layer sees only the runtime-neutral `CoreReadiness` port.
 
 use crate::client::MihomoClient;
+use infiltrator_contract::core_identity::CoreVersion;
 use infiltrator_ports::core_process::CoreReadiness;
 use infiltrator_ports::error::PortError;
 
@@ -37,5 +38,18 @@ impl CoreReadiness for ControllerReadiness {
             .await
             .map_err(|error| PortError::Network(error.to_string()))?;
         Ok(self.endpoint.clone())
+    }
+
+    async fn active_core_version(&self) -> Result<Option<CoreVersion>, PortError> {
+        let client = MihomoClient::new(&self.endpoint, self.secret.clone())
+            .map_err(|error| PortError::Network(error.to_string()))?;
+        let version = client
+            .get_version()
+            .await
+            .map_err(|error| PortError::Network(error.to_string()))?
+            .version;
+        CoreVersion::new(version)
+            .map(Some)
+            .map_err(|error| PortError::Failed(error.to_string()))
     }
 }

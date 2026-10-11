@@ -12,6 +12,7 @@ use async_trait::async_trait;
 use infiltrator_contract::capability::{
     Availability, Capability, CapabilitySnapshot, CapabilityStatus,
 };
+use infiltrator_contract::core_identity::CoreIdentity;
 use infiltrator_contract::mtu::PhysicalMtuSnapshot;
 use infiltrator_contract::offline_startup::OfflineStartupSnapshot;
 use infiltrator_contract::snapshot::CoreLifecycle;
@@ -31,6 +32,12 @@ use std::sync::Arc;
 /// NetworkExtension type crosses into the application layer.
 #[async_trait]
 pub trait IosBridge: Send + Sync {
+    /// Stable identity of the core instance controlled by this host. An absent
+    /// identity keeps scoped lifecycle and backend operations fail-closed.
+    fn core_identity(&self) -> Option<CoreIdentity> {
+        None
+    }
+
     async fn core_start(&self) -> Result<(), PortError>;
     async fn core_stop(&self) -> Result<(), PortError>;
     async fn core_is_running(&self) -> Result<bool, PortError>;
@@ -119,6 +126,10 @@ impl IosHostAdapter {
 
 #[async_trait]
 impl CoreProcess for IosHostAdapter {
+    fn core_identity(&self) -> Option<CoreIdentity> {
+        self.bridge.core_identity()
+    }
+
     async fn start(&self) -> Result<(), PortError> {
         self.bridge.core_start().await
     }
@@ -274,11 +285,14 @@ fn unsupported(reason: &'static str) -> Availability {
 mod tests {
     use super::*;
     use infiltrator_application::core_application::{CoreApplication, ReadinessPolicy};
+    use infiltrator_application::core_capability_application::CoreCapabilityApplication;
     #[cfg(test)]
     use infiltrator_application::mtu_application::MtuApplication;
     #[cfg(test)]
     use infiltrator_application::offline_startup_application::OfflineStartupApplication;
     use infiltrator_contract::command::{CommandIntent, CommandResult};
+    use infiltrator_contract::core_capabilities::{CoreLifecycleOperation, CoreOperation};
+    use infiltrator_contract::core_identity::{CoreCommandRequest, CoreInstanceId, EngineId};
     #[cfg(test)]
     use infiltrator_contract::mtu::MtuProbeState;
     #[cfg(test)]
@@ -287,11 +301,13 @@ mod tests {
     use infiltrator_contract::offline_startup::StartupNetworkPolicy;
     #[cfg(test)]
     use infiltrator_contract::offline_startup::StartupRemoteDependency;
+    use infiltrator_contract::surface::HostKind;
     use infiltrator_ports::application_runtime::{
         ApplicationFuture, ApplicationRuntime, ApplicationSleep,
     };
     use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
     use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
+    use mihomo_api::core_capability_provider::MihomoCoreCapabilityProvider;
     use std::sync::Mutex;
     #[cfg(test)]
     use std::time;
@@ -308,6 +324,14 @@ mod tests {
 
     #[async_trait]
     impl IosBridge for FakeBridge {
+        fn core_identity(&self) -> Option<CoreIdentity> {
+            Some(CoreIdentity::new(
+                EngineId::new("mihomo").expect("valid engine ID"),
+                CoreInstanceId::new("ios-test").expect("valid instance ID"),
+                None,
+            ))
+        }
+
         async fn core_start(&self) -> Result<(), PortError> {
             *self.running.lock().expect("running lock") = true;
             Ok(())
@@ -464,9 +488,24 @@ mod tests {
             },
             Arc::new(TokioTestRuntime(runtime)),
         );
+        app.install_core_capability_application(CoreCapabilityApplication::new(Arc::new(
+            MihomoCoreCapabilityProvider::new(
+                HostKind::Ios,
+                [
+                    CoreOperation::Lifecycle(CoreLifecycleOperation::Start),
+                    CoreOperation::Lifecycle(CoreLifecycleOperation::Stop),
+                    CoreOperation::Lifecycle(CoreLifecycleOperation::Restart),
+                ],
+            ),
+        )))
+        .expect("install iOS lifecycle capability provider");
 
+        let request = CoreCommandRequest {
+            scope: app.snapshot().scope().expect("iOS owner scope"),
+            intent: CommandIntent::StartCore,
+        };
         assert!(matches!(
-            app.execute(CommandIntent::StartCore).await,
+            app.execute_scoped(request).await.result,
             CommandResult::Completed { .. }
         ));
         let before = app.snapshot();

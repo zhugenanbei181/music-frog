@@ -4,7 +4,7 @@
 The two Bevy crates (`infiltrator-bevy-widgets`, `infiltrator-bevy-ui`) have
 exactly one sanctioned route for declaring a UI tree: a scene built by the
 ``bsn!`` macro and mounted through ``Commands::spawn_scene`` (crate law,
-docs/bevy-ui/BEVY_UI_FRONTEND.md). The dividing line the guard enforces is
+crates/infiltrator-bevy-ui/docs/BEVY_UI_FRONTEND.md). The dividing line the guard enforces is
 **structure vs state**: structure (the tree, its layout and text primitives)
 may only be declared inside a ``bsn!`` scene; state (colors, images, markers,
 selection bits) may be restamped in place by observers and systems. It
@@ -69,17 +69,14 @@ allowlist, no line numbers to maintain):
 Rule: the spawn's first argument expression must *start with* the whitelisted
 text, so ``spawn(Camera2d)`` passes and ``spawn((Camera2d, Marker))`` still
 fails (compose that shape as a scene, or extend the whitelist deliberately).
-A future TaskPool-style ``.spawn(future)`` would also need a whitelist entry —
+A future non-entity ``.spawn(future)`` would also need a whitelist entry —
 failing safe is the design.
 
 Comments and string/char literals are masked before scanning with offsets
 preserved, so prose and doc examples can neither satisfy nor trip the rule.
 Scanned scope is production code only: the ``src/`` trees of the two Bevy
 crates; dedicated ``tests/`` directories and ``*_test(s).rs`` modules are
-outside the authoring contract. Violation codes 001-004 intentionally match
-taskmanager's ``bevy_bsn_guard.py`` for cross-project greppability; 005 and
-006 are music-frog extensions of the same family (taskmanager has no rule for
-them yet).
+outside the authoring contract.
 
 Usage:
     python3 scripts/quality/bevy_bsn_guard.py [--mode report|enforce] [--root PATH]

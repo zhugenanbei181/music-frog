@@ -1,6 +1,6 @@
 [package]
 name = "infiltrator-bevy-ui"
-version = "0.41.0"
+version.workspace = true
 edition = "2024"
 publish = false
 description = "Bevy UI frontend shell for MusicFrog Infiltrator: a peer desktop+mobile product."
@@ -10,15 +10,24 @@ description = "Bevy UI frontend shell for MusicFrog Infiltrator: a peer desktop+
 # DUAL-10-01: forward the real-ECMAScript engine to the shared application. It
 # is on by default, matching the application's default configuration, so the
 # Bevy surface is built and tested against Boa unless defaults are disabled.
-default = ["script-engine-boa"]
-script-engine-boa = ["infiltrator-application/script-engine-boa"]
-# Mobile packaging smoke opt-in (BANDROID-004/015). The mobile product entry
-# must not present a working-looking showcase over an unattached host, so the
-# no-host fallback reports a typed `NotReady` unavailable state by default.
-# The cargo-apk smoke driver explicitly enables this feature at build time to
-# render the shell for screenshot forensics; the shipping Gradle host must
-# never enable it, so a real product build stays honest.
-fixture-demo = []
+default = ["script-engine-boa", "desktop-host", "ui-application-projections"]
+script-engine-boa = ["dep:infiltrator-application", "infiltrator-application/script-engine-boa"]
+# The existing page layer still consumes runtime-neutral presentation helpers
+# from infiltrator-application. This feature is deliberately distinct from the
+# desktop/capture host adapters so Android can compile the UI without linking
+# those runtime compositions.
+ui-application-projections = ["dep:infiltrator-application"]
+# Isolated screenshot/demo tooling. This feature is opt-in and is not part of
+# the product defaults or Android product driver closure.
+capture-tools = [
+    "dep:infiltrator-composition",
+    "dep:infiltrator-application",
+    "dep:mihomo-config",
+]
+# Explicit opt-in for the legacy controller-only live Overview capture adapter.
+capture-controller = ["capture-tools"]
+# Desktop product composition stays out of the Android NativeActivity driver.
+desktop-host = ["dep:infiltrator-desktop", "dep:infiltrator-application"]
 # Linux release: statically vendor OpenSSL so the artifact carries no libssl
 # soname dependency and can be produced against the pinned old glibc via
 # cargo-zigbuild (same contract as infiltrator-iced's identically named
@@ -26,6 +35,7 @@ fixture-demo = []
 static-openssl = ["dep:openssl", "openssl/vendored"]
 
 [dependencies]
+zhuge-ui-core.workspace = true
 infiltrator-bevy-widgets = { path = "../infiltrator-bevy-widgets" }
 
 # AccessKit node/role vocabulary for the shell's semantic nodes. Direct dep
@@ -33,7 +43,8 @@ infiltrator-bevy-widgets = { path = "../infiltrator-bevy-widgets" }
 accesskit = { workspace = true }
 infiltrator-contract = { path = "../infiltrator-contract" }
 infiltrator-domain = { path = "../infiltrator-domain" }
-infiltrator-composition = { path = "../infiltrator-composition" }
+infiltrator-presentation = { path = "../infiltrator-presentation" }
+infiltrator-composition = { path = "../infiltrator-composition", optional = true }
 infiltrator-shared = { path = "../infiltrator-shared" }
 
 # Base `bevy` declaration with an EMPTY feature set; the per-target tables
@@ -41,8 +52,9 @@ infiltrator-shared = { path = "../infiltrator-shared" }
 bevy = { workspace = true }
 
 # The application-owned controller pump (BEVY-005).
-infiltrator-application = { path = "../infiltrator-application" }
+infiltrator-application = { path = "../infiltrator-application", default-features = false, optional = true }
 infiltrator-ports = { path = "../infiltrator-ports" }
+mihomo-config = { path = "../mihomo-config", optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 
@@ -58,10 +70,14 @@ tempfile = { workspace = true }
 mockito = { workspace = true }
 async-trait = { workspace = true }
 tokio = { workspace = true }
+mihomo-config = { path = "../mihomo-config" }
 
 [target.'cfg(all(target_os = "linux", not(target_os = "android")))'.dependencies]
 bevy = { workspace = true, features = [
     "bevy_ui",
+    "bevy_feathers",
+    "custom_cursor",
+    "debug",
     "bevy_ui_widgets",
     "bevy_scene",
     "bevy_ui_render",
@@ -82,6 +98,9 @@ bevy = { workspace = true, features = [
 [target.'cfg(target_os = "android")'.dependencies]
 bevy = { workspace = true, features = [
     "bevy_ui",
+    "bevy_feathers",
+    "custom_cursor",
+    "debug",
     "bevy_clipboard",
     "bevy_ui_widgets",
     "bevy_scene",
@@ -102,6 +121,9 @@ blake3 = { version = "1.8", default-features = false, features = ["no_neon"] }
 [target.'cfg(not(any(target_os = "android", all(target_os = "linux", not(target_os = "android")))))'.dependencies]
 bevy = { workspace = true, features = [
     "bevy_ui",
+    "bevy_feathers",
+    "custom_cursor",
+    "debug",
     "bevy_ui_widgets",
     "bevy_scene",
     "bevy_ui_render",
@@ -119,6 +141,13 @@ bevy = { workspace = true, features = [
 [lib]
 name = "infiltrator_bevy_ui"
 path = "src/lib.rs"
+
+# The headless page matrix intentionally uses demo projections and capture
+# fixtures. Product defaults do not carry those fixtures into shipped builds.
+[[test]]
+name = "headless"
+path = "tests/headless.rs"
+required-features = ["capture-tools"]
 
 # BEVY-006 back half (M3): Android APK packaging metadata for cargo-apk.
 [package.metadata.android]
@@ -143,4 +172,4 @@ icon = "@drawable/ic_app_icon"
 bevy = { workspace = true, features = ["system_clipboard"] }
 
 [target.'cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))'.dependencies]
-infiltrator-desktop = { path = "../infiltrator-desktop" }
+infiltrator-desktop = { path = "../infiltrator-desktop", optional = true }

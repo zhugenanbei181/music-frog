@@ -52,7 +52,7 @@ fn app_with_shared_source() -> App {
     snapshot.core.revision = 42;
     snapshot.core.session_token = Some(SessionToken::new(42));
     snapshot.core.core_version = Some("live-contract-test".to_owned());
-    snapshot.pages.proxies.data.as_mut().unwrap().active_exit = "live-proxy".to_owned();
+    snapshot.active_exit.name = Some("live-proxy".to_owned());
     snapshot.pages.profiles.data.as_mut().unwrap().profiles[0].name = "live-profile".to_owned();
     snapshot.pages.rules.data.as_mut().unwrap().default_action = "live-rule".to_owned();
     snapshot
@@ -214,9 +214,9 @@ fn dual_surface_headless_lifecycle_matrix_covers_failure_conflict_and_stop() {
 fn live_snapshot_reconciles_an_initial_unavailable_banner() {
     let source = DemoSurfaceSource::running();
     let mut initial = source.surface_snapshot();
-    initial.pages.proxies = PageData::unavailable(Failure::new(
+    initial.outbound_inventory = PageData::unavailable(Failure::new(
         ErrorCode::NotReady,
-        "waiting for proxy reader",
+        "waiting for outbound inventory",
         true,
     ));
     let mut app = App::new();
@@ -237,7 +237,7 @@ fn live_snapshot_reconciles_an_initial_unavailable_banner() {
 
     initial.revision = initial.revision.saturating_add(1);
     initial.core.revision = initial.revision;
-    initial.pages.proxies = source.surface_snapshot().pages.proxies;
+    initial.outbound_inventory = source.surface_snapshot().outbound_inventory;
     app.world_mut()
         .commands()
         .trigger(SurfaceSnapshotUpdated(initial));

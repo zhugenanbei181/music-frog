@@ -27,7 +27,7 @@ impl AppState {
                     Ok(token) => token,
                     Err(_) => return Task::none(),
                 };
-                let Some(application) = self.commands.clone() else {
+                let Some(application) = self.command_ingress() else {
                     self.diag.dns_cache_actions.finish(
                         token,
                         Err(Failure::new(

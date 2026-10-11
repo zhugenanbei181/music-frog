@@ -5,23 +5,28 @@
 //! Mounted via `src/test_mounts.rs` (crate root).
 //! test-intent: behavior
 use crate::state::AppState;
+use crate::test_mounts::command_harness::attach_product_application_with_accepted_owner_snapshot;
+use crate::test_mounts::identified_core_application::identified_core_application;
 use crate::test_mounts::profile_edit_fixture;
 use crate::types::app::SyncConflict;
 use crate::types::message::Message;
 use crate::types::options::{EditorPane, MrsProviderDetail, SyncDiffBundle, SyncDiffState};
 use iced::widget::text_editor;
+use infiltrator_application::command_application::CommandApplication;
+use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::subscription_filter_fixture::{FIXTURE_DOCUMENT, observation};
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_contract::subscription_import::SubscriptionFilterDraft;
-use infiltrator_domain::filter_policy_form::filter_spec_from_draft;
 use infiltrator_domain::mixin::MixinConfig;
 use infiltrator_domain::mrs::parse_mrs_header;
-use infiltrator_domain::profile_options::{FilterDedup, FilterSpec, ProfileOptions};
+use infiltrator_domain::profile_options::{FilterSpec, ProfileOptions};
+use mihomo_config::profile_document_codec::MihomoProfileDocumentCodec;
 use mihomo_config::profile_option_store::save_options;
 use std::env::temp_dir;
 use std::fs::{create_dir_all, remove_dir_all};
 use std::future::Future;
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::runtime::Builder;
@@ -47,9 +52,19 @@ fn futures_executor_block_on<F: Future>(future: F) -> F::Output {
         .block_on(future)
 }
 
+fn attach_mihomo_editor_codec(state: &mut AppState) {
+    let manager = futures_executor_block_on(crate::configs_dir::config_manager()).unwrap();
+    let profiles =
+        ProfileApplication::new(manager).with_document_codec(Arc::new(MihomoProfileDocumentCodec));
+    let application = identified_core_application();
+    application.install_command_handler(Arc::new(CommandApplication::new().with_profile(profiles)));
+    attach_product_application_with_accepted_owner_snapshot(state, application);
+}
+
 #[test]
 fn test_mixin_pane_switch_loads_and_saves_via_options_state() {
     let (mut state, _) = AppState::new();
+    attach_mihomo_editor_codec(&mut state);
     // Editor bound to a profile with a stored mixin overlay.
     let dir = temp_options_dir("mixin");
     let options = ProfileOptions {
@@ -92,7 +107,10 @@ fn test_mixin_pane_switch_loads_and_saves_via_options_state() {
         )));
     }
     let _ = state.update(Message::SaveMixin);
-    assert!(!state.editor.is_saving_mixin);
+    assert!(!matches!(
+        &state.editor.mixin_session.operation,
+        infiltrator_application::profile_edit_session::ProfileEditOperationPhase::Pending(_)
+    ));
     assert!(
         state
             .shell
@@ -131,28 +149,6 @@ fn test_filter_draft_updates_and_validation_gate() {
     // Free-text edits flow into the draft.
     let _ = state.update(Message::UpdateFilterExclude("剩余流量".into()));
     assert_eq!(state.editor.filter_editor.draft.exclude, "剩余流量");
-
-    // The draft compiles into a stored spec through the *shared* parser
-    // (comma + semicolon splitting), the same one the Bevy filter pane uses.
-    let spec = filter_spec_from_draft(&state.editor.filter_editor.draft).unwrap();
-    assert_eq!(spec.include_keywords, vec!["HK", "JP"]);
-    assert_eq!(spec.exclude_keywords, vec!["剩余流量"]);
-    assert_eq!(spec.exclude_types, vec!["trojan"]);
-    assert_eq!(spec.rename_rules.len(), 1);
-    assert_eq!(spec.deduplication, FilterDedup::AppendIndex);
-
-    // A malformed rename line fails compilation with an actionable message.
-    let bad = SubscriptionFilterDraft {
-        renames: "没有箭头的规则".into(),
-        ..SubscriptionFilterDraft::default()
-    };
-    assert!(
-        filter_spec_from_draft(&bad)
-            .err()
-            .unwrap()
-            .to_string()
-            .contains("=>")
-    );
 
     // The filter draft loads lazily for the profile open in the editor:
     // switching to the Filter pane after ProfileContentLoaded keys the load
@@ -218,7 +214,14 @@ fn test_mrs_details_projection() {
     };
     let _ = state.update(Message::MrsDetailsReady(Ok(vec![detail])));
     assert_eq!(state.editor.mrs_details.len(), 1);
-    assert!(state.editor.mrs_details[0].summary().starts_with("MRS v1"));
+    assert_eq!(
+        state.editor.mrs_details[0]
+            .metadata
+            .as_ref()
+            .expect("parsed MRS metadata")
+            .version,
+        1
+    );
 
     // Scan errors surface through the error sink instead of silently
     // clearing the previous details.
@@ -314,6 +317,7 @@ fn test_sync_diff_flow_pick_merge_and_cleanup() {
 #[test]
 fn test_editor_yaml_syntax_preflight() {
     let (mut state, _) = AppState::new();
+    attach_mihomo_editor_codec(&mut state);
     assert!(state.editor.syntax_error.is_none());
 
     let reply = profile_edit_fixture::document(

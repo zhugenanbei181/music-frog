@@ -6,7 +6,7 @@ use bevy::ecs::hierarchy::Children;
 use bevy::ecs::query::With;
 use bevy::ecs::system::{Commands, Res};
 use bevy::scene::{CommandsSceneExt, Scene, ScenePlugin, bsn};
-use bevy::ui::prelude::{Display, FlexDirection, JustifyContent, Node, Val, percent, px};
+use bevy::ui::prelude::{Display, FlexDirection, JustifyContent, Node, Val, percent};
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
 use infiltrator_bevy_widgets::WidgetsPlugin;
@@ -21,6 +21,7 @@ use infiltrator_bevy_widgets::master_detail::{
     MasterPane, master_back_button_scene, master_detail_scene,
 };
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::responsive::{
     Density, DensitySwitch, MasterDetailMode, ModalForm, Orientation, ResponsiveContext,
     SafeAreaInsets, SidebarMode, TouchHitbox, TouchTargetPolicy,
@@ -492,9 +493,9 @@ fn adaptive_modal_morphology_actionsheet_and_dialog() {
         assert_eq!(root.justify_content, JustifyContent::Center);
 
         let card = cards.iter(world).next().unwrap();
-        assert_eq!(card.width, px(480.0));
-        assert_eq!(card.border_radius.top_left, Val::Px(radius::CARD).into());
-        assert_eq!(card.border_radius.bottom_left, Val::Px(radius::CARD).into());
+        assert_eq!(card.width, rem(480.0));
+        assert_eq!(card.border_radius.top_left, rem(radius::CARD).into());
+        assert_eq!(card.border_radius.bottom_left, rem(radius::CARD).into());
     }
 
     // 3. Resize to Compact (375px): ActionSheet morphology (JustifyContent::FlexEnd, width 100%, rounded top only)
@@ -514,10 +515,7 @@ fn adaptive_modal_morphology_actionsheet_and_dialog() {
 
         let card = cards.iter(world).next().unwrap();
         assert_eq!(card.width, percent(100));
-        assert_eq!(
-            card.border_radius.top_left,
-            Val::Px(radius::SHEET_TOP).into()
-        );
+        assert_eq!(card.border_radius.top_left, rem(radius::SHEET_TOP).into());
         assert_eq!(card.border_radius.bottom_left, Val::Px(0.0).into());
     }
 
@@ -534,7 +532,9 @@ fn adaptive_modal_morphology_actionsheet_and_dialog() {
 
 #[test]
 fn test_safe_area_insets_and_touch_target_policy() {
-    let android_insets = SafeAreaInsets::android_default();
+    // A deterministic logical-unit host report; production Android supplies
+    // measured WindowInsetsCompat values with display density.
+    let android_insets = SafeAreaInsets::new(24.0, 16.0, 0.0, 0.0);
     assert_eq!(android_insets.top_px, 24.0);
     assert_eq!(android_insets.bottom_px, 16.0);
 
@@ -604,9 +604,9 @@ fn touch_hitbox_compact_expansion_and_restoration() {
         .world_mut()
         .spawn((
             Node {
-                min_width: px(30.0),
-                min_height: px(24.0),
-                height: px(28.8),
+                min_width: rem(30.0),
+                min_height: rem(24.0),
+                height: rem(28.8),
                 ..Default::default()
             },
             TouchHitbox::default(),
@@ -619,9 +619,9 @@ fn touch_hitbox_compact_expansion_and_restoration() {
     {
         let node = app.world().get::<Node>(entity).unwrap();
         let hitbox = app.world().get::<TouchHitbox>(entity).unwrap();
-        assert_eq!(node.min_width, px(30.0));
-        assert_eq!(node.min_height, px(24.0));
-        assert_eq!(node.height, px(28.8));
+        assert_eq!(node.min_width, rem(30.0));
+        assert_eq!(node.min_height, rem(24.0));
+        assert_eq!(node.height, rem(28.8));
         assert!(!hitbox.is_expanded);
     }
 
@@ -634,9 +634,11 @@ fn touch_hitbox_compact_expansion_and_restoration() {
     {
         let node = app.world().get::<Node>(entity).unwrap();
         let hitbox = app.world().get::<TouchHitbox>(entity).unwrap();
-        assert_eq!(node.min_width, px(48.0));
-        assert_eq!(node.min_height, px(48.0));
-        assert_eq!(node.height, px(48.0));
+        // Touch floor is a physical minimum (capability norm ① px whitelist):
+        // it stamps as px regardless of the surrounding rem channel.
+        assert_eq!(node.min_width, Val::Px(48.0));
+        assert_eq!(node.min_height, Val::Px(48.0));
+        assert_eq!(node.height, Val::Px(48.0));
         assert!(hitbox.is_expanded);
     }
 
@@ -649,9 +651,9 @@ fn touch_hitbox_compact_expansion_and_restoration() {
     {
         let node = app.world().get::<Node>(entity).unwrap();
         let hitbox = app.world().get::<TouchHitbox>(entity).unwrap();
-        assert_eq!(node.min_width, px(30.0));
-        assert_eq!(node.min_height, px(24.0));
-        assert_eq!(node.height, px(28.8));
+        assert_eq!(node.min_width, rem(30.0));
+        assert_eq!(node.min_height, rem(24.0));
+        assert_eq!(node.height, rem(28.8));
         assert!(!hitbox.is_expanded);
     }
 }
@@ -664,8 +666,8 @@ fn touch_hitbox_auto_insert_on_buttons() {
         .spawn((
             Button,
             Node {
-                min_width: px(20.0),
-                min_height: px(20.0),
+                min_width: rem(20.0),
+                min_height: rem(20.0),
                 ..Default::default()
             },
         ))

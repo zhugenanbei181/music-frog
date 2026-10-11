@@ -16,8 +16,8 @@ use super::fixtures::{
 use super::interaction;
 use super::language;
 use super::logs;
-use super::proxy_fixtures::demo_proxy_tables;
-use super::proxy_mode;
+use super::proxy_fixtures::demo_outbound_surface;
+use super::routing_intent;
 use super::rule_list;
 use super::rule_statistics;
 use super::rule_trace;
@@ -34,6 +34,7 @@ use iced::widget::text_editor::Content;
 use infiltrator_application::rule_list_fixtures::list_document;
 use infiltrator_application::subscription_filter_fixture::observation;
 use infiltrator_contract::active_exit::ActiveExitSnapshot;
+use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::dns::{DnsCoreSwitches, DnsEnhancedMode, DnsFakeIpFilterMode};
 use infiltrator_contract::dns_form::DnsWorkbenchForm;
 use infiltrator_contract::network_roaming::{
@@ -41,9 +42,10 @@ use infiltrator_contract::network_roaming::{
     NetworkRoamingStatus,
 };
 use infiltrator_contract::parity::FeatureId;
-use infiltrator_contract::proxy_mode::ProxyModeSnapshot;
 use infiltrator_contract::responsive_viewport::ResponsiveViewportSnapshot;
+use infiltrator_contract::routing_intent::{RoutingIntent, RoutingIntentSnapshot};
 use infiltrator_contract::rules_workspace::RulesTab;
+use infiltrator_contract::runtime_settings::{RuntimeProbeSettings, RuntimeProbeSettingsState};
 use infiltrator_contract::subscription_quota::SubscriptionQuotaSnapshot;
 use infiltrator_contract::system_toggle::SystemToggleSnapshot;
 use infiltrator_contract::traffic_topology::TrafficTopologySnapshot;
@@ -77,12 +79,9 @@ impl AppState {
             ResponsiveViewportSnapshot::from_dimensions(env.window_size.0, env.window_size.1);
 
         // ---- runtime status -------------------------------------------
-        state.runtime.status = RuntimeStatus::Running;
-        state.runtime.proxy_mode = Some("rule".to_string());
-        // Demo profile pretends to carry a top-level script: block so the
-        // Script mode segment (sidebar + tray) is exercised in captures.
-        state.runtime.script_block_present = true;
-        state.runtime.proxy_mode_state = ProxyModeSnapshot::demo_fixture();
+        state.runtime.status = RuntimeStatus::Stopped;
+        state.runtime.routing_intent = Some(RoutingIntent::FollowRules);
+        state.runtime.routing_intent_state = RoutingIntentSnapshot::demo_fixture();
         state.runtime.system_proxy_enabled = true;
         state.runtime.tun_enabled = Some(false);
         state.runtime.system_toggles = SystemToggleSnapshot::from_legacy(true, Some(false), 1);
@@ -97,13 +96,11 @@ impl AppState {
         state.shell.is_admin = false;
 
         // ---- proxies page ----------------------------------------------
-        let (proxies, groups) = demo_proxy_tables();
-        state.runtime.proxies = proxies;
-        state.observe_probe_settings(&Default::default());
-        state.runtime.filtered_groups = groups;
-        state.recompute_filtered_groups();
         state.runtime.runtime_selected_group = "GLOBAL".to_string();
-        state.runtime.runtime_selected_proxy = "PROXIES".to_string();
+        state.observe_probe_settings(&RuntimeProbeSettingsState::Available {
+            settings: RuntimeProbeSettings::default(),
+        });
+        let _ = state.apply_shared_surface_snapshot(demo_outbound_surface());
         state.runtime.traffic_topology = TrafficTopologySnapshot::demo_fixture();
         state.runtime.active_exit = ActiveExitSnapshot::demo_fixture();
         state.runtime.subscription_quota = SubscriptionQuotaSnapshot::demo_fixture();
@@ -336,13 +333,17 @@ impl AppState {
         }
         state.runtime.installed_kernels = vec![
             InstalledCoreVersion {
+                engine_id: EngineId::new("mihomo").unwrap(),
                 version: "v1.19.12".to_string(),
-                path: "/opt/musicfrog-infiltrator/versions/v1.19.12/mihomo".to_string(),
+                path: "/opt/musicfrog-infiltrator/engines/mihomo/versions/v1.19.12/mihomo"
+                    .to_string(),
                 is_default: true,
             },
             InstalledCoreVersion {
+                engine_id: EngineId::new("mihomo").unwrap(),
                 version: "v1.18.8".to_string(),
-                path: "/opt/musicfrog-infiltrator/versions/v1.18.8/mihomo".to_string(),
+                path: "/opt/musicfrog-infiltrator/engines/mihomo/versions/v1.18.8/mihomo"
+                    .to_string(),
                 is_default: false,
             },
         ];
@@ -386,9 +387,9 @@ rules:
             }
             if matches!(
                 feature,
-                FeatureId::ShellProxyModeControl | FeatureId::ShellProxyModeAuthentication
+                FeatureId::ShellRoutingIntentControl | FeatureId::ShellRoutingIntentAuthentication
             ) {
-                let task = proxy_mode::activate(&mut state, feature);
+                let task = routing_intent::activate(&mut state, feature);
                 return (state, task);
             }
             if matches!(

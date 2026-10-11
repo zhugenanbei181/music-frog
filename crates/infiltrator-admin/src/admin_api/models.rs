@@ -2,7 +2,9 @@ use crate::scheduler::subscription::SubscriptionUpdateSummary;
 use axum::Json;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
+use infiltrator_contract::core_identity::CoreScope;
 use infiltrator_contract::doctor::{DoctorFixAction, DoctorReport};
+use infiltrator_contract::routing_intent::{RoutingIntent, RoutingIntentSnapshot};
 use infiltrator_domain::profiles::ProfileInfo;
 use infiltrator_domain::script_engine::{
     ExtensionPackage, HookStage, PluginManifest, ScriptPreset,
@@ -125,70 +127,6 @@ pub struct RuntimeIpCheckResponse {
     pub city: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize)]
-pub struct RuntimeProxyDelayNode {
-    pub name: String,
-    pub proxy_type: String,
-    pub delay_ms: Option<u32>,
-    pub tested_at: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct RuntimeProxyDelayNodesResponse {
-    pub nodes: Vec<RuntimeProxyDelayNode>,
-    pub default_test_url: String,
-    pub default_timeout_ms: u32,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct RuntimeDelayTestPayload {
-    pub proxy: String,
-    pub test_url: Option<String>,
-    pub timeout_ms: Option<u32>,
-}
-
-#[derive(Debug, Deserialize, Default)]
-pub struct RuntimeDelayBatchPayload {
-    pub proxies: Option<Vec<String>>,
-    pub test_url: Option<String>,
-    pub timeout_ms: Option<u32>,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize, Default)]
-pub struct ProxyDelayPayload {
-    pub proxy: Option<String>,
-    pub proxies: Option<Vec<String>>,
-    pub test_url: Option<String>,
-    pub timeout_ms: Option<u32>,
-    pub all: Option<bool>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RuntimeDelayTestResponse {
-    pub proxy: String,
-    pub delay_ms: u32,
-    pub tested_at: String,
-    pub test_url: String,
-    pub timeout_ms: u32,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RuntimeDelayBatchResult {
-    pub proxy: String,
-    pub delay_ms: Option<u32>,
-    pub tested_at: Option<String>,
-    pub error: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RuntimeDelayBatchResponse {
-    pub results: Vec<RuntimeDelayBatchResult>,
-    pub success_count: usize,
-    pub failed_count: usize,
-    pub test_url: String,
-    pub timeout_ms: u32,
-}
-
 #[derive(Serialize)]
 pub struct CacheFlushResponse {
     pub removed: bool,
@@ -290,7 +228,7 @@ pub struct AdminCapabilities {
     pub schema_version: u32,
     pub platform: String,
     pub runtime: RuntimeCapabilitySet,
-    pub proxy: ProxyCapabilitySet,
+    pub outbound: OutboundCapabilitySet,
     pub settings: SettingsCapabilitySet,
 }
 
@@ -298,13 +236,15 @@ pub struct AdminCapabilities {
 pub struct RuntimeCapabilitySet {
     pub status: bool,
     pub lifecycle: bool,
+    pub routing_intent: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct ProxyCapabilitySet {
-    pub list: bool,
-    pub mode_switch: bool,
-    pub select: bool,
+pub struct OutboundCapabilitySet {
+    pub inventory: bool,
+    pub selection: bool,
+    pub probe: bool,
+    pub batch_probe: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -313,36 +253,23 @@ pub struct SettingsCapabilitySet {
     pub system_proxy: bool,
 }
 
-#[derive(Debug, Clone, Serialize)]
-pub struct RuntimeProxyGroupEntry {
-    pub name: String,
-    pub proxy_type: String,
-    pub current: Option<String>,
-    pub all: Vec<String>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct RuntimeProxiesResponse {
-    pub mode: String,
-    pub groups: Vec<RuntimeProxyGroupEntry>,
-}
-
 #[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct ProxyModePayload {
-    pub mode: String,
+pub struct RoutingIntentPayload {
+    pub scope: CoreScope,
+    pub intent: RoutingIntent,
 }
 
-#[derive(Debug, Clone, Deserialize)]
-pub struct ProxySelectPayload {
-    pub group: String,
-    pub name: String,
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RoutingIntentStateResponse {
+    pub scope: Option<CoreScope>,
+    pub snapshot: RoutingIntentSnapshot,
 }
 
 #[derive(Debug, Clone, Serialize)]
 pub struct RuntimeStatusResponse {
     pub running: bool,
     pub controller: Option<String>,
-    pub mode: Option<String>,
+    pub routing_intent: RoutingIntentSnapshot,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -387,20 +314,63 @@ pub struct AuditResponse {
     pub timestamp: String,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum WebhookAction {
+    SwitchProfile,
+    StartCore,
+    StopCore,
+    UpdateAll,
+    Status,
+    DoctorFix,
+    Doctor,
+    EnableSystemProxy,
+    DisableSystemProxy,
+    Unsupported(String),
+}
+
+impl WebhookAction {
+    pub fn canonical_name(&self) -> Option<&'static str> {
+        match self {
+            Self::SwitchProfile => Some("switch_profile"),
+            Self::StartCore => Some("start_core"),
+            Self::StopCore => Some("stop_core"),
+            Self::UpdateAll => Some("update_all"),
+            Self::Status => Some("status"),
+            Self::DoctorFix => Some("doctor_fix"),
+            Self::Doctor => Some("doctor"),
+            Self::EnableSystemProxy => Some("enable_system_proxy"),
+            Self::DisableSystemProxy => Some("disable_system_proxy"),
+            Self::Unsupported(_) => None,
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for WebhookAction {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let action = String::deserialize(deserializer)?;
+        Ok(match action.as_str() {
+            "switch_profile" => Self::SwitchProfile,
+            "start_core" => Self::StartCore,
+            "stop_core" => Self::StopCore,
+            "update_all" => Self::UpdateAll,
+            "status" => Self::Status,
+            "doctor_fix" => Self::DoctorFix,
+            "doctor" => Self::Doctor,
+            "enable_system_proxy" => Self::EnableSystemProxy,
+            "disable_system_proxy" => Self::DisableSystemProxy,
+            _ => Self::Unsupported(action),
+        })
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct WebhookPayload {
-    pub action: Option<String>,
-    pub intent: Option<String>,
-    pub command: Option<String>,
-    pub mode: Option<String>,
+    pub action: WebhookAction,
     pub profile: Option<String>,
-    pub proxy: Option<String>,
-    pub group: Option<String>,
-    pub enabled: Option<bool>,
-    pub test_url: Option<String>,
-    pub timeout_ms: Option<u32>,
-    pub payload: Option<serde_json::Value>,
-    pub params: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -507,6 +477,27 @@ impl ApiError {
     pub fn not_found(message: impl Into<String>) -> Self {
         Self {
             status: StatusCode::NOT_FOUND,
+            message: message.into(),
+        }
+    }
+
+    pub fn conflict(message: impl Into<String>) -> Self {
+        Self {
+            status: StatusCode::CONFLICT,
+            message: message.into(),
+        }
+    }
+
+    pub fn unsupported(message: impl Into<String>) -> Self {
+        Self {
+            status: StatusCode::NOT_IMPLEMENTED,
+            message: message.into(),
+        }
+    }
+
+    pub fn unavailable(message: impl Into<String>) -> Self {
+        Self {
+            status: StatusCode::SERVICE_UNAVAILABLE,
             message: message.into(),
         }
     }

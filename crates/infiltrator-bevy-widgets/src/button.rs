@@ -8,6 +8,7 @@
 
 use crate::interaction_block::InteractionBlocked;
 use crate::palette::UiPalette;
+use crate::palette::rem;
 use crate::responsive::TouchHitbox;
 use crate::text::{Role, TextRole};
 use crate::theme::{metrics, space};
@@ -30,6 +31,7 @@ use bevy::ui::prelude::{
 use bevy::ui::widget::Text;
 use bevy::ui::{InteractionDisabled, Pressed};
 use bevy::ui_widgets::Button;
+use zhuge_ui_kit_bevy::control::{self, ButtonLayout};
 
 /// Button visual variants specifying tone, hierarchy and semantic role.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -267,28 +269,24 @@ pub fn button_with_label_scene(
         ButtonSize::Lg => (palette.control_height_px * 1.25, space::S16),
     };
 
-    Box::new(bsn! {
-            Node {
-                height: px(height_px),
-                padding: UiRect::horizontal(Val::Px(padding_h)),
-                border: UiRect::all(Val::Px(metrics::HAIRLINE)),
-                align_items: AlignItems::Center,
-                justify_content: JustifyContent::Center,
-                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-            }
-            BackgroundColor({ fill })
-            BorderColor { top: edge, right: edge, bottom: edge, left: edge }
-            ButtonVariantStyle(variant)
-            ButtonSizeStyle(size)
-            ControlVisual(false)
-            ButtonLoading(false)
-            ButtonDisabled(false)
-            Button
-            TouchHitbox::default()
-            Children [
-                @{ label }
-            ]
-    })
+    let scene = control::button_scene(
+        ButtonLayout {
+            min_width: Val::Auto,
+            height: px(height_px),
+            padding: UiRect::horizontal(Val::Px(padding_h)),
+            border: UiRect::all(Val::Px(metrics::HAIRLINE)),
+            align: AlignItems::Center,
+            justify: JustifyContent::Center,
+            radius: BorderRadius::all(rem(palette.control_radius_px)),
+        },
+        fill,
+        BorderColor::all(edge),
+        label,
+    );
+    Box::new(
+        bsn! { @{ scene } ButtonVariantStyle(variant) ButtonSizeStyle(size)
+        ControlVisual(false) ButtonLoading(false) ButtonDisabled(false) TouchHitbox::default() },
+    )
 }
 
 /// Standard medium button scene for a given variant.
@@ -317,12 +315,12 @@ pub fn loading_button_scene(
 
     bsn! {
             Node {
-                height: px(palette.control_height_px),
-                padding: UiRect::horizontal(Val::Px(space::S12)),
+                height: rem(palette.control_height_px),
+                padding: UiRect::horizontal(rem(space::S12)),
                 border: UiRect::all(Val::Px(metrics::HAIRLINE)),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
-                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
             }
             BackgroundColor({ fill })
             BorderColor { top: edge, right: edge, bottom: edge, left: edge }
@@ -343,25 +341,21 @@ pub fn loading_button_scene(
 /// belongs to the caller.
 pub fn pill_scene(label: String, selected: bool, palette: &UiPalette) -> impl Scene + use<> {
     let edge = control_border(palette);
-    bsn! {
-            Node {
-                min_width: px(palette.control_height_px * 2.8),
-                height: px(palette.control_height_px),
-                padding: UiRect::horizontal(Val::Px(space::S12)),
-                border: UiRect::all(Val::Px(metrics::HAIRLINE)),
-                align_items: AlignItems::Center,
-                justify_content: JustifyContent::Center,
-                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-            }
-            BackgroundColor({ control_fill(selected, false, false, palette) })
-            BorderColor { top: edge, right: edge, bottom: edge, left: edge }
-            ControlVisual(selected)
-            Button
-            TouchHitbox::default()
-            Children [
-                Text(label) TextRole(Role::Body) PillLabel
-            ]
-    }
+    let scene = control::button_scene(
+        ButtonLayout {
+            min_width: px(palette.control_height_px * 2.8),
+            height: rem(palette.control_height_px),
+            padding: UiRect::horizontal(rem(space::S12)),
+            border: UiRect::all(Val::Px(metrics::HAIRLINE)),
+            align: AlignItems::Center,
+            justify: JustifyContent::Center,
+            radius: BorderRadius::all(rem(palette.control_radius_px)),
+        },
+        control_fill(selected, false, false, palette),
+        BorderColor::all(edge),
+        bsn! { Text(label) TextRole(Role::Body) PillLabel },
+    );
+    bsn! { @{ scene } ControlVisual(selected) TouchHitbox::default() }
 }
 
 /// The compact pill variant for segmented controls.
@@ -387,11 +381,11 @@ pub fn pill_caption_with_label_scene(
     Box::new(bsn! {
             Node {
                 height: px(palette.control_height_px * 0.8),
-                padding: UiRect::horizontal(Val::Px(space::S8)),
+                padding: UiRect::horizontal(rem(space::S8)),
                 border: UiRect::all(Val::Px(metrics::HAIRLINE)),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
-                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
             }
             BackgroundColor({ control_fill(selected, false, false, palette) })
             BorderColor { top: edge, right: edge, bottom: edge, left: edge }

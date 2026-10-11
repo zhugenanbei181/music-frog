@@ -1,7 +1,7 @@
 //! test-intent: behavior
 use crate::command_harness::recording_application;
 use crate::probe_settings_store::ProbeSettingsStore;
-use crate::support::headless_plugins;
+use crate::support::{command_pump_for_observed_snapshot, headless_plugins};
 use bevy::app::App;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
@@ -10,12 +10,10 @@ use bevy::ui::Node;
 use bevy::ui::prelude::Display;
 use bevy::ui_widgets::Activate;
 use infiltrator_application::command_application::CommandApplication;
-use infiltrator_application::proxy_probe_options_projection::project_settings;
+use infiltrator_application::runtime_probe_settings::project_settings;
 use infiltrator_application::settings_application::SettingsApplication;
 use infiltrator_bevy_ui::app::ShellPlugin;
-use infiltrator_bevy_ui::command::{
-    CommandPumpPlugin, CommandSinkHandle, UiCommand, UiCommandSink,
-};
+use infiltrator_bevy_ui::command::{CommandSinkHandle, UiCommand, UiCommandSink};
 use infiltrator_bevy_ui::command_events::CommandExecutedEvent;
 use infiltrator_bevy_ui::pages::proxy_probe_settings::{
     ApplyProbeSettings, CancelProbeSettings, OpenProbeSettings, ProbeSettingsRoot,
@@ -29,6 +27,10 @@ use infiltrator_bevy_widgets::text_input::{TextField, TextFieldFocused};
 use infiltrator_contract::command::RequestId;
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::outbound::identity::SnapshotRevision;
+use infiltrator_contract::outbound::preferences::OutboundUiPreferenceIntent;
+use infiltrator_contract::outbound::preferences::OutboundUiPreferenceRequest;
+use infiltrator_contract::runtime_settings::{RuntimeProbeSettings, RuntimeProbeSettingsState};
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 use std::thread::yield_now;
@@ -79,7 +81,7 @@ fn settle(app: &mut App) {
         .world()
         .resource::<ProbeSettingsState>()
         .editor
-        .pending
+        .pending()
         .is_some()
     {
         assert!(
@@ -103,7 +105,7 @@ fn native_parameter_modal_preserves_input_entities_cancel_has_no_write_and_real_
     headless_plugins(&mut app);
     app.add_plugins(ShellPlugin::default());
     app.add_plugins(PagesPlugin::demo());
-    app.add_plugins(CommandPumpPlugin::for_application(Arc::new(application)));
+    app.add_plugins(command_pump_for_observed_snapshot(Arc::new(application)));
     app.update();
     app.world_mut()
         .commands()
@@ -129,12 +131,12 @@ fn native_parameter_modal_preserves_input_entities_cancel_has_no_write_and_real_
             .0
             .is_disabled()
     );
-    edit(&mut app, timeout, "60000");
+    edit(&mut app, timeout, "0");
     assert_eq!(
         app.world()
             .resource::<ProbeSettingsState>()
             .editor
-            .validation
+            .validation()
             .as_ref()
             .unwrap()
             .code,
@@ -144,12 +146,15 @@ fn native_parameter_modal_preserves_input_entities_cancel_has_no_write_and_real_
     activate(&mut app, apply);
     assert_eq!(store.writes.load(Ordering::SeqCst), 0);
     activate(&mut app, cancel);
-    assert!(!app.world().resource::<ProbeSettingsState>().open);
+    assert_eq!(
+        app.world().resource::<ProbeSettingsState>().dialog,
+        infiltrator_bevy_ui::pages::proxy_probe_settings::ProbeSettingsDialogState::Closed
+    );
     assert_eq!(store.writes.load(Ordering::SeqCst), 0);
     activate(&mut app, open);
     app.update();
     edit(&mut app, url, "https://probe.example.test/204");
-    edit(&mut app, timeout, "32767");
+    edit(&mut app, timeout, "60000");
     app.world_mut().get_mut::<TextFieldFocused>(url).unwrap().0 = true;
     replay(&mut app, &store);
     assert_eq!(
@@ -161,27 +166,29 @@ fn native_parameter_modal_preserves_input_entities_cancel_has_no_write_and_real_
     activate(&mut app, apply);
     settle(&mut app);
     let state = app.world().resource::<ProbeSettingsState>();
-    assert!(state.open);
     assert_eq!(
-        state.editor.failure.as_ref().unwrap().code,
-        ErrorCode::Storage
+        state.dialog,
+        infiltrator_bevy_ui::pages::proxy_probe_settings::ProbeSettingsDialogState::Editing
     );
-    assert_eq!(state.editor.draft.timeout_ms, "32767");
-    assert_eq!(state.editor.applied.as_ref().unwrap().timeout_ms, 5000);
+    assert_eq!(state.editor.failure().unwrap().code, ErrorCode::Storage);
+    assert_eq!(state.editor.draft().unwrap().timeout_ms, "60000");
+    assert_eq!(state.editor.applied().unwrap().timeout_ms(), 5000);
     assert_eq!(store.writes.load(Ordering::SeqCst), 0);
     store.reject.store(false, Ordering::SeqCst);
     activate(&mut app, apply);
     settle(&mut app);
-    assert!(!app.world().resource::<ProbeSettingsState>().open);
+    assert_eq!(
+        app.world().resource::<ProbeSettingsState>().dialog,
+        infiltrator_bevy_ui::pages::proxy_probe_settings::ProbeSettingsDialogState::Closed
+    );
     assert_eq!(
         app.world()
             .resource::<ProbeSettingsState>()
             .editor
-            .applied
-            .as_ref()
+            .applied()
             .unwrap()
-            .timeout_ms,
-        32767
+            .timeout_ms(),
+        60_000
     );
     assert_eq!(store.writes.load(Ordering::SeqCst), 1);
     replay(&mut app, &store);
@@ -222,13 +229,14 @@ fn pending_native_fields_are_disabled_and_wrong_command_or_request_cannot_finish
     app.world_mut()
         .resource_mut::<LatestSurfaceSnapshot>()
         .0
-        .probe_settings
-        .can_persist = true;
+        .probe_settings = RuntimeProbeSettingsState::Available {
+        settings: RuntimeProbeSettings::default(),
+    };
     let open = entity::<OpenProbeSettings>(&mut app);
     activate(&mut app, open);
     app.update();
     let timeout = field::<ProbeTimeoutField>(&mut app);
-    edit(&mut app, timeout, "32767");
+    edit(&mut app, timeout, "60000");
     let apply = entity::<ApplyProbeSettings>(&mut app);
     activate(&mut app, apply);
     app.update();
@@ -237,8 +245,8 @@ fn pending_native_fields_are_disabled_and_wrong_command_or_request_cannot_finish
         .world()
         .resource::<ProbeSettingsState>()
         .editor
-        .applied
-        .clone();
+        .applied()
+        .cloned();
     assert!(
         app.world()
             .get::<TextField>(timeout)
@@ -251,19 +259,26 @@ fn pending_native_fields_are_disabled_and_wrong_command_or_request_cannot_finish
     let cancel = entity::<CancelProbeSettings>(&mut app);
     activate(&mut app, cancel);
     assert_eq!(sink.0.lock().unwrap().len(), 1);
-    assert!(app.world().resource::<ProbeSettingsState>().open);
+    assert_eq!(
+        app.world().resource::<ProbeSettingsState>().dialog,
+        infiltrator_bevy_ui::pages::proxy_probe_settings::ProbeSettingsDialogState::Editing
+    );
     for (request_id, command) in [
         (RequestId(44), submitted.clone()),
         (
             RequestId(45),
-            UiCommand::SetProxyProbeOptions {
-                options: Default::default(),
+            UiCommand::SetRuntimeProbeSettings {
+                settings: Default::default(),
             },
         ),
         (
             RequestId(45),
-            UiCommand::SetProxySearchQuery {
-                query: "other operation".into(),
+            UiCommand::ApplyOutboundUiPreference {
+                request: OutboundUiPreferenceRequest::new(
+                    SnapshotRevision::new(1),
+                    OutboundUiPreferenceIntent::SetSearchQuery("other operation".into()),
+                )
+                .unwrap(),
             },
         ),
     ] {
@@ -277,11 +292,15 @@ fn pending_native_fields_are_disabled_and_wrong_command_or_request_cannot_finish
             app.world()
                 .resource::<ProbeSettingsState>()
                 .editor
-                .pending
+                .pending()
                 .is_some()
         );
         assert_eq!(
-            app.world().resource::<ProbeSettingsState>().editor.applied,
+            app.world()
+                .resource::<ProbeSettingsState>()
+                .editor
+                .applied()
+                .cloned(),
             original
         );
     }
@@ -289,12 +308,15 @@ fn pending_native_fields_are_disabled_and_wrong_command_or_request_cannot_finish
         .commands()
         .trigger(RouteChanged(Route::Settings));
     app.update();
-    assert!(!app.world().resource::<ProbeSettingsState>().open);
+    assert_eq!(
+        app.world().resource::<ProbeSettingsState>().dialog,
+        infiltrator_bevy_ui::pages::proxy_probe_settings::ProbeSettingsDialogState::Closed
+    );
     assert!(
         app.world()
             .resource::<ProbeSettingsState>()
             .editor
-            .pending
+            .pending()
             .is_some(),
         "navigation cannot cancel an accepted durable write"
     );
@@ -308,23 +330,29 @@ fn pending_native_fields_are_disabled_and_wrong_command_or_request_cannot_finish
         app.world()
             .resource::<ProbeSettingsState>()
             .editor
-            .pending
+            .pending()
             .is_none()
     );
     assert_eq!(
-        app.world().resource::<ProbeSettingsState>().editor.applied,
+        app.world()
+            .resource::<ProbeSettingsState>()
+            .editor
+            .applied()
+            .cloned(),
         original
     );
     assert_eq!(
         app.world()
             .resource::<ProbeSettingsState>()
             .editor
-            .draft
+            .draft()
+            .unwrap()
             .timeout_ms,
-        "32767"
+        "60000"
     );
     assert!(
-        !app.world().resource::<ProbeSettingsState>().open,
+        app.world().resource::<ProbeSettingsState>().dialog
+            == infiltrator_bevy_ui::pages::proxy_probe_settings::ProbeSettingsDialogState::Closed,
         "late failure cannot reopen a departed page"
     );
 }

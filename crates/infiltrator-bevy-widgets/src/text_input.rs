@@ -31,7 +31,9 @@ pub mod render;
 pub mod state;
 use state::{TextFieldState, field_visual};
 
+use crate::feathers_theme::Token;
 use crate::palette::UiPalette;
+use crate::palette::rem;
 use crate::text::{Role, TextRole};
 use crate::theme::space;
 use accesskit;
@@ -39,6 +41,7 @@ use bevy::a11y::AccessibilityNode;
 use bevy::camera::visibility::Visibility;
 use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
+use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::{Scene, bsn};
 use bevy::ui::BorderColor;
 use bevy::ui::prelude::{
@@ -119,13 +122,13 @@ pub fn text_field_with_placeholder_scene(
     bsn! {
             Node {
                 width: percent(100),
-                min_height: px(palette.control_height_px),
+                min_height: rem(palette.control_height_px),
                 align_items: AlignItems::Center,
-                padding: UiRect::horizontal(Val::Px(space::S12)),
+                padding: UiRect::horizontal(rem(space::S12)),
                 border: UiRect::all(Val::Px(palette.hairline_px)),
-                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
             }
-            BackgroundColor({ palette.surface_elevated })
+            ThemeBackgroundColor({ Token::SurfaceElevated })
             BorderColor {
                 top: edge,
                 right: edge,
@@ -144,13 +147,13 @@ pub fn text_field_with_placeholder_scene(
                     height: px(caret_h),
                     flex_shrink: 0.0,
                 }
-                BackgroundColor({ palette.accent })
+                ThemeBackgroundColor({ Token::Accent })
                 TextFieldCaret(0) Visibility::Hidden
                 --
                 Node {
                     display: Display::None,
                     flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(space::S4),
+                    row_gap: rem(space::S4),
                 }
                 TextFieldPreedit
                 Children [
@@ -161,11 +164,11 @@ pub fn text_field_with_placeholder_scene(
                         height: px(palette.hairline_px),
                         flex_shrink: 0.0,
                     }
-                    BackgroundColor({ palette.accent })
+                    ThemeBackgroundColor({ Token::Accent })
                     TextFieldPreeditUnderline
                 ]
                 --
-                Node { display: Display::None, padding: UiRect::horizontal(Val::Px(space::S4)) }
+                Node { display: Display::None, padding: UiRect::horizontal(rem(space::S4)) }
                 BackgroundColor({ palette.selection_fill() })
                 TextFieldSelection
                 Children [
@@ -177,7 +180,7 @@ pub fn text_field_with_placeholder_scene(
                     height: px(caret_h),
                     flex_shrink: 0.0,
                 }
-                BackgroundColor({ palette.accent })
+                ThemeBackgroundColor({ Token::Accent })
                 TextFieldCaret(1) Visibility::Hidden
                 --
                 Text(after) TextRole(Role::Body) TextFieldAfter
@@ -209,13 +212,13 @@ pub fn password_field_scene(
     bsn! {
             Node {
                 width: percent(100),
-                min_height: px(palette.control_height_px),
+                min_height: rem(palette.control_height_px),
                 align_items: AlignItems::Center,
-                padding: UiRect::horizontal(Val::Px(space::S12)),
+                padding: UiRect::horizontal(rem(space::S12)),
                 border: UiRect::all(Val::Px(palette.hairline_px)),
-                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
             }
-            BackgroundColor({ palette.surface_elevated })
+            ThemeBackgroundColor({ Token::SurfaceElevated })
             BorderColor {
                 top: edge,
                 right: edge,
@@ -234,13 +237,13 @@ pub fn password_field_scene(
                     height: px(caret_h),
                     flex_shrink: 0.0,
                 }
-                BackgroundColor({ palette.accent })
+                ThemeBackgroundColor({ Token::Accent })
                 TextFieldCaret(0) Visibility::Hidden
                 --
                 Node {
                     display: Display::None,
                     flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(space::S4),
+                    row_gap: rem(space::S4),
                 }
                 TextFieldPreedit
                 Children [
@@ -251,11 +254,11 @@ pub fn password_field_scene(
                         height: px(palette.hairline_px),
                         flex_shrink: 0.0,
                     }
-                    BackgroundColor({ palette.accent })
+                    ThemeBackgroundColor({ Token::Accent })
                     TextFieldPreeditUnderline
                 ]
                 --
-                Node { display: Display::None, padding: UiRect::horizontal(Val::Px(space::S4)) }
+                Node { display: Display::None, padding: UiRect::horizontal(rem(space::S4)) }
                 BackgroundColor({ palette.selection_fill() })
                 TextFieldSelection
                 Children [
@@ -267,7 +270,7 @@ pub fn password_field_scene(
                     height: px(caret_h),
                     flex_shrink: 0.0,
                 }
-                BackgroundColor({ palette.accent })
+                ThemeBackgroundColor({ Token::Accent })
                 TextFieldCaret(1) Visibility::Hidden
                 --
                 Text(after) TextRole(Role::Body) TextFieldAfter

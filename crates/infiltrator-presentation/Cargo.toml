@@ -1,0 +1,12 @@
+[package]
+name = "infiltrator-presentation"
+version.workspace = true
+edition = "2024"
+publish = false
+description = "Pure cross-surface read-model projections and presentation folds."
+
+[dependencies]
+infiltrator-contract = { path = "../infiltrator-contract" }
+infiltrator-domain = { path = "../infiltrator-domain" }
+infiltrator-shared = { path = "../infiltrator-shared" }
+serde_yaml_ng.workspace = true

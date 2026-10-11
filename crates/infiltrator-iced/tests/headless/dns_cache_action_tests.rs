@@ -1,16 +1,15 @@
 //! test-intent: behavior
-use crate::command_harness::recording_application;
-use crate::test_support::demo_env;
+use crate::command_harness::{core_test_command_application, recording_application};
 use futures_util::StreamExt;
 use iced::Task;
 use iced::advanced::widget::Tree;
 use iced_runtime::{Action, task::into_stream};
-use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::dns_cache_application::DnsCacheApplication;
 use infiltrator_application::dns_cache_fixtures::{CachePortMode, IsolatedCaches};
 use infiltrator_application::dns_cache_projection::project_cache;
 use infiltrator_application::surface_reader::ApplicationSurfaceReader;
 use infiltrator_contract::command_catalogue::CommandTarget;
+use infiltrator_contract::core_capabilities::{CoreOperation, FakeIpCacheOperation};
 use infiltrator_contract::dns_cache::DnsFlushOutcome;
 use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
@@ -48,7 +47,8 @@ fn publish(state: &mut AppState, reader: &ApplicationSurfaceReader) {
 fn setup(owner: DnsCacheApplication) -> (AppState, ApplicationSurfaceReader) {
     let (application, _) = recording_application();
     application.install_command_handler(Arc::new(
-        CommandApplication::new().with_dns_cache(owner.clone()),
+        core_test_command_application([CoreOperation::FakeIpCache(FakeIpCacheOperation::Flush)])
+            .with_dns_cache(owner.clone()),
     ));
     let reader = ApplicationSurfaceReader::new(
         Arc::new(application.clone()),
@@ -56,8 +56,9 @@ fn setup(owner: DnsCacheApplication) -> (AppState, ApplicationSurfaceReader) {
         HostKind::Desktop,
     )
     .with_dns_cache(owner);
-    let (mut state, _) = AppState::demo(&demo_env(Route::Dns));
-    state.commands = Some(application);
+    let (mut state, _) = AppState::new();
+    state.shell.current_route = Route::Dns;
+    state.attach_product_application(application);
     publish(&mut state, &reader);
     (state, reader)
 }

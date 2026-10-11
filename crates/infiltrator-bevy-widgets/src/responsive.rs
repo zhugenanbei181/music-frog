@@ -1,18 +1,19 @@
 //! Standardized 4-tier responsive breakpoint and multi-end adaptive layout engine.
 //!
-//! Charter (docs/bevy-ui/BEVY_UI_FRONTEND.md): Multi-end adaptive presentation layer for
+//! Charter (crates/infiltrator-bevy-ui/docs/BEVY_UI_FRONTEND.md): Multi-end adaptive presentation layer for
 //! Bevy UI. Standardizes four breakpoint tiers (Compact/Medium/Expanded/Ultra),
 //! density modes (Compact/Comfortable), orientations, adaptive sidebar/nav modes,
 //! master-detail coordination models, and modal-to-actionsheet transformations.
 
-use crate::theme::Breakpoint;
 use crate::theme::metrics::{CONTROL_HEIGHT_COMFORTABLE, CONTROL_HEIGHT_COMPACT, MIN_TOUCH_TARGET};
+use crate::theme::{Breakpoint, REM_BASE};
 use bevy::ecs::component::Component;
 use bevy::ecs::event::Event;
 use bevy::ecs::observer::On;
 use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Query, Res, ResMut};
+use bevy::text::RemSize;
 use bevy::ui::prelude::{Node, UiRect, Val};
 use bevy::window::{PrimaryWindow, Window};
 
@@ -380,7 +381,8 @@ pub fn sync_responsive_context_from_window(
     }
 }
 
-/// Platform edge-to-edge safe area insets (status bar, gesture pill, camera cutouts).
+/// Platform edge-to-edge safe area in logical UI pixels after host-coordinate
+/// conversion (status bar, system gesture region, display cutouts).
 #[derive(Resource, Clone, Copy, Debug, PartialEq, Default)]
 pub struct SafeAreaInsets {
     pub top_px: f32,
@@ -398,16 +400,6 @@ impl SafeAreaInsets {
             left_px: left.max(0.0),
             right_px: right.max(0.0),
         }
-    }
-
-    /// Common Android phone default insets (24px status bar, 16px gesture bar).
-    pub fn android_default() -> Self {
-        Self::new(24.0, 16.0, 0.0, 0.0)
-    }
-
-    /// Common iOS phone default insets with Dynamic Island (48px status bar, 34px home indicator).
-    pub fn ios_default() -> Self {
-        Self::new(48.0, 34.0, 0.0, 0.0)
     }
 
     /// Convert insets to a Bevy UiRect.
@@ -505,9 +497,21 @@ impl TouchHitbox {
 /// System to sync interactive node picking hitboxes with responsive compact state.
 pub fn sync_touch_hitboxes(
     ctx: Option<Res<ResponsiveContext>>,
+    rem_size: Option<Res<RemSize>>,
     mut query: Query<(&mut Node, &mut TouchHitbox)>,
 ) {
     let is_compact = ctx.as_ref().map(|c| c.is_compact()).unwrap_or(false);
+    // The touch floor is a physical accessibility minimum (capability norm ①
+    // px whitelist), so it stamps as `Val::Px`; dimension tokens riding the
+    // rem channel must still resolve against the root font size to compare.
+    let rem_px = rem_size.map(|r| r.0).unwrap_or(REM_BASE);
+    let resolves_to_px = |v: Val| -> Option<f32> {
+        match v {
+            Val::Px(w) => Some(w),
+            Val::Rem(r) => Some(r * rem_px),
+            _ => None,
+        }
+    };
 
     for (mut node, mut hitbox) in &mut query {
         if is_compact {
@@ -518,25 +522,17 @@ pub fn sync_touch_hitboxes(
                 hitbox.is_expanded = true;
             }
             let target = hitbox.min_target_px;
-            let needs_min_w = match node.min_width {
-                Val::Px(w) => w < target,
-                Val::Auto => true,
-                _ => false,
+            let undersized = |v: Val, is_auto: bool| match resolves_to_px(v) {
+                Some(w) => w < target,
+                None => is_auto,
             };
-            if needs_min_w {
+            if undersized(node.min_width, matches!(node.min_width, Val::Auto)) {
                 node.min_width = Val::Px(target);
             }
-            let needs_min_h = match node.min_height {
-                Val::Px(h) => h < target,
-                Val::Auto => true,
-                _ => false,
-            };
-            if needs_min_h {
+            if undersized(node.min_height, matches!(node.min_height, Val::Auto)) {
                 node.min_height = Val::Px(target);
             }
-            if let Val::Px(h) = node.height
-                && h < target
-            {
+            if resolves_to_px(node.height).is_some_and(|h| h < target) {
                 node.height = Val::Px(target);
             }
         } else if hitbox.is_expanded {

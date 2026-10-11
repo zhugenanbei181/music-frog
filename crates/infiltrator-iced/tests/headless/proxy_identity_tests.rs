@@ -1,6 +1,16 @@
 //! test-intent: behavior
+//! Group expansion and identity are stored in typed outbound preferences.
 use crate::test_support::demo_env;
 use iced::advanced::widget::Tree;
+use infiltrator_contract::outbound::{
+    details::OutboundSnapshot,
+    identity::{OutboundId, SnapshotRevision},
+    inventory::{
+        OutboundInventorySnapshot, OutboundInventoryState, OutboundSelectionSet,
+        OutboundSelectionState, SelectionAvailability,
+    },
+};
+use infiltrator_contract::surface_snapshot::PageData;
 use infiltrator_iced::state::AppState;
 use infiltrator_iced::types::app::Route;
 use infiltrator_iced::types::message::Message;
@@ -9,25 +19,65 @@ fn mounted_nodes(tree: &Tree) -> usize {
     1 + tree.children.iter().map(mounted_nodes).sum::<usize>()
 }
 
+fn demo_state() -> AppState {
+    AppState::demo(&demo_env(Route::Proxies)).0
+}
+
+fn group_id(state: &AppState, name: &str) -> OutboundId {
+    state
+        .runtime
+        .outbound_inventory
+        .data
+        .as_ref()
+        .and_then(|inventory| match inventory.inventory() {
+            OutboundInventoryState::Ready { collections, .. } => collections
+                .iter()
+                .find(|collection| collection.id.value() == name)
+                .map(|collection| collection.id.clone()),
+            _ => None,
+        })
+        .expect("typed collection ID")
+}
+
+fn is_expanded(state: &AppState, name: &str) -> bool {
+    let Some(id) = state
+        .runtime
+        .outbound_inventory
+        .data
+        .as_ref()
+        .and_then(|inventory| match inventory.inventory() {
+            OutboundInventoryState::Ready { collections, .. } => collections
+                .iter()
+                .find(|collection| collection.id.value() == name)
+                .map(|collection| &collection.id),
+            _ => None,
+        })
+    else {
+        return false;
+    };
+    state
+        .runtime
+        .outbound_ui_preferences
+        .data
+        .as_ref()
+        .is_none_or(|preferences| !preferences.collapsed_group_ids.contains(id))
+}
+
 #[test]
 fn group_fold_replays_a_real_smaller_widget_tree_and_reopens_without_side_effects() {
-    let (mut state, _) = AppState::demo(&demo_env(Route::Proxies));
-    let group = state.runtime.filtered_groups.first().unwrap().0.clone();
-    assert!(
-        state
-            .runtime
-            .proxy_ui_preferences
-            .collapsed_groups
-            .is_empty()
-    );
+    let mut state = demo_state();
+    let (name, members) = state.runtime.filtered_groups.first().unwrap().clone();
+    let id = group_id(&state, &name);
+    assert!(!members.is_empty());
+    assert!(state.runtime.outbound_ui_preferences.data.is_some());
     let original = mounted_nodes(&Tree::new(state.view().as_widget()));
     assert_eq!(
         state
-            .update(Message::ToggleProxyGroupExpanded(group.clone()))
+            .update(Message::ToggleOutboundGroupExpanded(id.clone()))
             .units(),
         0
     );
-    assert!(!state.runtime.proxy_ui_preferences.is_group_expanded(&group));
+    assert!(!is_expanded(&state, &name));
     let collapsed = mounted_nodes(&Tree::new(state.view().as_widget()));
     assert!(
         collapsed < original,
@@ -35,11 +85,11 @@ fn group_fold_replays_a_real_smaller_widget_tree_and_reopens_without_side_effect
     );
     assert_eq!(
         state
-            .update(Message::ToggleProxyGroupExpanded(group.clone()))
+            .update(Message::ToggleOutboundGroupExpanded(id))
             .units(),
         0
     );
-    assert!(state.runtime.proxy_ui_preferences.is_group_expanded(&group));
+    assert!(is_expanded(&state, &name));
     assert_eq!(
         mounted_nodes(&Tree::new(state.view().as_widget())),
         original
@@ -47,8 +97,8 @@ fn group_fold_replays_a_real_smaller_widget_tree_and_reopens_without_side_effect
 }
 
 #[test]
-fn group_fold_rejects_a_removed_identity_and_keeps_other_group_choices() {
-    let (mut state, _) = AppState::demo(&demo_env(Route::Proxies));
+fn group_fold_keeps_other_identity_preferences_and_rejects_an_unknown_collection() {
+    let mut state = demo_state();
     let groups: Vec<_> = state
         .runtime
         .filtered_groups
@@ -56,113 +106,154 @@ fn group_fold_rejects_a_removed_identity_and_keeps_other_group_choices() {
         .map(|(name, _)| name.clone())
         .collect();
     assert!(groups.len() > 1);
+    let first = group_id(&state, &groups[0]);
+    let second = group_id(&state, &groups[1]);
     assert_eq!(
         state
-            .update(Message::ToggleProxyGroupExpanded(groups[0].clone()))
+            .update(Message::ToggleOutboundGroupExpanded(first.clone()))
             .units(),
         0
     );
-    let expected = state.runtime.proxy_ui_preferences.clone();
-    assert!(expected.is_group_expanded(&groups[1]));
-    let mounted = mounted_nodes(&Tree::new(state.view().as_widget()));
+    assert!(!is_expanded(&state, &groups[0]));
+    let before_unknown = state
+        .runtime
+        .outbound_ui_preferences
+        .data
+        .clone()
+        .expect("typed preferences");
     state.runtime.filtered_groups.reverse();
-    assert_eq!(mounted_nodes(&Tree::new(state.view().as_widget())), mounted);
     assert_eq!(
         state
-            .update(Message::ToggleProxyGroupExpanded(groups[1].clone()))
+            .update(Message::ToggleOutboundGroupExpanded(second.clone()))
             .units(),
         0
     );
-    assert!(
-        !state
-            .runtime
-            .proxy_ui_preferences
-            .is_group_expanded(&groups[0])
-    );
-    assert!(
-        !state
-            .runtime
-            .proxy_ui_preferences
-            .is_group_expanded(&groups[1])
-    );
+    assert!(!is_expanded(&state, &groups[1]));
+    assert!(!is_expanded(&state, &groups[0]));
     assert_eq!(
         state
-            .update(Message::ToggleProxyGroupExpanded(groups[1].clone()))
+            .update(Message::ToggleOutboundGroupExpanded(second))
             .units(),
         0
     );
-    assert_eq!(state.runtime.proxy_ui_preferences, expected);
+    assert!(is_expanded(&state, &groups[1]));
 
-    state.runtime.proxies.remove(&groups[0]);
+    let unknown = OutboundId::new(first.engine_id().clone(), "not-observed")
+        .expect("valid but unobserved typed ID");
     assert_eq!(
         state
-            .update(Message::ToggleProxyGroupExpanded(groups[0].clone()))
+            .update(Message::ToggleOutboundGroupExpanded(unknown))
             .units(),
         0
     );
-    assert_eq!(state.runtime.proxy_ui_preferences, expected);
+    let after_unknown = state
+        .runtime
+        .outbound_ui_preferences
+        .data
+        .as_ref()
+        .expect("typed preferences after ignored request");
+    assert_eq!(after_unknown.search_query, before_unknown.search_query);
     assert_eq!(
-        state
-            .update(Message::ToggleProxyGroupExpanded("unknown-group".into()))
-            .units(),
-        0
+        after_unknown.favorite_outbound_ids,
+        before_unknown.favorite_outbound_ids
     );
-    assert_eq!(state.runtime.proxy_ui_preferences, expected);
+    assert_eq!(after_unknown.group_order, before_unknown.group_order);
+    assert!(after_unknown.collapsed_group_ids.contains(&first));
+    assert!(
+        !after_unknown
+            .collapsed_group_ids
+            .contains(&group_id(&state, &groups[1]))
+    );
 }
 
 #[test]
-fn newly_published_groups_expand_without_reopening_the_users_collapsed_group() {
-    use infiltrator_domain::proxy::{Proxy, ProxyGroup};
-
-    let (mut state, _) = AppState::demo(&demo_env(Route::Proxies));
-    let (closed, members) = state.runtime.filtered_groups[0].clone();
+fn newly_published_typed_collection_expands_without_reopening_a_collapsed_group() {
+    let mut state = demo_state();
+    let (closed, visible_members) = state.runtime.filtered_groups[0].clone();
+    let closed_id = group_id(&state, &closed);
     assert_eq!(
         state
-            .update(Message::ToggleProxyGroupExpanded(closed.clone()))
+            .update(Message::ToggleOutboundGroupExpanded(closed_id.clone()))
             .units(),
         0
     );
     let collapsed = mounted_nodes(&Tree::new(state.view().as_widget()));
-    let name = "newly-published-group".to_owned();
-    state.runtime.proxies.insert(
-        name.clone(),
-        Proxy::Selector(ProxyGroup {
-            name: name.clone(),
-            all: members.clone(),
-            now: members[0].clone(),
-            ..Default::default()
-        }),
-    );
-    state.recompute_filtered_groups();
-    assert!(
-        !state
-            .runtime
-            .proxy_ui_preferences
-            .is_group_expanded(&closed)
-    );
-    assert!(state.runtime.proxy_ui_preferences.is_group_expanded(&name));
+    let scope = state
+        .runtime
+        .outbound_inventory
+        .data
+        .as_ref()
+        .expect("typed demo inventory")
+        .scope()
+        .clone();
+    let current = state.runtime.outbound_inventory.data.as_ref().unwrap();
+    let OutboundInventoryState::Ready {
+        mut entries,
+        mut collections,
+    } = current.inventory().clone()
+    else {
+        panic!("typed demo inventory is ready")
+    };
+    let outbound_id = state
+        .runtime
+        .outbound_inventory
+        .data
+        .as_ref()
+        .and_then(|inventory| match inventory.inventory() {
+            OutboundInventoryState::Ready { entries, .. } => entries
+                .iter()
+                .find(|entry| entry.id.value() == visible_members[0])
+                .map(|entry| entry.id.clone()),
+            _ => None,
+        })
+        .expect("visible member ID");
+    let new_group = OutboundId::new(scope.identity.engine.clone(), "newly-published-group")
+        .expect("valid typed group ID");
+    entries.push(OutboundSnapshot {
+        id: new_group.clone(),
+        display_name: Some(new_group.value().to_owned()),
+    });
+    collections.push(OutboundSelectionSet {
+        id: new_group.clone(),
+        member_ids: vec![outbound_id.clone()],
+        availability: SelectionAvailability::Selectable,
+        selection: OutboundSelectionState::Ready {
+            selected: outbound_id,
+        },
+    });
+    let next_inventory = OutboundInventorySnapshot::new(
+        scope,
+        SnapshotRevision::new(current.revision().value() + 1),
+        OutboundInventoryState::Ready {
+            entries,
+            collections,
+        },
+    )
+    .expect("valid typed inventory with a new collection");
+    let mut surface = state.surface.latest().unwrap().clone();
+    surface.revision += 1;
+    surface.outbound_inventory = PageData::ready(next_inventory);
+    assert!(state.apply_shared_surface_snapshot(surface));
+
+    assert!(!is_expanded(&state, &closed));
+    assert!(is_expanded(&state, new_group.value()));
     let expanded = mounted_nodes(&Tree::new(state.view().as_widget()));
     assert!(
         expanded > collapsed,
-        "new group must render native node controls"
+        "new collection renders its observed member"
     );
     assert_eq!(
         state
-            .update(Message::ToggleProxyGroupExpanded(name.clone()))
+            .update(Message::ToggleOutboundGroupExpanded(new_group.clone()))
             .units(),
         0
     );
     let folded = mounted_nodes(&Tree::new(state.view().as_widget()));
     assert!(folded < expanded);
-    assert!(
-        !state
-            .runtime
-            .proxy_ui_preferences
-            .is_group_expanded(&closed)
-    );
+    assert!(!is_expanded(&state, &closed));
     assert_eq!(
         state
-            .update(Message::ToggleProxyGroupExpanded(name))
+            .update(Message::ToggleOutboundGroupExpanded(new_group))
             .units(),
         0
     );
@@ -179,7 +270,7 @@ fn nonanimated_proxy_capture_requests_real_frames_until_its_receipt_is_written()
     use std::sync::atomic::Ordering;
     use std::time::Instant;
 
-    let (mut state, _) = AppState::demo(&demo_env(Route::Proxies));
+    let mut state = demo_state();
     let baseline = state.subscription().units();
     state.shell.capture_marker = Some(PathBuf::from("unused-native-layout-receipt"));
     state.shell.capture_scenario = Some(FeatureId::ProxiesGroupExpanded);

@@ -1,6 +1,5 @@
-//! Proxies domain: proxy list loading and filtering, group/proxy selection,
-//! delay testing and the persisted runtime-panel preferences (sort keys,
-//! delay test URL/timeout, connection filter/sort).
+//! Outbound inventory and typed selection/probe actions, plus the runtime
+//! panel's outbound preferences and connection filter/sort controls.
 
 use crate::settings_store::update;
 use crate::state::AppState;
@@ -8,105 +7,280 @@ use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use crate::update::core::profile_apply::save_task;
 use iced::Task;
-use infiltrator_application::proxy_projection::project_groups_snapshot;
-use infiltrator_application::proxy_search_projection::project_name_runs;
 use infiltrator_contract::command::CommandIntent;
-use infiltrator_contract::error::InfiltratorError;
-use infiltrator_contract::proxies::ProxySortOrder;
-use infiltrator_contract::snapshot::CoreLifecycle;
-use infiltrator_contract::speedtest::SpeedtestScope;
+use infiltrator_contract::command_output::CommandOutput;
+use infiltrator_contract::core_identity::CoreScope;
+use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::outbound::identity::OutboundId;
+use infiltrator_contract::outbound::identity::SnapshotRevision;
+use infiltrator_contract::outbound::preferences::OutboundGroupExpansion;
+use infiltrator_contract::outbound::{
+    inventory::{
+        OutboundInventorySnapshot, OutboundInventoryState, OutboundSelectionState,
+        SelectionAvailability,
+    },
+    preferences::{
+        OutboundFavoriteState, OutboundHealthFilter, OutboundLayout, OutboundUiPreferenceIntent,
+    },
+    probe::OutboundSelectionRequest,
+};
+use infiltrator_contract::surface_snapshot::PageData;
 use infiltrator_domain::profile_converter::{ProfileConverter, ProfileFormat, ProxyNodeItem};
-use infiltrator_domain::proxy::Proxy;
-use infiltrator_ports::error::PortError;
-use std::collections::HashMap;
 
 const DEFAULT_RUNTIME_CONNECTION_SORT: &str = "download_desc";
 
 impl AppState {
-    fn apply_proxies_loaded(
-        &mut self,
-        result: Result<HashMap<String, Proxy>, InfiltratorError>,
-    ) -> Task<Message> {
-        self.runtime.is_loading_proxies = false;
-        match result {
-            Ok(proxies) => {
-                self.runtime.proxies = proxies;
-                self.reconcile_proxy_inspection();
-                self.refresh_tray();
-                self.recompute_filtered_groups();
-                self.sync_runtime_proxy_selection();
-            }
-            Err(error) => self.set_error(&error),
-        }
-        Task::none()
-    }
-
-    /// Drive a scope-wide speedtest through the shared engine port. The host's
-    /// `SpeedtestApplication` is the single fact source both surfaces read; no
-    /// UI-local metric or legacy proxy path is used.
-    fn run_speedtest_scope(&mut self, scope: SpeedtestScope) -> Task<Message> {
-        let Some(port) = self
-            .runtime
-            .runtime
-            .clone()
-            .and_then(|runtime| runtime.speedtest_port())
-        else {
+    fn read_outbound_inventory(&self) -> Task<Message> {
+        let Some(ingress) = self.command_ingress() else {
             return Task::done(Message::ShowToast(
-                "Speedtest is not available on this host".to_string(),
+                "Outbound inventory command is unavailable".to_owned(),
                 ToastStatus::Error,
             ));
         };
-        if let Some(application) = self.commands.clone() {
-            let group = match scope {
-                SpeedtestScope::SingleGroup(group) => Some(group),
-                SpeedtestScope::AllGroups => None,
-                _ => return Task::none(),
-            };
-            let (url, timeout_ms) = match self.applied_probe_options() {
-                Ok(options) => (Some(options.test_url), Some(options.timeout_ms)),
-                Err(_) => (None, None),
-            };
-            self.runtime.runtime_testing_all_delays = true;
-            return Task::perform(
-                async move {
-                    match (application
-                        .execute(CommandIntent::TestDelay {
-                            group,
-                            url,
-                            timeout_ms,
-                        })
-                        .await)
-                        .into_unit()
-                    {
-                        Ok(()) => Ok(port.snapshot()),
-                        Err(failure) => Err(PortError::Rejected(failure)),
-                    }
-                },
-                Message::SpeedtestScopeUpdated,
-            );
-        }
-        let options = match self.applied_probe_options() {
-            Ok(options) => options,
-            Err(failure) => {
-                return Task::done(Message::ShowToast(failure.message, ToastStatus::Error));
-            }
+        let Some(requested_scope) = ingress.observed_scope() else {
+            return Task::done(Message::ShowToast(
+                "Wait for an accepted Core scope before refreshing outbound inventory".to_owned(),
+                ToastStatus::Info,
+            ));
         };
-        let test_url = Some(options.test_url);
-        let timeout_ms = options.timeout_ms;
-        self.runtime.runtime_testing_all_delays = true;
         Task::perform(
-            async move { port.run_scope(scope, test_url, Some(timeout_ms)).await },
-            Message::SpeedtestScopeUpdated,
+            async move {
+                let outcome = ingress
+                    .execute_outcome(CommandIntent::ReadOutboundInventory)
+                    .await;
+                let terminal_scope = outcome.scope;
+                let result = outcome
+                    .result
+                    .into_output()
+                    .and_then(|output| match output {
+                        CommandOutput::OutboundInventory(snapshot) => Ok(snapshot),
+                        _ => Err(Failure::new(
+                            ErrorCode::InvalidState,
+                            "outbound inventory command returned another output type",
+                            false,
+                        )),
+                    });
+                (terminal_scope, result)
+            },
+            move |(terminal_scope, result)| Message::OutboundInventoryReadFinished {
+                requested_scope: Some(requested_scope),
+                terminal_scope,
+                result,
+            },
         )
     }
 
-    pub(super) fn normalize_delay_sort_key(value: &str) -> &'static str {
-        match value.trim().to_ascii_lowercase().as_str() {
-            "delay_asc" => "delay_asc",
-            "delay_desc" => "delay_desc",
-            "name_asc" => "name_asc",
-            "name_desc" => "name_desc",
-            _ => "delay_asc",
+    fn finish_outbound_inventory_read(
+        &mut self,
+        requested_scope: Option<CoreScope>,
+        terminal_scope: Option<CoreScope>,
+        result: Result<OutboundInventorySnapshot, Failure>,
+    ) -> Task<Message> {
+        if !self.is_product_command_ingress() {
+            return Task::none();
+        }
+        let Some(accepted_scope) = self
+            .command_ingress()
+            .and_then(|ingress| ingress.observed_scope())
+        else {
+            return Task::none();
+        };
+        if requested_scope.as_ref() != Some(&accepted_scope)
+            || terminal_scope.as_ref() != Some(&accepted_scope)
+        {
+            return Task::none();
+        }
+        match result {
+            Ok(snapshot) if snapshot.scope() == &accepted_scope => {
+                let current_revision = self
+                    .runtime
+                    .outbound_inventory
+                    .data
+                    .as_ref()
+                    .filter(|current| current.scope() == &accepted_scope)
+                    .map(|current| current.revision());
+                if current_revision.is_some_and(|revision| snapshot.revision() < revision) {
+                    return Task::none();
+                }
+                self.apply_outbound_inventory_observation(PageData::ready(snapshot));
+                Task::none()
+            }
+            Ok(_) => Task::none(),
+            Err(failure) => {
+                self.apply_outbound_inventory_observation(PageData::failed(failure));
+                Task::none()
+            }
+        }
+    }
+
+    fn select_outbound(
+        &mut self,
+        scope: CoreScope,
+        request: OutboundSelectionRequest,
+    ) -> Task<Message> {
+        if self.shell.demo && !self.is_product_command_ingress() {
+            if !self.outbound_selection_request_is_current(&scope, &request) {
+                return Task::none();
+            }
+            let Some(current) = self.runtime.outbound_inventory.data.as_ref() else {
+                return Task::none();
+            };
+            let OutboundInventoryState::Ready {
+                entries,
+                collections,
+            } = current.inventory()
+            else {
+                return Task::none();
+            };
+            let mut collections = collections.clone();
+            let Some(collection) = collections
+                .iter_mut()
+                .find(|collection| collection.id == *request.collection_id())
+            else {
+                return Task::none();
+            };
+            if matches!(
+                &collection.selection,
+                OutboundSelectionState::Ready { selected }
+                    if selected == request.outbound_id()
+            ) {
+                return Task::none();
+            }
+            collection.selection = OutboundSelectionState::Ready {
+                selected: request.outbound_id().clone(),
+            };
+            let Ok(snapshot) = OutboundInventorySnapshot::new(
+                scope,
+                SnapshotRevision::new(request.expected_revision().value().wrapping_add(1)),
+                OutboundInventoryState::Ready {
+                    entries: entries.clone(),
+                    collections,
+                },
+            ) else {
+                return Task::none();
+            };
+            self.apply_outbound_inventory_observation(PageData::ready(snapshot));
+            return Task::none();
+        }
+        if !self.is_product_command_ingress() {
+            return Task::none();
+        }
+        let Some(ingress) = self.command_ingress() else {
+            return Task::none();
+        };
+        if ingress.observed_scope().as_ref() != Some(&scope) {
+            return Task::none();
+        }
+        let Some(snapshot) = self.runtime.outbound_inventory.data.as_ref() else {
+            return Task::none();
+        };
+        if snapshot.scope() != &scope || snapshot.revision() != request.expected_revision() {
+            return Task::none();
+        }
+        let OutboundInventoryState::Ready { collections, .. } = snapshot.inventory() else {
+            return Task::none();
+        };
+        let Some(collection) = collections
+            .iter()
+            .find(|collection| collection.id == *request.collection_id())
+        else {
+            return Task::none();
+        };
+        if collection.availability != SelectionAvailability::Selectable
+            || !collection.member_ids.contains(request.outbound_id())
+            || matches!(
+                &collection.selection,
+                OutboundSelectionState::Ready { selected }
+                    if selected == request.outbound_id()
+            )
+        {
+            return Task::none();
+        }
+
+        let expected_revision = request.expected_revision();
+        let collection_id = request.collection_id().clone();
+        let outbound_id = request.outbound_id().clone();
+        Task::perform(
+            async move {
+                let outcome = ingress
+                    .execute_outcome(CommandIntent::SelectOutbound {
+                        request: request.clone(),
+                    })
+                    .await;
+                let terminal_scope = outcome.scope;
+                let result = outcome
+                    .result
+                    .into_output()
+                    .and_then(|output| match output {
+                        CommandOutput::OutboundInventory(snapshot) => Ok(snapshot),
+                        _ => Err(Failure::new(
+                            ErrorCode::InvalidState,
+                            "outbound selection returned another output type",
+                            false,
+                        )),
+                    });
+                (terminal_scope, result)
+            },
+            move |(terminal_scope, result)| Message::OutboundSelectionFinished {
+                scope,
+                collection_id,
+                outbound_id,
+                expected_revision,
+                terminal_scope,
+                result,
+            },
+        )
+    }
+
+    fn finish_outbound_selection(
+        &mut self,
+        scope: CoreScope,
+        collection_id: OutboundId,
+        outbound_id: OutboundId,
+        expected_revision: SnapshotRevision,
+        terminal_scope: Option<CoreScope>,
+        result: Result<OutboundInventorySnapshot, Failure>,
+    ) -> Task<Message> {
+        let current_scope = self
+            .command_ingress()
+            .and_then(|ingress| ingress.observed_scope());
+        if self.is_product_command_ingress() && current_scope.as_ref() != Some(&scope) {
+            return Task::none();
+        }
+        if terminal_scope.as_ref() != Some(&scope) {
+            return Task::none();
+        }
+        let request =
+            match OutboundSelectionRequest::new(collection_id, outbound_id, expected_revision) {
+                Ok(request) => request,
+                Err(error) => {
+                    return Task::done(Message::ShowToast(error.to_string(), ToastStatus::Error));
+                }
+            };
+        match result {
+            Ok(snapshot)
+                if snapshot.scope() == &scope
+                    && snapshot.revision() > expected_revision
+                    && request.is_confirmed_by(&snapshot) =>
+            {
+                if self
+                    .runtime
+                    .outbound_inventory
+                    .data
+                    .as_ref()
+                    .filter(|current| current.scope() == &scope)
+                    .is_some_and(|current| current.revision() > snapshot.revision())
+                {
+                    return Task::none();
+                }
+                self.apply_outbound_inventory_observation(PageData::ready(snapshot));
+                Task::none()
+            }
+            Ok(_) => Task::done(Message::ShowToast(
+                "Outbound selection readback did not confirm the requested member".to_owned(),
+                ToastStatus::Error,
+            )),
+            Err(failure) => Task::done(Message::ShowToast(failure.message, ToastStatus::Error)),
         }
     }
 
@@ -120,23 +294,14 @@ impl AppState {
         }
     }
 
-    /// DUAL-06-03: the user-typed speedtest target, or `None` when blank so the
-    /// shared engine applies its own default. The engine owns the effective
-    /// target fact; the UI only carries the raw input into the port call.
-    pub(crate) fn speedtest_target_url(&self) -> Option<String> {
-        let trimmed = self.runtime.runtime_speedtest_url.trim();
-        (!trimmed.is_empty()).then(|| trimmed.to_string())
-    }
-
-    /// DUAL-06-01: apply a signed step to a concurrency bound, clamped to the
-    /// supported 1..=64 window. Pure so the handler and tests share one rule.
+    /// Apply a signed step to the typed concurrency range, clamped to 1..=30.
     pub(crate) fn stepped_speedtest_concurrency(current: usize, delta: i32) -> usize {
-        (current as i32 + delta).clamp(1, 64) as usize
+        (current as i32 + delta).clamp(1, 30) as usize
     }
 
     pub(super) fn persist_runtime_panel_settings_task(&self) -> Task<Message> {
         let auto_refresh = self.runtime.runtime_auto_refresh;
-        let delay_sort = Self::normalize_delay_sort_key(&self.runtime.proxy_delay_sort).to_string();
+        let delay_sort_order = self.runtime.runtime_panel_delay_sort_order;
         let connection_filter = self.runtime.runtime_connection_filter.clone();
         let connection_sort =
             Self::normalize_connection_sort_key(&self.runtime.runtime_connection_sort).to_string();
@@ -144,7 +309,7 @@ impl AppState {
             async move {
                 update(|settings| {
                     settings.runtime_panel.auto_refresh = auto_refresh;
-                    settings.runtime_panel.delay_sort = delay_sort;
+                    settings.runtime_panel.delay_sort_order = delay_sort_order;
                     settings.runtime_panel.connection_filter = connection_filter;
                     settings.runtime_panel.connection_sort = connection_sort;
                 })
@@ -155,90 +320,10 @@ impl AppState {
     }
 
     pub fn recompute_filtered_groups(&mut self) {
-        if self.commands.is_some() && !self.shell.demo {
+        if !self.is_product_command_ingress() && !self.shell.demo {
             return;
         }
-        let mut preferences = self.runtime.proxy_ui_preferences.clone();
-        preferences.search_query = self.runtime.proxy_filter.clone();
-        preferences.filter_alive = self.runtime.filter_alive_only;
-        preferences.sort_order =
-            ProxySortOrder::from_str_loose(&self.runtime.proxy_delay_sort).unwrap_or_default();
-        preferences.favorite_proxies = self.runtime.favorite_proxies.iter().cloned().collect();
-        let (groups, _) = project_groups_snapshot(&self.runtime.proxies, &preferences);
-        self.runtime.proxy_name_runs = project_name_runs(&groups, &preferences.search_query);
-        self.runtime.proxy_groups = groups;
-        self.runtime.filtered_groups = self
-            .runtime
-            .proxy_groups
-            .iter()
-            .map(|group| {
-                (
-                    group.name.clone(),
-                    group.proxies.iter().map(|node| node.name.clone()).collect(),
-                )
-            })
-            .collect();
-    }
-
-    fn sync_runtime_proxy_selection(&mut self) {
-        let mut groups: Vec<String> = self
-            .runtime
-            .proxies
-            .iter()
-            .filter_map(|(name, proxy)| {
-                if proxy.is_group() {
-                    Some(name.clone())
-                } else {
-                    None
-                }
-            })
-            .collect();
-
-        if groups.is_empty() {
-            self.runtime.runtime_selected_group.clear();
-            self.runtime.runtime_selected_proxy.clear();
-            return;
-        }
-
-        groups.sort();
-        if let Some(index) = groups.iter().position(|name| name == "GLOBAL") {
-            let global = groups.remove(index);
-            groups.insert(0, global);
-        }
-
-        if !groups
-            .iter()
-            .any(|name| name == &self.runtime.runtime_selected_group)
-        {
-            self.runtime.runtime_selected_group = groups[0].clone();
-        }
-
-        let members: Vec<String> = self
-            .runtime
-            .proxies
-            .get(&self.runtime.runtime_selected_group)
-            .and_then(|proxy| proxy.all())
-            .map(|all| all.to_vec())
-            .unwrap_or_default();
-        if members.is_empty() {
-            self.runtime.runtime_selected_proxy.clear();
-            return;
-        }
-
-        if !members
-            .iter()
-            .any(|name| name == &self.runtime.runtime_selected_proxy)
-        {
-            let current = self
-                .runtime
-                .proxies
-                .get(&self.runtime.runtime_selected_group)
-                .and_then(|proxy| proxy.now())
-                .map(|name| name.to_string());
-            self.runtime.runtime_selected_proxy = current
-                .filter(|name| members.iter().any(|member| member == name))
-                .unwrap_or_else(|| members[0].clone());
-        }
+        self.refresh_outbound_inventory_projection();
     }
 
     /// Proxy list/selection, delay testing and runtime panel preferences.
@@ -246,103 +331,167 @@ impl AppState {
     /// `update_core` chain.
     pub(super) fn update_core_proxies(&mut self, message: Message) -> Task<Message> {
         match message {
-            Message::LoadProxies => {
-                if let Some(rt) = self.runtime.runtime.clone() {
-                    let scope = self.commands.as_ref().map(|application| {
-                        let snapshot = application.snapshot();
-                        (snapshot.generation, snapshot.session_token)
-                    });
-                    self.runtime.is_loading_proxies = true;
-                    Task::perform(
-                        async move {
-                            rt.get_proxies()
-                                .await
-                                .map_err(|error| InfiltratorError::Internal(error.to_string()))
-                        },
-                        move |result| match scope {
-                            Some((generation, session_token)) => Message::ProxiesLoadedForSession {
-                                generation,
-                                session_token,
-                                result,
-                            },
-                            None => Message::ProxiesLoaded(result),
-                        },
-                    )
+            Message::RefreshOutboundInventory => {
+                if self.is_product_command_ingress() {
+                    self.read_outbound_inventory()
                 } else {
                     Task::none()
                 }
             }
-            Message::ProxiesLoadedForSession {
-                generation,
-                session_token,
+            Message::SelectOutbound { scope, request } => self.select_outbound(scope, request),
+            Message::PrepareRuntimeOutboundSelection { scope, request } => {
+                if !self.outbound_selection_request_is_current(&scope, &request) {
+                    return Task::none();
+                }
+                self.runtime.runtime_selected_group = request.collection_id().value().to_owned();
+                self.runtime.runtime_selected_proxy = request.outbound_id().value().to_owned();
+                self.runtime.runtime_outbound_selection = Some((scope, request));
+                Task::none()
+            }
+            Message::OutboundInventoryReadFinished {
+                requested_scope,
+                terminal_scope,
                 result,
-            } => {
-                let current = self
-                    .commands
-                    .as_ref()
-                    .map(|application| application.snapshot());
-                if current.is_some_and(|current| {
-                    current.generation == generation
-                        && current.session_token == session_token
-                        && matches!(
-                            current.lifecycle,
-                            CoreLifecycle::Ready | CoreLifecycle::Running
-                        )
-                }) {
-                    self.apply_proxies_loaded(result)
-                } else {
-                    Task::none()
-                }
+            } => self.finish_outbound_inventory_read(requested_scope, terminal_scope, result),
+            Message::OutboundSelectionFinished {
+                scope,
+                collection_id,
+                outbound_id,
+                expected_revision,
+                terminal_scope,
+                result,
+            } => self.finish_outbound_selection(
+                scope,
+                collection_id,
+                outbound_id,
+                expected_revision,
+                terminal_scope,
+                result,
+            ),
+            Message::OutboundProbeFinished {
+                token,
+                scope,
+                request,
+                terminal_scope,
+                result,
+            } => self.finish_outbound_probe(token, scope, request, terminal_scope, result),
+            Message::StartOutboundProbeBatch {
+                scope,
+                target_scope,
+                expected_inventory_revision,
+            } => self.start_outbound_probe_batch(scope, target_scope, expected_inventory_revision),
+            Message::OutboundProbeBatchFinished {
+                token,
+                scope,
+                request,
+                terminal_scope,
+                result,
+            } => self.finish_outbound_probe_batch(token, scope, request, terminal_scope, result),
+            Message::DismissOutboundProbeBatch => {
+                self.dismiss_outbound_probe_batch();
+                Task::none()
             }
-            Message::ProxiesLoaded(result) => {
-                if self.commands.is_some() {
-                    Task::none()
-                } else {
-                    self.apply_proxies_loaded(result)
-                }
-            }
-            Message::SelectProxy(group, name) => {
-                if let Some(rt) = self.runtime.runtime.clone() {
-                    Task::perform(
-                        async move {
-                            rt.switch_proxy(&group, &name)
-                                .await
-                                .map_err(|error| InfiltratorError::Internal(error.to_string()))
-                        },
-                        |_| Message::LoadProxies,
-                    )
-                } else {
-                    Task::none()
-                }
-            }
+            Message::OutboundUiPreferenceFinished {
+                token,
+                scope,
+                request,
+                terminal_scope,
+                result,
+            } => self.finish_outbound_ui_preference(token, scope, request, terminal_scope, result),
             Message::FilterProxies(filter) => self.update_proxy_search(filter),
             Message::ToggleFilterAlive(enabled) => {
-                if self.commands.is_some() {
-                    return self
-                        .submit_proxy_preference(CommandIntent::ToggleFilterAlive { enabled });
+                if self.is_product_command_ingress() {
+                    return self.submit_current_outbound_ui_preference(
+                        OutboundUiPreferenceIntent::SetHealthFilter(if enabled {
+                            OutboundHealthFilter::HealthyOnly
+                        } else {
+                            OutboundHealthFilter::All
+                        }),
+                    );
                 }
-                self.runtime.filter_alive_only = enabled;
-                Task::done(Message::UpdateFilteredGroups)
+                if !self.shell.demo {
+                    return Task::none();
+                }
+                self.apply_demo_outbound_ui_preference(
+                    OutboundUiPreferenceIntent::SetHealthFilter(if enabled {
+                        OutboundHealthFilter::HealthyOnly
+                    } else {
+                        OutboundHealthFilter::All
+                    }),
+                );
+                Task::none()
             }
-            Message::ToggleFavoriteProxy(proxy) => {
-                if self.commands.is_some() {
-                    return self
-                        .submit_proxy_preference(CommandIntent::ToggleFavoriteProxy { proxy });
+            Message::ToggleFavoriteOutbound(outbound_id) => {
+                if !self.is_product_command_ingress() && !self.shell.demo {
+                    return Task::none();
                 }
-                if self.runtime.favorite_proxies.contains(&proxy) {
-                    self.runtime.favorite_proxies.remove(&proxy);
+                let favorite = self
+                    .runtime
+                    .proxy_groups
+                    .iter()
+                    .flat_map(|group| &group.proxies)
+                    .find(|member| member.id.as_ref() == Some(&outbound_id))
+                    .is_some_and(|member| member.favorite);
+                let intent = OutboundUiPreferenceIntent::SetFavorite {
+                    outbound_id,
+                    state: if favorite {
+                        OutboundFavoriteState::Unpinned
+                    } else {
+                        OutboundFavoriteState::Pinned
+                    },
+                };
+                if self.is_product_command_ingress() {
+                    self.submit_current_outbound_ui_preference(intent)
                 } else {
-                    self.runtime.favorite_proxies.insert(proxy);
+                    self.apply_demo_outbound_ui_preference(intent);
+                    Task::none()
                 }
-                Task::done(Message::UpdateFilteredGroups)
+            }
+            Message::ToggleOutboundGroupExpanded(group_id) => {
+                if !self.is_product_command_ingress() && !self.shell.demo {
+                    return Task::none();
+                }
+                let expanded = self
+                    .runtime
+                    .proxy_groups
+                    .iter()
+                    .find(|group| group.id.as_ref() == Some(&group_id))
+                    .is_none_or(|group| !group.expanded);
+                let intent = OutboundUiPreferenceIntent::SetGroupExpansion {
+                    group_id,
+                    expansion: if expanded {
+                        OutboundGroupExpansion::Expanded
+                    } else {
+                        OutboundGroupExpansion::Collapsed
+                    },
+                };
+                if self.is_product_command_ingress() {
+                    self.submit_current_outbound_ui_preference(intent)
+                } else {
+                    self.apply_demo_outbound_ui_preference(intent);
+                    Task::none()
+                }
             }
             Message::ToggleProxyCompactView => {
-                if self.commands.is_some() {
-                    return self.submit_proxy_preference(CommandIntent::SetProxyCompactView {
-                        compact: !self.runtime.proxy_compact_view,
-                    });
+                if self.is_product_command_ingress() {
+                    return self.submit_current_outbound_ui_preference(
+                        OutboundUiPreferenceIntent::SetLayout(if self.runtime.proxy_compact_view {
+                            OutboundLayout::Grid
+                        } else {
+                            OutboundLayout::CompactList
+                        }),
+                    );
                 }
-                self.runtime.proxy_compact_view = !self.runtime.proxy_compact_view;
+                if !self.shell.demo {
+                    return Task::none();
+                }
+                self.apply_demo_outbound_ui_preference(OutboundUiPreferenceIntent::SetLayout(
+                    if self.runtime.proxy_compact_view {
+                        OutboundLayout::Grid
+                    } else {
+                        OutboundLayout::CompactList
+                    },
+                ));
                 Task::none()
             }
             Message::OpenAddCustomNodeModal(open) => {
@@ -444,7 +593,7 @@ impl AppState {
                         self.runtime.new_node_name.clear();
                         self.runtime.new_node_server.clear();
                         Task::batch(vec![
-                            Task::done(Message::LoadProxies),
+                            Task::done(Message::RefreshOutboundInventory),
                             Task::done(Message::ShowToast(
                                 "Proxy node added to active profile".to_string(),
                                 ToastStatus::Success,
@@ -457,70 +606,101 @@ impl AppState {
                     }
                 }
             }
-            Message::InspectProxy(proxy) => {
-                let next = proxy.filter(|name| self.proxy_inspection(name).is_some());
-                if self.runtime.inspecting_proxy != next {
-                    self.runtime.inspection_probe.dismiss();
-                    self.runtime.inspecting_proxy = next;
+            Message::InspectOutbound(outbound_id) => {
+                let next = outbound_id.filter(|id| self.outbound_is_observed(id));
+                if self.runtime.outbound_inspecting != next {
+                    self.runtime.outbound_probe_pending = None;
+                    self.runtime.outbound_probe_failure = None;
+                    self.runtime.outbound_probe_result = None;
+                    self.runtime.outbound_probe_blocked = None;
+                    self.runtime.outbound_inspecting = next;
                 }
-                self.reconcile_proxy_inspection();
                 Task::none()
             }
-            Message::TestInspectedProxy => self.probe_inspected_proxy(),
-            Message::ProxyInspectionProbed {
-                name,
-                token,
-                result,
-            } => self.finish_inspection_probe(name, token, result),
-            Message::ToggleProxySort => {
-                self.runtime.proxy_sort_by_delay = !self.runtime.proxy_sort_by_delay;
-                self.runtime.proxy_delay_sort = if self.runtime.proxy_sort_by_delay {
-                    "delay_asc".to_string()
-                } else {
-                    "name_asc".to_string()
-                };
-                Task::done(Message::UpdateFilteredGroups)
+            Message::ProbeInspectedOutbound => self.probe_inspected_outbound(),
+            Message::StartOutboundProbe { scope, request } => {
+                self.start_outbound_probe(scope, request)
             }
-            Message::UpdateProxyDelaySort(sort_key) => {
-                if self.commands.is_some() {
-                    return self.submit_proxy_preference(CommandIntent::SetProxySortOrder {
-                        order: ProxySortOrder::from_str_loose(&sort_key).unwrap_or_default(),
-                    });
+            Message::SetOutboundSortOrder(sort_order) => {
+                if self.is_product_command_ingress() {
+                    return self.submit_current_outbound_ui_preference(
+                        OutboundUiPreferenceIntent::SetSortOrder(sort_order),
+                    );
                 }
-                let normalized = Self::normalize_delay_sort_key(&sort_key).to_string();
-                self.runtime.proxy_delay_sort = normalized.clone();
-                self.runtime.proxy_sort_by_delay = normalized.starts_with("delay_");
-                Task::batch(vec![
-                    Task::done(Message::UpdateFilteredGroups),
-                    self.persist_runtime_panel_settings_task(),
-                ])
+                if self.shell.demo {
+                    self.apply_demo_outbound_ui_preference(
+                        OutboundUiPreferenceIntent::SetSortOrder(sort_order),
+                    );
+                }
+                Task::none()
             }
-            Message::UpdateDelayTestUrl(url) => {
-                self.runtime.probe_options_editor.edit_url(url);
+            Message::SetRuntimePanelDelaySort(sort_order) => {
+                self.runtime.runtime_panel_delay_sort_order = sort_order;
+                if self.shell.demo {
+                    Task::none()
+                } else {
+                    self.persist_runtime_panel_settings_task()
+                }
+            }
+            Message::UpdateRuntimeProbeUrlDraft(url) => {
+                self.runtime.runtime_probe_settings_editor.edit_url(url);
                 self.sync_probe_draft_fields();
                 Task::none()
             }
-            Message::UpdateDelayTimeoutMs(timeout) => {
-                self.runtime.probe_options_editor.edit_timeout(timeout);
+            Message::UpdateRuntimeProbeTimeoutDraft(timeout) => {
+                self.runtime
+                    .runtime_probe_settings_editor
+                    .edit_timeout(timeout);
                 self.sync_probe_draft_fields();
                 Task::none()
             }
             Message::UpdateRuntimeSelectedGroup(group) => {
                 self.runtime.runtime_selected_group = group;
-                self.sync_runtime_proxy_selection();
-                Task::none()
-            }
-            Message::UpdateRuntimeSelectedProxy(proxy) => {
-                self.runtime.runtime_selected_proxy = proxy;
+                self.runtime.runtime_outbound_selection = None;
+                if self.is_product_command_ingress() || self.shell.demo {
+                    self.sync_runtime_outbound_selection();
+                }
                 Task::none()
             }
             Message::ApplyRuntimeSelectedProxy => {
+                if self.is_product_command_ingress() {
+                    let Some((scope, request)) = self.runtime.runtime_outbound_selection.clone()
+                    else {
+                        return Task::none();
+                    };
+                    if !self.outbound_selection_request_is_current(&scope, &request) {
+                        self.runtime.runtime_outbound_selection = None;
+                        self.sync_runtime_outbound_selection();
+                        return Task::none();
+                    }
+                    return Task::done(Message::SelectOutbound { scope, request });
+                }
+                if self.shell.demo {
+                    let Some((scope, request)) = self.runtime.runtime_outbound_selection.clone()
+                    else {
+                        return Task::none();
+                    };
+                    if !self.outbound_selection_request_is_current(&scope, &request) {
+                        self.runtime.runtime_outbound_selection = None;
+                        self.sync_runtime_outbound_selection();
+                        return Task::none();
+                    }
+                    return Task::done(Message::SelectOutbound { scope, request });
+                }
                 let group = self.runtime.runtime_selected_group.trim().to_string();
                 let proxy = self.runtime.runtime_selected_proxy.trim().to_string();
                 if group.is_empty() || proxy.is_empty() {
                     return Task::none();
                 }
-                Task::done(Message::SelectProxy(group, proxy))
+                self.outbound_selection_message(&group, &proxy)
+                    .map(Task::done)
+                    .unwrap_or_else(|| {
+                        Task::done(Message::ShowToast(
+                            "Outbound selection is unavailable for the current observation"
+                                .to_owned(),
+                            ToastStatus::Info,
+                        ))
+                    })
             }
             Message::UpdateRuntimeConnectionFilter(filter) => {
                 self.diag.connection_groups.edit_query(
@@ -545,155 +725,82 @@ impl AppState {
                 self.recompute_filtered_groups();
                 Task::none()
             }
-            Message::SpeedtestScopeUpdated(result) => {
-                self.runtime.runtime_testing_all_delays = false;
-                match result {
-                    Ok(snapshot) => {
-                        let alive = snapshot.alive_nodes_count();
-                        let total = snapshot.node_count();
-                        self.diag.speedtest = snapshot;
-                        Task::batch(vec![
-                            Task::done(Message::LoadProxies),
-                            Task::done(Message::ShowToast(
-                                format!("Delay test complete: {alive} alive / {total} tested"),
-                                ToastStatus::Success,
-                            )),
-                        ])
-                    }
-                    Err(error) => {
-                        let e = InfiltratorError::Internal(error.to_string());
-                        self.set_error(&e);
-                        Task::done(Message::ShowToast(e.to_string(), ToastStatus::Error))
-                    }
-                }
-            }
-            Message::CancelSpeedtest => {
-                let Some(port) = self
-                    .runtime
-                    .runtime
-                    .clone()
-                    .and_then(|runtime| runtime.speedtest_port())
-                else {
+            Message::CancelSpeedtestRun(run_id) => {
+                let Some(ingress) = self.command_ingress() else {
                     return Task::done(Message::ShowToast(
-                        "Speedtest is not available on this host".to_string(),
+                        "Speedtest is not configured for this Core owner".to_string(),
                         ToastStatus::Error,
                     ));
                 };
-                let was_running = port.cancel();
-                self.runtime.runtime_testing_all_delays = false;
-                Task::done(Message::ShowToast(
-                    if was_running {
-                        "Speedtest cancelled".to_string()
-                    } else {
-                        "No speedtest is running".to_string()
-                    },
-                    if was_running {
-                        ToastStatus::Warning
-                    } else {
-                        ToastStatus::Error
-                    },
-                ))
-            }
-            Message::UpdateSpeedtestTestUrl(url) => {
-                self.runtime.runtime_speedtest_url = url;
-                Task::none()
-            }
-            Message::AdjustSpeedtestConcurrency(delta) => {
-                let Some(port) = self
-                    .runtime
-                    .runtime
-                    .clone()
-                    .and_then(|runtime| runtime.speedtest_port())
-                else {
-                    return Task::done(Message::ShowToast(
-                        "Speedtest is not available on this host".to_string(),
-                        ToastStatus::Error,
-                    ));
-                };
-                let current = port.snapshot().config.concurrency;
-                let next = Self::stepped_speedtest_concurrency(current, delta);
-                match port.set_concurrency(next) {
-                    Ok(()) => {
-                        // Read the live bound back from the one shared snapshot.
-                        self.diag.speedtest = port.snapshot();
-                        Task::none()
-                    }
-                    Err(error) => Task::done(Message::ShowToast(
-                        format!("Concurrency update failed: {error}"),
-                        ToastStatus::Error,
-                    )),
-                }
-            }
-            Message::TestProxyDelay(name) => {
-                if !self.runtime.runtime_testing_delay_proxy.is_empty() {
+                let Some(requested_scope) = ingress.observed_scope() else {
                     return Task::none();
-                }
-                if self.commands.is_some() {
-                    return self.probe_proxy_by_name(name);
-                }
-                if let Some(rt) = self.runtime.runtime.clone() {
-                    let n = name.clone();
-                    let options = match self.applied_probe_options() {
-                        Ok(options) => options,
-                        Err(failure) => {
-                            return Task::done(Message::ShowToast(
-                                failure.message,
-                                ToastStatus::Error,
+                };
+                Task::perform(
+                    async move {
+                        let outcome = ingress
+                            .execute_outcome(CommandIntent::CancelSpeedtestRun { run_id })
+                            .await;
+                        if outcome.scope.as_ref() != Some(&requested_scope) {
+                            return Err(Failure::new(
+                                ErrorCode::InvalidState,
+                                "speedtest cancellation completed for a stale Core scope",
+                                false,
                             ));
                         }
-                    };
-                    let test_url = options.test_url;
-                    let timeout_ms = options.timeout_ms;
-                    self.runtime.runtime_testing_delay_proxy = name.clone();
-                    Task::perform(
-                        async move {
-                            rt.test_delay(&n, &test_url, timeout_ms)
-                                .await
-                                .map(|d| d as u64)
-                                .map_err(|error| InfiltratorError::Internal(error.to_string()))
-                        },
-                        move |res| Message::ProxyTested(name, res),
-                    )
-                } else {
-                    Task::none()
-                }
+                        let cancellation =
+                            outcome
+                                .result
+                                .into_output()
+                                .and_then(|output| match output {
+                                    CommandOutput::SpeedtestCancelled(outcome) => Ok(outcome),
+                                    _ => Err(Failure::new(
+                                        ErrorCode::InvalidState,
+                                        "speedtest cancellation returned another output type",
+                                        false,
+                                    )),
+                                })?;
+                        Ok((cancellation, ingress.speedtest_snapshot()))
+                    },
+                    Message::SpeedtestCancelled,
+                )
             }
-            Message::ProxyDelayCompleted { name, result } => {
-                if self.runtime.runtime_testing_delay_proxy != name {
-                    return Task::none();
-                }
-                self.runtime.runtime_testing_delay_proxy.clear();
-                match result {
-                    Ok(()) => Task::done(Message::LoadProxies),
-                    Err(failure) => {
-                        Task::done(Message::ShowToast(failure.message, ToastStatus::Error))
-                    }
-                }
-            }
-            Message::ProxyTested(name, result) => {
-                self.runtime.runtime_testing_delay_proxy.clear();
-                match result {
-                    Ok(delay) => Task::batch(vec![
-                        Task::done(Message::LoadProxies),
-                        Task::done(Message::ShowToast(
-                            format!("{}: {}ms", name, delay),
-                            ToastStatus::Success,
-                        )),
-                    ]),
-                    Err(e) => Task::done(Message::ShowToast(
-                        format!("{}: {}", name, e),
+            Message::AdjustSpeedtestConcurrency(delta) => {
+                let Some(ingress) = self.command_ingress() else {
+                    return Task::done(Message::ShowToast(
+                        "Speedtest is not configured for this Core owner".to_string(),
                         ToastStatus::Error,
-                    )),
-                }
-            }
-            Message::TestGroupDelay(name) => {
-                self.run_speedtest_scope(SpeedtestScope::SingleGroup(name))
-            }
-            Message::TestAllProxyDelays => {
-                if self.runtime.runtime_testing_all_delays {
+                    ));
+                };
+                let current = ingress.speedtest_snapshot().concurrency.get();
+                let next = Self::stepped_speedtest_concurrency(usize::from(current), delta);
+                let Ok(concurrency) =
+                    infiltrator_contract::speedtest::SpeedtestConcurrency::new(next as u8)
+                else {
+                    return Task::done(Message::ShowToast(
+                        "Speedtest concurrency is outside its supported range".to_owned(),
+                        ToastStatus::Error,
+                    ));
+                };
+                let Some(requested_scope) = ingress.observed_scope() else {
                     return Task::none();
-                }
-                self.run_speedtest_scope(SpeedtestScope::AllGroups)
+                };
+                Task::perform(
+                    async move {
+                        let outcome = ingress
+                            .execute_outcome(CommandIntent::SetSpeedtestConcurrency { concurrency })
+                            .await;
+                        if outcome.scope.as_ref() != Some(&requested_scope) {
+                            return Err(Failure::new(
+                                ErrorCode::InvalidState,
+                                "speedtest concurrency update completed for a stale Core scope",
+                                false,
+                            ));
+                        }
+                        outcome.result.into_unit()?;
+                        Ok(ingress.speedtest_snapshot())
+                    },
+                    Message::SpeedtestConcurrencySet,
+                )
             }
             other => self.update_core_runtime_config(other),
         }

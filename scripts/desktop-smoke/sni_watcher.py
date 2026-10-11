@@ -14,7 +14,7 @@ Contract:
   * exits when the bus disconnects or on SIGTERM.
 
 Real hosts (waybar with the tray module) are preferred; see
-docs/DESKTOP_SMOKE.md. This fallback exists so the protocol-level
+crates/infiltrator-desktop/docs/DESKTOP_SMOKE.md. This fallback exists so the protocol-level
 assertions can run on machines without a tray host installed.
 """
 import argparse

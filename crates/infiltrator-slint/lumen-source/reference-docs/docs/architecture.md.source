@@ -1,0 +1,126 @@
+# Lumen 架构基线
+
+**状态：架构基线，Windows 与 Android 实现进行中。** 本文同时记录目标边界与当前实现；实现进度见 [docs/README.md](README.md)。未验证的平台能力不视为已支持。
+
+## 1. 系统边界
+
+    Slint UI
+       │ 页面意图、表单草稿、应用状态
+       ▼
+    Rust Application Services
+       ├── Profile / Override / 配置生成与校验
+       ├── Runtime 生命周期和 Mihomo 控制端口
+       ├── Connections / Rules / Providers / Logs / Traffic 用例
+       └── 状态存储、密钥存储、平台能力查询
+       │
+       ├── Mihomo Runtime Adapter
+       ├── Windows Adapter：System Proxy、管理员权限与 TUN 网卡状态回读、托盘
+       ├── Linux Adapter：GNOME System Proxy（当前实现）、TUN/权限、桌面托盘
+       └── Android Adapter：NativeActivity SAF 文件桥接与最小 VpnService 生命周期/JNI FD 桥接；TUN→SOCKS 转发和 Mihomo 运行流程由 Rust 应用层执行
+
+Rust 应用服务定义产品行为。Slint 展示状态并提交用户意图。平台适配器向应用层报告能力和结果，不将平台 API 暴露给界面。当前 UI 事件只发送命令，Tokio 应用服务线程执行 I/O、YAML、进程和 Mihomo API 操作，再通过有界状态通道更新界面。Android `LumenActivity` 在 API 33+ 以 `PRIORITY_OVERLAY` 注册系统 `OnBackInvokedCallback`，较低 API 使用 `onBackPressed`；JNI 将事件转换为 `AndroidBackPressed`，服务递增 UI 状态 revision 后调用同一 `go-back` 状态机。覆盖层优先级让 Lumen 页面状态先消费 Android 返回，避免 NativeActivity 在四个一级页退到后台。桌面 Runtime 使用用户提供的 Mihomo 可执行文件。Slint 使用固定的 Material Components 1.1.0 与 `LumenTheme` 语义令牌；`MaterialPalette` 提供组件颜色方案，页面 UI 详情见 UI-37。视觉资源按 `assets/manifest.json` 唯一登记：功能图标为本地静态 SVG，旗帜 SVG 保留 Twemoji 授权，UTF-8 文本只承担文本/语义角色，运行时不向图标服务取资源；替换资源时旧文件与引用必须同次移除。Android 内容布局依据 `Window.safe-area-insets` 计算安全边距，底栏从 ScrollView 可用高度中扣除。视口尺寸与平台安全区只影响展示布局，不改变产品状态或数据语义；长列表和长文本可滚动/换行呈现，不以固定高度裁切。
+
+## 2. 配置与 Override 数据流
+
+1. Profile 保存来源类型、展示名称、来源定位、获取状态、订阅凭据引用及可选 Age 凭据引用。订阅/本地导入内容属于来源数据，用户不能从 Profile 页面直接编辑。
+2. Profile 可以绑定零个或多个 Override。绑定关系及执行顺序持久化；用户改动应表达为可继续编辑的 Override。
+3. 生成流程为：读取来源 → 按顺序应用所选 Overrides → 加入平台运行参数 → 生成候选配置 → YAML/核心配置验证 → 应用到 Mihomo → 检查 Runtime 就绪状态。System Proxy 模式在 Override 合并后强制将 `tun.enable` 设为 `false`，避免来源配置意外启用未选择的系统隧道接管。Windows TUN 模式强制 `tun.enable=true`、`tun.auto-route=true`、`tun.auto-detect-interface=true` 和设备名 `Lumen`；Profile/Override 中其余 Mihomo TUN 参数保留，完整 TUN 参数编辑 UI 尚未实现。Android VPN 模式强制 Mihomo `tun.enable=false`，确保系统隧道唯一由 Android `VpnService` 创建；Rust `tun2proxy` 将该 TUN 文件描述符转发到受管 Mihomo 的 loopback SOCKS 入站。
+4. 只有候选配置验证成功后才能替换当前运行配置。候选失败或 Runtime 应用失败时，继续使用当前有效 Runtime，并把失败阶段和原因展示给用户。
+5. 只读预览可以展示将要应用的完整配置。预览不得提供对 Profile 原文的编辑，不显示历史快照或 diff。
+6. 不实现配置版本表、自动备份、历史恢复或配置文件版本 diff。持久化 Overrides 是自定义内容的正式存储方式。显式的 Profile/Override 分享或导出是用户触发的交换操作。
+7. Override HTTP/HTTPS 导入在异步应用服务中下载 `.yaml`/`.yml`，禁用重定向，使用 45 秒超时和 20 MiB 流式读取上限。仅非空 UTF-8 YAML 顶层对象可写入持久化 Override；失败不新增部分数据，保留输入并给出可重试错误。链接不写入状态存储，导入名称取自 URL 路径文件名，导入项初始不绑定 Profile。
+
+## 3. 核心领域对象
+
+| 对象 | 职责 | 持久化要点 |
+|---|---|---|
+| Profile | 一个订阅来源或本地导入来源；全局最多一个当前 Profile | 名称、类型、来源、更新时间、获取元数据、当前标记 |
+| Override | YAML 或 JavaScript 用户规则；内置模板只读，可复制成用户项 | 名称、格式、内容、内置/用户属性 |
+| ProfileOverrideBinding | 某 Profile 启用哪些 Overrides 及执行顺序 | profile id、override id、ordinal |
+| RuntimeSession | 本地 Mihomo 的生命周期、核心版本、代理模式和网络接管状态 | 运行时配置按平台管理，不作为可恢复的配置历史 |
+| RuntimeObservation | Connections、Rules、Providers、Logs、Traffic 的当前观测 | 实时速率与最近 120 个流量样本只驻留内存；可丢弃的数据不伪装为持久历史 |
+| TrafficUsageBucket | Mihomo 实时累计计数差分出的本地总流量 | 最多保留最近 7 个本地日的小时桶（168 条）；不记录逐应用流量 |
+| AppStore | Profile、Override、用户偏好与流量汇总 | `state.json` 版本 1 通过新增 serde 默认字段保持旧文件兼容；流量桶作为用户可清除的汇总，不属于配置备份或版本历史 |
+| ThirdPartyLicenseCatalog | About 页面展示 Cargo 依赖的许可证标识与正文 | 由 `Cargo.lock` 和三平台已解析依赖源生成，作为静态 JSON 随应用打包；不写用户状态、不联网。目录在应用服务线程解析、搜索与重读；正文条目有大小上限，读取失败显示重试入口 |
+
+不得将 Profile 的“当前”状态拆成 enabled/selected 两套并行语义：单个 Profile 行开关即设置或取消当前 Profile。取消当前 Profile 会按产品规则停止该会话。
+
+## 4. Mihomo 控制接口
+
+- Rust 用例通过 Mihomo 端口访问当前受管 Runtime。代理组/选择、当前模式、Provider、Rules、Connections、Logs、流量和版本能力分别映射到控制适配器。
+- Runtime 未启动时，从当前 Profile YAML 解析 `proxies`、`proxy-groups`、协议和地区旗帜；组卡片展示配置中首个声明成员作为默认项，节点页列出所有可选成员。该值只代表来源配置，不是 Mihomo 当前状态；运行后切换成功以 Mihomo API 回读为准。
+- Runtime 运行时 `/proxies` 返回的 JSON map 不保证顺序；Rust 按 Profile YAML 中 `proxy-groups` 顺序重排。首页依据当前 Rule/Global/Direct 模式选择主组，并递归沿 `now` 解析到叶节点，因此不会把 `GLOBAL` 组中的 `DIRECT` 误显示为 Rule 模式当前节点。
+- 单节点 Ping 在 Runtime 运行时用 Mihomo `/proxies/{name}/delay`；策略组测速从 `/proxies` 的 `all` 递归展开叶子，最多8路并发调用单节点 delay，避免 `/group/{name}/delay` 对 URLTest/Fallback 清除 fixed 选择的副作用。Runtime 停止时从当前 Profile YAML 读取服务器地址，对最多64个成员执行最多8路并发 TCP 握手、每项5秒上限。TCP 时间只表示代理服务器端口可连接，不冒充内核 URL 延迟；DIRECT 通过 `www.gstatic.com:443` 测直连，REJECT 跳过。
+- 首页出口 IP 只在 Runtime Running 时请求 `https://ipapi.co/json/`：Rule/Global 经 Mihomo `proxy_port`（loopback mixed port），Direct 使用显式 `no_proxy` 直连（Direct 路由的同义网络路径，并避免访问本地代理形成回环）。应用只保留内存中的脱敏 IP/国家码，失败清空当前值，不落库、不写日志；UI 显示 IPv4 中间段或 IPv6 中间段遮蔽形式。启动、路由/节点切换后查询，运行期间每5分钟更新；当前页面不提供手动刷新按钮。
+- API 返回数据必须校验和归一化；核心版本不支持的字段按“不可用”处理，不用旧值冒充新状态。
+- 当前本地 Runtime 使用随机 loopback 端口和随机 bearer secret，控制接口绑定 `127.0.0.1`，不绑定所有网卡；secret 不持久化，关闭 Mihomo 后随会话销毁。远程控制器尚未实现，不与本地 Runtime 混用。
+- Mihomo 文档注明 Unix socket 与 Windows named pipe 入口不验证 secret。因此不能仅凭“本地 IPC”判断安全；任何 IPC 方案必须先验证权限 ACL、目录权限和平台访问边界。
+
+## 5. 平台适配矩阵
+
+| 能力 | Windows | Android | Linux |
+|---|---|---|---|
+| UI | Slint 桌面窗口（Windows `cargo check` 通过） | Slint NativeActivity；x86_64 AVD 已验证安装启动、CJK 文本和窄屏配置流程，arm64 真机待验证 | Slint 桌面窗口（待目标机验证） |
+| Mihomo 生命周期 | 外置 PATH 子进程；Windows Job Object 在 Lumen 退出时结束进程 | 实现并经 x86_64 AVD 核验：APK 按 ABI 附带官方 Mihomo v1.19.32 独立可执行文件，构建时校验 SHA-256/ELF 架构，Rust 服务从 native-library 目录启动；Rust `tun2proxy` 使用 JNI 回传的 VpnService FD。Java 子类限系统授权、前台通知和 TUN FD 生命周期。arm64 真机待验证 | 外置子进程；父进程退出信号保护（未在 Linux 验证） |
+| 运行模式 | System Proxy 已实现；TUN 部分实现：仅提升权限时允许启动，固定设备名 `Lumen`，启用 Mihomo 自动路由 | 实现并经 Android 11 x86_64 AVD 核验：Android VPN Builder 建立全路由 IPv4/IPv6 接口和虚拟 DNS 地址，Rust 转发至 Mihomo loopback SOCKS5；VpnService 自身回读已建立 FD，系统 connectivity 将 VPN 标为 validated。Lumen 自身包绕过 VPN以避免出站回环。真实订阅流量和 arm64 真机待验证 | GNOME System Proxy（已实现代码，待 Linux 验证）；其他桌面及 TUN 未实现 |
+| 权限/恢复 | System Proxy 状态回读、约 3.6 秒一次运行态核对、外部修改保留与持久化恢复日志；TUN 启动确认 Mihomo `tun.enable`、Windows 网卡 Up 和 `/0` 或 `/1` 默认路由，运行中监测组合状态，正常停止先经 API 关闭 TUN 并确认网卡非 Up 且无默认路由。当前拒绝显式自定义 TUN 路由配置。进程异常退出后若网卡仍 Up 或默认路由仍存在则提示手动恢复并拒绝再次启动；没有提权辅助服务或自动禁用残留网卡。需要提升权限的目标机行为未验证 | SAF 使用用户选定 URI 进行有界读写，不保留外部授权。Android VPN 使用系统授权对话框和前台通知；撤权或服务回收时停止 Rust TUN 转发与核心。Lumen 自身应用流量绕过 VPN，避免受管核心出口回到 TUN；若 APK 核心缺失或不能执行则不启动 Runtime，恢复建议为重新安装匹配 ABI 的 Lumen APK | GNOME 设置回读和恢复；其他桌面、CAP_NET_ADMIN/TUN 未实现 |
+| 应用访问控制 | 首版不承诺按应用过滤 | 基于 Android 应用/包名能力 | 首版不承诺按桌面应用过滤 |
+| Wi-Fi 自动化 | 不适用 | 可选高级功能；权限逐项说明 | 不适用 |
+| 登录自动启动 | 当前用户 `HKCU Run` 项 | 不提供自动启动；需用户显式打开应用 | 当前用户 XDG autostart `.desktop` 项 |
+| 托盘 | Windows 通知区域 | Android 通知和系统服务入口 | 仅在桌面环境提供 StatusNotifierItem/AppIndicator 时出现 |
+
+Linux 不同桌面环境的系统代理接口和托盘协议能力有差异。当前代码仅对 GNOME 提供 `gsettings` System Proxy 适配；其他桌面会返回不可用。无法可靠接管时要显示能力限制；不可静默声称代理已生效。Windows TUN 使用 Mihomo 自身的 Wintun 能力，不包含 Lumen 提权服务；当前只接受 Mihomo 自动生成的默认路由，启动确认配置、固定名称网卡及 `/0` 或 `/1` 路由，正常停止前确认 Mihomo 已关闭 TUN、网卡已停止且对应默认路由已移除。显式 `route-address`/旧式自定义路由目前拒绝启动。异常退出后的残留网卡或默认路由只显示恢复提示，不自动修改或禁用系统网卡。Android SAF 仍由 NativeActivity 处理短期文件 URI；VpnService 只向 Rust 后端回传已建立的 TUN FD 和生命周期事件。Rust 服务串行管理候选配置、独立 Mihomo 子进程及 `tun2proxy` 任务。Linux TUN 尚无实现。
+
+Windows System Proxy 的原始值和 Lumen 应用值保存在应用数据目录的恢复日志中。运行期间定期回读系统代理；检测到外部修改时立即警告，停止 Runtime 时不覆盖外部值。应用启动时先取得单实例锁，再尝试恢复仍匹配 Lumen 应用值的快照；恢复失败时 UI 提供重试入口，并阻止新 Runtime 覆盖旧快照。GNOME System Proxy 已保存并恢复旧值，外部状态检查仍需目标桌面验证。正常停止时先恢复代理再停止 Mihomo。Runtime 临时配置只在活动会话期间保留，重新启动时清理上次崩溃留下的 `runtime-*.yaml` 文件。
+
+## 6. 并发、状态和错误
+
+- UI 事件线程不得等待网络、磁盘、进程、密钥存储、YAML/JavaScript 运算或 Mihomo API。
+- Android SAF 返回内容由 NativeActivity 桥接线程分块读取，最多 20 MiB；Rust 应用服务执行 UTF-8 检查、可选 Age 解密、YAML 校验与私有目录持久化。导出内容在 Rust 应用层有界暂存，用户选择目标后由 NativeActivity 后台线程写入，最多 20 MiB。取消、读取/写入失败、解密或校验失败会释放当前操作状态，不会新增 Profile/Override；Age 私钥仅保存于安全凭据设施。
+- Android VPN 启动由 Rust worker 串行执行：确认 APK 附带的 ABI 核心可执行并读取版本；生成及校验候选 YAML；申请系统 VPN 授权；启动 Mihomo 并等待 loopback 控制接口就绪；启动前台 `VpnService` 并取得 TUN FD；Rust `tun2proxy` 任务成功建立后才报告 Running。任一步失败会停止本次核心/服务、取消转发并清理候选运行 YAML。VPN 撤权/服务断开会触发同一停止流程。核心版本随 Lumen APK 升级；Runtime 运行中不替换核心。
+- 每个异步用例有可观察状态：Idle、Loading/Validating/Applying、Succeeded 或 Failed。能安全取消的工作支持取消；Runtime 启停和配置提交按状态机串行化。
+- 长列表以分页/窗口化或增量模型输出；同一时刻最多保留页面需要的活动流。离开页面后关闭不再需要的 WebSocket/订阅。
+- Connections 活动项最多 500 条；已关闭项由当前 Runtime 的相邻成功轮询差分推断，最多保留 500 条并仅驻留内存。轮询未捕获的短连接不作为已关闭记录，Runtime 停止后清空。
+- Mihomo `/traffic` 每秒提供 `upTotal`/`downTotal` 累计计数。应用以相邻计数差分形成按本地小时归档的总流量桶，保留最近 7 个本地日、上限 168 桶；今日按小时展示，本周按本地周一至周日汇总。流量流重连期间核心仍运行所累积的差值记入恢复采样所在小时；应用退出后 Runtime 结束，不推算退出期间流量，也不提供逐应用归属。状态文件最多每 10 秒写入一次；写入失败保留当前内存值并提示重试，异常退出可能丢失最近 10 秒增量。
+- 操作成功以 Runtime/API 回读或平台状态确认，不只以请求返回成功为准。
+- 每个失败显示动作名称、失败阶段、简洁原因和下一步可行操作。敏感响应细节只进受控诊断日志并脱敏。
+
+## 7. 安全与数据生命周期
+
+- URL 中的 userinfo、订阅令牌、Age 私钥、远程 secret、代理密码默认遮蔽；只有用户主动显示时短暂明文呈现。
+- Override 链接输入默认遮蔽；下载错误、日志和持久化对象不得包含完整 URL、userinfo 或查询令牌。网络层禁用自动重定向，错误只显示请求阶段、HTTP 状态或脱敏后的 YAML 行列信息。
+- Age 私钥、远程控制器 secret 等凭据通过 OS 安全存储或同等平台密钥设施保存；Profile 和 Override 文件中只存引用，不落明文私钥。
+- 桌面自动启动仅写入当前用户的登录项，不申请管理员权限；Windows 使用 `HKCU Run`，Linux 使用当前用户 XDG autostart 文件。启用/撤销失败时不更新偏好，偏好保存失败时回滚系统登录项；Android 不提供此开关。
+- 流量小时汇总只保存在本地 `state.json`，不上传；超过 7 个本地日的桶自动清理，用户可在统计页二次确认后清空全部桶。该数据不含目标地址、连接明细或应用标识。
+- Age 密钥生成器只在内存中生成/推导密钥，关闭时清除临时值；用户明确把私钥粘贴到 Profile 后，才交由凭据存储保存并关联引用。生成器不得自动写入 Profile、应用数据库或普通日志。
+- 订阅更新和本地导入失败时不覆盖上一次成功取得的来源数据。
+- Android SAF URI 只在用户选择后用于当前读写操作；应用不持久化 provider URI，也不申请共享存储读取权限。Profile 导入后只保留应用私有目录中的校验后副本和文件名；Override 导入后保存 YAML 内容与文件名派生的显示名称；Profile/Override/日志导出只在当前操作内暂存待写内容。Profile 来源 YAML 导出前由用户确认可能包含认证信息，且不会自动包含独立保存在凭据存储中的订阅凭据。
+- Config 卡片只允许用户导出来源配置文件，不提供订阅 URL 分享入口。导出文件不包含订阅 URL、Age 私钥或绑定的 Overrides；订阅 URL 始终留在安全凭据存储。
+- 第三方许可证目录来自已锁定依赖清单及依赖源中的许可文件；`assets/third_party_licenses.json` 是发布时随包提供的只读数据。新增/升级依赖后，维护者运行 `pwsh -NoProfile -File tools/generate_licenses.ps1` 更新目录并检查缺正文条目；生成失败不得替换可用目录。运行时只解析内嵌内容，不请求网络，也不写入用户配置。
+- 自定义 JavaScript Override 是可执行代码。启用前需要隔离、超时、内存上限和禁止未授权文件/网络/进程访问；引擎及隔离强度完成安全验证前，UI 不提供 JS 执行入口。
+- 手动分享前显示文件目标或系统分享面板；导出内容按用户选择，不自动导出密钥或凭据。
+
+## 8. 架构决策记录
+
+| 编号 | 决策 | 状态 |
+|---|---|---|
+| ADR-01 | 所有目标平台的产品 UI 使用 Rust + Slint | 已确定，源自用户要求 |
+| ADR-02 | Profile 来源只读；自定义配置持久化为可复用 Override | 已确定，源自用户要求 |
+| ADR-03 | Profile 列表采用单个当前 Profile；配置卡开关即选择/取消当前项 | 已确定，按 YumeBox 实际语义建模 |
+| ADR-04 | Android 仅 VPN；Windows/Linux 桌面仅暴露系统代理和 TUN 两类接管模式 | 产品范围已确定；Windows System Proxy 与 GNOME System Proxy 已有代码；Windows TUN 有管理员权限门控和有限启停/状态回读，提升权限的目标机运行及异常恢复仍待验证；Android VpnService/TUN 转发已接通，真实订阅流量及 arm64 真机行为仍待验证；Linux TUN 和非 GNOME 桌面适配待实现 |
+| ADR-05 | Mihomo Runtime 在桌面与 Android 的打包、进程/服务边界 | 桌面首版使用 PATH 中的独立 Mihomo 子进程；控制面限 loopback + 随机会话 secret；Windows Job Object、Linux 父进程退出信号用于进程回收。Android 不静态链接 Mihomo：构建脚本按 ABI 下载官方 v1.19.32 Android 发布资产、校验 SHA-256、ELF 架构和 LOAD 段 16 KB 对齐，并作为 `lib/<abi>/libmihomo.so` 独立可执行文件放入 APK；运行时从 native-library 目录执行 `-v` 并校验版本。此方式避免在 Android 可写 `files/` 目录执行被 SELinux 拒绝的问题。About 显示核心的 GPL-3.0 许可和对应源码标签；Lumen 自身 Rust 源码许可保持 MIT。Slint NativeActivity 的 Java `VpnService` 子类仅承接 `VpnService.prepare`、前台服务通知、`Builder.establish()`、FD 生命周期和撤权事件；Rust `tun2proxy` 0.8.4 接收 FD 并经 Mihomo loopback SOCKS5 转发。为避免核心/转发器出站流量回到 TUN，VpnService disallow list 排除 `org.lumen.client`，即 Lumen 自身包流量不进入 VPN。只有候选配置、核心 API、Android TUN 和 Rust 转发器都确认后才进入 Running；撤权、服务失败和手动停止均取消转发、关闭服务、停止核心并清理临时候选 YAML。核心版本随 Lumen APK 更新；不提供独立的运行时核心下载器 |
+| ADR-06 | Override 先支持 YAML；JavaScript 入口在安全隔离验证后开放 | YAML 已确定；JavaScript 引擎和沙箱待验证 |
+| ADR-07 | 不提供配置 diff、自动备份、历史版本或历史回滚 | 已确定，源自用户要求 |
+| ADR-08 | 外部控制器与本地受管 Runtime 必须在界面及应用状态上清楚区分 | 已确定，避免将远程能力误报为本地系统接管 |
+| ADR-09 | 订阅凭据和 Age 私钥只保存于平台安全凭据设施；Age 解密在 Rust 应用服务执行 | Windows/Linux 使用系统 keyring；Android 使用 Keystore AES-GCM 加密、私有目录密文文件和非明文引用。Age ASCII-armored 文本解密后再校验 YAML，受 20 MiB 输出上限约束；Profile JSON 只保存 `age_credential_ref`，该字段采用 serde 默认值兼容旧状态文件。私钥不进入日志或导出文件 |
+| ADR-10 | `yumebox-ui/` 用户提供的首页、代理、配置、设置和二级页截图是高保真视觉验收基准；Slint Material Components 1.1.0 提供可访问的基础交互 | 页面必须逐项与对应截图核验，按逻辑尺寸保持比例且适配安全区；不复制 YumeBox 品牌资源、Compose 源码。Material 库固定放在 `material-1.1.0/`，由 `build.rs` 注册；要求 Slint 1.18+。Lumen 使用 `LumenTheme` 设计令牌。局部组件样式改动、圆角导航、暗色二级页、匹配截图的胶囊输入/弹层形状均在 `material-1.1.0/LUMEN-PATCHES.md` 记录。资产格式、映射、许可证和引用由 `assets/manifest.json` 管理，不能并列保留未引用的旧图标集；手机紧凑 NavigationBar 分支保留 BaseNavigation 的 Tab 可访问语义和 ExtendedTouchArea 的键盘操作，槽位从父栏有效宽度直接分配，避免继承普通导航项的图标行最小留白。Material Sheet 的内层 padding 在字段宽度中仅扣除一次。Android 主布局读取 `Window.safe-area-insets`，主内容滚动视口在浮动底栏上方结束；状态栏图标依据亮/暗表面切换。地区旗帜保留原始 Emoji 名称并用内置彩色 SVG 显示。开发构建提供可切换的布局边界叠层，发布构建隐藏。验收覆盖 360×800/400×889/高分辨率 Android 模拟器截图，并与目标 JPG 对照 |
+| ADR-11 | Android 系统返回由 NativeActivity 统一分派到页面状态机，一级页不退出应用 | API 33+ 注册系统 Back callback；API 34+ 仅在用户开启预测返回时换为 `OnBackAnimationCallback` 并传递真实进度。Java 只发送轻量进度/取消/完成事件，Slint按进度揭示由软件渲染器缓存的前一页截图；撤销不提交路由。完成后 Rust 更新 revision，Slint 执行 `go-back()` 一次。根页消费返回事件，Sheet 菜单优先收起；低版本保留正常系统 Back。 |
+| ADR-12 | 系统/手动主题共用同一语义色；节点详情不强制改主题 | AppStore 用带 serde 默认值的 `theme_mode` 保存 system/light/dark。用户颜色由Rust验证六位RGB后持久化；HSB拖动只预览，不写盘，应用失败回滚到有效颜色。语义文字反转只互换文字层级，不取反图片、用户数据或状态背景。完整主题调色板变更后同步MaterialPalette。首页出口 IP 经 Mihomo 本地代理查询并遮蔽展示；离线测速用 TCP 连通性，不把它当作代理出口延迟。 |
+| ADR-13 | Android NativeActivity 在密度/字体/屏幕布局变化时保持现有 Activity | Android Manifest 为 `screenLayout`、`density`、`fontScale`、`fontWeightAdjustment` 声明 `configChanges`；Java `onConfigurationChanged` 调用父类并刷新系统主题，Slint 窗口重读尺寸与 `Window.safe-area-insets`。Activity 不因这些 UI 配置变化被重建，避免运行中 VPN 持有的异步会话与 NativeActivity teardown 交错。API 35 x86_64 AVD 已验证 VPN 运行时密度560↔480变化和随后停止代理；字体缩放、arm64 真机与刘海安全区仍待覆盖。 |
+| ADR-14 | 用户偏好只保存配置，平台状态始终通过系统接口回读 | Windows/Linux 自动启动以当前用户启动入口读写；Android 开机广播只发需用户点击的启动通知，不越过后台 Activity 启动限制，也不静默启动 VPN。最近任务排除、通知速率、Activity后台低频刷新和电池白名单分别经Activity/前台服务、Android权限与 `PowerManager` 实现；持久化失败时回滚应用层状态，系统状态变化后重新回读。缩放使用共享Slint逻辑尺寸令牌，不依赖渲染器不支持的整体图形变换。英语文案使用Slint bundled gettext资源；语言偏好保存 `system`/`zh-CN`/`en`，用户提供内容原样显示。 |
+
+ADR 更新时同步更新 spec、相关 UI 页面、research 和 docs/README.md。
+
+### App Settings 系统适配边界（2026-10-11）
+
+FR-051–063 对应 UI-16 的六组设置。AppStore 为旧状态提供serde默认值；主题色/User-Agent校验失败、持久化失败会保留已生效值，并在编辑器内保留可修正草稿。Android自启动采用开机通知，用户点按后打开应用，授权VPN仍由用户显式操作。`AppTask.setExcludeFromRecents` 控制任务卡片，API33额外关闭截图。预测返回截图只在开启时、页面变化前缓存，数量限制8张，单张维度沿用Slint逻辑窗口尺寸；手势取消只改临时进度，提交复用ADR-11页面状态机。后台轻量模式只跳过Activity不可见期间的频繁观测请求，仍检查子进程/代理恢复并保持VPN隧道。通知速率只使用Mihomo实际速率且不创建第二张常驻服务通知。

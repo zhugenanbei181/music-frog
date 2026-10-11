@@ -2,9 +2,11 @@
 
 use crate::port_conflict::DesktopPortConflict;
 use crate::speedtest_history_store::FileSpeedtestHistoryStore;
+use infiltrator_application::version_application::VersionApplication;
 use infiltrator_contract::version::CoreArtifactVerification;
 use infiltrator_core::app_routing_io::FileAppRoutingStore;
 use infiltrator_core::doctor_port::MihomoDoctor;
+use infiltrator_core::engine_version_backend_factory::MihomoEngineVersionBackendFactory;
 use infiltrator_core::factory_reset::execute;
 use infiltrator_core::fake_ip_cache_io::FileFakeIpCache;
 use infiltrator_core::history::{list_snapshots, read_snapshot};
@@ -33,10 +35,8 @@ use infiltrator_ports::snapshot_store::SnapshotStore;
 use infiltrator_ports::speedtest_history::SpeedtestHistoryStore;
 use infiltrator_ports::subscription_source::SubscriptionSource;
 use infiltrator_ports::sync::SyncPort;
-use infiltrator_ports::version::VersionPort;
 use mihomo_config::endpoint::ProfileEndpointSource;
 use mihomo_config::profile_option_store::{load_options, save_options};
-use mihomo_version::manager::VersionManager;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock};
 
@@ -97,14 +97,21 @@ pub fn port_conflict() -> anyhow::Result<impl PortConflictPort> {
 
 static DESKTOP_CORE_VERIFICATION: OnceLock<Arc<Mutex<CoreArtifactVerification>>> = OnceLock::new();
 
-pub fn version() -> anyhow::Result<impl VersionPort> {
+pub fn version_factory() -> anyhow::Result<MihomoEngineVersionBackendFactory> {
     let handle = DESKTOP_CORE_VERIFICATION
         .get_or_init(|| Arc::new(Mutex::new(CoreArtifactVerification::Unknown)));
-    let vm = VersionManager::new()?;
-    Ok(MihomoVersionPort::with_shared_verification(
-        vm,
+    Ok(MihomoEngineVersionBackendFactory::with_shared_verification(
+        home_dir()?,
         Arc::clone(handle),
     ))
+}
+
+pub fn version_application() -> anyhow::Result<VersionApplication> {
+    let factory = version_factory()?;
+    Ok(VersionApplication::from_factory(
+        MihomoVersionPort::engine_identifier(),
+        &factory,
+    )?)
 }
 
 pub fn public_ip_probe() -> impl PublicIpProbe {

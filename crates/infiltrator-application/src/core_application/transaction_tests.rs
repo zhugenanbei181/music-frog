@@ -1,12 +1,18 @@
 //! test-intent: behavior
 use super::{FakeProcess, application};
-use crate::command_application::{CommandFuture, CommandHandler, CommandOutputFuture};
+use crate::command_application::handler::{
+    CommandFuture, CommandHandler, CommandOutputFuture, ValidatedCoreCommandScope,
+};
 use crate::core_application::CoreApplication;
+use crate::core_application::{
+    test_dispatch_at_current_scope, test_execute_result_at_current_scope,
+};
 use crate::subscription_filter_fixture::{FIXTURE_DOCUMENT, observation};
 use futures_util::poll;
 use infiltrator_contract::command::{CommandIntent, CommandResult};
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::subscription_filter_result::{FilterReport, SubscriptionFilterApplied};
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
@@ -39,13 +45,30 @@ impl CommandHandler for TypedFilterHandler {
         let applied = self.0.clone();
         Box::pin(async move { Ok(CommandOutput::SubscriptionFilterApplied(applied)) })
     }
+    fn handle_output_scoped(
+        &self,
+        scope: ValidatedCoreCommandScope,
+        intent: CommandIntent,
+    ) -> CommandOutputFuture {
+        if scope.as_ref().is_some()
+            && matches!(intent, CommandIntent::SaveSubscriptionFilter { .. })
+        {
+            self.handle_output(intent)
+        } else {
+            Box::pin(async {
+                Err(Failure::unsupported(
+                    "test fake only handles scoped subscription filter saves",
+                ))
+            })
+        }
+    }
 }
 #[tokio::test]
 async fn typed_filter_terminal_retains_request_source_and_statistics_and_rejects_foreign_output() {
     let application = stopped_application();
     let source = observation("main", FIXTURE_DOCUMENT, Default::default())
         .unwrap()
-        .source;
+        .workspace_identity;
     let report = FilterReport {
         total_input: 11,
         passed: 7,
@@ -54,31 +77,33 @@ async fn typed_filter_terminal_retains_request_source_and_statistics_and_rejects
         ..Default::default()
     };
     let applied = SubscriptionFilterApplied {
-        source: source.clone(),
+        workspace_identity: source.clone(),
         report,
     };
     application.install_command_handler(Arc::new(TypedFilterHandler(applied.clone())));
-    let result = application
-        .execute(CommandIntent::SaveSubscriptionFilter {
-            source: source.clone(),
+    let result = test_execute_result_at_current_scope(
+        &application,
+        CommandIntent::SaveSubscriptionFilter {
+            workspace_identity: source.clone(),
             filter: Default::default(),
-        })
-        .await;
+        },
+    )
+    .await;
     match result {
-        CommandResult::Produced {
-            request_id,
-            output: CommandOutput::SubscriptionFilterApplied(actual),
-        } => {
+        CommandResult::Produced { request_id, output } => {
             assert!(request_id.0 > 0);
-            assert_eq!(actual, applied);
+            assert_eq!(
+                *output,
+                CommandOutput::SubscriptionFilterApplied(applied.clone())
+            );
         }
         other => panic!("full typed terminal is required: {other:?}"),
     }
     let mut foreign = applied;
-    foreign.source.profile = "other".into();
+    foreign.workspace_identity.document.profile_id = ProfileId::new("other").unwrap();
     application.install_command_handler(Arc::new(TypedFilterHandler(foreign)));
     assert!(
-        matches!(application.execute(CommandIntent::SaveSubscriptionFilter { source, filter: Default::default() }).await, CommandResult::Rejected { failure, .. } if failure.code == ErrorCode::InvalidState)
+        matches!(test_execute_result_at_current_scope(&application, CommandIntent::SaveSubscriptionFilter { workspace_identity: source, filter: Default::default() }).await, CommandResult::Rejected { failure, .. } if failure.code == ErrorCode::InvalidState)
     );
 }
 
@@ -105,6 +130,22 @@ impl CommandHandler for LifecycleTransaction {
                 .map_err(Failure::from)
         })
     }
+    fn handle_output_scoped(
+        &self,
+        scope: ValidatedCoreCommandScope,
+        intent: CommandIntent,
+    ) -> CommandOutputFuture {
+        if scope.as_ref().is_some() && matches!(intent, CommandIntent::SwitchProfile { .. }) {
+            let handled = self.handle(intent);
+            Box::pin(async move { handled.await.map(|()| CommandOutput::Unit) })
+        } else {
+            Box::pin(async {
+                Err(Failure::unsupported(
+                    "test fake only handles scoped profile switches",
+                ))
+            })
+        }
+    }
 }
 
 #[tokio::test]
@@ -114,9 +155,12 @@ async fn compound_command_can_start_restart_and_stop_its_own_core_without_deadlo
     application.install_command_handler(handler.clone());
     let result = timeout(
         Duration::from_secs(2),
-        application.execute(CommandIntent::SwitchProfile {
-            profile_id: "transaction-fixture".into(),
-        }),
+        test_execute_result_at_current_scope(
+            &application,
+            CommandIntent::SwitchProfile {
+                profile_id: "transaction-fixture".into(),
+            },
+        ),
     )
     .await
     .expect("nested lifecycle transaction must terminate");
@@ -157,6 +201,22 @@ impl CommandHandler for BlockingHandler {
             Ok(())
         })
     }
+    fn handle_output_scoped(
+        &self,
+        scope: ValidatedCoreCommandScope,
+        intent: CommandIntent,
+    ) -> CommandOutputFuture {
+        if scope.as_ref().is_some() && matches!(intent, CommandIntent::SwitchProfile { .. }) {
+            let handled = self.handle(intent);
+            Box::pin(async move { handled.await.map(|()| CommandOutput::Unit) })
+        } else {
+            Box::pin(async {
+                Err(Failure::unsupported(
+                    "test fake only handles scoped profile switches",
+                ))
+            })
+        }
+    }
 }
 
 #[tokio::test]
@@ -175,8 +235,8 @@ async fn command_admission_serializes_business_work_without_holding_the_lifecycl
     let second_intent = CommandIntent::SwitchProfile {
         profile_id: "second".into(),
     };
-    let first = application.execute(first_intent.clone());
-    let second = application.execute(second_intent.clone());
+    let first = test_execute_result_at_current_scope(&application, first_intent.clone());
+    let second = test_execute_result_at_current_scope(&application, second_intent.clone());
     pin!(first, second);
     assert!(matches!(poll!(first.as_mut()), Poll::Pending));
     assert!(matches!(poll!(second.as_mut()), Poll::Pending));
@@ -203,14 +263,14 @@ async fn closing_finishes_active_work_rejects_new_requests_and_disables_lifecycl
     let active_intent = CommandIntent::SwitchProfile {
         profile_id: "active".into(),
     };
-    let active = application.execute(active_intent.clone());
+    let active = test_execute_result_at_current_scope(&application, active_intent.clone());
     let close = application.close();
     pin!(active, close);
     assert!(matches!(poll!(active.as_mut()), Poll::Pending));
     assert!(matches!(poll!(close.as_mut()), Poll::Pending));
-    let (id, terminal) = application.dispatch_tracked(CommandIntent::StartCore);
+    let (id, terminal) = test_dispatch_at_current_scope(&application, CommandIntent::StartCore);
     assert!(
-        matches!(terminal.recv().unwrap(), CommandResult::Rejected { request_id, failure }
+        matches!(terminal.recv().unwrap().result, CommandResult::Rejected { request_id, failure }
         if request_id == id && failure.code == ErrorCode::Canceled)
     );
     release.send(()).unwrap();
@@ -224,7 +284,7 @@ async fn closing_finishes_active_work_rejects_new_requests_and_disables_lifecycl
             .is_err()
     );
     assert!(
-        matches!(application.execute(CommandIntent::RestartCore).await,
+        matches!(test_execute_result_at_current_scope(&application, CommandIntent::RestartCore).await,
         CommandResult::Rejected { failure, .. } if failure.code == ErrorCode::Canceled)
     );
     assert_eq!(

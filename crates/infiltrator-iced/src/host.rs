@@ -64,16 +64,16 @@ pub mod editor {
 }
 
 pub mod boot {
-    use infiltrator_desktop::boot;
+    use infiltrator_desktop::boot::{self, DesktopBinaryPreference};
     use infiltrator_ports::host_runtime::HostRuntime;
     use std::path::PathBuf;
     use std::sync::Arc;
 
     pub async fn bootstrap_host_runtime_from_current_home(
-        use_bundled: bool,
+        preference: DesktopBinaryPreference,
         bundled_candidates: &[PathBuf],
     ) -> anyhow::Result<(Arc<dyn HostRuntime>, bool)> {
-        boot::bootstrap_host_runtime_from_current_home(use_bundled, bundled_candidates).await
+        boot::bootstrap_host_runtime_from_current_home(preference, bundled_candidates).await
     }
 }
 
@@ -104,6 +104,7 @@ pub mod runtime {
 }
 
 pub mod storage {
+    use infiltrator_application::version_application::VersionApplication;
     use infiltrator_desktop::storage;
     use infiltrator_desktop::subscription_import_port::DesktopSubscriptionImportPort;
     use infiltrator_domain::profile_options::ProfileOptions;
@@ -120,7 +121,6 @@ pub mod storage {
     use infiltrator_ports::subscription_import::SubscriptionImportPort;
     use infiltrator_ports::subscription_source::SubscriptionSource;
     use infiltrator_ports::sync::SyncPort;
-    use infiltrator_ports::version::VersionPort;
     use std::path::{Path, PathBuf};
     use std::sync::Arc;
 
@@ -169,8 +169,8 @@ pub mod storage {
         storage::snapshot_store().await
     }
 
-    pub fn version() -> anyhow::Result<impl VersionPort> {
-        storage::version()
+    pub fn version_application() -> anyhow::Result<VersionApplication> {
+        storage::version_application()
     }
 
     pub fn port_conflict() -> anyhow::Result<impl PortConflictPort> {

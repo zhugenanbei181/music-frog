@@ -10,19 +10,22 @@ use bevy::ecs::hierarchy::Children;
 use bevy::ecs::observer::On;
 use bevy::ecs::query::{With, Without};
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
+use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::picking::events::PointerClick;
 use bevy::scene::{CommandsSceneExt, Scene, bsn};
 use bevy::ui::widget::Text;
 use bevy::ui::{
-    AlignItems, BackgroundColor, Display, FlexDirection, GlobalZIndex, JustifyContent, Node,
-    PositionType, UiRect, percent, px,
+    AlignItems, Display, FlexDirection, GlobalZIndex, JustifyContent, Node, PositionType, UiRect,
+    percent,
 };
 use bevy::ui_widgets::Activate;
 use infiltrator_application::rule_condition_projection::location_text;
 use infiltrator_bevy_widgets::button::{ButtonDisabled, ButtonVariant};
+use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::modal::{ModalDialogCard, ModalScrim};
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::rule_location::RuleLocation;
@@ -51,16 +54,16 @@ fn scene(palette: &UiPalette) -> impl Scene + use<> {
         TraceConfirmationRoot GlobalZIndex(119)
         Children [
             Node { position_type: PositionType::Absolute, width: percent(100), height: percent(100) }
-            ModalScrim BackgroundColor({ palette.scrim }) TraceConfirmationAction::Cancel
+            ModalScrim ThemeBackgroundColor({ Token::Scrim }) TraceConfirmationAction::Cancel
             --
-            Node { width: percent(90), max_width: px(560.0), padding: UiRect::all(px(16.0)), flex_direction: FlexDirection::Column, row_gap: px(12.0) }
-            ModalDialogCard TraceConfirmationCard BackgroundColor({ palette.surface }) AccessibilityNode(semantic) LocalizedLabel::plain("rule_trace_confirm_title")
+            Node { width: percent(90), max_width: rem(560.0), padding: UiRect::all(rem(16.0)), flex_direction: FlexDirection::Column, row_gap: rem(12.0) }
+            ModalDialogCard TraceConfirmationCard ThemeBackgroundColor({ Token::Surface }) AccessibilityNode(semantic) LocalizedLabel::plain("rule_trace_confirm_title")
             Children [
                 LocalizedText::plain("rule_trace_confirm_title") TextRole(Role::Heading)
                 --
                 Text(String::new()) TraceConfirmationCopy TextRole(Role::Body)
                 --
-                Node { width: percent(100), column_gap: px(12.0) }
+                Node { width: percent(100), column_gap: rem(12.0) }
                 Children [
                     @{ (localized_button_scene(LocalizedText::plain("modal_cancel"), ButtonVariant::Default, palette), bsn! { TraceConfirmationAction::Cancel }) }
                     --

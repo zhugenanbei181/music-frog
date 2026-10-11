@@ -8,41 +8,56 @@ use crate::route::{ActiveRoute, Route};
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::query::{With, Without};
-use bevy::ecs::system::{Query, Res};
+use bevy::ecs::system::{Commands, Query, Res};
+use bevy::feathers::theme::ThemeBackgroundColor;
+use bevy::feathers::theme::{SurfaceLevel, UiTheme};
 use bevy::picking::hover::PickingInteraction;
-use bevy::text::TextColor;
-use bevy::ui::prelude::{BackgroundColor, BorderColor, Display, JustifyContent, Node, UiRect, Val};
+use bevy::ui::prelude::{BorderColor, Display, JustifyContent, Node, UiRect};
+use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::icon::IconTint;
-use infiltrator_bevy_widgets::nav::{NavActive, NavLabel, nav_fill, nav_label_ink};
+use infiltrator_bevy_widgets::nav::{NavActive, NavLabel, nav_fill_token, nav_label_ink_token};
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 
 /// Sync sidebar navigation items with the active route and live palette.
 pub fn sync_sidebar_nav_visuals(
-    palette: Res<UiPalette>,
+    theme: Res<UiTheme>,
     active_route: Option<Res<ActiveRoute>>,
-    mut items: Query<(Entity, &SidebarNavItem, &mut NavActive, &Children)>,
-    mut bgs: Query<&mut BackgroundColor>,
-    mut texts: Query<(&NavLabel, &mut TextColor, Option<&mut TextRole>)>,
+    mut commands: Commands,
+    mut items: Query<(
+        Entity,
+        &SidebarNavItem,
+        &mut NavActive,
+        &Children,
+        Option<&ThemeBackgroundColor>,
+    )>,
+    mut texts: Query<(&NavLabel, Option<&mut TextRole>)>,
     mut icons: Query<&mut IconTint>,
 ) {
     let current = active_route
         .as_ref()
         .and_then(|r| r.0)
         .unwrap_or(Route::Overview);
-    for (entity, item, mut active_marker, children) in &mut items {
+    for (entity, item, mut active_marker, children, fill) in &mut items {
         let is_active = item.0 == current;
         if active_marker.0 != is_active {
             active_marker.0 = is_active;
         }
-        let target_fill = nav_fill(is_active, &palette);
-        if let Ok(mut bg) = bgs.get_mut(entity)
-            && bg.0 != target_fill
+        let fill_token = nav_fill_token(is_active);
+        if fill
+            .map(|b| b.0 != fill_token.theme_token())
+            .unwrap_or(true)
         {
-            bg.0 = target_fill;
+            commands
+                .entity(entity)
+                .insert(ThemeBackgroundColor(fill_token.theme_token()));
         }
-        let target_ink = nav_label_ink(is_active, &palette);
+        let target_ink = theme.context_color(
+            &nav_label_ink_token(is_active).theme_token(),
+            SurfaceLevel::Base,
+        );
         let target_role = if is_active {
             Role::BodyStrong
         } else {
@@ -54,15 +69,11 @@ pub fn sync_sidebar_nav_visuals(
             {
                 icon_tint.0 = target_ink;
             }
-            if let Ok((_, mut text_color, text_role)) = texts.get_mut(*child) {
-                if text_color.0 != target_ink {
-                    text_color.0 = target_ink;
-                }
-                if let Some(mut role) = text_role
-                    && role.0 != target_role
-                {
-                    role.0 = target_role;
-                }
+            if let Ok((_, text_role)) = texts.get_mut(*child)
+                && let Some(mut role) = text_role
+                && role.0 != target_role
+            {
+                role.0 = target_role;
             }
         }
     }
@@ -71,15 +82,22 @@ pub fn sync_sidebar_nav_visuals(
 /// Repaint bottom navigation bar and sync active states with ActiveRoute.
 pub fn sync_bottom_nav_visuals(
     palette: Res<UiPalette>,
+    theme: Res<UiTheme>,
     active_route: Option<Res<ActiveRoute>>,
-    mut bars: Query<(&mut BackgroundColor, &mut BorderColor), With<BottomNavBar>>,
+    mut commands: Commands,
+    mut bars: Query<(Entity, &mut BorderColor, Option<&ThemeBackgroundColor>), With<BottomNavBar>>,
     mut items: Query<(&BottomNavItem, &mut BottomNavActive, &Children)>,
     mut icons: Query<&mut IconTint>,
 ) {
     let edge = palette.border;
-    for (mut fill, mut border) in &mut bars {
-        if fill.0 != palette.sidebar {
-            fill.0 = palette.sidebar;
+    for (entity, mut border, fill) in &mut bars {
+        if fill
+            .map(|b| b.0 != Token::Sidebar.theme_token())
+            .unwrap_or(true)
+        {
+            commands
+                .entity(entity)
+                .insert(ThemeBackgroundColor(Token::Sidebar.theme_token()));
         }
         if border.top != edge {
             border.top = edge;
@@ -95,11 +113,12 @@ pub fn sync_bottom_nav_visuals(
         if active_marker.0 != is_active {
             active_marker.0 = is_active;
         }
-        let target_ink = if is_active {
-            palette.accent
+        let target_token = if is_active {
+            Token::Accent
         } else {
-            palette.ink_dim
+            Token::InkDim
         };
+        let target_ink = theme.context_color(&target_token.theme_token(), SurfaceLevel::Base);
         for child in children.iter() {
             if let Ok(mut tint) = icons.get_mut(*child)
                 && tint.0 != target_ink
@@ -124,9 +143,9 @@ pub fn sync_sidebar_rail_morphology(
         JustifyContent::FlexStart
     };
     let nav_padding = if is_rail {
-        UiRect::all(Val::Px(space::S8))
+        UiRect::all(rem(space::S8))
     } else {
-        UiRect::horizontal(Val::Px(space::S12))
+        UiRect::horizontal(rem(space::S12))
     };
     for mut node in &mut nav_items {
         if node.justify_content != nav_justify {

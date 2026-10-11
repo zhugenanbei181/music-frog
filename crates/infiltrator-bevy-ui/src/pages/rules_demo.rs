@@ -4,8 +4,13 @@
 //! production surface fills [`RulesProjection`] from the shared read model.
 
 use super::rules::{RuleItem, RuleProviderItem, RulesProjection};
-use infiltrator_composition::demo_identities::{PROXIES, STREAMING};
+use infiltrator_contract::core_identity::EngineId;
+use infiltrator_contract::fixture_identities::{PROXIES, STREAMING};
 use infiltrator_contract::mrs_acceleration::MrsAccelerationSnapshot;
+use infiltrator_contract::profile_document_identity::{
+    ProfileDocumentIdentity, ProfileDocumentRevision, ProfileDocumentSourceIdentity,
+    ProfileDocumentSourceKind, ProfileFormatId, ProfileId, ProfileSchemaVersion, ProfileSourceId,
+};
 use infiltrator_contract::provider_cache::{KernelEtagSupportSnapshot, RuleProviderCacheSnapshot};
 use infiltrator_contract::rule_hit_audit::RuleHitAuditSnapshot;
 use infiltrator_contract::rule_tracer::RuleTracerSnapshot;
@@ -15,6 +20,17 @@ use infiltrator_domain::rules::view::RULE_PUBLISH_LIMIT;
 impl RulesProjection {
     /// Believable demo fixture for the Rules page.
     pub fn demo() -> Self {
+        let document_identity = ProfileDocumentIdentity::new(
+            ProfileId::new("demo-profile").expect("fixture profile ID"),
+            EngineId::new("mihomo").expect("fixture engine ID"),
+            ProfileDocumentSourceIdentity::new(
+                ProfileDocumentSourceKind::Local,
+                ProfileSourceId::new("demo-source").expect("fixture source ID"),
+            ),
+            ProfileDocumentRevision::new("demo-revision-1").expect("fixture revision"),
+            ProfileFormatId::new("mihomo-yaml").expect("fixture format ID"),
+            ProfileSchemaVersion::new(1).expect("fixture schema version"),
+        );
         Self {
             total_rules: 2842,
             default_action: "DIRECT".to_owned(),
@@ -36,14 +52,17 @@ impl RulesProjection {
             json_documents: vec![
                 RulesJsonDocumentSnapshot {
                     section: RulesJsonSection::RuleProviders,
+                    identity: document_identity.clone(),
                     json: "{\n  \"geosite-geolocation-!cn\": {\n    \"type\": \"http\",\n    \"behavior\": \"domain\",\n    \"url\": \"https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/geolocation-!cn.mrs\",\n    \"interval\": 86400\n  }\n}".to_owned(),
                 },
                 RulesJsonDocumentSnapshot {
                     section: RulesJsonSection::ProxyProviders,
+                    identity: document_identity.clone(),
                     json: "{}".to_owned(),
                 },
                 RulesJsonDocumentSnapshot {
                     section: RulesJsonSection::Sniffer,
+                    identity: document_identity,
                     json: "{\n  \"enable\": true,\n  \"sniff\": {\n    \"HTTP\": {\n      \"ports\": [80, \"8080-8880\"]\n    }\n  }\n}".to_owned(),
                 },
             ],

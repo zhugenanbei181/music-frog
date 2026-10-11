@@ -9,7 +9,6 @@ use infiltrator_bevy_ui::pages::overview_speedtest::{
 };
 use infiltrator_bevy_widgets::adaptive_modal::{AdaptiveModalRoot, ModalCloseButton, ModalState};
 use infiltrator_bevy_widgets::localization::UiLocale;
-use infiltrator_contract::capability::Availability;
 use infiltrator_contract::speedtest::SpeedtestSnapshot;
 use infiltrator_shared::locales::{Lang, Localizer};
 
@@ -89,10 +88,9 @@ fn speedtest_details_render_shared_fold_and_close_escape_and_navigation() {
 fn speedtest_details_render_typed_unsupported_without_inventing_results() {
     let mut app = mounted_default();
     let mut projection = DemoOverviewSource::running().current();
-    projection.speedtest = SpeedtestSnapshot::default();
-    projection.speedtest.availability = Some(Availability::Unsupported {
-        reason: "missing host engine".into(),
-    });
+    projection.speedtest = SpeedtestSnapshot::unavailable(
+        infiltrator_contract::error::Failure::unsupported("missing Core speedtest owner"),
+    );
     app.world_mut()
         .commands()
         .trigger(OverviewProjectionUpdated(projection));
@@ -100,7 +98,7 @@ fn speedtest_details_render_typed_unsupported_without_inventing_results() {
     activate::<OverviewSpeedtestDetailButton>(&mut app);
     assert!(app.world().resource::<ModalState>().is_open);
     let body = detail_text(&mut app);
-    assert!(body.contains("missing host engine"));
+    assert!(body.contains("missing Core speedtest owner"));
     assert!(!body.contains("Mbps"));
     activate::<ModalCloseButton>(&mut app);
     assert!(!app.world().resource::<ModalState>().is_open);

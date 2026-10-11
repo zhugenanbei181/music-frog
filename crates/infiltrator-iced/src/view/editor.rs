@@ -18,6 +18,7 @@ use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
 use crate::view::{editor_viewport, script_console, theme};
 use iced::widget::{Row, Space, button, column, container, row, text, text_editor};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
+use infiltrator_application::profile_edit_session::ProfileEditOperationPhase;
 use infiltrator_application::profile_editor_projection::{protection_hint, protection_label};
 use infiltrator_contract::script_export::ScriptExportKind;
 use infiltrator_contract::yaml_snippets::YAML_SNIPPETS;
@@ -86,7 +87,11 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     // DUAL-09-12: the edited profile's shared write classification. A remote
     // subscription is protected unless the user explicitly unlocks it here.
     let protection = state.edited_profile_write_protection();
-    let protected_blocked = protection.is_protected() && !state.editor.profile_protection_override;
+    let protected_blocked = protection.is_protected()
+        && !state
+            .editor
+            .profile_write_authorization
+            .allows_protected_write();
     let protection_banner: Option<Element<'_, Message>> =
         (state.editor.editor_pane == EditorPane::Profile && protection.is_protected()).then(|| {
             let mut banner = row![
@@ -113,18 +118,24 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
 
             banner = banner.push(
                 button(
-                    text(if state.editor.profile_protection_override {
-                        lang.tr("editor_protection_lock").to_string()
-                    } else {
-                        lang.tr("editor_protection_unlock").to_string()
-                    })
+                    text(
+                        if state
+                            .editor
+                            .profile_write_authorization
+                            .allows_protected_write()
+                        {
+                            lang.tr("editor_protection_lock").to_string()
+                        } else {
+                            lang.tr("editor_protection_unlock").to_string()
+                        },
+                    )
                     .size(11)
                     .font(FONT_MEDIUM),
                 )
                 .padding([4, 10])
                 .style(style_ghost)
-                .on_press(Message::SetProfileProtectionOverride(
-                    !state.editor.profile_protection_override,
+                .on_press(Message::SetProfileWriteAuthorization(
+                    state.editor.profile_write_authorization.toggled(),
                 )),
             );
             banner = banner.push(
@@ -206,19 +217,28 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     .spacing(theme::SP_MD)
     .align_y(Alignment::Center);
 
-    // Save action button with saving state and keyboard shortcut badge
+    // Save action button derives its transaction state from the shared editor phase.
+    let profile_saving = match &state.editor.document_session.operation {
+        ProfileEditOperationPhase::Pending(_) => true,
+        ProfileEditOperationPhase::Ready
+        | ProfileEditOperationPhase::Failed(_)
+        | ProfileEditOperationPhase::Saved => false,
+    };
+    let mixin_saving = match &state.editor.mixin_session.operation {
+        ProfileEditOperationPhase::Pending(_) => true,
+        ProfileEditOperationPhase::Ready
+        | ProfileEditOperationPhase::Failed(_)
+        | ProfileEditOperationPhase::Saved => false,
+    };
     let (save_label, saving) = match state.editor.editor_pane {
-        EditorPane::Profile => (
-            lang.tr("btn_save").to_string(),
-            state.profile.is_saving_profile,
-        ),
+        EditorPane::Profile => (lang.tr("btn_save").to_string(), profile_saving),
         EditorPane::Mixin => (
-            if state.editor.is_saving_mixin {
+            if mixin_saving {
                 lang.tr("editor_applying").to_string()
             } else {
                 lang.tr("editor_apply_mixin").to_string()
             },
-            state.editor.is_saving_mixin,
+            mixin_saving,
         ),
         EditorPane::Filter => (
             if state.editor.filter_editor.pending.is_some() {

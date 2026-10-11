@@ -28,7 +28,7 @@ impl CapabilityProvider for DesktopHostCapabilities {
             vec![
                 supported(Capability::CoreLifecycle),
                 supported(Capability::Profiles),
-                supported(Capability::ProxyMode),
+                supported(Capability::RoutingIntent),
                 supported(Capability::Connections),
                 supported(Capability::Logs),
                 supported(Capability::Dns),

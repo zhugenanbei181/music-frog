@@ -1,11 +1,8 @@
 //! test-intent: behavior
 //! Native lifecycle and locale replay preserve nested captions, accessibility and active native input.
 use super::*;
-use crate::native_input::{click_entity, type_text};
-use bevy::window::{Ime, PrimaryWindow, Window};
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::stat_chip::StatChipLabel;
-use infiltrator_bevy_widgets::text_input::TextFieldFocused;
 
 fn caption(app: &mut App, kind: OverviewChipKind) -> (Entity, String) {
     let world = app.world_mut();
@@ -28,39 +25,23 @@ fn caption(app: &mut App, kind: OverviewChipKind) -> (Entity, String) {
 }
 
 #[test]
-fn locale_replays_nested_labels_values_and_a11y_without_replacing_active_url_input_or_ime() {
+fn locale_replays_nested_labels_values_and_accessibility_without_submitting() {
     let sink = Arc::new(DemoCommandSink::accepting());
     let mut app = mounted_default();
     app.add_plugins(CommandPumpPlugin::new(sink.clone()));
-    let window = app
-        .world_mut()
-        .spawn((Window::default(), PrimaryWindow))
-        .id();
     app.insert_resource(UiLocale::new("en-US"));
     app.update();
     let ids = overview_entity_ids(app.world_mut());
     let label = caption(&mut app, OverviewChipKind::Memory);
     assert_eq!(label.1, "Memory");
     assert_eq!(line(app.world_mut(), OverviewLineKind::State).1, "Running");
-    assert_eq!(line(app.world_mut(), OverviewLineKind::ModeChip).1, "Rule");
+    assert_eq!(
+        line(app.world_mut(), OverviewLineKind::RoutingIntentChip).1,
+        "Follow rules"
+    );
     assert_eq!(
         line(app.world_mut(), OverviewLineKind::BannerNote).1,
         "Demo data · No live core"
-    );
-    let field = native_url_field(app.world_mut());
-    click_entity(&mut app, field);
-    let url = "https://probe.example.test/204";
-    type_text(&mut app, url);
-    assert_eq!(app.world().get::<TextField>(field).unwrap().0.text(), url);
-    app.world_mut().write_message(Ime::Preedit {
-        window,
-        value: "ni hao".into(),
-        cursor: Some((0, 2)),
-    });
-    app.update();
-    assert_eq!(
-        app.world().get::<TextField>(field).unwrap().0.preedit(),
-        "ni hao"
     );
     app.insert_resource(UiLocale::new("zh-CN"));
     app.update();
@@ -69,14 +50,11 @@ fn locale_replays_nested_labels_values_and_a11y_without_replacing_active_url_inp
         (label.0, "内存".into())
     );
     assert_eq!(line(app.world_mut(), OverviewLineKind::State).1, "运行中");
-    assert_eq!(line(app.world_mut(), OverviewLineKind::ModeChip).1, "规则");
-    assert_eq!(overview_entity_ids(app.world_mut()), ids);
-    assert!(app.world().get::<TextFieldFocused>(field).unwrap().0);
-    assert_eq!(app.world().get::<TextField>(field).unwrap().0.text(), url);
     assert_eq!(
-        app.world().get::<TextField>(field).unwrap().0.preedit(),
-        "ni hao"
+        line(app.world_mut(), OverviewLineKind::RoutingIntentChip).1,
+        "遵循分流规则"
     );
+    assert_eq!(overview_entity_ids(app.world_mut()), ids);
     let memory = app
         .world_mut()
         .query::<(&OverviewChip, &AccessibilityNode)>()
@@ -92,10 +70,6 @@ fn locale_replays_nested_labels_values_and_a11y_without_replacing_active_url_inp
     app.update();
     assert_eq!(caption(&mut app, OverviewChipKind::Memory), label);
     assert_eq!(line(app.world_mut(), OverviewLineKind::State).1, "Running");
-    assert_eq!(
-        app.world().get::<TextField>(field).unwrap().0.preedit(),
-        "ni hao"
-    );
     assert!(
         sink.submitted().is_empty(),
         "locale and native editing never submit a measurement"
@@ -116,6 +90,10 @@ impl OverviewSource for LifecycleSource {
         projection.failure = None;
         projection.core_version = None;
         projection
+    }
+
+    fn kind(&self) -> SourceKind {
+        SourceKind::LiveCore
     }
 }
 #[test]

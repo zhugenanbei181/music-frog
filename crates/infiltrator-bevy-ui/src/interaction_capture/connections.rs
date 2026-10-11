@@ -30,6 +30,7 @@ use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::text_input::TextField;
 use infiltrator_bevy_widgets::text_input::native::NativeTextField;
 use infiltrator_contract::parity::FeatureId;
+use infiltrator_contract::shell_readout::ShellObservation;
 use infiltrator_domain::connection_view::ConnectionGroupingMode;
 
 fn query(feature: FeatureId) -> &'static str {
@@ -195,8 +196,11 @@ pub fn observe(
     {
         return;
     }
-    if controls.latest.0.shell_readout.connections.value != Some(9)
-        || !controls.latest.0.shell_readout.connections.current
+    if controls.latest.0.shell_readout.connections.value() != Some(&9)
+        || !matches!(
+            &controls.latest.0.shell_readout.connections,
+            ShellObservation::Current(9)
+        )
         || controls.latest.0.core.active_connections != 9
     {
         return;
@@ -234,7 +238,7 @@ fn search_bounds(controls: &GroupControls, geometry: &mut CaptureGeometry) -> Op
         return None;
     }
     let (field, _, text) = controls.fields.iter().find(|(_, field, _)| field.0 == 10)?;
-    if text.0.text() != "API-0" || controls.latest.0.shell_readout.connections.value != Some(9) {
+    if text.0.text() != "API-0" || controls.latest.0.shell_readout.connections.value() != Some(&9) {
         return None;
     }
     geometry.bounds(field, "connections-search-input")?;

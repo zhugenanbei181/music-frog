@@ -9,20 +9,22 @@
 use crate::pages::dns::{DnsLine, DnsLineKind, DnsProjection, LastDnsProjection};
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::system::{Query, Res};
+use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::prelude::Color;
 use bevy::scene::{Scene, bsn};
 use bevy::text::TextColor;
 use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, Val,
-    percent, px,
+    AlignItems, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, Val, percent,
 };
 use bevy::ui::widget::Text;
 use infiltrator_application::dns_health_projection::project_dns_health;
 use infiltrator_application::dns_latency_projection::{project_dns_latency, server_tags_text};
 use infiltrator_application::dns_observation_projection::DnsObservationTone;
 use infiltrator_application::stun_projection::project_stun;
+use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
@@ -44,7 +46,7 @@ pub fn dns_self_heal_card_scene(
                                 width: percent(100),
                                 align_items: AlignItems::Center,
                                 justify_content: JustifyContent::SpaceBetween,
-                                padding: UiRect::bottom(Val::Px(space::S8)),
+                                padding: UiRect::bottom(rem(space::S8)),
                             }
                             Children [
                                 LocalizedText::plain("dns_self_heal_title") TextRole(Role::BodyStrong)
@@ -55,14 +57,14 @@ pub fn dns_self_heal_card_scene(
             Box::new(bsn! {
                             Node {
                                 width: percent(100),
-                                min_height: px(48.0),
-                                padding: UiRect::all(Val::Px(space::S8)),
+                                min_height: rem(48.0),
+                                padding: UiRect::all(rem(space::S8)),
                                 border_radius: BorderRadius::all(Val::Px(
                                         palette.control_radius_px,
                                 )),
                                 flex_direction: FlexDirection::Column,
                             }
-                            BackgroundColor({ palette.surface_elevated })
+                            ThemeBackgroundColor({ Token::SurfaceElevated })
                             Children [
                                 Text(listing)
                                 DnsLine(DnsLineKind::SelfHeal)

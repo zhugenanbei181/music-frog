@@ -17,16 +17,19 @@ use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
+use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::{CommandsSceneExt, Scene, bsn};
 use bevy::ui::prelude::{
-    BackgroundColor, BorderColor, BorderRadius, FlexDirection, Node, PositionType, UiRect, Val, px,
+    BorderColor, BorderRadius, FlexDirection, Node, PositionType, UiRect, Val,
 };
 use bevy::ui::widget::Text;
 use infiltrator_bevy_widgets::abi::{
     AbiNegotiation, HostCapabilities, WIDGET_ABI_VERSION, WidgetAbiRequirement, WidgetCapability,
     negotiate,
 };
+use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::sandbox::{
     HostCapability, IsolatedRenderSlot, SandboxFault, SandboxedWidgetInstance, WidgetManifest,
 };
@@ -306,16 +309,16 @@ pub fn widget_sandbox_slot_scene(
     bsn! {
             Node {
                 position_type: PositionType::Absolute,
-                right: px(space::S16),
-                top: px(space::S16),
-                width: px(360.0),
+                right: rem(space::S16),
+                top: rem(space::S16),
+                width: rem(360.0),
                 flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(space::S6),
-                padding: UiRect::all(Val::Px(space::S12)),
+                row_gap: rem(space::S6),
+                padding: UiRect::all(rem(space::S12)),
                 border: UiRect::all(Val::Px(palette.hairline_px)),
-                border_radius: BorderRadius::all(Val::Px(palette.card_radius_px)),
+                border_radius: BorderRadius::all(rem(palette.card_radius_px)),
             }
-            BackgroundColor({ palette.surface })
+            ThemeBackgroundColor({ Token::Surface })
             BorderColor { top: edge, right: edge, bottom: edge, left: edge }
             WidgetSandboxSlotRoot
             Children [

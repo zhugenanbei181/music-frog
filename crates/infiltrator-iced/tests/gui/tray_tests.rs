@@ -7,7 +7,7 @@
 //! tests and the ksni mapping tests.
 
 use super::spec::{
-    TRAY_ACTION_FACTORY_RESET, TRAY_ACTION_INFO_SYNC, TRAY_ACTION_MODE_GLOBAL,
+    TRAY_ACTION_FACTORY_RESET, TRAY_ACTION_INFO_SYNC, TRAY_ACTION_ROUTING_ALL_THROUGH_PROXY,
     TRAY_ACTION_SELECT_GLOBAL_PROXY, TRAY_ACTION_SET_PROFILE_AUTO_UPDATE,
     TRAY_ACTION_TOGGLE_AUTOSTART, TRAY_ACTION_TOGGLE_TUN, TrayEventContext, TrayMenuItem,
 };
@@ -16,9 +16,23 @@ use crate::state::AppState;
 use crate::tray::spec::TrayActionId;
 use crate::types::app::Route;
 use crate::types::message::Message;
+use infiltrator_application::routing_intent_projection::routing_intent_copy;
+use infiltrator_contract::core_identity::{
+    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
+};
+use infiltrator_contract::outbound::{
+    details::OutboundSnapshot,
+    identity::{OutboundId, SnapshotRevision},
+    inventory::{
+        OutboundInventorySnapshot, OutboundInventoryState, OutboundSelectionSet,
+        OutboundSelectionState, SelectionAvailability,
+    },
+};
+use infiltrator_contract::routing_intent::RoutingIntent;
+use infiltrator_contract::surface_snapshot::PageData;
 use infiltrator_contract::version::InstalledCoreVersion;
 use infiltrator_domain::profiles::ProfileInfo;
-use infiltrator_domain::proxy::{Proxy, ProxyBase, ProxyGroup, ProxyHistory, Shadowsocks};
+use infiltrator_shared::locales::{Lang, Localizer};
 use std::sync::mpsc;
 
 // Pure spec-side coverage (layout, labels, codecs, resolution).
@@ -36,12 +50,11 @@ fn state_with_fake_receiver() -> (AppState, mpsc::Sender<TrayEvent>) {
     (state, tx)
 }
 
-/// Minimal snapshot: empty data domains, script mode available, core stopped.
+/// Minimal snapshot: empty data domains, core stopped.
 fn base_ctx<'a>() -> TraySpecContext<'a> {
     TraySpecContext {
         lang: "zh-CN",
-        mode: Some("rule"),
-        script_block_present: true,
+        routing_intent: None,
         system_proxy: false,
         tun: false,
         groups: &[],
@@ -91,6 +104,7 @@ fn test_profile(name: &str, active: bool, auto_update: bool) -> ProfileInfo {
 
 fn test_kernel(version: &str, is_default: bool) -> InstalledCoreVersion {
     InstalledCoreVersion {
+        engine_id: EngineId::new("mihomo").unwrap(),
         version: version.to_string(),
         path: format!("/tmp/kernels/{version}"),
         is_default,
@@ -117,16 +131,15 @@ fn activated(id: TrayActionId, payload: Option<&str>) -> TrayEvent {
 fn tray_menu_activation_drives_update_handlers() {
     let (mut state, tx) = state_with_fake_receiver();
 
-    tx.send(activated(TRAY_ACTION_MODE_GLOBAL, None))
+    tx.send(activated(TRAY_ACTION_ROUTING_ALL_THROUGH_PROXY, None))
         .expect("fake receiver is live");
     let events = drain_tray_events(state.shell.tray_events.as_ref().expect("injected"));
     assert_eq!(events.len(), 1);
     for event in events {
         let _ = state.update(Message::TrayEvent(event));
     }
-    // Without a runtime the mode is NOT flipped optimistically — the tray
-    // keeps reflecting reality while SetProxyMode reports "unavailable".
-    assert_eq!(state.runtime.proxy_mode.as_deref(), None);
+    // Without a runtime the observed routing intent remains unchanged.
+    assert_eq!(state.runtime.routing_intent, None);
 }
 
 #[test]
@@ -215,31 +228,46 @@ fn current_tray_spec_assembles_the_five_state_domains() {
     let (mut state, _) = AppState::new();
     // Pin the language: AppState::new() detects it from the environment.
     state.shell.lang = "zh-CN".to_string();
-    state.runtime.proxy_mode = Some("rule".to_string());
+    state.runtime.routing_intent = Some(RoutingIntent::FollowRules);
     state.runtime.autostart_enabled = true;
     state.profile.webdav_enabled = true;
-    state.runtime.proxies.insert(
-        "GLOBAL".to_string(),
-        Proxy::Selector(ProxyGroup {
-            name: "GLOBAL".to_string(),
-            now: "A".to_string(),
-            all: vec!["A".to_string(), "B".to_string()],
-            history: Vec::new(),
-        }),
-    );
-    state.runtime.proxies.insert(
-        "A".to_string(),
-        Proxy::Shadowsocks(Shadowsocks {
-            base: ProxyBase {
-                name: "A".to_string(),
-                history: vec![ProxyHistory {
-                    time: String::new(),
-                    delay: 123,
+    let engine = EngineId::new("mihomo").expect("valid engine");
+    let scope = CoreScope {
+        identity: CoreIdentity::new(
+            engine.clone(),
+            CoreInstanceId::new("tray-test").expect("valid instance"),
+            Some(CoreVersion::new("1.19.12").expect("valid version")),
+        ),
+        generation: CoreGeneration::new(1),
+        session_token: None,
+    };
+    let global = OutboundId::new(engine.clone(), "GLOBAL").expect("valid collection ID");
+    let a = OutboundId::new(engine.clone(), "A").expect("valid outbound ID");
+    let b = OutboundId::new(engine, "B").expect("valid outbound ID");
+    state.runtime.outbound_inventory = PageData::ready(
+        OutboundInventorySnapshot::new(
+            scope,
+            SnapshotRevision::new(1),
+            OutboundInventoryState::Ready {
+                entries: vec![
+                    OutboundSnapshot {
+                        id: a.clone(),
+                        display_name: Some("A".into()),
+                    },
+                    OutboundSnapshot {
+                        id: b.clone(),
+                        display_name: Some("B".into()),
+                    },
+                ],
+                collections: vec![OutboundSelectionSet {
+                    id: global,
+                    member_ids: vec![a.clone(), b],
+                    availability: SelectionAvailability::Selectable,
+                    selection: OutboundSelectionState::Ready { selected: a },
                 }],
-                ..Default::default()
             },
-            ..Default::default()
-        }),
+        )
+        .expect("valid tray inventory"),
     );
 
     let spec = state.current_tray_spec();
@@ -250,7 +278,8 @@ fn current_tray_spec_assembles_the_five_state_domains() {
         items[12],
         TrayMenuItem::checkmark(TRAY_ACTION_TOGGLE_AUTOSTART, "开机自启", true)
     );
-    // 节点切换 picks up the GLOBAL group with its active node and delay tag.
+    // The submenu is built from typed inventory; legacy delay facts are not
+    // invented when the outbound contract has no probe observation.
     let TrayMenuItem::Submenu {
         items: group_subs, ..
     } = &items[3]
@@ -266,7 +295,7 @@ fn current_tray_spec_assembles_the_five_state_domains() {
         panic!("GLOBAL group must render as a submenu");
     };
     assert_eq!(label, "GLOBAL");
-    assert_eq!(nodes[0].action_label(), Some("● A (123 ms)"));
+    assert_eq!(nodes[0].action_label(), Some("● A"));
     assert_eq!(nodes[0].action_payload(), Some("GLOBAL\u{1}A"));
     // The sync submenu reflects the profile domain (WebDAV enabled).
     let TrayMenuItem::Submenu {
@@ -313,7 +342,8 @@ mod ksni_mapping {
     fn sample_tray(events: mpsc::Sender<TrayEvent>) -> KsniTray {
         let groups = vec![proxy_group("GLOBAL", "A", &[("A", None), ("B", Some(64))])];
         let mut ctx = base_ctx();
-        ctx.mode = Some("direct");
+        let intent = RoutingIntent::BypassProxy;
+        ctx.routing_intent = Some(&intent);
         ctx.tun = true;
         ctx.groups = &groups;
         let spec = build_tray_spec(&ctx);
@@ -341,13 +371,19 @@ mod ksni_mapping {
 
         match &menu[2] {
             MenuItem::SubMenu(SubMenu { label, submenu, .. }) => {
-                assert_eq!(label, "代理模式");
-                assert_eq!(submenu.len(), 4);
+                assert_eq!(label, Lang("zh-CN").tr("routing_intent_title").as_ref());
+                assert_eq!(submenu.len(), 3);
                 match &submenu[2] {
                     MenuItem::Standard(StandardItem { label, .. }) => {
-                        assert_eq!(label, "● 直连模式")
+                        assert_eq!(
+                            label,
+                            &format!(
+                                "● {}",
+                                routing_intent_copy(&RoutingIntent::BypassProxy, "zh-CN")
+                            )
+                        )
                     }
-                    _ => panic!("active mode must be a standard item"),
+                    _ => panic!("active routing intent must be a standard item"),
                 }
             }
             _ => panic!("entry 2 must be a submenu"),

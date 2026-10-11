@@ -10,6 +10,7 @@
 
 use crate::fonts::FontSources;
 use crate::palette::UiPalette;
+use crate::theme::REM_BASE;
 use bevy::color::Color;
 use bevy::ecs::component::Component;
 use bevy::ecs::lifecycle::Add;
@@ -66,7 +67,8 @@ pub fn role_typography(role: Role, palette: &UiPalette, fonts: Option<&FontSourc
         Role::Mono => (palette.mono_font_px, palette.ink),
     };
     Typography {
-        size: FontSize::Px(size),
+        // Rem channel: sizes scale with the RemSize root; baseline 1.0 = BODY.
+        size: FontSize::Rem(size / REM_BASE),
         font: fonts
             .map(|sources| FontSource::Handle(sources.face(role)))
             .unwrap_or_default(),
@@ -92,6 +94,7 @@ pub fn style_text_roles(
     ink.0 = typography.ink;
 }
 
+use crate::palette::rem;
 use crate::theme::space;
 use bevy::scene::Scene;
 
@@ -141,25 +144,25 @@ pub fn rich_text_line_scene(spans: Vec<RichTextSpan>, palette: &UiPalette) -> Bo
             let role = span.role;
             if span.is_badge {
                 Box::new(bsn! {
-                    Node {
-                        padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S4)),
-                        border_radius: BorderRadius::all(Val::Px(4.0)),
-                        align_items: AlignItems::Center,
-                        justify_content: JustifyContent::Center,
-                    }
-                    BackgroundColor({ ink.with_alpha(0.15) })
-                    Children [
-                        Text({ span.text })
-                        TextRole(Role::Caption)
-                        TextColor({ ink })
-                    ]
-}) as Box<dyn Scene>
+                                    Node {
+                                        padding: UiRect::axes(rem(space::S8), rem(space::S4)),
+                                        border_radius: BorderRadius::all(Val::Px(4.0)),
+                                        align_items: AlignItems::Center,
+                                        justify_content: JustifyContent::Center,
+                                    }
+                                    BackgroundColor({ ink.with_alpha(0.15) })
+                                    Children [
+                                        Text({ span.text })
+                                        TextRole(Role::Caption)
+                                        TextColor({ ink })
+                                    ]
+                }) as Box<dyn Scene>
             } else {
                 Box::new(bsn! {
-                    Text({ span.text })
-                    TextRole({ role })
-                    TextColor({ ink })
-}) as Box<dyn Scene>
+                                    Text({ span.text })
+                                    TextRole({ role })
+                                    TextColor({ ink })
+                }) as Box<dyn Scene>
             }
         })
         .collect();
@@ -168,7 +171,7 @@ pub fn rich_text_line_scene(spans: Vec<RichTextSpan>, palette: &UiPalette) -> Bo
             Node {
                 flex_direction: FlexDirection::Row,
                 align_items: AlignItems::Center,
-                column_gap: Val::Px(space::S8),
+                column_gap: rem(space::S8),
             }
             Children [
                 { span_nodes }

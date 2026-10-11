@@ -2,6 +2,7 @@ use crate::configs_dir::configs_dir;
 use crate::host::process_enumerator::enumerate_extended_processes;
 use crate::routing_application::application;
 use crate::state::AppState;
+use crate::state::runtime::{ProbeSettingsDialogState, ProxyGroupOrderDialogState};
 use crate::types::app::{ConfirmAction, Route, ToastStatus};
 use crate::types::message::Message;
 use crate::types::options::EditorPane;
@@ -13,7 +14,8 @@ use infiltrator_application::profile_editor_projection;
 use infiltrator_application::proxy_group_order_editor::GroupMove;
 use infiltrator_application::rule_statistics_workbench::StatisticsAction;
 use infiltrator_contract::command_catalogue::CommandTarget;
-use infiltrator_contract::error::{InfiltratorError, from_mihomo};
+use infiltrator_contract::error::{InfiltratorError, from_backend};
+use infiltrator_contract::outbound::probe::OutboundProbeBatchScope;
 use infiltrator_domain::connection_rate::PULSE_BREATH_HZ;
 use infiltrator_domain::connection_view::{ConnectionRuleSpec, append_draft_rule};
 use infiltrator_domain::yaml_edit::format::format_yaml;
@@ -49,24 +51,25 @@ impl AppState {
                     self.diag.speedtest_detail_open = false;
                     self.diag.inspecting_connection_id = None;
                     self.shell.confirmation = None;
-                    if self.runtime.probe_options_editor.pending.is_none() {
-                        self.runtime.probe_options_editor.cancel();
+                    if !self.runtime.runtime_probe_settings_editor.is_pending() {
+                        self.runtime.runtime_probe_settings_editor.cancel();
                         self.sync_probe_draft_fields();
                     }
-                    self.runtime.probe_options_open = false;
+                    self.runtime.probe_settings_dialog = ProbeSettingsDialogState::Closed;
                     if self.runtime.group_order_editor.pending.is_none() {
                         self.runtime.group_order_editor.cancel();
                     }
-                    self.runtime.group_order_open = false;
+                    self.runtime.group_order_dialog = ProxyGroupOrderDialogState::Closed;
                     self.runtime.custom_node_modal_open = false;
-                    self.runtime.inspecting_proxy = None;
-                    self.runtime.inspection_probe.dismiss();
+                    self.runtime.outbound_inspecting = None;
+                    self.runtime.outbound_probe_pending = None;
+                    self.runtime.outbound_probe_blocked = None;
                     self.shell.current_route = route;
                 }
 
                 let mut tasks = vec![];
                 if route == Route::Proxies || route == Route::Overview {
-                    tasks.push(Task::done(Message::LoadProxies));
+                    tasks.push(Task::done(Message::RefreshOutboundInventory));
                 }
                 if route == Route::Runtime {
                     tasks.push(Task::done(Message::RefreshRuntimeNow));
@@ -100,21 +103,24 @@ impl AppState {
                     self.diag.speedtest_detail_open = false;
                     self.diag.inspecting_connection_id = None;
                     self.shell.confirmation = None;
-                    if self.runtime.probe_options_editor.pending.is_none() {
-                        self.runtime.probe_options_editor.cancel();
+                    if !self.runtime.runtime_probe_settings_editor.is_pending() {
+                        self.runtime.runtime_probe_settings_editor.cancel();
                         self.sync_probe_draft_fields();
                     }
-                    self.runtime.probe_options_open = false;
+                    self.runtime.probe_settings_dialog = ProbeSettingsDialogState::Closed;
                     if self.runtime.group_order_editor.pending.is_none() {
                         self.runtime.group_order_editor.cancel();
                     }
-                    self.runtime.group_order_open = false;
+                    self.runtime.group_order_dialog = ProxyGroupOrderDialogState::Closed;
                     self.runtime.custom_node_modal_open = false;
+                    self.runtime.outbound_inspecting = None;
+                    self.runtime.outbound_probe_pending = None;
+                    self.runtime.outbound_probe_blocked = None;
                     self.shell.current_route = target;
 
                     let mut tasks = vec![];
                     if target == Route::Proxies || target == Route::Overview {
-                        tasks.push(Task::done(Message::LoadProxies));
+                        tasks.push(Task::done(Message::RefreshOutboundInventory));
                     }
                     if target == Route::Runtime {
                         tasks.push(Task::done(Message::RefreshRuntimeNow));
@@ -136,21 +142,24 @@ impl AppState {
                     self.diag.speedtest_detail_open = false;
                     self.diag.inspecting_connection_id = None;
                     self.shell.confirmation = None;
-                    if self.runtime.probe_options_editor.pending.is_none() {
-                        self.runtime.probe_options_editor.cancel();
+                    if !self.runtime.runtime_probe_settings_editor.is_pending() {
+                        self.runtime.runtime_probe_settings_editor.cancel();
                         self.sync_probe_draft_fields();
                     }
-                    self.runtime.probe_options_open = false;
+                    self.runtime.probe_settings_dialog = ProbeSettingsDialogState::Closed;
                     if self.runtime.group_order_editor.pending.is_none() {
                         self.runtime.group_order_editor.cancel();
                     }
-                    self.runtime.group_order_open = false;
+                    self.runtime.group_order_dialog = ProxyGroupOrderDialogState::Closed;
                     self.runtime.custom_node_modal_open = false;
+                    self.runtime.outbound_inspecting = None;
+                    self.runtime.outbound_probe_pending = None;
+                    self.runtime.outbound_probe_blocked = None;
                     self.shell.current_route = target;
 
                     let mut tasks = vec![];
                     if target == Route::Proxies || target == Route::Overview {
-                        tasks.push(Task::done(Message::LoadProxies));
+                        tasks.push(Task::done(Message::RefreshOutboundInventory));
                     }
                     if target == Route::Runtime {
                         tasks.push(Task::done(Message::RefreshRuntimeNow));
@@ -286,7 +295,7 @@ impl AppState {
             Message::OpenConfigDir => Task::perform(
                 async {
                     let directory = configs_dir().await?;
-                    create_dir_all(&directory).await.map_err(from_mihomo)?;
+                    create_dir_all(&directory).await.map_err(from_backend)?;
                     spawn_blocking(move || open_directory(&directory))
                         .await
                         .map_err(|error| InfiltratorError::Internal(error.to_string()))??;
@@ -357,7 +366,7 @@ impl AppState {
                             let _ = timeout(time::Duration::from_secs(2), r.shutdown()).await;
                         }
                     },
-                    |_| Message::ProxyStopped,
+                    |_| Message::CoreStopped,
                 )
                 .then(|_| iced::exit())
             }
@@ -429,8 +438,8 @@ impl AppState {
                     CommandTarget::Navigate(page) => {
                         self.update_ui(Message::Navigate(Route::from_shell_page(page)))
                     }
-                    CommandTarget::SetProxyMode(mode) => {
-                        self.update_ui(Message::SetProxyMode(mode.to_wire().to_owned()))
+                    CommandTarget::SetRoutingIntent(intent) => {
+                        self.update_ui(Message::SetRoutingIntent(intent))
                     }
                     CommandTarget::SwitchProfile { name, .. } => {
                         self.update_ui(Message::SetActiveProfile(name))
@@ -440,14 +449,14 @@ impl AppState {
                         let confirmation = self.update_core(Message::FlushFakeIpCache);
                         Task::batch(vec![navigation, confirmation])
                     }
-                    CommandTarget::TestAllProxyGroups => {
-                        self.update_ui(Message::TestAllProxyDelays)
-                    }
+                    CommandTarget::ProbeAllOutbounds => self
+                        .outbound_probe_batch_message(OutboundProbeBatchScope::All)
+                        .map_or_else(Task::none, |message| self.update_core(message)),
                     CommandTarget::RunDoctor => self.update_ui(Message::RunDoctor),
                     CommandTarget::CloseAllConnections => self.update_ui(
                         Message::RequestConfirmation(ConfirmAction::CloseAllConnections),
                     ),
-                    CommandTarget::RestartKernel => self.update_ui(Message::StartProxy),
+                    CommandTarget::RestartKernel => self.update_ui(Message::StartCore),
                     // Handled above through the shared shortcut vocabulary.
                     CommandTarget::ToggleSystemProxy
                     | CommandTarget::ToggleTun
@@ -591,13 +600,17 @@ impl AppState {
                 self.app_routing.selected_category = cat;
                 Task::none()
             }
-            Message::MoveProxyGroupUp(name) => self.open_group_order(Some((name, GroupMove::Up))),
-            Message::MoveProxyGroupDown(name) => {
-                self.open_group_order(Some((name, GroupMove::Down)))
+            Message::MoveProxyGroupUp(group_id) => {
+                self.open_group_order(Some((group_id, GroupMove::Up)))
+            }
+            Message::MoveProxyGroupDown(group_id) => {
+                self.open_group_order(Some((group_id, GroupMove::Down)))
             }
             Message::ResetProxyGroupOrder => {
                 let task = self.open_group_order(None);
-                self.runtime.group_order_editor.reset_draft();
+                if self.runtime.group_order_dialog == ProxyGroupOrderDialogState::Editing {
+                    self.runtime.group_order_editor.reset_draft();
+                }
                 task
             }
             Message::ToggleMiniHudMode
@@ -655,7 +668,7 @@ impl AppState {
             | Message::SetSnapshotDiffMode(_)
             | Message::RefreshSnapshotDiff
             | Message::RollbackToSnapshot(_)
-            | Message::SetProfileProtectionOverride(_) => self.update_snapshot_diff(message),
+            | Message::SetProfileWriteAuthorization(_) => self.update_snapshot_diff(message),
             // Group 15 shell domain (appearance preference, global shortcut
             // registry, toast ingestion) lives in `update/shell.rs`.
             Message::ToggleTheme

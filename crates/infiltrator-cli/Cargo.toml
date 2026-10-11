@@ -1,6 +1,6 @@
 [package]
 name = "infiltrator-cli"
-version = "0.1.0"
+version.workspace = true
 edition = "2024"
 
 [[bin]]
@@ -12,6 +12,7 @@ anyhow = { workspace = true }
 clap = { workspace = true }
 futures-util = { workspace = true }
 infiltrator-application = { path = "../infiltrator-application" }
+infiltrator-composition = { path = "../infiltrator-composition" }
 infiltrator-contract = { path = "../infiltrator-contract" }
 infiltrator-ports = { path = "../infiltrator-ports" }
 infiltrator-core = { path = "../infiltrator-core" }

@@ -26,6 +26,8 @@ import androidx.compose.material.icons.filled.UploadFile
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -51,8 +53,12 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.musicfrog.infiltrator.R
+import com.musicfrog.infiltrator.ui.common.EmptyStateText
+import com.musicfrog.infiltrator.ui.common.EmptyStateTextKey
 import com.musicfrog.infiltrator.ui.common.ErrorDialog
+import com.musicfrog.infiltrator.ui.common.LocalizedFailureText
 import com.musicfrog.infiltrator.ui.common.StandardListItem
+import com.musicfrog.infiltrator.ui.common.toLocalizedFailure
 import infiltrator_android.ProfileDetail
 import infiltrator_android.ProfileSummary
 import kotlinx.coroutines.Dispatchers
@@ -70,11 +76,34 @@ fun ProfilesScreen(
     initialImportUrl: String? = null,
     onImportHandled: () -> Unit = {}
 ) {
-    val profiles by viewModel.profiles.collectAsState()
-    val profileDetail by viewModel.profileDetail.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
-    val error by viewModel.error.collectAsState()
-    val emptyMessage by viewModel.emptyMessage.collectAsState()
+    val state by viewModel.state.collectAsState()
+    val collection = state.collection
+    val profiles = when (collection) {
+        is ProfilesReadState.Loading -> collection.lastAccepted?.value?.profiles.orEmpty()
+        is ProfilesReadState.Observed -> collection.point.value.profiles
+        is ProfilesReadState.Unavailable -> collection.lastAccepted?.value?.profiles.orEmpty()
+    }
+    val profileDetail = when (val detail = state.detail) {
+        ProfileDetailReadState.Idle -> null
+        is ProfileDetailReadState.Loading -> detail.lastAccepted?.value?.profile
+        is ProfileDetailReadState.Observed -> detail.point.value.profile
+        is ProfileDetailReadState.Unavailable -> detail.lastAccepted?.value?.profile
+    }
+    val isLoading = state.action is ProfileActionState.Working ||
+        (collection is ProfilesReadState.Loading && collection.lastAccepted == null)
+    val emptyState = when (collection) {
+        is ProfilesReadState.Observed -> if (collection.point.value.profiles.isEmpty()) EmptyStateTextKey.Profiles else null
+        is ProfilesReadState.Loading,
+        is ProfilesReadState.Unavailable -> null
+    }
+    val visibleFailure = when (val action = state.action) {
+        is ProfileActionState.Failed -> action.failure
+        is ProfileActionState.Cancelled -> action.failure
+        is ProfileActionState.TimedOut -> action.failure
+        is ProfileActionState.Unconfirmed -> action.failure
+        is ProfileActionState.Idle,
+        is ProfileActionState.Working -> (state.detail as? ProfileDetailReadState.Unavailable)?.failure
+    }
 
     var showAddDialog by remember { mutableStateOf(false) }
     var prefilledUrl by remember { mutableStateOf<String?>(null) }
@@ -144,8 +173,11 @@ fun ProfilesScreen(
         Box(modifier = Modifier
             .fillMaxSize()
             .padding(padding)) {
-            LazyColumn(contentPadding = PaddingValues(bottom = 140.dp)) {
-                items(profiles) { profile ->
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(bottom = 140.dp),
+            ) {
+                items(profiles, key = { it.name }) { profile ->
                     ProfileRow(
                         profile = profile,
                         onSelect = { viewModel.selectProfile(profile.name) },
@@ -162,18 +194,25 @@ fun ProfilesScreen(
                 CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
             }
 
-            if (!isLoading && profiles.isEmpty() && emptyMessage != null) {
-                Text(
-                    text = emptyMessage.orEmpty(),
+            if (!isLoading && profiles.isEmpty() && emptyState != null) {
+                EmptyStateText(
+                    key = emptyState!!,
                     modifier = Modifier.align(Alignment.Center),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
-            if (error != null) {
+            if (collection is ProfilesReadState.Unavailable) {
+                collection.failure.let { failure ->
+                    LocalizedFailureText(
+                        failure = failure.toLocalizedFailure(),
+                        modifier = Modifier.align(Alignment.TopCenter).padding(16.dp),
+                    )
+                }
+            }
+
+            if (visibleFailure != null) {
                 ErrorDialog(
-                    message = error.orEmpty(),
+                    failure = visibleFailure.toLocalizedFailure(),
                     onDismiss = { viewModel.clearError() }
                 )
             }
@@ -202,7 +241,7 @@ fun ProfilesScreen(
                     initialActivate = profileDetail!!.active,
                     onDismiss = { viewModel.clearProfileDetail() },
                     onConfirm = { name, content, activate ->
-                        viewModel.saveProfileContent(name, content, activate)
+                        viewModel.saveProfileContent(name, content, activate.toProfileActivation())
                     },
                 )
             }
@@ -216,7 +255,7 @@ fun ProfilesScreen(
                     initialActivate = false,
                     onDismiss = { localImportDraft = null },
                     onConfirm = { name, content, activate ->
-                        viewModel.saveProfileContent(name, content, activate)
+                        viewModel.saveProfileContent(name, content, activate.toProfileActivation())
                         localImportDraft = null
                     },
                 )
@@ -230,7 +269,7 @@ fun ProfilesScreen(
                         viewModel.saveSubscriptionSettings(
                             name = subscriptionProfile!!.name,
                             url = url,
-                            autoUpdateEnabled = autoUpdate,
+                            updatePolicy = autoUpdate.toSubscriptionUpdatePolicy(),
                             updateIntervalHours = intervalHours,
                         )
                         subscriptionProfile = null
@@ -265,6 +304,7 @@ private fun ProfileRow(
     onSubscription: () -> Unit,
     onDelete: () -> Unit,
 ) {
+    var actionsExpanded by remember(profile.name) { mutableStateOf(false) }
     val updatedText = profile.lastUpdated?.let {
         stringResource(R.string.text_updated_at, it.take(10))
     }
@@ -276,18 +316,6 @@ private fun ProfileRow(
         onClick = onSelect,
         trailingContent = {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onUpdate) {
-                    Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.action_update_now))
-                }
-                IconButton(onClick = onEdit) {
-                    Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.action_edit))
-                }
-                IconButton(onClick = onSubscription) {
-                    Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.action_subscription_settings))
-                }
-                IconButton(onClick = onDelete) {
-                    Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.action_delete))
-                }
                 if (profile.active) {
                     Icon(
                         Icons.Default.Check,
@@ -295,6 +323,51 @@ private fun ProfileRow(
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.padding(start = 8.dp, end = 12.dp)
                     )
+                }
+                Box {
+                    IconButton(onClick = { actionsExpanded = true }) {
+                        Icon(
+                            Icons.Default.Settings,
+                            contentDescription = stringResource(R.string.action_subscription_settings),
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = actionsExpanded,
+                        onDismissRequest = { actionsExpanded = false },
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.action_update_now)) },
+                            leadingIcon = { Icon(Icons.Default.Refresh, contentDescription = null) },
+                            onClick = {
+                                actionsExpanded = false
+                                onUpdate()
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.action_edit)) },
+                            leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
+                            onClick = {
+                                actionsExpanded = false
+                                onEdit()
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.action_subscription_settings)) },
+                            leadingIcon = { Icon(Icons.Default.Settings, contentDescription = null) },
+                            onClick = {
+                                actionsExpanded = false
+                                onSubscription()
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.action_delete)) },
+                            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
+                            onClick = {
+                                actionsExpanded = false
+                                onDelete()
+                            },
+                        )
+                    }
                 }
             }
         }
@@ -529,4 +602,14 @@ private fun resolveDisplayName(context: Context, uri: Uri): String? {
         }
     }
     return null
+}
+
+private fun Boolean.toProfileActivation(): ProfileActivation = when (this) {
+    true -> ProfileActivation.Active
+    false -> ProfileActivation.Inactive
+}
+
+private fun Boolean.toSubscriptionUpdatePolicy(): SubscriptionUpdatePolicy = when (this) {
+    true -> SubscriptionUpdatePolicy.Enabled
+    false -> SubscriptionUpdatePolicy.Disabled
 }

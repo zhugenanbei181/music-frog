@@ -13,6 +13,7 @@ use bevy::math::Vec2;
 use bevy::scene::ScenePlugin;
 use bevy::ui::widget::{ImageNode, Text};
 use bevy::ui_widgets::Activate;
+use infiltrator_application::routing_intent_projection::routing_intent_status_copy;
 use infiltrator_application::system_toggle_projection::compact_status_line;
 use infiltrator_bevy_ui::app::{ShellPlugin, SidebarToggleProjection};
 use infiltrator_bevy_ui::command::{CommandSinkHandle, DemoCommandSink, UiCommand};
@@ -81,10 +82,10 @@ fn the_toggle_event_mounts_and_unmounts_the_overlay() {
 fn the_read_model_comes_from_the_live_projections() {
     let (mut app, _) = mounted_app();
     let model = app.world().resource::<MiniHudModel>().0.clone();
-    // The demo fixture reports real non-zero rates, a real mode and a real
+    // The demo fixture reports real non-zero rates, a typed routing intent and a real
     // exit node — no baked literals in the scene.
     assert!(model.down_bytes_per_sec > 0 || model.up_bytes_per_sec > 0);
-    assert!(!model.mode_zh.is_empty());
+    assert!(model.routing_intent.current.is_some());
     assert!(!model.exit_node.is_empty());
 
     // A pending system toggle is visibly non-actionable through the shared
@@ -238,8 +239,8 @@ fn the_mounted_scene_renders_the_shared_read_model() {
         "the real exit node renders: {texts}"
     );
     assert!(
-        texts.contains(&model.mode_zh),
-        "the real proxy mode renders: {texts}"
+        texts.contains(&routing_intent_status_copy(&model.routing_intent, "zh-CN",)),
+        "the observed routing intent renders: {texts}"
     );
 }
 

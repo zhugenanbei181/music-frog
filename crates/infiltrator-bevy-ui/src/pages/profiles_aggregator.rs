@@ -7,6 +7,7 @@
 //! submits the shared command; the surface never deduplicates, clusters, or
 //! synthesizes groups locally.
 
+use bevy::feathers::theme::ThemeBackgroundColor;
 use infiltrator_application::aggregation_preview_projection::{
     aggregation_counters, aggregation_custom_groups, aggregation_groups, aggregation_regions,
     aggregation_templates, aggregation_yaml_preview,
@@ -24,16 +25,16 @@ use bevy::ecs::query::{With, Without};
 use bevy::ecs::system::{Query, Res};
 use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, Val,
-    percent, px,
+    AlignItems, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, percent,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
 use infiltrator_bevy_widgets::checkbox::checkbox_scene;
+use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
-use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::{UiPalette, rem};
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
@@ -288,13 +289,13 @@ pub fn profiles_aggregator_scene(
                                 width: percent(100),
                                 align_items: AlignItems::Center,
                                 justify_content: JustifyContent::SpaceBetween,
-                                padding: UiRect::bottom(Val::Px(space::S8)),
+                                padding: UiRect::bottom(rem(space::S8)),
                             }
                             ProfileAggregatorRoot
                             Children [
                                 Node {
                                     align_items: AlignItems::Center,
-                                    column_gap: Val::Px(space::S8),
+                                    column_gap: rem(space::S8),
                                 }
                                 Children [
                                     @{ icon_tile_scene(IconId::FileText, 24.0, palette) }
@@ -304,17 +305,17 @@ pub fn profiles_aggregator_scene(
                                 --
                                 Node {
                                     align_items: AlignItems::Center,
-                                    column_gap: Val::Px(space::S8),
+                                    column_gap: rem(space::S8),
                                 }
                                 Children [
                                     Node {
-                                        min_height: px(palette.control_height_px),
-                                        padding: UiRect::horizontal(Val::Px(space::S12)),
+                                        min_height: rem(palette.control_height_px),
+                                        padding: UiRect::horizontal(rem(space::S12)),
                                         align_items: AlignItems::Center,
                                         justify_content: JustifyContent::Center,
-                                        border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                        border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                                     }
-                                    BackgroundColor({ palette.surface_elevated })
+                                    ThemeBackgroundColor({ Token::SurfaceElevated })
                                     Button
                                     PreviewAggregationButton
                                     Children [
@@ -322,13 +323,13 @@ pub fn profiles_aggregator_scene(
                                     ]
                                     --
                                     Node {
-                                        min_height: px(palette.control_height_px),
-                                        padding: UiRect::horizontal(Val::Px(space::S12)),
+                                        min_height: rem(palette.control_height_px),
+                                        padding: UiRect::horizontal(rem(space::S12)),
                                         align_items: AlignItems::Center,
                                         justify_content: JustifyContent::Center,
-                                        border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                        border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                                     }
-                                    BackgroundColor({ palette.accent })
+                                    ThemeBackgroundColor({ Token::Accent })
                                     Button
                                     SaveAggregatedProfileButton
                                     Children [
@@ -377,17 +378,17 @@ pub fn profiles_aggregator_scene(
                             Node {
                                 width: percent(100),
                                 align_items: AlignItems::Center,
-                                column_gap: Val::Px(space::S8),
+                                column_gap: rem(space::S8),
                             }
                             Children [
                                 Node {
-                                    min_height: px(palette.control_height_px),
-                                    padding: UiRect::horizontal(Val::Px(space::S12)),
+                                    min_height: rem(palette.control_height_px),
+                                    padding: UiRect::horizontal(rem(space::S12)),
                                     align_items: AlignItems::Center,
                                     justify_content: JustifyContent::Center,
-                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                    border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                                 }
-                                BackgroundColor({ palette.surface_elevated })
+                                ThemeBackgroundColor({ Token::SurfaceElevated })
                                 Button
                                 AddAggregatorCustomGroupButton
                                 Children [
@@ -395,13 +396,13 @@ pub fn profiles_aggregator_scene(
                                 ]
                                 --
                                 Node {
-                                    min_height: px(palette.control_height_px),
-                                    padding: UiRect::horizontal(Val::Px(space::S12)),
+                                    min_height: rem(palette.control_height_px),
+                                    padding: UiRect::horizontal(rem(space::S12)),
                                     align_items: AlignItems::Center,
                                     justify_content: JustifyContent::Center,
-                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                    border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                                 }
-                                BackgroundColor({ palette.surface_elevated })
+                                ThemeBackgroundColor({ Token::SurfaceElevated })
                                 Button
                                 ClearAggregatorCustomGroupsButton
                                 Children [
@@ -413,8 +414,8 @@ pub fn profiles_aggregator_scene(
                             Node {
                                 width: percent(100),
                                 flex_direction: FlexDirection::Column,
-                                row_gap: Val::Px(space::S6),
-                                padding: UiRect::vertical(Val::Px(space::S4)),
+                                row_gap: rem(space::S6),
+                                padding: UiRect::vertical(rem(space::S4)),
                             }
                             Children [
                                 { switch_rows }
@@ -433,17 +434,17 @@ pub fn profiles_aggregator_scene(
                             Node {
                                 width: percent(100),
                                 align_items: AlignItems::Center,
-                                column_gap: Val::Px(space::S8),
+                                column_gap: rem(space::S8),
                             }
                             Children [
                                 Node {
-                                    min_height: px(palette.control_height_px),
-                                    padding: UiRect::horizontal(Val::Px(space::S12)),
+                                    min_height: rem(palette.control_height_px),
+                                    padding: UiRect::horizontal(rem(space::S12)),
                                     align_items: AlignItems::Center,
                                     justify_content: JustifyContent::Center,
-                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                    border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                                 }
-                                BackgroundColor({ palette.surface_elevated })
+                                ThemeBackgroundColor({ Token::SurfaceElevated })
                                 Button
                                 SaveAggregationTemplateButton
                                 Children [
@@ -451,13 +452,13 @@ pub fn profiles_aggregator_scene(
                                 ]
                                 --
                                 Node {
-                                    min_height: px(palette.control_height_px),
-                                    padding: UiRect::horizontal(Val::Px(space::S12)),
+                                    min_height: rem(palette.control_height_px),
+                                    padding: UiRect::horizontal(rem(space::S12)),
                                     align_items: AlignItems::Center,
                                     justify_content: JustifyContent::Center,
-                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                    border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                                 }
-                                BackgroundColor({ palette.surface_elevated })
+                                ThemeBackgroundColor({ Token::SurfaceElevated })
                                 Button
                                 UseAggregationTemplateButton
                                 Children [
@@ -465,13 +466,13 @@ pub fn profiles_aggregator_scene(
                                 ]
                                 --
                                 Node {
-                                    min_height: px(palette.control_height_px),
-                                    padding: UiRect::horizontal(Val::Px(space::S12)),
+                                    min_height: rem(palette.control_height_px),
+                                    padding: UiRect::horizontal(rem(space::S12)),
                                     align_items: AlignItems::Center,
                                     justify_content: JustifyContent::Center,
-                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                    border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                                 }
-                                BackgroundColor({ palette.surface_elevated })
+                                ThemeBackgroundColor({ Token::SurfaceElevated })
                                 Button
                                 ReAggregateTemplateButton
                                 Children [
@@ -479,13 +480,13 @@ pub fn profiles_aggregator_scene(
                                 ]
                                 --
                                 Node {
-                                    min_height: px(palette.control_height_px),
-                                    padding: UiRect::horizontal(Val::Px(space::S12)),
+                                    min_height: rem(palette.control_height_px),
+                                    padding: UiRect::horizontal(rem(space::S12)),
                                     align_items: AlignItems::Center,
                                     justify_content: JustifyContent::Center,
-                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                    border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                                 }
-                                BackgroundColor({ palette.surface_elevated })
+                                ThemeBackgroundColor({ Token::SurfaceElevated })
                                 Button
                                 DeleteAggregationTemplateButton
                                 Children [
@@ -497,8 +498,8 @@ pub fn profiles_aggregator_scene(
                             Node {
                                 width: percent(100),
                                 flex_direction: FlexDirection::Column,
-                                row_gap: Val::Px(space::S4),
-                                padding: UiRect::vertical(Val::Px(space::S4)),
+                                row_gap: rem(space::S4),
+                                padding: UiRect::vertical(rem(space::S4)),
                             }
                             Children [
                                 Text({ counters.clone() })
@@ -534,8 +535,8 @@ pub fn profiles_aggregator_scene(
                             Node {
                                 width: percent(100),
                                 flex_direction: FlexDirection::Column,
-                                row_gap: Val::Px(space::S4),
-                                padding: UiRect::top(Val::Px(space::S4)),
+                                row_gap: rem(space::S4),
+                                padding: UiRect::top(rem(space::S4)),
                             }
                             Children [
                                 LocalizedText::plain("profiles_aggregator_sources_label") TextRole(Role::BodyStrong)

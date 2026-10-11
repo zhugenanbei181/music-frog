@@ -6,7 +6,7 @@ platform packaging configurations:
 - Windows: NSIS script (.nsi), WiX installer (.wxs)
 - Linux: AppImage (build script, AppRun, .desktop entry), Debian package (control, maintainer scripts)
 - macOS: DMG creation script, Info.plist, entitlements.plist
-- Release Tooling: generate-release-manifest.py and signing automation
+- Release tooling: generate-release-manifest.py
 
 Usage:
     python3 scripts/quality/verify-packaging.py [--verbose]
@@ -441,30 +441,6 @@ def validate_release_manifest_generator(manifest_script: pathlib.Path) -> Valida
     return res
 
 
-def validate_signing_scripts(scripts_dir: pathlib.Path) -> list[ValidationResult]:
-    """Validates helper signing scripts in scripts/."""
-    results = []
-
-    for name in ["sign-macos.sh", "sign-windows.sh"]:
-        path = scripts_dir / name
-        if path.exists():
-            res = ValidationResult(str(path.relative_to(REPO_ROOT)))
-            for err in check_bash_syntax(path):
-                res.error(err)
-            results.append(res)
-
-    ps1_path = scripts_dir / "sign-windows.ps1"
-    if ps1_path.exists():
-        res_ps1 = ValidationResult(str(ps1_path.relative_to(REPO_ROOT)))
-        content = ps1_path.read_text(encoding="utf-8", errors="replace")
-        for kw in ["param", "signtool.exe", "Authenticode", "TimestampServers"]:
-            if kw not in content:
-                res_ps1.error(f"sign-windows.ps1 missing essential keyword: {kw}")
-        results.append(res_ps1)
-
-    return results
-
-
 def main() -> int:
     parser = argparse.ArgumentParser(description="Packaging Template & Release Manifest Guard")
     parser.add_argument("--verbose", "-v", action="store_true", help="Show details for passed checks")
@@ -488,9 +464,6 @@ def main() -> int:
 
     # 5. Release Manifest Generator Tool
     results.append(validate_release_manifest_generator(REPO_ROOT / "scripts/generate-release-manifest.py"))
-
-    # 6. Signing Automation Scripts
-    results.extend(validate_signing_scripts(REPO_ROOT / "scripts"))
 
     # Summary
     failed_results = [r for r in results if not r.is_ok]

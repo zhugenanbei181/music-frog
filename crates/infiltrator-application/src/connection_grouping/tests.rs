@@ -3,6 +3,7 @@ use crate::connection_grouping::ConnectionGroupingState;
 use crate::connection_grouping_fixtures::{grouping_snapshot, grouping_surface};
 use crate::connection_rate_application::project_connection;
 use infiltrator_contract::error::Failure;
+use infiltrator_contract::shell_readout::ShellObservation;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_domain::connection_view::{self, ConnectionGroupingMode, ConnectionSortKey};
@@ -119,8 +120,11 @@ fn grouping_capture_publishes_one_count_for_the_page_core_and_shell() {
     assert_eq!(page.total_connections, 9);
     assert_eq!(page.connections.len(), 9);
     assert_eq!(surface.core.active_connections, 9);
-    assert_eq!(surface.shell_readout.connections.value, Some(9));
-    assert!(surface.shell_readout.connections.current);
+    assert_eq!(surface.shell_readout.connections.value(), Some(&9));
+    assert_eq!(
+        &surface.shell_readout.connections,
+        &ShellObservation::Current(9)
+    );
     assert_eq!(
         (page.total_upload_bytes, page.total_download_bytes),
         (37 * 1024, 74 * 1024)

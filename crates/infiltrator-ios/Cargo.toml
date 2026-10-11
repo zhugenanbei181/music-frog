@@ -1,6 +1,6 @@
 [package]
 name = "infiltrator-ios"
-version = "0.41.0"
+version.workspace = true
 edition = "2024"
 publish = false
 description = "iOS host adapter seams for NetworkExtension and Swift/Objective-C lifecycle bridges."
@@ -15,4 +15,5 @@ infiltrator-contract = { path = "../infiltrator-contract" }
 infiltrator-ports = { path = "../infiltrator-ports" }
 
 [dev-dependencies]
+mihomo-api = { path = "../mihomo-api" }
 tokio = { workspace = true }

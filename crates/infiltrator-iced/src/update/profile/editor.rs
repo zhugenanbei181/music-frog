@@ -12,15 +12,18 @@ use crate::view::editor_viewport::window_lines_for_window_height;
 use iced::Task;
 use iced::widget::text_editor;
 use infiltrator_application::failure_projection::failure_message;
-use infiltrator_application::profile_document_application::insert_snippet;
+use infiltrator_application::profile_edit_session::{
+    ProfileEditFinish, ProfileEditObservation, ProfileEditOperationPhase,
+};
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::editor_viewport::EditorViewport;
-use infiltrator_contract::error::{ErrorCode, Failure, FailureReason, InfiltratorError};
+use infiltrator_contract::error::{ErrorCode, Failure, InfiltratorError};
+use infiltrator_contract::profile_document::{DocumentInspection, DocumentValidation};
 use infiltrator_contract::snapshot_history::{SNAPSHOT_DEFAULT_KEEP, SnapshotHistorySnapshot};
 use infiltrator_contract::snapshot_restore::SnapshotRestoreTarget;
 use infiltrator_contract::yaml_snippets::{byte_offset_of_column, column_of_byte_offset};
-use infiltrator_domain::config::preflight_yaml_syntax;
+use infiltrator_ports::profile_document_codec::ProfileDocumentSnippetOutcome;
 
 /// Why the shared editor window is being re-synced (DUAL-09-02/13).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -102,23 +105,51 @@ impl AppState {
         self.sync_document_viewport(pane, ViewportSync::Caret);
     }
 
-    /// Live shared preflight on the profile buffer (same rule as the save gate).
+    /// Live identity-scoped codec inspection on the profile buffer (same rule as the save gate).
     fn refresh_profile_preflight(&mut self) {
         let text = self.editor.editor_content.text();
-        match preflight_yaml_syntax(&text) {
-            Ok(()) => {
+        let inspection = self
+            .editor
+            .document_session
+            .source()
+            .map(|source| source.document.clone())
+            .ok_or_else(|| Failure::new(ErrorCode::NotReady, "No profile document is open", true))
+            .and_then(|identity| {
+                self.command_ingress()
+                    .ok_or_else(|| {
+                        Failure::new(
+                            ErrorCode::NotReady,
+                            "Profile document codec is unavailable",
+                            true,
+                        )
+                    })?
+                    .inspect_profile_buffer(&identity, &text)
+                    .map_err(|failure| failure)
+            });
+        match inspection {
+            Ok(DocumentInspection::Inspected(DocumentValidation::Valid)) => {
                 self.editor.syntax_error = None;
                 self.editor.syntax_error_line = None;
             }
-            Err(diag) => {
-                self.editor.syntax_error = Some(diag.message);
-                self.editor.syntax_error_line = Some(diag.line);
+            Ok(DocumentInspection::Inspected(DocumentValidation::Invalid { diagnostics })) => {
+                let diagnostic = diagnostics.first();
+                self.editor.syntax_error = diagnostic.map(|item| item.message.clone());
+                self.editor.syntax_error_line = diagnostic.and_then(|item| item.line);
+            }
+            Ok(other) => {
+                self.editor.syntax_error =
+                    Some(format!("Document inspection unavailable: {other:?}"));
+                self.editor.syntax_error_line = None;
+            }
+            Err(failure) => {
+                self.editor.syntax_error = Some(failure.message);
+                self.editor.syntax_error_line = None;
             }
         }
     }
 
-    /// DUAL-09-04: insert a catalogue snippet at the caret through the shared
-    /// application use-case (byte-faithful splice + shared preflight gate).
+    /// DUAL-09-04: insert a catalogue snippet at the caret through the
+    /// identity-scoped codec use-case (byte-faithful splice + codec inspection).
     /// The active document pane receives it: the Mixin overlay edits its own
     /// document, every other pane edits the profile document.
     pub(super) fn insert_yaml_snippet(&mut self, snippet_id: &'static str) -> Task<Message> {
@@ -145,8 +176,34 @@ impl AppState {
         let caret_line = widget_cursor.position.line;
         let line_text = content.split('\n').nth(caret_line).unwrap_or_default();
         let caret_column = column_of_byte_offset(line_text, widget_cursor.position.column);
-        match insert_snippet(&content, snippet_id, caret_line + 1, caret_column) {
-            Ok(insertion) => {
+        let identity = match pane {
+            EditorPane::Mixin => self.editor.mixin_session.source(),
+            EditorPane::Profile | EditorPane::Filter | EditorPane::Script => {
+                self.editor.document_session.source()
+            }
+        }
+        .map(|source| source.document.clone());
+        let insertion = identity
+            .ok_or_else(|| Failure::new(ErrorCode::NotReady, "No profile document is open", true))
+            .and_then(|identity| {
+                self.command_ingress()
+                    .ok_or_else(|| {
+                        Failure::new(
+                            ErrorCode::NotReady,
+                            "Profile document codec is unavailable",
+                            true,
+                        )
+                    })?
+                    .insert_profile_snippet(
+                        &identity,
+                        &content,
+                        snippet_id,
+                        caret_line + 1,
+                        caret_column,
+                    )
+            });
+        match insertion {
+            Ok(ProfileDocumentSnippetOutcome::Inserted(insertion)) => {
                 let inserted_line = insertion
                     .content
                     .split('\n')
@@ -174,6 +231,15 @@ impl AppState {
                 self.reset_document_viewport(pane);
                 if pane == EditorPane::Profile {
                     self.refresh_profile_preflight();
+                }
+                Task::none()
+            }
+            Ok(ProfileDocumentSnippetOutcome::Rejected { validation }) => {
+                if let DocumentValidation::Invalid { diagnostics } = validation {
+                    if let Some(diagnostic) = diagnostics.first() {
+                        self.editor.syntax_error = Some(diagnostic.message.clone());
+                        self.editor.syntax_error_line = diagnostic.line;
+                    }
                 }
                 Task::none()
             }
@@ -218,7 +284,7 @@ impl AppState {
                     .expect("editor read identity exhausted");
                 let ticket = self.editor.next_editor_read;
                 self.editor.document_load = Some((ticket, path.clone()));
-                let commands = self.commands.clone();
+                let commands = self.command_ingress();
                 Task::perform(
                     async move {
                         let result = match commands {
@@ -256,21 +322,42 @@ impl AppState {
                         return Task::none();
                     }
                 };
-                let Some(source) = document.source.as_ref() else {
-                    return Task::none();
-                };
-                let adopt = self.editor.document_session.observe(
-                    source,
+                let observation = self.editor.document_session.observe(
+                    &document.workspace_identity,
                     &document.content,
                     &self.editor.editor_content.text(),
                 );
-                self.editor.document_session.read_completed(source);
+                self.editor
+                    .document_session
+                    .read_completed(&document.workspace_identity);
                 self.editor.document_latest = Some((reply.path.clone(), document.clone()));
-                if adopt {
-                    self.editor.editor_path = Some(reply.path);
-                    self.editor.editor_content = text_editor::Content::with_text(&document.content);
-                    self.editor.profile_protection_override = false;
-                    self.reset_document_viewport(EditorPane::Profile);
+                match observation {
+                    ProfileEditObservation::Updated => {
+                        self.editor.editor_path = Some(reply.path);
+                        self.editor.editor_content =
+                            text_editor::Content::with_text(&document.content);
+                        self.editor.profile_write_authorization = Default::default();
+                        self.editor.syntax_error = None;
+                        self.editor.syntax_error_line = None;
+                        if document.workspace_identity.document.format_id.as_str() == "mihomo-yaml"
+                        {
+                            match &document.inspection {
+                                DocumentInspection::Inspected(DocumentValidation::Valid)
+                                | DocumentInspection::Unavailable(_)
+                                | DocumentInspection::Unsupported(_) => {}
+                                DocumentInspection::Inspected(DocumentValidation::Invalid {
+                                    diagnostics,
+                                }) => {
+                                    if let Some(diagnostic) = diagnostics.first() {
+                                        self.editor.syntax_error = Some(diagnostic.message.clone());
+                                        self.editor.syntax_error_line = diagnostic.line;
+                                    }
+                                }
+                            }
+                        }
+                        self.reset_document_viewport(EditorPane::Profile);
+                    }
+                    ProfileEditObservation::DraftProtected | ProfileEditObservation::Unchanged => {}
                 }
                 let mut tasks = vec![
                     Task::done(Message::Navigate(Route::Editor)),
@@ -289,7 +376,7 @@ impl AppState {
                     if let Some((path, _)) = &self.editor.document_latest {
                         self.editor.editor_path = Some(path.clone());
                     }
-                    self.editor.profile_protection_override = false;
+                    self.editor.profile_write_authorization = Default::default();
                     self.reset_document_viewport(EditorPane::Profile);
                     self.refresh_profile_preflight();
                 }
@@ -322,7 +409,7 @@ impl AppState {
                     self.editor.snapshot_history = None;
                     return Task::none();
                 };
-                let commands = self.commands.clone();
+                let commands = self.command_ingress();
                 self.editor.is_loading_snapshots = true;
                 Task::perform(
                     async move {
@@ -357,7 +444,7 @@ impl AppState {
                 let Some(profile) = self.edited_profile() else {
                     return Task::none();
                 };
-                let commands = self.commands.clone();
+                let commands = self.command_ingress();
                 self.editor.is_backing_up_snapshot = true;
                 Task::perform(
                     async move {
@@ -402,7 +489,7 @@ impl AppState {
                     return Task::none();
                 };
                 let keep = self.editor.snapshot_prune_keep;
-                let commands = self.commands.clone();
+                let commands = self.command_ingress();
                 self.editor.is_pruning_snapshots = true;
                 Task::perform(
                     async move {
@@ -449,20 +536,18 @@ impl AppState {
                 self.update_snapshot_restore(RestoreAction::Cancel)
             }
             Message::SaveProfile => {
-                if self.profile.is_saving_profile {
+                if matches!(
+                    &self.editor.document_session.operation,
+                    ProfileEditOperationPhase::Pending(_)
+                ) {
                     return Task::none();
                 }
                 let content = self.editor.editor_content.text();
-                if let Err(diag) = preflight_yaml_syntax(&content) {
-                    self.editor.syntax_error = Some(diag.message.clone());
-                    self.editor.syntax_error_line = Some(diag.line);
+                self.refresh_profile_preflight();
+                if let Some(diagnostic) = self.editor.syntax_error.clone() {
                     return Task::done(Message::ShowToast(
                         failure_message(
-                            &Failure::new(ErrorCode::Configuration, diag.message, false)
-                                .with_reason(FailureReason::YamlSyntax {
-                                    line: diag.line,
-                                    column: diag.column,
-                                }),
+                            &Failure::new(ErrorCode::Configuration, diagnostic, false),
                             &self.shell.lang,
                         ),
                         ToastStatus::Error,
@@ -471,16 +556,15 @@ impl AppState {
                 let pending = match self
                     .editor
                     .document_session
-                    .begin_document(content, self.editor.profile_protection_override)
+                    .begin_document(content, self.editor.profile_write_authorization)
                 {
                     Ok(pending) => pending,
                     Err(failure) => {
-                        self.editor.document_session.failure = Some(failure);
+                        self.editor.document_session.reject(failure);
                         return Task::none();
                     }
                 };
-                self.profile.is_saving_profile = true;
-                let commands = self.commands.clone();
+                let commands = self.command_ingress();
                 Task::perform(
                     async move {
                         let result = match commands {
@@ -499,14 +583,14 @@ impl AppState {
                 )
             }
             Message::ProfileSaved(reply) => {
-                if !self.editor.document_session.finish(
+                match self.editor.document_session.finish(
                     reply.pending.operation,
                     &reply.pending.intent,
                     reply.result.clone(),
                 ) {
-                    return Task::none();
+                    ProfileEditFinish::Stale => return Task::none(),
+                    ProfileEditFinish::Applied => {}
                 }
-                self.profile.is_saving_profile = false;
                 self.refresh_apply_transaction();
                 if let Ok(CommandOutput::ProfileDocumentSaved(saved)) = reply.result {
                     if let Some((_, document)) = &mut self.editor.document_latest {

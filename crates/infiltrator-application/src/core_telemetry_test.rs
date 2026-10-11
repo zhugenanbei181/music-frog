@@ -21,7 +21,6 @@ fn core(session: u128) -> CoreSnapshot {
 fn sample(epoch: i64, up: u64, down: u64) -> OverviewSample {
     OverviewSample {
         lifecycle: CoreLifecycle::Running,
-        mode: None,
         upload_total: up,
         download_total: down,
         active_connections: 3,

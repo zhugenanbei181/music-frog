@@ -152,20 +152,35 @@ pub enum EnergyPreference {
     Saver,
 }
 
+/// Typed accessibility preference for non-essential motion.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum MotionPreference {
+    /// Keep standard animation and scroll motion.
+    #[default]
+    Standard,
+    /// Suppress non-essential animation and scroll motion.
+    Reduced,
+}
+
 /// Typed accessibility / power preference the host can set (Android system
 /// "remove animations", battery saver). Consumed by animation/cadence paths.
 #[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct HostPreferences {
-    /// Reduce or remove non-essential motion.
-    pub reduce_motion: bool,
+    /// Accessibility preference for non-essential motion.
+    pub motion: MotionPreference,
     /// Coarse energy preference.
     pub energy: EnergyPreference,
 }
 
 impl HostPreferences {
-    /// Whether animation-driven cadence and motion should be suppressed.
-    pub const fn animations_suppressed(self) -> bool {
-        self.reduce_motion || matches!(self.energy, EnergyPreference::Saver)
+    /// Resolve accessibility and power preferences into one motion policy.
+    pub const fn effective_motion(self) -> MotionPreference {
+        match (self.motion, self.energy) {
+            (MotionPreference::Reduced, _) | (_, EnergyPreference::Saver) => {
+                MotionPreference::Reduced
+            }
+            (MotionPreference::Standard, EnergyPreference::Balanced) => MotionPreference::Standard,
+        }
     }
 }
 
@@ -194,7 +209,7 @@ fn on_feedback_trigger(
 
 static ATTACHED_HAPTICS: OnceLock<HapticsHost> = OnceLock::new();
 
-/// Attach the host's haptic sink before launch (mirrors `attach_application`).
+/// Attach the host's haptic sink before launch.
 /// The default [`HostCapabilitiesPlugin`] picks it up; an explicit
 /// [`HostCapabilitiesPlugin::new`] overrides it.
 pub fn attach_haptics(host: HapticsHost) {
@@ -360,32 +375,37 @@ mod tests {
         );
         app.world_mut()
             .trigger(HostPreferenceIntent(HostPreferences {
-                reduce_motion: true,
+                motion: MotionPreference::Reduced,
                 energy: EnergyPreference::Saver,
             }));
         app.update();
         let preferences = *app.world().resource::<HostPreferences>();
-        assert!(preferences.reduce_motion);
+        assert_eq!(preferences.motion, MotionPreference::Reduced);
         assert_eq!(preferences.energy, EnergyPreference::Saver);
-        assert!(preferences.animations_suppressed());
+        assert_eq!(preferences.effective_motion(), MotionPreference::Reduced);
     }
 
     #[test]
-    fn animations_suppressed_covers_motion_and_energy() {
-        assert!(!HostPreferences::default().animations_suppressed());
-        assert!(
+    fn effective_motion_combines_accessibility_and_energy_preferences() {
+        assert_eq!(
+            HostPreferences::default().effective_motion(),
+            MotionPreference::Standard
+        );
+        assert_eq!(
             HostPreferences {
-                reduce_motion: true,
+                motion: MotionPreference::Reduced,
                 energy: EnergyPreference::Balanced,
             }
-            .animations_suppressed()
+            .effective_motion(),
+            MotionPreference::Reduced
         );
-        assert!(
+        assert_eq!(
             HostPreferences {
-                reduce_motion: false,
+                motion: MotionPreference::Standard,
                 energy: EnergyPreference::Saver,
             }
-            .animations_suppressed()
+            .effective_motion(),
+            MotionPreference::Reduced
         );
     }
 }

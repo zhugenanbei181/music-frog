@@ -1,13 +1,12 @@
 //! Product-local editor facts are separated by profile, source bytes and read operation.
 use crate::profile_application::ProfileApplication;
-use infiltrator_contract::error::Failure;
+use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document::ProfileDocumentSnapshot;
+use infiltrator_contract::profile_document_identity::{ProfileId, ProfileWorkspaceIdentity};
 use infiltrator_contract::profile_editor_read::{
     ProfileEditorReadSnapshot, ProfileEditorSnapshot, ProfileReadStatus,
 };
 use infiltrator_contract::profile_options::ProfileOptionsSnapshot;
-use infiltrator_contract::profile_source::ProfileSourceIdentity;
-use infiltrator_domain::profile_source::hash_document_bytes;
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 #[derive(Clone, Copy)]
@@ -25,7 +24,7 @@ pub(crate) struct EditorRead {
 }
 #[derive(Default)]
 struct ProfileFacts {
-    source: Option<ProfileSourceIdentity>,
+    workspace_identity: Option<ProfileWorkspaceIdentity>,
     sequence: u64,
     document: Option<ProfileDocumentSnapshot>,
     options: Option<ProfileOptionsSnapshot>,
@@ -97,11 +96,12 @@ impl EditorObservations {
     }
     fn source(
         &mut self,
-        source: &ProfileSourceIdentity,
+        identity: &ProfileWorkspaceIdentity,
         sequence: u64,
     ) -> Option<&mut ProfileFacts> {
-        let facts = self.facts.entry(source.profile.clone()).or_default();
-        if facts.source.as_ref() != Some(source) {
+        let profile = identity.document.profile_id.as_str();
+        let facts = self.facts.entry(profile.to_owned()).or_default();
+        if facts.workspace_identity.as_ref() != Some(identity) {
             if sequence < facts.sequence {
                 return None;
             }
@@ -109,25 +109,22 @@ impl EditorObservations {
             facts.options = None;
             facts.document_status = ProfileReadStatus::Unobserved;
             facts.options_status = ProfileReadStatus::Unobserved;
-            facts.source = Some(source.clone());
+            facts.workspace_identity = Some(identity.clone());
         }
         facts.sequence = facts.sequence.max(sequence);
         Some(facts)
     }
     pub fn document(&mut self, read: &EditorRead, document: ProfileDocumentSnapshot) -> bool {
-        let Some(source) = document.source.clone() else {
-            return false;
-        };
-        if document.profile != source.profile
-            || hash_document_bytes(&document.content) != source.document_hash
-            || document.line_count != document.content.lines().count()
+        let identity = document.workspace_identity.clone();
+        let profile = identity.document.profile_id.as_str();
+        if document.line_count != document.content.lines().count()
             || !self.accepts_read(read)
-            || read.profile != source.profile
+            || read.profile != profile
             || !matches!(read.facet, EditorFacet::Document)
         {
             return false;
         }
-        let Some(facts) = self.source(&source, read.sequence) else {
+        let Some(facts) = self.source(&identity, read.sequence) else {
             return false;
         };
         facts.document = Some(document);
@@ -135,13 +132,14 @@ impl EditorObservations {
         true
     }
     pub fn options(&mut self, read: &EditorRead, options: ProfileOptionsSnapshot) -> bool {
+        let identity = options.workspace_identity.clone();
         if !self.accepts_read(read)
-            || read.profile != options.source.profile
+            || read.profile != identity.document.profile_id.as_str()
             || !matches!(read.facet, EditorFacet::Options)
         {
             return false;
         }
-        let Some(facts) = self.source(&options.source, read.sequence) else {
+        let Some(facts) = self.source(&identity, read.sequence) else {
             return false;
         };
         facts.options = Some(options);
@@ -179,7 +177,7 @@ impl EditorObservations {
             .as_ref()
             .and_then(|profile| self.facts.get(profile))
         {
-            snapshot.observed_source = facts.source.clone();
+            snapshot.observed_workspace_identity = facts.workspace_identity.clone();
             snapshot.document = facts.document_status.clone();
             snapshot.options = facts.options_status.clone();
         }
@@ -209,14 +207,14 @@ impl EditorObservations {
     }
     pub fn for_source(
         &self,
-        source: &ProfileSourceIdentity,
+        identity: &ProfileWorkspaceIdentity,
     ) -> (
         Option<ProfileDocumentSnapshot>,
         Option<ProfileOptionsSnapshot>,
     ) {
         self.facts
-            .get(&source.profile)
-            .filter(|facts| facts.source.as_ref() == Some(source))
+            .get(identity.document.profile_id.as_str())
+            .filter(|facts| facts.workspace_identity.as_ref() == Some(identity))
             .map(|facts| (facts.document.clone(), facts.options.clone()))
             .unwrap_or_default()
     }
@@ -293,14 +291,25 @@ impl ProfileApplication {
         let Some(profile) = snapshot.read.profile.clone() else {
             return snapshot;
         };
-        match self.load_workspace(&profile).await {
+        let profile_id = match ProfileId::new(profile) {
+            Ok(profile_id) => profile_id,
+            Err(error) => {
+                snapshot.read.verification_failure = Some(Failure::new(
+                    ErrorCode::InvalidState,
+                    error.to_string(),
+                    false,
+                ));
+                return snapshot;
+            }
+        };
+        match self.load_workspace_id(&profile_id).await {
             Ok(workspace) => {
                 if let Some(document) = snapshot.document.as_mut()
-                    && document.source.as_ref() == Some(&workspace.source)
+                    && document.workspace_identity == workspace.identity()
                 {
                     document.write_protection = workspace.write_protection;
                 }
-                snapshot.read.verified_source = Some(workspace.source);
+                snapshot.read.verified_workspace_identity = Some(workspace.identity());
             }
             Err(failure) => snapshot.read.verification_failure = Some(failure),
         }
@@ -331,7 +340,7 @@ impl ProfileApplication {
     }
     pub fn editor_observations_for(
         &self,
-        source: &ProfileSourceIdentity,
+        identity: &ProfileWorkspaceIdentity,
     ) -> (
         Option<ProfileDocumentSnapshot>,
         Option<ProfileOptionsSnapshot>,
@@ -339,6 +348,6 @@ impl ProfileApplication {
         self.editor_observations
             .lock()
             .expect("editor observations")
-            .for_source(source)
+            .for_source(identity)
     }
 }

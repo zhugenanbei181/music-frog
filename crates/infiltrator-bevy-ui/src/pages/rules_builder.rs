@@ -16,6 +16,7 @@ use bevy::ecs::observer::On;
 use bevy::ecs::query::{QueryFilter, With};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Query, Res, ResMut, SystemParam};
+use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, FlexWrap, JustifyContent, Node, UiRect, Val,
@@ -25,10 +26,12 @@ use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
 use infiltrator_application::rule_form_binding::{RuleFormBinding, default_form_target};
 use infiltrator_bevy_widgets::button::{ButtonDisabled, ButtonVariant};
+use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
 use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText};
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::text_input::TextField;
@@ -122,16 +125,16 @@ pub fn rules_builder_scene(palette: &UiPalette) -> impl Scene + use<> {
                                 width: percent(100),
                                 min_width: px(0.0),
                                 flex_wrap: FlexWrap::Wrap,
-                                row_gap: px(space::S8),
+                                row_gap: rem(space::S8),
                                 align_items: AlignItems::Center,
                                 justify_content: JustifyContent::SpaceBetween,
-                                padding: UiRect::bottom(Val::Px(space::S8)),
+                                padding: UiRect::bottom(rem(space::S8)),
                             }
                             RulesBuilderRoot
                             Children [
                                 Node {
                                     align_items: AlignItems::Center,
-                                    column_gap: Val::Px(space::S8),
+                                    column_gap: rem(space::S8),
                                 }
                                 Children [
                                     @{ icon_tile_scene(IconId::Zap, 24.0, palette) }
@@ -141,19 +144,19 @@ pub fn rules_builder_scene(palette: &UiPalette) -> impl Scene + use<> {
                                 --
                                 Node {
                                     flex_wrap: FlexWrap::Wrap,
-                                    row_gap: px(space::S8),
-                                    column_gap: Val::Px(space::S8),
+                                    row_gap: rem(space::S8),
+                                    column_gap: rem(space::S8),
                                     align_items: AlignItems::Center,
                                 }
                                 Children [
                                     Node {
-                                        min_height: px(palette.control_height_px),
-                                        padding: UiRect::horizontal(Val::Px(space::S12)),
+                                        min_height: rem(palette.control_height_px),
+                                        padding: UiRect::horizontal(rem(space::S12)),
                                         align_items: AlignItems::Center,
                                         justify_content: JustifyContent::Center,
-                                        border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                        border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                                     }
-                                    BackgroundColor({ palette.surface_elevated })
+                                    ThemeBackgroundColor({ Token::SurfaceElevated })
                                     Button
                                     InjectGamePresetsButton RuleDraftMutationButton RuleFormMutationButton ButtonDisabled(true)
                                     preset_node LocalizedLabel::plain("rules_inject_game_presets")
@@ -162,13 +165,13 @@ pub fn rules_builder_scene(palette: &UiPalette) -> impl Scene + use<> {
                                     ]
                                     --
                                     Node {
-                                        min_height: px(palette.control_height_px),
-                                        padding: UiRect::horizontal(Val::Px(space::S12)),
+                                        min_height: rem(palette.control_height_px),
+                                        padding: UiRect::horizontal(rem(space::S12)),
                                         align_items: AlignItems::Center,
                                         justify_content: JustifyContent::Center,
-                                        border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                        border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                                     }
-                                    BackgroundColor({ palette.accent })
+                                    ThemeBackgroundColor({ Token::Accent })
                                     Button
                                     AddCustomRuleButton RuleDraftMutationButton RuleFormMutationButton ButtonDisabled(true)
                                     add_node LocalizedLabel::plain("rules_add_confirm_action")
@@ -183,21 +186,21 @@ pub fn rules_builder_scene(palette: &UiPalette) -> impl Scene + use<> {
                                 width: percent(100),
                                 min_width: px(0.0),
                                 flex_wrap: FlexWrap::Wrap,
-                                row_gap: px(space::S8),
+                                row_gap: rem(space::S8),
                                 align_items: AlignItems::Center,
                                 justify_content: JustifyContent::SpaceBetween,
-                                padding: UiRect::vertical(Val::Px(space::S4)),
+                                padding: UiRect::vertical(rem(space::S4)),
                             }
                             Children [
                                 Node {
                                     flex_grow: 1.0,
-                                    flex_basis: px(280.0),
+                                    flex_basis: rem(280.0),
                                     min_width: px(0.0),
                                     max_width: percent(100),
                                     flex_wrap: FlexWrap::Wrap,
-                                    row_gap: px(space::S6),
+                                    row_gap: rem(space::S6),
                                     align_items: AlignItems::Center,
-                                    column_gap: Val::Px(space::S6),
+                                    column_gap: rem(space::S6),
                                 }
                                 Children [
                                     { type_chips }
@@ -210,8 +213,8 @@ pub fn rules_builder_scene(palette: &UiPalette) -> impl Scene + use<> {
                             Node {
                                 width: percent(100),
                                 align_items: AlignItems::Center,
-                                column_gap: Val::Px(space::S8),
-                                padding: UiRect::vertical(Val::Px(space::S4)),
+                                column_gap: rem(space::S8),
+                                padding: UiRect::vertical(rem(space::S4)),
                             }
                             Children [
                                 Node {
@@ -244,17 +247,17 @@ pub fn rules_builder_scene(palette: &UiPalette) -> impl Scene + use<> {
     )
 }
 
-fn rule_type_chip(index: usize, rule_type: String, palette: &UiPalette) -> impl Scene + use<> {
+fn rule_type_chip(index: usize, rule_type: String, _palette: &UiPalette) -> impl Scene + use<> {
     let semantic = button_semantic_node(&rule_type);
     bsn! {
             Node {
-                min_height: px(28.0),
-                padding: UiRect::horizontal(Val::Px(space::S8)),
+                min_height: rem(28.0),
+                padding: UiRect::horizontal(rem(space::S8)),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
                 border_radius: BorderRadius::all(Val::Px(4.0)),
             }
-            BackgroundColor({ palette.surface_elevated })
+            ThemeBackgroundColor({ Token::SurfaceElevated })
             Button
             RuleTypeChip(index)
             RuleDraftMutationButton RuleFormMutationButton ButtonDisabled(true)

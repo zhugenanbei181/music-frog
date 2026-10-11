@@ -3,79 +3,20 @@ namespace infiltrator_android {
   string ping();
   boolean bridge_ready();
   FfiStatus bridge_shutdown();
-  FfiStatus prepare_vpn();
-  FfiStatus start_vpn(i32 fd);
-  FfiStatus stop_vpn();
+  VpnPreparationResult prepare_vpn(u64 vpn_generation);
+  FfiStatus start_vpn(i32 fd, u64 vpn_generation, u64 preparation_id, u64 activation_lease_id);
+  FfiStatus cancel_vpn_preparation(u64 vpn_generation);
   FfiStatus revoke_vpn();
 
   // Async functions
   [Async]
-  ProfilesResult profiles_list();
-
-  [Async]
-  FfiStatus profile_create(string name, string url);
-
-  [Async]
-  FfiStatus profile_select(string name);
-
-  [Async]
-  FfiStatus profile_update(string name);
-
-  [Async]
-  ProfileDetailResult profile_detail(string name);
-
-  [Async]
-  FfiStatus profile_save(string name, string content, boolean activate);
-
-  [Async]
-  FfiStatus profile_delete(string name);
-
-  [Async]
-  FfiStatus profile_subscription_save(
-    string name,
-    string url,
-    boolean auto_update_enabled,
-    u32? update_interval_hours
-  );
-
-  [Async]
-  FfiStatus profile_subscription_clear(string name);
-
-  [Async]
-  ProxyGroupsResult proxies_groups();
-
-  [Async]
-  FfiStatus proxy_select(string group, string server);
-
-  [Async]
-  FfiStatus config_patch_mode(string mode);
-
-  [Async]
-  TrafficResult traffic_snapshot();
-
-  [Async]
   IpResult ip_check();
-
-  [Async]
-  ConnectionsResult connections_list();
 
   [Async]
   FfiStatus connection_close(string id);
 
   [Async]
   FfiStatus connections_close_all();
-
-  [Async]
-  TunStatusResult tun_status();
-
-  [Async]
-  VpnTunSettingsResult vpn_tun_settings();
-
-  [Async]
-  VpnTunSettingsResult vpn_tun_settings_save(VpnTunSettingsPatch patch);
-
-  [Async]
-  VpnSessionResult vpn_session_status();
 
   [Async]
   DnsSettingsResult dns_settings();
@@ -92,29 +33,6 @@ namespace infiltrator_android {
   [Async]
   FfiBoolResult fake_ip_cache_clear();
 
-  [Async]
-  RulesResult rules_list();
-
-  [Async]
-  RulesResult rules_save(sequence<RuleEntryRecord> rules);
-
-  [Async]
-  RuleProvidersResult rule_providers();
-
-  [Async]
-  RuleProvidersResult rule_providers_save(string json);
-
-  [Async]
-  WebDavSettingsResult webdav_settings();
-
-  [Async]
-  WebDavSettingsResult webdav_settings_save(WebDavSettings settings);
-
-  [Async]
-  FfiStatus webdav_test(WebDavSettings settings);
-
-  [Async]
-  WebDavSyncResult webdav_sync_now();
 };
 
 enum FfiErrorCode {
@@ -174,54 +92,6 @@ dictionary ProfileDetailResult {
   ProfileDetail? profile;
 };
 
-dictionary ProxyGroupSummary {
-  string name;
-  string group_type;
-  string? current;
-  sequence<string> all;
-};
-
-dictionary ProxyGroupsResult {
-  FfiStatus status;
-  sequence<ProxyGroupSummary> groups;
-};
-
-dictionary TrafficSnapshot {
-  u64 up_rate;
-  u64 down_rate;
-  u64 up_total;
-  u64 down_total;
-  u64 up_peak;
-  u64 down_peak;
-  u32 connections;
-};
-
-dictionary TrafficResult {
-  FfiStatus status;
-  TrafficSnapshot? snapshot;
-};
-
-dictionary ConnectionRecord {
-  string id;
-  string host;
-  string process_path;
-  string network;
-  string connection_type;
-  string rule;
-  u64 upload;
-  u64 download;
-  sequence<string> chains;
-  string destination_ip_asn;
-  sequence<string>? destination_geo_ip;
-};
-
-dictionary ConnectionsResult {
-  FfiStatus status;
-  sequence<ConnectionRecord> connections;
-  u64 upload_total;
-  u64 download_total;
-};
-
 dictionary IpCheckResult {
   string ip;
   string? country;
@@ -234,17 +104,10 @@ dictionary IpResult {
   IpCheckResult? value;
 };
 
-dictionary TunStatusResult {
-  FfiStatus status;
-  boolean enabled;
-};
-
 dictionary VpnTunSettings {
   u32? mtu;
   boolean? auto_route;
   boolean? strict_route;
-  sequence<string> dns_servers;
-  boolean? ipv6;
   string? stack;
   boolean? auto_detect_interface;
 };
@@ -253,8 +116,6 @@ dictionary VpnTunSettingsPatch {
   u32? mtu;
   boolean? auto_route;
   boolean? strict_route;
-  sequence<string>? dns_servers;
-  boolean? ipv6;
   string? stack;
   boolean? auto_detect_interface;
 };
@@ -264,19 +125,18 @@ dictionary VpnTunSettingsResult {
   VpnTunSettings? settings;
 };
 
-dictionary VpnSessionSnapshot {
-  string state;
-  boolean foreground;
-  u32? mtu;
-  u32 route_count;
-  sequence<string> dns_servers;
-  boolean ipv6;
-  u64 revision;
+enum AndroidCoreLifecycle {
+  "Stopped",
+  "Starting",
+  "Ready",
+  "Running",
+  "Stopping",
+  "Failed",
 };
 
-dictionary VpnSessionResult {
+dictionary VpnPreparationResult {
   FfiStatus status;
-  VpnSessionSnapshot? snapshot;
+  u64? preparation_id;
 };
 
 dictionary DnsSettings {
@@ -327,21 +187,6 @@ dictionary FakeIpSettingsPatch {
 dictionary FakeIpSettingsResult {
   FfiStatus status;
   FakeIpSettings? settings;
-};
-
-dictionary RuleEntryRecord {
-  string rule;
-  boolean enabled;
-};
-
-dictionary RulesResult {
-  FfiStatus status;
-  sequence<RuleEntryRecord> rules;
-};
-
-dictionary RuleProvidersResult {
-  FfiStatus status;
-  string json;
 };
 
 dictionary WebDavSettings {

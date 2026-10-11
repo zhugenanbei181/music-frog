@@ -92,9 +92,36 @@ async fn test_switch_proxy() {
 }
 
 #[tokio::test]
+async fn mihomo_delay_probe_sends_the_typed_timeout_without_clamping() {
+    let mut server = Server::new_async().await;
+    let mock = server
+        .mock("GET", "/proxies/Proxy-A/delay")
+        .match_query("url=https%3A%2F%2Fprobe.example.test%2Fcheck&timeout=12345")
+        .with_status(200)
+        .with_body(r#"{"delay":73}"#)
+        .create_async()
+        .await;
+    let client = MihomoClient::new(&server.url(), None).unwrap();
+
+    assert_eq!(
+        client
+            .test_delay("Proxy-A", "https://probe.example.test/check", 12_345)
+            .await
+            .unwrap(),
+        73
+    );
+    mock.assert_async().await;
+    let unsupported = client
+        .test_delay("Proxy-A", "https://probe.example.test/check", 32_768)
+        .await
+        .unwrap_err();
+    assert!(matches!(unsupported, MihomoError::Config(_)));
+}
+
+#[tokio::test]
 async fn test_stream_traffic() {
-    let addr = "127.0.0.1:19090";
-    let server = TcpListener::bind(addr).await.unwrap();
+    let server = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = server.local_addr().unwrap();
 
     tokio::spawn(async move {
         use futures_util::SinkExt;
@@ -113,7 +140,7 @@ async fn test_stream_traffic() {
         }
     });
 
-    let client = MihomoClient::new(&format!("http://{}", addr), None).unwrap();
+    let client = MihomoClient::new(&format!("http://{addr}"), None).unwrap();
     let mut rx = client.stream_traffic().await.unwrap();
 
     let data = timeout(time::Duration::from_secs(1), rx.recv())
@@ -127,8 +154,8 @@ async fn test_stream_traffic() {
 
 #[tokio::test]
 async fn test_stream_connections() {
-    let addr = "127.0.0.1:19091";
-    let server = TcpListener::bind(addr).await.unwrap();
+    let server = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = server.local_addr().unwrap();
 
     tokio::spawn(async move {
         use futures_util::SinkExt;
@@ -148,7 +175,7 @@ async fn test_stream_connections() {
         }
     });
 
-    let client = MihomoClient::new(&format!("http://{}", addr), None).unwrap();
+    let client = MihomoClient::new(&format!("http://{addr}"), None).unwrap();
     let mut rx = client.stream_connections().await.unwrap();
 
     let data = timeout(time::Duration::from_secs(1), rx.recv())
@@ -301,23 +328,6 @@ fn test_provider_name_is_percent_encoded_as_path_segment() {
         "http://127.0.0.1:9090/providers/proxies/My%20Provider%20%231%3F/healthcheck",
         "space/#/? must be encoded inside the provider segment, not split off"
     );
-}
-
-#[tokio::test]
-async fn test_flush_fakeip_cache() {
-    let mut server = Server::new_async().await;
-    let mock = server
-        .mock("POST", "/cache/fakeip/flush")
-        .match_header("authorization", "Bearer test-secret")
-        .with_status(204)
-        .create_async()
-        .await;
-
-    let client = MihomoClient::new(&server.url(), Some("test-secret".to_string())).unwrap();
-    let result = client.flush_fakeip_cache().await;
-
-    mock.assert_async().await;
-    assert!(result.is_ok());
 }
 
 #[tokio::test]

@@ -1,7 +1,7 @@
 # infiltrator-desktop
 
-MusicFrog 的桌面宿主层，为 Iced 与 Bevy 提供内核进程、配置事务、原生代理、凭据、系统权限、托盘与平台服务。两端消费同一套 Rust application 和 ports。
+> 层级：L3
 
-独立产品会话准备真实配置、命令服务与完整页面数据源，并持有执行器直到窗口关闭。停止的内核可以由用户启动，退出时回收宿主。发布包携带对应平台的 mihomo；运行副本按内容哈希保存，版本更新会生成新副本，损坏缓存会重新物化。
+桌面 host adapter 与产品会话：core 进程、目录、权限、系统代理、托盘、凭据和退出清理。Iced、Bevy 与 Slint 桌面产品由相同 application/ports 组合；Slint 入口见 [infiltrator-slint](../infiltrator-slint/README.md)。
 
-共享层与宿主行为使用 mock/headless 测试。真实桌面权限、安装、托盘和系统代理仍需在对应目标平台验证；源码与模板存在不代表这些验证已经完成。
+桌面宿主负责 OS 资源，不重复业务用例；隔离 smoke 见 [本地文档](docs/README.md)。

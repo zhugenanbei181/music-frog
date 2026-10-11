@@ -1,15 +1,16 @@
 //! test-intent: behavior
-use crate::command_harness::recording_application;
-use crate::support::{headless_plugins, subtree_has_text};
+use crate::command_harness::{TestDnsHostCapabilityProvider, recording_application};
+use crate::support::{command_pump_for_observed_snapshot, headless_plugins, subtree_has_text};
 use bevy::app::App;
 use bevy::ecs::{component::Component, entity::Entity};
 use bevy::ui_widgets::Activate;
 use infiltrator_application::command_application::CommandApplication;
+use infiltrator_application::dns_leak_actions::DnsLeakActionPhase;
 use infiltrator_application::dns_leak_application::{DnsLeakApplication, default_echo_sources};
 use infiltrator_application::dns_leak_fixtures::{EchoMode, IsolatedEcho};
 use infiltrator_application::surface_reader::ApplicationSurfaceReader;
 use infiltrator_bevy_ui::app::ShellPlugin;
-use infiltrator_bevy_ui::command::{CommandPumpPlugin, UiCommand};
+use infiltrator_bevy_ui::command::UiCommand;
 use infiltrator_bevy_ui::command_events::CommandExecutedEvent;
 use infiltrator_bevy_ui::pages::dns::{DnsProjectionUpdated, TestDnsLeakButton};
 use infiltrator_bevy_ui::pages::dns_leak::LeakCard;
@@ -51,13 +52,10 @@ fn publish(app: &mut App, reader: &ApplicationSurfaceReader) {
 }
 fn settle(app: &mut App) {
     let deadline = Instant::now() + Duration::from_secs(5);
-    while app
-        .world()
-        .resource::<LeakActions>()
-        .state
-        .pending
-        .is_some()
-    {
+    while matches!(
+        &app.world().resource::<LeakActions>().state.phase,
+        DnsLeakActionPhase::Pending { .. }
+    ) {
         assert!(
             Instant::now() < deadline,
             "actual echo probe terminal feedback"
@@ -73,15 +71,19 @@ fn click(app: &mut App, button: Entity) {
         .trigger(Activate { entity: button });
     app.world_mut().flush();
 }
+
+fn command_application(leak: DnsLeakApplication) -> CommandApplication {
+    CommandApplication::new()
+        .with_host_capabilities(Arc::new(TestDnsHostCapabilityProvider))
+        .with_dns_leak(leak)
+}
 #[test]
 fn native_probe_failure_retry_and_unsupported_stay_on_the_surface_with_real_facts_and_locale_replay()
  {
     let echo = Arc::new(IsolatedEcho::default());
     let leak = DnsLeakApplication::new(Some(echo.clone()), default_echo_sources());
     let (application, _) = recording_application();
-    application.install_command_handler(Arc::new(
-        CommandApplication::new().with_dns_leak(leak.clone()),
-    ));
+    application.install_command_handler(Arc::new(command_application(leak.clone())));
     let application = Arc::new(application);
     let reader = ApplicationSurfaceReader::new(
         application.clone(),
@@ -93,7 +95,7 @@ fn native_probe_failure_retry_and_unsupported_stay_on_the_surface_with_real_fact
     headless_plugins(&mut app);
     app.add_plugins(ShellPlugin::default());
     app.add_plugins(PagesPlugin::default());
-    app.add_plugins(CommandPumpPlugin::for_application(application.clone()));
+    app.add_plugins(command_pump_for_observed_snapshot(application.clone()));
     app.update();
     app.world_mut().commands().trigger(RouteChanged(Route::Dns));
     app.update();
@@ -101,7 +103,12 @@ fn native_probe_failure_retry_and_unsupported_stay_on_the_surface_with_real_fact
     let run = entity::<TestDnsLeakButton>(&mut app);
     let card = entity::<LeakCard>(&mut app);
     click(&mut app, run);
-    let token = app.world().resource::<LeakActions>().state.pending.unwrap();
+    let token = match &app.world().resource::<LeakActions>().state.phase {
+        DnsLeakActionPhase::Pending { token } => *token,
+        DnsLeakActionPhase::Idle | DnsLeakActionPhase::Failed { .. } => {
+            panic!("probe command must be pending")
+        }
+    };
     app.world_mut().commands().trigger(CommandExecutedEvent {
         command: UiCommand::TestDnsLeak,
         request_id: RequestId(u64::MAX),
@@ -109,8 +116,8 @@ fn native_probe_failure_retry_and_unsupported_stay_on_the_surface_with_real_fact
     });
     app.world_mut().flush();
     assert_eq!(
-        app.world().resource::<LeakActions>().state.pending,
-        Some(token)
+        app.world().resource::<LeakActions>().state.phase,
+        DnsLeakActionPhase::Pending { token }
     );
     settle(&mut app);
     publish(&mut app, &reader);
@@ -128,13 +135,12 @@ fn native_probe_failure_retry_and_unsupported_stay_on_the_surface_with_real_fact
     settle(&mut app);
     publish(&mut app, &reader);
     assert_eq!(
-        app.world()
-            .resource::<LeakActions>()
-            .state
-            .failure
-            .as_ref()
-            .unwrap()
-            .code,
+        match &app.world().resource::<LeakActions>().state.phase {
+            DnsLeakActionPhase::Failed { failure } => failure.code,
+            DnsLeakActionPhase::Idle | DnsLeakActionPhase::Pending { .. } => {
+                panic!("permission result must be retained as failure")
+            }
+        },
         ErrorCode::Permission
     );
     assert!(subtree_has_text(app.world(), card, "allow DNS echo access"));
@@ -175,9 +181,7 @@ fn native_probe_failure_retry_and_unsupported_stay_on_the_surface_with_real_fact
     ));
     assert!(!subtree_has_text(app.world(), card, "observed identity:"));
     let unsupported = DnsLeakApplication::unconfigured();
-    application.install_command_handler(Arc::new(
-        CommandApplication::new().with_dns_leak(unsupported.clone()),
-    ));
+    application.install_command_handler(Arc::new(command_application(unsupported.clone())));
     let unsupported_reader = ApplicationSurfaceReader::new(
         application.clone(),
         SurfaceKind::BevyDesktop,
@@ -187,13 +191,12 @@ fn native_probe_failure_retry_and_unsupported_stay_on_the_surface_with_real_fact
     click(&mut app, run);
     settle(&mut app);
     assert_eq!(
-        app.world()
-            .resource::<LeakActions>()
-            .state
-            .failure
-            .as_ref()
-            .unwrap()
-            .code,
+        match &app.world().resource::<LeakActions>().state.phase {
+            DnsLeakActionPhase::Failed { failure } => failure.code,
+            DnsLeakActionPhase::Idle | DnsLeakActionPhase::Pending { .. } => {
+                panic!("unsupported result must be retained as failure")
+            }
+        },
         ErrorCode::Unsupported
     );
     let snapshot = Builder::new_current_thread()
@@ -224,7 +227,7 @@ fn native_probe_failure_retry_and_unsupported_stay_on_the_surface_with_real_fact
         DnsLeakOperation::Failed { .. }
     ));
     echo.set_mode(EchoMode::Consistent);
-    application.install_command_handler(Arc::new(CommandApplication::new().with_dns_leak(leak)));
+    application.install_command_handler(Arc::new(command_application(leak)));
     click(&mut app, run);
     settle(&mut app);
     publish(&mut app, &reader);

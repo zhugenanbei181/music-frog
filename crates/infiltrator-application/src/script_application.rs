@@ -26,6 +26,12 @@ use infiltrator_domain::script_engine::{
 use infiltrator_ports::script_engine::ScriptEnginePort;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ScriptResultValidation {
+    SandboxProjection,
+    RequestContract,
+}
 #[cfg(test)]
 #[path = "script_test_clock.rs"]
 mod test_clock;
@@ -145,7 +151,7 @@ impl ScriptApplication {
                 input_yaml: input_yaml.to_owned(),
                 preset: preset.map(str::to_owned),
             },
-            false,
+            ScriptResultValidation::SandboxProjection,
         )
         .expect("sandbox observation revision")
         .snapshot
@@ -191,13 +197,13 @@ impl ScriptApplication {
                 false,
             ));
         }
-        self.run_observed(request, true)
+        self.run_observed(request, ScriptResultValidation::RequestContract)
     }
 
     fn run_observed(
         &self,
         request: &ScriptRunRequest,
-        validate_result: bool,
+        validation: ScriptResultValidation,
     ) -> Result<ScriptRunResult, Failure> {
         // Serialize the entire check/execute/publish path, including cloned service handles.
         let mut observation = self.observation.lock().expect("sandbox observation");
@@ -215,8 +221,9 @@ impl ScriptApplication {
             revision,
             snapshot,
         };
-        if validate_result {
-            result.validate(request)?;
+        match validation {
+            ScriptResultValidation::SandboxProjection => {}
+            ScriptResultValidation::RequestContract => result.validate(request)?,
         }
         observation.revision = revision;
         observation.result = Some(result.clone());

@@ -15,15 +15,18 @@ use bevy::ecs::observer::On;
 use bevy::ecs::query::{QueryFilter, With, Without};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Query, Res, ResMut, SystemParam};
+use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::{Scene, bsn};
 use bevy::text::TextColor;
 use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderRadius, JustifyContent, Node, UiRect, Val, percent, px,
+    AlignItems, BackgroundColor, BorderRadius, JustifyContent, Node, UiRect, Val, percent,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
+use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_domain::connection_activity::{
@@ -80,27 +83,27 @@ pub fn conn_idle_controls_scene(palette: &UiPalette) -> impl Scene + use<> {
             Node {
                 width: percent(100),
                 align_items: AlignItems::Center,
-                column_gap: Val::Px(space::S8),
+                column_gap: rem(space::S8),
             }
             Children [
                 LocalizedText::plain("dns_fake_ip_idle_label") TextRole(Role::Caption)
                 --
                 Node {
                     align_items: AlignItems::Center,
-                    column_gap: Val::Px(space::S4),
+                    column_gap: rem(space::S4),
                 }
                 Children [
                     { pills }
                 ]
                 --
                 Node {
-                    min_height: px(palette.control_height_px),
-                    padding: UiRect::horizontal(Val::Px(space::S12)),
+                    min_height: rem(palette.control_height_px),
+                    padding: UiRect::horizontal(rem(space::S12)),
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::Center,
-                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                    border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                 }
-                BackgroundColor({ palette.surface_elevated })
+                ThemeBackgroundColor({ Token::SurfaceElevated })
                 Button
                 ConnIdleSweepButton
                 Children [
@@ -122,7 +125,7 @@ fn conn_idle_timeout_pill(secs: u64, active: bool, palette: &UiPalette) -> impl 
 
     bsn! {
             Node {
-                padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S4)),
+                padding: UiRect::axes(rem(space::S8), rem(space::S4)),
                 border_radius: BorderRadius::all(Val::Px(4.0)),
                 align_items: AlignItems::Center,
             }

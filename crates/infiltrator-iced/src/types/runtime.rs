@@ -3,7 +3,6 @@
 
 use infiltrator_contract::connection::ConnectionStreamPhase;
 use infiltrator_contract::error::InfiltratorError;
-use infiltrator_contract::proxy_mode::ProxyModeSnapshot;
 use infiltrator_contract::snapshot::{CoreLifecycle, CoreSnapshot};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -65,7 +64,7 @@ impl RuntimeStatus {
             CoreLifecycle::Stopped => Self::Stopped,
             CoreLifecycle::Starting | CoreLifecycle::Stopping => Self::Starting,
             CoreLifecycle::Ready | CoreLifecycle::Running => Self::Running,
-            CoreLifecycle::Failed => Self::Error(InfiltratorError::Mihomo(
+            CoreLifecycle::Failed => Self::Error(InfiltratorError::Backend(
                 snapshot
                     .failure
                     .as_ref()
@@ -88,8 +87,6 @@ pub struct IpProbeResult {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct RuntimePatchSnapshot {
-    pub proxy_mode: Option<String>,
-    pub proxy_mode_state: ProxyModeSnapshot,
     pub ipv6_enabled: bool,
     pub tun_enabled: Option<bool>,
     pub tun_stack: String,

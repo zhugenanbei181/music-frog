@@ -13,11 +13,12 @@ use crate::pages::{proxy_group_order, proxy_probe_settings};
 use crate::route::{PageRoot, Route};
 use bevy::ecs::hierarchy::Children;
 use bevy::scene::{Scene, bsn};
-use bevy::ui::prelude::{FlexDirection, Node, Overflow, Val, percent, px};
+use bevy::ui::prelude::{FlexDirection, Node, Overflow, percent, px};
 use bevy::ui_widgets::ScrollArea;
 use infiltrator_bevy_widgets::gesture::{PullToRefreshState, pull_to_refresh_scene};
 use infiltrator_bevy_widgets::localization::LocalizedText;
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::theme::space;
 
 /// The top-level Proxies page scene.
@@ -65,7 +66,7 @@ pub fn proxies_page(projection: &ProxiesProjection, palette: &UiPalette) -> impl
                     flex_grow: 1.0,
                     flex_shrink: 1.0,
                     flex_direction: FlexDirection::Column,
-                    row_gap: px(space::S16),
+                    row_gap: rem(space::S16),
                     overflow: Overflow::scroll_y(),
                 }
                 ScrollArea ProxiesScrollArea
@@ -92,7 +93,7 @@ pub fn proxies_page(projection: &ProxiesProjection, palette: &UiPalette) -> impl
                     width: percent(100), height: percent(100),
                     min_height: px(0.0), flex_shrink: 1.0,
                     flex_direction: FlexDirection::Column,
-                    row_gap: px(space::S16), overflow: Overflow::scroll_y(),
+                    row_gap: rem(space::S16), overflow: Overflow::scroll_y(),
                 }
                 ScrollArea ProxiesScrollArea
                 Children [
@@ -104,7 +105,7 @@ pub fn proxies_page(projection: &ProxiesProjection, palette: &UiPalette) -> impl
                 --
                 @{ launcher_scene(PanelKind::CustomNode, palette) }
                 --
-                Node { width: percent(100), flex_direction: FlexDirection::Column, row_gap: px(space::S16), flex_shrink: 0.0 }
+                Node { width: percent(100), flex_direction: FlexDirection::Column, row_gap: rem(space::S16), flex_shrink: 0.0 }
                 ProxyCardsContainer
                 Children [ { group_scenes } ]
                 ]
@@ -127,7 +128,7 @@ pub fn proxies_page(projection: &ProxiesProjection, palette: &UiPalette) -> impl
                 height: percent(100),
                 min_height: px(0.0),
                 flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(space::S16),
+                row_gap: rem(space::S16),
                 overflow: Overflow::clip(),
             }
             PageRoot(Route::Proxies)
@@ -158,7 +159,16 @@ pub fn proxy_node_scene(
     n_idx: usize,
     group_name: &str,
     node: &ProxyNode,
+    selection_available: bool,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
-    proxies_card::proxy_node_scene(g_idx, n_idx, group_name, node, palette)
+    proxies_card::proxy_node_scene(
+        g_idx,
+        n_idx,
+        group_name,
+        None,
+        node,
+        selection_available,
+        palette,
+    )
 }

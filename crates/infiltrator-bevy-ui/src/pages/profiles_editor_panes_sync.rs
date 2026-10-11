@@ -54,7 +54,6 @@ use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::subscription_import::SubscriptionFilterDedup;
 use infiltrator_contract::yaml_snippets::YAML_SNIPPETS;
-use infiltrator_domain::mixin_studio::preflight_mixin;
 
 /// Toggle each pane area to the active pane and restamp the switcher chips.
 pub fn sync_profile_editor_pane_areas(
@@ -148,23 +147,26 @@ pub fn sync_profile_editor_panes(
     if let Some(snapshot) = projection.profile_options.as_ref()
         && profile
             .as_deref()
-            .is_none_or(|name| name == snapshot.source.profile.as_str())
+            .is_none_or(|name| name == snapshot.workspace_identity.document.profile_id.as_str())
     {
-        options.adopt_snapshot(&snapshot.source, &snapshot.mixin_yaml, &snapshot.filter);
+        options.adopt_snapshot(
+            &snapshot.workspace_identity,
+            &snapshot.mixin_yaml,
+            &snapshot.filter,
+        );
     }
-    options
-        .mixin
-        .session
-        .observe_read_status(&projection.editor_read, true);
+    options.mixin.session.observe_read_status(
+        &projection.editor_read,
+        infiltrator_application::profile_edit_session::ProfileEditReadTarget::Options,
+    );
     // The pane may have been opened before the document (and therefore the
     // sidecar profile) was known; ask the shared application once it is, so an
     // open pane never sits blank until the user clicks reload.
     if options.pane != ProfileEditorPane::Profile
         && let (Some(profile), Some(handle)) = (profile.as_deref(), handle.as_deref())
-        && projection
-            .profile_options
-            .as_ref()
-            .is_none_or(|snapshot| snapshot.source.profile != profile)
+        && projection.profile_options.as_ref().is_none_or(|snapshot| {
+            snapshot.workspace_identity.document.profile_id.as_str() != profile
+        })
     {
         request_sidecar(&mut options, profile, handle);
     }
@@ -252,8 +254,8 @@ pub fn on_mixin_editor_reload(
     request_sidecar(&mut options, &profile, &handle);
 }
 
-/// Commit the Mixin buffer through the shared sidecar use-case. A buffer that
-/// fails the shared preflight is refused locally; the application re-checks.
+/// Commit the Mixin buffer through the identity-scoped sidecar use-case. A
+/// buffer rejected by codec inspection is refused locally; the application re-checks.
 pub fn on_mixin_editor_save(
     activate: On<Activate>,
     buttons: Query<(), With<MixinEditorSaveButton>>,
@@ -272,17 +274,25 @@ pub fn on_mixin_editor_save(
     if editor_profile(&document, projection).is_none() {
         return;
     }
-    if let Some(diagnostic) = options.mixin.diagnostic.as_ref() {
-        options.mixin.notice = Some(diagnostic.message.clone());
-        return;
-    }
-    // DUAL-10-10: the shared preflight (syntax + merge + output validation)
-    // is the real gate; a local YAML-only check would miss a merge that the
-    // kernel cannot load.
+    // DUAL-10-10: engine-scoped codec inspection (syntax + merge + output
+    // validation) is the real gate for the selected profile identity.
     let base = document.buffer.full_text();
-    let report = preflight_mixin(&base, &options.mixin.buffer.full_text());
-    if let Some(error) = report.error {
-        options.mixin.notice = Some(error);
+    let preflight = document
+        .session
+        .source()
+        .map(|source| {
+            handle.inspect_mixin_draft(&source.document, &base, &options.mixin.buffer.full_text())
+        })
+        .unwrap_or_else(|| {
+            Err(Failure::new(
+                ErrorCode::NotReady,
+                "No profile document is open",
+                true,
+            ))
+        });
+    options.mixin.record_mixin_preflight(preflight.clone());
+    if let Err(failure) = preflight {
+        options.mixin.notice = Some(failure.message);
         return;
     }
     options.mixin.notice = None;
@@ -312,6 +322,7 @@ pub fn on_mixin_editor_snippet_activated(
     activate: On<Activate>,
     buttons: Query<&MixinEditorSnippetButton>,
     mut options: ResMut<ProfileEditorOptionsState>,
+    handle: Option<Res<CommandSinkHandle>>,
 ) {
     let Ok(button) = buttons.get(activate.entity) else {
         return;
@@ -319,8 +330,33 @@ pub fn on_mixin_editor_snippet_activated(
     let Some(snippet) = YAML_SNIPPETS.get(button.index) else {
         return;
     };
+    let (Some(handle), Some(source)) = (handle, options.mixin.session.source()) else {
+        return;
+    };
     if options.mixin.session.can_edit() {
-        let _ = options.mixin.insert_snippet(snippet.id);
+        let content = options.mixin.buffer.full_text();
+        let caret_line = options
+            .mixin
+            .buffer
+            .cursor_row
+            .min(options.mixin.buffer.line_count() - 1);
+        let line_text = options.mixin.buffer.lines[caret_line].as_str();
+        let caret_column = infiltrator_contract::yaml_snippets::column_of_byte_offset(
+            line_text,
+            options.mixin.buffer.cursor_col,
+        );
+        match handle.insert_profile_snippet(
+            &source.document,
+            &content,
+            snippet.id,
+            caret_line + 1,
+            caret_column,
+        ) {
+            Ok(outcome) => {
+                let _ = options.mixin.adopt_snippet(outcome);
+            }
+            Err(failure) => options.mixin.notice = Some(failure.message),
+        }
     }
 }
 
@@ -372,7 +408,7 @@ pub fn on_editor_filter_save(
         Err(_) => return,
     };
     let command = UiCommand::SaveSubscriptionFilter {
-        source: pending.source.source,
+        source: pending.source.workspace_identity,
         filter: pending.draft,
     };
     if let Some(id) = handle.submit_tracked(command) {
@@ -508,14 +544,27 @@ pub fn route_editor_keyboard(context: EditorKeyboard) {
                         && !options.mixin.profile.is_empty()
                         && let Some(handle) = handle.as_ref()
                     {
-                        let report = preflight_mixin(
-                            &document.buffer.full_text(),
-                            &options.mixin.buffer.full_text(),
-                        );
-                        if report.is_blocking() {
-                            options.mixin.notice = report.error;
-                        } else {
-                            submit_mixin(&mut options.mixin, handle);
+                        let preflight = document
+                            .session
+                            .source()
+                            .map(|source| {
+                                handle.inspect_mixin_draft(
+                                    &source.document,
+                                    &document.buffer.full_text(),
+                                    &options.mixin.buffer.full_text(),
+                                )
+                            })
+                            .unwrap_or_else(|| {
+                                Err(Failure::new(
+                                    ErrorCode::NotReady,
+                                    "No profile document is open",
+                                    true,
+                                ))
+                            });
+                        options.mixin.record_mixin_preflight(preflight.clone());
+                        match preflight {
+                            Ok(()) => submit_mixin(&mut options.mixin, handle),
+                            Err(failure) => options.mixin.notice = Some(failure.message),
                         }
                     }
                     continue;
@@ -607,7 +656,7 @@ fn finish_editor_filter(
     if event.request_id != id
         || event.command
             != (UiCommand::SaveSubscriptionFilter {
-                source: pending.source.source.clone(),
+                source: pending.source.workspace_identity.clone(),
                 filter: pending.draft.clone(),
             })
     {

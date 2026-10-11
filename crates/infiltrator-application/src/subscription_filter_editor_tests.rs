@@ -2,6 +2,7 @@
 use super::*;
 
 use crate::subscription_filter_fixture::{self, FIXTURE_DOCUMENT};
+use infiltrator_contract::profile_document_identity::ProfileId;
 fn observation(
     profile: &str,
     filter: &SubscriptionFilterDraft,
@@ -10,13 +11,18 @@ fn observation(
 }
 fn applied(pending: &PendingFilterChange) -> SubscriptionFilterApplied {
     SubscriptionFilterApplied {
-        source: subscription_filter_fixture::observation(
-            &pending.source.source.profile,
+        workspace_identity: subscription_filter_fixture::observation(
+            pending
+                .source
+                .workspace_identity
+                .document
+                .profile_id
+                .as_str(),
             FIXTURE_DOCUMENT,
             pending.draft.clone(),
         )
         .unwrap()
-        .source,
+        .workspace_identity,
         report: FilterReport::default(),
     }
 }
@@ -125,9 +131,12 @@ fn context_and_document_changes_cannot_rebind_a_dirty_form_and_foreign_receipts_
     assert_eq!(editor.draft.exclude, "draft");
     assert!(editor.cancel());
     let pending = editor.begin().unwrap();
-    assert_eq!(pending.source.source, changed_document.source);
+    assert_eq!(
+        pending.source.workspace_identity,
+        changed_document.workspace_identity
+    );
     let mut wrong = applied(&pending);
-    wrong.source.profile = "foreign".into();
+    wrong.workspace_identity.document.profile_id = ProfileId::new("foreign").unwrap();
     assert!(editor.finish(pending.token, Ok(wrong)));
     assert_eq!(
         editor.failure.as_ref().unwrap().code,

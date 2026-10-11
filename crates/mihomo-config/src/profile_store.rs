@@ -2,13 +2,12 @@
 
 use crate::manager::ConfigManager;
 use crate::profile::Profile;
-use crate::profile_option_store;
 use crate::profile_workspace_store::{WorkspaceTarget, config_error};
 use crate::sidecar_store::{read_optional, remove_optional, write_document};
 use infiltrator_contract::aggregator::AggregationTemplate;
 use infiltrator_contract::apply_transaction::ApplyTransactionSnapshot;
-use infiltrator_contract::profile_source::ProfileSourceIdentity;
-use infiltrator_domain::profile_options::ProfileOptions;
+use infiltrator_contract::core_identity::EngineId;
+use infiltrator_contract::profile_document_identity::{ProfileId, ProfileWorkspaceIdentity};
 use infiltrator_domain::profiles::{ProfileInfo, ProfileMetadata};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::ProfileStore;
@@ -27,6 +26,10 @@ impl<S> ProfileStore for ConfigManager<S>
 where
     S: SecureStore,
 {
+    fn engine_id(&self) -> EngineId {
+        ConfigManager::engine_id(self)
+    }
+
     fn config_dir(&self) -> PathBuf {
         ConfigManager::config_dir(self).to_path_buf()
     }
@@ -103,11 +106,7 @@ where
             .map_err(storage_error)
     }
 
-    async fn delete_options(&self, profile: &str) -> Result<(), PortError> {
-        profile_option_store::delete_options(self.config_dir(), profile).await
-    }
-
-    async fn load_workspace(&self, profile: &str) -> Result<ProfileWorkspace, PortError> {
+    async fn load_workspace(&self, profile: &ProfileId) -> Result<ProfileWorkspace, PortError> {
         self.read_workspace(profile).await
     }
     async fn load_active_workspace(&self) -> Result<ProfileWorkspace, PortError> {
@@ -116,7 +115,7 @@ where
 
     async fn compare_and_save_workspace(
         &self,
-        expected: &ProfileSourceIdentity,
+        expected: &ProfileWorkspaceIdentity,
         update: &ProfileWorkspaceUpdate,
     ) -> Result<ProfileWorkspace, PortError> {
         self.save_workspace(expected, update, WorkspaceTarget::Any)
@@ -125,7 +124,7 @@ where
 
     async fn compare_and_save_active_workspace(
         &self,
-        expected: &ProfileSourceIdentity,
+        expected: &ProfileWorkspaceIdentity,
         update: &ProfileWorkspaceUpdate,
     ) -> Result<ProfileWorkspace, PortError> {
         self.save_workspace(expected, update, WorkspaceTarget::Active)
@@ -134,7 +133,7 @@ where
 
     async fn compare_and_save_inactive_workspace(
         &self,
-        expected: &ProfileSourceIdentity,
+        expected: &ProfileWorkspaceIdentity,
         update: &ProfileWorkspaceUpdate,
     ) -> Result<ProfileWorkspace, PortError> {
         self.save_workspace(expected, update, WorkspaceTarget::Inactive)
@@ -143,18 +142,10 @@ where
 
     async fn restore_workspace(
         &self,
-        expected: &ProfileSourceIdentity,
+        expected: &ProfileWorkspaceIdentity,
         previous: &ProfileWorkspace,
     ) -> Result<ProfileWorkspace, PortError> {
         self.recover_workspace(expected, previous).await
-    }
-
-    async fn load_options(&self, profile: &str) -> Result<ProfileOptions, PortError> {
-        profile_option_store::load_options(self.config_dir(), profile).await
-    }
-
-    async fn save_options(&self, profile: &str, options: &ProfileOptions) -> Result<(), PortError> {
-        profile_option_store::save_options(self.config_dir(), profile, options).await
     }
 
     async fn delete_subscription_credential(&self, profile: &str) -> Result<(), PortError> {
@@ -164,6 +155,7 @@ where
     }
 
     async fn load_aggregation_templates(&self) -> Result<Vec<AggregationTemplate>, PortError> {
+        ensure_namespace(self).await?;
         let path = aggregation_templates_path(ConfigManager::config_dir(self));
         let Some(text) = read_optional(&path).await? else {
             return Ok(Vec::new());
@@ -175,6 +167,7 @@ where
         &self,
         templates: &[AggregationTemplate],
     ) -> Result<(), PortError> {
+        ensure_namespace(self).await?;
         let path = aggregation_templates_path(ConfigManager::config_dir(self));
         if templates.is_empty() {
             return remove_optional(&path).await;
@@ -194,6 +187,13 @@ where
             .await
             .map_err(storage_error)
     }
+}
+
+async fn ensure_namespace<S: SecureStore>(manager: &ConfigManager<S>) -> Result<(), PortError> {
+    manager
+        .initialize_profile_namespace()
+        .await
+        .map_err(storage_error)
 }
 
 fn profile_info(profile: Profile) -> ProfileInfo {

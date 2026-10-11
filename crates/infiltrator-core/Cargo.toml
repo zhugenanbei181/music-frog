@@ -1,6 +1,6 @@
 [package]
 name = "infiltrator-core"
-version = "0.1.2"
+version.workspace = true
 edition = "2024"
 
 [features]
@@ -48,3 +48,4 @@ zip = { workspace = true }
 [dev-dependencies]
 mockito = { workspace = true }
 tempfile = { workspace = true }
+singbox-adapter = { path = "../singbox-adapter" }

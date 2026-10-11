@@ -1,15 +1,18 @@
 use anyhow::anyhow;
-use infiltrator_domain::settings::AppSettings;
+use infiltrator_contract::runtime_settings::{
+    DEFAULT_RUNTIME_PROBE_TIMEOUT_MS, DEFAULT_RUNTIME_PROBE_URL, RuntimeProbeSettings,
+};
+use infiltrator_domain::settings::{AppSettings, CURRENT_SETTINGS_SCHEMA_VERSION};
 use infiltrator_ports::secure_store::SecureStore;
 use mihomo_config::manager::ConfigManager;
+use mihomo_config::manager::paths::engine_config_dir;
 use mihomo_platform::defaults::DefaultCredentialStore;
 use mihomo_platform::paths::get_home_dir;
 use std::path::{Path, PathBuf};
 use tokio::fs::{create_dir_all, read_to_string, write};
 
 /// WebDAV 凭据在 keyring 中的 service 名：与 mihomo-config 订阅 URL 的
-/// 既有先例（`subscription:<profile>`）共用同一 service，key 用 `webdav:`
-/// 前缀区分命名空间。
+/// engine-scoped key 共用同一 service，key 用 `webdav:` 前缀区分命名空间。
 pub const WEBDAV_CREDENTIAL_SERVICE: &str = "MusicFrog-Despicable-Infiltrator";
 /// keyring key：整个安装只有一份 WebDAV 账号配置。
 pub const WEBDAV_PASSWORD_KEY: &str = "webdav:password";
@@ -50,31 +53,239 @@ pub async fn clear_webdav_password<S: SecureStore>(store: &S) {
     }
 }
 
-/// 旧版 settings.toml 明文携带 `webdav.password` 的一次性迁移：写入
-/// keyring 后用「不带密码」的序列化重写文件。keyring 写失败时保留内存值
-/// 并跳过重写（下次启动重试），绝不因迁移失败让启动崩溃。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum CredentialMigration {
+    Unchanged,
+    Persisted,
+    Failed,
+}
+
+/// 旧版 settings 文档明文携带 `webdav.password` 时迁入 keyring。
+/// 调用方决定何时以新 schema 重写设置文件，避免凭据迁移失败时丢失原文件值。
 async fn migrate_webdav_password_to_keyring<S: SecureStore>(
     settings: &mut AppSettings,
-    path: &Path,
     store: &S,
-) {
+) -> CredentialMigration {
     if settings.webdav.password.is_empty() {
-        return;
+        return CredentialMigration::Unchanged;
     }
     match save_webdav_password(store, &settings.webdav.password).await {
         Ok(()) => {
             settings.webdav.password = String::new();
-            if let Err(err) = save_settings(path, settings).await {
-                // keyring 已有副本；文件重写失败只留下明文等下次迁移。
-                log::warn!("failed to rewrite settings without webdav password: {err:#}");
-            }
+            CredentialMigration::Persisted
         }
         Err(err) => {
             log::warn!(
                 "webdav password keyring migration failed, keeping value in memory only: {err:#}"
             );
+            CredentialMigration::Failed
         }
     }
+}
+
+fn legacy_delay_sort_key(value: &str) -> Option<&'static str> {
+    match value {
+        "delay_asc" => Some("latency_ascending"),
+        "delay_desc" => Some("latency_descending"),
+        "name_asc" => Some("name_ascending"),
+        "name_desc" => Some("name_descending"),
+        _ => None,
+    }
+}
+
+/// Convert the unversioned settings layout to the current typed schema.
+/// Historical keys are read only here and are removed before AppSettings is decoded.
+fn migrate_runtime_settings(value: &mut toml::Value) -> anyhow::Result<bool> {
+    let table = value
+        .as_table_mut()
+        .ok_or_else(|| anyhow!("settings document root must be a TOML table"))?;
+    let version = match table.get("settings_schema_version") {
+        None => 1,
+        Some(toml::Value::Integer(version)) => u32::try_from(*version)
+            .map_err(|_| anyhow!("settings schema version is outside the supported range"))?,
+        Some(_) => return Err(anyhow!("settings schema version must be an integer")),
+    };
+
+    match version {
+        CURRENT_SETTINGS_SCHEMA_VERSION => {
+            if table
+                .get("runtime_panel")
+                .and_then(toml::Value::as_table)
+                .is_some_and(|panel| {
+                    ["delay_sort", "delay_test_url", "delay_timeout_ms"]
+                        .iter()
+                        .any(|key| panel.contains_key(*key))
+                })
+            {
+                return Err(anyhow!(
+                    "current settings schema contains retired runtime-panel keys"
+                ));
+            }
+            Ok(false)
+        }
+        1 => {
+            let panel = table
+                .entry("runtime_panel")
+                .or_insert_with(|| toml::Value::Table(toml::map::Map::new()))
+                .as_table_mut()
+                .ok_or_else(|| anyhow!("runtime_panel settings must be a TOML table"))?;
+
+            if panel.contains_key("probe_settings") || panel.contains_key("delay_sort_order") {
+                return Err(anyhow!(
+                    "unversioned settings mix legacy and typed runtime settings"
+                ));
+            }
+
+            let url = match panel.remove("delay_test_url") {
+                None => DEFAULT_RUNTIME_PROBE_URL.to_owned(),
+                Some(toml::Value::String(value)) => value,
+                Some(_) => return Err(anyhow!("legacy probe URL must be a string")),
+            };
+            let timeout_ms = match panel.remove("delay_timeout_ms") {
+                None => DEFAULT_RUNTIME_PROBE_TIMEOUT_MS,
+                Some(toml::Value::Integer(value)) => u32::try_from(value)
+                    .map_err(|_| anyhow!("legacy probe timeout must be a positive u32"))?,
+                Some(_) => return Err(anyhow!("legacy probe timeout must be an integer")),
+            };
+            let probe = RuntimeProbeSettings::new(url, timeout_ms)
+                .map_err(|error| anyhow!("invalid legacy runtime probe settings: {error}"))?;
+
+            let sort_order = match panel.remove("delay_sort") {
+                None => "latency_ascending",
+                Some(toml::Value::String(value)) => legacy_delay_sort_key(&value)
+                    .ok_or_else(|| anyhow!("unknown legacy runtime delay sort key: {value}"))?,
+                Some(_) => return Err(anyhow!("legacy runtime delay sort key must be a string")),
+            };
+            let mut probe_table = toml::map::Map::new();
+            probe_table.insert(
+                "url".to_owned(),
+                toml::Value::String(probe.url().to_owned()),
+            );
+            probe_table.insert(
+                "timeout_ms".to_owned(),
+                toml::Value::Integer(i64::from(probe.timeout_ms())),
+            );
+            panel.insert("probe_settings".to_owned(), toml::Value::Table(probe_table));
+            panel.insert(
+                "delay_sort_order".to_owned(),
+                toml::Value::String(sort_order.to_owned()),
+            );
+            table.insert(
+                "settings_schema_version".to_owned(),
+                toml::Value::Integer(i64::from(CURRENT_SETTINGS_SCHEMA_VERSION)),
+            );
+            Ok(true)
+        }
+        other => Err(anyhow!(
+            "settings schema version {other} is unsupported; current version is {CURRENT_SETTINGS_SCHEMA_VERSION}"
+        )),
+    }
+}
+
+fn decode_settings_document(mut value: toml::Value) -> anyhow::Result<(AppSettings, bool)> {
+    let migrated = migrate_runtime_settings(&mut value)?;
+    let settings = value
+        .try_into::<AppSettings>()
+        .map_err(|error| anyhow!("invalid typed settings document: {error}"))?;
+    Ok((settings, migrated))
+}
+
+pub(crate) fn parse_settings_toml(content: &str) -> anyhow::Result<(AppSettings, bool)> {
+    let value = toml::from_str(content)?;
+    decode_settings_document(value)
+}
+
+fn migrate_runtime_settings_json(value: &mut serde_json::Value) -> anyhow::Result<bool> {
+    let root = value
+        .as_object_mut()
+        .ok_or_else(|| anyhow!("settings document root must be a JSON object"))?;
+    let version = match root.get("settings_schema_version") {
+        None => 1,
+        Some(value) => u32::try_from(
+            value
+                .as_u64()
+                .ok_or_else(|| anyhow!("settings schema version must be an integer"))?,
+        )
+        .map_err(|_| anyhow!("settings schema version is outside the supported range"))?,
+    };
+    match version {
+        CURRENT_SETTINGS_SCHEMA_VERSION => {
+            if root
+                .get("runtime_panel")
+                .and_then(serde_json::Value::as_object)
+                .is_some_and(|panel| {
+                    ["delay_sort", "delay_test_url", "delay_timeout_ms"]
+                        .iter()
+                        .any(|key| panel.contains_key(*key))
+                })
+            {
+                return Err(anyhow!(
+                    "current settings schema contains retired runtime-panel keys"
+                ));
+            }
+            Ok(false)
+        }
+        1 => {
+            let panel = root
+                .entry("runtime_panel")
+                .or_insert_with(|| serde_json::Value::Object(serde_json::Map::new()))
+                .as_object_mut()
+                .ok_or_else(|| anyhow!("runtime_panel settings must be a JSON object"))?;
+            if panel.contains_key("probe_settings") || panel.contains_key("delay_sort_order") {
+                return Err(anyhow!(
+                    "unversioned settings mix legacy and typed runtime settings"
+                ));
+            }
+            let url = match panel.remove("delay_test_url") {
+                None => DEFAULT_RUNTIME_PROBE_URL.to_owned(),
+                Some(serde_json::Value::String(value)) => value,
+                Some(_) => return Err(anyhow!("legacy probe URL must be a string")),
+            };
+            let timeout_ms = match panel.remove("delay_timeout_ms") {
+                None => DEFAULT_RUNTIME_PROBE_TIMEOUT_MS,
+                Some(value) => u32::try_from(
+                    value
+                        .as_u64()
+                        .ok_or_else(|| anyhow!("legacy probe timeout must be a positive u32"))?,
+                )
+                .map_err(|_| anyhow!("legacy probe timeout must be a positive u32"))?,
+            };
+            let settings = RuntimeProbeSettings::new(url, timeout_ms)
+                .map_err(|error| anyhow!("invalid legacy runtime probe settings: {error}"))?;
+            let sort_order = match panel.remove("delay_sort") {
+                None => "latency_ascending",
+                Some(serde_json::Value::String(value)) => legacy_delay_sort_key(&value)
+                    .ok_or_else(|| anyhow!("unknown legacy runtime delay sort key: {value}"))?,
+                Some(_) => return Err(anyhow!("legacy runtime delay sort key must be a string")),
+            };
+            panel.insert(
+                "probe_settings".to_owned(),
+                serde_json::json!({
+                    "url": settings.url(),
+                    "timeout_ms": settings.timeout_ms(),
+                }),
+            );
+            panel.insert(
+                "delay_sort_order".to_owned(),
+                serde_json::Value::String(sort_order.to_owned()),
+            );
+            root.insert(
+                "settings_schema_version".to_owned(),
+                serde_json::Value::from(CURRENT_SETTINGS_SCHEMA_VERSION),
+            );
+            Ok(true)
+        }
+        other => Err(anyhow!(
+            "settings schema version {other} is unsupported; current version is {CURRENT_SETTINGS_SCHEMA_VERSION}"
+        )),
+    }
+}
+
+fn decode_settings_json(mut value: serde_json::Value) -> anyhow::Result<(AppSettings, bool)> {
+    let migrated = migrate_runtime_settings_json(&mut value)?;
+    let settings = serde_json::from_value(value)
+        .map_err(|error| anyhow!("invalid typed settings document: {error}"))?;
+    Ok((settings, migrated))
 }
 
 pub async fn load_settings(path: &Path) -> anyhow::Result<AppSettings> {
@@ -89,17 +300,25 @@ pub async fn load_settings_with_store<S: SecureStore>(
 ) -> anyhow::Result<AppSettings> {
     if path.exists() {
         let content = read_to_string(path).await?;
-        let mut settings: AppSettings = toml::from_str(&content)?;
-        migrate_webdav_password_to_keyring(&mut settings, path, store).await;
+        let (mut settings, migrated) = parse_settings_toml(&content)?;
+        let credential_migration = migrate_webdav_password_to_keyring(&mut settings, store).await;
+        if credential_migration == CredentialMigration::Failed {
+            return Ok(settings);
+        }
+        if migrated || credential_migration == CredentialMigration::Persisted {
+            save_settings(path, &settings).await?;
+        }
         Ok(settings)
     } else {
         let legacy_path = path.with_extension("json");
         if legacy_path.exists() {
             let content = read_to_string(&legacy_path).await?;
-            let mut settings: AppSettings = serde_json::from_str(&content)?;
-            migrate_webdav_password_to_keyring(&mut settings, &legacy_path, store).await;
-            if let Err(err) = save_settings(path, &settings).await {
-                log::warn!("failed to migrate settings to toml: {err:#}");
+            let json_value: serde_json::Value = serde_json::from_str(&content)?;
+            let (mut settings, _) = decode_settings_json(json_value)?;
+            let credential_migration =
+                migrate_webdav_password_to_keyring(&mut settings, store).await;
+            if credential_migration != CredentialMigration::Failed {
+                save_settings(path, &settings).await?;
             }
             Ok(settings)
         } else {
@@ -160,11 +379,13 @@ pub async fn app_config_manager_in(
     home: &Path,
 ) -> anyhow::Result<ConfigManager<DefaultCredentialStore>> {
     let settings = load_settings(&settings_path(home)?).await?;
-    Ok(ConfigManager::with_home_configs_dir_and_store(
+    let manager = ConfigManager::with_home_configs_dir_and_store(
         home.to_path_buf(),
         settings.configs_dir.as_deref(),
         DefaultCredentialStore::default(),
-    )?)
+    )?;
+    manager.initialize_profile_namespace().await?;
+    Ok(manager)
 }
 
 /// 云同步重定向测试的全局状态护栏（仅测试构建）：持有 `TEST_LOCK` 串行化，
@@ -238,6 +459,7 @@ pub(crate) mod test_support {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use infiltrator_contract::runtime_settings::{RuntimeDelaySortOrder, RuntimeProbeSettings};
     use infiltrator_domain::settings::AdminServerConfig;
     #[cfg(test)]
     use infiltrator_ports::error::PortError;
@@ -259,13 +481,158 @@ mod tests {
         assert_eq!(settings.language, "zh-CN");
         assert_eq!(settings.theme, "system");
         assert!(settings.runtime_panel.auto_refresh);
-        assert_eq!(settings.runtime_panel.delay_sort, "delay_asc");
         assert_eq!(
-            settings.runtime_panel.delay_test_url,
-            "http://www.gstatic.com/generate_204"
+            settings.runtime_panel.delay_sort_order,
+            RuntimeDelaySortOrder::LatencyAscending
         );
-        assert_eq!(settings.runtime_panel.delay_timeout_ms, 5000);
+        assert_eq!(
+            settings.runtime_panel.probe_settings,
+            RuntimeProbeSettings::default()
+        );
+        assert_eq!(
+            settings.settings_schema_version,
+            CURRENT_SETTINGS_SCHEMA_VERSION
+        );
         assert_eq!(settings.runtime_panel.connection_sort, "download_desc");
+    }
+
+    #[tokio::test]
+    async fn legacy_runtime_settings_migrate_once_to_typed_versioned_values() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let settings_file = temp_dir.path().join("settings.toml");
+        fs::write(
+            &settings_file,
+            r#"[runtime_panel]
+auto_refresh = false
+delay_sort = "name_desc"
+delay_test_url = "https://probe.example.test/check"
+delay_timeout_ms = 60000
+"#,
+        )
+        .unwrap();
+
+        let migrated = load_settings(&settings_file).await.unwrap();
+        assert_eq!(
+            migrated.settings_schema_version,
+            CURRENT_SETTINGS_SCHEMA_VERSION
+        );
+        assert_eq!(
+            migrated.runtime_panel.delay_sort_order,
+            RuntimeDelaySortOrder::NameDescending
+        );
+        assert_eq!(
+            migrated.runtime_panel.probe_settings,
+            RuntimeProbeSettings::new("https://probe.example.test/check", 60_000).unwrap()
+        );
+
+        let canonical = fs::read_to_string(&settings_file).unwrap();
+        assert!(canonical.contains("settings_schema_version = 2"));
+        assert!(canonical.contains(r#"delay_sort_order = "name_descending""#));
+        assert!(canonical.contains("timeout_ms = 60000"));
+        for retired in ["delay_sort =", "delay_test_url =", "delay_timeout_ms ="] {
+            assert!(
+                !canonical.contains(retired),
+                "retired key remains: {retired}"
+            );
+        }
+
+        let second_load = load_settings(&settings_file).await.unwrap();
+        assert_eq!(second_load, migrated);
+        assert_eq!(fs::read_to_string(&settings_file).unwrap(), canonical);
+        let (_, migrated_again) = parse_settings_toml(&canonical).unwrap();
+        assert!(
+            !migrated_again,
+            "schema v2 must not run the v1 migration again"
+        );
+    }
+
+    #[test]
+    fn explicit_schema_v1_runtime_settings_upgrade_to_v2_typed_values() {
+        let legacy = r#"settings_schema_version = 1
+
+[runtime_panel]
+delay_sort = "delay_desc"
+delay_test_url = "https://probe.example.test/v1"
+delay_timeout_ms = 45000
+"#;
+
+        let (settings, migrated) = parse_settings_toml(legacy).unwrap();
+
+        assert!(migrated);
+        assert_eq!(
+            settings.settings_schema_version,
+            CURRENT_SETTINGS_SCHEMA_VERSION
+        );
+        assert_eq!(
+            settings.runtime_panel.delay_sort_order,
+            RuntimeDelaySortOrder::LatencyDescending
+        );
+        assert_eq!(
+            settings.runtime_panel.probe_settings,
+            RuntimeProbeSettings::new("https://probe.example.test/v1", 45_000).unwrap()
+        );
+    }
+
+    #[tokio::test]
+    async fn invalid_legacy_runtime_settings_fail_closed_without_rewriting_the_file() {
+        let invalid_documents = [
+            r#"[runtime_panel]
+delay_test_url = "file:///etc/passwd"
+"#,
+            "[runtime_panel]\ndelay_timeout_ms = 0\n",
+            r#"[runtime_panel]
+delay_sort = "unknown"
+"#,
+        ];
+        for invalid in invalid_documents {
+            let temp_dir = tempfile::tempdir().unwrap();
+            let settings_file = temp_dir.path().join("settings.toml");
+            fs::write(&settings_file, invalid).unwrap();
+
+            assert!(load_settings(&settings_file).await.is_err());
+            assert_eq!(fs::read_to_string(&settings_file).unwrap(), invalid);
+        }
+    }
+
+    #[tokio::test]
+    async fn legacy_json_settings_keep_nullable_fields_and_migrate_runtime_values_to_toml() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let settings_file = temp_dir.path().join("settings.toml");
+        let legacy_json_path = settings_file.with_extension("json");
+        fs::write(
+            &legacy_json_path,
+            r#"{
+                "editor_path": null,
+                "configs_dir": null,
+                "language": "en-US",
+                "runtime_panel": {
+                    "auto_refresh": false,
+                    "delay_sort": "delay_desc",
+                    "delay_test_url": "https://probe.example.test/json",
+                    "delay_timeout_ms": 42000
+                }
+            }"#,
+        )
+        .unwrap();
+
+        let loaded = load_settings(&settings_file).await.unwrap();
+        assert_eq!(loaded.language, "en-US");
+        assert_eq!(
+            loaded.settings_schema_version,
+            CURRENT_SETTINGS_SCHEMA_VERSION
+        );
+        assert_eq!(
+            loaded.runtime_panel.delay_sort_order,
+            RuntimeDelaySortOrder::LatencyDescending
+        );
+        assert_eq!(
+            loaded.runtime_panel.probe_settings,
+            RuntimeProbeSettings::new("https://probe.example.test/json", 42_000).unwrap()
+        );
+        let canonical = fs::read_to_string(&settings_file).unwrap();
+        assert!(canonical.contains("settings_schema_version = 2"));
+        assert!(!canonical.contains("delay_test_url"));
+        assert!(!canonical.contains("delay_timeout_ms"));
     }
 
     #[test]
@@ -437,10 +804,11 @@ mod tests {
             .await;
 
         let manager = app_config_manager_in(&home).await.unwrap();
-        assert_eq!(manager.config_dir(), cloud.as_path());
+        let engine_dir = engine_config_dir(&cloud, &mihomo_config::engine_id());
+        assert_eq!(manager.config_dir(), engine_dir.as_path());
 
         let manager = app_config_manager().await.unwrap();
-        assert_eq!(manager.config_dir(), cloud.as_path());
+        assert_eq!(manager.config_dir(), engine_dir.as_path());
         assert!(!home.join("configs").exists());
     }
 
@@ -453,12 +821,13 @@ mod tests {
 
         // 无 settings 文件。
         let manager = app_config_manager_in(&home).await.unwrap();
-        assert_eq!(manager.config_dir(), home.join("configs").as_path());
+        let engine_dir = engine_config_dir(&home.join("configs"), &mihomo_config::engine_id());
+        assert_eq!(manager.config_dir(), engine_dir.as_path());
 
         // 字段为纯空白等价于未设置。
         guard.set_configs_dir(&home, Some("   ")).await;
         let manager = app_config_manager().await.unwrap();
-        assert_eq!(manager.config_dir(), home.join("configs").as_path());
+        assert_eq!(manager.config_dir(), engine_dir.as_path());
     }
 
     /// 内存凭据存储（仿 session.rs / manager_test 的 MockStore 先例），

@@ -90,7 +90,7 @@ fn theme_flip_repaints_every_sidebar_surface_in_place() {
         );
     }
 
-    let mut pills = world.query::<(Entity, &OverviewModePill, &ControlVisual)>();
+    let mut pills = world.query::<(Entity, &OverviewRoutingIntentPill, &ControlVisual)>();
     for (entity, pill, visual) in pills.iter(world) {
         let fill = world.get::<BackgroundColor>(entity).expect("pill survives");
         assert_eq!(

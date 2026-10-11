@@ -6,10 +6,10 @@
 //! through a tinted [`ImageNode`]; the tint is the theme ink a text sibling
 //! would inherit, applied by the image widget's color multiply at draw time.
 //!
-//! **Bitmap pipeline**: the checked-in plates under `assets/icons/` are the
-//! iced frontend's Lucide SVGs rasterized with `rsvg-convert -w 64 -h 64`
-//! after substituting the SVGs' `currentColor` with white, so a plate is
-//! white ink with alpha and any theme color tints it exactly. A semantic id
+//! **Bitmap pipeline**: the shared asset catalog exposes renderer-ready
+//! 64px PNG plates rasterized from the canonical Iced Lucide SVGs after
+//! substituting `currentColor` with white. A plate is white ink with alpha,
+//! so any theme color tints it exactly. A semantic id
 //! whose plate is missing (or whose [`Image`] has not resolved) degrades to
 //! an invisible square — an honest absence, never a placeholder glyph, and
 //! `Handle::default()` keeps the composition panic-free headless.
@@ -20,7 +20,7 @@
 //! `ImageNode` — its template plumbing is renderer-side, while the scene
 //! declares only the sized node and the two semantic markers.
 
-use bevy::asset::{AssetServer, Handle};
+use bevy::asset::{Assets, Handle, RenderAssetUsages};
 use bevy::color::Color;
 use bevy::ecs::component::Component;
 use bevy::ecs::lifecycle::Add;
@@ -28,7 +28,8 @@ use bevy::ecs::observer::On;
 use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Commands, Query, Res};
-use bevy::image::Image;
+use bevy::image::{CompressedImageFormats, Image, ImageSampler, ImageType};
+use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{Node, px};
 use bevy::ui::widget::ImageNode;
@@ -85,43 +86,52 @@ impl IconId {
             IconId::ArrowDown => 9,
         }
     }
-}
 
-/// The asset path one id draws from, relative to the host's asset root —
-/// the crate ships the plates under `assets/icons/`. Pure mapping, so the
-/// path table is headless-testable.
-pub fn icon_path(icon: IconId) -> &'static str {
-    match icon {
-        IconId::Settings => "icons/settings.png",
-        IconId::Network => "icons/network.png",
-        IconId::Activity => "icons/activity.png",
-        IconId::Globe => "icons/globe.png",
-        IconId::Zap => "icons/zap.png",
-        IconId::FileText => "icons/file-text.png",
-        IconId::Plus => "icons/plus.png",
-        IconId::Trash => "icons/trash-2.png",
-        IconId::ArrowUp => "icons/arrow-up.png",
-        IconId::ArrowDown => "icons/arrow-down.png",
+    /// Stable shared-catalog name for this semantic plate.
+    pub const fn asset_name(self) -> &'static str {
+        match self {
+            IconId::Settings => "settings",
+            IconId::Network => "network",
+            IconId::Activity => "activity",
+            IconId::Globe => "globe",
+            IconId::Zap => "zap",
+            IconId::FileText => "file-text",
+            IconId::Plus => "plus",
+            IconId::Trash => "trash-2",
+            IconId::ArrowUp => "arrow-up",
+            IconId::ArrowDown => "arrow-down",
+        }
     }
 }
 
-/// Handle store for every semantic plate, loaded through the host's
-/// [`AssetServer`] (registered by [`crate::WidgetsPlugin`] when one is
-/// present, defaulting to the empty store — and invisible icons — when
-/// not). Rendering an unloaded plate is a no-op, never a panic.
+/// Handle store for every semantic plate, decoded from shared embedded bytes
+/// into Bevy's `Assets<Image>` store. A host without that store keeps the
+/// empty resource and renders invisible icons without panicking.
 #[derive(Resource, Default)]
 pub struct IconSources {
     handles: [Option<Handle<Image>>; IconId::ALL.len()],
 }
 
 impl IconSources {
-    /// Start loading every plate through the asset server. A plate whose
-    /// file or loader is missing simply never resolves; the scene degrades
-    /// to an invisible square.
-    pub fn load(server: &AssetServer) -> Self {
+    /// Decode the shared PNG variants into Bevy's image store. Missing or
+    /// malformed plates remain absent and stamp as transparent squares.
+    pub fn embedded(images: &mut Assets<Image>) -> Self {
         let mut sources = Self::default();
         for icon in IconId::ALL {
-            sources.handles[icon.index()] = Some(server.load::<Image>(icon_path(icon)));
+            let Some(bytes) = infiltrator_shared::assets::bevy_icon_png(icon.asset_name()) else {
+                continue;
+            };
+            let Ok(image) = Image::from_buffer(
+                bytes,
+                ImageType::Extension("png"),
+                CompressedImageFormats::NONE,
+                true,
+                ImageSampler::nearest(),
+                RenderAssetUsages::default(),
+            ) else {
+                continue;
+            };
+            sources.handles[icon.index()] = Some(images.add(image));
         }
         sources
     }
@@ -196,4 +206,37 @@ pub fn icon_scene(icon: IconId, size_px: f32, tint: Color) -> impl Scene + use<>
             IconPlate({ icon })
             IconTint({ tint })
     }
+}
+
+/// A 9×9 filled circle for text-inline status dots (capability norm ⑤):
+/// spawned as an [`bevy_ui::widget::inline_image::InlineImage`] child of a
+/// text block and tinted per state, so the dot flows and wraps with the
+/// sentence instead of being a sibling node.
+pub fn status_dot_image() -> Image {
+    let size = 9;
+    let radius_sq = (size as f32 / 2.0 - 0.5).powi(2);
+    let mut data = Vec::with_capacity((size * size * 4) as usize);
+    for y in 0..size {
+        for x in 0..size {
+            let dx = x as f32 - (size as f32 - 1.0) / 2.0;
+            let dy = y as f32 - (size as f32 - 1.0) / 2.0;
+            let alpha = if dx * dx + dy * dy <= radius_sq {
+                255u8
+            } else {
+                0u8
+            };
+            data.extend_from_slice(&[255, 255, 255, alpha]);
+        }
+    }
+    Image::new(
+        Extent3d {
+            width: size,
+            height: size,
+            depth_or_array_layers: 1,
+        },
+        TextureDimension::D2,
+        data,
+        TextureFormat::Rgba8UnormSrgb,
+        RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD,
+    )
 }

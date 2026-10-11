@@ -1,7 +1,9 @@
 //! Per-app routing use-cases over the routing persistence port.
 
 use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_domain::app_routing::{AppRoutingConfig, AppRoutingMode, AppRoutingRule};
+use infiltrator_domain::app_routing::{
+    AppRoutingConfig, AppRoutingMode, AppRoutingPackageSelection, AppRoutingRule,
+};
 use infiltrator_ports::app_routing_store::AppRoutingStore;
 use std::sync::Arc;
 
@@ -29,41 +31,43 @@ impl RoutingApplication {
         self.save(&config)
     }
 
-    pub fn toggle_package(&self, package: &str) -> Result<bool, Failure> {
-        if package.trim().is_empty() {
-            return Err(Failure::new(
-                ErrorCode::InvalidInput,
-                "package name is empty",
-                false,
-            ));
-        }
-        let mut config = self.load()?;
-        let package = package.trim().to_string();
-        let selected = if config.packages.contains(&package) {
-            config.packages.remove(&package);
-            false
-        } else {
-            config.packages.insert(package);
-            true
-        };
-        self.save(&config)?;
-        Ok(selected)
+    pub fn set_package_selection(
+        &self,
+        package: &str,
+        selection: AppRoutingPackageSelection,
+    ) -> Result<(), Failure> {
+        self.set_packages(&[package.to_owned()], selection)
     }
 
-    pub fn set_package_enabled(&self, package: &str, enabled: bool) -> Result<(), Failure> {
-        if package.trim().is_empty() {
+    /// Applies a selection state to a package group in one persisted update.
+    /// Existing selections outside the group and explicit package rules remain intact.
+    pub fn set_packages(
+        &self,
+        packages: &[String],
+        selection: AppRoutingPackageSelection,
+    ) -> Result<(), Failure> {
+        let packages = packages
+            .iter()
+            .map(|package| package.trim())
+            .collect::<Vec<_>>();
+        if packages.iter().any(|package| package.is_empty()) {
             return Err(Failure::new(
                 ErrorCode::InvalidInput,
                 "package name is empty",
                 false,
             ));
         }
+
         let mut config = self.load()?;
-        let package = package.trim().to_string();
-        if enabled {
-            config.packages.insert(package);
-        } else {
-            config.packages.remove(&package);
+        for package in packages {
+            match selection {
+                AppRoutingPackageSelection::Selected => {
+                    config.packages.insert(package.to_string());
+                }
+                AppRoutingPackageSelection::Unselected => {
+                    config.packages.remove(package);
+                }
+            }
         }
         self.save(&config)
     }
@@ -84,5 +88,95 @@ impl RoutingApplication {
 
     pub fn allowed_packages(&self) -> Result<Option<Vec<String>>, Failure> {
         Ok(self.load()?.get_allowed_packages())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use infiltrator_domain::app_routing::AppRoutingRule;
+    use infiltrator_ports::app_routing_store::AppRoutingStore;
+    use infiltrator_ports::error::PortError;
+    use std::collections::{HashMap, HashSet};
+    use std::sync::Mutex;
+
+    struct MemoryRoutingStore(Mutex<AppRoutingConfig>);
+
+    impl AppRoutingStore for MemoryRoutingStore {
+        fn load(&self) -> Result<AppRoutingConfig, PortError> {
+            Ok(self.0.lock().expect("routing store lock").clone())
+        }
+
+        fn save(&self, config: &AppRoutingConfig) -> Result<(), PortError> {
+            *self.0.lock().expect("routing store lock") = config.clone();
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn package_group_selection_preserves_other_packages_and_explicit_rules() {
+        let store = Arc::new(MemoryRoutingStore(Mutex::new(AppRoutingConfig {
+            mode: AppRoutingMode::ProxySelected,
+            packages: HashSet::from(["retained.package".to_owned()]),
+            rules: HashMap::from([("explicit.package".to_owned(), AppRoutingRule::Direct)]),
+        })));
+        let application = RoutingApplication::new(store.clone());
+
+        application
+            .set_packages(
+                &[
+                    " selected.package ".to_owned(),
+                    "selected.package".to_owned(),
+                ],
+                AppRoutingPackageSelection::Selected,
+            )
+            .expect("select the requested package group");
+
+        let selected = application.load().expect("read selected packages");
+        assert!(selected.packages.contains("retained.package"));
+        assert!(selected.packages.contains("selected.package"));
+        assert_eq!(
+            selected.rules.get("explicit.package"),
+            Some(&AppRoutingRule::Direct),
+        );
+
+        application
+            .set_packages(
+                &["selected.package".to_owned()],
+                AppRoutingPackageSelection::Unselected,
+            )
+            .expect("clear only the requested package");
+
+        let cleared = application.load().expect("read cleared packages");
+        assert!(cleared.packages.contains("retained.package"));
+        assert!(!cleared.packages.contains("selected.package"));
+        assert_eq!(
+            cleared.rules.get("explicit.package"),
+            Some(&AppRoutingRule::Direct),
+        );
+    }
+
+    #[test]
+    fn package_group_selection_rejects_empty_ids_before_writing() {
+        let initial = AppRoutingConfig {
+            mode: AppRoutingMode::BypassSelected,
+            packages: HashSet::from(["retained.package".to_owned()]),
+            ..AppRoutingConfig::default()
+        };
+        let store = Arc::new(MemoryRoutingStore(Mutex::new(initial.clone())));
+        let application = RoutingApplication::new(store.clone());
+
+        let failure = application
+            .set_packages(
+                &["valid.package".to_owned(), "   ".to_owned()],
+                AppRoutingPackageSelection::Selected,
+            )
+            .expect_err("empty package IDs are rejected");
+
+        assert_eq!(failure.code, ErrorCode::InvalidInput);
+        assert_eq!(
+            store.0.lock().expect("routing store lock").packages,
+            initial.packages
+        );
     }
 }

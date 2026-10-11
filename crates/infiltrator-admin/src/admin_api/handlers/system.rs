@@ -18,16 +18,18 @@ pub async fn get_capabilities_http<C: AdminApiContext>(
     extract::State(state): extract::State<AdminApiState<C>>,
 ) -> Result<Json<AdminCapabilities>, ApiError> {
     Ok(Json(AdminCapabilities {
-        schema_version: 1,
+        schema_version: 2,
         platform: OS.to_string(),
         runtime: RuntimeCapabilitySet {
             status: true,
             lifecycle: true,
+            routing_intent: true,
         },
-        proxy: ProxyCapabilitySet {
-            list: true,
-            mode_switch: true,
-            select: true,
+        outbound: OutboundCapabilitySet {
+            inventory: true,
+            selection: true,
+            probe: true,
+            batch_probe: true,
         },
         settings: SettingsCapabilitySet {
             autostart: state.ctx.supports_autostart_control(),

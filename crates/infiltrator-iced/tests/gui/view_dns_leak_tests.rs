@@ -95,12 +95,18 @@ fn test_dns_leak_panel_renders_the_shared_cross_source_report() {
     let _ = leak_panel(&state, &en);
     state.editor.dns_leak = unsupported;
     let _ = leak_panel(&state, &zh);
-    assert!(!state.diag.is_probing_dns_leak);
+    assert!(matches!(
+        &state.diag.dns_leak_action.phase,
+        infiltrator_application::dns_leak_actions::DnsLeakActionPhase::Idle
+    ));
 
     // The probe message reaches the shared handler; without a host runtime it
-    // is a no-op instead of a fabricated report.
+    // enters a correlated pending phase instead of fabricating a report.
     let _ = state.update(Message::RunDnsLeakProbe);
-    assert!(!state.diag.is_probing_dns_leak);
+    assert!(matches!(
+        &state.diag.dns_leak_action.phase,
+        infiltrator_application::dns_leak_actions::DnsLeakActionPhase::Pending { .. }
+    ));
 }
 
 #[test]

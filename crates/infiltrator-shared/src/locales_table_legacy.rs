@@ -95,7 +95,6 @@ pub(super) fn translate_zh_cn_legacy(key: &str) -> Cow<'static, str> {
         "sub_update_done" => "订阅更新完成".into(),
         "sub_update_summary" => "成功 {0}，失败 {1}，跳过 {2}".into(),
         "switch_proxy_failed" => "切换代理失败".into(),
-        "switch_mode_failed" => "切换代理模式失败".into(),
         "switch_profile_failed" => "切换配置失败".into(),
         "toggle_autostart_failed" => "切换开机自启失败".into(),
         "autostart_need_admin" => "开启开机自启需要管理员权限".into(),
@@ -112,9 +111,6 @@ pub(super) fn translate_zh_cn_legacy(key: &str) -> Cow<'static, str> {
         "tray_show_window" => "显示主界面".into(),
         "tray_quit" => "退出应用".into(),
         "tray_toggle_theme" => "切换深/浅色模式".into(),
-        "tray_mode" => "代理模式".into(),
-        "tray_mode_script" => "脚本模式".into(),
-        "tray_mode_script_unavailable" => "脚本模式（配置未启用）".into(),
         "tray_proxies" => "节点切换".into(),
         "tray_no_proxies" => "暂无节点 (请先启动)".into(),
         "tray_profiles" => "配置".into(),
@@ -142,7 +138,6 @@ pub(super) fn translate_zh_cn_legacy(key: &str) -> Cow<'static, str> {
         "tray_sync_settings" => "同步设置…".into(),
         "tray_autostart" => "开机自启".into(),
         "tray_info" => "信息".into(),
-        "tray_info_mode" => "运行模式".into(),
         "tray_info_status" => "运行状态".into(),
         "tray_status_running" => "运行中".into(),
         "tray_status_stopped" => "已停止".into(),
@@ -165,7 +160,6 @@ pub(super) fn translate_zh_cn_legacy(key: &str) -> Cow<'static, str> {
         // --- 0.20 boot retry + port rotation / script mode gate ---
         "toast_port_rotated" => "控制接口端口被占用，已切换到".into(),
         "toast_boot_failed_ports" => "启动失败（已尝试控制端口".into(),
-        "toast_script_mode_unavailable" => "当前配置未包含脚本块，无法切换到脚本模式".into(),
         "update_all_none" => "没有可更新的订阅".into(),
         _ => key.to_string().into(),
     }

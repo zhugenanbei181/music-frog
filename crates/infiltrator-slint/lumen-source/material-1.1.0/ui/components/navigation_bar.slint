@@ -1,0 +1,241 @@
+// Copyright © SixtyFPS GmbH <info@slint.dev>
+// SPDX-License-Identifier: MIT
+
+import { LumenUiScale } from "../../../ui/ui-scale.slint";
+import { Badge } from "./badge.slint";
+import { MaterialPalette } from "../styling/material_palette.slint";
+import { MaterialStyleMetrics } from "../styling/material_style_metrics.slint";
+import { MaterialText } from "./material_text.slint";
+import { MaterialTypography } from "../styling/material_typography.slint";
+import { ExtendedTouchArea } from "./extended_touch_area.slint";
+import { StateLayer, Ripple } from "./state_layer.slint";
+import { Icon } from "./icon.slint";
+import { NavigationItem } from "../items/navigation_item.slint";
+import { BaseNavigationItemTemplate, BaseNavigation } from "./base_navigation.slint";
+
+export component NavigationItemTemplate inherits BaseNavigationItemTemplate {
+    property <bool> has_icon: root.icon.width > 0 && root.icon.height > 0;
+    property <bool> has_selected_icon: root.selected_icon.width > 0 || root.selected_icon.height > 0;
+    property <color> color: root.selected ? MaterialPalette.primary : MaterialPalette.on_surface_variant;
+    in property <length> icon_size: 26px * LumenUiScale.factor;
+
+    in property <length> navitem_padding_top: 2px * LumenUiScale.factor;
+    in property <length> navitem_padding_bottom: 2px * LumenUiScale.factor;
+
+    Rectangle {
+        width: 100%;
+        height: 100%;
+    }
+
+    indicator := Rectangle {
+        x: 2px * LumenUiScale.factor;
+        y: (parent.height - self.height) / 2;
+        width: max(0px * LumenUiScale.factor, parent.width - 4px * LumenUiScale.factor);
+        height: min(56px * LumenUiScale.factor, max(0px * LumenUiScale.factor, parent.height - 4px * LumenUiScale.factor));
+        border_radius: self.height / 2;
+        background: root.selected ? MaterialPalette.secondary_container : transparent;
+    }
+
+    touch_area := ExtendedTouchArea {
+        HorizontalLayout {
+            alignment: center;
+
+            VerticalLayout {
+                alignment: start;
+                spacing: MaterialStyleMetrics.spacing_4;
+                padding_top: root.navitem_padding_top;
+                padding_bottom: root.navitem_padding_bottom;
+
+                HorizontalLayout {
+                    alignment: center;
+
+                    background_layer := Rectangle {
+                        min_width: state_layout.min_width;
+                        min_height: max(MaterialStyleMetrics.size_32, state_layout.min_height);
+                        border_radius: self.height / 2;
+                        background: transparent;
+
+                        state_layer := StateLayer {
+                            background: root.color;
+                            border_radius: parent.border_radius;
+                            enabled: true;
+                            has_focus: touch_area.has_focus;
+                            has_hover: touch_area.has_hover;
+                            pressed: touch_area.pressed || touch_area.enter_pressed;
+                            width: 100%;
+                            height: 100%;
+
+                            if touch_area.pressed && !root.selected : Ripple {
+                                width: root.width;
+                                height: root.height;
+                                pressed_x: touch_area.pressed_x;
+                                pressed_y: touch_area.pressed_y;
+                                color: root.color;
+                            }
+
+                            state_layout := HorizontalLayout {
+                                padding_left: MaterialStyleMetrics.padding_20;
+                                padding_right: self.padding_left;
+                                alignment: center;
+
+                                VerticalLayout {
+                                    alignment: center;
+
+                                    if !root.has_icon && !root.has_selected_icon : Rectangle {
+                                        width: 12px * LumenUiScale.factor;
+                                        height: self.width;
+                                        border_radius: self.width / 2;
+                                        background: root.color;
+                                    }
+
+                                    if root.has_icon || root.has_selected_icon : Icon {
+                                        source: root.icon;
+                                        size: root.icon_size;
+                                        colorize: root.color;
+
+                                        states [
+                                            selected when root.selected && root.has_selected_icon : {
+                                                source: root.selected_icon;
+                                            }
+                                        ]
+                                    }
+                                }
+                             }
+                        }
+
+                        if root.show_badge || root.badge != "" : Badge {
+                            x: parent.width / 2;
+                            y: 0;
+                            text: root.badge;
+                        }
+                    }
+                }
+
+                label := MaterialText {
+                    text: root.text;
+                    style: MaterialTypography.label_large;
+                    color: root.color;
+                    horizontal_alignment: center;
+                }
+            }
+        }
+
+        clicked => {
+            root.clicked();
+        }
+    }
+
+    states [
+            selected when root.selected : {
+                indicator.background: MaterialPalette.secondary_container;
+                state_layer.background: transparent;
+                label.style: MaterialTypography.label_large;
+        }
+    ]
+}
+
+// The compact phone bar allocates equal slots from the available width.
+// It deliberately bypasses the regular item's 40px icon-row padding.
+component CompactNavigationItemTemplate inherits BaseNavigationItemTemplate {
+    in property <bool> show_layout_bounds: false;
+    property <color> color: root.selected ? MaterialPalette.primary : MaterialPalette.on_surface_variant;
+    indicator := Rectangle {
+        x: 0px * LumenUiScale.factor;
+        y: 4px * LumenUiScale.factor;
+        width: parent.width;
+        height: max(0px * LumenUiScale.factor, parent.height - 8px * LumenUiScale.factor);
+        border_radius: self.height / 2;
+        background: root.selected ? MaterialPalette.secondary_container : transparent;
+    }
+    icon_frame := Image {
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - 40px * LumenUiScale.factor) / 2;
+        width: 22px * LumenUiScale.factor;
+        height: 22px * LumenUiScale.factor;
+        source: root.selected && root.selected_icon.width > 0 ? root.selected_icon : root.icon;
+        colorize: root.color;
+        image_fit: contain;
+    }
+    label := Text {
+        x: 2px * LumenUiScale.factor;
+        y: icon_frame.y + icon_frame.height + 1px * LumenUiScale.factor;
+        width: max(0px * LumenUiScale.factor, parent.width - 4px * LumenUiScale.factor);
+        height: 18px * LumenUiScale.factor;
+        text: root.text;
+        font_size: 12px * LumenUiScale.factor;
+        font_weight: root.selected ? 600 : 400;
+        color: root.color;
+        horizontal_alignment: center;
+        vertical_alignment: center;
+        overflow: elide;
+    }
+    if root.show_layout_bounds: Rectangle {
+        width: parent.width; height: parent.height;
+        background: transparent; border_width: 1px * LumenUiScale.factor; border_color: #FF2D55;
+    }
+    if root.show_layout_bounds: Rectangle {
+        x: icon_frame.x; y: icon_frame.y; width: icon_frame.width; height: icon_frame.height;
+        background: transparent; border_width: 1px * LumenUiScale.factor; border_color: #007AFF;
+    }
+    if root.show_layout_bounds: Rectangle {
+        x: label.x; y: label.y; width: label.width; height: label.height;
+        background: transparent; border_width: 1px * LumenUiScale.factor; border_color: #00A6A6;
+    }
+    touch_area := ExtendedTouchArea {
+        width: parent.width;
+        height: parent.height;
+        clicked => { root.clicked(); }
+    }
+}
+
+export component NavigationBar inherits BaseNavigation {
+    in property <bool> compact: false;
+    in property <bool> show_layout_bounds: false;
+    in property <length> border_radius: 0px * LumenUiScale.factor;
+    min_height: root.compact ? 56px * LumenUiScale.factor : 72px * LumenUiScale.factor;
+
+    Rectangle {
+        background: MaterialPalette.surface_container;
+        border_radius: root.border_radius;
+
+        if !root.compact: HorizontalLayout {
+            padding_left: MaterialStyleMetrics.padding_8;
+            padding_right: self.padding_left;
+            spacing: MaterialStyleMetrics.spacing_8;
+
+            for item[index] in root.items : NavigationItemTemplate {
+                icon: item.icon;
+                selected_icon: item.selected_icon;
+                icon_size: 26px * LumenUiScale.factor;
+                navitem_padding_top: 2px * LumenUiScale.factor;
+                navitem_padding_bottom: 2px * LumenUiScale.factor;
+                text: item.text;
+                index: index;
+                selected: index == root.current_index;
+                show_badge: item.show_badge;
+                badge: item.badge;
+
+                clicked => {
+                    root.select(index);
+                }
+            }
+        }
+        if root.compact: Rectangle {
+            x: 4px * LumenUiScale.factor;
+            width: max(0px * LumenUiScale.factor, parent.width - 8px * LumenUiScale.factor);
+            height: parent.height;
+            for item[index] in root.items: CompactNavigationItemTemplate {
+                x: index * self.width;
+                width: parent.width / max(1, root.items.length);
+                height: parent.height;
+                icon: item.icon;
+                selected_icon: item.selected_icon;
+                text: item.text;
+                index: index;
+                selected: index == root.current_index;
+                show_layout_bounds: root.show_layout_bounds;
+                clicked => { root.select(index); }
+            }
+        }
+    }
+}

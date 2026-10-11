@@ -8,7 +8,7 @@ use crate::admin_api::state::{AdminApiContext, AdminApiState};
 use axum::http::StatusCode;
 use axum::{Json, extract};
 use infiltrator_application::version_application::{QuietVersionProgress, VersionApplication};
-use infiltrator_contract::version::CoreReleaseChannel;
+use infiltrator_contract::version::EngineNeutralReleaseChannel;
 use std::cmp::Ordering;
 use std::sync::Arc;
 
@@ -47,7 +47,7 @@ pub async fn get_latest_stable_core_http<C: AdminApiContext>(
         .version_application()
         .await
         .map_err(|error| ApiError::internal(error.to_string()))?
-        .latest(CoreReleaseChannel::Stable)
+        .latest_core(EngineNeutralReleaseChannel::Stable)
         .await
         .map(|release| (release.version, release.release_date))
         .map_err(|failure| ApiError::internal(failure.message))?;
@@ -87,7 +87,7 @@ pub async fn update_stable_core_http<C: AdminApiContext>(
         .version_application()
         .await
         .map_err(|error| ApiError::internal(error.to_string()))?
-        .latest(CoreReleaseChannel::Stable)
+        .latest_core(EngineNeutralReleaseChannel::Stable)
         .await
         .map_err(|failure| ApiError::internal(failure.message))?;
     let version = release.version;

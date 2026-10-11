@@ -1,6 +1,6 @@
 //! TUN mode privilege / background-service management.
 //!
-//! Platform contracts (see `docs/PLATFORM_CONTRACTS.md` §2.5):
+//! Host capability and delivery status: `docs/PLATFORM_MATRIX.md`.
 //!
 //! - **Linux — capability model.** Install = `pkexec setcap
 //!   cap_net_admin,cap_net_bind_service+ep <core-binary>`; uninstall = the exact

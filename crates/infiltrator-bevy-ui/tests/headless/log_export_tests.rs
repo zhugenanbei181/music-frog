@@ -1,7 +1,10 @@
 //! test-intent: behavior
 //! Native SDK gestures and ordinary keyboard input execute real Core exports in isolated host files.
+use crate::command_harness::install_test_core_capability_application;
 use crate::native_input::{click_entity, press, type_text};
-use crate::support::headless_plugins;
+use crate::support::{
+    command_pump_for_observed_snapshot, execute_at_observed_scope, headless_plugins,
+};
 use async_trait::async_trait;
 use bevy::app::{App, PreUpdate};
 use bevy::ecs::entity::Entity;
@@ -20,7 +23,6 @@ use infiltrator_application::log_capture_fixtures::{
 use infiltrator_application::log_export_application::LogExportApplication;
 use infiltrator_application::surface_reader::ApplicationSurfaceReader;
 use infiltrator_bevy_ui::app::ShellPlugin;
-use infiltrator_bevy_ui::command::CommandPumpPlugin;
 use infiltrator_bevy_ui::pages::logs::{ClearLogsButton, ExportLogsButton};
 use infiltrator_bevy_ui::pages::logs_export::{LogsExportAction, LogsExportLine, LogsExportState};
 use infiltrator_bevy_ui::route::{PagesPlugin, Route, RouteChanged};
@@ -32,6 +34,7 @@ use infiltrator_bevy_widgets::text_input::native::NativeTextField;
 use infiltrator_bevy_widgets::text_input::{TextField, TextFieldFocused};
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::command::CommandIntent;
+use infiltrator_contract::core_capabilities::{CoreLifecycleOperation, CoreOperation};
 use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::log_export::{LogExportArtifact, LogExportReceipt};
 use infiltrator_contract::logs::LogSession;
@@ -86,6 +89,13 @@ fn setup(port: Arc<dyn LogExportPort>) -> (App, Arc<CoreApplication>) {
         process,
         tokio_application_runtime().unwrap(),
     ));
+    install_test_core_capability_application(
+        &core,
+        [
+            CoreOperation::Lifecycle(CoreLifecycleOperation::Start),
+            CoreOperation::Lifecycle(CoreLifecycleOperation::Restart),
+        ],
+    );
     core.install_command_handler(Arc::new(
         CommandApplication::new()
             .with_logs(core.log_application())
@@ -98,10 +108,7 @@ fn setup(port: Arc<dyn LogExportPort>) -> (App, Arc<CoreApplication>) {
     run(populate_logs(&core)).unwrap();
     let scope = core.snapshot();
     assert!(core.log_application().ingest(
-        LogSession {
-            generation: scope.generation,
-            token: scope.session_token.unwrap()
-        },
+        LogSession::from_core_scope(scope.scope().expect("core scope")).expect("log session"),
         RuntimeStreamEvent::Item(
             "INFO[4] https://sub.example/?token=private-subscription-token".into()
         )
@@ -112,7 +119,7 @@ fn setup(port: Arc<dyn LogExportPort>) -> (App, Arc<CoreApplication>) {
         ButtonPlugin,
         ShellPlugin::default(),
         PagesPlugin::default(),
-        CommandPumpPlugin::for_application(core.clone()),
+        command_pump_for_observed_snapshot(core.clone()),
     ));
     app.add_systems(PreUpdate, dispatch_focused_input::<KeyboardInput>);
     app.world_mut().spawn((Window::default(), PrimaryWindow));
@@ -371,9 +378,14 @@ fn native_failure_retry_pending_cancel_and_old_controller_source_keep_actual_hos
     click(&mut app, LogsExportAction::Cancel);
     terminal(&mut app);
     open(&mut app);
-    run(core.execute(CommandIntent::RestartCore))
+    run(execute_at_observed_scope(&core, CommandIntent::RestartCore))
         .into_unit()
         .unwrap();
+    let reader =
+        ApplicationSurfaceReader::new(core.clone(), SurfaceKind::BevyDesktop, HostKind::Desktop);
+    let snapshot = run(reader.read()).unwrap();
+    app.world_mut().trigger(SurfaceSnapshotUpdated(snapshot));
+    app.update();
     click(&mut app, LogsExportAction::Confirm);
     terminal(&mut app);
     assert_eq!(

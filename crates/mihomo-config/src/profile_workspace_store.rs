@@ -1,23 +1,33 @@
-//! Source-bound two-document persistence under the store's write boundary.
+//! Engine-bound, source-checked persistence for Mihomo profile documents.
 use crate::manager::ConfigManager;
 use crate::manager::paths::sanitized_profile_key;
 use crate::manager::profiles::backup_path;
-use crate::sidecar_store::{read_optional, remove_optional, write_document};
+use crate::profile_document_codec::{PROFILE_FORMAT, PROFILE_SCHEMA_VERSION};
+use crate::sidecar_store::{read_optional_bytes, remove_optional, write_document_bytes};
 use crate::yaml::validate;
+use infiltrator_contract::capability::Capability;
+use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::profile_source::ProfileSourceIdentity;
-use infiltrator_domain::profile_options::{ProfileOptions, options_path};
-use infiltrator_domain::profile_source::identify_profile_source;
+use infiltrator_contract::profile_document_identity::{
+    ProfileDocument, ProfileDocumentIdentity, ProfileDocumentRevision,
+    ProfileDocumentSourceIdentity, ProfileDocumentSourceKind, ProfileFormatId, ProfileId,
+    ProfileSchemaVersion, ProfileSidecarRevision, ProfileSourceId, ProfileWorkspaceIdentity,
+};
+use infiltrator_contract::profile_protection::{ProfileWriteAuthorization, ProfileWriteProtection};
+use infiltrator_domain::profile_options::options_path;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_workspace::{
     ProfileWorkspace, ProfileWorkspacePurpose, ProfileWorkspaceUpdate,
 };
 use infiltrator_ports::secure_store::SecureStore;
 use mihomo_api::error::MihomoError;
+use sha2::{Digest, Sha256};
 use std::fmt::Display;
 use std::future::Future;
 use std::io::ErrorKind;
 use std::path::Path;
+use std::str;
+use tokio::fs;
 
 #[derive(Clone, Copy)]
 pub(crate) enum WorkspaceTarget {
@@ -28,132 +38,132 @@ pub(crate) enum WorkspaceTarget {
 
 impl<S: SecureStore> ConfigManager<S> {
     pub(crate) async fn read_active_workspace(&self) -> Result<ProfileWorkspace, PortError> {
+        self.initialize_profile_namespace()
+            .await
+            .map_err(config_error)?;
         let _guard = self.lock_profile_writes().await;
-        let current = self.get_current().await.map_err(config_error)?;
-        self.read_workspace_locked(&current).await
+        let current = self.get_current_unlocked().await.map_err(config_error)?;
+        let profile = profile_id(&current)?;
+        self.read_workspace_locked(&profile).await
     }
+
     pub(crate) async fn read_workspace(
         &self,
-        profile: &str,
+        profile: &ProfileId,
     ) -> Result<ProfileWorkspace, PortError> {
+        self.initialize_profile_namespace()
+            .await
+            .map_err(config_error)?;
         let _guard = self.lock_profile_writes().await;
         self.read_workspace_locked(profile).await
     }
 
-    async fn read_workspace_locked(&self, profile: &str) -> Result<ProfileWorkspace, PortError> {
-        let profile = sanitized_profile_key(profile).map_err(config_error)?;
-        let content = self.load(&profile).await.map_err(config_error)?;
-        let raw_options = read_optional(&options_path(self.config_dir(), &profile)).await?;
-        let options = match &raw_options {
-            Some(text) => serde_yaml_ng::from_str(text).map_err(storage_error)?,
-            None => Default::default(),
-        };
-        let write_protection = self.workspace_protection(&profile).await?;
-        Ok(ProfileWorkspace {
-            write_protection,
-            source: identify_profile_source(profile, &content, raw_options.as_deref()),
-            content,
-            options,
-            options_document: raw_options,
-        })
+    async fn read_workspace_locked(
+        &self,
+        profile: &ProfileId,
+    ) -> Result<ProfileWorkspace, PortError> {
+        let key = sanitized_profile_key(profile.as_str()).map_err(config_error)?;
+        let profile_path = self
+            .existing_profile_yaml_path(&key)
+            .await
+            .map_err(config_error)?;
+        let document_bytes = fs::read(profile_path)
+            .await
+            .map_err(|error| config_error(MihomoError::Io(error)))?;
+        let sidecar_path = options_path(self.config_dir(), &key);
+        let sidecar_bytes = read_optional_bytes(&sidecar_path).await?;
+        let protection = self.workspace_protection(&key).await?;
+        let source = self.source_identity(profile, protection).await?;
+        Ok(workspace_from_bytes(
+            profile.clone(),
+            source,
+            protection,
+            document_bytes,
+            sidecar_bytes,
+        ))
     }
 
     pub(crate) async fn save_workspace(
         &self,
-        expected: &ProfileSourceIdentity,
+        expected: &ProfileWorkspaceIdentity,
         update: &ProfileWorkspaceUpdate,
         target: WorkspaceTarget,
     ) -> Result<ProfileWorkspace, PortError> {
-        validate(&update.content).map_err(|error| {
-            PortError::Rejected(Failure::new(
-                ErrorCode::Configuration,
-                error.to_string(),
-                false,
-            ))
-        })?;
-        let new_options = if update.options.is_empty() {
-            None
-        } else {
-            Some(serde_yaml_ng::to_string(&update.options).map_err(storage_error)?)
-        };
-        self.publish_workspace(expected, update, new_options, target, true)
-            .await
+        // Engine and format checks precede lock-key/path canonicalization and all file reads.
+        ensure_mihomo_identity(expected)?;
+        validate_document_format(
+            &expected.document.format_id,
+            expected.document.schema_version,
+        )?;
+        validate_document_bytes(&update.document_bytes)?;
+        self.publish_workspace(expected, update, target).await
     }
 
     pub(crate) async fn recover_workspace(
         &self,
-        expected: &ProfileSourceIdentity,
+        expected: &ProfileWorkspaceIdentity,
         previous: &ProfileWorkspace,
     ) -> Result<ProfileWorkspace, PortError> {
-        let decoded_options: ProfileOptions = match previous.options_document.as_deref() {
-            Some(text) => serde_yaml_ng::from_str(text).map_err(storage_error)?,
-            None => Default::default(),
-        };
-        if previous.source.profile != expected.profile
-            || previous.source
-                != identify_profile_source(
-                    previous.source.profile.clone(),
-                    &previous.content,
-                    previous.options_document.as_deref(),
-                )
-            || decoded_options != previous.options
+        // A foreign expected or recovery document must be rejected before lock/path/IO.
+        ensure_mihomo_identity(expected)?;
+        ensure_mihomo_engine(&previous.document.identity.engine_id)?;
+        validate_document_format(
+            &previous.document.identity.format_id,
+            previous.document.identity.schema_version,
+        )?;
+        validate_workspace_bytes(previous)?;
+        if previous.document.identity.profile_id != expected.document.profile_id
+            || previous.document.identity.source != expected.document.source
         {
-            return Err(PortError::Rejected(Failure::new(
-                ErrorCode::InvalidInput,
-                "Recovery documents do not match their observed source",
-                false,
-            )));
+            return Err(invalid_recovery(
+                "Recovery document does not belong to the observed profile source",
+            ));
         }
-        validate(&previous.content).map_err(config_error)?;
+        validate_document_bytes(&previous.document.raw_bytes)?;
         self.publish_workspace(
             expected,
             &ProfileWorkspaceUpdate {
                 purpose: ProfileWorkspacePurpose::Derived,
-                content: previous.content.clone(),
-                options: previous.options.clone(),
+                document_bytes: previous.document.raw_bytes.clone(),
+                sidecar_bytes: previous.sidecar_bytes.clone(),
             },
-            previous.options_document.clone(),
             WorkspaceTarget::Any,
-            false,
         )
         .await
     }
 
     async fn publish_workspace(
         &self,
-        expected: &ProfileSourceIdentity,
+        expected: &ProfileWorkspaceIdentity,
         update: &ProfileWorkspaceUpdate,
-        new_options: Option<String>,
         target: WorkspaceTarget,
-        preserve_unchanged_options: bool,
     ) -> Result<ProfileWorkspace, PortError> {
+        self.initialize_profile_namespace()
+            .await
+            .map_err(config_error)?;
         let _guard = self.lock_profile_writes().await;
-        let workspace = self.read_workspace_locked(&expected.profile).await?;
-        let new_options = if preserve_unchanged_options && workspace.options == update.options {
-            workspace.options_document.clone()
-        } else {
-            new_options
-        };
+        let profile = &expected.document.profile_id;
+        let workspace = self.read_workspace_locked(profile).await?;
         let target_matches = match target {
             WorkspaceTarget::Any => true,
             WorkspaceTarget::Active => {
-                self.get_current().await.map_err(config_error)? == expected.profile
+                self.get_current_unlocked().await.map_err(config_error)? == profile.as_str()
             }
             WorkspaceTarget::Inactive => {
-                self.get_current().await.map_err(config_error)? != expected.profile
+                self.get_current_unlocked().await.map_err(config_error)? != profile.as_str()
             }
         };
-        if workspace.source != *expected || !target_matches {
+        if workspace.identity() != *expected || !target_matches {
             return Err(PortError::Rejected(Failure::new(
                 ErrorCode::NotReady,
-                "The profile document or options changed; reload and inspect before applying",
+                "The profile document or sidecar changed; reload and inspect before applying",
                 true,
             )));
         }
         if matches!(
             update.purpose,
             ProfileWorkspacePurpose::DirectEdit {
-                allow_protected: false
+                authorization: ProfileWriteAuthorization::RequireUnlock
             }
         ) && workspace.write_protection.is_protected()
         {
@@ -163,55 +173,203 @@ impl<S: SecureStore> ConfigManager<S> {
                 false,
             )));
         }
-        // Pin both paths before publishing either document. Never consult the
-        // active-profile pointer to redirect an already prepared edit.
+
+        // Pin both paths after the identity fence; the active-profile pointer cannot redirect a
+        // prepared write. The exact prior sidecar bytes (including absence) are the rollback state.
         let profile_path = self
-            .existing_profile_yaml_path(&expected.profile)
+            .existing_profile_yaml_path(profile.as_str())
             .await
             .map_err(config_error)?;
-        let sidecar_path = options_path(self.config_dir(), &expected.profile);
+        let sidecar_path = options_path(self.config_dir(), profile.as_str());
         publish_pair(
             &sidecar_path,
-            workspace.options_document.as_deref(),
-            new_options.as_deref(),
-            write_document(&profile_path, &update.content),
+            workspace.sidecar_bytes.as_deref(),
+            update.sidecar_bytes.as_deref(),
+            write_document_bytes(&profile_path, &update.document_bytes),
         )
         .await?;
         if let Err(error) = remove_optional(&backup_path(&profile_path)).await {
-            // The pair is already committed. Backup cleanup cannot turn a
-            // completed apply into a false failure, and remains under this
-            // write boundary so it cannot delete a later writer's backup.
             log::warn!("committed workspace backup cleanup failed: {error}");
         }
-        Ok(ProfileWorkspace {
-            write_protection: workspace.write_protection,
-            source: identify_profile_source(
-                expected.profile.clone(),
-                &update.content,
-                new_options.as_deref(),
-            ),
-            content: update.content.clone(),
-            options: update.options.clone(),
-            options_document: new_options,
-        })
+
+        Ok(workspace_from_bytes(
+            profile.clone(),
+            workspace.document.identity.source,
+            workspace.write_protection,
+            update.document_bytes.clone(),
+            update.sidecar_bytes.clone(),
+        ))
+    }
+
+    async fn source_identity(
+        &self,
+        profile: &ProfileId,
+        protection: ProfileWriteProtection,
+    ) -> Result<ProfileDocumentSourceIdentity, PortError> {
+        let metadata = self
+            .get_profile_metadata_unlocked(profile.as_str())
+            .await
+            .map_err(config_error)?;
+        let source_kind = if protection.is_protected() {
+            ProfileDocumentSourceKind::Subscription
+        } else {
+            ProfileDocumentSourceKind::Local
+        };
+        // The URL is never stored in the typed identity. If the secure store cannot return it,
+        // the stable profile id remains a non-secret source fallback while protection stays on.
+        let source_material = metadata
+            .subscription_url
+            .as_deref()
+            .filter(|url| !url.trim().is_empty())
+            .map(str::as_bytes)
+            .unwrap_or_else(|| profile.as_str().as_bytes());
+        let source_id = ProfileSourceId::new(format!("source-{}", sha256_hex(source_material)))
+            .map_err(identity_error)?;
+        Ok(ProfileDocumentSourceIdentity::new(source_kind, source_id))
     }
 }
 
-/// The future carries one bounded profile-file publication and starts only
-/// after the options have been published.
+fn workspace_from_bytes(
+    profile_id: ProfileId,
+    source: ProfileDocumentSourceIdentity,
+    write_protection: ProfileWriteProtection,
+    document_bytes: Vec<u8>,
+    sidecar_bytes: Option<Vec<u8>>,
+) -> ProfileWorkspace {
+    let identity = ProfileDocumentIdentity::new(
+        profile_id,
+        crate::engine_id(),
+        source,
+        revision(&document_bytes),
+        ProfileFormatId::new(PROFILE_FORMAT).expect("static profile format is valid"),
+        ProfileSchemaVersion::new(PROFILE_SCHEMA_VERSION).expect("schema version is positive"),
+    );
+    let sidecar_revision = sidecar_revision(sidecar_bytes.as_deref());
+    ProfileWorkspace {
+        document: ProfileDocument::new(identity, document_bytes),
+        sidecar_revision,
+        write_protection,
+        sidecar_bytes,
+    }
+}
+
+fn validate_workspace_bytes(workspace: &ProfileWorkspace) -> Result<(), PortError> {
+    if workspace.document.identity.revision != revision(&workspace.document.raw_bytes)
+        || workspace.sidecar_revision != sidecar_revision(workspace.sidecar_bytes.as_deref())
+    {
+        return Err(invalid_recovery(
+            "Recovery document bytes do not match their reported revision",
+        ));
+    }
+    Ok(())
+}
+
+fn validate_document_format(
+    format_id: &ProfileFormatId,
+    schema_version: ProfileSchemaVersion,
+) -> Result<(), PortError> {
+    if format_id.as_str() != PROFILE_FORMAT || schema_version.value() != PROFILE_SCHEMA_VERSION {
+        return Err(PortError::unsupported(
+            Capability::Profiles,
+            format!(
+                "Mihomo profile adapter does not support format `{}` schema {}",
+                format_id.as_str(),
+                schema_version.value()
+            ),
+        ));
+    }
+    Ok(())
+}
+
+fn validate_document_bytes(document: &[u8]) -> Result<(), PortError> {
+    let text = str::from_utf8(document).map_err(|error| {
+        PortError::Rejected(Failure::new(
+            ErrorCode::Configuration,
+            format!("Mihomo YAML profile is not valid UTF-8: {error}"),
+            false,
+        ))
+    })?;
+    validate(text).map_err(|error| {
+        PortError::Rejected(Failure::new(
+            ErrorCode::Configuration,
+            error.to_string(),
+            false,
+        ))
+    })
+}
+
+fn ensure_mihomo_identity(identity: &ProfileWorkspaceIdentity) -> Result<(), PortError> {
+    ensure_mihomo_engine(&identity.document.engine_id)?;
+    validate_document_format(
+        &identity.document.format_id,
+        identity.document.schema_version,
+    )
+}
+
+fn ensure_mihomo_engine(engine_id: &EngineId) -> Result<(), PortError> {
+    if engine_id == &crate::engine_id() {
+        return Ok(());
+    }
+    Err(PortError::unsupported(
+        Capability::Profiles,
+        format!(
+            "Mihomo profile store cannot access engine `{}`",
+            engine_id.as_str()
+        ),
+    ))
+}
+
+fn profile_id(value: &str) -> Result<ProfileId, PortError> {
+    ProfileId::new(value).map_err(identity_error)
+}
+
+fn identity_error(error: impl Display) -> PortError {
+    PortError::Rejected(Failure::new(
+        ErrorCode::InvalidInput,
+        error.to_string(),
+        false,
+    ))
+}
+
+fn invalid_recovery(message: &str) -> PortError {
+    PortError::Rejected(Failure::new(ErrorCode::InvalidInput, message, false))
+}
+
+fn revision(bytes: &[u8]) -> ProfileDocumentRevision {
+    ProfileDocumentRevision::new(sha256_hex(bytes)).expect("SHA-256 revision is valid")
+}
+
+fn sidecar_revision(bytes: Option<&[u8]>) -> ProfileSidecarRevision {
+    match bytes {
+        Some(bytes) => ProfileSidecarRevision::Present(revision(bytes)),
+        None => ProfileSidecarRevision::Absent,
+    }
+}
+
+fn sha256_hex(bytes: &[u8]) -> String {
+    Sha256::digest(bytes)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
+}
+
+/// Publish the opaque sidecar first and undo it if profile publication fails.
 async fn publish_pair(
     sidecar: &Path,
-    previous: Option<&str>,
-    proposed: Option<&str>,
+    previous: Option<&[u8]>,
+    proposed: Option<&[u8]>,
     profile_publication: impl Future<Output = Result<(), PortError>>,
 ) -> Result<(), PortError> {
-    publish_options(sidecar, proposed).await?;
+    if previous == proposed {
+        return profile_publication.await;
+    }
+    publish_sidecar(sidecar, proposed).await?;
     if let Err(cause) = profile_publication.await {
-        if let Err(rollback) = publish_options(sidecar, previous).await {
+        if let Err(rollback) = publish_sidecar(sidecar, previous).await {
             return Err(PortError::Rejected(Failure::new(
                 ErrorCode::InvalidState,
                 format!(
-                    "profile publication failed ({cause}); options rollback failed ({rollback})"
+                    "profile publication failed ({cause}); sidecar rollback failed ({rollback})"
                 ),
                 false,
             )));
@@ -221,15 +379,11 @@ async fn publish_pair(
     Ok(())
 }
 
-async fn publish_options(path: &Path, text: Option<&str>) -> Result<(), PortError> {
-    match text {
-        Some(text) => write_document(path, text).await,
+async fn publish_sidecar(path: &Path, bytes: Option<&[u8]>) -> Result<(), PortError> {
+    match bytes {
+        Some(bytes) => write_document_bytes(path, bytes).await,
         None => remove_optional(path).await,
     }
-}
-
-fn storage_error(error: impl Display) -> PortError {
-    PortError::Io(error.to_string())
 }
 
 pub(crate) fn config_error(error: MihomoError) -> PortError {

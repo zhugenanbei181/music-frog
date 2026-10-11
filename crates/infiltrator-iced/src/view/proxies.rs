@@ -3,6 +3,10 @@
 //! favorite pinning, and node detail inspection.
 
 use crate::state::AppState;
+use crate::state::outbound_inventory::{
+    OutboundGroupView, OutboundMemberView, OutboundSelectionViewState,
+};
+use crate::state::proxy_probe::OutboundProbeBatchState;
 use crate::types::message::Message;
 use crate::view::components::{
     BadgeKind, badge, card_surface, chip, empty_state, icon_button, modern_scrollable,
@@ -18,8 +22,18 @@ use crate::view::{proxies_controls, svg_icons, theme};
 use iced::advanced::widget::Id;
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Shadow, Theme, Vector, border};
+use infiltrator_contract::outbound::details::OutboundCollectionKind;
+use infiltrator_contract::outbound::details::OutboundObservation;
+use infiltrator_contract::outbound::{
+    inventory::{OutboundInventoryState, SelectionAvailability},
+    probe::{OutboundProbeBatchOutcome, OutboundProbeBatchScope},
+};
+use infiltrator_contract::surface_snapshot::PageStatus;
 use infiltrator_shared::country_flags::node_flag_emoji;
 use infiltrator_shared::locales::{Lang, Localizer};
+
+pub mod node_cards;
+use node_cards::{node_compact_list, node_grid};
 
 pub fn view(state: &AppState) -> Element<'_, Message> {
     let lang = Lang(&state.shell.lang);
@@ -27,7 +41,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     // ------------------------------------------------------------------
     // Header: section title with trailing ghost actions
     // ------------------------------------------------------------------
-    let test_all_btn: Element<'_, Message> = if state.runtime.runtime_testing_all_delays {
+    let test_all_btn: Element<'_, Message> = if state.runtime.outbound_probe_batch.is_running() {
         container(
             text(lang.tr("runtime_delay_testing_all"))
                 .size(12)
@@ -53,7 +67,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         )
         .padding([7, 12])
         .style(ghost_pill)
-        .on_press(Message::TestAllProxyDelays)
+        .on_press_maybe(state.outbound_probe_batch_message(OutboundProbeBatchScope::All))
         .into()
     };
 
@@ -85,7 +99,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             row![
                 add_node_btn,
                 test_all_btn,
-                icon_button(Icon::RefreshCw, 15.0, Message::LoadProxies),
+                icon_button(Icon::RefreshCw, 15.0, Message::RefreshOutboundInventory),
                 Space::new().width(theme::SP_XS),
                 icon_button(view_switch_icon, 15.0, Message::ToggleProxyCompactView),
             ]
@@ -108,7 +122,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             Space::new().height(theme::SP_LG),
             container(empty_state(
                 Icon::Globe,
-                lang.tr("proxy_not_running").as_ref(),
+                lang.tr("core_not_running").as_ref(),
                 "",
             ))
             .width(Length::Fill)
@@ -124,15 +138,12 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     let mut groups_col = column![].spacing(theme::SP_MD);
 
     if state.runtime.filtered_groups.is_empty() {
+        let (title, detail) = outbound_empty_copy(state, &lang);
         groups_col = groups_col.push(
-            container(empty_state(
-                Icon::Globe,
-                lang.tr("proxy_groups_empty").as_ref(),
-                "",
-            ))
-            .width(Length::Fill)
-            .padding(theme::SP_LG)
-            .style(card_surface),
+            container(empty_state(Icon::Globe, &title, &detail))
+                .width(Length::Fill)
+                .padding(theme::SP_LG)
+                .style(card_surface),
         );
     }
 
@@ -148,10 +159,10 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
 
         let is_expanded = group_info.expanded;
 
-        let group_type = group_info.group_type.as_str();
+        let group_type = outbound_group_status(group_info, &lang);
 
         let icon_tile = container(svg_icons::icon_themed(
-            group_icon(group_type),
+            outbound_group_icon(group_info),
             18.0,
             |t: &Theme| tokens(t).accent,
         ))
@@ -175,27 +186,35 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             }
         });
 
-        let subtitle = if group_info.current.trim().is_empty() {
-            group_type.to_string()
-        } else {
-            format!("{group_type} · {}", group_info.current)
-        };
+        let subtitle = group_info.current().map_or_else(
+            || group_type.clone(),
+            |current| format!("{group_type} · {current}"),
+        );
 
         let total_count = group_info.proxies.len();
 
-        let test_group_btn: Element<'_, Message> = if state.runtime.runtime_testing_all_delays {
-            container(svg_icons::icon_themed(Icon::Target, 15.0, |t: &Theme| {
-                tokens(t).text_tertiary
-            }))
-            .padding(6)
-            .into()
-        } else {
-            icon_button(
-                Icon::Target,
-                15.0,
-                Message::TestGroupDelay(group_name.clone()),
-            )
-        };
+        let test_group_btn: Element<'_, Message> =
+            if state.runtime.outbound_probe_batch.is_running() {
+                container(svg_icons::icon_themed(Icon::Target, 15.0, |t: &Theme| {
+                    tokens(t).text_tertiary
+                }))
+                .padding(6)
+                .into()
+            } else {
+                icon_button(
+                    Icon::Target,
+                    15.0,
+                    group_info
+                        .id
+                        .clone()
+                        .and_then(|id| {
+                            state.outbound_probe_batch_message(OutboundProbeBatchScope::Collection(
+                                id,
+                            ))
+                        })
+                        .unwrap_or(Message::Noop),
+                )
+            };
 
         let chevron_icon = if is_expanded {
             Icon::ChevronDown
@@ -222,18 +241,30 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             icon_button(
                 Icon::ArrowUp,
                 12.0,
-                Message::MoveProxyGroupUp(group_name.clone()),
+                group_info
+                    .id
+                    .clone()
+                    .map(Message::MoveProxyGroupUp)
+                    .unwrap_or(Message::Noop),
             ),
             icon_button(
                 Icon::ArrowDown,
                 12.0,
-                Message::MoveProxyGroupDown(group_name.clone()),
+                group_info
+                    .id
+                    .clone()
+                    .map(Message::MoveProxyGroupDown)
+                    .unwrap_or(Message::Noop),
             ),
             test_group_btn,
             icon_button(
                 chevron_icon,
                 15.0,
-                Message::ToggleProxyGroupExpanded(group_name.clone()),
+                group_info
+                    .id
+                    .clone()
+                    .map(Message::ToggleOutboundGroupExpanded)
+                    .unwrap_or(Message::Noop),
             ),
         ]
         .spacing(theme::SP_MD)
@@ -259,7 +290,13 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
 
     // Keep the primary node controls reachable at every viewport. Diagnostics
     // share the same scroll surface instead of consuming its available height.
-    let body = groups_col
+    let mut body = groups_col;
+    if let Some(batch_card) = outbound_probe_batch_card(state) {
+        body = body
+            .push(Space::new().height(theme::SP_MD))
+            .push(batch_card);
+    }
+    let body = body
         .push(Space::new().height(theme::SP_MD))
         .push(speedtest_card(state, &lang))
         .push(Space::new().height(theme::SP_MD))
@@ -274,351 +311,237 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     .into()
 }
 
-/// Icon glyph for a proxy-group type tile.
-pub fn group_icon(proxy_type: &str) -> Icon {
-    match proxy_type {
-        "URLTest" | "url-test" | "UrlTest" => Icon::Zap,
-        "Fallback" | "fallback" => Icon::Shield,
-        "LoadBalance" | "load-balance" | "Load-Balance" => Icon::ListChecks,
-        _ => Icon::Globe,
-    }
-}
-
-/// Canonical display name for proxy protocols (Shadowsocks, Vless, VMess, Trojan, Hysteria2).
-pub fn format_protocol_chip(raw_type: &str) -> String {
-    match raw_type.to_ascii_lowercase().as_str() {
-        "shadowsocks" | "ss" => "Shadowsocks".to_string(),
-        "vless" => "Vless".to_string(),
-        "vmess" => "VMess".to_string(),
-        "trojan" => "Trojan".to_string(),
-        "hysteria2" | "hy2" => "Hysteria2".to_string(),
-        "wireguard" => "WireGuard".to_string(),
-        "tuic" => "Tuic".to_string(),
-        "http" => "HTTP".to_string(),
-        "socks5" => "SOCKS5".to_string(),
-        "snell" => "Snell".to_string(),
-        "direct" => "Direct".to_string(),
-        "reject" => "Reject".to_string(),
-        _ if !raw_type.is_empty() => raw_type.to_string(),
-        _ => "Proxy".to_string(),
-    }
-}
-
-/// Small checkmark indicator pill for the active selected proxy node in `badge_accent`.
-fn active_indicator<'a>() -> Element<'a, Message> {
-    badge("✓", BadgeKind::Accent)
-}
-
-/// Common button style for active vs resting node cards with accent glow.
-fn node_button_style(
-    is_active: bool,
-    glow_alpha: f32,
-    blur_radius: f32,
-) -> impl Fn(&Theme, button::Status) -> button::Style {
-    move |t: &Theme, status| {
-        let tk = tokens(t);
-        if is_active {
-            button::Style {
-                background: Some(tk.accent_soft.into()),
-                border: Border {
-                    radius: border::Radius::from(theme::R_CONTROL),
-                    width: 1.5,
-                    color: tk.accent,
-                },
-                shadow: Shadow {
-                    color: Color {
-                        a: if theme::is_amoled(t) {
-                            0.35
-                        } else {
-                            glow_alpha
-                        },
-                        ..tk.accent
-                    },
-                    offset: Vector::new(0.0, 2.0),
-                    blur_radius,
-                },
-                ..Default::default()
+fn outbound_probe_batch_card(state: &AppState) -> Option<Element<'_, Message>> {
+    let close = icon_button(Icon::X, 13.0, Message::DismissOutboundProbeBatch);
+    let card = match &state.runtime.outbound_probe_batch {
+        OutboundProbeBatchState::Idle => return None,
+        OutboundProbeBatchState::Running { request, .. } => {
+            let title = match request.target_scope() {
+                OutboundProbeBatchScope::All => "Probing all observed outbounds".to_owned(),
+                OutboundProbeBatchScope::Collection(id) => {
+                    format!("Probing collection {}", id.value())
+                }
+                OutboundProbeBatchScope::One(id) => format!("Probing outbound {}", id.value()),
+                OutboundProbeBatchScope::Selected(ids) => {
+                    format!("Probing {} selected outbounds", ids.len())
+                }
+            };
+            container(
+                row![
+                    text(title).size(13),
+                    Space::new().width(Length::Fill),
+                    close,
+                ]
+                .align_y(Alignment::Center),
+            )
+        }
+        OutboundProbeBatchState::Ready {
+            request, snapshot, ..
+        } => {
+            let title = match request.target_scope() {
+                OutboundProbeBatchScope::All => "Probe results · all observed outbounds".to_owned(),
+                OutboundProbeBatchScope::Collection(id) => {
+                    format!("Probe results · {}", id.value())
+                }
+                OutboundProbeBatchScope::One(id) => format!("Probe results · {}", id.value()),
+                OutboundProbeBatchScope::Selected(ids) => {
+                    format!("Probe results · {} selected outbounds", ids.len())
+                }
+            };
+            let mut rows = column![].spacing(theme::SP_XS);
+            for item in snapshot.items() {
+                let name = state
+                    .runtime
+                    .outbound_inventory
+                    .data
+                    .as_ref()
+                    .and_then(|inventory| match inventory.inventory() {
+                        OutboundInventoryState::Ready { entries, .. } => entries
+                            .iter()
+                            .find(|entry| entry.id == item.outbound_id)
+                            .map(|entry| {
+                                entry
+                                    .display_name
+                                    .clone()
+                                    .unwrap_or_else(|| item.outbound_id.value().to_owned())
+                            }),
+                        _ => None,
+                    })
+                    .unwrap_or_else(|| item.outbound_id.value().to_owned());
+                let result = match &item.outcome {
+                    OutboundProbeBatchOutcome::Measured { delay_ms } => {
+                        format!("{name}: {delay_ms} ms")
+                    }
+                    OutboundProbeBatchOutcome::TimedOut => format!("{name}: timed out"),
+                    OutboundProbeBatchOutcome::Unsupported => format!("{name}: unsupported"),
+                    OutboundProbeBatchOutcome::Failed { failure } => {
+                        format!("{name}: {}", failure.message)
+                    }
+                };
+                rows = rows.push(text(result).size(12));
             }
-        } else {
-            button::Style {
-                background: match status {
-                    button::Status::Hovered | button::Status::Pressed => Some(tk.control_bg.into()),
-                    _ => Some(tk.card_bg.into()),
-                },
-                border: Border {
-                    radius: border::Radius::from(theme::R_CONTROL),
-                    width: theme::HAIRLINE,
-                    color: tk.card_border,
-                },
-                shadow: tk.card_shadow,
-                ..Default::default()
-            }
+            container(
+                column![
+                    row![
+                        text(title).size(13),
+                        Space::new().width(Length::Fill),
+                        close
+                    ]
+                    .align_y(Alignment::Center),
+                    rows,
+                ]
+                .spacing(theme::SP_SM),
+            )
         }
-    }
-}
-
-/// Node metadata extracted for card and row rendering.
-struct NodeMetadata {
-    node_type: String,
-    udp: bool,
-    is_xudp: bool,
-    delay: Option<u32>,
-    flag: &'static str,
-    is_favorite: bool,
-}
-
-impl NodeMetadata {
-    fn extract(state: &AppState, member_name: &str) -> Self {
-        let node = state
-            .runtime
-            .proxy_groups
-            .iter()
-            .flat_map(|group| &group.proxies)
-            .find(|node| node.name == member_name);
-        Self {
-            node_type: node.map(|node| node.node_type.clone()).unwrap_or_default(),
-            udp: node.is_some_and(|node| node.features.iter().any(|feature| feature == "UDP")),
-            is_xudp: node.is_some_and(|node| {
-                node.features
-                    .iter()
-                    .any(|feature| feature.eq_ignore_ascii_case("xudp"))
-            }),
-            delay: node.and_then(|node| node.delay_ms),
-            flag: node_flag_emoji(member_name),
-            is_favorite: node.is_some_and(|node| node.favorite),
+        OutboundProbeBatchState::Failed {
+            request, failure, ..
+        } => {
+            let retry = state.outbound_probe_batch_message(request.target_scope().clone());
+            let retry_button = button(text("Retry").size(12))
+                .padding([5, 10])
+                .on_press_maybe(retry);
+            container(
+                row![
+                    text(failure.message.clone()).size(12),
+                    Space::new().width(Length::Fill),
+                    retry_button,
+                    close,
+                ]
+                .spacing(theme::SP_SM)
+                .align_y(Alignment::Center),
+            )
         }
-    }
-}
-
-/// 2-column grid of node cards for one expanded group. Column count follows
-/// the shared tier operator (1 / 2 / 3 / 4), or a single dense column while the
-/// user's compact-view preference is on.
-fn node_grid<'a>(
-    state: &'a AppState,
-    group_name: &str,
-    members: &'a [String],
-) -> Element<'a, Message> {
-    let is_active = |member: &str| {
-        state
-            .runtime
-            .proxy_groups
-            .iter()
-            .find(|group| group.name == group_name)
-            .is_some_and(|group| group.current == member)
     };
-
-    let columns = state
-        .shell
-        .viewport
-        .tier
-        .proxy_grid_columns(state.runtime.proxy_compact_view)
-        .max(1);
-
-    let mut grid = column![].spacing(theme::SP_SM);
-    let mut cells = row![].spacing(theme::SP_SM);
-    let mut laid_out = 0usize;
-
-    for member in members {
-        cells = cells.push(node_card(
-            state,
-            group_name,
-            member,
-            is_active(member.as_str()),
-        ));
-        laid_out += 1;
-        if laid_out.is_multiple_of(columns) {
-            grid = grid.push(cells);
-            cells = row![].spacing(theme::SP_SM);
-        }
-    }
-
-    if !laid_out.is_multiple_of(columns) {
-        for _ in 0..(columns - laid_out % columns) {
-            cells = cells.push(Space::new().width(Length::FillPortion(1)));
-        }
-        grid = grid.push(cells);
-    }
-
-    grid.into()
-}
-
-/// Compact single-column list of nodes for high-density viewing.
-fn node_compact_list<'a>(
-    state: &'a AppState,
-    group_name: &str,
-    members: &'a [String],
-) -> Element<'a, Message> {
-    let is_active = |member: &str| {
-        state
-            .runtime
-            .proxy_groups
-            .iter()
-            .find(|group| group.name == group_name)
-            .is_some_and(|group| group.current == member)
-    };
-
-    let mut list = column![].spacing(theme::SP_XS);
-    for member in members {
-        list = list.push(node_compact_row(
-            state,
-            group_name,
-            member,
-            is_active(member.as_str()),
-        ));
-    }
-    list.into()
-}
-
-/// One node card in grid view with flag emoji, protocol/feature chips, latency, and actions.
-fn node_card<'a>(
-    state: &'a AppState,
-    group_name: &str,
-    member_name: &'a str,
-    is_active: bool,
-) -> Element<'a, Message> {
-    let meta = NodeMetadata::extract(state, member_name);
-
-    let mut chips = row![chip(format_protocol_chip(&meta.node_type))].spacing(theme::SP_XS);
-    if meta.udp {
-        chips = chips.push(chip("udp"));
-    }
-    if meta.is_xudp {
-        chips = chips.push(chip("xudp"));
-    }
-
-    let star_btn = icon_button(
-        Icon::Pin,
-        13.0,
-        Message::ToggleFavoriteProxy(member_name.to_string()),
-    );
-    let info_btn = icon_button(
-        Icon::Activity,
-        13.0,
-        Message::InspectProxy(Some(member_name.to_string())),
-    );
-    let active_pill = if is_active {
-        active_indicator()
-    } else {
-        Space::new().width(0).into()
-    };
-
-    let body = row![
-        text(meta.flag).size(16),
-        Space::new().width(theme::SP_XS),
-        column![
-            row![
-                node_name(state, member_name, 13),
-                active_pill,
-                if meta.is_favorite {
-                    Element::from(badge("★", BadgeKind::Warning))
-                } else {
-                    Element::from(Space::new().width(0))
-                },
-            ]
-            .spacing(theme::SP_XS)
-            .align_y(Alignment::Center),
-            chips,
-        ]
-        .spacing(theme::SP_XS)
-        .width(Length::Fill),
-        latency_badge(meta.delay, &Lang(&state.shell.lang)),
-        star_btn,
-        info_btn,
-    ]
-    .spacing(theme::SP_SM)
-    .align_y(Alignment::Center)
-    .width(Length::Fill);
-
-    let mut card_btn = button(
-        container(body)
-            .id(node_region_id(group_name, member_name))
-            .width(Length::Fill)
-            .padding([10, 12]),
+    Some(
+        card.width(Length::Fill)
+            .padding(theme::SP_MD)
+            .style(card_surface)
+            .into(),
     )
-    .width(Length::FillPortion(1))
-    .style(node_button_style(is_active, 0.20, 6.0));
-
-    if !is_active {
-        card_btn = card_btn.on_press(Message::SelectProxy(
-            group_name.to_string(),
-            member_name.to_string(),
-        ));
-    }
-
-    card_btn.into()
 }
 
-/// Compact single-line row representation.
-fn node_compact_row<'a>(
-    state: &'a AppState,
-    group_name: &str,
-    member_name: &'a str,
-    is_active: bool,
-) -> Element<'a, Message> {
-    let meta = NodeMetadata::extract(state, member_name);
-
-    let mut chips = row![chip(format_protocol_chip(&meta.node_type))].spacing(theme::SP_XS);
-    if meta.udp {
-        chips = chips.push(chip("udp"));
-    }
-    if meta.is_xudp {
-        chips = chips.push(chip("xudp"));
-    }
-
-    let star_btn = icon_button(
-        Icon::Pin,
-        12.0,
-        Message::ToggleFavoriteProxy(member_name.to_string()),
-    );
-    let info_btn = icon_button(
-        Icon::Activity,
-        12.0,
-        Message::InspectProxy(Some(member_name.to_string())),
-    );
-    let active_pill = if is_active {
-        active_indicator()
-    } else {
-        Space::new().width(0).into()
-    };
-
-    let body = row![
-        text(meta.flag).size(14),
-        Space::new().width(theme::SP_XS),
-        node_name(state, member_name, 12),
-        active_pill,
-        if meta.is_favorite {
-            Element::from(badge("★", BadgeKind::Warning))
-        } else {
-            Element::from(Space::new().width(0))
+fn outbound_empty_copy(state: &AppState, lang: &Lang<'_>) -> (String, String) {
+    let observation = &state.runtime.outbound_inventory;
+    match (&observation.status, observation.data.as_ref()) {
+        (PageStatus::Loading, _) => (
+            lang.tr("outbound_inventory_loading_title").into_owned(),
+            lang.tr("outbound_inventory_loading_detail").into_owned(),
+        ),
+        (PageStatus::Unavailable { failure }, _) => (
+            lang.tr("outbound_inventory_unavailable_title").into_owned(),
+            failure.message.clone(),
+        ),
+        (PageStatus::Failed { failure }, _) => (
+            lang.tr("outbound_inventory_failed_title").into_owned(),
+            failure.message.clone(),
+        ),
+        (PageStatus::Empty, _) => (
+            lang.tr("outbound_inventory_empty_title").into_owned(),
+            lang.tr("outbound_inventory_empty_detail").into_owned(),
+        ),
+        (PageStatus::Ready, Some(snapshot)) => match snapshot.inventory() {
+            OutboundInventoryState::Unknown => (
+                lang.tr("outbound_inventory_unknown_title").into_owned(),
+                lang.tr("outbound_inventory_unknown_detail").into_owned(),
+            ),
+            OutboundInventoryState::Empty => (
+                lang.tr("outbound_inventory_empty_title").into_owned(),
+                lang.tr("outbound_inventory_empty_detail").into_owned(),
+            ),
+            OutboundInventoryState::Unsupported => (
+                lang.tr("outbound_inventory_unsupported_title").into_owned(),
+                lang.tr("outbound_inventory_unsupported_detail")
+                    .into_owned(),
+            ),
+            OutboundInventoryState::Failed { failure } => (
+                lang.tr("outbound_inventory_failed_title").into_owned(),
+                failure.message.clone(),
+            ),
+            OutboundInventoryState::Ready { collections, .. } if collections.is_empty() => (
+                lang.tr("outbound_inventory_no_collections_title")
+                    .into_owned(),
+                lang.tr("outbound_inventory_no_collections_detail")
+                    .into_owned(),
+            ),
+            OutboundInventoryState::Ready { .. }
+                if !state.runtime.proxy_filter.trim().is_empty() =>
+            {
+                (
+                    lang.tr("outbound_inventory_search_empty").into_owned(),
+                    String::new(),
+                )
+            }
+            OutboundInventoryState::Ready { .. } => (
+                lang.tr("outbound_inventory_no_selectable_title")
+                    .into_owned(),
+                String::new(),
+            ),
         },
-        Space::new().width(theme::SP_XS),
-        chips,
-        Space::new().width(Length::Fill),
-        latency_badge(meta.delay, &Lang(&state.shell.lang)),
-        star_btn,
-        info_btn,
-    ]
-    .spacing(theme::SP_SM)
-    .align_y(Alignment::Center)
-    .width(Length::Fill);
-
-    let mut row_btn = button(
-        container(body)
-            .id(node_region_id(group_name, member_name))
-            .width(Length::Fill)
-            .padding([6, 10]),
-    )
-    .width(Length::Fill)
-    .style(node_button_style(is_active, 0.16, 4.0));
-
-    if !is_active {
-        row_btn = row_btn.on_press(Message::SelectProxy(
-            group_name.to_string(),
-            member_name.to_string(),
-        ));
+        (PageStatus::Ready, None) => (
+            lang.tr("outbound_inventory_unavailable_title").into_owned(),
+            lang.tr("outbound_inventory_missing_detail").into_owned(),
+        ),
     }
+}
 
-    row_btn.into()
+fn outbound_group_status(group: &OutboundGroupView, lang: &Lang<'_>) -> String {
+    if let OutboundObservation::Observed(kind) = &group.collection_kind {
+        return match kind {
+            OutboundCollectionKind::ManualSelection => {
+                lang.tr("outbound_availability_selectable").into_owned()
+            }
+            OutboundCollectionKind::AutomaticSelection => {
+                lang.tr("outbound_availability_automatic").into_owned()
+            }
+            OutboundCollectionKind::Failover => "Failover".to_owned(),
+            OutboundCollectionKind::LoadBalancing => "Load balancing".to_owned(),
+            OutboundCollectionKind::Relay => "Relay".to_owned(),
+        };
+    }
+    let availability = match group.availability {
+        SelectionAvailability::Selectable => lang.tr("outbound_availability_selectable"),
+        SelectionAvailability::ReadOnly => lang.tr("outbound_availability_read_only"),
+        SelectionAvailability::Automatic => lang.tr("outbound_availability_automatic"),
+        SelectionAvailability::Unsupported => lang.tr("outbound_availability_unsupported"),
+        SelectionAvailability::Unknown => lang.tr("outbound_availability_unknown"),
+    };
+    let selection_state = match &group.selection {
+        OutboundSelectionViewState::Unknown => {
+            Some(lang.tr("outbound_selection_unknown").into_owned())
+        }
+        OutboundSelectionViewState::Selected(_) => None,
+        OutboundSelectionViewState::Empty => Some(lang.tr("outbound_selection_empty").into_owned()),
+        OutboundSelectionViewState::Unsupported => {
+            Some(lang.tr("outbound_selection_unsupported").into_owned())
+        }
+        OutboundSelectionViewState::Failed(failure) => Some(failure.message.clone()),
+    };
+    let availability = availability.into_owned();
+    selection_state.map_or(availability.clone(), |selection| {
+        format!("{availability} · {selection}")
+    })
+}
+
+fn outbound_group_icon(group: &OutboundGroupView) -> Icon {
+    use infiltrator_contract::outbound::details::{OutboundCollectionKind, OutboundObservation};
+    match &group.collection_kind {
+        OutboundObservation::Observed(OutboundCollectionKind::AutomaticSelection) => Icon::Zap,
+        OutboundObservation::Observed(OutboundCollectionKind::Failover) => Icon::Shield,
+        OutboundObservation::Observed(OutboundCollectionKind::LoadBalancing) => Icon::ListChecks,
+        OutboundObservation::Observed(OutboundCollectionKind::ManualSelection)
+        | OutboundObservation::Observed(OutboundCollectionKind::Relay)
+        | OutboundObservation::Unknown
+        | OutboundObservation::Unsupported => Icon::Globe,
+    }
+}
+
+fn member_view<'a>(state: &'a AppState, member_name: &str) -> Option<&'a OutboundMemberView> {
+    state
+        .runtime
+        .proxy_groups
+        .iter()
+        .flat_map(|group| &group.proxies)
+        .find(|node| node.name == member_name)
 }
 
 /// Neutral pill surface for resting-state labels (e.g. "testing all...").

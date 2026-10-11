@@ -9,10 +9,10 @@ infiltrator-iced binary:
   1. the app registered org.kde.StatusNotifierItem-<app_pid>-<n>;
   2. item properties (Id/Title/Menu object path);
   3. GetLayout tree structure (top-level sequence, separators, checkmarks,
-     submenus, disabled placeholders, the app's "● " active-mode marker);
+     submenus, disabled placeholders, the app's "● " active-intent marker);
   4. AboutToShow liveness;
-  5. a real "clicked" Event on Proxy Mode -> Global flips the "● " marker
-     (optimistic state change + refresh_tray reaching the SNI menu);
+  5. a real "clicked" Event on Traffic routing intent -> Route all traffic
+     through proxy leaves the observed choice unchanged without a running Core;
   6. a real "clicked" Event on the "Launch at Login" checkmark flips
      toggle-state 0 -> 1 (bash asserts the resulting autostart file later).
 
@@ -39,7 +39,7 @@ MENU_PATH = "/MenuBar"
 EXPECTED_TOP = [
     ("item", "Show Main Window"),
     ("sep", ""),
-    ("sub", "Proxy Mode"),
+    ("sub", "Traffic routing intent"),
     ("sub", "Nodes"),
     ("sep", ""),
     ("chk", "System Proxy"),
@@ -56,7 +56,11 @@ EXPECTED_TOP = [
     ("item", "Factory Reset…"),
     ("item", "Quit"),
 ]
-EXPECTED_MODE = ["Rule", "Global", "Direct", "Script Mode (not enabled)"]
+EXPECTED_ROUTING_INTENTS = [
+    "Follow rules",
+    "Route all traffic through proxy",
+    "Bypass proxy",
+]
 
 
 def unwrap(value):
@@ -214,14 +218,19 @@ def main() -> int:
                  f"{len(actual)} top-level entries (expected {len(expected)}): "
                  f"{_fmt(actual)} vs expected {_fmt(expected)}")
 
-    mode = Checker.find(root, "Proxy Mode")
-    mode_children = [child["label"] for child in (mode or {}).get("children", [])]
-    script = (mode or {}).get("children", [None, None, None, {}])[-1] if mode else None
-    mode_ok = (mode is not None and mode["kind"] == "sub" and mode["enabled"]
-               and mode_children == EXPECTED_MODE
-               and script is not None and script["enabled"] is False)
-    check.record(mode_ok, "mode_submenu",
-                 f"children={mode_children}; script entry disabled without script block")
+    routing_menu = Checker.find(root, "Traffic routing intent")
+    routing_children = [child["label"] for child in (routing_menu or {}).get("children", [])]
+    routing_ok = (
+        routing_menu is not None
+        and routing_menu["kind"] == "sub"
+        and routing_menu["enabled"]
+        and routing_children == EXPECTED_ROUTING_INTENTS
+    )
+    check.record(
+        routing_ok,
+        "routing_intent_submenu",
+        f"children={routing_children}; only the three common typed choices are exposed",
+    )
 
     profiles = Checker.find(root, "Profiles")
     placeholder = ((profiles or {}).get("children") or [{}])[0]
@@ -231,58 +240,51 @@ def main() -> int:
     check.record(profiles_ok, "profiles_placeholder",
                  f"fresh HOME reflected in tray: {placeholder}")
 
-    marks = [child["label"] for child in (mode or {}).get("children", [])
+    marks = [child["label"] for child in (routing_menu or {}).get("children", [])
              if child["label"].startswith(MARK)]
-    check.record(True, "initial_mode_mark",
-                 f"initial active-mode marks: {marks or 'none (fresh state, mode unset)'}")
+    check.record(True, "initial_routing_intent_mark",
+                 f"initial active-intent marks: {marks or 'none (fresh state, intent unset)'}")
 
     # 4. AboutToShow liveness -------------------------------------------------
     try:
-        ats = check.about_to_show(mode["id"]) if mode else None
+        ats = check.about_to_show(routing_menu["id"]) if routing_menu else None
         check.record(isinstance(ats, bool), "about_to_show",
-                     f"AboutToShow(Proxy Mode id={mode['id'] if mode else '?'}) -> {ats}")
+                     f"AboutToShow(routing intent id={routing_menu['id'] if routing_menu else '?'}) -> {ats}")
     except dbus.DBusException as error:
         check.record(False, "about_to_show", f"failed: {error}")
 
-    if not (mode_ok and profiles_ok and actual == expected):
+    if not (routing_ok and profiles_ok and actual == expected):
         emit(check, args.report)
         return 1
 
-    # 5. real click: Proxy Mode -> Global flips the "● " marker ---------------
-    targets = {child["label"]: child["id"] for child in mode["children"]}
-    global_id = targets.get("Global")
-    if global_id is None:
-        check.record(False, "click_global_send", "no 'Global' entry in Proxy Mode submenu")
+    # 5. real click: a routing request without a running Core never changes the observation.
+    targets = {child["label"]: child["id"] for child in routing_menu["children"]}
+    route_all_id = targets.get("Route all traffic through proxy")
+    if route_all_id is None:
+        check.record(False, "click_routing_intent_send", "common route-all choice is absent")
         emit(check, args.report)
         return 1
     try:
-        check.click(global_id)
-        check.record(True, "click_global_send",
-                     f"Event(id={global_id}, 'clicked') sent to com.canonical.dbusmenu")
+        check.click(route_all_id)
+        check.record(True, "click_routing_intent_send",
+                     f"Event(id={route_all_id}, 'clicked') sent to com.canonical.dbusmenu")
     except dbus.DBusException as error:
-        check.record(False, "click_global_send", f"Event failed: {error}")
+        check.record(False, "click_routing_intent_send", f"Event failed: {error}")
         emit(check, args.report)
         return 1
-    flipped, rev1, tree1 = check.wait_for(
-        lambda tree: any(child["label"] == MARK + "Global"
-                         for child in (Checker.find(tree, "Proxy Mode")
-                                       or {"children": []})["children"]),
-        args.click_timeout)
-    detail = (f"'{MARK}Global' observed after real click "
-              f"(revision {rev0} -> {rev1}, "
-              f"initial marks: {marks or 'none'})")
-    # 0.20 fix semantics: without a running core the app must NOT flip the
-    # mode optimistically — the tray never shows a mode that never took
-    # effect (SetProxyMode lands in the runtime-unavailable branch).
     not_flipped, rev1, tree1 = check.wait_for(
-        lambda tree: not any(child["label"] == MARK + "Global"
-                             for child in (Checker.find(tree, "Proxy Mode")
-                                           or {"children": []})["children"]),
-        args.click_timeout)
-    check.record(not_flipped, "click_global_no_optimistic_flip",
-                 "no '● Global' without a running core — the tray never lies "
-                 f"(revision {rev0} -> {rev1}, initial marks: {marks or 'none'})")
-    _ = flipped, detail
+        lambda tree: not any(
+            child["label"] == MARK + "Route all traffic through proxy"
+            for child in (Checker.find(tree, "Traffic routing intent") or {"children": []})["children"]
+        ),
+        args.click_timeout,
+    )
+    check.record(
+        not_flipped,
+        "click_routing_intent_no_optimistic_change",
+        "the observed choice stays unchanged without a running Core "
+        f"(revision {rev0} -> {rev1}, initial marks: {marks or 'none'})",
+    )
 
     # 6. real click: autostart checkmark toggle-state 0 -> 1 ------------------
     root_after_global = tree1

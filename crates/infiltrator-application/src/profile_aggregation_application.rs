@@ -11,7 +11,7 @@
 //! registry) because the desktop service outlives any single surface window:
 //! a preview produced from either surface is projected to both.
 
-use crate::profile_application::ProfileApplication;
+use crate::profile_application::{ProfileActivationOutcome, ProfileApplication};
 use chrono::Utc;
 use infiltrator_contract::aggregator::{
     AggregatedProfileOutcome, AggregationDraft, AggregationReport, AggregationTemplate,
@@ -87,6 +87,12 @@ pub fn aggregation_options(draft: &AggregationDraft) -> AggregationOptions {
 #[derive(Clone)]
 pub struct ProfileAggregationApplication {
     profile: ProfileApplication,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum AggregationActivation {
+    NotRequested,
+    Completed(ProfileActivationOutcome),
 }
 
 impl ProfileAggregationApplication {
@@ -181,10 +187,11 @@ impl ProfileAggregationApplication {
         // leaves no partial profile behind.
         self.profile.save_profile(&name, &report.yaml).await?;
 
-        let (activated, core_reloaded) = if draft.activate_after_create {
-            self.activate_generated_profile(runtime, &name).await?
-        } else {
-            (false, false)
+        let activation = match draft.activate_after_create {
+            true => AggregationActivation::Completed(
+                self.activate_generated_profile(runtime, &name).await?,
+            ),
+            false => AggregationActivation::NotRequested,
         };
 
         // Remember the wizard configuration under the generated profile name.
@@ -199,8 +206,22 @@ impl ProfileAggregationApplication {
         Ok(AggregatedProfileOutcome {
             profile_name: name,
             report,
-            activated,
-            core_reloaded,
+            activated: match activation {
+                AggregationActivation::NotRequested => false,
+                AggregationActivation::Completed(_) => true,
+            },
+            core_reloaded: match activation {
+                AggregationActivation::NotRequested
+                | AggregationActivation::Completed(
+                    ProfileActivationOutcome::AlreadySelectedWithoutRuntime
+                    | ProfileActivationOutcome::AlreadySelectedWithRuntime
+                    | ProfileActivationOutcome::SelectedWithoutRuntime
+                    | ProfileActivationOutcome::CurrentProfileUpdatedAndApplied,
+                ) => false,
+                AggregationActivation::Completed(ProfileActivationOutcome::SelectedAndApplied) => {
+                    true
+                }
+            },
             template_name,
         })
     }
@@ -298,38 +319,43 @@ impl ProfileAggregationApplication {
 
         let report = self.preview(&template.draft).await?;
         self.profile.save_profile(&name, &report.yaml).await?;
-        let (activated, core_reloaded) = if template.draft.activate_after_create {
-            self.activate_generated_profile(runtime, &name).await?
-        } else {
-            (false, false)
+        let activation = match template.draft.activate_after_create {
+            true => AggregationActivation::Completed(
+                self.activate_generated_profile(runtime, &name).await?,
+            ),
+            false => AggregationActivation::NotRequested,
         };
 
         Ok(AggregatedProfileOutcome {
             profile_name: name,
             report,
-            activated,
-            core_reloaded,
+            activated: match activation {
+                AggregationActivation::NotRequested => false,
+                AggregationActivation::Completed(_) => true,
+            },
+            core_reloaded: match activation {
+                AggregationActivation::NotRequested
+                | AggregationActivation::Completed(
+                    ProfileActivationOutcome::AlreadySelectedWithoutRuntime
+                    | ProfileActivationOutcome::AlreadySelectedWithRuntime
+                    | ProfileActivationOutcome::SelectedWithoutRuntime
+                    | ProfileActivationOutcome::CurrentProfileUpdatedAndApplied,
+                ) => false,
+                AggregationActivation::Completed(ProfileActivationOutcome::SelectedAndApplied) => {
+                    true
+                }
+            },
             template_name: Some(template.name),
         })
     }
 
-    /// Switch to a freshly generated profile through the shared activation
-    /// path, returning `(activated, core_reloaded)`.
+    /// Switch to a freshly generated profile through the shared typed activation path.
     async fn activate_generated_profile<R: ManagedRuntime + ?Sized>(
         &self,
         runtime: Option<Arc<R>>,
         name: &str,
-    ) -> Result<(bool, bool), Failure> {
-        match runtime {
-            Some(runtime) => Ok((
-                true,
-                self.profile.activate_profile(Some(runtime), name).await?,
-            )),
-            None => {
-                self.profile.select_profile(name).await?;
-                Ok((true, false))
-            }
-        }
+    ) -> Result<ProfileActivationOutcome, Failure> {
+        self.profile.activate_profile(runtime, name).await
     }
 }
 

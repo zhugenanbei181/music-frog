@@ -54,8 +54,17 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let manager = setup_test_manager(&temp_dir).await;
 
-        assert_eq!(manager.config_dir, temp_dir.path().join("configs"));
-        assert_eq!(manager.settings_file, temp_dir.path().join("config.toml"));
+        assert_eq!(
+            manager.config_dir,
+            crate::manager::paths::engine_config_dir(
+                &temp_dir.path().join("configs"),
+                &crate::engine_id(),
+            )
+        );
+        assert_eq!(
+            manager.settings_file,
+            manager.config_dir.join("profile-state.toml")
+        );
     }
 
     #[tokio::test]
@@ -501,7 +510,7 @@ external-controller: http://127.0.0.1:9090
             .unwrap();
 
         // 2. Verify store has the secret
-        let key = "subscription:test".to_string();
+        let key = "subscription:mihomo:test".to_string();
         assert_eq!(
             store.data.lock().unwrap().get(&key).unwrap(),
             "https://secret.url/sub"

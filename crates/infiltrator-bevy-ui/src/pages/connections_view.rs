@@ -30,6 +30,7 @@ use infiltrator_application::connection_grouping::{ConnectionGroupingState, sort
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::localization::LocalizedText;
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::text_input::TextField;
 use infiltrator_bevy_widgets::theme::space;
@@ -105,8 +106,8 @@ pub fn sort_pills_scene(palette: &UiPalette) -> impl Scene + use<> {
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::FlexEnd,
                 flex_wrap: FlexWrap::Wrap,
-                row_gap: Val::Px(space::S4),
-                column_gap: Val::Px(space::S4),
+                row_gap: rem(space::S4),
+                column_gap: rem(space::S4),
             }
             Children [
                 { pills }
@@ -125,7 +126,7 @@ fn sort_pill(key: ConnectionSortKey, palette: &UiPalette) -> impl Scene + use<> 
 
     bsn! {
             Node {
-                padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S4)),
+                padding: UiRect::axes(rem(space::S8), rem(space::S4)),
                 border_radius: BorderRadius::all(Val::Px(4.0)),
                 align_items: AlignItems::Center,
             }
@@ -283,6 +284,7 @@ pub(crate) fn restamp_aggregation_pills<F: QueryFilter>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use infiltrator_contract::connection::ConnectionRateObservation;
     #[cfg(test)]
     use infiltrator_contract::connection::ConnectionStreamPhase;
 
@@ -302,7 +304,7 @@ mod tests {
             source_port: "50000".to_owned(),
             destination_ip: "1.1.1.1".to_owned(),
             destination_port: "443".to_owned(),
-            rate_observed: true,
+            rate_observation: ConnectionRateObservation::Measured,
             upload_bps: 0.0,
             download_bps: 0.0,
             upload_total: up,

@@ -90,7 +90,7 @@ fn test_rules_tab_partition_matches_the_shared_capability_set() {
         ));
     }
     assert_eq!(app.world().resource::<RulesTabState>().tab, RulesTab::List);
-    activate(&mut app, json_chip);
+    select_rules_tab(&mut app, json_chip);
     assert_eq!(
         app.world().resource::<RulesTabState>().tab,
         RulesTab::JsonEditors

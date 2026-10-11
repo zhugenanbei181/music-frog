@@ -18,6 +18,7 @@ use bevy::ecs::observer::On;
 use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
+use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::{CommandsSceneExt, Scene, bsn};
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, Val,
@@ -27,10 +28,12 @@ use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
 use infiltrator_application::logical_rule_projection::project_logical_rule;
 use infiltrator_bevy_widgets::button::ButtonDisabled;
+use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
 use infiltrator_bevy_widgets::localization::LocalizedText;
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::text_input::TextField;
@@ -130,14 +133,14 @@ pub fn rules_subrules_scene(palette: &UiPalette, state: &RulesSubRuleState) -> i
                                 width: percent(100),
                                 align_items: AlignItems::Center,
                                 justify_content: JustifyContent::SpaceBetween,
-                                padding: UiRect::bottom(Val::Px(space::S8)),
-                                column_gap: Val::Px(space::S8),
+                                padding: UiRect::bottom(rem(space::S8)),
+                                column_gap: rem(space::S8),
                             }
                             RulesSubRuleRoot
                             Children [
                                 Node {
                                     align_items: AlignItems::Center,
-                                    column_gap: Val::Px(space::S8),
+                                    column_gap: rem(space::S8),
                                 }
                                 Children [
                                     @{ icon_tile_scene(IconId::Zap, 24.0, palette) }
@@ -151,7 +154,7 @@ pub fn rules_subrules_scene(palette: &UiPalette, state: &RulesSubRuleState) -> i
                                 --
                                 Node {
                                     align_items: AlignItems::Center,
-                                    column_gap: Val::Px(space::S6),
+                                    column_gap: rem(space::S6),
                                 }
                                 Children [
                                     { chips }
@@ -162,7 +165,7 @@ pub fn rules_subrules_scene(palette: &UiPalette, state: &RulesSubRuleState) -> i
                             Node {
                                 width: percent(100),
                                 flex_direction: FlexDirection::Column,
-                                row_gap: Val::Px(space::S6),
+                                row_gap: rem(space::S6),
                             }
                             SubRuleConditionList
                             Children [
@@ -173,12 +176,12 @@ pub fn rules_subrules_scene(palette: &UiPalette, state: &RulesSubRuleState) -> i
                             Node {
                                 width: percent(100),
                                 align_items: AlignItems::Center,
-                                column_gap: Val::Px(space::S8),
+                                column_gap: rem(space::S8),
                             }
                             Children [
                                 Node {
                                     align_items: AlignItems::Center,
-                                    column_gap: Val::Px(space::S6),
+                                    column_gap: rem(space::S6),
                                 }
                                 Children [
                                     { preset_buttons }
@@ -201,13 +204,13 @@ pub fn rules_subrules_scene(palette: &UiPalette, state: &RulesSubRuleState) -> i
                                 width: percent(100),
                                 align_items: AlignItems::Center,
                                 justify_content: JustifyContent::SpaceBetween,
-                                padding: UiRect::vertical(Val::Px(space::S4)),
-                                column_gap: Val::Px(space::S8),
+                                padding: UiRect::vertical(rem(space::S4)),
+                                column_gap: rem(space::S8),
                             }
                             Children [
                                 Node {
                                     align_items: AlignItems::Center,
-                                    column_gap: Val::Px(space::S8),
+                                    column_gap: rem(space::S8),
                                 }
                                 Children [
                                     Text({display.preview.clone()}) SubRulePreviewLine TextRole(Role::Caption)
@@ -216,13 +219,13 @@ pub fn rules_subrules_scene(palette: &UiPalette, state: &RulesSubRuleState) -> i
                                 ]
                                 --
                                 Node {
-                                    min_height: px(palette.control_height_px),
-                                    padding: UiRect::horizontal(Val::Px(space::S12)),
+                                    min_height: rem(palette.control_height_px),
+                                    padding: UiRect::horizontal(rem(space::S12)),
                                     align_items: AlignItems::Center,
                                     justify_content: JustifyContent::Center,
-                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                    border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                                 }
-                                BackgroundColor({ palette.accent })
+                                ThemeBackgroundColor({ Token::Accent })
                                 Button
                                 SubRuleInsertButton RuleDraftMutationButton ButtonDisabled(true)
                                 Children [
@@ -240,7 +243,7 @@ fn condition_rows_scene(draft: &LogicalDraft, palette: &UiPalette) -> impl Scene
         vec![Box::new(bsn! {
                     Node {
                         width: percent(100),
-                        padding: UiRect::all(Val::Px(space::S6)),
+                        padding: UiRect::all(rem(space::S6)),
                     }
                     Children [
                         LocalizedText::plain("subrules_no_conditions") TextRole(Role::Caption)
@@ -261,7 +264,7 @@ fn condition_rows_scene(draft: &LogicalDraft, palette: &UiPalette) -> impl Scene
             Node {
                 width: percent(100),
                 flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(space::S4),
+                row_gap: rem(space::S4),
             }
             Children [
                 { rows }
@@ -269,29 +272,29 @@ fn condition_rows_scene(draft: &LogicalDraft, palette: &UiPalette) -> impl Scene
     }
 }
 
-fn condition_row(index: usize, condition: String, palette: &UiPalette) -> impl Scene + use<> {
+fn condition_row(index: usize, condition: String, _palette: &UiPalette) -> impl Scene + use<> {
     let label = format!("#{} {condition}", index + 1);
     bsn! {
             Node {
                 width: percent(100),
-                padding: UiRect::all(Val::Px(space::S6)),
+                padding: UiRect::all(rem(space::S6)),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::SpaceBetween,
                 border_radius: BorderRadius::all(Val::Px(4.0)),
             }
-            BackgroundColor({ palette.surface_elevated })
+            ThemeBackgroundColor({ Token::SurfaceElevated })
             SubRuleConditionRow(index)
             Children [
                 Text(label) TextRole(Role::Caption)
                 --
                 Node {
-                    min_height: px(22.0),
-                    padding: UiRect::horizontal(Val::Px(space::S6)),
+                    min_height: rem(22.0),
+                    padding: UiRect::horizontal(rem(space::S6)),
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::Center,
                     border_radius: BorderRadius::all(Val::Px(4.0)),
                 }
-                BackgroundColor({ palette.border })
+                ThemeBackgroundColor({ Token::Border })
                 Button
                 SubRuleRemoveConditionButton(index)
                 Children [
@@ -314,8 +317,8 @@ fn operator_chip(
     };
     bsn! {
             Node {
-                min_height: px(26.0),
-                padding: UiRect::horizontal(Val::Px(space::S8)),
+                min_height: rem(26.0),
+                padding: UiRect::horizontal(rem(space::S8)),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
                 border_radius: BorderRadius::all(Val::Px(4.0)),
@@ -329,16 +332,16 @@ fn operator_chip(
     }
 }
 
-fn preset_button(index: usize, preset: String, palette: &UiPalette) -> impl Scene + use<> {
+fn preset_button(index: usize, preset: String, _palette: &UiPalette) -> impl Scene + use<> {
     bsn! {
             Node {
-                min_height: px(24.0),
-                padding: UiRect::horizontal(Val::Px(space::S8)),
+                min_height: rem(24.0),
+                padding: UiRect::horizontal(rem(space::S8)),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
                 border_radius: BorderRadius::all(Val::Px(4.0)),
             }
-            BackgroundColor({ palette.surface_elevated })
+            ThemeBackgroundColor({ Token::SurfaceElevated })
             Button
             SubRulePresetButton(index)
             Children [

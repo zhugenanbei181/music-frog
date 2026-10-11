@@ -2,8 +2,8 @@ mod bootstrap;
 mod connection;
 mod doctor;
 mod kernel;
+mod outbound;
 mod profile;
-mod proxy;
 mod service;
 mod sync;
 mod telemetry;
@@ -37,7 +37,7 @@ async fn dispatch(command: Commands) -> anyhow::Result<i32> {
         Commands::Kernel { action } => kernel::handle(action).await.map(|()| EXIT_OK),
         Commands::Profile { action } => profile::handle(action).await.map(|()| EXIT_OK),
         Commands::Service { action } => service::handle(action).await.map(|()| EXIT_OK),
-        Commands::Proxy { action } => proxy::handle(action).await.map(|()| EXIT_OK),
+        Commands::Outbound { action } => outbound::handle(action).await.map(|()| EXIT_OK),
         Commands::Connection { action } => connection::handle(action).await.map(|()| EXIT_OK),
         Commands::Sync { action } => sync::handle(action).await.map(|()| EXIT_OK),
     }

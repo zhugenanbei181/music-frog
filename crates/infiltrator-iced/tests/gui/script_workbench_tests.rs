@@ -1,7 +1,9 @@
 //! test-intent: behavior
 //! Native TEA commands run the actual product facade, never an in-UI engine.
 use crate::state::AppState;
-use crate::test_mounts::command_harness::recording_application;
+use crate::test_mounts::command_harness::{
+    attach_product_application_with_accepted_owner_snapshot, recording_application,
+};
 use crate::types::message::Message;
 use crate::types::script::ScriptAction;
 use futures_util::StreamExt;
@@ -21,8 +23,7 @@ pub(crate) fn setup(scripts: ScriptApplication, exports: ScriptExportApplication
         CommandApplication::new().with_scripts(scripts, exports),
     ));
     let (mut state, _) = AppState::new();
-    state.commands = Some(commands);
-    state.shell.demo = false;
+    attach_product_application_with_accepted_owner_snapshot(&mut state, commands);
     state
 }
 pub(crate) fn complete(state: &mut AppState, task: Task<Message>) {

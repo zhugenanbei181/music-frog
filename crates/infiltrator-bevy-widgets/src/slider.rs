@@ -5,6 +5,7 @@
 //! compare-and-set repaint stylists.
 
 use crate::palette::UiPalette;
+use crate::palette::rem;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::Children;
@@ -142,7 +143,7 @@ pub fn slider_scene(value: f32, start: f32, end: f32, palette: &UiPalette) -> im
     bsn! {
             Node {
                 width: percent(100),
-                height: px(palette.control_square_px),
+                height: rem(palette.control_square_px),
                 align_items: AlignItems::Center,
             }
             Slider
@@ -151,7 +152,7 @@ pub fn slider_scene(value: f32, start: f32, end: f32, palette: &UiPalette) -> im
             Children [
                 Node {
                     width: percent(100),
-                    height: px(palette.track_height_px),
+                    height: rem(palette.track_height_px),
                     border_radius: BorderRadius::all(Val::Px(
                             palette.track_height_px * 0.5,
                     )),
@@ -160,7 +161,7 @@ pub fn slider_scene(value: f32, start: f32, end: f32, palette: &UiPalette) -> im
                 Children [
                     Node {
                         width: Val::Percent(travel),
-                        height: px(palette.track_height_px),
+                        height: rem(palette.track_height_px),
                         border_radius: BorderRadius::all(Val::Px(
                                 palette.track_height_px * 0.5,
                         )),
@@ -173,8 +174,8 @@ pub fn slider_scene(value: f32, start: f32, end: f32, palette: &UiPalette) -> im
                     position_type: PositionType::Absolute,
                     left: Val::Percent(travel),
                     top: px(0.0),
-                    width: px(palette.control_square_px),
-                    height: px(palette.control_square_px),
+                    width: rem(palette.control_square_px),
+                    height: rem(palette.control_square_px),
                     border_radius: BorderRadius::all(Val::Px(
                             palette.control_square_px * 0.5,
                     )),
@@ -202,7 +203,7 @@ pub fn range_slider_scene(
     bsn! {
             Node {
                 width: percent(100),
-                height: px(palette.control_square_px),
+                height: rem(palette.control_square_px),
                 align_items: AlignItems::Center,
             }
             RangeSlider
@@ -211,7 +212,7 @@ pub fn range_slider_scene(
             Children [
                 Node {
                     width: percent(100),
-                    height: px(palette.track_height_px),
+                    height: rem(palette.track_height_px),
                     border_radius: BorderRadius::all(Val::Px(
                             palette.track_height_px * 0.5,
                     )),
@@ -222,7 +223,7 @@ pub fn range_slider_scene(
                         position_type: PositionType::Absolute,
                         left: Val::Percent(fill_left),
                         width: Val::Percent(fill_width),
-                        height: px(palette.track_height_px),
+                        height: rem(palette.track_height_px),
                         border_radius: BorderRadius::all(Val::Px(
                                 palette.track_height_px * 0.5,
                         )),
@@ -235,8 +236,8 @@ pub fn range_slider_scene(
                     position_type: PositionType::Absolute,
                     left: Val::Percent(thumb_min_left),
                     top: px(0.0),
-                    width: px(palette.control_square_px),
-                    height: px(palette.control_square_px),
+                    width: rem(palette.control_square_px),
+                    height: rem(palette.control_square_px),
                     border_radius: BorderRadius::all(Val::Px(
                             palette.control_square_px * 0.5,
                     )),
@@ -248,8 +249,8 @@ pub fn range_slider_scene(
                     position_type: PositionType::Absolute,
                     left: Val::Percent(thumb_max_left),
                     top: px(0.0),
-                    width: px(palette.control_square_px),
-                    height: px(palette.control_square_px),
+                    width: rem(palette.control_square_px),
+                    height: rem(palette.control_square_px),
                     border_radius: BorderRadius::all(Val::Px(
                             palette.control_square_px * 0.5,
                     )),

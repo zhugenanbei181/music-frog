@@ -1,7 +1,9 @@
 //! test-intent: behavior
 //! Native TEA executes actual reviewed commits and retains the review through real failures.
 use crate::state::AppState;
-use crate::test_mounts::command_harness::recording_application;
+use crate::test_mounts::command_harness::{
+    attach_product_application_with_accepted_owner_snapshot, recording_application,
+};
 use crate::test_mounts::script_workbench_tests::complete;
 use crate::types::message::Message;
 use crate::types::snapshot_restore::RestoreAction;
@@ -19,7 +21,7 @@ fn setup() -> (AppState, SnapshotRestoreFixture) {
         CommandApplication::new().with_snapshots(fixture.application.clone()),
     ));
     let (mut state, _) = AppState::new();
-    state.commands = Some(core);
+    attach_product_application_with_accepted_owner_snapshot(&mut state, core);
     state.editor.editor_path = Some(PathBuf::from("/memory/configs/main.yaml"));
     state.editor.editor_content = text_editor::Content::with_text(BEFORE);
     (state, fixture)

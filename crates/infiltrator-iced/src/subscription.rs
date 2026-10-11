@@ -15,6 +15,7 @@ use iced::theme::Mode;
 use iced::{Subscription, keyboard, stream, window};
 use infiltrator_application::system_proxy_application::SystemProxyApplication;
 use infiltrator_contract::cadence::RenderCadence;
+use infiltrator_contract::core_identity::CoreScope;
 use infiltrator_contract::shortcuts::KeyModifiers;
 use infiltrator_ports::host_runtime::HostRuntime;
 use infiltrator_ports::runtime_gateway::RuntimeStreamEvent;
@@ -26,7 +27,7 @@ use tokio::time::{self, sleep};
 #[derive(Clone)]
 struct RuntimeStreamInput {
     identity: usize,
-    generation: u64,
+    scope: CoreScope,
     gateway: Arc<dyn HostRuntime>,
     log_level: String,
     shared_logs: bool,
@@ -47,23 +48,26 @@ impl Hash for SystemProxyWatchdogInput {
 impl Hash for RuntimeStreamInput {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.identity.hash(state);
-        self.generation.hash(state);
+        self.scope.identity.hash(state);
+        self.scope.generation.hash(state);
+        self.scope.session_token.hash(state);
         self.log_level.hash(state);
         self.shared_logs.hash(state);
     }
 }
 
 /// Start the three controller streams as one declarative subscription. The
-/// identity is tied to the runtime Arc and CoreApplication generation, so a
-/// stopped/rebuilt core cancels all old receivers before a new one starts.
+/// identity is tied to the runtime Arc and full core scope, so a stopped or
+/// replaced core cancels all old receivers before a new one starts.
 pub(crate) fn runtime_streams_subscription(
     runtime: &Arc<dyn HostRuntime>,
+    scope: CoreScope,
     log_level: &str,
     shared_logs: bool,
 ) -> Subscription<Message> {
     let input = RuntimeStreamInput {
         identity: Arc::as_ptr(runtime) as *const () as usize,
-        generation: runtime.generation(),
+        scope,
         gateway: runtime.clone(),
         log_level: log_level.to_string(),
         shared_logs,
@@ -78,18 +82,18 @@ fn build_runtime_stream(input: &RuntimeStreamInput) -> BoxStream<'static, Messag
             if !input.shared_logs {
                 let _ = output.try_send(stream_state(
                     RuntimeStreamKind::Logs,
-                    input.generation,
+                    &input.scope,
                     RuntimeStreamState::Connecting,
                 ));
             }
             let _ = output.try_send(stream_state(
                 RuntimeStreamKind::Traffic,
-                input.generation,
+                &input.scope,
                 RuntimeStreamState::Connecting,
             ));
             let _ = output.try_send(stream_state(
                 RuntimeStreamKind::Connections,
-                input.generation,
+                &input.scope,
                 RuntimeStreamState::Connecting,
             ));
 
@@ -110,21 +114,21 @@ fn build_runtime_stream(input: &RuntimeStreamInput) -> BoxStream<'static, Messag
                     if let Err(error) = logs {
                         let _ = output.try_send(stream_state(
                             RuntimeStreamKind::Logs,
-                            input.generation,
+                            &input.scope,
                             RuntimeStreamState::Failed(error.to_string()),
                         ));
                     }
                     if let Err(error) = traffic {
                         let _ = output.try_send(stream_state(
                             RuntimeStreamKind::Traffic,
-                            input.generation,
+                            &input.scope,
                             RuntimeStreamState::Failed(error.to_string()),
                         ));
                     }
                     if let Err(error) = connections {
                         let _ = output.try_send(stream_state(
                             RuntimeStreamKind::Connections,
-                            input.generation,
+                            &input.scope,
                             RuntimeStreamState::Failed(error.to_string()),
                         ));
                     }
@@ -137,17 +141,17 @@ fn build_runtime_stream(input: &RuntimeStreamInput) -> BoxStream<'static, Messag
                 tokio::select! {
                     item = logs.next() => match item {
                         Some(RuntimeStreamEvent::Item(line)) => {
-                            if output.try_send(Message::RuntimeStreamLogReceived(input.generation, line)).is_err() { return; }
+                            if output.try_send(Message::RuntimeStreamLogReceived(input.scope.clone(), line)).is_err() { return; }
                         }
                         Some(RuntimeStreamEvent::Connecting) => {
-                            if output.try_send(stream_state(RuntimeStreamKind::Logs, input.generation, RuntimeStreamState::Connecting)).is_err() { return; }
+                            if output.try_send(stream_state(RuntimeStreamKind::Logs, &input.scope, RuntimeStreamState::Connecting)).is_err() { return; }
                         }
                         Some(RuntimeStreamEvent::Connected) => {
-                            if output.try_send(stream_state(RuntimeStreamKind::Logs, input.generation, RuntimeStreamState::Connected)).is_err() { return; }
+                            if output.try_send(stream_state(RuntimeStreamKind::Logs, &input.scope, RuntimeStreamState::Connected)).is_err() { return; }
                         }
                         Some(RuntimeStreamEvent::Reconnecting(error)) | Some(RuntimeStreamEvent::Failed(error)) => {
-                            if output.try_send(stream_state(RuntimeStreamKind::Logs, input.generation, RuntimeStreamState::Failed(error.message))).is_err() { return; }
-                            if output.try_send(stream_state(RuntimeStreamKind::Logs, input.generation, RuntimeStreamState::Reconnecting)).is_err() { return; }
+                            if output.try_send(stream_state(RuntimeStreamKind::Logs, &input.scope, RuntimeStreamState::Failed(error.message))).is_err() { return; }
+                            if output.try_send(stream_state(RuntimeStreamKind::Logs, &input.scope, RuntimeStreamState::Reconnecting)).is_err() { return; }
                         }
                         None => break,
                     },
@@ -155,7 +159,7 @@ fn build_runtime_stream(input: &RuntimeStreamInput) -> BoxStream<'static, Messag
                         Some(RuntimeStreamEvent::Item(data)) => {
                             if output
                                 .try_send(Message::RuntimeStreamTrafficReceived(
-                                    input.generation,
+                                    input.scope.clone(),
                                     data,
                                 ))
                                 .is_err()
@@ -164,14 +168,14 @@ fn build_runtime_stream(input: &RuntimeStreamInput) -> BoxStream<'static, Messag
                             }
                         }
                         Some(RuntimeStreamEvent::Connecting) => {
-                            if output.try_send(stream_state(RuntimeStreamKind::Traffic, input.generation, RuntimeStreamState::Connecting)).is_err() { return; }
+                            if output.try_send(stream_state(RuntimeStreamKind::Traffic, &input.scope, RuntimeStreamState::Connecting)).is_err() { return; }
                         }
                         Some(RuntimeStreamEvent::Connected) => {
-                            if output.try_send(stream_state(RuntimeStreamKind::Traffic, input.generation, RuntimeStreamState::Connected)).is_err() { return; }
+                            if output.try_send(stream_state(RuntimeStreamKind::Traffic, &input.scope, RuntimeStreamState::Connected)).is_err() { return; }
                         }
                         Some(RuntimeStreamEvent::Reconnecting(error)) | Some(RuntimeStreamEvent::Failed(error)) => {
-                            if output.try_send(stream_state(RuntimeStreamKind::Traffic, input.generation, RuntimeStreamState::Failed(error.message))).is_err() { return; }
-                            if output.try_send(stream_state(RuntimeStreamKind::Traffic, input.generation, RuntimeStreamState::Reconnecting)).is_err() { return; }
+                            if output.try_send(stream_state(RuntimeStreamKind::Traffic, &input.scope, RuntimeStreamState::Failed(error.message))).is_err() { return; }
+                            if output.try_send(stream_state(RuntimeStreamKind::Traffic, &input.scope, RuntimeStreamState::Reconnecting)).is_err() { return; }
                         }
                         None => break,
                     },
@@ -179,7 +183,7 @@ fn build_runtime_stream(input: &RuntimeStreamInput) -> BoxStream<'static, Messag
                         Some(RuntimeStreamEvent::Item(snapshot)) => {
                             if output
                                 .try_send(Message::RuntimeStreamConnectionsReceived(
-                                    input.generation,
+                                    input.scope.clone(),
                                     snapshot,
                                 ))
                                 .is_err()
@@ -188,14 +192,14 @@ fn build_runtime_stream(input: &RuntimeStreamInput) -> BoxStream<'static, Messag
                             }
                         }
                         Some(RuntimeStreamEvent::Connecting) => {
-                            if output.try_send(stream_state(RuntimeStreamKind::Connections, input.generation, RuntimeStreamState::Connecting)).is_err() { return; }
+                            if output.try_send(stream_state(RuntimeStreamKind::Connections, &input.scope, RuntimeStreamState::Connecting)).is_err() { return; }
                         }
                         Some(RuntimeStreamEvent::Connected) => {
-                            if output.try_send(stream_state(RuntimeStreamKind::Connections, input.generation, RuntimeStreamState::Connected)).is_err() { return; }
+                            if output.try_send(stream_state(RuntimeStreamKind::Connections, &input.scope, RuntimeStreamState::Connected)).is_err() { return; }
                         }
                         Some(RuntimeStreamEvent::Reconnecting(error)) | Some(RuntimeStreamEvent::Failed(error)) => {
-                            if output.try_send(stream_state(RuntimeStreamKind::Connections, input.generation, RuntimeStreamState::Failed(error.message))).is_err() { return; }
-                            if output.try_send(stream_state(RuntimeStreamKind::Connections, input.generation, RuntimeStreamState::Reconnecting)).is_err() { return; }
+                            if output.try_send(stream_state(RuntimeStreamKind::Connections, &input.scope, RuntimeStreamState::Failed(error.message))).is_err() { return; }
+                            if output.try_send(stream_state(RuntimeStreamKind::Connections, &input.scope, RuntimeStreamState::Reconnecting)).is_err() { return; }
                         }
                         None => break,
                     },
@@ -209,7 +213,7 @@ fn build_runtime_stream(input: &RuntimeStreamInput) -> BoxStream<'static, Messag
             ] {
                 let _ = output.try_send(stream_state(
                     kind,
-                    input.generation,
+                    &input.scope,
                     RuntimeStreamState::Reconnecting,
                 ));
             }
@@ -250,10 +254,10 @@ fn build_system_proxy_watchdog(input: &SystemProxyWatchdogInput) -> BoxStream<'s
     Box::pin(channel)
 }
 
-fn stream_state(kind: RuntimeStreamKind, generation: u64, state: RuntimeStreamState) -> Message {
+fn stream_state(kind: RuntimeStreamKind, scope: &CoreScope, state: RuntimeStreamState) -> Message {
     Message::RuntimeStreamStateChanged {
         kind,
-        generation,
+        scope: scope.clone(),
         state,
     }
 }
@@ -325,9 +329,11 @@ impl AppState {
         }
         if let Some(runtime) = self.runtime.runtime.as_ref()
             && matches!(self.runtime.status, RuntimeStatus::Running)
+            && let Some(scope) = self.core_lifecycle_snapshot().scope()
         {
             subs.push(runtime_streams_subscription(
                 runtime,
+                scope,
                 &self.diag.log_level,
                 self.commands.is_some(),
             ));

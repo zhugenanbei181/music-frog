@@ -1,4 +1,5 @@
 use crate::paths::get_home_dir;
+use mem::take;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -13,7 +14,7 @@ use std::backtrace::Backtrace;
 use std::collections::HashMap;
 use std::env::consts::OS;
 use std::fs::{create_dir_all, read_dir, read_to_string, remove_file, rename, write};
-use std::mem::take;
+use std::mem;
 use std::panic::{AssertUnwindSafe, catch_unwind, set_hook, take_hook};
 use std::path::{Path, PathBuf};
 use std::process::exit;

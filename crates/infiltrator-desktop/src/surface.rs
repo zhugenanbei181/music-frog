@@ -9,7 +9,9 @@ use crate::offline_startup::offline_startup_port;
 use crate::pac_service::DesktopPacServicePort;
 use crate::rule_provider_cache::DesktopRuleProviderCache;
 use crate::service_mode::DesktopServiceMode;
-use crate::storage::{app_routing_store, endpoint_source, port_conflict, settings_store, version};
+use crate::storage::{
+    app_routing_store, endpoint_source, port_conflict, settings_store, version_factory,
+};
 use crate::system_proxy::DesktopSystemProxy;
 use crate::uwp_loopback_port::DesktopUwpLoopbackPort;
 use infiltrator_application::configuration_application::ConfigurationApplication;
@@ -22,10 +24,10 @@ use infiltrator_application::doctor_application::DoctorApplication;
 use infiltrator_application::mtu_application::MtuApplication;
 use infiltrator_application::network_roaming_application::NetworkRoamingApplication;
 use infiltrator_application::offline_startup_application::OfflineStartupApplication;
+use infiltrator_application::outbound_application::OutboundApplication;
 use infiltrator_application::pac_application::PacApplication;
 use infiltrator_application::port_conflict_application::PortConflictApplication;
 use infiltrator_application::profile_application::ProfileApplication;
-use infiltrator_application::proxy_preferences_application::ProxyPreferencesApplication;
 use infiltrator_application::resource_application::ResourceApplication;
 use infiltrator_application::routing_application::RoutingApplication;
 use infiltrator_application::rule_list_application::RuleListApplication;
@@ -35,7 +37,6 @@ use infiltrator_application::script_export_application::ScriptExportApplication;
 use infiltrator_application::service_mode_application::ServiceModeApplication;
 use infiltrator_application::settings_application::SettingsApplication;
 use infiltrator_application::snapshot_application::SnapshotApplication;
-use infiltrator_application::speedtest_application::SpeedtestApplication;
 use infiltrator_application::stun_probe_application::StunProbeApplication;
 use infiltrator_application::surface_application::SurfacePump;
 use infiltrator_application::surface_reader::ApplicationSurfaceReader;
@@ -49,7 +50,9 @@ use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_core::settings_io::app_config_manager;
+use infiltrator_core::version_port::MihomoVersionPort;
 use infiltrator_ports::network_roaming::NetworkRoamingPort;
+use infiltrator_ports::routing_intent::RoutingIntentPort;
 use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -60,7 +63,7 @@ pub fn desktop_capabilities() -> CapabilitySnapshot {
     let entries = [
         Capability::CoreLifecycle,
         Capability::Profiles,
-        Capability::ProxyMode,
+        Capability::RoutingIntent,
         Capability::Connections,
         Capability::Logs,
         Capability::Dns,
@@ -105,8 +108,6 @@ pub struct SurfaceEngines {
     pub scripts: ScriptApplication,
     pub script_exports: ScriptExportApplication,
     pub doctor: DoctorApplication,
-    pub proxy_preferences: ProxyPreferencesApplication,
-    pub speedtest: SpeedtestApplication,
     pub rule_tracer: RuleTracerApplication,
     pub rule_list: RuleListApplication,
     pub dns_cache: DnsCacheApplication,
@@ -127,6 +128,7 @@ pub struct SurfaceEngines {
 pub async fn application_surface_reader(
     core: Arc<CoreApplication>,
     gateway: Arc<dyn RuntimeGateway>,
+    routing_intent_port: Arc<dyn RoutingIntentPort>,
     surface: SurfaceKind,
     binary_path: PathBuf,
     network_roaming_port: Arc<dyn NetworkRoamingPort>,
@@ -138,7 +140,9 @@ pub async fn application_surface_reader(
     let settings_store = settings_store().await?;
     let settings = SettingsApplication::new(settings_store);
     let routing = RoutingApplication::new(Arc::new(app_routing_store()?));
-    let versions = VersionApplication::new(Arc::new(version()?));
+    let version_factory = version_factory()?;
+    let versions =
+        VersionApplication::from_factory(MihomoVersionPort::engine_identifier(), &version_factory)?;
     let endpoint_source = Arc::new(endpoint_source().await?);
     let port_conflicts = PortConflictApplication::new(Arc::new(port_conflict()?));
     let resources = ResourceApplication::new(gateway.clone());
@@ -155,64 +159,70 @@ pub async fn application_surface_reader(
     // DUAL-11-07: the published cache fact comes from the same host directory
     // the desktop command handler purges.
     let rule_provider_cache = Arc::new(DesktopRuleProviderCache::new(config_dir.clone()));
+    let outbound = core.outbound_port().map(OutboundApplication::new);
 
-    Ok(
-        ApplicationSurfaceReader::new(core, surface, HostKind::Desktop)
-            .with_capabilities(desktop_capabilities())
-            .with_gateway(gateway)
-            .with_resources(resources)
-            .with_offline_startup(offline_startup)
-            .with_mtu(mtu)
-            .with_system_proxy(system_proxy)
-            .with_uwp_loopback(uwp_loopback)
-            .with_pac(pac)
-            .with_network_roaming(network_roaming)
-            .with_profiles(profile)
-            .with_proxy_preferences(engines.proxy_preferences)
-            .with_configuration(configuration)
-            .with_doctor(engines.doctor)
-            .with_routing(routing)
-            .with_settings(settings)
-            .with_snapshots(engines.snapshots)
-            .with_versions(versions)
-            .with_endpoint_source(endpoint_source)
-            .with_service_mode(service_mode)
-            .with_speedtest(engines.speedtest)
-            .with_rule_tracer(engines.rule_tracer)
-            .with_dns_query(engines.dns_query)
-            .with_dns_cache(engines.dns_cache)
-            .with_dns_latency(engines.dns_latency)
-            .with_dns_leak(engines.dns_leak)
-            .with_stun_probe(engines.stun_probe)
-            .with_scripts(engines.scripts, engines.script_exports)
-            .with_rule_provider_cache(rule_provider_cache)
-            .with_port_conflicts(port_conflicts),
-    )
+    let mut reader = ApplicationSurfaceReader::new(core, surface, HostKind::Desktop)
+        .with_capabilities(desktop_capabilities())
+        .with_gateway(gateway)
+        .with_routing_intent_port(routing_intent_port)
+        .with_resources(resources)
+        .with_offline_startup(offline_startup)
+        .with_mtu(mtu)
+        .with_system_proxy(system_proxy)
+        .with_uwp_loopback(uwp_loopback)
+        .with_pac(pac)
+        .with_network_roaming(network_roaming)
+        .with_profiles(profile)
+        .with_configuration(configuration)
+        .with_doctor(engines.doctor)
+        .with_routing(routing)
+        .with_settings(settings)
+        .with_snapshots(engines.snapshots)
+        .with_versions(versions)
+        .with_endpoint_source(endpoint_source)
+        .with_service_mode(service_mode)
+        .with_rule_tracer(engines.rule_tracer)
+        .with_dns_query(engines.dns_query)
+        .with_dns_cache(engines.dns_cache)
+        .with_dns_latency(engines.dns_latency)
+        .with_dns_leak(engines.dns_leak)
+        .with_stun_probe(engines.stun_probe)
+        .with_scripts(engines.scripts, engines.script_exports)
+        .with_rule_provider_cache(rule_provider_cache)
+        .with_port_conflicts(port_conflicts);
+    if let Some(outbound) = outbound {
+        reader = reader.with_outbound(outbound);
+    }
+    Ok(reader)
 }
 
 /// Spawn the bounded desktop surface pump used by frame-driven UI hosts.
-pub async fn surface_pump(
-    core: Arc<CoreApplication>,
-    gateway: Arc<dyn RuntimeGateway>,
-    surface: SurfaceKind,
-    sample_interval: Duration,
-    binary_path: PathBuf,
-    network_roaming_port: Arc<dyn NetworkRoamingPort>,
-    engines: SurfaceEngines,
-) -> anyhow::Result<SurfacePump> {
+pub struct SurfacePumpParams {
+    pub core: Arc<CoreApplication>,
+    pub gateway: Arc<dyn RuntimeGateway>,
+    pub routing_intent_port: Arc<dyn RoutingIntentPort>,
+    pub surface: SurfaceKind,
+    pub sample_interval: Duration,
+    pub binary_path: PathBuf,
+    pub network_roaming_port: Arc<dyn NetworkRoamingPort>,
+    pub engines: SurfaceEngines,
+}
+
+pub async fn surface_pump(params: SurfacePumpParams) -> anyhow::Result<SurfacePump> {
     let reader = application_surface_reader(
-        Arc::clone(&core),
-        gateway,
-        surface,
-        binary_path,
-        network_roaming_port,
-        engines,
+        Arc::clone(&params.core),
+        params.gateway,
+        params.routing_intent_port,
+        params.surface,
+        params.binary_path,
+        params.network_roaming_port,
+        params.engines,
     )
     .await?;
     let runtime = infiltrator_composition::tokio_application_runtime()
         .map_err(|error| anyhow::anyhow!(error))?;
     let initial = SurfaceSnapshot::unavailable(
-        surface,
+        params.surface,
         HostKind::Desktop,
         Failure::new(
             ErrorCode::NotReady,
@@ -222,7 +232,7 @@ pub async fn surface_pump(
     );
     Ok(SurfacePump::spawn(
         Arc::new(reader),
-        sample_interval,
+        params.sample_interval,
         runtime,
         initial,
     ))

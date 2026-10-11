@@ -1,17 +1,16 @@
 //! Kernel management card.
 
-use super::integration::{
-    CORE_CHANNEL_OPTIONS, CORE_LOG_LEVEL_OPTIONS, SettingsChoice, secondary_text,
-};
+use super::integration::{CORE_CHANNEL_OPTIONS, SettingsChoice, secondary_text};
 use crate::state::AppState;
 use crate::types::app::ConfirmAction;
 use crate::types::message::Message;
-use infiltrator_application::byte_format::format_bytes;
 use infiltrator_application::settings_status_projection::{
     format_controller_auth, format_core_resources, format_core_versions, format_integrity,
     format_offline_startup, optional_copy,
 };
+use infiltrator_contract::command::CoreLogLevel;
 use infiltrator_contract::runtime_control::RuntimeControlStatus;
+use infiltrator_shared::byte_units::format_bytes;
 use infiltrator_shared::i18n_interpolator::localize;
 
 use crate::view::component_card::card;
@@ -37,10 +36,9 @@ pub(super) fn kernel_management_card<'a>(
     let integrity = format_integrity(&state.runtime.core_integrity, lang.0);
     let controller_auth = format_controller_auth(&state.runtime.controller_auth, lang.0);
     let offline_startup = format_offline_startup(&state.runtime.offline_startup, lang.0);
-    let selected_log_level = CORE_LOG_LEVEL_OPTIONS
-        .iter()
-        .find(|option| Some(option.value) == state.runtime.runtime_control.log_level.as_deref())
-        .copied();
+    let selected_log_level = CoreLogLevel::ALL
+        .into_iter()
+        .find(|level| Some(level.as_key()) == state.runtime.runtime_control.log_level.as_deref());
 
     kernel_rows = kernel_rows.push(secondary_text(localize(
         lang.0,
@@ -80,9 +78,9 @@ pub(super) fn kernel_management_card<'a>(
         {
             Element::from(
                 pick_list(
-                    CORE_LOG_LEVEL_OPTIONS,
+                    CoreLogLevel::ALL,
                     selected_log_level,
-                    |choice: SettingsChoice| Message::SetCoreLogLevel(choice.value.to_owned()),
+                    Message::SetCoreLogLevel,
                 )
                 .width(if state.shell.viewport.tier.is_compact() {
                     Length::Fill
@@ -117,34 +115,37 @@ pub(super) fn kernel_management_card<'a>(
         );
     }
 
-    if let Some(latest) = &state.runtime.latest_core_version {
+    if let Some(latest) = state.runtime.core_update_check.latest_version() {
         kernel_rows = kernel_rows.push(
             container(
                 row![
-                    text(if state.runtime.is_downloading_core {
+                    text(if state.runtime.core_download.is_downloading() {
                         format!(
                             "{} {:.0}%",
                             lang.tr("settings_downloading"),
-                            state.runtime.download_progress * 100.0
+                            state.runtime.core_download.progress_fraction() * 100.0
                         )
                     } else {
                         format!("{} {}", lang.tr("settings_available"), latest)
                     })
                     .size(13)
                     .width(Length::Fill),
-                    if state.runtime.is_downloading_core {
+                    if state.runtime.core_download.is_downloading() {
                         Element::from(
                             row![
                                 column![
-                                    progress_bar(0.0..=1.0, state.runtime.download_progress)
-                                        .length(Length::Fixed(180.0)),
+                                    progress_bar(
+                                        0.0..=1.0,
+                                        state.runtime.core_download.progress_fraction(),
+                                    )
+                                    .length(Length::Fixed(180.0)),
                                     secondary_text(format!(
                                         "{} {}/s",
                                         lang.tr("settings_speed"),
                                         state
                                             .runtime
-                                            .download_stats
-                                            .as_ref()
+                                            .core_download
+                                            .progress()
                                             .map(|s| format_bytes(s.speed_bytes))
                                             .unwrap_or_else(|| "—".to_string())
                                     )),
@@ -163,7 +164,7 @@ pub(super) fn kernel_management_card<'a>(
                         Element::from(text_btn(
                             lang.tr("settings_download"),
                             style_accent,
-                            Some(Message::DownloadCore(latest.clone())),
+                            Some(Message::DownloadCore(latest.to_owned())),
                         ))
                     },
                 ]
@@ -261,7 +262,7 @@ pub(super) fn kernel_management_card<'a>(
                         .width(Length::Shrink)
                         .style(form_pick_style),
                         Space::new().width(theme::SP_SM),
-                        if state.runtime.is_checking_update {
+                        if state.runtime.core_update_check.is_checking() {
                             text(lang.tr("settings_checking").to_string())
                                 .size(12)
                                 .style(|t: &Theme| text::Style {

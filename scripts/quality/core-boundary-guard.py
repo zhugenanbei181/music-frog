@@ -133,6 +133,22 @@ SOURCE_PATTERNS = {
     ),
 }
 
+PROFILE_WORKSPACE_FIELDS = re.compile(
+    r"\bpub\s+sidecar_bytes\s*:\s*Option\s*<\s*"
+    r"(?:std\s*::\s*vec\s*::\s*)?Vec\s*<\s*u8\s*>\s*>"
+)
+PROFILE_PORT_CONCEPTS = re.compile(
+    r"\bProfileOptions\b"
+    r"|\b(?:[A-Za-z_][A-Za-z_0-9]*)?"
+    r"(?:mixin|filter|yaml|yml|mihomo|clash)[A-Za-z_0-9]*\b"
+    r"|\b(?:filter|filters|filtering)\b",
+    re.IGNORECASE,
+)
+PROFILE_STORE_OPTIONS_API = re.compile(
+    r"\b(?:async\s+)?fn\s+(?:load|save|delete)_options\b",
+    re.IGNORECASE,
+)
+
 
 def collect_dependency_tables(value: object) -> list[dict[str, object]]:
     tables: list[dict[str, object]] = []
@@ -159,6 +175,44 @@ def direct_dependencies(manifest: pathlib.Path) -> set[str]:
 def strip_comments(text: str) -> str:
     text = re.sub(r"/\*.*?\*/", "", text, flags=re.S)
     return re.sub(r"//[^\n]*", "", text)
+
+
+def check_profile_ports_sources(
+    workspace_source: str,
+    store_source: str,
+    workspace_path: pathlib.Path,
+    store_path: pathlib.Path,
+) -> list[str]:
+    problems: list[str] = []
+    clean_workspace = strip_comments(workspace_source)
+    clean_store = strip_comments(store_source)
+
+    for struct_name in ("ProfileWorkspace", "ProfileWorkspaceUpdate"):
+        struct_match = re.search(
+            rf"\bpub\s+struct\s+{struct_name}\s*\{{(?P<body>[^{{}}]*)\}}",
+            clean_workspace,
+        )
+        if struct_match is None:
+            problems.append(f"{workspace_path}: missing public `{struct_name}`")
+        elif not PROFILE_WORKSPACE_FIELDS.search(struct_match.group("body")):
+            problems.append(
+                f"{workspace_path}: `{struct_name}` must carry opaque `sidecar_bytes: Option<Vec<u8>>`"
+            )
+
+    for source_path, clean in (
+        (workspace_path, clean_workspace),
+        (store_path, clean_store),
+    ):
+        if PROFILE_PORT_CONCEPTS.search(clean):
+            problems.append(
+                f"{source_path}: profile ports must not depend on engine-specific options, mixin/filter, YAML, or Mihomo/Clash concepts"
+            )
+
+    if PROFILE_STORE_OPTIONS_API.search(clean_store):
+        problems.append(
+            f"{store_path}: generic `ProfileStore` must not require an options persistence API"
+        )
+    return problems
 
 
 def check(repo_root: pathlib.Path) -> list[str]:
@@ -199,6 +253,21 @@ def check(repo_root: pathlib.Path) -> list[str]:
                 problems.append(
                     f"{source}: concrete runtime/transport import violates the 0.30 boundary"
                 )
+
+    ports_root = repo_root / "crates" / "infiltrator-ports" / "src"
+    workspace_source = ports_root / "profile_workspace.rs"
+    store_source = ports_root / "profile_store.rs"
+    if not workspace_source.is_file() or not store_source.is_file():
+        problems.append(f"{ports_root}: profile workspace/store port source is missing")
+    else:
+        problems.extend(
+            check_profile_ports_sources(
+                workspace_source.read_text(encoding="utf-8"),
+                store_source.read_text(encoding="utf-8"),
+                workspace_source,
+                store_source,
+            )
+        )
     return problems
 
 
@@ -216,6 +285,75 @@ def self_test() -> int:
     assert SOURCE_PATTERNS["infiltrator-iced"].search(
         "use infiltrator_core::settings_io;"
     )
+    ports_root = REPO_ROOT / "crates/infiltrator-ports/src"
+    workspace_path = ports_root / "profile_workspace.rs"
+    store_path = ports_root / "profile_store.rs"
+    current_profile_ports = check_profile_ports_sources(
+        workspace_path.read_text(encoding="utf-8"),
+        store_path.read_text(encoding="utf-8"),
+        workspace_path,
+        store_path,
+    )
+    assert not current_profile_ports, current_profile_ports
+
+    synthetic_workspace = """
+        pub struct ProfileWorkspace { pub sidecar_bytes: Option<Vec<u8>> }
+        pub struct ProfileWorkspaceUpdate { pub sidecar_bytes: Option<Vec<u8>> }
+    """
+    synthetic_store = "pub trait ProfileStore {}"
+    assert not check_profile_ports_sources(
+        synthetic_workspace,
+        synthetic_store,
+        pathlib.Path("positive/profile_workspace.rs"),
+        pathlib.Path("positive/profile_store.rs"),
+    )
+
+    negative_workspace = """
+        use crate::ProfileOptions;
+        pub struct ProfileWorkspace { pub sidecar_bytes: Vec<u8> }
+        pub struct ProfileWorkspaceUpdate {}
+    """
+    negative_workspace_problems = check_profile_ports_sources(
+        negative_workspace,
+        synthetic_store,
+        pathlib.Path("negative/profile_workspace.rs"),
+        pathlib.Path("negative/profile_store.rs"),
+    )
+    assert any("ProfileWorkspace` must carry" in item for item in negative_workspace_problems)
+    assert any("ProfileWorkspaceUpdate` must carry" in item for item in negative_workspace_problems)
+    assert any("profile ports must not depend" in item for item in negative_workspace_problems)
+
+    for concept in (
+        "MixinProfile",
+        "FilterRule",
+        "parse_yaml",
+        "mihomo_api::Client",
+        "ClashRuntime",
+    ):
+        negative_store = f"use {concept};"
+        problems = check_profile_ports_sources(
+            synthetic_workspace,
+            negative_store,
+            pathlib.Path("negative/profile_workspace.rs"),
+            pathlib.Path("negative/profile_store.rs"),
+        )
+        assert any("profile ports must not depend" in item for item in problems), (
+            concept,
+            problems,
+        )
+
+    for operation in ("load_options", "save_options", "delete_options"):
+        negative_store = f"pub trait ProfileStore {{ fn {operation}(&self); }}"
+        problems = check_profile_ports_sources(
+            synthetic_workspace,
+            negative_store,
+            pathlib.Path("negative/profile_workspace.rs"),
+            pathlib.Path("negative/profile_store.rs"),
+        )
+        assert any("must not require an options persistence API" in item for item in problems), (
+            operation,
+            problems,
+        )
     print("core boundary guard self-test: PASS")
     return 0
 

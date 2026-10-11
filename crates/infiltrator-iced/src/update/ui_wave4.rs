@@ -397,7 +397,7 @@ impl AppState {
                 Task::none()
             }
             Message::SetLogLevelFilter(lvl) => {
-                if let Some(application) = self.commands.clone() {
+                if let Some(application) = self.command_ingress() {
                     let generation = self.runtime.core_lifecycle.generation;
                     let level = (!lvl.trim().is_empty()).then_some(lvl);
                     return Task::perform(

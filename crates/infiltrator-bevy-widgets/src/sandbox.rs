@@ -1,6 +1,6 @@
 //! Sandboxed runtime container for third-party WebAssembly / JS micro-frontend dashboard widgets.
 //!
-//! Charter (docs/bevy-ui/BEVY_UI_FRONTEND.md §8.1.11, §8.3): a community widget
+//! Charter (crates/infiltrator-bevy-ui/docs/BEVY_UI_FRONTEND.md): a community widget
 //! runs behind a real isolation boundary. The container enforces a memory,
 //! per-frame instruction and lifetime frame budget; every host capability is
 //! reached only through a typed [`CapabilityGrant`] the container issues after

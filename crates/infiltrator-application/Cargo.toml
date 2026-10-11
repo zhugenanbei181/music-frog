@@ -1,6 +1,6 @@
 [package]
 name = "infiltrator-application"
-version = "0.41.0"
+version.workspace = true
 edition = "2024"
 publish = false
 description = "Runtime-neutral application services over MusicFrog ports."
@@ -11,12 +11,13 @@ description = "Runtime-neutral application services over MusicFrog ports."
 # real JS engine in the default `cargo build` / `bash scripts/test.sh`; the
 # bundled directive DSL stays the default *selected* engine per host. The
 # feature remains optional so `--no-default-features` can drop it, which
-# honestly degrades the matrix row back to `planned`. See
-# docs/archive/SCRIPT_ENGINE_DECISION.md §5.
+# honestly degrades the matrix row back to `planned`. Adapter details are in
+# this crate's README.
 default = ["script-engine-boa"]
 script-engine-boa = ["dep:boa_engine"]
 
 [dependencies]
+zhuge-ui-core.workspace = true
 async-trait = { workspace = true }
 boa_engine = { workspace = true, optional = true }
 chrono = { workspace = true }
@@ -32,4 +33,5 @@ regex = { workspace = true }
 url = { workspace = true }
 unicode-segmentation = { workspace = true }
 [dev-dependencies]
+infiltrator-presentation = { path = "../infiltrator-presentation" }
 tokio = { workspace = true, features = ["test-util"] }

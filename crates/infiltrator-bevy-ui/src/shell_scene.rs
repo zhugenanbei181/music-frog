@@ -1,55 +1,64 @@
 //! Declarative BSN scenes for the Bevy shell layout.
 //!
 //! Subtree scenes composing the window root, sidebar rail, navigation
-//! items, mode segment pills, content column, title header and bottom bar.
+//! items, routing intent pills, content column, title header and bottom bar.
 
 use crate::a11y::{
     button_semantic_node, nav_semantic_node, semantic_node, switch_node, toggle_semantic_node,
 };
+use crate::app::StatusDotImage;
 use crate::app::shell_bidi::{ShellDirectionRoot, ShellDirectionRow};
 use crate::app::shell_focus::ShellFocusable;
 use crate::app::{
-    BOTTOM_NAV_HEIGHT_PX, BottomNavActive, BottomNavBar, BottomNavItem, ContentColumn, ContentSlot,
-    ContentTitleLabel, DensityToggle, GlobalModeCapsule, GlobalStatusDot, HistoryBackButton,
-    HistoryForwardButton, IDENTITY_TILE_PX, NavSpacer, RailNavTooltip, SIDEBAR_WIDTH_PX,
-    ShellHeader, ShellRoot, SidebarActiveProfileCard, SidebarExpandedOnly, SidebarFoot,
-    SidebarFooterRow, SidebarIdentityText, SidebarModeSegment, SidebarNavItem, SidebarPanel,
-    SidebarScriptModePill, SidebarShortcutMatrix, SidebarShortcutTile, SidebarSpeedFooter,
+    BOTTOM_NAV_CONTENT_HEIGHT, BottomNavActive, BottomNavBar, BottomNavItem, ContentColumn,
+    ContentSlot, ContentTitleLabel, DensityToggle, GlobalStatusDot, HistoryBackButton,
+    HistoryForwardButton, IDENTITY_TILE_PX, NavSpacer, RailNavTooltip, RoutingIntentStatusCapsule,
+    SIDEBAR_WIDTH_PX, ShellHeader, ShellRoot, SidebarActiveProfileCard, SidebarExpandedOnly,
+    SidebarFoot, SidebarFooterRow, SidebarIdentityText, SidebarNavItem, SidebarPanel,
+    SidebarRoutingIntentSegment, SidebarShortcutMatrix, SidebarShortcutTile, SidebarSpeedFooter,
     SidebarSystemProxyCard, SidebarSystemProxyToggle, SidebarTunCard, SidebarTunToggle,
     ThemeToggle,
 };
 use crate::chrome::chrome_bar_scene;
 use crate::localized_widgets::localized_pill_scene;
 use crate::pages::connections_confirm::confirmation_scene;
-use crate::pages::overview::OverviewModePill;
+use crate::pages::overview::OverviewRoutingIntentPill;
 use crate::pages::overview_speedtest::overview_speedtest_detail_modal_scene;
 use crate::route::{Route, page_id_for_route};
-use crate::shell_mode_issue;
 use crate::shell_readout::{ShellQuotaFill, ShellQuotaTrack, ShellReadoutText};
+use crate::shell_routing_intent_issue;
 use crate::shell_waveform::ShellWaveform;
 use bevy::color::Color;
+use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
+use bevy::ecs::lifecycle::Add;
+use bevy::ecs::observer::On;
+use bevy::ecs::system::{Commands, Res};
+use bevy::feathers::theme::ThemeBackgroundColor;
+use bevy::feathers::theme::ThemeTextColor;
 use bevy::scene::{Scene, bsn};
-use bevy::text::TextColor;
 use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderColor, BorderRadius, Display, FlexDirection, FlexWrap,
-    JustifyContent, Node, Overflow, PositionType, UiRect, Val, percent, px,
+    AlignItems, BorderColor, BorderRadius, Display, FlexDirection, FlexWrap, JustifyContent, Node,
+    Overflow, PositionType, UiRect, Val, percent, px,
 };
+use bevy::ui::widget::InlineImage;
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
-use infiltrator_application::proxy_mode_projection::mode_copy_key;
+use infiltrator_application::routing_intent_projection::routing_intent_copy_key;
 use infiltrator_application::system_toggle_projection::compact_label;
 use infiltrator_bevy_widgets::button::{ButtonDisabled, pill_caption_scene};
+use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::icon::{IconId, icon_scene};
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
 use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText, UiLocale};
-use infiltrator_bevy_widgets::nav::{NavActive, NavItem, NavLabel, nav_fill, nav_label_ink};
+use infiltrator_bevy_widgets::nav::{NavActive, NavItem, NavLabel, nav_fill_token};
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::{radius, space};
 use infiltrator_bevy_widgets::tooltip::TooltipBubble;
 use infiltrator_contract::a11y::ShellA11yNode;
-use infiltrator_contract::command::ProxyMode;
+use infiltrator_contract::routing_intent::RoutingIntent;
 use infiltrator_contract::system_toggle::SystemToggleSnapshot;
 
 /// The root shell scene.
@@ -74,7 +83,7 @@ pub fn shell_scene_with_toggles(
                 min_height: px(0.0), max_height: percent(100),
                 flex_direction: FlexDirection::Column,
                 overflow: Overflow::clip(),
-                border_radius: BorderRadius::all(Val::Px(palette.card_radius_px)),
+                border_radius: BorderRadius::all(rem(palette.card_radius_px)),
                 border: UiRect::all(Val::Px(1.0)),
             }
             BorderColor { top: edge, right: edge, bottom: edge, left: edge }
@@ -106,8 +115,8 @@ pub fn shell_scene_with_toggles(
                         min_height: px(0.0),
                         height: percent(100),
                         flex_direction: FlexDirection::Column,
-                        padding: UiRect::all(Val::Px(space::S16)),
-                        row_gap: Val::Px(space::S16),
+                        padding: UiRect::all(rem(space::S16)),
+                        row_gap: rem(space::S16),
                         overflow: Overflow::clip(),
                     }
                     ContentColumn
@@ -149,17 +158,17 @@ pub fn bottom_nav_scene(palette: &UiPalette) -> Box<dyn Scene> {
     Box::new(bsn! {
             Node {
                 width: percent(100),
-                height: px(BOTTOM_NAV_HEIGHT_PX),
-                min_height: px(BOTTOM_NAV_HEIGHT_PX),
+                height: rem(BOTTOM_NAV_CONTENT_HEIGHT),
+                min_height: rem(BOTTOM_NAV_CONTENT_HEIGHT),
                 flex_shrink: 0.0,
                 flex_direction: FlexDirection::Row,
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::SpaceAround,
                 border: UiRect::top(Val::Px(palette.hairline_px)),
-                padding: UiRect::bottom(Val::Px(space::S6)),
+                padding: UiRect::bottom(rem(space::S6)),
                 display: Display::None,
             }
-            BackgroundColor({ palette.sidebar })
+            ThemeBackgroundColor({ Token::Sidebar })
             BorderColor {
                 top: edge,
                 right: Color::NONE,
@@ -204,8 +213,8 @@ fn bottom_nav_item_scene(
                 flex_direction: FlexDirection::Column,
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
-                row_gap: Val::Px(space::S4),
-                padding: UiRect::vertical(Val::Px(space::S4)),
+                row_gap: rem(space::S4),
+                padding: UiRect::vertical(rem(space::S4)),
             }
             Button
             BottomNavItem(route)
@@ -219,10 +228,40 @@ fn bottom_nav_item_scene(
     })
 }
 
+/// Marker on the shell title text carrying the inline status dot's image
+/// handle. [`stamp_status_dot`] turns it into an `InlineImage` child so the
+/// dot flows and wraps with the heading (capability norm ⑤) — the same
+/// observer-stamps-components idiom as `style_text_roles`.
+#[derive(Component, Clone, Debug, Default, PartialEq, Eq)]
+pub struct StatusDotInline;
+
+/// Stamp the inline status dot onto the title text block.
+pub fn stamp_status_dot(
+    trigger: On<Add<StatusDotInline>>,
+    palette: Res<UiPalette>,
+    dot_image: Option<Res<StatusDotImage>>,
+    mut commands: Commands,
+) {
+    let Some(dot_image) = dot_image else {
+        return;
+    };
+    let handle = dot_image.0.clone();
+    commands.entity(trigger.event().entity).insert((
+        InlineImage {
+            color: palette.ink_dim,
+            image: handle,
+            width: Some(9.0),
+            height: Some(9.0),
+            ..Default::default()
+        },
+        GlobalStatusDot,
+        semantic_node(ShellA11yNode::GlobalStatusDot),
+    ));
+}
+
 /// The title row with page heading, history navigation, and status indicators.
 pub fn content_title_row(_title: &str, palette: &UiPalette) -> impl Scene + use<> {
     let header_node = semantic_node(ShellA11yNode::ShellHeader);
-    let status_node = semantic_node(ShellA11yNode::GlobalStatusDot);
     bsn! {
             Node {
                 width: percent(100),
@@ -230,9 +269,9 @@ pub fn content_title_row(_title: &str, palette: &UiPalette) -> impl Scene + use<
                 max_width: percent(100),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::FlexStart,
-                column_gap: Val::Px(space::S8),
+                column_gap: rem(space::S8),
                 flex_wrap: FlexWrap::Wrap,
-                row_gap: Val::Px(space::S4),
+                row_gap: rem(space::S4),
             }
             ShellHeader
             header_node
@@ -247,23 +286,15 @@ pub fn content_title_row(_title: &str, palette: &UiPalette) -> impl Scene + use<
                 ShellFocusable
                 --
                 LocalizedText::plain("nav_overview") TextRole(Role::Heading) ContentTitleLabel
+                StatusDotInline
                 --
                 Node { flex_grow: 1.0 }
                 --
-                Node {
-                    width: px(8.0),
-                    height: px(8.0),
-                    border_radius: BorderRadius::all(Val::Px(4.0)),
-                }
-                BackgroundColor({ palette.ink_dim })
-                GlobalStatusDot
-                status_node
-                --
                 @{ pill_caption_scene(String::new(), false, palette) }
                 ButtonDisabled(true)
-                GlobalModeCapsule
+                RoutingIntentStatusCapsule
                 --
-                @{ shell_mode_issue::scene(palette) }
+                @{ shell_routing_intent_issue::scene(palette) }
             ]
     }
 }
@@ -281,20 +312,20 @@ pub fn sidebar_scene_with_toggles(
     let density_node = toggle_semantic_node("Toggle layout density");
     bsn! {
             Node {
-                width: px(SIDEBAR_WIDTH_PX),
+                width: rem(SIDEBAR_WIDTH_PX),
                 height: percent(100),
                 flex_shrink: 0.0,
                 flex_direction: FlexDirection::Column,
-                padding: UiRect::all(Val::Px(space::S12)),
-                row_gap: Val::Px(space::S8),
+                padding: UiRect::all(rem(space::S12)),
+                row_gap: rem(space::S8),
                 overflow: Overflow::visible(),
             }
-            BackgroundColor({ palette.sidebar })
+            ThemeBackgroundColor({ Token::Sidebar })
             SidebarPanel
             Children [
                 @{ identity_scene(palette) }
                 --
-                @{ mode_segment_scene(None, palette) }
+                @{ routing_intent_segment_scene(None, palette) }
                 --
                 @{ sidebar_system_toggles_scene(toggles, palette) }
                 --
@@ -321,7 +352,7 @@ pub fn sidebar_scene_with_toggles(
                     --
                     Node {
                         flex_direction: FlexDirection::Row,
-                        column_gap: Val::Px(space::S4),
+                        column_gap: rem(space::S4),
                     }
                     Children [
                         @{ pill_caption_scene("Theme".to_owned(), false, palette) }
@@ -339,12 +370,13 @@ pub fn sidebar_scene_with_toggles(
     }
 }
 
-/// App identity block: Logo plate + "MusicFrog" title + version "v0.20.0".
+/// App identity block: Logo plate + "MusicFrog" title + version label.
 pub fn identity_scene(palette: &UiPalette) -> impl Scene + use<> {
+    let version = concat!("v", env!("CARGO_PKG_VERSION"));
     bsn! {
             Node {
                 align_items: AlignItems::Center,
-                column_gap: Val::Px(space::S12),
+                column_gap: rem(space::S12),
             }
             Children [
                 @{ icon_tile_scene(IconId::Network, IDENTITY_TILE_PX, palette) }
@@ -357,47 +389,44 @@ pub fn identity_scene(palette: &UiPalette) -> impl Scene + use<> {
                 Children [
                     Text({ "MusicFrog".to_owned() }) TextRole(Role::BodyStrong)
                     --
-                    Text({ "v0.20.0".to_owned() }) TextRole(Role::Caption)
+                    Text({ version.to_owned() }) TextRole(Role::Caption)
                 ]
             ]
     }
 }
 
-/// Proxy-mode segment control pills (Rule, Global, Direct, Script).
-pub fn mode_segment_scene(mode: Option<ProxyMode>, palette: &UiPalette) -> impl Scene + use<> {
-    let segment_node = semantic_node(ShellA11yNode::ModeSegment);
+/// Shared routing intent segment control pills.
+pub fn routing_intent_segment_scene(
+    intent: Option<&RoutingIntent>,
+    palette: &UiPalette,
+) -> impl Scene + use<> {
+    let segment_node = semantic_node(ShellA11yNode::RoutingIntentSegment);
     let rule_node = button_semantic_node("");
     let global_node = button_semantic_node("");
     let direct_node = button_semantic_node("");
-    let script_node = button_semantic_node("");
     bsn! {
             Node {
                 align_items: AlignItems::Center,
-                column_gap: Val::Px(space::S4),
+                column_gap: rem(space::S4),
             }
-            SidebarModeSegment
+            SidebarRoutingIntentSegment
             SidebarExpandedOnly
             segment_node
             Children [
-                @{ localized_pill_scene(LocalizedText::plain(mode_copy_key(ProxyMode::Rule)), mode == Some(ProxyMode::Rule), palette) }
+                @{ localized_pill_scene(LocalizedText::plain(routing_intent_copy_key(&RoutingIntent::FollowRules)), intent == Some(&RoutingIntent::FollowRules), palette) }
                 ButtonDisabled(true)
-                OverviewModePill(ProxyMode::Rule)
+                OverviewRoutingIntentPill(RoutingIntent::FollowRules)
                 rule_node
                 --
-                @{ localized_pill_scene(LocalizedText::plain(mode_copy_key(ProxyMode::Global)), mode == Some(ProxyMode::Global), palette) }
+                @{ localized_pill_scene(LocalizedText::plain(routing_intent_copy_key(&RoutingIntent::RouteAllThroughProxy)), intent == Some(&RoutingIntent::RouteAllThroughProxy), palette) }
                 ButtonDisabled(true)
-                OverviewModePill(ProxyMode::Global)
+                OverviewRoutingIntentPill(RoutingIntent::RouteAllThroughProxy)
                 global_node
                 --
-                @{ localized_pill_scene(LocalizedText::plain(mode_copy_key(ProxyMode::Direct)), mode == Some(ProxyMode::Direct), palette) }
+                @{ localized_pill_scene(LocalizedText::plain(routing_intent_copy_key(&RoutingIntent::BypassProxy)), intent == Some(&RoutingIntent::BypassProxy), palette) }
                 ButtonDisabled(true)
-                OverviewModePill(ProxyMode::Direct)
+                OverviewRoutingIntentPill(RoutingIntent::BypassProxy)
                 direct_node
-                --
-                @{ localized_pill_scene(LocalizedText::plain(mode_copy_key(ProxyMode::Script)), false, palette) }
-                ButtonDisabled(true)
-                SidebarScriptModePill
-                script_node
             ]
     }
 }
@@ -418,19 +447,19 @@ pub fn sidebar_system_toggles_scene(
             Node {
                 width: percent(100),
                 flex_direction: FlexDirection::Row,
-                column_gap: Val::Px(space::S6),
+                column_gap: rem(space::S6),
             }
             Children [
                 Node {
                     flex_grow: 1.0,
                     flex_basis: percent(50),
                     flex_direction: FlexDirection::Column,
-                    padding: UiRect::all(Val::Px(space::S8)),
-                    row_gap: Val::Px(space::S6),
+                    padding: UiRect::all(rem(space::S8)),
+                    row_gap: rem(space::S6),
                     border: UiRect::all(Val::Px(palette.hairline_px)),
-                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                    border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                 }
-                BackgroundColor({ palette.surface_elevated })
+                ThemeBackgroundColor({ Token::SurfaceElevated })
                 BorderColor { top: edge, right: edge, bottom: edge, left: edge }
                 SidebarSystemProxyCard
                 SidebarExpandedOnly
@@ -451,19 +480,19 @@ pub fn sidebar_system_toggles_scene(
                     --
                     LocalizedText::plain("settings_sys_proxy")
                     TextRole(Role::Caption)
-                    TextColor({ palette.ink })
+                    ThemeTextColor({ Token::Ink })
                 ]
                 --
                 Node {
                     flex_grow: 1.0,
                     flex_basis: percent(50),
                     flex_direction: FlexDirection::Column,
-                    padding: UiRect::all(Val::Px(space::S8)),
-                    row_gap: Val::Px(space::S6),
+                    padding: UiRect::all(rem(space::S8)),
+                    row_gap: rem(space::S6),
                     border: UiRect::all(Val::Px(palette.hairline_px)),
-                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                    border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                 }
-                BackgroundColor({ palette.surface_elevated })
+                ThemeBackgroundColor({ Token::SurfaceElevated })
                 BorderColor { top: edge, right: edge, bottom: edge, left: edge }
                 SidebarTunCard
                 SidebarExpandedOnly
@@ -484,7 +513,7 @@ pub fn sidebar_system_toggles_scene(
                     --
                     LocalizedText::plain("tun_mode")
                     TextRole(Role::Caption)
-                    TextColor({ palette.ink })
+                    ThemeTextColor({ Token::Ink })
                 ]
             ]
     }
@@ -498,12 +527,12 @@ pub fn sidebar_profile_card_scene(palette: &UiPalette) -> impl Scene + use<> {
             Node {
                 width: percent(100),
                 flex_direction: FlexDirection::Column,
-                padding: UiRect::all(Val::Px(space::S8)),
-                row_gap: Val::Px(space::S6),
+                padding: UiRect::all(rem(space::S8)),
+                row_gap: rem(space::S6),
                 border: UiRect::all(Val::Px(palette.hairline_px)),
-                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
             }
-            BackgroundColor({ palette.surface_elevated })
+            ThemeBackgroundColor({ Token::SurfaceElevated })
             BorderColor { top: edge, right: edge, bottom: edge, left: edge }
             SidebarActiveProfileCard
             Button SidebarShortcutTile(Route::Profiles)
@@ -519,7 +548,7 @@ pub fn sidebar_profile_card_scene(palette: &UiPalette) -> impl Scene + use<> {
                 Children [
                     Node {
                         align_items: AlignItems::Center,
-                        column_gap: Val::Px(space::S6),
+                        column_gap: rem(space::S6),
                     }
                     Children [
                         @{ icon_scene(IconId::FileText, 14.0, palette.accent) }
@@ -532,18 +561,18 @@ pub fn sidebar_profile_card_scene(palette: &UiPalette) -> impl Scene + use<> {
                 --
                 Node {
                     width: percent(100),
-                    height: px(4.0),
+                    height: rem(4.0),
                     border_radius: BorderRadius::all(Val::Px(2.0)),
                     overflow: Overflow::clip(),
                 }
-                BackgroundColor({ palette.accent_container }) ShellQuotaTrack
+                ThemeBackgroundColor({ Token::AccentContainer }) ShellQuotaTrack
                 Children [
                     Node {
                         width: percent(0),
                         height: percent(100),
                         border_radius: BorderRadius::all(Val::Px(2.0)),
                     }
-                    BackgroundColor({ palette.accent }) ShellQuotaFill
+                    ThemeBackgroundColor({ Token::Accent }) ShellQuotaFill
                 ]
                 --
                 Node {
@@ -554,11 +583,11 @@ pub fn sidebar_profile_card_scene(palette: &UiPalette) -> impl Scene + use<> {
                 Children [
                     Text({ String::new() }) ShellReadoutText::ProfileUsage
                     TextRole(Role::Caption)
-                    TextColor({ palette.ink_dim })
+                    ThemeTextColor({ Token::InkDim })
                     --
                     Text({ String::new() }) ShellReadoutText::ProfilePercent
                     TextRole(Role::Caption)
-                    TextColor({ palette.ink_dim })
+                    ThemeTextColor({ Token::InkDim })
                 ]
             ]
     }
@@ -570,7 +599,7 @@ pub fn sidebar_shortcut_matrix_scene(palette: &UiPalette) -> impl Scene + use<> 
             Node {
                 width: percent(100),
                 flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(space::S6),
+                row_gap: rem(space::S6),
             }
             SidebarShortcutMatrix
             SidebarExpandedOnly
@@ -578,7 +607,7 @@ pub fn sidebar_shortcut_matrix_scene(palette: &UiPalette) -> impl Scene + use<> 
                 Node {
                     width: percent(100),
                     flex_direction: FlexDirection::Row,
-                    column_gap: Val::Px(space::S6),
+                    column_gap: rem(space::S6),
                 }
                 Children [
                     @{ shortcut_tile_scene(IconId::Globe, "nav_proxies", Route::Proxies, palette) }
@@ -589,7 +618,7 @@ pub fn sidebar_shortcut_matrix_scene(palette: &UiPalette) -> impl Scene + use<> 
                 Node {
                     width: percent(100),
                     flex_direction: FlexDirection::Row,
-                    column_gap: Val::Px(space::S6),
+                    column_gap: rem(space::S6),
                 }
                 Children [
                     @{ shortcut_tile_scene(IconId::Activity, "nav_connections", Route::Connections, palette) }
@@ -613,12 +642,12 @@ fn shortcut_tile_scene(
                 flex_grow: 1.0,
                 flex_basis: percent(50),
                 flex_direction: FlexDirection::Column,
-                padding: UiRect::all(Val::Px(space::S8)),
-                row_gap: Val::Px(space::S4),
+                padding: UiRect::all(rem(space::S8)),
+                row_gap: rem(space::S4),
                 border: UiRect::all(Val::Px(palette.hairline_px)),
-                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
             }
-            BackgroundColor({ palette.surface_elevated })
+            ThemeBackgroundColor({ Token::SurfaceElevated })
             BorderColor { top: edge, right: edge, bottom: edge, left: edge }
             Button
             SidebarShortcutTile(route)
@@ -634,20 +663,20 @@ fn shortcut_tile_scene(
                     @{ icon_scene(icon, 14.0, palette.accent) }
                     --
                     Node {
-                        padding: UiRect::horizontal(Val::Px(space::S4)),
-                        border_radius: BorderRadius::all(Val::Px(space::S4)),
+                        padding: UiRect::horizontal(rem(space::S4)),
+                        border_radius: BorderRadius::all(rem(space::S4)),
                     }
-                    BackgroundColor({ palette.accent_container })
+                    ThemeBackgroundColor({ Token::AccentContainer })
                     Children [
                         Text({ String::new() }) ShellReadoutText::Count(page_id_for_route(route))
                         TextRole(Role::Caption)
-                        TextColor({ palette.accent })
+                        ThemeTextColor({ Token::Accent })
                     ]
                 ]
                 --
                 LocalizedText::plain(label)
                 TextRole(Role::Caption)
-                TextColor({ palette.ink })
+                ThemeTextColor({ Token::Ink })
             ]
     }
 }
@@ -661,56 +690,56 @@ pub fn sidebar_speed_footer_scene(palette: &UiPalette) -> impl Scene + use<> {
                 width: percent(100),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::SpaceBetween,
-                padding: UiRect::all(Val::Px(space::S8)),
+                padding: UiRect::all(rem(space::S8)),
                 border: UiRect::all(Val::Px(palette.hairline_px)),
-                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
             }
-            BackgroundColor({ palette.surface_elevated })
+            ThemeBackgroundColor({ Token::SurfaceElevated })
             BorderColor { top: edge, right: edge, bottom: edge, left: edge }
             SidebarSpeedFooter
             SidebarExpandedOnly
             rate_node
             Children [
-                Node { width: percent(100), flex_direction: FlexDirection::Column, row_gap: px(2.0) }
+                Node { width: percent(100), flex_direction: FlexDirection::Column, row_gap: rem(2.0) }
                 Children [
                 Node { width: percent(100), align_items: AlignItems::Center, justify_content: JustifyContent::SpaceBetween }
                 Children [
                 Node {
                     flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(space::S2),
+                    row_gap: rem(space::S2),
                 }
                 Children [
                     Node {
                         align_items: AlignItems::Center,
-                        column_gap: Val::Px(space::S4),
+                        column_gap: rem(space::S4),
                     }
                     Children [
                         @{ icon_scene(IconId::ArrowUp, 10.0, palette.success) }
                         --
                         Text({ String::new() }) ShellReadoutText::Upload
                         TextRole(Role::Caption)
-                        TextColor({ palette.success })
+                        ThemeTextColor({ Token::Success })
                     ]
                     --
                     Node {
                         align_items: AlignItems::Center,
-                        column_gap: Val::Px(space::S4),
+                        column_gap: rem(space::S4),
                     }
                     Children [
                         @{ icon_scene(IconId::ArrowDown, 10.0, palette.accent) }
                         --
                         Text({ String::new() }) ShellReadoutText::Download
                         TextRole(Role::Caption)
-                        TextColor({ palette.accent })
+                        ThemeTextColor({ Token::Accent })
                     ]
                 ]
                 --
-                Node { width: px(60.0), height: px(24.0) }
+                Node { width: rem(60.0), height: rem(24.0) }
                 ShellWaveform
 
                 ]
                 --
-                Text({ String::new() }) ShellReadoutText::RateStatus TextRole(Role::Caption) TextColor({ palette.danger })
+                Text({ String::new() }) ShellReadoutText::RateStatus TextRole(Role::Caption) ThemeTextColor({ Token::Danger })
                 ]
             ]
     }
@@ -719,19 +748,23 @@ pub fn sidebar_speed_footer_scene(palette: &UiPalette) -> impl Scene + use<> {
 /// Sidebar navigation item scene.
 pub fn sidebar_nav_item_scene(route: Route, active: bool, palette: &UiPalette) -> Box<dyn Scene> {
     let semantic = nav_semantic_node(&route.label(), false);
-    let ink = nav_label_ink(active, palette);
+    let ink = if active {
+        palette.on_accent
+    } else {
+        palette.ink
+    };
     let edge = palette.border;
     Box::new(bsn! {
             Node {
                 width: percent(100),
-                min_height: px(palette.control_height_px),
+                min_height: rem(palette.control_height_px),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::FlexStart,
-                padding: UiRect::horizontal(Val::Px(space::S12)),
-                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                padding: UiRect::horizontal(rem(space::S12)),
+                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                 position_type: PositionType::Relative,
             }
-            BackgroundColor({ nav_fill(active, palette) })
+            ThemeBackgroundColor({ nav_fill_token(active) })
             Button
             SidebarNavItem(route)
             NavItem
@@ -741,7 +774,7 @@ pub fn sidebar_nav_item_scene(route: Route, active: bool, palette: &UiPalette) -
             Children [
                 @{ icon_scene(route.icon(), 18.0, ink) }
                 --
-                Node { width: px(space::S8) } NavSpacer SidebarExpandedOnly
+                Node { width: rem(space::S8) } NavSpacer SidebarExpandedOnly
                 --
                 LocalizedText::plain(route.label_key())
                 TextRole({
@@ -756,15 +789,15 @@ pub fn sidebar_nav_item_scene(route: Route, active: bool, palette: &UiPalette) -
                 --
                 Node {
                     position_type: PositionType::Absolute,
-                    left: px(68.0),
+                    left: rem(68.0),
                     display: Display::None,
-                    padding: UiRect::new(Val::Px(space::S8), Val::Px(space::S8), Val::Px(space::S4), Val::Px(space::S4)),
+                    padding: UiRect::new(rem(space::S8), rem(space::S8), rem(space::S4), rem(space::S4)),
                     border: UiRect::all(Val::Px(palette.hairline_px)),
-                    border_radius: BorderRadius::all(Val::Px(radius::XS)),
+                    border_radius: BorderRadius::all(rem(radius::XS)),
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::Center,
                 }
-                BackgroundColor({ palette.surface_elevated })
+                ThemeBackgroundColor({ Token::SurfaceElevated })
                 BorderColor { top: edge, right: edge, bottom: edge, left: edge }
                 TooltipBubble
                 RailNavTooltip(route)
@@ -787,7 +820,7 @@ pub fn nav_column_scene(palette: &UiPalette) -> Box<dyn Scene> {
             Node {
                 width: percent(100),
                 flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(space::S4),
+                row_gap: rem(space::S4),
             }
             nav_node
             Children [

@@ -122,7 +122,13 @@ impl SnapshotRestoreWorkbench {
         });
         match result {
             Ok(CommandOutput::SnapshotRestorePrepared(review)) => {
-                if hash_document_bytes(&review.before_yaml) != review.identity.source.document_hash
+                if hash_document_bytes(&review.before_yaml)
+                    != review
+                        .identity
+                        .workspace_identity
+                        .document
+                        .revision
+                        .as_str()
                     || hash_document_bytes(&review.restored_yaml) != review.identity.snapshot_hash
                 {
                     self.rejected_review = Some(review.identity.clone());
@@ -155,7 +161,12 @@ impl SnapshotRestoreWorkbench {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use infiltrator_contract::profile_source::ProfileSourceIdentity;
+    use infiltrator_contract::core_identity::EngineId;
+    use infiltrator_contract::profile_document_identity::{
+        ProfileDocumentIdentity, ProfileDocumentRevision, ProfileDocumentSourceIdentity,
+        ProfileDocumentSourceKind, ProfileFormatId, ProfileId, ProfileSchemaVersion,
+        ProfileSidecarRevision, ProfileSourceId, ProfileWorkspaceIdentity,
+    };
     use infiltrator_contract::snapshot_restore::SnapshotRestoreCancelled;
     use infiltrator_contract::yaml_ast_diff::YamlAstDiffSnapshot;
     #[test]
@@ -169,11 +180,20 @@ mod tests {
             owner: 1,
             sequence: 1,
             snapshot_hash: hash_document_bytes(source),
-            source: ProfileSourceIdentity {
-                profile: target.profile.clone(),
-                document_hash: hash_document_bytes(source),
-                options_hash: None,
-            },
+            workspace_identity: ProfileWorkspaceIdentity::new(
+                ProfileDocumentIdentity::new(
+                    ProfileId::new(target.profile.clone()).unwrap(),
+                    EngineId::new("mihomo").unwrap(),
+                    ProfileDocumentSourceIdentity::new(
+                        ProfileDocumentSourceKind::Local,
+                        ProfileSourceId::new("local-main").unwrap(),
+                    ),
+                    ProfileDocumentRevision::new(hash_document_bytes(source)).unwrap(),
+                    ProfileFormatId::new("mihomo-yaml").unwrap(),
+                    ProfileSchemaVersion::new(1).unwrap(),
+                ),
+                ProfileSidecarRevision::Absent,
+            ),
         };
         let review = SnapshotRestoreReview {
             identity: identity.clone(),

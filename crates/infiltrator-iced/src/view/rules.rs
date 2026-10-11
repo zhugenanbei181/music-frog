@@ -20,7 +20,6 @@ use iced::widget::{Id, Space, button, column, container, row, text};
 use iced::{Alignment, Element, Length, Theme};
 use infiltrator_application::rule_list_projection::{editor_preview, editor_status};
 use infiltrator_contract::rules_workspace::RulesTab;
-use infiltrator_domain::proxy::Proxy;
 use infiltrator_domain::rules::matrix::{RuleTypeFamily, matrix_family, matrix_label};
 use infiltrator_shared::locales::{Lang, Localizer};
 
@@ -169,10 +168,9 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
 
     let mut available_targets: Vec<String> = state
         .runtime
-        .proxies
+        .proxy_groups
         .iter()
-        .filter(|(_, p): &(&String, &Proxy)| p.is_group())
-        .map(|(name, _)| name.clone())
+        .map(|group| group.name.clone())
         .collect();
     available_targets.sort();
     if !available_targets.contains(&"DIRECT".to_string()) {

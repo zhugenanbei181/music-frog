@@ -1,9 +1,22 @@
 //! The exhaustive mapping from native UI actions to shared product intents.
 use super::UiCommand;
+use infiltrator_contract::android_control::AndroidControlIntent;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::rule_edit::RuleMoveDirection;
 use infiltrator_contract::snapshot_history::SNAPSHOT_DEFAULT_KEEP;
 impl UiCommand {
+    /// Core-scoped Android product controls. VPN stop uses the Android VPN
+    /// owner request directly; desktop sinks keep their existing mapping.
+    pub fn android_control_intent(&self) -> Option<AndroidControlIntent> {
+        match self {
+            Self::StartCore => Some(AndroidControlIntent::ResumeKernel),
+            Self::StopCore => Some(AndroidControlIntent::PauseKernel),
+            Self::RestartCore => Some(AndroidControlIntent::RestartKernel),
+            Self::StartVpn => Some(AndroidControlIntent::StartProxy),
+            _ => None,
+        }
+    }
+
     /// Convert a business command to the shared application contract. Local
     /// presentation actions intentionally return `None`.
     pub fn to_intent(&self) -> Option<CommandIntent> {
@@ -43,60 +56,39 @@ impl UiCommand {
             }),
             Self::ResetOverviewCardOrder => Some(CommandIntent::ResetOverviewCardOrder),
             Self::MoveOverviewCardUp(_) | Self::MoveOverviewCardDown(_) => None,
-            Self::SetProxyMode(mode) => Some(CommandIntent::SetProxyMode { mode: *mode }),
-            Self::SelectProxyNode { group, node } => Some(CommandIntent::SelectProxyNode {
-                group: group.clone(),
-                node: node.clone(),
+            Self::SetRoutingIntent(intent) => Some(CommandIntent::SetRoutingIntent {
+                intent: intent.clone(),
             }),
-            Self::CancelSpeedtest => Some(CommandIntent::CancelSpeedtest),
-            Self::SetSpeedtestConcurrency { limit } => {
-                Some(CommandIntent::SetSpeedtestConcurrency { limit: *limit })
+            Self::SelectOutbound { request } => Some(CommandIntent::SelectOutbound {
+                request: request.clone(),
+            }),
+            Self::ProbeOutbound { request } => Some(CommandIntent::ProbeOutbound {
+                request: request.clone(),
+            }),
+            Self::ProbeOutboundBatch { request } => Some(CommandIntent::ProbeOutboundBatch {
+                request: request.clone(),
+            }),
+            Self::ApplyOutboundUiPreference { request } => {
+                Some(CommandIntent::ApplyOutboundUiPreference {
+                    request: request.clone(),
+                })
             }
-            Self::TestAllProxyGroups => Some(CommandIntent::TestDelay {
-                group: None,
-                url: None,
-                timeout_ms: None,
-            }),
-            Self::TestAllProxyGroupsWithUrl { url } => Some(CommandIntent::TestDelay {
-                group: None,
-                url: Some(url.clone()),
-                timeout_ms: None,
-            }),
-            Self::TestProxyGroup { group } => Some(CommandIntent::TestDelay {
-                group: Some(group.clone()),
-                url: None,
-                timeout_ms: None,
-            }),
-            Self::TestProxyNode { node } => Some(CommandIntent::TestNodeDelay {
-                node: node.clone(),
-                url: None,
-                timeout_ms: None,
-            }),
-            Self::ToggleProxyGroupExpand { group } => Some(CommandIntent::ToggleProxyGroupExpand {
-                group: group.clone(),
-            }),
-            Self::SetProxyProbeOptions { options } => Some(CommandIntent::SetProxyProbeOptions {
-                options: options.clone(),
-            }),
-            Self::SetProxySearchQuery { query } => Some(CommandIntent::SetProxySearchQuery {
-                query: query.clone(),
-            }),
-            Self::SetProxySortOrder(order) => {
-                Some(CommandIntent::SetProxySortOrder { order: *order })
+            Self::CancelSpeedtestRun { run_id } => {
+                Some(CommandIntent::CancelSpeedtestRun { run_id: *run_id })
             }
-            Self::ToggleFilterAlive(enabled) => {
-                Some(CommandIntent::ToggleFilterAlive { enabled: *enabled })
-            }
-            Self::ToggleFavoriteProxy(proxy) => Some(CommandIntent::ToggleFavoriteProxy {
-                proxy: proxy.clone(),
+            Self::StartSpeedtest { target } => Some(CommandIntent::StartSpeedtest {
+                target: target.clone(),
             }),
-            Self::SetProxyCompactView(compact) => {
-                Some(CommandIntent::SetProxyCompactView { compact: *compact })
+            Self::SetSpeedtestConcurrency { concurrency } => {
+                Some(CommandIntent::SetSpeedtestConcurrency {
+                    concurrency: *concurrency,
+                })
             }
-            Self::ReorderProxyGroups { group_names } => Some(CommandIntent::ReorderProxyGroups {
-                group_names: group_names.clone(),
-            }),
-            Self::ResetProxyGroupOrder => Some(CommandIntent::ResetProxyGroupOrder),
+            Self::SetRuntimeProbeSettings { settings } => {
+                Some(CommandIntent::SetRuntimeProbeSettings {
+                    settings: settings.clone(),
+                })
+            }
             Self::ActivateProfile { id } => Some(CommandIntent::SwitchProfile {
                 profile_id: id.clone(),
             }),
@@ -120,7 +112,7 @@ impl UiCommand {
             }),
             Self::SaveSubscriptionFilter { source, filter } => {
                 Some(CommandIntent::SaveSubscriptionFilter {
-                    source: source.clone(),
+                    workspace_identity: source.clone(),
                     filter: filter.clone(),
                 })
             }
@@ -231,10 +223,9 @@ impl UiCommand {
                 })
             }
             Self::UpgradeGeoDatabases => Some(CommandIntent::UpgradeGeoDatabases),
-            Self::ApplyRulesJsonDocument { section, json } => {
-                Some(CommandIntent::ApplyRulesJsonDocument {
-                    section: *section,
-                    json: json.clone(),
+            Self::ApplyProfileConfiguration(request) => {
+                Some(CommandIntent::ApplyProfileConfiguration {
+                    request: request.clone(),
                 })
             }
             Self::SimulateRuleTrace { operation, request } => {
@@ -335,19 +326,18 @@ impl UiCommand {
                 check_id: check_id.clone(),
             }),
             Self::RepairAllDoctorIssues => Some(CommandIntent::RepairAllDoctorIssues),
-            Self::ToggleAppRouting { app_id, enabled } => Some(CommandIntent::ToggleAppRouting {
-                app_id: app_id.clone(),
-                enabled: *enabled,
-            }),
-            Self::SetAppRoutingMode { mode } => {
-                Some(CommandIntent::SetAppRoutingMode { mode: mode.clone() })
+            Self::SetAppRoutingPackageSelection { app_id, selection } => {
+                Some(CommandIntent::SetAppRoutingPackageSelection {
+                    app_id: app_id.clone(),
+                    selection: *selection,
+                })
             }
-            Self::ToggleIncludeSystemApps { include } => {
-                Some(CommandIntent::ToggleIncludeSystemApps { include: *include })
+            Self::SetAppRoutingMode { mode } => {
+                Some(CommandIntent::SetAppRoutingMode { mode: *mode })
             }
             Self::SetAppRule { app_id, rule } => Some(CommandIntent::SetAppRule {
                 app_id: app_id.clone(),
-                rule: rule.clone(),
+                rule: *rule,
             }),
             Self::SyncNow => Some(CommandIntent::SyncNow),
             Self::CreateBackupSnapshot => {
@@ -380,18 +370,18 @@ impl UiCommand {
             Self::SaveProfileDocument {
                 source,
                 content,
-                allow_protected,
+                authorization,
             } => Some(CommandIntent::SaveProfileDocument {
-                source: source.clone(),
+                workspace_identity: source.clone(),
                 content: content.clone(),
-                allow_protected: *allow_protected,
+                authorization: *authorization,
             }),
             Self::LoadProfileOptions { profile } => Some(CommandIntent::LoadProfileOptions {
                 profile: profile.clone(),
             }),
             Self::SaveMixinOverlay { source, mixin_yaml } => {
                 Some(CommandIntent::SaveMixinOverlay {
-                    source: source.clone(),
+                    workspace_identity: source.clone(),
                     mixin_yaml: mixin_yaml.clone(),
                 })
             }

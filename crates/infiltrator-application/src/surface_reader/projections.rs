@@ -5,8 +5,9 @@
 //! them without the parent file owning every helper.
 
 use super::*;
+use crate::runtime_configuration_application::RuntimeConfigurationReadout;
 use infiltrator_contract::mtu::MtuNegotiationSnapshot;
-use infiltrator_domain::runtime::ConfigSnapshot;
+use infiltrator_ports::runtime_configuration::ObservedValue;
 
 pub(super) fn missing(what: &str) -> Failure {
     Failure::new(
@@ -18,12 +19,12 @@ pub(super) fn missing(what: &str) -> Failure {
 
 pub(super) fn merge_applied_mtu(
     mut snapshot: MtuNegotiationSnapshot,
-    runtime_config: Option<&Result<ConfigSnapshot, PortError>>,
+    runtime_config: Option<&Result<RuntimeConfigurationReadout, Failure>>,
 ) -> MtuNegotiationSnapshot {
-    if let Some(Ok(config)) = runtime_config
-        && let Some(mtu) = config.tun.as_ref().and_then(|tun| tun.mtu)
-    {
-        snapshot.applied_tun_mtu = Some(mtu);
+    if let Some(Ok(config)) = runtime_config {
+        if let ObservedValue::Reported(mtu) = &config.tun.value.mtu {
+            snapshot.applied_tun_mtu = Some(*mtu);
+        }
     }
     snapshot
 }
@@ -45,21 +46,6 @@ where
         }
         None => surface_snapshot::PageData::unavailable(missing(what)),
     }
-}
-
-pub(super) fn active_exit(proxies: &HashMap<String, Proxy>) -> String {
-    proxies
-        .iter()
-        .find(|(name, proxy)| name.eq_ignore_ascii_case("proxies") && proxy.is_group())
-        .and_then(|(_, proxy)| proxy.now())
-        .or_else(|| {
-            proxies
-                .values()
-                .find(|proxy| proxy.is_group())
-                .and_then(Proxy::now)
-        })
-        .unwrap_or("—")
-        .to_owned()
 }
 
 #[cfg(test)]

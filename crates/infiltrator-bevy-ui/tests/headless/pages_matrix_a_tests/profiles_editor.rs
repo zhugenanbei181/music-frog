@@ -9,11 +9,14 @@ use infiltrator_bevy_ui::command_events::CommandExecutedEvent;
 use infiltrator_bevy_ui::pages::profiles_editor_transactions::EditorDiscardButton;
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::profile_document::{
+    DocumentDiagnosticSnapshot, DocumentInspection, DocumentValidation,
+};
 use infiltrator_contract::profile_options::ProfileOptionsSnapshot;
-use infiltrator_contract::profile_protection::ProfileWriteProtection;
+use infiltrator_contract::profile_protection::{ProfileWriteAuthorization, ProfileWriteProtection};
 use infiltrator_contract::subscription_filter_result::SubscriptionFilterApplied;
 use infiltrator_contract::subscription_import::SubscriptionFilterDraft;
-use infiltrator_contract::yaml_snippets::YAML_SNIPPETS;
+use infiltrator_contract::yaml_snippets::{SnippetCaret, YAML_SNIPPETS, insert_at_caret};
 use infiltrator_shared::locales::{Lang, Localizer};
 
 #[test]
@@ -35,8 +38,8 @@ fn test_profiles_editor_runs_the_shared_preflight_and_formatter() {
         )));
     app.update();
     assert!(
-        subtree_has_text(app.world(), root, "语法正确（共享预检实时通过）"),
-        "the loaded document passes the shared preflight"
+        subtree_has_text(app.world(), root, "文档有效"),
+        "the loaded document displays its codec-authored inspection"
     );
 
     let focus = marker_entity::<ProfileEditorFocusButton>(&mut app);
@@ -50,6 +53,15 @@ fn test_profiles_editor_runs_the_shared_preflight_and_formatter() {
     );
 
     // Type an invalid document: the shared preflight reports the line live.
+    sink.queue_profile_inspection(Ok(DocumentInspection::Inspected(
+        DocumentValidation::Invalid {
+            diagnostics: vec![DocumentDiagnosticSnapshot {
+                line: Some(1),
+                column: Some(3),
+                message: "expected closing flow delimiter".into(),
+            }],
+        },
+    )));
     app.world_mut()
         .write_message(keyboard_press(Key::Character("x".into()), Some("x")));
     app.world_mut()
@@ -164,12 +176,13 @@ fn test_profiles_editor_formats_with_the_shared_engine_and_saves_through_the_gua
         Some(UiCommand::SaveProfileDocument {
             source,
             content,
-            allow_protected,
+            authorization,
         }) => {
-            assert_eq!(source.profile, "main");
+            assert_eq!(source.document.profile_id.as_str(), "main");
             assert!(content.contains("# 手写注释"));
-            assert!(
-                *allow_protected,
+            assert_eq!(
+                *authorization,
+                ProfileWriteAuthorization::ExplicitUnlock,
                 "the unlock travels with the save so the application guard re-checks it"
             );
         }
@@ -279,16 +292,36 @@ fn test_profiles_editor_inserts_the_shared_snippet_catalogue() {
         )));
     app.update();
 
-    // The first button is the first catalogue entry; its body comes from the
-    // contract, and the splice runs through the shared application use-case.
-    // The caret is parked at the end of the last list item first, so the
-    // snippet joins the list instead of splitting a scalar.
+    // The first button is the first catalogue entry; the demo host receives a
+    // typed codec outcome fixture for this exact caret and buffer.
+    // The caret is parked at the end of the last list item so the snippet
+    // joins the list instead of splitting a scalar.
     {
         let mut state = app.world_mut().resource_mut::<ProfileEditorState>();
         state.buffer.cursor_row = 1;
         state.buffer.cursor_col = state.buffer.lines[1].len();
     }
     let first = YAML_SNIPPETS.first().expect("catalogue");
+    let fixture_insertion = insert_at_caret(
+        "proxies:\n  - name: keep\n",
+        first.id,
+        SnippetCaret {
+            line: 2,
+            column: "  - name: keep".len(),
+        },
+    )
+    .expect("snippet fixture");
+    sink.queue_profile_snippet(Ok(
+        infiltrator_ports::profile_document_codec::ProfileDocumentSnippetOutcome::Inserted(
+            infiltrator_ports::profile_document_codec::ProfileDocumentSnippetInsertion {
+                snippet_id: fixture_insertion.snippet_id.to_owned(),
+                content: fixture_insertion.content,
+                cursor_line: fixture_insertion.cursor_line,
+                cursor_column: fixture_insertion.cursor_column,
+                validation: DocumentValidation::Valid,
+            },
+        ),
+    ));
     let button = snippet_button_entity(&mut app, 0);
     app.world_mut()
         .commands()
@@ -307,8 +340,7 @@ fn test_profiles_editor_inserts_the_shared_snippet_catalogue() {
     );
     assert!(state.dirty, "the insertion marks the buffer dirty");
 
-    // A snippet that would break the document is refused with the shared
-    // diagnostic and never rewrites the buffer.
+    // A typed invalid-codec fixture is refused without rewriting the buffer.
     app.world_mut()
         .commands()
         .trigger(ProfilesProjectionUpdated(editor_page_projection(
@@ -343,6 +375,17 @@ fn test_profiles_editor_inserts_the_shared_snippet_catalogue() {
         .buffer
         .full_text();
     let group = snippet_button_entity(&mut app, 4);
+    sink.queue_profile_snippet(Ok(
+        infiltrator_ports::profile_document_codec::ProfileDocumentSnippetOutcome::Rejected {
+            validation: DocumentValidation::Invalid {
+                diagnostics: vec![DocumentDiagnosticSnapshot {
+                    line: Some(1),
+                    column: Some(7),
+                    message: "片段会使配置无效".into(),
+                }],
+            },
+        },
+    ));
     app.world_mut()
         .commands()
         .trigger(Activate { entity: group });
@@ -373,6 +416,7 @@ fn test_profiles_editor_mixin_pane_uses_the_shared_sidecar_use_case() {
         MixinEditorFocusButton, MixinEditorReloadButton, MixinEditorSaveButton,
         ProfileEditorOptionsState, ProfileEditorPane,
     };
+    use infiltrator_bevy_ui::pages::profiles_editor_state::MixinPreflightState;
     use infiltrator_bevy_ui::pages::profiles_editor_state::ProfileEditorState;
 
     let sink = Arc::new(DemoCommandSink::accepting());
@@ -448,7 +492,7 @@ fn test_profiles_editor_mixin_pane_uses_the_shared_sidecar_use_case() {
             Some(ProfileOptionsSnapshot::new(
                 observation("main", "mode: rule\n", Default::default())
                     .unwrap()
-                    .source,
+                    .workspace_identity,
                 "# 覆盖注释\nmode: global\n",
                 draft.clone(),
             )),
@@ -483,7 +527,7 @@ fn test_profiles_editor_mixin_pane_uses_the_shared_sidecar_use_case() {
     app.update();
     match sink.submitted().last() {
         Some(UiCommand::SaveMixinOverlay { source, mixin_yaml }) => {
-            assert_eq!(source.profile, "main");
+            assert_eq!(source.document.profile_id.as_str(), "main");
             assert!(mixin_yaml.contains("# 覆盖注释"));
         }
         other => panic!("expected SaveMixinOverlay, got {other:?}"),
@@ -528,6 +572,11 @@ fn test_profiles_editor_mixin_pane_uses_the_shared_sidecar_use_case() {
         .resource::<ProfileEditorState>()
         .buffer
         .full_text();
+    sink.queue_mixin_preflight(Err(Failure::new(
+        ErrorCode::InvalidInput,
+        "Mixin overlay is not valid YAML: expected a mapping",
+        false,
+    )));
     app.world_mut()
         .write_message(keyboard_press(Key::Character("x".into()), Some("x")));
     app.update();
@@ -540,10 +589,10 @@ fn test_profiles_editor_mixin_pane_uses_the_shared_sidecar_use_case() {
             options.mixin.buffer.full_text()
         );
         assert!(options.mixin.dirty);
-        assert!(
-            options.mixin.diagnostic.is_some(),
-            "the broken Mixin buffer fails the shared preflight"
-        );
+        assert!(matches!(
+            &options.mixin.mixin_preflight,
+            MixinPreflightState::Blocked(_)
+        ));
     }
     assert_eq!(
         app.world()
@@ -556,6 +605,11 @@ fn test_profiles_editor_mixin_pane_uses_the_shared_sidecar_use_case() {
 
     // A buffer that no longer passes the shared preflight is refused before
     // the command pump sees it (the application would re-check anyway).
+    sink.queue_mixin_preflight(Err(Failure::new(
+        ErrorCode::InvalidInput,
+        "Mixin overlay is not valid YAML: expected a mapping",
+        false,
+    )));
     let before = sink.submitted().len();
     app.world_mut()
         .commands()
@@ -567,11 +621,10 @@ fn test_profiles_editor_mixin_pane_uses_the_shared_sidecar_use_case() {
         "an invalid Mixin overlay is not submitted"
     );
     let mixin = &app.world().resource::<ProfileEditorOptionsState>().mixin;
-    let reason = &mixin
-        .diagnostic
-        .as_ref()
-        .expect("actual syntax failure")
-        .message;
+    let reason = match &mixin.mixin_preflight {
+        MixinPreflightState::Blocked(failure) => &failure.message,
+        other => panic!("expected codec refusal, got {other:?}"),
+    };
     assert_eq!(
         mixin.notice.as_deref(),
         Some(reason.as_str()),
@@ -648,7 +701,7 @@ fn test_profiles_editor_filter_pane_mirrors_the_shared_draft_and_gates_submits()
             Some(ProfileOptionsSnapshot::new(
                 observation("main", "mode: rule\n", draft.clone())
                     .unwrap()
-                    .source,
+                    .workspace_identity,
                 "{}\n",
                 draft,
             )),
@@ -720,7 +773,7 @@ fn test_profiles_editor_filter_pane_mirrors_the_shared_draft_and_gates_submits()
     app.update();
     match sink.submitted().last() {
         Some(UiCommand::SaveSubscriptionFilter { source, filter }) => {
-            assert_eq!(source.profile, "main");
+            assert_eq!(source.document.profile_id.as_str(), "main");
             assert_eq!(filter.include, "香港日本");
             assert_eq!(filter.dedup_index, 3);
         }
@@ -737,9 +790,13 @@ fn test_profiles_editor_filter_pane_mirrors_the_shared_draft_and_gates_submits()
         panic!("filter command");
     };
     let applied = SubscriptionFilterApplied {
-        source: observation(&source.profile, FIXTURE_DOCUMENT, filter.clone())
-            .unwrap()
-            .source,
+        workspace_identity: observation(
+            source.document.profile_id.as_str(),
+            FIXTURE_DOCUMENT,
+            filter.clone(),
+        )
+        .unwrap()
+        .workspace_identity,
         report: Default::default(),
     };
     app.world_mut().trigger(CommandExecutedEvent {

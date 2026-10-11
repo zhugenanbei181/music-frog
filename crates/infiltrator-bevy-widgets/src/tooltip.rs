@@ -1,5 +1,6 @@
 //! Tooltip: floating informative text bubble anchored to a target element.
 use crate::palette::UiPalette;
+use crate::palette::rem;
 use crate::popover::Rect;
 use crate::text::{Role, TextRole};
 use crate::theme::space;
@@ -120,7 +121,7 @@ pub fn tooltip_scene(
                 position_type: PositionType::Absolute,
                 left: px(rect.x),
                 top: px(rect.y),
-                padding: UiRect::new(Val::Px(space::S8), Val::Px(space::S8), Val::Px(space::S4), Val::Px(space::S4)),
+                padding: UiRect::new(rem(space::S8), rem(space::S8), rem(space::S4), rem(space::S4)),
                 border: UiRect::all(Val::Px(palette.hairline_px)),
                 border_radius: BorderRadius::all(Val::Px(palette.control_radius_px * 0.75)),
                 align_items: AlignItems::Center,

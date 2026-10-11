@@ -1,7 +1,8 @@
 //! Actual profile-backed named-table simulation and source-fenced leaf transactions.
 use super::*;
 use crate::rule_trace_actions::RuleTraceActions;
-use crate::rule_trace_fixtures::{NAMED_TRACE_DOCUMENT, RuleTraceStore};
+use crate::rule_trace_fixtures::NAMED_TRACE_DOCUMENT;
+use crate::rule_trace_fixtures::RuleTraceStore;
 use infiltrator_contract::rule_location::RuleLocation;
 use infiltrator_contract::rule_trace_run::{RuleTraceOperationId, RuleTraceRequest};
 
@@ -15,7 +16,8 @@ async fn named_leaf_report_confirmation_and_commit_preserve_parent_tables_and_so
         query: "google.com:443".into(),
         context: TrafficContextSnapshot::default(),
     };
-    app.simulate(RuleTraceOperationId(50), request.clone(), None)
+    let workspace = store.load_rule_workspace().await.unwrap();
+    super::simulate_for_test(&app, RuleTraceOperationId(50), request.clone(), &workspace)
         .await
         .unwrap();
     let report = app.execution().report.unwrap();
@@ -75,15 +77,17 @@ async fn named_match_leaf_is_explicit_and_writable_while_missing_or_cyclic_table
         query: "google.com".into(),
         context: TrafficContextSnapshot::default(),
     };
-    app.simulate(RuleTraceOperationId(1), request.clone(), None)
+    let workspace = store.load_rule_workspace().await.unwrap();
+    super::simulate_for_test(&app, RuleTraceOperationId(1), request.clone(), &workspace)
         .await
         .unwrap();
     let report = app.execution().report.unwrap();
     assert!(!report.decision_chain.as_ref().unwrap().is_fallback);
     assert!(report.can_reverse_apply);
     store.replace("rules:\n  - SUB-RULE,(DOMAIN,google.com),missing\n  - MATCH,DIRECT\n");
+    let workspace = store.load_rule_workspace().await.unwrap();
     assert_eq!(
-        app.simulate(RuleTraceOperationId(2), request.clone(), None)
+        super::simulate_for_test(&app, RuleTraceOperationId(2), request.clone(), &workspace,)
             .await
             .unwrap_err()
             .code,
@@ -91,8 +95,9 @@ async fn named_match_leaf_is_explicit_and_writable_while_missing_or_cyclic_table
     );
     assert_eq!(app.execution().report, Some(report.clone()));
     store.replace("rules:\n  - SUB-RULE,(DOMAIN,google.com),cycle\nsub-rules:\n  cycle:\n    - SUB-RULE,(DOMAIN,google.com),cycle\n");
+    let workspace = store.load_rule_workspace().await.unwrap();
     assert_eq!(
-        app.simulate(RuleTraceOperationId(3), request, None)
+        super::simulate_for_test(&app, RuleTraceOperationId(3), request, &workspace,)
             .await
             .unwrap_err()
             .code,

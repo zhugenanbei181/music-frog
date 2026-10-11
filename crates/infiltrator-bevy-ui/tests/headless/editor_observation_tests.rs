@@ -1,18 +1,20 @@
 //! Actual product read failures, source verification and native retained editor surface.
 //! test-intent: behavior
-use crate::support::headless_plugins;
+use crate::command_harness::{
+    HostlessProcess, IdentifiedHostlessProcess, test_command_application,
+};
+use crate::support::{
+    command_pump_for_observed_snapshot, execute_at_observed_scope, headless_plugins,
+};
 use bevy::app::App;
 use bevy::ecs::entity::Entity;
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::ButtonPlugin;
-use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::filter_capture_store::{FILTER_PROFILE, FilterCaptureStore};
-use infiltrator_application::language_choice_fixtures::LanguageCaptureProcess;
 use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::surface_reader::ApplicationSurfaceReader;
 use infiltrator_bevy_ui::app::ShellPlugin;
-use infiltrator_bevy_ui::command::CommandPumpPlugin;
 use infiltrator_bevy_ui::pages::profiles_editor::{
     ProfileEditorSaveButton, ProfileEditorStatusText,
 };
@@ -23,6 +25,7 @@ use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::command::CommandIntent;
+use infiltrator_contract::core_capabilities::CoreOperation;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::PageStatus;
@@ -49,16 +52,19 @@ fn native_editor_keeps_its_observed_document_on_permission_failure_disables_save
     let store = Arc::new(FilterCaptureStore::default());
     let profiles = ProfileApplication::new(store.clone());
     let core = Arc::new(CoreApplication::new(
-        Arc::new(LanguageCaptureProcess),
-        Arc::new(LanguageCaptureProcess),
+        Arc::new(IdentifiedHostlessProcess),
+        Arc::new(HostlessProcess),
         tokio_application_runtime().unwrap(),
     ));
     core.install_command_handler(Arc::new(
-        CommandApplication::new().with_profile(profiles.clone()),
+        test_command_application([]).with_profile(profiles.clone()),
     ));
-    run(core.execute(CommandIntent::LoadProfileDocument {
-        profile: Some(FILTER_PROFILE.into()),
-    }))
+    run(execute_at_observed_scope(
+        &core,
+        CommandIntent::LoadProfileDocument {
+            profile: Some(FILTER_PROFILE.into()),
+        },
+    ))
     .into_output()
     .unwrap()
     .into_profile_document()
@@ -72,7 +78,7 @@ fn native_editor_keeps_its_observed_document_on_permission_failure_disables_save
         ButtonPlugin,
         ShellPlugin::default(),
         PagesPlugin::default(),
-        CommandPumpPlugin::for_application(core.clone()),
+        command_pump_for_observed_snapshot(core.clone()),
     ));
     app.update();
     app.world_mut().trigger(RouteChanged(Route::Profiles));
@@ -98,9 +104,12 @@ fn native_editor_keeps_its_observed_document_on_permission_failure_disables_save
         .unwrap()
         .0;
     store.deny_read.store(true, Ordering::SeqCst);
-    let failure = run(core.execute(CommandIntent::LoadProfileDocument {
-        profile: Some(FILTER_PROFILE.into()),
-    }))
+    let failure = run(execute_at_observed_scope(
+        &core,
+        CommandIntent::LoadProfileDocument {
+            profile: Some(FILTER_PROFILE.into()),
+        },
+    ))
     .into_output()
     .unwrap_err();
     assert_eq!(failure.code, ErrorCode::Permission);
@@ -133,9 +142,12 @@ fn native_editor_keeps_its_observed_document_on_permission_failure_disables_save
     );
     assert_eq!(store.writes.load(Ordering::SeqCst), 0);
     store.deny_read.store(false, Ordering::SeqCst);
-    run(core.execute(CommandIntent::LoadProfileDocument {
-        profile: Some(FILTER_PROFILE.into()),
-    }))
+    run(execute_at_observed_scope(
+        &core,
+        CommandIntent::LoadProfileDocument {
+            profile: Some(FILTER_PROFILE.into()),
+        },
+    ))
     .into_output()
     .unwrap()
     .into_profile_document()

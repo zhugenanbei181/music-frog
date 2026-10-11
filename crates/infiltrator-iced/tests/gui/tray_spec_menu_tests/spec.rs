@@ -2,10 +2,12 @@
 //! test-intent: behavior
 
 use super::*;
+use infiltrator_application::routing_intent_projection::routing_intent_copy;
+use infiltrator_contract::routing_intent::RoutingIntent;
 
 #[test]
 fn spec_layout_mirrors_the_full_feature_menu() {
-    // 18 top-level entries: show, sep, mode, proxies, sep, sys, tun, theme,
+    // 18 top-level entries: show, sep, routing intent, proxies, sep, sys, tun, theme,
     // sep, profiles, kernel, sync, autostart, sep, info, sep, factory, quit.
     let spec = build_tray_spec(&base_ctx());
     let items = &spec.menu.items;
@@ -17,30 +19,36 @@ fn spec_layout_mirrors_the_full_feature_menu() {
     );
     assert_eq!(items[1], TrayMenuItem::Separator);
 
+    let routing_intent_title = Lang("zh-CN").tr("routing_intent_title").into_owned();
+    let routing_intent_labels = vec![
+        routing_intent_copy(&RoutingIntent::FollowRules, "zh-CN"),
+        routing_intent_copy(&RoutingIntent::RouteAllThroughProxy, "zh-CN"),
+        routing_intent_copy(&RoutingIntent::BypassProxy, "zh-CN"),
+    ];
     match &items[2] {
         TrayMenuItem::Submenu {
             id,
             label,
-            items: mode_items,
+            items: routing_items,
             ..
         } => {
-            assert_eq!(*id, TRAY_SUBMENU_MODE);
-            assert_eq!(label, "代理模式");
+            assert_eq!(*id, TRAY_SUBMENU_ROUTING_INTENT);
+            assert_eq!(label, &routing_intent_title);
             assert_eq!(
-                mode_items
+                routing_items
                     .iter()
                     .map(|item| item.action_label().unwrap_or_default())
                     .collect::<Vec<_>>(),
-                vec!["● 规则模式", "全局模式", "直连模式", "脚本模式"],
-                "active mode carries the `● ` marker; script enabled with a script block"
+                routing_intent_labels,
+                "only the common typed routing intents are available"
             );
             assert!(
-                mode_items
+                routing_items
                     .iter()
                     .all(|item| matches!(item, TrayMenuItem::Action { enabled: true, .. }))
             );
         }
-        other => panic!("expected mode submenu, got {other:?}"),
+        other => panic!("expected routing intent submenu, got {other:?}"),
     }
 
     match &items[3] {
@@ -128,41 +136,39 @@ fn spec_layout_mirrors_the_full_feature_menu() {
     assert_eq!(icon.rgba.len(), (icon.width * icon.height * 4) as usize);
     assert!(icon.rgba.as_chunks::<4>().0.iter().any(|px| px[3] != 0));
 
-    // The tooltip is localized and carries mode/status/version lines.
+    // The tooltip is localized and carries routing intent/status/version lines.
     assert!(spec.tooltip.contains("MusicFrog Infiltrator"));
-    assert!(spec.tooltip.contains("运行模式: 规则模式"));
+    assert!(
+        spec.tooltip
+            .contains(&format!("{}: -", Lang("zh-CN").tr("routing_intent_title")))
+    );
     assert!(spec.tooltip.contains("运行状态: 已停止"));
     assert!(spec.tooltip.contains("内核版本: -"));
 }
 
 #[test]
-fn spec_script_mode_entry_tracks_script_block_presence() {
+fn spec_routing_intent_menu_marks_the_observed_common_choice() {
     let mut ctx = base_ctx();
-    ctx.script_block_present = false;
-    ctx.mode = Some("script");
+    let intent = RoutingIntent::RouteAllThroughProxy;
+    ctx.routing_intent = Some(&intent);
     let items = &build_tray_spec(&ctx).menu.items;
 
     let TrayMenuItem::Submenu {
-        items: mode_items, ..
+        items: routing_items,
+        ..
     } = &items[2]
     else {
-        panic!("entry 2 must be the mode submenu");
+        panic!("entry 2 must be the routing intent submenu");
     };
-    let TrayMenuItem::Action { label, enabled, .. } = &mode_items[3] else {
-        panic!("script entry must be an action");
+    let TrayMenuItem::Action { label, enabled, .. } = &routing_items[1] else {
+        panic!("the second common choice must be an action");
     };
-    assert_eq!(label, "脚本模式（配置未启用）");
-    assert!(!*enabled, "script entry disabled without a script block");
-
-    // With the block present the plain localized label is used instead.
-    let items = &build_tray_spec(&base_ctx()).menu.items;
-    let TrayMenuItem::Submenu {
-        items: mode_items, ..
-    } = &items[2]
-    else {
-        panic!("entry 2 must be the mode submenu");
-    };
-    assert_eq!(mode_items[3].action_label(), Some("脚本模式"));
+    assert_eq!(
+        label,
+        &format!("● {}", routing_intent_copy(&intent, "zh-CN"))
+    );
+    assert!(*enabled);
+    assert_eq!(routing_items.len(), 3);
 }
 
 #[test]
@@ -535,7 +541,8 @@ fn spec_info_lines_are_disabled_and_localized() {
     let mut ctx = base_ctx();
     ctx.status = TrayCoreStatus::Error;
     ctx.admin_enabled = true;
-    ctx.mode = Some("global");
+    let intent = RoutingIntent::RouteAllThroughProxy;
+    ctx.routing_intent = Some(&intent);
     let items = &build_tray_spec(&ctx).menu.items;
 
     let TrayMenuItem::Submenu {
@@ -550,7 +557,14 @@ fn spec_info_lines_are_disabled_and_localized() {
     assert_eq!(
         info_items,
         &vec![
-            TrayMenuItem::info(TRAY_ACTION_INFO_MODE, "运行模式: 全局模式"),
+            TrayMenuItem::info(
+                TRAY_ACTION_INFO_ROUTING_INTENT,
+                format!(
+                    "{}: {}",
+                    Lang("zh-CN").tr("routing_intent_title"),
+                    routing_intent_copy(&intent, "zh-CN")
+                )
+            ),
             TrayMenuItem::info(TRAY_ACTION_INFO_STATUS, "运行状态: 异常"),
             TrayMenuItem::info(
                 TRAY_ACTION_INFO_CONTROLLER,

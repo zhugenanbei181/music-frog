@@ -4,6 +4,7 @@ use crate::surface::LatestSurfaceSnapshot;
 use bevy::app::{App, Plugin, Update};
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Res, ResMut};
+use infiltrator_application::language_choice::LanguageReadPhase;
 use infiltrator_bevy_widgets::localization::{LocaleCopySet, UiLocale, WidgetLocalizationPlugin};
 
 pub struct LocalizationPlugin;
@@ -22,7 +23,11 @@ pub(crate) fn read_language_preference(
     mut locale: ResMut<UiLocale>,
 ) {
     let preference = if let Some(state) = state {
-        state.model.applied
+        match &state.model.read {
+            LanguageReadPhase::Unobserved => None,
+            LanguageReadPhase::Observed { preference } => *preference,
+            LanguageReadPhase::Failed { last_known, .. } => *last_known,
+        }
     } else {
         latest
             .as_ref()

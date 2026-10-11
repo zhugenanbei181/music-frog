@@ -1,14 +1,13 @@
 //! DUAL-11-14: the Bevy rules-workspace JSON partition.
 //!
-//! Iced edits three JSON documents of the active profile (rule-providers,
-//! proxy-providers, sniffer) through `text_editor` buffers and the shared
-//! `ConfigurationApplication::save_*` use-cases. This module gives the Bevy
+//! Iced edits three JSON section projections (rule-providers, proxy-providers,
+//! sniffer) through `text_editor` buffers and typed configuration commands.
+//! This module gives the Bevy
 //! surface the same capability: the documents arrive through the shared read
 //! model (`RulesPageSnapshot.json_documents`, serialised from the same profile
 //! the Iced editor loads), the buffer is the shared-widget
-//! [`CodeEditorState`], and saving submits
-//! [`UiCommand::ApplyRulesJsonDocument`], which the shared application parses,
-//! validates and persists.
+//! [`CodeEditorState`], and saving decodes text into a typed update bound to
+//! the exact profile revision published with that text.
 //!
 //! **Honest boundary**: the Bevy command bus is fire-and-forget, so the status
 //! line reports that a save was *submitted* and reports 「已与读模型一致」 only
@@ -27,23 +26,31 @@ use bevy::ecs::observer::On;
 use bevy::ecs::query::{QueryData, With, Without};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
+use bevy::feathers::theme::ThemeBackgroundColor;
+use bevy::feathers::theme::ThemeTextColor;
 use bevy::input::keyboard::{Key, KeyCode, KeyboardInput};
 use bevy::input::{ButtonInput, ButtonState};
 use bevy::scene::{CommandsSceneExt, Scene, bsn};
 use bevy::text::TextColor;
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, Overflow,
-    UiRect, Val, percent, px,
+    UiRect, percent, px,
 };
 use bevy::ui::widget::Text;
-use bevy::ui_widgets::{Activate, Button};
+use bevy::ui_widgets::{Activate, Button, ScrollArea};
 use infiltrator_application::rule_json_projection::json_editor_status;
 use infiltrator_bevy_widgets::editor::code_editor_scene;
 use infiltrator_bevy_widgets::editor::state::CodeEditorState;
+use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::profile_configuration::{
+    ProfileConfigurationRequest, ProfileConfigurationUpdate,
+};
+use infiltrator_contract::profile_document_identity::ProfileDocumentIdentity;
 use infiltrator_contract::rule_json_feedback::RuleJsonFeedback;
 use infiltrator_contract::rules_workspace::{
     RulesJsonDocumentSnapshot, RulesJsonSection, RulesTab,
@@ -67,6 +74,9 @@ pub struct RulesJsonState {
     pub last_rendered: u64,
     /// Last published documents (the shared read model).
     pub published: Vec<RulesJsonDocumentSnapshot>,
+    /// Source identity paired with each local buffer. Dirty buffers retain the
+    /// revision from which editing began when a newer read arrives.
+    pub buffer_identities: Vec<Option<ProfileDocumentIdentity>>,
     /// Honest status line (submitted / adopted / refused).
     pub status: Option<RuleJsonFeedback>,
 }
@@ -84,6 +94,7 @@ impl Default for RulesJsonState {
             generation: 0,
             last_rendered: 0,
             published: Vec::new(),
+            buffer_identities: vec![None; RulesJsonSection::ALL.len()],
             status: None,
         }
     }
@@ -119,6 +130,7 @@ impl RulesJsonState {
             .map(|_| CodeEditorState::new(""))
             .collect();
         self.dirty = vec![false; RulesJsonSection::ALL.len()];
+        self.buffer_identities = vec![None; RulesJsonSection::ALL.len()];
         self.generation = self.generation.wrapping_add(1);
     }
 
@@ -129,11 +141,27 @@ impl RulesJsonState {
         self.ensure_buffers();
         for document in documents {
             let index = document.section.index();
-            if self.buffers[index].full_text() == document.json {
-                // The read model confirms the buffer bytes: a submitted edit is
-                // no longer pending, whatever the local flag said.
+            let current = self.buffers[index].full_text();
+            let same_value = self.dirty.get(index).copied().unwrap_or(false)
+                && match (
+                    typed_rules_update(document.section, &current),
+                    typed_rules_update(document.section, &document.json),
+                ) {
+                    (Ok(left), Ok(right)) => left == right,
+                    _ => false,
+                };
+            if current == document.json || same_value {
+                // The read model confirms the typed value; its pretty-printer
+                // may normalize whitespace from the local buffer.
                 if let Some(dirty) = self.dirty.get_mut(index) {
                     *dirty = false;
+                }
+                if current != document.json {
+                    self.buffers[index] = CodeEditorState::new(&document.json);
+                    self.generation = self.generation.wrapping_add(1);
+                }
+                if let Some(identity) = self.buffer_identities.get_mut(index) {
+                    *identity = Some(document.identity.clone());
                 }
                 continue;
             }
@@ -141,6 +169,7 @@ impl RulesJsonState {
                 continue;
             }
             self.buffers[index] = CodeEditorState::new(&document.json);
+            self.buffer_identities[index] = Some(document.identity.clone());
             self.generation = self.generation.wrapping_add(1);
         }
     }
@@ -195,15 +224,21 @@ impl RulesJsonState {
 
     /// Build the save command for the active section, if the buffer can be
     /// submitted.
-    pub fn submit_command(&self) -> Option<UiCommand> {
+    pub fn submit_command(&self) -> Result<UiCommand, RulesJsonSubmissionFailure> {
         let json = self.buffer().full_text();
         if json.trim().is_empty() {
-            return None;
+            return Err(RulesJsonSubmissionFailure::Empty);
         }
-        Some(UiCommand::ApplyRulesJsonDocument {
-            section: self.section,
-            json,
-        })
+        let identity = self
+            .buffer_identities
+            .get(self.section.index())
+            .and_then(Clone::clone)
+            .ok_or(RulesJsonSubmissionFailure::SourceUnavailable)?;
+        let update = typed_rules_update(self.section, &json)
+            .map_err(|()| RulesJsonSubmissionFailure::InvalidDocument)?;
+        Ok(UiCommand::ApplyProfileConfiguration(Box::new(
+            ProfileConfigurationRequest { identity, update },
+        )))
     }
 
     /// Status text for the active section.
@@ -218,6 +253,30 @@ impl RulesJsonState {
             self.status,
             language,
         )
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum RulesJsonSubmissionFailure {
+    Empty,
+    SourceUnavailable,
+    InvalidDocument,
+}
+
+fn typed_rules_update(
+    section: RulesJsonSection,
+    json: &str,
+) -> Result<ProfileConfigurationUpdate, ()> {
+    match section {
+        RulesJsonSection::RuleProviders => serde_json::from_str(json)
+            .map(ProfileConfigurationUpdate::RuleProviders)
+            .map_err(|_| ()),
+        RulesJsonSection::ProxyProviders => serde_json::from_str(json)
+            .map(ProfileConfigurationUpdate::ProxyProviders)
+            .map_err(|_| ()),
+        RulesJsonSection::Sniffer => serde_json::from_str(json)
+            .map(ProfileConfigurationUpdate::Sniffer)
+            .map_err(|_| ()),
     }
 }
 
@@ -257,16 +316,16 @@ fn section_chip_scene(section: RulesJsonSection, palette: &UiPalette) -> Box<dyn
                 min_height: px(palette.control_height_px * 0.85),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
-                padding: UiRect::horizontal(Val::Px(space::S12)),
-                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                padding: UiRect::horizontal(rem(space::S12)),
+                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
             }
-            BackgroundColor({ if selected { palette.accent } else { palette.surface_elevated } })
+            ThemeBackgroundColor({ if selected { Token::Accent } else { Token::SurfaceElevated } })
             Button
             RulesJsonSectionChip(index)
             Children [
                 LocalizedText::plain(section.i18n_key())
                 TextRole(Role::Caption)
-                TextColor({ if selected { palette.on_accent } else { palette.ink_dim } })
+                ThemeTextColor({ if selected { Token::OnAccent } else { Token::InkDim } })
                 RulesJsonSectionLabel(index)
             ]
     })
@@ -275,13 +334,13 @@ fn section_chip_scene(section: RulesJsonSection, palette: &UiPalette) -> Box<dyn
 fn edit_button_scene(palette: &UiPalette) -> Box<dyn Scene> {
     Box::new(bsn! {
             Node {
-                min_height: px(palette.control_height_px),
+                min_height: rem(palette.control_height_px),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
-                padding: UiRect::horizontal(Val::Px(space::S12)),
-                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                padding: UiRect::horizontal(rem(space::S12)),
+                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
             }
-            BackgroundColor({ palette.border })
+            ThemeBackgroundColor({ Token::Border })
             Button
             RulesJsonEditButton
             Children [
@@ -294,13 +353,13 @@ fn save_button_scene(section: RulesJsonSection, palette: &UiPalette) -> Box<dyn 
     let semantic = button_semantic_node("");
     Box::new(bsn! {
             Node {
-                min_height: px(palette.control_height_px),
+                min_height: rem(palette.control_height_px),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
-                padding: UiRect::horizontal(Val::Px(space::S12)),
-                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                padding: UiRect::horizontal(rem(space::S12)),
+                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
             }
-            BackgroundColor({ palette.accent })
+            ThemeBackgroundColor({ Token::Accent })
             Button
             RulesJsonSaveButton
             semantic LocalizedLabel::plain(section.save_i18n_key())
@@ -327,21 +386,21 @@ pub fn rules_json_scene(palette: &UiPalette, state: &RulesJsonState) -> impl Sce
             Node {
                 width: percent(100),
                 flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(space::S12),
+                row_gap: rem(space::S12),
             }
             Children [
                 Node {
                     width: percent(100),
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::SpaceBetween,
-                    padding: UiRect::bottom(Val::Px(space::S8)),
+                    padding: UiRect::bottom(rem(space::S8)),
                 }
                 Children [
                     LocalizedText::plain("rules_json_editor_title") TextRole(Role::BodyStrong)
                     --
                     Node {
                         align_items: AlignItems::Center,
-                        column_gap: Val::Px(space::S8),
+                        column_gap: rem(space::S8),
                     }
                     Children [
                         { vec![edit_button, save_button] }
@@ -352,7 +411,7 @@ pub fn rules_json_scene(palette: &UiPalette, state: &RulesJsonState) -> impl Sce
                     width: percent(100),
                     flex_direction: FlexDirection::Row,
                     align_items: AlignItems::Center,
-                    column_gap: Val::Px(space::S8),
+                    column_gap: rem(space::S8),
                 }
                 Children [
                     { chips }
@@ -362,12 +421,13 @@ pub fn rules_json_scene(palette: &UiPalette, state: &RulesJsonState) -> impl Sce
                 --
                 Node {
                     width: percent(100),
-                    height: px(320.0),
-                    padding: UiRect::all(Val::Px(space::S8)),
-                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                    height: rem(320.0),
+                    padding: UiRect::all(rem(space::S8)),
+                    border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                     overflow: Overflow::scroll_y(),
                 }
-                BackgroundColor({ palette.window_clear })
+                ScrollArea
+                ThemeBackgroundColor({ Token::WindowClear })
                 Children [
                     Node {
                         width: percent(100),
@@ -529,9 +589,18 @@ pub fn on_rules_json_action_activated(
         state.status = Some(RuleJsonFeedback::HostUnavailable);
         return;
     };
-    let Some(command) = state.submit_command() else {
-        state.status = Some(RuleJsonFeedback::Empty);
-        return;
+    let command = match state.submit_command() {
+        Ok(command) => command,
+        Err(error) => {
+            state.status = Some(match error {
+                RulesJsonSubmissionFailure::Empty => RuleJsonFeedback::Empty,
+                RulesJsonSubmissionFailure::SourceUnavailable => {
+                    RuleJsonFeedback::SourceUnavailable
+                }
+                RulesJsonSubmissionFailure::InvalidDocument => RuleJsonFeedback::InvalidDocument,
+            });
+            return;
+        }
     };
     handle.submit(command);
     if let Some(dirty) = state.dirty.get_mut(index) {
@@ -575,13 +644,27 @@ pub fn rules_json_keyboard_input(
     for key in pressed {
         if modifiers.ctrl && matches!(&key, Key::Character(text) if text.eq_ignore_ascii_case("s"))
         {
-            if let (Some(handle), Some(command)) = (handle.as_ref(), state.submit_command()) {
-                handle.submit(command);
-                let index = state.section.index();
-                if let Some(dirty) = state.dirty.get_mut(index) {
-                    *dirty = true;
+            match (handle.as_ref(), state.submit_command()) {
+                (None, _) => state.status = Some(RuleJsonFeedback::HostUnavailable),
+                (Some(_), Err(error)) => {
+                    state.status = Some(match error {
+                        RulesJsonSubmissionFailure::Empty => RuleJsonFeedback::Empty,
+                        RulesJsonSubmissionFailure::SourceUnavailable => {
+                            RuleJsonFeedback::SourceUnavailable
+                        }
+                        RulesJsonSubmissionFailure::InvalidDocument => {
+                            RuleJsonFeedback::InvalidDocument
+                        }
+                    });
                 }
-                state.status = Some(RuleJsonFeedback::AwaitingReadback);
+                (Some(handle), Ok(command)) => {
+                    handle.submit(command);
+                    let index = state.section.index();
+                    if let Some(dirty) = state.dirty.get_mut(index) {
+                        *dirty = true;
+                    }
+                    state.status = Some(RuleJsonFeedback::AwaitingReadback);
+                }
             }
             continue;
         }
@@ -597,15 +680,36 @@ pub fn rules_json_keyboard_input(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use infiltrator_contract::core_identity::EngineId;
+    use infiltrator_contract::profile_document_identity::{
+        ProfileDocumentRevision, ProfileDocumentSourceIdentity, ProfileDocumentSourceKind,
+        ProfileFormatId, ProfileId, ProfileSchemaVersion, ProfileSourceId,
+    };
+
+    fn identity(revision: &str) -> ProfileDocumentIdentity {
+        ProfileDocumentIdentity::new(
+            ProfileId::new("profile-main").unwrap(),
+            EngineId::new("mihomo").unwrap(),
+            ProfileDocumentSourceIdentity::new(
+                ProfileDocumentSourceKind::Local,
+                ProfileSourceId::new("local-main").unwrap(),
+            ),
+            ProfileDocumentRevision::new(revision).unwrap(),
+            ProfileFormatId::new("mihomo-yaml").unwrap(),
+            ProfileSchemaVersion::new(1).unwrap(),
+        )
+    }
 
     fn documents() -> Vec<RulesJsonDocumentSnapshot> {
         vec![
             RulesJsonDocumentSnapshot {
                 section: RulesJsonSection::RuleProviders,
+                identity: identity("revision-1"),
                 json: "{\n  \"a\": 1\n}".to_owned(),
             },
             RulesJsonDocumentSnapshot {
                 section: RulesJsonSection::Sniffer,
+                identity: identity("revision-1"),
                 json: "{}".to_owned(),
             },
         ]
@@ -647,26 +751,38 @@ mod tests {
         state.buffer_mut().set_text("{\n  \"edited\": true\n}");
         state.adopt(&[RulesJsonDocumentSnapshot {
             section: RulesJsonSection::RuleProviders,
+            identity: identity("revision-2"),
             json: "{\n  \"server\": 1\n}".to_owned(),
         }]);
         assert_eq!(
             state.buffers[RulesJsonSection::RuleProviders.index()].full_text(),
             "{\n  \"edited\": true\n}"
         );
+        assert_eq!(
+            state.buffer_identities[RulesJsonSection::RuleProviders.index()],
+            Some(identity("revision-1")),
+            "dirty text keeps the revision it was read from"
+        );
         assert!(state.status_label("zh-CN").contains("有未提交改动"));
 
         // A read-back that matches the buffer clears the pending flag.
         state.adopt(&[RulesJsonDocumentSnapshot {
             section: RulesJsonSection::RuleProviders,
+            identity: identity("revision-2"),
             json: "{\n  \"edited\": true\n}".to_owned(),
         }]);
         assert!(!state.dirty[RulesJsonSection::RuleProviders.index()]);
+        assert_eq!(
+            state.buffer_identities[RulesJsonSection::RuleProviders.index()],
+            Some(identity("revision-2"))
+        );
         assert!(!state.status_label("zh-CN").contains("有未提交改动"));
 
         // A clean buffer follows the read model.
         state.dirty[RulesJsonSection::RuleProviders.index()] = false;
         state.adopt(&[RulesJsonDocumentSnapshot {
             section: RulesJsonSection::RuleProviders,
+            identity: identity("revision-3"),
             json: "{\n  \"server\": 2\n}".to_owned(),
         }]);
         assert_eq!(
@@ -693,20 +809,34 @@ mod tests {
     }
 
     #[test]
-    fn submit_builds_the_shared_section_intent_and_refuses_empty_buffers() {
+    fn submit_builds_a_revision_bound_typed_update_and_refuses_invalid_buffers() {
         let mut state = RulesJsonState::default();
         state.adopt(&documents());
         state.section = RulesJsonSection::Sniffer;
         match state.submit_command() {
-            Some(UiCommand::ApplyRulesJsonDocument { section, json }) => {
-                assert_eq!(section, RulesJsonSection::Sniffer);
-                assert_eq!(json, "{}");
+            Ok(UiCommand::ApplyProfileConfiguration(request)) => {
+                assert_eq!(request.identity, identity("revision-1"));
+                assert_eq!(
+                    request.update,
+                    ProfileConfigurationUpdate::Sniffer(Default::default())
+                );
             }
-            other => panic!("expected the shared JSON intent, got {other:?}"),
+            other => panic!("expected a typed profile update, got {other:?}"),
         }
 
         state.section = RulesJsonSection::ProxyProviders;
-        assert!(state.submit_command().is_none(), "empty buffer is refused");
+        assert_eq!(
+            state.submit_command(),
+            Err(RulesJsonSubmissionFailure::Empty),
+            "empty buffer is refused"
+        );
         assert!(state.status_label("zh-CN").contains("读模型未发布该文档"));
+
+        state.section = RulesJsonSection::RuleProviders;
+        state.buffer_mut().set_text("[]");
+        assert_eq!(
+            state.submit_command(),
+            Err(RulesJsonSubmissionFailure::InvalidDocument)
+        );
     }
 }

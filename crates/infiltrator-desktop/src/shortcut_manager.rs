@@ -1,14 +1,14 @@
 use anyhow::{Result, bail};
+use infiltrator_contract::routing_intent::RoutingIntent;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 use std::{error, fmt};
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub enum ActionIntent {
     ToggleSystemProxy,
     ToggleTun,
-    SwitchMode,
-    TestDelayAll,
+    SetRoutingIntent(RoutingIntent),
     ShowWindow,
     HideWindow,
     ToggleProxy,
@@ -20,29 +20,35 @@ pub enum ActionIntent {
 }
 
 impl ActionIntent {
-    pub fn as_intent_str(&self) -> &str {
+    pub fn as_intent_str(&self) -> String {
         match self {
-            Self::ToggleSystemProxy => "toggle_system_proxy",
-            Self::ToggleTun => "toggle_tun",
-            Self::SwitchMode => "switch_mode",
-            Self::TestDelayAll => "test_delay_all",
-            Self::ShowWindow => "show_window",
-            Self::HideWindow => "hide_window",
-            Self::ToggleProxy => "toggle_proxy",
-            Self::ToggleMainWindow => "toggle_main_window",
-            Self::OpenDashboard => "open_dashboard",
-            Self::SwitchNextProfile => "switch_next_profile",
-            Self::FlushDnsCache => "flush_dns_cache",
-            Self::Custom(s) => s.as_str(),
+            Self::ToggleSystemProxy => "toggle_system_proxy".to_string(),
+            Self::ToggleTun => "toggle_tun".to_string(),
+            Self::SetRoutingIntent(intent) => format!(
+                "set_routing_intent:{}",
+                serde_json::to_string(intent).expect("routing intents serialize")
+            ),
+            Self::ShowWindow => "show_window".to_string(),
+            Self::HideWindow => "hide_window".to_string(),
+            Self::ToggleProxy => "toggle_proxy".to_string(),
+            Self::ToggleMainWindow => "toggle_main_window".to_string(),
+            Self::OpenDashboard => "open_dashboard".to_string(),
+            Self::SwitchNextProfile => "switch_next_profile".to_string(),
+            Self::FlushDnsCache => "flush_dns_cache".to_string(),
+            Self::Custom(s) => format!("custom:{s}"),
         }
     }
 
     pub fn from_intent_str(s: &str) -> Option<Self> {
-        match s.to_ascii_lowercase().as_str() {
+        let normalized = s.to_ascii_lowercase();
+        if let Some(serialized) = s.strip_prefix("set_routing_intent:") {
+            return serde_json::from_str(serialized)
+                .ok()
+                .map(Self::SetRoutingIntent);
+        }
+        match normalized.as_str() {
             "toggle_system_proxy" => Some(Self::ToggleSystemProxy),
             "toggle_tun" => Some(Self::ToggleTun),
-            "switch_mode" | "switch_proxy_mode" => Some(Self::SwitchMode),
-            "test_delay_all" | "test_all_delays" => Some(Self::TestDelayAll),
             "show_window" => Some(Self::ShowWindow),
             "hide_window" => Some(Self::HideWindow),
             "toggle_proxy" => Some(Self::ToggleProxy),
@@ -50,7 +56,9 @@ impl ActionIntent {
             "open_dashboard" => Some(Self::OpenDashboard),
             "switch_next_profile" => Some(Self::SwitchNextProfile),
             "flush_dns_cache" => Some(Self::FlushDnsCache),
-            other if !other.is_empty() => Some(Self::Custom(s.to_string())),
+            value if value.starts_with("custom:") && value.len() > "custom:".len() => {
+                Some(Self::Custom(s["custom:".len()..].to_string()))
+            }
             _ => None,
         }
     }
@@ -445,16 +453,15 @@ mod tests {
         assert_eq!(b2.key, "X");
         assert_eq!(b2.action, ActionIntent::ToggleTun);
 
-        let b3 = ShortcutManager::parse_accelerator("Command+Option+P", ActionIntent::SwitchMode)
-            .unwrap();
+        let routing_intent = RoutingIntent::RouteAllThroughProxy;
+        let b3 = ShortcutManager::parse_accelerator(
+            "Command+Option+P",
+            ActionIntent::SetRoutingIntent(routing_intent.clone()),
+        )
+        .unwrap();
         assert!(!b3.modifiers.ctrl && b3.modifiers.alt && !b3.modifiers.shift && b3.modifiers.meta);
         assert_eq!(b3.key, "P");
-        assert_eq!(b3.action, ActionIntent::SwitchMode);
-
-        let b4 = ShortcutManager::parse_accelerator("Ctrl+Shift+F5", ActionIntent::TestDelayAll)
-            .unwrap();
-        assert!(b4.modifiers.ctrl && b4.modifiers.shift);
-        assert_eq!(b4.key, "F5");
+        assert_eq!(b3.action, ActionIntent::SetRoutingIntent(routing_intent));
 
         let b5 =
             ShortcutManager::parse_accelerator("Win+Alt+Space", ActionIntent::ShowWindow).unwrap();
@@ -548,7 +555,8 @@ mod tests {
     #[test]
     fn test_match_action_and_intent() {
         let mut manager = ShortcutManager::new();
-        let b = ShortcutManager::parse_accelerator("Ctrl+Alt+P", ActionIntent::SwitchMode).unwrap();
+        let action = ActionIntent::SetRoutingIntent(RoutingIntent::FollowRules);
+        let b = ShortcutManager::parse_accelerator("Ctrl+Alt+P", action.clone()).unwrap();
         manager.register(b).unwrap();
 
         let mods = ModifierKeys {
@@ -557,17 +565,11 @@ mod tests {
             shift: false,
             meta: false,
         };
-        assert_eq!(
-            manager.match_action("P", &mods),
-            Some(&ActionIntent::SwitchMode)
-        );
-        assert_eq!(
-            manager.match_intent("P", &mods),
-            Some(ActionIntent::SwitchMode)
-        );
+        assert_eq!(manager.match_action("P", &mods), Some(&action));
+        assert_eq!(manager.match_intent("P", &mods), Some(action.clone()));
         assert_eq!(manager.match_action("Q", &mods), None);
 
-        manager.set_enabled(&ActionIntent::SwitchMode, false);
+        manager.set_enabled(&action, false);
         assert_eq!(manager.match_action("P", &mods), None);
     }
 
@@ -578,8 +580,6 @@ mod tests {
             "toggle_system_proxy"
         );
         assert_eq!(ActionIntent::ToggleTun.as_intent_str(), "toggle_tun");
-        assert_eq!(ActionIntent::SwitchMode.as_intent_str(), "switch_mode");
-        assert_eq!(ActionIntent::TestDelayAll.as_intent_str(), "test_delay_all");
         assert_eq!(ActionIntent::ShowWindow.as_intent_str(), "show_window");
         assert_eq!(ActionIntent::HideWindow.as_intent_str(), "hide_window");
 
@@ -592,16 +592,18 @@ mod tests {
             Some(ActionIntent::ToggleTun)
         );
         assert_eq!(
-            ActionIntent::from_intent_str("switch_proxy_mode"),
-            Some(ActionIntent::SwitchMode)
-        );
-        assert_eq!(
-            ActionIntent::from_intent_str("test_all_delays"),
-            Some(ActionIntent::TestDelayAll)
-        );
-        assert_eq!(
             "show_window".parse::<ActionIntent>().unwrap(),
             ActionIntent::ShowWindow
+        );
+
+        let typed = ActionIntent::SetRoutingIntent(RoutingIntent::BypassProxy);
+        assert_eq!(
+            ActionIntent::from_intent_str(&typed.as_intent_str()),
+            Some(typed)
+        );
+        assert_eq!(
+            ActionIntent::from_intent_str("set_routing_intent:not-json"),
+            None
         );
     }
 

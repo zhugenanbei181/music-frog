@@ -1,0 +1,400 @@
+param(
+    [string]$Profile = "apk-dev",
+    [string]$Target = "",
+    [string]$OutputApk = "",
+    [string]$AndroidSdk = ""
+)
+
+$ErrorActionPreference = "Stop"
+$repositoryRoot = Split-Path -Parent $PSScriptRoot
+if ($Profile -ne "apk-dev") {
+    throw "This helper builds the local apk-dev profile only; use a release signing pipeline for distributable builds."
+}
+if ($Target -and $Target -notin @("aarch64-linux-android", "x86_64-linux-android")) {
+    throw "Supported Android build targets are aarch64-linux-android and x86_64-linux-android."
+}
+$androidSdk = if ($AndroidSdk) {
+    $AndroidSdk
+} elseif ($env:ANDROID_SDK_ROOT) {
+    $env:ANDROID_SDK_ROOT
+} elseif ($env:ANDROID_HOME) {
+    $env:ANDROID_HOME
+} else {
+    throw "Set ANDROID_SDK_ROOT or ANDROID_HOME to the Android SDK directory."
+}
+if (-not $env:ANDROID_HOME) {
+    $env:ANDROID_HOME = $androidSdk
+}
+if (-not $env:ANDROID_NDK_ROOT) {
+    $ndk = Get-ChildItem (Join-Path $androidSdk "ndk") -Directory -ErrorAction SilentlyContinue |
+        Sort-Object { [version]$_.Name } -Descending |
+        Select-Object -First 1
+    if ($ndk) {
+        $env:ANDROID_NDK_ROOT = $ndk.FullName
+    } else {
+        throw "Set ANDROID_NDK_ROOT to the Android NDK directory."
+    }
+}
+
+$platforms = Get-ChildItem (Join-Path $androidSdk "platforms") -Directory |
+    Where-Object { $_.Name -match '^android-(\d+)$' } |
+    Sort-Object { [int]($_.Name -replace '^android-', '') } -Descending
+if (-not $platforms) {
+    throw "No Android SDK platform was found under $androidSdk."
+}
+$androidJar = Join-Path $platforms[0].FullName "android.jar"
+$buildTools = Get-ChildItem (Join-Path $androidSdk "build-tools") -Directory |
+    Sort-Object { [version]$_.Name } -Descending |
+    Select-Object -First 1
+if (-not $buildTools) {
+    throw "No Android SDK build-tools were found under $androidSdk."
+}
+
+$javac = if ($env:JAVA_HOME) {
+    Join-Path $env:JAVA_HOME "bin\javac.exe"
+} else {
+    (Get-Command javac.exe -ErrorAction Stop).Source
+}
+$d8 = Join-Path $buildTools.FullName "d8.bat"
+$aapt = Join-Path $buildTools.FullName "aapt.exe"
+$zipalign = Join-Path $buildTools.FullName "zipalign.exe"
+$apksigner = Join-Path $buildTools.FullName "apksigner.bat"
+foreach ($toolPath in @($androidJar, $javac, $d8, $aapt, $zipalign, $apksigner)) {
+    if (-not (Test-Path -LiteralPath $toolPath -PathType Leaf)) {
+        throw "Required Android packaging tool not found: $toolPath"
+    }
+}
+
+$targetDirectory = Join-Path $repositoryRoot "target"
+$targetDirectory = [System.IO.Path]::GetFullPath($targetDirectory)
+$null = Add-Type -AssemblyName System.IO.Compression
+$null = Add-Type -AssemblyName System.IO.Compression.FileSystem
+$debugKeystore = Join-Path $env:USERPROFILE ".android\debug.keystore"
+if (-not (Test-Path -LiteralPath $debugKeystore -PathType Leaf)) {
+    throw "The Android debug keystore was not found at $debugKeystore."
+}
+$mihomoVersion = "1.19.32"
+$coreAbi = if ($Target -eq "x86_64-linux-android") { "x86_64" } else { "arm64-v8a" }
+if ($coreAbi -eq "x86_64") {
+    $coreAsset = "mihomo-android-amd64-v$mihomoVersion.gz"
+    $coreSha256 = "91c159015e7d8aaff22153b9fd18749a0c7258d6f252ea344ecace975ce17413"
+    $expectedElfMachine = 62
+} else {
+    $coreAsset = "mihomo-android-arm64-v8-v$mihomoVersion.gz"
+    $coreSha256 = "42b1f2be8702484d3ae6238daab392622f54bd0d264966700f1f28f52596e326"
+    $expectedElfMachine = 183
+}
+$coreCacheDirectory = Join-Path $targetDirectory "android-core"
+$coreRuntimeDirectory = Join-Path $targetDirectory ("android-runtime-libs\" + $coreAbi)
+$coreAssetPath = Join-Path $coreCacheDirectory $coreAsset
+$coreBinaryPath = Join-Path $coreRuntimeDirectory "libmihomo.so"
+$coreMarkerPath = Join-Path $coreRuntimeDirectory "libmihomo.so.sha256"
+New-Item -ItemType Directory -Force -Path $coreCacheDirectory, $coreRuntimeDirectory | Out-Null
+if (-not (Test-Path -LiteralPath $coreAssetPath -PathType Leaf)) {
+    $coreUrl = "https://github.com/MetaCubeX/mihomo/releases/download/v$mihomoVersion/$coreAsset"
+    Invoke-WebRequest -Uri $coreUrl -OutFile $coreAssetPath
+}
+$actualCoreHash = (Get-FileHash -LiteralPath $coreAssetPath -Algorithm SHA256).Hash.ToLowerInvariant()
+if ($actualCoreHash -ne $coreSha256) {
+    throw "Official Mihomo v$mihomoVersion Android asset failed SHA-256 verification."
+}
+$cachedCoreHash = if (Test-Path -LiteralPath $coreMarkerPath -PathType Leaf) {
+    (Get-Content -LiteralPath $coreMarkerPath -Raw).Trim().ToLowerInvariant()
+} else { "" }
+if (-not (Test-Path -LiteralPath $coreBinaryPath -PathType Leaf) -or $cachedCoreHash -ne $coreSha256) {
+    $coreCandidatePath = Join-Path $coreRuntimeDirectory "libmihomo.candidate"
+    if (Test-Path -LiteralPath $coreCandidatePath) {
+        Remove-Item -LiteralPath $coreCandidatePath -Force
+    }
+    $compressedCore = [System.IO.File]::OpenRead($coreAssetPath)
+    try {
+        $gzipCore = [System.IO.Compression.GZipStream]::new(
+            $compressedCore,
+            [System.IO.Compression.CompressionMode]::Decompress
+        )
+        try {
+            $candidateCore = [System.IO.File]::Create($coreCandidatePath)
+            try {
+                $gzipCore.CopyTo($candidateCore)
+                $candidateCore.Flush($true)
+            } finally {
+                $candidateCore.Dispose()
+            }
+        } finally {
+            $gzipCore.Dispose()
+        }
+    } finally {
+        $compressedCore.Dispose()
+    }
+    $coreStream = [System.IO.File]::OpenRead($coreCandidatePath)
+    try {
+        $header = New-Object byte[] 20
+        if ($coreStream.Read($header, 0, $header.Length) -ne $header.Length -or
+            $header[0] -ne 0x7f -or $header[1] -ne 0x45 -or
+            $header[2] -ne 0x4c -or $header[3] -ne 0x46) {
+            throw "Official Mihomo v$mihomoVersion asset is not an ELF executable."
+        }
+        $elfMachine = [int]$header[18] + ([int]$header[19] -shl 8)
+        if ($elfMachine -ne $expectedElfMachine) {
+            throw "Official Mihomo core architecture does not match $coreAbi."
+        }
+    } finally {
+        $coreStream.Dispose()
+    }
+    $llvmReadelf = Join-Path $env:ANDROID_NDK_ROOT "toolchains\llvm\prebuilt\windows-x86_64\bin\llvm-readelf.exe"
+    if (-not (Test-Path -LiteralPath $llvmReadelf -PathType Leaf)) {
+        throw "NDK llvm-readelf is required to verify the Android Mihomo ELF."
+    }
+    $programHeaders = & $llvmReadelf -l -W $coreCandidatePath
+    if ($LASTEXITCODE -ne 0) {
+        throw "NDK llvm-readelf failed to inspect the Mihomo ELF."
+    }
+    $loadHeaders = @($programHeaders | Where-Object { $_ -match '^\s*LOAD\s' })
+    if (-not $loadHeaders -or ($loadHeaders | Where-Object { $_ -notmatch '\s0x0*([4-9a-f][0-9a-f]{3,})\s*$' })) {
+        throw "Mihomo v$mihomoVersion core must use 16 KB compatible ELF load alignment."
+    }
+    Move-Item -LiteralPath $coreCandidatePath -Destination $coreBinaryPath -Force
+    Set-Content -LiteralPath $coreMarkerPath -Value $coreSha256 -NoNewline -Encoding ascii
+}
+$coreStream = [System.IO.File]::OpenRead($coreBinaryPath)
+try {
+    $header = New-Object byte[] 20
+    if ($coreStream.Read($header, 0, $header.Length) -ne $header.Length -or
+        $header[0] -ne 0x7f -or $header[1] -ne 0x45 -or
+        $header[2] -ne 0x4c -or $header[3] -ne 0x46) {
+        throw "Packaged Mihomo core is not an ELF executable."
+    }
+    $elfMachine = [int]$header[18] + ([int]$header[19] -shl 8)
+    if ($elfMachine -ne $expectedElfMachine) {
+        throw "Packaged Mihomo core architecture does not match $coreAbi."
+    }
+} finally {
+    $coreStream.Dispose()
+}
+$llvmReadelf = Join-Path $env:ANDROID_NDK_ROOT "toolchains\llvm\prebuilt\windows-x86_64\bin\llvm-readelf.exe"
+if (-not (Test-Path -LiteralPath $llvmReadelf -PathType Leaf)) {
+    throw "NDK llvm-readelf is required to verify the Android Mihomo ELF."
+}
+$programHeaders = & $llvmReadelf -l -W $coreBinaryPath
+if ($LASTEXITCODE -ne 0) {
+    throw "NDK llvm-readelf failed to inspect the Mihomo ELF."
+}
+$loadHeaders = @($programHeaders | Where-Object { $_ -match '^\s*LOAD\s' })
+if (-not $loadHeaders -or ($loadHeaders | Where-Object { $_ -notmatch '\s0x0*([4-9a-f][0-9a-f]{3,})\s*$' })) {
+    throw "Mihomo v$mihomoVersion core must use 16 KB compatible ELF load alignment."
+}
+$profileKeystoreVariable = "CARGO_APK_" + $Profile.ToUpperInvariant().Replace("-", "_") + "_KEYSTORE"
+$profilePasswordVariable = "CARGO_APK_" + $Profile.ToUpperInvariant().Replace("-", "_") + "_KEYSTORE_PASSWORD"
+Set-Item -Path "Env:$profileKeystoreVariable" -Value $debugKeystore
+Set-Item -Path "Env:$profilePasswordVariable" -Value "android"
+$stagedApk = Join-Path $targetDirectory "apk-dev\apk\lumen.apk"
+$stagedApk = [System.IO.Path]::GetFullPath($stagedApk)
+$targetPrefix = $targetDirectory.TrimEnd('\') + '\'
+if (-not $stagedApk.StartsWith($targetPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw "Refusing to remove staged APK outside the target directory: $stagedApk"
+}
+if (Test-Path -LiteralPath $stagedApk -PathType Leaf) {
+    Remove-Item -LiteralPath $stagedApk -Force
+}
+$buildStartedAt = Get-Date
+$cargoApk = if ($env:CARGO_APK) {
+    $env:CARGO_APK
+} else {
+    $command = Get-Command cargo-apk.exe -ErrorAction SilentlyContinue
+    if ($command) { $command.Source } else { "cargo-apk.exe" }
+}
+$cargoApkArguments = @(
+    "apk",
+    "build",
+    "--lib",
+    "--profile", $Profile,
+    "--target-dir", $targetDirectory,
+    "--manifest-path", (Join-Path $repositoryRoot "Cargo.toml")
+)
+if ($Target) {
+    $cargoApkArguments += @("--target", $Target)
+}
+& $cargoApk @cargoApkArguments
+if ($LASTEXITCODE -ne 0) {
+    throw "cargo-apk failed with exit code $LASTEXITCODE. Install cargo-apk or set CARGO_APK to its executable."
+}
+
+$builtApk = Get-ChildItem -LiteralPath $targetDirectory -Filter "lumen.apk" -File -Recurse |
+    Where-Object { $_.LastWriteTime -ge $buildStartedAt } |
+    Sort-Object LastWriteTime -Descending |
+    Select-Object -First 1
+if (-not $builtApk) {
+    throw "cargo-apk completed without producing a fresh lumen.apk under $targetDirectory."
+}
+
+$javaSourceDirectory = Join-Path $repositoryRoot "android\src\main\java"
+$javaSources = @(Get-ChildItem -LiteralPath $javaSourceDirectory -Filter "*.java" -File -Recurse |
+    ForEach-Object { $_.FullName })
+$manifestSource = Join-Path $repositoryRoot "android\AndroidManifest.xml"
+$tempDirectory = Join-Path $targetDirectory ("tmp\lumen-android-package-" + [guid]::NewGuid().ToString("N"))
+New-Item -ItemType Directory -Path $tempDirectory | Out-Null
+try {
+    $classDirectory = Join-Path $tempDirectory "classes"
+    $dexDirectory = Join-Path $tempDirectory "dex"
+    $manifestApk = Join-Path $tempDirectory "manifest.apk"
+    $compiledManifest = Join-Path $tempDirectory "AndroidManifest.xml"
+    $compiledResourcesDirectory = Join-Path $tempDirectory "manifest-resources"
+    New-Item -ItemType Directory -Path $classDirectory, $dexDirectory | Out-Null
+    & $javac -Xlint:-options -source 8 -target 8 -bootclasspath $androidJar -d $classDirectory @javaSources
+    if ($LASTEXITCODE -ne 0) {
+        throw "javac failed with exit code $LASTEXITCODE."
+    }
+    $classFiles = @(Get-ChildItem -LiteralPath $classDirectory -Filter "*.class" -File -Recurse |
+        ForEach-Object { $_.FullName })
+    & $d8 --min-api 26 --lib $androidJar --output $dexDirectory @classFiles
+    if ($LASTEXITCODE -ne 0) {
+        throw "D8 failed with exit code $LASTEXITCODE."
+    }
+    & $aapt package -f -M $manifestSource -S (Join-Path $repositoryRoot "android\res") -I $androidJar -F $manifestApk
+    if ($LASTEXITCODE -ne 0) {
+        throw "aapt failed to compile the Android manifest."
+    }
+    $manifestArchive = [System.IO.Compression.ZipFile]::OpenRead($manifestApk)
+    try {
+        $manifestEntry = $manifestArchive.GetEntry("AndroidManifest.xml")
+        if (-not $manifestEntry) {
+            throw "aapt completed without producing a compiled AndroidManifest.xml."
+        }
+        [System.IO.Compression.ZipFileExtensions]::ExtractToFile(
+            $manifestEntry,
+            $compiledManifest,
+            $true
+        )
+        $compiledResourceFiles = [System.Collections.Generic.List[object]]::new()
+        foreach ($entry in $manifestArchive.Entries) {
+            if ($entry.FullName -eq "AndroidManifest.xml" -or $entry.FullName.EndsWith("/")) {
+                continue
+            }
+            $resourcePath = Join-Path $compiledResourcesDirectory ($entry.FullName -replace '/', '\')
+            New-Item -ItemType Directory -Force -Path (Split-Path -Parent $resourcePath) | Out-Null
+            [System.IO.Compression.ZipFileExtensions]::ExtractToFile($entry, $resourcePath, $true)
+            $compiledResourceFiles.Add([pscustomobject]@{ Path = $resourcePath; Entry = $entry.FullName })
+        }
+    } finally {
+        $manifestArchive.Dispose()
+    }
+
+    $withBridge = Join-Path $tempDirectory "lumen-with-bridge.apk"
+    Copy-Item -LiteralPath $builtApk.FullName -Destination $withBridge
+    Add-Type -AssemblyName System.IO.Compression
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $archive = [System.IO.Compression.ZipFile]::Open(
+        $withBridge,
+        [System.IO.Compression.ZipArchiveMode]::Update
+    )
+    try {
+        foreach ($entry in @($archive.Entries)) {
+            if ($entry.FullName -eq "AndroidManifest.xml" -or
+                $entry.FullName -eq "resources.arsc" -or
+                $entry.FullName.StartsWith("res/", [System.StringComparison]::Ordinal) -or
+                $entry.FullName -eq "classes.dex" -or
+                ($entry.FullName.StartsWith("META-INF/", [System.StringComparison]::OrdinalIgnoreCase) -and
+                    $entry.FullName -match '\.(MF|RSA|DSA|EC|SF)$')) {
+                $entry.Delete()
+            }
+        }
+        [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile(
+            $archive,
+            $compiledManifest,
+            "AndroidManifest.xml",
+            [System.IO.Compression.CompressionLevel]::NoCompression
+        ) | Out-Null
+        [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile(
+            $archive,
+            (Join-Path $dexDirectory "classes.dex"),
+            "classes.dex",
+            [System.IO.Compression.CompressionLevel]::Optimal
+        ) | Out-Null
+        [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile(
+            $archive,
+            $coreBinaryPath,
+            "lib/$coreAbi/libmihomo.so",
+            [System.IO.Compression.CompressionLevel]::NoCompression
+        ) | Out-Null
+        foreach ($resource in $compiledResourceFiles) {
+            $resourceCompression = if ($resource.Entry -eq "resources.arsc") {
+                [System.IO.Compression.CompressionLevel]::NoCompression
+            } else {
+                [System.IO.Compression.CompressionLevel]::Optimal
+            }
+            [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile(
+                $archive,
+                $resource.Path,
+                $resource.Entry,
+                $resourceCompression
+            ) | Out-Null
+        }
+    } finally {
+        $archive.Dispose()
+    }
+
+    $alignedApk = Join-Path $tempDirectory "lumen-aligned.apk"
+    & $zipalign -P 16 -f 4 $withBridge $alignedApk
+    if ($LASTEXITCODE -ne 0) {
+        throw "zipalign failed with exit code $LASTEXITCODE."
+    }
+
+    if (-not $OutputApk) {
+        if ($Target -eq "x86_64-linux-android") {
+            $OutputApk = Join-Path $targetDirectory "android-smoke\lumen-android-x86_64.apk"
+        } else {
+            $OutputApk = Join-Path $repositoryRoot "dist\android\lumen-android-dev.apk"
+        }
+    } elseif (-not [System.IO.Path]::IsPathRooted($OutputApk)) {
+        $OutputApk = Join-Path $repositoryRoot $OutputApk
+    }
+    $OutputApk = [System.IO.Path]::GetFullPath($OutputApk)
+    $repositoryPrefix = [System.IO.Path]::GetFullPath($repositoryRoot).TrimEnd('\') + '\'
+    if (-not $OutputApk.StartsWith($repositoryPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "The Android APK must be written inside the repository: $repositoryPrefix"
+    }
+    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $OutputApk) | Out-Null
+    & $apksigner sign --ks $debugKeystore --ks-pass pass:android --key-pass pass:android --out $OutputApk $alignedApk
+    if ($LASTEXITCODE -ne 0) {
+        throw "apksigner failed with exit code $LASTEXITCODE."
+    }
+    & $apksigner verify --verbose $OutputApk
+    if ($LASTEXITCODE -ne 0) {
+        throw "The packaged Android APK failed signature verification."
+    }
+    & $zipalign -c -P 16 -v 4 $OutputApk
+    if ($LASTEXITCODE -ne 0) {
+        throw "The packaged Android APK failed 16 KB native library alignment verification."
+    }
+    $manifestTree = & $aapt dump xmltree $OutputApk AndroidManifest.xml
+    if ($LASTEXITCODE -ne 0 -or -not ($manifestTree | Select-String -Pattern 'android:hasCode.*0xffffffff')) {
+        throw "The APK manifest must set android:hasCode=true because LumenActivity uses DEX code."
+    }
+    if (-not ($manifestTree | Select-String -SimpleMatch 'android.net.VpnService') -or
+        -not ($manifestTree | Select-String -SimpleMatch 'android.permission.BIND_VPN_SERVICE')) {
+        throw "The APK manifest is missing the protected Android VpnService declaration."
+    }
+    if (-not ($manifestTree | Select-String -Pattern 'android:foregroundServiceType.*0x400') -or
+        -not ($manifestTree | Select-String -SimpleMatch 'android.permission.FOREGROUND_SERVICE_SYSTEM_EXEMPTED')) {
+        throw "The APK manifest is missing the Android VPN foreground-service type and permission."
+    }
+    $apkEntries = & $aapt list $OutputApk
+    if ($LASTEXITCODE -ne 0 -or -not ($apkEntries | Select-String -SimpleMatch 'classes.dex')) {
+        throw "The packaged Android APK is missing classes.dex."
+    }
+    $expectedAbi = if ($Target -eq "x86_64-linux-android") { "x86_64" } else { "arm64-v8a" }
+    if (-not ($apkEntries | Select-String -SimpleMatch "lib/$expectedAbi/liblumen.so")) {
+        throw "The packaged Android APK is missing its $expectedAbi native library."
+    }
+    if (-not ($apkEntries | Select-String -SimpleMatch "lib/$expectedAbi/libmihomo.so")) {
+        throw "The packaged Android APK is missing the standalone Mihomo core for $expectedAbi."
+    }
+    Write-Output "Packaged Android APK: $OutputApk"
+} finally {
+    $resolvedTemp = [System.IO.Path]::GetFullPath($tempDirectory)
+    $targetPrefix = $targetDirectory.TrimEnd('\') + '\'
+    if (-not $resolvedTemp.StartsWith($targetPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "Refusing to remove temporary path outside the repository target directory: $resolvedTemp"
+    }
+    Remove-Item -LiteralPath $resolvedTemp -Recurse -Force
+}

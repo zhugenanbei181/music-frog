@@ -1,6 +1,6 @@
 <resources>
-    <string name="app_name">MusicFrog Infiltrator</string>
-
+    <string name="text_sync_connection_tested">連線測試成功。</string>
+    <string name="text_sync_summary">同步操作：%2$s 項中成功 %1$s 項，失敗 %3$s 項。</string>
     <!-- Navigation -->
     <string name="nav_overview">概覽</string>
     <string name="nav_profiles">配置</string>
@@ -18,19 +18,13 @@
     <string name="status_stopped">已停止</string>
     <string name="status_active">已啟用</string>
     <string name="status_idle">未運行</string>
+    <string name="status_unknown">未知</string>
     <string name="action_grant_permission">授權</string>
     <string name="action_start">啟動</string>
     <string name="action_stop">停止</string>
     <string name="action_restart">重啟</string>
     <string name="action_refresh_ip">刷新 IP</string>
     
-    <string name="status_proxy_mode">代理模式</string>
-    <string name="action_change_mode">切換模式</string>
-    <string name="mode_rule">規則</string>
-    <string name="mode_global">全局</string>
-    <string name="mode_direct">直連</string>
-    <string name="mode_script">腳本</string>
-
     <string name="card_traffic">流量統計</string>
     <string name="card_network_diagnostics">網路診斷</string>
     <string name="label_upload">上傳</string>
@@ -72,8 +66,6 @@
     <string name="error_load_profiles">載入配置失敗</string>
 
     <!-- Proxies -->
-    <string name="text_proxy_group_none">無</string>
-    <string name="text_empty_proxies">未找到代理組</string>
 
     <!-- Settings Main -->
     <string name="setting_battery_title">背景執行與電池最佳化</string>
@@ -104,6 +96,8 @@
     <string name="routing_mode_proxy_all">代理所有應用程式</string>
     <string name="routing_mode_proxy_selected">僅代理選中 (白名單)</string>
     <string name="routing_mode_bypass_selected">僅繞過選中 (黑名單)</string>
+    <string name="routing_mode_unavailable">路由狀態無法使用</string>
+    <string name="action_retry">重試</string>
     <string name="search_apps_hint">搜尋應用程式</string>
     <string name="tab_user_apps">使用者應用</string>
     <string name="tab_system_apps">系統應用</string>
@@ -134,6 +128,7 @@
     <string name="action_disconnect">中斷</string>
     <string name="action_close_all">全部中斷</string>
     <string name="text_saved">設定已保存</string>
+    <string name="setting_not_explicit">使用 Mihomo 預設值</string>
 
     <!-- Connections -->
     <string name="label_host_filter">主機過濾</string>
@@ -149,6 +144,9 @@
     <string name="dns_enable_desc">啟用內部 DNS 伺服器</string>
     <string name="label_enhanced_mode">增強模式</string>
     <string name="desc_enhanced_mode">fake-ip / redir-host</string>
+    <string name="enhanced_mode_disabled">停用</string>
+    <string name="enhanced_mode_fake_ip">Fake-IP</string>
+    <string name="enhanced_mode_redir_host">Redir-Host</string>
     <string name="option_auto">自動</string>
     <string name="option_enabled">啟用</string>
     <string name="option_disabled">停用</string>
@@ -166,10 +164,13 @@
     <string name="fakeip_store">持久化 Fake-IP</string>
     <string name="fakeip_store_desc">將映射表保存到磁碟</string>
     <string name="label_fakeip_range">Fake-IP 網段</string>
+    <string name="fakeip_default_range">Mihomo 預設值 (198.18.0.1/16)</string>
     <string name="desc_cidr">CIDR 格式 (如 198.18.0.1/16)</string>
     <string name="label_fakeip_filter">Fake-IP 過濾</string>
     <string name="desc_fakeip_filter">排除的域名 (每行一個)</string>
-    <string name="action_clear_cache">清除快取</string>
+    <string name="action_clear_host_fakeip_file_cache">清除主機 Fake-IP 檔案快取</string>
+    <string name="fakeip_host_cache_cleared">主機 Fake-IP 檔案快取已清除</string>
+    <string name="fakeip_host_cache_already_empty">主機 Fake-IP 檔案快取已經為空</string>
 
     <!-- Rules Settings -->
     <string name="rules_settings_title">規則管理</string>
@@ -177,6 +178,9 @@
     <string name="label_new_rule">規則 (如 DOMAIN-SUFFIX,google.com,Proxy)</string>
     <string name="section_active_rules">當前規則</string>
     <string name="text_no_rules">暫無規則</string>
+    <string name="text_rules_unavailable">規則資料無法取得，請重新載入。</string>
+    <string name="text_rule_providers_unavailable">規則提供者資料無法取得，請重新載入。</string>
+    <string name="text_save_before_reload">重新載入前請先儲存變更。</string>
     <string name="action_remove">移除</string>
     <string name="action_save_rules">保存規則</string>
     <string name="section_providers">規則提供者</string>
@@ -199,4 +203,61 @@
     <string name="notification_title">MusicFrog Infiltrator VPN</string>
     <string name="notification_starting">正在啟動...</string>
     <string name="notification_active">保護已開啟</string>
+    <string name="notification_permission_denied">通知未開啟。代理仍可執行，但狀態通知可能不會顯示在通知欄。</string>
+    <string name="notification_permission_prompt_failed">無法要求通知權限。代理仍會啟動，但狀態通知可能不會顯示在通知欄。</string>
+    <string name="failure_invalid_input">輸入無效。</string>
+    <string name="failure_invalid_state">目前狀態下無法執行此操作。</string>
+    <string name="failure_not_ready">操作尚未就緒。</string>
+    <string name="failure_unsupported">不支援此操作。</string>
+    <string name="failure_network">網路操作失敗。</string>
+    <string name="failure_authentication">身分驗證失敗。</string>
+    <string name="failure_sync">同步失敗。</string>
+    <string name="failure_configuration">設定無效。</string>
+    <string name="failure_storage">儲存操作失敗。</string>
+    <string name="failure_permission">權限遭拒。</string>
+    <string name="failure_canceled">操作已取消。</string>
+    <string name="failure_internal">內部操作失敗。</string>
+    <string name="failure_yaml_syntax">YAML 語法錯誤（第 %1$s 行，第 %2$s 欄）。</string>
+    <string name="failure_mixin_yaml">Mixin 覆寫內容不是有效的 YAML。</string>
+    <string name="failure_active_profile_inconsistent">作用中設定檔狀態不一致。</string>
+    <string name="failure_quota_source_changed">讀取流量配額期間訂閱來源發生變更。</string>
+    <string name="failure_current_time_unavailable">目前時間無法取得。</string>
+    <string name="download_canceled">下載已取消。</string>
+    <string name="failure_diagnostic_detail">診斷詳細資料：%1$s</string>
+    <string name="empty_profiles">目前沒有設定檔。</string>
+    <string name="empty_outbounds">目前沒有代理節點。</string>
+    <string name="error_title">錯誤</string>
+    <string name="action_ok">確定</string>
+    <string name="failure_sync_interval_invalid">請輸入有效的同步間隔分鐘數。</string>
+    <string name="failure_tun_mtu_invalid">請輸入大於零的 MTU 值。</string>
+    <string name="failure_tun_mtu_zero">MTU 必須大於零。</string>
+    <string name="failure_rule_empty">請先輸入規則。</string>
+    <string name="owner_outbound_inventory_unknown">尚未讀取代理節點清單。</string>
+    <string name="owner_outbound_inventory_unsupported">此核心不支援代理節點清單。</string>
+    <string name="owner_outbound_details_loading">正在載入節點詳細資料。</string>
+    <string name="owner_outbound_details_unknown">尚未讀取節點詳細資料。</string>
+    <string name="empty_outbound_details">目前沒有節點詳細資料。</string>
+    <string name="owner_outbound_details_unsupported">此核心不支援節點詳細資料。</string>
+    <string name="owner_outbound_preferences_loading">正在載入節點偏好設定。</string>
+    <string name="owner_outbound_details_not_observed">尚未讀取節點詳細資料。</string>
+    <string name="owner_value_unknown">未知</string>
+    <string name="owner_value_unsupported">不支援</string>
+    <string name="empty_latency_samples">目前沒有延遲測量紀錄。</string>
+    <string name="empty_egress_samples">目前沒有出口位址紀錄。</string>
+    <string name="owner_probe_availability_unknown">測速可用狀態未知。</string>
+    <string name="owner_probe_unsupported">此節點不支援測速。</string>
+    <string name="owner_probe_capability_unknown">測速能力尚不可用。</string>
+    <string name="owner_probe_available">可以測速。</string>
+    <string name="owner_probe_timed_out">測速逾時。</string>
+    <string name="owner_probe_working">正在測速。</string>
+    <string name="owner_selection_unknown">節點選擇狀態未知。</string>
+    <string name="empty_outbound_selection">尚未選擇代理節點。</string>
+    <string name="owner_selection_unsupported">不支援節點選擇。</string>
+    <string name="owner_selection_read_only">唯讀。</string>
+    <string name="owner_selection_automatic">自動選擇。</string>
+    <string name="owner_selection_capability_unknown">節點選擇能力未知。</string>
+    <string name="owner_health_healthy">健康</string>
+    <string name="owner_health_unhealthy">異常</string>
+    <string name="owner_outbound_selected">已選擇：%1$s</string>
+    <string name="owner_outbound_preferences_unavailable">Owner 尚未提供節點偏好設定。</string>
 </resources>

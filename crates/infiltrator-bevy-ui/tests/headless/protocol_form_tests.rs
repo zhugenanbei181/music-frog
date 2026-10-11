@@ -1,6 +1,6 @@
 //! test-intent: behavior
-use crate::command_harness::{recording_application, rejecting_application};
-use crate::support::headless_plugins;
+use crate::command_harness::{identified_recording_application, test_command_application};
+use crate::support::{headless_plugins, observed_scope_for_snapshot};
 use bevy::app::App;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::Children;
@@ -8,6 +8,9 @@ use bevy::ui::widget::Text;
 use bevy::ui::{Display, Node};
 use bevy::ui_widgets::{Activate, Button};
 use infiltrator_application::command_application::CommandApplication;
+use infiltrator_application::core_application::CoreApplication;
+use infiltrator_application::dns_hosts_fixtures::HostsCaptureStore;
+use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::protocol_codec_application::clear_studio;
 use infiltrator_bevy_ui::app::ShellPlugin;
 use infiltrator_bevy_ui::command::{
@@ -28,11 +31,13 @@ use infiltrator_bevy_ui::route::{PagesPlugin, Route, RouteChanged};
 use infiltrator_bevy_widgets::responsive::TouchHitbox;
 use infiltrator_bevy_widgets::text_input::TextField;
 use infiltrator_bevy_widgets::text_input::state::TextFieldInput;
-use infiltrator_contract::command::{CommandIntent, RequestId};
+use infiltrator_contract::command::RequestId;
 use infiltrator_contract::command_output::CommandOutput;
+use infiltrator_contract::core_capabilities::{CoreOperation, ProfileOperation};
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::protocol_form::ProtocolField;
 use std::sync::Arc;
+use std::sync::atomic::Ordering;
 use std::time::Duration;
 use tokio::runtime::Builder;
 use tokio::task::yield_now;
@@ -64,6 +69,15 @@ fn setup() -> (App, Arc<DemoCommandSink>) {
         .trigger(Activate { entity: opener });
     app.update();
     (app, sink)
+}
+
+fn production_profile_application(store: Arc<HostsCaptureStore>) -> CoreApplication {
+    let (application, _) = identified_recording_application();
+    application.install_command_handler(Arc::new(
+        test_command_application([CoreOperation::Profile(ProfileOperation::Apply)])
+            .with_profile(ProfileApplication::new(store)),
+    ));
+    application
 }
 fn field(app: &mut App, id: ProtocolField) -> Entity {
     let wrapper = app
@@ -249,11 +263,16 @@ fn protocol_form_cancel_blocks_residual_actions_and_switches_family_fields() {
 #[test]
 fn production_command_sink_delivers_correlated_terminal_save_result() {
     let (mut app, _) = setup();
-    let (application, handler) = recording_application();
+    let store = Arc::new(HostsCaptureStore::default());
+    let application = production_profile_application(store.clone());
     // Install the production adapter, retaining the isolated native scene.
-    app.insert_resource(CommandSinkHandle(Arc::new(ApplicationCommandSink::new(
-        Arc::new(application),
-    ))));
+    let application = Arc::new(application);
+    app.insert_resource(CommandSinkHandle(Arc::new(
+        ApplicationCommandSink::new_for_surface(
+            application.clone(),
+            observed_scope_for_snapshot(&application),
+        ),
+    )));
     edit(&mut app, ProtocolField::Name, "saved-node");
     edit(&mut app, ProtocolField::Server, "node.example.com");
     edit(&mut app, ProtocolField::Port, "443");
@@ -278,20 +297,23 @@ fn production_command_sink_delivers_correlated_terminal_save_result() {
         .expect("terminal command feedback");
     });
     assert_eq!(app.world().resource::<BusinessPanelState>().0, None);
-    let commands = handler.0.lock().unwrap();
-    assert_eq!(commands.len(), 1);
-    assert!(
-        matches!(&commands[0], CommandIntent::SaveCustomNodeDraft { draft } if draft.name == "saved-node")
-    );
+    assert_eq!(store.writes.load(Ordering::SeqCst), 1);
+    assert!(store.content().contains("saved-node"));
 }
 
 #[test]
 fn production_command_failure_keeps_native_form_and_draft_open() {
     let (mut app, _) = setup();
-    let (application, handler) = rejecting_application();
-    app.insert_resource(CommandSinkHandle(Arc::new(ApplicationCommandSink::new(
-        Arc::new(application),
-    ))));
+    let store = Arc::new(HostsCaptureStore::default());
+    store.deny_save.store(true, Ordering::SeqCst);
+    let application = production_profile_application(store.clone());
+    let application = Arc::new(application);
+    app.insert_resource(CommandSinkHandle(Arc::new(
+        ApplicationCommandSink::new_for_surface(
+            application.clone(),
+            observed_scope_for_snapshot(&application),
+        ),
+    )));
     edit(&mut app, ProtocolField::Name, "failed-node");
     edit(&mut app, ProtocolField::Server, "node.example.com");
     edit(&mut app, ProtocolField::Port, "443");
@@ -326,20 +348,25 @@ fn production_command_failure_keeps_native_form_and_draft_open() {
     assert_eq!(form.studio.draft.as_ref().unwrap().name, "failed-node");
     assert_eq!(
         form.studio.last_error.as_deref(),
-        Some("profile is read-only")
+        Some("Allow profile writes, then retry the Hosts operation.")
     );
-    assert_eq!(handler.0.lock().unwrap().len(), 1);
+    assert_eq!(store.writes.load(Ordering::SeqCst), 1);
+    assert!(!store.content().contains("failed-node"));
 }
 
 #[test]
 fn uri_import_uses_real_codec_handler_and_error_cancel_keep_the_imported_draft() {
     clear_studio();
     let (mut app, _) = setup();
-    let (application, _) = recording_application();
+    let (application, _) = identified_recording_application();
     application.install_command_handler(Arc::new(CommandApplication::default()));
-    app.insert_resource(CommandSinkHandle(Arc::new(ApplicationCommandSink::new(
-        Arc::new(application),
-    ))));
+    let application = Arc::new(application);
+    app.insert_resource(CommandSinkHandle(Arc::new(
+        ApplicationCommandSink::new_for_surface(
+            application.clone(),
+            observed_scope_for_snapshot(&application),
+        ),
+    )));
     let wrapper = app
         .world_mut()
         .query::<(Entity, &CustomNodeUriField)>()

@@ -11,11 +11,14 @@ use bevy::ecs::observer::On;
 use bevy::ecs::query::{QueryData, With};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
+use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::{Scene, bsn};
-use bevy::ui::prelude::{BackgroundColor, BorderRadius, FlexDirection, Node, UiRect, percent, px};
+use bevy::ui::prelude::{BackgroundColor, BorderRadius, FlexDirection, Node, UiRect, percent};
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Activate;
 use bevy::window::{Window, WindowTheme};
+use infiltrator_bevy_widgets::feathers_theme::Token;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::palette::{UiPalette, theme_color};
 use infiltrator_bevy_widgets::switch::ThemeSwitch;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
@@ -157,18 +160,18 @@ fn ladder_source_label(source: LadderSource) -> &'static str {
     }
 }
 
-fn ladder_swatch_scene(index: usize, perceptual: bool, palette: &UiPalette) -> Box<dyn Scene> {
+fn ladder_swatch_scene(index: usize, perceptual: bool, _palette: &UiPalette) -> Box<dyn Scene> {
     if perceptual {
         Box::new(bsn! {
                 Node { flex_grow: 1.0, height: percent(100) }
                 TonalLadderStopSwatch(index)
-                BackgroundColor({ palette.accent })
+                ThemeBackgroundColor({ Token::Accent })
         })
     } else {
         Box::new(bsn! {
                 Node { flex_grow: 1.0, height: percent(100) }
                 TonalLadderFallbackSwatch(index)
-                BackgroundColor({ palette.surface_elevated })
+                ThemeBackgroundColor({ Token::SurfaceElevated })
         })
     }
 }
@@ -187,26 +190,26 @@ pub fn tonal_ladder_preview_scene(palette: &UiPalette) -> impl Scene + use<> {
             Node {
                 width: percent(100),
                 flex_direction: FlexDirection::Column,
-                row_gap: px(space::S4),
-                padding: UiRect::all(px(space::S8)),
-                border_radius: BorderRadius::all(px(palette.control_radius_px)),
+                row_gap: rem(space::S4),
+                padding: UiRect::all(rem(space::S8)),
+                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
             }
             TonalLadderPreviewRoot
-            BackgroundColor({ palette.surface_elevated })
+            ThemeBackgroundColor({ Token::SurfaceElevated })
             Children [
                 Text(String::new()) TonalLadderSourceText TextRole(Role::Caption)
                 --
                 Node {
                     width: percent(100),
-                    height: px(24.0),
-                    border_radius: BorderRadius::all(px(palette.control_radius_px)),
+                    height: rem(24.0),
+                    border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                 }
                 Children [ { perceptual } ]
                 --
                 Node {
                     width: percent(100),
-                    height: px(12.0),
-                    border_radius: BorderRadius::all(px(palette.control_radius_px)),
+                    height: rem(12.0),
+                    border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                 }
                 Children [ { fallback } ]
             ]

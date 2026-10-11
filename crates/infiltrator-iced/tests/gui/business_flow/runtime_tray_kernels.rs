@@ -1,27 +1,33 @@
-//! Journeys 8/9/10/11 — runtime lifecycle degradation, script-mode gating,
+//! Journeys 8/9/10/11 — runtime lifecycle degradation, typed routing choices,
 //! kernel management with the throttled tray refresh, and the tray event
 //! chains (resolve → intent → forwarded message).
 //!
 //! test-intent: behavior
 
 use super::support::{FakeTray, TempHome, block_on, feed, fresh_state, subscribed_profile};
+use crate::state::core_operations::{CoreDownloadRunId, CoreDownloadStart};
 use crate::tray::spec::{
-    TRAY_ACTION_ACTIVATE_PROFILE, TRAY_ACTION_MODE_GLOBAL, TRAY_ACTION_SELECT_PROXY,
+    TRAY_ACTION_ACTIVATE_PROFILE, TRAY_ACTION_ROUTING_ALL_THROUGH_PROXY, TRAY_ACTION_SELECT_PROXY,
     TRAY_ACTION_SET_DEFAULT_KERNEL, TRAY_ACTION_SET_PROFILE_AUTO_UPDATE,
     TRAY_ACTION_UPDATE_ALL_PROFILES, TrayEvent, TrayEventContext, TrayIntent, TrayMenuItem,
     encode_pair_payload, resolve_tray_event_in,
 };
 use crate::types::app::CoreDownloadProgress;
 use crate::types::message::Message;
-use crate::types::runtime::{RuntimeStatus, RuntimeStreamState};
+use crate::types::runtime::RuntimeStreamState;
 use crate::version_application::application;
-use infiltrator_contract::command::ProxyMode;
+use infiltrator_contract::command::CoreLogLevel;
+use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_contract::port_conflict::{PortBinding, PortConflict, PortConflictSnapshot};
-use infiltrator_contract::proxy_mode::{ProxyModeSnapshot, ProxyModeStatus};
+use infiltrator_contract::routing_intent::RoutingIntentSnapshot;
+use infiltrator_contract::routing_intent::{
+    EngineDefinedRoutingIntent, RoutingIntent, RoutingIntentExtensionId,
+};
 use infiltrator_contract::version::{CoreRollbackSnapshot, InstalledCoreVersion};
-use infiltrator_domain::proxy::{Proxy, ProxyBase, ProxyGroup, Shadowsocks};
+use infiltrator_core::version_port::MihomoVersionPort;
 use infiltrator_domain::runtime::TrafficData;
+use mihomo_platform::paths::get_home_dir;
 use mihomo_version::manager::VersionManager;
 #[cfg(unix)]
 use std::fs::Permissions;
@@ -34,107 +40,67 @@ use std::fs::write;
 #[cfg(unix)]
 use std::path;
 
-/// Journey 8 — 生命周期：StartProxy（无内核二进制）→ ProxyStarted(Err) →
-/// 错误横幅 + Critical 系统通知任务武装（不炸）→ StopProxy → ProxyStopped
-/// 全域清理。
+/// Core stop readback clears transient runtime observations.
 #[test]
-fn core_lifecycle_degrades_cleanly_from_boot_failure_to_full_stop_cleanup() {
+fn core_stopped_clears_transient_runtime_observations() {
     let mut state = fresh_state();
     let tray = FakeTray::install(&mut state);
 
-    // Seed every domain ProxyStopped is supposed to clear.
+    // Seed every domain CoreStopped is supposed to clear.
     state.diag.traffic = Some(TrafficData { up: 1, down: 2 });
     state.diag.logs.push_back("stale log".into());
-    state.runtime.proxy_mode = Some("rule".into());
-    state.runtime.proxy_mode_state = ProxyModeSnapshot::demo_fixture();
-    state.runtime.script_block_present = true;
+    state.runtime.routing_intent = Some(RoutingIntent::FollowRules);
+    state.runtime.routing_intent_state = RoutingIntentSnapshot::demo_fixture();
     state.runtime.tun_enabled = Some(true);
     state.runtime.runtime_selected_group = "GLOBAL".into();
 
-    let token = state.runtime.lifecycle_token;
-    let units = feed(&mut state, Message::StartProxy);
-    assert_eq!(state.runtime.status, RuntimeStatus::Starting);
-    assert_eq!(state.runtime.lifecycle_token, token + 1);
-    assert!(state.shell.error_msg.is_none(), "start clears the banner");
-    assert!(units >= 1, "boot task armed (would fail: no kernel)");
-
-    // The boot fails (no kernel binary / no controller) → result 回灌.
-    let units = feed(
-        &mut state,
-        Message::ProxyStarted(
-            Err(InfiltratorError::Mihomo(
-                "启动失败（已尝试控制端口 [9090]）".into(),
-            )),
-            token + 1,
-        ),
-    );
-    assert!(matches!(state.runtime.status, RuntimeStatus::Error(_)));
-    assert!(
-        state
-            .shell
-            .error_msg
-            .as_deref()
-            .unwrap_or("")
-            .contains("启动失败"),
-        "error banner carries the boot failure"
-    );
-    assert!(
-        units >= 1,
-        "critical system notification armed; lazy, so no D-Bus here"
-    );
-
-    // User gives up: StopProxy → ProxyStopped cleanup across all domains.
-    let units = feed(&mut state, Message::StopProxy);
-    assert!(
-        matches!(state.runtime.status, RuntimeStatus::Error(_)),
-        "a queued stop cannot claim completion"
-    );
-    assert!(units >= 1, "shutdown task armed (no runtime → no-op body)");
-
-    let units = feed(&mut state, Message::ProxyStopped);
+    let units = feed(&mut state, Message::CoreStopped);
     assert_eq!(units, 0);
     assert!(state.diag.traffic.is_none(), "traffic cleared");
     assert!(state.diag.logs.is_empty(), "logs cleared");
-    assert!(state.runtime.proxy_mode.is_none(), "mode reset");
-    assert_eq!(state.runtime.proxy_mode_state, ProxyModeSnapshot::default());
-    assert!(!state.runtime.script_block_present, "script gate closed");
+    assert!(state.runtime.routing_intent.is_none(), "intent reset");
+    assert_eq!(
+        state.runtime.routing_intent_state,
+        RoutingIntentSnapshot::default()
+    );
     assert_eq!(state.runtime.tun_enabled, None);
     assert!(state.runtime.runtime_selected_group.is_empty());
     assert_eq!(state.diag.traffic_stream_state, RuntimeStreamState::Idle);
 
-    // ProxyStopped pushes the refreshed (stopped) tray spec without dying.
+    // CoreStopped pushes the refreshed (stopped) tray spec without dying.
     assert!(
         tray.count() >= 1,
         "refresh_tray ran against the fake controller"
     );
 }
 
-/// Journey 9 — script 门控：`script_block_present=false` 时 SetProxyMode
-/// ("script") 被同步拒绝（toast，无 PATCH、无快照）；门开后无内核走
-/// runtime_unavailable 分支。
+/// Journey 9 — engine-defined policies stay outside the shared selectable choices.
 #[test]
-fn script_mode_gate_refuses_without_script_block_then_hits_runtime_guard() {
+fn engine_defined_routing_intent_is_rejected_by_the_shared_ui_action() {
     let mut state = fresh_state();
-    state.runtime.proxy_mode = Some("rule".into());
-    state.runtime.script_block_present = false;
-    state.runtime.proxy_mode_state = ProxyModeSnapshot {
-        current: Some(ProxyMode::Rule),
-        script_available: Some(false),
-        status: ProxyModeStatus::Ready,
-        failure: None,
-    };
+    state.runtime.routing_intent = Some(RoutingIntent::FollowRules);
+    state.runtime.routing_intent_state = RoutingIntentSnapshot::demo_fixture();
+    state.runtime.routing_intent_actions.observe(
+        state.runtime.runtime_generation,
+        1,
+        state.runtime.routing_intent_state.clone(),
+    );
+    let engine_defined = RoutingIntent::EngineDefined(EngineDefinedRoutingIntent::new(
+        EngineId::new("mihomo").unwrap(),
+        RoutingIntentExtensionId::new("script").unwrap(),
+    ));
 
-    // Gate rejects synchronously: no optimistic flip, no patch snapshot.
-    let units = feed(&mut state, Message::SetProxyMode("script".into()));
+    // The typed extension never enters the common three-choice UI path.
+    let units = feed(&mut state, Message::SetRoutingIntent(engine_defined));
     assert_eq!(
         units, 0,
         "refusal stays in the persistent operation surface"
     );
-    assert!(state.runtime.mode_actions.failure.is_some());
+    assert!(state.runtime.routing_intent_actions.failure.is_some());
     assert_eq!(
-        state.runtime.proxy_mode.as_deref(),
-        Some("rule"),
-        "mode untouched by the refusal"
+        state.runtime.routing_intent.as_ref(),
+        Some(&RoutingIntent::FollowRules),
+        "observed intent remains unchanged by the refusal"
     );
     assert!(
         state.runtime.pending_runtime_patch.is_none(),
@@ -142,33 +108,8 @@ fn script_mode_gate_refuses_without_script_block_then_hits_runtime_guard() {
     );
     assert!(
         state.shell.error_msg.is_none(),
-        "mode rejection does not use the generic error banner"
+        "routing refusal does not use the generic error banner"
     );
-
-    // script: block present → the gate opens, but with no runtime the
-    // request lands in the runtime_unavailable branch (banner + toast).
-    state.runtime.script_block_present = true;
-    state.runtime.proxy_mode_state.script_available = Some(true);
-    state.runtime.mode_actions.observe(
-        state.runtime.runtime_generation,
-        1,
-        state.runtime.proxy_mode_state.clone(),
-    );
-    let units = feed(&mut state, Message::SetProxyMode("script".into()));
-    assert!(
-        state.runtime.mode_actions.failure.is_some(),
-        "runtime guard remains visible in the operation surface"
-    );
-    assert_eq!(
-        units, 0,
-        "missing runtime does not queue a write or a toast"
-    );
-    assert_eq!(
-        state.runtime.proxy_mode.as_deref(),
-        Some("rule"),
-        "no runtime → no optimistic switch"
-    );
-    assert!(state.runtime.pending_runtime_patch.is_none());
 }
 
 /// Journey 10 — 内核管理：真实 VersionManager（temp HOME）列表→设默认→
@@ -200,11 +141,14 @@ fn kernel_management_round_trip_and_download_progress_tray_throttle() {
     let units = feed(&mut state, Message::SetDefaultKernel("v1.19.18".into()));
     assert_eq!(units, 1);
     block_on(async {
-        VersionManager::new()
-            .unwrap()
-            .set_default("v1.19.18")
-            .await
-            .unwrap()
+        VersionManager::for_engine(
+            get_home_dir().unwrap(),
+            MihomoVersionPort::engine_identifier(),
+        )
+        .unwrap()
+        .set_default("v1.19.18")
+        .await
+        .unwrap()
     });
     let units = feed(&mut state, Message::KernelOperationFinished(Ok(())));
     assert_eq!(units, 1, "result chains LoadKernels");
@@ -236,29 +180,31 @@ fn kernel_management_round_trip_and_download_progress_tray_throttle() {
 
     // Download progress: throttled tray refresh — many ticks inside the
     // 1s window update the stats each time but push at most one spec.
-    state.runtime.core_download_token = 42;
-    state.runtime.is_downloading_core = true;
+    let run_id = match state.runtime.core_download.start() {
+        CoreDownloadStart::Started { run_id, .. } => run_id,
+        CoreDownloadStart::AlreadyDownloading => panic!("first download must start"),
+    };
     let count_before = tray.count();
     for downloaded in [100u64, 300, 500, 700] {
         let units = feed(
             &mut state,
-            Message::CoreDownloadProgress(
-                CoreDownloadProgress {
+            Message::CoreDownloadProgress {
+                progress: CoreDownloadProgress {
                     downloaded,
                     total: Some(1000),
                     speed_bytes: 10,
                 },
-                42,
-            ),
+                run_id,
+            },
         );
         assert_eq!(units, 0);
         assert_eq!(
-            state.runtime.download_stats.as_ref().unwrap().downloaded,
+            state.runtime.core_download.progress().unwrap().downloaded,
             downloaded,
             "stats update on every tick"
         );
     }
-    assert_eq!(state.runtime.download_progress, 0.7);
+    assert_eq!(state.runtime.core_download.progress_fraction(), 0.7);
     assert_eq!(
         tray.count() - count_before,
         1,
@@ -268,18 +214,18 @@ fn kernel_management_round_trip_and_download_progress_tray_throttle() {
     // A stale token is dropped before touching anything.
     let units = feed(
         &mut state,
-        Message::CoreDownloadProgress(
-            CoreDownloadProgress {
+        Message::CoreDownloadProgress {
+            progress: CoreDownloadProgress {
                 downloaded: 999,
                 total: Some(1000),
                 speed_bytes: 10,
             },
-            41,
-        ),
+            run_id: CoreDownloadRunId::default(),
+        },
     );
     assert_eq!(units, 0);
     assert_eq!(
-        state.runtime.download_stats.as_ref().unwrap().downloaded,
+        state.runtime.core_download.progress().unwrap().downloaded,
         700
     );
 }
@@ -291,7 +237,11 @@ fn kernel_management_round_trip_and_download_progress_tray_throttle() {
 fn kernel_rollback_round_trip_uses_the_shared_operation_path() {
     let _home = TempHome::acquire("kernel-rollback");
     let mut state = fresh_state();
-    let manager = VersionManager::new().unwrap();
+    let manager = VersionManager::for_engine(
+        get_home_dir().unwrap(),
+        MihomoVersionPort::engine_identifier(),
+    )
+    .unwrap();
     plant_runnable_fake_binary(&_home, "v1.19.28");
     plant_runnable_fake_binary(&_home, "v1.19.29");
 
@@ -301,6 +251,7 @@ fn kernel_rollback_round_trip_uses_the_shared_operation_path() {
     assert_eq!(before.current.as_deref(), Some("v1.19.29"));
     assert_eq!(before.target.as_deref(), Some("v1.19.28"));
     state.runtime.core_versions.rollback = CoreRollbackSnapshot {
+        engine_id: EngineId::new("mihomo").unwrap(),
         current: before.current,
         target: before.target,
         history: before.history,
@@ -320,27 +271,12 @@ fn kernel_rollback_round_trip_uses_the_shared_operation_path() {
 }
 
 #[test]
-fn core_log_level_rejects_invalid_or_stopped_updates_without_optimism() {
+fn core_log_level_requires_owner_and_does_not_optimistically_update() {
     let mut state = fresh_state();
     assert_eq!(state.diag.log_level, "info");
 
     assert_eq!(
-        feed(&mut state, Message::SetCoreLogLevel("trace".into())),
-        0
-    );
-    assert_eq!(state.diag.log_level, "info");
-    assert!(
-        state
-            .shell
-            .error_msg
-            .as_deref()
-            .unwrap_or_default()
-            .contains("unsupported core log level")
-    );
-
-    state.shell.error_msg = None;
-    assert_eq!(
-        feed(&mut state, Message::SetCoreLogLevel("debug".into())),
+        feed(&mut state, Message::SetCoreLogLevel(CoreLogLevel::Debug)),
         0
     );
     assert_eq!(state.diag.log_level, "info");
@@ -389,58 +325,10 @@ fn port_conflict_repair_replaces_the_shared_snapshot_without_killing_unknown_pid
     assert!(state.shell.error_msg.is_none());
 }
 
-/// DUAL-01-15 — the Iced headless matrix keeps the three lifecycle failure
-/// boundaries in one user journey: failed start, safe port repair, graceful
-/// stop. Each leg is driven by the same contract message path used by the UI.
-#[test]
-fn dual_surface_headless_lifecycle_matrix_covers_failure_conflict_and_stop() {
-    let mut state = fresh_state();
-    let start_token = state.runtime.lifecycle_token;
-    assert!(feed(&mut state, Message::StartProxy) >= 1);
-    assert_eq!(state.runtime.lifecycle_token, start_token + 1);
-
-    feed(
-        &mut state,
-        Message::ProxyStarted(
-            Err(InfiltratorError::Mihomo(
-                "local core refused to start".into(),
-            )),
-            start_token + 1,
-        ),
-    );
-    assert!(matches!(state.runtime.status, RuntimeStatus::Error(_)));
-
-    state.runtime.port_conflicts = PortConflictSnapshot {
-        revision: 1,
-        conflicts: vec![PortConflict {
-            binding: PortBinding::Controller,
-            port: 9090,
-            available: false,
-            owner_pid: Some(4242),
-            owner_name: Some("unrelated-app".to_owned()),
-            can_release: false,
-        }],
-    };
-    feed(
-        &mut state,
-        Message::PortConflictsRepaired(Ok(PortConflictSnapshot {
-            revision: 2,
-            conflicts: Vec::new(),
-        })),
-    );
-    assert!(!state.runtime.port_conflicts.has_conflicts());
-
-    feed(&mut state, Message::StopProxy);
-    feed(&mut state, Message::ProxyStopped);
-    assert_eq!(state.runtime.status, RuntimeStatus::Stopped);
-    assert!(state.diag.traffic.is_none());
-    assert!(state.diag.logs.is_empty());
-}
-
 #[cfg(unix)]
 fn plant_runnable_fake_binary(home: &path::Path, version: &str) {
     use std::os::unix::fs::PermissionsExt;
-    let dir = home.join("versions").join(version);
+    let dir = home.join("engines/mihomo/versions").join(version);
     create_dir_all(&dir).unwrap();
     let bin = dir.join("mihomo");
     write(&bin, "#!/bin/sh\necho \"Mihomo Meta v1.19.18 test\"\n").unwrap();
@@ -459,8 +347,8 @@ fn tray_event_chains_resolve_intents_and_drive_state_domains() {
         subscribed_profile("Free", false, None),
     ];
 
-    // 节点切换: pair payload decodes group/node; resolve produces SelectProxy
-    // (with proxies present, the forwarded message is the real request).
+    // Node selection is a typed request only when an accepted owner inventory
+    // has supplied the current scope and member revision.
     let event = TrayEvent::MenuActivated {
         id: TRAY_ACTION_SELECT_PROXY,
         payload: Some(encode_pair_payload("PROXY", "HK-1")),
@@ -476,34 +364,15 @@ fn tray_event_chains_resolve_intents_and_drive_state_domains() {
     assert!(
         matches!(
             resolve_tray_event_in(&event, &ctx),
-            Some(TrayIntent::SelectProxy { group, node })
-            if group == "PROXY" && node == "HK-1"
+            Some(TrayIntent::SelectOutbound { collection, outbound })
+            if collection == "PROXY" && outbound == "HK-1"
         ),
         "pair payload resolves to the group/node pair"
     );
-    state.runtime.proxies.insert(
-        "PROXY".into(),
-        Proxy::Selector(ProxyGroup {
-            name: "PROXY".into(),
-            now: "JP-1".into(),
-            all: vec!["HK-1".into(), "JP-1".into()],
-            history: Vec::new(),
-        }),
-    );
-    let _ = state
-        .runtime
-        .proxies
-        .insert("HK-1".into(), Proxy::Shadowsocks(shadowsocks_proxy()));
-    // No runtime → the forwarded request degrades to a no-op task.
-    let units = feed(
-        &mut state,
-        Message::SelectProxy("PROXY".into(), "HK-1".into()),
-    );
-    assert_eq!(units, 0, "no runtime → switch request is inert");
-    assert_eq!(
-        state.runtime.proxies["PROXY"].now(),
-        Some("JP-1"),
-        "unswitched"
+    assert!(state.outbound_selection_message("PROXY", "HK-1").is_none());
+    assert!(
+        state.runtime.proxy_groups.is_empty(),
+        "no owner inventory was observed"
     );
 
     // ActivateProfile → SetActiveProfile: banner cleared, activation armed.
@@ -569,29 +438,32 @@ fn tray_event_chains_resolve_intents_and_drive_state_domains() {
         Some(TrayIntent::SetProfileAutoUpdate { enabled: true, .. })
     ));
 
-    // Mode switch from the tray: no optimistic flip without a runtime (the
-    // tray must never show a mode that never took effect); SetProxyMode
+    // Routing choice from the tray: no optimistic flip without a runtime;
+    // SetRoutingIntent
     // lands in the runtime-unavailable branch.
     let units = feed(
         &mut state,
         Message::TrayEvent(TrayEvent::MenuActivated {
-            id: TRAY_ACTION_MODE_GLOBAL,
+            id: TRAY_ACTION_ROUTING_ALL_THROUGH_PROXY,
             payload: None,
         }),
     );
     assert_eq!(units, 1);
-    feed(&mut state, Message::SetProxyMode("global".into()));
+    feed(
+        &mut state,
+        Message::SetRoutingIntent(RoutingIntent::RouteAllThroughProxy),
+    );
     assert!(
-        state.runtime.mode_actions.failure.is_some(),
-        "no runtime → persistent mode issue"
+        state.runtime.routing_intent_actions.failure.is_some(),
+        "no runtime → persistent routing intent issue"
     );
     assert_eq!(
-        state.runtime.proxy_mode, None,
+        state.runtime.routing_intent, None,
         "no optimistic flip without a runtime: the tray never lies"
     );
     assert!(state.runtime.pending_runtime_patch.is_none());
-    assert_eq!(state.runtime.proxy_mode_state.current, None);
-    assert!(state.runtime.mode_actions.failure.is_some());
+    assert_eq!(state.runtime.routing_intent_state.current, None);
+    assert!(state.runtime.routing_intent_actions.failure.is_some());
 
     // Kernel default switch forwards the version payload.
     let units = feed(
@@ -618,13 +490,6 @@ fn tray_event_chains_resolve_intents_and_drive_state_domains() {
     assert!(state.profile.is_updating_subscription_now);
 }
 
-fn shadowsocks_proxy() -> Shadowsocks {
-    Shadowsocks {
-        base: ProxyBase::default(),
-        ..Default::default()
-    }
-}
-
 /// Kernel entries surface in the tray spec: one nested submenu per version,
 /// default-version actions disabled, info line naming the default.
 #[test]
@@ -633,13 +498,15 @@ fn kernel_versions_flow_into_the_tray_spec_submenu() {
     state.shell.lang = "zh-CN".into();
     state.runtime.installed_kernels = vec![
         InstalledCoreVersion {
+            engine_id: EngineId::new("mihomo").unwrap(),
             version: "v1.19.18".into(),
-            path: "/versions/v1.19.18".into(),
+            path: "/engines/mihomo/versions/v1.19.18".into(),
             is_default: true,
         },
         InstalledCoreVersion {
+            engine_id: EngineId::new("mihomo").unwrap(),
             version: "v1.18.0".into(),
-            path: "/versions/v1.18.0".into(),
+            path: "/engines/mihomo/versions/v1.18.0".into(),
             is_default: false,
         },
     ];

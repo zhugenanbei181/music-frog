@@ -2,6 +2,7 @@
 use crate::log_application::LogApplication;
 use futures_util::future::{AbortHandle, Abortable};
 use futures_util::{FutureExt, StreamExt, select};
+use infiltrator_contract::core_identity::CoreScope;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::logs::LogSession;
 use infiltrator_contract::snapshot::{CoreLifecycle, CoreLifecycleSnapshot};
@@ -21,23 +22,18 @@ struct LogDriver {
 impl LogDriver {
     fn session(&self) -> Option<LogSession> {
         let core = (self.observe)()?;
-        core.session_token
-            .filter(|token| {
-                token.is_valid()
-                    && matches!(
-                        core.lifecycle,
-                        CoreLifecycle::Running | CoreLifecycle::Ready
-                    )
-            })
-            .map(|token| LogSession {
-                generation: core.generation,
-                token,
-            })
+        matches!(
+            core.lifecycle,
+            CoreLifecycle::Running | CoreLifecycle::Ready
+        )
+        .then(|| core.scope())
+        .flatten()
+        .and_then(LogSession::from_core_scope)
     }
-    async fn wait(&self, session: LogSession, duration: Duration) {
+    async fn wait(&self, session: &LogSession, duration: Duration) {
         let delay = self.runtime.sleep(duration).fuse();
         futures_util::pin_mut!(delay);
-        while self.session() == Some(session) {
+        while self.session().as_ref() == Some(session) {
             let tick = self.runtime.sleep(POLL_INTERVAL).fuse();
             futures_util::pin_mut!(tick);
             select! { _ = delay => return, _ = tick => {} }
@@ -46,24 +42,41 @@ impl LogDriver {
     async fn run(self) {
         while (self.observe)().is_some() {
             let session = self.session();
-            if !self.logs.bind(session) {
+            if !self.logs.bind(session.clone()) {
                 continue;
             }
             let Some(session) = session else {
                 self.runtime.sleep(POLL_INTERVAL).await;
                 continue;
             };
-            let opening = self.gateway.stream_logs(Some("debug".into())).fuse();
+            let Some(scope) = scope_from_session(&session) else {
+                self.logs.fail(
+                    session.clone(),
+                    Failure::new(
+                        ErrorCode::InvalidState,
+                        "controller log stream requires a core-scoped session",
+                        false,
+                    ),
+                );
+                while self.session().as_ref() == Some(&session) {
+                    self.runtime.sleep(POLL_INTERVAL).await;
+                }
+                continue;
+            };
+            let opening = self
+                .gateway
+                .stream_logs_scoped(scope.clone(), Some("debug".into()))
+                .fuse();
             futures_util::pin_mut!(opening);
             let opened = loop {
                 let tick = self.runtime.sleep(POLL_INTERVAL).fuse();
                 futures_util::pin_mut!(tick);
                 select! { result = opening => break Some(result), _ = tick => {} }
-                if self.session() != Some(session) {
+                if self.session().as_ref() != Some(&session) {
                     break None;
                 }
             };
-            if self.session() != Some(session) {
+            if self.session().as_ref() != Some(&session) {
                 continue;
             }
             let Some(opened) = opened else { continue };
@@ -72,11 +85,11 @@ impl LogDriver {
                 Err(error) => {
                     let failure = Failure::from(error);
                     let retryable = failure.retryable;
-                    self.logs.fail(session, failure);
+                    self.logs.fail(session.clone(), failure);
                     if retryable {
-                        self.wait(session, Duration::from_secs(1)).await;
+                        self.wait(&session, Duration::from_secs(1)).await;
                     } else {
-                        while self.session() == Some(session) {
+                        while self.session().as_ref() == Some(&session) {
                             self.runtime.sleep(POLL_INTERVAL).await;
                         }
                     }
@@ -89,20 +102,28 @@ impl LogDriver {
                 let tick = self.runtime.sleep(POLL_INTERVAL).fuse();
                 futures_util::pin_mut!(event, tick);
                 let next = select! { item = event => Some(item), _ = tick => None };
-                if self.session() != Some(session) {
+                if self.session().as_ref() != Some(&session) {
                     break;
                 }
                 match next {
                     Some(Some(event)) => {
-                        permanent_failure = matches!(&event, RuntimeStreamEvent::Failed(failure) if !failure.retryable);
-                        self.logs.ingest(session, event);
+                        if event.scope != scope {
+                            self.logs.fail(session.clone(), scope_mismatch_failure());
+                            permanent_failure = true;
+                            break;
+                        }
+                        permanent_failure = matches!(
+                            &event.event,
+                            RuntimeStreamEvent::Failed(failure) if !failure.retryable
+                        );
+                        self.logs.ingest(session.clone(), event.event);
                         if permanent_failure {
                             break;
                         }
                     }
                     Some(None) => {
                         self.logs.fail(
-                            session,
+                            session.clone(),
                             Failure::new(ErrorCode::Network, "controller log stream ended", true),
                         );
                         break;
@@ -112,14 +133,30 @@ impl LogDriver {
             }
             drop(stream);
             if permanent_failure {
-                while self.session() == Some(session) {
+                while self.session().as_ref() == Some(&session) {
                     self.runtime.sleep(POLL_INTERVAL).await;
                 }
             } else {
-                self.wait(session, Duration::from_millis(100)).await;
+                self.wait(&session, Duration::from_millis(100)).await;
             }
         }
     }
+}
+
+fn scope_from_session(session: &LogSession) -> Option<CoreScope> {
+    Some(CoreScope {
+        identity: session.identity()?.clone(),
+        generation: session.generation,
+        session_token: Some(session.token),
+    })
+}
+
+fn scope_mismatch_failure() -> Failure {
+    Failure::new(
+        ErrorCode::InvalidState,
+        "controller log stream returned an event from a different core scope",
+        false,
+    )
 }
 
 pub struct LogPump {

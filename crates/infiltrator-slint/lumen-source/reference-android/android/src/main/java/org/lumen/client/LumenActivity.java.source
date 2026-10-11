@@ -1,0 +1,543 @@
+package org.lumen.client;
+
+import android.app.NativeActivity;
+import android.Manifest;
+import android.app.ActivityManager;
+import android.app.NotificationManager;
+import android.content.pm.PackageManager;
+import android.content.SharedPreferences;
+import android.content.Intent;
+import android.content.res.Configuration;
+import android.database.Cursor;
+import android.graphics.Color;
+import android.net.VpnService;
+import android.os.Build;
+import android.os.Bundle;
+import android.os.PowerManager;
+import android.provider.Settings;
+import android.view.View;
+import android.view.WindowInsets;
+import android.view.inputmethod.InputMethodManager;
+import android.graphics.Rect;
+import java.io.File;
+import android.net.Uri;
+import android.provider.OpenableColumns;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.Locale;
+
+/** NativeActivity host for the small Android system-document bridge. */
+public final class LumenActivity extends NativeActivity {
+    private static final int REQUEST_PROFILE_DOCUMENT = 0x4c01;
+    private static final int REQUEST_OVERRIDE_DOCUMENT = 0x4c02;
+    private static final int REQUEST_EXPORT_DOCUMENT = 0x4c03;
+    private static final int REQUEST_VPN_PERMISSION = 0x4c04;
+    private static final int REQUEST_NOTIFICATION_PERMISSION = 0x4c05;
+    private static final int ERROR_NAME = 1;
+    private static final int ERROR_TYPE = 2;
+    private static final int ERROR_READ = 3;
+    private static final int ERROR_SIZE = 4;
+    private static final int ERROR_LAUNCH = 5;
+    private static final int MAX_PROFILE_BYTES = 20 * 1024 * 1024;
+
+    private final Runnable systemBackAction = new Runnable() {
+        @Override
+        public void run() {
+            if (!hideImeIfVisible()) {
+                nativeBackPressed();
+            }
+        }
+    };
+    private Object registeredBackCallback;
+    private boolean backGestureConsumedByIme;
+
+    static {
+        System.loadLibrary("lumen");
+    }
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        if (Build.VERSION.SDK_INT >= 26) {
+            getWindow().setStatusBarColor(Color.TRANSPARENT);
+            getWindow().setNavigationBarColor(Color.TRANSPARENT);
+            setSystemBarAppearance(false);
+        }
+        if (Build.VERSION.SDK_INT >= 33) {
+            registeredBackCallback = Api33BackDispatcher.register(this, systemBackAction);
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (Build.VERSION.SDK_INT >= 33) {
+            Api33BackDispatcher.unregister(this, registeredBackCallback);
+        }
+        super.onDestroy();
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        nativeAndroidActivityVisibility(true);
+        refreshAndroidSettings();
+    }
+
+    @Override
+    protected void onStop() {
+        nativeAndroidActivityVisibility(false);
+        super.onStop();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        refreshAndroidSettings();
+    }
+
+    private void refreshAndroidSettings() {
+        PowerManager power = getSystemService(PowerManager.class);
+        boolean ignored = power != null && power.isIgnoringBatteryOptimizations(getPackageName());
+        String language = Build.VERSION.SDK_INT >= 24
+                ? getResources().getConfiguration().getLocales().get(0).toLanguageTag()
+                : Locale.getDefault().toLanguageTag();
+        nativeAndroidSystemSettingsChanged(areNotificationsAllowed(), ignored, language, Build.VERSION.SDK_INT);
+    }
+
+    private boolean areNotificationsAllowed() {
+        NotificationManager manager = getSystemService(NotificationManager.class);
+        boolean appEnabled = manager != null && manager.areNotificationsEnabled();
+        return appEnabled && (Build.VERSION.SDK_INT < 33
+                || checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED);
+    }
+
+    public void setAutoStartEnabled(boolean enabled) {
+        getSharedPreferences("lumen-settings", MODE_PRIVATE).edit()
+                .putBoolean("auto_start", enabled)
+                .apply();
+    }
+
+    public void setApplicationLanguagePreference(String language) {
+        getSharedPreferences("lumen-settings", MODE_PRIVATE).edit()
+                .putString("application_language", language)
+                .apply();
+    }
+
+    public void setHideBackgroundCard(boolean hide) {
+        if (Build.VERSION.SDK_INT >= 33) {
+            setRecentsScreenshotEnabled(!hide);
+        }
+        ActivityManager manager = getSystemService(ActivityManager.class);
+        if (manager != null) {
+            for (ActivityManager.AppTask task : manager.getAppTasks()) {
+                task.setExcludeFromRecents(hide);
+            }
+        }
+    }
+
+    public void setPredictiveBackEnabled(boolean enabled) {
+        if (Build.VERSION.SDK_INT < 34) {
+            throw new UnsupportedOperationException("Predictive back progress requires Android 14");
+        }
+        Api33BackDispatcher.unregister(this, registeredBackCallback);
+        registeredBackCallback = enabled
+                ? Api34BackDispatcher.register(this, systemBackAction)
+                : Api33BackDispatcher.register(this, systemBackAction);
+    }
+
+    public void requestIgnoreBatteryOptimizations() {
+        PowerManager power = getSystemService(PowerManager.class);
+        Intent request;
+        if (power != null && power.isIgnoringBatteryOptimizations(getPackageName())) {
+            request = new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS);
+        } else {
+            request = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+            request.setData(Uri.parse("package:" + getPackageName()));
+        }
+        startActivity(request);
+    }
+
+    public void requestNotificationPermission() {
+        if (Build.VERSION.SDK_INT < 33 || areNotificationsAllowed()) {
+            nativeNotificationPermissionResult(areNotificationsAllowed());
+            return;
+        }
+        requestPermissions(new String[] { Manifest.permission.POST_NOTIFICATIONS }, REQUEST_NOTIFICATION_PERMISSION);
+    }
+
+    public void updateTrafficNotification(boolean enabled, String download, String upload, boolean english) {
+        LumenVpnService.updateTrafficNotification(enabled, download, upload, english);
+    }
+
+    @Override
+    public void onConfigurationChanged(Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        nativeSystemThemeChanged(isSystemDarkMode());
+    }
+
+    public void notifySystemTheme() {
+        nativeSystemThemeChanged(isSystemDarkMode());
+    }
+
+    private boolean isSystemDarkMode() {
+        int mode = getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK;
+        return mode == Configuration.UI_MODE_NIGHT_YES;
+    }
+
+    @Override
+    public void onBackPressed() {
+        if (!hideImeIfVisible()) {
+            nativeBackPressed();
+        }
+    }
+
+    private boolean isImeVisible() {
+        View decor = getWindow().getDecorView();
+        if (Build.VERSION.SDK_INT >= 30) {
+            WindowInsets insets = decor.getRootWindowInsets();
+            return insets != null && insets.isVisible(WindowInsets.Type.ime());
+        }
+        Rect visible = new Rect();
+        decor.getWindowVisibleDisplayFrame(visible);
+        int height = decor.getRootView().getHeight();
+        return height > 0 && height - visible.bottom > height / 5;
+    }
+
+    private boolean hideImeIfVisible() {
+        if (!isImeVisible()) {
+            return false;
+        }
+        InputMethodManager manager = getSystemService(InputMethodManager.class);
+        if (manager != null) {
+            manager.hideSoftInputFromWindow(getWindow().getDecorView().getWindowToken(), 0);
+        }
+        return true;
+    }
+
+    public void setSystemBarAppearance(boolean darkBackground) {
+        if (Build.VERSION.SDK_INT < 26) {
+            return;
+        }
+        View decor = getWindow().getDecorView();
+        int flags = decor.getSystemUiVisibility();
+        flags &= ~(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
+        if (!darkBackground) {
+            flags |= View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+        }
+        decor.setSystemUiVisibility(flags);
+    }
+
+    private static final class Api33BackDispatcher {
+        static Object register(LumenActivity activity, Runnable action) {
+            android.window.OnBackInvokedCallback callback =
+                    new android.window.OnBackInvokedCallback() {
+                        @Override
+                        public void onBackInvoked() {
+                            action.run();
+                        }
+                    };
+            activity.getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
+                    android.window.OnBackInvokedDispatcher.PRIORITY_OVERLAY,
+                    callback);
+            return callback;
+        }
+
+        static void unregister(LumenActivity activity, Object callback) {
+            if (callback != null) {
+                activity.getOnBackInvokedDispatcher().unregisterOnBackInvokedCallback(
+                        (android.window.OnBackInvokedCallback) callback);
+            }
+        }
+    }
+
+    private static final class Api34BackDispatcher {
+        static Object register(LumenActivity activity, Runnable action) {
+            android.window.OnBackAnimationCallback callback = new android.window.OnBackAnimationCallback() {
+                @Override
+                public void onBackStarted(android.window.BackEvent event) {
+                    activity.backGestureConsumedByIme = activity.isImeVisible();
+                    if (!activity.backGestureConsumedByIme) {
+                        nativeBackGestureProgress(0.0f);
+                    }
+                }
+
+                @Override
+                public void onBackProgressed(android.window.BackEvent event) {
+                    if (!activity.backGestureConsumedByIme) {
+                        nativeBackGestureProgress(event.getProgress());
+                    }
+                }
+
+                @Override
+                public void onBackCancelled() {
+                    if (!activity.backGestureConsumedByIme) {
+                        nativeBackGestureCancelled();
+                    }
+                    activity.backGestureConsumedByIme = false;
+                }
+
+                @Override
+                public void onBackInvoked() {
+                    if (activity.backGestureConsumedByIme) {
+                        activity.hideImeIfVisible();
+                        activity.backGestureConsumedByIme = false;
+                        return;
+                    }
+                    nativeBackGestureCancelled();
+                    action.run();
+                }
+            };
+            activity.getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
+                    android.window.OnBackInvokedDispatcher.PRIORITY_OVERLAY,
+                    callback);
+            return callback;
+        }
+    }
+
+    public void openProfileDocument() {
+        openYamlDocument(REQUEST_PROFILE_DOCUMENT);
+    }
+
+    public void openOverrideDocument() {
+        openYamlDocument(REQUEST_OVERRIDE_DOCUMENT);
+    }
+
+    public void openExportDocument(String displayName, String mimeType) {
+        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType(mimeType);
+        intent.putExtra(Intent.EXTRA_TITLE, displayName);
+        try {
+            startActivityForResult(intent, REQUEST_EXPORT_DOCUMENT);
+        } catch (RuntimeException error) {
+            nativeExportDocumentFailed();
+        }
+    }
+
+    public void writeExportDocument(String uriString, String contents) {
+        Thread writer = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    Uri uri = Uri.parse(uriString);
+                    if (!"content".equals(uri.getScheme())) {
+                        throw new IOException("Selected destination is not a content URI");
+                    }
+                    try (OutputStream output = getContentResolver().openOutputStream(uri, "wt")) {
+                        if (output == null) {
+                            throw new IOException("Unable to open selected document");
+                        }
+                        output.write(contents.getBytes(StandardCharsets.UTF_8));
+                        output.flush();
+                    }
+                    nativeExportDocumentCompleted();
+                } catch (IOException | RuntimeException error) {
+                    nativeExportDocumentFailed();
+                }
+            }
+        }, "lumen-document-writer");
+        writer.setDaemon(true);
+        try {
+            writer.start();
+        } catch (RuntimeException error) {
+            nativeExportDocumentFailed();
+        }
+    }
+
+    public void requestVpnPermission() {
+        Intent request = VpnService.prepare(this);
+        if (request == null) {
+            nativeVpnPermissionResult(true);
+            return;
+        }
+        try {
+            startActivityForResult(request, REQUEST_VPN_PERMISSION);
+        } catch (RuntimeException error) {
+            nativeVpnPermissionResult(false);
+        }
+    }
+
+    public void startVpnService() {
+        Intent intent = new Intent(this, LumenVpnService.class);
+        intent.setAction(LumenVpnService.ACTION_START);
+        try {
+            if (Build.VERSION.SDK_INT >= 26) {
+                startForegroundService(intent);
+            } else {
+                startService(intent);
+            }
+        } catch (RuntimeException error) {
+            nativeVpnStartRequestFailed();
+        }
+    }
+
+    public void stopVpnService() {
+        Intent intent = new Intent(this, LumenVpnService.class);
+        intent.setAction(LumenVpnService.ACTION_STOP);
+        try {
+            startService(intent);
+        } catch (RuntimeException error) {
+            stopService(intent);
+        }
+    }
+
+    public String mihomoCorePath() {
+        return new File(getApplicationInfo().nativeLibraryDir, "libmihomo.so").getAbsolutePath();
+    }
+
+    private void openYamlDocument(int requestCode) {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("*/*");
+        try {
+            startActivityForResult(intent, requestCode);
+        } catch (RuntimeException error) {
+            if (requestCode == REQUEST_PROFILE_DOCUMENT) {
+                nativeProfileFileFailed(ERROR_LAUNCH);
+            } else {
+                nativeOverrideFileFailed(ERROR_LAUNCH);
+            }
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQUEST_VPN_PERMISSION) {
+            nativeVpnPermissionResult(resultCode == RESULT_OK);
+            return;
+        }
+        if (requestCode == REQUEST_EXPORT_DOCUMENT) {
+            if (resultCode != RESULT_OK || data == null || data.getData() == null) {
+                nativeExportDocumentCancelled();
+            } else {
+                nativeExportDocumentSelected(data.getData().toString());
+            }
+            return;
+        }
+        if (requestCode != REQUEST_PROFILE_DOCUMENT && requestCode != REQUEST_OVERRIDE_DOCUMENT) {
+            return;
+        }
+        boolean override = requestCode == REQUEST_OVERRIDE_DOCUMENT;
+        if (resultCode != RESULT_OK || data == null || data.getData() == null) {
+            if (override) {
+                nativeOverrideFileCancelled();
+            } else {
+                nativeProfileFileCancelled();
+            }
+            return;
+        }
+        Uri uri = data.getData();
+        if (override) {
+            nativeOverrideFileReading();
+        } else {
+            nativeProfileFileReading();
+        }
+        Thread reader = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                readAndReport(uri, override);
+            }
+        }, "lumen-yaml-file-reader");
+        reader.setDaemon(true);
+        reader.start();
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == REQUEST_NOTIFICATION_PERMISSION) {
+            nativeNotificationPermissionResult(areNotificationsAllowed());
+        }
+    }
+
+    private void readAndReport(Uri uri, boolean override) {
+        String displayName = queryDisplayName(uri);
+        if (displayName == null || displayName.trim().isEmpty()) {
+            reportReadFailure(override, ERROR_NAME);
+            return;
+        }
+        String lowerName = displayName.toLowerCase(Locale.ROOT);
+        if (!lowerName.endsWith(".yaml") && !lowerName.endsWith(".yml")) {
+            reportReadFailure(override, ERROR_TYPE);
+            return;
+        }
+
+        try (InputStream input = getContentResolver().openInputStream(uri);
+             ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            if (input == null) {
+                reportReadFailure(override, ERROR_READ);
+                return;
+            }
+            byte[] buffer = new byte[8192];
+            int total = 0;
+            int count;
+            while ((count = input.read(buffer)) != -1) {
+                if (total + count > MAX_PROFILE_BYTES) {
+                    reportReadFailure(override, ERROR_SIZE);
+                    return;
+                }
+                output.write(buffer, 0, count);
+                total += count;
+            }
+            if (override) {
+                nativeOverrideFilePicked(displayName, output.toByteArray());
+            } else {
+                nativeProfileFilePicked(displayName, output.toByteArray());
+            }
+        } catch (IOException | RuntimeException error) {
+            reportReadFailure(override, ERROR_READ);
+        }
+    }
+
+    private void reportReadFailure(boolean override, int errorCode) {
+        if (override) {
+            nativeOverrideFileFailed(errorCode);
+        } else {
+            nativeProfileFileFailed(errorCode);
+        }
+    }
+
+    private String queryDisplayName(Uri uri) {
+        try (Cursor cursor = getContentResolver().query(
+                uri,
+                new String[] { OpenableColumns.DISPLAY_NAME },
+                null,
+                null,
+                null)) {
+            if (cursor == null || !cursor.moveToFirst()) {
+                return null;
+            }
+            int index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
+            return index < 0 ? null : cursor.getString(index);
+        } catch (RuntimeException error) {
+            return null;
+        }
+    }
+
+    private static native void nativeProfileFilePicked(String displayName, byte[] contents);
+    private static native void nativeProfileFileReading();
+    private static native void nativeProfileFileFailed(int errorCode);
+    private static native void nativeProfileFileCancelled();
+    private static native void nativeOverrideFilePicked(String displayName, byte[] contents);
+    private static native void nativeOverrideFileReading();
+    private static native void nativeOverrideFileFailed(int errorCode);
+    private static native void nativeOverrideFileCancelled();
+    private static native void nativeExportDocumentSelected(String uriString);
+    private static native void nativeExportDocumentCompleted();
+    private static native void nativeExportDocumentFailed();
+    private static native void nativeExportDocumentCancelled();
+    private static native void nativeBackPressed();
+    private static native void nativeSystemThemeChanged(boolean darkMode);
+    private static native void nativeAndroidActivityVisibility(boolean visible);
+    private static native void nativeAndroidSystemSettingsChanged(boolean notificationsAllowed, boolean batteryOptimizationIgnored, String language, int apiLevel);
+    private static native void nativeNotificationPermissionResult(boolean granted);
+    private static native void nativeBackGestureProgress(float progress);
+    private static native void nativeBackGestureCancelled();
+    private static native void nativeVpnPermissionResult(boolean granted);
+    private static native void nativeVpnStartRequestFailed();
+}

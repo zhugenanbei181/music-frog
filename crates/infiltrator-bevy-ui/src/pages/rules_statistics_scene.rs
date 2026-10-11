@@ -7,18 +7,21 @@ use crate::pages::rules_statistics::{
 use bevy::a11y::AccessibilityNode;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::system::{Commands, Res};
+use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::{CommandsSceneExt, Scene, bsn};
 use bevy::ui::widget::Text;
 use bevy::ui::{
-    AlignItems, BackgroundColor, Display, FlexDirection, FlexWrap, GlobalZIndex, JustifyContent,
-    Node, Overflow, PositionType, UiRect, percent, px,
+    AlignItems, Display, FlexDirection, FlexWrap, GlobalZIndex, JustifyContent, Node, Overflow,
+    PositionType, UiRect, percent, px,
 };
 use bevy::ui_widgets::ScrollArea;
 use infiltrator_application::rule_statistics_workbench::StatisticsTab;
 use infiltrator_bevy_widgets::button::{ButtonDisabled, ButtonVariant};
+use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText};
 use infiltrator_bevy_widgets::modal::{ModalDialogCard, ModalScrim};
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 
 fn control(
@@ -33,21 +36,21 @@ fn control(
 }
 fn metric(key: &'static str, line: StatisticsLine) -> impl Scene + use<> {
     bsn! {
-        Node { min_width: px(120.0), flex_grow: 1.0, flex_direction: FlexDirection::Column, row_gap: px(4.0) }
+        Node { min_width: rem(120.0), flex_grow: 1.0, flex_direction: FlexDirection::Column, row_gap: rem(4.0) }
         Children [ LocalizedText::plain(key) TextRole(Role::Caption) -- Text(String::new()) StatisticsLine { .. { line } } TextRole(Role::BodyStrong) ]
     }
 }
 pub fn scene(palette: &UiPalette) -> impl Scene + use<> {
     bsn! {
-        Node { width: percent(100), height: px(320.0), min_height: px(320.0), flex_shrink: 0.0,
-            padding: UiRect::all(px(12.0)), flex_direction: FlexDirection::Column, row_gap: px(8.0) }
-        StatisticsCard BackgroundColor({palette.surface_elevated})
+        Node { width: percent(100), height: rem(320.0), min_height: rem(320.0), flex_shrink: 0.0,
+            padding: UiRect::all(rem(12.0)), flex_direction: FlexDirection::Column, row_gap: rem(8.0) }
+        StatisticsCard ThemeBackgroundColor({Token::SurfaceElevated})
         Children [
             LocalizedText::plain("rule_hit_title") TextRole(Role::BodyStrong)
             --
             Text(String::new()) StatisticsLine::Status TextRole(Role::Caption)
             --
-            Node { flex_wrap: FlexWrap::Wrap, column_gap: px(8.0), row_gap: px(4.0), flex_shrink: 0.0 }
+            Node { flex_wrap: FlexWrap::Wrap, column_gap: rem(8.0), row_gap: rem(4.0), flex_shrink: 0.0 }
             Children [
                 @{control("rules_stats_summary_tab", StatisticsControl::Tab(StatisticsTab::Summary), palette)}
                 --
@@ -57,19 +60,19 @@ pub fn scene(palette: &UiPalette) -> impl Scene + use<> {
             ]
             --
             Node { width: percent(100), min_height: px(0.0), flex_grow: 1.0, flex_shrink: 1.0,
-                flex_direction: FlexDirection::Column, row_gap: px(8.0), overflow: Overflow::scroll_y() }
+                flex_direction: FlexDirection::Column, row_gap: rem(8.0), overflow: Overflow::scroll_y() }
             ScrollArea
             Children [
                 LocalizedText::plain("rule_hit_desc") TextRole(Role::Caption)
                 --
                 Text(String::new()) StatisticsLine::Source TextRole(Role::Caption)
                 --
-                Node { width: percent(100), flex_wrap: FlexWrap::Wrap, column_gap: px(8.0), row_gap: px(8.0) }
+                Node { width: percent(100), flex_wrap: FlexWrap::Wrap, column_gap: rem(8.0), row_gap: rem(8.0) }
                 Children [ @{metric("rule_hit_total_hits", StatisticsLine::Total)} -- @{metric("rule_hit_dead_count", StatisticsLine::Dead)} -- @{metric("rule_hit_cidr_conflicts", StatisticsLine::Cidr)} -- @{metric("rule_hit_match_latency", StatisticsLine::Latency)} ]
                 --
                 Text(String::new()) StatisticsLine::Last TextRole(Role::Body)
                 --
-                Node { width: percent(100), flex_direction: FlexDirection::Column, row_gap: px(8.0) }
+                Node { width: percent(100), flex_direction: FlexDirection::Column, row_gap: rem(8.0) }
                 StatisticsRows
                 --
                 Text(String::new()) StatisticsLine::Empty TextRole(Role::Caption)
@@ -79,7 +82,7 @@ pub fn scene(palette: &UiPalette) -> impl Scene + use<> {
             --
             Text(String::new()) StatisticsLine::Feedback TextRole(Role::Caption)
             --
-            Node { width: percent(100), flex_wrap: FlexWrap::Wrap, column_gap: px(8.0), row_gap: px(4.0), flex_shrink: 0.0 }
+            Node { width: percent(100), flex_wrap: FlexWrap::Wrap, column_gap: rem(8.0), row_gap: rem(4.0), flex_shrink: 0.0 }
             Children [
                 @{control("common_previous_page", StatisticsControl::Previous, palette)}
                 --
@@ -104,11 +107,11 @@ pub fn spawn_confirmation(mut commands: Commands, palette: Res<UiPalette>) {
         StatisticsConfirmation GlobalZIndex(121)
         Children [
             Node { position_type: PositionType::Absolute, width: percent(100), height: percent(100) }
-            ModalScrim StatisticsControl::CancelCleanup BackgroundColor({palette.scrim})
+            ModalScrim StatisticsControl::CancelCleanup ThemeBackgroundColor({Token::Scrim})
             --
-            Node { width: percent(90), max_width: px(560.0), max_height: percent(85), padding: UiRect::all(px(16.0)),
-                flex_direction: FlexDirection::Column, row_gap: px(12.0) }
-            StatisticsConfirmationCard ModalDialogCard AccessibilityNode(semantic) LocalizedLabel::plain("rules_stats_cleanup_title") BackgroundColor({palette.surface})
+            Node { width: percent(90), max_width: rem(560.0), max_height: percent(85), padding: UiRect::all(rem(16.0)),
+                flex_direction: FlexDirection::Column, row_gap: rem(12.0) }
+            StatisticsConfirmationCard ModalDialogCard AccessibilityNode(semantic) LocalizedLabel::plain("rules_stats_cleanup_title") ThemeBackgroundColor({Token::Surface})
             Children [
                 LocalizedText::plain("rules_stats_cleanup_title") TextRole(Role::Heading)
                 --
@@ -118,7 +121,7 @@ pub fn spawn_confirmation(mut commands: Commands, palette: Res<UiPalette>) {
                 ScrollArea
                 Children [ Text(String::new()) StatisticsLine::Confirmation TextRole(Role::Body) ]
                 --
-                Node { flex_wrap: FlexWrap::Wrap, column_gap: px(12.0), row_gap: px(8.0), flex_shrink: 0.0 }
+                Node { flex_wrap: FlexWrap::Wrap, column_gap: rem(12.0), row_gap: rem(8.0), flex_shrink: 0.0 }
                 Children [ @{control("modal_cancel", StatisticsControl::CancelCleanup, &palette)} -- @{control("rules_stats_cleanup_confirm", StatisticsControl::ConfirmCleanup, &palette)} ]
             ]
         ]

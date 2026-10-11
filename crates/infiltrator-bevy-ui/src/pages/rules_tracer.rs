@@ -15,10 +15,10 @@ use bevy::ecs::observer::On;
 use bevy::ecs::query::{With, Without};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Query, Res, ResMut, SystemParam};
+use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderRadius, FlexDirection, FlexWrap, JustifyContent, Node,
-    UiRect, Val, percent, px,
+    AlignItems, BorderRadius, FlexDirection, FlexWrap, JustifyContent, Node, UiRect, percent,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Activate;
@@ -27,10 +27,12 @@ use infiltrator_application::rule_trace_projection::{
     stage_text, trace_headline, trace_provenance, trace_status,
 };
 use infiltrator_bevy_widgets::button::{ButtonDisabled, ButtonVariant};
+use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::text_input::native::NativeTextField;
@@ -501,13 +503,13 @@ pub fn rules_tracer_scene(palette: &UiPalette, tracer: &RuleTracerSnapshot) -> i
                         width: percent(100),
                         align_items: AlignItems::Center,
                         justify_content: JustifyContent::SpaceBetween,
-                        padding: UiRect::bottom(Val::Px(space::S8)),
+                        padding: UiRect::bottom(rem(space::S8)),
                     }
                     RulesTracerRoot
                     Children [
                         Node {
                             align_items: AlignItems::Center,
-                            column_gap: Val::Px(space::S8),
+                            column_gap: rem(space::S8),
                         }
                         Children [
                             @{ icon_tile_scene(IconId::Activity, 24.0, palette) }
@@ -523,8 +525,8 @@ pub fn rules_tracer_scene(palette: &UiPalette, tracer: &RuleTracerSnapshot) -> i
                     Node {
                         width: percent(100),
                         align_items: AlignItems::Center,
-                        column_gap: Val::Px(space::S8),
-                        padding: UiRect::vertical(Val::Px(space::S6)),
+                        column_gap: rem(space::S8),
+                        padding: UiRect::vertical(rem(space::S6)),
                     }
                     Children [
                         Node { flex_grow: 1.0 }
@@ -534,7 +536,7 @@ pub fn rules_tracer_scene(palette: &UiPalette, tracer: &RuleTracerSnapshot) -> i
                                 bsn! { TracerNativeField NativeTextField(0) }) }
                         ]
                         --
-                        Node { width: px(240.0) }
+                        Node { width: rem(240.0) }
                         TracerSourceIpField
                         Children [
                             @{ (localized_field_scene(src_ip_initial, LocalizedText::plain("field_tracer_source"), palette),
@@ -546,10 +548,10 @@ pub fn rules_tracer_scene(palette: &UiPalette, tracer: &RuleTracerSnapshot) -> i
                     Node {
                         width: percent(100),
                         align_items: AlignItems::Center,
-                        column_gap: Val::Px(space::S8),
-                        row_gap: Val::Px(space::S8),
+                        column_gap: rem(space::S8),
+                        row_gap: rem(space::S8),
                         flex_wrap: FlexWrap::Wrap,
-                        padding: UiRect::vertical(Val::Px(space::S6)),
+                        padding: UiRect::vertical(rem(space::S6)),
                     }
                     Children [
                         { preset_chips }
@@ -559,11 +561,11 @@ pub fn rules_tracer_scene(palette: &UiPalette, tracer: &RuleTracerSnapshot) -> i
                     Node {
                         width: percent(100),
                         flex_direction: FlexDirection::Column,
-                        row_gap: Val::Px(space::S4),
-                        padding: UiRect::all(Val::Px(space::S8)),
-                        border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                        row_gap: rem(space::S4),
+                        padding: UiRect::all(rem(space::S8)),
+                        border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                     }
-                    BackgroundColor({ palette.window_clear })
+                    ThemeBackgroundColor({ Token::WindowClear })
                     TracerDecisionTree
                     Children [
                         { decision_rows }
@@ -579,8 +581,8 @@ pub fn rules_tracer_scene(palette: &UiPalette, tracer: &RuleTracerSnapshot) -> i
             Node {
                 width: percent(100),
                 align_items: AlignItems::Center,
-                column_gap: Val::Px(space::S8),
-                padding: UiRect::vertical(Val::Px(space::S6)),
+                column_gap: rem(space::S8),
+                padding: UiRect::vertical(rem(space::S6)),
             }
             Children [
                 LocalizedText::plain("tracer_override_apply") TextRole(Role::Caption)

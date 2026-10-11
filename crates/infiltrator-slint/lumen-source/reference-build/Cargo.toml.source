@@ -1,0 +1,76 @@
+[package]
+name = "lumen"
+version = "0.1.0"
+edition = "2024"
+build = "build.rs"
+license = "MIT"
+description = "Cross-platform Mihomo client built with Rust and Slint"
+
+[profile.apk-dev]
+inherits = "dev"
+debug = 0
+strip = "debuginfo"
+
+[dependencies]
+anyhow = "1"
+age = { version = "0.12.1", features = ["armor"] }
+chrono = { version = "0.4", features = ["serde"] }
+directories = "6"
+fs2 = "0.4"
+futures-util = "0.3"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "stream"] }
+regex = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+slint = { version = "1.18", default-features = false, features = ["compat-1-18", "renderer-software", "software-renderer-path", "software-renderer-systemfonts", "std"] }
+tempfile = "3"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync", "time", "process", "net", "fs"] }
+tokio-tungstenite = { version = "0.27", default-features = false, features = ["connect"] }
+url = "2"
+uuid = { version = "1", features = ["v4", "serde"] }
+
+[build-dependencies]
+slint-build = "1.18"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[package.metadata.android]
+package = "org.lumen.client"
+apk_name = "lumen"
+build_targets = ["aarch64-linux-android"]
+strip = "strip"
+
+[package.metadata.android.sdk]
+min_sdk_version = 26
+target_sdk_version = 35
+
+[package.metadata.android.application]
+debuggable = true
+has_code = true
+label = "Lumen"
+
+[package.metadata.android.application.activity]
+name = "org.lumen.client.LumenActivity"
+
+[[package.metadata.android.uses_permission]]
+name = "android.permission.INTERNET"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+keyring = { version = "3.6", default-features = false, features = ["linux-native"] }
+libc = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+keyring = { version = "3.6", default-features = false, features = ["windows-native"] }
+winreg = "0.55"
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Globalization", "Win32_NetworkManagement_IpHelper", "Win32_NetworkManagement_Ndis", "Win32_Networking_WinSock", "Win32_System_JobObjects", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
+
+[target.'cfg(not(target_os = "android"))'.dependencies]
+rfd = "0.15"
+slint = { version = "1.18", default-features = false, features = ["backend-winit"] }
+
+[target.'cfg(target_os = "android")'.dependencies]
+jni = "0.21.1"
+slint = { version = "1.18", default-features = false, features = ["backend-android-activity-06"] }
+tun2proxy = { version = "0.8.4", default-features = false }

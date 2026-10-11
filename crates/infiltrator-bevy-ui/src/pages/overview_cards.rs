@@ -14,26 +14,29 @@ use bevy::a11y::AccessibilityNode;
 use bevy::color::Color;
 use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
+use bevy::feathers::theme::ThemeBackgroundColor;
+use bevy::feathers::theme::ThemeTextColor;
 use bevy::scene::{Scene, bsn};
 use bevy::text::TextColor;
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, FlexDirection, FlexWrap, JustifyContent, Node,
-    Overflow, UiRect, Val, percent, px,
+    Overflow, UiRect, Val, percent,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
-use infiltrator_application::proxy_mode_projection::mode_copy_key;
+use infiltrator_application::routing_intent_projection::routing_intent_copy_key;
 use infiltrator_application::subscription_quota_projection::{QuotaGrade, project_quota};
 use infiltrator_bevy_widgets::button::{ButtonDisabled, ControlVisual};
+use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::icon::{IconId, icon_scene};
 use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::active_exit::ActiveExitSnapshot;
-use infiltrator_contract::command::ProxyMode;
-use infiltrator_contract::proxy_mode::ProxyModeSnapshot;
+use infiltrator_contract::routing_intent::{RoutingIntent, RoutingIntentSnapshot};
 use infiltrator_contract::subscription_quota::SubscriptionQuotaSnapshot;
 use infiltrator_contract::system_toggle::{SystemToggle, SystemToggleSnapshot};
 
@@ -50,6 +53,7 @@ pub struct SystemProxyMasterCard;
 pub struct TunMasterCard;
 
 /// Explicit fixture adapter retained for deterministic demo/screenshot hosts.
+#[cfg(any(feature = "capture-tools", test))]
 pub fn subscription_quota_scene(palette: &UiPalette) -> impl Scene + use<> {
     subscription_quota_scene_with_snapshot(&SubscriptionQuotaSnapshot::demo_fixture(), palette)
 }
@@ -75,7 +79,7 @@ pub fn subscription_quota_scene_with_snapshot(
                     Node {
                         width: percent(100),
                         flex_direction: FlexDirection::Column,
-                        row_gap: Val::Px(space::S8),
+                        row_gap: rem(space::S8),
                     }
                     AccessibilityNode(quota_a11y) LocalizedLabel::plain("overview_subscription_quota")
                     SubscriptionQuotaCard
@@ -83,7 +87,7 @@ pub fn subscription_quota_scene_with_snapshot(
                         Node {
                             width: percent(100),
                             align_items: AlignItems::Center,
-                            column_gap: Val::Px(space::S8),
+                            column_gap: rem(space::S8),
                         }
                         Children [
                             @{ icon_scene(IconId::FileText, 16.0, palette.accent) }
@@ -96,19 +100,19 @@ pub fn subscription_quota_scene_with_snapshot(
                             align_items: AlignItems::Center,
                             justify_content: JustifyContent::SpaceBetween,
                             flex_wrap: FlexWrap::Wrap,
-                            row_gap: Val::Px(space::S4),
+                            row_gap: rem(space::S4),
                         }
                         Children [
                             Text({ profile }) SubscriptionQuotaText(SubscriptionQuotaTextKind::Profile) TextRole(Role::Heading)
                             --
                             Node {
-                                padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S2)),
-                                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                padding: UiRect::axes(rem(space::S8), rem(space::S2)),
+                                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                             }
-                            BackgroundColor({ palette.accent_container })
+                            ThemeBackgroundColor({ Token::AccentContainer })
                             AccentContainerFill
                             Children [
-                                Text({ expiry }) SubscriptionQuotaText(SubscriptionQuotaTextKind::Expiry) TextRole(Role::Caption) TextColor({ palette.accent })
+                                Text({ expiry }) SubscriptionQuotaText(SubscriptionQuotaTextKind::Expiry) TextRole(Role::Caption) ThemeTextColor({ Token::Accent })
                             ]
                         ]
                         --
@@ -122,11 +126,11 @@ pub fn subscription_quota_scene_with_snapshot(
                         --
                         Node {
                             width: percent(100),
-                            height: px(8.0),
+                            height: rem(8.0),
                             border_radius: BorderRadius::all(Val::Px(4.0)),
                             overflow: Overflow::clip(),
                         }
-                        BackgroundColor({ palette.border })
+                        ThemeBackgroundColor({ Token::Border })
                         BorderFill
                         Children [
                             Node {
@@ -134,7 +138,7 @@ pub fn subscription_quota_scene_with_snapshot(
                                 height: percent(100),
                                 border_radius: BorderRadius::all(Val::Px(4.0)),
                             }
-                            BackgroundColor({ palette.accent })
+                            ThemeBackgroundColor({ Token::Accent })
                             AccentFill
                             SubscriptionQuotaProgress
                         ]
@@ -165,6 +169,7 @@ pub(crate) fn quota_status_color(grade: QuotaGrade, palette: &UiPalette) -> Colo
 }
 
 /// Explicit fixture adapter retained for deterministic demo/screenshot hosts.
+#[cfg(any(feature = "capture-tools", test))]
 pub fn active_exit_node_scene(palette: &UiPalette) -> impl Scene + use<> {
     active_exit_node_scene_with_snapshot(&ActiveExitSnapshot::demo_fixture(), palette)
 }
@@ -194,7 +199,7 @@ pub fn active_exit_node_scene_with_snapshot(
                     Node {
                         width: percent(100),
                         flex_direction: FlexDirection::Column,
-                        row_gap: Val::Px(space::S8),
+                        row_gap: rem(space::S8),
                     }
                     AccessibilityNode(a11y) LocalizedLabel::plain("overview_active_exit_label")
                     ActiveExitNodeCard
@@ -207,7 +212,7 @@ pub fn active_exit_node_scene_with_snapshot(
                         Children [
                             Node {
                                 align_items: AlignItems::Center,
-                                column_gap: Val::Px(space::S8),
+                                column_gap: rem(space::S8),
                             }
                             Children [
                                 @{ icon_scene(IconId::Globe, 16.0, palette.accent) }
@@ -216,10 +221,10 @@ pub fn active_exit_node_scene_with_snapshot(
                             ]
                             --
                             Node {
-                                padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S2)),
-                                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                padding: UiRect::axes(rem(space::S8), rem(space::S2)),
+                                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                             }
-                            BackgroundColor({ palette.accent_container })
+                            ThemeBackgroundColor({ Token::AccentContainer })
                             AccentContainerFill
                             Children [
                                 Text({ delay }) ActiveExitText(ActiveExitTextKind::Delay) TextRole(Role::Caption) TextColor({ delay_color })
@@ -230,15 +235,15 @@ pub fn active_exit_node_scene_with_snapshot(
                             width: percent(100),
                             align_items: AlignItems::Center,
                             justify_content: JustifyContent::SpaceBetween,
-                            padding: UiRect::all(Val::Px(space::S8)),
-                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                            padding: UiRect::all(rem(space::S8)),
+                            border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                         }
-                        BackgroundColor({ palette.surface_elevated })
+                        ThemeBackgroundColor({ Token::SurfaceElevated })
                         SurfaceElevatedFill
                         Children [
                             Node {
                                 align_items: AlignItems::Center,
-                                column_gap: Val::Px(space::S8),
+                                column_gap: rem(space::S8),
                             }
                             Children [
                                 Text({ flag }) ActiveExitText(ActiveExitTextKind::Flag) TextRole(Role::BodyStrong)
@@ -248,12 +253,12 @@ pub fn active_exit_node_scene_with_snapshot(
                             --
                             Node {
                                 align_items: AlignItems::Center,
-                                column_gap: Val::Px(space::S6),
+                                column_gap: rem(space::S6),
                             }
                             Children [
-                                Text({ protocol }) ActiveExitText(ActiveExitTextKind::Protocol) TextRole(Role::Caption) TextColor({ palette.ink_dim })
+                                Text({ protocol }) ActiveExitText(ActiveExitTextKind::Protocol) TextRole(Role::Caption) ThemeTextColor({ Token::InkDim })
                                 --
-                                Text({ group }) ActiveExitText(ActiveExitTextKind::Group) TextRole(Role::Caption) TextColor({ palette.ink_dim })
+                                Text({ group }) ActiveExitText(ActiveExitTextKind::Group) TextRole(Role::Caption) ThemeTextColor({ Token::InkDim })
                             ]
                         ]
                         --
@@ -261,7 +266,7 @@ pub fn active_exit_node_scene_with_snapshot(
                             width: percent(100),
                         }
                         Children [
-                            Text({ status }) ActiveExitText(ActiveExitTextKind::Status) TextRole(Role::Caption) TextColor({ palette.ink_dim })
+                            Text({ status }) ActiveExitText(ActiveExitTextKind::Status) TextRole(Role::Caption) ThemeTextColor({ Token::InkDim })
                         ]
                     ]
         })],
@@ -287,9 +292,9 @@ pub fn master_switches_scene_with_snapshot(
             Node {
                 width: percent(100),
                 flex_direction: FlexDirection::Row,
-                column_gap: Val::Px(space::S12),
+                column_gap: rem(space::S12),
                 flex_wrap: FlexWrap::Wrap,
-                row_gap: Val::Px(space::S8),
+                row_gap: rem(space::S8),
             }
             Children [
                 @{ single_master_card_scene("overview_system_proxy_label", "overview_system_proxy_description", IconId::Settings, SystemToggle::SystemProxy, snapshot, palette) }
@@ -335,9 +340,9 @@ fn single_master_card_scene(
         vec![Box::new(bsn! {
                     Node {
                         flex_grow: 1.0,
-                        flex_basis: px(280.0),
+                        flex_basis: rem(280.0),
                         flex_direction: FlexDirection::Column,
-                        row_gap: Val::Px(space::S8),
+                        row_gap: rem(space::S8),
                     }
                     Children [
                         Node {
@@ -348,7 +353,7 @@ fn single_master_card_scene(
                         Children [
                             Node {
                                 align_items: AlignItems::Center,
-                                column_gap: Val::Px(space::S8),
+                                column_gap: rem(space::S8),
                             }
                             Children [
                                 @{ icon_scene(icon, 16.0, palette.accent) }
@@ -358,12 +363,12 @@ fn single_master_card_scene(
                             --
                             Node {
                                 align_items: AlignItems::Center,
-                                column_gap: Val::Px(space::S4),
+                                column_gap: rem(space::S4),
                             }
                             Children [
                                 Node {
-                                    width: px(6.0),
-                                    height: px(6.0),
+                                    width: rem(6.0),
+                                    height: rem(6.0),
                                     border_radius: BorderRadius::all(Val::Px(3.0)),
                                 }
                                 BackgroundColor({ dot_color })
@@ -378,17 +383,17 @@ fn single_master_card_scene(
                             justify_content: JustifyContent::SpaceBetween,
                         }
                         Children [
-                            LocalizedText::plain(desc) TextRole(Role::Caption) TextColor({ palette.ink_dim })
+                            LocalizedText::plain(desc) TextRole(Role::Caption) ThemeTextColor({ Token::InkDim })
                             --
                             Node {
-                                padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S2)),
-                                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                padding: UiRect::axes(rem(space::S8), rem(space::S2)),
+                                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                             }
                             OverviewMasterSwitchButton { toggle, enabled, can_toggle }
                             Button
-                            BackgroundColor({ palette.accent_container })
+                            ThemeBackgroundColor({ Token::AccentContainer })
                             Children [
-                                Text({ action_text }) OverviewMasterSwitchText { toggle, kind: OverviewMasterSwitchTextKind::Action } TextRole(Role::Caption) TextColor({ palette.accent })
+                                Text({ action_text }) OverviewMasterSwitchText { toggle, kind: OverviewMasterSwitchTextKind::Action } TextRole(Role::Caption) ThemeTextColor({ Token::Accent })
                             ]
                         ]
                     ]
@@ -397,43 +402,59 @@ fn single_master_card_scene(
     )
 }
 
-/// Marker on the proxy mode segmented controller card (BEVY-GAP-022).
+/// Marker on the routing intent segmented controller card (BEVY-GAP-022).
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct ProxyModeSegmentCard;
+pub struct RoutingIntentSegmentCard;
 
-/// Marker on mode segment pills in the Overview card.
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct OverviewModeSegmentPill(pub ProxyMode);
+/// Marker on shared intent segment pills in the Overview card.
+#[derive(Component, Clone, Debug, PartialEq, Eq)]
+pub struct OverviewRoutingIntentSegmentPill(pub RoutingIntent);
 
-/// Marker on mode segment text in the Overview card.
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct OverviewModeSegmentText(pub ProxyMode);
-
-#[derive(Component, Clone, Copy, Debug, Default)]
-pub struct OverviewModeCaption;
-
-/// Explicit fixture adapter retained for deterministic demo/screenshot hosts.
-pub fn mode_segmented_controller_scene(palette: &UiPalette) -> impl Scene + use<> {
-    mode_segmented_controller_scene_with_snapshot(&ProxyModeSnapshot::demo_fixture(), palette)
+impl Default for OverviewRoutingIntentSegmentPill {
+    fn default() -> Self {
+        Self(RoutingIntent::FollowRules)
+    }
 }
 
-/// The production 4-segment proxy mode controller card (DUAL-03-08).
-pub fn mode_segmented_controller_scene_with_snapshot(
-    snapshot: &ProxyModeSnapshot,
+/// Marker on shared intent segment text in the Overview card.
+#[derive(Component, Clone, Debug, PartialEq, Eq)]
+pub struct OverviewRoutingIntentText(pub RoutingIntent);
+
+impl Default for OverviewRoutingIntentText {
+    fn default() -> Self {
+        Self(RoutingIntent::FollowRules)
+    }
+}
+
+#[derive(Component, Clone, Copy, Debug, Default)]
+pub struct OverviewRoutingIntentCaption;
+
+/// Explicit fixture adapter retained for deterministic demo/screenshot hosts.
+#[cfg(any(feature = "capture-tools", test))]
+pub fn routing_intent_segmented_controller_scene(palette: &UiPalette) -> impl Scene + use<> {
+    routing_intent_segmented_controller_scene_with_snapshot(
+        &RoutingIntentSnapshot::demo_fixture(),
+        palette,
+    )
+}
+
+/// The shared routing intent controller card (DUAL-03-08).
+pub fn routing_intent_segmented_controller_scene_with_snapshot(
+    snapshot: &RoutingIntentSnapshot,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
     let mut header_a11y = accesskit::Node::new(accesskit::Role::Region);
-    header_a11y.set_label("overview_proxy_mode_title");
+    header_a11y.set_label("routing_intent_title");
 
     surface_scene(
         vec![Box::new(bsn! {
                     Node {
                         width: percent(100),
                         flex_direction: FlexDirection::Column,
-                        row_gap: Val::Px(space::S12),
+                        row_gap: rem(space::S12),
                     }
                     AccessibilityNode(header_a11y)
-                    ProxyModeSegmentCard LocalizedLabel::plain("overview_proxy_mode_title")
+                    RoutingIntentSegmentCard LocalizedLabel::plain("routing_intent_title")
                     Children [
                         Node {
                             width: percent(100),
@@ -443,40 +464,38 @@ pub fn mode_segmented_controller_scene_with_snapshot(
                         Children [
                             Node {
                                 align_items: AlignItems::Center,
-                                column_gap: Val::Px(space::S8),
+                                column_gap: rem(space::S8),
                             }
                             Children [
                                 @{ icon_scene(IconId::Settings, 16.0, palette.accent) }
                                 --
-                                LocalizedText::plain("overview_proxy_mode_title") TextRole(Role::Heading)
+                                LocalizedText::plain("routing_intent_title") TextRole(Role::Heading)
                             ]
                             --
                             Node {
-                                padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S2)),
-                                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                padding: UiRect::axes(rem(space::S8), rem(space::S2)),
+                                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                             }
-                            BackgroundColor({ palette.accent_container })
+                            ThemeBackgroundColor({ Token::AccentContainer })
                             AccentContainerFill
                             Children [
-                                Text({ String::new() }) OverviewModeCaption TextRole(Role::Caption) TextColor({ palette.accent })
+                                Text({ String::new() }) OverviewRoutingIntentCaption TextRole(Role::Caption) ThemeTextColor({ Token::Accent })
                             ]
                         ]
                         --
                         Node {
                             width: percent(100),
                             flex_direction: FlexDirection::Row,
-                            column_gap: Val::Px(space::S8),
+                            column_gap: rem(space::S8),
                             flex_wrap: FlexWrap::Wrap,
-                            row_gap: Val::Px(space::S4),
+                            row_gap: rem(space::S4),
                         }
                         Children [
-                            @{ single_mode_pill_scene(ProxyMode::Rule, snapshot, palette) }
+                            @{ single_routing_intent_pill_scene(RoutingIntent::FollowRules, snapshot, palette) }
                             --
-                            @{ single_mode_pill_scene(ProxyMode::Global, snapshot, palette) }
+                            @{ single_routing_intent_pill_scene(RoutingIntent::RouteAllThroughProxy, snapshot, palette) }
                             --
-                            @{ single_mode_pill_scene(ProxyMode::Direct, snapshot, palette) }
-                            --
-                            @{ single_mode_pill_scene(ProxyMode::Script, snapshot, palette) }
+                            @{ single_routing_intent_pill_scene(RoutingIntent::BypassProxy, snapshot, palette) }
                         ]
                     ]
         })],
@@ -484,13 +503,13 @@ pub fn mode_segmented_controller_scene_with_snapshot(
     )
 }
 
-fn single_mode_pill_scene(
-    mode: ProxyMode,
-    snapshot: &ProxyModeSnapshot,
+fn single_routing_intent_pill_scene(
+    intent: RoutingIntent,
+    snapshot: &RoutingIntentSnapshot,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
-    let is_current = snapshot.current == Some(mode);
-    let selectable = snapshot.is_mode_selectable(mode);
+    let is_current = snapshot.current.as_ref() == Some(&intent);
+    let selectable = snapshot.is_intent_selectable(&intent);
     let bg = if is_current {
         palette.accent
     } else if selectable {
@@ -506,19 +525,19 @@ fn single_mode_pill_scene(
         palette.ink_dim
     };
     let semantic = accesskit::Node::new(accesskit::Role::Button);
-    let label_key = mode_copy_key(mode);
+    let label_key = routing_intent_copy_key(&intent);
 
     bsn! {
             Node {
-                padding: UiRect::axes(Val::Px(space::S12), Val::Px(space::S6)),
-                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                padding: UiRect::axes(rem(space::S12), rem(space::S6)),
+                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
             }
-            OverviewModeSegmentPill(mode) LocalizedLabel::plain(label_key) AccessibilityNode(semantic)
+            OverviewRoutingIntentSegmentPill({ intent.clone() }) LocalizedLabel::plain(label_key) AccessibilityNode(semantic)
             ButtonDisabled({ !selectable }) ControlVisual(is_current)
             Button
             BackgroundColor({ bg })
             Children [
-                LocalizedText::plain(label_key) OverviewModeSegmentText(mode) TextRole(Role::Body) TextColor({ ink })
+                LocalizedText::plain(label_key) OverviewRoutingIntentText(intent) TextRole(Role::Body) TextColor({ ink })
             ]
     }
 }

@@ -14,16 +14,22 @@ pub fn group_order_modal(state: &AppState) -> Element<'_, Message> {
     let editor = &state.runtime.group_order_editor;
     let pending = editor.pending.is_some();
     let mut groups = column![].spacing(8);
-    for (index, name) in editor.draft.iter().enumerate() {
+    for (index, group_id) in editor.draft.iter().enumerate() {
+        let name = state
+            .runtime
+            .proxy_groups
+            .iter()
+            .find(|group| group.id.as_ref() == Some(group_id))
+            .map_or_else(|| group_id.value().to_owned(), |group| group.name.clone());
         groups = groups.push(
             row![
-                text(name.clone()).width(Length::Fill),
+                text(name).width(Length::Fill),
                 button(text("▲")).style(style_ghost).on_press_maybe(
-                    (!pending && index > 0).then(|| Message::MoveProxyGroupUp(name.clone()))
+                    (!pending && index > 0).then(|| Message::MoveProxyGroupUp(group_id.clone()))
                 ),
                 button(text("▼")).style(style_ghost).on_press_maybe(
                     (!pending && index + 1 < editor.draft.len())
-                        .then(|| Message::MoveProxyGroupDown(name.clone()))
+                        .then(|| Message::MoveProxyGroupDown(group_id.clone()))
                 ),
             ]
             .spacing(8)

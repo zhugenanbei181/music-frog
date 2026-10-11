@@ -14,19 +14,23 @@ use bevy::ecs::observer::On;
 use bevy::ecs::query::{QueryFilter, With, Without};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Query, Res, ResMut, SystemParam};
+use bevy::feathers::theme::ThemeBackgroundColor;
+use bevy::feathers::theme::ThemeTextColor;
 use bevy::scene::{Scene, bsn};
 use bevy::text::TextColor;
 use bevy::ui::BorderColor;
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, PositionType,
-    UiRect, Val, percent, px,
+    UiRect, Val, percent,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
 use infiltrator_application::dns_status_projection::{field_label_key, form_status};
 use infiltrator_bevy_widgets::button::ButtonDisabled;
+use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::text_input::native::NativeTextField;
@@ -169,7 +173,7 @@ pub fn dns_edit_card_scene(projection: &DnsProjection, palette: &UiPalette) -> i
                                 width: percent(100),
                                 align_items: AlignItems::Center,
                                 justify_content: JustifyContent::SpaceBetween,
-                                padding: UiRect::bottom(Val::Px(space::S8)),
+                                padding: UiRect::bottom(rem(space::S8)),
                             }
                             Children [
                                 LocalizedText::plain("dns_upstream_form_title")
@@ -182,7 +186,7 @@ pub fn dns_edit_card_scene(projection: &DnsProjection, palette: &UiPalette) -> i
                             Node {
                                 width: percent(100),
                                 flex_direction: FlexDirection::Column,
-                                row_gap: Val::Px(space::S8),
+                                row_gap: rem(space::S8),
                             }
                             Children [
                                 { rows }
@@ -215,7 +219,7 @@ fn edit_field_row(
             Node {
                 width: percent(100),
                 flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(space::S4),
+                row_gap: rem(space::S4),
             }
             Children [
                 label TextRole(Role::Caption)
@@ -228,7 +232,7 @@ fn edit_field_row(
                 --
                 Node {
                     align_items: AlignItems::Center,
-                    column_gap: Val::Px(space::S4),
+                    column_gap: rem(space::S4),
                 }
                 Children [
                     { chips }
@@ -260,7 +264,7 @@ fn template_chip(
 
     bsn! {
             Node {
-                padding: UiRect::axes(Val::Px(space::S6), Val::Px(space::S2)),
+                padding: UiRect::axes(rem(space::S6), rem(space::S2)),
                 border_radius: BorderRadius::all(Val::Px(4.0)),
                 align_items: AlignItems::Center,
             }
@@ -307,14 +311,14 @@ fn geoip_toggle_row(
                 width: percent(100),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::SpaceBetween,
-                padding: UiRect::all(Val::Px(space::S8)),
-                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                padding: UiRect::all(rem(space::S8)),
+                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
             }
-            BackgroundColor({ palette.surface_elevated })
+            ThemeBackgroundColor({ Token::SurfaceElevated })
             Children [
                 Node {
                     flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(space::S2),
+                    row_gap: rem(space::S2),
                 }
                 Children [
                     LocalizedText::plain("dns_geoip_fallback_label") TextRole(Role::Body)
@@ -324,14 +328,14 @@ fn geoip_toggle_row(
                 --
                 Node {
                     align_items: AlignItems::Center,
-                    column_gap: Val::Px(space::S8),
+                    column_gap: rem(space::S8),
                 }
                 Children [
                     Text(status) DnsEditGeoipStatus TextRole(Role::Caption) TextColor({ status_color })
                     --
                     Node {
-                        width: px(38.0),
-                        height: px(22.0),
+                        width: rem(38.0),
+                        height: rem(22.0),
                         border: UiRect::all(Val::Px(palette.hairline_px)),
                         border_radius: BorderRadius::all(Val::Px(11.0)),
                         position_type: PositionType::Relative,
@@ -350,8 +354,8 @@ fn geoip_toggle_row(
                         Node {
                             position_type: PositionType::Absolute,
                             left: { knob_left },
-                            width: px(16.0),
-                            height: px(16.0),
+                            width: rem(16.0),
+                            height: rem(16.0),
                             border_radius: BorderRadius::all(Val::Px(8.0)),
                         }
                         BackgroundColor({ knob })
@@ -367,22 +371,22 @@ fn edit_apply_row(palette: &UiPalette) -> impl Scene + use<> {
                 width: percent(100),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::SpaceBetween,
-                padding: UiRect::top(Val::Px(space::S8)),
+                padding: UiRect::top(rem(space::S8)),
             }
             Children [
                 Text({form_status(&[],false,false,false,UiLocale::default().code())})
                 DnsEditStatusLine
                 TextRole(Role::Caption)
-                TextColor({ palette.ink_dim })
+                ThemeTextColor({ Token::InkDim })
                 --
                 Node {
-                    min_height: px(palette.control_height_px),
-                    padding: UiRect::horizontal(Val::Px(space::S12)),
+                    min_height: rem(palette.control_height_px),
+                    padding: UiRect::horizontal(rem(space::S12)),
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::Center,
-                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                    border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                 }
-                BackgroundColor({ palette.accent })
+                ThemeBackgroundColor({ Token::Accent })
                 DnsEditApplyButton
                 Button
                 Children [

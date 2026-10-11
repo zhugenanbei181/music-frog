@@ -1,6 +1,8 @@
 //! test-intent: behavior
 //! Real telemetry reader receipts feed the native Runtime/Overview adapter; private streams cannot override them.
 use crate::state::AppState;
+use crate::test_mounts::command_harness::install_lifecycle_test_capabilities;
+use crate::test_mounts::execute_at_observed_scope;
 use crate::types::message::Message;
 use crate::view::runtime::traffic_legend::legend_indicator;
 use iced::advanced::layout::{Layout, Limits};
@@ -15,6 +17,7 @@ use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_domain::runtime::TrafficData;
 use infiltrator_ports::surface::SurfaceReader;
+use infiltrator_presentation::traffic_readout::TrafficFreshness;
 use std::sync::{Arc, atomic::Ordering};
 use tokio::runtime::Builder;
 fn run<T>(future: impl Future<Output = T>) -> T {
@@ -64,7 +67,8 @@ fn composed_rates_unknown_zero_failed_stale_and_new_session_are_distinct_and_uns
         telemetry.clone(),
         tokio_application_runtime().unwrap(),
     );
-    run(core.execute(CommandIntent::StartCore))
+    install_lifecycle_test_capabilities(&core);
+    run(execute_at_observed_scope(&core, CommandIntent::StartCore))
         .into_unit()
         .unwrap();
     let reader = ApplicationSurfaceReader::new(
@@ -73,7 +77,7 @@ fn composed_rates_unknown_zero_failed_stale_and_new_session_are_distinct_and_uns
         HostKind::Desktop,
     );
     let (mut state, _) = AppState::new();
-    state.commands = Some(core.clone());
+    state.attach_product_application(core.clone());
     state.shell.lang = "en-US".into();
     let first = run(reader.read()).unwrap();
     let _ = state.update(Message::SurfaceSnapshotUpdated(Box::new(first)));
@@ -90,7 +94,7 @@ fn composed_rates_unknown_zero_failed_stale_and_new_session_are_distinct_and_uns
     assert_eq!(state.diag.traffic.as_ref().unwrap().up, 0);
     assert_eq!(state.traffic_readout().upload, "0 B/s");
     assert!(native_rate(&state).iter().any(|copy| copy == "0 B/s"));
-    assert!(state.traffic_readout().current);
+    assert_eq!(state.traffic_readout().freshness, TrafficFreshness::Current);
     let _ = state.update(Message::TrafficReceived(TrafficData {
         up: 99999,
         down: 99999,
@@ -101,7 +105,8 @@ fn composed_rates_unknown_zero_failed_stale_and_new_session_are_distinct_and_uns
     let _ = state.update(Message::SurfaceSnapshotUpdated(Box::new(failed)));
     let failed = state.traffic_readout();
     assert_eq!(failed.upload, "0 B/s (stale)");
-    assert!(!failed.current && failed.failure.contains("isolated telemetry read denied"));
+    assert_eq!(failed.freshness, TrafficFreshness::Failed);
+    assert!(failed.failure.contains("isolated telemetry read denied"));
     assert!(
         native_rate(&state)
             .iter()
@@ -115,13 +120,16 @@ fn composed_rates_unknown_zero_failed_stale_and_new_session_are_distinct_and_uns
             .any(|copy| copy == "0 B/s（已失效）")
     );
     telemetry.denied.store(false, Ordering::Release);
-    run(core.execute(CommandIntent::RestartCore))
+    run(execute_at_observed_scope(&core, CommandIntent::RestartCore))
         .into_unit()
         .unwrap();
     let new = run(reader.read()).unwrap();
     let _ = state.update(Message::SurfaceSnapshotUpdated(Box::new(new)));
     assert!(state.diag.traffic.is_none());
     assert!(state.runtime.traffic_waveform.samples.is_empty());
-    assert!(!state.traffic_readout().observed);
+    assert_eq!(
+        state.traffic_readout().freshness,
+        TrafficFreshness::Unobserved
+    );
     run(core.close()).unwrap();
 }

@@ -1,6 +1,7 @@
 //! test-intent: behavior
 //! Native rate texts consume real reader results, preserve stale zeros and retain entity identity on locale changes.
-use crate::support::headless_plugins;
+use crate::command_harness::install_test_core_capability_application;
+use crate::support::{execute_at_observed_scope, headless_plugins};
 use bevy::app::App;
 use bevy::camera::NormalizedRenderTarget;
 use bevy::ecs::entity::Entity;
@@ -24,6 +25,7 @@ use infiltrator_bevy_ui::surface::SurfaceSnapshotUpdated;
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::command::CommandIntent;
+use infiltrator_contract::core_capabilities::{CoreLifecycleOperation, CoreOperation};
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_ports::surface::SurfaceReader;
 use std::sync::{Arc, atomic::Ordering};
@@ -107,7 +109,14 @@ fn native_rates_unknown_zero_failed_stale_locale_and_new_session_follow_the_shar
         telemetry.clone(),
         tokio_application_runtime().unwrap(),
     ));
-    run(core.execute(CommandIntent::StartCore))
+    install_test_core_capability_application(
+        &core,
+        [
+            CoreOperation::Lifecycle(CoreLifecycleOperation::Start),
+            CoreOperation::Lifecycle(CoreLifecycleOperation::Restart),
+        ],
+    );
+    run(execute_at_observed_scope(&core, CommandIntent::StartCore))
         .into_unit()
         .unwrap();
     let reader =
@@ -146,7 +155,7 @@ fn native_rates_unknown_zero_failed_stale_locale_and_new_session_follow_the_shar
     app.update();
     assert_eq!(upload(&mut app), (entity, "↑ 0 B/s（已失效）".into()));
     telemetry.denied.store(false, Ordering::Release);
-    run(core.execute(CommandIntent::RestartCore))
+    run(execute_at_observed_scope(&core, CommandIntent::RestartCore))
         .into_unit()
         .unwrap();
     publish(&mut app);

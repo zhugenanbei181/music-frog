@@ -103,7 +103,13 @@ fn run_production(surface_bridge: Option<SurfaceBridge>) -> iced::Result {
         if let Some(application) = core_application.clone() {
             let snapshot = application.snapshot();
             state.runtime.core_lifecycle = snapshot.lifecycle_snapshot();
-            state.commands = Some(application.as_ref().clone());
+            state.attach_product_application(application.as_ref().clone());
+        }
+        if core_application.is_some()
+            && let Some(bridge) = surface_bridge.as_ref()
+            && let Some(snapshot) = bridge.current_snapshot()
+        {
+            state.apply_shared_surface_snapshot(snapshot.clone());
         }
         if let Some(host) = host_runtime.clone() {
             state.sync_runtime_slot(Some(host));
@@ -124,11 +130,14 @@ fn run_production(surface_bridge: Option<SurfaceBridge>) -> iced::Result {
         .title(AppState::title)
         .theme(AppState::theme)
         .subscription(AppState::subscription)
-        .font(include_bytes!("../assets/fonts/Inter-Regular.ttf").as_slice())
-        .font(include_bytes!("../assets/fonts/Inter-Medium.ttf").as_slice())
-        .font(include_bytes!("../assets/fonts/Inter-SemiBold.ttf").as_slice())
-        .font(include_bytes!("../assets/fonts/JetBrainsMono-Regular.ttf").as_slice())
-        .font(include_bytes!("../assets/fonts/CJK-Regular.ttf").as_slice())
+        .font(include_bytes!("../../infiltrator-shared/assets/fonts/Inter-Regular.ttf").as_slice())
+        .font(include_bytes!("../../infiltrator-shared/assets/fonts/Inter-Medium.ttf").as_slice())
+        .font(include_bytes!("../../infiltrator-shared/assets/fonts/Inter-SemiBold.ttf").as_slice())
+        .font(
+            include_bytes!("../../infiltrator-shared/assets/fonts/JetBrainsMono-Regular.ttf")
+                .as_slice(),
+        )
+        .font(include_bytes!("../../infiltrator-shared/assets/fonts/CJK-Regular.ttf").as_slice())
         .default_font(iced::Font::with_name("Inter"))
         .window(window_settings(
             (1180.0, 780.0),

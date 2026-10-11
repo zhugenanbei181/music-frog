@@ -13,7 +13,6 @@ use infiltrator_domain::pcap_exporter::{PcapExporter, PcapHeader};
 use infiltrator_domain::rules::logical::{
     add_condition, build_logical_rule, remove_condition, select_operator, set_target,
 };
-use infiltrator_ports::error::PortError;
 use infiltrator_shared::i18n_interpolator::localize;
 use infiltrator_shared::locales::{Lang, Localizer};
 use std::fs::write;
@@ -118,41 +117,100 @@ impl AppState {
                     )),
                 }
             }
-            Message::RunNodeSpeedtest(node) => {
-                // Drive the real shared engine through the host port; no
-                // UI-local fabricated metrics. The result snapshot is also
-                // published by the desktop surface pump.
-                let Some(runtime) = self.runtime.runtime.clone() else {
-                    return Task::none();
-                };
-                let Some(port) = runtime.speedtest_port() else {
+            Message::StartSpeedtest(target) => {
+                let Some(ingress) = self.command_ingress() else {
                     return Task::done(Message::ShowToast(
-                        "Speedtest is not available on this host".to_string(),
+                        "Speedtest is not configured for this Core owner".to_string(),
                         ToastStatus::Error,
                     ));
                 };
-                // DUAL-06-03: the typed speedtest target rides into the port
-                // probe; blank means the engine's own default target applies.
-                let test_url = self.speedtest_target_url();
+                let Some(requested_scope) = ingress.observed_scope() else {
+                    return Task::done(Message::ShowToast(
+                        "Wait for an accepted Core scope before starting a speedtest".to_string(),
+                        ToastStatus::Info,
+                    ));
+                };
                 Task::perform(
                     async move {
-                        match port.probe_node(&node, 5, test_url, None).await {
-                            Ok(snapshot) => Ok::<_, PortError>(snapshot),
-                            Err(error) => Err(error),
+                        let outcome = ingress
+                            .execute_outcome(
+                                infiltrator_contract::command::CommandIntent::StartSpeedtest {
+                                    target,
+                                },
+                            )
+                            .await;
+                        if outcome.scope.as_ref() != Some(&requested_scope) {
+                            return Err(infiltrator_contract::error::Failure::new(
+                                infiltrator_contract::error::ErrorCode::InvalidState,
+                                "speedtest start completed for a stale Core scope",
+                                false,
+                            ));
                         }
+                        let receipt = outcome.result.into_output().and_then(|output| {
+                            match output {
+                            infiltrator_contract::command_output::CommandOutput::SpeedtestStarted(
+                                receipt,
+                            ) => Ok(receipt),
+                            _ => Err(infiltrator_contract::error::Failure::new(
+                                infiltrator_contract::error::ErrorCode::InvalidState,
+                                "speedtest start returned another output type",
+                                false,
+                            )),
+                        }
+                        })?;
+                        let snapshot = ingress.speedtest_snapshot();
+                        Ok((receipt, snapshot))
                     },
-                    Message::SpeedtestSnapshotUpdated,
+                    Message::SpeedtestStarted,
                 )
             }
-            Message::SpeedtestSnapshotUpdated(Ok(snapshot)) => {
-                self.diag.speedtest = snapshot;
+            Message::SpeedtestStarted(Ok((receipt, snapshot))) => {
+                if snapshot.state.run_id() == Some(receipt.run_id) {
+                    self.diag.speedtest = snapshot;
+                } else {
+                    log::debug!(
+                        "discarded stale speedtest start receipt {}; Core owner now reports {:?}",
+                        receipt.run_id.get(),
+                        snapshot.state.run_id()
+                    );
+                }
                 Task::none()
             }
-            Message::SpeedtestSnapshotUpdated(Err(error)) => Task::done(Message::ShowToast(
+            Message::SpeedtestStarted(Err(error)) => Task::done(Message::ShowToast(
                 format!("Speedtest failed: {error}"),
                 ToastStatus::Error,
             )),
-            // DUAL-06-13: the detail modal is pure view state over the shared
+            Message::SpeedtestCancelled(Ok((outcome, snapshot))) => {
+                self.diag.speedtest = snapshot;
+                let message = match outcome {
+                    infiltrator_contract::speedtest::SpeedtestCancelOutcome::Requested { .. } => {
+                        "Speedtest cancellation accepted"
+                    }
+                    infiltrator_contract::speedtest::SpeedtestCancelOutcome::AlreadyRequested {
+                        ..
+                    } => "Speedtest cancellation is already pending",
+                    infiltrator_contract::speedtest::SpeedtestCancelOutcome::RunAlreadyFinished {
+                        ..
+                    } => "Speedtest run has already finished",
+                    infiltrator_contract::speedtest::SpeedtestCancelOutcome::StaleRun { .. } => {
+                        "Speedtest cancellation referred to a stale run"
+                    }
+                };
+                Task::done(Message::ShowToast(message.to_owned(), ToastStatus::Info))
+            }
+            Message::SpeedtestCancelled(Err(error)) => Task::done(Message::ShowToast(
+                format!("Speedtest cancellation failed: {error}"),
+                ToastStatus::Error,
+            )),
+            Message::SpeedtestConcurrencySet(Ok(snapshot)) => {
+                self.diag.speedtest = snapshot;
+                Task::none()
+            }
+            Message::SpeedtestConcurrencySet(Err(error)) => Task::done(Message::ShowToast(
+                format!("Speedtest concurrency update failed: {error}"),
+                ToastStatus::Error,
+            )),
+            // The detail modal is pure view state over the shared
             // snapshot; opening it never triggers a probe or fabricates data.
             Message::OpenSpeedtestDetail => {
                 self.diag.speedtest_detail_open = true;

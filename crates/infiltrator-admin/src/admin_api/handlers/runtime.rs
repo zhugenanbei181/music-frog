@@ -1,7 +1,6 @@
 //! Runtime lifecycle, connections, and streaming telemetry endpoints
 //! (`/admin/api/runtime/*` except proxies/delay).
 
-use super::proxies::normalize_proxy_mode;
 use crate::admin_api::events::{AdminEvent, EVENT_RUNTIME_CHANGED};
 use crate::admin_api::models::*;
 use crate::admin_api::state::{AdminApiContext, AdminApiState};
@@ -9,6 +8,7 @@ use axum::http::StatusCode;
 use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::{Json, extract};
 use futures_util::StreamExt;
+use infiltrator_contract::routing_intent::RoutingIntentSnapshot;
 use infiltrator_domain::runtime::{ConnectionsResponse, MemoryData};
 use infiltrator_ports::runtime_gateway::RuntimeStreamEvent;
 use log::warn;
@@ -195,22 +195,19 @@ pub async fn get_runtime_ip_http<C: AdminApiContext>(
 async fn runtime_status_snapshot<C: AdminApiContext>(ctx: &C) -> RuntimeStatusResponse {
     let running = ctx.runtime_running().await;
     let controller = ctx.runtime_controller_url().await;
-    let mode = if running {
-        match ctx.runtime_gateway().await {
-            Ok(client) => client
-                .get_config()
-                .await
-                .ok()
-                .map(|cfg| normalize_proxy_mode(&cfg.mode)),
-            Err(_) => None,
-        }
+    let routing_intent = if running {
+        ctx.routing_intent_snapshot()
+            .await
+            .ok()
+            .map(|(_, snapshot)| snapshot)
+            .unwrap_or_default()
     } else {
-        None
+        RoutingIntentSnapshot::default()
     };
     RuntimeStatusResponse {
         running,
         controller,
-        mode,
+        routing_intent,
     }
 }
 

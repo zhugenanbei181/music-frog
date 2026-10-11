@@ -1,7 +1,9 @@
 use async_trait::async_trait;
+use infiltrator_contract::android_control::{AndroidCoreProcessState, CoreLaunchSpec};
 use infiltrator_contract::capability::{
     Availability, Capability, CapabilitySnapshot, CapabilityStatus,
 };
+use infiltrator_contract::core_identity::{CoreIdentity, CoreInstanceId, EngineId};
 use infiltrator_contract::mtu::PhysicalMtuSnapshot;
 use infiltrator_contract::offline_startup::OfflineStartupSnapshot;
 use infiltrator_contract::snapshot::CoreLifecycle;
@@ -13,10 +15,15 @@ use infiltrator_ports::error::PortError;
 use infiltrator_ports::mtu_probe::MtuProbePort;
 use infiltrator_ports::offline_startup::OfflineStartupPort;
 use infiltrator_ports::secure_store::SecureStore;
-use mihomo_api::error::{MihomoError, Result};
+use mihomo_api::error::MihomoError;
+#[cfg(test)]
+use mihomo_api::error::Result;
 use mihomo_platform::android_bridge::AndroidBridge;
+#[cfg(test)]
+use mihomo_platform::android_bridge::{CoreProcessStartReceipt, CoreProcessStopReceipt};
 use std::path::PathBuf;
 use std::result;
+use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct AndroidBridgeAdapter<B> {
@@ -29,32 +36,23 @@ impl<B> AndroidBridgeAdapter<B> {
     }
 }
 
-impl<B> AndroidBridgeAdapter<B>
-where
-    B: AndroidBridge,
-{
-    pub async fn vpn_start(&self) -> Result<bool> {
-        self.bridge.vpn_start().await
-    }
+#[async_trait]
+pub(crate) trait CoreLaunchSpecSource: Send + Sync {
+    async fn resolve(&self) -> result::Result<CoreLaunchSpec, PortError>;
+}
 
-    pub async fn vpn_stop(&self) -> Result<bool> {
-        self.bridge.vpn_stop().await
-    }
+#[derive(Clone)]
+pub(crate) struct AndroidCoreProcessAdapter<B> {
+    bridge: B,
+    launch_spec_source: Arc<dyn CoreLaunchSpecSource>,
+}
 
-    pub async fn vpn_is_running(&self) -> Result<bool> {
-        self.bridge.vpn_is_running().await
-    }
-
-    pub async fn vpn_is_foreground(&self) -> Result<bool> {
-        self.bridge.vpn_is_foreground().await
-    }
-
-    pub async fn tun_set_enabled(&self, enabled: bool) -> Result<bool> {
-        self.bridge.tun_set_enabled(enabled).await
-    }
-
-    pub async fn tun_is_enabled(&self) -> Result<bool> {
-        self.bridge.tun_is_enabled().await
+impl<B> AndroidCoreProcessAdapter<B> {
+    pub(crate) fn new(bridge: B, launch_spec_source: Arc<dyn CoreLaunchSpecSource>) -> Self {
+        Self {
+            bridge,
+            launch_spec_source,
+        }
     }
 }
 
@@ -109,33 +107,66 @@ fn map_port_error(error: MihomoError) -> PortError {
 }
 
 #[async_trait]
-impl<B> CoreProcess for AndroidBridgeAdapter<B>
+impl<B> CoreProcess for AndroidCoreProcessAdapter<B>
 where
     B: AndroidBridge,
 {
+    fn core_identity(&self) -> Option<CoreIdentity> {
+        Some(CoreIdentity::new(
+            EngineId::new("mihomo").ok()?,
+            CoreInstanceId::new("android-active").ok()?,
+            None,
+        ))
+    }
+
     async fn start(&self) -> result::Result<(), PortError> {
-        self.bridge.core_start().await.map_err(map_port_error)
+        match self
+            .bridge
+            .core_process_state()
+            .await
+            .map_err(map_port_error)?
+        {
+            AndroidCoreProcessState::Running => return Ok(()),
+            AndroidCoreProcessState::Unavailable => {
+                return Err(PortError::Failed(
+                    "Android core owner did not return process state before launch".to_owned(),
+                ));
+            }
+            AndroidCoreProcessState::Stopped => {}
+        }
+        let launch_spec = self.launch_spec_source.resolve().await?;
+        self.bridge
+            .core_start(&launch_spec)
+            .await
+            .map_err(map_port_error)?
+            .into_port_result()
     }
 
     async fn stop(&self) -> result::Result<(), PortError> {
-        self.bridge.core_stop().await.map_err(map_port_error)
+        self.bridge
+            .core_stop()
+            .await
+            .map_err(map_port_error)?
+            .into_port_result()
     }
 
     async fn status(&self) -> result::Result<CoreLifecycle, PortError> {
-        let running = self
+        match self
             .bridge
-            .core_is_running()
+            .core_process_state()
             .await
-            .map_err(map_port_error)?;
-        Ok(if running {
-            CoreLifecycle::Running
-        } else {
-            CoreLifecycle::Stopped
-        })
+            .map_err(map_port_error)?
+        {
+            AndroidCoreProcessState::Stopped => Ok(CoreLifecycle::Stopped),
+            AndroidCoreProcessState::Running => Ok(CoreLifecycle::Running),
+            AndroidCoreProcessState::Unavailable => Err(PortError::Failed(
+                "Android core owner did not return a process state".to_owned(),
+            )),
+        }
     }
 
     fn controller_endpoint(&self) -> Option<String> {
-        self.bridge.core_controller_url()
+        None
     }
 }
 
@@ -240,6 +271,10 @@ where
                     availability: Availability::Supported,
                 },
                 CapabilityStatus {
+                    capability: Capability::Logs,
+                    availability: Availability::Supported,
+                },
+                CapabilityStatus {
                     capability: Capability::CoreVersionInstall,
                     availability: Availability::Unsupported {
                         reason: "core binaries are delivered with the APK ABI".to_string(),
@@ -265,10 +300,6 @@ where
         Self { adapter }
     }
 
-    pub fn controller(&self) -> &dyn CoreProcess {
-        &self.adapter
-    }
-
     pub fn credential_store(&self) -> &dyn SecureStore {
         &self.adapter
     }
@@ -282,11 +313,20 @@ where
 mod tests {
     use super::*;
     use infiltrator_application::core_application::{CoreApplication, ReadinessPolicy};
+    use infiltrator_application::core_capability_application::CoreCapabilityApplication;
     #[cfg(test)]
     use infiltrator_application::mtu_application::MtuApplication;
     #[cfg(test)]
     use infiltrator_application::offline_startup_application::OfflineStartupApplication;
+    use infiltrator_contract::android_control::{
+        AndroidCoreLifecycleSnapshot, CoreLaunchConfigurationIdentity, CoreLaunchSpec,
+        VpnOwnerCoreReadback, VpnOwnerLifecycle, VpnOwnerReadiness, VpnOwnerSnapshot,
+    };
     use infiltrator_contract::command::{CommandIntent, CommandResult};
+    use infiltrator_contract::core_capabilities::{
+        CoreLifecycleOperation, CoreOperation, EngineBinaryTarget,
+    };
+    use infiltrator_contract::core_identity::CoreCommandRequest;
     #[cfg(test)]
     use infiltrator_contract::mtu::MtuProbeState;
     #[cfg(test)]
@@ -295,17 +335,22 @@ mod tests {
     use infiltrator_contract::offline_startup::StartupNetworkPolicy;
     #[cfg(test)]
     use infiltrator_contract::offline_startup::StartupRemoteDependency;
+    use infiltrator_contract::snapshot::CoreLifecycle;
+    use infiltrator_contract::vpn::{
+        PreparedVpnConfiguration, VpnConfigurationApplyOutcome, VpnOwnerStopReceipt,
+        VpnStartOutcome, VpnStopTarget,
+    };
     use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
     use infiltrator_ports::core_process::CoreReadiness;
+    use mihomo_api::core_capability_provider::MihomoCoreCapabilityProvider;
     use std::collections::HashMap;
-    use std::sync::{Arc, Mutex};
+    use std::sync::Mutex;
     #[cfg(test)]
     use std::time;
 
     struct TestBridge {
         running: Mutex<bool>,
         store: Mutex<HashMap<(String, String), String>>,
-        controller: Option<String>,
         data_dir: Option<PathBuf>,
         cache_dir: Option<PathBuf>,
     }
@@ -315,7 +360,6 @@ mod tests {
             Self {
                 running: Mutex::new(false),
                 store: Mutex::new(HashMap::new()),
-                controller: Some("http://127.0.0.1:9090".to_string()),
                 data_dir: Some(PathBuf::from("data")),
                 cache_dir: Some(PathBuf::from("cache")),
             }
@@ -324,31 +368,37 @@ mod tests {
 
     #[async_trait]
     impl AndroidBridge for TestBridge {
-        async fn core_start(&self) -> Result<()> {
+        async fn core_start(
+            &self,
+            _launch_spec: &CoreLaunchSpec,
+        ) -> Result<CoreProcessStartReceipt> {
             if let Ok(mut guard) = self.running.lock() {
                 *guard = true;
             }
-            Ok(())
+            Ok(CoreProcessStartReceipt::Started)
         }
 
-        async fn core_stop(&self) -> Result<()> {
+        async fn core_stop(&self) -> Result<CoreProcessStopReceipt> {
             if let Ok(mut guard) = self.running.lock() {
                 *guard = false;
             }
-            Ok(())
+            Ok(CoreProcessStopReceipt::StoppedGracefully)
         }
 
-        async fn core_is_running(&self) -> Result<bool> {
-            Ok(self
-                .running
-                .lock()
-                .ok()
-                .map(|guard| *guard)
-                .unwrap_or(false))
-        }
-
-        fn core_controller_url(&self) -> Option<String> {
-            self.controller.clone()
+        async fn core_process_state(&self) -> Result<AndroidCoreProcessState> {
+            Ok(
+                if self
+                    .running
+                    .lock()
+                    .ok()
+                    .map(|guard| *guard)
+                    .unwrap_or(false)
+                {
+                    AndroidCoreProcessState::Running
+                } else {
+                    AndroidCoreProcessState::Stopped
+                },
+            )
         }
 
         async fn credential_get(&self, service: &str, key: &str) -> Result<Option<String>> {
@@ -385,30 +435,81 @@ mod tests {
             OfflineStartupSnapshot::ready(LocalAssetStatus::Available)
         }
 
-        async fn vpn_start(&self) -> Result<bool> {
-            Ok(true)
+        async fn vpn_start(&self) -> Result<VpnStartOutcome> {
+            Ok(VpnStartOutcome::Running)
         }
 
-        async fn vpn_stop(&self) -> Result<bool> {
-            Ok(true)
+        async fn vpn_apply_configuration(
+            &self,
+            _prepared: &PreparedVpnConfiguration,
+        ) -> Result<VpnConfigurationApplyOutcome> {
+            Ok(VpnConfigurationApplyOutcome::Accepted)
         }
 
-        async fn vpn_is_running(&self) -> Result<bool> {
-            Ok(false)
+        async fn vpn_stop(&self, _target: VpnStopTarget) -> Result<VpnOwnerStopReceipt> {
+            Ok(VpnOwnerStopReceipt::OwnerUnavailable {
+                failure: infiltrator_contract::error::Failure::new(
+                    infiltrator_contract::error::ErrorCode::NotReady,
+                    "fake VPN stop owner has no same-request readback",
+                    true,
+                ),
+            })
         }
 
-        async fn tun_set_enabled(&self, _enabled: bool) -> Result<bool> {
-            Ok(true)
+        async fn vpn_owner_snapshot(&self) -> Result<VpnOwnerSnapshot> {
+            Ok(VpnOwnerSnapshot {
+                owner_session_id: "owner-session".to_owned(),
+                revision: 1,
+                vpn_generation: infiltrator_contract::vpn::VpnGeneration::new(0),
+                vpn_state: VpnOwnerLifecycle::Stopped,
+                readiness: VpnOwnerReadiness::Stopped,
+                resources: Vec::new(),
+                foreground: false,
+                mtu: None,
+                route_count: 0,
+                dns_servers: Vec::new(),
+                ipv6: false,
+                core: VpnOwnerCoreReadback::Available(
+                    infiltrator_contract::snapshot::CoreLifecycleSnapshot {
+                        identity: None,
+                        lifecycle: CoreLifecycle::Stopped,
+                        generation: 0,
+                        session_token: None,
+                        revision: 0,
+                        failure: None,
+                    },
+                ),
+            })
         }
+    }
 
-        async fn tun_is_enabled(&self) -> Result<bool> {
-            Ok(false)
+    struct TestLaunchSpecSource;
+
+    #[async_trait]
+    impl CoreLaunchSpecSource for TestLaunchSpecSource {
+        async fn resolve(&self) -> result::Result<CoreLaunchSpec, PortError> {
+            Ok(CoreLaunchSpec {
+                configuration_identity: CoreLaunchConfigurationIdentity {
+                    engine_id: EngineId::new("mihomo").expect("engine ID"),
+                    profile_id: infiltrator_contract::profile_document_identity::ProfileId::new(
+                        "default",
+                    )
+                    .expect("profile ID"),
+                    document_revision: infiltrator_contract::profile_document_identity::ProfileDocumentRevision::new(
+                        "sha256:runtime-test",
+                    )
+                    .expect("document revision"),
+                },
+                working_directory: PathBuf::from("data"),
+                launch_arguments: vec!["-d".to_owned(), "data".to_owned()],
+            })
         }
     }
 
     #[tokio::test]
     async fn test_adapter_core_cycle() {
-        let adapter = AndroidBridgeAdapter::new(TestBridge::new());
+        let adapter =
+            AndroidCoreProcessAdapter::new(TestBridge::new(), Arc::new(TestLaunchSpecSource));
         assert!(matches!(
             CoreProcess::status(&adapter).await.unwrap(),
             CoreLifecycle::Stopped
@@ -450,6 +551,7 @@ mod tests {
         assert!(!adapter.capabilities().supports(Capability::UwpLoopback));
         assert!(!adapter.capabilities().supports(Capability::NetworkRoaming));
         assert!(adapter.capabilities().supports(Capability::VpnService));
+        assert!(adapter.capabilities().supports(Capability::Logs));
         assert!(matches!(
             adapter
                 .capabilities()
@@ -457,10 +559,6 @@ mod tests {
             Availability::Unsupported { .. }
         ));
         let runtime = AndroidRuntime::new(adapter);
-        assert_eq!(
-            runtime.controller().controller_endpoint(),
-            Some("http://127.0.0.1:9090".to_string())
-        );
         assert_eq!(runtime.data_dirs().data_dir(), Some(PathBuf::from("data")));
         assert_eq!(
             runtime.data_dirs().cache_dir(),
@@ -500,10 +598,11 @@ mod tests {
 
     #[tokio::test]
     async fn android_host_composition_preserves_hot_reload_session_identity() {
-        let adapter = AndroidBridgeAdapter::new(TestBridge::new());
+        let process =
+            AndroidCoreProcessAdapter::new(TestBridge::new(), Arc::new(TestLaunchSpecSource));
         let runtime = infiltrator_composition::tokio_application_runtime().expect("runtime");
         let app = CoreApplication::new_with_policy(
-            Arc::new(adapter),
+            Arc::new(process),
             Arc::new(ReadyProbe),
             ReadinessPolicy {
                 timeout: time::Duration::from_secs(1),
@@ -511,9 +610,22 @@ mod tests {
             },
             runtime,
         );
+        let binary_target = EngineBinaryTarget::current();
+        let host = binary_target.host_kind().unwrap_or(HostKind::Desktop);
+        app.install_core_capability_application(CoreCapabilityApplication::new(Arc::new(
+            MihomoCoreCapabilityProvider::new(
+                host,
+                [CoreOperation::Lifecycle(CoreLifecycleOperation::Start)],
+            ),
+        )))
+        .expect("Android lifecycle test capability installs before use");
 
+        let request = CoreCommandRequest {
+            scope: app.snapshot().scope().expect("Android owner scope"),
+            intent: CommandIntent::StartCore,
+        };
         assert!(matches!(
-            app.execute(CommandIntent::StartCore).await,
+            app.execute_scoped(request).await.result,
             CommandResult::Completed { .. }
         ));
         let before = app.snapshot();

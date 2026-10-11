@@ -1,17 +1,17 @@
 //! test-intent: behavior
 use crate::command_harness::recording_application;
 use crate::probe_settings_store::ProbeSettingsStore;
-use crate::support::headless_plugins;
+use crate::support::{command_pump_for_observed_snapshot, headless_plugins};
 use bevy::app::App;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::Children;
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Activate;
 use infiltrator_application::command_application::CommandApplication;
-use infiltrator_application::language_choice::project_language;
+use infiltrator_application::core_application::CoreApplication;
+use infiltrator_application::language_choice::{LanguageChoicePhase, project_language};
 use infiltrator_application::settings_application::SettingsApplication;
 use infiltrator_bevy_ui::app::ShellPlugin;
-use infiltrator_bevy_ui::command::CommandPumpPlugin;
 use infiltrator_bevy_ui::command_palette::{CommandPaletteState, OpenCommandPalette};
 use infiltrator_bevy_ui::pages::settings::settings_core::{SettingsLine, SettingsLineKind};
 use infiltrator_bevy_ui::pages::settings::settings_lan::LanBindAddressField;
@@ -37,13 +37,10 @@ fn activate(app: &mut App, entity: Entity) {
 }
 fn settle(app: &mut App) {
     let deadline = Instant::now() + Duration::from_secs(3);
-    while app
-        .world()
-        .resource::<LanguageChoiceResource>()
-        .model
-        .pending
-        .is_some()
-    {
+    while matches!(
+        &app.world().resource::<LanguageChoiceResource>().model.phase,
+        LanguageChoicePhase::Pending(_)
+    ) {
         assert!(
             Instant::now() < deadline,
             "actual language command must finish"
@@ -53,9 +50,10 @@ fn settle(app: &mut App) {
     }
     app.update();
 }
-fn replay(app: &mut App, store: &ProbeSettingsStore) {
+fn replay(app: &mut App, store: &ProbeSettingsStore, application: &CoreApplication) {
     let mut snapshot = app.world().resource::<LatestSurfaceSnapshot>().0.clone();
     snapshot.revision += 1;
+    snapshot.core = application.snapshot();
     snapshot.language_settings =
         project_language(Some(&Ok(store.settings.lock().unwrap().clone())));
     app.world_mut()
@@ -71,18 +69,19 @@ fn real_language_buttons_retry_failed_save_and_refresh_keeps_entities_draft_sele
     application.install_command_handler(Arc::new(
         CommandApplication::new().with_settings(SettingsApplication::new(store.clone())),
     ));
+    let application = Arc::new(application);
     let mut app = App::new();
     headless_plugins(&mut app);
     app.insert_resource(UiLocale::new("zh-CN"));
     app.add_plugins(ShellPlugin::default());
-    app.add_plugins(PagesPlugin::demo());
-    app.add_plugins(CommandPumpPlugin::for_application(Arc::new(application)));
+    app.add_plugins(PagesPlugin::default());
+    app.add_plugins(command_pump_for_observed_snapshot(application.clone()));
     app.update();
     app.world_mut()
         .commands()
         .trigger(RouteChanged(Route::Settings));
     app.update();
-    replay(&mut app, &store);
+    replay(&mut app, &store, &application);
     let root = app
         .world_mut()
         .query::<(Entity, &PageRoot)>()
@@ -129,14 +128,17 @@ fn real_language_buttons_retry_failed_save_and_refresh_keeps_entities_draft_sele
     activate(&mut app, english);
     settle(&mut app);
     assert_eq!(app.world().resource::<UiLocale>().code(), "zh-CN");
+    let phase = &app.world().resource::<LanguageChoiceResource>().model.phase;
     assert_eq!(
-        app.world()
-            .resource::<LanguageChoiceResource>()
-            .model
-            .failure
-            .as_ref()
-            .unwrap()
-            .code,
+        match phase {
+            LanguageChoicePhase::Failed { failure, .. } => failure.code,
+            LanguageChoicePhase::Ready
+            | LanguageChoicePhase::Pending(_)
+            | LanguageChoicePhase::Rejected(_)
+            | LanguageChoicePhase::AwaitingObservation { .. } => {
+                panic!("rejected save must remain a typed failure")
+            }
+        },
         ErrorCode::Storage
     );
     assert_eq!(store.writes.load(Ordering::SeqCst), 0);
@@ -152,6 +154,10 @@ fn real_language_buttons_retry_failed_save_and_refresh_keeps_entities_draft_sele
     activate(&mut app, retry);
     settle(&mut app);
     assert_eq!(app.world().resource::<UiLocale>().code(), "en-US");
+    assert!(matches!(
+        &app.world().resource::<LanguageChoiceResource>().model.phase,
+        LanguageChoicePhase::AwaitingObservation { .. }
+    ));
     assert_eq!(store.settings.lock().unwrap().language, "en-US");
     let mut old = app.world().resource::<LatestSurfaceSnapshot>().0.clone();
     old.revision += 1;
@@ -160,7 +166,7 @@ fn real_language_buttons_retry_failed_save_and_refresh_keeps_entities_draft_sele
         .trigger(SurfaceSnapshotUpdated(old));
     app.update();
     assert_eq!(app.world().resource::<UiLocale>().code(), "en-US");
-    replay(&mut app, &store);
+    replay(&mut app, &store, &application);
     assert!(app.world().get::<PageRoot>(root).is_some());
     assert_eq!(app.world().get::<TextField>(field).unwrap().0, expected);
     assert!(app.world().get::<TextFieldFocused>(field).unwrap().0);

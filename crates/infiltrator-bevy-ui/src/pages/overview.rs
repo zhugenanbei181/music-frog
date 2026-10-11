@@ -3,7 +3,7 @@
 //!
 //! **Update seam**: mutable nodes carry typed markers ([`OverviewLine`],
 //! [`OverviewChip`] + the widget layer's `StatChipValue`,
-//! [`OverviewStatusCard`] / [`OverviewCardState`], [`OverviewModePill`]).
+//! [`OverviewStatusCard`] / [`OverviewCardState`], [`OverviewRoutingIntentPill`]).
 //! [`OverviewPagePlugin`] registers [`apply_overview_projection`] once at product assembly, and the router fires the first paint with the mounted
 //! projection right after `spawn_scene`. From then on, an
 //! [`OverviewProjectionUpdated`] trigger restamps texts, inks, pill
@@ -12,7 +12,7 @@
 //! observers change components, never rebuild trees).
 //!
 //! **Theme seam**: every filled node of the page (banner, status dot,
-//! mode chip, stop button) carries a marker and is repainted every frame
+//! routing chip, stop button) carries a marker and is repainted every frame
 //! by [`reskin_overview_tokens`] — a compare-and-set projection from the
 //! live palette (the checkbox/slider sync idiom), so a `ThemeSwitch`
 //! rethemes them with no switch-specific hook and no remount. The widget
@@ -61,7 +61,6 @@ use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
 use bevy::scene::{Scene, bsn};
-use bevy::text::TextColor;
 use bevy::ui::PositionType;
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, ComputedNode, Display, FlexDirection, FlexWrap,
@@ -69,10 +68,8 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, ScrollArea};
-use infiltrator_application::byte_format::format_bytes;
 use infiltrator_application::core_status_projection::{failure_copy, lifecycle_copy, source_copy};
-use infiltrator_application::proxy_mode_projection::mode_status_copy;
-use infiltrator_application::shell_readout_projection::{observed_rate, rate_copy, rate_status};
+use infiltrator_application::routing_intent_projection::routing_intent_status_copy;
 use infiltrator_bevy_widgets::button::{ButtonSize, ButtonVariant, button_sized_scene};
 use infiltrator_bevy_widgets::chart::chart_scene_with_scale;
 use infiltrator_bevy_widgets::fluid_grid::{FluidCardGrid, compute_ideal_column_layout};
@@ -85,17 +82,23 @@ use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::switch::ThemeSwitch;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::{Breakpoint, space};
-use infiltrator_contract::command::ProxyMode;
 use infiltrator_contract::overview_layout::OverviewCardKind;
+use infiltrator_contract::routing_intent::RoutingIntent;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface_snapshot::SurfaceOrigin;
 use infiltrator_contract::traffic_scale::TrafficScaleSnapshot;
+use infiltrator_presentation::shell_readout::{observed_rate, rate_copy, rate_status};
+use infiltrator_shared::byte_units::format_bytes;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 #[path = "overview_reactive.rs"]
 pub mod overview_reactive;
 
 use self::overview_reactive::{OverviewMetricKind, OverviewMetricSource};
+use bevy::feathers::theme::ThemeBackgroundColor;
+use bevy::feathers::theme::ThemeTextColor;
+use infiltrator_bevy_widgets::feathers_theme::Token;
+use infiltrator_bevy_widgets::palette::rem;
 
 /// The trend chart's raster box (ui-side tokens — the widget's pixel box
 /// is fixed at mount; a resize is a remount, chart.rs). Height ~140px per
@@ -159,8 +162,8 @@ pub enum OverviewLineKind {
     TelemetryFailure,
     /// The failure reason (empty unless unavailable).
     Failure,
-    /// The mode chip's label.
-    ModeChip,
+    /// The selected routing policy label.
+    RoutingIntentChip,
     /// The banner's data-origin note: 演示数据 for the fixture, the live
     /// core's real version for the pump (BEVY-005).
     BannerNote,
@@ -255,17 +258,25 @@ pub struct OverviewCardState(pub Option<CoreLifecycle>);
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct StatusDot;
 
-/// Marker on the banner's mode chip (accent fill, `on_accent` label).
+/// Marker on the banner's routing chip (accent fill, `on_accent` label).
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct OverviewModeChip;
+pub struct OverviewRoutingIntentChip;
 
 /// Marker on text drawn over an accent/danger fill: its ink is the
 /// `on_accent` token, restamped by the reskin system.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct OnAccentText;
 
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct OverviewModePill(pub ProxyMode);
+#[derive(Component, Clone, Debug, PartialEq, Eq)]
+pub struct OverviewRoutingIntentPill(pub RoutingIntent);
+
+impl Default for OverviewRoutingIntentPill {
+    fn default() -> Self {
+        // `bsn!` builds a component template before assigning its explicit
+        // tuple field. This placeholder never represents an observation.
+        Self(RoutingIntent::FollowRules)
+    }
+}
 
 /// The typed data-refresh event: carry the new projection, the observer
 /// does the rest. Zero polling — whoever produces a fresh projection
@@ -388,6 +399,7 @@ pub(crate) fn status_dot_color(state: Option<&CoreLifecycle>, palette: &UiPalett
 pub(crate) fn banner_note(projection: &OverviewProjection, language: &str) -> String {
     source_copy(
         match projection.origin {
+            #[cfg(any(feature = "capture-tools", test))]
             OverviewOrigin::Demo => SurfaceOrigin::Demo,
             OverviewOrigin::LiveCore => SurfaceOrigin::Live,
         },
@@ -419,14 +431,14 @@ pub(crate) fn reload_mask_scene(palette: &UiPalette) -> impl Scene + use<> {
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
                 flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(space::S8),
+                row_gap: rem(space::S8),
             }
             BackgroundColor({ scrim })
             OverviewReloadMask
             Children [
                 @{ icon_scene(IconId::Activity, 24.0, palette.accent) }
                 --
-                LocalizedText::plain("overview_core_reloading") OverviewReloadMaskText TextRole(Role::BodyStrong) TextColor({ palette.on_accent })
+                LocalizedText::plain("overview_core_reloading") OverviewReloadMaskText TextRole(Role::BodyStrong) ThemeTextColor({ Token::OnAccent })
             ]
     }
 }
@@ -448,7 +460,7 @@ pub fn overview_page(
                 height: percent(100),
                 min_height: px(0.0),
                 flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(space::S16),
+                row_gap: rem(space::S16),
                 overflow: Overflow::scroll_y(),
             }
             PageRoot(Route::Overview)
@@ -457,7 +469,7 @@ pub fn overview_page(
             Children [
                 @{ banner_scene(projection, palette) }
                 --
-                @{ overview_cards::mode_segmented_controller_scene_with_snapshot(&projection.proxy_mode, palette) }
+                @{ overview_cards::routing_intent_segmented_controller_scene_with_snapshot(&projection.routing_intent, palette) }
                 --
                 @{ traffic_card_scene(projection, history, palette) } OverviewTrafficCard
                 --
@@ -481,16 +493,16 @@ pub fn overview_page(
 }
 
 /// The status banner: the accent-container card with the running dot and
-/// state word, the mode chip, the data-origin note (demo fixture vs live
+/// state word, the routing chip, the data-origin note (demo fixture vs live
 /// core version) and failure line, then the stop button — the danger pill
 /// under a demo source, or an honest lifecycle caption under a live core
-/// (nothing may masquerade as core lifecycle control until 0.30 wires it).
+/// The separate lifecycle control below submits the shared typed command.
 /// The origin is fixed for a mounted source, so baking the branch at mount
 /// keeps every restamp in place.
 fn banner_scene(projection: &OverviewProjection, palette: &UiPalette) -> impl Scene + use<> {
     let state = lifecycle_copy(&projection.lifecycle, "en-US");
     let state_node = status_semantic_node(&state);
-    let chip = mode_status_copy(&projection.proxy_mode, "en-US");
+    let chip = routing_intent_status_copy(&projection.routing_intent, "en-US");
     let failure = failure_copy(
         &projection.lifecycle,
         projection.failure.as_deref(),
@@ -500,13 +512,13 @@ fn banner_scene(projection: &OverviewProjection, palette: &UiPalette) -> impl Sc
     bsn! {
             Node {
                 width: percent(100),
-                padding: UiRect::all(Val::Px(space::S16)),
+                padding: UiRect::all(rem(space::S16)),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::SpaceBetween,
-                column_gap: Val::Px(space::S16),
-                row_gap: Val::Px(space::S8),
+                column_gap: rem(space::S16),
+                row_gap: rem(space::S8),
                 flex_wrap: FlexWrap::Wrap,
-                border_radius: BorderRadius::all(Val::Px(palette.card_radius_px)),
+                border_radius: BorderRadius::all(rem(palette.card_radius_px)),
             }
             BackgroundColor({ card_fill(&projection.lifecycle, palette) })
             OverviewStatusCard
@@ -514,19 +526,19 @@ fn banner_scene(projection: &OverviewProjection, palette: &UiPalette) -> impl Sc
             Children [
                 Node {
                     flex_grow: 1.0,
-                    min_width: px(180.0),
+                    min_width: rem(180.0),
                     flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(space::S8),
+                    row_gap: rem(space::S8),
                 }
                 Children [
                     Node {
                         align_items: AlignItems::Center,
-                        column_gap: Val::Px(space::S12),
+                        column_gap: rem(space::S12),
                     }
                     Children [
                         Node {
-                            width: px(10.0),
-                            height: px(10.0),
+                            width: rem(10.0),
+                            height: rem(10.0),
                             flex_shrink: 0.0,
                             border_radius: BorderRadius::all(Val::Px(5.0)),
                         }
@@ -540,19 +552,19 @@ fn banner_scene(projection: &OverviewProjection, palette: &UiPalette) -> impl Sc
                     --
                     Node {
                         align_items: AlignItems::Center,
-                        column_gap: Val::Px(space::S8),
+                        column_gap: rem(space::S8),
                         flex_wrap: FlexWrap::Wrap,
-                        row_gap: Val::Px(space::S4),
+                        row_gap: rem(space::S4),
                     }
                     Children [
                         Node {
-                            padding: UiRect::all(Val::Px(space::S4)),
-                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                            padding: UiRect::all(rem(space::S4)),
+                            border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                         }
-                        BackgroundColor({ palette.accent })
-                        OverviewModeChip
+                        ThemeBackgroundColor({ Token::Accent })
+                        OverviewRoutingIntentChip
                         Children [
-                            Text({ chip }) OverviewLine(OverviewLineKind::ModeChip) TextRole(Role::Caption) OnAccentText
+                            Text({ chip }) OverviewLine(OverviewLineKind::RoutingIntentChip) TextRole(Role::Caption) OnAccentText
                         ]
                         --
                         Text({ note }) OverviewLine(OverviewLineKind::BannerNote) TextRole(Role::Caption)
@@ -636,8 +648,8 @@ fn scrubber_scene(palette: &UiPalette) -> impl Scene + use<> {
                 width: percent(100),
                 min_width: px(0.0),
                 align_items: AlignItems::Center,
-                column_gap: Val::Px(space::S8),
-                row_gap: Val::Px(space::S4),
+                column_gap: rem(space::S8),
+                row_gap: rem(space::S4),
                 flex_wrap: FlexWrap::Wrap,
             }
             Children [
@@ -686,7 +698,7 @@ fn rates_row_scene(upload: String, download: String) -> impl Scene + use<> {
     bsn! {
             Node {
                 align_items: AlignItems::Center,
-                column_gap: Val::Px(space::S16),
+                column_gap: rem(space::S16),
             }
             Children [
                 @{ rate_line("↑ ", OverviewLineKind::Upload, upload) }
@@ -701,7 +713,7 @@ fn scale_line_scene(scale: &TrafficScaleSnapshot) -> impl Scene + use<> {
     bsn! {
             Node {
                 width: percent(100),
-                min_height: px(16.0),
+                min_height: rem(16.0),
             }
             Children [
                 Text({ label }) OverviewLine(OverviewLineKind::Scale) TextRole(Role::Mono)
@@ -729,7 +741,7 @@ fn rate_line(arrow: &str, kind: OverviewLineKind, value: String) -> impl Scene +
     bsn! {
             Node {
                 align_items: AlignItems::Center,
-                column_gap: Val::Px(space::S8),
+                column_gap: rem(space::S8),
             }
             Children [
                 Text({ format!("{arrow}{value}") }) OverviewLine(kind) TextRole(Role::Mono)
@@ -782,8 +794,8 @@ fn chips_row_scene(projection: &OverviewProjection, palette: &UiPalette) -> impl
                 flex_direction: FlexDirection::Row,
                 flex_wrap: FlexWrap::Wrap,
                 align_items: AlignItems::Center,
-                column_gap: Val::Px(space::S12),
-                row_gap: Val::Px(space::S12),
+                column_gap: rem(space::S12),
+                row_gap: rem(space::S12),
             }
             OverviewMetricsBand
             Children [
@@ -819,11 +831,13 @@ fn chips_row_scene(projection: &OverviewProjection, palette: &UiPalette) -> impl
 
 /// The traffic topology chain card: 4 linked stage chips with connecting arrows (">").
 /// 4-stage network traffic topology chain scene (BEVY-GAP-018).
+#[cfg(any(feature = "capture-tools", test))]
 pub fn topology_chain_scene(palette: &UiPalette) -> impl Scene + use<> {
     overview_topology::topology_chain_scene(palette)
 }
 
 /// Subscription quota and billing cycle visualization card (BEVY-GAP-020).
+#[cfg(any(feature = "capture-tools", test))]
 pub fn subscription_quota_scene(palette: &UiPalette) -> impl Scene + use<> {
     overview_cards::subscription_quota_scene(palette)
 }

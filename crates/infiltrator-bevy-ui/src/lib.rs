@@ -1,13 +1,13 @@
 //! MusicFrog Infiltrator — independent Bevy UI product.
 //!
 //! The ECS desktop/mobile peer of the Iced product (charter:
-//! docs/bevy-ui/BEVY_UI_FRONTEND.md). This module hosts the windowed launcher
+//! crates/infiltrator-bevy-ui/docs/BEVY_UI_FRONTEND.md). This module hosts the windowed launcher
 //! composition only: `DefaultPlugins` is singleton infrastructure and stays
 //! out of [`app::ShellPlugin`] so headless tests exercise the real shell
 //! without a window.
 //!
 //! Slice layout: [`app`] is the window chrome (and the shell's theme +
-//! mode-segment affordances), [`route`] the bounded subtree router over
+//! routing-intent affordances), [`route`] the bounded subtree router over
 //! the shell's `ContentSlot`, [`projection`] the pure data seam the
 //! Overview page renders, [`history`] the rate-history ring behind that
 //! page's trend chart, [`controller`] the live mihomo controller pump
@@ -17,11 +17,11 @@
 
 use infiltrator_bevy_widgets::shader_fx::ModernSurfacePlugin;
 use infiltrator_contract::theme::ThemePreference;
-use std::sync::OnceLock;
 pub mod a11y;
 pub mod app;
 pub mod appearance;
 pub mod cadence;
+#[cfg(feature = "capture-tools")]
 pub mod capture;
 pub mod chrome;
 pub mod command;
@@ -29,6 +29,7 @@ pub mod command_events;
 pub mod command_execution;
 pub mod command_palette;
 pub mod command_palette_shell;
+#[cfg(feature = "capture-tools")]
 pub mod controller;
 pub mod domain_state;
 pub mod gesture;
@@ -36,6 +37,7 @@ pub mod history;
 pub mod host_capabilities;
 pub mod ime;
 mod ime_native;
+#[cfg(feature = "capture-tools")]
 pub mod interaction_capture;
 pub mod launch;
 pub mod lifecycle;
@@ -48,10 +50,10 @@ pub mod pages;
 pub mod pipeline;
 pub mod projection;
 pub mod route;
-pub mod shell_mode_issue;
-pub mod shell_modes;
 pub mod shell_rail;
 pub mod shell_readout;
+pub mod shell_routing_intent;
+pub mod shell_routing_intent_issue;
 pub mod shell_scene;
 pub mod shell_waveform;
 pub mod shortcuts;
@@ -60,126 +62,171 @@ pub mod toast;
 pub mod tray_status;
 
 use crate::command::UiCommandSink;
+#[cfg(feature = "desktop-host")]
 use crate::command_execution::ApplicationCommandSink;
 use crate::pages::connections_clipboard::ClipboardHost;
+use crate::surface::host_insets::WindowInsetsInputReceiver;
 use bevy::DefaultPlugins;
 use bevy::app::{App, PluginGroup};
 use bevy::window::{ExitCondition, Window, WindowPlugin, WindowResolution};
-use infiltrator_application::command_application::CommandHandler;
+#[cfg(feature = "desktop-host")]
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_contract::error::Failure;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use std::sync::Arc;
 
-/// Launch the native product. Deterministic fixtures require `INFILTRATOR_DEMO=1`.
+/// Launch the native product; capture and demo launch modes are feature isolated.
 pub fn run() {
     launch::run();
 }
 
 /// Explicit isolated composition for screenshots and UI development.
+#[cfg(feature = "capture-tools")]
 pub fn run_demo() {
-    run_with_command_sink_and_surface(Arc::new(command::DemoCommandSink::accepting()), None, None);
-}
-
-static ATTACHED_APPLICATION: OnceLock<Arc<CoreApplication>> = OnceLock::new();
-
-/// Attach an application instance composed by a native host (e.g. Android host)
-/// before or during launch (BANDROID-004).
-pub fn attach_application(application: Arc<CoreApplication>) {
-    let _ = ATTACHED_APPLICATION.set(application);
-}
-
-/// Retrieve the attached application instance, if any.
-pub fn attached_application() -> Option<Arc<CoreApplication>> {
-    ATTACHED_APPLICATION.get().cloned()
+    let composition = capture_composition();
+    run_with_command_sink_and_composition(
+        Arc::new(command::DemoCommandSink::accepting()),
+        composition,
+    );
 }
 
 /// Render the actual host initialization failure on every page and reject commands.
 pub fn run_unavailable(surface: SurfaceKind, host: HostKind, failure: Failure) {
     let source = surface::UnavailableSurfaceSource::new(surface, host, failure.clone());
-    run_with_command_sink_and_surface(
+    run_with_command_sink_and_composition(
         Arc::new(launch::UnavailableCommandSink::new(failure)),
-        Some(Arc::new(source)),
-        None,
-    );
-}
-
-/// Launch the shell with a host-composed application command service. The
-/// host owns process/VPN adapters and hands the UI only the application
-/// facade; Bevy never needs to construct a Tokio runtime or a concrete HTTP
-/// client for command dispatch.
-pub fn run_with_application(application: Arc<CoreApplication>) {
-    run_with_command_sink_and_surface(
-        Arc::new(ApplicationCommandSink::new(application)),
-        Some(Arc::new(surface::UnavailableSurfaceSource::default())),
-        None,
-    );
-}
-
-/// Launch with both the shared command service and the complete 11-page
-/// application-owned surface source. Desktop/mobile composition roots should
-/// use this entry once they have wired `SurfaceReader` ports.
-pub fn run_with_application_and_surface(
-    application: Arc<CoreApplication>,
-    source: Arc<dyn surface::SurfaceSource>,
-) {
-    run_with_command_sink_and_surface(
-        Arc::new(ApplicationCommandSink::new(application)),
-        Some(source),
-        None,
+        SurfaceComposition::Source(Arc::new(source)),
     );
 }
 
 /// Launch with a concrete application surface pump and install its bounded
-/// frame drain. This is the preferred desktop/mobile composition entry; the
-/// erased variant above remains useful for pull-only embedders.
+/// frame drain from a desktop composition root. Android hosts inject their
+/// owner-backed source and typed command sink through
+/// `run_with_host_surface_and_command_sink`.
+#[cfg(feature = "desktop-host")]
 pub fn run_with_application_surface_pump(
     application: Arc<CoreApplication>,
     source: surface::ApplicationSurfaceSource,
 ) {
     let drain = surface::SurfaceDrainPlugin::new(&source);
-    run_with_command_sink_and_surface(
-        Arc::new(ApplicationCommandSink::new(application)),
-        Some(Arc::new(source)),
-        Some(drain),
-    );
-}
-
-/// Launch the shell with the lifecycle application plus an explicitly
-/// composed command facade. The handler is installed before Bevy starts, so
-/// non-lifecycle intents are executed by application use-cases instead of
-/// being dropped at the UI boundary.
-pub fn run_with_application_and_handler(
-    application: Arc<CoreApplication>,
-    handler: Arc<dyn CommandHandler>,
-) {
-    application.install_command_handler(handler);
-    run_with_application(application);
+    let sink = Arc::new(ApplicationCommandSink::new_for_surface(
+        application,
+        source.scope_observation(),
+    ));
+    run_with_command_sink_and_composition(sink, SurfaceComposition::DesktopPump { source, drain });
 }
 
 /// Commands without a page reader show explicit unavailable data. Fixture hosts use `run_demo`.
 pub fn run_with_command_sink(sink: Arc<dyn UiCommandSink>) {
-    run_with_command_sink_and_surface(
+    run_with_command_sink_and_composition(
         sink,
-        Some(Arc::new(surface::UnavailableSurfaceSource::default())),
-        None,
+        SurfaceComposition::Source(Arc::new(surface::UnavailableSurfaceSource::default())),
     );
 }
 
-fn run_with_command_sink_and_surface(
+/// Launch with host-owned surface and command adapters without constructing a
+/// shared application inside the Bevy process. The source must return a cheap
+/// cached snapshot; its owner performs transport reads on its own worker.
+/// The host also supplies its live typed window-inset receiver; the shell does
+/// not use a device-specific bottom offset or assume insets are zero.
+pub fn run_with_host_surface_and_command_sink(
+    source: Arc<dyn surface::SurfaceSource>,
     sink: Arc<dyn UiCommandSink>,
-    surface_source: Option<Arc<dyn surface::SurfaceSource>>,
-    surface_drain: Option<surface::SurfaceDrainPlugin>,
+    insets: WindowInsetsInputReceiver,
 ) {
-    // `INFILTRATOR_BEVY_SKIN` pins a skin for capture forensics; without it
-    // the shell follows the OS appearance (shared `ThemePreference`).
+    run_with_command_sink_and_composition(sink, SurfaceComposition::Host { source, insets });
+}
+
+enum SurfaceComposition {
+    Source(Arc<dyn surface::SurfaceSource>),
+    Host {
+        source: Arc<dyn surface::SurfaceSource>,
+        insets: WindowInsetsInputReceiver,
+    },
+    #[cfg(feature = "desktop-host")]
+    DesktopPump {
+        source: surface::ApplicationSurfaceSource,
+        drain: surface::SurfaceDrainPlugin,
+    },
+    #[cfg(feature = "capture-tools")]
+    Demo,
+    #[cfg(feature = "capture-controller")]
+    Controller(controller::ControllerConfig),
+}
+
+#[cfg(feature = "capture-tools")]
+#[derive(Clone, Copy)]
+enum CaptureReadiness {
+    Immediate,
+    FirstSnapshot,
+}
+
+#[cfg(feature = "capture-tools")]
+#[derive(Clone, Copy)]
+enum InteractionCaptureSource {
+    DemoFixture,
+    ExternalSurface,
+}
+
+#[cfg(feature = "capture-tools")]
+impl SurfaceComposition {
+    fn capture_readiness(&self) -> CaptureReadiness {
+        match self {
+            Self::Demo => CaptureReadiness::Immediate,
+            Self::Source(_) | Self::Host { .. } => CaptureReadiness::FirstSnapshot,
+            #[cfg(feature = "desktop-host")]
+            Self::DesktopPump { .. } => CaptureReadiness::FirstSnapshot,
+            #[cfg(feature = "capture-controller")]
+            Self::Controller(_) => CaptureReadiness::FirstSnapshot,
+        }
+    }
+
+    fn interaction_capture_source(&self) -> InteractionCaptureSource {
+        match self {
+            Self::Demo => InteractionCaptureSource::DemoFixture,
+            Self::Source(_) | Self::Host { .. } => InteractionCaptureSource::ExternalSurface,
+            #[cfg(feature = "desktop-host")]
+            Self::DesktopPump { .. } => InteractionCaptureSource::ExternalSurface,
+            #[cfg(feature = "capture-controller")]
+            Self::Controller(_) => InteractionCaptureSource::ExternalSurface,
+        }
+    }
+}
+
+#[cfg(feature = "capture-tools")]
+fn capture_composition() -> SurfaceComposition {
+    #[cfg(feature = "capture-controller")]
+    {
+        return match controller::controller_config_from_env() {
+            Some(config) => SurfaceComposition::Controller(config),
+            None => SurfaceComposition::Demo,
+        };
+    }
+    #[cfg(not(feature = "capture-controller"))]
+    SurfaceComposition::Demo
+}
+
+fn run_with_command_sink_and_composition(
+    sink: Arc<dyn UiCommandSink>,
+    composition: SurfaceComposition,
+) {
+    #[cfg(feature = "capture-tools")]
     let preference = capture::skin_from_env()
         .map(appearance::contract_skin_from_widget)
         .map(ThemePreference::Fixed)
         .unwrap_or_default();
+    #[cfg(not(feature = "capture-tools"))]
+    let preference = ThemePreference::default();
+    #[cfg(feature = "capture-tools")]
     let (width, height) = capture::window_size_from_env().unwrap_or((1180, 760));
+    #[cfg(not(feature = "capture-tools"))]
+    let (width, height) = (1180, 760);
+    #[cfg(feature = "capture-tools")]
     let marker = capture::marker_path_from_env();
-    let controller = controller::controller_config_from_env();
+    #[cfg(feature = "capture-tools")]
+    let capture_readiness = composition.capture_readiness();
+    #[cfg(feature = "capture-tools")]
+    let interaction_capture_source = composition.interaction_capture_source();
 
     let mut app = App::new();
     app.add_plugins(DefaultPlugins.set(WindowPlugin {
@@ -205,44 +252,55 @@ fn run_with_command_sink_and_surface(
     // compositions get the same facts as the windowed launcher). Adding them
     // here as well duplicated the plugin and panicked the launcher.
     app.add_plugins(command::CommandPumpPlugin::new(sink));
-    // The route + page bootstrap: without it the content slot stays empty in
-    // the windowed run (headless tests add PagesPlugin explicitly). A host
-    // composed surface source is authoritative; controller-only capture is
-    // an Overview-only compatibility path; the no-controller launcher is an
-    // explicit demo composition.
-    let live_controller = surface_source.is_some() || controller.is_some();
-    if let Some(source) = surface_source {
-        app.add_plugins(route::PagesPlugin::new_surface_arc(source));
-        // The source itself may own a complete application pump. The drain
-        // plugin is installed by the composition helper below when the
-        // concrete type is available; an erased source remains pull-only.
-    } else if let Some(config) = controller {
-        let source = controller::MihomoOverviewSource::spawn(config);
-        app.add_plugins(controller::PumpDrainPlugin::new(&source));
-        app.add_plugins(route::PagesPlugin::new(source));
-    } else {
-        app.add_plugins(route::PagesPlugin::demo());
+    // Every product, host, demo, and capture composition has its own explicit
+    // variant. A missing source is never inferred from a pair of Options or a
+    // live-controller boolean.
+    match composition {
+        SurfaceComposition::Source(source) => {
+            app.add_plugins(route::PagesPlugin::new_surface_arc(source));
+        }
+        SurfaceComposition::Host { source, insets } => {
+            app.insert_resource(insets);
+            app.add_plugins(route::PagesPlugin::new_surface_arc(source));
+            app.add_plugins(surface::SurfaceSourceRefreshPlugin::default());
+        }
+        #[cfg(feature = "desktop-host")]
+        SurfaceComposition::DesktopPump { source, drain } => {
+            app.add_plugins(route::PagesPlugin::new_surface_arc(Arc::new(source)));
+            app.add_plugins(drain);
+        }
+        #[cfg(feature = "capture-tools")]
+        SurfaceComposition::Demo => {
+            app.add_plugins(route::PagesPlugin::demo());
+        }
+        #[cfg(feature = "capture-controller")]
+        SurfaceComposition::Controller(config) => {
+            let source = controller::MihomoOverviewSource::spawn(config);
+            app.add_plugins(controller::PumpDrainPlugin::new(&source));
+            app.add_plugins(route::PagesPlugin::new(source));
+        }
     }
-    if let Some(drain) = surface_drain {
-        app.add_plugins(drain);
-    }
+    #[cfg(feature = "capture-tools")]
     if let Some(path) = marker {
         // Live runs gate the readiness marker on the pump's first delivered
         // snapshot, so the capture never shoots the pre-sample placeholder.
         let plugin = capture::CapturePlugin::new(path);
-        let plugin = if live_controller {
-            plugin.waiting_for_first_snapshot()
-        } else {
-            plugin
+        let plugin = match capture_readiness {
+            CaptureReadiness::Immediate => plugin,
+            CaptureReadiness::FirstSnapshot => plugin.waiting_for_first_snapshot(),
         };
         app.add_plugins(plugin);
     }
+    #[cfg(feature = "capture-tools")]
     if let Some(feature) = interaction_capture::feature_from_environment() {
-        assert!(
-            !live_controller,
-            "interaction capture requires the isolated demo composition"
-        );
-        interaction_capture::InteractionCapture::install(&mut app, feature);
+        match interaction_capture_source {
+            InteractionCaptureSource::DemoFixture => {
+                interaction_capture::InteractionCapture::install(&mut app, feature);
+            }
+            InteractionCaptureSource::ExternalSurface => {
+                panic!("interaction capture requires the isolated demo composition");
+            }
+        }
     }
     app.run();
 }

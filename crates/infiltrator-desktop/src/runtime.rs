@@ -1,4 +1,4 @@
-use crate::composition::core_application;
+use crate::composition::{core_application, desktop_backend};
 use crate::network_roaming::DesktopNetworkRoamingPort;
 use crate::pac_service::DesktopPacServicePort;
 use crate::rule_override::DesktopRuleOverridePort;
@@ -6,12 +6,11 @@ use crate::script_export::DesktopScriptExportPort;
 use crate::service::{ServiceManager, ServiceStatus};
 use crate::service_mode::DesktopServiceMode;
 use crate::storage::doctor;
-use crate::storage::{speedtest_history_store, subscription_source};
-use crate::surface::{SurfaceEngines, surface_pump};
+use crate::storage::{settings_store, speedtest_history_store, subscription_source};
+use crate::surface::{SurfaceEngines, SurfacePumpParams, surface_pump};
 use crate::system_dns_cache::DesktopSystemDnsCache;
 use crate::system_proxy::DesktopSystemProxy;
 use crate::tun_service::{ServiceModeStatus, TunServiceManager};
-use crate::version;
 use anyhow::anyhow;
 use infiltrator_application::configuration_application::ConfigurationApplication;
 use infiltrator_application::core_application::CoreApplication;
@@ -21,16 +20,17 @@ use infiltrator_application::dns_leak_application::{DnsLeakApplication, default_
 use infiltrator_application::dns_query_application::DnsQueryApplication;
 use infiltrator_application::doctor_application::DoctorApplication;
 use infiltrator_application::profile_application::ProfileApplication;
-use infiltrator_application::proxy_preferences_application::ProxyPreferencesApplication;
 use infiltrator_application::rule_list_application::RuleListApplication;
 use infiltrator_application::rule_tracer_application::RuleTracerApplication;
 use infiltrator_application::script_application::ScriptApplication;
 use infiltrator_application::script_export_application::ScriptExportApplication;
+use infiltrator_application::settings_application::SettingsApplication;
 use infiltrator_application::snapshot_application::SnapshotApplication;
 use infiltrator_application::speedtest_application::SpeedtestApplication;
 use infiltrator_application::stun_probe_application::StunProbeApplication;
 use infiltrator_application::surface_application::SurfacePump;
 use infiltrator_application::system_proxy_application::SystemProxyApplication;
+use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::stun_probe::DEFAULT_STUN_SERVER;
 use infiltrator_contract::surface::SurfaceKind;
 use infiltrator_contract::system_proxy::SystemProxyRecoveryStatus;
@@ -42,34 +42,38 @@ use infiltrator_core::dns_leak_io::HttpDnsLeakEchoProbe;
 use infiltrator_core::settings_io::{load_settings, settings_path};
 use infiltrator_core::snapshot_io::FileSnapshotStore;
 use infiltrator_core::stun_io::UdpStunProbe;
+use infiltrator_core::version_port::MihomoVersionPort;
 use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_domain::proxy::ProxyGroup;
+use infiltrator_ports::core_binary_selection::CoreBinarySelection;
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::endpoint::EndpointSource;
+use infiltrator_ports::engine_backend_factory::EngineBackendPorts;
+use infiltrator_ports::error::PortError;
+use infiltrator_ports::profile_configuration_transaction::ProfileConfigurationTransactionPort;
+use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use infiltrator_ports::speedtest_history::SpeedtestHistoryStore;
 use mihomo_api::client::MihomoClient;
+use mihomo_api::controller_fake_ip_cache::MihomoControllerFakeIpCacheAdapter;
 use mihomo_api::proxy::manager::ProxyManager;
+use mihomo_api::routing_intent::MihomoRoutingIntentAdapter;
 use mihomo_config::endpoint::ProfileEndpointSource;
 use mihomo_config::manager::ConfigManager;
 use mihomo_platform::defaults::DefaultCredentialStore;
 use mihomo_platform::paths::get_home_dir;
-use mihomo_version::manager::VersionManager;
-use reqwest::Client;
-use reqwest::header::ACCEPT_ENCODING;
+use mihomo_version::engine::engine_id;
 use serde::Serialize;
-use serde_json::json;
-use std::env::var;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time;
-use tokio::fs::{copy, metadata, read_to_string, write};
+use tokio::fs::{copy, metadata, read_to_string};
 use tokio::sync::Mutex;
 use yaml_rust2::{Yaml, YamlLoader};
 
 mod ports;
 mod product_commands;
 
-pub struct MihomoRuntime {
+pub(crate) struct MihomoRuntime {
     profiles: ProfileApplication,
     configuration: ConfigurationApplication,
     snapshots: SnapshotApplication,
@@ -80,16 +84,17 @@ pub struct MihomoRuntime {
     pub binary_path: PathBuf,
     pub controller_url: String,
     client: MihomoClient,
+    runtime_gateway: Arc<dyn RuntimeGateway>,
+    backend_ports: EngineBackendPorts,
     service_manager: ServiceManager,
     endpoints: Arc<ProfileEndpointSource<DefaultCredentialStore>>,
     application: Arc<CoreApplication>,
     _watchdog: infiltrator_composition::CoreWatchdogHandle,
     apply_guard: Arc<Mutex<()>>,
+    configuration_transaction: Arc<dyn ProfileConfigurationTransactionPort>,
     service_mode: Arc<DesktopServiceMode>,
     pac_service: Arc<DesktopPacServicePort>,
     network_roaming_port: Arc<DesktopNetworkRoamingPort>,
-    speedtest: SpeedtestApplication,
-    proxy_preferences: ProxyPreferencesApplication,
     rule_tracer: RuleTracerApplication,
     rule_list: RuleListApplication,
     dns_cache: DnsCacheApplication,
@@ -114,10 +119,15 @@ pub struct MihomoRuntime {
 #[derive(Debug, Clone, Serialize)]
 pub struct MihomoSummary {
     pub profile: String,
-    pub mode: String,
     pub running: bool,
     pub controller: String,
     pub groups: Vec<ProxyGroup>,
+}
+
+#[derive(Clone, Copy)]
+enum RuntimeStartupPolicy {
+    AttachOnly,
+    StartIfStopped,
 }
 
 impl MihomoRuntime {
@@ -132,46 +142,29 @@ impl MihomoRuntime {
         settings.configs_dir
     }
 
-    pub async fn bootstrap(
-        vm: &VersionManager,
-        use_bundled: bool,
-        bundled_candidates: &[PathBuf],
-        data_dir: &Path,
-    ) -> anyhow::Result<Self> {
-        Self::bootstrap_with_geoip(vm, use_bundled, bundled_candidates, data_dir, true, true).await
-    }
-
     /// Production boot path used by the retrying host.  It never downloads
     /// GeoIP or probes a remote release/auth service before the local core is
     /// attached; remote enrichment may happen after the surface is live.
-    pub async fn bootstrap_offline(
-        vm: &VersionManager,
-        use_bundled: bool,
-        bundled_candidates: &[PathBuf],
-        data_dir: &Path,
-    ) -> anyhow::Result<Self> {
-        Self::bootstrap_with_geoip(vm, use_bundled, bundled_candidates, data_dir, false, true).await
+    pub(crate) async fn bootstrap_offline(selection: CoreBinarySelection) -> anyhow::Result<Self> {
+        Self::bootstrap_with_policy(selection, RuntimeStartupPolicy::StartIfStopped).await
     }
 
     /// Initialize the real desktop ports without starting a stopped kernel.
-    pub async fn prepare_offline(
-        vm: &VersionManager,
-        use_bundled: bool,
-        bundled_candidates: &[PathBuf],
-        data_dir: &Path,
-    ) -> anyhow::Result<Self> {
-        Self::bootstrap_with_geoip(vm, use_bundled, bundled_candidates, data_dir, false, false)
-            .await
+    pub(crate) async fn prepare_offline(selection: CoreBinarySelection) -> anyhow::Result<Self> {
+        Self::bootstrap_with_policy(selection, RuntimeStartupPolicy::AttachOnly).await
     }
 
-    async fn bootstrap_with_geoip(
-        vm: &VersionManager,
-        use_bundled: bool,
-        bundled_candidates: &[PathBuf],
-        data_dir: &Path,
-        allow_network: bool,
-        start_core: bool,
+    async fn bootstrap_with_policy(
+        selection: CoreBinarySelection,
+        startup_policy: RuntimeStartupPolicy,
     ) -> anyhow::Result<Self> {
+        if selection.engine_id != engine_id() {
+            anyhow::bail!(
+                "Mihomo runtime cannot own selected engine {}",
+                selection.engine_id.as_str()
+            );
+        }
+        let binary = selection.binary_path.clone();
         let recovery = SystemProxyApplication::new(Arc::new(DesktopSystemProxy::new()));
         let recovery_snapshot = recovery.recover_orphaned().await;
         if !matches!(
@@ -190,19 +183,14 @@ impl MihomoRuntime {
             configs_dir.as_deref(),
             DefaultCredentialStore::default(),
         )?);
-
         cm.ensure_default_config().await?;
         cm.validate_current_profile().await?;
         cm.ensure_proxy_ports().await?;
         let controller_url = cm.ensure_external_controller().await?;
         let config_path = cm.get_current_path().await?;
-        let binary = version::resolve_binary(vm, use_bundled, bundled_candidates, data_dir).await?;
-        let geoip_candidates = collect_geoip_candidates(&binary, bundled_candidates);
-        if allow_network {
-            ensure_geoip_database(&config_path, &geoip_candidates).await?;
-        } else {
-            ensure_geoip_database_offline(&config_path, &geoip_candidates).await?;
-        }
+        let geoip_candidates =
+            collect_geoip_candidates(&binary, &selection.related_asset_candidates);
+        ensure_geoip_database_offline(&config_path, &geoip_candidates).await?;
         let service_manager = ServiceManager::new(binary.clone(), config_path.clone());
         let service_mode = Arc::new(DesktopServiceMode::new(binary.clone()));
 
@@ -211,13 +199,23 @@ impl MihomoRuntime {
             .resolve()
             .await
             .map_err(|e| anyhow!(e.to_string()))?;
-        let client = MihomoClient::new(&endpoint.url, endpoint.secret.clone())?;
-        // One speedtest engine shared by the command handler and the surface
-        // reader, so RunSpeedtest results reach the UI read model. The bounded
-        // run history is persisted so it survives a process restart.
+        let backend = desktop_backend(
+            &service_manager,
+            &endpoint.url,
+            endpoint.secret.clone(),
+            &MihomoVersionPort::engine_identifier(),
+        )
+        .map_err(|error| anyhow!(error.to_string()))?;
+        let backend_ports = backend.ports.clone();
+        let configuration_transaction = backend_ports.configuration_transaction();
+        let client = backend.client.clone();
+        let runtime_gateway = backend.ports.runtime();
+        // One speedtest owner is installed into Core composition. The bounded
+        // history is versioned and persisted.
         let history_store: Arc<dyn SpeedtestHistoryStore> = Arc::new(speedtest_history_store()?);
         let speedtest =
-            SpeedtestApplication::new(Arc::new(client.clone())).with_history_store(history_store);
+            SpeedtestApplication::new(SettingsApplication::new(settings_store().await?))
+                .with_history_store(history_store);
         // One live rule tracer engine shared by the host runtime port and the
         // surface reader, so both surfaces replay the same query state.
         let rule_tracer = RuleTracerApplication::new();
@@ -226,7 +224,9 @@ impl MihomoRuntime {
         // surface reader, so the honest last flush report reaches the UI.
         let dns_query = DnsQueryApplication::new(Some(Arc::new(client.clone())));
         let dns_cache = DnsCacheApplication::new(
-            Some(Arc::new(client.clone())),
+            Some(Arc::new(MihomoControllerFakeIpCacheAdapter::new(
+                client.clone(),
+            ))),
             Some(Arc::new(DesktopSystemDnsCache::new())),
         );
         // DUAL-14-10: the real per-nameserver prober. The desktop host owns
@@ -248,10 +248,11 @@ impl MihomoRuntime {
         // the comparison honestly unknown.
         let stun_probe =
             StunProbeApplication::new(Some(Arc::new(UdpStunProbe::new())), DEFAULT_STUN_SERVER);
-        let proxy_preferences = ProxyPreferencesApplication::new();
         let doctor = DoctorApplication::new(Arc::new(doctor()?));
-        let profiles = ProfileApplication::new(cm.clone());
-        let configuration = ConfigurationApplication::new(cm.clone());
+        let profiles =
+            ProfileApplication::new(cm.clone()).with_document_codec(backend.ports.configuration());
+        let configuration = ConfigurationApplication::from_profile_application(profiles.clone());
+        let apply_guard = Arc::new(Mutex::new(()));
         let snapshots = SnapshotApplication::new(
             cm.clone(),
             Arc::new(FileSnapshotStore::new(cm.config_dir().to_path_buf())),
@@ -262,7 +263,7 @@ impl MihomoRuntime {
         )));
         let application = Arc::new(core_application(
             &service_manager,
-            endpoint.url.clone(),
+            backend,
             endpoint.secret.clone(),
             SurfaceEngines {
                 profiles: profiles.clone(),
@@ -271,8 +272,6 @@ impl MihomoRuntime {
                 scripts: scripts.clone(),
                 script_exports: script_exports.clone(),
                 doctor: doctor.clone(),
-                proxy_preferences: proxy_preferences.clone(),
-                speedtest: speedtest.clone(),
                 rule_tracer: rule_tracer.clone(),
                 rule_list: rule_list.clone(),
                 dns_cache: dns_cache.clone(),
@@ -281,33 +280,60 @@ impl MihomoRuntime {
                 dns_leak: dns_leak.clone(),
                 stun_probe: stun_probe.clone(),
             },
+            speedtest.clone(),
             cm.clone(),
             Arc::new(subscription_source()),
+            cm.clone(),
+            endpoints.clone() as Arc<dyn EndpointSource>,
+            apply_guard.clone(),
         )?);
+        let scope_application = application.clone();
+        let scope_resolver: mihomo_api::runtime_configuration::RuntimeScopeResolver =
+            Arc::new(move || {
+                let lifecycle = scope_application.snapshot().lifecycle_snapshot();
+                match &lifecycle.lifecycle {
+                    CoreLifecycle::Running | CoreLifecycle::Ready => {
+                        lifecycle.scope().ok_or_else(|| {
+                            PortError::Failed(
+                                "active Core identity is unavailable for configuration access"
+                                    .into(),
+                            )
+                        })
+                    }
+                    _ => Err(PortError::Failed(
+                        "configuration access requires a running Core".to_owned(),
+                    )),
+                }
+            });
+        client.set_configuration_scope_resolver(scope_resolver);
         // Attach to an already-running instance by proving it answers, or
         // start a fresh one and let the application own readiness retries.
-        if service_manager.is_running().await {
-            log::info!("Attaching to running mihomo service");
-            application
-                .adopt_if_running()
-                .await
-                .map_err(|error| anyhow!(error.message))?;
-        } else if start_core {
-            log::info!("Starting mihomo service");
-            CoreLifecyclePort::start(application.as_ref())
-                .await
-                .map_err(|error| anyhow!(error.to_string()))?;
+        match (service_manager.is_running().await, startup_policy) {
+            (true, _) => {
+                log::info!("Attaching to running mihomo service");
+                application
+                    .adopt_if_running()
+                    .await
+                    .map_err(|error| anyhow!(error.message))?;
+            }
+            (false, RuntimeStartupPolicy::AttachOnly) => {}
+            (false, RuntimeStartupPolicy::StartIfStopped) => {
+                log::info!("Starting mihomo service");
+                CoreLifecyclePort::start(application.as_ref())
+                    .await
+                    .map_err(|error| anyhow!(error.to_string()))?;
+            }
         }
         let watchdog = infiltrator_composition::spawn_core_watchdog(application.clone());
         let pac_service = Arc::new(DesktopPacServicePort::shared());
         let network_roaming_port = Arc::new(DesktopNetworkRoamingPort::shared());
         // DUAL-12-08: the tracer reverse-apply commits through the same apply
         // transaction the editor uses, sharing its serialization guard.
-        let apply_guard = Arc::new(Mutex::new(()));
         let rule_port = Arc::new(DesktopRuleOverridePort::new(
             cm.clone(),
+            profiles.clone(),
             application.clone(),
-            endpoints.clone() as Arc<dyn EndpointSource>,
+            configuration_transaction.clone(),
             apply_guard.clone(),
         ));
         rule_tracer.set_override_port(rule_port.clone());
@@ -324,15 +350,16 @@ impl MihomoRuntime {
             binary_path: binary,
             controller_url,
             client,
+            runtime_gateway,
+            backend_ports,
             service_manager,
             endpoints,
             application,
             _watchdog: watchdog,
             apply_guard,
+            configuration_transaction,
             service_mode,
             pac_service,
-            speedtest,
-            proxy_preferences,
             rule_tracer,
             rule_list,
             dns_cache,
@@ -433,15 +460,16 @@ impl MihomoRuntime {
         surface: SurfaceKind,
         sample_interval: time::Duration,
     ) -> anyhow::Result<SurfacePump> {
-        surface_pump(
-            self.application.clone(),
-            Arc::new(self.client.clone()),
+        surface_pump(SurfacePumpParams {
+            core: self.application.clone(),
+            gateway: self.runtime_gateway.clone(),
+            routing_intent_port: Arc::new(MihomoRoutingIntentAdapter::new(self.client.clone())),
             surface,
             sample_interval,
-            self.binary_path.clone(),
-            self.network_roaming_port.clone(),
-            self.surface_engines(),
-        )
+            binary_path: self.binary_path.clone(),
+            network_roaming_port: self.network_roaming_port.clone(),
+            engines: self.surface_engines(),
+        })
         .await
     }
 
@@ -453,8 +481,6 @@ impl MihomoRuntime {
             scripts: self.scripts.clone(),
             script_exports: self.script_exports.clone(),
             doctor: self.doctor.clone(),
-            proxy_preferences: self.proxy_preferences.clone(),
-            speedtest: self.speedtest.clone(),
             rule_tracer: self.rule_tracer.clone(),
             rule_list: self.rule_list.clone(),
             dns_cache: self.dns_cache.clone(),
@@ -467,7 +493,6 @@ impl MihomoRuntime {
 
     pub async fn summary(&self) -> anyhow::Result<MihomoSummary> {
         let profile = self.config_manager.get_current().await?;
-        let mode = self.read_mode(&profile).await?;
         let running = matches!(
             self.service_manager.status().await?,
             ServiceStatus::Running(_)
@@ -478,27 +503,10 @@ impl MihomoRuntime {
 
         Ok(MihomoSummary {
             profile,
-            mode,
             running,
             controller: self.controller_url.clone(),
             groups,
         })
-    }
-
-    pub async fn current_mode(&self) -> anyhow::Result<String> {
-        let config = self.client.get_config().await?;
-        Ok(normalize_mode(&config.mode))
-    }
-
-    pub async fn set_mode(&self, mode: &str) -> anyhow::Result<()> {
-        let normalized = normalize_mode(mode);
-        if !is_supported_mode(&normalized) {
-            return Err(anyhow!("不支持的代理模式: {}", mode));
-        }
-        self.client
-            .patch_config(json!({ "mode": normalized }))
-            .await
-            .map_err(|err| anyhow!(err.to_string()))
     }
 
     pub async fn switch_proxy(&self, group: &str, proxy: &str) -> anyhow::Result<()> {
@@ -506,19 +514,6 @@ impl MihomoRuntime {
             .switch_proxy(group, proxy)
             .await
             .map_err(|err| anyhow!(err.to_string()))
-    }
-
-    pub async fn set_tun_enabled(&self, enabled: bool) -> anyhow::Result<()> {
-        self.client
-            .patch_config(json!({ "tun": { "enable": enabled } }))
-            .await
-            .map_err(|err| anyhow!(err.to_string()))
-    }
-
-    async fn read_mode(&self, profile: &str) -> anyhow::Result<String> {
-        let content = self.config_manager.load(profile).await?;
-        let doc = parse_yaml_doc(&content)?;
-        Ok(get_yaml_str(&doc, "mode").unwrap_or("rule").to_string())
     }
 
     pub async fn shutdown(&self) -> anyhow::Result<()> {
@@ -545,25 +540,6 @@ fn proxy_endpoint_from_config(content: &str) -> anyhow::Result<Option<String>> {
         .map(|p| format!("127.0.0.1:{p}")))
 }
 
-fn normalize_mode(mode: &str) -> String {
-    let trimmed = mode.trim();
-    if trimmed.is_empty() {
-        "rule".to_string()
-    } else {
-        trimmed.to_ascii_lowercase()
-    }
-}
-
-fn is_supported_mode(mode: &str) -> bool {
-    matches!(mode, "rule" | "global" | "direct" | "script")
-}
-
-const GEOIP_URL: &str =
-    "https://github.com/MetaCubeX/meta-rules-dat/releases/latest/download/geoip.metadb";
-const GEOIP_MIRROR_URLS: [&str; 2] = [
-    "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geoip.metadb",
-    "https://cdn.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geoip.metadb",
-];
 const GEOIP_MIN_SIZE: u64 = 1024 * 1024;
 
 fn collect_geoip_candidates(binary: &Path, bundled_candidates: &[PathBuf]) -> Vec<PathBuf> {
@@ -582,55 +558,6 @@ fn collect_geoip_candidates(binary: &Path, bundled_candidates: &[PathBuf]) -> Ve
     dirs.into_iter()
         .map(|dir| dir.join("geoip.metadb"))
         .collect()
-}
-
-async fn ensure_geoip_database(
-    config_path: &Path,
-    geoip_candidates: &[PathBuf],
-) -> anyhow::Result<()> {
-    let content = read_to_string(config_path).await?;
-    if !content.to_ascii_uppercase().contains("GEOIP") {
-        return Ok(());
-    }
-
-    let config_dir = config_path
-        .parent()
-        .ok_or_else(|| anyhow!("配置目录不存在"))?;
-    let geoip_path = config_dir.join("geoip.metadb");
-    if let Ok(meta) = metadata(&geoip_path).await
-        && meta.len() >= GEOIP_MIN_SIZE
-    {
-        return Ok(());
-    }
-
-    if try_copy_geoip_candidates(geoip_candidates, &geoip_path).await? {
-        return Ok(());
-    }
-
-    let url_list = build_geoip_url_list();
-    let client = Client::new();
-    let mut last_err: Option<String> = None;
-    for url in url_list {
-        match download_geoip(&client, &url).await {
-            Ok(bytes) => {
-                if bytes.len() as u64 <= GEOIP_MIN_SIZE {
-                    last_err = Some(format!("下载 {} 返回 {} bytes", url, bytes.len()));
-                    continue;
-                }
-                write(&geoip_path, &bytes).await?;
-                return Ok(());
-            }
-            Err(err) => {
-                last_err = Some(format!("{url}: {err}"));
-            }
-        }
-    }
-
-    Err(anyhow!(
-        "无法获取 GeoIP 数据库：{}。请检查网络，或手动放置到 {}（也可放在内核同目录 geoip.metadb）",
-        last_err.unwrap_or_else(|| "未知错误".to_string()),
-        geoip_path.display()
-    ))
 }
 
 /// Local-only GeoIP preparation for the first boot. A missing database is a
@@ -667,19 +594,6 @@ async fn ensure_geoip_database_offline(
     Ok(())
 }
 
-fn build_geoip_url_list() -> Vec<String> {
-    if let Ok(url) = var("MIHOMO_GEOIP_URL") {
-        let trimmed = url.trim();
-        if !trimmed.is_empty() {
-            return vec![trimmed.to_string()];
-        }
-    }
-
-    let mut urls = vec![GEOIP_URL.to_string()];
-    urls.extend(GEOIP_MIRROR_URLS.iter().map(|url| url.to_string()));
-    urls
-}
-
 async fn try_copy_geoip_candidates(
     candidates: &[PathBuf],
     geoip_path: &Path,
@@ -701,36 +615,11 @@ async fn try_copy_geoip_candidates(
     Ok(false)
 }
 
-async fn download_geoip(client: &Client, url: &str) -> anyhow::Result<Vec<u8>> {
-    let response = client
-        .get(url)
-        .header(ACCEPT_ENCODING, "identity")
-        .header("User-Agent", "MusicFrog-Despicable-Infiltrator")
-        .send()
-        .await
-        .map_err(|e| anyhow!("下载 GeoIP 数据库失败: {e}"))?;
-    if !response.status().is_success() {
-        return Err(anyhow!("下载 GeoIP 数据库失败: HTTP {}", response.status()));
-    }
-    let bytes = response
-        .bytes()
-        .await
-        .map_err(|e| anyhow!("读取 GeoIP 数据库失败: {e}"))?
-        .to_vec();
-    Ok(bytes)
-}
-
 fn parse_yaml_doc(content: &str) -> anyhow::Result<Yaml> {
     let docs = YamlLoader::load_from_str(content).map_err(|err| anyhow!(err.to_string()))?;
     docs.into_iter()
         .next()
         .ok_or_else(|| anyhow!("配置内容不是有效的 YAML"))
-}
-
-fn get_yaml_str<'a>(doc: &'a Yaml, key: &str) -> Option<&'a str> {
-    doc.as_hash()?
-        .get(&Yaml::String(key.to_string()))
-        .and_then(|value| value.as_str())
 }
 
 fn get_yaml_u16(doc: &Yaml, key: &str) -> Option<u16> {

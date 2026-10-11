@@ -4,7 +4,9 @@
 //! the round-trip runs against the concrete `ConfigManager`.
 
 use crate::manager::ConfigManager;
+use crate::profile_option_store::{delete_options, load_options, save_options};
 use infiltrator_contract::aggregator::{AggregationDraft, AggregationTemplate};
+use infiltrator_contract::error::ErrorCode;
 use infiltrator_domain::profile_options::{FilterSpec, ProfileOptions, options_path};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::ProfileStore;
@@ -111,7 +113,7 @@ async fn unreadable_sidecars_and_failed_removal_do_not_become_empty_success() {
         .config_dir()
         .join("options/.aggregation-templates.yaml");
     assert_eq!(
-        manager.load_options("main").await.unwrap(),
+        load_options(manager.config_dir(), "main").await.unwrap(),
         Default::default()
     );
     for path in [&option_path, &template_path] {
@@ -119,7 +121,7 @@ async fn unreadable_sidecars_and_failed_removal_do_not_become_empty_success() {
         write(path.join("sentinel"), "keep").await.unwrap();
     }
     assert!(matches!(
-        manager.load_options("main").await,
+        load_options(manager.config_dir(), "main").await,
         Err(PortError::Io(_))
     ));
     assert!(matches!(
@@ -127,16 +129,14 @@ async fn unreadable_sidecars_and_failed_removal_do_not_become_empty_success() {
         Err(PortError::Io(_))
     ));
     assert!(
-        manager
-            .save_options("main", &Default::default())
+        save_options(manager.config_dir(), "main", &Default::default())
             .await
             .is_err()
     );
-    assert!(manager.delete_options("main").await.is_err());
+    assert!(delete_options(manager.config_dir(), "main").await.is_err());
     assert!(manager.save_aggregation_templates(&[]).await.is_err());
     assert!(
-        manager
-            .save_options("main", &options("new".into()))
+        save_options(manager.config_dir(), "main", &options("new".into()))
             .await
             .is_err()
     );
@@ -162,24 +162,34 @@ async fn unreadable_sidecars_and_failed_removal_do_not_become_empty_success() {
 }
 
 #[tokio::test]
-async fn invalid_utf8_and_malformed_options_remain_storage_failures() {
+async fn invalid_utf8_and_malformed_options_keep_typed_codec_failures() {
     let temp_dir = TempDir::new().unwrap();
     let manager =
         ConfigManager::with_home_and_store(temp_dir.path().to_path_buf(), TestStore).unwrap();
     let path = options_path(manager.config_dir(), "main");
     create_dir_all(path.parent().unwrap()).await.unwrap();
-    for bytes in [&b"\xff"[..], &b"filter: [unfinished"[..]] {
-        write(&path, bytes).await.unwrap();
-        assert!(matches!(
-            manager.load_options("main").await,
-            Err(PortError::Io(_))
-        ));
-        assert_eq!(read(&path).await.unwrap(), bytes);
-    }
-    manager.delete_options("main").await.unwrap();
-    manager.delete_options("main").await.unwrap();
+    let invalid_utf8 = b"\xff";
+    write(&path, invalid_utf8).await.unwrap();
+    assert!(matches!(
+        load_options(manager.config_dir(), "main").await,
+        Err(PortError::Rejected(failure)) if failure.code == ErrorCode::Storage
+    ));
     assert_eq!(
-        manager.load_options("main").await.unwrap(),
+        read(&path).await.unwrap().as_slice(),
+        invalid_utf8.as_slice()
+    );
+
+    let malformed = b"filter: [unfinished";
+    write(&path, malformed).await.unwrap();
+    assert!(matches!(
+        load_options(manager.config_dir(), "main").await,
+        Err(PortError::Rejected(failure)) if failure.code == ErrorCode::Configuration
+    ));
+    assert_eq!(read(&path).await.unwrap().as_slice(), malformed.as_slice());
+    delete_options(manager.config_dir(), "main").await.unwrap();
+    delete_options(manager.config_dir(), "main").await.unwrap();
+    assert_eq!(
+        load_options(manager.config_dir(), "main").await.unwrap(),
         Default::default()
     );
 }
@@ -198,13 +208,15 @@ async fn concurrent_writers_publish_complete_sidecars_and_own_their_temporaries(
         let expected = expected.clone();
         let manager = manager.clone();
         writers.push(tokio::spawn(async move {
-            manager.save_options("main", &expected).await.unwrap();
+            save_options(manager.config_dir(), "main", &expected)
+                .await
+                .unwrap();
         }));
     }
     for writer in writers {
         writer.await.unwrap();
     }
-    let stored = manager.load_options("main").await.unwrap();
+    let stored = load_options(manager.config_dir(), "main").await.unwrap();
     assert!(
         candidates.contains(&stored),
         "the winner is one complete submitted document"
@@ -216,7 +228,7 @@ async fn concurrent_writers_publish_complete_sidecars_and_own_their_temporaries(
         names.push(entry.file_name());
     }
     assert_eq!(names, vec!["main.yaml"]);
-    manager.delete_options("main").await.unwrap();
+    delete_options(manager.config_dir(), "main").await.unwrap();
     remove_dir(directory).await.unwrap();
 }
 
@@ -229,14 +241,13 @@ async fn option_paths_reject_traversal_before_read_write_or_delete() {
     create_dir_all(manager.config_dir()).await.unwrap();
     write(&protected, "preserve").await.unwrap();
     for name in ["../protected", "folder/name", "", " main"] {
-        assert!(manager.load_options(name).await.is_err());
+        assert!(load_options(manager.config_dir(), name).await.is_err());
         assert!(
-            manager
-                .save_options(name, &options("new".into()))
+            save_options(manager.config_dir(), name, &options("new".into()))
                 .await
                 .is_err()
         );
-        assert!(manager.delete_options(name).await.is_err());
+        assert!(delete_options(manager.config_dir(), name).await.is_err());
     }
     assert_eq!(read_to_string(&protected).await.unwrap(), "preserve");
     assert!(!manager.config_dir().join("options").exists());

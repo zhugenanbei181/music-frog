@@ -19,15 +19,15 @@ use bevy::ui::BackgroundColor;
 use bevy::ui::prelude::{Display, Node};
 use bevy::ui::widget::{ImageNode, Text};
 use bevy::ui_widgets::Activate;
-use infiltrator_application::shell_readout_projection::observed_rate;
 use infiltrator_bevy_ui::app::{ContentSlot, ShellPlugin, SidebarFoot};
 use infiltrator_bevy_ui::command::{CommandPumpPlugin, DemoCommandSink, UiCommand, UiCommandSink};
 use infiltrator_bevy_ui::history::{TrafficHistory, demo_traffic_series};
 use infiltrator_bevy_ui::pages::overview::{
     CHART_HEIGHT_PX, CHART_WIDTH_PX, OnAccentText, OverviewCardState, OverviewChip,
-    OverviewChipKind, OverviewLine, OverviewLineKind, OverviewModeChip, OverviewModePill,
-    OverviewProjectionUpdated, OverviewReloadMask, OverviewReloadMaskText, OverviewStatusCard,
-    StatusDot, format_memory, format_rate, subscription_quota_scene, topology_chain_scene,
+    OverviewChipKind, OverviewLine, OverviewLineKind, OverviewProjectionUpdated,
+    OverviewReloadMask, OverviewReloadMaskText, OverviewRoutingIntentChip,
+    OverviewRoutingIntentPill, OverviewStatusCard, StatusDot, format_memory, format_rate,
+    subscription_quota_scene, topology_chain_scene,
 };
 use infiltrator_bevy_ui::pages::overview_cards::{
     ActiveExitNodeCard, SystemProxyMasterCard, TunMasterCard,
@@ -39,7 +39,6 @@ use infiltrator_bevy_ui::pages::overview_public_ip::{
 use infiltrator_bevy_ui::pages::overview_restamp::{
     ActiveExitText, ActiveExitTextKind, OverviewMasterSwitchButton, SubscriptionQuotaCard,
 };
-use infiltrator_bevy_ui::pages::overview_speedtest::OverviewSpeedtestUrlField;
 use infiltrator_bevy_ui::pages::overview_topology::{
     TopologyChainCard, TopologyDrilldownFilter, TopologyStageButton, TopologyText, TopologyTextKind,
 };
@@ -58,15 +57,14 @@ use infiltrator_bevy_widgets::stat_chip::StatChipValue;
 use infiltrator_bevy_widgets::surface::SurfacePanel;
 use infiltrator_bevy_widgets::switch::ThemeSwitch;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
-use infiltrator_bevy_widgets::text_input::TextField;
-use infiltrator_bevy_widgets::text_input::native::NativeTextField;
 use infiltrator_bevy_widgets::theme::{Theme, ThemeSkin};
-use infiltrator_contract::command::ProxyMode;
-use infiltrator_contract::proxy_mode::ProxyModeSnapshot;
+use infiltrator_contract::routing_intent::RoutingIntent;
+use infiltrator_contract::routing_intent::RoutingIntentSnapshot;
 use infiltrator_contract::shell_readout::ShellReadoutSnapshot;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::traffic_topology::TrafficTopologyStage;
 use infiltrator_contract::traffic_waveform::{TrafficSample, TrafficWaveformSnapshot};
+use infiltrator_presentation::shell_readout::observed_rate;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -102,12 +100,16 @@ impl OverviewSource for StubSource {
             system_toggles: Default::default(),
             cpu_percent: None,
             total_traffic_bytes: None,
-            proxy_mode: ProxyModeSnapshot {
-                current: Some(ProxyMode::Direct),
-                ..ProxyModeSnapshot::demo_fixture()
+            routing_intent: RoutingIntentSnapshot {
+                current: Some(RoutingIntent::BypassProxy),
+                ..RoutingIntentSnapshot::demo_fixture()
             },
             speedtest: Default::default(),
         }
+    }
+
+    fn kind(&self) -> SourceKind {
+        SourceKind::Demo
     }
 }
 
@@ -215,13 +217,13 @@ fn card(world: &mut World) -> (Entity, Color, CoreLifecycle) {
     (id, fill.0, state)
 }
 
-/// Whether the pill for one proxy mode carries the selected bit.
-fn pill_selected(world: &mut World, mode: ProxyMode) -> bool {
-    let mut pills = world.query::<(&OverviewModePill, &ControlVisual)>();
+/// Whether one shared routing choice carries the selected bit.
+fn pill_selected(world: &mut World, intent: RoutingIntent) -> bool {
+    let mut pills = world.query::<(&OverviewRoutingIntentPill, &ControlVisual)>();
     pills
         .iter(world)
-        .find(|(pill, _)| pill.0 == mode)
-        .expect("mode pill mounted")
+        .find(|(pill, _)| pill.0 == intent)
+        .expect("routing choice mounted")
         .1
         .0
 }
@@ -236,7 +238,7 @@ fn overview_entity_ids(world: &mut World) -> Vec<Entity> {
         ids.extend(lines.iter(world).map(|(id, _)| id));
     }
     {
-        let mut pills = world.query::<(Entity, &OverviewModePill)>();
+        let mut pills = world.query::<(Entity, &OverviewRoutingIntentPill)>();
         ids.extend(pills.iter(world).map(|(id, _)| id));
     }
     {
@@ -252,7 +254,7 @@ fn overview_entity_ids(world: &mut World) -> Vec<Entity> {
         ids.extend(chips.iter(world).map(|(id, _)| id));
     }
     {
-        let mut chip_inks = world.query::<(Entity, &OverviewModeChip)>();
+        let mut chip_inks = world.query::<(Entity, &OverviewRoutingIntentChip)>();
         ids.extend(chip_inks.iter(world).map(|(id, _)| id));
     }
     {
@@ -307,9 +309,9 @@ fn live_projection(upload_bps: f64, download_bps: f64) -> OverviewProjection {
         system_toggles: Default::default(),
         cpu_percent: None,
         total_traffic_bytes: None,
-        proxy_mode: ProxyModeSnapshot {
-            current: Some(ProxyMode::Rule),
-            ..ProxyModeSnapshot::demo_fixture()
+        routing_intent: RoutingIntentSnapshot {
+            current: Some(RoutingIntent::FollowRules),
+            ..RoutingIntentSnapshot::demo_fixture()
         },
         speedtest: Default::default(),
     }
@@ -381,9 +383,9 @@ impl OverviewSource for LiveFootStub {
             system_toggles: Default::default(),
             cpu_percent: None,
             total_traffic_bytes: None,
-            proxy_mode: ProxyModeSnapshot {
-                current: Some(ProxyMode::Rule),
-                ..ProxyModeSnapshot::demo_fixture()
+            routing_intent: RoutingIntentSnapshot {
+                current: Some(RoutingIntent::FollowRules),
+                ..RoutingIntentSnapshot::demo_fixture()
             },
             speedtest: Default::default(),
         }
@@ -395,26 +397,6 @@ impl OverviewSource for LiveFootStub {
 }
 
 // ---- accessibility semantics --------------------------------------------------
-
-fn native_url_field(world: &mut World) -> Entity {
-    let parent = world
-        .query::<(Entity, &OverviewSpeedtestUrlField)>()
-        .single(world)
-        .expect("one native speedtest URL owner")
-        .0;
-    let field = world
-        .get::<Children>(parent)
-        .unwrap()
-        .iter()
-        .copied()
-        .find(|entity| world.get::<TextField>(*entity).is_some())
-        .expect("the actual controlled URL field");
-    assert!(
-        world.get::<NativeTextField>(field).is_some(),
-        "URL field has a native input owner"
-    );
-    field
-}
 
 #[path = "overview_tests/active.rs"]
 mod active;
@@ -430,8 +412,6 @@ mod live;
 mod overview_card;
 #[path = "overview_tests/overview_master.rs"]
 mod overview_master;
-#[path = "overview_tests/overview_mode.rs"]
-mod overview_mode;
 #[path = "overview_tests/overview_mounts.rs"]
 mod overview_mounts;
 #[path = "overview_tests/overview_page.rs"]
@@ -456,6 +436,8 @@ mod projection;
 mod repeated;
 #[path = "overview_tests/route.rs"]
 mod route;
+#[path = "overview_tests/routing_intent.rs"]
+mod routing_intent;
 #[path = "overview_tests/sidebar.rs"]
 mod sidebar;
 #[path = "overview_tests/stat.rs"]
@@ -489,7 +471,7 @@ mod copy;
 fn mounted_mode_toggle_emits_mapped_feedback_and_mute_blocks_it() {
     use bevy::ui_widgets::Activate;
     use infiltrator_bevy_ui::host_capabilities::{HapticsHost, HapticsPort};
-    use infiltrator_bevy_ui::pages::overview_cards::OverviewModeSegmentPill;
+    use infiltrator_bevy_ui::pages::overview_cards::OverviewRoutingIntentSegmentPill;
     use infiltrator_bevy_widgets::haptics::{
         AudioHapticOutput, AudioHapticsSettings, HapticPattern, PcmBuffer,
     };
@@ -516,11 +498,11 @@ fn mounted_mode_toggle_emits_mapped_feedback_and_mute_blocks_it() {
     app.insert_resource(HapticsHost::new(recorder.clone(), true).with_audio(recorder.clone()));
     let pill = app
         .world_mut()
-        .query::<(Entity, &OverviewModeSegmentPill)>()
+        .query::<(Entity, &OverviewRoutingIntentSegmentPill)>()
         .iter(app.world())
-        .find(|(_, pill)| pill.0 == ProxyMode::Global)
+        .find(|(_, pill)| pill.0 == RoutingIntent::RouteAllThroughProxy)
         .map(|(entity, _)| entity)
-        .expect("the Global mode pill is mounted");
+        .expect("the route all through proxy choice is mounted");
 
     app.world_mut()
         .commands()
@@ -547,7 +529,7 @@ fn mounted_mode_toggle_emits_mapped_feedback_and_mute_blocks_it() {
 fn unsupported_host_turns_interaction_feedback_into_a_noop() {
     use bevy::ui_widgets::Activate;
     use infiltrator_bevy_ui::host_capabilities::{HapticsHost, HapticsPort};
-    use infiltrator_bevy_ui::pages::overview_cards::OverviewModeSegmentPill;
+    use infiltrator_bevy_ui::pages::overview_cards::OverviewRoutingIntentSegmentPill;
     use infiltrator_bevy_widgets::haptics::{AudioHapticOutput, HapticPattern, PcmBuffer};
     use std::sync::Mutex;
 
@@ -569,11 +551,11 @@ fn unsupported_host_turns_interaction_feedback_into_a_noop() {
     app.insert_resource(HapticsHost::new(recorder.clone(), false).with_audio(recorder.clone()));
     let pill = app
         .world_mut()
-        .query::<(Entity, &OverviewModeSegmentPill)>()
+        .query::<(Entity, &OverviewRoutingIntentSegmentPill)>()
         .iter(app.world())
-        .find(|(_, pill)| pill.0 == ProxyMode::Global)
+        .find(|(_, pill)| pill.0 == RoutingIntent::RouteAllThroughProxy)
         .map(|(entity, _)| entity)
-        .expect("the Global mode pill is mounted");
+        .expect("the route all through proxy choice is mounted");
     app.world_mut()
         .commands()
         .trigger(Activate { entity: pill });

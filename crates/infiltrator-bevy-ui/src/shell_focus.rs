@@ -97,18 +97,29 @@ pub fn sync_shell_focus_targets(
         ShellFocusTargetFilter,
     >,
 ) {
-    let measured: Vec<GamepadFocusTarget> = focusables
+    let mut measured: Vec<GamepadFocusTarget> = focusables
         .iter()
         .filter_map(|(entity, computed, transform, disabled)| {
             let size = computed.size();
-            let reachable =
-                size.is_finite() && size.x > 0.0 && size.y > 0.0 && !disabled.is_some_and(|d| d.0);
-            reachable.then_some(GamepadFocusTarget {
-                entity,
-                center: transform.affine().translation,
-            })
+            let center = transform.affine().translation;
+            let reachable = size.is_finite()
+                && size.x > 0.0
+                && size.y > 0.0
+                && center.is_finite()
+                && !disabled.is_some_and(|d| d.0);
+            reachable.then_some(GamepadFocusTarget { entity, center })
         })
         .collect();
+    // UI-space Y grows downward. Define initial/tabular order in screen reading
+    // order instead of inheriting archetype or query iteration order; entity bits
+    // break exact-position ties deterministically within the current world.
+    measured.sort_by(|left, right| {
+        left.center
+            .y
+            .total_cmp(&right.center.y)
+            .then_with(|| left.center.x.total_cmp(&right.center.x))
+            .then_with(|| left.entity.to_bits().cmp(&right.entity.to_bits()))
+    });
     controller.wrap = config.wrap;
     if measured.is_empty() {
         return;

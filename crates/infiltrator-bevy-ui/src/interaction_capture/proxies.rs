@@ -1,41 +1,62 @@
 //! Fold captures execute both native transitions, then scroll the real expanded node into view.
 use super::geometry::CaptureGeometry;
 use super::host::{CaptureCapability, CaptureCommandSink};
+use super::outbound_preferences::OutboundPreferenceCaptureOwner;
 use super::scroll::request_scroll;
 use super::{InteractionCapture, ObservedInteraction, selected};
 use crate::command::CommandSinkHandle;
 use crate::pages::proxies::{
-    GroupNodesContainer, ProxiesProjectionUpdated, ProxiesScrollArea, ProxyGroupFoldButton,
-    ProxyNodeButton,
+    GroupNodesContainer, ProxiesScrollArea, ProxyGroupFoldButton, ProxyNodeButton,
 };
 use crate::pages::proxies_identity::ProxyGroupIdentity;
 use crate::route::{ActiveRoute, Route};
-use crate::surface::{LatestSurfaceSnapshot, proxies_projection};
+use crate::surface::{LatestSurfaceSnapshot, SurfaceSnapshotUpdated};
 use bevy::app::App;
 use bevy::ecs::prelude::*;
 use bevy::ecs::system::SystemParam;
 use bevy::ui::{Display, Node};
 use bevy::ui_widgets::Activate;
 use infiltrator_application::command_application::CommandApplication;
-use infiltrator_application::proxy_preferences_application::ProxyPreferencesApplication;
-use infiltrator_application::proxy_projection::project_proxy_groups;
+use infiltrator_contract::outbound::identity::OutboundId;
 use infiltrator_contract::parity::FeatureId;
+use infiltrator_contract::surface_snapshot::PageData;
 use std::sync::Arc;
 
-#[derive(Resource, Default)]
-struct FoldCapture {
-    preferences: ProxyPreferencesApplication,
-    group: Option<String>,
+#[derive(Resource)]
+pub(super) struct FoldCapture {
+    preferences: Option<OutboundPreferenceCaptureOwner>,
+    group: Option<OutboundId>,
     stage: u8,
 }
 
 pub fn install(app: &mut App) {
-    let capture = FoldCapture::default();
-    app.insert_resource(CommandSinkHandle(Arc::new(CaptureCommandSink::new(
-        CommandApplication::new().with_proxy_preferences(capture.preferences.clone()),
-        CaptureCapability::GroupExpansion,
-    ))));
+    let capture = FoldCapture {
+        preferences: None,
+        group: None,
+        stage: 0,
+    };
     app.insert_resource(capture);
+}
+pub(super) fn initialize(
+    latest: Res<LatestSurfaceSnapshot>,
+    mut capture: ResMut<FoldCapture>,
+    mut commands: Commands,
+) {
+    if capture.preferences.is_some() {
+        return;
+    }
+    let Some(preferences) = latest.0.outbound_ui_preferences.data.clone() else {
+        return;
+    };
+    let owner = OutboundPreferenceCaptureOwner::new(preferences);
+    commands.insert_resource(CommandSinkHandle(Arc::new(
+        CaptureCommandSink::with_outbound_preferences(
+            CommandApplication::new(),
+            CaptureCapability::GroupExpansion,
+            owner.clone(),
+        ),
+    )));
+    capture.preferences = Some(owner);
 }
 
 #[derive(SystemParam)]
@@ -49,26 +70,26 @@ pub struct FoldSurface<'w, 's> {
     scroll: Query<'w, 's, Entity, With<ProxiesScrollArea>>,
 }
 impl FoldSurface<'_, '_> {
-    fn visible(&self, name: &str) -> bool {
-        self.groups
-            .iter()
-            .any(|(identity, node)| identity.0 == name && node.display == Display::Flex)
+    fn visible(&self, collection_id: &OutboundId) -> bool {
+        self.groups.iter().any(|(identity, node)| {
+            identity.0 == collection_id.value() && node.display == Display::Flex
+        })
     }
     fn expanded_node(&self) -> Option<Entity> {
-        let name = self.capture.group.as_deref()?;
+        let collection_id = self.capture.group.as_ref()?;
+        let preferences = self.capture.preferences.as_ref()?;
         if self.capture.stage != 2
-            || !self
-                .capture
-                .preferences
-                .is_group_expanded(name)
-                .expect("capture preferences")
-            || !self.visible(name)
+            || preferences
+                .snapshot()
+                .collapsed_group_ids
+                .contains(collection_id)
+            || !self.visible(collection_id)
         {
             return None;
         }
         self.nodes
             .iter()
-            .find(|(_, node)| node.group_name == name)
+            .find(|(_, node)| node.collection_id.as_ref() == Some(collection_id))
             .map(|(entity, _)| entity)
     }
 }
@@ -86,17 +107,15 @@ pub fn activate(
     ) {
         return;
     }
-    // Replay the actual preference result only after the native observer ran.
-    let preferences = surface
-        .capture
-        .preferences
-        .preferences()
-        .expect("capture preferences");
+    let Some(owner) = &surface.capture.preferences else {
+        return;
+    };
     let mut snapshot = surface.latest.0.clone();
-    if let Some(page) = snapshot.pages.proxies.data.as_mut() {
-        page.groups = project_proxy_groups(page.groups.clone(), &preferences);
-        let wanted = proxies_projection(&snapshot);
-        commands.trigger(ProxiesProjectionUpdated(wanted));
+    let preferences = owner.snapshot();
+    if snapshot.outbound_ui_preferences.data.as_ref() != Some(&preferences) {
+        snapshot.revision = snapshot.revision.saturating_add(1);
+        snapshot.outbound_ui_preferences = PageData::ready(preferences);
+        commands.trigger(SurfaceSnapshotUpdated(snapshot));
     }
     if surface.capture.stage == 2 {
         if let (Some(node), Some(scroll)) = (surface.expanded_node(), surface.scroll.iter().next())
@@ -114,16 +133,17 @@ pub fn activate(
                 .capture
                 .group
                 .as_ref()
-                .is_none_or(|name| name == &button.group_name)
+                .is_none_or(|id| button.collection_id.as_ref() == Some(id))
         })
-        .map(|(entity, button)| (entity, button.group_name.clone()))
+        .map(|(entity, button)| (entity, button.collection_id.clone()))
     else {
         return;
     };
+    let Some(group) = group else { return };
     if surface.capture.stage == 1 && surface.visible(&group) {
         return;
     }
-    surface.capture.group = Some(group.clone());
+    surface.capture.group = Some(group);
     commands.trigger(Activate { entity });
     surface.capture.stage += 1;
 }

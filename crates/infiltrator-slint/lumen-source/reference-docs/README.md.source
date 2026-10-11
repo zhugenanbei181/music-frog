@@ -1,0 +1,29 @@
+# Lumen
+
+Lumen 是使用 Rust + Slint 构建的 Mihomo 客户端。Windows 桌面端包含 System Proxy 和受权限约束的 TUN 运行路径；Android arm64 APK 集成 Slint、SAF 文件交换、前台 `VpnService` 与 Rust TUN→SOCKS 转发，并附带独立运行的官方 Mihomo v1.19.32 核心。Lumen UI/应用服务继续采用 MIT 许可；Mihomo 核心以 GPL-3.0 独立程序随包提供，About 页面列出许可证和源码标签。Profile 来源配置可经明确确认后导出；Linux 和其他设计基线能力仍在开发。功能进度见 [docs/README.md](docs/README.md)，产品验收标准见 [docs/spec.md](docs/spec.md)。
+
+## 构建与启动
+
+桌面 `cargo run --release` 需要 Rust stable 工具链、Cargo，以及可信来源安装并位于 `PATH` 中的 Mihomo 核心。Android APK 则由构建脚本固定获取官方 v1.19.32 Android 核心并在打包前校验。
+
+```powershell
+cargo run --release
+```
+
+Android 本地开发 APK 使用已安装的 `cargo-apk`、Android SDK/NDK 和 JDK。设置 `ANDROID_HOME` 或 `ANDROID_SDK_ROOT`，可选设置 `ANDROID_NDK_ROOT`，然后运行：
+
+```powershell
+pwsh -NoProfile -File tools/build_android.ps1
+```
+
+脚本把 Rust 构建、Android JNI/`VpnService` 类和 Mihomo 核心中间产物固定放在仓库 `target/`，并将 arm64 APK 输出到 `dist/android/lumen-android-dev.apk`；即使全局设置了 `CARGO_TARGET_DIR`，也不会把构建产物写到仓库外。构建会从 Mihomo v1.19.32 官方发布下载匹配 ABI 的 Android 核心，按固定 SHA-256 校验后放入 APK 的 native-library 目录；核心不与 Lumen 静态链接。若 cargo-apk 不在 `PATH`，通过 `CARGO_APK` 指定可执行文件路径。该脚本只用于本地调试签名，不用于发布签名。
+
+首次启动后，从“配置”添加本地 YAML/YML 或 HTTP/HTTPS 订阅，选择当前 Profile，再启动 Runtime。Windows/Linux 从 PATH 检查 Mihomo；Android 核心随对应 ABI APK 一起安装。Android 首次连接会请求系统 VPN 授权，持续状态通过前台通知显示。订阅凭据使用操作系统凭据库，应用数据存放在当前用户的本地应用数据目录。
+
+## 当前平台状态
+
+- Windows：Slint 桌面 UI、受管 Mihomo 子进程和 Windows System Proxy 适配已实现；TUN 有管理员权限门控和有限启停/状态回读，尚未在提升权限目标机验证。
+- Linux：GNOME System Proxy 适配已实现代码但尚未在目标机验证；其他桌面环境和 TUN 未实现。
+- Android：x86_64 AVD 已验证安装启动、中文界面、Profile SAF 导入、官方 Mihomo v1.19.32 核心启动、VPN 授权、前台通知、TUN 建立、Rust 转发、系统网络验证和停止清理；arm64 APK 构建仍需真机验证。Lumen 包和 Mihomo 独立核心的许可与源码入口分别呈现。
+
+当前本机验证以 Windows `cargo check` 为准，不代表尚未验证的平台功能完成。详细实现差距和恢复行为见文档索引及架构 ADR。

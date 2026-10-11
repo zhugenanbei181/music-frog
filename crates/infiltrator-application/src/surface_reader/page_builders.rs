@@ -12,6 +12,7 @@ use crate::dns_workbench_application::{
     apply_latency_report, dns_page_snapshot, dns_servers_from_lists, fake_ip_pool_from_connections,
     latency_report, stun_report,
 };
+use crate::runtime_configuration_application::RuntimeConfigurationReadout;
 use crate::stun_probe_application::StunProbeApplication;
 use infiltrator_contract::dns::DnsEnhancedMode;
 use infiltrator_contract::pac::PacSnapshot;
@@ -23,8 +24,9 @@ use infiltrator_contract::sync_snapshot::{SnapshotItemSnapshot, SyncPageSnapshot
 use infiltrator_contract::system_proxy::SystemProxySnapshot;
 use infiltrator_contract::uwp::UwpLoopbackSnapshot;
 use infiltrator_domain::app_routing::AppRoutingConfig;
-use infiltrator_domain::runtime::{ConfigSnapshot, ConnectionSnapshot};
+use infiltrator_domain::runtime::ConnectionSnapshot;
 use infiltrator_domain::settings::AppSettings;
+use infiltrator_ports::runtime_configuration::ObservedValue;
 
 #[cfg(test)]
 #[path = "settings_observation_tests.rs"]
@@ -33,7 +35,7 @@ mod settings_observation_tests;
 #[allow(clippy::too_many_arguments)]
 pub(super) async fn build_dns_page(
     configuration: Option<&ConfigurationApplication>,
-    runtime_config: Option<&Result<ConfigSnapshot, PortError>>,
+    runtime_config: Option<&Result<RuntimeConfigurationReadout, Failure>>,
     dns_latency: Option<&DnsLatencyApplication>,
     stun_probe: Option<&StunProbeApplication>,
     runtime_connections: Option<&Result<ConnectionSnapshot, PortError>>,
@@ -62,24 +64,35 @@ pub(super) async fn build_dns_page(
         }
     }
     match runtime_config {
-        Some(Ok(config)) => match &config.dns {
-            Some(dns) => surface_snapshot::PageData::ready(surface_snapshot::DnsPageSnapshot {
-                enhanced_mode: DnsEnhancedMode::from_config_value(Some(dns.enhanced_mode.as_str())),
-                servers: dns_servers_from_lists(dns.nameserver.clone(), dns.fallback.clone()),
+        Some(Ok(config)) => {
+            let nameserver = match &config.dns.value.nameserver {
+                ObservedValue::Reported(nameserver) => nameserver.clone(),
+                ObservedValue::Unreported => {
+                    return surface_snapshot::PageData::empty(surface_snapshot::DnsPageSnapshot {
+                        enhanced_mode: DnsEnhancedMode::Unmapped,
+                        latency,
+                        stun,
+                        ..surface_snapshot::DnsPageSnapshot::default()
+                    });
+                }
+            };
+            let fallback = match &config.dns.value.fallback {
+                ObservedValue::Reported(fallback) => fallback.clone(),
+                ObservedValue::Unreported => Vec::new(),
+            };
+            let enhanced_mode = match &config.dns.value.enhanced_mode {
+                ObservedValue::Reported(mode) => Some(mode.as_str()),
+                ObservedValue::Unreported => None,
+            };
+            surface_snapshot::PageData::ready(surface_snapshot::DnsPageSnapshot {
+                enhanced_mode: DnsEnhancedMode::from_config_value(enhanced_mode),
+                servers: dns_servers_from_lists(nameserver, fallback),
                 latency: latency.clone(),
                 stun: stun.clone(),
-                // The runtime DnsSnapshot carries no fake-ip-range, so the
-                // pool stays honestly unsupported on this path.
                 ..surface_snapshot::DnsPageSnapshot::default()
-            }),
-            None => surface_snapshot::PageData::empty(surface_snapshot::DnsPageSnapshot {
-                enhanced_mode: DnsEnhancedMode::Unmapped,
-                latency,
-                stun,
-                ..surface_snapshot::DnsPageSnapshot::default()
-            }),
-        },
-        Some(Err(error)) => surface_snapshot::PageData::failed(Failure::from(error.clone())),
+            })
+        }
+        Some(Err(failure)) => surface_snapshot::PageData::failed(failure.clone()),
         None => surface_snapshot::PageData::unavailable(missing("DNS reader")),
     }
 }
@@ -88,11 +101,6 @@ pub(super) fn app_routing_page(
     config: AppRoutingConfig,
     uwp_loopback: UwpLoopbackSnapshot,
 ) -> surface_snapshot::AppRoutingPageSnapshot {
-    let mode = match config.mode {
-        AppRoutingMode::ProxyAll => "proxy_all",
-        AppRoutingMode::ProxySelected => "proxy_selected",
-        AppRoutingMode::BypassSelected => "bypass_selected",
-    };
     let mut ids = config.packages.iter().cloned().collect::<Vec<_>>();
     ids.extend(config.rules.keys().cloned());
     ids.sort();
@@ -109,18 +117,13 @@ pub(super) fn app_routing_page(
                 id: id.clone(),
                 name: id.clone(),
                 process_name: id,
-                rule: match rule {
-                    AppRoutingRule::Proxy => "proxy",
-                    AppRoutingRule::Direct => "direct",
-                    AppRoutingRule::Block => "block",
-                }
-                .to_owned(),
+                rule: rule.into(),
                 is_system: false,
             }
         })
         .collect();
     surface_snapshot::AppRoutingPageSnapshot {
-        mode: mode.to_owned(),
+        mode: config.mode.into(),
         include_system: false,
         apps,
         uwp_loopback,
@@ -204,6 +207,7 @@ pub(super) fn build_settings_page(
         close_to_tray: Some(settings.close_to_tray),
         notifications_enabled: Some(settings.notifications_enabled),
         language: settings.language.clone(),
+        theme: settings.theme.clone(),
         autostart: false,
         system_proxy: system_proxy.is_enabled(),
         mixed_port: observed.mixed_port,

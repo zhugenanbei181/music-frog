@@ -3,7 +3,10 @@ use crate::context::Runtime;
 use crate::output;
 use crate::output::{print_info, print_success, print_table};
 use infiltrator_application::version_application::{QuietVersionProgress, VersionApplication};
-use infiltrator_contract::version::{CoreReleaseChannel, CoreReleaseSummary, InstalledCoreVersion};
+use infiltrator_contract::version::{
+    CoreReleaseSummary, EngineNeutralReleaseChannel, EngineReleaseChannel, InstalledCoreVersion,
+    ReleaseChannelId,
+};
 use std::sync::Arc;
 
 pub(crate) async fn handle(action: KernelAction) -> anyhow::Result<()> {
@@ -33,11 +36,13 @@ pub(crate) async fn handle(action: KernelAction) -> anyhow::Result<()> {
 }
 
 /// A target is a channel when it parses as one, otherwise a version tag.
-pub(crate) fn split_target(target: &str) -> Option<CoreReleaseChannel> {
+pub(crate) fn split_target(target: &str) -> Option<ReleaseChannelId> {
     match target.trim().to_ascii_lowercase().as_str() {
-        "stable" => Some(CoreReleaseChannel::Stable),
-        "alpha" | "pre-release" | "prerelease" => Some(CoreReleaseChannel::Alpha),
-        "meta" | "meta-core" | "metacore" | "nightly" => Some(CoreReleaseChannel::MetaCore),
+        "stable" => Some(ReleaseChannelId::stable()),
+        "alpha" | "pre-release" | "prerelease" => Some(ReleaseChannelId::alpha()),
+        "meta" | "meta-core" | "metacore" | "nightly" => {
+            Some(ReleaseChannelId::new("meta-core").expect("Mihomo channel ID is valid"))
+        }
         _ => None,
     }
 }
@@ -49,8 +54,12 @@ async fn install(application: &VersionApplication, target: &str) -> anyhow::Resu
                 "Resolving latest {} channel release...",
                 channel.as_str()
             ));
+            let channel_label = channel.as_str().to_owned();
             let version = application
-                .latest(channel)
+                .latest(EngineReleaseChannel::new(
+                    application.engine_id().clone(),
+                    channel,
+                ))
                 .await
                 .map_err(|failure| anyhow::anyhow!(failure.message))?
                 .version;
@@ -60,7 +69,7 @@ async fn install(application: &VersionApplication, target: &str) -> anyhow::Resu
                 .map_err(|failure| anyhow::anyhow!(failure.message))?;
             print_success(&format!(
                 "Installed kernel {version} ({} channel)",
-                channel.as_str()
+                channel_label
             ));
         }
         None => {
@@ -80,7 +89,7 @@ async fn install(application: &VersionApplication, target: &str) -> anyhow::Resu
 async fn update_stable(application: &VersionApplication) -> anyhow::Result<()> {
     print_info("Resolving latest stable channel release...");
     let version = application
-        .latest(CoreReleaseChannel::Stable)
+        .latest_core(EngineNeutralReleaseChannel::Stable)
         .await
         .map_err(|failure| anyhow::anyhow!(failure.message))?
         .version;
@@ -155,18 +164,16 @@ pub(crate) fn truncate(input: &str, max_chars: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::{split_target, truncate, version_row};
-    use infiltrator_contract::version::{CoreReleaseChannel, InstalledCoreVersion};
+    use infiltrator_contract::core_identity::EngineId;
+    use infiltrator_contract::version::InstalledCoreVersion;
 
     #[test]
     fn channel_targets_are_recognized_case_insensitively() {
-        assert_eq!(split_target("stable"), Some(CoreReleaseChannel::Stable));
-        assert_eq!(split_target("Stable"), Some(CoreReleaseChannel::Stable));
-        assert_eq!(split_target("alpha"), Some(CoreReleaseChannel::Alpha));
-        assert_eq!(
-            split_target("meta-core"),
-            Some(CoreReleaseChannel::MetaCore)
-        );
-        assert_eq!(split_target("nightly"), Some(CoreReleaseChannel::MetaCore));
+        assert_eq!(split_target("stable").unwrap().as_str(), "stable");
+        assert_eq!(split_target("Stable").unwrap().as_str(), "stable");
+        assert_eq!(split_target("alpha").unwrap().as_str(), "alpha");
+        assert_eq!(split_target("meta-core").unwrap().as_str(), "meta-core");
+        assert_eq!(split_target("nightly").unwrap().as_str(), "meta-core");
     }
 
     #[test]
@@ -185,8 +192,9 @@ mod tests {
     #[test]
     fn version_row_marks_the_default() {
         let info = InstalledCoreVersion {
+            engine_id: EngineId::new("mihomo").unwrap(),
             version: "v1.19.18".to_string(),
-            path: "/x/versions/v1.19.18".to_string(),
+            path: "/x/engines/mihomo/versions/v1.19.18".to_string(),
             is_default: true,
         };
         let row = version_row(&info);

@@ -1,6 +1,11 @@
 //! test-intent: behavior
 //! Real field and action widgets feed TEA and the injected typed transaction.
 use crate::state::AppState;
+use crate::test_mounts::command_harness::{
+    attach_product_application_with_accepted_owner_snapshot, core_test_command_application,
+};
+use crate::test_mounts::execute_at_observed_scope;
+use crate::test_mounts::identified_core_application::identified_core_application;
 use crate::test_mounts::native_widgets;
 use crate::types::message::Message;
 use crate::view::profile_filter::filter_pane;
@@ -9,15 +14,13 @@ use futures_util::StreamExt;
 use iced::Task;
 use iced_runtime::Action;
 use iced_runtime::task::into_stream;
-use infiltrator_application::command_application::CommandApplication;
-use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::filter_capture_store::{
     FILTER_POLICY, FILTER_PROFILE, FilterCaptureStore,
 };
-use infiltrator_application::language_choice_fixtures::LanguageCaptureProcess;
 use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::command::CommandIntent;
+use infiltrator_contract::core_capabilities::{CoreOperation, ProfileOperation};
 use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::subscription_filter_form::{FilterField, FilterObservation};
 use std::path::PathBuf;
@@ -27,39 +30,38 @@ use tokio::runtime::Builder;
 fn composed() -> (AppState, Arc<FilterCaptureStore>) {
     let store = Arc::new(FilterCaptureStore::default());
     let runtime = tokio_application_runtime().unwrap();
-    let core = CoreApplication::new(
-        Arc::new(LanguageCaptureProcess),
-        Arc::new(LanguageCaptureProcess),
-        runtime.clone(),
-    );
+    let core = identified_core_application();
     core.install_command_handler(Arc::new(
-        CommandApplication::new().with_profile(ProfileApplication::new(store.clone())),
+        core_test_command_application([CoreOperation::Profile(ProfileOperation::ApplyFeature)])
+            .with_profile(ProfileApplication::new(store.clone())),
     ));
     let observed = core.clone();
     let reply = Arc::new(Mutex::new(None));
     let output = reply.clone();
     runtime.block_on(Box::pin(async move {
         *output.lock().unwrap() = Some(
-            observed
-                .execute(CommandIntent::LoadProfileOptions {
+            execute_at_observed_scope(
+                &observed,
+                CommandIntent::LoadProfileOptions {
                     profile: Some(FILTER_PROFILE.into()),
-                })
-                .await
-                .into_output()
-                .unwrap()
-                .into_profile_options()
-                .unwrap(),
+                },
+            )
+            .await
+            .into_output()
+            .unwrap()
+            .into_profile_options()
+            .unwrap(),
         );
     }));
     let options = reply.lock().unwrap().take().unwrap();
     let (mut state, _) = AppState::new();
-    state.commands = Some(core);
+    attach_product_application_with_accepted_owner_snapshot(&mut state, core);
     state.shell.demo = true;
     state.editor.editor_path = Some(PathBuf::from(format!("/isolated/{FILTER_PROFILE}.yaml")));
     state.editor.filter_editor.observe_profile(
         FILTER_PROFILE,
         Ok(FilterObservation {
-            source: options.source,
+            workspace_identity: options.workspace_identity,
             filter: options.filter,
         }),
     );
@@ -174,6 +176,8 @@ fn native_filter_save_denial_retry_returns_actual_report_and_preserves_draft() {
     assert!(state.editor.filter_editor.applied);
     assert!(state.editor.filter_editor.failure.is_none());
     assert_eq!(store.writes.load(Ordering::SeqCst), 1);
-    assert!(store.observed().content.contains("HK-public"));
-    assert!(!store.observed().content.contains("HK-private"));
+    let observed = store.observed();
+    let document = observed.document.utf8_text().unwrap();
+    assert!(document.contains("HK-public"));
+    assert!(!document.contains("HK-private"));
 }

@@ -12,7 +12,7 @@ use crate::ffi::{FfiErrorCode, FfiStatus};
 #[cfg(test)]
 use crate::host_support::map_anyhow_error;
 use crate::host_support::{
-    build_settings_application, build_sync_application, get_runtime, map_application_failure,
+    build_settings_application, build_sync_application, map_application_failure,
 };
 #[cfg(test)]
 use infiltrator_application::sync_application::SyncApplication;
@@ -28,10 +28,12 @@ use infiltrator_domain::settings::AppSettings;
 use infiltrator_domain::settings::WebDavConfig;
 #[cfg(test)]
 use infiltrator_ports::secure_store::SecureStore;
+use serde::{Deserialize, Serialize};
 
-// --- WebDAV API ---
+// --- WebDAV owner operations ---
 
-#[derive(Debug, Clone, uniffi::Record)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, uniffi::Record)]
+#[serde(deny_unknown_fields)]
 pub struct WebDavSettings {
     pub enabled: bool,
     pub url: String,
@@ -41,13 +43,15 @@ pub struct WebDavSettings {
     pub sync_on_startup: bool,
 }
 
-#[derive(Debug, Clone, uniffi::Record)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, uniffi::Record)]
+#[serde(deny_unknown_fields)]
 pub struct WebDavSettingsResult {
     pub status: FfiStatus,
     pub settings: Option<WebDavSettings>,
 }
 
-#[derive(Debug, Clone, uniffi::Record)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, uniffi::Record)]
+#[serde(deny_unknown_fields)]
 pub struct WebDavSyncResult {
     pub status: FfiStatus,
     pub success_count: u32,
@@ -55,110 +59,74 @@ pub struct WebDavSyncResult {
     pub total_actions: u32,
 }
 
-#[uniffi::export]
-pub async fn webdav_settings() -> WebDavSettingsResult {
-    get_runtime()
-        .spawn(async move {
-            match load_webdav_settings().await {
-                Ok(settings) => WebDavSettingsResult {
-                    status: FfiStatus::ok(),
-                    settings: Some(settings),
-                },
-                Err(status) => WebDavSettingsResult {
-                    status,
-                    settings: None,
-                },
-            }
-        })
-        .await
-        .unwrap_or_else(|e| WebDavSettingsResult {
-            status: FfiStatus::err(FfiErrorCode::Unknown, format!("runtime join error: {}", e)),
+pub(super) async fn read_owner_settings() -> WebDavSettingsResult {
+    match read_webdav_configuration().await {
+        Ok(settings) => WebDavSettingsResult {
+            status: FfiStatus::ok(),
+            settings: Some(settings),
+        },
+        Err(status) => WebDavSettingsResult {
+            status,
             settings: None,
-        })
+        },
+    }
 }
 
-#[uniffi::export]
-pub async fn webdav_settings_save(settings: WebDavSettings) -> WebDavSettingsResult {
-    get_runtime()
-        .spawn(async move {
-            match save_webdav_settings(settings).await {
-                Ok(settings) => WebDavSettingsResult {
-                    status: FfiStatus::ok(),
-                    settings: Some(settings),
-                },
-                Err(status) => WebDavSettingsResult {
-                    status,
-                    settings: None,
-                },
-            }
-        })
-        .await
-        .unwrap_or_else(|e| WebDavSettingsResult {
-            status: FfiStatus::err(FfiErrorCode::Unknown, format!("runtime join error: {}", e)),
+pub(super) async fn save_owner_settings(settings: WebDavSettings) -> WebDavSettingsResult {
+    match persist_webdav_configuration(settings).await {
+        Ok(_) => read_owner_settings().await,
+        Err(status) => WebDavSettingsResult {
+            status,
             settings: None,
-        })
+        },
+    }
 }
 
-#[uniffi::export]
-pub async fn webdav_test(settings: WebDavSettings) -> FfiStatus {
-    get_runtime()
-        .spawn(async move { test_webdav_settings(settings).await })
-        .await
-        .unwrap_or_else(|e| {
-            FfiStatus::err(FfiErrorCode::Unknown, format!("runtime join error: {}", e))
-        })
+pub(super) async fn test_owner_connection(settings: WebDavSettings) -> FfiStatus {
+    test_webdav_connection(settings).await
 }
 
-#[uniffi::export]
-pub async fn webdav_sync_now() -> WebDavSyncResult {
-    get_runtime()
-        .spawn(async move {
-            match sync_webdav_now().await {
-                Ok(summary) => WebDavSyncResult {
-                    status: FfiStatus::ok(),
-                    success_count: summary.success_count as u32,
-                    failed_count: summary.failed_count as u32,
-                    total_actions: summary.total_actions as u32,
-                },
-                Err(status) => WebDavSyncResult {
-                    status,
-                    success_count: 0,
-                    failed_count: 0,
-                    total_actions: 0,
-                },
-            }
-        })
-        .await
-        .unwrap_or_else(|e| WebDavSyncResult {
-            status: FfiStatus::err(FfiErrorCode::Unknown, format!("runtime join error: {}", e)),
+pub(super) async fn sync_owner_now() -> WebDavSyncResult {
+    match synchronize_webdav_now().await {
+        Ok(summary) => WebDavSyncResult {
+            status: FfiStatus::ok(),
+            success_count: summary.success_count as u32,
+            failed_count: summary.failed_count as u32,
+            total_actions: summary.total_actions as u32,
+        },
+        Err(status) => WebDavSyncResult {
+            status,
             success_count: 0,
             failed_count: 0,
             total_actions: 0,
-        })
+        },
+    }
 }
 
-async fn load_webdav_settings() -> Result<WebDavSettings, FfiStatus> {
+async fn read_webdav_configuration() -> Result<WebDavSettings, FfiStatus> {
     let settings = build_settings_application()
         .await?
         .load_hydrated()
         .await
         .map_err(map_application_failure)?;
-    Ok(webdav_settings_from_core(&settings.webdav))
+    Ok(to_settings_record(&settings.webdav))
 }
 
-/// 同 [`load_webdav_settings`]，但 home 与 keyring 凭据存储均由调用方注入
+/// 同 [`read_webdav_configuration`]，但 home 与 keyring 凭据存储均由调用方注入
 /// （测试注入临时目录 + 内存实现，避免触碰全局 home override 与真实
 /// OS keyring）。
 #[cfg(test)]
-async fn load_webdav_settings_in<S: SecureStore>(
+async fn read_webdav_configuration_in<S: SecureStore>(
     home: &path::Path,
     store: &S,
 ) -> Result<WebDavSettings, FfiStatus> {
     let settings = load_hydrated_app_settings_in(home, store).await?;
-    Ok(webdav_settings_from_core(&settings.webdav))
+    Ok(to_settings_record(&settings.webdav))
 }
 
-async fn save_webdav_settings(settings: WebDavSettings) -> Result<WebDavSettings, FfiStatus> {
+async fn persist_webdav_configuration(
+    settings: WebDavSettings,
+) -> Result<WebDavSettings, FfiStatus> {
     let application = build_settings_application().await?;
     let mut app_settings = application.load().await.map_err(map_application_failure)?;
     if settings.password.is_empty() {
@@ -166,7 +134,7 @@ async fn save_webdav_settings(settings: WebDavSettings) -> Result<WebDavSettings
     } else {
         host_support::save_webdav_password(&settings.password).await?;
     }
-    let mut core_config = webdav_settings_to_core(settings.clone());
+    let mut core_config = to_webdav_config(settings.clone());
     core_config.password = String::new();
     app_settings.webdav = core_config;
     application
@@ -176,12 +144,12 @@ async fn save_webdav_settings(settings: WebDavSettings) -> Result<WebDavSettings
     Ok(settings)
 }
 
-/// 同 [`save_webdav_settings`]，但 home 与 keyring 凭据存储由调用方注入。
+/// 同 [`persist_webdav_configuration`]，但 home 与 keyring 凭据存储由调用方注入。
 /// 密码只进 OS keyring：空串=清除条目，非空=写入；keyring 写失败时整体
 /// 不落盘，保持「settings 文件 + keyring」状态一致（避免其他字段更新而
 /// 凭据悄悄丢失，与 iced 桌面端保存语义一致）。
 #[cfg(test)]
-async fn save_webdav_settings_in<S: SecureStore>(
+async fn persist_webdav_configuration_in<S: SecureStore>(
     home: &path::Path,
     settings: WebDavSettings,
     store: &S,
@@ -194,7 +162,7 @@ async fn save_webdav_settings_in<S: SecureStore>(
             .await
             .map_err(map_anyhow_error)?;
     }
-    let mut core_config = webdav_settings_to_core(settings.clone());
+    let mut core_config = to_webdav_config(settings.clone());
     // password 的序列化被 core 跳过；这里仍显式清空内存镜像，保证不落盘。
     core_config.password = String::new();
     app_settings.webdav = core_config;
@@ -209,14 +177,14 @@ async fn save_webdav_settings_in<S: SecureStore>(
     Ok(settings)
 }
 
-async fn test_webdav_settings(settings: WebDavSettings) -> FfiStatus {
+async fn test_webdav_connection(settings: WebDavSettings) -> FfiStatus {
     ensure_rustls_provider();
     let application = match build_sync_application().await {
         Ok(application) => application,
         Err(status) => return status,
     };
     application
-        .test(webdav_settings_to_core(settings))
+        .test(to_webdav_config(settings))
         .await
         .map(|_| FfiStatus::ok())
         .unwrap_or_else(map_application_failure)
@@ -229,7 +197,7 @@ struct WebDavSyncSummary {
     total_actions: usize,
 }
 
-async fn sync_webdav_now() -> Result<WebDavSyncSummary, FfiStatus> {
+async fn synchronize_webdav_now() -> Result<WebDavSyncSummary, FfiStatus> {
     let settings = build_settings_application()
         .await?
         .load_hydrated()
@@ -250,10 +218,10 @@ async fn sync_webdav_now() -> Result<WebDavSyncSummary, FfiStatus> {
     })
 }
 
-/// 同 [`sync_webdav_now`]，但 home 与 keyring 凭据存储由调用方注入。
+/// 同 [`synchronize_webdav_now`]，但 home 与 keyring 凭据存储由调用方注入。
 /// 密码经水合加载从 OS keyring 取回（settings.toml 已不携带明文）。
 #[cfg(test)]
-async fn sync_webdav_now_in<S: SecureStore + 'static>(
+async fn synchronize_webdav_now_in<S: SecureStore + 'static>(
     home: &path::Path,
     store: S,
 ) -> Result<WebDavSyncSummary, FfiStatus> {
@@ -299,7 +267,7 @@ async fn load_hydrated_app_settings_in<S: SecureStore>(
         .map_err(map_anyhow_error)
 }
 
-fn webdav_settings_from_core(config: &WebDavConfig) -> WebDavSettings {
+fn to_settings_record(config: &WebDavConfig) -> WebDavSettings {
     WebDavSettings {
         enabled: config.enabled,
         url: config.url.clone(),
@@ -310,7 +278,7 @@ fn webdav_settings_from_core(config: &WebDavConfig) -> WebDavSettings {
     }
 }
 
-fn webdav_settings_to_core(settings: WebDavSettings) -> WebDavConfig {
+fn to_webdav_config(settings: WebDavSettings) -> WebDavConfig {
     WebDavConfig {
         enabled: settings.enabled,
         url: settings.url.trim().to_string(),
@@ -432,7 +400,7 @@ mod tests {
         let store = MemoryStore::default();
 
         // 保存：密码只进 keyring。
-        let saved = save_webdav_settings_in(&home, record("s3cret"), &store)
+        let saved = persist_webdav_configuration_in(&home, record("s3cret"), &store)
             .await
             .expect("save succeeds");
         assert_eq!(
@@ -457,14 +425,14 @@ mod tests {
         );
 
         // 读取：水合把 keyring 中的密码填回 FFI 记录。
-        let loaded = load_webdav_settings_in(&home, &store)
+        let loaded = read_webdav_configuration_in(&home, &store)
             .await
             .expect("load succeeds");
         assert_eq!(loaded.password, "s3cret");
         assert_eq!(loaded.url, "https://dav.example.com");
 
         // 空密码=清除条目：keyring 为空，后续加载回到空串。
-        let cleared = save_webdav_settings_in(&home, record(""), &store)
+        let cleared = persist_webdav_configuration_in(&home, record(""), &store)
             .await
             .expect("clear-save succeeds");
         assert_eq!(cleared.password, "");
@@ -472,7 +440,7 @@ mod tests {
             store.peek(WEBDAV_CREDENTIAL_SERVICE, WEBDAV_PASSWORD_KEY),
             None
         );
-        let reloaded = load_webdav_settings_in(&home, &store)
+        let reloaded = read_webdav_configuration_in(&home, &store)
             .await
             .expect("reload succeeds");
         assert_eq!(reloaded.password, "");
@@ -488,11 +456,11 @@ mod tests {
     /// 同步入口的禁用短路：WebDAV 未启用时水合加载照常工作，但同步拒绝
     /// 执行（NotReady），不创建任何 sync 状态。
     #[tokio::test]
-    async fn sync_webdav_now_in_rejects_when_disabled() {
+    async fn disabled_webdav_sync_is_rejected() {
         let home = make_test_home("sync-disabled");
         let store = MemoryStore::default();
         // 未保存过任何设置：webdav.enabled 缺省 false。
-        let err = sync_webdav_now_in(&home, store)
+        let err = synchronize_webdav_now_in(&home, store)
             .await
             .expect_err("disabled webdav must fail the sync");
         assert_eq!(err.code, FfiErrorCode::NotReady);

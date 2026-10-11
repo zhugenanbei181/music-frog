@@ -18,6 +18,7 @@ use infiltrator_bevy_widgets::button::{ControlVisual, PillLabel, control_fill, p
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::theme::REM_BASE;
 use infiltrator_bevy_widgets::theme::Theme;
 
 fn headless_app() -> App {
@@ -58,8 +59,8 @@ fn pill_scene_spawns_button_with_stamped_label() {
         "a selected pill stamps the on-accent ink"
     );
     assert!(
-        matches!(font.font_size, FontSize::Px(size) if size == 15.0),
-        "body size stamped from the type scale"
+        matches!(font.font_size, FontSize::Rem(f) if (f * REM_BASE - 15.0).abs() < 1e-4),
+        "body size stamped from the type scale through the rem channel"
     );
 }
 

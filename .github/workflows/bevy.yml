@@ -24,7 +24,8 @@ on:
       - "scripts/quality/**"
       - "scripts/parity/**"
       - "docs/CODE_QUALITY_BASELINE.md"
-      - "docs/UI_PARITY_AUDIT.md"
+      - "crates/infiltrator-contract/docs/UI_PARITY_AUDIT.md"
+      - "crates/infiltrator-bevy-ui/docs/**"
   pull_request:
     paths:
       - ".config/nextest.toml"
@@ -39,7 +40,8 @@ on:
       - "scripts/quality/**"
       - "scripts/parity/**"
       - "docs/CODE_QUALITY_BASELINE.md"
-      - "docs/UI_PARITY_AUDIT.md"
+      - "crates/infiltrator-contract/docs/UI_PARITY_AUDIT.md"
+      - "crates/infiltrator-bevy-ui/docs/**"
 
 permissions:
   contents: read

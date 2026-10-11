@@ -1,12 +1,93 @@
 //! test-intent: behavior
 use super::{build_settings_page, build_sync_page};
+use crate::runtime_configuration_application::RuntimeConfigurationReadout;
 use crate::runtime_control_projection::RuntimeControlApplication;
+use infiltrator_contract::core_identity::{
+    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
+};
 use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::session::SessionToken;
 use infiltrator_contract::surface_snapshot::PageStatus;
 use infiltrator_contract::sync::SyncStatus;
-use infiltrator_domain::runtime::{ConfigSnapshot, TunSnapshot};
 use infiltrator_domain::settings::AppSettings;
-use infiltrator_ports::error::PortError;
+use infiltrator_ports::runtime_configuration::{
+    ConfigurationObservation, ConfigurationRevision, DnsRuntimeConfiguration, Ipv6Configuration,
+    LanAuthenticationState, LanSecurityConfiguration, LanSharingConfiguration, ObservedValue,
+    ProxyPortsConfiguration, SnifferConfiguration, TunConfiguration,
+};
+
+fn known_readout() -> RuntimeConfigurationReadout {
+    let scope = CoreScope {
+        identity: CoreIdentity::new(
+            EngineId::new("mihomo").expect("engine"),
+            CoreInstanceId::new("settings-observation").expect("instance"),
+            Some(CoreVersion::new("test").expect("version")),
+        ),
+        generation: CoreGeneration::new(1),
+        session_token: Some(SessionToken::new(1)),
+    };
+    let revision = ConfigurationRevision::new(1);
+    RuntimeConfigurationReadout {
+        tun: ConfigurationObservation {
+            scope: scope.clone(),
+            revision,
+            value: TunConfiguration {
+                enabled: ObservedValue::Reported(false),
+                strict_route: ObservedValue::Reported(false),
+                ..Default::default()
+            },
+        },
+        lan_sharing: ConfigurationObservation {
+            scope: scope.clone(),
+            revision,
+            value: LanSharingConfiguration {
+                enabled: ObservedValue::Reported(false),
+                mixed_port: ObservedValue::Reported(0),
+                bind_address: ObservedValue::Reported("*".to_owned()),
+            },
+        },
+        lan_security: ConfigurationObservation {
+            scope: scope.clone(),
+            revision,
+            value: LanSecurityConfiguration {
+                allowed_ips: ObservedValue::Reported(Vec::new()),
+                disallowed_ips: ObservedValue::Reported(Vec::new()),
+                skip_auth_prefixes: ObservedValue::Reported(Vec::new()),
+                authentication: LanAuthenticationState::Disabled,
+            },
+        },
+        ipv6: ConfigurationObservation {
+            scope: scope.clone(),
+            revision,
+            value: Ipv6Configuration {
+                enabled: ObservedValue::Reported(false),
+                tun_enabled: ObservedValue::Reported(false),
+            },
+        },
+        sniffer: ConfigurationObservation {
+            scope: scope.clone(),
+            revision,
+            value: SnifferConfiguration {
+                enabled: ObservedValue::Unreported,
+            },
+        },
+        dns: ConfigurationObservation {
+            scope: scope.clone(),
+            revision,
+            value: DnsRuntimeConfiguration::default(),
+        },
+        core_log_level: ConfigurationObservation {
+            scope: scope.clone(),
+            revision,
+            value: ObservedValue::Unreported,
+        },
+        proxy_ports: ConfigurationObservation {
+            scope,
+            revision,
+            value: ProxyPortsConfiguration::default(),
+        },
+    }
+}
 
 #[test]
 fn preference_flags_are_observed_false_values_and_failed_reads_cannot_invent_enabled_defaults() {
@@ -57,26 +138,7 @@ fn preference_success_preserves_missing_runtime_fields_and_failed_reads_keep_onl
     assert_eq!(unknown.ipv6_routing, None);
     assert_eq!(unknown.tun_enabled, None);
     assert_eq!(unknown.log_level, None);
-    let config = ConfigSnapshot {
-        mode: "direct".into(),
-        mixed_port: 0,
-        allow_lan: false,
-        ipv6: Some(false),
-        bind_address: Some("*".into()),
-        lan_allowed_ips: Some(Vec::new()),
-        lan_disallowed_ips: Some(Vec::new()),
-        skip_auth_prefixes: Some(Vec::new()),
-        authentication_enabled: Some(false),
-        authentication_user_count: Some(0),
-        log_level: "warning".into(),
-        tun: Some(TunSnapshot {
-            enable: Some(false),
-            strict_route: Some(false),
-            ..Default::default()
-        }),
-        ..Default::default()
-    };
-    let current = owner.observe(1, 2, Some(&Ok(config)));
+    let current = owner.observe(1, 2, Some(&Ok(known_readout())));
     let known = build_settings_page(
         Some(&prefs),
         &current,
@@ -101,7 +163,7 @@ fn preference_success_preserves_missing_runtime_fields_and_failed_reads_keep_onl
     );
     assert!(!known.ipv6_routing.unwrap().enabled);
     let failure = Failure::new(ErrorCode::Authentication, "read denied", false);
-    let failed = owner.observe(1, 3, Some(&Err(PortError::Rejected(failure))));
+    let failed = owner.observe(1, 3, Some(&Err(failure)));
     let retained = build_settings_page(
         Some(&prefs),
         &failed,

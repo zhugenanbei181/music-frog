@@ -3,10 +3,12 @@
 use crate::state::AppState;
 use crate::types::message::Message;
 use crate::types::profile_edit::{ProfileDocumentReadReply, ProfileOptionsReadReply};
-use infiltrator_contract::profile_document::ProfileDocumentSnapshot;
+use infiltrator_application::subscription_filter_fixture;
+use infiltrator_contract::profile_document::{
+    DocumentInspection, DocumentValidation, ProfileDocumentSnapshot,
+};
 use infiltrator_contract::profile_options::ProfileOptionsSnapshot;
 use infiltrator_contract::profile_protection::ProfileWriteProtection;
-use infiltrator_domain::profile_source::identify_profile_source;
 use std::path::PathBuf;
 
 pub fn document(state: &mut AppState, path: PathBuf, content: String) -> Message {
@@ -18,9 +20,16 @@ pub fn document(state: &mut AppState, path: PathBuf, content: String) -> Message
         .expect("read prepared")
         .0;
     let profile = path.file_stem().unwrap().to_str().unwrap();
-    let mut snapshot =
-        ProfileDocumentSnapshot::new(profile, &content, ProfileWriteProtection::Editable);
-    snapshot.source = Some(identify_profile_source(profile.into(), &content, None));
+    let workspace_identity =
+        subscription_filter_fixture::observation(profile, &content, Default::default())
+            .expect("fixture identity")
+            .workspace_identity;
+    let snapshot = ProfileDocumentSnapshot::new(
+        workspace_identity,
+        &content,
+        ProfileWriteProtection::Editable,
+    )
+    .with_inspection(DocumentInspection::Inspected(DocumentValidation::Valid));
     Message::ProfileContentLoaded(ProfileDocumentReadReply {
         ticket,
         path,
@@ -33,8 +42,10 @@ pub fn options(state: &mut AppState, content: String) -> Message {
         .document_session
         .source()
         .unwrap()
-        .profile
-        .clone();
+        .document
+        .profile_id
+        .as_str()
+        .to_owned();
     state.editor.next_editor_read += 1;
     let ticket = state.editor.next_editor_read;
     state.editor.mixin_load = Some((ticket, profile.clone()));

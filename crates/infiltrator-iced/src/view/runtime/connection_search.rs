@@ -4,32 +4,27 @@ use crate::types::message::Message;
 use crate::view::theme::{FONT_SEMIBOLD, tokens};
 use iced::advanced::text::Wrapping;
 use iced::advanced::widget::Id;
-use iced::widget::{rich_text, span};
-use iced::{Element, Length, Renderer, Theme};
-use infiltrator_contract::search_text::SearchTextRun;
 
-pub(crate) fn highlighted<'a>(
+use iced::{Element, Length};
+use zhuge_ui_core::text::SearchTextRun;
+use zhuge_ui_kit_iced::text::highlighted;
+
+pub(crate) fn connection_text<'a>(
     state: &'a AppState,
     runs: &'a [SearchTextRun],
     size: u32,
 ) -> Element<'a, Message> {
     let palette = tokens(&state.shell.theme);
-    let spans: Vec<_> = runs
-        .iter()
-        .map(|run| {
-            span(run.text.as_str()).color(if run.highlighted {
-                palette.accent
-            } else {
-                palette.text_primary
-            })
-        })
-        .collect();
-    rich_text::<(), Message, Theme, Renderer>(spans)
-        .size(size)
-        .font(FONT_SEMIBOLD)
-        .width(Length::Fill)
-        .wrapping(Wrapping::WordOrGlyph)
-        .into()
+    highlighted(
+        runs.iter().map(|run| (run.text.as_str(), run.highlighted)),
+        palette.text_primary,
+        palette.accent,
+    )
+    .size(size)
+    .font(FONT_SEMIBOLD)
+    .width(Length::Fill)
+    .wrapping(Wrapping::WordOrGlyph)
+    .into()
 }
 
 pub(crate) fn row_id(id: &str) -> Id {

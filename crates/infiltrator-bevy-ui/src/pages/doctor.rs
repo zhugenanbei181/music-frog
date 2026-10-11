@@ -24,7 +24,7 @@ use bevy::ecs::system::{Query, Res, ResMut};
 use bevy::scene::{Scene, bsn};
 use bevy::ui::FlexWrap;
 use bevy::ui::prelude::{
-    AlignItems, FlexDirection, JustifyContent, Node, Overflow, UiRect, Val, percent, px,
+    AlignItems, FlexDirection, JustifyContent, Node, Overflow, UiRect, percent, px,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Button, ScrollArea};
@@ -34,12 +34,14 @@ use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
 use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::doctor::{DoctorCheckKind, DoctorStatus};
 use infiltrator_contract::snapshot::CoreWatchdogSnapshot;
 use infiltrator_shared::i18n_interpolator::localize;
+#[cfg(any(feature = "capture-tools", test))]
 use infiltrator_shared::locales::{Lang, Localizer};
 
 #[path = "doctor_self_heal.rs"]
@@ -126,6 +128,7 @@ pub struct DoctorProjection {
 
 impl DoctorProjection {
     /// Believable demo fixture for the Doctor page.
+    #[cfg(any(feature = "capture-tools", test))]
     pub fn demo() -> Self {
         Self {
             overall_healthy: true,
@@ -285,7 +288,7 @@ pub fn doctor_page(projection: &DoctorProjection, palette: &UiPalette) -> impl S
                 height: percent(100),
                 min_height: px(0.0),
                 flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(space::S16),
+                row_gap: rem(space::S16),
                 overflow: Overflow::scroll_y(),
             }
             PageRoot(Route::Doctor)
@@ -316,20 +319,20 @@ fn header_card_scene(
                             width: percent(100),
                             align_items: AlignItems::Center,
                             flex_direction: FlexDirection::Column,
-                            row_gap: px(space::S12),
+                            row_gap: rem(space::S12),
                         }
                         AccessibilityNode(header_a11y) LocalizedLabel::plain("doctor_header_label")
                         Children [
                             Node {
                                 align_items: AlignItems::Center,
-                                column_gap: Val::Px(space::S12),
+                                column_gap: rem(space::S12),
                             }
                             Children [
                                 @{ icon_tile_scene(IconId::Activity, 36.0, palette) }
                                 --
                                 Node {
                                     flex_direction: FlexDirection::Column,
-                                    row_gap: Val::Px(space::S4),
+                                    row_gap: rem(space::S4),
                                 }
                                 Children [
                                     Text(summary) DoctorLine(DoctorLineKind::Summary) TextRole(Role::Heading)
@@ -343,8 +346,8 @@ fn header_card_scene(
                             Node {
                                 align_items: AlignItems::Center,
                                 flex_wrap: FlexWrap::Wrap,
-                                row_gap: px(space::S8),
-                                column_gap: Val::Px(space::S8),
+                                row_gap: rem(space::S8),
+                                column_gap: rem(space::S8),
                             }
                             Children [
                                 @{ (localized_button_scene(LocalizedText::plain("doctor_diagnose_action"), ButtonVariant::Primary, palette), bsn! { RunDoctorDiagnosticsButton }) }
@@ -374,7 +377,7 @@ fn checks_container_scene(
                                 width: percent(100),
                                 align_items: AlignItems::Center,
                                 justify_content: JustifyContent::SpaceBetween,
-                                padding: UiRect::bottom(Val::Px(space::S8)),
+                                padding: UiRect::bottom(rem(space::S8)),
                             }
                             Children [
                                 LocalizedText::plain("doctor_suite_title") TextRole(Role::BodyStrong)
@@ -386,7 +389,7 @@ fn checks_container_scene(
                             Node {
                                 width: percent(100),
                                 flex_direction: FlexDirection::Column,
-                                row_gap: Val::Px(space::S8),
+                                row_gap: rem(space::S8),
                             }
                             DoctorRows
                             Children [

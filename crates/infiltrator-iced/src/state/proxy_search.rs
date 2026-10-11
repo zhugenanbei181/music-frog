@@ -1,81 +1,136 @@
-//! TEA search drafts submit the neutral preference intent and correlate terminal failures.
+//! Iced-local search draft plus typed outbound preference submission.
+
 use crate::state::AppState;
 use crate::types::message::Message;
 use iced::Task;
-use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::outbound::preferences::OutboundUiPreferenceIntent;
+
+#[derive(Clone, Debug, Default)]
+pub enum ProxySearchPhase {
+    #[default]
+    Uninitialized,
+    Synchronized {
+        query: String,
+    },
+    Dirty {
+        query: String,
+    },
+    Pending {
+        token: u64,
+        query: String,
+    },
+    Failed {
+        query: String,
+        failure: Failure,
+    },
+}
 
 #[derive(Default)]
 pub struct ProxySearchState {
-    pub failure: Option<Failure>,
-    pub pending: Option<(u64, String)>,
-    pub draft_dirty: bool,
-    next_token: u64,
+    pub phase: ProxySearchPhase,
+}
+
+impl ProxySearchState {
+    pub fn failure(&self) -> Option<&Failure> {
+        match &self.phase {
+            ProxySearchPhase::Failed { failure, .. } => Some(failure),
+            ProxySearchPhase::Uninitialized
+            | ProxySearchPhase::Synchronized { .. }
+            | ProxySearchPhase::Dirty { .. }
+            | ProxySearchPhase::Pending { .. } => None,
+        }
+    }
+
+    pub fn mark_pending(&mut self, token: u64, query: String) {
+        self.phase = ProxySearchPhase::Pending { token, query };
+    }
+
+    pub fn preference_applied(&mut self, token: u64) {
+        match self.phase.clone() {
+            ProxySearchPhase::Pending {
+                token: active_token,
+                query,
+            } if active_token == token => {
+                self.phase = ProxySearchPhase::Synchronized { query };
+            }
+            ProxySearchPhase::Uninitialized
+            | ProxySearchPhase::Synchronized { .. }
+            | ProxySearchPhase::Dirty { .. }
+            | ProxySearchPhase::Pending { .. }
+            | ProxySearchPhase::Failed { .. } => {}
+        }
+    }
+
+    pub fn preference_failed(&mut self, token: u64, failure: Failure) {
+        match self.phase.clone() {
+            ProxySearchPhase::Pending {
+                token: active_token,
+                query,
+            } if active_token == token => {
+                self.phase = ProxySearchPhase::Failed { query, failure };
+            }
+            ProxySearchPhase::Uninitialized
+            | ProxySearchPhase::Synchronized { .. }
+            | ProxySearchPhase::Dirty { .. }
+            | ProxySearchPhase::Pending { .. }
+            | ProxySearchPhase::Failed { .. } => {}
+        }
+    }
+
+    pub fn preference_cancelled(&mut self, token: u64) {
+        match self.phase.clone() {
+            ProxySearchPhase::Pending {
+                token: active_token,
+                query,
+            } if active_token == token => {
+                self.phase = ProxySearchPhase::Dirty { query };
+            }
+            ProxySearchPhase::Uninitialized
+            | ProxySearchPhase::Synchronized { .. }
+            | ProxySearchPhase::Dirty { .. }
+            | ProxySearchPhase::Pending { .. }
+            | ProxySearchPhase::Failed { .. } => {}
+        }
+    }
 }
 
 impl AppState {
     pub(crate) fn update_proxy_search(&mut self, query: String) -> Task<Message> {
         self.runtime.proxy_filter = query.clone();
-        self.runtime.proxy_search.draft_dirty = true;
-        self.runtime.proxy_search.failure = None;
-        if self.runtime.proxy_search.pending.is_some() {
-            return Task::none();
-        }
-        let Some(application) = self.commands.clone() else {
-            if self.shell.demo {
-                self.recompute_filtered_groups();
-            } else {
-                self.runtime.proxy_search.failure = Some(Failure::new(
-                    ErrorCode::NotReady,
-                    "proxy search service is not composed",
-                    true,
-                ));
-            }
-            return Task::none();
+        self.runtime.proxy_search.phase = ProxySearchPhase::Dirty {
+            query: query.clone(),
         };
-        self.runtime.proxy_search.next_token = self.runtime.proxy_search.next_token.wrapping_add(1);
-        let token = self.runtime.proxy_search.next_token;
-        self.runtime.proxy_search.pending = Some((token, query.clone()));
-        let submitted = query.clone();
-        Task::perform(
-            async move {
-                match (application
-                    .execute(CommandIntent::SetProxySearchQuery { query: submitted })
-                    .await)
-                    .into_unit()
-                {
-                    Ok(()) => Ok(()),
-                    Err(failure) => Err(failure),
-                }
-            },
-            move |result| Message::ProxySearchFinished {
-                token,
-                query: query.clone(),
-                result,
-            },
-        )
-    }
-
-    pub(crate) fn finish_proxy_search(
-        &mut self,
-        token: u64,
-        query: String,
-        result: Result<(), Failure>,
-    ) -> Task<Message> {
-        if !self
-            .runtime
-            .proxy_search
-            .pending
-            .as_ref()
-            .is_some_and(|pending| pending.0 == token && pending.1 == query)
-        {
-            return Task::none();
+        if self.is_product_command_ingress() {
+            self.refresh_outbound_inventory_projection();
+            if self.runtime.outbound_ui_preferences.data.is_none() {
+                self.runtime.proxy_search.phase = ProxySearchPhase::Failed {
+                    query,
+                    failure: Failure::new(
+                        ErrorCode::NotReady,
+                        "outbound UI preferences are unavailable for this core scope",
+                        true,
+                    ),
+                };
+                return Task::none();
+            }
+            return self.submit_current_outbound_ui_preference(
+                OutboundUiPreferenceIntent::SetSearchQuery(query),
+            );
         }
-        self.runtime.proxy_search.pending = None;
-        if self.runtime.proxy_filter != query {
-            return self.update_proxy_search(self.runtime.proxy_filter.clone());
+        if self.shell.demo {
+            self.recompute_filtered_groups();
+            self.runtime.proxy_search.phase = ProxySearchPhase::Synchronized { query };
+        } else {
+            self.runtime.proxy_search.phase = ProxySearchPhase::Failed {
+                query,
+                failure: Failure::new(
+                    ErrorCode::NotReady,
+                    "outbound search service is not composed",
+                    true,
+                ),
+            };
         }
-        self.runtime.proxy_search.failure = result.err();
         Task::none()
     }
 }

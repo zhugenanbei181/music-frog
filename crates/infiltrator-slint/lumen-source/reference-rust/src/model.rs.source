@@ -1,0 +1,317 @@
+use std::{
+    fs,
+    io::Write,
+    path::{Path, PathBuf},
+};
+
+use chrono::{DateTime, Local, Utc};
+#[cfg(not(target_os = "android"))]
+use directories::ProjectDirs;
+use serde::{Deserialize, Serialize};
+#[cfg(target_os = "android")]
+use std::sync::OnceLock;
+use uuid::Uuid;
+
+const STORE_VERSION: u32 = 1;
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum SourceKind {
+    Subscription,
+    LocalFile,
+}
+
+impl SourceKind {
+    pub fn label(&self) -> &'static str {
+        match self {
+            Self::Subscription => "订阅链接",
+            Self::LocalFile => "本地 YAML",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Profile {
+    pub id: String,
+    pub name: String,
+    pub source_kind: SourceKind,
+    /// A sanitized display locator. The complete URL is held in the OS credential store.
+    pub location: String,
+    pub source_file: PathBuf,
+    pub origin_directory: Option<PathBuf>,
+    pub credential_ref: Option<String>,
+    #[serde(default)]
+    pub age_credential_ref: Option<String>,
+    pub override_ids: Vec<String>,
+    pub updated_at: DateTime<Utc>,
+}
+
+impl Profile {
+    pub fn updated_label(&self) -> String {
+        self.updated_at
+            .with_timezone(&Local)
+            .format("%Y-%m-%d %H:%M")
+            .to_string()
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UserOverride {
+    pub id: String,
+    pub name: String,
+    pub content: String,
+    pub profile_ids: Vec<String>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TrafficUsageBucket {
+    /// Local calendar date in YYYY-MM-DD form.
+    pub day: String,
+    pub hour: u8,
+    pub download_bytes: u64,
+    pub upload_bytes: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum NetworkMode {
+    SystemProxy,
+    Tun,
+    Vpn,
+}
+
+impl Default for NetworkMode {
+    fn default() -> Self {
+        #[cfg(target_os = "android")]
+        {
+            return Self::Vpn;
+        }
+        #[cfg(not(target_os = "android"))]
+        Self::SystemProxy
+    }
+}
+
+impl NetworkMode {
+    pub fn label(&self) -> &'static str {
+        match self {
+            Self::SystemProxy => "System Proxy",
+            Self::Tun => "TUN",
+            Self::Vpn => "VPN",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RouteMode {
+    Rule,
+    Global,
+    Direct,
+}
+
+impl Default for RouteMode {
+    fn default() -> Self {
+        Self::Rule
+    }
+}
+
+impl RouteMode {
+    pub fn label(&self) -> &'static str {
+        match self {
+            Self::Rule => "Rule",
+            Self::Global => "Global",
+            Self::Direct => "Direct",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ThemeMode {
+    System,
+    Light,
+    Dark,
+}
+
+impl Default for ThemeMode {
+    fn default() -> Self {
+        Self::System
+    }
+}
+
+impl ThemeMode {
+    pub fn label(&self) -> &'static str {
+        match self {
+            Self::System => "system",
+            Self::Light => "light",
+            Self::Dark => "dark",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AppStore {
+    pub version: u32,
+    pub profiles: Vec<Profile>,
+    pub current_profile_id: Option<String>,
+    pub overrides: Vec<UserOverride>,
+    pub network_mode: NetworkMode,
+    pub route_mode: RouteMode,
+    #[serde(default)]
+    pub theme_mode: ThemeMode,
+    #[serde(default)]
+    pub user_agent: String,
+    #[serde(default)]
+    pub refresh_current_profile_on_start: bool,
+    #[serde(default)]
+    pub auto_start: bool,
+    #[serde(default = "default_application_language")]
+    pub application_language: String,
+    #[serde(default = "default_theme_color")]
+    pub theme_color: String,
+    #[serde(default)]
+    pub invert_theme_foreground: bool,
+    #[serde(default = "default_page_scale_percent")]
+    pub page_scale_percent: i32,
+    #[serde(default)]
+    pub hide_bottom_bar_on_scroll: bool,
+    #[serde(default)]
+    pub predictive_back_enabled: bool,
+    #[serde(default)]
+    pub hide_background_card: bool,
+    #[serde(default)]
+    pub show_traffic_notification: bool,
+    #[serde(default)]
+    pub release_ui_when_background: bool,
+    #[serde(default)]
+    pub ignore_battery_optimizations: bool,
+    #[serde(default)]
+    pub traffic_buckets: Vec<TrafficUsageBucket>,
+}
+
+impl Default for AppStore {
+    fn default() -> Self {
+        Self {
+            version: STORE_VERSION,
+            profiles: Vec::new(),
+            current_profile_id: None,
+            overrides: Vec::new(),
+            network_mode: NetworkMode::default(),
+            route_mode: RouteMode::default(),
+            theme_mode: ThemeMode::default(),
+            user_agent: String::new(),
+            refresh_current_profile_on_start: false,
+            auto_start: false,
+            application_language: default_application_language(),
+            theme_color: default_theme_color(),
+            invert_theme_foreground: false,
+            page_scale_percent: default_page_scale_percent(),
+            hide_bottom_bar_on_scroll: false,
+            predictive_back_enabled: false,
+            hide_background_card: false,
+            show_traffic_notification: false,
+            release_ui_when_background: false,
+            ignore_battery_optimizations: false,
+            traffic_buckets: Vec::new(),
+        }
+    }
+}
+
+fn default_application_language() -> String {
+    "system".into()
+}
+
+fn default_theme_color() -> String {
+    "#016888".into()
+}
+
+fn default_page_scale_percent() -> i32 {
+    100
+}
+
+#[derive(Clone)]
+pub struct AppPaths {
+    pub root: PathBuf,
+    pub profiles: PathBuf,
+    pub store_file: PathBuf,
+}
+
+impl AppPaths {
+    pub fn discover() -> anyhow::Result<Self> {
+        #[cfg(target_os = "android")]
+        let root = ANDROID_DATA_PATH
+            .get()
+            .cloned()
+            .ok_or_else(|| anyhow::anyhow!("Android 私有数据目录尚未初始化"))?
+            .join("Lumen");
+        #[cfg(not(target_os = "android"))]
+        let dirs = ProjectDirs::from("org", "Lumen", "Lumen")
+            .ok_or_else(|| anyhow::anyhow!("无法确定 Lumen 应用数据目录"))?;
+        #[cfg(not(target_os = "android"))]
+        let root = dirs.data_local_dir().to_path_buf();
+        let profiles = root.join("profiles");
+        fs::create_dir_all(&profiles)?;
+        Ok(Self {
+            store_file: root.join("state.json"),
+            root,
+            profiles,
+        })
+    }
+
+    pub fn load(&self) -> anyhow::Result<AppStore> {
+        if !self.store_file.exists() {
+            return Ok(AppStore::default());
+        }
+        let data: AppStore = serde_json::from_slice(&fs::read(&self.store_file)?)?;
+        if data.version != STORE_VERSION {
+            anyhow::bail!("Lumen 数据版本不受支持（{}）", data.version);
+        }
+        Ok(data)
+    }
+
+    pub fn save(&self, data: &AppStore) -> anyhow::Result<()> {
+        let bytes = serde_json::to_vec_pretty(data)?;
+        write_replace(&self.store_file, &bytes)?;
+        Ok(())
+    }
+
+    pub fn save_profile_source(&self, id: &str, content: &[u8]) -> anyhow::Result<PathBuf> {
+        let path = self.profiles.join(format!("{id}.yaml"));
+        write_replace(&path, content)?;
+        Ok(path)
+    }
+
+    pub fn read_profile_source(&self, profile: &Profile) -> anyhow::Result<String> {
+        Ok(fs::read_to_string(&profile.source_file)?)
+    }
+
+    pub fn atomic_text(&self, path: &Path, content: &str) -> anyhow::Result<()> {
+        write_replace(path, content.as_bytes())?;
+        Ok(())
+    }
+}
+
+#[cfg(target_os = "android")]
+static ANDROID_DATA_PATH: OnceLock<PathBuf> = OnceLock::new();
+
+#[cfg(target_os = "android")]
+pub(crate) fn configure_android_data_path(path: PathBuf) {
+    let _ = ANDROID_DATA_PATH.set(path);
+}
+
+fn write_replace(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+    let dir = path
+        .parent()
+        .ok_or_else(|| std::io::Error::other("目标路径没有父目录"))?;
+    fs::create_dir_all(dir)?;
+    let mut temp = tempfile::NamedTempFile::new_in(dir)?;
+    temp.write_all(bytes)?;
+    temp.as_file().sync_all()?;
+    temp.persist(path).map_err(|e| e.error)?;
+    Ok(())
+}
+
+pub fn new_id() -> String {
+    Uuid::new_v4().to_string()
+}

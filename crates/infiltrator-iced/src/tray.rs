@@ -12,8 +12,6 @@
 //! window-only app with a warning and never fails or panics the process.
 
 use iced::futures::channel::mpsc;
-use infiltrator_domain::proxy::Proxy;
-use std::cmp::Ordering;
 use std::time::Instant;
 use tokio::time::sleep;
 pub mod spec;
@@ -37,12 +35,15 @@ use self::spec::{
     TrayProxyNode, TraySpec, TraySpecContext, TrayStartup, resolve_tray_event_in,
 };
 use crate::state::AppState;
-use crate::types::app::{ConfirmAction, Route};
+use crate::types::app::{ConfirmAction, Route, ToastStatus};
 use crate::types::message::Message;
 use crate::types::runtime::RuntimeStatus;
 use iced::advanced::subscription::{EventStream, Hasher, Recipe, from_recipe};
 use iced::futures::stream::BoxStream;
 use iced::{Subscription, Task, stream};
+use infiltrator_contract::outbound::inventory::{
+    OutboundInventoryState, OutboundSelectionState, SelectionAvailability,
+};
 use infiltrator_contract::tray_status;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -115,7 +116,7 @@ pub(crate) fn tray_events_subscription(
 
 impl AppState {
     /// Map a tray activation onto the intent-driven action set: window,
-    /// theme, mode (incl. script), system proxy/TUN/autostart toggles,
+    /// theme, routing intent, system proxy/TUN/autostart toggles,
     /// per-group node switching, profile activation/auto-update, kernel
     /// version management, core update, WebDAV sync and the destructive
     /// confirmations. Optimistic state changes are applied here so the
@@ -130,16 +131,7 @@ impl AppState {
             TrayIntent::ShowWindow => Task::done(Message::ShowWindow),
             TrayIntent::Exit => Task::done(Message::Exit),
             TrayIntent::ToggleTheme => Task::done(Message::ToggleTheme),
-            TrayIntent::SetMode(mode) => {
-                // Only flip optimistically when a patch can actually be
-                // issued; without a runtime SetProxyMode fails and the
-                // tray would otherwise show a mode that never took effect.
-                if self.runtime.runtime.is_some() {
-                    self.runtime.proxy_mode = Some(mode.clone());
-                }
-                self.refresh_tray();
-                Task::done(Message::SetProxyMode(mode))
-            }
+            TrayIntent::SetRoutingIntent(intent) => Task::done(Message::SetRoutingIntent(intent)),
             TrayIntent::SetSystemProxy(enabled) => {
                 self.runtime.system_proxy_enabled = enabled;
                 self.refresh_tray();
@@ -155,14 +147,27 @@ impl AppState {
                 self.refresh_tray();
                 Task::done(Message::SetAutostart(enabled))
             }
-            TrayIntent::SelectGlobalProxy(node) => {
-                // Legacy id-9 entry: the GLOBAL quick-switch used to be a
-                // dedicated submenu; the request is unchanged.
-                Task::done(Message::SelectProxy("GLOBAL".to_string(), node))
-            }
-            TrayIntent::SelectProxy { group, node } => {
-                Task::done(Message::SelectProxy(group, node))
-            }
+            TrayIntent::SelectGlobalOutbound(node) => self
+                .outbound_selection_message("GLOBAL", &node)
+                .map(Task::done)
+                .unwrap_or_else(|| {
+                    Task::done(Message::ShowToast(
+                        "Outbound inventory is unavailable for this tray selection".into(),
+                        ToastStatus::Info,
+                    ))
+                }),
+            TrayIntent::SelectOutbound {
+                collection,
+                outbound,
+            } => self
+                .outbound_selection_message(&collection, &outbound)
+                .map(Task::done)
+                .unwrap_or_else(|| {
+                    Task::done(Message::ShowToast(
+                        "Outbound inventory is unavailable for this tray selection".into(),
+                        ToastStatus::Info,
+                    ))
+                }),
             TrayIntent::ActivateProfile(name) => Task::done(Message::SetActiveProfile(name)),
             TrayIntent::UpdateAllProfilesNow => Task::done(Message::UpdateAllSubscriptionsNow),
             TrayIntent::SetProfileAutoUpdate { name, enabled } => {
@@ -238,7 +243,7 @@ impl AppState {
             .sync_progress
             .as_ref()
             .map(|progress| (progress.current, progress.total));
-        let core_download_percent = self.runtime.download_stats.as_ref().and_then(|stats| {
+        let core_download_percent = self.runtime.core_download.progress().and_then(|stats| {
             let total = stats.total?;
             (total > 0).then(|| ((stats.downloaded.min(total) * 100) / total) as u8)
         });
@@ -249,16 +254,15 @@ impl AppState {
             .map(|runtime| runtime.controller_url());
         let ctx = TraySpecContext {
             lang: &self.shell.lang,
-            mode: self.runtime.proxy_mode.as_deref(),
-            script_block_present: self.runtime.script_block_present,
+            routing_intent: self.runtime.routing_intent.as_ref(),
             system_proxy: self.runtime.system_proxy_enabled,
             tun: self.runtime.tun_enabled.unwrap_or(false),
             groups: &groups,
             profiles: &self.profile.profiles,
             kernels: &self.runtime.installed_kernels,
             status: self.tray_core_status(),
-            core_checking: self.runtime.is_checking_update,
-            core_downloading: self.runtime.is_downloading_core,
+            core_checking: self.runtime.core_update_check.is_checking(),
+            core_downloading: self.runtime.core_download.is_downloading(),
             core_download_percent,
             webdav_enabled: self.profile.webdav_enabled,
             syncing: self.profile.is_syncing,
@@ -291,43 +295,39 @@ impl AppState {
         }
     }
 
-    /// Proxy group snapshots for the 节点切换 submenu: groups only, GLOBAL
-    /// first (mirroring the proxies page ordering) then by name for
-    /// determinism, capped at [`TRAY_MAX_GROUPS`], each node annotated with
-    /// its latest measured delay.
+    /// Typed outbound collections for the node-selection submenu. Only
+    /// collections explicitly observed as selectable become tray actions.
     fn tray_proxy_groups(&self) -> Vec<TrayProxyGroup> {
-        let mut groups: Vec<&Proxy> = self
-            .runtime
-            .proxies
-            .values()
-            .filter(|proxy| proxy.is_group())
-            .collect();
-        groups.sort_by(|a, b| {
-            let (name_a, name_b) = (a.name(), b.name());
-            match (name_a == "GLOBAL", name_b == "GLOBAL") {
-                (true, false) => Ordering::Less,
-                (false, true) => Ordering::Greater,
-                _ => name_a.cmp(name_b),
-            }
-        });
-        groups
-            .into_iter()
+        let Some(snapshot) = self.runtime.outbound_inventory.data.as_ref() else {
+            return Vec::new();
+        };
+        let OutboundInventoryState::Ready {
+            entries,
+            collections,
+        } = snapshot.inventory()
+        else {
+            return Vec::new();
+        };
+        collections
+            .iter()
+            .filter(|collection| collection.availability == SelectionAvailability::Selectable)
             .take(TRAY_MAX_GROUPS)
-            .map(|group| TrayProxyGroup {
-                name: group.name().to_string(),
-                current: group.now().unwrap_or_default().to_string(),
-                nodes: group
-                    .all()
-                    .unwrap_or(&[])
+            .map(|collection| TrayProxyGroup {
+                name: collection.id.value().to_owned(),
+                current: match &collection.selection {
+                    OutboundSelectionState::Ready { selected } => selected.value().to_owned(),
+                    OutboundSelectionState::Unknown
+                    | OutboundSelectionState::Empty
+                    | OutboundSelectionState::Unsupported
+                    | OutboundSelectionState::Failed { .. } => String::new(),
+                },
+                nodes: collection
+                    .member_ids
                     .iter()
-                    .map(|node| TrayProxyNode {
-                        name: node.clone(),
-                        delay_ms: self
-                            .runtime
-                            .proxies
-                            .get(node)
-                            .and_then(|proxy| proxy.history().last())
-                            .map(|history| history.delay),
+                    .filter(|member_id| entries.iter().any(|entry| &entry.id == *member_id))
+                    .map(|member_id| TrayProxyNode {
+                        name: member_id.value().to_owned(),
+                        delay_ms: None,
                     })
                     .collect(),
             })

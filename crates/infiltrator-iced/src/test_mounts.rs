@@ -9,18 +9,39 @@
 //! Kept as a dedicated module so `#[path]` targets resolve uniformly
 //! relative to `src/` and `lib.rs` stays free of test plumbing.
 
+use infiltrator_application::core_application::CoreApplication;
+use infiltrator_contract::command::{CommandIntent, CommandResult};
+use infiltrator_contract::core_identity::CoreCommandRequest;
+
+pub(crate) async fn execute_at_observed_scope(
+    application: &CoreApplication,
+    intent: CommandIntent,
+) -> CommandResult {
+    let scope = application
+        .snapshot()
+        .scope()
+        .expect("Iced test fixture must expose its owner scope");
+    application
+        .execute_scoped(CoreCommandRequest { scope, intent })
+        .await
+        .result
+}
+
 // test-intent: behavior (mount-only module; bodies live under tests/gui/)
 #[path = "../tests/gui/app_state_tests.rs"]
 mod app_state_tests;
 
-#[path = "../tests/gui/proxy_mode_race_tests.rs"]
-mod proxy_mode_race_tests;
+#[path = "../tests/gui/routing_intent_race_tests.rs"]
+mod routing_intent_race_tests;
 
-#[path = "../tests/gui/proxy_mode_native_tests.rs"]
-mod proxy_mode_native_tests;
+#[path = "../tests/gui/routing_intent_native_tests.rs"]
+mod routing_intent_native_tests;
 
 #[path = "../tests/gui/proxy_logic_tests.rs"]
 mod proxy_logic_tests;
+
+#[path = "../tests/gui/outbound_probe_batch_tests.rs"]
+mod outbound_probe_batch_tests;
 
 #[path = "../tests/gui/rules_dns_tests.rs"]
 mod rules_dns_tests;
@@ -77,6 +98,12 @@ mod gesture_tests;
 
 #[path = "../tests/common/command_harness.rs"]
 pub(crate) mod command_harness;
+
+#[path = "../tests/common/identified_core_application.rs"]
+pub(crate) mod identified_core_application;
+
+#[path = "../tests/common/outbound_fixtures.rs"]
+pub(crate) mod outbound_fixtures;
 
 #[path = "../tests/gui/filter_native_tests.rs"]
 mod filter_native_tests;

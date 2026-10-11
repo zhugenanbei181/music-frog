@@ -6,9 +6,12 @@ use bevy::MinimalPlugins;
 use bevy::app::{App, PreStartup, Startup};
 use bevy::asset::{AssetPlugin, Assets, Handle};
 use bevy::ecs::system::{Commands, Res};
+use bevy::render::RenderPlugin;
+use bevy::render::settings::WgpuSettings;
 use bevy::scene::{CommandsSceneExt, ScenePlugin, bsn};
+use bevy::shader::Shader;
 use bevy::text::{
-    Font, FontSize, FontSource, Justify, TextColor, TextFont, TextLayout, TextPlugin,
+    Font, FontSize, FontSource, Justify, RemSize, TextColor, TextFont, TextLayout, TextPlugin,
 };
 use bevy::ui::prelude::{FlexDirection, Node};
 use infiltrator_bevy_widgets::WidgetsPlugin;
@@ -18,8 +21,9 @@ use infiltrator_bevy_widgets::fonts::FontSources;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::text::{Role, TextRole, role_typography};
 use infiltrator_bevy_widgets::text_runs::{TextRuns, TextRunsDirection};
+use infiltrator_bevy_widgets::theme::REM_BASE;
 use infiltrator_bevy_widgets::theme::Theme;
-use infiltrator_contract::search_text::SearchTextRun;
+use zhuge_ui_core::text::SearchTextRun;
 
 fn headless_app() -> App {
     let mut app = App::new();
@@ -27,6 +31,37 @@ fn headless_app() -> App {
     app.add_plugins((AssetPlugin::default(), ScenePlugin, TextPlugin));
     app.add_plugins(WidgetsPlugin::new(&Theme::dark()));
     app
+}
+
+#[test]
+fn widgets_keep_the_render_hosts_existing_shader_handles() {
+    let mut app = App::new();
+    app.add_plugins((
+        MinimalPlugins,
+        AssetPlugin::default(),
+        ScenePlugin,
+        TextPlugin,
+    ));
+    app.add_plugins(RenderPlugin {
+        render_creation: WgpuSettings {
+            backends: None,
+            ..Default::default()
+        }
+        .into(),
+        ..Default::default()
+    });
+    let shader = app
+        .world_mut()
+        .resource_mut::<Assets<Shader>>()
+        .add(Shader::from_wgsl("const VALUE: f32 = 1.0;", file!()));
+    app.add_plugins(WidgetsPlugin::new(&Theme::dark()));
+    assert!(
+        app.world()
+            .resource::<Assets<Shader>>()
+            .get(&shader)
+            .is_some(),
+        "adding widget themes must preserve the render host's store and allocator"
+    );
 }
 
 #[test]
@@ -78,16 +113,23 @@ fn font_initialization_precedes_startup_and_preserves_preexisting_labels() {
 }
 
 #[test]
-fn asset_plugins_can_be_registered_after_widgets_before_first_update() {
+fn widgets_plugin_requires_asset_plugin_before_it() {
+    // WidgetsPlugin installs FeathersCorePlugin, whose embedded .wesl assets
+    // need the embedded registry at build time: AssetPlugin must precede it
+    // (capability norm ② host requirement).
     let mut app = App::new();
     app.add_plugins(MinimalPlugins);
-    app.add_plugins(WidgetsPlugin::new(&Theme::dark()));
     app.add_plugins((AssetPlugin::default(), ScenePlugin, TextPlugin));
+    app.add_plugins(WidgetsPlugin::new(&Theme::dark()));
     app.add_systems(PreStartup, |mut commands: Commands| {
         commands.spawn_scene(bsn! { TextRole(Role::Body) TextFont::default() });
     });
     app.update();
-    assert_eq!(app.world().resource::<Assets<Font>>().len(), 5);
+    assert!(app.world().resource::<Assets<Font>>().len() >= 5);
+    assert!(
+        app.world().contains_resource::<Assets<Shader>>(),
+        "feather embedded-shader asset store registered"
+    );
     assert!(app.world().resource::<FontSources>().body.is_strong());
 }
 
@@ -122,8 +164,8 @@ fn display_role_sits_one_step_over_heading() {
 
     let display = role_typography(Role::Display, &palette, None);
     let heading = role_typography(Role::Heading, &palette, None);
-    assert!(matches!(display.size, FontSize::Px(size) if size == 22.0));
-    assert!(matches!(heading.size, FontSize::Px(size) if size == 20.0));
+    assert!(matches!(display.size, FontSize::Rem(f) if (f * REM_BASE - 22.0).abs() < 1e-4));
+    assert!(matches!(heading.size, FontSize::Rem(f) if (f * REM_BASE - 20.0).abs() < 1e-4));
     assert_eq!(display.ink, palette.ink, "display draws at full ink");
     assert_eq!(
         display.font, heading.font,
@@ -146,7 +188,7 @@ fn unregistered_sources_fall_back_to_default_handles() {
     let palette = UiPalette::new(&Theme::dark());
     let typography = role_typography(Role::Body, &palette, None);
     assert_eq!(typography.font, FontSource::default());
-    assert!(matches!(typography.size, FontSize::Px(size) if size == 15.0));
+    assert!(matches!(typography.size, FontSize::Rem(f) if (f * REM_BASE - 15.0).abs() < 1e-4));
 }
 
 #[test]
@@ -225,4 +267,25 @@ fn text_runs_direction_propagates_to_layout() {
     let ltr_layout = world.get::<TextLayout>(ltr_entity).expect("ltr layout");
     assert_eq!(ltr_node.flex_direction, FlexDirection::Row);
     assert_eq!(ltr_layout.justify, Justify::Left);
+}
+
+/// Capability norm (BEVY_020_UI_CAPABILITIES ①): the shell installs the
+/// root font size, roles are stated rem-relative, and rescaling `RemSize`
+/// is the only knob — nothing else may touch type sizes.
+#[test]
+fn root_rem_size_is_installed_and_roles_track_it() {
+    let mut app = headless_app();
+    app.update();
+    let rem = app.world().resource::<RemSize>();
+    assert_eq!(rem.0, REM_BASE, "WidgetsPlugin installs the root font size");
+
+    let palette = UiPalette::new(&Theme::dark());
+    let FontSize::Rem(body) = role_typography(Role::Body, &palette, None).size else {
+        panic!("body must ride the rem channel");
+    };
+    let FontSize::Rem(display) = role_typography(Role::Display, &palette, None).size else {
+        panic!("display must ride the rem channel");
+    };
+    assert!((body * REM_BASE - 15.0).abs() < 1e-4);
+    assert!((display * REM_BASE - 22.0).abs() < 1e-4);
 }

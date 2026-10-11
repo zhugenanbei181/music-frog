@@ -165,6 +165,19 @@ pub struct AndroidCoreLifecycleSnapshot {
     pub failure: Option<Failure>,
 }
 
+impl From<CoreLifecycleSnapshot> for AndroidCoreLifecycleSnapshot {
+    fn from(snapshot: CoreLifecycleSnapshot) -> Self {
+        Self {
+            identity: snapshot.identity,
+            lifecycle: snapshot.lifecycle,
+            generation: snapshot.generation,
+            session_token: snapshot.session_token,
+            revision: snapshot.revision,
+            failure: snapshot.failure,
+        }
+    }
+}
+
 mod session_token_wire {
     use crate::session::SessionToken;
     use serde::de::Error as _;
@@ -548,10 +561,7 @@ fn same_core_identity_and_generation(
     before.identity == after.identity && before.generation == after.generation
 }
 
-fn require_usable_core(
-    snapshot: &CoreLifecycleSnapshot,
-    intent_name: &str,
-) -> Result<(), Failure> {
+fn require_usable_core(snapshot: &CoreLifecycleSnapshot, intent_name: &str) -> Result<(), Failure> {
     if matches!(
         snapshot.lifecycle,
         CoreLifecycle::Ready | CoreLifecycle::Running
@@ -909,8 +919,8 @@ mod tests {
             value["core"]["Available"]["failure"],
             serde_json::to_value(&failure).expect("typed failure serializes"),
         );
-        let decoded = serde_json::from_str::<VpnOwnerSnapshot>(&encoded)
-            .expect("deserialize owner snapshot");
+        let decoded =
+            serde_json::from_str::<VpnOwnerSnapshot>(&encoded).expect("deserialize owner snapshot");
 
         assert_eq!(decoded.core, VpnOwnerCoreReadback::Available(core));
         let VpnOwnerCoreReadback::Available(decoded_core) = decoded.core else {
@@ -918,7 +928,10 @@ mod tests {
         };
         assert_eq!(decoded_core.lifecycle, CoreLifecycle::Failed);
         assert_eq!(decoded_core.failure, Some(failure));
-        assert_eq!(decoded_core.session_token, Some(SessionToken::new(u128::MAX)));
+        assert_eq!(
+            decoded_core.session_token,
+            Some(SessionToken::new(u128::MAX))
+        );
     }
 
     #[test]

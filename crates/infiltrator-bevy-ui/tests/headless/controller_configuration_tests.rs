@@ -1,5 +1,6 @@
 //! test-intent: behavior
-use infiltrator_bevy_ui::controller::{FailureDwell, controller_config_from_raw};
+use infiltrator_bevy_ui::controller::controller_config_from_raw;
+use infiltrator_bevy_ui::pipeline::FailureDwell;
 use std::time::{Duration, Instant};
 
 // ---- the config seam ----------------------------------------------------------

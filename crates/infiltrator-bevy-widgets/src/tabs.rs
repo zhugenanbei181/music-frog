@@ -1,60 +1,39 @@
-//! Tabs & SegmentedControl: sliding pill capsule navigation with token-driven styling.
+//! Tabs & SegmentedControl: sliding pill capsule visuals over the OFFICIAL
+//! headless tab strip (`bevy_ui_widgets::TabList` / `Tab` / `SelectedTab`).
 //!
-//! **Pure Geometry & State Core**: [`SegmentedControlState`], [`capsule_metrics`], and
-//! [`capsule_px_bounds`] compute the exact percentage/pixel travel and width of the
-//! sliding capsule highlight without any layout measurement or framework dependency.
-//!
-//! **Scene Adapters**: [`segmented_control_scene`] and [`tabs_scene`] construct declarative
-//! token-spaced pill containers over official buttons with high-contrast label switching.
+//! Selection, keyboard navigation (arrows / Home / End / Enter / Space),
+//! roving tabindex and the TabList/Tab accessibility roles are owned by the
+//! official widgets (capability norm ③); this module adds only the sliding
+//! capsule geometry ([`capsule_metrics`], [`capsule_px_bounds`]) and the
+//! token-styled scene adapters ([`segmented_control_scene`],
+//! [`segmented_control_with_labels_scene`], [`tabs_scene`]). The tabs are
+//! direct children of the list, as the official selection semantics require.
 
+use crate::feathers_theme::Token;
 use crate::palette::UiPalette;
+use crate::palette::rem;
 use crate::text::{Role, TextRole};
 use crate::theme::space;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
+use bevy::ecs::hierarchy::ChildOf;
 use bevy::ecs::hierarchy::Children;
-use bevy::ecs::message::{Message, MessageReader};
-use bevy::ecs::query::{Changed, With, Without};
-use bevy::ecs::system::{Query, Res};
+use bevy::ecs::lifecycle::Add;
+use bevy::ecs::observer::On;
+use bevy::ecs::query::{Added, Changed, Or, With, Without};
+use bevy::ecs::system::{Commands, Query};
+use bevy::feathers::theme::ThemeBackgroundColor;
+use bevy::feathers::theme::ThemeTextColor;
 use bevy::scene::{Scene, bsn};
-use bevy::text::TextColor;
 use bevy::ui::BorderColor;
 use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, PositionType,
-    UiRect, Val, percent, px,
+    AlignItems, BorderRadius, JustifyContent, Node, PositionType, UiRect, Val, percent,
 };
 use bevy::ui::widget::Text;
-use bevy::ui_widgets::Button;
+use bevy::ui_widgets::{ControlOrientation, SelectedTab, Tab, TabActivation, TabList};
 
-/// Pure state of a segmented control or tabs bar.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct SegmentedControlState {
-    pub selected_index: usize,
-    pub count: usize,
-}
-
-impl SegmentedControlState {
-    pub fn new(count: usize, selected_index: usize) -> Self {
-        Self {
-            count,
-            selected_index: selected_index.min(count.saturating_sub(1)),
-        }
-    }
-
-    /// Select index with clamping. Returns true if changed.
-    pub fn select(&mut self, index: usize) -> bool {
-        let clamped = index.min(self.count.saturating_sub(1));
-        if self.selected_index != clamped {
-            self.selected_index = clamped;
-            true
-        } else {
-            false
-        }
-    }
-}
-
-/// Compute percentage metrics `(left_percent, width_percent)` for the sliding capsule indicator.
-/// Pure function — headless-testable.
+/// Pure geometry: percentage metrics `(left_percent, width_percent)` for the
+/// sliding capsule indicator. Pure function — headless-testable.
 pub fn capsule_metrics(selected_index: usize, count: usize) -> (f32, f32) {
     if count == 0 {
         return (0.0, 100.0);
@@ -65,8 +44,8 @@ pub fn capsule_metrics(selected_index: usize, count: usize) -> (f32, f32) {
     (left_pct, width_pct)
 }
 
-/// Compute pixel bounds `(left_px, width_px)` for the sliding capsule indicator within a fixed box.
-/// Pure function.
+/// Pure geometry: pixel bounds `(left_px, width_px)` for the sliding capsule
+/// indicator within a fixed box. Pure function.
 pub fn capsule_px_bounds(
     selected_index: usize,
     count: usize,
@@ -83,23 +62,18 @@ pub fn capsule_px_bounds(
     (left_px, tab_w)
 }
 
-/// Marker component on a segmented control root container.
+/// Marker component on a segmented control root (the official [`TabList`]
+/// entity).
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct SegmentedControl;
 
-/// Component storing active selected index on segmented control container.
+/// The index a freshly mounted strip selects before the user interacts —
+/// the declarative seed for [`SelectedTab`].
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct SegmentedControlValue(pub usize);
+pub struct SegmentedSelectionSeed(pub usize);
 
-/// Component storing total tabs count on segmented control container.
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct SegmentedControlCount(pub usize);
-
-/// Marker on the sliding capsule highlight indicator node.
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct SegmentedPillIndicator;
-
-/// Component on each tab item carrying its index.
+/// Component on each tab item carrying its index (the entity→index bridge
+/// for consumers).
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct SegmentedTab(pub usize);
 
@@ -107,12 +81,27 @@ pub struct SegmentedTab(pub usize);
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct SegmentedTabLabel;
 
-/// Message requesting selection change on a segmented control.
-#[derive(Message, Clone, Copy, Debug, PartialEq, Eq)]
-pub struct TabSelectEvent {
-    pub container: Entity,
-    pub selected_index: usize,
-}
+/// Marker on the sliding capsule highlight indicator node.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SegmentedPillIndicator;
+
+/// Query used to find segmented controls whose selected tab or declarative
+/// selection seed needs to update the capsule and label visuals.
+pub type SegmentedControlVisualQuery<'w, 's> = Query<
+    'w,
+    's,
+    (
+        Entity,
+        Option<&'static SelectedTab>,
+        &'static SegmentedSelectionSeed,
+        &'static Children,
+    ),
+    Or<(
+        Changed<SelectedTab>,
+        Added<SegmentedSelectionSeed>,
+        Without<SelectedTab>,
+    )>,
+>;
 
 /// Segmented control scene with sliding capsule highlight.
 pub fn segmented_control_scene(
@@ -145,28 +134,21 @@ pub fn segmented_control_with_labels_scene(
         .into_iter()
         .enumerate()
         .map(|(idx, label)| {
-            let is_selected = idx == selected_index;
-            let ink = if is_selected {
-                palette.on_accent
-            } else {
-                palette.ink_dim
-            };
-
             Box::new(bsn! {
                 Node {
                     flex_grow: 1.0,
-                    height: px(palette.control_height_px * 0.8),
+                    height: rem(palette.control_height_px * 0.8),
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::Center,
-                    padding: UiRect::horizontal(Val::Px(space::S8)),
-                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px * 0.75)),
+                    padding: UiRect::horizontal(rem(space::S8)),
+                    border_radius: BorderRadius::MAX,
                 }
-                Button
+                Tab
                 SegmentedTab(idx)
                 Children [
-                    @{ label } TextColor({ ink })
+                    @{ label }
                 ]
-}) as Box<dyn Scene>
+            }) as Box<dyn Scene>
         })
         .collect();
 
@@ -174,38 +156,30 @@ pub fn segmented_control_with_labels_scene(
             Node {
                 position_type: PositionType::Relative,
                 width: percent(100),
-                height: px(palette.control_height_px * 0.9),
-                padding: UiRect::all(Val::Px(space::S4)),
-                border: UiRect::all(Val::Px(palette.hairline_px)),
-                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                height: rem(palette.control_height_px * 0.9),
+                padding: UiRect::all(rem(space::S4)),
                 align_items: AlignItems::Center,
             }
-            BackgroundColor({ palette.surface_elevated })
+            ThemeBackgroundColor({ Token::SurfaceElevated })
             BorderColor { top: edge, right: edge, bottom: edge, left: edge }
+            TabList {
+                orientation: ControlOrientation::Horizontal,
+                activation: TabActivation::Automatic,
+            }
             SegmentedControl
-            SegmentedControlValue(selected_index)
-            SegmentedControlCount(count)
+            SegmentedSelectionSeed(selected_index)
             Children [
                 Node {
                     position_type: PositionType::Absolute,
                     left: Val::Percent(left_pct),
                     width: Val::Percent(width_pct),
-                    height: px(palette.control_height_px * 0.8),
-                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px * 0.75)),
+                    height: rem(palette.control_height_px * 0.8),
+                    border_radius: BorderRadius::MAX,
                 }
-                BackgroundColor({ palette.accent })
+                ThemeBackgroundColor({ Token::Accent })
                 SegmentedPillIndicator
                 --
-                Node {
-                    position_type: PositionType::Relative,
-                    width: percent(100),
-                    height: percent(100),
-                    flex_direction: FlexDirection::Row,
-                    align_items: AlignItems::Center,
-                }
-                Children [
-                    { tab_scenes }
-                ]
+                { tab_scenes }
             ]
     }
 }
@@ -224,31 +198,23 @@ pub fn tabs_scene(
         .into_iter()
         .enumerate()
         .map(|(idx, title)| {
-            let is_selected = idx == selected_index;
-            let ink = if is_selected {
-                palette.on_accent
-            } else {
-                palette.ink_dim
-            };
-
             Box::new(bsn! {
                 Node {
                     flex_grow: 1.0,
-                    height: px(palette.control_height_px),
+                    height: rem(palette.control_height_px),
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::Center,
-                    padding: UiRect::horizontal(Val::Px(space::S12)),
-                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                    padding: UiRect::horizontal(rem(space::S12)),
+                    border_radius: BorderRadius::MAX,
                 }
-                Button
+                Tab
                 SegmentedTab(idx)
                 Children [
                     Text(title)
                     TextRole(Role::Body)
-                    TextColor({ ink })
                     SegmentedTabLabel
                 ]
-}) as Box<dyn Scene>
+            }) as Box<dyn Scene>
         })
         .collect();
 
@@ -256,104 +222,131 @@ pub fn tabs_scene(
             Node {
                 position_type: PositionType::Relative,
                 width: percent(100),
-                height: px(palette.control_height_px + space::S8),
-                padding: UiRect::all(Val::Px(space::S4)),
-                border: UiRect::all(Val::Px(palette.hairline_px)),
-                border_radius: BorderRadius::all(Val::Px(palette.card_radius_px)),
+                height: rem(palette.control_height_px + space::S8),
+                padding: UiRect::all(rem(space::S4)),
                 align_items: AlignItems::Center,
             }
-            BackgroundColor({ palette.surface_elevated })
+            ThemeBackgroundColor({ Token::SurfaceElevated })
             BorderColor { top: edge, right: edge, bottom: edge, left: edge }
+            TabList {
+                orientation: ControlOrientation::Horizontal,
+                activation: TabActivation::Automatic,
+            }
             SegmentedControl
-            SegmentedControlValue(selected_index)
-            SegmentedControlCount(count)
+            SegmentedSelectionSeed(selected_index)
             Children [
                 Node {
                     position_type: PositionType::Absolute,
                     left: Val::Percent(left_pct),
                     width: Val::Percent(width_pct),
-                    height: px(palette.control_height_px),
-                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                    height: rem(palette.control_height_px),
+                    border_radius: BorderRadius::MAX,
                 }
-                BackgroundColor({ palette.accent })
+                ThemeBackgroundColor({ Token::Accent })
                 SegmentedPillIndicator
                 --
-                Node {
-                    position_type: PositionType::Relative,
-                    width: percent(100),
-                    height: percent(100),
-                    flex_direction: FlexDirection::Row,
-                    align_items: AlignItems::Center,
-                }
-                Children [
-                    { tab_scenes }
-                ]
+                { tab_scenes }
             ]
     }
 }
 
-/// Advance segmented control state machine from select events.
-pub fn advance_segmented_control(
-    mut events: MessageReader<TabSelectEvent>,
-    mut controls: Query<&mut SegmentedControlValue>,
-) {
-    for event in events.read() {
-        if let Ok(mut val) = controls.get_mut(event.container)
-            && val.0 != event.selected_index
-        {
-            val.0 = event.selected_index;
-        }
-    }
-}
-
-/// Repaint capsule position and label inks whenever [`SegmentedControlValue`] changes.
+/// Seed a freshly mounted strip's [`SelectedTab`] from its declarative seed,
+/// then drive the capsule geometry and label inks from the official
+/// selection state. Ink rides the official `ThemeTextColor` token swap; the
+/// official derived-state system owns the `Selected` markers.
 pub fn sync_segmented_control_visuals(
-    palette: Res<UiPalette>,
-    controls: Query<
-        (
-            Entity,
-            &SegmentedControlValue,
-            &SegmentedControlCount,
-            &Children,
-        ),
-        Changed<SegmentedControlValue>,
-    >,
-    groups: Query<&Children>,
+    mut commands: Commands,
+    controls: SegmentedControlVisualQuery<'_, '_>,
+    tabs: Query<(&SegmentedTab, &Children), With<Tab>>,
     mut indicators: Query<&mut Node, With<SegmentedPillIndicator>>,
-    tabs: Query<(&SegmentedTab, &Children), Without<SegmentedPillIndicator>>,
-    mut labels: Query<(&SegmentedTabLabel, &mut TextColor)>,
+    labels: Query<Entity, With<SegmentedTabLabel>>,
 ) {
-    for (entity, val, count_comp, children) in &controls {
-        let (left_pct, width_pct) = capsule_metrics(val.0, count_comp.0);
+    for (entity, selected, seed, children) in &controls {
+        // SelectedTab is a required component, so a fresh strip carries
+        // `Some(&SelectedTab(None))`: seed whenever the VALUE is unset.
+        if selected.and_then(|s| s.0).is_none() {
+            let target = children
+                .iter()
+                .copied()
+                .find(|child| tabs.get(*child).is_ok_and(|(tab, _)| tab.0 == seed.0));
+            if let Some(tab) = target {
+                commands.entity(entity).insert(SelectedTab(Some(tab)));
+            }
+            continue;
+        }
+        let Some(selected_entity) = selected.and_then(|s| s.0) else {
+            continue;
+        };
+        let selected_index = tabs
+            .get(selected_entity)
+            .ok()
+            .map(|(tab, _)| tab.0)
+            .or_else(|| {
+                children
+                    .iter()
+                    .copied()
+                    .find(|child| *child == selected_entity)
+                    .and_then(|child| tabs.get(child).ok().map(|(tab, _)| tab.0))
+            });
+        let Some(selected_index) = selected_index else {
+            continue;
+        };
+        let count = children
+            .iter()
+            .filter(|child| tabs.contains(**child))
+            .count();
+        let (left_pct, width_pct) = capsule_metrics(selected_index, count);
 
         for child in children.iter() {
             if let Ok(mut node) = indicators.get_mut(*child) {
                 node.left = Val::Percent(left_pct);
                 node.width = Val::Percent(width_pct);
             }
-        }
-
-        if !groups.contains(entity) {
-            continue;
-        }
-
-        for descendant in groups.iter_descendants(entity) {
-            if let Ok((tab, tab_children)) = tabs.get(descendant) {
-                let is_selected = tab.0 == val.0;
-                let target_ink = if is_selected {
-                    palette.on_accent
-                } else {
-                    palette.ink_dim
-                };
-
-                for tab_child in tab_children.iter() {
-                    if let Ok((_, mut ink)) = labels.get_mut(*tab_child)
-                        && ink.0 != target_ink
-                    {
-                        ink.0 = target_ink;
-                    }
+            let Ok((_, tab_children)) = tabs.get(*child) else {
+                continue;
+            };
+            // Drive ink from the authoritative SelectedTab entity, not the
+            // derived Selected marker: the marker lands in PostUpdate, one
+            // frame after this system reads it.
+            let ink_token = if selected_entity == *child {
+                Token::OnAccent
+            } else {
+                Token::InkDim
+            };
+            for tab_child in tab_children.iter() {
+                if labels.contains(*tab_child) {
+                    commands
+                        .entity(*tab_child)
+                        .insert(ThemeTextColor(ink_token.theme_token()));
                 }
             }
         }
+    }
+}
+
+/// First-frame ink for labels: the strip's declarative seed decides which
+/// tab starts selected, so a label never paints with a missing token.
+pub fn stamp_initial_tab_ink(
+    trigger: On<Add<SegmentedTabLabel>>,
+    label_parents: Query<&ChildOf>,
+    tab_marks: Query<(&SegmentedTab, &ChildOf), With<Tab>>,
+    lists: Query<(), With<SegmentedSelectionSeed>>,
+    mut commands: Commands,
+) {
+    let Ok(label_parent) = label_parents.get(trigger.event().entity) else {
+        return;
+    };
+    let Ok((tab, list)) = tab_marks.get(label_parent.parent()) else {
+        return;
+    };
+    if lists.contains(list.parent()) {
+        let ink_token = if tab.0 == 0 {
+            Token::OnAccent
+        } else {
+            Token::InkDim
+        };
+        commands
+            .entity(trigger.event().entity)
+            .insert(ThemeTextColor(ink_token.theme_token()));
     }
 }

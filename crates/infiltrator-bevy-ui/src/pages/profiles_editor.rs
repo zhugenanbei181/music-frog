@@ -2,8 +2,8 @@
 //!
 //! The editor is a real surface, not a mock: it renders the document the
 //! shared application loaded (`ProfileDocumentSnapshot`), runs the *shared*
-//! syntax preflight (`infiltrator_domain::config::preflight_yaml_syntax`) on
-//! every keystroke for the line/column banner and the red line highlight,
+//! engine-scoped syntax preflight on every buffer generation for the
+//! line/column banner and the red line highlight,
 //! formats through the *shared* AST-preserving formatter
 //! (`infiltrator_domain::yaml_edit::format::format_yaml`) and commits through
 //! the shared guarded write path (`CommandIntent::SaveProfileDocument`).
@@ -30,8 +30,8 @@ use crate::pages::profiles_editor_panes::{
 };
 use crate::pages::profiles_editor_panes_sync::route_editor_keyboard;
 use crate::pages::profiles_editor_state::{
-    PROFILE_EDITOR_RENDER_LIMIT, ProfileEditorState, diagnostic_line, protection_toggle_visual,
-    status_line,
+    PROFILE_EDITOR_RENDER_LIMIT, ProfileEditorState, ProfileValidationSource, diagnostic_label,
+    diagnostic_line, protection_toggle_visual, status_line,
 };
 use crate::pages::profiles_editor_transactions::EditorMutationControl;
 use crate::pages::profiles_editor_transactions::{discard_scene, submit_document};
@@ -44,6 +44,7 @@ use bevy::ecs::observer::On;
 use bevy::ecs::query::With;
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
+use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::input::keyboard::KeyboardInput;
 use bevy::scene::{CommandsSceneExt, Scene, bsn};
 use bevy::ui::prelude::{
@@ -51,13 +52,18 @@ use bevy::ui::prelude::{
     Node, Overflow, UiRect, Val, percent, px,
 };
 use bevy::ui::widget::Text;
-use bevy::ui_widgets::{Activate, Button};
+use bevy::ui_widgets::{Activate, Button, ScrollArea};
+use infiltrator_application::profile_edit_session::{
+    ProfileEditObservation, ProfileEditReadTarget,
+};
 use infiltrator_application::profile_editor_projection;
 use infiltrator_bevy_widgets::editor::state::CodeEditorState;
+use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
@@ -132,7 +138,14 @@ pub fn profile_editor_scene(
         .unwrap_or(0);
     let mut state = ProfileEditorState {
         profile: document
-            .map(|document| document.profile.clone())
+            .map(|document| {
+                document
+                    .workspace_identity
+                    .document
+                    .profile_id
+                    .as_str()
+                    .to_owned()
+            })
             .unwrap_or_default(),
         buffer: CodeEditorState::new(
             document
@@ -144,10 +157,12 @@ pub fn profile_editor_scene(
         protection,
         dirty: false,
         loaded_content: document.map(|document| document.content.clone()),
-        diagnostic: document.and_then(|document| document.syntax.clone()),
+        diagnostic: None,
+        document_inspection: document.map(|document| document.inspection.clone()),
+        validation_source: ProfileValidationSource::Snapshot,
         notice: None,
         format_note: None,
-        protection_override: false,
+        write_authorization: Default::default(),
         focused: false,
         generation: 0,
         // The first Update pass renders the body from this state.
@@ -157,7 +172,7 @@ pub fn profile_editor_scene(
         state.load_document(document);
     }
     let status = status_line(&state, Some(projection), UiLocale::default().code());
-    let (diagnostic_text, has_error) = diagnostic_line(&state, UiLocale::default().code());
+    let (diagnostic_text, validation_status) = diagnostic_line(&state, UiLocale::default().code());
     let initial_rows = editor_rows_scene(&state, palette);
     let options = ProfileEditorOptionsState::from_projection(projection);
 
@@ -168,20 +183,20 @@ pub fn profile_editor_scene(
                                 width: percent(100),
                                 align_items: AlignItems::Center,
                                 justify_content: JustifyContent::SpaceBetween,
-                                padding: UiRect::bottom(Val::Px(space::S8)),
+                                padding: UiRect::bottom(rem(space::S8)),
                             }
                             ProfileEditorRoot
                             Children [
                                 Node {
                                     align_items: AlignItems::Center,
-                                    column_gap: Val::Px(space::S8),
+                                    column_gap: rem(space::S8),
                                 }
                                 Children [
                                     @{ icon_tile_scene(IconId::FileText, 24.0, palette) }
                                     --
                                     Node {
                                         flex_direction: FlexDirection::Column,
-                                        row_gap: Val::Px(space::S4),
+                                        row_gap: rem(space::S4),
                                     }
                                     Children [
                                         Text({ profile_editor_projection::title(buffer_lines, UiLocale::default().code()) }) ProfileEditorTitle TextRole(Role::BodyStrong)
@@ -194,7 +209,7 @@ pub fn profile_editor_scene(
                                 --
                                 Node {
                                     align_items: AlignItems::Center,
-                                    column_gap: Val::Px(space::S8),
+                                    column_gap: rem(space::S8),
                                 }
                                 ProfileEditorPaneArea { pane: ProfileEditorPane::Profile }
                                 Children [
@@ -224,11 +239,11 @@ pub fn profile_editor_scene(
                             Node {
                                 width: percent(100),
                                 align_items: AlignItems::Center,
-                                column_gap: Val::Px(space::S8),
+                                column_gap: rem(space::S8),
                             }
                             ProfileEditorPaneArea { pane: ProfileEditorPane::Profile }
                             Children [
-                                @{ diagnostic_pill(has_error, palette) }
+                                @{ diagnostic_pill(state.validation_source, validation_status, palette) }
                                 --
                                 Text(diagnostic_text) ProfileEditorDiagnosticText TextRole(Role::Mono)
                             ]
@@ -238,8 +253,8 @@ pub fn profile_editor_scene(
                                 width: percent(100),
                                 align_items: AlignItems::Center,
                                 flex_wrap: FlexWrap::Wrap,
-                                column_gap: Val::Px(space::S4),
-                                row_gap: Val::Px(space::S4),
+                                column_gap: rem(space::S4),
+                                row_gap: rem(space::S4),
                             }
                             ProfileEditorPaneArea { pane: ProfileEditorPane::Profile }
                             Children [
@@ -252,11 +267,12 @@ pub fn profile_editor_scene(
                             Node {
                                 width: percent(100),
                                 max_height: px(PROFILE_EDITOR_RENDER_LIMIT as f32 * 18.0),
-                                padding: UiRect::all(Val::Px(space::S8)),
-                                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                padding: UiRect::all(rem(space::S8)),
+                                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                                 overflow: Overflow::scroll_y(),
                             }
-                            BackgroundColor({ palette.window_clear })
+                            ScrollArea
+                            ThemeBackgroundColor({ Token::WindowClear })
                             ProfileEditorPaneArea { pane: ProfileEditorPane::Profile }
                             Children [
                                 Node {
@@ -308,8 +324,8 @@ fn snippet_buttons(palette: &UiPalette) -> Vec<Box<dyn Scene>> {
             let background = palette.surface_elevated;
             Box::new(bsn! {
                             Node {
-                                min_height: px(22.0),
-                                padding: UiRect::horizontal(Val::Px(space::S6)),
+                                min_height: rem(22.0),
+                                padding: UiRect::horizontal(rem(space::S6)),
                                 align_items: AlignItems::Center,
                                 justify_content: JustifyContent::Center,
                                 border_radius: BorderRadius::all(Val::Px(4.0)),
@@ -330,8 +346,8 @@ fn action_button(label: &'static str, background: Color) -> Box<dyn Scene> {
     let label = LocalizedText::plain(label);
     Box::new(bsn! {
             Node {
-                min_height: px(28.0),
-                padding: UiRect::horizontal(Val::Px(space::S8)),
+                min_height: rem(28.0),
+                padding: UiRect::horizontal(rem(space::S8)),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
                 border_radius: BorderRadius::all(Val::Px(6.0)),
@@ -354,8 +370,8 @@ fn protection_toggle(protection: ProfileWriteProtection, palette: &UiPalette) ->
         protection_toggle_visual(protection, false, palette, UiLocale::default().code());
     Box::new(bsn! {
             Node {
-                min_height: px(28.0),
-                padding: UiRect::horizontal(Val::Px(space::S8)),
+                min_height: rem(28.0),
+                padding: UiRect::horizontal(rem(space::S8)),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
                 border_radius: BorderRadius::all(Val::Px(6.0)),
@@ -378,8 +394,8 @@ fn reload_button(palette: &UiPalette) -> Box<dyn Scene> {
     let background = palette.surface_elevated;
     Box::new(bsn! {
             Node {
-                min_height: px(28.0),
-                padding: UiRect::horizontal(Val::Px(space::S8)),
+                min_height: rem(28.0),
+                padding: UiRect::horizontal(rem(space::S8)),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
                 border_radius: BorderRadius::all(Val::Px(6.0)),
@@ -397,8 +413,8 @@ fn format_button(palette: &UiPalette) -> Box<dyn Scene> {
     let background = palette.surface_elevated;
     Box::new(bsn! {
             Node {
-                min_height: px(28.0),
-                padding: UiRect::horizontal(Val::Px(space::S8)),
+                min_height: rem(28.0),
+                padding: UiRect::horizontal(rem(space::S8)),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
                 border_radius: BorderRadius::all(Val::Px(6.0)),
@@ -417,8 +433,8 @@ fn save_button(palette: &UiPalette) -> Box<dyn Scene> {
     let background = palette.accent;
     Box::new(bsn! {
             Node {
-                min_height: px(28.0),
-                padding: UiRect::horizontal(Val::Px(space::S12)),
+                min_height: rem(28.0),
+                padding: UiRect::horizontal(rem(space::S12)),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
                 border_radius: BorderRadius::all(Val::Px(6.0)),
@@ -433,13 +449,13 @@ fn save_button(palette: &UiPalette) -> Box<dyn Scene> {
     })
 }
 
-fn diagnostic_pill(has_error: bool, palette: &UiPalette) -> Box<dyn Scene> {
-    let label = profile_editor_projection::syntax_label(has_error, UiLocale::default().code());
-    let background = if has_error {
-        palette.danger
-    } else {
-        palette.success
-    };
+fn diagnostic_pill(
+    source: ProfileValidationSource,
+    status: profile_editor_projection::DocumentValidationStatus,
+    palette: &UiPalette,
+) -> Box<dyn Scene> {
+    let label = diagnostic_label(source, status, UiLocale::default().code());
+    let background = diagnostic_color(status, palette);
     Box::new(bsn! {
             Node {
                 padding: UiRect::new(Val::Px(6.0), Val::Px(6.0), Val::Px(2.0), Val::Px(2.0)),
@@ -455,6 +471,7 @@ fn diagnostic_pill(has_error: bool, palette: &UiPalette) -> Box<dyn Scene> {
 /// Rebuild the editor body whenever the buffer generation moved.
 pub fn refresh_profile_editor_body(
     mut state: ResMut<ProfileEditorState>,
+    handle: Option<Res<CommandSinkHandle>>,
     palette: Res<UiPalette>,
     mut commands: Commands,
     bodies: Query<Entity, With<ProfileEditorBody>>,
@@ -463,6 +480,21 @@ pub fn refresh_profile_editor_body(
         return;
     }
     state.last_rendered = state.generation;
+    let inspection = match (handle.as_ref(), state.session.source()) {
+        (Some(handle), Some(source)) => handle
+            .inspect_profile_buffer(&source.document, &state.buffer.full_text())
+            .unwrap_or_else(|failure| {
+                infiltrator_contract::profile_document::DocumentInspection::Unavailable(
+                    infiltrator_contract::profile_document::DocumentInspectionUnavailableReason::AdapterUnavailable {
+                        detail: failure.message,
+                    },
+                )
+            }),
+        _ => infiltrator_contract::profile_document::DocumentInspection::Unavailable(
+            infiltrator_contract::profile_document::DocumentInspectionUnavailableReason::CodecMissing,
+        ),
+    };
+    state.record_profile_inspection(inspection);
     for entity in &bodies {
         commands.entity(entity).despawn_children();
         let scene = editor_rows_scene(&state, &palette);
@@ -481,16 +513,19 @@ pub fn sync_profile_editor(
     let projection = &update.0;
     state
         .session
-        .observe_read_status(&projection.editor_read, false);
-    if let Some(document) = projection.profile_document.as_ref()
-        && state.load_document(document)
-    {
-        state.notice = None;
-        state.format_note = None;
+        .observe_read_status(&projection.editor_read, ProfileEditReadTarget::Document);
+    if let Some(document) = projection.profile_document.as_ref() {
+        match state.load_document(document) {
+            ProfileEditObservation::Updated => {
+                state.notice = None;
+                state.format_note = None;
+            }
+            ProfileEditObservation::DraftProtected | ProfileEditObservation::Unchanged => {}
+        }
     }
     state
         .session
-        .observe_read_status(&projection.editor_read, false);
+        .observe_read_status(&projection.editor_read, ProfileEditReadTarget::Document);
 }
 
 /// Restamp the status line, the syntax banner and its pill from the live
@@ -515,12 +550,8 @@ pub fn restamp_profile_editor(
             text.0 = status_text.clone();
         }
     }
-    let (diagnostic_text, has_error) = diagnostic_line(&state, locale.code());
-    let color = if has_error {
-        palette.danger
-    } else {
-        palette.success
-    };
+    let (diagnostic_text, validation_status) = diagnostic_line(&state, locale.code());
+    let color = diagnostic_color(validation_status, &palette);
     for (mut text, mut text_color) in &mut diagnostics {
         if text.0 != diagnostic_text {
             text.0 = diagnostic_text.clone();
@@ -529,7 +560,7 @@ pub fn restamp_profile_editor(
             text_color.0 = color;
         }
     }
-    let pill_label = profile_editor_projection::syntax_label(has_error, locale.code());
+    let pill_label = diagnostic_label(state.validation_source, validation_status, locale.code());
     for (mut text, mut background) in &mut pills {
         if text.0 != pill_label {
             text.0 = pill_label.to_owned();
@@ -546,7 +577,7 @@ pub fn restamp_profile_editor(
         .unwrap_or_default();
     let (toggle_label, toggle_background) = protection_toggle_visual(
         protection,
-        state.protection_override,
+        state.write_authorization.allows_protected_write(),
         &palette,
         locale.code(),
     );
@@ -557,6 +588,17 @@ pub fn restamp_profile_editor(
         if background.0 != toggle_background {
             background.0 = toggle_background;
         }
+    }
+}
+
+fn diagnostic_color(
+    status: profile_editor_projection::DocumentValidationStatus,
+    palette: &UiPalette,
+) -> Color {
+    match status {
+        profile_editor_projection::DocumentValidationStatus::Valid => palette.success,
+        profile_editor_projection::DocumentValidationStatus::Invalid => palette.danger,
+        profile_editor_projection::DocumentValidationStatus::Unavailable => palette.warning,
     }
 }
 
@@ -590,7 +632,10 @@ pub fn on_profile_editor_reload(
         return;
     }
     handle.submit(UiCommand::LoadProfileDocument {
-        profile: state.session.source().map(|source| source.profile.clone()),
+        profile: state
+            .session
+            .source()
+            .map(|source| source.document.profile_id.as_str().to_owned()),
     });
 }
 
@@ -613,6 +658,7 @@ pub fn on_profile_editor_snippet_activated(
     activate: On<Activate>,
     buttons: Query<&ProfileEditorSnippetButton>,
     mut state: ResMut<ProfileEditorState>,
+    handle: Option<Res<CommandSinkHandle>>,
 ) {
     let Ok(button) = buttons.get(activate.entity) else {
         return;
@@ -620,8 +666,29 @@ pub fn on_profile_editor_snippet_activated(
     let Some(snippet) = YAML_SNIPPETS.get(button.index) else {
         return;
     };
+    let (Some(handle), Some(source)) = (handle, state.session.source()) else {
+        return;
+    };
     if state.session.can_edit() {
-        let _ = state.insert_snippet(snippet.id);
+        let content = state.buffer.full_text();
+        let caret_line = state.buffer.cursor_row.min(state.buffer.line_count() - 1);
+        let line_text = state.buffer.lines[caret_line].as_str();
+        let caret_column = infiltrator_contract::yaml_snippets::column_of_byte_offset(
+            line_text,
+            state.buffer.cursor_col,
+        );
+        match handle.insert_profile_snippet(
+            &source.document,
+            &content,
+            snippet.id,
+            caret_line + 1,
+            caret_column,
+        ) {
+            Ok(outcome) => {
+                let _ = state.adopt_snippet(outcome);
+            }
+            Err(failure) => state.notice = Some(failure.message),
+        }
     }
 }
 
@@ -658,7 +725,7 @@ pub fn on_profile_editor_protection_toggle(
         return;
     }
     if state.session.can_edit() {
-        state.protection_override = !state.protection_override;
+        state.write_authorization = state.write_authorization.toggled();
     }
 }
 

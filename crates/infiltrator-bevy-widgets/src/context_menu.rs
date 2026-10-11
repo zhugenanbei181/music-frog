@@ -1,23 +1,26 @@
 //! Right-click context menu system with viewport boundary flipping and action dispatch.
 //!
-//! Charter (docs/bevy-ui/BEVY_UI_FRONTEND.md):
+//! Charter (crates/infiltrator-bevy-ui/docs/BEVY_UI_FRONTEND.md):
 //! Pure state machine with analytical edge clamping and declarative `bsn!` overlay panel.
 
+use crate::feathers_theme::Token;
 use crate::icon::IconId;
 use crate::icon_tile::icon_tile_scene;
 use crate::palette::UiPalette;
+use crate::palette::rem;
 use crate::text::{Role, TextRole};
 use crate::theme::space;
 use bevy::color::Color;
 use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::resource::Resource;
+use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::math::Vec2;
 use bevy::scene::{Scene, bsn};
 use bevy::ui::BorderColor;
 use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, PositionType,
-    UiRect, Val, percent, px,
+    AlignItems, BorderRadius, FlexDirection, JustifyContent, Node, PositionType, UiRect, Val,
+    percent, px,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
@@ -148,11 +151,11 @@ pub fn context_menu_scene(palette: &UiPalette, state: &ContextMenuState) -> Box<
             Box::new(bsn! {
                             Node {
                                 width: percent(100),
-                                height: px(32.0),
+                                height: rem(32.0),
                                 align_items: AlignItems::Center,
                                 justify_content: JustifyContent::FlexStart,
-                                padding: UiRect::horizontal(Val::Px(space::S8)),
-                                column_gap: Val::Px(space::S8),
+                                padding: UiRect::horizontal(rem(space::S8)),
+                                column_gap: rem(space::S8),
                                 border_radius: BorderRadius::all(Val::Px(4.0)),
                             }
                             Button
@@ -178,14 +181,14 @@ pub fn context_menu_scene(palette: &UiPalette, state: &ContextMenuState) -> Box<
                     position_type: PositionType::Absolute,
                     left: px(pos_x),
                     top: px(pos_y),
-                    width: px(180.0),
+                    width: rem(180.0),
                     flex_direction: FlexDirection::Column,
-                    padding: UiRect::all(Val::Px(space::S4)),
+                    padding: UiRect::all(rem(space::S4)),
                     row_gap: Val::Px(2.0),
                     border: UiRect::all(Val::Px(1.0)),
-                    border_radius: BorderRadius::all(Val::Px(palette.card_radius_px)),
+                    border_radius: BorderRadius::all(rem(palette.card_radius_px)),
                 }
-                BackgroundColor({ palette.surface_elevated })
+                ThemeBackgroundColor({ Token::SurfaceElevated })
                 BorderColor { top: edge, right: edge, bottom: edge, left: edge }
                 ContextMenuCard
                 Children [

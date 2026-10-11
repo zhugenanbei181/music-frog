@@ -1,54 +1,62 @@
 package com.musicfrog.infiltrator.ui.common
 
-import infiltrator_android.FfiErrorCode
-import infiltrator_android.FfiStatus
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
-import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 
 const val DEFAULT_FFI_TIMEOUT_MS = 8000L
 const val LONG_FFI_TIMEOUT_MS = 20000L
 
-data class FfiCallResult<T>(
-    val value: T?,
-    val error: String?
+internal sealed interface CallResult<out T> {
+    data class Success<out T>(val value: T) : CallResult<T>
+    data class Failure(val failure: AppFailure) : CallResult<Nothing>
+}
+
+internal inline fun <T> CallResult<T>.getOrElse(
+    onFailure: (AppFailure) -> Nothing,
+): T = when (this) {
+    is CallResult.Success -> value
+    is CallResult.Failure -> onFailure(failure)
+}
+
+private data class TimedCall<out T>(val value: T)
+
+/**
+ * Run one suspend FFI operation with a typed timeout and failure result.
+ * Parent cancellation is control flow and must remain visible to its caller.
+ */
+internal suspend fun <T> runCall(
+    timeoutMs: Long = DEFAULT_FFI_TIMEOUT_MS,
+    block: suspend () -> T,
+): CallResult<T> = try {
+    val timed = withTimeoutOrNull(timeoutMs) { TimedCall(block()) }
+    if (timed == null) {
+        CallResult.Failure(
+            AppFailure(
+                code = AppFailureCode.NotReady,
+                localization = FailureTextKey.NotReady,
+            ),
+        )
+    } else {
+        CallResult.Success(timed.value)
+    }
+} catch (error: TimeoutCancellationException) {
+    // `withTimeoutOrNull` consumes only its own timeout. A nested timeout is
+    // still cancellation from the parent operation and is rethrown here.
+    throw error
+} catch (error: CancellationException) {
+    throw error
+} catch (error: Exception) {
+    CallResult.Failure(error.toAppFailure())
+}
+
+internal fun Throwable.toAppFailure(): AppFailure = AppFailure(
+    code = AppFailureCode.Internal,
+    localization = FailureTextKey.Internal,
+    diagnostic = message?.takeIf(String::isNotBlank),
 )
 
-suspend fun <T> runFfiCall(
-    timeoutMs: Long = DEFAULT_FFI_TIMEOUT_MS,
-    block: suspend () -> T
-): FfiCallResult<T> {
-    return try {
-        val value = withTimeout(timeoutMs) { block() }
-        FfiCallResult(value, null)
-    } catch (err: TimeoutCancellationException) {
-        FfiCallResult(null, "Request timed out")
-    } catch (err: Exception) {
-        FfiCallResult(null, err.message ?: "Unexpected error")
-    }
-}
-
-fun FfiStatus.userMessage(fallback: String): String {
-    val detail = message?.trim().orEmpty()
-    if (detail.isNotEmpty()) {
-        return detail
-    }
-    val codeMessage = when (code) {
-        FfiErrorCode.OK -> "OK"
-        FfiErrorCode.INVALID_STATE -> "Invalid state"
-        FfiErrorCode.INVALID_INPUT -> "Invalid input"
-        FfiErrorCode.NOT_READY -> "Not ready"
-        FfiErrorCode.NOT_SUPPORTED -> "Not supported"
-        FfiErrorCode.IO -> "I/O error"
-        FfiErrorCode.NETWORK -> "Network error"
-        FfiErrorCode.AUTH -> "Authentication error"
-        FfiErrorCode.SYNC -> "Sync error"
-        FfiErrorCode.CONFIG -> "Config error"
-        FfiErrorCode.CANCELED -> "Canceled"
-        FfiErrorCode.UNKNOWN -> "Unknown error"
-    }
-    return if (fallback.isBlank()) codeMessage else "$fallback: $codeMessage"
-}
-
-fun emptyMessage(label: String): String {
-    return "No $label available"
-}
+internal fun Throwable.toLocalizedFailure(): LocalizedFailure = localizedFailure(
+    FailureTextKey.Internal,
+    message,
+)

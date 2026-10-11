@@ -8,17 +8,19 @@ use super::dns::{DnsLine, DnsLineKind, DnsServerItem};
 use crate::pages::proxies::latency_color;
 use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
+use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::{Scene, bsn};
 use bevy::text::TextColor;
 use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, Val,
-    percent, px,
+    AlignItems, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, percent,
 };
 use bevy::ui::widget::Text;
 use infiltrator_application::dns_latency_projection::{project_dns_latency, server_tags_text};
 use infiltrator_application::latency_projection::project_measured_latency;
+use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
@@ -52,7 +54,7 @@ pub(crate) fn servers_card_scene(
                                 width: percent(100),
                                 align_items: AlignItems::Center,
                                 justify_content: JustifyContent::SpaceBetween,
-                                padding: UiRect::bottom(Val::Px(space::S8)),
+                                padding: UiRect::bottom(rem(space::S8)),
                             }
                             Children [
                                 LocalizedText::plain("dns_nameservers_title") TextRole(Role::BodyStrong)
@@ -64,7 +66,7 @@ pub(crate) fn servers_card_scene(
                             Node {
                                 width: percent(100),
                                 align_items: AlignItems::Center,
-                                padding: UiRect::bottom(Val::Px(space::S8)),
+                                padding: UiRect::bottom(rem(space::S8)),
                             }
                             Children [
                                 Text(latency_label)
@@ -75,9 +77,9 @@ pub(crate) fn servers_card_scene(
             Box::new(bsn! {
                             Node {
                                 width: percent(100),
-                                min_height: px(32.0),
+                                min_height: rem(32.0),
                                 flex_direction: FlexDirection::Column,
-                                padding: UiRect::bottom(Val::Px(space::S8)),
+                                padding: UiRect::bottom(rem(space::S8)),
                             }
                             Children [
                                 Text(latency_results)
@@ -89,7 +91,7 @@ pub(crate) fn servers_card_scene(
                             Node {
                                 width: percent(100),
                                 flex_direction: FlexDirection::Column,
-                                row_gap: Val::Px(space::S8),
+                                row_gap: rem(space::S8),
                             }
                             Children [
                                 { server_scenes }
@@ -123,14 +125,14 @@ pub(crate) fn server_row_scene(
                 width: percent(100),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::SpaceBetween,
-                padding: UiRect::all(Val::Px(space::S8)),
-                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                padding: UiRect::all(rem(space::S8)),
+                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
             }
-            BackgroundColor({ palette.surface_elevated })
+            ThemeBackgroundColor({ Token::SurfaceElevated })
             Children [
                 Node {
                     flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(space::S4),
+                    row_gap: rem(space::S4),
                 }
                 Children [
                     Text(addr) DnsServerAddress(idx) TextRole(Role::BodyStrong)

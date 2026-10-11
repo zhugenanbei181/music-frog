@@ -9,6 +9,7 @@ use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::query::{Or, QueryData, QueryFilter, With};
 use bevy::ecs::system::{Query, Res};
+use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::{Scene, bsn};
 use bevy::text::TextColor;
 use bevy::ui::widget::Text;
@@ -19,8 +20,10 @@ use bevy::ui::{
 use bevy::ui_widgets::Button;
 use infiltrator_application::settings_preference_projection::project;
 use infiltrator_bevy_widgets::button::ButtonDisabled;
+use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::surface_snapshot::PageStatus;
@@ -102,21 +105,21 @@ pub fn preference_row_scene(
         Node {
             width: percent(100), align_items: AlignItems::Center,
             justify_content: JustifyContent::SpaceBetween,
-            padding: UiRect::axes(px(space::S8), px(space::S6)),
-            border_radius: BorderRadius::all(px(palette.control_radius_px)),
+            padding: UiRect::axes(rem(space::S8), rem(space::S6)),
+            border_radius: BorderRadius::all(rem(palette.control_radius_px)),
         }
-        BackgroundColor({ palette.surface_elevated }) PreferenceRow
+        ThemeBackgroundColor({ Token::SurfaceElevated }) PreferenceRow
         Children [
             LocalizedText::plain(kind.label_key()) TextRole(Role::Body)
             --
-            Node { align_items: AlignItems::Center, column_gap: px(space::S8) }
+            Node { align_items: AlignItems::Center, column_gap: rem(space::S8) }
             Children [
                 LocalizedText { key: { copy.key }, params: { copy.params } }
                 PreferenceStatus(kind) TextRole(Role::Caption) TextColor(status_color)
                 --
                 Node {
-                    width: px(38.0), height: px(22.0), border: UiRect::all(px(palette.hairline_px)),
-                    border_radius: BorderRadius::all(px(11.0)), position_type: PositionType::Relative,
+                    width: rem(38.0), height: rem(22.0), border: UiRect::all(px(palette.hairline_px)),
+                    border_radius: BorderRadius::all(rem(11.0)), position_type: PositionType::Relative,
                     align_items: AlignItems::Center,
                 }
                 BackgroundColor(fill) BorderColor::all(edge)
@@ -125,8 +128,8 @@ pub fn preference_row_scene(
                 Children [
                     Node {
                         position_type: PositionType::Absolute,
-                        left: { if enabled { px(18.0) } else { px(2.0) } },
-                        width: px(16.0), height: px(16.0), border_radius: BorderRadius::all(px(8.0)),
+                        left: { if enabled { rem(18.0) } else { px(2.0) } },
+                        width: rem(16.0), height: rem(16.0), border_radius: BorderRadius::all(rem(8.0)),
                     }
                     BackgroundColor(knob) PreferenceKnob(kind)
                     visibility
@@ -230,7 +233,7 @@ pub fn replay(
             }
         } else if view.knob.is_some() {
             if let Some(node) = &mut view.node {
-                node.left = if enabled { px(18.0) } else { px(2.0) };
+                node.left = if enabled { rem(18.0) } else { px(2.0) };
             }
             if let Some(fill) = &mut view.fill {
                 fill.0 = if enabled {

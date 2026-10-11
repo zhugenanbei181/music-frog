@@ -1,16 +1,22 @@
 //! Capture fixtures execute the shared command handler and reject unrelated side effects.
+use super::outbound_preferences::OutboundPreferenceCaptureOwner;
 use crate::command::{UiCommand, UiCommandSink};
 use crate::command_events::CommandExecutedEvent;
-use infiltrator_application::command_application::{CommandApplication, CommandHandler};
+use infiltrator_application::command_application::CommandApplication;
+use infiltrator_application::command_application::handler::CommandHandler;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::command::RequestId;
-use std::mem::take;
+use infiltrator_contract::command_output::CommandOutput;
+use infiltrator_contract::outbound::preferences::OutboundUiPreferenceIntent;
+use mem::take;
+use std::mem;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
 pub(super) enum CaptureCapability {
     ImportUri,
     GroupExpansion,
+    GroupOrder,
     Search,
     Language,
     Doctor,
@@ -27,6 +33,7 @@ pub(super) struct CaptureCommandSink {
     capability: CaptureCapability,
     next_request: AtomicU64,
     completed: Arc<Mutex<Vec<CommandExecutedEvent>>>,
+    outbound_preferences: Option<OutboundPreferenceCaptureOwner>,
 }
 impl CaptureCommandSink {
     pub fn new(application: CommandApplication, capability: CaptureCapability) -> Self {
@@ -35,6 +42,21 @@ impl CaptureCommandSink {
             capability,
             next_request: AtomicU64::new(0),
             completed: Arc::new(Mutex::new(Vec::new())),
+            outbound_preferences: None,
+        }
+    }
+
+    pub fn with_outbound_preferences(
+        application: CommandApplication,
+        capability: CaptureCapability,
+        outbound_preferences: OutboundPreferenceCaptureOwner,
+    ) -> Self {
+        Self {
+            application,
+            capability,
+            next_request: AtomicU64::new(0),
+            completed: Arc::new(Mutex::new(Vec::new())),
+            outbound_preferences: Some(outbound_preferences),
         }
     }
 }
@@ -43,21 +65,35 @@ impl UiCommandSink for CaptureCommandSink {
         let _ = self.submit_tracked(command);
     }
     fn submit_tracked(&self, command: UiCommand) -> Option<RequestId> {
-        assert!(
-            matches!(
-                (&self.capability, &command),
+        let allowed = match (&self.capability, &command) {
+            (
+                CaptureCapability::GroupExpansion,
+                UiCommand::ApplyOutboundUiPreference { request },
+            ) => matches!(
+                request.intent(),
+                OutboundUiPreferenceIntent::SetGroupExpansion { .. }
+            ),
+            (CaptureCapability::Search, UiCommand::ApplyOutboundUiPreference { request }) => {
+                matches!(
+                    request.intent(),
+                    OutboundUiPreferenceIntent::SetSearchQuery(_)
+                )
+            }
+            (CaptureCapability::GroupOrder, UiCommand::ApplyOutboundUiPreference { request }) => {
+                matches!(
+                    request.intent(),
+                    OutboundUiPreferenceIntent::ReorderGroups { .. }
+                        | OutboundUiPreferenceIntent::ResetGroupOrder { .. }
+                )
+            }
+            (capability, command) => matches!(
+                (capability, command),
                 (
                     CaptureCapability::SnapshotRestore,
                     UiCommand::SnapshotRestore { .. }
                 ) | (
                     CaptureCapability::ImportUri,
                     UiCommand::ImportCustomNodeUri { .. }
-                ) | (
-                    CaptureCapability::GroupExpansion,
-                    UiCommand::ToggleProxyGroupExpand { .. }
-                ) | (
-                    CaptureCapability::Search,
-                    UiCommand::SetProxySearchQuery { .. }
                 ) | (CaptureCapability::Language, UiCommand::SetLanguage { .. })
                     | (CaptureCapability::Doctor, UiCommand::RunDoctorDiagnostics)
                     | (CaptureCapability::DnsLeak, UiCommand::TestDnsLeak)
@@ -72,9 +108,25 @@ impl UiCommandSink for CaptureCommandSink {
                         UiCommand::CommitRuleList { .. }
                     )
             ),
-            "capture fixture refuses unrelated side effects"
-        );
+        };
+        assert!(allowed, "capture fixture refuses unrelated side effects");
         let request_id = RequestId(self.next_request.fetch_add(1, Ordering::Relaxed) + 1);
+        if let (Some(owner), UiCommand::ApplyOutboundUiPreference { request }) =
+            (&self.outbound_preferences, &command)
+        {
+            let result = owner
+                .apply(request)
+                .map(CommandOutput::OutboundUiPreferencesApplied);
+            self.completed
+                .lock()
+                .expect("capture feedback")
+                .push(CommandExecutedEvent {
+                    command,
+                    request_id,
+                    result,
+                });
+            return Some(request_id);
+        }
         let intent = command.to_intent().expect("typed capture intent");
         let application = self.application.clone();
         let completed = self.completed.clone();

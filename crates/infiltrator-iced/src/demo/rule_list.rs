@@ -1,14 +1,13 @@
 //! Capture a real source-bound staged edit and the actual denied commit terminal.
+use crate::demo::owner::attach_capture_owner;
 use crate::state::AppState;
 use crate::types::message::Message;
 use iced::Task;
 use infiltrator_application::command_application::CommandApplication;
-use infiltrator_application::configuration_application::ConfigurationApplication;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::language_choice_fixtures::LanguageCaptureProcess;
 use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::rule_list_application::RuleListApplication;
-use infiltrator_application::rule_trace_fixtures::RuleTraceStore;
 use infiltrator_application::surface_reader::ApplicationSurfaceReader;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::parity::FeatureId;
@@ -18,7 +17,7 @@ use infiltrator_ports::surface::SurfaceReader;
 use std::sync::{Arc, atomic::Ordering};
 
 pub(super) fn activate(state: &mut AppState) -> Task<Message> {
-    let store = Arc::new(RuleTraceStore::default());
+    let store = crate::configuration::mihomo_rule_trace_fixture();
     store.deny_write.store(true, Ordering::SeqCst);
     let core = CoreApplication::new(
         Arc::new(LanguageCaptureProcess),
@@ -34,8 +33,8 @@ pub(super) fn activate(state: &mut AppState) -> Task<Message> {
         HostKind::Desktop,
     )
     .with_profiles(ProfileApplication::new(store.clone()))
-    .with_configuration(ConfigurationApplication::new(store));
-    state.commands = Some(core);
+    .with_configuration(crate::configuration::for_mihomo_store(store));
+    attach_capture_owner(state, core);
     let revision = state.surface.revision() + 1;
     Task::perform(
         async move {

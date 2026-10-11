@@ -3,6 +3,8 @@
 
 use super::*;
 use bevy::ecs::query::With;
+use infiltrator_contract::app_routing;
+use infiltrator_domain::app_routing::AppRoutingRule;
 
 #[test]
 fn test_app_routing_page_mounting_and_default_state() {
@@ -78,7 +80,7 @@ fn test_app_routing_add_rule_submits_command() {
         sink.submitted(),
         vec![UiCommand::SetAppRule {
             app_id: "new-app".to_owned(),
-            rule: "Proxy".to_owned(),
+            rule: app_routing::AppRoutingRule::Proxy,
         }]
     );
 }
@@ -104,7 +106,7 @@ fn test_app_routing_switch_rule_submits_command() {
         sink.submitted(),
         vec![UiCommand::SetAppRule {
             app_id: "app-1".to_owned(),
-            rule: "Direct".to_owned(),
+            rule: app_routing::AppRoutingRule::Direct,
         }]
     );
 }

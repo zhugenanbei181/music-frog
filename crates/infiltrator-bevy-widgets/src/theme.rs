@@ -13,6 +13,16 @@
 //! site.
 
 use bevy::ecs::resource;
+
+/// The root font size every rem value resolves against, in baseline logical
+/// pixels (= [`type_scale::BODY`]). The shell installs it as bevy's
+/// `RemSize` resource; user font-scale changes rewrite that one resource and
+/// the whole rem-driven UI follows. All dimension tokens in this module are
+/// stated in these baseline pixels and must reach bevy through the rem
+/// channel ([`crate::palette::rem`]) — see
+/// `crates/infiltrator-bevy-ui/docs/BEVY_020_UI_CAPABILITIES.md` ①.
+pub const REM_BASE: f32 = type_scale::BODY;
+
 /// One sRGBA token color, channel-exact. The f32 fields are the contract the
 /// round-trip test asserts against `Color::srgba`.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -392,7 +402,7 @@ pub mod metrics {
 /// charter and must not depend on contract, so the mirror is enforced by
 /// `crates/infiltrator-bevy-ui/tests/headless/responsive_ui_tests.rs` rather
 /// than by the compiler.
-/// See `docs/RESPONSIVE_PARITY_LEDGER.md`.
+/// See `crates/infiltrator-contract/docs/UI_PARITY_AUDIT.md` for the shared breakpoints.
 pub mod breakpoint {
     /// Compact breakpoint boundary: < 600px width (smartphones portrait, narrow splits).
     pub const COMPACT_MAX_PX: f32 = 600.0;

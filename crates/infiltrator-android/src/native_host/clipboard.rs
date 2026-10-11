@@ -24,6 +24,36 @@ pub trait NativeClipboardChannel: Send + Sync {
     fn write_clipboard(&self, text: &str) -> Result<(), PortError>;
 }
 
+/// Integer receipts returned by Kotlin's `NativeHostBridge.writeClipboard`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NativeClipboardWriteReceipt {
+    Written,
+    Unavailable,
+    PermissionDenied,
+    Failed,
+}
+
+impl NativeClipboardWriteReceipt {
+    pub const fn wire_code(self) -> i32 {
+        match self {
+            Self::Written => 0,
+            Self::Unavailable => 1,
+            Self::PermissionDenied => 2,
+            Self::Failed => 3,
+        }
+    }
+
+    pub const fn from_wire_code(code: i32) -> Option<Self> {
+        match code {
+            0 => Some(Self::Written),
+            1 => Some(Self::Unavailable),
+            2 => Some(Self::PermissionDenied),
+            3 => Some(Self::Failed),
+            _ => None,
+        }
+    }
+}
+
 fn clipboard_slot() -> &'static RwLock<Option<Arc<dyn NativeClipboardChannel>>> {
     static SLOT: OnceLock<RwLock<Option<Arc<dyn NativeClipboardChannel>>>> = OnceLock::new();
     SLOT.get_or_init(|| RwLock::new(None))
@@ -67,13 +97,6 @@ pub enum ClipboardWriteOutcome {
     Unavailable,
     /// The write failed for another reason.
     Failed(String),
-}
-
-impl ClipboardWriteOutcome {
-    /// Whether the text was actually written.
-    pub const fn is_written(&self) -> bool {
-        matches!(self, Self::Written)
-    }
 }
 
 /// The Android clipboard adapter implementing the shared import port.
@@ -292,7 +315,7 @@ mod tests {
             mock.text.lock().expect("clipboard").as_deref(),
             Some("hello")
         );
-        assert!(port.write("hello").is_written());
+        assert_eq!(port.write("hello"), ClipboardWriteOutcome::Written);
 
         assert_eq!(port.write("   "), ClipboardWriteOutcome::Empty);
         assert_eq!(
@@ -329,5 +352,23 @@ mod tests {
         clear_native_clipboard_channel();
         assert!(native_clipboard_channel().is_none());
         assert_eq!(port.write("x"), ClipboardWriteOutcome::Unavailable);
+    }
+
+    #[test]
+    fn native_clipboard_write_receipt_wire_codes_are_exhaustive_and_fail_closed() {
+        for (receipt, code) in [
+            (NativeClipboardWriteReceipt::Written, 0),
+            (NativeClipboardWriteReceipt::Unavailable, 1),
+            (NativeClipboardWriteReceipt::PermissionDenied, 2),
+            (NativeClipboardWriteReceipt::Failed, 3),
+        ] {
+            assert_eq!(receipt.wire_code(), code);
+            assert_eq!(
+                NativeClipboardWriteReceipt::from_wire_code(code),
+                Some(receipt)
+            );
+        }
+        assert_eq!(NativeClipboardWriteReceipt::from_wire_code(-1), None);
+        assert_eq!(NativeClipboardWriteReceipt::from_wire_code(4), None);
     }
 }

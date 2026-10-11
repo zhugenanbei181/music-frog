@@ -1,25 +1,86 @@
 import java.util.Properties
+import org.gradle.api.DefaultTask
+import org.gradle.api.file.DirectoryProperty
+import org.gradle.api.file.RegularFileProperty
+import org.gradle.api.provider.Property
+import org.gradle.api.tasks.Input
+import org.gradle.api.tasks.InputFile
+import org.gradle.api.tasks.OutputDirectory
+import org.gradle.api.tasks.TaskAction
 
-val defaultVersionName = "0.20.0"
-val defaultVersionCode = 20_000
+abstract class GenerateProductIcon : DefaultTask() {
+    @get:InputFile
+    abstract val sourceIcon: RegularFileProperty
 
-val resolvedVersionName = providers.gradleProperty("versionName")
-    .orElse(providers.gradleProperty("VERSION_NAME"))
-    .orElse(providers.gradleProperty("APP_VERSION"))
-    .orElse(providers.environmentVariable("VERSION_NAME"))
-    .orElse(providers.environmentVariable("APP_VERSION"))
-    .orElse(defaultVersionName)
+    @get:Input
+    abstract val resourceName: Property<String>
 
-val resolvedVersionCode = providers.gradleProperty("versionCode")
-    .orElse(providers.gradleProperty("VERSION_CODE"))
-    .orElse(providers.gradleProperty("APP_VERSION_CODE"))
-    .orElse(providers.environmentVariable("VERSION_CODE"))
-    .orElse(providers.environmentVariable("APP_VERSION_CODE"))
-    .orElse(defaultVersionCode.toString())
-    .map { value ->
-        value.toIntOrNull()
-            ?: error("versionCode must be an integer, got '$value'")
+    @get:OutputDirectory
+    abstract val outputDirectory: DirectoryProperty
+
+    @TaskAction
+    fun generate() {
+        val target = outputDirectory.get().file("drawable/${resourceName.get()}.png").asFile
+        target.parentFile.mkdirs()
+        sourceIcon.get().asFile.copyTo(target, overwrite = true)
     }
+}
+
+val productIdentityFile = rootProject.file("../product-identity.properties")
+check(productIdentityFile.isFile) {
+    "Android product identity file is missing: $productIdentityFile"
+}
+val productIdentity = Properties().apply {
+    productIdentityFile.inputStream().use { load(it) }
+}
+fun identityValue(key: String): String =
+    productIdentity.getProperty(key)?.takeIf { it.isNotBlank() }
+        ?: error("Missing Android product identity key '$key' in $productIdentityFile")
+
+fun generatedIdentityValue(key: String): String {
+    val output = providers.exec {
+        commandLine(
+            "python3",
+            rootProject.file("../scripts/product_identity.py").absolutePath,
+            "--get",
+            key,
+        )
+    }
+    val result = output.result.get()
+    check(result.exitValue == 0) {
+        "Cannot read product identity '$key': ${output.standardError.asText.get()}"
+    }
+    return output.standardOutput.asText.get().trim()
+}
+
+val productVersionName = generatedIdentityValue("version.name")
+val composeVersionCode = generatedIdentityValue("compose.version_code").toInt()
+val bevyVersionCode = generatedIdentityValue("bevy.version_code").toInt()
+val slintVersionCode = generatedIdentityValue("slint.version_code").toInt()
+val composeApplicationId = identityValue("compose.application_id")
+val bevyApplicationId = identityValue("bevy.application_id")
+val slintApplicationId = identityValue("slint.application_id")
+val androidNamespace = identityValue("android.namespace")
+val composeDisplayName = identityValue("compose.display_name")
+val bevyDisplayName = identityValue("bevy.display_name")
+val slintDisplayName = identityValue("slint.display_name")
+val composeIconResource = identityValue("compose.icon_resource")
+val bevyIconResource = identityValue("bevy.icon_resource")
+val slintIconResource = identityValue("slint.icon_resource")
+val composeIconAsset = identityValue("compose.icon_asset")
+val bevyIconAsset = identityValue("bevy.icon_asset")
+val slintIconAsset = identityValue("slint.icon_asset")
+val composeLauncherActivity = identityValue("compose.launcher_activity")
+val bevyLauncherActivity = identityValue("bevy.launcher_activity")
+val slintLauncherActivity = identityValue("slint.launcher_activity")
+val productIcons = mapOf(
+    "compose" to (composeIconAsset to composeIconResource),
+    "bevy" to (bevyIconAsset to bevyIconResource),
+    "slint" to (slintIconAsset to slintIconResource),
+)
+
+fun launcherActivityClass(activity: String): String =
+    if (activity.startsWith('.')) "$androidNamespace$activity" else activity
 
 plugins {
     id("com.android.application")
@@ -27,7 +88,7 @@ plugins {
 }
 
 android {
-    namespace = "com.musicfrog.infiltrator"
+    namespace = androidNamespace
     // BANDROID-024: latest stable AndroidX/Compose (Compose 1.12.x, core-ktx
     // 1.19.x, lifecycle 2.11.x) require compiling against API 37 or later.
     // compileSdk is independent of targetSdk; runtime behavior stays at 36.
@@ -35,17 +96,58 @@ android {
     ndkVersion = "29.0.14206865"
 
     defaultConfig {
-        applicationId = "com.musicfrog.infiltrator"
+        applicationId = composeApplicationId
         minSdk = 29
         //noinspection OldTargetApi
         targetSdk = 36
-        versionCode = resolvedVersionCode.get()
-        versionName = resolvedVersionName.get()
-        // BANDROID-022: instrumented tests run through the standard AndroidX runner.
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        versionCode = composeVersionCode
+        versionName = productVersionName
+        // All device tests refuse physical devices and keep the emulator guest
+        // offline while the product UI starts (Overview performs an IP check).
+        testInstrumentationRunner = "com.musicfrog.infiltrator.OfflineEmulatorTestRunner"
         ndk {
             //noinspection ChromeOsAbiSupport
             abiFilters += listOf("arm64-v8a", "x86_64")
+        }
+    }
+
+    flavorDimensions += "surface"
+    productFlavors {
+        create("compose") {
+            dimension = "surface"
+            applicationId = composeApplicationId
+            versionCode = composeVersionCode
+            versionName = productVersionName
+            resValue("string", "app_name", composeDisplayName)
+            resValue(
+                "string",
+                "notification_activity",
+                launcherActivityClass(composeLauncherActivity),
+            )
+        }
+        create("bevy") {
+            dimension = "surface"
+            applicationId = bevyApplicationId
+            versionCode = bevyVersionCode
+            versionName = productVersionName
+            resValue("string", "app_name", bevyDisplayName)
+            resValue(
+                "string",
+                "notification_activity",
+                launcherActivityClass(bevyLauncherActivity),
+            )
+        }
+        create("slint") {
+            dimension = "surface"
+            applicationId = slintApplicationId
+            versionCode = slintVersionCode
+            versionName = productVersionName
+            resValue("string", "app_name", slintDisplayName)
+            resValue(
+                "string",
+                "notification_activity",
+                launcherActivityClass(slintLauncherActivity),
+            )
         }
     }
 
@@ -84,6 +186,7 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+        resValues = true
     }
 
     compileOptions {
@@ -102,29 +205,79 @@ android {
     // state logic does not need Robolectric.
     testOptions {
         unitTests.isReturnDefaultValues = true
+        animationsDisabled = true
+        managedDevices {
+            localDevices {
+                create("pixel6Api36") {
+                    device = "Pixel 6"
+                    apiLevel = 36
+                    systemImageSource = "aosp"
+                    testedAbi = "x86_64"
+                    require64Bit = true
+                }
+            }
+        }
     }
 }
 
-// 1. 定义外部资源路径
-val vendorMihomoArm64 = rootProject.file("../vendor/mihomo-android-arm64-v8")
-val vendorMihomoAmd64 = rootProject.file("../vendor/mihomo-android-amd64")
-
-val jniDirArm64 = layout.projectDirectory.dir("src/main/jniLibs/arm64-v8a")
-val jniDirX86_64 = layout.projectDirectory.dir("src/main/jniLibs/x86_64")
-
-// 2. 修正 Copy 任务：使用标准 Copy 任务类型以兼容配置缓存
-tasks.register<Copy>("prepareMihomoAsset") {
-    if (vendorMihomoArm64.exists()) {
-        from(vendorMihomoArm64) {
-            into("arm64-v8a")
-            rename { "libmihomo.so" }
+androidComponents {
+    onVariants { variant ->
+        val product = variant.productFlavors
+            .singleOrNull { (dimension, _) -> dimension == "surface" }
+            ?.second
+            ?: return@onVariants
+        val (iconAsset, iconResource) = productIcons.getValue(product)
+        val generationTask = tasks.register<GenerateProductIcon>(
+            "generate${variant.name.replaceFirstChar { it.uppercase() }}ProductIcon",
+        ) {
+            sourceIcon.set(rootProject.layout.projectDirectory.file("../$iconAsset"))
+            resourceName.set(iconResource)
+            outputDirectory.set(layout.buildDirectory.dir("generated/productIdentity/${variant.name}/res"))
         }
+        variant.sources.res?.addGeneratedSourceDirectory(
+            generationTask,
+            GenerateProductIcon::outputDirectory,
+        )
     }
-    if (vendorMihomoAmd64.exists()) {
-        from(vendorMihomoAmd64) {
-            into("x86_64")
-            rename { "libmihomo.so" }
-        }
+}
+
+// Restore each Android executable through the packaging lock before copying
+// only the verified libmihomo.so into Android's native library source set.
+val fetchMihomoScript = rootProject.file("../scripts/fetch-mihomo.py")
+val mihomoStagingDirectory = layout.buildDirectory.dir("generated/mihomo-assets")
+
+fun fetchMihomoAsset(taskName: String, target: String, abi: String) =
+    tasks.register<Exec>(taskName) {
+        commandLine(
+            "python3",
+            fetchMihomoScript.absolutePath,
+            "--target",
+            target,
+            "--stage",
+            mihomoStagingDirectory.get().file("$abi/libmihomo.so").asFile.absolutePath,
+        )
+    }
+
+val fetchMihomoArm64Asset = fetchMihomoAsset(
+    "fetchMihomoArm64Asset",
+    "aarch64-linux-android",
+    "arm64-v8a",
+)
+val fetchMihomoX86_64Asset = fetchMihomoAsset(
+    "fetchMihomoX86_64Asset",
+    "x86_64-linux-android",
+    "x86_64",
+)
+
+tasks.register<Copy>("prepareMihomoAsset") {
+    dependsOn(fetchMihomoArm64Asset, fetchMihomoX86_64Asset)
+    from(mihomoStagingDirectory.get().dir("arm64-v8a")) {
+        include("libmihomo.so")
+        into("arm64-v8a")
+    }
+    from(mihomoStagingDirectory.get().dir("x86_64")) {
+        include("libmihomo.so")
+        into("x86_64")
     }
     into(layout.projectDirectory.dir("src/main/jniLibs"))
 }
@@ -163,9 +316,44 @@ tasks.register<Exec>("cargoBuild") {
     errorOutput = System.err
 }
 
+tasks.register<Exec>("verifyAndroidProductIdentity") {
+    workingDir = rootProject.projectDir.parentFile
+    commandLine(
+        "python3",
+        rootProject.file("../scripts/quality/android-product-identity-guard.py").absolutePath,
+    )
+}
+
+tasks.register<Exec>("verifyAndroidMihomoAssets") {
+    workingDir = rootProject.projectDir.parentFile
+    commandLine(
+        "python3",
+        rootProject.file("../scripts/quality/android-mihomo-assets-guard.py").absolutePath,
+    )
+}
+
 tasks.named("preBuild") {
     dependsOn("prepareMihomoAsset")
     dependsOn("cargoBuild")
+    dependsOn("verifyAndroidProductIdentity")
+    dependsOn("verifyAndroidMihomoAssets")
+}
+
+// The Slint NativeActivity is linked into the same Rust library as the
+// existing Android bridge. Its flavor-specific library enables `slint-ui`;
+// Compose and Bevy continue to package the standard host library.
+val buildSlintAndroidRust = tasks.register<Exec>("buildSlintAndroidRust") {
+    workingDir = rootProject.projectDir.parentFile
+    commandLine("bash", rootProject.file("../scripts/android-slint-build.sh").absolutePath)
+    // The shared host task also writes libinfiltrator_android.so. Serialize
+    // feature-specific builds so Cargo's per-target output cannot be copied
+    // into the wrong Android source set.
+    mustRunAfter("cargoBuild")
+}
+tasks.configureEach {
+    if (name.startsWith("mergeSlint") && name.endsWith("JniLibFolders")) {
+        dependsOn(buildSlintAndroidRust)
+    }
 }
 
 // 5. 确保 Kotlin 编译前 Rust 库已准备好 (UniFFI 生成代码需要)
@@ -174,6 +362,9 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach 
 }
 
 dependencies {
+    // Only the Bevy product flavor packages the native Activity driver.
+    add("bevyImplementation", project(":bevy-host"))
+
     // BANDROID-024: Android dependency baseline tracks the latest stable
     // releases. Compose artifacts are versioned by the BOM; the rest are pinned
     // explicitly. Re-check Google Maven / Maven Central before changing these.
@@ -194,7 +385,12 @@ dependencies {
 
     // BANDROID-021: JVM unit tests (no device required).
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240303")
     // BANDROID-022: instrumented tests (emulator/device only).
     androidTestImplementation("androidx.test.ext:junit:1.3.0")
     androidTestImplementation("androidx.test:runner:1.7.0")
+    androidTestImplementation("androidx.test.uiautomator:uiautomator:2.4.0")
+    androidTestImplementation(platform("androidx.compose:compose-bom:2026.09.00"))
+    androidTestImplementation("androidx.compose.ui:ui-test-junit4")
+    debugImplementation("androidx.compose.ui:ui-test-manifest")
 }

@@ -20,6 +20,7 @@ use bevy::ui::InteractionDisabled;
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Activate;
 use infiltrator_application::command_application::CommandApplication;
+use infiltrator_application::doctor_actions::DoctorActionPhase;
 use infiltrator_application::doctor_application::DoctorApplication;
 use infiltrator_application::doctor_capture_fixtures::{CHECK_ID, DoctorCapturePort};
 use infiltrator_bevy_widgets::button::ButtonDisabled;
@@ -93,7 +94,12 @@ pub fn activate(mut diagnosis: DiagnosticActivation, mut commands: Commands) {
             &diagnosis.latest.0,
         )));
     }
-    if diagnosis.capture.started || diagnosis.actions.state.pending.is_some() {
+    if diagnosis.capture.started
+        || matches!(
+            &diagnosis.actions.state.phase,
+            DoctorActionPhase::Pending(_)
+        )
+    {
         return;
     }
     let Some(entity) = diagnosis.run.iter().next() else {
@@ -126,8 +132,11 @@ impl DiagnosticObservation<'_, '_> {
     fn bounds(&self, geometry: &mut CaptureGeometry) -> Option<[f32; 4]> {
         let actions = &self.actions.state;
         if !self.capture.started
-            || !actions.can_retry()
-            || actions.failure.as_ref()?.code != ErrorCode::Permission
+            || !matches!(
+                &actions.phase,
+                DoctorActionPhase::Failed { failure, .. }
+                    if failure.code == ErrorCode::Permission
+            )
             || self.capture.port.run_count() != 2
         {
             return None;

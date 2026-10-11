@@ -6,7 +6,7 @@ use infiltrator_contract::aggregator::{
     AggregationCustomGroup, AggregationRenameRule, AggregationTemplate,
 };
 use infiltrator_contract::capability::Capability;
-use infiltrator_domain::profile_options::ProfileOptions;
+use infiltrator_contract::core_identity::EngineId;
 use infiltrator_domain::profiles::{ProfileInfo, ProfileMetadata};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::ProfileStore;
@@ -58,6 +58,10 @@ impl FakeStore {
 
 #[async_trait]
 impl ProfileStore for FakeStore {
+    fn engine_id(&self) -> EngineId {
+        EngineId::new("mihomo").expect("test engine ID")
+    }
+
     fn config_dir(&self) -> PathBuf {
         PathBuf::from("/fake/configs")
     }
@@ -125,18 +129,6 @@ impl ProfileStore for FakeStore {
         Ok(())
     }
 
-    async fn load_options(&self, _profile: &str) -> Result<ProfileOptions, PortError> {
-        Ok(ProfileOptions::default())
-    }
-
-    async fn save_options(
-        &self,
-        _profile: &str,
-        _options: &ProfileOptions,
-    ) -> Result<(), PortError> {
-        Ok(())
-    }
-
     async fn load_aggregation_templates(&self) -> Result<Vec<AggregationTemplate>, PortError> {
         if !self.sidecar_supported {
             return Err(PortError::unsupported(
@@ -158,10 +150,6 @@ impl ProfileStore for FakeStore {
             ));
         }
         *self.templates.lock().expect("templates") = templates.to_vec();
-        Ok(())
-    }
-
-    async fn delete_options(&self, _profile: &str) -> Result<(), PortError> {
         Ok(())
     }
 

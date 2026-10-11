@@ -12,6 +12,7 @@
 use crate::icon::IconId;
 use crate::icon_tile::icon_tile_scene;
 use crate::palette::UiPalette;
+use crate::palette::rem;
 use crate::text::{Role, TextRole};
 use crate::theme::{space, type_scale};
 use bevy::color::Color;
@@ -21,7 +22,7 @@ use bevy::ecs::query::With;
 use bevy::ecs::system::{Query, Res};
 use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderRadius, FlexDirection, Node, UiRect, Val, px,
+    AlignItems, BackgroundColor, BorderRadius, FlexDirection, Node, UiRect, px,
 };
 use bevy::ui::widget::Text;
 
@@ -60,14 +61,14 @@ pub fn stat_chip_scene(
             Node {
                 flex_grow: 1.0,
                 flex_shrink: 1.0,
-                flex_basis: px(140.0),
-                min_width: px(110.0),
+                flex_basis: rem(140.0),
+                min_width: rem(110.0),
                 min_height: px(CHIP_MIN_HEIGHT),
                 flex_direction: FlexDirection::Row,
                 align_items: AlignItems::Center,
-                column_gap: Val::Px(space::S12),
-                padding: UiRect::all(Val::Px(space::S12)),
-                border_radius: BorderRadius::all(Val::Px(palette.card_radius_px)),
+                column_gap: rem(space::S12),
+                padding: UiRect::all(rem(space::S12)),
+                border_radius: BorderRadius::all(rem(palette.card_radius_px)),
             }
             BackgroundColor({ stat_chip_fill(palette) })
             StatChip
@@ -76,7 +77,7 @@ pub fn stat_chip_scene(
                 --
                 Node {
                     flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(space::S4),
+                    row_gap: rem(space::S4),
                 }
                 Children [
                     Text(label) TextRole(Role::Caption) StatChipLabel

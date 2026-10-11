@@ -9,6 +9,7 @@ use infiltrator_contract::network_roaming::{
 use infiltrator_domain::mtu_optimizer::MtuOptimizer;
 use infiltrator_domain::network_roaming::{decide, select_active_interface};
 use infiltrator_ports::network_roaming::NetworkRoamingPort;
+use infiltrator_ports::runtime_configuration::ObservedValue;
 use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use std::sync::Arc;
 
@@ -104,19 +105,25 @@ impl NetworkRoamingApplication {
             }
         };
 
-        let (tun, controller_failure) = match &self.gateway {
-            Some(gateway) => match gateway.get_config().await {
-                Ok(config) => (config.tun, None),
-                Err(error) => (
-                    None,
-                    Some(Failure::new(
-                        ErrorCode::Network,
-                        format!("Mihomo TUN configuration unavailable: {error}"),
-                        true,
-                    )),
-                ),
-            },
-            None => (None, None),
+        let (tun_enabled, tun_auto_route, tun_strict_route, controller_failure) =
+            match &self.gateway {
+                Some(gateway) => {
+                    match crate::runtime_configuration_application::
+                        RuntimeConfigurationApplication::from_current_gateway(gateway.as_ref())
+                    {
+                        Ok(configuration) => match configuration.observe_tun().await {
+                            Ok(observed) => (
+                                reported_bool(&observed.value.enabled),
+                                reported_bool(&observed.value.auto_route),
+                                reported_bool(&observed.value.strict_route),
+                                None,
+                            ),
+                            Err(failure) => (None, None, None, Some(failure)),
+                        },
+                        Err(failure) => (None, None, None, Some(failure)),
+                    }
+                }
+                None => (None, None, None, None),
         };
         let tun_interface = observation
             .interfaces
@@ -126,7 +133,8 @@ impl NetworkRoamingApplication {
         let decision = decide(
             state.last_observation.as_ref(),
             &observation,
-            tun.as_ref(),
+            tun_enabled,
+            tun_auto_route,
             tun_interface.as_deref(),
         );
         let selected = select_active_interface(&observation.interfaces);
@@ -212,34 +220,31 @@ impl NetworkRoamingApplication {
                 ))
             } else if let Some(failure) = controller_failure.clone() {
                 Some(failure)
-            } else if tun.as_ref().and_then(|tun| tun.enable).is_none() {
+            } else if tun_enabled.is_none() {
                 Some(Failure::new(
                     ErrorCode::NotReady,
                     "TUN enable state was not reported",
                     true,
                 ))
-            } else if tun.as_ref().is_some_and(|tun| tun.enable == Some(false)) {
+            } else if tun_enabled == Some(false) {
                 Some(Failure::new(
                     ErrorCode::NotReady,
                     "TUN is not enabled; no route table needs repair",
                     false,
                 ))
-            } else if tun.as_ref().and_then(|tun| tun.auto_route).is_none() {
+            } else if tun_auto_route.is_none() {
                 Some(Failure::new(
                     ErrorCode::NotReady,
                     "TUN auto-route state was not reported",
                     true,
                 ))
-            } else if tun
-                .as_ref()
-                .is_some_and(|tun| tun.auto_route == Some(false))
-            {
+            } else if tun_auto_route == Some(false) {
                 Some(Failure::new(
                     ErrorCode::InvalidState,
                     "TUN auto-route is disabled; refusing to mutate host routes",
                     false,
                 ))
-            } else if tun.as_ref().and_then(|tun| tun.strict_route).is_none() {
+            } else if tun_strict_route.is_none() {
                 Some(Failure::new(
                     ErrorCode::NotReady,
                     "TUN strict-route state was not reported",
@@ -266,12 +271,11 @@ impl NetworkRoamingApplication {
             }
 
             let selected = selected.expect("selected interface checked above");
-            let tun = tun.as_ref().expect("TUN checked above");
             let request = NetworkRoamingRepairRequest {
                 physical_interface: selected.name.clone(),
                 gateway_ip: selected.gateway_ip.clone(),
                 tun_interface: tun_interface.clone().expect("TUN checked above"),
-                strict_route: tun.strict_route.ok_or_else(|| {
+                strict_route: tun_strict_route.ok_or_else(|| {
                     Failure::new(
                         ErrorCode::NotReady,
                         "TUN strict-route has not been observed",
@@ -314,9 +318,8 @@ impl NetworkRoamingApplication {
                 snapshot.status = NetworkRoamingStatus::Degraded {
                     reason: failure.message,
                 };
-            } else if tun
-                .as_ref()
-                .is_some_and(|tun| tun.enable == Some(true) && tun.auto_route == Some(true))
+            } else if tun_enabled == Some(true)
+                && tun_auto_route == Some(true)
                 && tun_interface.is_none()
             {
                 snapshot.status = NetworkRoamingStatus::Degraded {
@@ -332,27 +335,37 @@ impl NetworkRoamingApplication {
     }
 }
 
+fn reported_bool(value: &ObservedValue<bool>) -> Option<bool> {
+    match value {
+        ObservedValue::Unreported => None,
+        ObservedValue::Reported(value) => Some(*value),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use async_trait::async_trait;
     #[cfg(test)]
     use futures_util::stream::empty;
+    use infiltrator_contract::core_identity::{
+        CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
+    };
     #[cfg(test)]
-    use infiltrator_contract::command::ProxyMode;
     use infiltrator_contract::network_roaming::{
         NetworkInterfaceKind, NetworkInterfaceSnapshot, NetworkObservation,
         NetworkRoamingRepairResult,
     };
-    use infiltrator_domain::proxy::Proxy;
-    #[cfg(test)]
-    use infiltrator_domain::runtime::TunSnapshot;
+    use infiltrator_contract::session::SessionToken;
     use infiltrator_domain::runtime::{
-        ConfigSnapshot, ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider, TrafficData,
+        ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider, TrafficData,
     };
     use infiltrator_ports::error::PortError;
+    use infiltrator_ports::runtime_configuration::{
+        ConfigurationApply, ConfigurationObservation, ConfigurationRevision,
+        RuntimeConfigurationPorts, TunConfiguration, TunConfigurationPort,
+    };
     use infiltrator_ports::runtime_gateway::{RuntimeGateway, RuntimeStream, RuntimeStreamEvent};
-    use std::collections::HashMap;
     #[cfg(test)]
     use std::sync;
     use std::sync::atomic::{AtomicUsize, Ordering};
@@ -386,34 +399,56 @@ mod tests {
     }
 
     struct FakeGateway {
+        scope: CoreScope,
+        tun_port: Arc<FakeTunConfiguration>,
+    }
+
+    struct FakeTunConfiguration {
         auto_route: bool,
     }
 
     #[async_trait]
-    impl RuntimeGateway for FakeGateway {
-        async fn get_config(&self) -> Result<ConfigSnapshot, PortError> {
-            Ok(ConfigSnapshot {
-                tun: Some(TunSnapshot {
-                    enable: Some(true),
-                    stack: Some("gvisor".to_owned()),
-                    auto_route: Some(self.auto_route),
-                    strict_route: Some(true),
-                    mtu: Some(1420),
-                }),
-                ..ConfigSnapshot::default()
+    impl TunConfigurationPort for FakeTunConfiguration {
+        async fn observe(
+            &self,
+            scope: &CoreScope,
+        ) -> Result<ConfigurationObservation<TunConfiguration>, PortError> {
+            Ok(ConfigurationObservation {
+                scope: scope.clone(),
+                revision: ConfigurationRevision::new(1),
+                value: TunConfiguration {
+                    enabled: ObservedValue::Reported(true),
+                    stack: ObservedValue::Reported("gvisor".to_owned()),
+                    auto_route: ObservedValue::Reported(self.auto_route),
+                    strict_route: ObservedValue::Reported(true),
+                    mtu: ObservedValue::Reported(1420),
+                },
             })
         }
 
-        async fn patch_config(&self, _updates: serde_json::Value) -> Result<(), PortError> {
-            Ok(())
+        async fn apply(
+            &self,
+            _request: ConfigurationApply<
+                infiltrator_ports::runtime_configuration::TunConfigurationUpdate,
+            >,
+        ) -> Result<ConfigurationObservation<TunConfiguration>, PortError> {
+            Err(PortError::unsupported(
+                infiltrator_contract::capability::Capability::Tun,
+                "roaming fake is read-only",
+            ))
+        }
+    }
+
+    #[async_trait]
+    impl RuntimeGateway for FakeGateway {
+        fn current_core_scope(&self) -> Result<CoreScope, PortError> {
+            Ok(self.scope.clone())
         }
 
-        async fn set_proxy_mode(&self, _mode: ProxyMode) -> Result<(), PortError> {
-            Ok(())
-        }
-
-        async fn get_proxies(&self) -> Result<HashMap<String, Proxy>, PortError> {
-            Ok(HashMap::new())
+        fn configuration_ports(&self) -> RuntimeConfigurationPorts {
+            let mut ports = RuntimeConfigurationPorts::unsupported();
+            ports.tun = self.tun_port.clone();
+            ports
         }
 
         async fn switch_proxy(&self, _group: &str, _node: &str) -> Result<(), PortError> {
@@ -442,10 +477,6 @@ mod tests {
         }
 
         async fn update_rule_provider(&self, _name: &str) -> Result<(), PortError> {
-            Ok(())
-        }
-
-        async fn flush_fakeip_cache(&self) -> Result<(), PortError> {
             Ok(())
         }
 
@@ -479,6 +510,22 @@ mod tests {
         async fn stream_connections(&self) -> Result<RuntimeStream<ConnectionSnapshot>, PortError> {
             Ok(Box::pin(empty::<RuntimeStreamEvent<ConnectionSnapshot>>()))
         }
+    }
+
+    fn fake_gateway(auto_route: bool) -> Arc<FakeGateway> {
+        let scope = CoreScope {
+            identity: CoreIdentity::new(
+                EngineId::new("mihomo").expect("engine"),
+                CoreInstanceId::new("roaming-core").expect("instance"),
+                Some(CoreVersion::new("test").expect("version")),
+            ),
+            generation: CoreGeneration::new(1),
+            session_token: Some(SessionToken::new(1)),
+        };
+        Arc::new(FakeGateway {
+            scope,
+            tun_port: Arc::new(FakeTunConfiguration { auto_route }),
+        })
     }
 
     fn observation(physical: &str, gateway: &str) -> NetworkObservation {
@@ -515,10 +562,7 @@ mod tests {
             ]),
             repairs: AtomicUsize::new(0),
         });
-        let application = NetworkRoamingApplication::new(
-            port.clone(),
-            Some(Arc::new(FakeGateway { auto_route: true })),
-        );
+        let application = NetworkRoamingApplication::new(port.clone(), Some(fake_gateway(true)));
         let first = application.refresh().await;
         assert_eq!(first.status, NetworkRoamingStatus::Stable);
         let second = application.refresh().await;
@@ -541,10 +585,7 @@ mod tests {
             ]),
             repairs: AtomicUsize::new(0),
         });
-        let application = NetworkRoamingApplication::new(
-            port.clone(),
-            Some(Arc::new(FakeGateway { auto_route: false })),
-        );
+        let application = NetworkRoamingApplication::new(port.clone(), Some(fake_gateway(false)));
         let _ = application.refresh().await;
         let snapshot = application.refresh().await;
         assert_eq!(snapshot.active_interface.as_deref(), Some("eth0"));

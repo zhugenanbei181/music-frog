@@ -4,7 +4,6 @@
 
 use crate::state::AppState;
 use crate::types::app::{ConfirmAction, Route, ToastStatus};
-use crate::types::editor::EditorLazyState;
 use crate::types::message::Message;
 use crate::types::rule_trace::RuleTraceAction;
 use crate::types::rules::{RuleBadgeKind, RuleRenderItem};
@@ -146,13 +145,14 @@ impl AppState {
     }
 
     fn run_rules_tracer(&mut self) -> Task<Message> {
+        let commands = self.command_ingress();
         let model = &mut self.editor.rule_trace;
         model.set_query(self.editor.rules_tracer_input.clone());
         model.set_source_ip(self.editor.rules_tracer_src_ip.clone());
         let Ok((operation, request)) = model.begin() else {
             return Task::none();
         };
-        let Some(commands) = self.commands.clone() else {
+        let Some(commands) = commands else {
             model.finish(
                 operation,
                 Err(Failure::new(
@@ -273,7 +273,7 @@ impl AppState {
                 let Some((operation, request)) = self.editor.rule_trace.begin_override() else {
                     return Task::none();
                 };
-                let Some(commands) = self.commands.clone() else {
+                let Some(commands) = self.command_ingress() else {
                     self.editor.rule_trace.finish_override(
                         operation,
                         Err(Failure::new(
@@ -462,45 +462,6 @@ impl AppState {
                             Some(Failure::new(ErrorCode::Storage, error.to_string(), true)),
                         );
                     }
-                }
-                Task::none()
-            }
-            Message::RuleProvidersJsonLoaded(result) => {
-                match result {
-                    Ok(json) => {
-                        self.editor.rule_providers_json_cache = json;
-                        if self.editor.rule_providers_editor_state == EditorLazyState::Loaded {
-                            self.ensure_rule_providers_editor_loaded();
-                        }
-                        self.editor.rule_providers_json_dirty = false;
-                    }
-                    Err(e) => self.set_error(&e),
-                }
-                Task::none()
-            }
-            Message::ProxyProvidersJsonLoaded(result) => {
-                match result {
-                    Ok(json) => {
-                        self.editor.proxy_providers_json_cache = json;
-                        if self.editor.proxy_providers_editor_state == EditorLazyState::Loaded {
-                            self.ensure_proxy_providers_editor_loaded();
-                        }
-                        self.editor.proxy_providers_json_dirty = false;
-                    }
-                    Err(e) => self.set_error(&e),
-                }
-                Task::none()
-            }
-            Message::SnifferJsonLoaded(result) => {
-                match result {
-                    Ok(json) => {
-                        self.editor.sniffer_json_cache = json;
-                        if self.editor.sniffer_editor_state == EditorLazyState::Loaded {
-                            self.ensure_sniffer_editor_loaded();
-                        }
-                        self.editor.sniffer_json_dirty = false;
-                    }
-                    Err(e) => self.set_error(&e),
                 }
                 Task::none()
             }

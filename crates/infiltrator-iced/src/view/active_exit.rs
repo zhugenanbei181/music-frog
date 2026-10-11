@@ -107,8 +107,8 @@ fn country_flag(snapshot: &ActiveExitSnapshot) -> String {
 }
 
 fn status_text(snapshot: &ActiveExitSnapshot, lang: &Lang<'_>) -> String {
-    match snapshot.status {
-        ActiveExitStatus::Ready => match snapshot.alive {
+    match &snapshot.status {
+        ActiveExitStatus::Ready { .. } => match snapshot.alive {
             Some(true) => lang.tr("overview_active_exit_alive").to_string(),
             Some(false) => lang.tr("overview_active_exit_offline").to_string(),
             None => lang.tr("overview_active_exit_liveness_unknown").to_string(),

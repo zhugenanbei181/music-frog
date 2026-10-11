@@ -22,7 +22,7 @@ impl AppState {
             .unwrap_or_else(Task::none)
     }
     fn submit_snapshot_restore(&mut self, pending: RestorePending) -> Task<Message> {
-        let Some(commands) = self.commands.clone() else {
+        let Some(commands) = self.command_ingress() else {
             self.editor.snapshot_restore.finish(
                 pending.operation,
                 Err(Failure::new(

@@ -48,8 +48,9 @@ use infiltrator_bevy_ui::pages::sync::{
 use infiltrator_bevy_ui::projection::DemoOverviewSource;
 use infiltrator_bevy_ui::route::{PageRoot, PagesPlugin, Route, RouteChanged};
 use infiltrator_bevy_widgets::localization::UiLocale;
-use infiltrator_contract::connection::ConnectionStreamPhase;
+use infiltrator_contract::connection::{ConnectionRateObservation, ConnectionStreamPhase};
 use infiltrator_contract::controller::{ControllerAuthSnapshot, ControllerAuthStatus};
+use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::dns::{
     DnsCoreSwitches, DnsEnhancedMode, DnsFakeIpFilterMode, FakeIpMappingPool,
 };
@@ -62,6 +63,7 @@ use infiltrator_contract::doctor::DoctorStatus;
 use infiltrator_contract::ipv6::Ipv6RoutingSnapshot;
 use infiltrator_contract::logs::LogLevel;
 use infiltrator_contract::offline_startup::{LocalAssetStatus, OfflineStartupSnapshot};
+use infiltrator_contract::outbound::details::OutboundHealthObservation;
 use infiltrator_contract::port_conflict::{PortBinding, PortConflict, PortConflictSnapshot};
 use infiltrator_contract::proxies::ProxyGroupClassification;
 use infiltrator_contract::resources::{CoreGcStatus, CoreResourceSnapshot};
@@ -74,7 +76,7 @@ use infiltrator_contract::surface_snapshot::{ConnectionSnapshot, PageStatus};
 use infiltrator_contract::sync::SyncStatus;
 use infiltrator_contract::version::{
     CoreArtifactVerification, CoreChannelSnapshot, CoreChannelStatus, CoreRelease,
-    CoreReleaseChannel, CoreVersionSnapshot,
+    CoreRollbackSnapshot, CoreVersionSnapshot, EngineNeutralReleaseChannel, EngineReleaseChannel,
 };
 use infiltrator_domain::app_routing::{AppRoutingMode, AppRoutingRule};
 use infiltrator_domain::rules::view::RULE_PUBLISH_LIMIT;
@@ -162,15 +164,19 @@ fn proxies_page_in_place_update() {
         compact_view: false,
         custom_node: Default::default(),
         groups: vec![ProxyGroup {
+            collection_id: None,
             name: "节点选择 (PROXIES)".to_owned(),
             group_type: "Selector".to_owned(),
             classification: ProxyGroupClassification::Selector,
             current: "🇯🇵 日本东京 01 · 专线".to_owned(),
+            outbound_selection_available: true,
             expanded: true,
             proxies: vec![ProxyNode {
+                outbound_id: None,
                 name: "🇯🇵 日本东京 01 · 专线".to_owned(),
                 node_type: "Shadowsocks".to_owned(),
                 delay_ms: Some(42),
+                health: OutboundHealthObservation::Unknown,
                 selected: true,
                 favorite: true,
                 features: vec!["Reality".to_owned()],
@@ -242,7 +248,7 @@ fn profiles_page_in_place_update() {
             auto_reload_core: true,
             filter: Default::default(),
             filter_source: observation("sub-custom", FIXTURE_DOCUMENT, Default::default())
-                .map(|o| o.source),
+                .map(|observation| observation.workspace_identity),
             write_protection: Default::default(),
         }],
     };
@@ -356,7 +362,7 @@ fn connections_page_in_place_update() {
             destination_port: "443".to_owned(),
             destination_geo_ip: None,
             destination_ip_asn: String::new(),
-            rate_observed: true,
+            rate_observation: ConnectionRateObservation::Measured,
             upload_bps: 1024.0,
             download_bps: 2048.0,
             upload_total: 100_000,
@@ -425,6 +431,7 @@ fn settings_page_in_place_update() {
         notifications_enabled: Some(true),
         preference_status: PageStatus::Ready,
         runtime_status: RuntimeControlStatus::Ready,
+        theme: "system".into(),
         autostart: false,
         system_proxy: false,
         system_proxy_snapshot: Default::default(),
@@ -446,22 +453,31 @@ fn settings_page_in_place_update() {
         log_level: Some("debug".to_owned()),
         core_channel: "alpha".to_owned(),
         core_versions: CoreVersionSnapshot {
+            engine_id: EngineId::new("mihomo").unwrap(),
             revision: 1,
             channels: vec![CoreChannelSnapshot {
-                channel: CoreReleaseChannel::Alpha,
+                engine_id: EngineId::new("mihomo").unwrap(),
+                channel: EngineReleaseChannel::common(
+                    EngineId::new("mihomo").unwrap(),
+                    EngineNeutralReleaseChannel::Alpha,
+                ),
                 status: CoreChannelStatus::Ready {
                     release: CoreRelease {
+                        engine_id: EngineId::new("mihomo").unwrap(),
                         version: "Prerelease-Alpha".to_owned(),
                         release_date: "2026-09-05".to_owned(),
                     },
                 },
             }],
+            channel_failure: None,
             verification: CoreArtifactVerification::Verified {
+                engine_id: EngineId::new("mihomo").unwrap(),
                 version: "v1.19.30".to_owned(),
             },
-            rollback: Default::default(),
+            rollback: CoreRollbackSnapshot::for_engine(EngineId::new("mihomo").unwrap()),
         },
         core_integrity: CoreArtifactVerification::Verified {
+            engine_id: EngineId::new("mihomo").unwrap(),
             version: "v1.19.30".to_owned(),
         },
         controller_auth: ControllerAuthSnapshot {

@@ -12,16 +12,17 @@ use bevy::ecs::hierarchy::Children;
 use bevy::ecs::observer::On;
 use bevy::ecs::query::{Has, With};
 use bevy::ecs::system::{Commands, Query};
+use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::{Scene, bsn};
 use bevy::ui::Checked;
-use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, FlexDirection, JustifyContent, Node, UiRect, Val, percent,
-};
+use bevy::ui::prelude::{AlignItems, FlexDirection, JustifyContent, Node, UiRect, percent};
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Checkbox;
 use infiltrator_application::settings_status_projection::optional_copy;
+use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
@@ -34,7 +35,7 @@ pub(super) fn card(projection: &SettingsProjection, palette: &UiPalette) -> impl
             Box::new(bsn! {
                             Node {
                                 width: percent(100),
-                                padding: UiRect::bottom(Val::Px(space::S8)),
+                                padding: UiRect::bottom(rem(space::S8)),
                             }
                             Children [
                                 LocalizedText::plain("settings_tun_mode_title") TextRole(Role::BodyStrong)
@@ -44,7 +45,7 @@ pub(super) fn card(projection: &SettingsProjection, palette: &UiPalette) -> impl
                             Node {
                                 width: percent(100),
                                 flex_direction: FlexDirection::Column,
-                                row_gap: Val::Px(space::S8),
+                                row_gap: rem(space::S8),
                             }
                             Children [
                                 @{ tun_enable_toggle_scene(projection.tun_enabled, palette) }
@@ -63,9 +64,9 @@ pub(super) fn card(projection: &SettingsProjection, palette: &UiPalette) -> impl
                                     width: percent(100),
                                     align_items: AlignItems::Center,
                                     justify_content: JustifyContent::SpaceBetween,
-                                    padding: UiRect::all(Val::Px(space::S8)),
+                                    padding: UiRect::all(rem(space::S8)),
                                 }
-                                BackgroundColor({ palette.surface_elevated })
+                                ThemeBackgroundColor({ Token::SurfaceElevated })
                                 Children [
                                     LocalizedText::plain("settings_tun_stack_title") TextRole(Role::Body)
                                     --

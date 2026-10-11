@@ -11,6 +11,7 @@ use crate::view_root::interaction_regions::InteractionRegion;
 use iced::border::Radius;
 use iced::widget::{Space, button, column, container, row, scrollable, text};
 use iced::{Alignment, Element, Length, Theme};
+use infiltrator_application::doctor_actions::DoctorActionPhase;
 use infiltrator_application::doctor_projection::{check_detail, check_name, status_key, summary};
 use infiltrator_contract::doctor::{DoctorCheckResult, DoctorReport, DoctorStatus};
 use infiltrator_contract::surface_snapshot::{DoctorCheckSnapshot, PageStatus};
@@ -36,7 +37,7 @@ pub fn section(state: &AppState) -> Element<'_, Message> {
         .surface
         .latest()
         .map(|snapshot| &snapshot.pages.doctor);
-    let busy = doctor.action.pending.is_some()
+    let busy = matches!(&doctor.action.phase, DoctorActionPhase::Pending(_))
         || doctor.is_running
         || doctor.is_fixing
         || doctor.is_bootstrapping;
@@ -117,10 +118,13 @@ pub fn section(state: &AppState) -> Element<'_, Message> {
 
     let mut body = column![].spacing(theme::SP_SM);
 
-    if doctor.action.pending.is_some() {
-        body = body.push(secondary_text(
-            lang.tr("doctor_operation_pending").into_owned(),
-        ));
+    match &doctor.action.phase {
+        DoctorActionPhase::Pending(_) => {
+            body = body.push(secondary_text(
+                lang.tr("doctor_operation_pending").into_owned(),
+            ));
+        }
+        DoctorActionPhase::Idle | DoctorActionPhase::Failed { .. } => {}
     }
     if doctor.is_running {
         body = body.push(secondary_text(lang.tr("doctor_running_check").to_string()));

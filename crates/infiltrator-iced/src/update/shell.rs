@@ -6,6 +6,7 @@
 
 use crate::shortcuts_store::{capture, reset_action, set_enabled};
 use crate::state::AppState;
+use crate::state::runtime::ProbeSettingsDialogState;
 use crate::types::app::ToastStatus;
 use crate::types::dns_query::QueryAction;
 use crate::types::message::Message;
@@ -169,17 +170,22 @@ impl AppState {
             if self.diag.dns_query.open {
                 return self.update(Message::DnsQuery(QueryAction::Cancel));
             }
-            if self.runtime.inspecting_proxy.is_some() {
-                return self.update_core(Message::InspectProxy(None));
+            if self.runtime.outbound_inspecting.is_some() {
+                return self.update_core(Message::InspectOutbound(None));
             }
             if self.editor.dns_hosts_editor.open {
                 return self.update(Message::CancelDnsHostsEditor);
             }
-            if self.runtime.group_order_open {
+            if self.runtime.group_order_dialog
+                == crate::state::runtime::ProxyGroupOrderDialogState::Editing
+            {
                 return self.update(Message::CancelProxyGroupOrder);
             }
-            if self.runtime.probe_options_open {
-                return self.update(Message::CancelProxyProbeOptions);
+            if matches!(
+                self.runtime.probe_settings_dialog,
+                ProbeSettingsDialogState::Editing
+            ) {
+                return self.update(Message::CancelRuntimeProbeSettings);
             }
             if self.runtime.custom_node_modal_open {
                 return self.update_ui(Message::CloseCustomNodeModal);

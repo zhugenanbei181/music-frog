@@ -50,6 +50,12 @@ mod render_lifecycle_tests;
 mod responsive_tests;
 #[path = "headless/scene_tests.rs"]
 mod scene_tests;
+#[path = "headless/scrollarea_inertia_tests.rs"]
+mod scrollarea_inertia_tests;
+#[path = "headless/scrollarea_tests.rs"]
+mod scrollarea_tests;
+#[path = "headless/scrollarea_touch_tests.rs"]
+mod scrollarea_touch_tests;
 #[path = "headless/slider_tests.rs"]
 mod slider_tests;
 #[path = "headless/splitter_tests.rs"]

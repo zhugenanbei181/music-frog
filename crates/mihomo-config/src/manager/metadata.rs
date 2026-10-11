@@ -4,6 +4,7 @@
 use super::subscription_store::{load_subscription_url, store_subscription_url, subscription_key};
 use crate::profile::Profile;
 use chrono::{DateTime, Utc};
+use infiltrator_contract::core_identity::EngineId;
 use infiltrator_ports::secure_store::SecureStore;
 use mihomo_api::error::{MihomoError, Result};
 use toml::map::Map;
@@ -20,6 +21,7 @@ pub(super) fn ensure_table(value: &mut toml::Value) -> Result<&mut Map<String, t
 
 pub(super) async fn apply_profile_metadata<S: SecureStore>(
     credential_store: &S,
+    engine: &EngineId,
     profile: &mut Profile,
     table: &Map<String, toml::Value>,
 ) {
@@ -32,13 +34,14 @@ pub(super) async fn apply_profile_metadata<S: SecureStore>(
         .and_then(|value| value.as_str())
         .map(|value| value.to_string());
     if key.is_none() && fallback_url.is_some() {
-        key = Some(subscription_key(&profile.name));
+        key = Some(subscription_key(engine, &profile.name));
     }
     let mut resolved = load_subscription_url(credential_store, &profile.name, key.as_deref()).await;
     if resolved.is_none()
         && let Some(url) = fallback_url.as_ref()
     {
-        if let Err(err) = store_subscription_url(credential_store, &profile.name, url).await {
+        if let Err(err) = store_subscription_url(credential_store, engine, &profile.name, url).await
+        {
             log::warn!("failed to restore subscription url to store: {err}");
         } else {
             resolved = Some(url.clone());

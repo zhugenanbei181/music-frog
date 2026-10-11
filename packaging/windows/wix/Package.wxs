@@ -1,10 +1,13 @@
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
-  <Package Name="Infiltrator"
+  <Package Name="$(var.ProductDisplayName)"
            Manufacturer="MusicFrog Team"
-           Version="0.20.0"
+           Version="$(var.ProductVersion)"
            UpgradeCode="A7D9E34B-5F1C-4B9E-8B7C-123456789ABC"
            Scope="perMachine"
            Language="1033">
+
+    <Icon Id="ApplicationIcon.ico" SourceFile="$(var.ProductIcon)" />
+    <Property Id="ARPPRODUCTICON" Value="ApplicationIcon.ico" />
 
     <MajorUpgrade DowngradeErrorMessage="A newer version of Infiltrator is already installed."
                   Schedule="afterInstallInitialize" />
@@ -12,11 +15,11 @@
     <MediaTemplate EmbedCab="yes" />
 
     <StandardDirectory Id="ProgramFiles64Folder">
-      <Directory Id="INSTALLFOLDER" Name="Infiltrator" />
+      <Directory Id="INSTALLFOLDER" Name="$(var.ProductDisplayName)" />
     </StandardDirectory>
 
     <StandardDirectory Id="ProgramMenuFolder">
-      <Directory Id="ApplicationProgramsFolder" Name="Infiltrator" />
+      <Directory Id="ApplicationProgramsFolder" Name="$(var.ProductDisplayName)" />
     </StandardDirectory>
 
     <StandardDirectory Id="DesktopFolder" />
@@ -41,16 +44,20 @@
     <ComponentGroup Id="ShortcutComponents" Directory="ApplicationProgramsFolder">
       <Component Id="AppShortcuts" Guid="B4C7D8E9-1234-5678-90AB-CDEF11223344">
         <Shortcut Id="StartMenuShortcut"
-                  Name="Infiltrator"
-                  Description="MusicFrog Infiltrator Client"
+                  Name="$(var.ProductDisplayName)"
+                  Description="$(var.ProductDisplayName) Client"
                   Target="[#InfiltratorExe]"
-                  WorkingDirectory="INSTALLFOLDER" />
+                  WorkingDirectory="INSTALLFOLDER"
+                  Icon="ApplicationIcon.ico"
+                  IconIndex="0" />
         <Shortcut Id="DesktopShortcut"
                   Directory="DesktopFolder"
-                  Name="Infiltrator"
-                  Description="MusicFrog Infiltrator Client"
+                  Name="$(var.ProductDisplayName)"
+                  Description="$(var.ProductDisplayName) Client"
                   Target="[#InfiltratorExe]"
-                  WorkingDirectory="INSTALLFOLDER" />
+                  WorkingDirectory="INSTALLFOLDER"
+                  Icon="ApplicationIcon.ico"
+                  IconIndex="0" />
         <RemoveFolder Id="CleanUpShortcuts" Directory="ApplicationProgramsFolder" On="uninstall" />
         <RegistryValue Root="HKCU"
                        Key="Software\MusicFrog\Infiltrator"
@@ -61,7 +68,7 @@
       </Component>
     </ComponentGroup>
 
-    <Feature Id="MainFeature" Title="Infiltrator Core Application" Level="1">
+    <Feature Id="MainFeature" Title="$(var.ProductDisplayName) Core Application" Level="1">
       <ComponentGroupRef Id="ProductComponents" />
       <ComponentGroupRef Id="ShortcutComponents" />
     </Feature>

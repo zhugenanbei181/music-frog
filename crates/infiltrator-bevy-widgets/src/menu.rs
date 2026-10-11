@@ -23,6 +23,7 @@
 //! a confirmed or canceled outcome does not unmount anything here.
 
 use crate::palette::UiPalette;
+use crate::palette::rem;
 use crate::text::{Role, TextRole};
 use crate::theme::space;
 use bevy::color::Color;
@@ -270,12 +271,12 @@ pub fn menu_overlay_scene(entries: Vec<MenuEntry>, palette: &UiPalette) -> impl 
             MenuScrim
             Children [
                 Node {
-                    min_width: px(MENU_WIDTH),
+                    min_width: rem(MENU_WIDTH),
                     flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(space::S4),
-                    padding: UiRect::all(Val::Px(space::S4)),
+                    row_gap: rem(space::S4),
+                    padding: UiRect::all(rem(space::S4)),
                     border: UiRect::all(Val::Px(palette.hairline_px)),
-                    border_radius: BorderRadius::all(Val::Px(palette.card_radius_px)),
+                    border_radius: BorderRadius::all(rem(palette.card_radius_px)),
                 }
                 BackgroundColor({ palette.surface })
                 BorderColor { top: edge, right: edge, bottom: edge, left: edge }
@@ -300,7 +301,7 @@ fn menu_row_scene(
             Box::new(bsn! {
                             Node {
                                 width: percent(100),
-                                padding: UiRect::vertical(Val::Px(space::S4)),
+                                padding: UiRect::vertical(rem(space::S4)),
                             }
                             MenuRowIndex({ index })
                             Children [
@@ -323,10 +324,10 @@ fn menu_row_scene(
             Box::new(bsn! {
                             Node {
                                 width: percent(100),
-                                min_height: px(palette.control_height_px),
+                                min_height: rem(palette.control_height_px),
                                 align_items: AlignItems::Center,
-                                padding: UiRect::horizontal(Val::Px(space::S12)),
-                                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                padding: UiRect::horizontal(rem(space::S12)),
+                                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                             }
                             BackgroundColor({ fill })
                             MenuRowIndex({ index })

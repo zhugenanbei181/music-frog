@@ -1,0 +1,12 @@
+// Copyright © SixtyFPS GmbH <info@slint.dev>
+// SPDX-License-Identifier: MIT
+
+import { MaterialPalette } from "../styling/material_palette.slint";
+import { MaterialStyleMetrics } from "../styling/material_style_metrics.slint";
+
+export component Icon inherits Image {
+    in property <length> size: MaterialStyleMetrics.icon_size_18;
+    width: root.size;
+    height: self.width;
+    colorize: MaterialPalette.on_background;
+}

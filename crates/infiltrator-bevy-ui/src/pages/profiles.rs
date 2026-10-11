@@ -10,7 +10,8 @@
 #[path = "profiles_query_access.rs"]
 pub mod query_access;
 use self::query_access::ProfileProjectionTargets;
-use infiltrator_composition::demo_identities::{BACKUP_PROFILE, LOCAL_PROFILE, PRIMARY_PROFILE};
+#[cfg(any(feature = "capture-tools", test))]
+use infiltrator_contract::fixture_identities::{BACKUP_PROFILE, LOCAL_PROFILE, PRIMARY_PROFILE};
 
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::pages::business_panel::{PanelKind, launcher_scene, profiles_panels};
@@ -63,21 +64,23 @@ use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Query, Res, ResMut};
 use bevy::scene::{Scene, bsn};
-use bevy::ui::prelude::{FlexDirection, Node, Overflow, Val, percent, px};
+use bevy::ui::prelude::{FlexDirection, Node, Overflow, percent, px};
 /// Root marker on the Profiles page scene.
 use bevy::ui_widgets::{Activate, ScrollArea};
+#[cfg(any(feature = "capture-tools", test))]
 use infiltrator_application::subscription_filter_fixture;
 use infiltrator_bevy_widgets::gesture::{PullToRefreshState, pull_to_refresh_scene};
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::aggregator::{AggregationReport, AggregationTemplate};
 use infiltrator_contract::apply_transaction::ApplyTransactionSnapshot;
 use infiltrator_contract::error::Failure;
 use infiltrator_contract::profile_document::ProfileDocumentSnapshot;
+use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use infiltrator_contract::profile_editor_read::ProfileEditorReadSnapshot;
 use infiltrator_contract::profile_options::ProfileOptionsSnapshot;
 use infiltrator_contract::profile_protection::ProfileWriteProtection;
-use infiltrator_contract::profile_source::ProfileSourceIdentity;
 use infiltrator_contract::script_export::ScriptExportSnapshot;
 use infiltrator_contract::script_sandbox::ScriptSandboxSnapshot;
 use infiltrator_contract::snapshot_history::SnapshotHistorySnapshot;
@@ -184,7 +187,7 @@ pub struct ProfileItem {
     pub auto_reload_core: bool,
     /// DUAL-07-08: the stored node-keyword filter draft.
     pub filter: SubscriptionFilterDraft,
-    pub filter_source: Result<ProfileSourceIdentity, Failure>,
+    pub filter_source: Result<ProfileWorkspaceIdentity, Failure>,
     /// DUAL-09-12: the same write classification the Iced editor and the
     /// application guard use.
     pub write_protection: ProfileWriteProtection,
@@ -228,6 +231,7 @@ pub struct ProfilesProjection {
 
 impl ProfilesProjection {
     /// Believable demo fixture for the Profiles page.
+    #[cfg(any(feature = "capture-tools", test))]
     pub fn demo() -> Self {
         Self {
             auto_update_interval_hours: 6,
@@ -267,7 +271,7 @@ impl ProfilesProjection {
                         subscription_filter_fixture::FIXTURE_DOCUMENT,
                         Default::default(),
                     )
-                    .map(|o| o.source),
+                    .map(|observation| observation.workspace_identity),
                     write_protection: ProfileWriteProtection::RemoteSubscription,
                 },
                 ProfileItem {
@@ -295,7 +299,7 @@ impl ProfilesProjection {
                         subscription_filter_fixture::FIXTURE_DOCUMENT,
                         Default::default(),
                     )
-                    .map(|o| o.source),
+                    .map(|observation| observation.workspace_identity),
                     write_protection: ProfileWriteProtection::RemoteSubscription,
                 },
                 ProfileItem {
@@ -323,7 +327,7 @@ impl ProfilesProjection {
                         subscription_filter_fixture::FIXTURE_DOCUMENT,
                         Default::default(),
                     )
-                    .map(|o| o.source),
+                    .map(|observation| observation.workspace_identity),
                     write_protection: ProfileWriteProtection::Editable,
                 },
             ],
@@ -398,7 +402,7 @@ pub fn profiles_page(projection: &ProfilesProjection, palette: &UiPalette) -> im
                 height: percent(100),
                 min_height: px(0.0),
                 flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(space::S16),
+                row_gap: rem(space::S16),
                 overflow: Overflow::clip(),
             }
             PageRoot(Route::Profiles)
@@ -408,7 +412,7 @@ pub fn profiles_page(projection: &ProfilesProjection, palette: &UiPalette) -> im
                     width: percent(100), height: percent(100),
                     min_height: px(0.0), flex_shrink: 1.0,
                     flex_direction: FlexDirection::Column,
-                    row_gap: px(space::S16), overflow: Overflow::scroll_y(),
+                    row_gap: rem(space::S16), overflow: Overflow::scroll_y(),
                 }
                 ScrollArea
                 Children [

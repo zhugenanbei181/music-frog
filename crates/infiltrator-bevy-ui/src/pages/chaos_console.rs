@@ -13,14 +13,17 @@ use bevy::ecs::hierarchy::Children;
 use bevy::ecs::observer::On;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::ResMut;
+use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderColor, BorderRadius, FlexDirection, JustifyContent, Node,
-    UiRect, Val, percent, px,
+    AlignItems, BorderColor, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, Val,
+    percent,
 };
 use bevy::ui::widget::Text;
 use infiltrator_bevy_widgets::chaos::{BoundedMonkeyExplorer, ChaosFaultConfig, DiscoveredState};
+use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 
@@ -156,12 +159,12 @@ pub fn chaos_console_scene(console: &ChaosConsole, palette: &UiPalette) -> impl 
             Node {
                 width: percent(100),
                 flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(space::S8),
-                padding: UiRect::all(Val::Px(space::S12)),
+                row_gap: rem(space::S8),
+                padding: UiRect::all(rem(space::S12)),
                 border: UiRect::all(Val::Px(palette.hairline_px)),
-                border_radius: BorderRadius::all(Val::Px(palette.card_radius_px)),
+                border_radius: BorderRadius::all(rem(palette.card_radius_px)),
             }
-            BackgroundColor({ palette.surface })
+            ThemeBackgroundColor({ Token::Surface })
             BorderColor { top: edge, right: edge, bottom: edge, left: edge }
             ChaosConsoleRoot
             Children [
@@ -181,7 +184,7 @@ pub fn chaos_console_scene(console: &ChaosConsole, palette: &UiPalette) -> impl 
                 Node {
                     width: percent(100),
                     flex_direction: FlexDirection::Column,
-                    row_gap: px(2.0),
+                    row_gap: rem(2.0),
                 }
                 Children [
                     { states }

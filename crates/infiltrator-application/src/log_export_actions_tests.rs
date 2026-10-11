@@ -11,10 +11,7 @@ use infiltrator_domain::log_export::prepare_log_export;
 
 fn summary() -> LogExportSummary {
     prepare_log_export(
-        LogSession {
-            generation: 7,
-            token: SessionToken::new(52),
-        },
+        LogSession::new(7, SessionToken::new(52)),
         1,
         &[(13, "INFO[1] healthy".into())],
         &[],

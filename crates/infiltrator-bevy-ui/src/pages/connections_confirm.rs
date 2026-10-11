@@ -5,15 +5,18 @@ use crate::pages::connections::CloseAllConnectionsButton;
 use crate::pages::connections_view::ConnectionsCloseAllState;
 use crate::route::{ActiveRoute, Route, RouteChanged};
 use bevy::ecs::prelude::*;
+use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::input::ButtonInput;
 use bevy::input::keyboard::KeyCode;
 use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::*;
 use bevy::ui::widget::Text;
-use bevy::ui_widgets::{Activate, Button};
+use bevy::ui_widgets::{Activate, Button, ScrollArea};
+use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::modal::{ModalDialogCard, ModalScrim};
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_shared::locales::{Lang, Localizer};
 
@@ -65,47 +68,48 @@ pub fn confirmation_scene(palette: &UiPalette) -> impl Scene + use<> {
                 position_type: PositionType::Absolute,
                 width: percent(100), height: percent(100),
             }
-            BackgroundColor({ palette.scrim })
+            ThemeBackgroundColor({ Token::Scrim })
             ModalScrim
             Button
             CloseAllConfirmationAction::Cancel
             --
             Node {
-                width: px(420.0), max_width: percent(90),
+                width: rem(420.0), max_width: percent(90),
                 max_height: percent(90),
                 flex_direction: FlexDirection::Column,
-                padding: UiRect::all(px(20.0)), row_gap: px(16.0),
-                border_radius: BorderRadius::all(px(palette.card_radius_px)),
+                padding: UiRect::all(rem(20.0)), row_gap: rem(16.0),
+                border_radius: BorderRadius::all(rem(palette.card_radius_px)),
                 overflow: Overflow::scroll_y(),
             }
-            BackgroundColor({ palette.surface })
+            ThemeBackgroundColor({ Token::Surface })
             CloseAllConfirmationCard
             ModalDialogCard
+            ScrollArea
             Children [
                 Text(title) TextRole(Role::Heading)
                 --
                 Text(detail) TextRole(Role::Body)
                 --
                 Node {
-                    width: percent(100), column_gap: px(12.0),
+                    width: percent(100), column_gap: rem(12.0),
                     justify_content: JustifyContent::FlexEnd,
                 }
                 Children [
                     Node {
-                        min_height: px(palette.control_height_px),
-                        padding: UiRect::axes(px(16.0), px(8.0)),
+                        min_height: rem(palette.control_height_px),
+                        padding: UiRect::axes(rem(16.0), rem(8.0)),
                         align_items: AlignItems::Center,
                     }
-                    BackgroundColor({ palette.surface_elevated })
+                    ThemeBackgroundColor({ Token::SurfaceElevated })
                     Button CloseAllConfirmationAction::Cancel
                     Children [ Text(cancel) TextRole(Role::Body) ]
                     --
                     Node {
-                        min_height: px(palette.control_height_px),
-                        padding: UiRect::axes(px(16.0), px(8.0)),
+                        min_height: rem(palette.control_height_px),
+                        padding: UiRect::axes(rem(16.0), rem(8.0)),
                         align_items: AlignItems::Center,
                     }
-                    BackgroundColor({ palette.danger })
+                    ThemeBackgroundColor({ Token::Danger })
                     Button CloseAllConfirmationAction::Confirm
                     Children [ Text(confirm) TextRole(Role::BodyStrong) ]
                 ]

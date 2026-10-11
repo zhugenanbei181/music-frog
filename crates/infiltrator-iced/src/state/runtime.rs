@@ -1,41 +1,47 @@
 //! Runtime owner.
+use crate::state::core_operations::{CoreDownloadState, CoreUpdateCheckState};
+use crate::state::outbound_inventory::OutboundGroupView;
 use crate::state::proxy_preferences::ProxyPreferenceState;
-use crate::state::proxy_probe::ProxyProbeState;
+use crate::state::proxy_probe::{OutboundProbeActionAvailability, OutboundProbeBatchState};
 
 use crate::state::proxy_search::ProxySearchState;
-use crate::types::app::{
-    CoreDownloadProgress, LanSecurityConfig, LanSharingConfig, PacManagerConfig,
-};
+use crate::types::app::{LanSecurityConfig, LanSharingConfig, PacManagerConfig};
 use crate::types::dns::TunStackConfig;
 use crate::types::runtime::{RebuildFlowState, RuntimePatchSnapshot, RuntimeStatus};
 use infiltrator_application::protocol_form::ProtocolInputs;
 use infiltrator_application::proxy_group_order_editor::ProxyGroupOrderEditor;
-use infiltrator_application::proxy_inspection_reader::ProxyInspectionReadState;
-use infiltrator_application::proxy_mode_actions::ProxyModeActions;
-use infiltrator_application::proxy_probe_editor::ProxyProbeEditor;
+use infiltrator_application::routing_intent_actions::RoutingIntentActions;
+use infiltrator_application::runtime_probe_settings_editor::RuntimeProbeSettingsEditor;
 use infiltrator_application::system_proxy_application::SystemProxyApplication;
 use infiltrator_contract::active_exit::ActiveExitSnapshot;
 use infiltrator_contract::controller::ControllerAuthSnapshot;
 use infiltrator_contract::core_control::CoreControlAction;
+use infiltrator_contract::core_identity::CoreScope;
 use infiltrator_contract::error::Failure;
 use infiltrator_contract::ipv6::Ipv6RoutingSnapshot;
 use infiltrator_contract::mtu::MtuNegotiationSnapshot;
 use infiltrator_contract::network_roaming::NetworkRoamingSnapshot;
 use infiltrator_contract::offline_startup::OfflineStartupSnapshot;
+use infiltrator_contract::outbound::{
+    details::OutboundDetailsSnapshot,
+    identity::OutboundId,
+    inventory::{OutboundInventorySnapshot, OutboundProbeSnapshot},
+    preferences::{OutboundSortOrder, OutboundUiPreferencesSnapshot},
+    probe::OutboundSelectionRequest,
+};
 use infiltrator_contract::port_conflict::PortConflictSnapshot;
 use infiltrator_contract::privileged_network::PrivilegedNetworkSnapshot;
 use infiltrator_contract::protocol_fidelity::ProtocolStudioSnapshot;
-use infiltrator_contract::proxies::ProxyUiPreferences;
-use infiltrator_contract::proxy_mode::ProxyModeSnapshot;
 use infiltrator_contract::reconnect_mask::ReconnectMaskSnapshot;
 use infiltrator_contract::resources::CoreResourceSnapshot;
+use infiltrator_contract::routing_intent::{RoutingIntent, RoutingIntentSnapshot};
 use infiltrator_contract::runtime_control::RuntimeControlSnapshot;
-use infiltrator_contract::search_text::SearchTextRun;
+use infiltrator_contract::runtime_settings::RuntimeDelaySortOrder;
 use infiltrator_contract::service_mode::ServiceModeSnapshot;
 use infiltrator_contract::session::SessionToken;
 use infiltrator_contract::snapshot::CoreLifecycleSnapshot;
 use infiltrator_contract::subscription_quota::SubscriptionQuotaSnapshot;
-use infiltrator_contract::surface_snapshot::ProxyGroupSnapshot;
+use infiltrator_contract::surface_snapshot::PageData;
 use infiltrator_contract::system_proxy::{SystemProxyRecoverySnapshot, SystemProxySnapshot};
 use infiltrator_contract::system_toggle::SystemToggleSnapshot;
 use infiltrator_contract::traffic_scale::TrafficScaleSnapshot;
@@ -45,17 +51,30 @@ use infiltrator_contract::version::{
     CoreArtifactVerification, CoreVersionSnapshot, InstalledCoreVersion,
 };
 use infiltrator_contract::vpn::VpnSessionSnapshot;
-use infiltrator_domain::proxy::Proxy;
 use infiltrator_ports::host_runtime::{HostRuntime, TunServiceStatus};
 use infiltrator_ports::privileged_network::PrivilegedNetworkPort;
 use infiltrator_ports::rule_provider_cache::RuleProviderCachePort;
 use infiltrator_ports::system_proxy::SystemProxyPort;
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, HashSet};
 use std::sync::Arc;
-use std::sync::atomic::AtomicBool;
 use std::time::Instant;
+use zhuge_ui_core::text::SearchTextRun;
 
-/// 内核运行时域:内核进程句柄、生命周期状态、代理模式/系统代理/自启、
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum ProbeSettingsDialogState {
+    #[default]
+    Closed,
+    Editing,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum ProxyGroupOrderDialogState {
+    #[default]
+    Closed,
+    Editing,
+}
+
+/// 内核运行时域:内核进程句柄、生命周期状态、路由意图/系统代理/自启、
 /// 节点与分组运行控制、批量测速与内核版本管理(UI-002)。
 pub struct RuntimeState {
     pub runtime: Option<Arc<dyn HostRuntime>>,
@@ -97,28 +116,37 @@ pub struct RuntimeState {
     pub lifecycle_pending: Option<CoreControlAction>,
     pub lifecycle_failure: Option<Failure>,
     pub status: RuntimeStatus,
-    pub proxies: HashMap<String, Proxy>,
-    pub is_loading_proxies: bool,
+    /// Canonical engine-neutral inventory used by the Iced proxy page.
+    pub outbound_inventory: PageData<OutboundInventorySnapshot>,
+    /// Typed metadata aligned with the inventory scope for details, health and probing.
+    pub outbound_details: PageData<OutboundDetailsSnapshot>,
+    /// Engine-scoped preferences observed from the shared owner.
+    pub outbound_ui_preferences: PageData<OutboundUiPreferencesSnapshot>,
+    pub outbound_inspecting: Option<OutboundId>,
+    pub outbound_probe_result: Option<OutboundProbeSnapshot>,
+    pub outbound_probe_pending: Option<u64>,
+    pub outbound_probe_failure: Option<Failure>,
+    pub outbound_probe_blocked: Option<OutboundProbeActionAvailability>,
+    pub outbound_probe_token: u64,
+    pub outbound_probe_batch: OutboundProbeBatchState,
+    pub outbound_probe_batch_token: u64,
     pub filtered_groups: Vec<(String, Vec<String>)>,
-    pub proxy_groups: Vec<ProxyGroupSnapshot>,
+    pub(crate) proxy_groups: Vec<OutboundGroupView>,
     pub proxy_name_runs: BTreeMap<String, Vec<SearchTextRun>>,
     pub proxy_search: ProxySearchState,
     pub proxy_preferences: ProxyPreferenceState,
     pub proxy_filter: String,
-    pub proxy_sort_by_delay: bool,
-    pub proxy_delay_sort: String,
-    pub runtime_delay_test_url: String,
-    pub probe_options_editor: ProxyProbeEditor,
-    pub probe_options_open: bool,
-    /// DUAL-06-03: user-typed speedtest target URL shown in the speedtest card.
-    /// Empty means "use the shared engine default"; the typed value is passed
-    /// into `run_scope` / `probe_node` so the port owns the effective fact.
-    pub runtime_speedtest_url: String,
-    pub runtime_delay_timeout_ms: String,
-    pub runtime_testing_delay_proxy: String,
-    pub runtime_testing_all_delays: bool,
+    /// Product outbound page sorting comes from the typed Core preference contract.
+    pub outbound_sort_order: OutboundSortOrder,
+    /// Runtime diagnostic ordering, separate from outbound-page preferences.
+    pub runtime_panel_delay_sort_order: RuntimeDelaySortOrder,
+    pub runtime_probe_url_draft: String,
+    pub runtime_probe_settings_editor: RuntimeProbeSettingsEditor,
+    pub probe_settings_dialog: ProbeSettingsDialogState,
+    pub runtime_probe_timeout_draft: String,
     pub runtime_selected_group: String,
     pub runtime_selected_proxy: String,
+    pub runtime_outbound_selection: Option<(CoreScope, OutboundSelectionRequest)>,
     pub runtime_connection_filter: String,
     pub runtime_connection_sort: String,
     pub runtime_prev_upload_total: Option<u64>,
@@ -128,14 +156,10 @@ pub struct RuntimeState {
     pub runtime_patch_token: u64,
     pub runtime_auto_refresh: bool,
     pub runtime_poll_tick: u64,
-    pub proxy_mode: Option<String>,
-    pub proxy_mode_state: ProxyModeSnapshot,
-    pub mode_actions: ProxyModeActions,
-    pub mode_read_revision: u64,
+    pub routing_intent: Option<RoutingIntent>,
+    pub routing_intent_state: RoutingIntentSnapshot,
+    pub routing_intent_actions: RoutingIntentActions,
     pub runtime_control: RuntimeControlSnapshot,
-    /// Whether the running core reports a top-level `script:` block
-    /// (`GET /configs` → `script`). Gates the Script mode entry points.
-    pub script_block_present: bool,
     pub tun_enabled: Option<bool>,
     pub tun_service_status: Option<TunServiceStatus>,
     pub is_installing_tun_service: bool,
@@ -145,9 +169,6 @@ pub struct RuntimeState {
     pub filter_alive_only: bool,
     pub favorite_proxies: HashSet<String>,
     pub proxy_compact_view: bool,
-    pub inspecting_proxy: Option<String>,
-    pub inspection_probe: ProxyProbeState,
-    pub inspection_read: ProxyInspectionReadState,
     pub is_adding_custom_node: bool,
     pub new_node_type: String,
     pub new_node_name: String,
@@ -157,7 +178,6 @@ pub struct RuntimeState {
     pub new_node_cipher: String,
     pub new_node_tls: bool,
     pub installed_kernels: Vec<InstalledCoreVersion>,
-    pub latest_core_version: Option<String>,
     pub core_channel: String,
     /// Shared online probe result for Stable, Alpha and Meta-Core.
     pub core_versions: CoreVersionSnapshot,
@@ -167,16 +187,11 @@ pub struct RuntimeState {
     pub port_conflicts: PortConflictSnapshot,
     pub core_resources: CoreResourceSnapshot,
     pub offline_startup: OfflineStartupSnapshot,
-    pub download_progress: f32,
-    pub download_stats: Option<CoreDownloadProgress>,
-    pub core_download_token: u64,
-    pub core_download_cancel: Option<Arc<AtomicBool>>,
-    pub is_downloading_core: bool,
-    pub is_checking_update: bool,
+    pub core_download: CoreDownloadState,
+    pub core_update_check: CoreUpdateCheckState,
     pub rebuild_flow: RebuildFlowState,
-    pub proxy_ui_preferences: ProxyUiPreferences,
     pub group_order_editor: ProxyGroupOrderEditor,
-    pub group_order_open: bool,
+    pub group_order_dialog: ProxyGroupOrderDialogState,
     pub custom_node_modal_open: bool,
     pub custom_node_uri_input: String,
     /// DUAL-05: the shared protocol studio snapshot (typed draft, derived

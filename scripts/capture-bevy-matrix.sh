@@ -7,7 +7,7 @@
 # nested niri inside that host -> launch one demo scenario at a time -> wait
 # for the app's CAPTURE_READY marker -> bind the screenshot to the exact
 # PID/app-id/window-id via niri IPC -> publish the PNG plus a manifest into
-# docs/screenshots/bevy/. The operator's Wayland session is never contacted:
+# crates/infiltrator-bevy-ui/docs/screenshots/bevy/. The operator's Wayland session is never contacted:
 # the nested niri's winit window lives inside the invisible
 # `kwin_wayland --virtual` host, so nothing can pop up on or steal focus from
 # the operator's desktop, and no compositor UI chrome (hotkey overlay etc.)
@@ -44,6 +44,11 @@ cd "$REPO"
 source "$REPO/scripts/parity/capture_attempt.sh"
 export RUSTC_WRAPPER=
 
+if [ "$#" -gt 1 ]; then
+  printf 'usage: %s [scenario[,scenario...]]\n' "$0" >&2
+  exit 2
+fi
+
 APP_ID="infiltrator-bevy-ui"
 # Runtime check (niri msg -j windows): the app maps its toplevel with the
 # title below; winit's app_id may be the binary name or empty depending on
@@ -51,10 +56,10 @@ APP_ID="infiltrator-bevy-ui"
 # PID stays the authoritative binding either way.
 APP_TITLE="MusicFrog Infiltrator — Bevy"
 CRATE_DIR="$REPO/crates/infiltrator-bevy-ui"
-APP="$REPO/target/debug/infiltrator-bevy-ui"
+APP="${CARGO_TARGET_DIR:-$REPO/target}/debug/infiltrator-bevy-ui"
 ASSET_ROOT="$REPO/crates/infiltrator-bevy-widgets"
 MATRIX_SRC="${INFILTRATOR_CAPTURE_MATRIX:-$REPO/scripts/capture_bevy_scenarios.tsv}"
-OUT_DIR="${INFILTRATOR_CAPTURE_OUT_DIR:-$REPO/docs/screenshots/bevy}"
+OUT_DIR="${INFILTRATOR_CAPTURE_OUT_DIR:-$REPO/crates/infiltrator-bevy-ui/docs/screenshots/bevy}"
 MANIFEST_PUBLISHED="$OUT_DIR/manifest.tsv"
 EVIDENCE_ROOT="$REPO/.evidence/captures/bevy"
 RUN_STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
@@ -244,8 +249,13 @@ done
 
 # ------------------------------------------------------------------- build --
 SOURCE_FINGERPRINT="$(python3 scripts/parity/visual_receipts.py --fingerprint)"
-printf 'build: cargo build --quiet (workspace package: infiltrator-bevy-ui)\n'
-timeout --kill-after=10s 20m cargo build --quiet --manifest-path "$CRATE_DIR/Cargo.toml"
+BUILD_FEATURE_ARGS=()
+CAPTURE_FEATURES="${INFILTRATOR_BEVY_FEATURES:-capture-tools}"
+BUILD_FEATURE_ARGS=(--features "$CAPTURE_FEATURES")
+printf 'build: cargo build --quiet (workspace package: infiltrator-bevy-ui; features: %s)\n' \
+  "$CAPTURE_FEATURES"
+timeout --kill-after=10s 20m cargo build --quiet \
+  --manifest-path "$CRATE_DIR/Cargo.toml" "${BUILD_FEATURE_ARGS[@]}"
 [ -x "$APP" ] || fail_hard "bevy binary was not produced: $APP"
 APP="$(python3 scripts/parity/product_build.py --surface bevy --binary "$APP" --output "$RUN_DIR/product-build.json")"
 ASSET_ROOT="$(dirname "$APP")/runtime"
@@ -268,7 +278,7 @@ CAPTURED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   printf 'matrix=%s\n' "$MATRIX_SRC"
   printf 'scenario_count=%s\n' "$SCENARIO_COUNT"
   printf 'niri_host=kwin-wayland-virtual\n'
-  printf 'command=bash scripts/capture-bevy.sh\n'
+  printf 'command=bash scripts/capture-bevy-matrix.sh\n'
 } >"$METADATA"
 printf 'scenario\tpage\tskin\trequested_window\tapp_pid\twindow_id\twidth\theight\tbytes\tsha256\tstatus\n' >"$MANIFEST"
 
@@ -453,7 +463,7 @@ capture_one() {
   local windows_error="$scenario_dir/windows.err"
   local action="$scenario_dir/action.log"
   local image="$scenario_dir/image.png"
-  local published="docs/screenshots/bevy/$name.png"
+  local published="crates/infiltrator-bevy-ui/docs/screenshots/bevy/$name.png"
   local exp_w="${window_size%x*}" exp_h="${window_size#*x}"
   local window_id="" window_ready=0 marker_ready=0 action_status=failed
   local width=0 height=0 bytes=0 hash="-"

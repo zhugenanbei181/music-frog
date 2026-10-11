@@ -39,6 +39,18 @@ fn test_lang_alias_en() {
 }
 
 #[test]
+fn test_shared_product_catalog_localizes_slint_copy_and_stable_runtime_keys() {
+    let english = Lang("en-US");
+    let chinese = Lang("zh-CN");
+    assert_eq!(english.tr("VPN 已连接"), "VPN connected");
+    assert_eq!(chinese.tr("VPN 已连接"), "VPN 已连接");
+    assert_eq!(english.tr("public_ip_ready"), "Egress IP is available");
+    assert_eq!(chinese.tr("public_ip_ready"), "出口 IP 已可用");
+    // A historical PO entry without a blank separator must still be loaded.
+    assert_eq!(english.tr("上传  "), "Upload  ");
+}
+
+#[test]
 fn test_locales_table_key_parity() {
     let keys = [
         "app_title",
@@ -53,7 +65,6 @@ fn test_locales_table_key_parity() {
         "sync_title",
         "settings_admin_open",
         "settings_uac_unsupported",
-        "toast_script_mode_unavailable",
         "tray_factory_reset",
         "notify_rebuild_failed",
         "traffic_expires",

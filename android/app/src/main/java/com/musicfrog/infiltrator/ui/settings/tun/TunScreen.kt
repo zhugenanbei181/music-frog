@@ -15,7 +15,6 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -24,24 +23,25 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.musicfrog.infiltrator.R
 import com.musicfrog.infiltrator.ui.common.ErrorDialog
 import com.musicfrog.infiltrator.ui.common.InputDialog
 import com.musicfrog.infiltrator.ui.common.SelectionDialog
 import com.musicfrog.infiltrator.ui.common.StandardListItem
+import com.musicfrog.infiltrator.ui.common.toLocalizedFailure
 
 @Composable
 fun TunScreen(viewModel: TunViewModel = viewModel()) {
-    val state by viewModel.state.collectAsState()
+    val state by viewModel.state.collectAsStateWithLifecycle()
     var showMtuDialog by remember { mutableStateOf(false) }
     var showStackDialog by remember { mutableStateOf(false) }
-    var showDnsDialog by remember { mutableStateOf(false) }
 
     if (showMtuDialog) {
         InputDialog(
             title = stringResource(R.string.label_mtu),
-            initialValue = state.mtu,
+            initialValue = state.draft.mtu,
             onDismiss = { showMtuDialog = false },
             onConfirm = {
                 viewModel.updateMtu(it)
@@ -55,29 +55,15 @@ fun TunScreen(viewModel: TunViewModel = viewModel()) {
         SelectionDialog(
             title = stringResource(R.string.label_stack),
             options = listOf(
-                "" to stringResource(R.string.option_stack_auto),
                 "system" to stringResource(R.string.option_stack_system),
                 "gvisor" to stringResource(R.string.option_stack_gvisor)
             ),
-            selectedOption = state.stack,
+            selectedOption = state.draft.stack,
             onDismiss = { showStackDialog = false },
             onSelect = {
                 viewModel.updateStack(it)
                 showStackDialog = false
             }
-        )
-    }
-
-    if (showDnsDialog) {
-        InputDialog(
-            title = stringResource(R.string.label_dns_servers),
-            initialValue = state.dnsServers,
-            onDismiss = { showDnsDialog = false },
-            onConfirm = {
-                viewModel.updateDnsServers(it)
-                showDnsDialog = false
-            },
-            singleLine = false
         )
     }
 
@@ -91,14 +77,14 @@ fun TunScreen(viewModel: TunViewModel = viewModel()) {
             ) {
                 Button(
                     onClick = { viewModel.save() },
-                    enabled = !state.isLoading,
+                    enabled = !state.isBusy,
                     modifier = Modifier.weight(1f)
                 ) {
                     Text(stringResource(R.string.action_save))
                 }
                 TextButton(
                     onClick = { viewModel.load() },
-                    enabled = !state.isLoading
+                    enabled = !state.isBusy
                 ) {
                     Text(stringResource(R.string.action_reload))
                 }
@@ -106,13 +92,13 @@ fun TunScreen(viewModel: TunViewModel = viewModel()) {
         }
     ) { padding ->
         Box(modifier = Modifier.padding(padding).fillMaxSize()) {
-            if (state.isLoading) {
+            if (state.isBusy) {
                 CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
             }
 
-            if (state.error != null) {
+            state.failure?.let { failure ->
                 ErrorDialog(
-                    message = state.error ?: "",
+                    failure = failure.toLocalizedFailure(),
                     onDismiss = { viewModel.clearError() }
                 )
             }
@@ -123,8 +109,8 @@ fun TunScreen(viewModel: TunViewModel = viewModel()) {
                 item {
                     StandardListItem(
                         headline = stringResource(R.string.label_mtu),
-                        supporting = if (state.mtu.isEmpty()) "Default (1500)" else state.mtu,
-                        onClick = { if (!state.isLoading) showMtuDialog = true }
+                        supporting = if (state.draft.mtu.isEmpty()) "Default (1500)" else state.draft.mtu,
+                        onClick = { if (!state.isBusy) showMtuDialog = true }
                     )
                     HorizontalDivider()
                 }
@@ -132,12 +118,12 @@ fun TunScreen(viewModel: TunViewModel = viewModel()) {
                 item {
                     StandardListItem(
                         headline = stringResource(R.string.label_stack),
-                        supporting = when (state.stack) {
+                        supporting = when (state.draft.stack) {
                             "system" -> stringResource(R.string.option_stack_system)
                             "gvisor" -> stringResource(R.string.option_stack_gvisor)
                             else -> stringResource(R.string.option_stack_auto)
                         },
-                        onClick = { if (!state.isLoading) showStackDialog = true }
+                        onClick = { if (!state.isBusy) showStackDialog = true }
                     )
                     HorizontalDivider()
                 }
@@ -148,12 +134,12 @@ fun TunScreen(viewModel: TunViewModel = viewModel()) {
                         supporting = stringResource(R.string.tun_auto_route_desc),
                         trailingContent = {
                             Switch(
-                                checked = state.autoRoute,
+                                checked = state.draft.autoRoute,
                                 onCheckedChange = { viewModel.updateAutoRoute(it) },
-                                enabled = !state.isLoading
+                                enabled = !state.isBusy
                             )
                         },
-                        onClick = { if (!state.isLoading) viewModel.updateAutoRoute(!state.autoRoute) }
+                        onClick = { if (!state.isBusy) viewModel.updateAutoRoute(!state.draft.autoRoute) }
                     )
                     HorizontalDivider()
                 }
@@ -164,12 +150,12 @@ fun TunScreen(viewModel: TunViewModel = viewModel()) {
                         supporting = stringResource(R.string.tun_strict_route_desc),
                         trailingContent = {
                             Switch(
-                                checked = state.strictRoute,
+                                checked = state.draft.strictRoute,
                                 onCheckedChange = { viewModel.updateStrictRoute(it) },
-                                enabled = !state.isLoading
+                                enabled = !state.isBusy
                             )
                         },
-                        onClick = { if (!state.isLoading) viewModel.updateStrictRoute(!state.strictRoute) }
+                        onClick = { if (!state.isBusy) viewModel.updateStrictRoute(!state.draft.strictRoute) }
                     )
                     HorizontalDivider()
                 }
@@ -180,46 +166,21 @@ fun TunScreen(viewModel: TunViewModel = viewModel()) {
                         supporting = stringResource(R.string.tun_auto_detect_interface_desc),
                         trailingContent = {
                             Switch(
-                                checked = state.autoDetectInterface,
+                                checked = state.draft.autoDetectInterface,
                                 onCheckedChange = { viewModel.updateAutoDetectInterface(it) },
-                                enabled = !state.isLoading
+                                enabled = !state.isBusy
                             )
                         },
                         onClick = {
-                            if (!state.isLoading) {
-                                viewModel.updateAutoDetectInterface(!state.autoDetectInterface)
+                            if (!state.isBusy) {
+                                viewModel.updateAutoDetectInterface(!state.draft.autoDetectInterface)
                             }
                         }
                     )
                     HorizontalDivider()
                 }
 
-                item {
-                    StandardListItem(
-                        headline = stringResource(R.string.label_ipv6),
-                        supporting = stringResource(R.string.tun_ipv6_desc),
-                        trailingContent = {
-                            Switch(
-                                checked = state.ipv6,
-                                onCheckedChange = { viewModel.updateIpv6(it) },
-                                enabled = !state.isLoading
-                            )
-                        },
-                        onClick = { if (!state.isLoading) viewModel.updateIpv6(!state.ipv6) }
-                    )
-                    HorizontalDivider()
-                }
-
-                item {
-                    StandardListItem(
-                        headline = stringResource(R.string.label_dns_servers),
-                        supporting = if (state.dnsServers.isEmpty()) "System DNS" else state.dnsServers.replace("\n", ", "),
-                        onClick = { if (!state.isLoading) showDnsDialog = true }
-                    )
-                    HorizontalDivider()
-                }
-                
-                if (state.saved) {
+                if (state.operation is TunOperationState.Saved) {
                     item {
                         Box(modifier = Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
                             Text(

@@ -1,6 +1,6 @@
 //! test-intent: behavior
-use crate::command_harness::recording_application;
-use crate::support::{headless_plugins, subtree_has_text};
+use crate::command_harness::{TestCoreCapabilityProvider, identified_recording_application};
+use crate::support::{command_pump_for_observed_snapshot, headless_plugins, subtree_has_text};
 use bevy::app::App;
 use bevy::camera::NormalizedRenderTarget;
 use bevy::ecs::component::Component;
@@ -14,11 +14,12 @@ use bevy::picking::pointer::{Location, PointerButton, PointerId};
 use bevy::ui::Node;
 use bevy::ui_widgets::ButtonPlugin;
 use infiltrator_application::command_application::CommandApplication;
+use infiltrator_application::core_capability_application::CoreCapabilityApplication;
 use infiltrator_application::dns_cache_application::DnsCacheApplication;
 use infiltrator_application::dns_cache_fixtures::{CachePortMode, IsolatedCaches};
 use infiltrator_application::surface_reader::ApplicationSurfaceReader;
 use infiltrator_bevy_ui::app::ShellPlugin;
-use infiltrator_bevy_ui::command::{CommandPumpPlugin, UiCommand};
+use infiltrator_bevy_ui::command::UiCommand;
 use infiltrator_bevy_ui::command_events::CommandExecutedEvent;
 use infiltrator_bevy_ui::pages::dns::ClearDnsCacheButton;
 use infiltrator_bevy_ui::pages::dns_cache::{
@@ -39,9 +40,13 @@ use std::thread::yield_now;
 use std::time::{Duration, Instant};
 use tokio::runtime::Builder;
 fn setup(owner: DnsCacheApplication) -> (App, ApplicationSurfaceReader) {
-    let (application, _) = recording_application();
+    let (application, _) = identified_recording_application();
     application.install_command_handler(Arc::new(
-        CommandApplication::new().with_dns_cache(owner.clone()),
+        CommandApplication::new()
+            .with_core_capabilities(CoreCapabilityApplication::new(Arc::new(
+                TestCoreCapabilityProvider,
+            )))
+            .with_dns_cache(owner.clone()),
     ));
     let application = Arc::new(application);
     let reader = ApplicationSurfaceReader::new(
@@ -56,7 +61,7 @@ fn setup(owner: DnsCacheApplication) -> (App, ApplicationSurfaceReader) {
         ButtonPlugin,
         ShellPlugin::default(),
         PagesPlugin::default(),
-        CommandPumpPlugin::for_application(application),
+        command_pump_for_observed_snapshot(application),
     ));
     app.update();
     app.world_mut().trigger(RouteChanged(Route::Dns));

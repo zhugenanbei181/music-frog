@@ -1,4 +1,5 @@
 use super::*;
+use infiltrator_contract::connection::ConnectionRateObservation;
 use infiltrator_domain::connection_rate::{
     ConnectionRate, ConnectionRates, HIGH_THROUGHPUT_THRESHOLD_BPS, PULSE_MAX_INTENSITY,
     PULSE_MIN_INTENSITY,
@@ -111,7 +112,7 @@ fn test_sort_connections() {
         (
             "1".to_string(),
             ConnectionRate {
-                observed: true,
+                observation: ConnectionRateObservation::Measured,
                 upload_bps: 0.0,
                 download_bps: 9_000.0,
             },
@@ -119,7 +120,7 @@ fn test_sort_connections() {
         (
             "2".to_string(),
             ConnectionRate {
-                observed: true,
+                observation: ConnectionRateObservation::Measured,
                 upload_bps: 5_000.0,
                 download_bps: 0.0,
             },
@@ -127,7 +128,7 @@ fn test_sort_connections() {
         (
             "3".to_string(),
             ConnectionRate {
-                observed: true,
+                observation: ConnectionRateObservation::Measured,
                 upload_bps: 1_000.0,
                 download_bps: 1_000.0,
             },
@@ -163,7 +164,7 @@ fn test_high_throughput_pulse_uses_the_shared_threshold() {
         (
             "slow".to_string(),
             ConnectionRate {
-                observed: true,
+                observation: ConnectionRateObservation::Measured,
                 upload_bps: threshold - 1.0,
                 download_bps: 1_000.0,
             },
@@ -171,7 +172,7 @@ fn test_high_throughput_pulse_uses_the_shared_threshold() {
         (
             "fast".to_string(),
             ConnectionRate {
-                observed: true,
+                observation: ConnectionRateObservation::Measured,
                 upload_bps: threshold,
                 download_bps: 0.0,
             },

@@ -4,7 +4,12 @@
 //! owns the rest of the application use-case dispatch and is installed by a
 //! host composition when that surface wants the full command vocabulary.
 
+use self::handler::{
+    CommandFuture, CommandHandler, CommandOutputFuture, CoreLifecycleChildPermit,
+    ValidatedCoreCommandScope,
+};
 use crate::configuration_application::ConfigurationApplication;
+use crate::core_capability_application::CoreCapabilityApplication;
 use crate::dns_cache_application::DnsCacheApplication;
 use crate::dns_latency_application::DnsLatencyApplication;
 use crate::dns_leak_application::{DnsLeakApplication, NO_ECHO_PORT_REASON};
@@ -15,13 +20,14 @@ use crate::log_application::LogApplication;
 use crate::log_export_application::LogExportApplication;
 use crate::mtu_application::MtuApplication;
 use crate::network_roaming_application::NetworkRoamingApplication;
+use crate::outbound_application::OutboundApplication;
+use crate::outbound_application::preferences::OutboundUiPreferencesApplication;
 use crate::pac_application::PacApplication;
 use crate::port_conflict_application::PortConflictApplication;
 use crate::privileged_network_application::PrivilegedNetworkApplication;
 use crate::profile_application::ProfileApplication;
 use crate::profile_document_application::ProfileDocumentApplication;
 use crate::profile_options_application::ProfileOptionsApplication;
-use crate::proxy_preferences_application::ProxyPreferencesApplication;
 use crate::routing_application::RoutingApplication;
 use crate::rule_list_application::RuleListApplication;
 use crate::rule_provider_application::RuleProviderApplication;
@@ -33,7 +39,6 @@ use crate::service_mode_application::ServiceModeApplication;
 use crate::settings_application::SettingsApplication;
 use crate::shortcut_application::ShortcutApplication;
 use crate::snapshot_application::SnapshotApplication;
-use crate::speedtest_application::SpeedtestApplication;
 use crate::stun_probe_application::{NO_STUN_PORT_REASON, StunProbeApplication};
 use crate::subscription_refresh_application::SubscriptionRefreshApplication;
 use crate::sync_application::SyncApplication;
@@ -41,94 +46,55 @@ use crate::system_proxy_application::SystemProxyApplication;
 use crate::uwp_loopback_application::UwpLoopbackApplication;
 use crate::version_application::VersionApplication;
 use crate::vpn_application::VpnServiceApplication;
+use infiltrator_contract::capability::{Availability, Capability};
 use infiltrator_contract::command::CommandIntent;
-use infiltrator_contract::command_output::CommandOutput;
+use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::language::LanguagePreference;
 use infiltrator_contract::mtu::MtuProbeState;
-use infiltrator_contract::rules_workspace::RulesJsonSection;
 use infiltrator_contract::shortcuts::{ShortcutAction, ShortcutChord};
 use infiltrator_contract::theme::ThemePreference;
-use infiltrator_contract::version::CoreReleaseChannel;
-use infiltrator_domain::app_routing::{AppRoutingMode, AppRoutingRule};
-use infiltrator_domain::proxy::Proxy;
-use infiltrator_domain::proxy_providers::ProxyProviders;
+use infiltrator_contract::version::{EngineReleaseChannel, ReleaseChannelId};
 use infiltrator_domain::rules::provider_store::parse_rule_provider_declarations;
-use infiltrator_domain::rules::{
-    RuleEntry, RuleProviders, apply_rules_to_yaml, edit, load_rules_from_yaml,
-};
+use infiltrator_domain::rules::{RuleEntry, edit};
 use infiltrator_ports::application_runtime::ApplicationRuntime;
+use infiltrator_ports::capability_provider::CapabilityProvider;
 use infiltrator_ports::certificate_authority::CertificateAuthorityPort;
+use infiltrator_ports::core_log_level::CoreLogLevelPort;
 use infiltrator_ports::dns_leak::DnsLeakProbePort;
+use infiltrator_ports::routing_intent::RoutingIntentPort;
 use infiltrator_ports::rule_provider_cache::RuleProviderCachePort;
 use infiltrator_ports::runtime_gateway::{ManagedRuntime, RuntimeGateway};
 use infiltrator_ports::stun_probe::StunEgressProbePort;
 use infiltrator_ports::subscription_import::SubscriptionImportPort;
 use infiltrator_ports::subscription_notification::SubscriptionNotificationPort;
 use infiltrator_ports::subscription_source::SubscriptionSource;
-use std::collections::{HashMap, HashSet};
 use std::fmt::Display;
-use std::future::Future;
-use std::pin::Pin;
 use std::sync::Arc;
 
+mod composition;
 mod dispatch;
+pub mod handler;
 mod output;
-mod probe_options;
-mod proxy_group_order;
+#[cfg(test)]
+#[path = "command_routing_intent_tests.rs"]
+mod routing_intent_tests;
+mod runtime_probe_settings;
 mod script_services;
 mod snapshots;
-
-pub type CommandFuture = Pin<Box<dyn Future<Output = Result<(), Failure>> + Send + 'static>>;
-pub type CommandOutputFuture =
-    Pin<Box<dyn Future<Output = Result<CommandOutput, Failure>> + Send + 'static>>;
-
-/// Extension point consumed by CoreApplication for commands beyond lifecycle
-/// and proxy mode.
-pub trait CommandHandler: Send + Sync {
-    fn handle(&self, intent: CommandIntent) -> CommandFuture;
-    fn handle_output(&self, intent: CommandIntent) -> CommandOutputFuture {
-        if matches!(
-            intent,
-            CommandIntent::SaveSubscriptionFilter { .. }
-                | CommandIntent::RunScriptSandbox { .. }
-                | CommandIntent::ClearScriptSandbox { .. }
-                | CommandIntent::PrepareScriptExport { .. }
-                | CommandIntent::SaveScriptExport { .. }
-                | CommandIntent::PrepareSnapshotRestore { .. }
-                | CommandIntent::ConfirmSnapshotRestore { .. }
-                | CommandIntent::CancelSnapshotRestore { .. }
-                | CommandIntent::CreateBackupSnapshot { .. }
-                | CommandIntent::LoadSnapshotHistory { .. }
-                | CommandIntent::LoadSnapshotDiff { .. }
-                | CommandIntent::PruneSnapshots { .. }
-                | CommandIntent::LoadProfileOptions { .. }
-                | CommandIntent::LoadProfileDocument { .. }
-                | CommandIntent::SaveProfileDocument { .. }
-                | CommandIntent::SaveMixinOverlay { .. }
-                | CommandIntent::PrepareLogExport
-                | CommandIntent::SaveLogExport { .. }
-                | CommandIntent::ResetRuleHitCounters { .. }
-        ) {
-            return Box::pin(async {
-                Err(Failure::unsupported(
-                    "Requested typed output is unsupported by this command handler",
-                ))
-            });
-        }
-        let future = self.handle(intent);
-        Box::pin(async move { future.await.map(|()| CommandOutput::Unit) })
-    }
-}
+mod vpn_start_result;
 
 #[derive(Clone, Default)]
 pub struct CommandApplication {
+    core_capabilities: CoreCapabilityApplication,
+    host_capabilities: Option<Arc<dyn CapabilityProvider>>,
     scripts: Option<ScriptApplication>,
     script_exports: Option<ScriptExportApplication>,
     logs: Option<LogApplication>,
     log_export: Option<LogExportApplication>,
     profile: Option<ProfileApplication>,
     runtime: Option<Arc<dyn RuntimeGateway>>,
+    core_log_level_port: Option<Arc<dyn CoreLogLevelPort>>,
     managed_runtime: Option<Arc<dyn ManagedRuntime>>,
     /// DUAL-07-05/06: executor-neutral delay seam + single-flight refresh.
     application_runtime: Option<Arc<dyn ApplicationRuntime>>,
@@ -142,6 +108,7 @@ pub struct CommandApplication {
     doctor: Option<DoctorApplication>,
     rule_list: Option<RuleListApplication>,
     routing: Option<RoutingApplication>,
+    routing_intent_port: Option<Arc<dyn RoutingIntentPort>>,
     sync: Option<SyncApplication>,
     settings: Option<SettingsApplication>,
     snapshots: Option<SnapshotApplication>,
@@ -155,8 +122,8 @@ pub struct CommandApplication {
     network_roaming: Option<NetworkRoamingApplication>,
     vpn: Option<VpnServiceApplication>,
     privileged_network: Option<PrivilegedNetworkApplication>,
-    speedtest: Option<SpeedtestApplication>,
-    proxy_preferences: Option<ProxyPreferencesApplication>,
+    outbound: Option<OutboundApplication>,
+    outbound_ui_preferences: Option<OutboundUiPreferencesApplication>,
     rule_tracer: Option<RuleTracerApplication>,
     configuration: Option<ConfigurationApplication>,
     dns_cache: Option<DnsCacheApplication>,
@@ -172,229 +139,37 @@ pub struct CommandApplication {
 }
 
 impl CommandApplication {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn with_profile(mut self, application: ProfileApplication) -> Self {
-        self.profile = Some(application);
-        self
-    }
-
-    pub fn with_runtime(mut self, runtime: Arc<dyn RuntimeGateway>) -> Self {
-        self.runtime = Some(runtime);
-        self
-    }
-
-    pub fn with_managed_runtime(mut self, runtime: Arc<dyn ManagedRuntime>) -> Self {
-        self.managed_runtime = Some(runtime);
-        self
-    }
-
-    pub fn with_subscription_source(mut self, source: Arc<dyn SubscriptionSource>) -> Self {
-        self.subscription_source = Some(source);
-        self
-    }
-
-    /// DUAL-07-01: install the host import port backing the local-file /
-    /// clipboard import channels.
-    pub fn with_import_source(mut self, port: Arc<dyn SubscriptionImportPort>) -> Self {
-        self.import_source = Some(port);
-        self
-    }
-
-    /// DUAL-07-10: install the host port that dispatches subscription
-    /// success/failure system notifications.
-    pub fn with_subscription_notifier(
-        mut self,
-        notifier: Arc<dyn SubscriptionNotificationPort>,
-    ) -> Self {
-        self.notifier = Some(notifier);
-        self
-    }
-
-    /// DUAL-05-13: install the host CA-bundle reader.
-    ///
-    /// Hosts without one keep the field empty and the shared application
-    /// reports the request as typed unsupported instead of claiming a load.
-    pub fn with_certificate_authority(mut self, port: Arc<dyn CertificateAuthorityPort>) -> Self {
-        self.certificate_authority = Some(port);
-        self
-    }
-
-    /// Install the executor-neutral delay seam used by subscription
-    /// retry/backoff (DUAL-07-05) and the shared single-flight refresh
-    /// (DUAL-07-06). A host that does not compose one keeps the plain path.
-    pub fn with_application_runtime(mut self, runtime: Arc<dyn ApplicationRuntime>) -> Self {
-        self.application_runtime = Some(runtime);
-        self
-    }
-
-    pub fn with_logs(mut self, logs: LogApplication) -> Self {
-        self.log_export = Some(LogExportApplication::new(logs.clone(), None, Vec::new()));
-        self.logs = Some(logs);
-        self
-    }
-
-    pub fn with_log_export(mut self, application: LogExportApplication) -> Self {
-        assert!(
-            self.logs
-                .as_ref()
-                .is_some_and(|logs| application.belongs_to(logs)),
-            "Log export must use the command facade's log owner"
-        );
-        self.log_export = Some(application);
-        self
-    }
-
-    pub fn with_doctor(mut self, application: DoctorApplication) -> Self {
-        self.doctor = Some(application);
-        self
-    }
-
-    pub fn with_routing(mut self, application: RoutingApplication) -> Self {
-        self.routing = Some(application);
-        self
-    }
-
-    pub fn with_sync(mut self, application: SyncApplication) -> Self {
-        self.sync = Some(application);
-        self
-    }
-
-    pub fn with_settings(mut self, application: SettingsApplication) -> Self {
-        self.settings = Some(application);
-        self
-    }
-
-    pub fn with_snapshots(mut self, application: SnapshotApplication) -> Self {
-        self.snapshots = Some(application);
-        self
-    }
-
-    pub fn with_versions(mut self, application: VersionApplication) -> Self {
-        self.versions = Some(application);
-        self
-    }
-
-    pub fn with_service_mode(mut self, application: ServiceModeApplication) -> Self {
-        self.service_mode = Some(application);
-        self
-    }
-
-    pub fn with_port_conflicts(mut self, application: PortConflictApplication) -> Self {
-        self.port_conflicts = Some(application);
-        self
-    }
-
-    pub fn with_mtu(mut self, application: MtuApplication) -> Self {
-        self.mtu = Some(application);
-        self
-    }
-
-    pub fn with_system_proxy(mut self, application: SystemProxyApplication) -> Self {
-        self.system_proxy = Some(application);
-        self
-    }
-
-    pub fn with_uwp_loopback(mut self, application: UwpLoopbackApplication) -> Self {
-        self.uwp_loopback = Some(application);
-        self
-    }
-
-    pub fn with_pac(mut self, application: PacApplication) -> Self {
-        self.pac = Some(application);
-        self
-    }
-
-    pub fn with_network_roaming(mut self, application: NetworkRoamingApplication) -> Self {
-        self.network_roaming = Some(application);
-        self
-    }
-
-    pub fn with_vpn(mut self, application: VpnServiceApplication) -> Self {
-        self.vpn = Some(application);
-        self
-    }
-
-    pub fn with_privileged_network(mut self, application: PrivilegedNetworkApplication) -> Self {
-        self.privileged_network = Some(application);
-        self
-    }
-
-    pub fn with_speedtest(mut self, speedtest: SpeedtestApplication) -> Self {
-        self.speedtest = Some(speedtest);
-        self
-    }
-
-    pub fn with_proxy_preferences(mut self, preferences: ProxyPreferencesApplication) -> Self {
-        self.proxy_preferences = Some(preferences);
-        self
-    }
-
-    pub fn with_rule_tracer(mut self, rule_tracer: RuleTracerApplication) -> Self {
-        self.rule_tracer = Some(rule_tracer);
-        self
-    }
-    pub fn with_rule_list(mut self, application: RuleListApplication) -> Self {
-        self.rule_list = Some(application);
-        self
-    }
-
-    /// Share the DNS cache flush application with the surface reader so the
-    /// honest Fake-IP / OS-cache report reaches both surfaces.
-    pub fn with_dns_query(mut self, application: DnsQueryApplication) -> Self {
-        self.dns_query = Some(application);
-        self
-    }
-
-    pub fn with_dns_cache(mut self, dns_cache: DnsCacheApplication) -> Self {
-        self.dns_cache = Some(dns_cache);
-        self
-    }
-
-    /// DUAL-14-10: share the per-nameserver latency application so
-    /// `TestDnsLatency` runs the real host probe and both surfaces publish the
-    /// same report.
-    pub fn with_dns_latency(mut self, dns_latency: DnsLatencyApplication) -> Self {
-        self.dns_latency = Some(dns_latency);
-        self
-    }
-
-    /// DUAL-14-08: share the cross-source leak application so `TestDnsLeak`
-    /// runs the real host probe and both surfaces publish the same report.
-    pub fn with_dns_leak(mut self, dns_leak: DnsLeakApplication) -> Self {
-        self.dns_leak = Some(dns_leak);
-        self
-    }
-
-    /// DUAL-14-09 (re-scoped): share the STUN UDP-egress application so
-    /// `RunStunProbe` runs the real host probe and both surfaces publish the
-    /// same report.
-    pub fn with_stun_probe(mut self, stun_probe: StunProbeApplication) -> Self {
-        self.stun_probe = Some(stun_probe);
-        self
-    }
-
-    /// DUAL-11-06/07: install the host's rule-provider cache access. Without
-    /// it the unpack can still serve inline payloads and the controller
-    /// payload, while a purge answers a typed unsupported instead of claiming
-    /// a cleanup.
-    pub fn with_rule_provider_cache(mut self, cache: Arc<dyn RuleProviderCachePort>) -> Self {
-        self.rule_provider = Some(RuleProviderApplication::new(Some(cache)));
-        self
-    }
-
-    /// Install the validated profile configuration application so surfaces can
-    /// submit their shared DNS workbench edits through the same write path.
-    pub fn with_configuration(mut self, configuration: ConfigurationApplication) -> Self {
-        self.configuration = Some(configuration);
-        self
+    pub fn core_capability_application(&self) -> CoreCapabilityApplication {
+        self.core_capabilities.clone()
     }
 
     /// Execute one inbound command through the shared dispatch table.
     pub async fn execute(&self, intent: CommandIntent) -> Result<(), Failure> {
         self.execute_output(intent).await.map(|_| ())
+    }
+
+    pub(super) fn authorize_host_capability(&self, capability: Capability) -> Result<(), Failure> {
+        let provider = self.host_capabilities.as_ref().ok_or_else(|| {
+            Failure::new(
+                ErrorCode::NotReady,
+                "host-only command has no composed host capability provider",
+                true,
+            )
+        })?;
+        let snapshot = provider.capabilities();
+        if snapshot.host != provider.host_kind() {
+            return Err(Failure::new(
+                ErrorCode::InvalidState,
+                "host capability provider returned a snapshot for another host",
+                false,
+            ));
+        }
+        match snapshot.availability(capability) {
+            Availability::Supported | Availability::Experimental => Ok(()),
+            Availability::Unsupported { reason } | Availability::Unavailable { reason } => {
+                Err(Failure::unsupported(reason))
+            }
+        }
     }
 
     /// DUAL-14-10: measure every configured nameserver through the shared
@@ -507,58 +282,12 @@ impl CommandApplication {
     where
         F: FnOnce(&mut Vec<RuleEntry>) -> bool,
     {
-        let profile = self.profile()?;
-        let (name, content) = profile.current_content().await?;
-        let mut rules = load_rules_from_yaml(&content).map_err(rule_failure)?;
+        let configuration = self.configuration()?;
+        let mut rules = configuration.load_rules().await?;
         if !mutate(&mut rules) {
             return Ok(());
         }
-        let updated = apply_rules_to_yaml(&content, &rules).map_err(rule_failure)?;
-        profile.save_profile(&name, &updated).await
-    }
-
-    /// DUAL-11-14: apply one rules-workspace JSON document. The section decides
-    /// which shared configuration use-case owns the write; the document is
-    /// parsed and validated there, so a malformed editor buffer is refused
-    /// before the profile is touched.
-    async fn apply_rules_json_document(
-        &self,
-        section: RulesJsonSection,
-        json: &str,
-    ) -> Result<(), Failure> {
-        use infiltrator_contract::rules_workspace::RulesJsonSection;
-        if json.trim().is_empty() {
-            return Err(Failure::new(
-                ErrorCode::InvalidInput,
-                "the JSON document is empty",
-                false,
-            ));
-        }
-        let configuration = self.configuration()?;
-        let invalid = |error: &str| Failure::new(ErrorCode::InvalidInput, error.to_owned(), false);
-        match section {
-            RulesJsonSection::RuleProviders => {
-                let providers: RuleProviders = serde_json::from_str(json)
-                    .map_err(|error| invalid(&format!("invalid rule providers JSON: {error}")))?;
-                configuration
-                    .save_rule_providers(providers)
-                    .await
-                    .map(|_| ())
-            }
-            RulesJsonSection::ProxyProviders => {
-                let providers: ProxyProviders = serde_json::from_str(json)
-                    .map_err(|error| invalid(&format!("invalid proxy providers JSON: {error}")))?;
-                configuration
-                    .save_proxy_providers(providers)
-                    .await
-                    .map(|_| ())
-            }
-            RulesJsonSection::Sniffer => {
-                let config: serde_json::Value = serde_json::from_str(json)
-                    .map_err(|error| invalid(&format!("invalid sniffer JSON: {error}")))?;
-                configuration.save_sniffer_config(config).await.map(|_| ())
-            }
-        }
+        configuration.save_rules(rules).await.map(|_| ())
     }
 
     async fn update_setting(&self, key: &str, value: &str) -> Result<(), Failure> {
@@ -697,12 +426,6 @@ impl CommandApplication {
             .ok_or_else(|| missing("profile application"))
     }
 
-    fn proxy_preferences(&self) -> Result<&ProxyPreferencesApplication, Failure> {
-        self.proxy_preferences
-            .as_ref()
-            .ok_or_else(|| missing("proxy preferences application"))
-    }
-
     fn configuration(&self) -> Result<ConfigurationApplication, Failure> {
         self.configuration
             .clone()
@@ -713,6 +436,12 @@ impl CommandApplication {
         self.runtime
             .clone()
             .ok_or_else(|| missing("runtime gateway"))
+    }
+
+    fn core_log_level_port(&self) -> Result<Arc<dyn CoreLogLevelPort>, Failure> {
+        self.core_log_level_port
+            .clone()
+            .ok_or_else(|| Failure::unsupported("core log-level port is not composed"))
     }
 
     fn subscription_source(&self) -> Result<Arc<dyn SubscriptionSource>, Failure> {
@@ -838,10 +567,16 @@ impl CommandApplication {
         })
     }
 
-    fn speedtest(&self) -> Result<SpeedtestApplication, Failure> {
-        self.speedtest
+    fn outbound(&self) -> Result<OutboundApplication, Failure> {
+        self.outbound
             .clone()
-            .ok_or_else(|| missing("speedtest application"))
+            .ok_or_else(|| Failure::unsupported("outbound application is not composed"))
+    }
+
+    fn outbound_ui_preferences(&self) -> Result<OutboundUiPreferencesApplication, Failure> {
+        self.outbound_ui_preferences.clone().ok_or_else(|| {
+            Failure::unsupported("outbound UI preference application is not composed")
+        })
     }
 
     fn rule_tracer(&self) -> Result<RuleTracerApplication, Failure> {
@@ -851,83 +586,21 @@ impl CommandApplication {
     }
 }
 
-const DEFAULT_DELAY_CONCURRENCY: usize = 30;
 /// Bounded concurrency for the shared "update all subscriptions" batch.
 const BATCH_UPDATE_CONCURRENCY: usize = 5;
 
-fn delay_candidates(
-    proxies: &HashMap<String, Proxy>,
-    group: Option<&str>,
-) -> Result<Vec<String>, Failure> {
-    let candidates = match group {
-        Some(group) => match proxies.get(group) {
-            Some(proxy) if proxy.is_group() => proxy.all().unwrap_or_default().to_vec(),
-            Some(_) => {
-                return Err(Failure::new(
-                    ErrorCode::InvalidInput,
-                    format!("{group} is not a proxy group"),
-                    false,
-                ));
-            }
-            None => {
-                return Err(Failure::new(
-                    ErrorCode::InvalidInput,
-                    format!("proxy group {group} was not found"),
-                    false,
-                ));
-            }
-        },
-        None => proxies
-            .values()
-            .filter(|proxy| !proxy.is_group() && !matches!(proxy, Proxy::Unknown))
-            .map(|proxy| proxy.name().to_string())
-            .filter(|name| !name.is_empty())
-            .collect(),
-    };
-    let mut unique = HashSet::new();
-    Ok(candidates
-        .into_iter()
-        .filter(|candidate| unique.insert(candidate.clone()))
-        .collect())
-}
-
-fn parse_routing_mode(value: &str) -> Result<AppRoutingMode, Failure> {
-    match value.trim().to_ascii_lowercase().as_str() {
-        "proxy_all" | "global" => Ok(AppRoutingMode::ProxyAll),
-        "proxy_selected" | "whitelist" => Ok(AppRoutingMode::ProxySelected),
-        "bypass_selected" | "blacklist" => Ok(AppRoutingMode::BypassSelected),
-        _ => Err(Failure::new(
+fn parse_release_channel(
+    value: &str,
+    engine_id: &EngineId,
+) -> Result<EngineReleaseChannel, Failure> {
+    let channel_id = ReleaseChannelId::new(value.trim().to_ascii_lowercase()).map_err(|error| {
+        Failure::new(
             ErrorCode::InvalidInput,
-            format!("unknown app routing mode {value}"),
+            format!("invalid core release channel ID: {error}"),
             false,
-        )),
-    }
-}
-
-fn parse_routing_rule(value: &str) -> Result<AppRoutingRule, Failure> {
-    match value.trim().to_ascii_lowercase().as_str() {
-        "proxy" => Ok(AppRoutingRule::Proxy),
-        "direct" => Ok(AppRoutingRule::Direct),
-        "block" => Ok(AppRoutingRule::Block),
-        _ => Err(Failure::new(
-            ErrorCode::InvalidInput,
-            format!("unknown app routing rule {value}"),
-            false,
-        )),
-    }
-}
-
-fn parse_release_channel(value: &str) -> Result<CoreReleaseChannel, Failure> {
-    match value.trim().to_ascii_lowercase().as_str() {
-        "stable" => Ok(CoreReleaseChannel::Stable),
-        "alpha" | "pre-release" | "prerelease" => Ok(CoreReleaseChannel::Alpha),
-        "meta" | "meta-core" | "metacore" | "nightly" => Ok(CoreReleaseChannel::MetaCore),
-        _ => Err(Failure::new(
-            ErrorCode::InvalidInput,
-            format!("unknown core release channel {value}"),
-            false,
-        )),
-    }
+        )
+    })?;
+    Ok(EngineReleaseChannel::new(engine_id.clone(), channel_id))
 }
 
 fn missing(capability: &str) -> Failure {
@@ -945,22 +618,6 @@ fn unsupported() -> Failure {
 /// Configuration failure for the shared rule-edit path.
 fn rule_failure(error: impl Display) -> Failure {
     Failure::new(ErrorCode::Configuration, error.to_string(), false)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn parses_android_and_desktop_routing_vocabulary() {
-        assert_eq!(parse_routing_mode("global"), Ok(AppRoutingMode::ProxyAll));
-        assert_eq!(
-            parse_routing_mode("proxy_selected"),
-            Ok(AppRoutingMode::ProxySelected)
-        );
-        assert_eq!(parse_routing_rule("block"), Ok(AppRoutingRule::Block));
-        assert!(parse_routing_rule("drop").is_err());
-    }
 }
 
 #[cfg(test)]

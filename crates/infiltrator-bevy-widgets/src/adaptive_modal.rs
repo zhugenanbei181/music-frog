@@ -4,6 +4,7 @@
 //! Medium/Expanded/Ultra screens: displays as a centered floating Dialog card.
 
 use crate::palette::UiPalette;
+use crate::palette::rem;
 use crate::responsive::{ModalForm, ResponsiveContext};
 use crate::text::{Role, TextRole};
 use crate::theme::{radius, space};
@@ -107,15 +108,15 @@ pub fn adaptive_modal_scene(
                 --
                 Node {
                     flex_direction: FlexDirection::Column,
-                    width: px(480.0),
+                    width: rem(480.0),
                     max_width: percent(90),
                     max_height: percent(92),
                     min_height: px(0.0),
                     overflow: Overflow::clip(),
-                    padding: UiRect::all(Val::Px(space::S20)),
-                    row_gap: Val::Px(space::S16),
+                    padding: UiRect::all(rem(space::S20)),
+                    row_gap: rem(space::S16),
                     border: UiRect::all(Val::Px(palette.hairline_px)),
-                    border_radius: BorderRadius::all(Val::Px(radius::CARD)),
+                    border_radius: BorderRadius::all(rem(radius::CARD)),
                 }
                 BackgroundColor({ card_fill })
                 BorderColor { top: edge, right: edge, bottom: edge, left: edge }
@@ -146,7 +147,7 @@ pub fn adaptive_modal_scene(
                         width: percent(100),
                         flex_direction: FlexDirection::Row,
                         justify_content: JustifyContent::FlexEnd,
-                        column_gap: Val::Px(space::S8),
+                        column_gap: rem(space::S8),
                     }
                     Children [
                         { actions }
@@ -219,19 +220,19 @@ pub fn sync_adaptive_modal_morphology(
                 ModalForm::ActionSheet => {
                     card.width = percent(100);
                     card.max_width = percent(100);
-                    card.padding = UiRect::all(Val::Px(space::S16));
+                    card.padding = UiRect::all(rem(space::S16));
                     card.border_radius = BorderRadius {
-                        top_left: Val::Px(radius::SHEET_TOP).into(),
-                        top_right: Val::Px(radius::SHEET_TOP).into(),
+                        top_left: rem(radius::SHEET_TOP).into(),
+                        top_right: rem(radius::SHEET_TOP).into(),
                         bottom_left: Val::Px(0.0).into(),
                         bottom_right: Val::Px(0.0).into(),
                     };
                 }
                 ModalForm::CenteredDialog => {
-                    card.width = px(480.0);
+                    card.width = rem(480.0);
                     card.max_width = percent(90);
-                    card.padding = UiRect::all(Val::Px(space::S20));
-                    card.border_radius = BorderRadius::all(Val::Px(radius::CARD));
+                    card.padding = UiRect::all(rem(space::S20));
+                    card.border_radius = BorderRadius::all(rem(radius::CARD));
                 }
             }
         }

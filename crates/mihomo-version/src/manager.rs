@@ -1,7 +1,8 @@
 use super::channel::{Channel, fetch_asset_digest, fetch_latest};
 use super::download::{DownloadProgress, Downloader};
+use crate::engine;
+use infiltrator_contract::core_identity::EngineId;
 use mihomo_api::error::{MihomoError, Result};
-use mihomo_platform::paths::get_home_dir;
 use serde::{Deserialize, Serialize};
 use std::env::temp_dir;
 use std::path;
@@ -30,24 +31,36 @@ pub struct VersionRollbackInfo {
 }
 
 pub struct VersionManager {
+    engine_id: EngineId,
     install_dir: PathBuf,
     config_file: PathBuf,
+    legacy_install_dir: PathBuf,
+    legacy_config_file: PathBuf,
 }
 
 impl VersionManager {
-    pub fn new() -> Result<Self> {
-        let home = get_home_dir()?;
-        Self::with_home(home)
-    }
-
-    pub fn with_home(home: PathBuf) -> Result<Self> {
-        let install_dir = home.join("versions");
-        let config_file = home.join("config.toml");
+    pub fn for_engine(home: PathBuf, engine_id: EngineId) -> Result<Self> {
+        if engine_id != engine::engine_id() {
+            return Err(MihomoError::Version(format!(
+                "mihomo version manager does not support engine {}",
+                engine_id.as_str()
+            )));
+        }
+        let engine_root = home.join("engines").join(engine_id.as_str());
+        let install_dir = engine_root.join("versions");
+        let config_file = engine_root.join("config.toml");
 
         Ok(Self {
+            engine_id,
             install_dir,
             config_file,
+            legacy_install_dir: home.join("versions"),
+            legacy_config_file: home.join("config.toml"),
         })
+    }
+
+    pub fn engine_id(&self) -> &EngineId {
+        &self.engine_id
     }
 
     pub async fn install(&self, version: &str) -> Result<()> {
@@ -79,6 +92,7 @@ impl VersionManager {
         if is_cancelled() {
             return Err(MihomoError::Canceled);
         }
+        self.ensure_engine_namespace().await?;
         fs::create_dir_all(&self.install_dir).await?;
 
         let version_dir = self.install_dir.join(version);
@@ -184,6 +198,7 @@ impl VersionManager {
     }
 
     pub async fn list_installed(&self) -> Result<Vec<VersionInfo>> {
+        self.ensure_engine_namespace().await?;
         if !self.install_dir.exists() {
             return Ok(vec![]);
         }
@@ -209,6 +224,7 @@ impl VersionManager {
     }
 
     pub async fn set_default(&self, version: &str) -> Result<()> {
+        self.ensure_engine_namespace().await?;
         validate_version_label(version)?;
         let version_dir = self.install_dir.join(version);
         if !version_dir.exists() {
@@ -238,6 +254,7 @@ impl VersionManager {
     }
 
     pub async fn get_default(&self) -> Result<String> {
+        self.ensure_engine_namespace().await?;
         if !self.config_file.exists() {
             return Err(MihomoError::NotFound("No default version set".to_string()));
         }
@@ -251,6 +268,7 @@ impl VersionManager {
     /// choosing `target`, while the bounded history remains visible for
     /// diagnostics and future recovery.
     pub async fn rollback_info(&self) -> Result<VersionRollbackInfo> {
+        self.ensure_engine_namespace().await?;
         let config = self.read_config().await?;
         let current = default_version_from_config(&config);
         let history = version_history_from_config(&config);
@@ -269,6 +287,7 @@ impl VersionManager {
     /// smoke check used by installation/default activation, then atomically
     /// updates only the version-selection fields in the shared config file.
     pub async fn rollback(&self) -> Result<String> {
+        self.ensure_engine_namespace().await?;
         let mut config = self.read_config().await?;
         let current = default_version_from_config(&config);
         let mut history = version_history_from_config(&config);
@@ -299,6 +318,7 @@ impl VersionManager {
     }
 
     pub async fn get_binary_path(&self, version: Option<&str>) -> Result<PathBuf> {
+        self.ensure_engine_namespace().await?;
         let version = if let Some(v) = version {
             v.to_string()
         } else {
@@ -324,6 +344,7 @@ impl VersionManager {
     }
 
     pub async fn uninstall(&self, version: &str) -> Result<()> {
+        self.ensure_engine_namespace().await?;
         validate_version_label(version)?;
         let version_dir = self.install_dir.join(version);
         if !version_dir.exists() {
@@ -345,6 +366,7 @@ impl VersionManager {
     }
 
     async fn read_config(&self) -> Result<toml::Value> {
+        self.ensure_engine_namespace().await?;
         if !self.config_file.exists() {
             return Ok(toml::Value::Table(Map::new()));
         }
@@ -379,6 +401,37 @@ impl VersionManager {
             }
         }
         None
+    }
+
+    async fn ensure_engine_namespace(&self) -> Result<()> {
+        let parent = self.install_dir.parent().ok_or_else(|| {
+            MihomoError::Config("engine-scoped version directory has no parent".to_string())
+        })?;
+        fs::create_dir_all(parent).await?;
+
+        if fs::try_exists(&self.legacy_install_dir).await? {
+            if !fs::try_exists(&self.install_dir).await? {
+                fs::rename(&self.legacy_install_dir, &self.install_dir).await?;
+            } else {
+                let mut legacy = fs::read_dir(&self.legacy_install_dir).await?;
+                while let Some(entry) = legacy.next_entry().await? {
+                    if entry.file_type().await?.is_dir() {
+                        let destination = self.install_dir.join(entry.file_name());
+                        if !fs::try_exists(&destination).await? {
+                            fs::rename(entry.path(), destination).await?;
+                        }
+                    }
+                }
+            }
+        }
+
+        if !fs::try_exists(&self.config_file).await?
+            && fs::try_exists(&self.legacy_config_file).await?
+        {
+            let legacy_config = fs::read(&self.legacy_config_file).await?;
+            atomic_write(&self.config_file, &legacy_config).await?;
+        }
+        Ok(())
     }
 }
 
@@ -536,426 +589,5 @@ async fn smoke_check_binary(path: &path::Path) -> Result<()> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    #[cfg(test)]
-    #[cfg(unix)]
-    use std::fs::Permissions;
-    #[cfg(test)]
-    #[cfg(unix)]
-    use std::fs::create_dir_all;
-    #[cfg(test)]
-    #[cfg(unix)]
-    use std::fs::set_permissions;
-    #[cfg(test)]
-    #[cfg(unix)]
-    use std::fs::write;
-    use tempfile::TempDir;
-
-    #[cfg(unix)]
-    fn write_script(dir: &TempDir, name: &str, body: &str) -> PathBuf {
-        use std::os::unix::fs::PermissionsExt;
-        let path = dir.path().join(name);
-        write(&path, format!("#!/bin/sh\n{body}")).unwrap();
-        set_permissions(&path, Permissions::from_mode(0o755)).unwrap();
-        path
-    }
-
-    #[cfg(unix)]
-    #[tokio::test]
-    async fn smoke_check_accepts_version_printing_binary() {
-        let dir = TempDir::new().unwrap();
-        let fake = write_script(&dir, "mihomo", "echo \"Mihomo Meta v1.19.18 test\"");
-        assert!(smoke_check_binary(&fake).await.is_ok());
-    }
-
-    #[cfg(unix)]
-    #[tokio::test]
-    async fn smoke_check_rejects_failing_binary() {
-        let dir = TempDir::new().unwrap();
-        let fake = write_script(&dir, "mihomo", "exit 3");
-        let err = smoke_check_binary(&fake).await.unwrap_err();
-        assert!(err.to_string().contains("exited"), "{err}");
-    }
-
-    #[cfg(unix)]
-    #[tokio::test]
-    async fn smoke_check_rejects_silent_binary() {
-        let dir = TempDir::new().unwrap();
-        let fake = write_script(&dir, "mihomo", "exit 0");
-        let err = smoke_check_binary(&fake).await.unwrap_err();
-        assert!(err.to_string().contains("no version output"), "{err}");
-    }
-
-    fn setup_test_manager(temp_dir: &TempDir) -> VersionManager {
-        let home = temp_dir.path().to_path_buf();
-        VersionManager::with_home(home).unwrap()
-    }
-
-    #[tokio::test]
-    async fn cancelled_install_stops_before_network_or_filesystem_work() {
-        let temp_dir = TempDir::new().unwrap();
-        let manager = setup_test_manager(&temp_dir);
-        let error = manager
-            .install_with_progress_and_cancel("v-test", |_| {}, || true)
-            .await
-            .unwrap_err();
-        assert!(matches!(error, MihomoError::Canceled), "{error}");
-        assert!(!temp_dir.path().join("versions").exists());
-    }
-
-    /// set_default now smoke-checks the candidate binary; tests that merely
-    /// install a fake version must provide a runnable stand-in.
-    #[cfg(unix)]
-    fn plant_runnable_fake_binary(home: &path::Path, version: &str) {
-        use std::os::unix::fs::PermissionsExt;
-        let dir = home.join("versions").join(version);
-        create_dir_all(&dir).unwrap();
-        let bin = dir.join("mihomo");
-        write(&bin, "#!/bin/sh\necho \"Mihomo Meta v1.19.18 test\"\n").unwrap();
-        set_permissions(&bin, Permissions::from_mode(0o755)).unwrap();
-    }
-
-    #[test]
-    fn test_version_manager_new() {
-        let temp_dir = TempDir::new().unwrap();
-        let manager = setup_test_manager(&temp_dir);
-
-        assert_eq!(manager.install_dir, temp_dir.path().join("versions"));
-        assert_eq!(manager.config_file, temp_dir.path().join("config.toml"));
-    }
-
-    #[tokio::test]
-    async fn test_list_installed_empty() {
-        let temp_dir = TempDir::new().unwrap();
-        let manager = setup_test_manager(&temp_dir);
-
-        let result = manager.list_installed().await;
-        assert!(result.is_ok());
-        assert!(result.unwrap().is_empty());
-    }
-
-    #[tokio::test]
-    async fn test_list_installed_with_versions() {
-        let temp_dir = TempDir::new().unwrap();
-        let manager = setup_test_manager(&temp_dir);
-
-        // Create version directories
-        fs::create_dir_all(manager.install_dir.join("v1.19.0"))
-            .await
-            .unwrap();
-        fs::create_dir_all(manager.install_dir.join("v1.20.0"))
-            .await
-            .unwrap();
-
-        let result = manager.list_installed().await;
-        assert!(result.is_ok());
-        let versions = result.unwrap();
-        assert_eq!(versions.len(), 2);
-        assert!(versions.iter().any(|v| v.version == "v1.19.0"));
-        assert!(versions.iter().any(|v| v.version == "v1.20.0"));
-    }
-
-    #[tokio::test]
-    async fn test_list_installed_sorted() {
-        let temp_dir = TempDir::new().unwrap();
-        let manager = setup_test_manager(&temp_dir);
-
-        // Create version directories
-        fs::create_dir_all(manager.install_dir.join("v1.18.0"))
-            .await
-            .unwrap();
-        fs::create_dir_all(manager.install_dir.join("v1.20.0"))
-            .await
-            .unwrap();
-        fs::create_dir_all(manager.install_dir.join("v1.19.0"))
-            .await
-            .unwrap();
-
-        let result = manager.list_installed().await;
-        assert!(result.is_ok());
-        let versions = result.unwrap();
-        assert_eq!(versions.len(), 3);
-        assert_eq!(versions[0].version, "v1.20.0");
-        assert_eq!(versions[1].version, "v1.19.0");
-        assert_eq!(versions[2].version, "v1.18.0");
-    }
-
-    #[tokio::test]
-    async fn test_set_default() {
-        let temp_dir = TempDir::new().unwrap();
-        let manager = setup_test_manager(&temp_dir);
-
-        // Create version directory with a binary that passes smoke check
-        #[cfg(unix)]
-        plant_runnable_fake_binary(temp_dir.path(), "v1.19.0");
-        #[cfg(not(unix))]
-        fs::create_dir_all(manager.install_dir.join("v1.19.0"))
-            .await
-            .unwrap();
-
-        let result = manager.set_default("v1.19.0").await;
-        assert!(result.is_ok());
-
-        let default = manager.get_default().await;
-        assert!(default.is_ok());
-        assert_eq!(default.unwrap(), "v1.19.0");
-    }
-
-    #[cfg(unix)]
-    #[tokio::test]
-    async fn version_selection_preserves_profile_and_rolls_back_without_network() {
-        let temp_dir = TempDir::new().unwrap();
-        let manager = setup_test_manager(&temp_dir);
-        fs::write(
-            temp_dir.path().join("config.toml"),
-            "[default]\nprofile = \"work\"\n",
-        )
-        .await
-        .unwrap();
-        plant_runnable_fake_binary(temp_dir.path(), "v1.19.28");
-        plant_runnable_fake_binary(temp_dir.path(), "v1.19.29");
-        plant_runnable_fake_binary(temp_dir.path(), "v1.19.30");
-
-        manager.set_default("v1.19.28").await.unwrap();
-        manager.set_default("v1.19.29").await.unwrap();
-        manager.set_default("v1.19.30").await.unwrap();
-
-        let config = fs::read_to_string(temp_dir.path().join("config.toml"))
-            .await
-            .unwrap();
-        let config: toml::Value = toml::from_str(&config).unwrap();
-        assert_eq!(
-            config["default"]["profile"].as_str(),
-            Some("work"),
-            "version selection must not overwrite profile selection"
-        );
-        assert_eq!(
-            config["default"]["version_history"].as_array(),
-            Some(&vec![
-                toml::Value::String("v1.19.29".to_owned()),
-                toml::Value::String("v1.19.28".to_owned()),
-            ])
-        );
-
-        let info = manager.rollback_info().await.unwrap();
-        assert_eq!(info.current.as_deref(), Some("v1.19.30"));
-        assert_eq!(info.target.as_deref(), Some("v1.19.29"));
-
-        let selected = manager.rollback().await.unwrap();
-        assert_eq!(selected, "v1.19.29");
-        assert_eq!(manager.get_default().await.unwrap(), "v1.19.29");
-        let next = manager.rollback_info().await.unwrap();
-        assert_eq!(next.target.as_deref(), Some("v1.19.28"));
-        assert_eq!(next.history.first().map(String::as_str), Some("v1.19.28"));
-    }
-
-    #[tokio::test]
-    async fn rollback_requires_an_installed_previous_version() {
-        let temp_dir = TempDir::new().unwrap();
-        let manager = setup_test_manager(&temp_dir);
-        let error = manager.rollback().await.unwrap_err();
-        assert!(
-            error
-                .to_string()
-                .contains("No installed previous core version"),
-            "{error}"
-        );
-    }
-
-    #[cfg(unix)]
-    #[tokio::test]
-    async fn rollback_health_gate_keeps_current_version_on_bad_candidate() {
-        let temp_dir = TempDir::new().unwrap();
-        let manager = setup_test_manager(&temp_dir);
-        plant_runnable_fake_binary(temp_dir.path(), "v1.19.28");
-        plant_runnable_fake_binary(temp_dir.path(), "v1.19.29");
-        manager.set_default("v1.19.28").await.unwrap();
-        manager.set_default("v1.19.29").await.unwrap();
-
-        fs::write(
-            temp_dir.path().join("versions/v1.19.28/mihomo"),
-            "#!/bin/sh\nexit 9\n",
-        )
-        .await
-        .unwrap();
-        let error = manager.rollback().await.unwrap_err();
-        assert!(error.to_string().contains("smoke check"), "{error}");
-        assert_eq!(manager.get_default().await.unwrap(), "v1.19.29");
-        assert_eq!(
-            manager.rollback_info().await.unwrap().target.as_deref(),
-            Some("v1.19.28")
-        );
-    }
-
-    #[tokio::test]
-    async fn test_set_nonexistent_version() {
-        let temp_dir = TempDir::new().unwrap();
-        let manager = setup_test_manager(&temp_dir);
-
-        let result = manager.set_default("v1.19.0").await;
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("not installed"));
-    }
-
-    #[tokio::test]
-    async fn test_get_default_not_set() {
-        let temp_dir = TempDir::new().unwrap();
-        let manager = setup_test_manager(&temp_dir);
-
-        let result = manager.get_default().await;
-        assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .to_string()
-                .contains("No default version set")
-        );
-    }
-
-    #[tokio::test]
-    async fn test_get_binary_path_with_version() {
-        let temp_dir = TempDir::new().unwrap();
-        let manager = setup_test_manager(&temp_dir);
-
-        let version_dir = manager.install_dir.join("v1.19.0");
-        fs::create_dir_all(&version_dir).await.unwrap();
-
-        let binary_name = if cfg!(windows) {
-            "mihomo.exe"
-        } else {
-            "mihomo"
-        };
-        let binary_path = version_dir.join(binary_name);
-        fs::write(&binary_path, "binary").await.unwrap();
-
-        let result = manager.get_binary_path(Some("v1.19.0")).await;
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), binary_path);
-    }
-
-    #[tokio::test]
-    async fn test_get_binary_path_with_default() {
-        let temp_dir = TempDir::new().unwrap();
-        let manager = setup_test_manager(&temp_dir);
-
-        let version_dir = manager.install_dir.join("v1.19.0");
-        fs::create_dir_all(&version_dir).await.unwrap();
-
-        let binary_name = if cfg!(windows) {
-            "mihomo.exe"
-        } else {
-            "mihomo"
-        };
-        let binary_path = version_dir.join(binary_name);
-        #[cfg(unix)]
-        plant_runnable_fake_binary(temp_dir.path(), "v1.19.0");
-        #[cfg(not(unix))]
-        fs::write(&binary_path, "binary").await.unwrap();
-
-        manager.set_default("v1.19.0").await.unwrap();
-
-        let result = manager.get_binary_path(None).await;
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), binary_path);
-    }
-
-    #[tokio::test]
-    async fn test_get_binary_path_not_found() {
-        let temp_dir = TempDir::new().unwrap();
-        let manager = setup_test_manager(&temp_dir);
-
-        let version_dir = manager.install_dir.join("v1.19.0");
-        fs::create_dir_all(&version_dir).await.unwrap();
-
-        let result = manager.get_binary_path(Some("v1.19.0")).await;
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Binary not found"));
-    }
-
-    #[tokio::test]
-    async fn test_install_version_already_installed() {
-        let temp_dir = TempDir::new().unwrap();
-        let manager = setup_test_manager(&temp_dir);
-
-        let version_dir = manager.install_dir.join("v1.19.0");
-        fs::create_dir_all(&version_dir).await.unwrap();
-
-        let result = manager.install("v1.19.0").await;
-        assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .to_string()
-                .contains("already installed")
-        );
-    }
-
-    #[tokio::test]
-    async fn test_uninstall_version() {
-        let temp_dir = TempDir::new().unwrap();
-        let manager = setup_test_manager(&temp_dir);
-
-        let version_dir = manager.install_dir.join("v1.19.0");
-        fs::create_dir_all(&version_dir).await.unwrap();
-
-        let result = manager.uninstall("v1.19.0").await;
-        assert!(result.is_ok());
-        assert!(!version_dir.exists());
-    }
-
-    #[tokio::test]
-    async fn test_uninstall_nonexistent_version() {
-        let temp_dir = TempDir::new().unwrap();
-        let manager = setup_test_manager(&temp_dir);
-
-        let result = manager.uninstall("v1.19.0").await;
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("not installed"));
-    }
-
-    #[tokio::test]
-    async fn test_uninstall_default_version() {
-        let temp_dir = TempDir::new().unwrap();
-        let manager = setup_test_manager(&temp_dir);
-
-        let version_dir = manager.install_dir.join("v1.19.0");
-        fs::create_dir_all(&version_dir).await.unwrap();
-        #[cfg(unix)]
-        plant_runnable_fake_binary(temp_dir.path(), "v1.19.0");
-
-        manager.set_default("v1.19.0").await.unwrap();
-
-        let result = manager.uninstall("v1.19.0").await;
-        assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .to_string()
-                .contains("Cannot uninstall the default version")
-        );
-    }
-
-    #[tokio::test]
-    async fn test_install_cleanup_on_failure() {
-        let temp_dir = TempDir::new().unwrap();
-        let manager = setup_test_manager(&temp_dir);
-        let version = "v9.9.9";
-
-        // 预先创建一个文件占坑，导致目录创建失败
-        let conflict_path = manager.install_dir.join(version);
-        fs::create_dir_all(&manager.install_dir).await.unwrap();
-        fs::write(&conflict_path, "I am a file, not a dir")
-            .await
-            .unwrap();
-
-        // 尝试安装 (由于 Downloader 会先下载，这里可能先报下载错误)
-        // 但如果我们模拟一个下载成功但后续失败的场景...
-        // 鉴于目前代码结构，我增加一个内部验证：
-        // 如果安装过程抛出任何错误，install_dir/version 应该不存在或者保持原样。
-        let _ = manager.install(version).await;
-
-        // 如果安装失败，它不应该留下一个半成品目录（如果是文件占坑，它不应该被删掉，但也不应该变成目录）
-        assert!(fs::metadata(&conflict_path).await.unwrap().is_file());
-    }
-}
+#[path = "manager_tests.rs"]
+mod tests;

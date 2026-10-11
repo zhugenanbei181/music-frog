@@ -7,60 +7,124 @@
 
 use async_trait::async_trait;
 use infiltrator_application::core_application::CoreApplication;
-use infiltrator_application::rule_source_identity::rule_workspace;
+use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::rule_location::RuleLocation;
-use infiltrator_contract::rule_source::RuleSourceIdentity;
-use infiltrator_core::apply::{
-    ApplyError, ApplyParams, EndpointConfigReloader, apply_confirmed_profile,
-};
+use infiltrator_contract::rule_trace_run::RuleTraceOwnerBinding;
 use infiltrator_domain::apply::ApplyStrategy;
-use infiltrator_domain::rules::source_identity::identify_rules_document;
-use infiltrator_domain::rules::{RuleEntry, apply_rules_to_yaml, load_rules_from_yaml};
-use infiltrator_domain::yaml_edit::rule_location::replace_rule_at_location;
-use infiltrator_ports::endpoint::EndpointSource;
+use infiltrator_domain::rules::RuleEntry;
 use infiltrator_ports::error::PortError;
+use infiltrator_ports::profile_configuration_transaction::{
+    ProfileConfigurationCommitEffect, ProfileConfigurationTransactionOutcome,
+    ProfileConfigurationTransactionPort, ProfileConfigurationTransactionRequest,
+};
+use infiltrator_ports::profile_document_codec::ProfileRuleWorkspaceUpdate;
+use infiltrator_ports::profile_store::ProfileStore;
+use infiltrator_ports::profile_workspace::{ProfileWorkspacePurpose, ProfileWorkspaceUpdate};
 use infiltrator_ports::rule_tracer::{RuleOverridePort, RuleWorkspace};
-use mihomo_api::error::MihomoError;
 use mihomo_config::manager::ConfigManager;
 use mihomo_platform::defaults::DefaultCredentialStore;
-use std::io::ErrorKind;
 use std::sync::{Arc, Weak};
 use tokio::sync::Mutex;
 
 /// Host persistence capability behind the shared rule override command.
 pub struct DesktopRuleOverridePort {
     config: Arc<ConfigManager<DefaultCredentialStore>>,
+    profiles: ProfileApplication,
     session: Weak<CoreApplication>,
-    endpoints: Arc<dyn EndpointSource>,
+    configuration_transaction: Arc<dyn ProfileConfigurationTransactionPort>,
     apply_guard: Arc<Mutex<()>>,
 }
 
 impl DesktopRuleOverridePort {
     pub fn new(
         config: Arc<ConfigManager<DefaultCredentialStore>>,
+        profiles: ProfileApplication,
         session: Arc<CoreApplication>,
-        endpoints: Arc<dyn EndpointSource>,
+        configuration_transaction: Arc<dyn ProfileConfigurationTransactionPort>,
         apply_guard: Arc<Mutex<()>>,
     ) -> Self {
         Self {
             config,
+            profiles,
             session: Arc::downgrade(&session),
-            endpoints,
+            configuration_transaction,
             apply_guard,
         }
     }
     async fn commit_updated(
         &self,
-        source: &RuleSourceIdentity,
+        expected: &infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity,
         profile: &str,
-        updated: &str,
+        update: &ProfileWorkspaceUpdate,
     ) -> Result<(), PortError> {
-        let reloader = EndpointConfigReloader::new(self.endpoints.clone());
-        let params = ApplyParams {
-            strategy: ApplyStrategy::PreferReload,
-            ..ApplyParams::default()
-        };
+        let _session = self.session.upgrade().ok_or_else(|| {
+            PortError::Rejected(Failure::new(
+                ErrorCode::NotReady,
+                "The product session has closed",
+                false,
+            ))
+        })?;
+        let outcome = self
+            .configuration_transaction
+            .transact(ProfileConfigurationTransactionRequest {
+                expected: expected.clone(),
+                update: update.clone(),
+                strategy: ApplyStrategy::PreferReload,
+            })
+            .await?;
+        match outcome {
+            ProfileConfigurationTransactionOutcome::Committed {
+                effect: ProfileConfigurationCommitEffect::AppliedToRunningCore,
+                ..
+            }
+            | ProfileConfigurationTransactionOutcome::Committed {
+                effect: ProfileConfigurationCommitEffect::StoredWhileStopped,
+                ..
+            }
+            | ProfileConfigurationTransactionOutcome::Committed {
+                effect: ProfileConfigurationCommitEffect::StoredWhileFailed,
+                ..
+            } => Ok(()),
+            ProfileConfigurationTransactionOutcome::RolledBack { cause, .. } => {
+                Err(PortError::Rejected(Failure::new(
+                    cause.code,
+                    format!("profile {profile}: {}", cause.message),
+                    cause.retryable,
+                )))
+            }
+            ProfileConfigurationTransactionOutcome::RollbackFailed { cause, rollback } => {
+                Err(PortError::Rejected(Failure::new(
+                    ErrorCode::InvalidState,
+                    format!(
+                        "profile {profile}: {}; rollback failed: {}",
+                        cause.message, rollback.message
+                    ),
+                    true,
+                )))
+            }
+        }
+    }
+}
+
+#[async_trait]
+impl RuleOverridePort for DesktopRuleOverridePort {
+    async fn load_rule_workspace(&self) -> Result<RuleWorkspace, PortError> {
+        let workspace = self.config.load_active_workspace().await?;
+        self.profiles
+            .read_profile_rule_workspace(&workspace)
+            .map_err(PortError::Rejected)
+    }
+
+    async fn load_rule_workspace_for_trace(
+        &self,
+        owner: &RuleTraceOwnerBinding,
+    ) -> Result<RuleWorkspace, PortError> {
+        if owner.workspace.document.engine_id != owner.scope.identity.engine {
+            return Err(PortError::Rejected(Failure::unsupported(
+                "rule trace profile belongs to another engine",
+            )));
+        }
         let session = self.session.upgrade().ok_or_else(|| {
             PortError::Rejected(Failure::new(
                 ErrorCode::NotReady,
@@ -68,41 +132,24 @@ impl DesktopRuleOverridePort {
                 false,
             ))
         })?;
-        apply_confirmed_profile(
-            session.as_ref(),
-            &self.config,
-            &reloader,
-            updated,
-            params,
-            source,
-        )
-        .await
-        .map(|_| ())
-        .map_err(|error| {
-            let code = match error {
-                ApplyError::SourceChanged | ApplyError::Busy { .. } => ErrorCode::NotReady,
-                ApplyError::Validation(_) => ErrorCode::Configuration,
-                ApplyError::Write(_) => ErrorCode::Storage,
-                ApplyError::Permission(_) => ErrorCode::Permission,
-                ApplyError::RolledBack { .. }
-                | ApplyError::RollbackFailed { .. }
-                | ApplyError::Lifecycle(_) => ErrorCode::InvalidState,
-            };
-            PortError::Rejected(Failure::new(
-                code,
-                format!("profile {profile}: {error}"),
+        if session.snapshot().scope().as_ref() != Some(&owner.scope) {
+            return Err(PortError::Rejected(Failure::new(
+                ErrorCode::NotReady,
+                "Core scope changed before rule simulation began",
                 true,
-            ))
-        })
-    }
-}
-
-#[async_trait]
-impl RuleOverridePort for DesktopRuleOverridePort {
-    async fn load_rule_workspace(&self) -> Result<RuleWorkspace, PortError> {
-        let profile = self.config.get_current().await.map_err(config_error)?;
-        let content = self.config.load(&profile).await.map_err(config_error)?;
-        rule_workspace(profile, &content).map_err(PortError::Rejected)
+            )));
+        }
+        let workspace = self.config.load_active_workspace().await?;
+        if workspace.identity() != owner.workspace {
+            return Err(PortError::Rejected(Failure::new(
+                ErrorCode::NotReady,
+                "Profile workspace changed before rule simulation began",
+                true,
+            )));
+        }
+        self.profiles
+            .read_profile_rule_workspace(&workspace)
+            .map_err(PortError::Rejected)
     }
 
     async fn compare_and_apply_rules(
@@ -110,17 +157,17 @@ impl RuleOverridePort for DesktopRuleOverridePort {
         expected: &RuleWorkspace,
         entries: &[RuleEntry],
     ) -> Result<(), PortError> {
-        let _guard = self.apply_guard.lock().await;
-        let profile = self.config.get_current().await.map_err(config_error)?;
-        let content = self.config.load(&profile).await.map_err(config_error)?;
-        if identify_rules_document(profile.clone(), &content) != expected.source
-            || load_rules_from_yaml(&content).map_err(|error| {
-                PortError::Rejected(Failure::new(
-                    ErrorCode::Configuration,
-                    error.to_string(),
-                    false,
-                ))
-            })? != expected.rules
+        let guard = self.apply_guard.lock().await;
+        let workspace = self.config.load_active_workspace().await?;
+        let identity = workspace.identity();
+        let profile = identity.document.profile_id.as_str().to_owned();
+        let observed = self
+            .profiles
+            .read_profile_rule_workspace(&workspace)
+            .map_err(PortError::Rejected)?;
+        if workspace.identity() != expected.profile_identity
+            || observed.source != expected.source
+            || observed.rules != expected.rules
         {
             return Err(PortError::Rejected(Failure::new(
                 ErrorCode::NotReady,
@@ -128,16 +175,21 @@ impl RuleOverridePort for DesktopRuleOverridePort {
                 true,
             )));
         }
-        let updated = apply_rules_to_yaml(&content, entries).map_err(|error| {
-            PortError::Rejected(Failure::new(
-                ErrorCode::Configuration,
-                error.to_string(),
-                false,
-            ))
-        })?;
-
-        self.commit_updated(&expected.source, &profile, &updated)
-            .await
+        let mutation = self
+            .profiles
+            .apply_profile_rule_workspace(
+                &identity,
+                &workspace.document.raw_bytes,
+                ProfileRuleWorkspaceUpdate::ReplaceRules(entries.to_vec()),
+            )
+            .map_err(PortError::Rejected)?;
+        let update = ProfileWorkspaceUpdate {
+            purpose: ProfileWorkspacePurpose::Derived,
+            document_bytes: mutation.document_bytes,
+            sidecar_bytes: workspace.sidecar_bytes,
+        };
+        drop(guard);
+        self.commit_updated(&identity, &profile, &update).await
     }
     async fn compare_and_apply_named_rule(
         &self,
@@ -146,34 +198,39 @@ impl RuleOverridePort for DesktopRuleOverridePort {
         expected_rule: &str,
         replacement: &str,
     ) -> Result<(), PortError> {
-        let _guard = self.apply_guard.lock().await;
-        let profile = self.config.get_current().await.map_err(config_error)?;
-        let content = self.config.load(&profile).await.map_err(config_error)?;
-        if identify_rules_document(profile.clone(), &content) != expected.source {
+        let guard = self.apply_guard.lock().await;
+        let workspace = self.config.load_active_workspace().await?;
+        let identity = workspace.identity();
+        let profile = identity.document.profile_id.as_str().to_owned();
+        let observed = self
+            .profiles
+            .read_profile_rule_workspace(&workspace)
+            .map_err(PortError::Rejected)?;
+        if workspace.identity() != expected.profile_identity || observed.source != expected.source {
             return Err(PortError::Rejected(Failure::new(
                 ErrorCode::NotReady,
                 "The source document changed before applying",
                 true,
             )));
         }
-        let updated = replace_rule_at_location(&content, location, expected_rule, replacement)
-            .map_err(|error| PortError::Rejected(Failure::unsupported(error.to_string())))?;
-        self.commit_updated(&expected.source, &profile, &updated)
-            .await
-    }
-}
-
-fn config_error(error: MihomoError) -> PortError {
-    match error {
-        MihomoError::Io(error) if error.kind() == ErrorKind::PermissionDenied => {
-            PortError::PermissionDenied(error.to_string())
-        }
-        MihomoError::Io(error) => PortError::Io(error.to_string()),
-        MihomoError::NotFound(reason) => PortError::NotFound(reason),
-        other => PortError::Rejected(Failure::new(
-            ErrorCode::Configuration,
-            other.to_string(),
-            false,
-        )),
+        let mutation = self
+            .profiles
+            .apply_profile_rule_workspace(
+                &identity,
+                &workspace.document.raw_bytes,
+                ProfileRuleWorkspaceUpdate::ReplaceNamedRule {
+                    location: location.clone(),
+                    expected_rule: expected_rule.to_owned(),
+                    replacement: replacement.to_owned(),
+                },
+            )
+            .map_err(PortError::Rejected)?;
+        let update = ProfileWorkspaceUpdate {
+            purpose: ProfileWorkspacePurpose::Derived,
+            document_bytes: mutation.document_bytes,
+            sidecar_bytes: workspace.sidecar_bytes,
+        };
+        drop(guard);
+        self.commit_updated(&identity, &profile, &update).await
     }
 }

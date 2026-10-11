@@ -1,9 +1,7 @@
 //! DUAL-10-08/10/11: the Iced Mixin pane's shared-studio widgets.
 //!
-//! The preflight banner, the preset-toggle chips and the cascade pipeline
-//! strip all call the shared pure functions in
-//! `infiltrator_domain::mixin_studio`; the surface only renders the verdicts,
-//! it never re-implements the merge or the validation.
+//! The pane renders engine-scoped codec projections and routes edits through
+//! the typed Core application seam.
 
 use crate::state::AppState;
 use crate::types::message::Message;
@@ -13,9 +11,11 @@ use crate::view::{editor_viewport, theme};
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
 use infiltrator_application::mixin_studio_projection;
-use infiltrator_domain::mixin::MixinConfig;
-use infiltrator_domain::mixin_studio;
-use infiltrator_domain::mixin_studio::MixinColumn;
+use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_ports::profile_document_codec::{
+    ProfileMixinCascade, ProfileMixinColumn, ProfileMixinColumnRole, ProfileMixinComposition,
+    ProfileMixinStudioProjection, ProfileMixinToggleId,
+};
 use infiltrator_shared::locales::{Lang, Localizer};
 
 fn chip_style(enabled: bool) -> impl Fn(&Theme, button::Status) -> button::Style {
@@ -45,11 +45,38 @@ fn chip_style(enabled: bool) -> impl Fn(&Theme, button::Status) -> button::Style
     }
 }
 
+fn inspect_studio(state: &AppState) -> Result<ProfileMixinStudioProjection, Failure> {
+    let identity = state
+        .editor
+        .document_session
+        .source()
+        .map(|source| source.document.clone())
+        .ok_or_else(|| Failure::new(ErrorCode::NotReady, "No profile document is open", true))?;
+    let commands = state.command_ingress().ok_or_else(|| {
+        Failure::new(
+            ErrorCode::NotReady,
+            "Profile options codec is unavailable",
+            true,
+        )
+    })?;
+    commands.inspect_mixin_studio(
+        &identity,
+        &state.editor.editor_content.text(),
+        &state.editor.mixin_content.text(),
+    )
+}
+
 /// DUAL-10-11: the common-overlay toggle chips, state read through the shared
 /// catalogue and the real mixin codec.
 pub fn toggle_row(state: &AppState) -> Element<'_, Message> {
     let lang = Lang(&state.shell.lang);
     let mixin = state.editor.mixin_content.text();
+    let identity = state
+        .editor
+        .document_session
+        .source()
+        .map(|source| source.document.clone());
+    let commands = state.command_ingress();
     let mut chips = row![
         text(lang.tr("mixin_studio_toggles_title").to_string())
             .size(11)
@@ -60,40 +87,49 @@ pub fn toggle_row(state: &AppState) -> Element<'_, Message> {
     ]
     .spacing(theme::SP_SM)
     .align_y(Alignment::Center);
-    for toggle in mixin_studio::MIXIN_PRESET_TOGGLES {
-        let enabled = mixin_studio::toggle_enabled(&mixin, toggle.id.as_str()).unwrap_or(false);
+    for toggle in ProfileMixinToggleId::ALL {
+        let enabled = identity
+            .as_ref()
+            .zip(commands.as_ref())
+            .and_then(|(identity, commands)| {
+                commands.inspect_mixin_toggle(identity, &mixin, toggle).ok()
+            })
+            .unwrap_or(false);
         let button_label = lang
-            .tr(mixin_studio_projection::preset_key(toggle.id))
+            .tr(mixin_studio_projection::preset_key(toggle))
             .to_string();
         chips = chips.push(
             button(text(button_label).size(11).font(FONT_MEDIUM))
                 .padding([4, 10])
                 .style(chip_style(enabled))
-                .on_press(Message::ToggleMixinPreset(
-                    toggle.id.as_str().to_string(),
-                    !enabled,
-                )),
+                .on_press(Message::ToggleMixinPreset(toggle, !enabled)),
         );
     }
     chips.into()
 }
 
-/// DUAL-10-10: the shared preflight verdict for the current overlay. A
+/// DUAL-10-10: the engine-scoped codec verdict for the current overlay. A
 /// blocking verdict states the real reason the save is refused.
 pub fn preflight_banner(state: &AppState) -> Element<'_, Message> {
     let lang = Lang(&state.shell.lang);
-    let base = state.editor.editor_content.text();
-    let report = mixin_studio::preflight_mixin(&base, &state.editor.mixin_content.text());
-    let danger = !report.valid;
-    let headline = if report.valid {
+    let (accepted, detail) = match inspect_studio(state) {
+        Ok(projection) => {
+            let accepted = matches!(
+                &projection.preflight,
+                infiltrator_ports::profile_document_codec::ProfileMixinPreflight::Accepted
+            );
+            (
+                accepted,
+                mixin_studio_projection::preflight_detail(&projection.preflight, lang.0),
+            )
+        }
+        Err(failure) => (false, failure.message),
+    };
+    let danger = !accepted;
+    let headline = if accepted {
         lang.tr("mixin_studio_preflight_ok").to_string()
     } else {
         lang.tr("mixin_studio_preflight_blocked").to_string()
-    };
-    let detail = if report.valid {
-        lang.tr("mixin_studio_preflight_hint").to_string()
-    } else {
-        report.error.clone().unwrap_or_default()
     };
     container(
         column![
@@ -141,10 +177,6 @@ pub fn preflight_banner(state: &AppState) -> Element<'_, Message> {
 /// the real output of a pipeline run with exactly those stages.
 pub fn cascade_strip(state: &AppState) -> Element<'_, Message> {
     let lang = Lang(&state.shell.lang);
-    let base = state.editor.editor_content.text();
-    let mixin_config =
-        serde_yaml_ng::from_str::<MixinConfig>(&state.editor.mixin_content.text()).ok();
-    let report = mixin_studio::preview_cascade(&base, None, None, mixin_config.as_ref(), None);
 
     let mut stages = row![
         text(lang.tr("mixin_studio_cascade_title").to_string())
@@ -156,9 +188,24 @@ pub fn cascade_strip(state: &AppState) -> Element<'_, Message> {
     ]
     .spacing(theme::SP_SM)
     .align_y(Alignment::Center);
-    if report.blocked {
+    let projection = match inspect_studio(state) {
+        Ok(projection) => projection,
+        Err(failure) => {
+            return stages
+                .push(
+                    text(failure.message)
+                        .size(11)
+                        .style(|t: &Theme| text::Style {
+                            color: Some(tokens(t).danger),
+                        }),
+                )
+                .into();
+        }
+    };
+    let report = projection.cascade;
+    if let ProfileMixinCascade::Blocked { reason, .. } = &report {
         stages = stages.push(
-            text(report.error.clone().unwrap_or_default())
+            text(reason.clone())
                 .size(11)
                 .style(|t: &Theme| text::Style {
                     color: Some(tokens(t).danger),
@@ -166,7 +213,14 @@ pub fn cascade_strip(state: &AppState) -> Element<'_, Message> {
         );
         return stages.into();
     }
-    for (index, stage) in report.stages.iter().enumerate() {
+    let ProfileMixinCascade::Merged {
+        stages: report_stages,
+        line_count,
+    } = &report
+    else {
+        unreachable!("blocked cascade returned above")
+    };
+    for (index, stage) in report_stages.iter().enumerate() {
         if index > 0 {
             stages = stages.push(text("→").size(11).style(|t: &Theme| text::Style {
                 color: Some(tokens(t).text_tertiary),
@@ -187,7 +241,7 @@ pub fn cascade_strip(state: &AppState) -> Element<'_, Message> {
         text(format!(
             "{}: {}",
             lang.tr("mixin_studio_cascade_merged"),
-            format_line_count(&lang, report.merged_line_count())
+            format_line_count(&lang, *line_count)
         ))
         .size(11)
         .style(|t: &Theme| text::Style {
@@ -204,7 +258,7 @@ fn format_line_count(lang: &Lang<'_>, count: usize) -> String {
 
 /// One column caption: the shared label plus its real line count and whether
 /// the column is editable.
-fn column_caption<'a>(lang: &Lang<'_>, column: &MixinColumn) -> Element<'a, Message> {
+fn column_caption<'a>(lang: &Lang<'_>, column: &ProfileMixinColumn) -> Element<'a, Message> {
     text(mixin_studio_projection::column_caption(column, lang.0))
         .size(11)
         .font(FONT_SEMIBOLD)
@@ -249,13 +303,59 @@ fn read_only_box<'a>(body: String, height_px: f32, danger: bool) -> Element<'a, 
 }
 
 /// DUAL-10-09: the three-column Mixin editor — Base document on the left, the
-/// editable Mixin overlay in the middle, and the composed document on the
-/// right. The composed column is the real output of the shared cascade
-/// reduction (or the real blocking reason), never a mock.
+/// editable Mixin overlay in the middle, and the typed codec projection on the
+/// right, including its blocking reason when composition is refused.
 pub fn three_column_row(state: &AppState) -> Element<'_, Message> {
     let lang = Lang(&state.shell.lang);
     let base = state.editor.editor_content.text();
-    let columns = mixin_studio::mixin_editor_columns(&base, &state.editor.mixin_content.text());
+    let overlay = state.editor.mixin_content.text();
+    let result = inspect_studio(state);
+    let fallback_base = ProfileMixinColumn {
+        role: ProfileMixinColumnRole::Base,
+        line_count: base.lines().count(),
+        content: base.clone(),
+        editable: false,
+    };
+    let fallback_overlay = ProfileMixinColumn {
+        role: ProfileMixinColumnRole::Overlay,
+        line_count: overlay.lines().count(),
+        content: overlay.clone(),
+        editable: true,
+    };
+    let (base_column_model, overlay_column_model, composed, compose_error) = match result {
+        Ok(projection) => {
+            let composition = projection.columns.composed;
+            let (composed, compose_error) = match composition {
+                ProfileMixinComposition::Produced(column) => (column, None),
+                ProfileMixinComposition::Blocked { reason } => (
+                    ProfileMixinColumn {
+                        role: ProfileMixinColumnRole::Composed,
+                        content: String::new(),
+                        editable: false,
+                        line_count: 0,
+                    },
+                    Some(reason),
+                ),
+            };
+            (
+                projection.columns.base,
+                projection.columns.overlay,
+                composed,
+                compose_error,
+            )
+        }
+        Err(failure) => (
+            fallback_base,
+            fallback_overlay,
+            ProfileMixinColumn {
+                role: ProfileMixinColumnRole::Composed,
+                content: String::new(),
+                editable: false,
+                line_count: 0,
+            },
+            Some(failure.message),
+        ),
+    };
 
     // The middle column is the real editor; the two read-only columns mirror
     // its exact pixel height so the row reads as one workspace.
@@ -267,14 +367,14 @@ pub fn three_column_row(state: &AppState) -> Element<'_, Message> {
     let body_height = editor_viewport::editor_box_height_px(viewport.rendered_len());
 
     let base_column = column![
-        column_caption(&lang, &columns.base),
+        column_caption(&lang, &base_column_model),
         Space::new().height(theme::SP_XS),
-        read_only_box(columns.base.content.clone(), body_height, false),
+        read_only_box(base_column_model.content.clone(), body_height, false),
     ]
     .width(Length::FillPortion(1));
 
     let overlay_column = column![
-        column_caption(&lang, &columns.overlay),
+        column_caption(&lang, &overlay_column_model),
         Space::new().height(theme::SP_XS),
         row![
             editor_viewport::gutter(&state.editor.mixin_content, viewport),
@@ -290,9 +390,9 @@ pub fn three_column_row(state: &AppState) -> Element<'_, Message> {
     .width(Length::FillPortion(1));
 
     let composed_column = column![
-        column_caption(&lang, &columns.composed),
+        column_caption(&lang, &composed),
         Space::new().height(theme::SP_XS),
-        match columns.error.as_deref() {
+        match compose_error.as_deref() {
             Some(error) => column![
                 text(lang.tr("mixin_column_blocked").replace("{error}", error))
                     .size(11)
@@ -303,11 +403,7 @@ pub fn three_column_row(state: &AppState) -> Element<'_, Message> {
                 Space::new().height(theme::SP_XS),
                 read_only_box(String::new(), (body_height - 28.0).max(40.0), true),
             ],
-            None => column![read_only_box(
-                columns.composed.content.clone(),
-                body_height,
-                false,
-            )],
+            None => column![read_only_box(composed.content.clone(), body_height, false,)],
         },
     ]
     .width(Length::FillPortion(1));

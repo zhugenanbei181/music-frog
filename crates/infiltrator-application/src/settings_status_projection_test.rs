@@ -1,5 +1,6 @@
 //! test-intent: behavior
 use super::*;
+use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::error::{ErrorCode, Failure};
 
 #[test]
@@ -46,6 +47,7 @@ fn ready_mtu_with_missing_observations_never_reports_zero_or_claims_application(
 #[test]
 fn status_failure_is_redacted_and_user_braces_are_not_reinterpreted_in_either_locale() {
     let rejected = CoreArtifactVerification::Rejected {
+        engine_id: EngineId::new("mihomo").unwrap(),
         version: "v1 {message}".into(),
         failure: Failure::new(
             ErrorCode::Authentication,

@@ -3,6 +3,8 @@
 #[cfg(test)]
 use infiltrator_core::doctor_port::MihomoDoctor;
 #[cfg(test)]
+use infiltrator_core::engine_version_backend_factory::MihomoEngineVersionBackendFactory;
+#[cfg(test)]
 use infiltrator_core::fake_ip_cache_io::FileFakeIpCache;
 #[cfg(test)]
 use infiltrator_core::profile_reset::FileProfileReset;
@@ -41,6 +43,8 @@ use infiltrator_application::version_application::VersionApplication;
 use infiltrator_core::settings_io;
 use infiltrator_domain::settings::AppSettings;
 use mihomo_config::manager::ConfigManager;
+#[cfg(test)]
+use mihomo_config::profile_document_codec::MihomoProfileDocumentCodec;
 use mihomo_platform::defaults::DefaultCredentialStore;
 use mihomo_platform::paths::get_home_dir;
 
@@ -59,11 +63,13 @@ async fn load_app_settings() -> anyhow::Result<AppSettings> {
 pub(crate) async fn app_config_manager() -> anyhow::Result<ConfigManager<DefaultCredentialStore>> {
     let home = get_home_dir()?;
     let settings = load_app_settings().await?;
-    Ok(ConfigManager::with_home_configs_dir_and_store(
+    let manager = ConfigManager::with_home_configs_dir_and_store(
         home,
         settings.configs_dir.as_deref(),
         DefaultCredentialStore::default(),
-    )?)
+    )?;
+    manager.initialize_profile_namespace().await?;
+    Ok(manager)
 }
 
 #[cfg(test)]
@@ -73,7 +79,9 @@ pub(crate) async fn profile_application() -> anyhow::Result<ProfileApplication> 
 
 #[cfg(test)]
 pub(crate) async fn configuration_application() -> anyhow::Result<ConfigurationApplication> {
-    Ok(ConfigurationApplication::new(open().await?))
+    let profiles = ProfileApplication::new(open().await?)
+        .with_document_codec(Arc::new(MihomoProfileDocumentCodec));
+    Ok(ConfigurationApplication::from_profile_application(profiles))
 }
 
 #[cfg(test)]
@@ -105,8 +113,11 @@ pub(crate) fn sync_application() -> anyhow::Result<SyncApplication> {
 
 #[cfg(test)]
 pub(crate) fn version_application() -> anyhow::Result<VersionApplication> {
-    let version = MihomoVersionPort::current()?;
-    Ok(VersionApplication::new(Arc::new(version)))
+    let factory = MihomoEngineVersionBackendFactory::current()?;
+    Ok(VersionApplication::from_factory(
+        MihomoVersionPort::engine_identifier(),
+        &factory,
+    )?)
 }
 
 /// configs 目录路径解析，优先级与 [`app_config_manager`] 一致

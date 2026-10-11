@@ -3,11 +3,11 @@
 use crate::core_process::CoreProcess;
 use crate::core_process::CoreReadiness;
 use crate::error::PortError;
+#[cfg(test)]
+use crate::profile_configuration_transaction::ProfileConfigurationTransactionScope;
 use crate::profile_configuration_transaction::{
     ProfileConfigurationTransactionBinding, ProfileConfigurationTransactionPort,
 };
-#[cfg(test)]
-use crate::profile_configuration_transaction::ProfileConfigurationTransactionScope;
 use crate::profile_document_codec::ProfileDocumentCodecPort;
 use crate::runtime_gateway::RuntimeGateway;
 use infiltrator_contract::capability::Capability;

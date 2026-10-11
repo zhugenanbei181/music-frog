@@ -1,0 +1,436 @@
+{
+  "schema_version": 1,
+  "engine": "mihomo",
+  "operations": [
+    {
+      "operation": {
+        "category": "profile",
+        "operation": "validate"
+      },
+      "support": {
+        "status": "unsupported",
+        "reason": "The production backend bundle has no CORE-013.4 native profile transaction port; codec inspection and historical binary validation do not authorize this Core operation."
+      }
+    },
+    {
+      "operation": {
+        "category": "profile",
+        "operation": "apply"
+      },
+      "support": {
+        "status": "unsupported",
+        "reason": "The production backend bundle has no CORE-013.4 native profile transaction port; profile activation and historical binary smoke do not provide the typed validate/apply/readback contract."
+      }
+    },
+    {
+      "operation": {
+        "category": "profile",
+        "operation": "apply_feature"
+      },
+      "support": {
+        "status": "evidence_open",
+        "reason": "Desktop Core command composition routes profile feature edits through ProfileOptionsApplication and ManagedRuntime, but no real Mihomo run for this operation is registered in the evidence lock."
+      }
+    },
+    {
+      "operation": {
+        "category": "dns",
+        "operation": "read_configuration"
+      },
+      "support": {
+        "status": "unsupported",
+        "reason": "This CoreOperation is not connected by the current Mihomo product adapter compositions."
+      }
+    },
+    {
+      "operation": {
+        "category": "dns",
+        "operation": "apply_configuration"
+      },
+      "support": {
+        "status": "evidence_open",
+        "reason": "ApplyDnsSettings is composed with ConfigurationApplication and ManagedRuntime, but no real Mihomo run for this operation is registered in the evidence lock."
+      }
+    },
+    {
+      "operation": {
+        "category": "dns",
+        "operation": "read_hosts"
+      },
+      "support": {
+        "status": "unsupported",
+        "reason": "This CoreOperation is not connected by the current Mihomo product adapter compositions."
+      }
+    },
+    {
+      "operation": {
+        "category": "dns",
+        "operation": "write_hosts"
+      },
+      "support": {
+        "status": "unsupported",
+        "reason": "This CoreOperation is not connected by the current Mihomo product adapter compositions."
+      }
+    },
+    {
+      "operation": {
+        "category": "dns",
+        "operation": "query"
+      },
+      "support": {
+        "status": "evidence_open",
+        "reason": "Desktop composes DnsQueryApplication with MihomoClient, but no real Mihomo query run is registered in the evidence lock."
+      }
+    },
+    {
+      "operation": {
+        "category": "dns",
+        "operation": "flush_cache"
+      },
+      "support": {
+        "status": "unsupported",
+        "reason": "This CoreOperation is not connected by the current Mihomo product adapter compositions."
+      }
+    },
+    {
+      "operation": {
+        "category": "rules",
+        "operation": "trace"
+      },
+      "support": {
+        "status": "evidence_open",
+        "reason": "SimulateRuleTrace is composed with RuleTracerApplication and the active Mihomo runtime, but no real Mihomo run for this operation is registered in the evidence lock."
+      }
+    },
+    {
+      "operation": {
+        "category": "rules",
+        "operation": "apply"
+      },
+      "support": {
+        "status": "evidence_open",
+        "reason": "Rule edit commands use ConfigurationApplication and ManagedRuntime, but no real Mihomo run for this operation is registered in the evidence lock."
+      }
+    },
+    {
+      "operation": {
+        "category": "subscription",
+        "operation": "refresh"
+      },
+      "support": {
+        "status": "evidence_open",
+        "reason": "UpdateAllSubscriptions uses SubscriptionRefreshApplication with the production SubscriptionSource, but no real Mihomo run for this operation is registered in the evidence lock."
+      }
+    },
+    {
+      "operation": {
+        "category": "subscription",
+        "operation": "import"
+      },
+      "support": {
+        "status": "evidence_open",
+        "reason": "ImportSubscription is composed with ProfileApplication and the host SubscriptionImportPort, but no real Mihomo run for this operation is registered in the evidence lock."
+      }
+    },
+    {
+      "operation": {
+        "category": "subscription",
+        "operation": "update"
+      },
+      "support": {
+        "status": "evidence_open",
+        "reason": "UpdateProfile is composed with ProfileApplication and SubscriptionSource, but no real Mihomo run for this operation is registered in the evidence lock."
+      }
+    },
+    {
+      "operation": {
+        "category": "provider",
+        "operation": "list_proxy"
+      },
+      "support": {
+        "status": "unsupported",
+        "reason": "This CoreOperation is not connected by the current Mihomo product adapter compositions."
+      }
+    },
+    {
+      "operation": {
+        "category": "provider",
+        "operation": "update_proxy"
+      },
+      "support": {
+        "status": "unsupported",
+        "reason": "This CoreOperation is not connected by the current Mihomo product adapter compositions."
+      }
+    },
+    {
+      "operation": {
+        "category": "provider",
+        "operation": "healthcheck_proxy"
+      },
+      "support": {
+        "status": "unsupported",
+        "reason": "This CoreOperation is not connected by the current Mihomo product adapter compositions."
+      }
+    },
+    {
+      "operation": {
+        "category": "provider",
+        "operation": "list_rule"
+      },
+      "support": {
+        "status": "evidence_open",
+        "reason": "UnpackRuleProvider is composed with the Mihomo RuntimeGateway and rule-provider payload adapter, but no real Mihomo run for this operation is registered in the evidence lock."
+      }
+    },
+    {
+      "operation": {
+        "category": "provider",
+        "operation": "update_rule"
+      },
+      "support": {
+        "status": "evidence_open",
+        "reason": "RefreshRuleProviders is composed with RuntimeGateway.update_rule_provider, but no real Mihomo run for this operation is registered in the evidence lock."
+      }
+    },
+    {
+      "operation": {
+        "category": "outbound",
+        "operation": "list"
+      },
+      "support": {
+        "status": "supported",
+        "evidence_id": "outbound.list"
+      }
+    },
+    {
+      "operation": {
+        "category": "outbound",
+        "operation": "select"
+      },
+      "support": {
+        "status": "supported",
+        "evidence_id": "outbound.select"
+      }
+    },
+    {
+      "operation": {
+        "category": "outbound",
+        "operation": "probe"
+      },
+      "support": {
+        "status": "supported",
+        "evidence_id": "outbound.probe"
+      }
+    },
+    {
+      "operation": {
+        "category": "connection",
+        "operation": "list"
+      },
+      "support": {
+        "status": "unsupported",
+        "reason": "This CoreOperation is not connected by the current Mihomo product adapter compositions."
+      }
+    },
+    {
+      "operation": {
+        "category": "connection",
+        "operation": "close"
+      },
+      "support": {
+        "status": "evidence_open",
+        "reason": "CloseConnection and CloseAllConnections use the production Mihomo RuntimeGateway, but no real Mihomo run for this operation is registered in the evidence lock."
+      }
+    },
+    {
+      "operation": {
+        "category": "logs",
+        "operation": "read"
+      },
+      "support": {
+        "status": "unsupported",
+        "reason": "This CoreOperation is not connected by the current Mihomo product adapter compositions."
+      }
+    },
+    {
+      "operation": {
+        "category": "logs",
+        "operation": "stream"
+      },
+      "support": {
+        "status": "evidence_open",
+        "reason": "The desktop owner composes RuntimeGateway.stream_logs_scoped with the Mihomo client, but no real Mihomo stream run is registered in the evidence lock."
+      }
+    },
+    {
+      "operation": {
+        "category": "logs",
+        "operation": "set_level"
+      },
+      "support": {
+        "status": "supported",
+        "evidence_id": "logs.set_level"
+      }
+    },
+    {
+      "operation": {
+        "category": "geo",
+        "operation": "update_databases"
+      },
+      "support": {
+        "status": "evidence_open",
+        "reason": "UpgradeGeoDatabases is composed with RuntimeGateway.upgrade_geo and MihomoClient, but no real Mihomo run for this operation is registered in the evidence lock."
+      }
+    },
+    {
+      "operation": {
+        "category": "fake_ip_cache",
+        "operation": "read"
+      },
+      "support": {
+        "status": "unsupported",
+        "reason": "This CoreOperation is not connected by the current Mihomo product adapter compositions."
+      }
+    },
+    {
+      "operation": {
+        "category": "fake_ip_cache",
+        "operation": "flush"
+      },
+      "support": {
+        "status": "evidence_open",
+        "reason": "ClearDnsCache composes MihomoControllerFakeIpCacheAdapter with the host resolver-cache adapter, but no real Mihomo run for this operation is registered in the evidence lock."
+      }
+    },
+    {
+      "operation": {
+        "category": "tun",
+        "operation": "inspect"
+      },
+      "support": {
+        "status": "unsupported",
+        "reason": "This CoreOperation is not connected by the current Mihomo product adapter compositions."
+      }
+    },
+    {
+      "operation": {
+        "category": "tun",
+        "operation": "configure"
+      },
+      "support": {
+        "status": "evidence_open",
+        "reason": "TUN configuration commands are composed with ConfigurationApplication and ManagedRuntime, but no real Mihomo run for this operation is registered in the evidence lock."
+      }
+    },
+    {
+      "operation": {
+        "category": "tun",
+        "operation": "start"
+      },
+      "support": {
+        "status": "unsupported",
+        "reason": "This CoreOperation is not connected by the current Mihomo product adapter compositions."
+      }
+    },
+    {
+      "operation": {
+        "category": "tun",
+        "operation": "stop"
+      },
+      "support": {
+        "status": "unsupported",
+        "reason": "This CoreOperation is not connected by the current Mihomo product adapter compositions."
+      }
+    },
+    {
+      "operation": {
+        "category": "lifecycle",
+        "operation": "start"
+      },
+      "support": {
+        "status": "owner_managed",
+        "owner": "core_lifecycle"
+      }
+    },
+    {
+      "operation": {
+        "category": "lifecycle",
+        "operation": "stop"
+      },
+      "support": {
+        "status": "owner_managed",
+        "owner": "core_lifecycle"
+      }
+    },
+    {
+      "operation": {
+        "category": "lifecycle",
+        "operation": "restart"
+      },
+      "support": {
+        "status": "owner_managed",
+        "owner": "core_lifecycle"
+      }
+    },
+    {
+      "operation": {
+        "category": "proxy_control",
+        "operation": "get_routing_intent"
+      },
+      "support": {
+        "status": "supported",
+        "evidence_id": "routing.get_intent"
+      }
+    },
+    {
+      "operation": {
+        "category": "proxy_control",
+        "operation": "set_routing_intent"
+      },
+      "support": {
+        "status": "supported",
+        "evidence_id": "routing.set_intent"
+      }
+    },
+    {
+      "operation": {
+        "category": "core_garbage_collection",
+        "operation": "trigger"
+      },
+      "support": {
+        "status": "evidence_open",
+        "reason": "The desktop resource owner composes ResourceApplication with RuntimeGateway.trigger_gc, but no real Mihomo run for this operation is registered in the evidence lock."
+      }
+    },
+    {
+      "operation": {
+        "category": "version",
+        "operation": "inspect"
+      },
+      "support": {
+        "status": "owner_managed",
+        "owner": "version_management"
+      }
+    },
+    {
+      "operation": {
+        "category": "version",
+        "operation": "install"
+      },
+      "support": {
+        "status": "unsupported",
+        "reason": "This CoreOperation is not connected by the current Mihomo product adapter compositions."
+      }
+    },
+    {
+      "operation": {
+        "category": "version",
+        "operation": "rollback"
+      },
+      "support": {
+        "status": "owner_managed",
+        "owner": "version_management"
+      }
+    }
+  ]
+}

@@ -1,5 +1,4 @@
 //! test-intent: behavior
-use crate::command_harness::recording_application;
 use crate::test_support::demo_env;
 use infiltrator_application::connection_grouping_fixtures::grouping_snapshot;
 use infiltrator_domain::connection_view::ConnectionGroupingMode;
@@ -10,8 +9,6 @@ use infiltrator_iced::types::message::Message;
 #[test]
 fn grouping_updates_all_groups_and_preserves_search_without_commands() {
     let (mut state, _) = AppState::demo(&demo_env(Route::Runtime));
-    let (application, handler) = recording_application();
-    state.commands = Some(application);
     let mut snapshot = grouping_snapshot();
     let _ = state.update(Message::ConnectionsReceived(snapshot.clone()));
     assert_eq!(
@@ -51,7 +48,6 @@ fn grouping_updates_all_groups_and_preserves_search_without_commands() {
     let _ = state.update(Message::UpdateRuntimeConnectionFilter("no-match".into()));
     assert!(state.diag.connection_groups.rows().is_empty());
     drop(state.view());
-    assert!(handler.0.lock().unwrap().is_empty());
 }
 
 #[test]

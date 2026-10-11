@@ -7,7 +7,9 @@ use infiltrator_application::script_application::ScriptApplication;
 use infiltrator_application::script_export_application::ScriptExportApplication;
 use infiltrator_application::script_sandbox_matrix_application::ScriptSandboxMatrixApplication;
 use infiltrator_contract::script_export::{ScriptExportKind, ScriptExportOutcome};
-use infiltrator_domain::mixin_studio;
+use infiltrator_ports::profile_document_codec::{
+    ProfileMixinColumn, ProfileMixinColumnRole, ProfileMixinColumns, ProfileMixinComposition,
+};
 
 #[test]
 fn script_sandbox_matrix_passes_on_the_iced_surface() {
@@ -31,15 +33,37 @@ fn script_sandbox_matrix_passes_on_the_iced_surface() {
 #[test]
 fn three_column_editor_and_export_ride_the_shared_reduction() {
     let base = "mode: rule\nport: 7890\n";
-    let columns = mixin_studio::mixin_editor_columns(base, "mode: global\n");
+    let columns = ProfileMixinColumns {
+        base: ProfileMixinColumn {
+            role: ProfileMixinColumnRole::Base,
+            content: base.into(),
+            editable: false,
+            line_count: 2,
+        },
+        overlay: ProfileMixinColumn {
+            role: ProfileMixinColumnRole::Overlay,
+            content: "mode: global\n".into(),
+            editable: true,
+            line_count: 1,
+        },
+        composed: ProfileMixinComposition::Produced(ProfileMixinColumn {
+            role: ProfileMixinColumnRole::Composed,
+            content: "mode: global\nport: 7890\n".into(),
+            editable: false,
+            line_count: 2,
+        }),
+    };
     assert_eq!(columns.base.content, base);
     assert!(columns.overlay.editable);
-    assert!(columns.is_composed());
-    assert!(columns.composed.content.contains("mode: global"));
-    assert!(columns.composed.content.contains("port: 7890"));
-    let blocked = mixin_studio::mixin_editor_columns(base, "mode: [bad\n");
-    assert!(blocked.is_blocked());
-    assert!(blocked.composed.content.is_empty());
+    let ProfileMixinComposition::Produced(composed) = columns.composed else {
+        panic!("the codec fixture must carry a composed result")
+    };
+    assert!(composed.content.contains("mode: global"));
+    assert!(composed.content.contains("port: 7890"));
+    let blocked = ProfileMixinComposition::Blocked {
+        reason: "fixture: malformed overlay".into(),
+    };
+    assert!(matches!(blocked, ProfileMixinComposition::Blocked { .. }));
 
     // A host with no save-file port is a typed unsupported, not a fake path.
     let exports = ScriptExportApplication::without_host_port();

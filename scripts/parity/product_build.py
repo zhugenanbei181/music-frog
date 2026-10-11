@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import shutil
 import subprocess
 import tempfile
@@ -25,6 +26,53 @@ def safe_path(root, name):
     path = (root / name).resolve()
     if not path.is_relative_to(root.resolve()):
         raise ValueError(f"product path escapes repository: {name}")
+    return path
+
+
+def local_package_roots(root):
+    """Only Cargo-declared local packages may contribute external source inputs."""
+    root = root.resolve()
+    if not (root / "Cargo.toml").is_file():
+        return {root}
+    pending, seen, roots = [root / "Cargo.toml"], set(), {root}
+    cursor = 0
+    while cursor < len(pending):
+        manifest = pending[cursor].resolve()
+        cursor += 1
+        if manifest in seen:
+            continue
+        seen.add(manifest)
+        output = subprocess.run(
+            ["cargo", "metadata", "--format-version", "1", "--locked", "--manifest-path", str(manifest)],
+            cwd=root, check=True, text=True, capture_output=True, timeout=60,
+        )
+        metadata = json.loads(output.stdout)
+        roots.add(Path(metadata["workspace_root"]).resolve())
+        for package in metadata["packages"]:
+            source = package.get("source")
+            if source is not None and not source.startswith("git+"):
+                continue
+            package_root = Path(package["manifest_path"]).resolve().parent
+            roots.add(package_root)
+            # Git crates inherit the checked-out repository's workspace manifest.
+            if source is not None:
+                for parent in package_root.parents:
+                    owner_manifest = parent / "Cargo.toml"
+                    if owner_manifest.is_file():
+                        roots.add(parent)
+                        break
+            for dependency in package["dependencies"]:
+                if dependency.get("kind") in (None, "normal") and dependency.get("path"):
+                    child = (Path(dependency["path"]) / "Cargo.toml").resolve()
+                    if not child.is_relative_to(root) and child not in seen:
+                        pending.append(child)
+    return roots
+
+
+def source_path(root, name, owners):
+    path = (root / name).resolve()
+    if not any(path.is_relative_to(owner) for owner in owners):
+        raise ValueError(f"source input is outside declared Cargo packages: {name}")
     return path
 
 
@@ -57,26 +105,29 @@ def dep_paths(text):
 
 def inputs(root, binary, surface):
     found = set()
+    owners = local_package_roots(root)
     depfile = binary.with_suffix(".d")
     for name in dep_paths(depfile.read_text()):
         path = Path(name).resolve()
-        if path.is_relative_to(root):
+        owner = next((owner for owner in sorted(owners, key=lambda entry: len(entry.parts), reverse=True) if path.is_relative_to(owner)), None)
+        if owner is None and path.is_relative_to(root.parent):
+            raise ValueError(f"compiled sibling source is outside the current Cargo graph; rebuild: {path}")
+        if owner is not None:
             found.add(path)
             for directory in path.parents:
-                if not directory.is_relative_to(root):
-                    break
                 manifest = directory / "Cargo.toml"
-                if manifest.is_file():
+                if directory in owners and manifest.is_file():
                     found.add(manifest)
     for name in RUNTIME_ROOTS[surface]:
         directory = root / name
         if not directory.is_dir():
             raise ValueError(f"missing declared runtime resources: {name}")
         found.update(path for path in directory.rglob("*") if path.is_file())
-    toolchain = root / "rust-toolchain.toml"
-    if toolchain.exists():
-        found.add(toolchain)
-    return {str(path.relative_to(root)): digest(path) for path in sorted(found)}
+    for name in ("Cargo.lock", "rust-toolchain.toml", ".cargo/config.toml", ".cargo/config"):
+        configuration = root / name
+        if configuration.is_file():
+            found.add(configuration)
+    return {Path(os.path.relpath(path, root)).as_posix(): digest(path) for path in sorted(found)}
 
 
 def build_id(record):
@@ -90,9 +141,10 @@ def archive(root, surface, binary, output):
         raise ValueError("binary does not identify the requested peer product")
     source_inputs = inputs(root, binary, surface)
     compiled_at = binary.stat().st_mtime_ns
+    owners = local_package_roots(root)
     for name in dep_paths(binary.with_suffix(".d").read_text()):
         path = Path(name).resolve()
-        if path.is_relative_to(root) and path.stat().st_mtime_ns > compiled_at:
+        if any(path.is_relative_to(owner) for owner in owners) and path.stat().st_mtime_ns > compiled_at:
             raise ValueError(f"compiled input changed after this artifact was produced; rebuild {surface}: {path}")
     binary_digest = digest(binary)
     record = {"schema_version": 1, "surface": surface, "product": PRODUCTS[surface],
@@ -170,8 +222,9 @@ def verify(root, manifest, expected_surface=None):
 def impact(root, record):
     """Never erase a passed baseline: report which actual inputs now differ."""
     changed = []
+    owners = local_package_roots(root)
     for name, previous in record["inputs"].items():
-        path = safe_path(root, name)
+        path = source_path(root, name, owners)
         if not path.is_file() or digest(path) != previous:
             changed.append(name)
     return {"build_id": record["build_id"], "status": "review_required" if changed else "unchanged",

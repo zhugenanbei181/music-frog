@@ -3,8 +3,8 @@
 
 use super::*;
 use infiltrator_bevy_widgets::editor::state::CodeEditorState;
+use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_options::ProfileOptionsSnapshot;
-use infiltrator_domain::mixin_studio;
 
 /// DUAL-10-08/10/11: the Bevy Mixin pane renders the shared preflight verdict,
 /// the shared preset-toggle chips and the real cascade pipeline strip, flips a
@@ -29,7 +29,7 @@ fn test_profiles_mixin_studio_renders_shared_preflight_toggles_and_cascade() {
             Some(ProfileOptionsSnapshot::new(
                 observation("main", "mode: rule\nport: 7890\n", Default::default())
                     .unwrap()
-                    .source,
+                    .workspace_identity,
                 "{}\n",
                 Default::default(),
             )),
@@ -74,15 +74,19 @@ fn test_profiles_mixin_studio_renders_shared_preflight_toggles_and_cascade() {
         "the composed column carries the real base document"
     );
 
-    // DUAL-10-11: the first chip flips IPv6 through the real MixinConfig codec.
+    // DUAL-10-11: the first chip uses typed codec outcomes from the fake host.
     let toggle = {
         let mut query = app.world_mut().query::<(Entity, &MixinToggleButton)>();
         query
             .iter(app.world())
-            .find(|(_, button)| button.index == 0)
+            .find(|(_, button)| {
+                button.id == infiltrator_ports::profile_document_codec::ProfileMixinToggleId::Ipv6
+            })
             .map(|(entity, _)| entity)
             .expect("ipv6 toggle chip")
     };
+    sink.queue_mixin_toggle_inspection(Ok(false));
+    sink.queue_mixin_toggle_update(Ok("ipv6: true\n".into()));
     app.world_mut()
         .commands()
         .trigger(Activate { entity: toggle });
@@ -104,6 +108,11 @@ fn test_profiles_mixin_studio_renders_shared_preflight_toggles_and_cascade() {
         .resource_mut::<ProfileEditorOptionsState>()
         .mixin
         .buffer = CodeEditorState::new("mixed-port: not-a-number\n");
+    sink.queue_mixin_preflight(Err(Failure::new(
+        ErrorCode::Configuration,
+        "Composed configuration failed validation: mixed-port must be numeric",
+        false,
+    )));
     let before = sink.submitted().len();
     let save = marker_entity::<MixinEditorSaveButton>(&mut app);
     app.world_mut()
@@ -115,17 +124,14 @@ fn test_profiles_mixin_studio_renders_shared_preflight_toggles_and_cascade() {
         before,
         "a shared-preflight refusal is not submitted"
     );
-    let reason =
-        mixin_studio::preflight_mixin("mode: rule\nport: 7890\n", "mixed-port: not-a-number\n")
-            .error
-            .expect("actual schema failure");
+    let reason = "Composed configuration failed validation: mixed-port must be numeric";
     assert_eq!(
         app.world()
             .resource::<ProfileEditorOptionsState>()
             .mixin
             .notice
             .as_deref(),
-        Some(reason.as_str())
+        Some(reason)
     );
     assert!(
         subtree_has_text(app.world(), root, &reason),

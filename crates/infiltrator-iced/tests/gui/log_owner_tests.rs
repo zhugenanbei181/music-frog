@@ -1,35 +1,97 @@
 //! test-intent: behavior
 //! TEA consumes the application buffer and executes clear/filter on that same owner.
 use crate::state::AppState;
+use crate::test_mounts::command_harness::test_command_application_for;
+use crate::test_mounts::execute_at_observed_scope;
 use crate::types::message::Message;
 use futures_util::StreamExt;
 use iced::Task;
 use iced_runtime::Action;
 use iced_runtime::task::into_stream;
-use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::core_application::CoreApplication;
-use infiltrator_application::language_choice_fixtures::LanguageCaptureProcess;
-use infiltrator_composition::tokio_application_runtime;
+use infiltrator_contract::capability::Capability;
+use infiltrator_contract::command::CommandIntent;
+use infiltrator_contract::core_capabilities::{CoreLifecycleOperation, CoreOperation};
+use infiltrator_contract::core_identity::{CoreIdentity, CoreInstanceId, CoreVersion, EngineId};
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::logs::LogSession;
-use infiltrator_contract::session::SessionToken;
+use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
+use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
+use infiltrator_ports::error::PortError;
 use infiltrator_ports::runtime_gateway::RuntimeStreamEvent;
 use std::sync::Arc;
 use tokio::runtime::Builder;
 
+struct RunningIdentifiedProcess;
+
+#[async_trait::async_trait]
+impl CoreProcess for RunningIdentifiedProcess {
+    fn core_identity(&self) -> Option<CoreIdentity> {
+        Some(CoreIdentity::new(
+            EngineId::new("mihomo").expect("valid test engine"),
+            CoreInstanceId::new("iced-log-owner-test").expect("valid test instance"),
+            Some(CoreVersion::new("1.19.12").expect("valid test version")),
+        ))
+    }
+
+    async fn start(&self) -> Result<(), PortError> {
+        Ok(())
+    }
+
+    async fn stop(&self) -> Result<(), PortError> {
+        Ok(())
+    }
+
+    async fn status(&self) -> Result<CoreLifecycle, PortError> {
+        Ok(CoreLifecycle::Running)
+    }
+
+    fn controller_endpoint(&self) -> Option<String> {
+        Some("http://127.0.0.1:9090".into())
+    }
+}
+
+#[async_trait::async_trait]
+impl CoreReadiness for RunningIdentifiedProcess {
+    async fn probe(&self) -> Result<String, PortError> {
+        Ok("http://127.0.0.1:9090".into())
+    }
+
+    async fn active_core_version(&self) -> Result<Option<CoreVersion>, PortError> {
+        Ok(Some(
+            CoreVersion::new("1.19.12").expect("valid test version"),
+        ))
+    }
+}
+
 fn composed() -> (AppState, CoreApplication) {
+    let process = Arc::new(RunningIdentifiedProcess);
     let core = CoreApplication::new(
-        Arc::new(LanguageCaptureProcess),
-        Arc::new(LanguageCaptureProcess),
-        tokio_application_runtime().unwrap(),
+        process.clone(),
+        process,
+        infiltrator_composition::tokio_application_runtime().unwrap(),
     );
-    core.install_command_handler(Arc::new(
-        CommandApplication::new().with_logs(core.log_application()),
-    ));
+    let handler = test_command_application_for(
+        [CoreOperation::Lifecycle(CoreLifecycleOperation::Start)],
+        [Capability::Logs],
+    )
+    .with_logs(core.log_application());
+    core.install_core_capability_application(handler.core_capability_application())
+        .expect("one explicit test resolver serves owner and command facade");
+    let started = Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap()
+        .block_on(execute_at_observed_scope(&core, CommandIntent::StartCore));
+    assert!(
+        started.into_unit().is_ok(),
+        "identified test core starts successfully"
+    );
+    core.install_command_handler(Arc::new(handler));
     let (mut state, _) = AppState::new();
-    state.commands = Some(core.clone());
+    state.attach_product_application(core.clone());
     (state, core)
 }
 fn observe(state: &mut AppState, core: &CoreApplication, revision: u64) {
@@ -60,11 +122,8 @@ fn finish(state: &mut AppState, task: Task<Message>) {
 #[test]
 fn shared_logs_ignore_private_stream_and_clear_only_after_actual_command_execution() {
     let (mut state, core) = composed();
-    let scope = LogSession {
-        generation: 0,
-        token: SessionToken::new(1),
-    };
-    core.log_application().bind(Some(scope));
+    let scope = LogSession::from_core_scope(core.snapshot().scope().expect("active core scope"))
+        .expect("active owner log session");
     core.log_application()
         .ingest(scope, RuntimeStreamEvent::Item("WARN[1] retained".into()));
     observe(&mut state, &core, 1);
@@ -96,18 +155,16 @@ fn shared_logs_ignore_private_stream_and_clear_only_after_actual_command_executi
 #[test]
 fn shared_filter_has_actual_effect_and_invalid_selection_retains_typed_failure() {
     let (mut state, core) = composed();
-    let scope = LogSession {
-        generation: 0,
-        token: SessionToken::new(1),
-    };
-    core.log_application().bind(Some(scope));
+    let scope = LogSession::from_core_scope(core.snapshot().scope().expect("active core scope"))
+        .expect("active owner log session");
     for raw in ["WARN[1] visible", "INFO[2] filtered"] {
         core.log_application()
-            .ingest(scope, RuntimeStreamEvent::Item(raw.into()));
+            .ingest(scope.clone(), RuntimeStreamEvent::Item(raw.into()));
     }
+    observe(&mut state, &core, 1);
     let task = state.update(Message::SetLogLevelFilter("WARN".into()));
     finish(&mut state, task);
-    observe(&mut state, &core, 1);
+    observe(&mut state, &core, 2);
     assert_eq!(
         state.diag.logs.iter().collect::<Vec<_>>(),
         vec!["WARN[1] visible"]
@@ -118,6 +175,6 @@ fn shared_filter_has_actual_effect_and_invalid_selection_retains_typed_failure()
         state.diag.log_command_failure.as_ref().unwrap().code,
         ErrorCode::InvalidInput
     );
-    observe(&mut state, &core, 2);
+    observe(&mut state, &core, 3);
     assert_eq!(state.diag.logs.len(), 1);
 }

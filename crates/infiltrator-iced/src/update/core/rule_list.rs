@@ -1,12 +1,14 @@
 //! Iced adapter for complete, source-bound draft facts and atomic commits.
 use crate::state::AppState;
 use crate::types::app::Route;
+use crate::types::editor::EditorLazyState;
 use crate::types::message::Message;
 use crate::types::rule_list::RuleListAction;
 use iced::Task;
 use infiltrator_application::rule_form_binding::default_form_target;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::rules_workspace::RulesJsonSection;
 use infiltrator_contract::surface_snapshot::{PageData, RulesPageSnapshot};
 
 impl AppState {
@@ -15,6 +17,36 @@ impl AppState {
             self.editor.rules_loaded_once = true;
             self.rebuild_rules_render_cache();
             self.apply_rules_filter();
+        }
+        if let Some(snapshot) = page.data.as_ref() {
+            for document in &snapshot.json_documents {
+                match document.section {
+                    RulesJsonSection::RuleProviders => adopt_rules_document(
+                        &mut self.editor.rule_providers_json_cache,
+                        &mut self.editor.rule_providers_json_identity,
+                        &mut self.editor.rule_providers_json_content,
+                        self.editor.rule_providers_editor_state,
+                        &mut self.editor.rule_providers_json_dirty,
+                        document,
+                    ),
+                    RulesJsonSection::ProxyProviders => adopt_rules_document(
+                        &mut self.editor.proxy_providers_json_cache,
+                        &mut self.editor.proxy_providers_json_identity,
+                        &mut self.editor.proxy_providers_json_content,
+                        self.editor.proxy_providers_editor_state,
+                        &mut self.editor.proxy_providers_json_dirty,
+                        document,
+                    ),
+                    RulesJsonSection::Sniffer => adopt_rules_document(
+                        &mut self.editor.sniffer_json_cache,
+                        &mut self.editor.sniffer_json_identity,
+                        &mut self.editor.sniffer_json_content,
+                        self.editor.sniffer_editor_state,
+                        &mut self.editor.sniffer_json_dirty,
+                        document,
+                    ),
+                }
+            }
         }
         if self
             .editor
@@ -54,7 +86,7 @@ impl AppState {
         Task::none()
     }
     pub(super) fn commit_rule_list(&mut self) -> Task<Message> {
-        let Some(commands) = self.commands.clone() else {
+        let Some(commands) = self.command_ingress() else {
             self.editor.rule_list.failure = Some(Failure::new(
                 ErrorCode::NotReady,
                 "The rule command service is unavailable",
@@ -83,5 +115,24 @@ impl AppState {
             },
             move |result| Message::RuleList(RuleListAction::Finished { operation, result }),
         )
+    }
+}
+
+fn adopt_rules_document(
+    cache: &mut String,
+    identity: &mut Option<infiltrator_contract::profile_document_identity::ProfileDocumentIdentity>,
+    content: &mut iced::widget::text_editor::Content,
+    editor_state: EditorLazyState,
+    dirty: &mut bool,
+    document: &infiltrator_contract::rules_workspace::RulesJsonDocumentSnapshot,
+) {
+    if *dirty && content.text() != document.json {
+        return;
+    }
+    *cache = document.json.clone();
+    *identity = Some(document.identity.clone());
+    *dirty = false;
+    if editor_state == EditorLazyState::Loaded {
+        *content = iced::widget::text_editor::Content::with_text(cache);
     }
 }

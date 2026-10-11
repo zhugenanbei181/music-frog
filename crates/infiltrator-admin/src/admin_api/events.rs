@@ -16,7 +16,8 @@ pub const EVENT_PROXY_PROVIDERS_CHANGED: &str = "proxy-providers-changed";
 pub const EVENT_SNIFFER_CHANGED: &str = "sniffer-changed";
 pub const EVENT_TUN_CHANGED: &str = "tun-changed";
 pub const EVENT_WEBDAV_SYNCED: &str = "webdav-synced";
-pub const EVENT_PROXY_CHANGED: &str = "proxy-changed";
+pub const EVENT_OUTBOUND_CHANGED: &str = "outbound-changed";
+pub const EVENT_ROUTING_INTENT_CHANGED: &str = "routing-intent-changed";
 pub const EVENT_RUNTIME_CHANGED: &str = "runtime-changed";
 pub const EVENT_DOCTOR_FIX: &str = "doctor-fix";
 

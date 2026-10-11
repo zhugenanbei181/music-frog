@@ -148,7 +148,9 @@ fn native_preferences_replay_real_flags_stale_gates_locales_and_explicit_boolean
     app.world_mut().trigger(SettingsProjectionUpdated(facts));
     app.update();
     assert_eq!(app.world().get::<Text>(label).unwrap().0, "Enabled");
-    assert_eq!(app.world().get::<Node>(knob).unwrap().left, Val::Px(18.0));
+    assert!(
+        matches!(app.world().get::<Node>(knob).unwrap().left, Val::Rem(f) if (f * 15.0 - 18.0).abs() < 1e-4)
+    );
     assert_eq!(
         *app.world().get::<Visibility>(knob).unwrap(),
         Visibility::Inherited
@@ -181,6 +183,8 @@ fn native_preferences_replay_real_flags_stale_gates_locales_and_explicit_boolean
             TokenColor::rgb(fill[0], fill[1], fill[2]),
         );
         assert!(ratio >= 4.5, "preference caption is unreadable: {ratio}");
-        assert_eq!(app.world().get::<Node>(knob).unwrap().left, Val::Px(18.0));
+        assert!(
+            matches!(app.world().get::<Node>(knob).unwrap().left, Val::Rem(f) if (f * 15.0 - 18.0).abs() < 1e-4)
+        );
     }
 }

@@ -18,6 +18,9 @@ use infiltrator_application::system_toggle_projection::compact_status_line;
 use infiltrator_contract::command_catalogue::{CommandTarget, ShellPage};
 use infiltrator_contract::design_tokens::type_scale;
 use infiltrator_contract::mini_hud::{MiniHudPlacement, MiniHudWaveformStrip};
+use infiltrator_contract::routing_intent::{
+    RoutingIntent, RoutingIntentSnapshot, RoutingIntentStatus,
+};
 use infiltrator_contract::shortcuts::{KeyModifiers, ShortcutAction, ShortcutChord};
 use infiltrator_contract::system_toggle::{SystemToggle, SystemToggleSnapshot};
 use infiltrator_contract::theme::{ThemePreference, ThemeSkin};
@@ -223,7 +226,13 @@ fn the_mini_hud_read_model_comes_from_live_projections() {
         up: 4 * 1024,
         down: 3 * 1024 * 1024,
     });
-    state.runtime.proxy_mode = Some("rule".to_owned());
+    let routing_intent = RoutingIntent::FollowRules;
+    state.runtime.routing_intent = Some(routing_intent.clone());
+    state.runtime.routing_intent_state = RoutingIntentSnapshot {
+        current: Some(routing_intent),
+        status: RoutingIntentStatus::Ready,
+        failure: None,
+    };
     state.runtime.runtime_selected_proxy = "HK-01".to_owned();
     state.runtime.system_toggles = SystemToggleSnapshot::from_legacy(true, Some(false), 7);
     state.runtime.traffic_waveform = TrafficWaveformSnapshot {
@@ -250,7 +259,10 @@ fn the_mini_hud_read_model_comes_from_live_projections() {
     assert_eq!(model.next_value(SystemToggle::SystemProxy), Some(false));
     assert_eq!(model.next_value(SystemToggle::Tun), Some(true));
     assert!(compact_status_line(&model.system_proxy, &model.tun, "zh-CN").contains("系统代理: 开"));
-    assert!(!model.mode_zh.is_empty());
+    assert_eq!(
+        model.routing_intent.current,
+        Some(RoutingIntent::FollowRules)
+    );
 
     // DUAL-15-03: the waveform strip is the shared projection of the live
     // samples — the very same bars the Bevy overlay rasterizes.

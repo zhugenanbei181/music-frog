@@ -1,18 +1,16 @@
-//! Headless tests for the icon seam: the id → plate path table, the
-//! AssetServer-backed handle store, and the observer that stamps tinted
-//! bitmap nodes. Icons never ride text codepoints, so a missing plate must
-//! degrade to an invisible square.
+//! Headless tests for the shared icon catalog, embedded Bevy image store, and
+//! observer that stamps tinted bitmap nodes. Missing plates stay transparent.
 
 use bevy::MinimalPlugins;
 use bevy::app::{App, Startup};
-use bevy::asset::{AssetApp, AssetPlugin, Handle};
+use bevy::asset::{AssetApp, AssetPlugin, Assets, Handle};
 use bevy::color::Color;
 use bevy::ecs::system::{Commands, Res};
 use bevy::image::Image;
 use bevy::scene::{CommandsSceneExt, ScenePlugin};
 use bevy::ui::widget::ImageNode;
 use infiltrator_bevy_widgets::WidgetsPlugin;
-use infiltrator_bevy_widgets::icon::{IconId, IconPlate, IconSources, icon_path, icon_scene};
+use infiltrator_bevy_widgets::icon::{IconId, IconPlate, IconSources, icon_scene};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::theme::Theme;
 use std::collections::HashSet;
@@ -29,17 +27,31 @@ fn headless_app() -> App {
 }
 
 #[test]
-fn every_id_maps_to_a_distinct_plate_path() {
-    let paths: Vec<_> = IconId::ALL.iter().map(|icon| icon_path(*icon)).collect();
-    assert_eq!(paths.len(), 10);
+fn every_id_resolves_to_a_distinct_shared_png_asset() {
+    let records: Vec<_> = IconId::ALL
+        .iter()
+        .map(|icon| {
+            infiltrator_shared::assets::AssetCatalog::find(
+                &format!("icon.{}", icon.asset_name()),
+                infiltrator_shared::assets::AssetFormat::Png,
+                "white-plate-64",
+            )
+            .expect("every Bevy icon is registered in the shared catalog")
+        })
+        .collect();
+    assert_eq!(records.len(), 10);
     assert_eq!(
-        paths.iter().collect::<HashSet<_>>().len(),
+        records
+            .iter()
+            .map(|record| &record.path)
+            .collect::<HashSet<_>>()
+            .len(),
         10,
-        "no two ids share a plate"
+        "no two ids share a plate file"
     );
-    for path in paths {
-        assert!(path.starts_with("icons/"));
-        assert!(path.ends_with(".png"));
+    for record in records {
+        assert!(record.path.starts_with("ui/bevy/png/"));
+        assert_eq!(record.format, "png");
     }
 }
 
@@ -48,8 +60,8 @@ fn every_id_maps_to_a_distinct_plate_path() {
 /// FileText stand-ins the first capture shipped.
 #[test]
 fn arrow_ids_map_to_their_own_arrow_plates() {
-    assert_eq!(icon_path(IconId::ArrowUp), "icons/arrow-up.png");
-    assert_eq!(icon_path(IconId::ArrowDown), "icons/arrow-down.png");
+    assert_eq!(IconId::ArrowUp.asset_name(), "arrow-up");
+    assert_eq!(IconId::ArrowDown.asset_name(), "arrow-down");
     assert_eq!(IconId::ArrowUp.index(), 8, "appended after the M1 set");
     assert_eq!(IconId::ArrowDown.index(), 9);
     let mut app = headless_app();
@@ -60,16 +72,12 @@ fn arrow_ids_map_to_their_own_arrow_plates() {
     for icon in [IconId::ArrowUp, IconId::ArrowDown] {
         let handle = sources.handle(icon).expect("arrow plate registered");
         assert!(handle.is_strong());
-        assert_eq!(
-            handle.path().map(|path| path.to_string()),
-            Some(icon_path(icon).to_string()),
-            "the arrow handle carries its own plate path"
-        );
     }
+    assert_eq!(world.resource::<Assets<Image>>().len(), IconId::ALL.len());
 }
 
 #[test]
-fn store_loads_every_plate_through_the_asset_server() {
+fn store_decodes_every_canonical_plate_into_bevy_images() {
     let mut app = headless_app();
     app.update();
 
@@ -80,14 +88,7 @@ fn store_loads_every_plate_through_the_asset_server() {
         assert!(handle.is_strong());
     }
 
-    let world = app.world_mut();
-    let sources = world.resource::<IconSources>();
-    let settings = sources.handle(IconId::Settings).expect("settings plate");
-    assert_eq!(
-        settings.path().map(|path| path.to_string()),
-        Some("icons/settings.png".to_string()),
-        "the handle carries the plate's asset path"
-    );
+    assert_eq!(world.resource::<Assets<Image>>().len(), IconId::ALL.len());
 }
 
 #[test]

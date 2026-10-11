@@ -72,10 +72,10 @@ dns-fake-ip-flush-confirm-standard	dns	dark	1180x780
 dns-fake-ip-flush-confirm-compact	dns	dark	720x480
 dns-query-details-standard	dns	dark	1180x780
 dns-query-details-compact	dns	dark	720x480
-shell-proxy-mode-control-standard	overview	dark	1180x780
-shell-proxy-mode-control-compact	overview	dark	720x480
-shell-proxy-mode-authentication-standard	overview	dark	1180x780
-shell-proxy-mode-authentication-compact	overview	dark	720x480
+shell-routing-intent-control-standard	overview	dark	1180x780
+shell-routing-intent-control-compact	overview	dark	720x480
+shell-routing-intent-authentication-standard	overview	dark	1180x780
+shell-routing-intent-authentication-compact	overview	dark	720x480
 profiles-filter-editor-standard	filter	dark	1180x780
 profiles-filter-editor-compact	filter	dark	720x480
 connections-grouping-standard	runtime	dark	1180x780

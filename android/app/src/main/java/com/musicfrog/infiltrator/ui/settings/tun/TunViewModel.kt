@@ -2,187 +2,191 @@ package com.musicfrog.infiltrator.ui.settings.tun
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import infiltrator_android.FfiErrorCode
-import infiltrator_android.VpnTunSettings
-import infiltrator_android.VpnTunSettingsPatch
-import infiltrator_android.vpnTunSettings
-import infiltrator_android.vpnTunSettingsSave
+import com.musicfrog.infiltrator.ui.common.AppFailure
 import com.musicfrog.infiltrator.ui.common.DEFAULT_FFI_TIMEOUT_MS
+import com.musicfrog.infiltrator.ui.common.FailureTextKey
 import com.musicfrog.infiltrator.ui.common.LONG_FFI_TIMEOUT_MS
-import com.musicfrog.infiltrator.ui.common.runFfiCall
-import com.musicfrog.infiltrator.ui.common.userMessage
+import com.musicfrog.infiltrator.ui.common.localizedFailure
+import com.musicfrog.infiltrator.ui.common.toAppFailure
+import infiltrator_android.AndroidOwnerOperation
+import infiltrator_android.VpnTunSettingsPatch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-data class TunUiState(
-    val mtu: String = "",
-    val stack: String = "",
-    val autoRoute: Boolean = true,
-    val strictRoute: Boolean = false,
-    val autoDetectInterface: Boolean = false,
-    val ipv6: Boolean = false,
-    val dnsServers: String = "",
-    val isLoading: Boolean = false,
-    val error: String? = null,
-    val saved: Boolean = false
-)
+internal class TunViewModel(
+    private val repository: TunRepository,
+) : ViewModel() {
+    constructor() : this(UniFfiTunRepository)
 
-class TunViewModel : ViewModel() {
-    private val _state = MutableStateFlow(TunUiState(isLoading = true))
+    private val _state = MutableStateFlow(TunUiState())
     val state: StateFlow<TunUiState> = _state.asStateFlow()
+
+    private var requestSequence = 0uL
+    private var latestRequestSequence = 0uL
 
     init {
         load()
     }
 
     fun load() {
+        val sequence = nextRequestSequence()
+        val accepted = lastAcceptedTun(_state.value.settings)
+        _state.value = _state.value.copy(
+            settings = TunSettingsReadState.Loading(accepted),
+            operation = TunOperationState.Loading,
+        )
         viewModelScope.launch {
-            _state.value = _state.value.copy(isLoading = true, error = null, saved = false)
-            try {
-                val call = runFfiCall(timeoutMs = DEFAULT_FFI_TIMEOUT_MS) { vpnTunSettings() }
-                if (call.error != null) {
-                    _state.value = _state.value.copy(isLoading = false, error = call.error)
-                } else {
-                    val result = call.value!!
-                    val settings = result.settings
-                    if (result.status.code == FfiErrorCode.OK && settings != null) {
-                        applySettings(settings)
-                    } else {
-                        _state.value = _state.value.copy(
-                            isLoading = false,
-                            error = result.status.userMessage("Failed to load TUN settings")
-                        )
-                    }
+            when (val result = repository.execute(
+                AndroidOwnerOperation.TunSettings,
+                DEFAULT_FFI_TIMEOUT_MS,
+            )) {
+                is TunRepositoryResult.Completed -> if (isLatest(sequence)) {
+                    acceptOrFail(result.point, TunOperationState.Idle)
                 }
-            } catch (err: Exception) {
-                _state.value = _state.value.copy(
-                    isLoading = false,
-                    error = err.message ?: "Failed to load TUN settings"
-                )
+                is TunRepositoryResult.Failed -> if (isLatest(sequence)) {
+                    updateLatest(result.latestSnapshot)
+                    fail(result.failure)
+                }
+                is TunRepositoryResult.Cancelled -> if (isLatest(sequence)) {
+                    updateLatest(result.latestSnapshot)
+                    _state.value = _state.value.copy(
+                        operation = TunOperationState.Cancelled(result.failure),
+                    )
+                }
+                is TunRepositoryResult.TimedOut -> if (isLatest(sequence)) {
+                    fail(result.failure)
+                }
+                is TunRepositoryResult.Unconfirmed -> if (isLatest(sequence)) {
+                    updateLatest(result.latestSnapshot)
+                    _state.value = _state.value.copy(
+                        operation = TunOperationState.Unconfirmed(result.failure),
+                    )
+                }
             }
         }
     }
 
-    fun updateMtu(value: String) {
-        _state.value = _state.value.copy(mtu = value, saved = false)
-    }
-
-    fun updateAutoRoute(value: Boolean) {
-        _state.value = _state.value.copy(autoRoute = value, saved = false)
-    }
-
-    fun updateStack(value: String) {
-        _state.value = _state.value.copy(stack = value, saved = false)
-    }
-
-    fun updateStrictRoute(value: Boolean) {
-        _state.value = _state.value.copy(strictRoute = value, saved = false)
-    }
-
-    fun updateAutoDetectInterface(value: Boolean) {
-        _state.value = _state.value.copy(autoDetectInterface = value, saved = false)
-    }
-
-    fun updateIpv6(value: Boolean) {
-        _state.value = _state.value.copy(ipv6 = value, saved = false)
-    }
-
-    fun updateDnsServers(value: String) {
-        _state.value = _state.value.copy(dnsServers = value, saved = false)
-    }
+    fun updateMtu(value: String) = updateDraft { copy(mtu = value) }
+    fun updateAutoRoute(value: Boolean) = updateDraft { copy(autoRoute = value) }
+    fun updateStack(value: String) = updateDraft { copy(stack = value) }
+    fun updateStrictRoute(value: Boolean) = updateDraft { copy(strictRoute = value) }
+    fun updateAutoDetectInterface(value: Boolean) = updateDraft { copy(autoDetectInterface = value) }
 
     fun save() {
+        if (_state.value.isBusy) return
+        if (lastAcceptedTun(_state.value.settings) == null) {
+            fail(localizedFailure(FailureTextKey.NotReady).toAppFailure())
+            return
+        }
+        val draft = _state.value.draft
+        val mtu = parseMtu(draft.mtu)
+        if (draft.mtu.isNotBlank() && mtu == null) {
+            fail(localizedFailure(FailureTextKey.TunMtuInvalid).toAppFailure())
+            return
+        }
+        if (mtu == 0u) {
+            fail(localizedFailure(FailureTextKey.TunMtuZero).toAppFailure())
+            return
+        }
+
+        val patch = VpnTunSettingsPatch(
+            mtu = mtu,
+            autoRoute = draft.autoRoute,
+            strictRoute = draft.strictRoute,
+            stack = draft.stack.trim().ifBlank { null },
+            autoDetectInterface = draft.autoDetectInterface,
+        )
+        val sequence = nextRequestSequence()
+        _state.value = _state.value.copy(operation = TunOperationState.Saving)
         viewModelScope.launch {
-            val current = _state.value
-            _state.value = current.copy(isLoading = true, error = null)
-
-            val mtuValue = parseMtu(current.mtu)
-            if (current.mtu.isNotBlank() && mtuValue == null) {
-                _state.value = current.copy(
-                    isLoading = false,
-                    error = "MTU must be a positive number"
-                )
-                return@launch
-            }
-            if (mtuValue != null && mtuValue == 0u) {
-                _state.value = current.copy(
-                    isLoading = false,
-                    error = "MTU must be greater than 0"
-                )
-                return@launch
-            }
-
-            val dnsServers = parseDnsServers(current.dnsServers)
-            val patch = VpnTunSettingsPatch(
-                mtuValue,
-                current.autoRoute,
-                current.strictRoute,
-                dnsServers,
-                current.ipv6,
-                current.stack.trim().ifBlank { null },
-                current.autoDetectInterface
-            )
-
-            try {
-                val call = runFfiCall(timeoutMs = LONG_FFI_TIMEOUT_MS) {
-                    vpnTunSettingsSave(patch)
+            when (val result = repository.execute(
+                AndroidOwnerOperation.TunSettingsSave(patch),
+                LONG_FFI_TIMEOUT_MS,
+            )) {
+                is TunRepositoryResult.Completed -> if (isLatest(sequence)) {
+                    acceptOrFail(result.point, TunOperationState.Saved(result.point.revision))
                 }
-                if (call.error != null) {
-                    _state.value = _state.value.copy(isLoading = false, error = call.error)
-                } else {
-                    val result = call.value!!
-                    val settings = result.settings
-                    if (result.status.code == FfiErrorCode.OK && settings != null) {
-                        applySettings(settings)
-                        _state.value = _state.value.copy(saved = true)
-                    } else {
-                        _state.value = _state.value.copy(
-                            isLoading = false,
-                            error = result.status.userMessage("Failed to save TUN settings")
-                        )
-                    }
+                is TunRepositoryResult.Failed -> if (isLatest(sequence)) {
+                    updateLatest(result.latestSnapshot)
+                    fail(result.failure)
                 }
-            } catch (err: Exception) {
-                _state.value = _state.value.copy(
-                    isLoading = false,
-                    error = err.message ?: "Failed to save TUN settings"
-                )
+                is TunRepositoryResult.Cancelled -> if (isLatest(sequence)) {
+                    updateLatest(result.latestSnapshot)
+                    _state.value = _state.value.copy(
+                        operation = TunOperationState.Cancelled(result.failure),
+                    )
+                }
+                is TunRepositoryResult.TimedOut -> if (isLatest(sequence)) {
+                    fail(result.failure)
+                }
+                is TunRepositoryResult.Unconfirmed -> if (isLatest(sequence)) {
+                    updateLatest(result.latestSnapshot)
+                    _state.value = _state.value.copy(
+                        operation = TunOperationState.Unconfirmed(result.failure),
+                    )
+                }
             }
         }
     }
 
     fun clearError() {
-        _state.value = _state.value.copy(error = null)
+        _state.value = _state.value.copy(operation = TunOperationState.Idle)
     }
 
-    private fun applySettings(settings: VpnTunSettings) {
-        _state.value = TunUiState(
-            mtu = settings.mtu?.toString() ?: "",
-            stack = settings.stack ?: "",
-            autoRoute = settings.autoRoute ?: true,
-            strictRoute = settings.strictRoute ?: false,
-            autoDetectInterface = settings.autoDetectInterface ?: false,
-            ipv6 = settings.ipv6 ?: false,
-            dnsServers = settings.dnsServers.joinToString(separator = "\n"),
-            isLoading = false,
-            error = null,
-            saved = false
+    private fun updateDraft(transform: TunSettingsDraft.() -> TunSettingsDraft) {
+        val current = _state.value
+        if (current.isBusy) return
+        _state.value = current.copy(
+            draft = current.draft.transform(),
+            operation = TunOperationState.Idle,
         )
     }
 
-    private fun parseMtu(value: String): UInt? {
-        val trimmed = value.trim()
-        if (trimmed.isEmpty()) {
-            return null
-        }
-        return trimmed.toUIntOrNull()
+    private fun accept(point: TunSettingsObservationPoint, operation: TunOperationState) {
+        if (!acceptsTunRevision(_state.value.settings, point.revision)) return
+        _state.value = _state.value.copy(
+            settings = TunSettingsReadState.Observed(point),
+            draft = point.toDraft(),
+            operation = operation,
+        )
     }
 
-    private fun parseDnsServers(raw: String): List<String> {
-        return raw.split('\n', ',')
-            .map { it.trim() }
-            .filter { it.isNotEmpty() }
+    private fun acceptOrFail(point: TunSettingsObservationPoint, operation: TunOperationState) {
+        if (acceptsTunRevision(_state.value.settings, point.revision)) {
+            accept(point, operation)
+        } else {
+            fail(localizedFailure(FailureTextKey.NotReady).toAppFailure())
+        }
     }
+
+    private fun updateLatest(point: TunSettingsObservationPoint?) {
+        if (point != null && acceptsTunRevision(_state.value.settings, point.revision)) {
+            _state.value = _state.value.copy(
+                settings = TunSettingsReadState.Observed(point),
+                draft = point.toDraft(),
+            )
+        }
+    }
+
+    private fun fail(failure: AppFailure) {
+        _state.value = _state.value.copy(
+            settings = unavailableTun(_state.value.settings, failure),
+            operation = TunOperationState.Failed(failure),
+        )
+    }
+
+    @Synchronized
+    private fun nextRequestSequence(): ULong {
+        check(requestSequence < ULong.MAX_VALUE) { "TUN request sequence is exhausted" }
+        requestSequence += 1u
+        latestRequestSequence = requestSequence
+        return requestSequence
+    }
+
+    @Synchronized
+    private fun isLatest(sequence: ULong): Boolean = latestRequestSequence == sequence
+
+    private fun parseMtu(value: String): UInt? = value.trim().takeIf(String::isNotEmpty)?.toUIntOrNull()
 }

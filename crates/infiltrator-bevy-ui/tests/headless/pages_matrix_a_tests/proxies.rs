@@ -2,6 +2,7 @@
 //! test-intent: behavior
 
 use super::*;
+use crate::support::allow_outbound_probe;
 use bevy::ecs::query::With;
 use bevy::ui::prelude;
 use bevy::ui::prelude::Val;
@@ -13,7 +14,6 @@ use infiltrator_bevy_ui::pages::proxies::{
 use infiltrator_bevy_ui::pages::proxies_filter::{format_protocol_chip, matches_proxy_filter};
 use infiltrator_bevy_ui::pages::proxies_virtual::ProxiesVirtualNodes;
 use infiltrator_bevy_ui::pages::proxy_group_order::{GroupOrderAction, GroupOrderState};
-use infiltrator_bevy_ui::pages::proxy_inspection::ProxyInspectionState;
 use infiltrator_bevy_ui::pages::proxy_probe_settings::{
     OpenProbeSettings, ProbeTimeoutField, ProbeUrlField,
 };
@@ -21,15 +21,82 @@ use infiltrator_bevy_ui::surface::{LatestSurfaceSnapshot, SurfaceSnapshotUpdated
 use infiltrator_bevy_widgets::fluid_grid::FluidCardGrid;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::responsive::ResponsiveContext;
+use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::latency_display::LatencyBand;
-use infiltrator_contract::surface_snapshot::{ProxyGroupSnapshot, ProxyNodeSnapshot};
+use infiltrator_contract::outbound::details::OutboundHealthObservation;
+use infiltrator_contract::outbound::preferences::OutboundUiPreferenceRequest;
+use infiltrator_contract::outbound::probe::OutboundProbeBatchScope;
+use infiltrator_contract::outbound::{
+    details::OutboundSnapshot,
+    identity::{OutboundId, SnapshotRevision},
+    inventory::{
+        OutboundInventorySnapshot, OutboundInventoryState, OutboundSelectionSet,
+        OutboundSelectionState, SelectionAvailability,
+    },
+    preferences::{
+        OutboundFavoriteState, OutboundGroupExpansion, OutboundHealthFilter, OutboundLayout,
+        OutboundSortOrder, OutboundUiPreferenceIntent,
+    },
+    probe::OutboundSelectionRequest,
+};
+use infiltrator_contract::surface_snapshot::PageData;
+use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_shared::locales::{Lang, Localizer};
+
+fn set_outbound_inventory(
+    snapshot: &mut SurfaceSnapshot,
+    collection_name: &str,
+    outbound_names: Vec<String>,
+    availability: SelectionAvailability,
+    selected_name: Option<&str>,
+    inventory_revision: u64,
+) {
+    let scope = snapshot
+        .core
+        .scope()
+        .expect("demo snapshot has an accepted core scope");
+    let engine = scope.identity.engine.clone();
+    let outbound_ids: Vec<_> = outbound_names
+        .iter()
+        .map(|name| OutboundId::new(engine.clone(), name.clone()).expect("valid outbound ID"))
+        .collect();
+    let entries = outbound_ids
+        .iter()
+        .zip(&outbound_names)
+        .map(|(id, name)| OutboundSnapshot {
+            id: id.clone(),
+            display_name: Some(name.clone()),
+        })
+        .collect();
+    let selection = selected_name
+        .map(|name| OutboundSelectionState::Ready {
+            selected: OutboundId::new(engine.clone(), name).expect("valid selected ID"),
+        })
+        .unwrap_or(OutboundSelectionState::Unknown);
+    let inventory = OutboundInventorySnapshot::new(
+        scope,
+        SnapshotRevision::new(inventory_revision),
+        OutboundInventoryState::Ready {
+            entries,
+            collections: vec![OutboundSelectionSet {
+                id: OutboundId::new(engine, collection_name).expect("valid collection ID"),
+                member_ids: outbound_ids,
+                availability,
+                selection,
+            }],
+        },
+    )
+    .expect("test outbound inventory is valid");
+    snapshot.outbound_inventory = PageData::ready(inventory);
+}
 
 #[test]
 fn test_proxies_page_mounting_and_default_state() {
     let sink = Arc::new(DemoCommandSink::accepting());
     let mut app = setup_matrix_a_app(sink);
     let (root, _) = navigate_to(&mut app, Route::Proxies);
+    // TextRuns are replayed on the next frame after the route scene is spawned.
+    app.update();
     let locale = app.world().resource::<UiLocale>().code().to_string();
     let lang = Lang(&locale);
 
@@ -41,7 +108,7 @@ fn test_proxies_page_mounting_and_default_state() {
     assert!(subtree_has_text(app.world(), root, "HK-01"));
     assert!(subtree_has_text(app.world(), root, "测速就绪"));
     assert!(subtree_has_text(app.world(), root, "PROXIES"));
-    assert!(subtree_has_text(app.world(), root, "38 ms"));
+    assert!(subtree_has_text(app.world(), root, "尚未测速"));
     assert!(subtree_has_text(
         app.world(),
         root,
@@ -88,9 +155,8 @@ fn test_proxies_page_mounting_and_default_state() {
         Lang("zh-CN").tr("proxies_add_node_btn").as_ref()
     ));
     assert!(subtree_has_text(app.world(), root, "网格视图"));
-    // Node capability tags & protocol badges
-    assert!(subtree_has_text(app.world(), root, "udp"));
-    assert!(subtree_has_text(app.world(), root, "Shadowsocks"));
+    // Inventory names and selection state come from the engine-neutral read.
+    assert!(subtree_has_text(app.world(), root, "JP-02"));
 
     // Component markers verification
     assert!(
@@ -183,6 +249,7 @@ fn test_proxies_test_all_button_submits_command() {
     let sink = Arc::new(DemoCommandSink::accepting());
     let mut app = setup_matrix_a_app(Arc::clone(&sink));
     navigate_to(&mut app, Route::Proxies);
+    allow_outbound_probe(&mut app.world_mut().resource_mut::<LatestSurfaceSnapshot>().0);
 
     let btn_entity = app
         .world_mut()
@@ -195,7 +262,15 @@ fn test_proxies_test_all_button_submits_command() {
         .trigger(Activate { entity: btn_entity });
     app.update();
 
-    assert_eq!(sink.submitted(), vec![UiCommand::TestAllProxyGroups]);
+    let submitted = sink.submitted();
+    let [UiCommand::ProbeOutboundBatch { request }] = submitted.as_slice() else {
+        panic!("expected one typed outbound batch request, got {submitted:?}");
+    };
+    assert_eq!(request.target_scope(), &OutboundProbeBatchScope::All);
+    assert_eq!(
+        request.expected_inventory_revision(),
+        SnapshotRevision::new(1)
+    );
 }
 
 #[test]
@@ -203,11 +278,21 @@ fn test_proxies_test_group_button_submits_command() {
     let sink = Arc::new(DemoCommandSink::accepting());
     let mut app = setup_matrix_a_app(Arc::clone(&sink));
     navigate_to(&mut app, Route::Proxies);
+    allow_outbound_probe(&mut app.world_mut().resource_mut::<LatestSurfaceSnapshot>().0);
 
     let mut query = app.world_mut().query::<(Entity, &TestProxyGroupButton)>();
-    let (btn_entity, _) = query
+    let (btn_entity, collection_id) = query
         .iter(app.world())
         .find(|(_, btn)| btn.group_idx == 0)
+        .map(|(entity, button)| {
+            (
+                entity,
+                button
+                    .collection_id
+                    .clone()
+                    .expect("group test carries an opaque collection ID"),
+            )
+        })
         .expect("test proxy group button");
 
     app.world_mut()
@@ -215,11 +300,55 @@ fn test_proxies_test_group_button_submits_command() {
         .trigger(Activate { entity: btn_entity });
     app.update();
 
+    let submitted = sink.submitted();
+    let [UiCommand::ProbeOutboundBatch { request }] = submitted.as_slice() else {
+        panic!("expected one typed outbound batch request, got {submitted:?}");
+    };
     assert_eq!(
-        sink.submitted(),
-        vec![UiCommand::TestProxyGroup {
-            group: "PROXIES".to_owned(),
-        }]
+        request.target_scope(),
+        &OutboundProbeBatchScope::Collection(collection_id)
+    );
+    assert_eq!(
+        request.expected_inventory_revision(),
+        SnapshotRevision::new(1)
+    );
+}
+
+#[test]
+fn stale_proxy_group_button_does_not_submit_after_collection_is_replaced() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(Arc::clone(&sink));
+    navigate_to(&mut app, Route::Proxies);
+    allow_outbound_probe(&mut app.world_mut().resource_mut::<LatestSurfaceSnapshot>().0);
+    let mut buttons = app.world_mut().query::<(Entity, &TestProxyGroupButton)>();
+    let button = buttons
+        .iter(app.world())
+        .find(|(_, button)| button.group_idx == 0)
+        .map(|(entity, _)| entity)
+        .expect("group probe button");
+
+    let mut latest = app.world_mut().resource_mut::<LatestSurfaceSnapshot>();
+    let mut replacement = latest.0.clone();
+    set_outbound_inventory(
+        &mut replacement,
+        "REPLACED",
+        vec!["HK-01".to_owned(), "JP-02".to_owned()],
+        SelectionAvailability::Selectable,
+        Some("HK-01"),
+        2,
+    );
+    // bevy 0.20 `Mut` carries no Drop side effects, so ending the borrow
+    // here needs no explicit drop.
+    latest.0 = replacement;
+
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: button });
+    app.update();
+
+    assert!(
+        sink.submitted().is_empty(),
+        "stale collection identity must not produce a batch request"
     );
 }
 
@@ -229,10 +358,27 @@ fn test_proxies_select_node_submits_command() {
     let mut app = setup_matrix_a_app(Arc::clone(&sink));
     navigate_to(&mut app, Route::Proxies);
 
+    let mut snapshot = app.world().resource::<LatestSurfaceSnapshot>().0.clone();
+    snapshot.revision += 1;
+    snapshot.core.revision = snapshot.revision;
+    set_outbound_inventory(
+        &mut snapshot,
+        "PROXIES",
+        vec!["HK-01".to_owned(), "JP-02".to_owned()],
+        SelectionAvailability::Selectable,
+        Some("HK-01"),
+        42,
+    );
+    app.world_mut()
+        .commands()
+        .trigger(SurfaceSnapshotUpdated(snapshot));
+    app.update();
+    app.update();
+
     let mut query = app.world_mut().query::<(Entity, &ProxyNodeButton)>();
     let (node_entity, _) = query
         .iter(app.world())
-        .find(|(_, btn)| btn.node_name == "JP-02")
+        .find(|(_, btn)| btn.group_name == "PROXIES" && btn.node_name == "JP-02")
         .expect("target proxy node button");
 
     app.world_mut().commands().trigger(Activate {
@@ -240,13 +386,81 @@ fn test_proxies_select_node_submits_command() {
     });
     app.update();
 
+    let request = OutboundSelectionRequest::new(
+        OutboundId::new(EngineId::new("mihomo").unwrap(), "PROXIES").unwrap(),
+        OutboundId::new(EngineId::new("mihomo").unwrap(), "JP-02").unwrap(),
+        SnapshotRevision::new(42),
+    )
+    .unwrap();
     assert_eq!(
         sink.submitted(),
-        vec![UiCommand::SelectProxyNode {
-            group: "PROXIES".to_owned(),
-            node: "JP-02".to_owned(),
-        }]
+        vec![UiCommand::SelectOutbound { request }]
     );
+}
+
+#[test]
+fn test_proxies_read_only_inventory_members_cannot_submit_selection() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(Arc::clone(&sink));
+    navigate_to(&mut app, Route::Proxies);
+
+    let mut snapshot = app.world().resource::<LatestSurfaceSnapshot>().0.clone();
+    snapshot.revision += 1;
+    snapshot.core.revision = snapshot.revision;
+    set_outbound_inventory(
+        &mut snapshot,
+        "READ-ONLY",
+        vec!["node-a".to_owned(), "node-b".to_owned()],
+        SelectionAvailability::ReadOnly,
+        Some("node-a"),
+        7,
+    );
+    app.world_mut()
+        .commands()
+        .trigger(SurfaceSnapshotUpdated(snapshot));
+    app.update();
+    app.update();
+
+    let node_entity = app
+        .world_mut()
+        .query::<(Entity, &ProxyNodeButton)>()
+        .iter(app.world())
+        .find(|(_, button)| button.group_name == "READ-ONLY" && button.node_name == "node-b")
+        .map(|(entity, _)| entity)
+        .expect("read-only inventory member is still displayed");
+    app.world_mut().commands().trigger(Activate {
+        entity: node_entity,
+    });
+    app.update();
+
+    assert!(sink.submitted().is_empty());
+}
+
+#[test]
+fn test_proxies_inventory_projection_uses_the_typed_snapshot() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(sink);
+    let (root, _) = navigate_to(&mut app, Route::Proxies);
+
+    let mut snapshot = app.world().resource::<LatestSurfaceSnapshot>().0.clone();
+    snapshot.revision += 1;
+    snapshot.core.revision = snapshot.revision;
+    set_outbound_inventory(
+        &mut snapshot,
+        "NEUTRAL-COLLECTION",
+        vec!["neutral-node-a".to_owned(), "neutral-node-b".to_owned()],
+        SelectionAvailability::Selectable,
+        Some("neutral-node-a"),
+        5,
+    );
+    app.world_mut()
+        .commands()
+        .trigger(SurfaceSnapshotUpdated(snapshot));
+    app.update();
+    app.update();
+
+    assert!(subtree_has_text(app.world(), root, "NEUTRAL-COLLECTION"));
+    assert!(subtree_has_text(app.world(), root, "neutral-node-a"));
 }
 
 #[test]
@@ -273,7 +487,10 @@ fn test_proxies_swipe_action_drawer_triggers_favorite_and_test_group() {
 
     let mut pin_query = app.world_mut().query::<(Entity, &NodePinButton)>();
     let (pin_entity, pin_btn) = pin_query.iter(app.world()).next().expect("node pin button");
-    let target_node_name = pin_btn.node_name.clone();
+    let target_outbound_id = pin_btn
+        .outbound_id
+        .clone()
+        .expect("product node has an outbound identity");
 
     app.world_mut()
         .commands()
@@ -282,7 +499,16 @@ fn test_proxies_swipe_action_drawer_triggers_favorite_and_test_group() {
 
     assert_eq!(
         sink.submitted(),
-        vec![UiCommand::ToggleFavoriteProxy(target_node_name)]
+        vec![UiCommand::ApplyOutboundUiPreference {
+            request: OutboundUiPreferenceRequest::new(
+                SnapshotRevision::new(1),
+                OutboundUiPreferenceIntent::SetFavorite {
+                    outbound_id: target_outbound_id,
+                    state: OutboundFavoriteState::Pinned,
+                },
+            )
+            .unwrap(),
+        }]
     );
 }
 
@@ -365,21 +591,56 @@ fn test_proxies_empty_and_edge_case_projection() {
 }
 
 #[test]
-fn test_proxies_favorite_and_features_rendering() {
+fn test_proxies_inventory_projection_does_not_fabricate_missing_node_facts() {
     let sink = Arc::new(DemoCommandSink::accepting());
     let mut app = setup_matrix_a_app(sink);
+    let mut inventory_only = app.world().resource::<LatestSurfaceSnapshot>().0.clone();
+    inventory_only.revision += 1;
+    inventory_only.core.revision = inventory_only.revision;
+    inventory_only.outbound_details = PageData::unavailable(Failure::unsupported(
+        "the test observes inventory without outbound details",
+    ));
+    app.world_mut()
+        .insert_resource(LatestSurfaceSnapshot(inventory_only));
     let (root, _) = navigate_to(&mut app, Route::Proxies);
+    app.update();
 
-    // Default demo has favorite stars, pin icons, latency trend waves, and feature chips
-    assert!(subtree_has_text(app.world(), root, "★"));
+    let node_rows: Vec<_> = {
+        let world = app.world_mut();
+        world
+            .query_filtered::<Entity, With<ProxyNodeButton>>()
+            .iter(world)
+            .collect()
+    };
+    assert!(!node_rows.is_empty(), "neutral inventory nodes are mounted");
+
+    // Neutral inventory carries identity and selection, not protocol, feature,
+    // favorite, or probe facts.
     assert!(subtree_has_text(app.world(), root, "📌"));
     assert!(subtree_has_text(app.world(), root, "📈"));
-    assert!(subtree_has_text(app.world(), root, "udp"));
-    assert!(subtree_has_text(app.world(), root, "UDP"));
-    assert!(subtree_has_text(app.world(), root, "TFO"));
-    assert!(subtree_has_text(app.world(), root, "Vision"));
-    assert!(subtree_has_text(app.world(), root, "Reality"));
-    assert!(subtree_has_text(app.world(), root, "Shadowsocks"));
+    assert!(subtree_has_text(app.world(), root, "尚未测速"));
+    assert!(
+        app.world_mut()
+            .query::<&NodeProtoText>()
+            .iter(app.world())
+            .next()
+            .is_none()
+    );
+    assert!(
+        app.world_mut()
+            .query::<&NodeUdpTag>()
+            .iter(app.world())
+            .next()
+            .is_none()
+    );
+    for row in &node_rows {
+        for fact in ["udp", "TFO", "Vision", "Reality", "Shadowsocks"] {
+            assert!(
+                !subtree_has_text(app.world(), *row, fact),
+                "neutral outbound node cards must not show {fact} facts"
+            );
+        }
+    }
 
     assert!(
         app.world_mut()
@@ -391,13 +652,6 @@ fn test_proxies_favorite_and_features_rendering() {
     assert!(
         app.world_mut()
             .query::<&LatencyTrendIcon>()
-            .iter(app.world())
-            .next()
-            .is_some()
-    );
-    assert!(
-        app.world_mut()
-            .query::<&NodeUdpTag>()
             .iter(app.world())
             .next()
             .is_some()
@@ -423,7 +677,8 @@ fn test_proxies_toggle_group_expand_submits_command() {
 
     assert!(sink.submitted().iter().any(|cmd| matches!(
         cmd,
-        UiCommand::ToggleProxyGroupExpand { group } if !group.is_empty()
+        UiCommand::ApplyOutboundUiPreference { request }
+            if matches!(request.intent(), OutboundUiPreferenceIntent::SetGroupExpansion { expansion: OutboundGroupExpansion::Collapsed, .. })
     )));
 }
 
@@ -444,7 +699,11 @@ fn test_proxies_filter_alive_toggle_submits_command() {
     });
     app.update();
 
-    assert_eq!(sink.submitted(), vec![UiCommand::ToggleFilterAlive(true)]);
+    assert!(sink.submitted().iter().any(|cmd| matches!(
+        cmd,
+        UiCommand::ApplyOutboundUiPreference { request }
+            if request.intent() == &OutboundUiPreferenceIntent::SetHealthFilter(OutboundHealthFilter::HealthyOnly)
+    )));
 }
 
 #[test]
@@ -467,7 +726,11 @@ fn test_proxies_sort_pills_submit_commands() {
     assert!(
         sink.submitted()
             .iter()
-            .any(|cmd| matches!(cmd, UiCommand::SetProxySortOrder(_)))
+            .any(|cmd| matches!(
+                cmd,
+                UiCommand::ApplyOutboundUiPreference { request }
+                    if request.intent() == &OutboundUiPreferenceIntent::SetSortOrder(OutboundSortOrder::LatencyAscending)
+            ))
     );
 }
 
@@ -488,11 +751,11 @@ fn test_proxies_favorite_pin_submits_command() {
         .trigger(Activate { entity: pin_entity });
     app.update();
 
-    assert!(
-        sink.submitted()
-            .iter()
-            .any(|cmd| matches!(cmd, UiCommand::ToggleFavoriteProxy(_)))
-    );
+    assert!(sink.submitted().iter().any(|cmd| matches!(
+        cmd,
+        UiCommand::ApplyOutboundUiPreference { request }
+            if matches!(request.intent(), OutboundUiPreferenceIntent::SetFavorite { .. })
+    )));
 }
 
 #[test]
@@ -514,246 +777,11 @@ fn test_proxies_advanced_chips_and_color_ladder() {
     assert_eq!(tier, LatencyBand::UnconfirmedZero);
 }
 
-#[test]
-fn test_proxies_pinyin_fuzzy_and_protocol_filtering() {
-    let node = ProxyNode {
-        name: "🇭🇰 香港 01 · BGP 专线".to_owned(),
-        node_type: "VLESS".to_owned(),
-        delay_ms: Some(45),
-        selected: true,
-        favorite: true,
-        features: vec!["Reality".to_owned(), "Vision".to_owned()],
-    };
+#[path = "proxies_group_order_tests.rs"]
+mod group_order_tests;
 
-    assert!(matches_proxy_filter(&node, "xg"));
-    assert!(matches_proxy_filter(&node, "hk"));
-    assert!(matches_proxy_filter(&node, "vless"));
-    assert!(matches_proxy_filter(&node, "reality"));
-    assert!(matches_proxy_filter(&node, "<100"));
-    assert!(!matches_proxy_filter(&node, "日本"));
-}
+#[path = "proxies_large_list_tests.rs"]
+mod large_list_tests;
 
-#[test]
-fn test_proxies_node_detail_drawer_and_group_reorder() {
-    let sink = Arc::new(DemoCommandSink::accepting());
-    let mut app = setup_matrix_a_app(sink.clone());
-    let _ = navigate_to(&mut app, Route::Proxies);
-
-    // 1. Detail button activation (DUAL-04-11)
-    let detail_entity = {
-        let world = app.world_mut();
-        let mut query = world.query::<(Entity, &NodeDetailButton)>();
-        query
-            .iter(world)
-            .next()
-            .expect("node detail button mounted")
-            .0
-    };
-
-    app.world_mut().commands().trigger(Activate {
-        entity: detail_entity,
-    });
-    app.update();
-
-    assert!(
-        sink.submitted().is_empty(),
-        "inspection must never select a node"
-    );
-    assert!(
-        app.world()
-            .resource::<ProxyInspectionState>()
-            .selected
-            .is_some()
-    );
-
-    // 2. Group move up activation (DUAL-04-12)
-    let move_up_entity = {
-        let world = app.world_mut();
-        let mut query = world.query::<(Entity, &ProxyGroupMoveUpButton)>();
-        query
-            .iter(world)
-            .nth(1)
-            .expect("second group move up button mounted")
-            .0
-    };
-
-    app.world_mut().commands().trigger(Activate {
-        entity: move_up_entity,
-    });
-    app.update();
-
-    assert!(
-        sink.submitted().is_empty(),
-        "order editing must not submit any command before Apply"
-    );
-    assert!(app.world().resource::<GroupOrderState>().open);
-    assert_ne!(
-        app.world().resource::<GroupOrderState>().editor.draft,
-        app.world().resource::<GroupOrderState>().editor.baseline
-    );
-
-    // 3. Reset group order activation (DUAL-04-12)
-    let reset_entity = app
-        .world_mut()
-        .query_filtered::<Entity, With<ResetProxyGroupOrderButton>>()
-        .single(app.world())
-        .expect("reset proxy group order button mounted");
-
-    app.world_mut().commands().trigger(Activate {
-        entity: reset_entity,
-    });
-    app.update();
-
-    assert!(
-        sink.submitted().is_empty(),
-        "reset changes only the visible draft"
-    );
-    let cancel = app
-        .world_mut()
-        .query::<(Entity, &GroupOrderAction)>()
-        .iter(app.world())
-        .find(|(_, action)| matches!(action, GroupOrderAction::Cancel))
-        .unwrap()
-        .0;
-    app.world_mut()
-        .commands()
-        .trigger(Activate { entity: cancel });
-    app.update();
-    assert!(!app.world().resource::<GroupOrderState>().open);
-    assert!(
-        sink.submitted().is_empty(),
-        "cancel retains the original shared order"
-    );
-
-    // 4. Toggle compact view activation (DUAL-04-13)
-    let toggle_view_entity = app
-        .world_mut()
-        .query_filtered::<Entity, With<ToggleViewModeButton>>()
-        .single(app.world())
-        .expect("toggle view mode button mounted");
-
-    app.world_mut().commands().trigger(Activate {
-        entity: toggle_view_entity,
-    });
-    app.update();
-
-    assert!(
-        sink.submitted()
-            .iter()
-            .any(|cmd| matches!(cmd, UiCommand::SetProxyCompactView(true)))
-    );
-
-    // 5. Latency skeleton pulse mounted (DUAL-04-14)
-    assert!(
-        app.world_mut()
-            .query::<&LatencySkeletonPulse>()
-            .iter(app.world())
-            .next()
-            .is_some(),
-        "latency skeleton pulse component must be mounted"
-    );
-}
-
-/// BANDROID-009: a 2000-node projection mounts through the recycler window,
-/// not the whole collection, and the tail is reachable once the window slides.
-#[test]
-fn test_proxies_large_list_mounts_a_bounded_recycled_window() {
-    let sink = Arc::new(DemoCommandSink::accepting());
-    let mut app = setup_matrix_a_app(sink);
-
-    // Publish a 2000-node projection before the page mounts, so the large-list
-    // path is selected from the very first scene build.
-    let mut snapshot = app.world().resource::<LatestSurfaceSnapshot>().0.clone();
-    snapshot.revision += 1;
-    let page = snapshot.pages.proxies.data.as_mut().unwrap();
-    page.groups = vec![ProxyGroupSnapshot {
-        name: "BIG".to_owned(),
-        group_type: "Selector".to_owned(),
-        classification: None,
-        current: "node-0".to_owned(),
-        expanded: true,
-        proxies: (0..2000)
-            .map(|index| ProxyNodeSnapshot {
-                name: format!("node-{index}"),
-                node_type: "Shadowsocks".to_owned(),
-                delay_ms: Some(40),
-                alive: Some(true),
-                selected: index == 0,
-                favorite: false,
-                features: vec![],
-            })
-            .collect(),
-    }];
-    app.world_mut()
-        .commands()
-        .trigger(SurfaceSnapshotUpdated(snapshot));
-    app.update();
-    app.update();
-    navigate_to(&mut app, Route::Proxies);
-    app.update();
-    app.update();
-
-    let mounted = app
-        .world_mut()
-        .query::<&ProxyNodeButton>()
-        .iter(app.world())
-        .count();
-    assert!(mounted > 0, "the recycler must mount the visible window");
-    assert!(
-        mounted < 2000,
-        "the full 2000-node collection must not be mounted, got {mounted}"
-    );
-    assert!(
-        mounted <= 200,
-        "mounted rows must be viewport-bounded, got {mounted}"
-    );
-    assert!(
-        app.world_mut()
-            .query_filtered::<Entity, With<ProxiesVirtualNodes>>()
-            .iter(app.world())
-            .next()
-            .is_some(),
-        "the virtual node container must own the large list"
-    );
-
-    // Scrolling to the bottom slides the window to the tail row.
-    let scroll = app
-        .world_mut()
-        .query_filtered::<Entity, With<ProxiesScrollArea>>()
-        .single(app.world())
-        .expect("proxies scroll area");
-    app.world_mut()
-        .get_mut::<ScrollPosition>(scroll)
-        .expect("scroll position")
-        .0
-        .y = 1.0e6;
-    app.update();
-    assert!(
-        app.world_mut()
-            .query::<&ProxyNodeButton>()
-            .iter(app.world())
-            .any(|button| button.node_name == "node-1999"),
-        "the tail node must become reachable"
-    );
-
-    // A live shrink below the threshold keeps rendering through the mounted
-    // recycler (the scene is not rebuilt) and never duplicates the collection.
-    let mut small = app.world().resource::<LatestSurfaceSnapshot>().0.clone();
-    small.revision += 1;
-    let page = small.pages.proxies.data.as_mut().unwrap();
-    page.groups[0].proxies.truncate(10);
-    app.world_mut()
-        .commands()
-        .trigger(SurfaceSnapshotUpdated(small));
-    app.update();
-    app.update();
-    let mounted_small = app
-        .world_mut()
-        .query::<&ProxyNodeButton>()
-        .iter(app.world())
-        .count();
-    assert_eq!(
-        mounted_small, 10,
-        "a shrunk list keeps rendering through the recycler without duplication"
-    );
-}
+#[path = "proxies_filtering_tests.rs"]
+mod filtering_tests;

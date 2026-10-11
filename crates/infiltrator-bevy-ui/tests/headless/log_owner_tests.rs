@@ -1,25 +1,30 @@
 //! test-intent: behavior
 //! Native clear/filter controls execute the real application commands and publish its actual buffer.
+use crate::command_harness::{
+    install_test_core_capability_application, test_command_application_for,
+};
 use crate::native_input::click_entity;
-use crate::support::headless_plugins;
+use crate::support::{command_pump_for_observed_snapshot, headless_plugins};
 use bevy::app::App;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::query::With;
 use bevy::ui_widgets::ButtonPlugin;
-use infiltrator_application::command_application::{
-    CommandApplication, CommandFuture, CommandHandler,
+use infiltrator_application::command_application::CommandApplication;
+use infiltrator_application::command_application::handler::{
+    CommandFuture, CommandHandler, CommandOutputFuture, ValidatedCoreCommandScope,
 };
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::log_capture_fixtures::{LogCaptureProcess, populate_logs};
 use infiltrator_application::surface_reader::ApplicationSurfaceReader;
 use infiltrator_bevy_ui::app::ShellPlugin;
-use infiltrator_bevy_ui::command::CommandPumpPlugin;
 use infiltrator_bevy_ui::pages::logs::{ClearLogsButton, LogLevelFilterButton};
 use infiltrator_bevy_ui::pages::logs_search::LogsViewState;
 use infiltrator_bevy_ui::route::{PagesPlugin, Route, RouteChanged};
 use infiltrator_bevy_ui::surface::SurfaceSnapshotUpdated;
 use infiltrator_composition::tokio_application_runtime;
+use infiltrator_contract::capability::Capability;
 use infiltrator_contract::command::CommandIntent;
+use infiltrator_contract::core_capabilities::{CoreLifecycleOperation, CoreOperation};
 use infiltrator_contract::error::Failure;
 use infiltrator_contract::logs::LogLevel;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
@@ -43,6 +48,24 @@ impl CommandHandler for ObservedCommands {
             result
         })
     }
+
+    fn handle_output_scoped(
+        &self,
+        scope: ValidatedCoreCommandScope,
+        intent: CommandIntent,
+    ) -> CommandOutputFuture {
+        let future = self.commands.handle_output_scoped(scope, intent.clone());
+        let completed = self.completed.clone();
+        Box::pin(async move {
+            let result = future.await;
+            let observed = match &result {
+                Ok(_) => Ok(()),
+                Err(failure) => Err(failure.clone()),
+            };
+            completed.send((intent, observed)).unwrap();
+            result
+        })
+    }
 }
 #[test]
 fn native_logs_filter_and_clear_mutate_the_shared_reader_owner_after_real_completion() {
@@ -53,9 +76,17 @@ fn native_logs_filter_and_clear_mutate_the_shared_reader_owner_after_real_comple
         process,
         runtime.clone(),
     ));
+    install_test_core_capability_application(
+        &core,
+        [CoreOperation::Lifecycle(CoreLifecycleOperation::Start)],
+    );
     let (completed, observed) = channel();
     core.install_command_handler(Arc::new(ObservedCommands {
-        commands: CommandApplication::new().with_logs(core.log_application()),
+        commands: test_command_application_for(
+            std::iter::empty::<CoreOperation>(),
+            [Capability::Logs],
+        )
+        .with_logs(core.log_application()),
         completed,
     }));
     let producer = core.clone();
@@ -70,7 +101,7 @@ fn native_logs_filter_and_clear_mutate_the_shared_reader_owner_after_real_comple
         ButtonPlugin,
         ShellPlugin::default(),
         PagesPlugin::default(),
-        CommandPumpPlugin::for_application(core.clone()),
+        command_pump_for_observed_snapshot(core.clone()),
     ));
     app.update();
     app.world_mut().trigger(RouteChanged(Route::Logs));

@@ -20,7 +20,8 @@ use infiltrator_domain::config::validate_yaml;
 use infiltrator_domain::settings::WebDavConfig;
 use infiltrator_ports::sync::SyncProgressSink;
 use infiltrator_shared::locales::{Lang, Localizer};
-use std::mem::take;
+use mem::take;
+use std::mem;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 

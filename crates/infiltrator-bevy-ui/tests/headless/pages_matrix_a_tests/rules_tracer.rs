@@ -10,16 +10,18 @@ use infiltrator_contract::rule_trace_run::{RuleTraceOperationId, RuleTraceReques
 use infiltrator_contract::rule_tracer::TrafficContextSnapshot;
 use tokio::runtime::Builder;
 
+/// The rules tab strip is the official headless TabList (norm ③): switching
+/// tabs goes through the official ValueChange selection request, exactly as
+/// the shared helper drives it.
 fn open_tracer(app: &mut App) {
-    let entity = app
+    let tab = app
         .world_mut()
         .query::<(Entity, &RulesTabChip)>()
         .iter(app.world())
         .find(|(_, chip)| chip.0 == 3)
-        .expect("actual Tracer tab")
-        .0;
-    app.world_mut().commands().trigger(Activate { entity });
-    app.update();
+        .map(|(entity, _)| entity)
+        .expect("actual Tracer tab");
+    select_rules_tab(app, tab);
 }
 
 #[test]
@@ -233,19 +235,19 @@ fn test_rules_tracer_override_submits_and_consumes_shared_result() {
     // Drive the exact submitted intent through the shared application with a
     // composed override port and consume the one typed result.
     let intent = expected.to_intent().expect("override intent");
-    let request = match intent {
+    let override_request = match intent {
         CommandIntent::ApplyTracerRuleOverride { request } => request,
         other => panic!("unexpected intent: {other:?}"),
     };
     let port = Arc::new(FakeRuleOverridePort {
-        rules: Mutex::new(rules),
+        rules: Mutex::new(rules.clone()),
     });
     let application = RuleTracerApplication::new();
     application.set_override_port(port);
     let result = Builder::new_current_thread()
         .build()
         .expect("test runtime")
-        .block_on(application.apply_override(&request));
+        .block_on(application.apply_override(&override_request));
     assert!(result.is_applied());
     assert_eq!(
         result.updated_rule_raw.as_deref(),
@@ -253,16 +255,30 @@ fn test_rules_tracer_override_submits_and_consumes_shared_result() {
     );
 
     // Replay a fresh simulation read from the same persisted host, not a manually patched chain.
-    Builder::new_current_thread()
-        .build()
-        .expect("test runtime")
-        .block_on(application.simulate(
-            RuleTraceOperationId(1),
+    let mut updated_rules = rules;
+    updated_rules[41].rule = "DOMAIN-SUFFIX,github.com,REJECT".to_owned();
+    let post_apply_workspace = tracer_test_workspace(&updated_rules);
+    let (scope, observed_workspace, trace_request) =
+        infiltrator_application::rule_trace_fixtures::scoped_rule_trace_request(
             RuleTraceRequest {
                 query: "github.com".into(),
                 context: TrafficContextSnapshot::default(),
             },
-            None,
+            post_apply_workspace.profile_identity,
+        );
+    let outbound_observation =
+        infiltrator_application::rule_trace_fixtures::unknown_rule_trace_observation(scope.clone());
+    Builder::new_current_thread()
+        .build()
+        .expect("test runtime")
+        .block_on(application.simulate_scoped(
+            &scope,
+            &observed_workspace,
+            RuleTraceOperationId(1),
+            trace_request,
+            &infiltrator_contract::rule_trace_run::RuleTraceOutboundFacts::Observed(
+                outbound_observation.clone(),
+            ),
         ))
         .expect("post-apply simulation");
     projection.tracer = application

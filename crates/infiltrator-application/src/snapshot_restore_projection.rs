@@ -40,7 +40,16 @@ pub fn project_restore(model: &SnapshotRestoreWorkbench, locale: &str) -> Restor
                 &[
                     ("profile", review.target.profile.clone()),
                     ("snapshot", review.target.snapshot_id.clone()),
-                    ("source", review.identity.source.document_hash.clone()),
+                    (
+                        "source",
+                        review
+                            .identity
+                            .workspace_identity
+                            .document
+                            .revision
+                            .as_str()
+                            .to_owned(),
+                    ),
                     ("hash", review.identity.snapshot_hash.clone()),
                 ],
             )

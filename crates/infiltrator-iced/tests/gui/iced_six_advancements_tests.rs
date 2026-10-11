@@ -1,6 +1,6 @@
 //! High-fidelity verification tests for the 6 Iced Core Maturity Advancements.
 //!
-//! Complies strictly with docs/TEST_GOVERNANCE.md (Zero-Tautology Rule):
+//! Complies strictly with TESTING.md zero-tautology assertion rule:
 //! Every assertion validates concrete business contracts, state transitions,
 //! exact string/integer values, and mathematical invariants.
 
@@ -12,16 +12,15 @@ use crate::types::message::Message;
 use crate::types::options::EditorPane;
 use crate::types::rule_trace::RuleTraceAction;
 use crate::types::script::ScriptAction;
-use crate::view::virtual_list::VirtualListConfig;
 use infiltrator_application::script_application::ScriptApplication;
 use infiltrator_application::script_export_application::ScriptExportApplication;
 use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::rule_condition::TrafficField;
 use infiltrator_contract::rules_workspace::RulesTab;
-use infiltrator_contract::surface_snapshot::ProxyGroupSnapshot;
 use infiltrator_desktop::process_enumerator::{ExtendedProcessInfo, ProcessCategory};
 use infiltrator_domain::app_routing::{AppRoutingMode, AppRoutingRule};
 use std::sync::atomic::Ordering;
+use zhuge_ui_core::virtual_list::VirtualListConfig;
 
 #[test]
 fn test_advancement_1_live_rule_tracer_contract() {
@@ -191,85 +190,27 @@ fn test_advancement_3_virtual_viewport_scrolling_engine() {
 
     // Test A: Scroll top (0px)
     let vp0 = cfg.compute_viewport();
-    assert_eq!(vp0.start_index, 0);
-    // visible count = ceil(600 / 40) + 1 = 16. With overscan 5 = 21
-    assert_eq!(vp0.end_index, 21);
-    assert_eq!(vp0.top_spacer_height, 0.0);
-    assert_eq!(vp0.bottom_spacer_height, (50_000 - 21) as f32 * 40.0);
-    assert_eq!(vp0.total_content_height, 50_000.0 * 40.0);
+    assert_eq!(vp0.start, 0);
+    // The top edge has no leading overscan; only the visible window and the
+    // trailing overscan are mounted.
+    assert_eq!(vp0.end, 20);
+    assert_eq!(vp0.top, 0.0);
+    assert_eq!(vp0.bottom, (50_000 - 20) as f32 * 40.0);
+    assert_eq!(vp0.total_extent(item_h), 50_000.0 * 40.0);
 
     // Test B: Scrolled to 40,000px (item index 1000)
     let vp_mid = cfg.with_scroll_offset(40_000.0).compute_viewport();
-    assert_eq!(vp_mid.start_index, 1000 - 5); // 995
-    assert_eq!(vp_mid.end_index, 1000 + 16 + 5); // 1021
-    assert_eq!(vp_mid.top_spacer_height, 995.0 * 40.0);
-    assert_eq!(vp_mid.bottom_spacer_height, (50_000 - 1021) as f32 * 40.0);
+    assert_eq!(vp_mid.start, 1000 - 5); // 995
+    assert_eq!(vp_mid.end, 1000 + 15 + 5); // 1020
+    assert_eq!(vp_mid.top, 995.0 * 40.0);
+    assert_eq!(vp_mid.bottom, (50_000 - 1020) as f32 * 40.0);
 
     // Mathematical invariant: top_spacer + bottom_spacer + rendered_height == total_content_height
-    let rendered_count = vp_mid.end_index - vp_mid.start_index;
+    let rendered_count = vp_mid.end - vp_mid.start;
     let rendered_height = rendered_count as f32 * item_h;
     assert_eq!(
-        vp_mid.top_spacer_height + vp_mid.bottom_spacer_height + rendered_height,
-        vp_mid.total_content_height
-    );
-}
-
-#[test]
-fn test_advancement_4_proxy_group_reordering_and_reset() {
-    let (mut state, _) = AppState::new();
-
-    state.runtime.filtered_groups = vec![
-        ("PROXIES".to_string(), vec!["node1".to_string()]),
-        ("STREAMING".to_string(), vec!["node2".to_string()]),
-        ("GAMES".to_string(), vec!["node3".to_string()]),
-        ("FALLBACK".to_string(), vec!["node4".to_string()]),
-    ];
-
-    state.runtime.proxy_groups = state
-        .runtime
-        .filtered_groups
-        .iter()
-        .map(|(name, _)| ProxyGroupSnapshot {
-            name: name.clone(),
-            group_type: "Selector".into(),
-            classification: None,
-            current: String::new(),
-            expanded: true,
-            proxies: vec![],
-        })
-        .collect();
-    let observed = state.runtime.proxy_groups.clone();
-    assert!(!state.runtime.group_order_open);
-    let _ = state.update(Message::MoveProxyGroupUp("GAMES".into()));
-    assert!(state.runtime.group_order_open);
-    assert_eq!(
-        state.runtime.group_order_editor.draft,
-        vec!["PROXIES", "GAMES", "STREAMING", "FALLBACK"]
-    );
-    let _ = state.update(Message::MoveProxyGroupUp("GAMES".into()));
-    assert_eq!(
-        state.runtime.group_order_editor.draft,
-        vec!["GAMES", "PROXIES", "STREAMING", "FALLBACK"]
-    );
-    let _ = state.update(Message::MoveProxyGroupDown("GAMES".into()));
-    assert_eq!(
-        state.runtime.group_order_editor.draft,
-        vec!["PROXIES", "GAMES", "STREAMING", "FALLBACK"]
-    );
-    let _ = state.update(Message::ResetProxyGroupOrder);
-    assert_eq!(
-        state.runtime.group_order_editor.draft,
-        vec!["FALLBACK", "GAMES", "PROXIES", "STREAMING"]
-    );
-    assert_eq!(
-        state.runtime.proxy_groups, observed,
-        "editing never reorders the observed product facts"
-    );
-    let _ = state.update(Message::CancelProxyGroupOrder);
-    assert!(!state.runtime.group_order_open);
-    assert_eq!(
-        state.runtime.group_order_editor.draft,
-        vec!["PROXIES", "STREAMING", "GAMES", "FALLBACK"]
+        vp_mid.top + vp_mid.bottom + rendered_height,
+        vp_mid.total_extent(item_h)
     );
 }
 

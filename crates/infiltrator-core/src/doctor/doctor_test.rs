@@ -6,6 +6,7 @@ use super::pidfile::{PidFileState, ProcessState, inspect_process, read_pid_state
 use super::*;
 use crate::settings_io::{save_settings, test_support};
 use infiltrator_domain::settings::AppSettings;
+use mihomo_config::manager::paths::engine_config_dir;
 use std::fs::Permissions;
 #[cfg(unix)]
 use std::fs::copy;
@@ -63,7 +64,7 @@ fn write_pid_file(env: &DoctorEnv, pid: u32) {
 }
 
 fn install_fake_core(env: &DoctorEnv, version: &str, executable: bool) {
-    let dir = env.home().join("versions").join(version);
+    let dir = env.home().join("engines/mihomo/versions").join(version);
     create_dir_all(&dir).unwrap();
     let binary = dir.join(if cfg!(windows) {
         "mihomo.exe"
@@ -79,7 +80,7 @@ fn install_fake_core(env: &DoctorEnv, version: &str, executable: bool) {
     #[cfg(not(unix))]
     let _ = executable;
     write(
-        env.home().join("config.toml"),
+        env.home().join("engines/mihomo/config.toml"),
         format!("[default]\nversion = \"{version}\"\n"),
     )
     .unwrap();
@@ -274,6 +275,7 @@ async fn config_checks_follow_settings_configs_dir_redirect() {
         .tempdir()
         .unwrap();
     let cloud = dir.path().join("cloud").join("profiles");
+    let engine_dir = engine_config_dir(&cloud, &mihomo_config::engine_id());
     let _guard = test_support::RedirectGuard::acquire(dir.path().to_path_buf()).await;
     let env = DoctorEnv::with_home(dir.path().to_path_buf());
     save_settings(
@@ -295,16 +297,21 @@ async fn config_checks_follow_settings_configs_dir_redirect() {
         .find(|check| check.id == "config.configs_dir")
         .unwrap();
     assert!(
-        check.summary.contains(cloud.to_str().unwrap()),
+        check.summary.contains(engine_dir.to_str().unwrap()),
         "summary: {}",
         check.summary
     );
 
-    // fix 建的是解析后的目录，而不是 `<home>/configs`。
+    // fix 建的是 engine namespace 目录，而不是共享 configs 根。
     let fixed = fix_with(&env, Some("config.configs_dir")).await.unwrap();
     assert_eq!(fixed.actions.len(), 1);
-    assert!(fixed.actions[0].summary.contains(cloud.to_str().unwrap()));
+    assert!(
+        fixed.actions[0]
+            .summary
+            .contains(engine_dir.to_str().unwrap())
+    );
     assert!(cloud.is_dir());
+    assert!(engine_dir.is_dir());
     assert!(!dir.path().join("configs").exists());
 
     let report = run_with(&env, Some("config.configs_dir")).await;
@@ -390,7 +397,7 @@ async fn binary_available_requires_executable_default_core() {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        let binary = env.home().join("versions/v1.0/mihomo");
+        let binary = env.home().join("engines/mihomo/versions/v1.0/mihomo");
         set_permissions(&binary, Permissions::from_mode(0o644)).unwrap();
         let report = run_with(&env, Some("version.binary_available")).await;
         assert_eq!(

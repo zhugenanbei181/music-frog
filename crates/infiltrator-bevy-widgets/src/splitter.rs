@@ -7,6 +7,7 @@
 //! **Scene Adapter**: [`splitter_scene`] builds declarative dual-pane layouts
 //! separated by a token-styled interactive resize handle.
 
+use crate::feathers_theme::Token;
 use crate::palette::UiPalette;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
@@ -14,10 +15,9 @@ use bevy::ecs::hierarchy::Children;
 use bevy::ecs::message::{Message, MessageReader};
 use bevy::ecs::query::{Changed, With, Without};
 use bevy::ecs::system::Query;
+use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::{Scene, bsn};
-use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, FlexDirection, JustifyContent, Node, Val, percent, px,
-};
+use bevy::ui::prelude::{AlignItems, FlexDirection, JustifyContent, Node, Val, percent, px};
 use bevy::ui_widgets::Button;
 
 /// Split orientation.
@@ -121,7 +121,7 @@ pub fn splitter_scene(
     fraction: f32,
     first_pane: Box<dyn Scene>,
     second_pane: Box<dyn Scene>,
-    palette: &UiPalette,
+    _palette: &UiPalette,
 ) -> impl Scene + use<> {
     let f_clamped = fraction.clamp(0.1, 0.9);
     let first_pct = f_clamped * 100.0;
@@ -159,7 +159,7 @@ pub fn splitter_scene(
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::Center,
                 }
-                BackgroundColor({ palette.surface_elevated })
+                ThemeBackgroundColor({ Token::SurfaceElevated })
                 Button
                 SplitterHandle
                 --

@@ -13,11 +13,13 @@ use crate::host::storage::subscription_import_port;
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use crate::types::options::EditorPane;
-use crate::types::runtime::RuntimeStatus;
 use crate::update::core::profile_apply::activate_profile;
 use crate::update::profile::subscription::subscription_update_toast;
+use infiltrator_application::profile_application::ProfileActivationOutcome;
 use infiltrator_application::profile_application::ProfileApplication;
+use infiltrator_application::profile_options_application::ProfileOptionsApplication;
 use infiltrator_application::subscription_filter_fixture::{FIXTURE_DOCUMENT, observation};
+use infiltrator_contract::core_control::CoreControlLabel;
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_contract::subscription_import::{
     CoreReloadOutcome, SubscriptionBatchReport, SubscriptionFilterDraft, SubscriptionScheduleDraft,
@@ -25,7 +27,6 @@ use infiltrator_contract::subscription_import::{
 };
 use infiltrator_core::subscription_io::HttpSubscriptionSource;
 use infiltrator_domain::config::validate_yaml;
-use infiltrator_domain::filter_policy_form::filter_spec_from_draft;
 use infiltrator_domain::profile_options::{FilterSpec, ProfileOptions};
 use infiltrator_domain::profiles::sanitize_profile_name;
 use infiltrator_domain::subscription::CheckedSubscriptionUrl;
@@ -35,6 +36,7 @@ use infiltrator_ports::subscription_source::{
     ConditionalDocumentResult, ConditionalFetchHeaders, SubscriptionDocument, SubscriptionSource,
 };
 use infiltrator_shared::locales::Lang;
+use mihomo_config::profile_document_codec::MihomoProfileDocumentCodec;
 use mihomo_config::profile_option_store::{delete_options, save_options};
 use std::fs::write;
 use std::path::PathBuf;
@@ -159,13 +161,17 @@ fn import_then_activate_then_restart_kernel_chain_round_trips_real_files() {
         manager.save("Travel Node", &content).await.unwrap();
         activate_profile(None, "Travel Node").await.unwrap()
     });
-    assert!(!stored, "no runtime → activation reports not-reloaded");
+    assert_eq!(
+        stored,
+        ProfileActivationOutcome::SelectedWithoutRuntime,
+        "no runtime → profile selection is complete and Core startup remains required"
+    );
 
-    let units = feed(&mut state, Message::LocalProfileImported(Ok(false)));
+    let units = feed(&mut state, Message::LocalProfileImported(Ok(Some(stored))));
     assert!(!state.profile.is_importing_local);
     assert!(state.profile.local_import_path.is_empty(), "form cleared");
-    // activate && !reloaded → the handler chains StartProxy for the restart.
-    assert!(units >= 3, "LoadProfiles + toast + StartProxy chained");
+    // An activation that selected a profile without a runtime chains StartCore.
+    assert!(units >= 3, "LoadProfiles + toast + StartCore chained");
 
     // ---- explicit activation of another profile ----
     feed(&mut state, Message::ProfilesLoaded(Ok(list_profiles())));
@@ -177,46 +183,24 @@ fn import_then_activate_then_restart_kernel_chain_round_trips_real_files() {
     );
     assert_eq!(units, 1);
 
-    let was_running = block_on(async { activate_profile(None, "default").await }).unwrap();
-    assert!(!was_running);
-    let units = feed(&mut state, Message::ProfileActivationFinished(Ok(false)));
-    assert!(units >= 2, "activation without runtime chains StartProxy");
+    let activation = block_on(async { activate_profile(None, "default").await }).unwrap();
+    assert_eq!(activation, ProfileActivationOutcome::SelectedWithoutRuntime);
+    let units = feed(
+        &mut state,
+        Message::ProfileActivationFinished(Ok(activation)),
+    );
+    assert!(units >= 2, "activation without runtime chains StartCore");
 
     // The current pointer really moved on disk.
     let current = block_on(async { config_manager().await.unwrap().get_current().await.unwrap() });
     assert_eq!(current, "default");
 
-    // ---- restart-kernel chain: StartProxy → ProxyStarted(Err) 回灌 ----
-    let token_before = state.runtime.lifecycle_token;
-    let units = feed(&mut state, Message::StartProxy);
-    assert_eq!(state.runtime.status, RuntimeStatus::Starting);
-    assert_eq!(state.runtime.lifecycle_token, token_before + 1);
-    assert!(units >= 1, "boot task spawned (no kernel binary here)");
-
-    let units = feed(
-        &mut state,
-        Message::ProxyStarted(
-            Err(InfiltratorError::Mihomo("启动失败".into())),
-            token_before + 1,
-        ),
+    assert_eq!(
+        state.core_control_projection().label,
+        CoreControlLabel::Unavailable,
+        "profile activation cannot start a Core without its application owner"
     );
-    assert!(matches!(state.runtime.status, RuntimeStatus::Error(_)));
-    assert!(
-        state.shell.error_msg.is_some(),
-        "boot failure hits the banner"
-    );
-    assert!(
-        units >= 1,
-        "critical system-notification task armed (lazy, never delivered here)"
-    );
-
-    // A late arrival from a previous lifecycle is dropped on the floor.
-    let units = feed(
-        &mut state,
-        Message::ProxyStarted(Err(InfiltratorError::Mihomo("late".into())), token_before),
-    );
-    assert_eq!(units, 0, "stale token ignored");
-    assert!(matches!(state.runtime.status, RuntimeStatus::Error(_)));
+    assert!(state.runtime.lifecycle_pending.is_none());
 }
 
 /// Journey 2 — 订阅设置保存 → 校验门 → auto_update 持久化（托盘入口语义）→
@@ -739,18 +723,20 @@ fn subscription_filter_panel_rides_the_shared_pipeline() {
     feed(&mut state, Message::UpdateFilterExclude("广告".into()));
     assert_eq!(state.editor.filter_editor.draft.include, "香港, 日本");
 
-    // The editor's draft compiles into the shared spec and runs the shared
-    // pipeline over the real config-manager store.
-    let spec = filter_spec_from_draft(&state.editor.filter_editor.draft).expect("draft compiles");
+    // The shared options facade delegates the neutral draft to the scoped
+    // Mihomo codec and commits its document/sidecar pair to the real store.
+    let draft = state.editor.filter_editor.draft.clone();
     block_on(async {
         let manager = config_manager().await.unwrap();
-        let application = ProfileApplication::new(manager.clone());
+        let profiles = ProfileApplication::new(manager.clone())
+            .with_document_codec(Arc::new(MihomoProfileDocumentCodec));
+        let application = ProfileOptionsApplication::new(profiles.clone());
         let runtime: Option<Arc<dyn ManagedRuntime>> = None;
         let report = application
-            .apply_subscription_filter(
+            .save_filter(
                 runtime,
-                &application.load_workspace("Paid").await.unwrap().source,
-                spec,
+                &profiles.load_workspace("Paid").await.unwrap().identity(),
+                &draft,
             )
             .await
             .expect("shared filter runs")
@@ -762,11 +748,8 @@ fn subscription_filter_panel_rides_the_shared_pipeline() {
         assert!(stored.contains("香港-01"));
         assert!(!stored.contains("广告-02"), "excluded node is dropped");
 
-        let options = application.load_options("Paid").await.expect("options");
-        assert_eq!(
-            options.filter.expect("filter persisted").exclude_keywords,
-            vec!["广告".to_string()]
-        );
+        let options = application.load(Some("Paid")).await.expect("options");
+        assert_eq!(options.filter.exclude, "广告");
     });
 }
 

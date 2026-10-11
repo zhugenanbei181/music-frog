@@ -8,6 +8,7 @@
 
 use crate::history::TrafficHistory;
 use crate::pages::overview::OverviewProjectionUpdated;
+use crate::pipeline::FailureDwell;
 use crate::projection::{
     OverviewOrigin, OverviewProjection, OverviewSource, OverviewState, SourceKind,
 };
@@ -23,18 +24,14 @@ use infiltrator_application::shell_readout_application::ShellReadoutApplication;
 use infiltrator_application::traffic_scale_application::TrafficScaleApplication;
 use infiltrator_application::traffic_waveform_application::TrafficWaveformApplication;
 use infiltrator_contract::active_exit::ActiveExitSnapshot;
-use infiltrator_contract::command::ProxyMode;
-use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::proxy_mode::{ProxyModeSnapshot, ProxyModeStatus};
 use infiltrator_contract::public_ip::PublicIpProbeSnapshot;
+use infiltrator_contract::shell_readout::ShellObservation;
 use infiltrator_contract::snapshot::{CoreLifecycle, CoreSnapshot};
 use infiltrator_contract::subscription_quota::SubscriptionQuotaSnapshot;
 use infiltrator_contract::system_toggle::SystemToggleSnapshot;
 use infiltrator_contract::traffic_topology::TrafficTopologySnapshot;
 use std::env::var;
 use std::sync::Arc;
-use std::sync::mpsc::{Sender, channel};
-use std::thread::spawn;
 use std::time::{Duration, Instant};
 
 /// The application pump's default sampling interval (the charter's ≤1s
@@ -140,26 +137,6 @@ impl OverviewSource for MihomoOverviewSource {
     fn kind(&self) -> SourceKind {
         SourceKind::LiveCore
     }
-
-    fn set_mode(&self, mode: ProxyMode, ack: Sender<Result<ProxyMode, Failure>>) {
-        let (application_tx, application_rx) = channel();
-        self.shared.pump.request_mode(mode, application_tx);
-        // The application worker owns the async operation. This small bridge
-        // only converts its neutral failure into the Bevy page's text receipt.
-        spawn(move || {
-            let result = application_rx
-                .recv()
-                .map_err(|error| {
-                    Failure::new(
-                        ErrorCode::NotReady,
-                        format!("Mode command channel closed: {error}"),
-                        true,
-                    )
-                })
-                .and_then(|result| result);
-            let _ = ack.send(result);
-        });
-    }
 }
 
 /// The Bevy-facing receiving bridge. `drain` is the only operation that knows
@@ -184,40 +161,6 @@ impl OverviewPumpBridge {
 /// Latch flipped when the first live snapshot reaches the Bevy world.
 #[derive(Resource, Debug, Default, PartialEq, Eq)]
 pub struct PumpSnapshotSeen(pub bool);
-
-pub const MIN_FAILURE_DWELL: Duration = Duration::from_secs(5);
-
-#[derive(Resource, Clone, Copy, Debug)]
-pub struct FailureDwell {
-    pub min_dwell: Duration,
-    pub latched_at: Option<Instant>,
-}
-
-impl FailureDwell {
-    pub fn new(min_dwell: Duration) -> Self {
-        Self {
-            min_dwell,
-            latched_at: None,
-        }
-    }
-
-    pub fn latch(&mut self, now: Instant) {
-        self.latched_at = Some(now);
-    }
-
-    pub fn success_may_pass(&self, now: Instant) -> bool {
-        match self.latched_at {
-            Some(latched_at) => now.duration_since(latched_at) >= self.min_dwell,
-            None => true,
-        }
-    }
-}
-
-impl Default for FailureDwell {
-    fn default() -> Self {
-        Self::new(MIN_FAILURE_DWELL)
-    }
-}
 
 pub struct PumpDrainPlugin {
     bridge: OverviewPumpBridge,
@@ -272,14 +215,16 @@ fn drain_overview_pump(
         seen.0 = true;
     }
     if let Some(history) = history.as_deref_mut()
-        && projection.readout.upload_bps.current
-        && projection.readout.download_bps.current
+        && matches!(&projection.readout.upload_bps, ShellObservation::Current(_))
+        && matches!(
+            &projection.readout.download_bps,
+            ShellObservation::Current(_)
+        )
     {
         history.push(projection.upload_bps, projection.download_bps);
     }
     if let Some(latest) = latest {
-        let mut snapshot =
-            snapshot_from_overview(&projection, projection.origin == OverviewOrigin::Demo);
+        let mut snapshot = snapshot_from_overview(&projection);
         snapshot.revision = latest.0.revision + 1;
         commands.trigger(SurfaceSnapshotUpdated(snapshot));
     } else {
@@ -306,6 +251,7 @@ fn projection_from_snapshot(
         .and_then(|value| u64::try_from(value).ok())
         .map(Duration::from_millis)
         .unwrap_or(Duration::ZERO);
+    let routing_intent = snapshot.routing_intent.clone();
     OverviewProjection {
         lifecycle: snapshot.lifecycle.clone(),
         readout: readout.project_core_rates(&snapshot, None),
@@ -344,16 +290,7 @@ fn projection_from_snapshot(
             "overview-only controller source does not include profile quota facts",
         ),
         system_toggles: SystemToggleSnapshot::from_legacy(false, None, snapshot.revision.max(1)),
-        proxy_mode: ProxyModeSnapshot {
-            current: snapshot.proxy_mode,
-            script_available: None,
-            status: if snapshot.proxy_mode.is_some() {
-                ProxyModeStatus::Ready
-            } else {
-                ProxyModeStatus::Unobserved
-            },
-            failure: None,
-        },
+        routing_intent,
         speedtest: Default::default(),
         cpu_percent: None,
         total_traffic_bytes: None,

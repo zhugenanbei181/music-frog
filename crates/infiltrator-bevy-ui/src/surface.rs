@@ -5,6 +5,7 @@
 //! structs remain Bevy-local render projections; these conversion functions
 //! are the explicit adapter between the two worlds.
 
+#[cfg(feature = "desktop-host")]
 use crate::lifecycle::UiObservationGate;
 use crate::pages::app_routing::AppRoutingProjection;
 use crate::pages::connections::ConnectionsProjection;
@@ -16,7 +17,7 @@ use crate::pages::proxies::ProxiesProjection;
 use crate::pages::rules::RulesProjection;
 use crate::pages::settings::settings_core::SettingsProjection;
 use crate::pages::sync::SyncProjection;
-use crate::projection::{OverviewOrigin, OverviewProjection, OverviewSource, SourceKind};
+use crate::projection::{OverviewProjection, OverviewSource, SourceKind};
 use crate::route::SurfaceSourceHandle;
 use bevy::app;
 use bevy::app::{Plugin, Update};
@@ -25,35 +26,40 @@ use bevy::ecs::event::Event;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::observer::On;
 use bevy::ecs::resource::Resource;
-use bevy::ecs::system::{Commands, Res};
+use bevy::ecs::system::{Commands, Res, ResMut};
+use bevy::feathers::theme::ThemeTextColor;
 use bevy::scene::{Scene, bsn};
-use bevy::text::TextColor;
 use bevy::ui::UiRect;
-use bevy::ui::prelude::{BackgroundColor, FlexDirection, Node, Overflow, Val, percent, px};
-use infiltrator_application::core_application::CoreApplication;
-use infiltrator_application::proxy_mode_application::ProxyModeApplication;
+use bevy::ui::prelude::{BackgroundColor, FlexDirection, Node, Overflow, percent, px};
+#[cfg(feature = "desktop-host")]
+use infiltrator_application::core_application::CoreScopeObservation;
+#[cfg(feature = "desktop-host")]
 use infiltrator_application::surface_application::{SurfacePump, SurfacePumpBridge};
+use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::LocalizedText;
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
-use infiltrator_contract::command::CommandIntent;
-use infiltrator_contract::command::ProxyMode;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::snapshot::CoreLifecycleSnapshot;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot;
 use std::sync::Arc;
-use std::sync::mpsc::Sender;
-use std::thread::spawn;
+#[cfg(feature = "desktop-host")]
+use std::sync::RwLock;
+use std::time::{Duration, Instant};
 
 #[path = "host_insets.rs"]
 pub mod host_insets;
+#[cfg(any(feature = "capture-tools", test))]
 #[path = "surface_demo.rs"]
 pub(crate) mod surface_demo;
 #[path = "surface_projection.rs"]
 mod surface_projection;
+#[path = "surface_projection_defaults.rs"]
+mod surface_projection_defaults;
 #[path = "surface_settings.rs"]
 mod surface_settings;
 
@@ -134,7 +140,7 @@ pub fn status_banner_scene(
                         width: percent(100),
                         min_width: px(0.0),
                         flex_direction: FlexDirection::Column,
-                        padding: UiRect::all(Val::Px(space::S12)),
+                        padding: UiRect::all(rem(space::S12)),
                         overflow: Overflow::clip(),
                     }
                     SurfaceStatusBanner {
@@ -143,7 +149,7 @@ pub fn status_banner_scene(
                     }
                     BackgroundColor({ fill })
                     Children [
-                        LocalizedText { .. { label } } TextRole(Role::Caption) TextColor({ palette.ink })
+                        LocalizedText { .. { label } } TextRole(Role::Caption) ThemeTextColor({ Token::Ink })
                     ]
         })],
         palette,
@@ -156,6 +162,10 @@ pub fn status_banner_scene(
 /// seam valid while the complete 11-page contract becomes the canonical path.
 pub trait SurfaceSource: OverviewSource {
     fn surface_snapshot(&self) -> surface_snapshot::SurfaceSnapshot;
+
+    /// Record the snapshot accepted by the rendered surface. A host may use
+    /// this hook to keep its local read model aligned with the rendered revision.
+    fn observe_snapshot(&self, _snapshot: &surface_snapshot::SurfaceSnapshot) {}
 }
 
 /// Trait-object adapter used when the router needs the small Overview view
@@ -170,45 +180,35 @@ impl OverviewSource for SurfaceOverviewAdapter {
     fn kind(&self) -> SourceKind {
         self.0.kind()
     }
-
-    fn set_mode(&self, mode: ProxyMode, ack: Sender<Result<ProxyMode, Failure>>) {
-        self.0.set_mode(mode, ack);
-    }
 }
 
-/// A full source backed by the application-owned surface pump and the
-/// existing Overview command bridge.
+/// A full source backed by the application-owned surface pump.
+#[cfg(feature = "desktop-host")]
 #[derive(Clone)]
 pub struct ApplicationSurfaceSource {
     pump: SurfacePump,
-    commands: SurfaceCommandOwner,
+    observed_scope: Arc<RwLock<CoreScopeObservation>>,
 }
 
-#[derive(Clone)]
-enum SurfaceCommandOwner {
-    Application(Arc<CoreApplication>),
-    Overview(Arc<dyn OverviewSource>),
-}
-
+#[cfg(feature = "desktop-host")]
 impl ApplicationSurfaceSource {
-    pub fn new(pump: SurfacePump, overview: Arc<dyn OverviewSource>) -> Self {
+    pub fn from_pump(pump: SurfacePump) -> Self {
         Self {
             pump,
-            commands: SurfaceCommandOwner::Overview(overview),
+            observed_scope: Arc::new(RwLock::new(CoreScopeObservation::Unavailable)),
         }
     }
 
-    pub fn from_application(pump: SurfacePump, application: Arc<CoreApplication>) -> Self {
-        Self {
-            pump,
-            commands: SurfaceCommandOwner::Application(application),
-        }
+    pub fn scope_observation(&self) -> Arc<RwLock<CoreScopeObservation>> {
+        Arc::clone(&self.observed_scope)
     }
+
     pub fn pump(&self) -> &SurfacePump {
         &self.pump
     }
 }
 
+#[cfg(feature = "desktop-host")]
 impl OverviewSource for ApplicationSurfaceSource {
     fn current(&self) -> OverviewProjection {
         surface_projection::overview_projection(&self.pump.current())
@@ -217,36 +217,36 @@ impl OverviewSource for ApplicationSurfaceSource {
     fn kind(&self) -> SourceKind {
         SourceKind::LiveCore
     }
-
-    fn set_mode(&self, mode: ProxyMode, ack: Sender<Result<ProxyMode, Failure>>) {
-        if let SurfaceCommandOwner::Application(application) = &self.commands {
-            let (_, reply) = application.dispatch_tracked(CommandIntent::SetProxyMode { mode });
-            spawn(move || {
-                let result = match reply.recv() {
-                    Ok(result) => ProxyModeApplication::command_receipt(mode, result),
-                    Err(error) => Err(Failure::new(ErrorCode::NotReady, error.to_string(), true)),
-                };
-                let _ = ack.send(result);
-            });
-        } else if let SurfaceCommandOwner::Overview(overview) = &self.commands {
-            overview.set_mode(mode, ack);
-        }
-    }
 }
 
+#[cfg(feature = "desktop-host")]
 impl SurfaceSource for ApplicationSurfaceSource {
     fn surface_snapshot(&self) -> surface_snapshot::SurfaceSnapshot {
         self.pump.current()
+    }
+
+    fn observe_snapshot(&self, snapshot: &surface_snapshot::SurfaceSnapshot) {
+        let observation = snapshot
+            .core
+            .scope()
+            .map(CoreScopeObservation::Observed)
+            .unwrap_or(CoreScopeObservation::Unavailable);
+        *self
+            .observed_scope
+            .write()
+            .expect("surface Core scope lock") = observation;
     }
 }
 
 /// Pump-to-Bevy bridge. The source owns the worker; this plugin only drains
 /// bounded snapshots on the Bevy update schedule and emits one coalesced
 /// contract event for the page projection layer.
+#[cfg(feature = "desktop-host")]
 pub struct SurfaceDrainPlugin {
     bridge: SurfacePumpBridge,
 }
 
+#[cfg(feature = "desktop-host")]
 impl SurfaceDrainPlugin {
     pub fn new(source: &ApplicationSurfaceSource) -> Self {
         Self {
@@ -255,14 +255,78 @@ impl SurfaceDrainPlugin {
     }
 }
 
+#[cfg(feature = "desktop-host")]
 #[derive(Resource, Clone)]
 struct SurfaceBridge(pub SurfacePumpBridge);
 
+#[cfg(feature = "desktop-host")]
 impl Plugin for SurfaceDrainPlugin {
     fn build(&self, app: &mut app::App) {
         app.insert_resource(SurfaceBridge(self.bridge.clone()));
         app.add_systems(Update, drain_surface);
     }
+}
+
+/// Periodically read a cheap, cached host surface source into Bevy's normal
+/// owner-authored snapshot projection path.
+pub struct SurfaceSourceRefreshPlugin {
+    interval: Duration,
+}
+
+impl SurfaceSourceRefreshPlugin {
+    pub fn new(interval: Duration) -> Self {
+        Self { interval }
+    }
+}
+
+impl Default for SurfaceSourceRefreshPlugin {
+    fn default() -> Self {
+        Self::new(Duration::from_millis(500))
+    }
+}
+
+#[derive(Resource)]
+struct SurfaceSourceRefreshState {
+    interval: Duration,
+    last_read: Option<Instant>,
+    last_snapshot: Option<surface_snapshot::SurfaceSnapshot>,
+}
+
+impl Plugin for SurfaceSourceRefreshPlugin {
+    fn build(&self, app: &mut app::App) {
+        app.insert_resource(SurfaceSourceRefreshState {
+            interval: self.interval,
+            last_read: None,
+            last_snapshot: None,
+        });
+        app.add_systems(Update, refresh_surface_source);
+    }
+}
+
+fn refresh_surface_source(
+    source: Res<SurfaceSourceHandle>,
+    latest: Option<Res<LatestSurfaceSnapshot>>,
+    mut state: ResMut<SurfaceSourceRefreshState>,
+    mut commands: Commands,
+) {
+    let now = Instant::now();
+    if state
+        .last_read
+        .is_some_and(|last_read| now.duration_since(last_read) < state.interval)
+    {
+        return;
+    }
+    state.last_read = Some(now);
+    let snapshot = source.0.surface_snapshot();
+    let previous = state
+        .last_snapshot
+        .as_ref()
+        .or_else(|| latest.as_ref().map(|latest| &latest.0));
+    if previous.is_some_and(|previous| !snapshot.is_newer_than(previous)) {
+        return;
+    }
+    state.last_snapshot = Some(snapshot.clone());
+    commands.trigger(SurfaceSnapshotUpdated(snapshot));
 }
 
 /// Triggered when the host reports the UI surface is back. The shell must read
@@ -288,6 +352,7 @@ pub(crate) fn on_surface_restore_requested(
     }
 }
 
+#[cfg(feature = "desktop-host")]
 fn drain_surface(
     bridge: Res<SurfaceBridge>,
     gate: Option<Res<UiObservationGate>>,
@@ -315,10 +380,12 @@ fn drain_surface(
 /// tests and for hosts that have not yet composed the full surface reader. A
 /// live source receives typed unavailable state for pages it did not compose;
 /// only an explicitly demo source receives demo page data.
+#[cfg(feature = "capture-tools")]
 pub struct LegacyOverviewSurfaceSource {
     overview: Arc<dyn OverviewSource>,
 }
 
+#[cfg(feature = "capture-tools")]
 impl LegacyOverviewSurfaceSource {
     pub fn new(source: impl OverviewSource + 'static) -> Self {
         Self {
@@ -331,13 +398,19 @@ impl LegacyOverviewSurfaceSource {
     }
 }
 
+#[cfg(feature = "capture-tools")]
 impl SurfaceSource for LegacyOverviewSurfaceSource {
     fn surface_snapshot(&self) -> surface_snapshot::SurfaceSnapshot {
         let overview = self.overview.current();
-        surface_demo::snapshot_from_overview(&overview, overview.origin == OverviewOrigin::Demo)
+        match overview.origin {
+            #[cfg(feature = "capture-tools")]
+            OverviewOrigin::Demo => surface_demo::demo_snapshot_from_overview(&overview),
+            OverviewOrigin::LiveCore => surface_demo::snapshot_from_overview(&overview),
+        }
     }
 }
 
+#[cfg(feature = "capture-tools")]
 impl OverviewSource for LegacyOverviewSurfaceSource {
     fn current(&self) -> OverviewProjection {
         self.overview.current()
@@ -346,17 +419,15 @@ impl OverviewSource for LegacyOverviewSurfaceSource {
     fn kind(&self) -> SourceKind {
         self.overview.kind()
     }
-
-    fn set_mode(&self, mode: ProxyMode, ack: Sender<Result<ProxyMode, Failure>>) {
-        self.overview.set_mode(mode, ack);
-    }
 }
 
 /// Explicit demo source for screenshot and deterministic UI tests.
+#[cfg(any(feature = "capture-tools", test))]
 pub struct DemoSurfaceSource {
     snapshot: surface_snapshot::SurfaceSnapshot,
 }
 
+#[cfg(any(feature = "capture-tools", test))]
 impl DemoSurfaceSource {
     pub fn running() -> Self {
         Self {
@@ -365,12 +436,14 @@ impl DemoSurfaceSource {
     }
 }
 
+#[cfg(any(feature = "capture-tools", test))]
 impl SurfaceSource for DemoSurfaceSource {
     fn surface_snapshot(&self) -> surface_snapshot::SurfaceSnapshot {
         self.snapshot.clone()
     }
 }
 
+#[cfg(any(feature = "capture-tools", test))]
 impl OverviewSource for DemoSurfaceSource {
     fn current(&self) -> OverviewProjection {
         surface_projection::overview_projection(&self.snapshot)
@@ -379,12 +452,6 @@ impl OverviewSource for DemoSurfaceSource {
     fn kind(&self) -> SourceKind {
         SourceKind::Demo
     }
-
-    fn set_mode(&self, _mode: ProxyMode, ack: Sender<Result<ProxyMode, Failure>>) {
-        let _ = ack.send(Err(Failure::unsupported(
-            "Demo data has no shared core command service",
-        )));
-    }
 }
 
 /// Default non-demo source. It is intentionally honest: a host that only
@@ -392,7 +459,6 @@ impl OverviewSource for DemoSurfaceSource {
 /// not fabricated proxy/profile data.
 pub struct UnavailableSurfaceSource {
     snapshot: surface_snapshot::SurfaceSnapshot,
-    failure: Failure,
 }
 
 impl UnavailableSurfaceSource {
@@ -403,7 +469,6 @@ impl UnavailableSurfaceSource {
                 host,
                 failure.clone(),
             ),
-            failure,
         }
     }
 }
@@ -435,10 +500,6 @@ impl OverviewSource for UnavailableSurfaceSource {
 
     fn kind(&self) -> SourceKind {
         SourceKind::LiveCore
-    }
-
-    fn set_mode(&self, _mode: ProxyMode, ack: Sender<Result<ProxyMode, Failure>>) {
-        let _ = ack.send(Err(self.failure.clone()));
     }
 }
 

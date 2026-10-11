@@ -4,16 +4,18 @@ use super::*;
 use crate::profile_document_application::ProfileDocumentApplication;
 use crate::profile_editor_observations::EditorFacet;
 use crate::profile_options_application::ProfileOptionsApplication;
-use infiltrator_contract::profile_document::ProfileDocumentSnapshot;
+use infiltrator_contract::profile_document::{
+    DocumentInspection, DocumentValidation, ProfileDocumentSnapshot,
+};
+use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_contract::profile_options::ProfileOptionsSnapshot;
 use infiltrator_contract::profile_protection::ProfileWriteProtection;
-use infiltrator_domain::profile_source::identify_profile_source;
 
 #[tokio::test]
 async fn independent_products_cannot_borrow_documents_options_or_foreign_read_tickets_even_over_one_store()
  {
     let store = Arc::new(FakeStore::with_profile("main", "mode: rule\n", true));
-    let first = ProfileApplication::new(store.clone());
+    let first = profiles_with_mihomo_codec(store.clone());
     let second = ProfileApplication::new(store.clone());
     let document = ProfileDocumentApplication::new(first.clone())
         .load(Some(" main "))
@@ -44,7 +46,7 @@ async fn independent_products_cannot_borrow_documents_options_or_foreign_read_ti
 async fn changed_workspace_source_retires_the_other_facet_and_old_read_cannot_replace_a_newer_source()
  {
     let store = Arc::new(FakeStore::with_profile("main", "mode: rule\n", true));
-    let profiles = ProfileApplication::new(store.clone());
+    let profiles = profiles_with_mihomo_codec(store.clone());
     let old = ProfileDocumentApplication::new(profiles.clone())
         .load(None)
         .await
@@ -65,7 +67,7 @@ async fn changed_workspace_source_retires_the_other_facet_and_old_read_cannot_re
         (None, Some(options.clone()))
     );
     assert_eq!(
-        profiles.editor_observations_for(old.source.as_ref().unwrap()),
+        profiles.editor_observations_for(&old.workspace_identity),
         (None, None)
     );
     let current = ProfileDocumentApplication::new(profiles.clone())
@@ -73,7 +75,7 @@ async fn changed_workspace_source_retires_the_other_facet_and_old_read_cannot_re
         .await
         .unwrap();
     assert_eq!(current.content, "mode: global\n");
-    assert_eq!(current.source.as_ref(), Some(&options.source));
+    assert_eq!(current.workspace_identity, options.workspace_identity);
     assert_eq!(
         profiles.editor_observations(),
         (Some(current), Some(options))
@@ -81,31 +83,35 @@ async fn changed_workspace_source_retires_the_other_facet_and_old_read_cannot_re
 }
 
 #[test]
-fn profile_switch_same_facet_old_reads_and_corrupted_document_bytes_are_rejected_without_changing_new_facts()
+fn profile_switch_same_facet_old_reads_and_foreign_document_identity_are_rejected_without_changing_new_facts()
  {
     let profiles = ProfileApplication::new(Arc::new(FakeStore::default()));
     let old = profiles.begin_editor_read("first", EditorFacet::Document);
     let current = profiles.begin_editor_read("second", EditorFacet::Options);
-    let source = identify_profile_source("second".into(), "mode: rule\n", None);
+    let source = workspace_with_origin("second", b"mode: rule\n", None, None)
+        .unwrap()
+        .identity();
     let options = ProfileOptionsSnapshot::new(source.clone(), "{}\n", Default::default());
     assert!(profiles.observe_options(&current, options.clone()));
-    let mut old_doc =
-        ProfileDocumentSnapshot::new("first", "mode: rule\n", ProfileWriteProtection::Editable);
-    old_doc.source = Some(identify_profile_source(
-        "first".into(),
+    let old_identity = workspace_with_origin("first", b"mode: rule\n", None, None)
+        .unwrap()
+        .identity();
+    let old_doc = ProfileDocumentSnapshot::new(
+        old_identity,
         "mode: rule\n",
-        None,
-    ));
+        ProfileWriteProtection::Editable,
+    )
+    .with_inspection(DocumentInspection::Inspected(DocumentValidation::Valid));
     assert!(!profiles.observe_document(&old, old_doc));
     let old_read = profiles.begin_editor_read("second", EditorFacet::Document);
     let new_read = profiles.begin_editor_read("second", EditorFacet::Document);
-    let mut document =
-        ProfileDocumentSnapshot::new("second", "mode: rule\n", ProfileWriteProtection::Editable);
-    document.source = Some(source);
+    let document =
+        ProfileDocumentSnapshot::new(source, "mode: rule\n", ProfileWriteProtection::Editable)
+            .with_inspection(DocumentInspection::Inspected(DocumentValidation::Valid));
     assert!(!profiles.observe_document(&old_read, document.clone()));
-    let mut corrupt = document.clone();
-    corrupt.content = "mode: global\n".into();
-    assert!(!profiles.observe_document(&new_read, corrupt));
+    let mut foreign = document.clone();
+    foreign.workspace_identity.document.profile_id = ProfileId::new("foreign").unwrap();
+    assert!(!profiles.observe_document(&new_read, foreign));
     assert_eq!(
         profiles.editor_observations(),
         (None, Some(options.clone()))
@@ -130,9 +136,9 @@ async fn mixin_save_commits_a_coherent_workspace_preserves_filter_and_repeated_a
         include_keywords: vec!["retained filter".into()],
         ..Default::default()
     };
-    store.options.lock().unwrap().insert(
-        "main".into(),
-        ProfileOptions {
+    store.set_options(
+        "main",
+        &ProfileOptions {
             mixin: MixinConfig {
                 rules: Some(RuleMixin {
                     prepend: vec!["DOMAIN,old.example,DIRECT".into()],
@@ -143,36 +149,46 @@ async fn mixin_save_commits_a_coherent_workspace_preserves_filter_and_repeated_a
             filter: Some(filter.clone()),
         },
     );
-    let profiles = ProfileApplication::new(store.clone());
+    let profiles = profiles_with_mihomo_codec(store.clone());
     let before = profiles.load_workspace("main").await.unwrap();
     let application = ProfileOptionsApplication::new(profiles.clone());
     let proposal = "mode: global\nrules:\n  prepend:\n    - DOMAIN,new.example,DIRECT\n";
     let result = application
-        .save_mixin(None::<Arc<dyn ManagedRuntime>>, &before.source, proposal)
+        .save_mixin(
+            None::<Arc<dyn ManagedRuntime>>,
+            &before.identity(),
+            proposal,
+        )
         .await
         .unwrap();
     let committed = profiles.load_workspace("main").await.unwrap();
-    assert_eq!(result.options.source, committed.source);
-    assert_ne!(result.options.source, before.source);
-    assert_eq!(committed.options.filter, Some(filter.clone()));
-    assert_eq!(committed.options.mixin.mode.as_deref(), Some("global"));
-    assert!(committed.content.contains("# retained header"));
-    assert!(!committed.content.contains("DOMAIN,old.example,DIRECT"));
+    assert_eq!(result.options.workspace_identity, committed.identity());
+    assert_ne!(result.options.workspace_identity, before.identity());
+    let committed_options = application.load(Some("main")).await.unwrap();
+    assert_eq!(committed_options.filter.include, "retained filter");
+    assert!(committed_options.mixin_yaml.contains("mode: global"));
+    let committed_text = committed.document.utf8_text().unwrap();
+    assert!(committed_text.contains("# retained header"));
+    assert!(!committed_text.contains("DOMAIN,old.example,DIRECT"));
     assert_eq!(
-        committed
-            .content
-            .matches("DOMAIN,new.example,DIRECT")
-            .count(),
+        committed_text.matches("DOMAIN,new.example,DIRECT").count(),
         1
     );
     let repeated = application
-        .save_mixin(None::<Arc<dyn ManagedRuntime>>, &committed.source, proposal)
+        .save_mixin(
+            None::<Arc<dyn ManagedRuntime>>,
+            &committed.identity(),
+            proposal,
+        )
         .await
         .unwrap();
     let after = profiles.load_workspace("main").await.unwrap();
-    assert_eq!(after.content, committed.content);
-    assert_eq!(after.options.filter, Some(filter));
-    assert_eq!(repeated.options.source, after.source);
+    assert_eq!(after.document.raw_bytes, committed.document.raw_bytes);
+    assert_eq!(
+        application.load(Some("main")).await.unwrap().filter.include,
+        "retained filter"
+    );
+    assert_eq!(repeated.options.workspace_identity, after.identity());
     assert_eq!(profiles.editor_observations().1, Some(repeated.options));
 }
 
@@ -180,7 +196,7 @@ async fn mixin_save_commits_a_coherent_workspace_preserves_filter_and_repeated_a
 async fn failed_mixin_workspace_read_preserves_both_files_and_the_prior_product_observation() {
     use infiltrator_ports::runtime_gateway::ManagedRuntime;
     let store = Arc::new(FakeStore::with_profile("main", "mode: rule\n", true));
-    let profiles = ProfileApplication::new(store.clone());
+    let profiles = profiles_with_mihomo_codec(store.clone());
     let application = ProfileOptionsApplication::new(profiles.clone());
     let observed = application.load(None).await.unwrap();
     let before = profiles.load_workspace("main").await.unwrap();
@@ -189,13 +205,16 @@ async fn failed_mixin_workspace_read_preserves_both_files_and_the_prior_product_
     let failure = application
         .save_mixin(
             None::<Arc<dyn ManagedRuntime>>,
-            &before.source,
+            &before.identity(),
             "mode: global\n",
         )
         .await
         .unwrap_err();
     assert_eq!(failure.code, ErrorCode::Permission);
-    assert_eq!(store.load("main").await.unwrap(), before.content);
+    assert_eq!(
+        store.load("main").await.unwrap(),
+        before.document.utf8_text().unwrap()
+    );
     assert_eq!(profiles.editor_observations().1, Some(observed));
     *store.options_read_error.lock().unwrap() = None;
     assert_eq!(profiles.load_workspace("main").await.unwrap(), before);

@@ -86,7 +86,7 @@ pub(super) fn observe(
                 .filter_source
                 .clone()
                 .map(|source| FilterObservation {
-                    source,
+                    workspace_identity: source,
                     filter: profile.filter.clone(),
                 }),
         );
@@ -156,7 +156,7 @@ pub(super) fn submit(state: &mut FilterFormState, sink: Option<&CommandSinkHandl
         Err(_) => return,
     };
     let command = UiCommand::SaveSubscriptionFilter {
-        source: pending.source.source,
+        source: pending.source.workspace_identity,
         filter: pending.draft,
     };
     if let Some(id) = sink.and_then(|sink| sink.submit_tracked(command)) {
@@ -182,7 +182,7 @@ pub(super) fn finish(event: On<CommandExecutedEvent>, mut state: ResMut<FilterFo
     if event.request_id != id
         || event.command
             != (UiCommand::SaveSubscriptionFilter {
-                source: pending.source.source.clone(),
+                source: pending.source.workspace_identity.clone(),
                 filter: pending.draft.clone(),
             })
     {

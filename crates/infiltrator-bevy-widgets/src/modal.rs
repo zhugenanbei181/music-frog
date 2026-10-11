@@ -10,6 +10,7 @@ use crate::button::{ButtonVariant, button_scene};
 use crate::icon::IconId;
 use crate::icon_tile::icon_tile_scene;
 use crate::palette::UiPalette;
+use crate::palette::rem;
 use crate::text::{Role, TextRole};
 use crate::theme::space;
 use bevy::ecs::component::Component;
@@ -22,7 +23,7 @@ use bevy::scene::{Scene, bsn};
 use bevy::ui::BorderColor;
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, PositionType,
-    UiRect, Val, percent, px,
+    UiRect, Val, percent,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
@@ -150,13 +151,13 @@ pub fn modal_scene(
             ModalScrim
             Children [
                 Node {
-                    width: px(460.0),
+                    width: rem(460.0),
                     max_width: percent(90),
                     flex_direction: FlexDirection::Column,
-                    padding: UiRect::all(Val::Px(space::S16)),
-                    row_gap: Val::Px(space::S16),
+                    padding: UiRect::all(rem(space::S16)),
+                    row_gap: rem(space::S16),
                     border: UiRect::all(Val::Px(palette.hairline_px)),
-                    border_radius: BorderRadius::all(Val::Px(palette.card_radius_px)),
+                    border_radius: BorderRadius::all(rem(palette.card_radius_px)),
                 }
                 BackgroundColor({ palette.surface })
                 BorderColor { top: edge, right: edge, bottom: edge, left: edge }
@@ -187,7 +188,7 @@ pub fn modal_scene(
                         width: percent(100),
                         flex_direction: FlexDirection::Row,
                         justify_content: JustifyContent::FlexEnd,
-                        column_gap: Val::Px(space::S8),
+                        column_gap: rem(space::S8),
                     }
                     Children [
                         { action_scenes }
@@ -220,7 +221,7 @@ pub fn confirm_dialog_scene(
     let content = Box::new(bsn! {
             Node {
                 width: percent(100),
-                padding: UiRect::vertical(Val::Px(space::S8)),
+                padding: UiRect::vertical(rem(space::S8)),
             }
             Children [
                 Text(message) TextRole(Role::Body)

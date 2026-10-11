@@ -1,4 +1,5 @@
 //! Capture executes the same shared tracer command and reader as the interactive product.
+use crate::demo::owner::attach_capture_owner;
 use crate::state::AppState;
 use crate::types::message::Message;
 use crate::view::rules_tracer::TRACER_SCROLL_ID;
@@ -7,11 +8,9 @@ use iced::widget::Id;
 use iced::widget::operation::snap_to;
 use iced::widget::scrollable::RelativeOffset;
 use infiltrator_application::command_application::CommandApplication;
-use infiltrator_application::configuration_application::ConfigurationApplication;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::language_choice_fixtures::LanguageCaptureProcess;
 use infiltrator_application::profile_application::ProfileApplication;
-use infiltrator_application::rule_trace_fixtures::RuleTraceStore;
 use infiltrator_application::rule_tracer_application::RuleTracerApplication;
 use infiltrator_application::surface_reader::ApplicationSurfaceReader;
 use infiltrator_composition::tokio_application_runtime;
@@ -24,7 +23,7 @@ use std::sync::{Arc, atomic::Ordering};
 
 pub(super) fn activate(state: &mut AppState) -> Task<Message> {
     let confirm = state.shell.capture_scenario == Some(FeatureId::RulesOverrideEditor);
-    let port = Arc::new(RuleTraceStore::default());
+    let port = crate::configuration::mihomo_rule_trace_fixture();
     let owner = RuleTracerApplication::new();
     owner.set_override_port(port.clone());
     let core = CoreApplication::new(
@@ -43,9 +42,9 @@ pub(super) fn activate(state: &mut AppState) -> Task<Message> {
         )
         .with_rule_tracer(owner)
         .with_profiles(ProfileApplication::new(port.clone()))
-        .with_configuration(ConfigurationApplication::new(port.clone())),
+        .with_configuration(crate::configuration::for_mihomo_store(port.clone())),
     );
-    state.commands = Some(core);
+    attach_capture_owner(state, core);
     let _ = state.update(Message::SetRulesTab(RulesTab::Tracer));
     let _ = state.update(Message::UpdateRulesTracerInput("google.com".into()));
     let _ = state.update(Message::UpdateTracerSourceIp("192.0.2.1".into()));

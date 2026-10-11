@@ -54,6 +54,23 @@ impl SnapshotApplication {
         }
     }
 
+    fn validate_namespace(&self) -> Result<(), Failure> {
+        let profiles = self.profiles.engine_id();
+        let snapshots = self.snapshots.engine_id();
+        if profiles == snapshots {
+            return Ok(());
+        }
+        Err(Failure::new(
+            ErrorCode::Unsupported,
+            format!(
+                "profile history namespace `{}` does not match profile namespace `{}`",
+                snapshots.as_str(),
+                profiles.as_str()
+            ),
+            false,
+        ))
+    }
+
     pub fn history_observation(&self, profile: &str) -> Option<SnapshotHistorySnapshot> {
         self.observations
             .lock()
@@ -93,6 +110,7 @@ impl SnapshotApplication {
     }
 
     pub async fn create(&self, profile: &str) -> Result<SnapshotMeta, Failure> {
+        self.validate_namespace()?;
         let detail = self.profiles.load_profile_detail(profile).await?;
         let meta = self
             .snapshots
@@ -196,6 +214,7 @@ impl SnapshotApplication {
     }
 
     pub async fn list(&self, profile: &str) -> Result<Vec<SnapshotMeta>, Failure> {
+        self.validate_namespace()?;
         let identity = self.profiles.load_profile_info(profile).await?.name;
         let entries = self
             .snapshots
@@ -213,6 +232,7 @@ impl SnapshotApplication {
     }
 
     pub async fn read(&self, profile: &str, path: &Path) -> Result<String, Failure> {
+        self.validate_namespace()?;
         self.snapshots
             .read(profile, path)
             .await
@@ -228,6 +248,7 @@ impl SnapshotApplication {
         profile: &str,
         snapshot_path: &Path,
     ) -> Result<YamlAstDiffSnapshot, Failure> {
+        self.validate_namespace()?;
         let current_detail = self.profiles.load_profile_detail(profile).await?;
         let snapshot_content = self.read(profile, snapshot_path).await?;
         let snap_label = snapshot_path

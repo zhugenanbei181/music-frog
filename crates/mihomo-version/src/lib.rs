@@ -1,7 +1,9 @@
 pub mod app_updater;
+pub mod bundled_kernel;
 pub mod capability;
 pub mod channel;
 pub mod download;
+pub mod engine;
 pub mod fixture_automation;
 pub mod geo_updater;
 pub mod manager;

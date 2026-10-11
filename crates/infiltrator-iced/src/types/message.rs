@@ -6,106 +6,57 @@ use super::app::{
 };
 use super::dns::{AdvancedConfigsBundle, AdvancedEditMode, DnsTab};
 use super::runtime::{IpProbeResult, RuntimeStreamKind, RuntimeStreamState};
-use crate::admin_server::AdminHostCommand;
-use crate::tray::spec::TrayEvent;
-use crate::types::app::SnapshotDiffMode;
-use crate::types::dns_query::QueryAction;
-use crate::types::options::{EditorPane, MrsProviderDetail, SyncDiffBundle};
-use crate::types::profile_edit::{
-    ProfileDocumentReadReply, ProfileEditReply, ProfileOptionsReadReply,
+use crate::state::core_operations::{CoreDownloadRunId, CoreUpdateCheckId};
+use crate::types::{
+    app::SnapshotDiffMode,
+    dns_query::QueryAction,
+    options::{EditorPane, MrsProviderDetail, SyncDiffBundle},
+    profile_edit::{ProfileDocumentReadReply, ProfileEditReply, ProfileOptionsReadReply},
+    rule_list::RuleListAction,
+    rule_trace::RuleTraceAction,
+    script::ScriptAction,
+    snapshot_restore::RestoreAction,
 };
-use crate::types::rule_list::RuleListAction;
-use crate::types::rule_trace::RuleTraceAction;
-use crate::types::script::ScriptAction;
-use crate::types::snapshot_restore::RestoreAction;
+use crate::{admin_server::AdminHostCommand, tray::spec::TrayEvent};
 use iced::Rectangle;
 use iced::widget::text_editor;
-use iced::window;
-use iced::window::Screenshot;
-use infiltrator_application::proxy_mode_actions::PendingModeChange;
+use iced::window::{self, Screenshot};
+use infiltrator_application::profile_application::ProfileActivationOutcome;
+use infiltrator_application::routing_intent_actions::PendingRoutingIntentChange;
 use infiltrator_application::rule_provider_application::ProviderUnpackPlan;
 use infiltrator_application::rule_statistics_workbench::StatisticsAction;
-use infiltrator_contract::aggregator::{
-    AggregatedProfileOutcome, AggregationReport, AggregationTemplate,
+use infiltrator_application::runtime_configuration_application::RuntimeConfigurationReadout;
+use infiltrator_contract::command::CoreLogLevel;
+use infiltrator_contract::outbound::{identity, inventory, preferences, probe};
+use infiltrator_contract::{
+    aggregator, command_catalogue, command_output, core_control, core_identity, dialer_chain, dns,
+    dns_latency, dns_leak, doctor, error, ime, lan, mini_hud, network_roaming, overview_layout,
+    pac, port_conflict, privileged_network, profile_protection, protocol_fidelity, protocol_form,
+    provider_cache, routing_intent, rule_document, rules_workspace, runtime_settings, service_mode,
+    shortcuts, snapshot, snapshot_history, speedtest, stun_probe, subscription_filter_form,
+    subscription_filter_result, subscription_import, surface_snapshot, system_proxy, uwp, version,
+    vpn, yaml_ast_diff,
 };
-use infiltrator_contract::command::ProxyMode;
-use infiltrator_contract::command_catalogue::CommandTarget;
-use infiltrator_contract::command_output::CommandOutput;
-use infiltrator_contract::core_control::CoreControlAction;
-use infiltrator_contract::dialer_chain::DialerChainReport;
-use infiltrator_contract::dns::{DnsEnhancedMode, DnsFakeIpFilterMode};
-use infiltrator_contract::dns_latency::DnsLatencyReport;
-use infiltrator_contract::dns_leak::DnsLeakReport;
-use infiltrator_contract::doctor::{BootstrapReport, DoctorFixReport, DoctorReport};
-use infiltrator_contract::error::{Failure, InfiltratorError};
-use infiltrator_contract::ime::ImeCompositionEvent;
-use infiltrator_contract::lan::{LanSecuritySnapshot, LanSharingSnapshot};
-use infiltrator_contract::mini_hud::MiniHudPlacement;
-use infiltrator_contract::mtu::MtuNegotiationSnapshot;
-use infiltrator_contract::network_roaming::NetworkRoamingSnapshot;
-use infiltrator_contract::overview_layout::OverviewCardKind;
-use infiltrator_contract::pac::PacSnapshot;
-use infiltrator_contract::port_conflict::PortConflictSnapshot;
-use infiltrator_contract::privileged_network::PrivilegedNetworkSnapshot;
-use infiltrator_contract::protocol_fidelity::ProtocolDraft;
-use infiltrator_contract::protocol_form::ProtocolField;
-use infiltrator_contract::provider_cache::ProviderCachePurge;
-use infiltrator_contract::rule_document::RuleDocumentSnapshot;
-use infiltrator_contract::rule_document::RuleRowId;
-use infiltrator_contract::rules_workspace::{RulesJsonSection, RulesTab};
-use infiltrator_contract::service_mode::ServiceModeSnapshot;
-use infiltrator_contract::session::SessionToken;
-use infiltrator_contract::shortcuts::{KeyModifiers, ShortcutAction, ShortcutRegistry};
-use infiltrator_contract::snapshot::CoreSnapshot;
-use infiltrator_contract::snapshot_history::{SnapshotHistorySnapshot, SnapshotPruneReport};
-use infiltrator_contract::speedtest::SpeedtestSnapshot;
-use infiltrator_contract::stun_probe::StunProbeReport;
-use infiltrator_contract::subscription_filter_form::FilterObservation;
-use infiltrator_contract::subscription_filter_result::SubscriptionFilterApplied;
-use infiltrator_contract::subscription_import::{
-    SubscriptionBatchReport, SubscriptionUpdateReport,
-};
-use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
-use infiltrator_contract::system_proxy::{SystemProxyRecoverySnapshot, SystemProxySnapshot};
-use infiltrator_contract::uwp::UwpLoopbackSnapshot;
-use infiltrator_contract::version::InstalledCoreVersion;
-use infiltrator_contract::vpn::VpnSessionSnapshot;
-use infiltrator_contract::yaml_ast_diff::YamlAstDiffSnapshot;
 use infiltrator_desktop::process_enumerator::{ExtendedProcessInfo, ProcessCategory};
-use infiltrator_domain::app_routing::AppRoutingConfig;
-use infiltrator_domain::app_routing::{AppRoutingMode, AppRoutingRule};
-use infiltrator_domain::connection_view::ConnectionGroupingMode;
-use infiltrator_domain::profiles::ProfileInfo;
-use infiltrator_domain::proxy::Proxy;
-use infiltrator_domain::rules::RuleProviderDiff;
-use infiltrator_domain::runtime::ConfigSnapshot;
-use infiltrator_domain::runtime::{
-    ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider, TrafficData,
+use infiltrator_domain::{
+    app_routing::{AppRoutingConfig, AppRoutingMode, AppRoutingRule},
+    connection_view::ConnectionGroupingMode,
+    profiles::ProfileInfo,
+    rules::RuleProviderDiff,
+    runtime::{ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider, TrafficData},
+    settings::AppSettings,
 };
-use infiltrator_domain::settings::AppSettings;
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::host_runtime::{HostRuntime, TunServiceStatus};
-use std::collections::HashMap;
-use std::path::PathBuf;
-use std::sync::Arc;
-use std::time::Instant;
-
-/// Shared batch report of the "update all subscriptions" entry. Both the tray
-/// and the Profiles toolbar consume the same application-produced counts.
-pub type SubscriptionUpdateOutcomes = Result<SubscriptionBatchReport, InfiltratorError>;
-
-#[derive(Clone)]
-pub struct MtuProbeCompletion {
-    pub snapshot: MtuNegotiationSnapshot,
-    pub generation: u64,
-    pub session_token: Option<SessionToken>,
-}
+use infiltrator_ports::profile_document_codec::ProfileMixinToggleId;
+use std::{path::PathBuf, sync::Arc, time::Instant};
+pub mod mtu_probe;
+use mtu_probe::MtuProbeCompletion;
 
 #[derive(Clone)]
 pub enum Message {
     Noop,
     /// Shared 11-page application snapshot delivered by a host source.
-    SurfaceSnapshotUpdated(Box<SurfaceSnapshot>),
+    SurfaceSnapshotUpdated(Box<surface_snapshot::SurfaceSnapshot>),
     /// Window content area changed. Drives the shared 4-tier responsive
     /// projection ([`infiltrator_contract::responsive_viewport`]); the payload
     /// is `(width_px, height_px)`.
@@ -117,42 +68,40 @@ pub enum Message {
     /// One OS IME composition transition ([`infiltrator_contract::ime`],
     /// DUAL-15-11). The toolkit text widget owns the field text; the shell
     /// records the session and stops treating composing keys as chords.
-    ImeComposition(ImeCompositionEvent),
+    ImeComposition(ime::ImeCompositionEvent),
     Navigate(Route),
     NavigateBack,
     NavigateForward,
-    StartProxy,
-    StopProxy,
-    /// Core boot result; the bool reports whether the external-controller
-    /// port had to be rotated during the boot retry loop.
-    ProxyStarted(Result<(Arc<dyn HostRuntime>, bool), InfiltratorError>, u64),
-    ProxyStopped,
-    ProxyStopFinished(Result<(), Failure>, u64),
+    StartCore,
+    StopCore,
+    CoreStopped,
     CoreControlFinished {
-        action: CoreControlAction,
+        action: core_control::CoreControlAction,
         token: u64,
-        result: Result<(), Failure>,
-        snapshot: Box<CoreSnapshot>,
+        result: Result<(), error::Failure>,
+        requested_scope: Option<core_identity::CoreScope>,
+        terminal_scope: Option<core_identity::CoreScope>,
+        snapshot: Box<snapshot::CoreSnapshot>,
     },
-    SettingsLoaded(Result<AppSettings, InfiltratorError>),
+    SettingsLoaded(Result<AppSettings, error::InfiltratorError>),
     LoadProfiles,
-    ProfilesLoaded(Result<Vec<ProfileInfo>, InfiltratorError>),
+    ProfilesLoaded(Result<Vec<ProfileInfo>, error::InfiltratorError>),
     SetActiveProfile(String),
-    ProfileActivationFinished(Result<bool, InfiltratorError>),
+    ProfileActivationFinished(Result<ProfileActivationOutcome, error::InfiltratorError>),
     UpdateImportUrl(String),
     UpdateImportName(String),
     UpdateImportActivate(bool),
     ImportProfile,
-    ProfileImported(Result<bool, InfiltratorError>),
+    ProfileImported(Result<Option<ProfileActivationOutcome>, error::InfiltratorError>),
     DeleteProfile(String),
-    ProfileDeleted(Result<(), InfiltratorError>),
+    ProfileDeleted(Result<(), error::InfiltratorError>),
     UpdateLocalImportPath(String),
     BrowseLocalImportFile,
     LocalImportFilePicked(Option<PathBuf>),
     UpdateLocalImportName(String),
     UpdateLocalImportActivate(bool),
     ImportLocalProfile,
-    LocalProfileImported(Result<bool, InfiltratorError>),
+    LocalProfileImported(Result<Option<ProfileActivationOutcome>, error::InfiltratorError>),
     SelectSubscriptionProfile(String),
     UpdateSubscriptionUrl(String),
     UpdateSubscriptionAutoUpdate(bool),
@@ -163,53 +112,89 @@ pub enum Message {
     /// DUAL-07-09: toggle the post-update core reload preference.
     UpdateSubscriptionAutoReload(bool),
     SaveSubscriptionSettings,
-    SubscriptionSettingsSaved(Result<(), InfiltratorError>),
+    SubscriptionSettingsSaved(Result<(), error::InfiltratorError>),
     UpdateSubscriptionNow,
-    SubscriptionUpdatedNow(Result<SubscriptionUpdateReport, InfiltratorError>),
+    SubscriptionUpdatedNow(
+        Result<subscription_import::SubscriptionUpdateReport, error::InfiltratorError>,
+    ),
     /// DUAL-07-13: restore the selected profile's transient pre-save backup.
     RestoreSubscriptionBackup,
-    SubscriptionBackupRestored(Result<bool, InfiltratorError>),
-    SubscriptionAutoUpdated(Result<(Vec<String>, bool), InfiltratorError>),
+    SubscriptionBackupRestored(Result<bool, error::InfiltratorError>),
+    SubscriptionAutoUpdated(Result<(Vec<String>, bool), error::InfiltratorError>),
     // Tray entries: update every subscription now (ignoring schedules) and
     // flip one profile's auto-update flag straight from the menu.
     UpdateAllSubscriptionsNow,
-    AllSubscriptionsUpdated(SubscriptionUpdateOutcomes),
+    AllSubscriptionsUpdated(
+        Result<subscription_import::SubscriptionBatchReport, error::InfiltratorError>,
+    ),
     SetProfileAutoUpdate {
         name: String,
         enabled: bool,
     },
-    ProfileAutoUpdateSet(Result<String, InfiltratorError>),
+    ProfileAutoUpdateSet(Result<String, error::InfiltratorError>),
     UpdateProfilesFilter(String),
     ClearProfiles,
-    ProfilesCleared(Result<(), InfiltratorError>),
-    LoadProxies,
-    ProxiesLoaded(Result<HashMap<String, Proxy>, InfiltratorError>),
-    ProxiesLoadedForSession {
-        generation: u64,
-        session_token: Option<SessionToken>,
-        result: Result<HashMap<String, Proxy>, InfiltratorError>,
+    ProfilesCleared(Result<(), error::InfiltratorError>),
+    RefreshOutboundInventory,
+    SelectOutbound {
+        scope: core_identity::CoreScope,
+        request: probe::OutboundSelectionRequest,
     },
-    SelectProxy(String, String),
+    PrepareRuntimeOutboundSelection {
+        scope: core_identity::CoreScope,
+        request: probe::OutboundSelectionRequest,
+    },
+    OutboundInventoryReadFinished {
+        requested_scope: Option<core_identity::CoreScope>,
+        terminal_scope: Option<core_identity::CoreScope>,
+        result: Result<inventory::OutboundInventorySnapshot, error::Failure>,
+    },
+    OutboundSelectionFinished {
+        scope: core_identity::CoreScope,
+        collection_id: identity::OutboundId,
+        outbound_id: identity::OutboundId,
+        expected_revision: identity::SnapshotRevision,
+        terminal_scope: Option<core_identity::CoreScope>,
+        result: Result<inventory::OutboundInventorySnapshot, error::Failure>,
+    },
+    ProbeInspectedOutbound,
+    StartOutboundProbe {
+        scope: core_identity::CoreScope,
+        request: probe::ProbeOutboundRequest,
+    },
+    StartOutboundProbeBatch {
+        scope: core_identity::CoreScope,
+        target_scope: probe::OutboundProbeBatchScope,
+        expected_inventory_revision: identity::SnapshotRevision,
+    },
+    OutboundProbeFinished {
+        token: u64,
+        scope: core_identity::CoreScope,
+        request: probe::ProbeOutboundRequest,
+        terminal_scope: Option<core_identity::CoreScope>,
+        result: Result<inventory::OutboundProbeSnapshot, error::Failure>,
+    },
+    OutboundProbeBatchFinished {
+        token: u64,
+        scope: core_identity::CoreScope,
+        request: probe::ProbeOutboundBatchRequest,
+        terminal_scope: Option<core_identity::CoreScope>,
+        result: Result<probe::OutboundProbeBatchSnapshot, error::Failure>,
+    },
+    DismissOutboundProbeBatch,
+    OutboundUiPreferenceFinished {
+        token: u64,
+        scope: core_identity::CoreScope,
+        request: preferences::OutboundUiPreferenceRequest,
+        terminal_scope: Option<core_identity::CoreScope>,
+        result: Result<preferences::OutboundUiPreferencesSnapshot, error::Failure>,
+    },
     FilterProxies(String),
-    ProxyPreferenceFinished {
-        token: u64,
-        result: Result<(), Failure>,
-    },
-    ProxySearchFinished {
-        token: u64,
-        query: String,
-        result: Result<(), Failure>,
-    },
     ToggleFilterAlive(bool),
-    ToggleFavoriteProxy(String),
+    ToggleFavoriteOutbound(identity::OutboundId),
+    ToggleOutboundGroupExpanded(identity::OutboundId),
+    InspectOutbound(Option<identity::OutboundId>),
     ToggleProxyCompactView,
-    InspectProxy(Option<String>),
-    TestInspectedProxy,
-    ProxyInspectionProbed {
-        name: String,
-        token: u64,
-        result: Result<(), Failure>,
-    },
     OpenAddCustomNodeModal(bool),
     UpdateNewNodeType(String),
     UpdateNewNodeName(String),
@@ -219,35 +204,34 @@ pub enum Message {
     UpdateNewNodeCipher(String),
     UpdateNewNodeTls(bool),
     SubmitAddCustomNode,
-    CustomNodeAdded(Result<(), InfiltratorError>),
-    ToggleProxySort,
-    UpdateProxyDelaySort(String),
-    OpenProxyProbeOptions,
-    ApplyProxyProbeOptions,
-    CancelProxyProbeOptions,
-    ProxyProbeOptionsApplied {
+    CustomNodeAdded(Result<(), error::InfiltratorError>),
+    SetOutboundSortOrder(preferences::OutboundSortOrder),
+    SetRuntimePanelDelaySort(runtime_settings::RuntimeDelaySortOrder),
+    OpenRuntimeProbeSettings,
+    ApplyRuntimeProbeSettings,
+    CancelRuntimeProbeSettings,
+    RuntimeProbeSettingsApplied {
         token: u64,
-        result: Result<(), Failure>,
+        result: Result<(), error::Failure>,
     },
-    UpdateDelayTestUrl(String),
-    UpdateDelayTimeoutMs(String),
+    UpdateRuntimeProbeUrlDraft(String),
+    UpdateRuntimeProbeTimeoutDraft(String),
     UpdateRuntimeSelectedGroup(String),
-    UpdateRuntimeSelectedProxy(String),
     ApplyRuntimeSelectedProxy,
     UpdateRuntimeConnectionFilter(String),
     UpdateRuntimeConnectionSort(String),
     RefreshRuntimeNow,
     TrafficReceived(TrafficData),
     MemoryReceived(MemoryData),
-    IpInfoReceived(Result<IpProbeResult, InfiltratorError>, usize),
+    IpInfoReceived(Result<IpProbeResult, error::InfiltratorError>, usize),
     ConnectionsReceived(ConnectionSnapshot),
     LogReceived(String),
-    RuntimeStreamLogReceived(u64, String),
-    RuntimeStreamTrafficReceived(u64, TrafficData),
-    RuntimeStreamConnectionsReceived(u64, ConnectionSnapshot),
+    RuntimeStreamLogReceived(core_identity::CoreScope, String),
+    RuntimeStreamTrafficReceived(core_identity::CoreScope, TrafficData),
+    RuntimeStreamConnectionsReceived(core_identity::CoreScope, ConnectionSnapshot),
     RuntimeStreamStateChanged {
         kind: RuntimeStreamKind,
-        generation: u64,
+        scope: core_identity::CoreScope,
         state: RuntimeStreamState,
     },
     RuntimePollFailed(String),
@@ -257,7 +241,7 @@ pub enum Message {
     RetryLogExport,
     LogExportFinished {
         operation: u64,
-        result: Result<CommandOutput, Failure>,
+        result: Result<command_output::CommandOutput, error::Failure>,
     },
     ToggleLogFollow,
     LogsScrolled {
@@ -267,11 +251,10 @@ pub enum Message {
     },
     LogsCommandFinished {
         generation: u64,
-        result: Result<(), Failure>,
+        result: Result<(), error::Failure>,
     },
-    SetLogLevel(String),
-    SetCoreLogLevel(String),
-    CoreLogLevelFinished(Result<(), InfiltratorError>, String),
+    SetCoreLogLevel(CoreLogLevel),
+    CoreLogLevelFinished(Result<(), error::InfiltratorError>, String),
     CloseConnection(String),
     CloseAllConnections,
     CloseFilteredConnections,
@@ -283,38 +266,33 @@ pub enum Message {
     ConnectionsNextPage,
     FetchRuntimeConfig,
     FetchIpInfo,
-    RuntimeConfigFetched(Result<ConfigSnapshot, Failure>, u64),
-    RuntimeConfigReadFinished {
-        result: Result<ConfigSnapshot, Failure>,
-        generation: u64,
-        mode_epoch: u64,
-    },
-    SetProxyMode(String),
+    RuntimeConfigFetched(Result<RuntimeConfigurationReadout, error::Failure>, u64),
+    SetRoutingIntent(routing_intent::RoutingIntent),
     SetIpv6Routing(bool),
     SetTunEnabled(bool),
     InstallTunService,
     RefreshTunServiceStatus,
-    TunServiceStatusLoaded(Result<TunServiceStatus, InfiltratorError>),
-    TunServiceInstalled(Result<(), InfiltratorError>),
-    ServiceModePrepared(Result<ServiceModeSnapshot, InfiltratorError>),
+    TunServiceStatusLoaded(Result<TunServiceStatus, error::InfiltratorError>),
+    TunServiceInstalled(Result<(), error::InfiltratorError>),
+    ServiceModePrepared(Result<service_mode::ServiceModeSnapshot, error::InfiltratorError>),
     RepairPortConflicts,
-    PortConflictsRepaired(Result<PortConflictSnapshot, InfiltratorError>),
+    PortConflictsRepaired(Result<port_conflict::PortConflictSnapshot, error::InfiltratorError>),
     SetTunStack(String),
     SetTunAutoRoute(bool),
     SetTunStrictRoute(bool),
     SetSnifferEnabled(bool),
-    ProxyModeFinished {
-        request: PendingModeChange,
-        result: Result<ProxyMode, Failure>,
+    RoutingIntentFinished {
+        request: PendingRoutingIntentChange,
+        result: Result<routing_intent::RoutingIntent, error::Failure>,
     },
-    RetryProxyMode,
-    DismissProxyModeFailure,
-    RuntimePatchResult(Result<(), InfiltratorError>, u64, u64),
-    OperationResult(Result<(), InfiltratorError>),
+    RetryRoutingIntent,
+    DismissRoutingIntentFailure,
+    RuntimePatchResult(Result<(), error::InfiltratorError>, u64, u64),
+    OperationResult(Result<(), error::InfiltratorError>),
     LoadRules,
-    RulesLoaded(Result<RuleDocumentSnapshot, InfiltratorError>),
-    SetRulesTab(RulesTab),
-    SetRulesJsonTab(RulesJsonSection),
+    RulesLoaded(Result<rule_document::RuleDocumentSnapshot, error::InfiltratorError>),
+    SetRulesTab(rules_workspace::RulesTab),
+    SetRulesJsonTab(rules_workspace::RulesJsonSection),
     ToggleRulesProvidersExpanded,
     RulesPrevPage,
     RulesNextPage,
@@ -330,11 +308,8 @@ pub enum Message {
     EnsureProxyProvidersEditorLoaded,
     EnsureSnifferEditorLoaded,
     ActivateRulesHeavyView,
-    RuleProvidersJsonLoaded(Result<String, InfiltratorError>),
-    ProxyProvidersJsonLoaded(Result<String, InfiltratorError>),
-    SnifferJsonLoaded(Result<String, InfiltratorError>),
     LoadProviders,
-    ProvidersLoaded(Result<(Vec<ProxyProvider>, Vec<RuleProvider>), InfiltratorError>),
+    ProvidersLoaded(Result<(Vec<ProxyProvider>, Vec<RuleProvider>), error::InfiltratorError>),
     UpdateProxyProvider(String),
     UpdateRuleProvider(String),
     FilterRules(String),
@@ -353,27 +328,27 @@ pub enum Message {
     UpdateNewRulePayload(String),
     UpdateNewRuleTarget(String),
     AddCustomRule,
-    ToggleRuleEnabled(RuleRowId),
-    MoveRuleUp(RuleRowId),
-    MoveRuleDown(RuleRowId),
+    ToggleRuleEnabled(rule_document::RuleRowId),
+    MoveRuleUp(rule_document::RuleRowId),
+    MoveRuleDown(rule_document::RuleRowId),
     SaveRules,
     ApplyGameRoutingPresets,
     UpdateGeoDatabases,
-    GeoDatabasesUpdated(Result<(), InfiltratorError>),
+    GeoDatabasesUpdated(Result<(), error::InfiltratorError>),
     InspectRuleProviderDiff(Option<String>),
     UnpackRuleProvider(String),
-    RuleProviderDiffLoaded(Result<RuleProviderDiff, InfiltratorError>),
+    RuleProviderDiffLoaded(Result<RuleProviderDiff, error::InfiltratorError>),
     RuleProvidersEditorAction(text_editor::Action),
     SaveRuleProvidersJson,
-    RuleProvidersJsonSaved(Result<(), InfiltratorError>),
+    RuleProvidersJsonSaved(Result<(), error::InfiltratorError>),
     ProxyProvidersEditorAction(text_editor::Action),
     SaveProxyProvidersJson,
-    ProxyProvidersJsonSaved(Result<(), InfiltratorError>),
+    ProxyProvidersJsonSaved(Result<(), error::InfiltratorError>),
     SnifferEditorAction(text_editor::Action),
     SaveSnifferJson,
-    SnifferJsonSaved(Result<(), InfiltratorError>),
+    SnifferJsonSaved(Result<(), error::InfiltratorError>),
     LoadAdvancedConfigs,
-    AdvancedConfigsBundleLoaded(Result<Box<AdvancedConfigsBundle>, InfiltratorError>),
+    AdvancedConfigsBundleLoaded(Result<Box<AdvancedConfigsBundle>, error::InfiltratorError>),
     SetDnsTab(DnsTab),
     SetAdvancedMode(DnsTab, AdvancedEditMode),
     RefreshDnsOnly,
@@ -383,9 +358,9 @@ pub enum Message {
     EnsureFakeIpEditorLoaded,
     EnsureTunEditorLoaded,
     ActivateDnsHeavyView,
-    DnsConfigJsonLoaded(Result<String, InfiltratorError>),
-    FakeIpConfigJsonLoaded(Result<String, InfiltratorError>),
-    TunConfigJsonLoaded(Result<String, InfiltratorError>),
+    DnsConfigJsonLoaded(Result<String, error::InfiltratorError>),
+    FakeIpConfigJsonLoaded(Result<String, error::InfiltratorError>),
+    TunConfigJsonLoaded(Result<String, error::InfiltratorError>),
     UpdateDnsFormEnable(bool),
     UpdateDnsFormBootstrapNameserver(String),
     UpdateDnsFormNameserver(String),
@@ -393,8 +368,8 @@ pub enum Message {
     UpdateDnsFormFallbackGeoip(bool),
     UpdateDnsFormFallbackGeoipCode(String),
     UpdateDnsFormFallbackTrigger(String),
-    UpdateDnsFormEnhancedMode(DnsEnhancedMode),
-    UpdateDnsFormFilterMode(DnsFakeIpFilterMode),
+    UpdateDnsFormEnhancedMode(dns::DnsEnhancedMode),
+    UpdateDnsFormFilterMode(dns::DnsFakeIpFilterMode),
     UpdateDnsFormFakeIpRange(String),
     UpdateDnsFormFakeIpFilter(String),
     UpdateDnsFormIpv6(bool),
@@ -422,7 +397,7 @@ pub enum Message {
     SaveDnsHosts,
     DnsHostsCommandFinished {
         token: u64,
-        result: Result<(), Failure>,
+        result: Result<(), error::Failure>,
     },
     UpdateTunFormEnable(bool),
     UpdateTunFormStack(String),
@@ -455,13 +430,13 @@ pub enum Message {
     AddFallbackDnsServer,
     RemoveFallbackDnsServer(usize),
     SaveDns,
-    DnsSaved(Result<(), InfiltratorError>),
+    DnsSaved(Result<(), error::InfiltratorError>),
     SaveFakeIpConfig,
-    FakeIpConfigSaved(Result<(), InfiltratorError>),
+    FakeIpConfigSaved(Result<(), error::InfiltratorError>),
     SaveTunConfig,
-    TunConfigSaved(Result<(), InfiltratorError>),
+    TunConfigSaved(Result<(), error::InfiltratorError>),
     SetAutostart(bool),
-    AutostartSet(Result<(), InfiltratorError>),
+    AutostartSet(Result<(), error::InfiltratorError>),
     UpdateNotificationsEnabled(bool),
     UpdateCloseToTray(bool),
     UpdateWebDavEnabled(bool),
@@ -471,31 +446,31 @@ pub enum Message {
     UpdateWebDavSyncInterval(String),
     UpdateWebDavSyncOnStartup(bool),
     SaveAppSettings,
-    AppSettingsSaved(Result<(), InfiltratorError>),
+    AppSettingsSaved(Result<(), error::InfiltratorError>),
     UpdateEditorPathSetting(String),
     SetAdminEnabled(bool),
     UpdateAdminPort(String),
     ApplyAdminSettings,
-    AdminSettingsSaved(Result<(), InfiltratorError>),
-    AdminServerStarted(Result<String, InfiltratorError>),
+    AdminSettingsSaved(Result<(), error::InfiltratorError>),
+    AdminServerStarted(Result<String, error::InfiltratorError>),
     AdminHostCommand(AdminHostCommand),
-    ExternalSettingsLoaded(Result<AppSettings, InfiltratorError>),
+    ExternalSettingsLoaded(Result<AppSettings, error::InfiltratorError>),
     SyncUpload,
     SyncDownload,
-    SyncFinished(Result<SyncSummary, InfiltratorError>),
+    SyncFinished(Result<SyncSummary, error::InfiltratorError>),
     SyncProgress(SyncProgress),
     ResolveSyncConflict(String),
     DismissSyncConflict(String),
-    SyncConflictResolved(Result<String, InfiltratorError>),
-    SyncConflictDismissed(Result<String, InfiltratorError>),
+    SyncConflictResolved(Result<String, error::InfiltratorError>),
+    SyncConflictDismissed(Result<String, error::InfiltratorError>),
     CancelWebDavSync,
     TestWebDavConnection,
-    WebDavConnectionTested(Result<(), InfiltratorError>),
+    WebDavConnectionTested(Result<(), error::InfiltratorError>),
     SetSystemProxy(bool),
     UpdateSystemProxyBypass(String),
-    SystemProxySet(Result<SystemProxySnapshot, InfiltratorError>),
-    SystemProxyReconciled(SystemProxySnapshot),
-    SystemProxyRecoveryFinished(SystemProxyRecoverySnapshot),
+    SystemProxySet(Result<system_proxy::SystemProxySnapshot, error::InfiltratorError>),
+    SystemProxyReconciled(system_proxy::SystemProxySnapshot),
+    SystemProxyRecoveryFinished(system_proxy::SystemProxyRecoverySnapshot),
     RequestAdminPrivilege,
     RequestConfirmation(ConfirmAction),
     ConfirmAction,
@@ -508,15 +483,17 @@ pub enum Message {
     ProfileContentLoaded(ProfileDocumentReadReply),
     LoadProfileSnapshots,
     /// DUAL-09-06/07: the shared history read model (entries + prune view).
-    ProfileSnapshotsLoaded(Result<SnapshotHistorySnapshot, InfiltratorError>),
+    ProfileSnapshotsLoaded(
+        Result<snapshot_history::SnapshotHistorySnapshot, error::InfiltratorError>,
+    ),
     /// DUAL-09-06: write a manual snapshot of the edited profile now.
     BackupProfileSnapshot,
-    ProfileSnapshotBackedUp(Result<(), InfiltratorError>),
+    ProfileSnapshotBackedUp(Result<(), error::InfiltratorError>),
     /// DUAL-09-07: select the retention the manual prune keeps.
     SetSnapshotPruneKeep(usize),
     /// DUAL-09-07: run the shared dedupe+LRU prune with the selected retention.
     PruneProfileSnapshots,
-    ProfileSnapshotsPruned(Result<SnapshotPruneReport, InfiltratorError>),
+    ProfileSnapshotsPruned(Result<snapshot_history::SnapshotPruneReport, error::InfiltratorError>),
     /// DUAL-09-09: arm the history-panel restore confirmation (first step).
     ArmRestoreProfileSnapshot(PathBuf),
     CancelRestoreProfileSnapshot,
@@ -533,13 +510,13 @@ pub enum Message {
     SaveMixin,
     MixinSaved(ProfileEditReply),
     /// DUAL-10-11: flip one shared Mixin preset toggle in the overlay buffer.
-    ToggleMixinPreset(String, bool),
+    ToggleMixinPreset(ProfileMixinToggleId, bool),
     // Profile options: subscription filter editor (Profiles page card).
     LoadProfileFilter,
     ProfileFilterLoaded {
         token: u64,
         profile: String,
-        result: Result<FilterObservation, Failure>,
+        result: Result<subscription_filter_form::FilterObservation, error::Failure>,
     },
     UpdateFilterInclude(String),
     UpdateFilterExclude(String),
@@ -550,36 +527,46 @@ pub enum Message {
     SaveProfileFilter,
     ProfileFilterSaved {
         token: u64,
-        result: Result<SubscriptionFilterApplied, Failure>,
+        result: Result<subscription_filter_result::SubscriptionFilterApplied, error::Failure>,
     },
     DiscardProfileFilter,
     // MRS rule-provider detail scan (Rules page providers tab).
     ScanMrsProviders,
-    MrsDetailsReady(Result<Vec<MrsProviderDetail>, InfiltratorError>),
+    MrsDetailsReady(Result<Vec<MrsProviderDetail>, error::InfiltratorError>),
     // Sync conflict key-level diff merge (Sync page).
     LoadSyncDiff(String),
-    SyncDiffLoaded(Result<SyncDiffBundle, InfiltratorError>),
+    SyncDiffLoaded(Result<SyncDiffBundle, error::InfiltratorError>),
     PickSyncDiffKey(String, bool),
     SetSyncDiffPicks(bool),
     ApplySyncDiffMerge,
-    SyncDiffMerged(Result<String, InfiltratorError>),
+    SyncDiffMerged(Result<String, error::InfiltratorError>),
     CloseSyncDiff,
-    OpenConfigDirFinished(Result<(), InfiltratorError>),
+    OpenConfigDirFinished(Result<(), error::InfiltratorError>),
     LoadKernels,
-    KernelsLoaded(Result<Vec<InstalledCoreVersion>, InfiltratorError>),
+    KernelsLoaded(Result<Vec<version::InstalledCoreVersion>, error::InfiltratorError>),
     CheckCoreUpdate,
-    CoreUpdateInfo(Result<String, InfiltratorError>), // Latest version string
+    CoreUpdateFinished {
+        check_id: CoreUpdateCheckId,
+        result: Result<String, error::InfiltratorError>,
+    },
     SetCoreChannel(String),
     DownloadCore(String),
-    CoreDownloadProgress(CoreDownloadProgress, u64),
-    CoreDownloadFinished(Result<String, Failure>, u64),
+    CoreDownloadProgress {
+        run_id: CoreDownloadRunId,
+        progress: CoreDownloadProgress,
+    },
+    CoreDownloadFinished {
+        result: Result<String, error::Failure>,
+        engine_id: Option<core_identity::EngineId>,
+        run_id: CoreDownloadRunId,
+    },
     CancelCoreDownload,
     DeleteKernel(String),
     SetDefaultKernel(String),
     RollbackCore,
-    KernelOperationFinished(Result<(), InfiltratorError>),
+    KernelOperationFinished(Result<(), error::InfiltratorError>),
     FactoryReset,
-    FactoryResetFinished(Result<(), InfiltratorError>),
+    FactoryResetFinished(Result<(), error::InfiltratorError>),
     OpenConfigDir,
     FlushFakeIpCache,
     ConfirmDnsCacheFlush,
@@ -587,21 +574,14 @@ pub enum Message {
     RetryDnsCacheFlush,
     DnsCacheCommandFinished {
         token: u64,
-        result: Result<(), Failure>,
-    },
-    TestProxyDelay(String),
-    TestGroupDelay(String),
-    ProxyTested(String, Result<u64, InfiltratorError>),
-    ProxyDelayCompleted {
-        name: String,
-        result: Result<(), Failure>,
+        result: Result<(), error::Failure>,
     },
     WindowClosed(window::Id),
     HideWindow,
     ShowWindow,
     UpdateRuntimeAutoRefresh(bool),
-    RuntimePanelSettingsSaved(Result<(), InfiltratorError>),
-    RuntimeRebuildFinished(Result<Arc<dyn HostRuntime>, InfiltratorError>),
+    RuntimePanelSettingsSaved(Result<(), error::InfiltratorError>),
+    RuntimeRebuildFinished(Result<Arc<dyn HostRuntime>, error::InfiltratorError>),
     ClearRebuildFlow,
     TogglePerfPanel,
     ToggleTheme,
@@ -614,51 +594,40 @@ pub enum Message {
     RetryLanguageChoice,
     LanguageChoiceApplied {
         token: u64,
-        result: Result<(), Failure>,
+        result: Result<(), error::Failure>,
     },
     ShowToast(String, ToastStatus),
     RemoveToast(u64),
-    TestAllProxyDelays,
-    /// Result of a scope-wide speedtest (all groups or one group) driven
-    /// through the shared engine port. `Err` carries the typed port failure.
-    SpeedtestScopeUpdated(Result<SpeedtestSnapshot, PortError>),
-    /// Request cancellation of the active shared speedtest batch.
-    CancelSpeedtest,
-    /// DUAL-06-03: store the user-typed speedtest target URL. The typed value
-    /// is handed to `run_scope` / `probe_node`; the engine owns the effective
-    /// target when the field is blank.
-    UpdateSpeedtestTestUrl(String),
-    /// DUAL-06-01: adjust the shared engine's concurrency bound by a signed
-    /// step. The effective value is read back from `snapshot.config.concurrency`.
+    /// Cancel exactly the Core-owned speedtest run shown by the surface.
+    CancelSpeedtestRun(speedtest::SpeedtestRunId),
+    /// Adjust the shared engine's concurrency bound by a signed
+    /// step. The effective value is read back from `snapshot.concurrency`.
     AdjustSpeedtestConcurrency(i32),
-    /// DUAL-06-13: open the per-node speedtest detail modal. The modal only
+    /// Open the typed outbound speedtest detail modal. The modal only
     /// reads the shared snapshot; it owns no metrics of its own.
     OpenSpeedtestDetail,
-    /// DUAL-06-13: close the speedtest detail modal.
+    /// Close the outbound speedtest detail modal.
     CloseSpeedtestDetail,
     /// Move one Overview card one slot up in the shared layout order.
-    MoveOverviewCardUp(OverviewCardKind),
+    MoveOverviewCardUp(overview_layout::OverviewCardKind),
     /// Move one Overview card one slot down in the shared layout order.
-    MoveOverviewCardDown(OverviewCardKind),
+    MoveOverviewCardDown(overview_layout::OverviewCardKind),
     /// Reset the Overview card order to the canonical default.
     ResetOverviewCardOrder,
-    // ui-wave2-p: proxies page — expand/collapse one proxy-group card
-    // (view-only UI state; uses the shared ProxyUiPreferences expansion model).
-    ToggleProxyGroupExpanded(String),
     // Doctor 体检面板（诊断域）：经内嵌 admin server 的 loopback HTTP 调用
     // /admin/api/doctor* 与 /admin/api/bootstrap，报告写回 diag.doctor。
     RunDoctor,
-    DoctorReportReady(Result<DoctorReport, InfiltratorError>),
+    DoctorReportReady(Result<doctor::DoctorReport, error::InfiltratorError>),
     DoctorCommandFinished {
         token: u64,
-        result: Result<(), Failure>,
+        result: Result<(), error::Failure>,
     },
     RetryDoctorCommand,
     RunDoctorFix,
     RepairDoctorIssue(String),
-    DoctorFixApplied(Result<DoctorFixReport, InfiltratorError>),
+    DoctorFixApplied(Result<doctor::DoctorFixReport, error::InfiltratorError>),
     RunBootstrap,
-    BootstrapFinished(Result<BootstrapReport, InfiltratorError>),
+    BootstrapFinished(Result<doctor::BootstrapReport, error::InfiltratorError>),
     // Command Palette
     ToggleCommandPalette,
     OpenCommandPalette,
@@ -666,7 +635,7 @@ pub enum Message {
     SetCommandQuery(String),
     SelectNextCommand,
     SelectPrevCommand,
-    ExecuteCommand(CommandTarget),
+    ExecuteCommand(command_catalogue::CommandTarget),
     ExecuteSelectedCommand,
     // Connection Deep Telemetry Inspector Drawer
     InspectConnection(Option<String>),
@@ -678,8 +647,8 @@ pub enum Message {
     // App Routing (应用分流)
     RefreshAppRoutingProcesses,
     AppRoutingProcessesLoaded(Vec<ExtendedProcessInfo>),
-    AppRoutingConfigLoaded(Result<AppRoutingConfig, InfiltratorError>),
-    AppRoutingPersisted(Result<(), InfiltratorError>),
+    AppRoutingConfigLoaded(Result<AppRoutingConfig, error::InfiltratorError>),
+    AppRoutingPersisted(Result<(), error::InfiltratorError>),
     SetAppRoutingFilter(String),
     SetAppRoutingMode(AppRoutingMode),
     SetAppRouteRule {
@@ -688,16 +657,11 @@ pub enum Message {
     },
     SetAppRoutingCategory(Option<ProcessCategory>),
     // Proxy Group Reorder (策略组重排)
-    MoveProxyGroupUp(String),
-    MoveProxyGroupDown(String),
+    MoveProxyGroupUp(identity::OutboundId),
+    MoveProxyGroupDown(identity::OutboundId),
     ResetProxyGroupOrder,
-    OpenProxyGroupOrder,
     ApplyProxyGroupOrder,
     CancelProxyGroupOrder,
-    ProxyGroupOrderApplied {
-        token: u64,
-        result: Result<(), Failure>,
-    },
     // Mini HUD Mode (迷你网速悬浮窗)
     ToggleMiniHudMode,
     SetAlwaysOnTop(bool),
@@ -706,7 +670,7 @@ pub enum Message {
         y: f32,
     },
     MiniHudDragReleased,
-    MiniHudPlacementUpdated(Result<MiniHudPlacement, String>),
+    MiniHudPlacementUpdated(Result<mini_hud::MiniHudPlacement, String>),
     MiniHudDisplayKnown(Option<iced::Size>),
     WindowIdResolved(Option<window::Id>),
     // Frameless window chrome (无边框窗口拖拽, DUAL-15-13)
@@ -722,17 +686,20 @@ pub enum Message {
     RetryDnsLeakProbe,
     DnsLeakCommandFinished {
         token: u64,
-        result: Result<(), Failure>,
+        result: Result<(), error::Failure>,
     },
     /// DUAL-14-08: the shared cross-source leak report, or the typed host
     /// refusal.
-    DnsLeakProbed(Result<DnsLeakReport, Failure>),
+    DnsLeakProbed {
+        token: u64,
+        result: Result<dns_leak::DnsLeakReport, error::Failure>,
+    },
     /// DUAL-14-09 (re-scoped): probe this host/process's UDP egress mapping
     /// through the configured STUN server. Not a browser WebRTC measurement.
     RunStunProbe,
     /// DUAL-14-09 (re-scoped): the shared STUN egress report, or the typed host
     /// refusal.
-    StunProbed(Result<StunProbeReport, Failure>),
+    StunProbed(Result<stun_probe::StunProbeReport, error::Failure>),
     /// DUAL-14-10: measure every configured nameserver through the shared
     /// host prober.
     DnsQuery(QueryAction),
@@ -741,7 +708,7 @@ pub enum Message {
     RuleList(RuleListAction),
     RunDnsLatencyProbe,
     /// DUAL-14-10: the shared probe report, or the typed host refusal.
-    DnsLatencyProbed(Result<DnsLatencyReport, Failure>),
+    DnsLatencyProbed(Result<dns_latency::DnsLatencyReport, error::Failure>),
     // Custom Node Modal & Universal URI Codec (Category 2, DUAL-05)
     OpenCustomNodeModal,
     CloseCustomNodeModal,
@@ -749,17 +716,17 @@ pub enum Message {
     ParseAndImportCustomUri,
     /// DUAL-05-14: the whole shared draft after a form edit. The view builds
     /// the next draft, the update layer re-derives the shared report.
-    UpdateCustomNodeDraft(Box<ProtocolDraft>),
-    UpdateCustomNodeField(ProtocolField, String),
+    UpdateCustomNodeDraft(Box<protocol_fidelity::ProtocolDraft>),
+    UpdateCustomNodeField(protocol_form::ProtocolField, String),
     /// DUAL-05-14: re-encode the draft into a share link preview.
     ExportCustomNodeUri,
     SaveCustomNodeForm,
-    CustomNodeSaved(Result<(), InfiltratorError>),
+    CustomNodeSaved(Result<(), error::InfiltratorError>),
     /// DUAL-05-09/10: analyse the active profile's dialer/relay graph and
     /// publish the shared chain + loop report.
     ScanCustomNodeDialer,
     /// DUAL-05-09/10: the shared analyzer's report (published for both surfaces).
-    CustomNodeDialerScanned(Result<DialerChainReport, InfiltratorError>),
+    CustomNodeDialerScanned(Result<dialer_chain::DialerChainReport, error::InfiltratorError>),
     /// DUAL-05-13: resolve the draft's custom-CA request against this host's
     /// reader and publish the typed outcome.
     VerifyCustomNodeCertificateAuthority,
@@ -774,11 +741,11 @@ pub enum Message {
     ToggleAggregatorRemoveEmojis,
     /// DUAL-08-11: run the shared aggregation preview over the real sources.
     PreviewProfileAggregation,
-    AggregationPreviewFinished(Result<AggregationReport, InfiltratorError>),
+    AggregationPreviewFinished(Result<aggregator::AggregationReport, error::InfiltratorError>),
     /// DUAL-08-06/08-12: save the preview as a brand new independent profile,
     /// optionally activating it through the shared activation path.
     CreateAggregatedProfile,
-    AggregatedProfileCreated(Result<AggregatedProfileOutcome, InfiltratorError>),
+    AggregatedProfileCreated(Result<aggregator::AggregatedProfileOutcome, error::InfiltratorError>),
     /// DUAL-08-09: toggle the required-field precheck filter.
     ToggleAggregatorAvailabilityPrecheck,
     /// DUAL-08-12: switch the "set as active profile" wizard toggle.
@@ -795,20 +762,22 @@ pub enum Message {
     RemoveAggregatorCustomGroup(usize),
     /// DUAL-08-13: load the persisted aggregation template library.
     LoadAggregatorTemplates,
-    AggregatorTemplatesLoaded(Result<Vec<AggregationTemplate>, InfiltratorError>),
+    AggregatorTemplatesLoaded(
+        Result<Vec<aggregator::AggregationTemplate>, error::InfiltratorError>,
+    ),
     /// DUAL-08-13: prefill the wizard from a saved template.
     ApplyAggregatorTemplate(String),
     /// DUAL-08-13: persist the current draft under the typed template name.
     SaveAggregatorTemplate,
     /// DUAL-08-13: template name input.
     UpdateAggregatorTemplateName(String),
-    AggregatorTemplateSaved(Result<String, InfiltratorError>),
+    AggregatorTemplateSaved(Result<String, error::InfiltratorError>),
     /// DUAL-08-13: delete a saved template.
     DeleteAggregatorTemplate(String),
-    AggregatorTemplateDeleted(Result<(String, bool), InfiltratorError>),
+    AggregatorTemplateDeleted(Result<(String, bool), error::InfiltratorError>),
     /// DUAL-08-07: re-read the sources and refresh the generated profile.
     ReAggregateProfile(String),
-    AggregationReaggregated(Result<AggregatedProfileOutcome, InfiltratorError>),
+    AggregationReaggregated(Result<aggregator::AggregatedProfileOutcome, error::InfiltratorError>),
     // Connection Grouping & Quick Rule (Category 4)
     SetConnectionGroupingMode(ConnectionGroupingMode),
     AddQuickRuleFromConnection {
@@ -819,7 +788,7 @@ pub enum Message {
     OpenSnapshotDiff(String),
     CloseSnapshotDiff,
     /// DUAL-09-08: the shared application finished computing the diff.
-    SnapshotDiffLoaded(Result<YamlAstDiffSnapshot, InfiltratorError>),
+    SnapshotDiffLoaded(Result<yaml_ast_diff::YamlAstDiffSnapshot, error::InfiltratorError>),
     /// DUAL-09-08: inline vs split layout for the same shared diff.
     SetSnapshotDiffMode(SnapshotDiffMode),
     /// DUAL-09-14: recompute the open diff from the shared snapshot
@@ -829,19 +798,19 @@ pub enum Message {
     RollbackToSnapshot(String),
     /// DUAL-09-12: allow direct edits of a protected remote subscription for
     /// this session (the application still receives the explicit flag).
-    SetProfileProtectionOverride(bool),
+    SetProfileWriteAuthorization(profile_protection::ProfileWriteAuthorization),
     // Global Hotkey Manager (Category 6) — shared contract registry.
-    BeginHotkeyCapture(ShortcutAction),
+    BeginHotkeyCapture(shortcuts::ShortcutAction),
     CancelHotkeyCapture,
     /// One raw key press forwarded from the window: capture and dispatch are
     /// resolved against the live registry in `update`.
     KeyboardChord {
         key: String,
-        modifiers: KeyModifiers,
+        modifiers: shortcuts::KeyModifiers,
     },
-    ToggleHotkeyEnabled(ShortcutAction),
-    ResetHotkey(ShortcutAction),
-    ShortcutsUpdated(Result<ShortcutRegistry, String>),
+    ToggleHotkeyEnabled(shortcuts::ShortcutAction),
+    ResetHotkey(shortcuts::ShortcutAction),
+    ShortcutsUpdated(Result<shortcuts::ShortcutRegistry, String>),
     // Wave 3 Category 1: PCAP Exporter
     TogglePcapCapture,
     ExportPcapBuffer,
@@ -852,10 +821,29 @@ pub enum Message {
     UpdateSubRuleTarget(String),
     InsertSubRuleIntoRules,
     // Wave 3 Category 3: Node Speedtest & Jitter
-    RunNodeSpeedtest(String),
-    /// Result of a real speedtest probe from the host port. `Err` carries the
-    /// typed port failure (e.g. unsupported host) so the UI can show it.
-    SpeedtestSnapshotUpdated(Result<SpeedtestSnapshot, PortError>),
+    StartSpeedtest(speedtest::SpeedtestTarget),
+    /// Core accepted the exact run and returned its canonical owner snapshot.
+    SpeedtestStarted(
+        Result<
+            (
+                speedtest::SpeedtestStartReceipt,
+                speedtest::SpeedtestSnapshot,
+            ),
+            error::Failure,
+        >,
+    ),
+    /// Core handled cancellation for the exact run and returned its canonical owner snapshot.
+    SpeedtestCancelled(
+        Result<
+            (
+                speedtest::SpeedtestCancelOutcome,
+                speedtest::SpeedtestSnapshot,
+            ),
+            error::Failure,
+        >,
+    ),
+    /// Core applied the new speedtest concurrency and returned its canonical owner snapshot.
+    SpeedtestConcurrencySet(Result<speedtest::SpeedtestSnapshot, error::Failure>),
     // Wave 3 Category 4: Geo Data Updater
     CheckGeoDataUpdates,
     TriggerGeoDataUpdate,
@@ -863,25 +851,29 @@ pub enum Message {
     // Wave 3 Category 5: Windows UWP Loopback Utility
     ScanUwpApps,
     UwpAppsLoaded(Vec<UwpAppItem>),
-    UwpSnapshotLoaded(UwpLoopbackSnapshot),
+    UwpSnapshotLoaded(uwp::UwpLoopbackSnapshot),
     ExemptAllUwpApps,
     ClearAllUwpExemptions,
     ToggleUwpAppExemption(String),
-    UwpExemptionsChanged(Result<UwpLoopbackSnapshot, InfiltratorError>),
+    UwpExemptionsChanged(Result<uwp::UwpLoopbackSnapshot, error::InfiltratorError>),
     // Wave 3 Category 6: Encrypted Backup Package
     UpdateEncryptedBackupPassphrase(String),
     ExportEncryptedPackage,
     ImportEncryptedPackage,
     // Wave 4 Category 1: Network Interface Roaming
     PollNetworkInterfaces,
-    NetworkInterfacesPolled(NetworkRoamingSnapshot),
+    NetworkInterfacesPolled(network_roaming::NetworkRoamingSnapshot),
     ForceGatewayReconnect,
-    NetworkRoamingRepaired(Result<NetworkRoamingSnapshot, InfiltratorError>),
+    NetworkRoamingRepaired(
+        Result<network_roaming::NetworkRoamingSnapshot, error::InfiltratorError>,
+    ),
     StartVpn,
     StopVpn,
-    VpnSessionUpdated(Result<VpnSessionSnapshot, InfiltratorError>),
+    VpnSessionUpdated(Result<vpn::VpnSessionSnapshot, error::InfiltratorError>),
     RunPrivilegedNetworkRegression,
-    PrivilegedNetworkRegressionUpdated(Result<PrivilegedNetworkSnapshot, InfiltratorError>),
+    PrivilegedNetworkRegressionUpdated(
+        Result<privileged_network::PrivilegedNetworkSnapshot, error::InfiltratorError>,
+    ),
     // Wave 4 Category 2: Crash Watchdog & Forensics
     CheckCrashWatchdog,
     RecoverOrphanedState,
@@ -896,7 +888,7 @@ pub enum Message {
     // Wave 4 Category 6: PAC Auto-Proxy & Bypass CIDR
     UpdatePacBypassSubnets(String),
     CompileAndValidatePac,
-    PacApplied(Result<PacSnapshot, InfiltratorError>),
+    PacApplied(Result<pac::PacSnapshot, error::InfiltratorError>),
     TogglePacMode(bool),
     // Wave 5 Category 1: Rule Hit Counter & Stale Rule Audit
     // Wave 5 Category 2: Latency Time-Series & Stability Radar
@@ -909,9 +901,9 @@ pub enum Message {
     UnpackRuleProviderToCustom(String),
     PurgeRuleProviderCache,
     /// DUAL-11-06: the real provider rules a host read produced.
-    RuleProviderUnpacked(Result<ProviderUnpackPlan, InfiltratorError>),
+    RuleProviderUnpacked(Result<ProviderUnpackPlan, error::InfiltratorError>),
     /// DUAL-11-07: the real files/bytes a host purge removed.
-    RuleProviderCachePurged(Result<ProviderCachePurge, InfiltratorError>),
+    RuleProviderCachePurged(Result<provider_cache::ProviderCachePurge, error::InfiltratorError>),
     // Wave 5 Category 5: Config Apply Multi-Stage Transaction Guard
     // Wave 5 Category 6: LAN Proxy Sharing & Client Access Whitelist
     ToggleLanSharing(bool),
@@ -919,7 +911,10 @@ pub enum Message {
     UpdateLanBindAddress(String),
     UpdateLanAclWhitelist(String),
     ApplyLanSharing,
-    LanSharingSet(Result<LanSharingSnapshot, InfiltratorError>, u64),
+    LanSharingSet(
+        Result<lan::LanSharingSnapshot, error::InfiltratorError>,
+        u64,
+    ),
     UpdateLanAllowedIps(String),
     UpdateLanDisallowedIps(String),
     UpdateLanSkipAuthPrefixes(String),
@@ -927,7 +922,10 @@ pub enum Message {
     UpdateLanAuthUsername(String),
     UpdateLanAuthPassword(String),
     ApplyLanSecurity,
-    LanSecuritySet(Result<LanSecuritySnapshot, InfiltratorError>, u64),
+    LanSecuritySet(
+        Result<lan::LanSecuritySnapshot, error::InfiltratorError>,
+        u64,
+    ),
 }
 
 mod debug;

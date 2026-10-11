@@ -3,8 +3,8 @@
 use super::*;
 use crate::rule_form_binding::RuleFormBinding;
 use crate::rule_list_editor::RuleListEditor;
-use crate::rule_source_identity::rule_workspace;
 use crate::rule_trace_fixtures::{NAMED_TRACE_DOCUMENT, RuleTraceStore};
+use crate::rule_workspace_test_support::rule_workspace;
 use infiltrator_contract::rule_edit::RuleMoveDirection;
 use std::sync::atomic::Ordering;
 

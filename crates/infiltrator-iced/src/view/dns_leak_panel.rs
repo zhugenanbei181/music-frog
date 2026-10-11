@@ -16,6 +16,7 @@ use crate::view::theme::{MONO, tokens};
 use crate::view_root::interaction_regions::InteractionRegion;
 use iced::widget::{Space, column, container, row, text};
 use iced::{Alignment, Element, Length, Theme};
+use infiltrator_application::dns_leak_actions::DnsLeakActionPhase;
 use infiltrator_application::dns_leak_projection::{LeakDisplay, LeakTone, project_leak};
 use infiltrator_contract::dns_leak::DnsLeakOperation;
 #[cfg(test)]
@@ -75,8 +76,10 @@ fn observation_rows<'a>(display: &LeakDisplay) -> Vec<Element<'a, Message>> {
 /// The DNS leak cross-source card.
 pub(crate) fn leak_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {
     let report = &state.editor.dns_leak;
-    let probing =
-        state.diag.is_probing_dns_leak || matches!(report.operation, DnsLeakOperation::Running);
+    let probing = matches!(
+        state.diag.dns_leak_action.phase,
+        DnsLeakActionPhase::Pending { .. }
+    ) || matches!(report.operation, DnsLeakOperation::Running);
     let display = project_leak(report, lang.0);
     let kind = badge_kind(display.tone);
 
@@ -116,7 +119,7 @@ pub(crate) fn leak_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a
     if let Some(feedback) = &display.feedback {
         body = body.push(text(feedback.clone()).size(12));
     }
-    if let Some(failure) = &state.diag.dns_leak_action.failure {
+    if let DnsLeakActionPhase::Failed { failure } = &state.diag.dns_leak_action.phase {
         body = body.push(text(failure.message.clone()).size(12));
     }
     if state.diag.dns_leak_action.can_retry() {

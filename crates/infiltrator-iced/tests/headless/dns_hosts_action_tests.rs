@@ -1,14 +1,13 @@
 //! test-intent: behavior
-use crate::command_harness::recording_application;
+use crate::command_harness::{core_test_command_application, recording_application};
 use crate::test_support::demo_env;
 use futures_util::StreamExt;
 use iced::Task;
 use iced::advanced::widget::Tree;
 use iced_runtime::{Action, task::into_stream};
-use infiltrator_application::command_application::CommandApplication;
-use infiltrator_application::configuration_application::ConfigurationApplication;
 use infiltrator_application::dns_hosts_fixtures::{HostsCaptureStore, ORIGINAL_HOSTS};
 use infiltrator_application::surface_reader::ApplicationSurfaceReader;
+use infiltrator_contract::core_capabilities::{CoreOperation, DnsOperation};
 use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::error::Failure;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
@@ -47,10 +46,11 @@ fn publish(state: &mut AppState, reader: &ApplicationSurfaceReader) {
 fn actual_hosts_modal_edit_cancel_migration_failure_retry_and_reader_fences_preserve_profile_bytes()
 {
     let store = Arc::new(HostsCaptureStore::default());
-    let configuration = ConfigurationApplication::new(store.clone());
+    let configuration = infiltrator_iced::configuration::for_mihomo_store(store.clone());
     let (application, _) = recording_application();
     application.install_command_handler(Arc::new(
-        CommandApplication::new().with_configuration(configuration.clone()),
+        core_test_command_application([CoreOperation::Dns(DnsOperation::ApplyConfiguration)])
+            .with_configuration(configuration.clone()),
     ));
     let reader = ApplicationSurfaceReader::new(
         Arc::new(application.clone()),
@@ -58,8 +58,9 @@ fn actual_hosts_modal_edit_cancel_migration_failure_retry_and_reader_fences_pres
         HostKind::Desktop,
     )
     .with_configuration(configuration);
-    let (mut state, _) = AppState::demo(&demo_env(Route::Dns));
-    state.commands = Some(application);
+    let (mut state, _) = AppState::new();
+    state.shell.current_route = Route::Dns;
+    state.attach_product_application(application);
     publish(&mut state, &reader);
     assert_eq!(
         state

@@ -1,7 +1,7 @@
 use super::*;
 use crate::view::overview_hero::overview_speedtest_button;
 use crate::view::overview_topology::{topology_badge, topology_route_for_stage};
-use infiltrator_contract::speedtest::{SpeedtestPhase, SpeedtestProgress};
+use infiltrator_contract::speedtest::{SpeedtestProgress, SpeedtestRunState, SpeedtestSnapshot};
 use infiltrator_contract::traffic_topology::{
     TrafficTopologySnapshot, TrafficTopologyStage, TrafficTopologyStatus,
 };
@@ -53,17 +53,15 @@ fn overview_speedtest_button_renders_when_idle_and_testing() {
     let lang = Lang("zh-CN");
     let _btn_idle = overview_speedtest_button(&state, &lang);
 
-    // Shared engine phase drives the label/progress and the cancel action.
-    state.diag.speedtest.phase = SpeedtestPhase::ProbingLatency;
-    state.diag.speedtest.progress = SpeedtestProgress {
-        completed_nodes: 3,
-        total_nodes: 10,
-        percent: 30.0,
-        current_node: None,
-        current_mbps: None,
+    // The Core-owned run state drives the label/progress and exact cancel ID.
+    let demo = SpeedtestSnapshot::demo_fixture();
+    state.diag.speedtest.state = SpeedtestRunState::Probing {
+        run_id: demo.state.run_id().expect("fixture run ID"),
+        target: demo.state.target().expect("fixture target").clone(),
+        progress: SpeedtestProgress {
+            completed_targets: 3,
+            total_targets: 10,
+        },
     };
     let _btn_testing = overview_speedtest_button(&state, &lang);
-
-    state.runtime.runtime_testing_all_delays = true;
-    let _btn_legacy_flag = overview_speedtest_button(&state, &lang);
 }

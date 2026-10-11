@@ -23,7 +23,7 @@ impl AppState {
     }
     fn submit_log_export(&mut self, request: LogExportPending) -> Task<Message> {
         let operation = request.operation;
-        let Some(core) = self.commands.clone() else {
+        let Some(core) = self.command_ingress() else {
             self.diag.log_export.finish(
                 operation,
                 Err(Failure::new(

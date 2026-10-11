@@ -1,13 +1,13 @@
 [package]
 name = "infiltrator-iced"
-version = "0.41.0"
+version.workspace = true
 edition = "2024"
 
 # Lib + thin binary: `src/lib.rs` hosts the module tree and the application
 # bootstrap (`infiltrator_iced::run`), `src/main.rs` is a one-call wrapper.
 # The lib form lets the `tests/` integration harnesses see the crate; the
 # binary target keeps its package name so `target/debug/infiltrator-iced`
-# (used by scripts/capture-iced.sh) is unchanged.
+# (used by scripts/capture-iced-matrix.sh) is unchanged.
 [lib]
 name = "infiltrator_iced"
 path = "src/lib.rs"
@@ -27,6 +27,9 @@ static-openssl = ["dep:openssl", "openssl/vendored"]
 script-engine-boa = ["infiltrator-application/script-engine-boa"]
 
 [dependencies]
+zhuge-ui-tokens.workspace = true
+zhuge-ui-kit-iced.workspace = true
+zhuge-ui-core.workspace = true
 iced = { version = "0.14", default-features = false, features = ["tokio", "advanced", "wgpu-bare", "canvas", "image", "svg", "wayland"] }
 wgpu = { version = "27.0", default-features = false, features = ["std", "wgsl", "vulkan", "gles"] }
 # naga 27 enters this crate's graph via wgpu 27. When the bevy frontend
@@ -43,10 +46,12 @@ infiltrator-contract = { path = "../infiltrator-contract" }
 infiltrator-application = { path = "../infiltrator-application" }
 infiltrator-composition = { path = "../infiltrator-composition" }
 infiltrator-domain = { path = "../infiltrator-domain" }
+infiltrator-presentation = { path = "../infiltrator-presentation" }
 infiltrator-ports = { path = "../infiltrator-ports" }
 infiltrator-desktop = { path = "../infiltrator-desktop" }
 infiltrator-shared = { path = "../infiltrator-shared" }
 infiltrator-admin = { path = "../infiltrator-admin" }
+mihomo-config = { path = "../mihomo-config" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 serde_yaml_ng = { workspace = true }
@@ -90,7 +95,6 @@ openssl = { version = "0.10", optional = true }
 #   of re-running task bodies by hand. Same 0.14 tree as the `iced` dep.
 [dev-dependencies]
 tempfile = { workspace = true }
-mihomo-config = { path = "../mihomo-config" }
 axum = { workspace = true }
 iced_runtime = "0.14"
 infiltrator-core = { path = "../infiltrator-core" }
@@ -99,13 +103,12 @@ mihomo-version = { path = "../mihomo-version" }
 
 [package.metadata.packager]
 product-name = "MusicFrog Infiltrator"
-identifier = "com.musicfrog.infiltrator"
-version = "0.20.0"
+identifier = "app.musicfrog.infiltrator"
 authors = ["MusicFrog"]
 description = "A native high-performance proxy client."
-icons = ["icons/icon.png"]
+icons = ["../infiltrator-shared/assets/product/icon.png"]
 resources = [
-    "icons/icon.png",
+    "../infiltrator-shared/assets/product/icon.png",
     "../../vendor/mihomo.exe"
 ]
 

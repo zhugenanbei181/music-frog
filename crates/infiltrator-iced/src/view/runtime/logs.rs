@@ -12,19 +12,18 @@ use crate::view::theme;
 use crate::view::theme::{MONO, R_CONTROL, tokens};
 use crate::view_root::interaction_regions::InteractionRegion;
 use iced::advanced::text::Wrapping;
-use iced::widget::{
-    Id, Scrollable, Space, column, container, pick_list, rich_text, row, span, text,
-};
-use iced::{Alignment, Border, Element, Length, Renderer, Theme, border};
+use iced::widget::{Id, Scrollable, Space, column, container, pick_list, row, text};
+use iced::{Alignment, Border, Element, Length, Theme, border};
 use infiltrator_application::log_search::LogSearchRow;
 use infiltrator_contract::logs::LogLevel;
-use infiltrator_contract::search_text::SearchTextRun;
 use infiltrator_contract::surface_snapshot::PageStatus;
 use infiltrator_shared::i18n_interpolator::interpolate;
 use infiltrator_shared::locales::{Lang, Localizer};
 use std::fmt;
 use std::fmt::{Display, Formatter};
 use std::iter::once;
+use zhuge_ui_core::text::SearchTextRun;
+use zhuge_ui_kit_iced::text::highlighted;
 
 #[derive(Clone, PartialEq)]
 struct LogChoice {
@@ -200,22 +199,16 @@ fn log_text<'a>(
         Some(LogLevel::Debug) => palette.text_tertiary,
         _ => palette.text_primary,
     };
-    let spans: Vec<_> = runs
-        .iter()
-        .map(|run| {
-            span(run.text.as_str()).color(if run.highlighted {
-                palette.accent
-            } else {
-                plain
-            })
-        })
-        .collect();
-    rich_text::<(), Message, Theme, Renderer>(spans)
-        .size(11)
-        .font(MONO)
-        .width(width)
-        .wrapping(Wrapping::WordOrGlyph)
-        .into()
+    highlighted(
+        runs.iter().map(|run| (run.text.as_str(), run.highlighted)),
+        plain,
+        palette.accent,
+    )
+    .size(11)
+    .font(MONO)
+    .width(width)
+    .wrapping(Wrapping::WordOrGlyph)
+    .into()
 }
 
 fn stream_badge<'a>(state: &RuntimeStreamState, lang: &Lang<'_>) -> Element<'a, Message> {

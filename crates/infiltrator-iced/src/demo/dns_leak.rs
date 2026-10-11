@@ -1,4 +1,6 @@
 //! Actual composed command activation with an isolated echo host and shared report readback.
+use super::capabilities::DemoHostCapabilityProvider;
+use crate::demo::owner::attach_capture_owner_with_snapshot;
 use crate::state::AppState;
 use crate::types::message::Message;
 use iced::Task;
@@ -8,9 +10,10 @@ use infiltrator_application::dns_leak_application::{DnsLeakApplication, default_
 use infiltrator_application::dns_leak_fixtures::IsolatedEcho;
 use infiltrator_application::language_choice_fixtures::LanguageCaptureProcess;
 use infiltrator_composition::tokio_application_runtime;
-use infiltrator_contract::error::Failure;
+use infiltrator_contract::capability::Capability;
+use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
-use infiltrator_contract::surface_snapshot::{SurfaceOrigin, SurfaceSnapshot};
+use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use std::sync::Arc;
 pub(super) fn activate(state: &mut AppState) -> Task<Message> {
     let application = DnsLeakApplication::new(
@@ -23,20 +26,17 @@ pub(super) fn activate(state: &mut AppState) -> Task<Message> {
         tokio_application_runtime().expect("isolated capture runtime"),
     );
     core.install_command_handler(Arc::new(
-        CommandApplication::new().with_dns_leak(application.clone()),
+        CommandApplication::new()
+            .with_host_capabilities(Arc::new(DemoHostCapabilityProvider::new(Capability::Dns)))
+            .with_dns_leak(application.clone()),
     ));
-    state.commands = Some(core);
-    let mut snapshot = state.surface.latest().cloned().unwrap_or_else(|| {
-        SurfaceSnapshot::unavailable(
-            SurfaceKind::IcedDesktop,
-            HostKind::Desktop,
-            Failure::unsupported("unrelated capture services"),
-        )
-    });
-    snapshot.origin = SurfaceOrigin::Demo;
-    snapshot.revision += 1;
+    let mut snapshot = SurfaceSnapshot::unavailable(
+        SurfaceKind::IcedDesktop,
+        HostKind::Desktop,
+        Failure::new(ErrorCode::NotReady, "DNS leak capture is preparing", true),
+    );
     snapshot.dns_leak = application.last_report();
-    state.apply_shared_surface_snapshot(snapshot);
+    attach_capture_owner_with_snapshot(state, core, snapshot);
     state.diag.dns_leak_capture = Some(application);
     state.update(Message::RunDnsLeakProbe)
 }

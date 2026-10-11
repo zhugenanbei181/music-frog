@@ -1,6 +1,6 @@
 //! One presentation of observed profile traffic and update schedules for peer products.
-use crate::byte_format::format_bytes;
 use crate::subscription_status_projection::schedule_status;
+use infiltrator_shared::byte_units::format_bytes;
 use infiltrator_shared::i18n_interpolator::localize;
 use infiltrator_shared::locales::{Lang, Localizer};
 

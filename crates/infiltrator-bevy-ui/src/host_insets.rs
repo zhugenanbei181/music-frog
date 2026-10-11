@@ -1,28 +1,31 @@
 //! BANDROID-006: typed native window-insets seam.
 //!
-//! The Android host reads `WindowInsetsCompat`/`WindowInsets`, converts
-//! physical pixels to logical coordinates with the real window density, and
-//! feeds one [`WindowInsetsInput`] into the shell. This module owns only the
-//! typed translation into the existing safe-area / responsive consumer:
+//! The Android host reads `WindowInsetsCompat` and sends physical-pixel edges
+//! with the real density through [`WindowInsetsInput`]. This module converts
+//! and projects them into the existing safe-area / responsive consumer:
 //!
-//! * permanent system insets (status bar, navigation bar, display cutout) are
-//!   projected into the shared [`SafeAreaInsets`] / [`GestureHostReport`] the
-//!   shell already consumes;
+//! * permanent system insets (status bar, navigation bar, display cutout and
+//!   Android system-gesture region) are converted from physical pixels to
+//!   logical pixels and projected into the shared [`SafeAreaInsets`] /
+//!   [`GestureHostReport`] the shell consumes;
 //! * the transient IME (keyboard) inset is kept separate in
 //!   [`KeyboardAvoidance`] so the keyboard pushes content up without
 //!   duplicating the permanent bottom margin (`max(nav_bar, ime)`).
 //!
 //! Bevy 0.20 exposes no `WindowInsets` API of its own, so a native host owns
-//! the real read and this module is the typed boundary it writes through.
+//! the real read and sends observations through the typed input channel this
+//! module exposes.
 
 use crate::gesture::GestureHostReport;
-use bevy::app::{App, Plugin};
+use bevy::app::{App, Plugin, PreUpdate};
 use bevy::ecs::event::Event;
 use bevy::ecs::observer::On;
 use bevy::ecs::resource::Resource;
-use bevy::ecs::system::ResMut;
+use bevy::ecs::system::{Commands, Res, ResMut};
 use infiltrator_bevy_widgets::responsive::SafeAreaInsets;
 use infiltrator_contract::shell_gesture;
+use std::sync::Mutex;
+use std::sync::mpsc::{Receiver, SendError, Sender, channel};
 
 /// One inset group in physical pixels. Negative host values are clamped to
 /// zero on read so a malformed platform report cannot pull layout off-screen.
@@ -70,14 +73,16 @@ impl EdgeInsets {
     }
 }
 
-/// Typed native window insets: status bar, navigation bar, display cutout and
-/// IME, all in physical pixels, with the real window density for conversion.
+/// Typed native window insets: status bar, navigation bar, display cutout,
+/// system-gesture region and IME, all in physical pixels, with the real window
+/// density for conversion.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct WindowInsets {
     pub density: f32,
     pub status_bar: EdgeInsets,
     pub nav_bar: EdgeInsets,
     pub cutout: EdgeInsets,
+    pub system_gestures: EdgeInsets,
     pub ime: EdgeInsets,
 }
 
@@ -88,26 +93,29 @@ impl Default for WindowInsets {
             status_bar: EdgeInsets::ZERO,
             nav_bar: EdgeInsets::ZERO,
             cutout: EdgeInsets::ZERO,
+            system_gestures: EdgeInsets::ZERO,
             ime: EdgeInsets::ZERO,
         }
     }
 }
 
 impl WindowInsets {
-    /// Build from physical-pixel edge groups. A non-positive density falls back
-    /// to 1.0 so coordinate conversion never divides by zero.
+    /// Build from physical-pixel edge groups. An invalid density falls back to
+    /// 1.0 so coordinate conversion never divides by zero or becomes infinite.
     pub fn physical(
         density: f32,
         status_bar: EdgeInsets,
         nav_bar: EdgeInsets,
         cutout: EdgeInsets,
+        system_gestures: EdgeInsets,
         ime: EdgeInsets,
     ) -> Self {
         Self {
-            density: if density > 0.0 { density } else { 1.0 },
+            density: sane_density(density),
             status_bar: clamp(status_bar),
             nav_bar: clamp(nav_bar),
             cutout: clamp(cutout),
+            system_gestures: clamp(system_gestures),
             ime: clamp(ime),
         }
     }
@@ -119,14 +127,16 @@ impl WindowInsets {
         status_bar: EdgeInsets,
         nav_bar: EdgeInsets,
         cutout: EdgeInsets,
+        system_gestures: EdgeInsets,
         ime: EdgeInsets,
     ) -> Self {
-        let density = if density > 0.0 { density } else { 1.0 };
+        let density = sane_density(density);
         Self {
             density,
             status_bar: clamp(scale(status_bar, density)),
             nav_bar: clamp(scale(nav_bar, density)),
             cutout: clamp(scale(cutout, density)),
+            system_gestures: clamp(scale(system_gestures, density)),
             ime: clamp(scale(ime, density)),
         }
     }
@@ -136,28 +146,45 @@ impl WindowInsets {
         physical_px / self.density
     }
 
-    /// Permanent system safe area (status bar, navigation bar, cutout),
-    /// independent of the keyboard. Overlapping top sources are merged with a
-    /// maximum, never summed.
+    /// Permanent interaction-safe area (system bars, display cutout, system
+    /// gesture region), converted to Bevy logical pixels and independent of
+    /// the keyboard. Overlapping sources are merged with a maximum, never
+    /// summed.
     pub fn permanent_safe_area(&self) -> SafeAreaInsets {
-        let top = self.status_bar.top.max(self.cutout.top);
-        let bottom = self.nav_bar.bottom.max(self.cutout.bottom);
+        let top = self
+            .status_bar
+            .top
+            .max(self.nav_bar.top)
+            .max(self.cutout.top)
+            .max(self.system_gestures.top);
+        let bottom = self
+            .nav_bar
+            .bottom
+            .max(self.cutout.bottom)
+            .max(self.system_gestures.bottom);
         let left = self
             .status_bar
             .left
             .max(self.nav_bar.left)
-            .max(self.cutout.left);
+            .max(self.cutout.left)
+            .max(self.system_gestures.left);
         let right = self
             .status_bar
             .right
             .max(self.nav_bar.right)
-            .max(self.cutout.right);
-        SafeAreaInsets::new(top, bottom, left, right)
+            .max(self.cutout.right)
+            .max(self.system_gestures.right);
+        SafeAreaInsets::new(
+            self.to_dp(top),
+            self.to_dp(bottom),
+            self.to_dp(left),
+            self.to_dp(right),
+        )
     }
 
     /// Transient keyboard avoidance height at the bottom edge.
     pub fn keyboard_bottom(&self) -> f32 {
-        self.ime.bottom.max(0.0)
+        self.to_dp(self.ime.bottom.max(0.0))
     }
 
     /// The layout avoidance the responsive consumer applies: the permanent safe
@@ -185,6 +212,14 @@ fn clamp(edges: EdgeInsets) -> EdgeInsets {
     }
 }
 
+fn sane_density(density: f32) -> f32 {
+    if density.is_finite() && density > 0.0 {
+        density
+    } else {
+        1.0
+    }
+}
+
 fn scale(edges: EdgeInsets, factor: f32) -> EdgeInsets {
     EdgeInsets {
         top: edges.top * factor,
@@ -208,6 +243,48 @@ pub struct KeyboardAvoidance {
 /// Typed insets input from the native host.
 #[derive(Event, Clone, Copy, Debug, PartialEq)]
 pub struct WindowInsetsInput(pub WindowInsets);
+
+/// The host-side sender and Bevy-side receiver for live Android inset updates.
+/// Insets are sent only when the native observation changes; the shell drains
+/// any queued reports to the newest typed value before each frame.
+#[derive(Resource)]
+pub struct WindowInsetsInputReceiver(Mutex<Receiver<WindowInsets>>);
+
+/// Send end of [`window_insets_input_channel`].
+#[derive(Clone)]
+pub struct WindowInsetsInputSender(Sender<WindowInsets>);
+
+/// Create the explicit Activity-to-Bevy typed inset feed.
+pub fn window_insets_input_channel() -> (WindowInsetsInputSender, WindowInsetsInputReceiver) {
+    let (sender, receiver) = channel();
+    (
+        WindowInsetsInputSender(sender),
+        WindowInsetsInputReceiver(Mutex::new(receiver)),
+    )
+}
+
+impl WindowInsetsInputSender {
+    /// Publish a native inset observation. A disconnected Bevy shell is reported
+    /// to the Activity callback so it can stop forwarding retired-surface events.
+    pub fn send(&self, insets: WindowInsets) -> Result<(), SendError<WindowInsets>> {
+        self.0.send(insets)
+    }
+}
+
+fn forward_host_window_insets(
+    receiver: Option<Res<WindowInsetsInputReceiver>>,
+    mut commands: Commands,
+) {
+    let Some(receiver) = receiver else {
+        return;
+    };
+    let Ok(receiver) = receiver.0.lock() else {
+        return;
+    };
+    if let Some(latest) = receiver.try_iter().last() {
+        commands.trigger(WindowInsetsInput(latest));
+    }
+}
 
 /// Project one insets report onto the existing safe-area consumers.
 fn apply_window_insets(
@@ -253,7 +330,8 @@ impl Plugin for HostInsetsPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<HostWindowInsets>()
             .init_resource::<KeyboardAvoidance>()
-            .add_observer(apply_window_insets);
+            .add_observer(apply_window_insets)
+            .add_systems(PreUpdate, forward_host_window_insets);
     }
 }
 
@@ -276,15 +354,16 @@ mod tests {
             top(72.0),
             bottom(144.0),
             EdgeInsets::ZERO,
+            EdgeInsets::ZERO,
             bottom(900.0),
         );
         let permanent = insets.permanent_safe_area();
-        assert_eq!(permanent.top_px, 72.0);
+        assert_eq!(permanent.top_px, 24.0);
         assert_eq!(
-            permanent.bottom_px, 144.0,
+            permanent.bottom_px, 48.0,
             "the permanent area never contains the IME"
         );
-        assert_eq!(insets.keyboard_bottom(), 900.0);
+        assert_eq!(insets.keyboard_bottom(), 300.0);
         assert_eq!(insets.to_dp(72.0), 24.0);
     }
 
@@ -294,6 +373,7 @@ mod tests {
             1.0,
             top(24.0),
             bottom(48.0),
+            EdgeInsets::ZERO,
             EdgeInsets::ZERO,
             bottom(300.0),
         );
@@ -314,6 +394,7 @@ mod tests {
             bottom(48.0),
             EdgeInsets::ZERO,
             EdgeInsets::ZERO,
+            EdgeInsets::ZERO,
         );
         assert_eq!(hidden.layout_avoidance().bottom_px, 48.0);
     }
@@ -326,6 +407,7 @@ mod tests {
             EdgeInsets::ZERO,
             EdgeInsets::new(30.0, 0.0, 0.0, 0.0),
             EdgeInsets::ZERO,
+            EdgeInsets::ZERO,
         );
         assert_eq!(insets.permanent_safe_area().top_px, 30.0);
         assert_ne!(insets.permanent_safe_area().top_px, 54.0);
@@ -337,6 +419,7 @@ mod tests {
             3.0,
             top(24.0),
             bottom(16.0),
+            EdgeInsets::ZERO,
             EdgeInsets::ZERO,
             EdgeInsets::ZERO,
         );
@@ -358,6 +441,7 @@ mod tests {
             bottom(48.0),
             EdgeInsets::ZERO,
             EdgeInsets::ZERO,
+            EdgeInsets::ZERO,
         );
         app.world_mut().trigger(WindowInsetsInput(portrait));
         app.update();
@@ -377,6 +461,7 @@ mod tests {
             top(24.0),
             bottom(48.0),
             EdgeInsets::ZERO,
+            EdgeInsets::ZERO,
             bottom(300.0),
         );
         app.world_mut().trigger(WindowInsetsInput(typing));
@@ -391,6 +476,7 @@ mod tests {
             bottom(48.0),
             EdgeInsets::new(0.0, 0.0, 60.0, 60.0),
             EdgeInsets::ZERO,
+            EdgeInsets::ZERO,
         );
         app.world_mut().trigger(WindowInsetsInput(landscape));
         app.update();
@@ -401,6 +487,68 @@ mod tests {
     }
 
     #[test]
+    fn activity_feed_projects_gesture_safe_area_before_shell_layout() {
+        use crate::app::{BOTTOM_NAV_CONTENT_HEIGHT, BottomNavBar, ShellLayoutState, ShellPlugin};
+        use bevy::MinimalPlugins;
+        use bevy::asset::AssetPlugin;
+        use bevy::scene::ScenePlugin;
+        use bevy::ui::prelude::{Display, Node, Val};
+        use infiltrator_bevy_widgets::theme::space;
+        use infiltrator_contract::theme::{ThemePreference, ThemeSkin};
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.add_plugins((AssetPlugin::default(), ScenePlugin));
+        app.add_plugins(ShellPlugin::new(ThemePreference::Fixed(ThemeSkin::Dark)));
+        app.world_mut()
+            .resource_mut::<ShellLayoutState>()
+            .set_width(360.0);
+
+        let (sender, receiver) = window_insets_input_channel();
+        app.insert_resource(receiver);
+
+        // Synthetic 3x-density observation: Android reports a 16dp navigation
+        // bar and a 32dp gesture region. The interaction-safe edge comes from
+        // the larger typed inset, not a device-specific pixel constant.
+        let report = WindowInsets::physical(
+            3.0,
+            EdgeInsets::new(72.0, 0.0, 0.0, 0.0),
+            EdgeInsets::new(0.0, 48.0, 0.0, 0.0),
+            EdgeInsets::ZERO,
+            EdgeInsets::new(0.0, 96.0, 0.0, 0.0),
+            EdgeInsets::ZERO,
+        );
+        sender.send(report).expect("Bevy inset receiver is alive");
+        app.update();
+
+        let world = app.world_mut();
+        assert_eq!(
+            world.resource::<SafeAreaInsets>().bottom_px,
+            32.0,
+            "physical gesture inset must be converted to logical pixels"
+        );
+        let safe_bottom = world.resource::<SafeAreaInsets>().bottom_px;
+        let mut navs = world.query::<(&Node, &BottomNavBar)>();
+        let (nav, _) = navs.single(world).expect("one compact bottom navigation");
+        assert_eq!(nav.display, Display::Flex);
+        assert_eq!(nav.height, Val::Px(BOTTOM_NAV_CONTENT_HEIGHT + 32.0));
+        assert_eq!(nav.padding.bottom, Val::Px(space::S6 + 32.0));
+
+        // The bar's content padding keeps navigation hit targets clear of the
+        // Android-owned gesture region at every logical viewport size.
+        let interactive_bottom_gap = nav.padding.bottom;
+        let interactive_bottom_gap = match interactive_bottom_gap {
+            Val::Px(value) => value,
+            _ => panic!("native safe-area layout resolves in logical pixels"),
+        };
+        assert_eq!(nav.height, Val::Px(BOTTOM_NAV_CONTENT_HEIGHT + safe_bottom));
+        assert!(
+            interactive_bottom_gap > safe_bottom,
+            "bottom-nav hit targets must end above the system gesture region"
+        );
+    }
+
+    #[test]
     fn repeating_the_same_report_is_inert() {
         let mut app = App::new();
         app.init_resource::<SafeAreaInsets>();
@@ -408,6 +556,7 @@ mod tests {
         let report = WindowInsets::physical(
             1.0,
             top(24.0),
+            EdgeInsets::ZERO,
             EdgeInsets::ZERO,
             EdgeInsets::ZERO,
             EdgeInsets::ZERO,

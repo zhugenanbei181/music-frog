@@ -1,7 +1,7 @@
 //! BANDROID-009: the Proxies node list wired to the shared recycler engine.
 //!
-//! The engine in `infiltrator_bevy_widgets::list` owns the window math
-//! ([`VirtualListState`], dynamic row heights, overscan) and the slot recycler
+//! `zhuge-ui-core::virtual_list::VariableExtentIndex` and [`VirtualListState`]
+//! own window math, measured row extents, and overscan; the Bevy adapter owns the slot recycler
 //! ([`VirtualEntityPool`]). This module maps the shared Proxies projection onto
 //! a flat row stream (group header rows + wrapped node grid rows), derives the
 //! mounted window from the viewport's real scroll offset, and mounts only the
@@ -13,7 +13,9 @@
 //! vocabulary (and its stable-identity reconcile contract).
 
 use crate::pages::proxies::{LastProxiesProjection, ProxiesProjection, ProxiesScrollArea};
-use crate::pages::proxies_card::{group_header_scene, proxy_node_scene_sized};
+use crate::pages::proxies_card::{
+    ProxyNodeSceneContext, group_header_scene, proxy_node_scene_sized,
+};
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::{ChildOf, Children};
@@ -28,6 +30,7 @@ use infiltrator_bevy_widgets::fluid_grid::FluidCardGrid;
 use infiltrator_bevy_widgets::list::VirtualListState;
 use infiltrator_bevy_widgets::list::scroll_core::{SlotRebindAction, VirtualEntityPool};
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::responsive::ResponsiveContext;
 use infiltrator_bevy_widgets::theme::{Breakpoint, space};
 
@@ -121,10 +124,17 @@ fn row_signature(projection: &ProxiesProjection, columns: usize) -> u64 {
     let mut hasher = DefaultHasher::new();
     columns.hash(&mut hasher);
     for group in &projection.groups {
-        group.name.hash(&mut hasher);
+        group
+            .collection_id
+            .as_ref()
+            .map_or_else(|| group.name.as_str(), |id| id.value())
+            .hash(&mut hasher);
         group.expanded.hash(&mut hasher);
         for node in &group.proxies {
-            node.name.hash(&mut hasher);
+            node.outbound_id
+                .as_ref()
+                .map_or_else(|| node.name.as_str(), |id| id.value())
+                .hash(&mut hasher);
         }
     }
     hasher.finish()
@@ -242,9 +252,13 @@ fn row_scene(
                 .filter_map(|node_idx| {
                     group.proxies.get(*node_idx).map(|node| {
                         Box::new(proxy_node_scene_sized(
-                            *group_idx,
-                            *node_idx,
-                            &group.name,
+                            ProxyNodeSceneContext {
+                                group_idx: *group_idx,
+                                node_idx: *node_idx,
+                                group_name: &group.name,
+                                collection_id: group.collection_id.clone(),
+                                selection_available: group.outbound_selection_available,
+                            },
                             node,
                             width,
                             palette,
@@ -257,8 +271,8 @@ fn row_scene(
                         width: percent(100),
                         flex_direction: FlexDirection::Row,
                         flex_wrap: FlexWrap::Wrap,
-                        column_gap: px(space::S8),
-                        row_gap: px(space::S8),
+                        column_gap: rem(space::S8),
+                        row_gap: rem(space::S8),
                     }
                     Children [ { cards } ]
             })
@@ -368,17 +382,20 @@ pub(crate) fn sync_proxies_virtual_window(mut commands: Commands, surface: Proxi
         state.rows = rows;
         state.columns = columns;
         state.signature = signature;
-        state.list =
-            VirtualListState::new_dynamic(state.rows.len(), PROXY_NODE_ROW_HEIGHT_PX, viewport)
-                .with_overscan(PROXIES_VIRTUAL_OVERSCAN);
+        state.list = VirtualListState::new_variable_extent(
+            state.rows.len(),
+            PROXY_NODE_ROW_HEIGHT_PX,
+            viewport,
+        )
+        .with_overscan(PROXIES_VIRTUAL_OVERSCAN);
         for index in 0..state.rows.len() {
             let height = state.rows[index].height_px();
-            state.list.update_measured_row_height(index, height);
+            let _ = state.list.update_measured_extent(index, height);
         }
     } else {
         state.list.set_viewport_height(viewport);
     }
-    state.list.set_scroll_offset(offset);
+    let _ = state.list.set_scroll_offset(offset);
 
     let window = state.list.window();
 
@@ -444,6 +461,7 @@ mod tests {
     use super::*;
     use crate::pages::proxies::{ProxyGroup, ProxyNode};
     use bevy::ecs::world::World;
+    use infiltrator_contract::outbound::details::OutboundHealthObservation;
     use infiltrator_contract::proxies::ProxyGroupClassification;
 
     fn projection_with(count: usize) -> ProxiesProjection {
@@ -456,16 +474,20 @@ mod tests {
             active_exit: "node-0".to_owned(),
             custom_node: Default::default(),
             groups: vec![ProxyGroup {
+                collection_id: None,
                 name: "BIG".to_owned(),
                 group_type: "Selector".to_owned(),
                 classification: ProxyGroupClassification::Selector,
                 current: "node-0".to_owned(),
+                outbound_selection_available: true,
                 expanded: true,
                 proxies: (0..count)
                     .map(|index| ProxyNode {
+                        outbound_id: None,
                         name: format!("node-{index}"),
                         node_type: "Shadowsocks".to_owned(),
                         delay_ms: Some(40),
+                        health: OutboundHealthObservation::Unknown,
                         selected: index == 0,
                         favorite: false,
                         features: vec![],
@@ -485,10 +507,10 @@ mod tests {
 
         let viewport = PROXIES_VIRTUAL_FALLBACK_VIEWPORT_PX;
         let mut list =
-            VirtualListState::new_dynamic(rows.len(), PROXY_NODE_ROW_HEIGHT_PX, viewport)
+            VirtualListState::new_variable_extent(rows.len(), PROXY_NODE_ROW_HEIGHT_PX, viewport)
                 .with_overscan(PROXIES_VIRTUAL_OVERSCAN);
         for (index, row) in rows.iter().enumerate() {
-            list.update_measured_row_height(index, row.height_px());
+            let _ = list.update_measured_extent(index, row.height_px());
         }
         let bound =
             (viewport / PROXY_GROUP_ROW_HEIGHT_PX).ceil() as usize + PROXIES_VIRTUAL_OVERSCAN * 2;
@@ -510,17 +532,17 @@ mod tests {
         let rows = flatten_proxy_rows(&projection, 3);
         let viewport = PROXIES_VIRTUAL_FALLBACK_VIEWPORT_PX;
         let mut list =
-            VirtualListState::new_dynamic(rows.len(), PROXY_NODE_ROW_HEIGHT_PX, viewport)
+            VirtualListState::new_variable_extent(rows.len(), PROXY_NODE_ROW_HEIGHT_PX, viewport)
                 .with_overscan(PROXIES_VIRTUAL_OVERSCAN);
         for (index, row) in rows.iter().enumerate() {
-            list.update_measured_row_height(index, row.height_px());
+            let _ = list.update_measured_extent(index, row.height_px());
         }
 
         let top = list.window();
         assert_eq!(top.start, 0);
         assert!(top.bottom_spacer_px > 0.0);
 
-        list.scroll_to_bottom();
+        let _ = list.scroll_to_bottom();
         let bottom = list.window();
         assert_eq!(bottom.end, rows.len());
         assert!(bottom.top_spacer_px > 0.0);

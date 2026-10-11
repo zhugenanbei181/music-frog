@@ -6,9 +6,9 @@ use crate::settings_store::{load, save};
 use crate::state::AppState;
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
+use crate::version_application::normalized_release_channel;
 use iced::Task;
 use infiltrator_contract::error::InfiltratorError;
-use infiltrator_contract::version::CoreReleaseChannel;
 use infiltrator_domain::settings::WebDavConfig;
 use std::path::PathBuf;
 
@@ -147,8 +147,6 @@ impl AppState {
     }
 
     fn profile_core_channel(&self) -> String {
-        CoreReleaseChannel::parse(&self.runtime.core_channel)
-            .as_str()
-            .to_string()
+        normalized_release_channel(&self.runtime.core_channel)
     }
 }

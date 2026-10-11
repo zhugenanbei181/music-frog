@@ -1,5 +1,6 @@
 //! Isolated capture persistence: real settings commands, no operator files or processes.
 use async_trait::async_trait;
+use infiltrator_contract::core_identity::{CoreIdentity, CoreInstanceId, CoreVersion, EngineId};
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_domain::settings::AppSettings;
 use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
@@ -33,6 +34,14 @@ impl SettingsStore for LanguageCaptureStore {
 pub struct LanguageCaptureProcess;
 #[async_trait]
 impl CoreProcess for LanguageCaptureProcess {
+    fn core_identity(&self) -> Option<CoreIdentity> {
+        Some(CoreIdentity::new(
+            EngineId::new("capture").expect("valid fixture engine"),
+            CoreInstanceId::new("language-capture").expect("valid fixture instance"),
+            Some(CoreVersion::new("0.1.0").expect("valid fixture version")),
+        ))
+    }
+
     async fn start(&self) -> Result<(), PortError> {
         Err(PortError::Failed(
             "language capture refuses lifecycle effects".into(),

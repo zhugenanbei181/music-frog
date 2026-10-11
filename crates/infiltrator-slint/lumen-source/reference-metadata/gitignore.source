@@ -1,0 +1,7 @@
+/target/
+/dist/
+/.slint-cache/
+*.tmp
+*.log
+.DS_Store
+Thumbs.db

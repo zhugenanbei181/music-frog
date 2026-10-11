@@ -5,11 +5,12 @@ use std::ffi::c_char;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 static TUNNEL_RUNNING: AtomicBool = AtomicBool::new(false);
+const PRODUCT_VERSION: &str = concat!(env!("CARGO_PKG_VERSION"), "\0");
 
 /// Returns the C-string version of the Infiltrator iOS core.
 #[unsafe(no_mangle)]
 pub extern "C" fn infiltrator_ios_version() -> *const c_char {
-    c"0.41.0".as_ptr()
+    PRODUCT_VERSION.as_ptr().cast()
 }
 
 /// Returns the strict 15MB physical memory ceiling enforced by iOS NetworkExtension.

@@ -30,6 +30,12 @@ mod palette_scenarios_tests;
 #[path = "common/command_harness.rs"]
 mod command_harness;
 
+#[path = "common/outbound_fixtures.rs"]
+mod outbound_fixtures;
+
+#[path = "headless/host_command_harness.rs"]
+mod host_command_harness;
+
 #[path = "headless/connection_inspection_tests.rs"]
 mod connection_inspection_tests;
 
@@ -51,9 +57,6 @@ mod proxy_search_tests;
 mod probe_settings_store;
 #[path = "headless/probe_settings_tests.rs"]
 mod probe_settings_tests;
-
-#[path = "headless/group_order_tests.rs"]
-mod group_order_tests;
 
 #[path = "headless/language_choice_tests.rs"]
 mod language_choice_tests;

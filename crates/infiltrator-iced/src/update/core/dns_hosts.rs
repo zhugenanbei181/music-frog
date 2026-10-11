@@ -6,6 +6,7 @@ use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::error::{ErrorCode, Failure};
 impl AppState {
     pub(super) fn update_core_dns_hosts(&mut self, message: Message) -> Task<Message> {
+        let command_ingress = self.command_ingress();
         let editor = &mut self.editor.dns_hosts_editor;
         match message {
             Message::OpenDnsHostsEditor => {
@@ -63,7 +64,7 @@ impl AppState {
                     Ok(pending) => pending,
                     Err(_) => return Task::none(),
                 };
-                let Some(application) = self.commands.clone() else {
+                let Some(application) = command_ingress else {
                     editor.finish(
                         pending.token,
                         Err(Failure::new(

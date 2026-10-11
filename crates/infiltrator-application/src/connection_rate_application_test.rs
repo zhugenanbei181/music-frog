@@ -2,7 +2,7 @@
 
 use super::*;
 use infiltrator_contract::capability::Availability;
-use infiltrator_contract::connection::timing_availability;
+use infiltrator_contract::connection::{ConnectionRateObservation, timing_availability};
 use infiltrator_domain::connection_rate::ConnectionRate;
 use infiltrator_domain::runtime::{Connection, ConnectionMetadata};
 use std::time::Duration;
@@ -142,10 +142,16 @@ fn connection_rate_projection_distinguishes_unobserved_from_measured_zero() {
     );
     let first = application.observe_at(base, &source.connections);
     let first = connections_page_snapshot(&source, &first);
-    assert!(!first.connections[0].rate_observed);
+    assert_eq!(
+        first.connections[0].rate_observation,
+        ConnectionRateObservation::Unobserved
+    );
     let second = application.observe_at(base + Duration::from_secs(1), &source.connections);
     let second = connections_page_snapshot(&source, &second);
-    assert!(second.connections[0].rate_observed);
+    assert_eq!(
+        second.connections[0].rate_observation,
+        ConnectionRateObservation::Measured
+    );
     assert_eq!(second.connections[0].upload_bps, 0.0);
     assert_eq!(second.connections[0].download_bps, 0.0);
 }

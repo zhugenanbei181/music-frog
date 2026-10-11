@@ -16,23 +16,35 @@ use bevy::ui::Node;
 use bevy::ui::prelude::{Display, Val};
 use bevy::ui::widget::Text;
 use infiltrator_bevy_ui::app::ShellPlugin;
-use infiltrator_bevy_ui::command::{CommandSinkHandle, DemoCommandSink, UiCommand};
+use infiltrator_bevy_ui::command::{
+    CommandPumpPlugin, CommandSinkHandle, DemoCommandSink, UiCommand, UiCommandSink,
+};
 use infiltrator_bevy_ui::gesture::{
     GestureHostReport, ShellGesturePlugin, ShellGestureSnapshot, shared_outcome, shared_phase,
     touch_support,
 };
+use infiltrator_bevy_ui::host_capabilities::{
+    HostPreferenceIntent, HostPreferences, MotionPreference,
+};
+use infiltrator_contract::connection::ConnectionRateObservation;
+use infiltrator_contract::outbound::details::OutboundHealthObservation;
+use infiltrator_contract::outbound::probe::OutboundProbeBatchScope;
 use infiltrator_contract::surface_snapshot::ConnectionSnapshot;
 
+use crate::support::allow_outbound_probe;
 use infiltrator_bevy_ui::pages::connections_row::connection_row_scene;
 use infiltrator_bevy_ui::pages::proxies::ProxyNode;
 use infiltrator_bevy_ui::pages::proxies_card::proxy_node_scene;
 use infiltrator_bevy_ui::route::{ActiveRoute, Route};
+use infiltrator_bevy_ui::route::{PagesPlugin, RouteChanged};
+use infiltrator_bevy_ui::surface::LatestSurfaceSnapshot;
 use infiltrator_bevy_widgets::gesture::{
     GestureOutcome, PullToRefreshIndicator, PullToRefreshState, PullToRefreshText,
     SwipeActionDrawer, SwipeContentContainer, SwipeToActionItem, pull_to_refresh_scene,
 };
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::scrollarea::ScrollMotionPreference;
 use infiltrator_bevy_widgets::theme::Theme;
 use infiltrator_contract::shell_gesture::{
     GesturePoint, GestureSemanticEvent, GestureTouchPhase, PullPhase, SafeAreaInsets,
@@ -288,6 +300,36 @@ fn the_mounted_shell_consumes_touch_through_the_shared_recognizer() {
 }
 
 #[test]
+fn shell_host_reduce_motion_preference_maps_to_scroll_physics() {
+    let mut app = App::new();
+    app.add_plugins(MinimalPlugins);
+    app.add_plugins((AssetPlugin::default(), ScenePlugin));
+    app.add_plugins(ShellPlugin::new(ThemePreference::Fixed(ThemeSkin::Dark)));
+    app.update();
+
+    assert_eq!(
+        *app.world().resource::<ScrollMotionPreference>(),
+        ScrollMotionPreference::Full
+    );
+    app.world_mut()
+        .trigger(HostPreferenceIntent(HostPreferences {
+            motion: MotionPreference::Reduced,
+            ..Default::default()
+        }));
+    assert_eq!(
+        *app.world().resource::<ScrollMotionPreference>(),
+        ScrollMotionPreference::Reduced
+    );
+
+    app.world_mut()
+        .trigger(HostPreferenceIntent(HostPreferences::default()));
+    assert_eq!(
+        *app.world().resource::<ScrollMotionPreference>(),
+        ScrollMotionPreference::Full
+    );
+}
+
+#[test]
 fn a_pull_to_refresh_under_threshold_smoothly_rebounds_with_spring() {
     let mut app = gesture_app();
     app.add_plugins((AssetPlugin::default(), ScenePlugin));
@@ -339,7 +381,6 @@ fn a_pull_to_refresh_under_threshold_smoothly_rebounds_with_spring() {
 #[test]
 fn a_pull_to_refresh_over_threshold_arms_and_triggers_route_refresh_command() {
     let routes_and_commands = [
-        (Route::Proxies, UiCommand::TestAllProxyGroups),
         (Route::Rules, UiCommand::RefreshRuleProviders),
         (Route::Profiles, UiCommand::UpdateAllSubscriptions),
     ];
@@ -406,20 +447,70 @@ fn a_pull_to_refresh_over_threshold_arms_and_triggers_route_refresh_command() {
 }
 
 #[test]
+fn proxy_pull_to_refresh_submits_typed_all_batch_from_the_accepted_snapshot() {
+    let mut app = App::new();
+    app.add_plugins(MinimalPlugins);
+    app.add_plugins((AssetPlugin::default(), ScenePlugin));
+    app.add_plugins(ShellPlugin::default());
+    app.add_plugins(PagesPlugin::demo());
+    let sink = Arc::new(DemoCommandSink::accepting());
+    app.add_plugins(CommandPumpPlugin::new(
+        sink.clone() as Arc<dyn UiCommandSink>
+    ));
+    app.update();
+    allow_outbound_probe(&mut app.world_mut().resource_mut::<LatestSurfaceSnapshot>().0);
+    app.world_mut()
+        .commands()
+        .trigger(RouteChanged(Route::Proxies));
+    app.update();
+
+    let scene = pull_to_refresh_scene(
+        &PullToRefreshState::default(),
+        &UiPalette::new(&Theme::dark()),
+    );
+    app.world_mut().commands().spawn_scene(scene);
+    app.update();
+    send(&mut app, 1, TouchPhase::Started, 10.0, 10.0);
+    send(&mut app, 1, TouchPhase::Moved, 10.0, 100.0);
+    app.update();
+    send(&mut app, 1, TouchPhase::Ended, 10.0, 100.0);
+    app.update();
+
+    let submitted = sink.submitted();
+    let [UiCommand::ProbeOutboundBatch { request }] = submitted.as_slice() else {
+        panic!("expected typed all-batch request, got {submitted:?}");
+    };
+    assert_eq!(request.target_scope(), &OutboundProbeBatchScope::All);
+    assert_eq!(
+        request.expected_inventory_revision(),
+        app.world()
+            .resource::<LatestSurfaceSnapshot>()
+            .0
+            .outbound_inventory
+            .data
+            .as_ref()
+            .expect("accepted inventory")
+            .revision()
+    );
+}
+
+#[test]
 fn test_proxy_card_swipe_to_action_spring_slides_content_and_reveals_drawer() {
     let mut app = gesture_app();
     app.add_plugins((AssetPlugin::default(), ScenePlugin));
     let palette = UiPalette::new(&Theme::dark());
 
     let node = ProxyNode {
+        outbound_id: None,
         name: "HK-01".to_owned(),
         node_type: "Shadowsocks".to_owned(),
         delay_ms: Some(45),
+        health: OutboundHealthObservation::Unknown,
         selected: true,
         favorite: false,
         features: vec!["udp".to_owned()],
     };
-    let scene = proxy_node_scene(0, 0, "DefaultGroup", &node, &palette);
+    let scene = proxy_node_scene(0, 0, "DefaultGroup", None, &node, true, &palette);
     app.world_mut().commands().spawn_scene(scene);
     app.update();
 
@@ -511,7 +602,7 @@ fn test_connection_row_swipe_to_action_spring_slides_content_and_reveals_drawer(
         destination_port: "443".to_owned(),
         destination_geo_ip: None,
         destination_ip_asn: String::new(),
-        rate_observed: true,
+        rate_observation: ConnectionRateObservation::Measured,
         upload_bps: 1024.0,
         download_bps: 4096.0,
         upload_total: 10000,
@@ -572,13 +663,13 @@ fn test_connection_row_swipe_to_action_spring_slides_content_and_reveals_drawer(
     assert_eq!(drawer_closed.display, Display::None);
 }
 
-/// BANDROID-006: native `WindowInsets` flow through the existing safe-area
-/// consumer and the transient keyboard avoidance replaces (never adds to) the
-/// permanent navigation-bar margin.
+/// Native typed `WindowInsets` flow through Bevy's host feed, including the
+/// system-gesture edge; the transient keyboard inset replaces (never adds to)
+/// the permanent bottom safe area.
 #[test]
 fn native_window_insets_move_the_bottom_nav_without_duplicate_margins() {
     use bevy::ui::prelude::px;
-    use infiltrator_bevy_ui::app::{BOTTOM_NAV_HEIGHT_PX, BottomNavBar, ShellLayoutState};
+    use infiltrator_bevy_ui::app::{BOTTOM_NAV_CONTENT_HEIGHT, BottomNavBar, ShellLayoutState};
     use infiltrator_bevy_ui::surface::host_insets::{EdgeInsets, WindowInsets, WindowInsetsInput};
 
     let mut app = App::new();
@@ -590,13 +681,14 @@ fn native_window_insets_move_the_bottom_nav_without_duplicate_margins() {
         .set_width(375.0);
     app.update();
 
-    // Permanent nav bar (48px) plus an open keyboard (300px).
+    // 3x density: a 16dp nav bar, 32dp gesture region, and 300dp open IME.
     let insets = WindowInsets::physical(
-        1.0,
-        EdgeInsets::new(24.0, 0.0, 0.0, 0.0),
+        3.0,
+        EdgeInsets::new(72.0, 0.0, 0.0, 0.0),
         EdgeInsets::new(0.0, 48.0, 0.0, 0.0),
         EdgeInsets::ZERO,
-        EdgeInsets::new(0.0, 300.0, 0.0, 0.0),
+        EdgeInsets::new(0.0, 96.0, 0.0, 0.0),
+        EdgeInsets::new(0.0, 900.0, 0.0, 0.0),
     );
     app.world_mut().trigger(WindowInsetsInput(insets));
     app.update();
@@ -607,22 +699,23 @@ fn native_window_insets_move_the_bottom_nav_without_duplicate_margins() {
         let (node, _) = navs.single(world).expect("one bottom nav bar");
         assert_eq!(
             node.height,
-            px(BOTTOM_NAV_HEIGHT_PX + 300.0),
-            "keyboard avoidance replaces the permanent bottom margin"
+            px(BOTTOM_NAV_CONTENT_HEIGHT + 300.0),
+            "IME and system gesture avoidance are converted from physical pixels"
         );
         assert_ne!(
             node.height,
-            px(BOTTOM_NAV_HEIGHT_PX + 48.0 + 300.0),
-            "the permanent and transient insets must not be summed"
+            px(BOTTOM_NAV_CONTENT_HEIGHT + 16.0 + 300.0),
+            "the IME replaces the permanent bottom margin"
         );
     }
 
-    // Keyboard hidden again: the permanent nav-bar margin remains.
+    // Keyboard hidden again: the permanent gesture-safe edge remains.
     let hidden = WindowInsets::physical(
-        1.0,
-        EdgeInsets::new(24.0, 0.0, 0.0, 0.0),
+        3.0,
+        EdgeInsets::new(72.0, 0.0, 0.0, 0.0),
         EdgeInsets::new(0.0, 48.0, 0.0, 0.0),
         EdgeInsets::ZERO,
+        EdgeInsets::new(0.0, 96.0, 0.0, 0.0),
         EdgeInsets::ZERO,
     );
     app.world_mut().trigger(WindowInsetsInput(hidden));
@@ -631,5 +724,5 @@ fn native_window_insets_move_the_bottom_nav_without_duplicate_margins() {
     let world = app.world_mut();
     let mut navs = world.query::<(&Node, &BottomNavBar)>();
     let (node, _) = navs.single(world).expect("one bottom nav bar");
-    assert_eq!(node.height, px(BOTTOM_NAV_HEIGHT_PX + 48.0));
+    assert_eq!(node.height, px(BOTTOM_NAV_CONTENT_HEIGHT + 32.0));
 }

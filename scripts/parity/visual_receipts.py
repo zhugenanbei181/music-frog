@@ -7,6 +7,7 @@ import csv
 import hashlib
 import json
 import math
+import os
 import re
 import subprocess
 from pathlib import Path
@@ -39,6 +40,17 @@ def source_fingerprint(root):
         path = root / name
         if not path.is_file():
             continue
+        digest.update(name.encode() + b"\0" + path.read_bytes() + b"\0")
+    external = set()
+    for owner in product_build.local_package_roots(root):
+        if owner.is_relative_to(root.resolve()):
+            continue
+        external.add(owner / "Cargo.toml")
+        for folder in (owner / "src", owner / "assets"):
+            if folder.is_dir():
+                external.update(path for path in folder.rglob("*") if path.is_file())
+    for path in sorted(external):
+        name = Path(os.path.relpath(path, root)).as_posix()
         digest.update(name.encode() + b"\0" + path.read_bytes() + b"\0")
     return digest.hexdigest()
 

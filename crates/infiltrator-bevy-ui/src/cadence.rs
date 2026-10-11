@@ -19,7 +19,7 @@
 //! The Iced shell consumes the same policy for its animation frame tick, so
 //! both surfaces detune to the same rates.
 
-use crate::host_capabilities::HostPreferences;
+use crate::host_capabilities::{HostPreferences, MotionPreference};
 use bevy::app::{App, Plugin, Update};
 use bevy::ecs::message::{Message, MessageReader};
 use bevy::ecs::query::With;
@@ -32,7 +32,14 @@ use bevy::input::touch::TouchInput;
 use bevy::window::{CursorMoved, PrimaryWindow, Window, WindowFocused, WindowOccluded};
 use bevy::winit::{UpdateMode, WinitSettings};
 use infiltrator_contract::cadence::RenderCadence;
+use std::cmp::Ordering;
 use std::time::Duration;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CadenceEngagement {
+    Engaged,
+    Idle,
+}
 
 /// The wait used while the host reports a hard suspend. Winit cannot stop the
 /// loop, so the shortest honest expression is an event-driven loop with no
@@ -66,9 +73,9 @@ impl WindowCadenceState {
     /// engaged (no recent input and no running animation) detunes from
     /// [`RenderCadence::Active`] to the low-power [`RenderCadence::Idling`].
     /// Background and suspended states are unaffected by activity.
-    pub fn cadence_with(self, engaged: bool) -> RenderCadence {
+    pub fn cadence_with(self, engagement: CadenceEngagement) -> RenderCadence {
         match self.cadence() {
-            RenderCadence::Active if !engaged => RenderCadence::Idling,
+            RenderCadence::Active if engagement == CadenceEngagement::Idle => RenderCadence::Idling,
             cadence => cadence,
         }
     }
@@ -116,15 +123,19 @@ impl CadenceActivity {
 
     /// Whether input or an animation was seen recently enough to stay hot,
     /// before the host preference is applied.
-    pub const fn is_engaged(&self) -> bool {
-        self.input_frames > 0 || self.animation_frames > 0
-    }
-
-    /// Whether the shell should stay hot given the host preference. Input
-    /// always keeps it hot; animation-driven engagement is dropped when the
-    /// host asks to reduce motion or conserve power.
-    pub const fn is_engaged_with(&self, preferences: HostPreferences) -> bool {
-        self.input_frames > 0 || (self.animation_frames > 0 && !preferences.animations_suppressed())
+    /// Resolve recent input and animation into the cadence state after the
+    /// host's typed motion preference is applied.
+    pub fn engagement_with(&self, preferences: HostPreferences) -> CadenceEngagement {
+        match (
+            self.input_frames.cmp(&0),
+            self.animation_frames.cmp(&0),
+            preferences.effective_motion(),
+        ) {
+            (Ordering::Greater, _, _) | (_, Ordering::Greater, MotionPreference::Standard) => {
+                CadenceEngagement::Engaged
+            }
+            _ => CadenceEngagement::Idle,
+        }
     }
 
     /// Advance one frame, decaying the engagement toward idle.
@@ -209,8 +220,8 @@ pub fn sync_window_cadence(
     if let Ok(window) = windows.single() {
         next.visible = next.visible && window.visible;
     }
-    let engaged = surface.activity.is_engaged_with(*surface.preferences);
-    let cadence = next.cadence_with(engaged);
+    let engagement = surface.activity.engagement_with(*surface.preferences);
+    let cadence = next.cadence_with(engagement);
     if next == *surface.state && cadence == surface.applied.0 {
         return;
     }

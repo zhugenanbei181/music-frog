@@ -47,13 +47,7 @@ async fn lifecycle(action: Lifecycle) -> anyhow::Result<()> {
 /// The production controller: default kernel binary + current profile config,
 /// with the pid file living in the resolved home directory.
 pub(crate) async fn build_controller(runtime: &Runtime) -> anyhow::Result<ProcessCoreController> {
-    let binary = runtime.version_manager()?.get_binary_path(None).await?;
-    let config = runtime.config_manager()?.get_current_path().await?;
-    Ok(ProcessCoreController::with_home(
-        binary,
-        config,
-        runtime.home().to_path_buf(),
-    ))
+    runtime.process_core_controller().await
 }
 
 /// Lifecycle state machine over any [`CoreProcess`] so tests can inject a

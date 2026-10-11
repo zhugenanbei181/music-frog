@@ -1,8 +1,11 @@
 //! Shared editor presentation from neutral facts, with opaque values interpolated once.
 use infiltrator_contract::apply_transaction::{ApplyTransactionSnapshot, ApplyTransactionStage};
 use infiltrator_contract::editor_viewport::EditorViewport;
-use infiltrator_contract::profile_document::SyntaxDiagnosticSnapshot;
+use infiltrator_contract::profile_document::{
+    DocumentDiagnosticSnapshot, DocumentInspection, DocumentValidation,
+};
 use infiltrator_contract::profile_protection::ProfileWriteProtection;
+use infiltrator_contract::yaml_snippets::SyntaxDiagnosticSnapshot;
 use infiltrator_domain::yaml_edit::format::FormatSkipReason;
 use infiltrator_shared::i18n_interpolator::localize;
 use infiltrator_shared::locales::{Lang, Localizer};
@@ -145,7 +148,53 @@ pub fn status(facts: &EditorStatus<'_>, locale: &str) -> String {
     }
     parts.join(" · ")
 }
-pub fn diagnostic(value: Option<&SyntaxDiagnosticSnapshot>, locale: &str) -> (String, bool) {
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DocumentValidationStatus {
+    Valid,
+    Invalid,
+    Unavailable,
+}
+
+pub fn document_diagnostic(
+    value: Option<&DocumentDiagnosticSnapshot>,
+    locale: &str,
+) -> (String, DocumentValidationStatus) {
+    match value {
+        Some(value) => match (value.line, value.column) {
+            (Some(line), Some(column)) => (
+                localize(
+                    locale,
+                    "editor_syntax_diagnostic",
+                    &[
+                        ("line", line.to_string()),
+                        ("column", column.to_string()),
+                        ("reason", value.message.clone()),
+                    ],
+                ),
+                DocumentValidationStatus::Invalid,
+            ),
+            _ => (
+                localize(
+                    locale,
+                    "editor_document_invalid_reason",
+                    &[("reason", value.message.clone())],
+                ),
+                DocumentValidationStatus::Invalid,
+            ),
+        },
+        None => (
+            Lang(locale).tr("editor_syntax_valid").into_owned(),
+            DocumentValidationStatus::Valid,
+        ),
+    }
+}
+
+/// Existing editor-surface projection used by the unported UI consumers.
+/// New shared application paths use [`document_diagnostic`] with neutral facts.
+pub fn yaml_diagnostic(
+    value: Option<&SyntaxDiagnosticSnapshot>,
+    locale: &str,
+) -> (String, DocumentValidationStatus) {
     match value {
         Some(value) => (
             localize(
@@ -157,17 +206,74 @@ pub fn diagnostic(value: Option<&SyntaxDiagnosticSnapshot>, locale: &str) -> (St
                     ("reason", value.message.clone()),
                 ],
             ),
-            true,
+            DocumentValidationStatus::Invalid,
         ),
-        None => (Lang(locale).tr("editor_syntax_valid").into_owned(), false),
+        None => (
+            Lang(locale).tr("editor_syntax_valid").into_owned(),
+            DocumentValidationStatus::Valid,
+        ),
     }
 }
-pub fn syntax_label(has_error: bool, locale: &str) -> String {
+
+pub fn document_inspection(
+    value: Option<&DocumentInspection>,
+    locale: &str,
+) -> (String, DocumentValidationStatus) {
+    match value {
+        Some(DocumentInspection::Inspected(DocumentValidation::Valid)) => (
+            Lang(locale).tr("editor_document_valid").into_owned(),
+            DocumentValidationStatus::Valid,
+        ),
+        Some(DocumentInspection::Inspected(DocumentValidation::Invalid { diagnostics })) => {
+            let diagnostic = diagnostics.first();
+            let message = match diagnostic {
+                Some(value) => match (value.line, value.column) {
+                    (Some(line), Some(column)) => localize(
+                        locale,
+                        "editor_document_diagnostic",
+                        &[
+                            ("line", line.to_string()),
+                            ("column", column.to_string()),
+                            ("reason", value.message.clone()),
+                        ],
+                    ),
+                    _ => localize(
+                        locale,
+                        "editor_document_invalid_reason",
+                        &[("reason", value.message.clone())],
+                    ),
+                },
+                None => Lang(locale).tr("editor_document_invalid").into_owned(),
+            };
+            (message, DocumentValidationStatus::Invalid)
+        }
+        Some(DocumentInspection::Unavailable(_))
+        | Some(DocumentInspection::Unsupported(_))
+        | None => (
+            Lang(locale)
+                .tr("editor_document_inspection_unavailable")
+                .into_owned(),
+            DocumentValidationStatus::Unavailable,
+        ),
+    }
+}
+
+pub fn document_validation_label(status: DocumentValidationStatus, locale: &str) -> String {
     Lang(locale)
-        .tr(if has_error {
-            "editor_syntax_failed_label"
-        } else {
-            "editor_syntax_valid_label"
+        .tr(match status {
+            DocumentValidationStatus::Valid => "editor_document_valid_label",
+            DocumentValidationStatus::Invalid => "editor_document_invalid_label",
+            DocumentValidationStatus::Unavailable => "editor_document_unavailable_label",
+        })
+        .into_owned()
+}
+
+pub fn syntax_label(status: DocumentValidationStatus, locale: &str) -> String {
+    Lang(locale)
+        .tr(match status {
+            DocumentValidationStatus::Valid => "editor_syntax_valid_label",
+            DocumentValidationStatus::Invalid => "editor_syntax_failed_label",
+            DocumentValidationStatus::Unavailable => "editor_document_unavailable_label",
         })
         .into_owned()
 }
@@ -207,14 +313,17 @@ mod tests {
             assert!(copy.contains("restore {profile}"));
         }
         assert!(transaction(&record, "en-US").contains("Rollback failed"));
-        let diagnostic = SyntaxDiagnosticSnapshot {
-            line: 2,
-            column: 3,
+        let diagnostic = DocumentDiagnosticSnapshot {
+            line: Some(2),
+            column: Some(3),
             message: "reason {line}/🙂".into(),
         };
         assert_eq!(
-            self::diagnostic(Some(&diagnostic), "en-US"),
-            ("Line 2 : Col 3 · reason {line}/🙂".into(), true)
+            self::document_diagnostic(Some(&diagnostic), "en-US"),
+            (
+                "Line 2 : Col 3 · reason {line}/🙂".into(),
+                DocumentValidationStatus::Invalid
+            )
         );
     }
     #[test]

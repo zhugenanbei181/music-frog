@@ -25,6 +25,7 @@ pub mod business_panel;
 pub mod connections;
 pub mod connections_clipboard;
 pub mod connections_confirm;
+#[cfg(any(feature = "capture-tools", test))]
 pub mod connections_demo;
 pub mod connections_drawer;
 pub mod connections_groups;
@@ -39,6 +40,7 @@ pub mod dns;
 pub mod dns_cache;
 pub mod dns_cache_focus;
 pub mod dns_cache_scene;
+#[cfg(any(feature = "capture-tools", test))]
 pub mod dns_demo;
 pub mod dns_edit;
 pub mod dns_fakeip;
@@ -68,6 +70,7 @@ pub mod logs_ring;
 pub mod logs_rows;
 pub mod logs_search;
 pub mod logs_virtual;
+pub mod outbound_batch_probe;
 pub mod overview;
 pub mod overview_cards;
 pub mod overview_lifecycle;
@@ -119,6 +122,7 @@ pub mod proxy_probe_settings;
 pub mod rules;
 pub mod rules_builder;
 pub mod rules_builder_input;
+#[cfg(any(feature = "capture-tools", test))]
 pub mod rules_demo;
 pub mod rules_draft;
 pub mod rules_edit;

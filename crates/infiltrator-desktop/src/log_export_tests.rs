@@ -13,10 +13,7 @@ fn complete_redacted_bytes_are_published_once_and_the_real_path_survives_retry()
     let writer = DesktopLogExportPort::new(directory.path());
     assert!(!directory.path().join("exports").exists());
     let artifact = prepare_log_export(
-        LogSession {
-            generation: 1,
-            token: SessionToken::new(37),
-        },
+        LogSession::new(1, SessionToken::new(37)),
         1,
         &[(4, "INFO[1] password=credential café".into())],
         &[],
@@ -47,10 +44,7 @@ fn invalid_bytes_and_destination_collision_never_replace_the_original_artifact()
     let directory = tempdir().unwrap();
     let writer = DesktopLogExportPort::new(directory.path());
     let artifact = prepare_log_export(
-        LogSession {
-            generation: 1,
-            token: SessionToken::new(37),
-        },
+        LogSession::new(1, SessionToken::new(37)),
         1,
         &[(4, "INFO[1] healthy".into())],
         &[],
@@ -82,16 +76,8 @@ fn unusable_destination_reports_storage_failure_without_a_success_receipt() {
     let directory = tempdir().unwrap();
     fs::write(directory.path().join("exports"), "keep existing file").unwrap();
     let writer = DesktopLogExportPort::new(directory.path());
-    let artifact = prepare_log_export(
-        LogSession {
-            generation: 1,
-            token: SessionToken::new(37),
-        },
-        1,
-        &[],
-        &[],
-    )
-    .unwrap();
+    let artifact =
+        prepare_log_export(LogSession::new(1, SessionToken::new(37)), 1, &[], &[]).unwrap();
     assert_eq!(
         writer.publish(artifact).unwrap_err().error_code(),
         ErrorCode::Storage

@@ -126,7 +126,7 @@ impl ClipboardHost {
 static ATTACHED_CLIPBOARD: OnceLock<ClipboardHost> = OnceLock::new();
 
 /// Attach the host's clipboard adapter before launch (mirrors
-/// `attach_application` / `attach_haptics`). The default
+/// explicit host capability setters). The default
 /// [`ClipboardHostPlugin`] picks it up.
 pub fn attach_clipboard(host: ClipboardHost) {
     let _ = ATTACHED_CLIPBOARD.set(host);

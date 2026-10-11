@@ -1,7 +1,9 @@
 //! Reconcile only added/removed identities and child order; preserve surviving native controls.
 use crate::pages::proxies::{GroupNodesContainer, LastProxiesProjection, ProxyNodeButton};
 use crate::pages::proxies_card::{group_card_scene, proxy_node_scene};
-use crate::pages::proxies_identity::{ProxyCardsContainer, ProxyGroupIdentity};
+use crate::pages::proxies_identity::{
+    ProxyCardsContainer, ProxyGroupIdentity, ProxyGroupOutboundIdentity,
+};
 use crate::pages::proxies_virtual::ProxiesVirtualNodes;
 use bevy::ecs::change_detection::DetectChanges;
 use bevy::ecs::entity::Entity;
@@ -10,29 +12,59 @@ use bevy::ecs::query::{QueryData, QueryFilter, With, Without};
 use bevy::ecs::system::{Commands, Query, Res};
 use bevy::scene::CommandsSceneExt;
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_contract::outbound::identity::OutboundId;
 use std::collections::HashMap;
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+enum GroupKey {
+    Outbound(OutboundId),
+    Local(String),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+enum NodeKey {
+    Outbound(OutboundId),
+    Local(String),
+}
 
 #[derive(QueryData)]
 #[query_data(mutable)]
 pub struct ProxyChildren {
     children: &'static mut Children,
     identity: &'static ProxyGroupIdentity,
+    outbound_identity: Option<&'static ProxyGroupOutboundIdentity>,
 }
 
-fn group_name<'a, F: QueryFilter>(
+#[derive(QueryData)]
+pub struct ProxyNodeReconcileContainer {
+    entity: Entity,
+    children: Option<&'static Children>,
+    identity: &'static ProxyGroupIdentity,
+    outbound_identity: Option<&'static ProxyGroupOutboundIdentity>,
+}
+
+fn group_key<'a, F: QueryFilter>(
     entity: Entity,
     children: &Query<&Children, F>,
     groups: &'a Query<&ProxyGroupIdentity>,
-) -> Option<&'a str> {
+    outbound_groups: &'a Query<&ProxyGroupOutboundIdentity>,
+) -> Option<GroupKey> {
     if let Ok(group) = groups.get(entity) {
-        return Some(&group.0);
+        return Some(
+            outbound_groups
+                .get(entity)
+                .ok()
+                .and_then(|identity| identity.0.clone())
+                .map(GroupKey::Outbound)
+                .unwrap_or_else(|| GroupKey::Local(group.0.clone())),
+        );
     }
     children
         .get(entity)
         .ok()?
         .iter()
         .copied()
-        .find_map(|child| group_name(child, children, groups))
+        .find_map(|child| group_key(child, children, groups, outbound_groups))
 }
 
 pub fn sort_proxy_children(
@@ -41,6 +73,7 @@ pub fn sort_proxy_children(
     mut containers: Query<ProxyChildren, (With<GroupNodesContainer>, Without<ProxyCardsContainer>)>,
     other_children: Query<&Children, (Without<ProxyCardsContainer>, Without<GroupNodesContainer>)>,
     groups: Query<&ProxyGroupIdentity>,
+    outbound_groups: Query<&ProxyGroupOutboundIdentity>,
     nodes: Query<&ProxyNodeButton>,
 ) {
     if !last.as_ref().is_some_and(|last| last.is_changed()) {
@@ -53,34 +86,58 @@ pub fn sort_proxy_children(
         .groups
         .iter()
         .enumerate()
-        .map(|(rank, group)| (group.name.as_str(), rank))
+        .map(|(rank, group)| {
+            (
+                group.collection_id.as_ref().map_or_else(
+                    || GroupKey::Local(group.name.clone()),
+                    |id| GroupKey::Outbound(id.clone()),
+                ),
+                rank,
+            )
+        })
         .collect();
     for mut children in &mut roots {
         children.sort_by_key(|entity| {
-            group_name(*entity, &other_children, &groups)
-                .and_then(|name| ranks.get(name).copied())
+            group_key(*entity, &other_children, &groups, &outbound_groups)
+                .and_then(|key| ranks.get(&key).copied())
                 .unwrap_or(usize::MAX)
         });
     }
     for mut container in &mut containers {
-        let Some(group) = projection
-            .groups
-            .iter()
-            .find(|group| group.name == container.identity.0)
-        else {
+        let Some(group) = projection.groups.iter().find(|group| {
+            container
+                .outbound_identity
+                .and_then(|identity| identity.0.as_ref())
+                .map_or(group.name == container.identity.0, |id| {
+                    group.collection_id.as_ref() == Some(id)
+                })
+        }) else {
             continue;
         };
         let ranks: HashMap<_, _> = group
             .proxies
             .iter()
             .enumerate()
-            .map(|(rank, node)| (node.name.as_str(), rank))
+            .map(|(rank, node)| {
+                (
+                    node.outbound_id.as_ref().map_or_else(
+                        || NodeKey::Local(node.name.clone()),
+                        |id| NodeKey::Outbound(id.clone()),
+                    ),
+                    rank,
+                )
+            })
             .collect();
         container.children.sort_by_key(|entity| {
             nodes
                 .get(*entity)
                 .ok()
-                .and_then(|node| ranks.get(node.node_name.as_str()).copied())
+                .and_then(|node| {
+                    node.outbound_id.as_ref().map_or_else(
+                        || ranks.get(&NodeKey::Local(node.node_name.clone())).copied(),
+                        |id| ranks.get(&NodeKey::Outbound(id.clone())).copied(),
+                    )
+                })
                 .unwrap_or(usize::MAX)
         });
     }
@@ -93,6 +150,7 @@ pub fn reconcile_proxy_cards(
     root: Query<(Entity, Option<&Children>), With<ProxyCardsContainer>>,
     children: Query<&Children, Without<ProxyCardsContainer>>,
     groups: Query<&ProxyGroupIdentity>,
+    outbound_groups: Query<&ProxyGroupOutboundIdentity>,
 ) {
     let Some(last) = last else {
         return;
@@ -109,17 +167,28 @@ pub fn reconcile_proxy_cards(
     let existing: HashMap<_, _> = current
         .into_iter()
         .flat_map(|children| children.iter().copied())
-        .filter_map(|entity| group_name(entity, &children, &groups).map(|name| (name, entity)))
+        .filter_map(|entity| {
+            group_key(entity, &children, &groups, &outbound_groups).map(|key| (key, entity))
+        })
         .collect();
     for (index, group) in projection.groups.iter().enumerate() {
-        if !existing.contains_key(group.name.as_str()) {
+        let key = group.collection_id.as_ref().map_or_else(
+            || GroupKey::Local(group.name.clone()),
+            |id| GroupKey::Outbound(id.clone()),
+        );
+        if !existing.contains_key(&key) {
             commands
                 .spawn_scene(group_card_scene(index, group, &palette))
                 .insert(ChildOf(root));
         }
     }
-    for (name, entity) in existing {
-        if !projection.groups.iter().any(|group| group.name == name) {
+    for (key, entity) in existing {
+        if !projection.groups.iter().any(|group| {
+            group.collection_id.as_ref().map_or_else(
+                || GroupKey::Local(group.name.clone()) == key,
+                |id| GroupKey::Outbound(id.clone()) == key,
+            )
+        }) {
             commands.entity(entity).despawn();
         }
     }
@@ -129,7 +198,7 @@ pub fn reconcile_proxy_nodes(
     mut commands: Commands,
     last: Option<Res<LastProxiesProjection>>,
     palette: Res<UiPalette>,
-    containers: Query<(Entity, Option<&Children>, &ProxyGroupIdentity), With<GroupNodesContainer>>,
+    containers: Query<ProxyNodeReconcileContainer, With<GroupNodesContainer>>,
     identities: Query<&ProxyNodeButton>,
     virtual_containers: Query<(), With<ProxiesVirtualNodes>>,
 ) {
@@ -148,40 +217,59 @@ pub fn reconcile_proxy_nodes(
         // collection (or refill group-header rows).
         return;
     }
-    for (container, current, identity) in &containers {
-        let Some((group_index, group)) = projection
-            .groups
-            .iter()
-            .enumerate()
-            .find(|(_, group)| group.name == identity.0)
-        else {
+    for container in &containers {
+        let Some((group_index, group)) = projection.groups.iter().enumerate().find(|(_, group)| {
+            container
+                .outbound_identity
+                .and_then(|identity| identity.0.as_ref())
+                .map_or(group.name == container.identity.0, |id| {
+                    group.collection_id.as_ref() == Some(id)
+                })
+        }) else {
             continue;
         };
-        let existing: HashMap<_, _> = current
+        let existing: HashMap<_, _> = container
+            .children
             .into_iter()
             .flat_map(|children| children.iter().copied())
             .filter_map(|entity| {
-                identities
-                    .get(entity)
-                    .ok()
-                    .map(|node| (node.node_name.as_str(), entity))
+                identities.get(entity).ok().map(|node| {
+                    (
+                        node.outbound_id.as_ref().map_or_else(
+                            || NodeKey::Local(node.node_name.clone()),
+                            |id| NodeKey::Outbound(id.clone()),
+                        ),
+                        entity,
+                    )
+                })
             })
             .collect();
         for (index, node) in group.proxies.iter().enumerate() {
-            if !existing.contains_key(node.name.as_str()) {
+            let key = node.outbound_id.as_ref().map_or_else(
+                || NodeKey::Local(node.name.clone()),
+                |id| NodeKey::Outbound(id.clone()),
+            );
+            if !existing.contains_key(&key) {
                 commands
                     .spawn_scene(proxy_node_scene(
                         group_index,
                         index,
                         &group.name,
+                        group.collection_id.clone(),
                         node,
+                        group.outbound_selection_available,
                         &palette,
                     ))
-                    .insert(ChildOf(container));
+                    .insert(ChildOf(container.entity));
             }
         }
-        for (name, entity) in existing {
-            if !group.proxies.iter().any(|node| node.name == name) {
+        for (key, entity) in existing {
+            if !group.proxies.iter().any(|node| {
+                node.outbound_id.as_ref().map_or_else(
+                    || NodeKey::Local(node.name.clone()) == key,
+                    |id| NodeKey::Outbound(id.clone()) == key,
+                )
+            }) {
                 commands.entity(entity).despawn();
             }
         }

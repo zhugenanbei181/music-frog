@@ -5,9 +5,8 @@
 //! The mounted row topology is always bounded: the shared recycler bounds the
 //! visible window of the page's in-memory ring ([`crate::pages::logs_ring`],
 //! BEVY-020), and the projection the page reads is that same bounded window.
-//! Log rows wrap, so the window uses the engine's dynamic height index: each
-//! mounted row feeds its measured layout height back so the scroll extent stays
-//! honest.
+//! Log rows wrap, so the shared `zhuge-ui-core::virtual_list::VariableExtentIndex`
+//! receives each mounted row's measured extent and keeps the scroll geometry honest.
 //!
 //! The large-list path is selected by [`LOGS_VIRTUAL_THRESHOLD`]; below it the
 //! page keeps its full-mount vocabulary. Stable [`LogRowIdentity`] markers,
@@ -113,7 +112,7 @@ fn entry_signature(entries: &[LogEntry]) -> u64 {
 
 /// One recycled slot root: a clipped column whose children are rebuilt when the
 /// slot rebinds. The child row keeps its natural height (`flex_shrink: 0`) so
-/// the dynamic height index can measure wrapped messages.
+/// the shared variable-extent index can measure wrapped messages.
 fn slot_scene(slot_idx: usize) -> impl Scene + use<> {
     bsn! {
             Node {
@@ -253,13 +252,16 @@ pub(crate) fn sync_logs_virtual_window(mut commands: Commands, surface: LogsVirt
 
     if structure_changed {
         state.signature = signature;
-        state.list =
-            VirtualListState::new_dynamic(projection.entries.len(), LOG_ROW_HEIGHT_PX, viewport)
-                .with_overscan(LOGS_VIRTUAL_OVERSCAN);
+        state.list = VirtualListState::new_variable_extent(
+            projection.entries.len(),
+            LOG_ROW_HEIGHT_PX,
+            viewport,
+        )
+        .with_overscan(LOGS_VIRTUAL_OVERSCAN);
     } else {
         state.list.set_viewport_height(viewport);
     }
-    state.list.set_scroll_offset(offset);
+    let _ = state.list.set_scroll_offset(offset);
 
     let window = state.list.window();
 
@@ -300,7 +302,7 @@ pub(crate) fn sync_logs_virtual_window(mut commands: Commands, surface: LogsVirt
         let height = if active {
             state
                 .list
-                .item_height(item_idx)
+                .item_extent(item_idx)
                 .unwrap_or(LOG_ROW_HEIGHT_PX)
         } else {
             0.0
@@ -309,7 +311,7 @@ pub(crate) fn sync_logs_virtual_window(mut commands: Commands, surface: LogsVirt
         if node.height != target {
             node.height = target;
         }
-        // Dynamic height: feed the mounted row's measured layout height back
+        // Variable extent: feed the mounted row's measured layout height back
         // into the index so wrapped messages never overlap. Skip the frame that
         // rebound slots (the old child would measure against the new index).
         if active
@@ -319,7 +321,7 @@ pub(crate) fn sync_logs_virtual_window(mut commands: Commands, surface: LogsVirt
         {
             let measured = computed.size().y * computed.inverse_scale_factor();
             if measured > 0.0 {
-                state.list.update_measured_row_height(item_idx, measured);
+                let _ = state.list.update_measured_extent(item_idx, measured);
             }
         }
     }
@@ -368,9 +370,12 @@ mod tests {
     fn large_log_stream_mounts_a_bounded_window_not_the_full_list() {
         let projection = projection_with(50_000);
         let viewport = LOGS_VIRTUAL_FALLBACK_VIEWPORT_PX;
-        let list =
-            VirtualListState::new_dynamic(projection.entries.len(), LOG_ROW_HEIGHT_PX, viewport)
-                .with_overscan(LOGS_VIRTUAL_OVERSCAN);
+        let list = VirtualListState::new_variable_extent(
+            projection.entries.len(),
+            LOG_ROW_HEIGHT_PX,
+            viewport,
+        )
+        .with_overscan(LOGS_VIRTUAL_OVERSCAN);
         let bound = (viewport / LOG_ROW_HEIGHT_PX).ceil() as usize + LOGS_VIRTUAL_OVERSCAN * 2;
         let window = list.window();
         assert!(
@@ -388,9 +393,12 @@ mod tests {
     fn growing_stream_slides_the_window_and_the_tail_is_reachable() {
         let mut projection = projection_with(10);
         let viewport = LOGS_VIRTUAL_FALLBACK_VIEWPORT_PX;
-        let mut list =
-            VirtualListState::new_dynamic(projection.entries.len(), LOG_ROW_HEIGHT_PX, viewport)
-                .with_overscan(LOGS_VIRTUAL_OVERSCAN);
+        let mut list = VirtualListState::new_variable_extent(
+            projection.entries.len(),
+            LOG_ROW_HEIGHT_PX,
+            viewport,
+        )
+        .with_overscan(LOGS_VIRTUAL_OVERSCAN);
 
         let top = list.window();
         assert_eq!(top.start, 0);
@@ -400,7 +408,7 @@ mod tests {
             projection.entries.push(entry(index));
         }
         list.set_item_count(projection.entries.len());
-        list.scroll_to_bottom();
+        let _ = list.scroll_to_bottom();
         let bottom = list.window();
         assert_eq!(bottom.end, projection.entries.len());
         assert!(bottom.top_spacer_px > 0.0);

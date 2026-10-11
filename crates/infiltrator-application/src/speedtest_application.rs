@@ -1,588 +1,887 @@
-//! Application service for concurrent speedtesting, jitter analysis, and stability evaluation.
+//! Multi-round outbound speedtests over the engine-neutral outbound owner.
 
-use crate::proxy_probe_options_projection::validate_options;
-use futures_util::stream;
-use futures_util::stream::StreamExt;
-use infiltrator_contract::capability::Availability;
+use crate::outbound_application::OutboundApplication;
+use crate::settings_application::SettingsApplication;
+use futures_util::future::{AbortHandle, AbortRegistration};
+use futures_util::stream::{self, StreamExt};
 use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::proxy_probe_options::{
-    DEFAULT_PROBE_TIMEOUT_MS, DEFAULT_PROBE_URL, ProxyProbeOptions,
+use infiltrator_contract::outbound::details::{
+    OutboundDetailsState, OutboundObservation, OutboundProbeAvailability,
 };
+use infiltrator_contract::outbound::identity::OutboundId;
+use infiltrator_contract::outbound::inventory::OutboundInventoryState;
+use infiltrator_contract::outbound::probe::{OutboundProbeBatchScope, ProbeOutboundRequest};
+use infiltrator_contract::runtime_settings::RuntimeProbeSettings;
 use infiltrator_contract::speedtest::{
-    HistoricalSpeedtestRecord, JitterCalculation, NodeSpeedtestResult, PacketLossRating,
-    SpeedtestPhase, SpeedtestProgress, SpeedtestScope, SpeedtestSnapshot, SpeedtestTargetConfig,
+    HistoricalSpeedtestRecord, SpeedtestCancelOutcome, SpeedtestConcurrency,
+    SpeedtestOutboundResult, SpeedtestProgress, SpeedtestResultState, SpeedtestRunId,
+    SpeedtestRunState, SpeedtestSampleOutcome, SpeedtestSnapshot, SpeedtestStartReceipt,
+    SpeedtestTarget,
 };
-use infiltrator_domain::diagnostics::SpeedtestCalculator;
-use infiltrator_domain::filter::extract_country_code;
-use infiltrator_domain::proxy::Proxy;
-use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use infiltrator_ports::speedtest_history::SpeedtestHistoryStore;
-use std::collections::{HashMap, HashSet};
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-const DEFAULT_CONCURRENCY_LIMIT: usize = 30;
 const MAX_HISTORY_ENTRIES: usize = 3;
 
-/// Shared application service managing speedtesting workflows.
+#[derive(Clone)]
+pub(crate) struct PreparedSpeedtestRun {
+    target: SpeedtestTarget,
+    settings: RuntimeProbeSettings,
+    outbound: OutboundApplication,
+    candidates: Vec<ProbeCandidate>,
+    target_order: Vec<OutboundId>,
+}
+
+pub(crate) struct SpeedtestRunAdmission {
+    pub receipt: SpeedtestStartReceipt,
+    pub registration: AbortRegistration,
+    pub prepared: PreparedSpeedtestRun,
+    pub concurrency: usize,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum SpeedtestTaskOutcome {
+    Completed,
+    Cancelled,
+    Failed(Failure),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum SpeedtestCompletionAdmission {
+    Applied,
+    IgnoredStaleRun {
+        completed: SpeedtestRunId,
+        current: Option<SpeedtestRunId>,
+    },
+    IgnoredStaleScope {
+        completed: SpeedtestRunId,
+    },
+}
+
+enum SpeedtestExecution {
+    Idle,
+    Probing {
+        run_id: SpeedtestRunId,
+        target: SpeedtestTarget,
+        progress: SpeedtestProgress,
+        abort: AbortHandle,
+    },
+    CancelRequested {
+        run_id: SpeedtestRunId,
+        target: SpeedtestTarget,
+        progress: SpeedtestProgress,
+    },
+    Completed {
+        run_id: SpeedtestRunId,
+        target: SpeedtestTarget,
+        progress: SpeedtestProgress,
+    },
+    Cancelled {
+        run_id: SpeedtestRunId,
+        target: SpeedtestTarget,
+        progress: SpeedtestProgress,
+    },
+    Failed {
+        run_id: SpeedtestRunId,
+        target: SpeedtestTarget,
+        failure: Failure,
+    },
+}
+
+struct SpeedtestOwnerState {
+    execution: SpeedtestExecution,
+    next_run_id: u64,
+    revision: u64,
+    concurrency: SpeedtestConcurrency,
+    results: Vec<SpeedtestOutboundResult>,
+    recent_history: Vec<HistoricalSpeedtestRecord>,
+}
+
+impl Default for SpeedtestOwnerState {
+    fn default() -> Self {
+        Self {
+            execution: SpeedtestExecution::Idle,
+            next_run_id: 1,
+            revision: 0,
+            concurrency: SpeedtestConcurrency::default(),
+            results: Vec::new(),
+            recent_history: Vec::new(),
+        }
+    }
+}
+
+impl SpeedtestOwnerState {
+    fn run_id(&self) -> Option<SpeedtestRunId> {
+        match &self.execution {
+            SpeedtestExecution::Idle => None,
+            SpeedtestExecution::Probing { run_id, .. }
+            | SpeedtestExecution::CancelRequested { run_id, .. }
+            | SpeedtestExecution::Completed { run_id, .. }
+            | SpeedtestExecution::Cancelled { run_id, .. }
+            | SpeedtestExecution::Failed { run_id, .. } => Some(*run_id),
+        }
+    }
+
+    fn is_active(&self) -> bool {
+        matches!(
+            &self.execution,
+            SpeedtestExecution::Probing { .. } | SpeedtestExecution::CancelRequested { .. }
+        )
+    }
+
+    fn snapshot(&self) -> SpeedtestSnapshot {
+        let state = match &self.execution {
+            SpeedtestExecution::Idle => SpeedtestRunState::Idle,
+            SpeedtestExecution::Probing {
+                run_id,
+                target,
+                progress,
+                ..
+            } => SpeedtestRunState::Probing {
+                run_id: *run_id,
+                target: target.clone(),
+                progress: progress.clone(),
+            },
+            SpeedtestExecution::CancelRequested {
+                run_id,
+                target,
+                progress,
+            } => SpeedtestRunState::CancelRequested {
+                run_id: *run_id,
+                target: target.clone(),
+                progress: progress.clone(),
+            },
+            SpeedtestExecution::Completed {
+                run_id,
+                target,
+                progress,
+            } => SpeedtestRunState::Completed {
+                run_id: *run_id,
+                target: target.clone(),
+                progress: progress.clone(),
+            },
+            SpeedtestExecution::Cancelled {
+                run_id,
+                target,
+                progress,
+            } => SpeedtestRunState::Cancelled {
+                run_id: *run_id,
+                target: target.clone(),
+                progress: progress.clone(),
+            },
+            SpeedtestExecution::Failed {
+                run_id,
+                target,
+                failure,
+            } => SpeedtestRunState::Failed {
+                run_id: *run_id,
+                target: target.clone(),
+                failure: failure.clone(),
+            },
+        };
+        SpeedtestSnapshot {
+            revision: self.revision,
+            state,
+            concurrency: self.concurrency,
+            results: self.results.clone(),
+            recent_history: self.recent_history.clone(),
+        }
+    }
+}
+
+/// Shared application service that validates one accepted inventory before
+/// probing, then records multiple samples through the typed outbound port.
 #[derive(Clone)]
 pub struct SpeedtestApplication {
-    gateway: Arc<dyn RuntimeGateway>,
-    state: Arc<Mutex<SpeedtestSnapshot>>,
-    cancel_token: Arc<AtomicBool>,
-    /// Live Semaphore-style concurrency bound shared with both UI surfaces.
-    /// Runtime-settable (DUAL-06-01): reads always observe the latest value.
-    concurrency_limit: Arc<AtomicUsize>,
+    outbound: Arc<RwLock<Option<OutboundApplication>>>,
+    probe_settings: SettingsApplication,
+    state: Arc<Mutex<SpeedtestOwnerState>>,
     history_store: Option<Arc<dyn SpeedtestHistoryStore>>,
 }
 
 impl SpeedtestApplication {
-    /// Create a new speedtest application with default Semaphore(30) concurrency.
-    pub fn new(gateway: Arc<dyn RuntimeGateway>) -> Self {
+    pub fn new(probe_settings: SettingsApplication) -> Self {
         Self {
-            gateway,
-            state: Arc::new(Mutex::new(SpeedtestSnapshot {
-                availability: Some(Availability::Supported),
-                ..SpeedtestSnapshot::default()
-            })),
-            cancel_token: Arc::new(AtomicBool::new(false)),
-            concurrency_limit: Arc::new(AtomicUsize::new(DEFAULT_CONCURRENCY_LIMIT)),
+            outbound: Arc::new(RwLock::new(None)),
+            probe_settings,
+            state: Arc::new(Mutex::new(SpeedtestOwnerState::default())),
             history_store: None,
         }
     }
 
-    /// Set a custom concurrency limit for batch speedtesting.
-    pub fn with_concurrency(self, limit: usize) -> Self {
-        self.set_concurrency(limit);
-        self
+    /// Install the same outbound application that Core commands and the
+    /// surface reader use. The owner is write-once to prevent revision forks.
+    pub fn install_outbound_application(
+        &self,
+        application: OutboundApplication,
+    ) -> Result<(), Failure> {
+        let mut slot = self.outbound.write().expect("speedtest outbound lock");
+        if slot.is_some() {
+            return Err(Failure::new(
+                ErrorCode::InvalidState,
+                "speedtest outbound application is already installed",
+                false,
+            ));
+        }
+        *slot = Some(application);
+        Ok(())
     }
 
-    /// DUAL-06-01: set the shared engine's concurrency limit at runtime.
-    ///
-    /// The value is clamped to a minimum of 1 (a zero bound would stall the
-    /// batch forever) and published into `snapshot.config.concurrency` so both
-    /// surfaces read the live bound from the one shared fact source.
-    pub fn set_concurrency(&self, limit: usize) {
-        let clamped = limit.max(1);
-        self.concurrency_limit.store(clamped, Ordering::SeqCst);
-        let mut state = self.state.lock().unwrap();
-        state.config.concurrency = clamped;
-        state.revision += 1;
+    fn outbound_application(&self) -> Result<OutboundApplication, Failure> {
+        self.outbound
+            .read()
+            .expect("speedtest outbound lock")
+            .clone()
+            .ok_or_else(|| {
+                Failure::unsupported("speedtest requires the active Core outbound owner")
+            })
     }
 
-    /// The live concurrency bound the next batch will honor.
-    pub fn concurrency(&self) -> usize {
-        self.concurrency_limit.load(Ordering::SeqCst).max(1)
+    async fn accepted_probe_settings(&self) -> Result<RuntimeProbeSettings, Failure> {
+        self.probe_settings.runtime_probe_settings().await
     }
 
-    /// Attach a durable history store and hydrate the bounded run history from
-    /// any records persisted by a previous process.
+    pub(crate) fn set_concurrency(&self, concurrency: SpeedtestConcurrency) {
+        let mut state = self.state.lock().expect("speedtest state lock");
+        state.concurrency = concurrency;
+        state.revision = state.revision.saturating_add(1);
+    }
+
+    pub(crate) fn snapshot(&self) -> SpeedtestSnapshot {
+        self.state.lock().expect("speedtest state lock").snapshot()
+    }
+
+    pub(crate) fn cancel_run(&self, requested: SpeedtestRunId) -> SpeedtestCancelOutcome {
+        let mut state = self.state.lock().expect("speedtest state lock");
+        let current_run_id = state.run_id();
+        let outcome = match &state.execution {
+            SpeedtestExecution::Probing {
+                run_id,
+                target,
+                progress,
+                abort,
+            } if *run_id == requested => {
+                let run_id = *run_id;
+                let target = target.clone();
+                let progress = progress.clone();
+                let abort = abort.clone();
+                state.execution = SpeedtestExecution::CancelRequested {
+                    run_id,
+                    target,
+                    progress,
+                };
+                abort.abort();
+                state.revision = state.revision.saturating_add(1);
+                return SpeedtestCancelOutcome::Requested { run_id };
+            }
+            SpeedtestExecution::CancelRequested { run_id, .. } if *run_id == requested => {
+                SpeedtestCancelOutcome::AlreadyRequested { run_id: *run_id }
+            }
+            SpeedtestExecution::Completed { run_id, .. }
+            | SpeedtestExecution::Cancelled { run_id, .. }
+            | SpeedtestExecution::Failed { run_id, .. }
+                if *run_id == requested =>
+            {
+                SpeedtestCancelOutcome::RunAlreadyFinished { run_id: *run_id }
+            }
+            _ => SpeedtestCancelOutcome::StaleRun {
+                requested_run_id: requested,
+                current_run_id,
+            },
+        };
+        outcome
+    }
+
     pub fn with_history_store(mut self, store: Arc<dyn SpeedtestHistoryStore>) -> Self {
         if let Ok(records) = store.load() {
-            let mut state = self.state.lock().unwrap();
+            let mut state = self.state.lock().expect("speedtest state lock");
             state.recent_history = bounded_history(records);
         }
         self.history_store = Some(store);
         self
     }
 
-    /// Get current snapshot of the speedtest engine.
-    pub fn snapshot(&self) -> SpeedtestSnapshot {
-        self.state.lock().unwrap().clone()
-    }
-
-    /// Whether a speedtest or latency probe is actively running.
-    pub fn is_running(&self) -> bool {
-        self.snapshot().is_running()
-    }
-
-    /// Request cancellation of the active speedtest batch.
-    pub fn cancel(&self) -> bool {
-        let was_running = self.is_running();
-        self.cancel_token.store(true, Ordering::SeqCst);
-        let mut state = self.state.lock().unwrap();
-        if state.is_running() {
-            state.phase = SpeedtestPhase::Cancelled;
-            state.revision += 1;
-        }
-        was_running
-    }
-
-    /// Run concurrent latency probes across nodes specified by scope.
-    pub async fn test_delays(
+    /// Validate the scope, inventory revision, membership and probe support
+    /// before the Core actor accepts a generation.
+    pub(crate) async fn prepare(
         &self,
-        scope: SpeedtestScope,
-        custom_url: Option<String>,
-        custom_timeout_ms: Option<u32>,
-    ) -> Result<SpeedtestSnapshot, Failure> {
-        let test_url = custom_url.unwrap_or_else(|| DEFAULT_PROBE_URL.to_string());
-        let timeout_ms = custom_timeout_ms.unwrap_or(DEFAULT_PROBE_TIMEOUT_MS);
-        let options = validate_options(ProxyProbeOptions {
-            test_url,
-            timeout_ms,
-        })?;
-        let test_url = options.test_url;
-        let timeout_ms = options.timeout_ms;
-
-        self.cancel_token.store(false, Ordering::SeqCst);
-        let proxies = self.gateway.get_proxies().await.map_err(Failure::from)?;
-        let candidates = resolve_candidates(&proxies, &scope)?;
-
-        if candidates.is_empty() {
-            let mut state = self.state.lock().unwrap();
-            state.phase = SpeedtestPhase::Completed;
-            state.scope = scope;
-            state.progress = SpeedtestProgress::default();
-            state.revision += 1;
-            return Ok(state.clone());
-        }
-
-        let total_nodes = candidates.len();
-        let concurrency_limit = self.concurrency();
-        {
-            let mut state = self.state.lock().unwrap();
-            state.generation += 1;
-            state.revision += 1;
-            state.phase = SpeedtestPhase::ProbingLatency;
-            state.scope = scope.clone();
-            state.config = SpeedtestTargetConfig {
-                test_url: test_url.clone(),
-                timeout_ms,
-                concurrency: concurrency_limit,
-                probe_rounds: 1,
-            };
-            state.progress = SpeedtestProgress {
-                completed_nodes: 0,
-                total_nodes,
-                percent: 0.0,
-                current_node: None,
-                current_mbps: None,
-            };
-        }
-
-        let state_arc = Arc::clone(&self.state);
-        let cancel_token = Arc::clone(&self.cancel_token);
-        let gateway = Arc::clone(&self.gateway);
-        let completed_counter = Arc::new(AtomicUsize::new(0));
-
-        let results_stream = stream::iter(candidates.into_iter().map(|candidate| {
-            let gateway = Arc::clone(&gateway);
-            let state_arc = Arc::clone(&state_arc);
-            let cancel_token = Arc::clone(&cancel_token);
-            let completed_counter = Arc::clone(&completed_counter);
-            let test_url = test_url.clone();
-            let node_name = candidate.name;
-            let group_name = candidate.group_name;
-            let proxy_type = candidate.proxy_type;
-
-            async move {
-                if cancel_token.load(Ordering::Relaxed) {
-                    return None;
-                }
-
-                let test_res = gateway.test_delay(&node_name, &test_url, timeout_ms).await;
-                let now_ms = current_epoch_ms();
-
-                let (delay_ms, is_alive, packet_loss, star_rating) = match test_res {
-                    Ok(d) => {
-                        let stars = match d {
-                            0..=99 => 5,
-                            100..=199 => 4,
-                            200..=349 => 3,
-                            350..=499 => 2,
-                            _ => 1,
-                        };
-                        (Some(d), true, PacketLossRating::Excellent, stars)
-                    }
-                    Err(_) => (None, false, PacketLossRating::Dead, 1),
-                };
-
-                let jitter = delay_ms.map(|d| JitterCalculation::from_samples(&[Some(d)]));
-                let label_country = extract_country_code(&node_name).map(str::to_string);
-
-                let completed = completed_counter.fetch_add(1, Ordering::SeqCst) + 1;
-                let percent = (completed as f64 / total_nodes as f64) * 100.0;
-
-                {
-                    let mut state = state_arc.lock().unwrap();
-                    state.progress.completed_nodes = completed;
-                    state.progress.percent = percent;
-                    state.progress.current_node = Some(node_name.clone());
-                    state.revision += 1;
-                }
-
-                Some(NodeSpeedtestResult {
-                    node_name,
-                    group_name,
-                    proxy_type,
-                    delay_ms,
-                    jitter,
-                    bandwidth_mbps: None,
-                    packet_loss,
-                    star_rating,
-                    label_country,
-                    outbound_ip: None,
-                    outbound_country: None,
-                    is_alive,
-                    tested_at_epoch_ms: now_ms,
-                })
-            }
-        }))
-        .buffer_unordered(concurrency_limit);
-
-        let collected: Vec<Option<NodeSpeedtestResult>> = results_stream.collect().await;
-
-        let mut final_state = self.state.lock().unwrap();
-        if self.cancel_token.load(Ordering::Relaxed) {
-            final_state.phase = SpeedtestPhase::Cancelled;
-        } else {
-            final_state.phase = SpeedtestPhase::Completed;
-        }
-
-        for item in collected.into_iter().flatten() {
-            final_state
-                .node_results
-                .insert(item.node_name.clone(), item);
-        }
-
-        final_state.progress.percent = 100.0;
-        final_state.progress.current_node = None;
-        final_state.revision += 1;
-
-        if !self.cancel_token.load(Ordering::Relaxed) {
-            let record = build_historical_record(&final_state, &scope, &test_url);
-            push_history_record(&mut final_state.recent_history, record);
-            self.persist_history(&final_state);
-        }
-
-        Ok(final_state.clone())
-    }
-
-    /// Perform multi-round ping on a specific node to calculate exact RTT standard deviation and packet loss.
-    pub async fn probe_node_jitter(
-        &self,
-        node: &str,
-        rounds: usize,
-        custom_url: Option<String>,
-        custom_timeout_ms: Option<u32>,
-    ) -> Result<JitterCalculation, Failure> {
-        let rounds = rounds.max(1);
-        let test_url = custom_url.unwrap_or_else(|| DEFAULT_PROBE_URL.to_string());
-        let timeout_ms = custom_timeout_ms.unwrap_or(DEFAULT_PROBE_TIMEOUT_MS);
-        let options = validate_options(ProxyProbeOptions {
-            test_url,
-            timeout_ms,
-        })?;
-        let test_url = options.test_url;
-        let timeout_ms = options.timeout_ms;
-
-        let mut samples = Vec::with_capacity(rounds);
-
-        for _ in 0..rounds {
-            if self.cancel_token.load(Ordering::Relaxed) {
-                return Err(Failure::new(
-                    ErrorCode::Canceled,
-                    "jitter probe cancelled",
-                    false,
-                ));
-            }
-            let res = self.gateway.test_delay(node, &test_url, timeout_ms).await;
-            match res {
-                Ok(rtt) => samples.push(Some(rtt)),
-                Err(_) => samples.push(None),
-            }
-        }
-
-        let calculation = JitterCalculation::from_samples(&samples);
-
-        {
-            let mut state = self.state.lock().unwrap();
-            if let Some(entry) = state.node_results.get_mut(node) {
-                entry.jitter = Some(calculation.clone());
-                entry.packet_loss = calculation.loss_rating;
-                entry.star_rating = calculation.star_rating;
-                entry.delay_ms = calculation.min_rtt_ms;
-                entry.is_alive = calculation.successful_probes > 0;
-            } else {
-                state.node_results.insert(
-                    node.to_string(),
-                    NodeSpeedtestResult {
-                        node_name: node.to_string(),
-                        group_name: None,
-                        proxy_type: "Unknown".to_string(),
-                        delay_ms: calculation.min_rtt_ms,
-                        jitter: Some(calculation.clone()),
-                        bandwidth_mbps: None,
-                        packet_loss: calculation.loss_rating,
-                        star_rating: calculation.star_rating,
-                        label_country: extract_country_code(node).map(str::to_string),
-                        outbound_ip: None,
-                        outbound_country: None,
-                        is_alive: calculation.successful_probes > 0,
-                        tested_at_epoch_ms: current_epoch_ms(),
-                    },
-                );
-            }
-            state.revision += 1;
-        }
-
-        Ok(calculation)
-    }
-
-    /// Record measured bandwidth throughput for a node.
-    pub fn record_bandwidth(
-        &self,
-        node: &str,
-        total_bytes: u64,
-        duration_ms: u64,
-    ) -> Result<f64, Failure> {
-        let bandwidth_mbps = SpeedtestCalculator::calculate_bandwidth(total_bytes, duration_ms);
-
-        let mut state = self.state.lock().unwrap();
-        if let Some(entry) = state.node_results.get_mut(node) {
-            entry.bandwidth_mbps = Some(bandwidth_mbps);
-        } else {
-            state.node_results.insert(
-                node.to_string(),
-                NodeSpeedtestResult {
-                    node_name: node.to_string(),
-                    group_name: None,
-                    proxy_type: "Unknown".to_string(),
-                    delay_ms: None,
-                    jitter: None,
-                    bandwidth_mbps: Some(bandwidth_mbps),
-                    packet_loss: PacketLossRating::Excellent,
-                    star_rating: if bandwidth_mbps >= 100.0 { 5 } else { 4 },
-                    label_country: extract_country_code(node).map(str::to_string),
-                    outbound_ip: None,
-                    outbound_country: None,
-                    is_alive: true,
-                    tested_at_epoch_ms: current_epoch_ms(),
-                },
-            );
-        }
-        state.revision += 1;
-        self.persist_history(&state);
-        Ok(bandwidth_mbps)
-    }
-
-    /// DUAL-06-12: record the real egress IP + country the host observed when it
-    /// probed *through* this node.
-    ///
-    /// The host performs the probe and reports the observed endpoint; the shared
-    /// engine only stores the fact. An empty IP is rejected rather than stored
-    /// as a fiction, and the country may honestly be `None` (probe succeeded but
-    /// geolocation is unavailable). The node is inserted if it has no result
-    /// yet, exactly like `record_bandwidth`, so a host may report egress facts
-    /// before a latency batch has run.
-    pub fn record_outbound_ip(
-        &self,
-        node: &str,
-        ip: &str,
-        country: Option<&str>,
-    ) -> Result<(), Failure> {
-        let trimmed_ip = ip.trim();
-        if trimmed_ip.is_empty() {
+        target: SpeedtestTarget,
+    ) -> Result<PreparedSpeedtestRun, Failure> {
+        if self.state.lock().expect("speedtest state lock").is_active() {
             return Err(Failure::new(
-                ErrorCode::InvalidInput,
-                "outbound ip must not be empty",
-                false,
+                ErrorCode::InvalidState,
+                "a speedtest run is already active",
+                true,
             ));
         }
-        let country = country
-            .map(str::trim)
-            .filter(|c| !c.is_empty())
-            .map(str::to_string);
+        let settings = self.accepted_probe_settings().await?;
+        let outbound = self.outbound_application()?;
+        target
+            .validate()
+            .map_err(|error| invalid_target(error.to_string()))?;
+        let observation = outbound.observation(target.core_scope().clone()).await?;
+        if observation.inventory().scope() != target.core_scope()
+            || observation.details().scope() != target.core_scope()
+        {
+            return Err(invalid_target(
+                "speedtest observation belongs to another Core activation",
+            ));
+        }
+        if observation.inventory().revision() != target.expected_inventory_revision() {
+            return Err(invalid_target(
+                "speedtest target uses a stale outbound inventory revision",
+            ));
+        }
+        let candidates = resolve_candidates(&observation, target.outbound_scope())?;
+        let target_order = candidates
+            .iter()
+            .map(|candidate| candidate.outbound_id.clone())
+            .collect();
+        Ok(PreparedSpeedtestRun {
+            target,
+            settings,
+            outbound,
+            candidates,
+            target_order,
+        })
+    }
 
-        let mut state = self.state.lock().unwrap();
-        if let Some(entry) = state.node_results.get_mut(node) {
-            entry.outbound_ip = Some(trimmed_ip.to_string());
-            entry.outbound_country = country;
-        } else {
-            state.node_results.insert(
-                node.to_string(),
-                NodeSpeedtestResult {
-                    node_name: node.to_string(),
-                    group_name: None,
-                    proxy_type: "Unknown".to_string(),
-                    delay_ms: None,
-                    jitter: None,
-                    bandwidth_mbps: None,
-                    packet_loss: PacketLossRating::Excellent,
-                    star_rating: 1,
-                    label_country: extract_country_code(node).map(str::to_string),
-                    outbound_ip: Some(trimmed_ip.to_string()),
-                    outbound_country: country,
-                    is_alive: true,
-                    tested_at_epoch_ms: current_epoch_ms(),
+    pub(crate) fn admit(
+        &self,
+        prepared: PreparedSpeedtestRun,
+    ) -> Result<SpeedtestRunAdmission, Failure> {
+        let mut state = self.state.lock().expect("speedtest state lock");
+        if state.is_active() {
+            return Err(Failure::new(
+                ErrorCode::InvalidState,
+                "a speedtest run is already active",
+                true,
+            ));
+        }
+        let run_id = SpeedtestRunId::new(state.next_run_id).map_err(|_| {
+            Failure::new(
+                ErrorCode::Internal,
+                "speedtest run identity space is exhausted",
+                false,
+            )
+        })?;
+        state.next_run_id = state.next_run_id.checked_add(1).ok_or_else(|| {
+            Failure::new(
+                ErrorCode::Internal,
+                "speedtest run identity space is exhausted",
+                false,
+            )
+        })?;
+        let (abort, registration) = AbortHandle::new_pair();
+        let progress = SpeedtestProgress {
+            completed_targets: 0,
+            total_targets: prepared.candidates.len(),
+        };
+        state.execution = SpeedtestExecution::Probing {
+            run_id,
+            target: prepared.target.clone(),
+            progress,
+            abort,
+        };
+        state.results.clear();
+        state.revision = state.revision.saturating_add(1);
+        Ok(SpeedtestRunAdmission {
+            receipt: SpeedtestStartReceipt { run_id },
+            registration,
+            concurrency: usize::from(state.concurrency.get()),
+            prepared,
+        })
+    }
+
+    pub(crate) async fn execute_prepared(
+        &self,
+        run_id: SpeedtestRunId,
+        prepared: PreparedSpeedtestRun,
+        concurrency: usize,
+    ) {
+        let _completed = stream::iter(prepared.candidates.into_iter().map(|candidate| {
+            let application = self.clone();
+            let outbound = prepared.outbound.clone();
+            let target = prepared.target.clone();
+            let settings = prepared.settings.clone();
+            let target_order = prepared.target_order.clone();
+            async move {
+                let result = application
+                    .probe_candidate(&outbound, &target, &settings, candidate)
+                    .await;
+                let result = match result {
+                    Ok(result) => result,
+                    Err((outbound_id, failure)) => SpeedtestOutboundResult {
+                        outbound_id,
+                        display_name: None,
+                        protocol_display_name: None,
+                        samples: Vec::new(),
+                        state: SpeedtestResultState::Failed { failure },
+                        tested_at_epoch_ms: current_epoch_ms(),
+                    },
+                };
+                application.record_completed_target(run_id, &target, result, &target_order);
+            }
+        }))
+        .buffer_unordered(concurrency)
+        .collect::<Vec<_>>()
+        .await;
+    }
+
+    fn record_completed_target(
+        &self,
+        run_id: SpeedtestRunId,
+        target: &SpeedtestTarget,
+        result: SpeedtestOutboundResult,
+        target_order: &[OutboundId],
+    ) {
+        let mut state = self.state.lock().expect("speedtest state lock");
+        if let SpeedtestExecution::Probing {
+            run_id: active_run,
+            target: active_target,
+            progress,
+            ..
+        } = &mut state.execution
+            && *active_run == run_id
+            && active_target.core_scope() == target.core_scope()
+        {
+            progress.completed_targets = progress.completed_targets.saturating_add(1);
+            state.results.push(result);
+            state.results.sort_by_key(|result| {
+                target_order
+                    .iter()
+                    .position(|id| id == &result.outbound_id)
+                    .unwrap_or(usize::MAX)
+            });
+            state.revision = state.revision.saturating_add(1);
+        }
+    }
+
+    pub(crate) fn finish(
+        &self,
+        run_id: SpeedtestRunId,
+        request_scope: &infiltrator_contract::core_identity::CoreScope,
+        current_scope: Option<&infiltrator_contract::core_identity::CoreScope>,
+        outcome: SpeedtestTaskOutcome,
+    ) -> SpeedtestCompletionAdmission {
+        let mut state = self.state.lock().expect("speedtest state lock");
+        let current_run = state.run_id();
+        let active_target = match &state.execution {
+            SpeedtestExecution::Probing {
+                run_id: active,
+                target,
+                ..
+            }
+            | SpeedtestExecution::CancelRequested {
+                run_id: active,
+                target,
+                ..
+            } if *active == run_id => Some(target.clone()),
+            _ => None,
+        };
+        let Some(target) = active_target else {
+            return SpeedtestCompletionAdmission::IgnoredStaleRun {
+                completed: run_id,
+                current: current_run,
+            };
+        };
+        if target.core_scope() != request_scope || current_scope != Some(request_scope) {
+            return SpeedtestCompletionAdmission::IgnoredStaleScope { completed: run_id };
+        }
+        let progress = match &state.execution {
+            SpeedtestExecution::Probing { progress, .. }
+            | SpeedtestExecution::CancelRequested { progress, .. } => progress.clone(),
+            _ => unreachable!("active target matched an active execution variant"),
+        };
+        let cancelled = matches!(&state.execution, SpeedtestExecution::CancelRequested { .. })
+            || matches!(outcome, SpeedtestTaskOutcome::Cancelled);
+        state.execution = match outcome {
+            SpeedtestTaskOutcome::Failed(failure) if !cancelled => SpeedtestExecution::Failed {
+                run_id,
+                target,
+                failure,
+            },
+            SpeedtestTaskOutcome::Completed if !cancelled => {
+                let record = build_history_record(run_id, &state.results, &target);
+                push_history_record(&mut state.recent_history, record);
+                if let Some(store) = &self.history_store {
+                    let _ = store.save(&state.recent_history);
+                }
+                SpeedtestExecution::Completed {
+                    run_id,
+                    target,
+                    progress,
+                }
+            }
+            SpeedtestTaskOutcome::Cancelled
+            | SpeedtestTaskOutcome::Completed
+            | SpeedtestTaskOutcome::Failed(_) => SpeedtestExecution::Cancelled {
+                run_id,
+                target,
+                progress,
+            },
+        };
+        state.revision = state.revision.saturating_add(1);
+        SpeedtestCompletionAdmission::Applied
+    }
+
+    pub(crate) fn fail_admission(
+        &self,
+        run_id: SpeedtestRunId,
+        scope: infiltrator_contract::core_identity::CoreScope,
+        failure: Failure,
+    ) {
+        let mut state = self.state.lock().expect("speedtest state lock");
+        let target = match &state.execution {
+            SpeedtestExecution::Probing {
+                run_id: active,
+                target,
+                ..
+            } if *active == run_id && target.core_scope() == &scope => Some(target.clone()),
+            _ => None,
+        };
+        if let Some(target) = target {
+            state.execution = SpeedtestExecution::Failed {
+                run_id,
+                target,
+                failure,
+            };
+            state.revision = state.revision.saturating_add(1);
+        }
+    }
+
+    pub(crate) fn invalidate_scope(
+        &self,
+        current_scope: Option<&infiltrator_contract::core_identity::CoreScope>,
+    ) {
+        let mut state = self.state.lock().expect("speedtest state lock");
+        let execution = std::mem::replace(&mut state.execution, SpeedtestExecution::Idle);
+        match execution {
+            SpeedtestExecution::Probing {
+                run_id,
+                target,
+                progress,
+                abort,
+            } if current_scope != Some(target.core_scope()) => {
+                abort.abort();
+                state.execution = SpeedtestExecution::Cancelled {
+                    run_id,
+                    target,
+                    progress,
+                };
+                state.revision = state.revision.saturating_add(1);
+            }
+            SpeedtestExecution::CancelRequested {
+                run_id,
+                target,
+                progress,
+            } if current_scope != Some(target.core_scope()) => {
+                state.execution = SpeedtestExecution::Cancelled {
+                    run_id,
+                    target,
+                    progress,
+                };
+                state.revision = state.revision.saturating_add(1);
+            }
+            other => state.execution = other,
+        }
+    }
+
+    pub(crate) fn cancel_for_shutdown(&self) {
+        let mut state = self.state.lock().expect("speedtest state lock");
+        let execution = std::mem::replace(&mut state.execution, SpeedtestExecution::Idle);
+        match execution {
+            SpeedtestExecution::Probing {
+                run_id,
+                target,
+                progress,
+                abort,
+            } => {
+                abort.abort();
+                state.execution = SpeedtestExecution::Cancelled {
+                    run_id,
+                    target,
+                    progress,
+                };
+                state.revision = state.revision.saturating_add(1);
+            }
+            SpeedtestExecution::CancelRequested {
+                run_id,
+                target,
+                progress,
+            } => {
+                state.execution = SpeedtestExecution::Cancelled {
+                    run_id,
+                    target,
+                    progress,
+                };
+                state.revision = state.revision.saturating_add(1);
+            }
+            other => state.execution = other,
+        }
+    }
+
+    async fn probe_candidate(
+        &self,
+        outbound: &OutboundApplication,
+        target: &SpeedtestTarget,
+        settings: &RuntimeProbeSettings,
+        candidate: ProbeCandidate,
+    ) -> Result<SpeedtestOutboundResult, (OutboundId, Failure)> {
+        let outbound_id = candidate.outbound_id.clone();
+        if candidate.probe_availability == OutboundProbeAvailability::Unsupported {
+            return Ok(candidate.result(Vec::new(), SpeedtestResultState::Unsupported));
+        }
+        if candidate.probe_availability == OutboundProbeAvailability::Unknown {
+            return Ok(candidate.result(
+                Vec::new(),
+                SpeedtestResultState::Failed {
+                    failure: Failure::new(
+                        ErrorCode::NotReady,
+                        "outbound probe support has not been observed",
+                        true,
+                    ),
                 },
-            );
+            ));
         }
-        state.revision += 1;
-        Ok(())
-    }
 
-    /// Retrieve the cached history of recent runs.
-    pub fn get_history(&self) -> Vec<HistoricalSpeedtestRecord> {
-        self.state.lock().unwrap().recent_history.clone()
-    }
-
-    /// Best-effort write-through of the bounded history to the host store.
-    fn persist_history(&self, state: &SpeedtestSnapshot) {
-        if let Some(store) = &self.history_store {
-            let _ = store.save(&state.recent_history);
+        let mut samples = Vec::with_capacity(usize::from(target.rounds().get()));
+        for _ in 0..target.rounds().get() {
+            let request = ProbeOutboundRequest::new(
+                outbound_id.clone(),
+                target.expected_inventory_revision(),
+                settings.url(),
+                u64::from(settings.timeout_ms()),
+            )
+            .map_err(|error| {
+                (
+                    outbound_id.clone(),
+                    Failure::new(ErrorCode::InvalidInput, error.to_string(), false),
+                )
+            })?;
+            let snapshot = match outbound.probe_request(target.core_scope(), &request).await {
+                Ok(snapshot) => snapshot,
+                Err(failure) => {
+                    let state = SpeedtestResultState::Failed {
+                        failure: failure.clone(),
+                    };
+                    return Ok(candidate.result(samples, state));
+                }
+            };
+            let sample = SpeedtestSampleOutcome::from(snapshot.state());
+            let terminal = match &sample {
+                SpeedtestSampleOutcome::Unsupported => Some(SpeedtestResultState::Unsupported),
+                SpeedtestSampleOutcome::Failed { failure } => Some(SpeedtestResultState::Failed {
+                    failure: failure.clone(),
+                }),
+                SpeedtestSampleOutcome::Cancelled => Some(SpeedtestResultState::Cancelled),
+                SpeedtestSampleOutcome::Measured { .. } | SpeedtestSampleOutcome::TimedOut => None,
+            };
+            samples.push(sample);
+            if let Some(terminal) = terminal {
+                return Ok(candidate.result(samples, terminal));
+            }
         }
+
+        let state = if samples
+            .iter()
+            .all(|sample| matches!(sample, SpeedtestSampleOutcome::TimedOut))
+        {
+            SpeedtestResultState::TimedOut
+        } else {
+            SpeedtestResultState::Completed
+        };
+        Ok(candidate.result(samples, state))
     }
 }
 
-#[derive(Debug, Clone)]
-struct CandidateNode {
-    name: String,
-    group_name: Option<String>,
-    proxy_type: String,
+#[derive(Clone)]
+struct ProbeCandidate {
+    outbound_id: OutboundId,
+    display_name: Option<String>,
+    protocol_display_name: Option<String>,
+    probe_availability: OutboundProbeAvailability,
+}
+
+impl ProbeCandidate {
+    fn result(
+        &self,
+        samples: Vec<SpeedtestSampleOutcome>,
+        state: SpeedtestResultState,
+    ) -> SpeedtestOutboundResult {
+        SpeedtestOutboundResult {
+            outbound_id: self.outbound_id.clone(),
+            display_name: self.display_name.clone(),
+            protocol_display_name: self.protocol_display_name.clone(),
+            samples,
+            state,
+            tested_at_epoch_ms: current_epoch_ms(),
+        }
+    }
 }
 
 fn resolve_candidates(
-    proxies: &HashMap<String, Proxy>,
-    scope: &SpeedtestScope,
-) -> Result<Vec<CandidateNode>, Failure> {
-    match scope {
-        SpeedtestScope::AllGroups => {
-            let mut list = Vec::new();
-            for (name, proxy) in proxies {
-                if !proxy.is_group() && !name.is_empty() {
-                    list.push(CandidateNode {
-                        name: name.clone(),
-                        group_name: None,
-                        proxy_type: proxy.proxy_type().to_string(),
-                    });
+    observation: &infiltrator_contract::outbound::inventory::OutboundObservationSnapshot,
+    target_scope: &OutboundProbeBatchScope,
+) -> Result<Vec<ProbeCandidate>, Failure> {
+    let inventory = observation.inventory();
+    let (entries, collections) = match inventory.inventory() {
+        OutboundInventoryState::Ready {
+            entries,
+            collections,
+        } => (entries, collections),
+        OutboundInventoryState::Empty if matches!(target_scope, OutboundProbeBatchScope::All) => {
+            return Ok(Vec::new());
+        }
+        OutboundInventoryState::Empty => {
+            return Err(invalid_target(
+                "speedtest target is absent from the empty accepted inventory",
+            ));
+        }
+        OutboundInventoryState::Failed { failure } => return Err(failure.clone()),
+        OutboundInventoryState::Unknown => {
+            return Err(Failure::new(
+                ErrorCode::NotReady,
+                "outbound inventory has not been observed",
+                true,
+            ));
+        }
+        OutboundInventoryState::Unsupported => {
+            return Err(Failure::unsupported(
+                "speedtest requires a typed outbound inventory",
+            ));
+        }
+    };
+    let details = match observation.details().state() {
+        OutboundDetailsState::Ready { details } => details,
+        OutboundDetailsState::Empty if entries.is_empty() => return Ok(Vec::new()),
+        OutboundDetailsState::Empty => {
+            return Err(invalid_target(
+                "outbound details are empty for the observed inventory",
+            ));
+        }
+        OutboundDetailsState::Failed { failure } => return Err(failure.clone()),
+        OutboundDetailsState::Unsupported => {
+            return Err(Failure::unsupported(
+                "speedtest requires typed outbound probe capability details",
+            ));
+        }
+        OutboundDetailsState::Unknown => {
+            return Err(Failure::new(
+                ErrorCode::NotReady,
+                "outbound probe details have not been observed",
+                true,
+            ));
+        }
+    };
+    let collection_ids = collections
+        .iter()
+        .map(|collection| &collection.id)
+        .collect::<Vec<_>>();
+    let detail_for = |id: &OutboundId| details.iter().find(|detail| &detail.id == id);
+    let is_leaf = |id: &OutboundId| {
+        !collection_ids.contains(&id)
+            && detail_for(id).is_some_and(|detail| {
+                !matches!(&detail.collection_kind, OutboundObservation::Observed(_))
+            })
+    };
+    let ids = match target_scope {
+        OutboundProbeBatchScope::One(id) => {
+            if !entries.iter().any(|entry| &entry.id == id) || !is_leaf(id) {
+                return Err(invalid_target(
+                    "speedtest outbound is not a leaf member of the accepted inventory",
+                ));
+            }
+            vec![id.clone()]
+        }
+        OutboundProbeBatchScope::Collection(id) => {
+            let collection = collections
+                .iter()
+                .find(|collection| &collection.id == id)
+                .ok_or_else(|| invalid_target("speedtest collection is absent from inventory"))?;
+            collection
+                .member_ids
+                .iter()
+                .filter(|member_id| is_leaf(member_id))
+                .cloned()
+                .collect()
+        }
+        OutboundProbeBatchScope::Selected(ids) => {
+            for id in ids {
+                if !entries.iter().any(|entry| &entry.id == id) || !is_leaf(id) {
+                    return Err(invalid_target(
+                        "speedtest selection contains a non-member or collection ID",
+                    ));
                 }
             }
-            list.sort_by(|a, b| a.name.cmp(&b.name));
-            Ok(list)
+            ids.clone()
         }
-        SpeedtestScope::SingleGroup(group_name) => {
-            let group_proxy = proxies.get(group_name).ok_or_else(|| {
-                Failure::new(
-                    ErrorCode::InvalidInput,
-                    format!("proxy group {group_name} was not found"),
-                    false,
+        OutboundProbeBatchScope::All => entries
+            .iter()
+            .filter(|entry| is_leaf(&entry.id))
+            .map(|entry| entry.id.clone())
+            .collect(),
+    };
+
+    let mut candidates = Vec::with_capacity(ids.len());
+    for id in ids {
+        let entry = entries
+            .iter()
+            .find(|entry| entry.id == id)
+            .ok_or_else(|| invalid_target("speedtest target is absent from inventory"))?;
+        let detail = detail_for(&id)
+            .ok_or_else(|| invalid_target("speedtest target has no accepted detail record"))?;
+        candidates.push(ProbeCandidate {
+            outbound_id: id,
+            display_name: entry.display_name.clone(),
+            protocol_display_name: detail.protocol_display_name.clone(),
+            probe_availability: detail.probe_availability,
+        });
+    }
+    Ok(candidates)
+}
+
+fn build_history_record(
+    run_id: SpeedtestRunId,
+    results: &[SpeedtestOutboundResult],
+    target: &SpeedtestTarget,
+) -> HistoricalSpeedtestRecord {
+    let calculations = results
+        .iter()
+        .filter_map(|result| result.calculation())
+        .collect::<Vec<_>>();
+    let latencies = calculations
+        .iter()
+        .filter(|calculation| calculation.successful_probes > 0)
+        .map(|calculation| calculation.mean_rtt_ms)
+        .collect::<Vec<_>>();
+    let jitters = calculations
+        .iter()
+        .filter(|calculation| calculation.successful_probes > 1)
+        .map(|calculation| calculation.jitter_ms)
+        .collect::<Vec<_>>();
+    HistoricalSpeedtestRecord {
+        run_id,
+        timestamp_epoch_ms: current_epoch_ms(),
+        target: Some(target.clone()),
+        total_targets: results.len(),
+        completed_targets: results
+            .iter()
+            .filter(|result| {
+                matches!(
+                    &result.state,
+                    SpeedtestResultState::Completed | SpeedtestResultState::TimedOut
                 )
-            })?;
-
-            let member_names = group_proxy.all().ok_or_else(|| {
-                Failure::new(
-                    ErrorCode::InvalidInput,
-                    format!("{group_name} is not a valid proxy group"),
-                    false,
-                )
-            })?;
-
-            let mut candidates = Vec::new();
-            let mut seen = HashSet::new();
-
-            for member in member_names {
-                if seen.insert(member.clone())
-                    && let Some(node_proxy) = proxies.get(member)
-                    && !node_proxy.is_group()
-                {
-                    candidates.push(CandidateNode {
-                        name: member.clone(),
-                        group_name: Some(group_name.clone()),
-                        proxy_type: node_proxy.proxy_type().to_string(),
-                    });
-                }
-            }
-
-            Ok(candidates)
-        }
-        SpeedtestScope::SingleNode(node_name) => {
-            let node_proxy = proxies.get(node_name).ok_or_else(|| {
-                Failure::new(
-                    ErrorCode::InvalidInput,
-                    format!("proxy node {node_name} was not found"),
-                    false,
-                )
-            })?;
-
-            Ok(vec![CandidateNode {
-                name: node_name.clone(),
-                group_name: None,
-                proxy_type: node_proxy.proxy_type().to_string(),
-            }])
-        }
+            })
+            .count(),
+        avg_latency_ms: average(&latencies),
+        avg_jitter_ms: average(&jitters),
     }
 }
 
-fn build_historical_record(
-    snapshot: &SpeedtestSnapshot,
-    scope: &SpeedtestScope,
-    test_url: &str,
-) -> HistoricalSpeedtestRecord {
-    let total_nodes = snapshot.node_results.len();
-    let alive_nodes = snapshot
-        .node_results
-        .values()
-        .filter(|n| n.is_alive)
-        .count();
-
-    let valid_delays: Vec<u32> = snapshot
-        .node_results
-        .values()
-        .filter_map(|n| n.delay_ms)
-        .collect();
-    let avg_latency_ms = if !valid_delays.is_empty() {
-        Some(valid_delays.iter().map(|&d| d as f64).sum::<f64>() / valid_delays.len() as f64)
-    } else {
-        None
-    };
-
-    let valid_jitters: Vec<f64> = snapshot
-        .node_results
-        .values()
-        .filter_map(|n| n.jitter.as_ref().map(|j| j.jitter_ms))
-        .collect();
-    let avg_jitter_ms = if !valid_jitters.is_empty() {
-        Some(valid_jitters.iter().sum::<f64>() / valid_jitters.len() as f64)
-    } else {
-        None
-    };
-
-    let valid_bandwidths: Vec<f64> = snapshot
-        .node_results
-        .values()
-        .filter_map(|n| n.bandwidth_mbps)
-        .collect();
-    let avg_bandwidth_mbps = if !valid_bandwidths.is_empty() {
-        Some(valid_bandwidths.iter().sum::<f64>() / valid_bandwidths.len() as f64)
-    } else {
-        None
-    };
-
-    let star_sum: u64 = snapshot
-        .node_results
-        .values()
-        .map(|n| n.star_rating as u64)
-        .sum();
-    let overall_star_rating = if total_nodes > 0 {
-        ((star_sum as f64 / total_nodes as f64).round() as u8).clamp(1, 5)
-    } else {
-        1
-    };
-
-    HistoricalSpeedtestRecord {
-        run_id: snapshot.generation,
-        timestamp_epoch_ms: current_epoch_ms(),
-        scope: scope.clone(),
-        target_url: test_url.to_string(),
-        total_nodes,
-        alive_nodes,
-        avg_latency_ms,
-        avg_jitter_ms,
-        avg_bandwidth_mbps,
-        overall_star_rating,
-    }
+fn average(values: &[f64]) -> Option<f64> {
+    (!values.is_empty()).then(|| values.iter().sum::<f64>() / values.len() as f64)
 }
 
 fn push_history_record(
@@ -595,12 +894,15 @@ fn push_history_record(
     }
 }
 
-/// Clamp persisted records to the in-memory cap, keeping the newest entries.
 fn bounded_history(mut history: Vec<HistoricalSpeedtestRecord>) -> Vec<HistoricalSpeedtestRecord> {
     if history.len() > MAX_HISTORY_ENTRIES {
         history.drain(0..history.len() - MAX_HISTORY_ENTRIES);
     }
     history
+}
+
+fn invalid_target(message: impl Into<String>) -> Failure {
+    Failure::new(ErrorCode::InvalidInput, message, false)
 }
 
 fn current_epoch_ms() -> u64 {
@@ -612,4 +914,4 @@ fn current_epoch_ms() -> u64 {
 
 #[cfg(test)]
 #[path = "speedtest_application_tests.rs"]
-mod tests;
+pub(crate) mod tests;

@@ -39,11 +39,12 @@ mod tests {
     fn application_records_only_live_core_samples() {
         let application = TrafficWaveformApplication::new();
         let snapshot = application.record(&CoreSnapshot {
+            identity: None,
             lifecycle: CoreLifecycle::Running,
             generation: 1,
             session_token: None,
             revision: 0,
-            proxy_mode: None,
+            routing_intent: Default::default(),
             core_version: None,
             sampled_at_epoch_ms: Some(1),
             failure: None,

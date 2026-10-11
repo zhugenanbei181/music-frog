@@ -1,7 +1,7 @@
 name: android-device
 
 # BANDROID-023 — explicit, hash-bound Android real-device / long-running
-# evidence stage (docs/android/BEVY_ANDROID_PRODUCT.md §8/§9).
+# evidence stage (android/docs/BEVY_ANDROID_PRODUCT.md §8/§9).
 #
 # This job REQUIRES a SELF-HOSTED runner labelled `android-arm64` with a real
 # ARM64 device attached over adb. It does NOT run on GitHub-hosted runners and
@@ -18,10 +18,6 @@ on:
         description: "Background soak duration in seconds (0 = skip; 28800 = the >=8h requirement)"
         required: false
         default: "0"
-      run_instrumented:
-        description: "Run connected instrumented tests (1 = yes, 0 = skip)"
-        required: false
-        default: "1"
   # A schedule is intentionally NOT enabled. To run the >=8h soak on a cadence,
   # uncomment the block below and pin background_seconds in the script env.
   # schedule:
@@ -43,7 +39,6 @@ jobs:
         shell: bash
         env:
           BACKGROUND_SECONDS: ${{ inputs.background_seconds }}
-          RUN_INSTRUMENTED: ${{ inputs.run_instrumented }}
         run: bash scripts/android-device-evidence.sh
 
       - name: Upload evidence

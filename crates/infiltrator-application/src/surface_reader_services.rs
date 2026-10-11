@@ -13,7 +13,7 @@ use infiltrator_contract::resources::CoreResourceSnapshot;
 use infiltrator_contract::service_mode::ServiceModeSnapshot;
 use infiltrator_contract::system_proxy::{SystemProxyRecoverySnapshot, SystemProxySnapshot};
 use infiltrator_contract::uwp::UwpLoopbackSnapshot;
-use infiltrator_contract::vpn::VpnSessionSnapshot;
+use infiltrator_contract::vpn::VpnSurfaceObservation;
 
 impl ApplicationSurfaceReader {
     pub(super) async fn read_controller_auth(&self) -> ControllerAuthSnapshot {
@@ -113,12 +113,14 @@ impl ApplicationSurfaceReader {
         }
     }
 
-    pub(super) async fn read_vpn(&self) -> VpnSessionSnapshot {
+    pub(super) async fn read_vpn(&self) -> VpnSurfaceObservation {
         match &self.vpn {
-            Some(application) => application.snapshot().await,
+            Some(application) => application.owner_observation().await,
             None => match self.capabilities.availability(Capability::VpnService) {
-                Availability::Unsupported { reason } => VpnSessionSnapshot::unsupported(0, reason),
-                _ => Default::default(),
+                Availability::Unsupported { reason } => {
+                    VpnSurfaceObservation::Unsupported { reason }
+                }
+                _ => VpnSurfaceObservation::NotApplicable,
             },
         }
     }

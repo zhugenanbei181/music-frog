@@ -19,6 +19,7 @@ use infiltrator_application::log_search::LogSearchState;
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::localization::{LocalizedPlaceholder, LocalizedText};
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::text_input::native::NativeTextField;
 use infiltrator_bevy_widgets::text_input::state::TextFieldInput;
@@ -42,16 +43,16 @@ pub struct LogsSearchError;
 
 pub fn logs_search_scene(palette: &UiPalette) -> impl Scene + use<> {
     bsn! {
-        Node { width: percent(100), flex_direction: FlexDirection::Column, row_gap: Val::Px(space::S4) }
+        Node { width: percent(100), flex_direction: FlexDirection::Column, row_gap: rem(space::S4) }
         Children [
-            Node { width: percent(100), align_items: AlignItems::Center, flex_wrap: FlexWrap::Wrap, column_gap: Val::Px(space::S8), row_gap: Val::Px(space::S4) }
+            Node { width: percent(100), align_items: AlignItems::Center, flex_wrap: FlexWrap::Wrap, column_gap: rem(space::S8), row_gap: rem(space::S4) }
             Children [
                 Node { width: percent(80), min_width: Val::Px(180.0) } LogsSearchField
                 Children [
                     @{ text_field_with_placeholder_scene(String::new(), String::new(), palette) } NativeTextField(11) LocalizedPlaceholder::plain("logs_regex_placeholder")
                 ]
                 --
-                Node { padding: UiRect::all(Val::Px(space::S8)) } Button ClearLogsSearch
+                Node { padding: UiRect::all(rem(space::S8)) } Button ClearLogsSearch
                 Children [ LocalizedText::plain("common_clear") TextRole(Role::Caption) ]
             ]
             --

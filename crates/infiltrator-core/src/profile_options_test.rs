@@ -2,18 +2,19 @@
 
 use super::*;
 use crate::settings_io::{save_settings, settings_path};
+use infiltrator_contract::core_identity::EngineId;
 use infiltrator_domain::filter::{
     ContentDedupStrategy, DeduplicationStrategy, NodeMutatorConfig, NodeSortOrder,
     SubscriptionFilterPipeline,
 };
 use infiltrator_domain::mixin::MixinConfig;
 use infiltrator_domain::profile_options::{
-    FilterDedup, FilterSpec, MultiplierSpec, ProfileOptions, RenameSpec, options_path,
-    strip_rule_lines,
+    FilterDedup, FilterSpec, MultiplierSpec, ProfileOptions, RenameSpec, compose_content,
+    options_path, strip_rule_lines,
 };
 use infiltrator_domain::settings::AppSettings;
-use mihomo_config::manager::paths::CONFIGS_DIR_ENV;
-use mihomo_config::profile_option_store::{delete_options, save_options};
+use mihomo_config::manager::paths::{CONFIGS_DIR_ENV, engine_config_dir};
+use mihomo_config::profile_option_store::{delete_options, load_options, save_options};
 use mihomo_platform::paths::{get_home_dir, set_home_dir_override};
 use serde_yaml_ng::Value;
 use std::env::{remove_var, set_var, temp_dir, var};
@@ -22,6 +23,13 @@ use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::fs;
 use tokio::fs::remove_dir_all;
+
+fn mihomo_config_dir(shared_root: &PathBuf) -> PathBuf {
+    engine_config_dir(
+        shared_root,
+        &EngineId::new("mihomo").expect("valid engine ID"),
+    )
+}
 
 fn temp_config_dir(tag: &str) -> PathBuf {
     let dir = temp_dir().join(format!(
@@ -142,19 +150,20 @@ async fn test_saving_empty_options_removes_sidecar() {
         filter: None,
     };
     save_options(&dir, "beta", &options).await.unwrap();
-    assert!(options_path(&dir, "beta").exists());
+    let scoped = mihomo_config_dir(&dir);
+    assert!(options_path(&scoped, "beta").exists());
 
     save_options(&dir, "beta", &ProfileOptions::default())
         .await
         .unwrap();
-    assert!(!options_path(&dir, "beta").exists());
+    assert!(!options_path(&scoped, "beta").exists());
     let _ = remove_dir_all(&dir).await;
 }
 
 #[tokio::test]
 async fn test_malformed_sidecar_is_an_error_not_silently_dropped() {
     let dir = temp_config_dir("malformed");
-    let path = options_path(&dir, "gamma");
+    let path = options_path(&mihomo_config_dir(&dir), "gamma");
     fs::create_dir_all(path.parent().unwrap()).await.unwrap();
     fs::write(&path, "mixin: [not, a, mapping").await.unwrap();
     assert!(load_options(&dir, "gamma").await.is_err());

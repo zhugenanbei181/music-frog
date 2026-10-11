@@ -16,6 +16,7 @@ use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::text_input::TextField;
 use infiltrator_bevy_widgets::text_input::state::TextFieldInput;
 use infiltrator_contract::parity::FeatureId;
+use infiltrator_contract::runtime_settings::{RuntimeProbeSettings, RuntimeProbeSettingsState};
 #[derive(SystemParam)]
 pub struct ProbeFields<'w, 's> {
     editor: Res<'w, ProbeSettingsState>,
@@ -35,19 +36,27 @@ pub fn activate(mut fields: ProbeFields, feature: Res<InteractionCapture>, mut c
     ) {
         return;
     }
-    if !fields.editor.open {
+    if fields.editor.dialog != crate::pages::proxy_probe_settings::ProbeSettingsDialogState::Editing
+    {
         if let Some(entity) = fields.open.iter().next() {
-            fields.latest.0.probe_settings.can_persist = true;
+            fields.latest.0.probe_settings = RuntimeProbeSettingsState::Available {
+                settings: RuntimeProbeSettings::default(),
+            };
             commands.trigger(Activate { entity });
         }
         return;
     }
-    if fields.editor.editor.draft.timeout_ms == "32767" {
+    if fields
+        .editor
+        .editor
+        .draft()
+        .is_some_and(|draft| draft.timeout_ms == "60000")
+    {
         return;
     }
     for (roots, value) in [
         (fields.urls.iter().next(), "https://probe.example.test/204"),
-        (fields.timeouts.iter().next(), "32767"),
+        (fields.timeouts.iter().next(), "60000"),
     ] {
         if let Some(children) = roots
             && let Some(entity) = children
@@ -71,10 +80,16 @@ pub struct ProbeModal<'w, 's> {
 impl ProbeModal<'_, '_> {
     fn bounds(&self, geometry: &mut CaptureGeometry) -> Option<[f32; 4]> {
         let state = &self.editor;
-        if !state.open
+        if state.dialog != crate::pages::proxy_probe_settings::ProbeSettingsDialogState::Editing
             || !state.editor.can_apply()
-            || state.editor.draft.test_url != "https://probe.example.test/204"
-            || state.editor.draft.timeout_ms != "32767"
+            || state
+                .editor
+                .draft()
+                .is_none_or(|draft| draft.url != "https://probe.example.test/204")
+            || state
+                .editor
+                .draft()
+                .is_none_or(|draft| draft.timeout_ms != "60000")
         {
             return None;
         }

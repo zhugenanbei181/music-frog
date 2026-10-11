@@ -21,13 +21,12 @@ import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.MenuAnchorType
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -43,18 +42,37 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.drawable.toBitmap
 import androidx.lifecycle.viewmodel.compose.viewModel
+import infiltrator_android.AndroidAppRoutingMode
 import com.musicfrog.infiltrator.R
+import com.musicfrog.infiltrator.ui.common.LocalizedFailureText
 import com.musicfrog.infiltrator.ui.common.StandardListItem
+import com.musicfrog.infiltrator.ui.common.toLocalizedFailure
+
+private enum class RoutingModeMenuState {
+    Expanded,
+    Collapsed,
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AppRoutingScreen(viewModel: AppRoutingViewModel = viewModel()) {
+internal fun AppRoutingScreen(viewModel: AppRoutingViewModel = viewModel()) {
     val apps by viewModel.uiState.collectAsState()
     val routingMode by viewModel.routingMode.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
+    val operation by viewModel.operation.collectAsState()
+    val canEditSelection = when (val mode = routingMode) {
+        AppRoutingModeState.Unavailable -> false
+        is AppRoutingModeState.Available -> operation == AppRoutingOperationState.Ready &&
+            mode.freshness == AppRoutingSnapshotFreshness.Current &&
+            mode.mode != AndroidAppRoutingMode.PROXY_ALL
+    }
+    val canChangeMode = when (val mode = routingMode) {
+        AppRoutingModeState.Unavailable -> false
+        is AppRoutingModeState.Available -> mode.freshness == AppRoutingSnapshotFreshness.Current &&
+            operation == AppRoutingOperationState.Ready
+    }
     var searchQuery by remember { mutableStateOf("") }
-    var selectedTab by remember { mutableStateOf(0) } // 0: User, 1: System
-    var expandedMode by remember { mutableStateOf(false) }
+    var selectedTab by remember { mutableStateOf(AppGroup.User) }
+    var modeMenuState by remember { mutableStateOf(RoutingModeMenuState.Collapsed) }
 
     Scaffold { padding ->
         Column(
@@ -69,31 +87,53 @@ fun AppRoutingScreen(viewModel: AppRoutingViewModel = viewModel()) {
                     .padding(16.dp)
             ) {
                 ExposedDropdownMenuBox(
-                    expanded = expandedMode,
-                    onExpandedChange = { expandedMode = !expandedMode }
+                    expanded = modeMenuState == RoutingModeMenuState.Expanded,
+                    onExpandedChange = { expanded ->
+                        modeMenuState = when (expanded) {
+                            true -> RoutingModeMenuState.Expanded
+                            false -> RoutingModeMenuState.Collapsed
+                        }
+                    }
                 ) {
                     OutlinedTextField(
-                        value = getModeLabel(routingMode),
+                        value = when (val mode = routingMode) {
+                            AppRoutingModeState.Unavailable -> stringResource(R.string.routing_mode_unavailable)
+                            is AppRoutingModeState.Available -> getModeLabel(mode.mode)
+                        },
                         onValueChange = {},
                         readOnly = true,
                         label = { Text(stringResource(R.string.routing_mode_label)) },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedMode) },
-                        modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                        trailingIcon = {
+                            ExposedDropdownMenuDefaults.TrailingIcon(
+                                expanded = modeMenuState == RoutingModeMenuState.Expanded,
+                            )
+                        },
+                        modifier = Modifier.fillMaxWidth().menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
+                        enabled = canChangeMode,
                     )
                     ExposedDropdownMenu(
-                        expanded = expandedMode,
-                        onDismissRequest = { expandedMode = false }
+                        expanded = modeMenuState == RoutingModeMenuState.Expanded,
+                        onDismissRequest = { modeMenuState = RoutingModeMenuState.Collapsed }
                     ) {
-                        RoutingMode.values().forEach { mode ->
+                        listOf(
+                            AndroidAppRoutingMode.PROXY_ALL,
+                            AndroidAppRoutingMode.PROXY_SELECTED,
+                            AndroidAppRoutingMode.BYPASS_SELECTED,
+                        ).forEach { mode ->
                             DropdownMenuItem(
                                 text = { Text(getModeLabel(mode)) },
                                 onClick = {
                                     viewModel.setRoutingMode(mode)
-                                    expandedMode = false
+                                    modeMenuState = RoutingModeMenuState.Collapsed
                                 },
-                                leadingIcon = if (mode == routingMode) {
-                                    { Icon(Icons.Default.Check, null) }
-                                } else null
+                                leadingIcon = when (val currentMode = routingMode) {
+                                    AppRoutingModeState.Unavailable -> null
+                                    is AppRoutingModeState.Available -> if (currentMode.mode == mode) {
+                                        { Icon(Icons.Default.Check, null) }
+                                    } else {
+                                        null
+                                    }
+                                }
                             )
                         }
                     }
@@ -103,7 +143,7 @@ fun AppRoutingScreen(viewModel: AppRoutingViewModel = viewModel()) {
             // Search
             OutlinedTextField(
                 value = searchQuery,
-                onValueChange = { 
+                onValueChange = {
                     searchQuery = it
                     viewModel.search(it)
                 },
@@ -115,15 +155,20 @@ fun AppRoutingScreen(viewModel: AppRoutingViewModel = viewModel()) {
             )
 
             // User/System Tabs
-            PrimaryTabRow(selectedTabIndex = selectedTab) {
+            PrimaryTabRow(
+                selectedTabIndex = when (selectedTab) {
+                    AppGroup.User -> 0
+                    AppGroup.System -> 1
+                },
+            ) {
                 Tab(
-                    selected = selectedTab == 0,
-                    onClick = { selectedTab = 0 },
+                    selected = selectedTab == AppGroup.User,
+                    onClick = { selectedTab = AppGroup.User },
                     text = { Text(stringResource(R.string.tab_user_apps)) }
                 )
                 Tab(
-                    selected = selectedTab == 1,
-                    onClick = { selectedTab = 1 },
+                    selected = selectedTab == AppGroup.System,
+                    onClick = { selectedTab = AppGroup.System },
                     text = { Text(stringResource(R.string.tab_system_apps)) }
                 )
             }
@@ -135,26 +180,62 @@ fun AppRoutingScreen(viewModel: AppRoutingViewModel = viewModel()) {
                 horizontalArrangement = Arrangement.End
             ) {
                 TextButton(
-                    onClick = { viewModel.selectAll(selectedTab == 1) },
-                    enabled = routingMode != RoutingMode.ProxyAll
+                    onClick = { viewModel.selectAll(selectedTab) },
+                    enabled = canEditSelection
                 ) {
                     Text(stringResource(R.string.action_select_all))
                 }
                 TextButton(
-                    onClick = { viewModel.clearAll(selectedTab == 1) },
-                    enabled = routingMode != RoutingMode.ProxyAll
+                    onClick = { viewModel.clearAll(selectedTab) },
+                    enabled = canEditSelection
                 ) {
                     Text(stringResource(R.string.action_clear_all))
                 }
             }
 
-            if (isLoading) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
+            when (val state = operation) {
+                AppRoutingOperationState.Loading -> {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator()
+                    }
                 }
-            } else {
+                is AppRoutingOperationState.Failed -> {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            LocalizedFailureText(state.failure.toLocalizedFailure())
+                            TextButton(onClick = viewModel::load) {
+                                Text(stringResource(R.string.action_retry))
+                            }
+                        }
+                    }
+                }
+                is AppRoutingOperationState.Cancelled -> {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            LocalizedFailureText(state.failure.toLocalizedFailure())
+                            TextButton(onClick = viewModel::load) {
+                                Text(stringResource(R.string.action_retry))
+                            }
+                        }
+                    }
+                }
+                is AppRoutingOperationState.TimedOut -> {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            LocalizedFailureText(state.failure.toLocalizedFailure())
+                            TextButton(onClick = viewModel::load) {
+                                Text(stringResource(R.string.action_retry))
+                            }
+                        }
+                    }
+                }
+                AppRoutingOperationState.Ready,
+                AppRoutingOperationState.Updating -> {
                 val filteredApps = apps.filter { app ->
-                    if (selectedTab == 0) !app.isSystem else app.isSystem
+                    when (selectedTab) {
+                        AppGroup.User -> app.classification == AppClassification.User
+                        AppGroup.System -> app.classification == AppClassification.System
+                    }
                 }
 
                 if (filteredApps.isEmpty()) {
@@ -174,19 +255,20 @@ fun AppRoutingScreen(viewModel: AppRoutingViewModel = viewModel()) {
                             AppRow(
                                 app = app,
                                 onToggle = { viewModel.toggleApp(app.packageName) },
-                                enabled = routingMode != RoutingMode.ProxyAll
+                                enabled = canEditSelection
                             )
                             HorizontalDivider()
                         }
                     }
                 }
             }
+            }
         }
     }
 }
 
 @Composable
-fun AppRow(app: AppItem, onToggle: () -> Unit, enabled: Boolean) {
+internal fun AppRow(app: AppItem, onToggle: () -> Unit, enabled: Boolean) {
     StandardListItem(
         headline = app.name,
         supporting = app.packageName,
@@ -201,7 +283,7 @@ fun AppRow(app: AppItem, onToggle: () -> Unit, enabled: Boolean) {
         },
         trailingContent = {
             Switch(
-                checked = app.isSelected,
+                checked = app.selection == AppPackageSelection.Selected,
                 onCheckedChange = { onToggle() },
                 enabled = enabled
             )
@@ -211,10 +293,10 @@ fun AppRow(app: AppItem, onToggle: () -> Unit, enabled: Boolean) {
 }
 
 @Composable
-private fun getModeLabel(mode: RoutingMode): String {
+private fun getModeLabel(mode: AndroidAppRoutingMode): String {
     return when (mode) {
-        RoutingMode.ProxyAll -> stringResource(R.string.routing_mode_proxy_all)
-        RoutingMode.ProxySelected -> stringResource(R.string.routing_mode_proxy_selected)
-        RoutingMode.BypassSelected -> stringResource(R.string.routing_mode_bypass_selected)
+        AndroidAppRoutingMode.PROXY_ALL -> stringResource(R.string.routing_mode_proxy_all)
+        AndroidAppRoutingMode.PROXY_SELECTED -> stringResource(R.string.routing_mode_proxy_selected)
+        AndroidAppRoutingMode.BYPASS_SELECTED -> stringResource(R.string.routing_mode_bypass_selected)
     }
 }

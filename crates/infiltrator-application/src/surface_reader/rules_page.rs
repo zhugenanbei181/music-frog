@@ -12,56 +12,16 @@ use crate::rule_tracer_application::RuleTracerApplication;
 use infiltrator_contract::mrs_acceleration::MrsAccelerationSnapshot;
 use infiltrator_contract::provider_cache::RuleProviderCacheSnapshot;
 use infiltrator_contract::rule_provider_snapshot::RuleProviderSnapshot;
-use infiltrator_contract::rules_workspace::RulesJsonDocumentSnapshot;
-use infiltrator_domain::proxy_providers::ProxyProviders;
-use infiltrator_domain::rules::RuleProviders;
 use infiltrator_domain::rules::analyzer::{ShadowedRuleWarning, find_shadowed_rules};
 use infiltrator_domain::rules::provider_store::RuleProviderDeclaration;
 use infiltrator_domain::rules::view::{RULE_PUBLISH_LIMIT, published_rule_count};
 use infiltrator_domain::runtime::RuleProvider;
+use std::collections::HashMap;
 
 /// Inputs the live rule tracer replays against: the shared engine plus the
 /// runtime facts that resolve the outbound stage of the decision chain.
 pub(super) struct RulesTracerReplay<'a> {
     pub(super) application: &'a RuleTracerApplication,
-}
-
-/// DUAL-11-14: serialise the rules-workspace documents the shared reader
-/// publishes. Pure over the loaded sections, so a section the host cannot read
-/// (`None`) is omitted rather than published as an empty document.
-pub(super) fn rules_json_documents(
-    rule_providers: Option<RuleProviders>,
-    proxy_providers: Option<ProxyProviders>,
-    sniffer: Option<serde_json::Value>,
-) -> Vec<RulesJsonDocumentSnapshot> {
-    use infiltrator_contract::rules_workspace::{RulesJsonDocumentSnapshot, RulesJsonSection};
-
-    let mut documents = Vec::new();
-    if let Some(providers) = rule_providers
-        && let Ok(json) = serde_json::to_string_pretty(&providers)
-    {
-        documents.push(RulesJsonDocumentSnapshot {
-            section: RulesJsonSection::RuleProviders,
-            json,
-        });
-    }
-    if let Some(providers) = proxy_providers
-        && let Ok(json) = serde_json::to_string_pretty(&providers)
-    {
-        documents.push(RulesJsonDocumentSnapshot {
-            section: RulesJsonSection::ProxyProviders,
-            json,
-        });
-    }
-    if let Some(config) = sniffer
-        && let Ok(json) = serde_json::to_string_pretty(&config)
-    {
-        documents.push(RulesJsonDocumentSnapshot {
-            section: RulesJsonSection::Sniffer,
-            json,
-        });
-    }
-    documents
 }
 
 pub(super) async fn build_rules_page(
@@ -144,15 +104,12 @@ pub(super) async fn build_rules_page(
         None => Vec::new(),
     };
 
-    // DUAL-11-14: publish the same JSON documents the Iced editors load, so
-    // the Bevy JSON partition edits the identical text through the shared
-    // `ApplyRulesJsonDocument` use-case. A section that cannot be read is
-    // omitted instead of being published as a fabricated document.
-    let json_documents = rules_json_documents(
-        configuration.load_rule_providers().await.ok(),
-        configuration.load_proxy_providers().await.ok(),
-        configuration.load_sniffer_config().await.ok(),
-    );
+    // Publish neutral editor projections from one source-bound workspace
+    // read; mutations return through typed configuration updates.
+    let json_documents = configuration
+        .load_rules_json_documents()
+        .await
+        .unwrap_or_default();
 
     let shadow_warnings = find_shadowed_rules(&rules);
     let shadow_map: HashMap<usize, &ShadowedRuleWarning> =

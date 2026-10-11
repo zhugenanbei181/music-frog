@@ -24,6 +24,7 @@ use crate::state::AppState;
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use crate::types::runtime::RuntimeStatus;
+use crate::version_application::application;
 use anyhow::anyhow;
 use iced::advanced::subscription::{EventStream, Hasher, Recipe, from_recipe};
 use iced::futures::channel::mpsc::Sender;
@@ -31,10 +32,11 @@ use iced::futures::channel::oneshot;
 use iced::futures::stream::BoxStream;
 use iced::{Subscription, Task, stream};
 use infiltrator_admin::admin_api::events::{AdminEvent, AdminEventBus, EVENT_SETTINGS_CHANGED};
-use infiltrator_admin::admin_api::state::AdminApiContext;
+use infiltrator_admin::admin_api::state::{AdminApiContext, AdminOutboundOwner};
 use infiltrator_admin::servers::{AdminServerHandle, start_admin_server};
 use infiltrator_application::cache_application::CacheApplication;
 use infiltrator_application::configuration_application::ConfigurationApplication;
+use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::doctor_application::DoctorApplication;
 use infiltrator_application::network_application::NetworkApplication;
 use infiltrator_application::profile_application::ProfileApplication;
@@ -43,12 +45,21 @@ use infiltrator_application::settings_application::SettingsApplication;
 use infiltrator_application::sync_application::SyncApplication;
 use infiltrator_application::system_proxy_application::SystemProxyApplication;
 use infiltrator_application::version_application::VersionApplication;
+use infiltrator_contract::command::CommandIntent;
+use infiltrator_contract::command_output::CommandOutput;
+use infiltrator_contract::core_identity::{CoreCommandRequest, CoreScope};
 use infiltrator_contract::error::InfiltratorError;
-use infiltrator_desktop::boot::bootstrap_host_runtime_from_current_home;
+use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::routing_intent::{
+    RoutingIntent, RoutingIntentSnapshot, RoutingIntentStatus,
+};
+use infiltrator_desktop::boot::{
+    DesktopBinaryPreference, bootstrap_host_runtime_from_current_home,
+};
 use infiltrator_desktop::editor::open_profile_in_editor;
 use infiltrator_desktop::storage::{
     doctor, fake_ip_cache, profile_controller_url, profile_reset, profile_store, public_ip_probe,
-    save_webdav_password, settings_store, subscription_source, sync, version, webdav_password,
+    save_webdav_password, settings_store, subscription_source, sync, webdav_password,
 };
 use infiltrator_domain::settings::{AdminServerConfig, AppSettings};
 use infiltrator_ports::host_runtime::HostRuntime;
@@ -61,6 +72,8 @@ use std::sync::{Arc, Mutex, mpsc};
 use std::{fmt, time};
 use tokio::task::spawn_blocking;
 use tokio::time::{sleep, timeout};
+
+mod context;
 
 /// Same default the legacy Tauri client passes to `start_admin_server`.
 pub const ADMIN_DEFAULT_PORT: u16 = 25210;
@@ -179,6 +192,7 @@ pub struct AdminSharedRuntime {
 
 struct SharedInner {
     runtime: Mutex<Option<Arc<dyn HostRuntime>>>,
+    application: Mutex<Option<CoreApplication>>,
     commands: mpsc::Sender<AdminHostCommand>,
     events: AdminEventBus,
 }
@@ -188,6 +202,7 @@ impl AdminSharedRuntime {
         Self {
             inner: Arc::new(SharedInner {
                 runtime: Mutex::new(None),
+                application: Mutex::new(None),
                 commands,
                 events,
             }),
@@ -204,6 +219,22 @@ impl AdminSharedRuntime {
             .runtime
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner()) = runtime;
+    }
+
+    pub fn set_application(&self, application: Option<CoreApplication>) {
+        *self
+            .inner
+            .application
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner()) = application;
+    }
+
+    fn application(&self) -> Option<CoreApplication> {
+        self.inner
+            .application
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clone()
     }
 
     pub fn take_runtime(&self) -> Option<Arc<dyn HostRuntime>> {
@@ -390,24 +421,6 @@ pub struct IcedAdminContext {
     shared: AdminSharedRuntime,
 }
 
-impl IcedAdminContext {
-    pub fn new(shared: AdminSharedRuntime) -> Self {
-        Self { shared }
-    }
-
-    async fn load_settings(&self) -> AppSettings {
-        load_settings_from_disk().await.unwrap_or_default()
-    }
-
-    async fn update_settings(&self, apply: impl FnOnce(&mut AppSettings)) -> anyhow::Result<()> {
-        let application = settings_application().await?;
-        application
-            .update(apply)
-            .await
-            .map_err(|failure| anyhow!(failure.message))
-    }
-}
-
 async fn settings_application() -> anyhow::Result<SettingsApplication> {
     let store = settings_store().await?;
     Ok(SettingsApplication::new(store))
@@ -438,270 +451,6 @@ async fn save_settings_to_disk(settings: &AppSettings) -> anyhow::Result<()> {
         .save(settings)
         .await
         .map_err(|failure| anyhow!(failure.message))
-}
-
-#[async_trait::async_trait]
-impl AdminApiContext for IcedAdminContext {
-    async fn profile_application(&self) -> anyhow::Result<ProfileApplication> {
-        let store = profile_store().await?;
-        Ok(ProfileApplication::new(store))
-    }
-
-    async fn configuration_application(&self) -> anyhow::Result<ConfigurationApplication> {
-        let store = profile_store().await?;
-        Ok(ConfigurationApplication::new(store))
-    }
-
-    async fn doctor_application(&self) -> anyhow::Result<DoctorApplication> {
-        let doctor = doctor()?;
-        Ok(DoctorApplication::new(Arc::new(doctor)))
-    }
-
-    async fn profile_controller_url(&self) -> anyhow::Result<Option<String>> {
-        Ok(profile_controller_url().await.ok())
-    }
-
-    async fn profile_reset_application(&self) -> anyhow::Result<ProfileResetApplication> {
-        let reset = profile_reset();
-        Ok(ProfileResetApplication::new(Arc::new(reset)))
-    }
-
-    async fn cache_application(&self) -> anyhow::Result<CacheApplication> {
-        let cache = fake_ip_cache();
-        Ok(CacheApplication::new(Arc::new(cache)))
-    }
-
-    async fn subscription_source(&self) -> anyhow::Result<Arc<dyn SubscriptionSource>> {
-        Ok(Arc::new(subscription_source()))
-    }
-
-    async fn sync_application(&self) -> anyhow::Result<SyncApplication> {
-        let sync = sync()?;
-        Ok(SyncApplication::new(Arc::new(sync)))
-    }
-
-    async fn version_application(&self) -> anyhow::Result<VersionApplication> {
-        let version = version()?;
-        Ok(VersionApplication::new(Arc::new(version)))
-    }
-
-    async fn network_application(&self) -> anyhow::Result<NetworkApplication> {
-        Ok(NetworkApplication::new(Arc::new(public_ip_probe())))
-    }
-
-    async fn webdav_password(&self) -> Option<String> {
-        webdav_password().await
-    }
-
-    async fn set_webdav_password(&self, password: &str) -> anyhow::Result<()> {
-        save_webdav_password(password).await
-    }
-
-    async fn rebuild_runtime(&self) -> anyhow::Result<()> {
-        if let Some(runtime) = self.shared.take_runtime() {
-            let _ = ManagedRuntime::shutdown(runtime.as_ref()).await;
-        }
-        let (rebuilt, _rotated) = bootstrap_host_runtime_from_current_home(true, &[]).await?;
-        self.shared.set_runtime(Some(rebuilt.clone()));
-        self.shared
-            .send(AdminHostCommand::RuntimeResynced(Ok(rebuilt)));
-        Ok(())
-    }
-
-    /// Application-level restart: same core process manager, new generation,
-    /// and a readiness wait — no shutdown/bootstrap cycle. Falls back to a
-    /// full rebuild when no live runtime exists.
-    async fn restart_core(&self) -> anyhow::Result<()> {
-        let Some(runtime) = self.shared.runtime() else {
-            return self.rebuild_runtime().await;
-        };
-        ManagedRuntime::restart(runtime.as_ref())
-            .await
-            .map_err(|e| anyhow!(e.to_string()))?;
-        self.shared
-            .send(AdminHostCommand::RuntimeResynced(Ok(runtime)));
-        Ok(())
-    }
-
-    async fn set_use_bundled_core(&self, enabled: bool) {
-        if let Err(err) = self
-            .update_settings(|settings| settings.use_bundled_core = enabled)
-            .await
-        {
-            log::warn!("failed to persist use_bundled_core: {err:#}");
-        }
-    }
-
-    async fn refresh_core_version_info(&self) {
-        self.shared.send(AdminHostCommand::CoreVersionsChanged);
-    }
-
-    async fn notify_subscription_update(
-        &self,
-        profile: String,
-        success: bool,
-        message: Option<String>,
-    ) {
-        let status = if success {
-            ToastStatus::Success
-        } else {
-            ToastStatus::Error
-        };
-        let text = match message {
-            Some(detail) => format!("订阅更新 {profile}: {detail}"),
-            None => format!("订阅更新 {profile}"),
-        };
-        self.shared
-            .send(AdminHostCommand::Toast(text.clone(), status));
-        // 0.20: mirror the toast as an OS notification — the scheduler fires
-        // while the window may be hidden (success Low / failure Critical).
-        // `title` is a locale key resolved on the consumer side.
-        self.shared.send(AdminHostCommand::SystemNotify {
-            title: if success {
-                "notify_sub_auto_updated".to_string()
-            } else {
-                "notify_sub_update_failed".to_string()
-            },
-            body: text,
-            urgency: if success {
-                NotifyUrgency::Low
-            } else {
-                NotifyUrgency::Critical
-            },
-        });
-    }
-
-    async fn editor_path(&self) -> Option<String> {
-        self.load_settings().await.editor_path
-    }
-
-    async fn set_editor_path(&self, path: Option<String>) {
-        if let Err(err) = self
-            .update_settings(|settings| settings.editor_path = path)
-            .await
-        {
-            log::warn!("failed to persist editor path: {err:#}");
-        }
-    }
-
-    async fn pick_editor_path(&self) -> Option<String> {
-        let (tx, rx) = oneshot::channel();
-        self.shared
-            .send(AdminHostCommand::PickEditorPath(Arc::new(tx)));
-        // The dialog runs on the main thread; give the user ample time.
-        timeout(time::Duration::from_secs(300), rx)
-            .await
-            .ok()?
-            .ok()?
-    }
-
-    async fn open_profile_in_editor(&self, profile_name: &str) -> anyhow::Result<()> {
-        let editor_path = self.editor_path().await;
-        open_profile_in_editor(editor_path, profile_name).await
-    }
-
-    async fn get_app_settings(&self) -> AppSettings {
-        self.load_settings().await
-    }
-
-    async fn save_app_settings(&self, settings: AppSettings) -> anyhow::Result<()> {
-        save_settings_to_disk(&settings).await?;
-        self.shared
-            .event_bus()
-            .publish(AdminEvent::new(EVENT_SETTINGS_CHANGED));
-        self.shared.send(AdminHostCommand::SettingsSavedExternally);
-        Ok(())
-    }
-
-    async fn runtime_running(&self) -> bool {
-        match self.shared.runtime() {
-            Some(runtime) => ManagedRuntime::is_running(runtime.as_ref()).await,
-            None => false,
-        }
-    }
-
-    async fn runtime_controller_url(&self) -> Option<String> {
-        self.shared
-            .runtime()
-            .map(|runtime| runtime.controller_url())
-    }
-
-    async fn stop_runtime(&self) -> anyhow::Result<()> {
-        let runtime = self.shared.take_runtime();
-        let proxy_port = runtime
-            .as_ref()
-            .and_then(|runtime| runtime.system_proxy_port())
-            .unwrap_or_else(system_proxy_port);
-        if let Some(runtime) = runtime {
-            let _ = ManagedRuntime::shutdown(runtime.as_ref()).await;
-        }
-        if read_system_proxy_state()
-            .map(|state| state.enabled)
-            .unwrap_or(false)
-        {
-            SystemProxyApplication::new(proxy_port)
-                .set_enabled(false, None, None)
-                .await
-                .map_err(|failure| anyhow!(failure.message))?;
-        }
-        self.shared.send(AdminHostCommand::RuntimeStopped);
-        Ok(())
-    }
-
-    async fn runtime_gateway(&self) -> anyhow::Result<Arc<dyn RuntimeGateway>> {
-        let runtime = self
-            .shared
-            .runtime()
-            .ok_or_else(|| anyhow!("内核未在运行"))?;
-        Ok(runtime)
-    }
-
-    async fn system_proxy_enabled(&self) -> bool {
-        read_system_proxy_state()
-            .map(|state| state.enabled)
-            .unwrap_or(false)
-    }
-
-    async fn set_system_proxy_enabled(&self, enabled: bool) -> anyhow::Result<()> {
-        if enabled {
-            let runtime = self
-                .shared
-                .runtime()
-                .ok_or_else(|| anyhow!("内核未在运行"))?;
-            let endpoint = ManagedRuntime::http_proxy_endpoint(runtime.as_ref())
-                .await?
-                .ok_or_else(|| anyhow!("当前配置中未配置代理端口（port/mixed-port）"))?;
-            let proxy_port = runtime
-                .system_proxy_port()
-                .unwrap_or_else(system_proxy_port);
-            SystemProxyApplication::new(proxy_port)
-                .set_enabled(true, Some(endpoint), None)
-                .await
-                .map_err(|failure| anyhow!(failure.message))?;
-        } else {
-            SystemProxyApplication::new(system_proxy_port())
-                .set_enabled(false, None, None)
-                .await
-                .map_err(|failure| anyhow!(failure.message))?;
-        }
-        Ok(())
-    }
-
-    async fn autostart_enabled(&self) -> bool {
-        is_autostart_enabled(crate::AUTOSTART_REG_NAME)
-    }
-
-    async fn set_autostart_enabled(&self, enabled: bool) -> anyhow::Result<()> {
-        Ok(set_autostart_enabled(crate::AUTOSTART_REG_NAME, enabled)?)
-    }
-
-    fn supports_system_proxy_control(&self) -> bool {
-        cfg!(target_os = "windows")
-    }
-
-    fn supports_autostart_control(&self) -> bool {
-        cfg!(target_os = "windows")
-    }
 }
 
 /// Spawn a fresh admin server for `desired`. Returns a task whose completion
@@ -830,6 +579,9 @@ impl AppState {
         self.shell
             .admin_shared
             .set_runtime(self.runtime.runtime.clone());
+        self.shell
+            .admin_shared
+            .set_application(self.commands.clone());
     }
 
     /// Take the runtime for shutdown/teardown, clearing the shared snapshot.
@@ -886,7 +638,7 @@ impl AppState {
                     self.refresh_tray();
                     Task::batch(vec![
                         Task::done(Message::FetchRuntimeConfig),
-                        Task::done(Message::LoadProxies),
+                        Task::done(Message::RefreshOutboundInventory),
                         Task::done(Message::RefreshRuntimeNow),
                     ])
                 }
@@ -900,7 +652,7 @@ impl AppState {
             },
             AdminHostCommand::RuntimeStopped => {
                 self.sync_runtime_slot(None);
-                Task::done(Message::ProxyStopped)
+                Task::done(Message::CoreStopped)
             }
             AdminHostCommand::Toast(content, status) => {
                 Task::done(Message::ShowToast(content, status))

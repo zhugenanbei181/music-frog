@@ -1,8 +1,10 @@
 //! File/keyring/WebDAV adapter for the runtime-neutral sync port.
 
+use crate::remote_profile_namespace::{migrate_remote_profile_namespace, remote_profile_path};
 use crate::settings_io::load_webdav_password;
 use dav_client::DavClient;
 use dav_client::client::WebDavClient;
+use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::sync::{SyncConflict, SyncProgress, SyncReport, SyncTransferReport};
 use infiltrator_domain::config::validate_yaml;
 use infiltrator_domain::profiles::sanitize_profile_name;
@@ -12,7 +14,7 @@ use infiltrator_ports::error::PortError;
 use infiltrator_ports::secure_store::SecureStore;
 use infiltrator_ports::sync::{SyncPort, SyncProgressSink, SyncRequest, SyncTransferRequest};
 use mihomo_config::manager::ConfigManager;
-use mihomo_config::manager::paths::resolve_configs_dir_in;
+use mihomo_config::manager::paths::engine_config_dir;
 use mihomo_platform::defaults::DefaultCredentialStore;
 use mihomo_platform::paths::get_home_dir;
 use state_store::StateStore;
@@ -76,16 +78,19 @@ where
         let password = self.password(&config).await;
         let dav = WebDavClient::new(&config.url, &config.username, &password)
             .map_err(|error| PortError::Failed(format!("invalid WebDAV config: {error}")))?;
-        let local_root = resolve_configs_dir(request.configs_dir.as_deref(), &self.home)?;
+        let manager = self.manager(request.configs_dir.as_deref()).await?;
+        migrate_remote_profile_namespace(&dav, &manager.engine_id()).await?;
+        let local_root = manager.config_dir().to_path_buf();
         create_dir_all(&local_root)
             .await
             .map_err(|error| PortError::Io(error.to_string()))?;
 
-        let db_path = self.home.join("sync_state.db");
+        let db_path = sync_state_path(manager.config_root(), &manager.engine_id());
         let store = StateStore::new(&db_path.to_string_lossy())
             .await
             .map_err(|error| PortError::Io(error.to_string()))?;
-        let planner = SyncPlanner::new(local_root, "/".to_string(), &dav, &store);
+        let remote_root = format!("/{}", manager.engine_id().as_str());
+        let planner = SyncPlanner::new(local_root, remote_root, &dav, &store);
         let actions = planner
             .build_plan()
             .await
@@ -127,7 +132,9 @@ where
         } = request;
         let password = self.password(&config).await;
         let dav = self.client(&config, &password)?;
-        let manager = self.manager(configs_dir.as_deref())?;
+        let manager = self.manager(configs_dir.as_deref()).await?;
+        let engine = manager.engine_id();
+        migrate_remote_profile_namespace(&dav, &engine).await?;
         let profiles = manager
             .list_profiles()
             .await
@@ -146,7 +153,7 @@ where
                 .await
                 .map_err(|error| PortError::Io(error.to_string()))?;
             ensure_not_cancelled(observer.as_ref())?;
-            dav.put(&format!("{}.yaml", profile.name), &content, None)
+            dav.put(&remote_profile_path(&engine, &profile.name), &content, None)
                 .await
                 .map_err(|error| PortError::Network(error.to_string()))?;
             report.uploaded += 1;
@@ -171,15 +178,17 @@ where
         } = request;
         let password = self.password(&config).await;
         let dav = self.client(&config, &password)?;
-        let manager = self.manager(configs_dir.as_deref())?;
+        let manager = self.manager(configs_dir.as_deref()).await?;
+        let engine = manager.engine_id();
+        migrate_remote_profile_namespace(&dav, &engine).await?;
         let files = dav
-            .list("")
+            .list(engine.as_str())
             .await
             .map_err(|error| PortError::Network(error.to_string()))?;
         let mut remote_profiles = Vec::new();
         let mut remote_names = HashSet::new();
         for file in files {
-            if let Some(profile_name) = safe_remote_profile_name(&file.path)? {
+            if let Some(profile_name) = safe_remote_profile_name_in_engine(&file.path, &engine)? {
                 if !remote_names.insert(profile_name.clone()) {
                     return Err(PortError::Failed(format!(
                         "远端配置路径映射冲突: {profile_name}"
@@ -278,7 +287,9 @@ where
         configs_dir: String,
         remote_path: String,
     ) -> Result<String, PortError> {
-        let path = validate_conflict_path(&configs_dir, &remote_path)?;
+        let engine = mihomo_config::engine_id();
+        let config_dir = scoped_conflict_root(Path::new(&configs_dir), &engine)?;
+        let path = validate_conflict_path(&config_dir, &remote_path)?;
         read_to_string(path)
             .await
             .map_err(|error| PortError::Io(error.to_string()))
@@ -289,7 +300,9 @@ where
         configs_dir: String,
         remote_path: String,
     ) -> Result<(), PortError> {
-        let path = validate_conflict_path(&configs_dir, &remote_path)?;
+        let engine = mihomo_config::engine_id();
+        let config_dir = scoped_conflict_root(Path::new(&configs_dir), &engine)?;
+        let path = validate_conflict_path(&config_dir, &remote_path)?;
         remove_file(path)
             .await
             .map_err(|error| PortError::Io(error.to_string()))
@@ -297,16 +310,21 @@ where
 }
 
 impl<S: SecureStore> FileWebDavSync<S> {
-    fn manager(
+    async fn manager(
         &self,
         configs_dir: Option<&str>,
     ) -> Result<ConfigManager<DefaultCredentialStore>, PortError> {
-        ConfigManager::with_home_configs_dir_and_store(
+        let manager = ConfigManager::with_home_configs_dir_and_store(
             self.home.clone(),
             configs_dir,
             DefaultCredentialStore::default(),
         )
-        .map_err(|error| PortError::Io(error.to_string()))
+        .map_err(|error| PortError::Io(error.to_string()))?;
+        manager
+            .initialize_profile_namespace()
+            .await
+            .map_err(|error| PortError::Io(error.to_string()))?;
+        Ok(manager)
     }
 
     fn client(&self, config: &WebDavConfig, password: &str) -> Result<WebDavClient, PortError> {
@@ -325,11 +343,34 @@ impl<S: SecureStore> FileWebDavSync<S> {
     }
 }
 
-fn resolve_configs_dir(configs_dir: Option<&str>, home: &Path) -> Result<PathBuf, PortError> {
-    resolve_configs_dir_in(configs_dir, home).map_err(|error| PortError::Io(error.to_string()))
+fn scoped_conflict_root(
+    configs_root_or_scoped: &Path,
+    engine: &infiltrator_contract::core_identity::EngineId,
+) -> Result<PathBuf, PortError> {
+    let engine_name = engine.as_str();
+    let file_name = configs_root_or_scoped
+        .file_name()
+        .and_then(|name| name.to_str());
+    let parent_name = configs_root_or_scoped
+        .parent()
+        .and_then(Path::file_name)
+        .and_then(|name| name.to_str());
+    match (parent_name, file_name) {
+        (Some("engines"), Some(namespace)) if namespace == engine_name => {
+            Ok(configs_root_or_scoped.to_path_buf())
+        }
+        (Some("engines"), Some(namespace)) => Err(PortError::PermissionDenied(format!(
+            "snapshot/profile namespace `{namespace}` does not match `{engine_name}`"
+        ))),
+        _ => Ok(engine_config_dir(configs_root_or_scoped, engine)),
+    }
 }
 
-fn validate_conflict_path(configs_dir: &str, remote_path: &str) -> Result<PathBuf, PortError> {
+fn sync_state_path(config_root: &Path, engine: &EngineId) -> PathBuf {
+    engine_config_dir(config_root, engine).join("sync_state.db")
+}
+
+fn validate_conflict_path(configs_dir: &Path, remote_path: &str) -> Result<PathBuf, PortError> {
     let root = canonicalize(configs_dir)
         .map_err(|error| PortError::Io(format!("配置目录不可用: {error}")))?;
     let path = canonicalize(remote_path)
@@ -397,6 +438,24 @@ fn safe_remote_profile_name(remote_path: &str) -> Result<Option<String>, PortErr
         .map_err(|error| PortError::Failed(error.to_string()))
 }
 
+fn safe_remote_profile_name_in_engine(
+    remote_path: &str,
+    engine: &infiltrator_contract::core_identity::EngineId,
+) -> Result<Option<String>, PortError> {
+    let trimmed = remote_path.trim_matches('/');
+    let scoped = match trimmed.split_once('/') {
+        Some((namespace, path)) if namespace == engine.as_str() => path,
+        Some((_, _)) => return Ok(None),
+        None => trimmed,
+    };
+    if scoped.contains('/') {
+        return Err(PortError::Failed(format!(
+            "拒绝不安全的远端配置路径: {remote_path}"
+        )));
+    }
+    safe_remote_profile_name(scoped)
+}
+
 fn conflict_backup_path(path: &Path) -> PathBuf {
     let stem = path
         .file_stem()
@@ -455,8 +514,9 @@ mod tests {
     async fn conflict_file_access_reads_and_deletes_inside_the_config_root() {
         let temp = tempfile::tempdir().expect("temp root");
         let root = temp.path().join("configs");
-        create_dir_all(&root).await.expect("config root");
-        let conflict = root.join("demo.remote-conflict.yaml");
+        let scoped = engine_config_dir(&root, &mihomo_config::engine_id());
+        create_dir_all(&scoped).await.expect("config root");
+        let conflict = scoped.join("demo.remote-conflict.yaml");
         write(&conflict, "mode: rule\n")
             .await
             .expect("conflict file");
@@ -486,7 +546,9 @@ mod tests {
         let temp = tempfile::tempdir().expect("temp root");
         let root = temp.path().join("configs");
         let outside = temp.path().join("outside.yaml");
-        create_dir_all(&root).await.expect("config root");
+        create_dir_all(engine_config_dir(&root, &mihomo_config::engine_id()))
+            .await
+            .expect("config root");
         write(&outside, "mode: direct\n")
             .await
             .expect("outside file");
@@ -501,5 +563,57 @@ mod tests {
             .await
             .expect_err("outside conflict must be rejected");
         assert!(error.to_string().contains("超出配置目录"));
+    }
+
+    #[test]
+    fn conflict_file_root_rejects_a_foreign_engine_namespace() {
+        let root = PathBuf::from("/shared/configs/engines/sing-box");
+        let error = scoped_conflict_root(&root, &mihomo_config::engine_id()).unwrap_err();
+        assert!(matches!(error, PortError::PermissionDenied(_)));
+    }
+
+    #[test]
+    fn remote_profile_listing_ignores_another_engine_namespace() {
+        let engine = mihomo_config::engine_id();
+        assert_eq!(
+            safe_remote_profile_name_in_engine("mihomo/main.yaml", &engine).unwrap(),
+            Some("main".into())
+        );
+        assert_eq!(
+            safe_remote_profile_name_in_engine("sing-box/main.yaml", &engine).unwrap(),
+            None
+        );
+        assert_eq!(
+            safe_remote_profile_name_in_engine("main.yaml", &engine).unwrap(),
+            Some("main".into())
+        );
+    }
+
+    #[test]
+    fn same_profile_engine_remote_paths_are_disjoint() {
+        let mihomo = EngineId::new("mihomo").expect("valid engine ID");
+        let sing_box = EngineId::new("sing-box").expect("valid engine ID");
+        assert_eq!(remote_profile_path(&mihomo, "main"), "mihomo/main.yaml");
+        assert_eq!(remote_profile_path(&sing_box, "main"), "sing-box/main.yaml");
+        assert_ne!(
+            remote_profile_path(&mihomo, "main"),
+            remote_profile_path(&sing_box, "main")
+        );
+    }
+
+    #[tokio::test]
+    async fn same_profile_engine_sync_indexes_use_disjoint_paths() {
+        let temp = tempfile::tempdir().expect("temp root");
+        let root = temp.path().join("configs");
+        let mihomo = sync_state_path(&root, &EngineId::new("mihomo").expect("valid engine ID"));
+        let sing_box = sync_state_path(&root, &EngineId::new("sing-box").expect("valid engine ID"));
+        create_dir_all(mihomo.parent().unwrap()).await.unwrap();
+        create_dir_all(sing_box.parent().unwrap()).await.unwrap();
+        write(&mihomo, b"mihomo index").await.unwrap();
+        write(&sing_box, b"sing-box index").await.unwrap();
+
+        assert_ne!(mihomo, sing_box);
+        assert_eq!(read(&mihomo).await.unwrap(), b"mihomo index");
+        assert_eq!(read(&sing_box).await.unwrap(), b"sing-box index");
     }
 }

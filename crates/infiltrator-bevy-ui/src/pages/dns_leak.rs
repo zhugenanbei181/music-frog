@@ -16,17 +16,19 @@ use bevy::color::Color;
 use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::system::{Query, Res};
+use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::{Scene, bsn};
 use bevy::text::TextColor;
 use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, Val,
-    percent, px,
+    AlignItems, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, Val, percent,
 };
 use bevy::ui::widget::Text;
 use infiltrator_application::dns_leak_projection::{LeakTone, project_leak};
 use infiltrator_bevy_widgets::button::ButtonVariant;
+use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
@@ -70,13 +72,13 @@ pub fn dns_leak_card_scene(projection: &DnsProjection, palette: &UiPalette) -> i
         surface_scene(
             vec![
                 Box::new(bsn! {
-                    Node { flex_direction: FlexDirection::Column, row_gap: px(space::S8) }
+                    Node { flex_direction: FlexDirection::Column, row_gap: rem(space::S8) }
                     Children [
                         LocalizedText::plain("dns_leak_probe_title") TextRole(Role::BodyStrong)
                         --
                         LocalizedText::plain("dns_leak_probe_desc") TextRole(Role::Caption)
                         --
-                        Node { column_gap: px(space::S8) }
+                        Node { column_gap: rem(space::S8) }
                         Children [
                             @{ (localized_button_scene(LocalizedText::plain("dns_leak_btn_run"), ButtonVariant::Primary, palette), bsn! { TestDnsLeakButton }) }
                             --
@@ -91,7 +93,7 @@ pub fn dns_leak_card_scene(projection: &DnsProjection, palette: &UiPalette) -> i
                                     width: percent(100),
                                     align_items: AlignItems::Center,
                                     justify_content: JustifyContent::SpaceBetween,
-                                    padding: UiRect::bottom(Val::Px(space::S8)),
+                                    padding: UiRect::bottom(rem(space::S8)),
                                 }
                                 Children [
                                     Text(conclusion)
@@ -105,14 +107,14 @@ pub fn dns_leak_card_scene(projection: &DnsProjection, palette: &UiPalette) -> i
                 Box::new(bsn! {
                                 Node {
                                     width: percent(100),
-                                    min_height: px(48.0),
-                                    padding: UiRect::all(Val::Px(space::S8)),
+                                    min_height: rem(48.0),
+                                    padding: UiRect::all(rem(space::S8)),
                                     border_radius: BorderRadius::all(Val::Px(
                                             palette.control_radius_px,
                                     )),
                                     flex_direction: FlexDirection::Column,
                                 }
-                                BackgroundColor({ palette.surface_elevated })
+                                ThemeBackgroundColor({ Token::SurfaceElevated })
                                 Children [
                                     @{ rows }
                                 ]

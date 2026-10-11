@@ -41,7 +41,6 @@ pub trait MihomoApi: Send + Sync {
     async fn get_rule_providers(&self) -> Result<HashMap<String, RuleProvider>>;
     async fn update_proxy_provider(&self, name: &str) -> Result<()>;
     async fn update_rule_provider(&self, name: &str) -> Result<()>;
-    async fn flush_fakeip_cache(&self) -> Result<()>;
     async fn get_dns_query(&self, name: &str, q_type: &str) -> Result<Value>;
     async fn get_script(&self) -> Result<Value>;
     async fn stream_logs(&self, level: Option<&str>) -> Result<UnboundedReceiver<String>>;
@@ -154,10 +153,6 @@ impl MihomoApi for MihomoClient {
 
     async fn update_rule_provider(&self, name: &str) -> Result<()> {
         MihomoClient::update_rule_provider(self, name).await
-    }
-
-    async fn flush_fakeip_cache(&self) -> Result<()> {
-        MihomoClient::flush_fakeip_cache(self).await
     }
 
     async fn get_dns_query(&self, name: &str, q_type: &str) -> Result<Value> {
@@ -289,9 +284,6 @@ mod tests {
             unsupported()
         }
         async fn update_rule_provider(&self, _name: &str) -> Result<()> {
-            unsupported()
-        }
-        async fn flush_fakeip_cache(&self) -> Result<()> {
             unsupported()
         }
         async fn get_dns_query(&self, _name: &str, _q_type: &str) -> Result<Value> {

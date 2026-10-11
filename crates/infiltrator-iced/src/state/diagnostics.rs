@@ -59,7 +59,6 @@ pub struct DiagnosticsState {
     pub connections_stream_state: RuntimeStreamState,
     pub doctor: DoctorPanelState,
     pub inspecting_connection_id: Option<String>,
-    pub is_probing_dns_leak: bool,
     pub dns_leak_action: DnsLeakActionState,
     pub dns_leak_capture: Option<DnsLeakApplication>,
     /// DUAL-14-09 (re-scoped): a STUN egress probe started from this surface
@@ -73,9 +72,9 @@ pub struct DiagnosticsState {
     pub pcap_state: PcapCaptureState,
     /// Canonical speedtest read model published by the shared application
     /// engine. This replaces the former UI-local fabricated metrics: the view
-    /// renders this snapshot, and `RunSpeedtest` intents drive the engine.
+    /// renders this snapshot, and typed `StartSpeedtest` intents drive it.
     pub speedtest: SpeedtestSnapshot,
-    /// DUAL-06-13: whether the per-node speedtest detail modal is open. Pure
+    /// Whether the outbound speedtest detail modal is open. Pure
     /// view state; the modal reads the shared `speedtest` snapshot above.
     pub speedtest_detail_open: bool,
     /// Overview card display order from the shared `OverviewLayoutSnapshot`.

@@ -1,5 +1,7 @@
 //! test-intent: behavior
-use crate::command_harness::rejecting_application;
+use crate::command_harness::{
+    attach_product_application_with_accepted_owner_snapshot, rejecting_application,
+};
 use crate::test_support::demo_env;
 use futures_util::StreamExt;
 use iced_runtime::Action;
@@ -19,8 +21,7 @@ const URI: &str =
 fn protocol_form_uses_typed_fields_and_retains_invalid_input_and_save_failure() {
     let (mut state, _) = AppState::demo(&demo_env(Route::Proxies));
     let (application, handler) = rejecting_application();
-    state.commands = Some(application);
-    state.shell.demo = false;
+    attach_product_application_with_accepted_owner_snapshot(&mut state, application);
     assert_eq!(state.update(Message::OpenCustomNodeModal).units(), 0);
     for (id, value) in [
         (ProtocolField::Name, "local-vless"),
@@ -122,7 +123,7 @@ fn protocol_form_uses_typed_fields_and_retains_invalid_input_and_save_failure() 
 fn uri_preview_import_error_and_cancel_preserve_draft_without_commit() {
     let (mut state, _) = AppState::demo(&demo_env(Route::Proxies));
     let (application, handler) = rejecting_application();
-    state.commands = Some(application);
+    attach_product_application_with_accepted_owner_snapshot(&mut state, application);
     let _ = state.update(Message::OpenCustomNodeModal);
     let _ = state.update(Message::UpdateCustomNodeUriInput(URI.into()));
     assert_eq!(state.update(Message::ParseAndImportCustomUri).units(), 0);

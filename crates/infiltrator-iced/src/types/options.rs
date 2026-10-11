@@ -27,23 +27,6 @@ pub struct MrsProviderDetail {
     pub errors: Vec<String>,
 }
 
-impl MrsProviderDetail {
-    /// Short summary chip used by the providers list: `MRS v1 · 1234 rules`.
-    pub fn summary(&self) -> String {
-        match &self.metadata {
-            Some(meta) => format!(
-                "MRS v{} · {} rules · {:?}",
-                meta.version, meta.rule_count, meta.behavior
-            ),
-            None => self
-                .errors
-                .first()
-                .cloned()
-                .unwrap_or_else(|| "未解析到 MRS 元数据".to_string()),
-        }
-    }
-}
-
 /// Computed local-vs-remote top-level diff for one sync conflict, fed by
 /// `infiltrator_domain::sync::diff_yaml_configs` and rendered as
 /// per-key pick rows on the Sync page.

@@ -1,22 +1,40 @@
 package com.musicfrog.infiltrator
 
+import android.util.Log
+
 interface BridgeHost {
-    fun coreStart(): Boolean
-    fun coreStop(): Boolean
-    fun coreIsRunning(): Boolean
-    fun coreControllerUrl(): String?
+    /** Wire value mirrors Rust `AndroidHostProcessRole`; unknown values fail closed. */
+    fun processRole(): Int
+    /** CoreProcessStartReceipt wire code; decoded exhaustively by Rust. */
+    fun coreStart(launchSpecJson: String): Int
+    /** Serde-tagged validation receipt produced by the stopped :vpn owner. */
+    fun coreValidateConfiguration(requestJson: String): String
+    /** CoreProcessStopReceipt wire code; decoded exhaustively by Rust. */
+    fun coreStop(): Int
+    fun coreProcessState(): Int
+    /** JSON-encoded typed lifecycle snapshot from the `:vpn` owner. */
+    fun coreLifecycleSnapshot(): String?
+    /** Execute shared typed Rust command JSON through the `:vpn` owner. */
+    fun executeProductCommandJson(commandJson: String): String?
+    /** Read the owner-authored shared product snapshot through typed IPC. */
+    fun surfaceSnapshotJson(): String?
+    /** Execute a Rust-serde typed persisted-data operation through :vpn. */
+    fun executeOwnerOperationJson(operationJson: String): String?
     fun credentialGet(service: String, key: String): String?
     fun credentialSet(service: String, key: String, value: String): Boolean
     fun credentialDelete(service: String, key: String): Boolean
     fun dataDir(): String?
     fun cacheDir(): String?
-    fun vpnStart(): Boolean
-    fun vpnApplyConfiguration(configJson: String): Boolean
-    fun vpnStop(): Boolean
-    fun vpnIsRunning(): Boolean
-    fun vpnIsForeground(): Boolean
-    fun tunSetEnabled(enabled: Boolean): Boolean
-    fun tunIsEnabled(): Boolean
+    /** VpnStartOutcome wire code, decoded exhaustively by the Rust bridge. */
+    fun vpnStartOutcome(): Int
+    /** Rust wire codes: 0 = granted, 1 = system consent required, other = unavailable. */
+    fun vpnAuthorizationState(): Int
+    /** VpnConfigurationApplyOutcome wire code, decoded exhaustively by Rust. */
+    fun vpnApplyConfiguration(configJson: String): Int
+    /** Serde JSON containing one dedicated Stop terminal and its owner snapshot. */
+    fun vpnStopResultJson(targetCode: Int, generation: Long): String?
+    /** Serde JSON for one owner-authored VPN/Core/resource snapshot. */
+    fun vpnOwnerSnapshotJson(): String?
 }
 
 object RustBridge {
@@ -60,7 +78,12 @@ object RustBridge {
 
     fun init(dataDir: String, cacheDir: String): Int {
         return if (ensureLoaded()) {
-            nativeInit(dataDir, cacheDir)
+            try {
+                nativeInit(dataDir, cacheDir)
+            } catch (err: LinkageError) {
+                Log.e("RustBridge", "nativeInit failed: ${err.message}", err)
+                255
+            }
         } else {
             255
         }
@@ -68,7 +91,12 @@ object RustBridge {
 
     fun registerBridge(host: BridgeHost): Int {
         return if (ensureLoaded()) {
-            nativeRegisterBridge(host)
+            try {
+                nativeRegisterBridge(host)
+            } catch (err: LinkageError) {
+                Log.e("RustBridge", "nativeRegisterBridge failed: ${err.message}", err)
+                255
+            }
         } else {
             255
         }
@@ -77,7 +105,12 @@ object RustBridge {
     /** BANDROID-005/006/008: register the Activity's native host adapter. */
     fun registerNativeHost(host: NativeHostBridge): Int {
         return if (ensureLoaded()) {
-            nativeRegisterNativeHost(host)
+            try {
+                nativeRegisterNativeHost(host)
+            } catch (err: LinkageError) {
+                Log.e("RustBridge", "nativeRegisterNativeHost failed: ${err.message}", err)
+                255
+            }
         } else {
             255
         }
@@ -86,7 +119,12 @@ object RustBridge {
     /** Release the retired Activity's native host global ref. */
     fun clearNativeHost(): Int {
         return if (ensureLoaded()) {
-            nativeClearNativeHost()
+            try {
+                nativeClearNativeHost()
+            } catch (err: LinkageError) {
+                Log.e("RustBridge", "nativeClearNativeHost failed: ${err.message}", err)
+                255
+            }
         } else {
             255
         }
@@ -95,7 +133,12 @@ object RustBridge {
     /** Push one Activity lifecycle/focus observation. */
     fun onLifecycle(generation: Long, phase: Int, focused: Boolean, visible: Boolean): Int {
         return if (ensureLoaded()) {
-            nativeOnLifecycle(generation, phase, focused, visible)
+            try {
+                nativeOnLifecycle(generation, phase, focused, visible)
+            } catch (err: LinkageError) {
+                Log.e("RustBridge", "nativeOnLifecycle failed: ${err.message}", err)
+                255
+            }
         } else {
             255
         }
@@ -114,17 +157,22 @@ object RustBridge {
         imeLeft: Int,
     ): Int {
         return if (ensureLoaded()) {
-            nativeOnInsets(
-                density,
-                systemTop,
-                systemRight,
-                systemBottom,
-                systemLeft,
-                imeTop,
-                imeRight,
-                imeBottom,
-                imeLeft,
-            )
+            try {
+                nativeOnInsets(
+                    density,
+                    systemTop,
+                    systemRight,
+                    systemBottom,
+                    systemLeft,
+                    imeTop,
+                    imeRight,
+                    imeBottom,
+                    imeLeft,
+                )
+            } catch (err: LinkageError) {
+                Log.e("RustBridge", "nativeOnInsets failed: ${err.message}", err)
+                255
+            }
         } else {
             255
         }

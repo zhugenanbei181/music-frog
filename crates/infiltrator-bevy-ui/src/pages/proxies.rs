@@ -9,16 +9,22 @@
 //! texts, latency inks, group expansion, and selection states restamp in place
 //! without tree rebuilds.
 
+use crate::pages::outbound_batch_probe;
+use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 #[path = "proxies_query_access.rs"]
 pub mod query_access;
 use self::query_access::ProxyActionControls;
-use infiltrator_composition::demo_identities::{AUTO, HK_PRIMARY, JP, PROXIES, SG, STREAMING, US};
+#[cfg(any(feature = "capture-tools", test))]
+use infiltrator_contract::fixture_identities::{AUTO, HK_PRIMARY, JP, PROXIES, SG, STREAMING, US};
 
 use crate::command::{CommandSinkHandle, UiCommand};
+use crate::pages::outbound_batch_probe::{OutboundBatchProbeReadback, submit_batch};
 use crate::pages::proxies_custom::{on_custom_node_action_activated, sync_custom_node_studio};
 use crate::pages::proxies_filter;
 use crate::pages::proxies_refresh::apply_proxies_projection;
 use crate::pages::proxies_virtual::ProxiesVirtualState;
+use crate::route::Route;
+use crate::surface::LatestSurfaceSnapshot;
 use bevy::app::{App, Plugin};
 use bevy::color::Color;
 use bevy::ecs::component::Component;
@@ -27,7 +33,7 @@ use bevy::ecs::hierarchy::Children;
 use bevy::ecs::observer::On;
 use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
-use bevy::ecs::system::{Query, Res};
+use bevy::ecs::system::{Query, Res, ResMut};
 use bevy::ui::prelude::{ComputedNode, Node, Val};
 /// Root marker on the Proxies page scene.
 use bevy::ui_widgets::{Activate, Button};
@@ -36,10 +42,21 @@ use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::responsive::ResponsiveContext;
 use infiltrator_bevy_widgets::theme::{Breakpoint, space};
 use infiltrator_contract::latency_display::LatencyBand;
+use infiltrator_contract::outbound::{
+    details::OutboundHealthObservation,
+    identity::OutboundId,
+    inventory::{OutboundInventoryState, SelectionAvailability},
+    preferences::{
+        OutboundFavoriteState, OutboundGroupExpansion, OutboundHealthFilter, OutboundLayout,
+        OutboundSortOrder, OutboundUiPreferenceIntent, OutboundUiPreferenceRequest,
+        OutboundUiPreferencesSnapshot,
+    },
+    probe::{OutboundProbeBatchScope, OutboundSelectionRequest},
+};
 use infiltrator_contract::protocol_fidelity::ProtocolStudioSnapshot;
-use infiltrator_contract::proxies::{ProxyGroupClassification, ProxySortOrder};
-use infiltrator_contract::search_text::SearchTextRun;
+use infiltrator_contract::proxies::ProxyGroupClassification;
 use std::collections::BTreeMap;
+use zhuge_ui_core::text::SearchTextRun;
 
 pub mod scene;
 
@@ -114,7 +131,7 @@ pub struct TestAllProxiesButton;
 #[derive(Component, Clone, Debug, Default, PartialEq, Eq)]
 pub struct TestProxyGroupButton {
     pub group_idx: usize,
-    pub group_name: String,
+    pub collection_id: Option<OutboundId>,
 }
 
 /// Marker for a proxy group fold toggle button.
@@ -122,6 +139,7 @@ pub struct TestProxyGroupButton {
 pub struct ProxyGroupFoldButton {
     pub group_idx: usize,
     pub group_name: String,
+    pub collection_id: Option<OutboundId>,
 }
 
 /// Marker and target information for a proxy node selection button.
@@ -131,6 +149,8 @@ pub struct ProxyNodeButton {
     pub node_idx: usize,
     pub group_name: String,
     pub node_name: String,
+    pub collection_id: Option<OutboundId>,
+    pub outbound_id: Option<OutboundId>,
 }
 
 /// Marker for the "Add Node" button (+ 添加节点).
@@ -157,17 +177,6 @@ pub enum ProxySortMode {
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ProxySortPill(pub ProxySortMode);
 
-impl From<ProxySortMode> for ProxySortOrder {
-    fn from(mode: ProxySortMode) -> Self {
-        match mode {
-            ProxySortMode::LatencyAsc => Self::LatencyAsc,
-            ProxySortMode::LatencyDesc => Self::LatencyDesc,
-            ProxySortMode::NameAsc => Self::NameAsc,
-            ProxySortMode::NameDesc => Self::NameDesc,
-        }
-    }
-}
-
 /// Marker for favorite pin icon / button on proxy node cards.
 #[derive(Component, Clone, Debug, Default, PartialEq, Eq)]
 #[require(Button)]
@@ -175,6 +184,7 @@ pub struct NodePinButton {
     pub group_idx: usize,
     pub node_idx: usize,
     pub node_name: String,
+    pub outbound_id: Option<OutboundId>,
 }
 
 /// Marker for latency trend / waveform icon on proxy node cards.
@@ -197,6 +207,7 @@ pub struct NodeDetailButton {
     pub group_idx: usize,
     pub node_idx: usize,
     pub node_name: String,
+    pub outbound_id: Option<OutboundId>,
 }
 
 /// Marker for proxy group move-up button (DUAL-04-12).
@@ -204,6 +215,7 @@ pub struct NodeDetailButton {
 pub struct ProxyGroupMoveUpButton {
     pub group_idx: usize,
     pub group_name: String,
+    pub collection_id: Option<OutboundId>,
 }
 
 /// Marker for proxy group move-down button (DUAL-04-12).
@@ -211,6 +223,7 @@ pub struct ProxyGroupMoveUpButton {
 pub struct ProxyGroupMoveDownButton {
     pub group_idx: usize,
     pub group_name: String,
+    pub collection_id: Option<OutboundId>,
 }
 
 /// Marker for resetting custom group order (DUAL-04-12).
@@ -242,9 +255,12 @@ pub fn latency_color(tier: LatencyBand, palette: &UiPalette) -> Color {
 /// A single proxy node snapshot.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ProxyNode {
+    /// Opaque engine-scoped identity. `None` is reserved for isolated local UI fixtures.
+    pub outbound_id: Option<OutboundId>,
     pub name: String,
     pub node_type: String,
     pub delay_ms: Option<u32>,
+    pub health: OutboundHealthObservation,
     pub selected: bool,
     pub favorite: bool,
     pub features: Vec<String>,
@@ -253,10 +269,13 @@ pub struct ProxyNode {
 /// A proxy group snapshot.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ProxyGroup {
+    /// Opaque engine-scoped collection identity. `None` is reserved for local UI fixtures.
+    pub collection_id: Option<OutboundId>,
     pub name: String,
     pub group_type: String,
     pub classification: ProxyGroupClassification,
     pub current: String,
+    pub outbound_selection_available: bool,
     pub expanded: bool,
     pub proxies: Vec<ProxyNode>,
 }
@@ -278,6 +297,7 @@ pub struct ProxiesProjection {
 
 impl ProxiesProjection {
     /// Believable demo fixture for the Proxies page.
+    #[cfg(any(feature = "capture-tools", test))]
     pub fn demo() -> Self {
         Self {
             name_runs: BTreeMap::new(),
@@ -289,40 +309,50 @@ impl ProxiesProjection {
             custom_node: Default::default(),
             groups: vec![
                 ProxyGroup {
+                    collection_id: None,
                     name: PROXIES.to_owned(),
                     group_type: "Selector".to_owned(),
                     classification: ProxyGroupClassification::Selector,
                     current: HK_PRIMARY.to_owned(),
+                    outbound_selection_available: true,
                     expanded: true,
                     proxies: vec![
                         ProxyNode {
+                            outbound_id: None,
                             name: HK_PRIMARY.to_owned(),
                             node_type: "Shadowsocks".to_owned(),
                             delay_ms: Some(38),
+                            health: OutboundHealthObservation::Unknown,
                             selected: true,
                             favorite: true,
                             features: vec!["UDP".to_owned(), "TFO".to_owned()],
                         },
                         ProxyNode {
+                            outbound_id: None,
                             name: JP.to_owned(),
                             node_type: "Vmess".to_owned(),
                             delay_ms: Some(65),
+                            health: OutboundHealthObservation::Unknown,
                             selected: false,
                             favorite: false,
                             features: vec!["Vision".to_owned()],
                         },
                         ProxyNode {
+                            outbound_id: None,
                             name: SG.to_owned(),
                             node_type: "Trojan".to_owned(),
                             delay_ms: Some(72),
+                            health: OutboundHealthObservation::Unknown,
                             selected: false,
                             favorite: false,
                             features: vec!["Reality".to_owned()],
                         },
                         ProxyNode {
+                            outbound_id: None,
                             name: US.to_owned(),
                             node_type: "Hysteria2".to_owned(),
                             delay_ms: Some(152),
+                            health: OutboundHealthObservation::Unknown,
                             selected: false,
                             favorite: false,
                             features: vec!["UDP".to_owned(), "Reality".to_owned()],
@@ -330,24 +360,30 @@ impl ProxiesProjection {
                     ],
                 },
                 ProxyGroup {
+                    collection_id: None,
                     name: AUTO.to_owned(),
                     group_type: "URLTest".to_owned(),
                     classification: ProxyGroupClassification::UrlTest,
                     current: HK_PRIMARY.to_owned(),
+                    outbound_selection_available: false,
                     expanded: true,
                     proxies: vec![
                         ProxyNode {
+                            outbound_id: None,
                             name: HK_PRIMARY.to_owned(),
                             node_type: "Shadowsocks".to_owned(),
                             delay_ms: Some(38),
+                            health: OutboundHealthObservation::Unknown,
                             selected: true,
                             favorite: true,
                             features: vec!["UDP".to_owned(), "TFO".to_owned()],
                         },
                         ProxyNode {
+                            outbound_id: None,
                             name: JP.to_owned(),
                             node_type: "Vmess".to_owned(),
                             delay_ms: Some(65),
+                            health: OutboundHealthObservation::Unknown,
                             selected: false,
                             favorite: false,
                             features: vec!["Vision".to_owned()],
@@ -355,24 +391,30 @@ impl ProxiesProjection {
                     ],
                 },
                 ProxyGroup {
+                    collection_id: None,
                     name: STREAMING.to_owned(),
                     group_type: "Selector".to_owned(),
                     classification: ProxyGroupClassification::Selector,
                     current: SG.to_owned(),
+                    outbound_selection_available: true,
                     expanded: true,
                     proxies: vec![
                         ProxyNode {
+                            outbound_id: None,
                             name: SG.to_owned(),
                             node_type: "Trojan".to_owned(),
                             delay_ms: Some(72),
+                            health: OutboundHealthObservation::Unknown,
                             selected: true,
                             favorite: false,
                             features: vec!["Reality".to_owned()],
                         },
                         ProxyNode {
+                            outbound_id: None,
                             name: US.to_owned(),
                             node_type: "Hysteria2".to_owned(),
                             delay_ms: Some(152),
+                            health: OutboundHealthObservation::Unknown,
                             selected: false,
                             favorite: false,
                             features: vec!["UDP".to_owned(), "Reality".to_owned()],
@@ -412,8 +454,10 @@ impl Plugin for ProxiesPagePlugin {
         // the moment the page is mounted instead of being read as `None` forever.
         app.init_resource::<LastProxiesProjection>();
         app.init_resource::<ProxiesVirtualState>();
+        app.init_resource::<OutboundBatchProbeReadback>();
         app.add_observer(apply_proxies_projection);
         app.add_observer(on_proxies_action_activated);
+        app.add_observer(outbound_batch_probe::finish_batch_probe);
         app.add_observer(on_custom_node_action_activated);
         // DUAL-05: the custom-node studio is re-covered from the same event in a
         // separate observer so it never shares the page restamp query set.
@@ -485,7 +529,8 @@ pub fn sync_proxies_node_columns(
 pub(crate) fn on_proxies_action_activated(
     activate: On<Activate>,
     handle: Option<Res<CommandSinkHandle>>,
-    last: Option<Res<LastProxiesProjection>>,
+    latest: Option<Res<LatestSurfaceSnapshot>>,
+    mut batch_readback: Option<ResMut<OutboundBatchProbeReadback>>,
     targets: ProxyActionControls,
 ) {
     let ProxyActionControls {
@@ -502,83 +547,191 @@ pub(crate) fn on_proxies_action_activated(
     let Some(handle) = handle else {
         return;
     };
+    let Some(snapshot) = latest.as_deref().map(|latest| &latest.0) else {
+        return;
+    };
     if test_all_buttons.contains(activate.entity) {
-        handle.submit(UiCommand::TestAllProxyGroups);
+        let Some(readback) = batch_readback.as_deref_mut() else {
+            return;
+        };
+        submit_batch(
+            snapshot,
+            OutboundProbeBatchScope::All,
+            Route::Proxies,
+            &handle,
+            readback,
+        );
     } else if let Ok(btn) = test_group_buttons.get(activate.entity) {
-        if !last
-            .as_ref()
-            .and_then(|last| last.0.as_ref())
-            .is_some_and(|projection| {
-                projection
-                    .groups
-                    .iter()
-                    .any(|group| group.name == btn.group_name)
-            })
-        {
+        let Some(collection_id) = btn.collection_id.clone() else {
             return;
-        }
-        handle.submit(UiCommand::TestProxyGroup {
-            group: btn.group_name.clone(),
-        });
+        };
+        let Some(readback) = batch_readback.as_deref_mut() else {
+            return;
+        };
+        submit_batch(
+            snapshot,
+            OutboundProbeBatchScope::Collection(collection_id),
+            Route::Proxies,
+            &handle,
+            readback,
+        );
     } else if let Ok(btn) = fold_buttons.get(activate.entity) {
-        if !last
-            .as_ref()
-            .and_then(|last| last.0.as_ref())
-            .is_some_and(|projection| {
-                projection
-                    .groups
-                    .iter()
-                    .any(|group| group.name == btn.group_name)
-            })
-        {
+        let Some(collection_id) = btn.collection_id.as_ref() else {
             return;
+        };
+        let Some(preferences) = outbound_ui_preferences(snapshot) else {
+            return;
+        };
+        let expansion = if preferences.collapsed_group_ids.contains(collection_id) {
+            OutboundGroupExpansion::Expanded
+        } else {
+            OutboundGroupExpansion::Collapsed
+        };
+        if let Some(request) = outbound_ui_preference_request(
+            snapshot,
+            OutboundUiPreferenceIntent::SetGroupExpansion {
+                group_id: collection_id.clone(),
+                expansion,
+            },
+        ) {
+            handle.submit(UiCommand::ApplyOutboundUiPreference { request });
         }
-        handle.submit(UiCommand::ToggleProxyGroupExpand {
-            group: btn.group_name.clone(),
-        });
     } else if let Ok(btn) = node_buttons.get(activate.entity) {
-        if !last
-            .as_ref()
-            .and_then(|last| last.0.as_ref())
-            .is_some_and(|projection| {
-                projection.groups.iter().any(|group| {
-                    group.name == btn.group_name
-                        && group.proxies.iter().any(|node| node.name == btn.node_name)
-                })
-            })
-        {
+        let (Some(collection_id), Some(outbound_id)) =
+            (btn.collection_id.as_ref(), btn.outbound_id.as_ref())
+        else {
             return;
-        }
-        handle.submit(UiCommand::SelectProxyNode {
-            group: btn.group_name.clone(),
-            node: btn.node_name.clone(),
-        });
+        };
+        let Some(request) = outbound_selection_request(snapshot, collection_id, outbound_id) else {
+            return;
+        };
+        handle.submit(UiCommand::SelectOutbound { request });
     } else if filter_alive_toggles.contains(activate.entity) {
-        if let Some(projection) = last.as_ref().and_then(|last| last.0.as_ref()) {
-            handle.submit(UiCommand::ToggleFilterAlive(!projection.filter_alive));
+        if let Some(preferences) = outbound_ui_preferences(snapshot) {
+            let filter = match preferences.health_filter {
+                OutboundHealthFilter::All => OutboundHealthFilter::HealthyOnly,
+                OutboundHealthFilter::HealthyOnly => OutboundHealthFilter::All,
+            };
+            if let Some(request) = outbound_ui_preference_request(
+                snapshot,
+                OutboundUiPreferenceIntent::SetHealthFilter(filter),
+            ) {
+                handle.submit(UiCommand::ApplyOutboundUiPreference { request });
+            }
         }
     } else if let Ok(pill) = sort_pills.get(activate.entity) {
-        handle.submit(UiCommand::SetProxySortOrder(pill.0.into()));
-    } else if let Ok(pin) = pin_buttons.get(activate.entity) {
-        if !last
-            .as_ref()
-            .and_then(|last| last.0.as_ref())
-            .is_some_and(|projection| {
-                projection
-                    .groups
-                    .iter()
-                    .flat_map(|group| &group.proxies)
-                    .any(|node| node.name == pin.node_name)
-            })
-        {
-            return;
+        let order = match pill.0 {
+            ProxySortMode::LatencyAsc => OutboundSortOrder::LatencyAscending,
+            ProxySortMode::LatencyDesc => OutboundSortOrder::LatencyDescending,
+            ProxySortMode::NameAsc => OutboundSortOrder::NameAscending,
+            ProxySortMode::NameDesc => OutboundSortOrder::NameDescending,
+        };
+        if let Some(request) = outbound_ui_preference_request(
+            snapshot,
+            OutboundUiPreferenceIntent::SetSortOrder(order),
+        ) {
+            handle.submit(UiCommand::ApplyOutboundUiPreference { request });
         }
-        handle.submit(UiCommand::ToggleFavoriteProxy(pin.node_name.clone()));
+    } else if let Ok(pin) = pin_buttons.get(activate.entity) {
+        let Some(outbound_id) = pin.outbound_id.as_ref() else {
+            return;
+        };
+        let Some(preferences) = outbound_ui_preferences(snapshot) else {
+            return;
+        };
+        let state = if preferences.favorite_outbound_ids.contains(outbound_id) {
+            OutboundFavoriteState::Unpinned
+        } else {
+            OutboundFavoriteState::Pinned
+        };
+        if let Some(request) = outbound_ui_preference_request(
+            snapshot,
+            OutboundUiPreferenceIntent::SetFavorite {
+                outbound_id: outbound_id.clone(),
+                state,
+            },
+        ) {
+            handle.submit(UiCommand::ApplyOutboundUiPreference { request });
+        }
     } else if toggle_view_buttons.contains(activate.entity)
-        && let Some(projection) = last.as_ref().and_then(|last| last.0.as_ref())
+        && let Some(preferences) = outbound_ui_preferences(snapshot)
     {
-        handle.submit(UiCommand::SetProxyCompactView(!projection.compact_view));
+        let layout = match preferences.layout {
+            OutboundLayout::CompactList => OutboundLayout::Grid,
+            OutboundLayout::Grid => OutboundLayout::CompactList,
+        };
+        if let Some(request) =
+            outbound_ui_preference_request(snapshot, OutboundUiPreferenceIntent::SetLayout(layout))
+        {
+            handle.submit(UiCommand::ApplyOutboundUiPreference { request });
+        }
     }
+}
+
+pub(crate) fn outbound_selection_request(
+    snapshot: &SurfaceSnapshot,
+    collection_id: &OutboundId,
+    outbound_id: &OutboundId,
+) -> Option<OutboundSelectionRequest> {
+    use infiltrator_contract::surface_snapshot::PageStatus;
+
+    if !matches!(
+        snapshot.outbound_inventory.status,
+        PageStatus::Ready | PageStatus::Empty
+    ) {
+        return None;
+    }
+    let inventory = snapshot.outbound_inventory.data.as_ref()?;
+    if snapshot.core.scope().as_ref() != Some(inventory.scope()) {
+        return None;
+    }
+    let OutboundInventoryState::Ready {
+        entries,
+        collections,
+    } = inventory.inventory()
+    else {
+        return None;
+    };
+    let collection = collections
+        .iter()
+        .find(|collection| &collection.id == collection_id)?;
+    if collection.availability != SelectionAvailability::Selectable
+        || !entries.iter().any(|entry| &entry.id == outbound_id)
+        || !collection.member_ids.contains(outbound_id)
+    {
+        return None;
+    }
+    OutboundSelectionRequest::new(
+        collection.id.clone(),
+        outbound_id.clone(),
+        inventory.revision(),
+    )
+    .ok()
+}
+
+pub(crate) fn outbound_ui_preferences(
+    snapshot: &SurfaceSnapshot,
+) -> Option<&OutboundUiPreferencesSnapshot> {
+    use infiltrator_contract::surface_snapshot::PageStatus;
+
+    if !matches!(
+        snapshot.outbound_ui_preferences.status,
+        PageStatus::Ready | PageStatus::Empty
+    ) {
+        return None;
+    }
+    let preferences = snapshot.outbound_ui_preferences.data.as_ref()?;
+    (snapshot.core.scope().as_ref() == Some(preferences.scope())).then_some(preferences)
+}
+
+pub(crate) fn outbound_ui_preference_request(
+    snapshot: &SurfaceSnapshot,
+    intent: OutboundUiPreferenceIntent,
+) -> Option<OutboundUiPreferenceRequest> {
+    let preferences = outbound_ui_preferences(snapshot)?;
+    let request = OutboundUiPreferenceRequest::new(preferences.revision(), intent).ok()?;
+    request.validate_scope(preferences.scope()).ok()?;
+    Some(request)
 }
 
 #[cfg(test)]
@@ -652,9 +805,11 @@ mod tests {
     fn test_matches_proxy_filter() {
         use crate::pages::proxies_filter::matches_proxy_filter;
         let node = ProxyNode {
+            outbound_id: None,
             name: "🇭🇰 香港 01 · BGP 专线".to_owned(),
             node_type: "Shadowsocks".to_owned(),
             delay_ms: Some(38),
+            health: OutboundHealthObservation::Unknown,
             selected: true,
             favorite: true,
             features: vec!["UDP".to_owned(), "TFO".to_owned()],

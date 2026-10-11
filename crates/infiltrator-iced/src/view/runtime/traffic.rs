@@ -5,7 +5,7 @@
 use crate::state::AppState;
 use crate::types::message::Message;
 use crate::view::runtime::traffic_legend::legend_indicator;
-use infiltrator_application::byte_format::format_bytes;
+use infiltrator_shared::byte_units::format_bytes;
 
 use crate::view::component_card::card;
 use crate::view::component_forms::row_card_surface;
@@ -21,6 +21,7 @@ use iced::widget::{Space, button, canvas, column, container, row, text};
 use iced::{
     Alignment, Border, Color, Element, Length, Point, Rectangle, Renderer, Theme, border, mouse,
 };
+use infiltrator_presentation::traffic_readout::TrafficFreshness;
 use infiltrator_shared::locales::{Lang, Localizer};
 use std::collections::{HashMap, VecDeque};
 
@@ -84,12 +85,10 @@ pub(super) fn traffic_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Elemen
     let rates = state.traffic_readout();
     let observation_badge = badge(
         rates.status.clone(),
-        if !rates.failure.is_empty() {
-            BadgeKind::Danger
-        } else if rates.current {
-            BadgeKind::Success
-        } else {
-            BadgeKind::Neutral
+        match rates.freshness {
+            TrafficFreshness::Failed => BadgeKind::Danger,
+            TrafficFreshness::Current => BadgeKind::Success,
+            TrafficFreshness::Stale | TrafficFreshness::Unobserved => BadgeKind::Neutral,
         },
     );
     let up_rate = &rates.upload;
@@ -131,18 +130,20 @@ pub(super) fn traffic_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Elemen
     // 2. Real-time speeds, peaks, and time range selector pills ("1小时", "24小时", "7天", "30天")
     let realtime_up_badge = badge(
         format!("↑ {}", rates.upload),
-        if rates.current {
-            BadgeKind::Success
-        } else {
-            BadgeKind::Neutral
+        match rates.freshness {
+            TrafficFreshness::Current => BadgeKind::Success,
+            TrafficFreshness::Failed | TrafficFreshness::Stale | TrafficFreshness::Unobserved => {
+                BadgeKind::Neutral
+            }
         },
     );
     let realtime_down_badge = badge(
         format!("↓ {}", rates.download),
-        if rates.current {
-            BadgeKind::Accent
-        } else {
-            BadgeKind::Neutral
+        match rates.freshness {
+            TrafficFreshness::Current => BadgeKind::Accent,
+            TrafficFreshness::Failed | TrafficFreshness::Stale | TrafficFreshness::Unobserved => {
+                BadgeKind::Neutral
+            }
         },
     );
     let time_range_labels = vec![
@@ -153,20 +154,18 @@ pub(super) fn traffic_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Elemen
     ];
     let time_range_pills = segmented_control(&time_range_labels, 0, |_| Message::Noop);
 
-    let waiting_note: Element<'a, Message> = if !rates.failure.is_empty() {
-        container(text(rates.failure).size(11).width(Length::Fill))
+    let waiting_note: Element<'a, Message> = match rates.freshness {
+        TrafficFreshness::Failed => container(text(rates.failure).size(11).width(Length::Fill))
             .id(InteractionRegion::TrafficFailure.id())
             .width(Length::Fill)
-            .into()
-    } else if !rates.observed {
-        text(lang.tr("waiting_traffic").to_string())
+            .into(),
+        TrafficFreshness::Unobserved => text(lang.tr("waiting_traffic").to_string())
             .size(11)
             .style(|t: &Theme| text::Style {
                 color: Some(tokens(t).text_tertiary),
             })
-            .into()
-    } else {
-        Space::new().width(0).into()
+            .into(),
+        TrafficFreshness::Current | TrafficFreshness::Stale => Space::new().width(0).into(),
     };
 
     let legends_row = row![

@@ -1,5 +1,5 @@
-//! Live runtime configuration: querying the running mihomo for its active
-//! config and patching mode/TUN/sniffer toggles through the REST API.
+//! Live runtime configuration: query non-routing controller settings and
+//! patch TUN/sniffer toggles through the runtime gateway.
 
 use crate::port_conflict_application::application;
 use crate::state::AppState;
@@ -7,20 +7,20 @@ use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use crate::types::runtime::RuntimePatchSnapshot;
 use iced::Task;
+use infiltrator_application::runtime_configuration_application::RuntimeConfigurationApplication;
 use infiltrator_application::runtime_control_projection::{
     ipv6_observation, lan_security_observation, runtime_control,
 };
-use infiltrator_application::runtime_query_application::RuntimeQueryApplication;
 use infiltrator_application::service_mode_application::ServiceModeApplication;
 use infiltrator_application::system_toggle_application::SystemToggleApplication;
 use infiltrator_contract::error::{Failure, InfiltratorError};
-use infiltrator_contract::proxy_mode::{ProxyModeSnapshot, ProxyModeStatus};
 use infiltrator_contract::runtime_control::RuntimeControlStatus;
 use infiltrator_contract::service_mode::{ServiceModeSnapshot, ServiceModeState};
 use infiltrator_contract::system_toggle::{SystemToggle, SystemToggleState};
 use infiltrator_contract::tun::TunStack;
 use infiltrator_desktop::tun_service::TunServiceManager;
 use infiltrator_ports::host_runtime::TunServiceStatus;
+use infiltrator_ports::runtime_configuration::ObservedValue;
 use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use infiltrator_shared::i18n_interpolator::localize;
 use infiltrator_shared::locales::{Lang, Localizer};
@@ -28,6 +28,24 @@ use std::sync::Arc;
 use tokio::task::spawn_blocking;
 
 impl AppState {
+    fn runtime_configuration_scope(
+        &self,
+    ) -> Result<infiltrator_contract::core_identity::CoreScope, Failure> {
+        self.runtime.core_lifecycle.scope().ok_or_else(|| {
+            Failure::new(
+                infiltrator_contract::error::ErrorCode::NotReady,
+                "live configuration requires an observed Core scope",
+                false,
+            )
+        })
+    }
+
+    fn configuration_failure(&mut self, failure: Failure) -> Task<Message> {
+        let error = InfiltratorError::Config(failure.message);
+        self.set_error(&error);
+        Task::done(Message::ShowToast(error.to_string(), ToastStatus::Error))
+    }
+
     pub(crate) fn runtime_unavailable(&mut self, operation: &str) -> Task<Message> {
         let copy_locale = self.shell.lang.clone();
         let error = InfiltratorError::Internal(localize(
@@ -41,15 +59,13 @@ impl AppState {
 
     fn begin_runtime_patch(&mut self) -> Option<u64> {
         if self.runtime.pending_runtime_patch.is_some()
-            || self.runtime.mode_actions.pending.is_some()
+            || self.runtime.routing_intent_actions.pending.is_some()
         {
             return None;
         }
         if self.runtime.runtime.is_some() {
             if self.runtime.pending_runtime_patch.is_none() {
                 self.runtime.pending_runtime_patch = Some(RuntimePatchSnapshot {
-                    proxy_mode: self.runtime.proxy_mode.clone(),
-                    proxy_mode_state: self.runtime.proxy_mode_state.clone(),
                     ipv6_enabled: self.runtime.ipv6_routing.enabled,
                     tun_enabled: self.runtime.tun_enabled,
                     tun_stack: self.editor.tun_stack.clone(),
@@ -66,8 +82,6 @@ impl AppState {
 
     fn restore_runtime_patch(&mut self) {
         if let Some(previous) = self.runtime.pending_runtime_patch.take() {
-            self.runtime.proxy_mode = previous.proxy_mode;
-            self.runtime.proxy_mode_state = previous.proxy_mode_state;
             self.runtime.ipv6_routing.enabled = previous.ipv6_enabled;
             self.runtime.tun_enabled = previous.tun_enabled;
             self.runtime.system_toggles = self
@@ -101,6 +115,14 @@ impl AppState {
         let Some(token) = self.begin_runtime_patch() else {
             return Task::none();
         };
+        let scope = match self.runtime_configuration_scope() {
+            Ok(scope) => scope,
+            Err(failure) => {
+                let error = InfiltratorError::Config(failure.message);
+                self.set_error(&error);
+                return Task::done(Message::ShowToast(error.to_string(), ToastStatus::Error));
+            }
+        };
         let generation = rt.generation();
         self.runtime.tun_enabled = Some(enabled);
         self.runtime.system_toggles = self
@@ -113,9 +135,10 @@ impl AppState {
         let gateway: Arc<dyn RuntimeGateway> = rt.clone();
         Task::perform(
             async move {
-                RuntimeQueryApplication::new(gateway)
+                RuntimeConfigurationApplication::from_gateway(scope, gateway.as_ref())
                     .set_tun_enabled(enabled)
                     .await
+                    .map(|_| ())
                     .map_err(|failure| InfiltratorError::Config(failure.message))
             },
             move |result| Message::RuntimePatchResult(result, token, generation),
@@ -177,28 +200,27 @@ impl AppState {
             Message::FetchRuntimeConfig => {
                 if let Some(rt) = self.runtime.runtime.clone() {
                     let generation = rt.generation();
-                    let mode_epoch = self.runtime.mode_actions.read_epoch();
+                    let scope = match self.runtime_configuration_scope() {
+                        Ok(scope) => scope,
+                        Err(failure) => {
+                            return Task::done(Message::RuntimeConfigFetched(
+                                Err(failure),
+                                generation,
+                            ));
+                        }
+                    };
+                    let gateway: Arc<dyn RuntimeGateway> = rt;
                     Task::perform(
-                        async move { rt.get_config().await.map_err(Failure::from) },
-                        move |result| Message::RuntimeConfigReadFinished {
-                            result,
-                            generation,
-                            mode_epoch,
+                        async move {
+                            RuntimeConfigurationApplication::from_gateway(scope, gateway.as_ref())
+                                .observe_readout()
+                                .await
                         },
+                        move |result| Message::RuntimeConfigFetched(result, generation),
                     )
                 } else {
                     Task::none()
                 }
-            }
-            Message::RuntimeConfigReadFinished {
-                result,
-                generation,
-                mode_epoch,
-            } => {
-                if !self.runtime.mode_actions.accepts_read(mode_epoch) {
-                    return Task::none();
-                }
-                self.update_core(Message::RuntimeConfigFetched(result, generation))
             }
             Message::RuntimeConfigFetched(result, generation) => {
                 if generation != self.runtime.runtime_generation {
@@ -208,40 +230,22 @@ impl AppState {
                     Ok(config) => {
                         let observed = runtime_control(Some(&Ok(config.clone())));
                         self.runtime.runtime_control = observed.clone();
-                        self.runtime.proxy_mode_state = ProxyModeSnapshot {
-                            current: observed.mode,
-                            script_available: observed.script_available,
-                            status: if observed.mode.is_some() {
-                                ProxyModeStatus::Ready
-                            } else {
-                                ProxyModeStatus::Unobserved
-                            },
-                            failure: None,
-                        };
-                        self.runtime.mode_read_revision = self
-                            .runtime
-                            .mode_actions
-                            .next_observation_revision()
-                            .max(self.surface.revision().saturating_add(1));
-                        let revision = self.runtime.mode_read_revision;
-                        self.runtime.mode_actions.observe(
-                            generation,
-                            revision,
-                            self.runtime.proxy_mode_state.clone(),
-                        );
-                        self.runtime.proxy_mode_state = self.runtime.mode_actions.render_snapshot();
-                        self.runtime.proxy_mode = self
-                            .runtime
-                            .proxy_mode_state
-                            .current
-                            .map(|mode| mode.to_wire().to_owned());
                         if let Some(ipv6) = ipv6_observation(&config) {
                             self.runtime.ipv6_routing = ipv6;
                         }
                         let mut lan_committed = self.runtime.lan_sharing_committed.clone();
-                        lan_committed.allow_lan = config.allow_lan;
-                        lan_committed.mixed_port = config.mixed_port;
-                        if let Some(bind_address) = &config.bind_address {
+                        if let ObservedValue::Reported(enabled) = &config.lan_sharing.value.enabled
+                        {
+                            lan_committed.allow_lan = *enabled;
+                        }
+                        if let ObservedValue::Reported(mixed_port) =
+                            &config.lan_sharing.value.mixed_port
+                        {
+                            lan_committed.mixed_port = *mixed_port;
+                        }
+                        if let ObservedValue::Reported(bind_address) =
+                            &config.lan_sharing.value.bind_address
+                        {
                             lan_committed.bind_address = bind_address.clone();
                         }
                         self.runtime.lan_sharing_committed = lan_committed.clone();
@@ -266,31 +270,34 @@ impl AppState {
                                     self.runtime.lan_security.allowed_ips.clone();
                             }
                         }
-                        self.runtime.script_block_present = observed.script_available == Some(true);
                         self.runtime.tun_enabled = observed.tun_enabled;
                         self.runtime.system_toggles = self
                             .runtime
                             .system_toggles
                             .clone()
                             .with_tun_readback(observed.tun_enabled);
-                        if let Some(dns) = config.dns {
-                            self.editor.dns_nameservers = dns.nameserver;
-                            self.editor.dns_fallback_servers = dns.fallback;
-                            self.editor.dns_enhanced_mode = dns.enhanced_mode;
+                        if let ObservedValue::Reported(nameserver) = &config.dns.value.nameserver {
+                            self.editor.dns_nameservers = nameserver.clone();
                         }
-                        if let Some(tun) = config.tun {
-                            if let Some(stack) = tun.stack {
-                                self.editor.tun_stack = stack;
-                            }
-                            if let Some(auto_route) = tun.auto_route {
-                                self.editor.tun_auto_route = auto_route;
-                            }
-                            if let Some(strict_route) = tun.strict_route {
-                                self.editor.tun_strict_route = strict_route;
-                            }
+                        if let ObservedValue::Reported(fallback) = &config.dns.value.fallback {
+                            self.editor.dns_fallback_servers = fallback.clone();
                         }
-                        if let Some(sniffer) = config.sniffer {
-                            self.editor.sniffer_enabled = sniffer.enable;
+                        if let ObservedValue::Reported(mode) = &config.dns.value.enhanced_mode {
+                            self.editor.dns_enhanced_mode = mode.clone();
+                        }
+                        if let ObservedValue::Reported(stack) = &config.tun.value.stack {
+                            self.editor.tun_stack = stack.clone();
+                        }
+                        if let ObservedValue::Reported(auto_route) = &config.tun.value.auto_route {
+                            self.editor.tun_auto_route = *auto_route;
+                        }
+                        if let ObservedValue::Reported(strict_route) =
+                            &config.tun.value.strict_route
+                        {
+                            self.editor.tun_strict_route = *strict_route;
+                        }
+                        if let ObservedValue::Reported(enabled) = &config.sniffer.value.enabled {
+                            self.editor.sniffer_enabled = *enabled;
                         }
                         self.refresh_tray();
                     }
@@ -301,19 +308,6 @@ impl AppState {
                         self.runtime.system_toggles.tun = SystemToggleState::Failed {
                             failure: failure.clone(),
                         };
-                        self.runtime.proxy_mode_state.status = ProxyModeStatus::Failed;
-                        self.runtime.proxy_mode_state.failure = Some(failure.clone());
-                        self.runtime.mode_read_revision = self
-                            .runtime
-                            .mode_actions
-                            .next_observation_revision()
-                            .max(self.surface.revision().saturating_add(1));
-                        self.runtime.mode_actions.observe(
-                            generation,
-                            self.runtime.mode_read_revision,
-                            self.runtime.proxy_mode_state.clone(),
-                        );
-                        self.runtime.proxy_mode_state = self.runtime.mode_actions.render_snapshot();
                         self.shell.error_msg = Some(failure.message);
                     }
                 }
@@ -328,12 +322,16 @@ impl AppState {
                 let Some(token) = self.begin_runtime_patch() else {
                     return Task::none();
                 };
+                let scope = match self.runtime_configuration_scope() {
+                    Ok(scope) => scope,
+                    Err(failure) => return self.configuration_failure(failure),
+                };
                 let generation = rt.generation();
                 self.runtime.ipv6_routing.enabled = enabled;
                 let gateway: Arc<dyn RuntimeGateway> = rt;
                 Task::perform(
                     async move {
-                        RuntimeQueryApplication::new(gateway)
+                        RuntimeConfigurationApplication::from_gateway(scope, gateway.as_ref())
                             .set_ipv6_routing(enabled)
                             .await
                             .map(|_| ())
@@ -543,15 +541,20 @@ impl AppState {
                 let Some(token) = self.begin_runtime_patch() else {
                     return Task::none();
                 };
+                let scope = match self.runtime_configuration_scope() {
+                    Ok(scope) => scope,
+                    Err(failure) => return self.configuration_failure(failure),
+                };
                 let generation = rt.generation();
                 self.editor.tun_stack = parsed.as_str().to_owned();
                 self.runtime.tun_stack_config.active_stack = parsed.as_str().to_owned();
                 let gateway: Arc<dyn RuntimeGateway> = rt.clone();
                 Task::perform(
                     async move {
-                        RuntimeQueryApplication::new(gateway)
+                        RuntimeConfigurationApplication::from_gateway(scope, gateway.as_ref())
                             .set_tun_stack(parsed)
                             .await
+                            .map(|_| ())
                             .map_err(|failure| InfiltratorError::Config(failure.message))
                     },
                     move |result| Message::RuntimePatchResult(result, token, generation),
@@ -568,6 +571,10 @@ impl AppState {
                 let Some(token) = self.begin_runtime_patch() else {
                     return Task::none();
                 };
+                let scope = match self.runtime_configuration_scope() {
+                    Ok(scope) => scope,
+                    Err(failure) => return self.configuration_failure(failure),
+                };
                 let generation = rt.generation();
                 self.editor.tun_auto_route = enabled;
                 if !enabled {
@@ -576,9 +583,10 @@ impl AppState {
                 let gateway: Arc<dyn RuntimeGateway> = rt.clone();
                 Task::perform(
                     async move {
-                        RuntimeQueryApplication::new(gateway)
+                        RuntimeConfigurationApplication::from_gateway(scope, gateway.as_ref())
                             .set_tun_auto_route(enabled)
                             .await
+                            .map(|_| ())
                             .map_err(|failure| InfiltratorError::Config(failure.message))
                     },
                     move |result| Message::RuntimePatchResult(result, token, generation),
@@ -595,6 +603,10 @@ impl AppState {
                 let Some(token) = self.begin_runtime_patch() else {
                     return Task::none();
                 };
+                let scope = match self.runtime_configuration_scope() {
+                    Ok(scope) => scope,
+                    Err(failure) => return self.configuration_failure(failure),
+                };
                 let generation = rt.generation();
                 self.editor.tun_strict_route = enabled;
                 if enabled {
@@ -603,9 +615,10 @@ impl AppState {
                 let gateway: Arc<dyn RuntimeGateway> = rt.clone();
                 Task::perform(
                     async move {
-                        RuntimeQueryApplication::new(gateway)
+                        RuntimeConfigurationApplication::from_gateway(scope, gateway.as_ref())
                             .set_tun_strict_route(enabled)
                             .await
+                            .map(|_| ())
                             .map_err(|failure| InfiltratorError::Config(failure.message))
                     },
                     move |result| Message::RuntimePatchResult(result, token, generation),
@@ -620,13 +633,20 @@ impl AppState {
                 let Some(token) = self.begin_runtime_patch() else {
                     return Task::none();
                 };
+                let scope = match self.runtime_configuration_scope() {
+                    Ok(scope) => scope,
+                    Err(failure) => return self.configuration_failure(failure),
+                };
                 let generation = rt.generation();
                 self.editor.sniffer_enabled = enabled;
+                let gateway: Arc<dyn RuntimeGateway> = rt;
                 Task::perform(
                     async move {
-                        rt.patch_config(serde_json::json!({ "sniffer": { "enable": enabled } }))
+                        RuntimeConfigurationApplication::from_gateway(scope, gateway.as_ref())
+                            .set_sniffer_enabled(enabled)
                             .await
-                            .map_err(|error| InfiltratorError::Internal(error.to_string()))
+                            .map(|_| ())
+                            .map_err(|failure| InfiltratorError::Config(failure.message))
                     },
                     move |result| Message::RuntimePatchResult(result, token, generation),
                 )

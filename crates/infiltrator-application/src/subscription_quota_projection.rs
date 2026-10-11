@@ -1,9 +1,9 @@
 //! One native-independent presentation of optional quota observations for both peer products.
-use crate::byte_format::format_bytes;
 use crate::failure_projection::failure_message;
 use infiltrator_contract::subscription_quota::{
     SubscriptionQuotaSnapshot, SubscriptionQuotaStatus,
 };
+use infiltrator_shared::byte_units::format_bytes;
 use infiltrator_shared::i18n_interpolator::localize;
 use infiltrator_shared::locales::{Lang, Localizer};
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

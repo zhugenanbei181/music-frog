@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """Test layout guard for crates/infiltrator-iced.
 
-Modeled after taskmanager's scripts/quality/test_layout_guard.py, simplified
-to this crate's rules (standalone-runnable, python3 stdlib only):
+Enforces this crate's test layout rules (standalone-runnable, Python stdlib only):
 
 1. `src/` holds production code only. The single permitted test marker is a
    short path-mounted declaration::

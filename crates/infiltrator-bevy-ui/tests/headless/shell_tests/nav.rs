@@ -2,7 +2,9 @@
 //! test-intent: behavior
 
 use super::*;
+use infiltrator_application::routing_intent_projection::routing_intent_copy;
 use infiltrator_contract::a11y::ShellA11yNode;
+use infiltrator_contract::routing_intent::RoutingIntent;
 
 #[test]
 fn nav_entries_mode_pills_and_content_region_carry_semantics() {
@@ -27,20 +29,29 @@ fn nav_entries_mode_pills_and_content_region_carry_semantics() {
         "every nav entry is a named button; all 11 routes are enabled"
     );
 
-    let mut pills = world.query::<(&OverviewModePill, &AccessibilityNode)>();
-    let mut pill_labels: Vec<(ProxyMode, String)> = Vec::new();
+    let mut pills = world.query::<(&OverviewRoutingIntentPill, &AccessibilityNode)>();
+    let mut pill_labels: Vec<(RoutingIntent, String)> = Vec::new();
     for (pill, node) in pills.iter(world) {
         assert_eq!(node.role(), accesskit::Role::Button);
-        pill_labels.push((pill.0, node.label().expect("mode label").to_owned()));
+        pill_labels.push((
+            pill.0.clone(),
+            node.label().expect("routing label").to_owned(),
+        ));
     }
     assert_eq!(
         pill_labels,
-        vec![
-            (ProxyMode::Rule, "规则".to_owned()),
-            (ProxyMode::Global, "全局".to_owned()),
-            (ProxyMode::Direct, "直连".to_owned()),
-        ],
-        "every mode pill carries its mode name"
+        [
+            RoutingIntent::FollowRules,
+            RoutingIntent::RouteAllThroughProxy,
+            RoutingIntent::BypassProxy,
+        ]
+        .into_iter()
+        .map(|intent| {
+            let label = routing_intent_copy(&intent, "zh-CN");
+            (intent, label)
+        })
+        .collect::<Vec<_>>(),
+        "every routing choice carries its shared label"
     );
 
     let mut slots = world.query::<(&ContentSlot, &AccessibilityNode)>();

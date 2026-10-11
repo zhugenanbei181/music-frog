@@ -37,16 +37,25 @@ async fn rule_simulation_replay_does_not_recompute_or_rebind_to_another_document
     let original = sample_rules();
     let host = Arc::new(FakeOverridePort::with_rules(original.clone()));
     app.set_override_port(host.clone());
-    app.simulate(
+    simulate_for_sample(
+        &app,
         RuleTraceOperationId(1),
         request("www.google.com", Some("10.20.30.40")),
-        None,
     )
     .await
     .expect("simulation");
     let execution = app.execution();
     assert_eq!(execution.operation, RuleTraceOperation::Completed);
     assert_eq!(execution.report_id, Some(RuleTraceOperationId(1)));
+    let owner = infiltrator_contract::rule_trace_run::RuleTraceOwnerBinding::new(
+        crate::rule_trace_fixtures::rule_trace_test_scope(),
+        override_workspace(&original).profile_identity,
+    )
+    .unwrap();
+    assert_eq!(
+        execution.owner,
+        infiltrator_contract::rule_trace_run::RuleTraceOwnerObservation::Observed(owner)
+    );
     let report = execution.report.expect("report");
     let source = report.source.expect("exact document source");
     let chain = report.decision_chain.expect("chain");
@@ -83,24 +92,27 @@ async fn rule_simulation_cancel_and_duplicate_requests_preserve_last_report_and_
 {
     let app = RuleTracerApplication::new();
     app.set_override_port(Arc::new(FakeOverridePort::with_rules(sample_rules())));
-    app.simulate(
+    simulate_for_sample(
+        &app,
         RuleTraceOperationId(1),
         request("www.google.com", None),
-        None,
     )
     .await
     .expect("baseline");
     let baseline = app.execution();
     app.set_override_port(Arc::new(PendingSource));
     {
-        let mut running =
-            Box::pin(app.simulate(RuleTraceOperationId(2), request("bilibili.com", None), None));
+        let mut running = Box::pin(simulate_for_sample(
+            &app,
+            RuleTraceOperationId(2),
+            request("bilibili.com", None),
+        ));
         assert!(matches!(poll!(running.as_mut()), Poll::Pending));
         let observed = app.execution();
         assert_eq!(observed.operation, RuleTraceOperation::Running);
         assert_eq!(observed.report, baseline.report);
         assert_eq!(
-            app.simulate(RuleTraceOperationId(3), request("example.org", None), None)
+            simulate_for_sample(&app, RuleTraceOperationId(3), request("example.org", None),)
                 .await
                 .expect_err("no overlap")
                 .code,
@@ -117,13 +129,13 @@ async fn rule_simulation_cancel_and_duplicate_requests_preserve_last_report_and_
     assert_eq!(canceled.report_id, baseline.report_id);
     app.set_override_port(Arc::new(FakeOverridePort::with_rules(sample_rules())));
     assert_eq!(
-        app.simulate(RuleTraceOperationId(2), request("bilibili.com", None), None)
+        simulate_for_sample(&app, RuleTraceOperationId(2), request("bilibili.com", None),)
             .await
             .expect_err("replayed identity")
             .code,
         ErrorCode::InvalidState
     );
-    app.simulate(RuleTraceOperationId(3), request("bilibili.com", None), None)
+    simulate_for_sample(&app, RuleTraceOperationId(3), request("bilibili.com", None))
         .await
         .expect("retry");
     let retried = app.execution();
@@ -152,7 +164,7 @@ async fn rule_simulation_invalid_sandbox_is_rejected_before_source_read_and_miss
         request("example.org", Some("invalid-ip")),
     ] {
         assert_eq!(
-            app.simulate(RuleTraceOperationId(1), request, None)
+            simulate_for_sample(&app, RuleTraceOperationId(1), request)
                 .await
                 .expect_err("invalid sandbox")
                 .code,
@@ -162,11 +174,14 @@ async fn rule_simulation_invalid_sandbox_is_rejected_before_source_read_and_miss
     }
     let unavailable = RuleTracerApplication::new();
     assert_eq!(
-        unavailable
-            .simulate(RuleTraceOperationId(1), request("example.org", None), None)
-            .await
-            .expect_err("host missing")
-            .code,
+        simulate_for_sample(
+            &unavailable,
+            RuleTraceOperationId(1),
+            request("example.org", None),
+        )
+        .await
+        .expect_err("host missing")
+        .code,
         ErrorCode::Unsupported
     );
     assert_eq!(
@@ -174,4 +189,135 @@ async fn rule_simulation_invalid_sandbox_is_rejected_before_source_read_and_miss
         RuleTraceOperation::Unsupported
     );
     assert!(unavailable.execution().report.is_none());
+}
+
+#[tokio::test]
+async fn stale_or_foreign_trace_owner_is_rejected_before_rule_adapter_read() {
+    let rules = sample_rules();
+    let host = Arc::new(FakeOverridePort::with_rules(rules.clone()));
+    let app = RuleTracerApplication::new();
+    app.set_override_port(host.clone());
+    let active_workspace = override_workspace(&rules);
+    let active_scope = crate::rule_trace_fixtures::rule_trace_test_scope();
+    let outbound_observation =
+        crate::rule_trace_fixtures::unknown_rule_trace_observation(active_scope.clone());
+    let input = request("example.org", None);
+
+    let mut stale_scope = active_scope.clone();
+    stale_scope.generation = infiltrator_contract::core_identity::CoreGeneration::new(2);
+    let stale_scope_request = infiltrator_contract::rule_trace_run::ScopedRuleTraceRequest {
+        owner: infiltrator_contract::rule_trace_run::RuleTraceOwnerBinding {
+            scope: stale_scope,
+            workspace: active_workspace.profile_identity.clone(),
+        },
+        request: input.clone(),
+    };
+    assert_eq!(
+        app.simulate_scoped(
+            &active_scope,
+            &active_workspace.profile_identity,
+            RuleTraceOperationId(1),
+            stale_scope_request,
+            &infiltrator_contract::rule_trace_run::RuleTraceOutboundFacts::Observed(
+                outbound_observation.clone(),
+            ),
+        )
+        .await
+        .unwrap_err()
+        .code,
+        ErrorCode::NotReady
+    );
+    assert_eq!(host.load_calls.load(Ordering::SeqCst), 0);
+    assert_eq!(app.execution(), RuleTraceExecution::default());
+
+    let mut stale_profile = active_workspace.profile_identity.clone();
+    stale_profile.document.revision =
+        infiltrator_contract::profile_document_identity::ProfileDocumentRevision::new(
+            "stale-revision",
+        )
+        .unwrap();
+    let stale_profile_request = infiltrator_contract::rule_trace_run::ScopedRuleTraceRequest {
+        owner: infiltrator_contract::rule_trace_run::RuleTraceOwnerBinding {
+            scope: active_scope.clone(),
+            workspace: stale_profile,
+        },
+        request: input.clone(),
+    };
+    assert_eq!(
+        app.simulate_scoped(
+            &active_scope,
+            &active_workspace.profile_identity,
+            RuleTraceOperationId(1),
+            stale_profile_request,
+            &infiltrator_contract::rule_trace_run::RuleTraceOutboundFacts::Observed(
+                outbound_observation.clone(),
+            ),
+        )
+        .await
+        .unwrap_err()
+        .code,
+        ErrorCode::NotReady
+    );
+    assert_eq!(host.load_calls.load(Ordering::SeqCst), 0);
+
+    let mut foreign_profile = active_workspace.profile_identity.clone();
+    foreign_profile.document.engine_id =
+        infiltrator_contract::core_identity::EngineId::new("sing-box").unwrap();
+    let foreign_request = infiltrator_contract::rule_trace_run::ScopedRuleTraceRequest {
+        owner: infiltrator_contract::rule_trace_run::RuleTraceOwnerBinding {
+            scope: active_scope.clone(),
+            workspace: foreign_profile,
+        },
+        request: input,
+    };
+    assert_eq!(
+        app.simulate_scoped(
+            &active_scope,
+            &active_workspace.profile_identity,
+            RuleTraceOperationId(1),
+            foreign_request,
+            &infiltrator_contract::rule_trace_run::RuleTraceOutboundFacts::Observed(
+                outbound_observation.clone(),
+            ),
+        )
+        .await
+        .unwrap_err()
+        .code,
+        ErrorCode::Unsupported
+    );
+    assert_eq!(host.load_calls.load(Ordering::SeqCst), 0);
+    assert_eq!(app.execution(), RuleTraceExecution::default());
+}
+
+#[tokio::test]
+async fn foreign_outbound_observation_is_rejected_before_rule_adapter_read() {
+    let rules = sample_rules();
+    let host = Arc::new(FakeOverridePort::with_rules(rules.clone()));
+    let app = RuleTracerApplication::new();
+    app.set_override_port(host.clone());
+    let active_workspace = override_workspace(&rules);
+    let active_scope = crate::rule_trace_fixtures::rule_trace_test_scope();
+    let mut foreign_scope = active_scope.clone();
+    foreign_scope.generation = infiltrator_contract::core_identity::CoreGeneration::new(2);
+    let outbound_observation = super::typed_rule_trace_observation(&foreign_scope);
+    let (scope, observed_workspace, request) =
+        super::scoped_for_test(request("example.org", None), &active_workspace);
+
+    assert_eq!(
+        app.simulate_scoped(
+            &scope,
+            &observed_workspace,
+            RuleTraceOperationId(1),
+            request,
+            &infiltrator_contract::rule_trace_run::RuleTraceOutboundFacts::Observed(
+                outbound_observation.clone(),
+            ),
+        )
+        .await
+        .unwrap_err()
+        .code,
+        ErrorCode::InvalidState
+    );
+    assert_eq!(host.load_calls.load(Ordering::SeqCst), 0);
+    assert_eq!(app.execution(), RuleTraceExecution::default());
 }

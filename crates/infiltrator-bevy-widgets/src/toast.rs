@@ -10,6 +10,7 @@
 use crate::icon::IconId;
 use crate::icon_tile::icon_tile_scene;
 use crate::palette::UiPalette;
+use crate::palette::rem;
 use crate::text::{Role, TextRole};
 use crate::theme::space;
 use bevy::color::Color;
@@ -19,12 +20,14 @@ use bevy::ecs::message::{Message, MessageReader};
 use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Query, Res, ResMut};
+use bevy::feathers::theme::{SurfaceLevel, ThemeContext};
 use bevy::scene::{Scene, bsn};
 use bevy::time::{Time, Virtual};
 use bevy::ui::BorderColor;
+use bevy::ui::FixedNode;
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, PositionType,
-    UiRect, Val, px,
+    UiRect, Val,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
@@ -200,13 +203,13 @@ pub fn toast_item_scene(toast: &ToastMessage, palette: &UiPalette) -> impl Scene
 
     bsn! {
             Node {
-                width: px(320.0),
-                padding: UiRect::all(Val::Px(space::S12)),
+                width: rem(320.0),
+                padding: UiRect::all(rem(space::S12)),
                 flex_direction: FlexDirection::Row,
                 align_items: AlignItems::Center,
-                column_gap: Val::Px(space::S8),
+                column_gap: rem(space::S8),
                 border: UiRect::left(Val::Px(4.0)),
-                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
             }
             BackgroundColor({ palette.surface })
             BorderColor {
@@ -250,12 +253,14 @@ pub fn toast_stack_scene(toasts: &[ToastMessage], palette: &UiPalette) -> impl S
     bsn! {
             Node {
                 position_type: PositionType::Absolute,
-                right: px(space::S16),
-                top: px(space::S16),
+                right: rem(space::S16),
+                top: rem(space::S16),
                 flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(space::S8),
+                row_gap: rem(space::S8),
             }
             ToastContainer
+            ThemeContext(SurfaceLevel::Floating)
+            FixedNode
             Children [
                 { toast_nodes }
             ]
