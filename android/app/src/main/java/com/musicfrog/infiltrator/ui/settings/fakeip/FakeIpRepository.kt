@@ -13,9 +13,7 @@ import infiltrator_android.AndroidOwnerOperation
 import infiltrator_android.AndroidOwnerOperationProtocolVersion
 import infiltrator_android.AndroidOwnerOperationReadback
 import infiltrator_android.AndroidOwnerOperationReply
-import infiltrator_android.FfiBoolResult
 import infiltrator_android.FfiErrorCode
-import infiltrator_android.fakeIpCacheClear
 
 internal sealed interface FakeIpRepositoryResult {
     data class Completed(val point: FakeIpSettingsObservationPoint) : FakeIpRepositoryResult
@@ -34,6 +32,14 @@ internal sealed interface FakeIpRepositoryResult {
     ) : FakeIpRepositoryResult
 }
 
+internal sealed interface FakeIpCacheClearResult {
+    data class Completed(val removedFile: Boolean) : FakeIpCacheClearResult
+    data class Failed(val failure: AppFailure) : FakeIpCacheClearResult
+    data class Cancelled(val failure: AppFailure) : FakeIpCacheClearResult
+    data class TimedOut(val failure: AppFailure) : FakeIpCacheClearResult
+    data class Unconfirmed(val failure: AppFailure) : FakeIpCacheClearResult
+}
+
 internal interface FakeIpRepository {
     suspend fun execute(
         operation: AndroidOwnerOperation,
@@ -41,7 +47,7 @@ internal interface FakeIpRepository {
     ): FakeIpRepositoryResult
 
     /** Clears the Android host's Fake-IP file cache; this does not flush Mihomo's live table. */
-    suspend fun clearHostFakeIpFileCache(): FfiBoolResult
+    suspend fun clearHostFakeIpFileCache(timeoutMs: Long): FakeIpCacheClearResult
 }
 
 internal class UniFfiFakeIpRepository(
@@ -57,8 +63,44 @@ internal class UniFfiFakeIpRepository(
         is AndroidOwnerOperationExchange.TimedOut -> FakeIpRepositoryResult.TimedOut(exchange.failure)
     }
 
-    override suspend fun clearHostFakeIpFileCache(): FfiBoolResult = fakeIpCacheClear()
+    override suspend fun clearHostFakeIpFileCache(timeoutMs: Long): FakeIpCacheClearResult =
+        when (val exchange = gateway.execute(AndroidOwnerOperation.FakeIpCacheClear, timeoutMs)) {
+            is AndroidOwnerOperationExchange.Completed -> exchange.reply.toFakeIpCacheClearResult()
+            is AndroidOwnerOperationExchange.Failed -> FakeIpCacheClearResult.Failed(exchange.failure)
+            is AndroidOwnerOperationExchange.Cancelled -> FakeIpCacheClearResult.Cancelled(exchange.failure)
+            is AndroidOwnerOperationExchange.TimedOut -> FakeIpCacheClearResult.TimedOut(exchange.failure)
+        }
 }
+
+private fun AndroidOwnerOperationReply.toFakeIpCacheClearResult(): FakeIpCacheClearResult {
+    val result = readback as? AndroidOwnerOperationReadback.FakeIpCacheClear
+        ?: return unconfirmedFakeIpCacheClear()
+    val ownerContextIsValid = protocol == AndroidOwnerOperationProtocolVersion.V5 &&
+        context.clientSessionId.isNotBlank() &&
+        context.ownerSessionId.isNotBlank() &&
+        context.expectedOwnerSessionId == context.ownerSessionId &&
+        context.expectedCoreGeneration == observedCoreGeneration &&
+        dataDomain == AndroidOwnerDataDomain.FAKE_IP_CACHE &&
+        snapshot == null
+    if (!ownerContextIsValid) return unconfirmedFakeIpCacheClear()
+
+    val changed = result.v1.status.code == FfiErrorCode.OK && result.v1.value
+    val expectedRevision = when (changed) {
+        true -> context.expectedDataRevision.takeIf { it < ULong.MAX_VALUE }?.plus(1u)
+        false -> context.expectedDataRevision
+    } ?: return unconfirmedFakeIpCacheClear()
+    if (dataRevision != expectedRevision) return unconfirmedFakeIpCacheClear()
+
+    return when (result.v1.status.code) {
+        FfiErrorCode.OK -> FakeIpCacheClearResult.Completed(result.v1.value)
+        FfiErrorCode.CANCELED -> FakeIpCacheClearResult.Cancelled(result.v1.status.toAppFailure())
+        else -> FakeIpCacheClearResult.Failed(result.v1.status.toAppFailure())
+    }
+}
+
+private fun unconfirmedFakeIpCacheClear() = FakeIpCacheClearResult.Unconfirmed(
+    localizedFailure(FailureTextKey.NotReady).toAppFailure(),
+)
 
 private fun AndroidOwnerOperationReply.toFakeIpRepositoryResult(
     operation: AndroidOwnerOperation,
@@ -71,7 +113,7 @@ private fun AndroidOwnerOperationReply.toFakeIpRepositoryResult(
         FakeIpOperationPurpose.Unsupported -> return unconfirmedFakeIp(latest)
     }
 
-    if (protocol != AndroidOwnerOperationProtocolVersion.V4 ||
+    if (protocol != AndroidOwnerOperationProtocolVersion.V5 ||
         dataDomain != AndroidOwnerDataDomain.FAKE_IP_SETTINGS ||
         snapshot?.domain != AndroidOwnerDataDomain.FAKE_IP_SETTINGS ||
         context.clientSessionId.isBlank() ||
@@ -120,7 +162,7 @@ private fun AndroidOwnerOperation.fakeIpPurpose(): FakeIpOperationPurpose = when
 }
 
 private fun AndroidOwnerOperationReply.latestFakeIpSnapshot(): FakeIpSettingsObservationPoint? {
-    if (protocol != AndroidOwnerOperationProtocolVersion.V4 ||
+    if (protocol != AndroidOwnerOperationProtocolVersion.V5 ||
         dataDomain != AndroidOwnerDataDomain.FAKE_IP_SETTINGS ||
         snapshot?.domain != AndroidOwnerDataDomain.FAKE_IP_SETTINGS ||
         context.clientSessionId.isBlank() ||

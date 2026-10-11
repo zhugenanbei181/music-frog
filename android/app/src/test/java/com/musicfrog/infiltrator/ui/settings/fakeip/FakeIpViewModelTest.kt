@@ -6,9 +6,6 @@ import com.musicfrog.infiltrator.ui.common.FailureTextKey
 import infiltrator_android.AndroidOwnerOperation
 import infiltrator_android.FakeIpSettings
 import infiltrator_android.FakeIpSettingsPatch
-import infiltrator_android.FfiBoolResult
-import infiltrator_android.FfiErrorCode
-import infiltrator_android.FfiStatus
 import java.util.ArrayDeque
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -142,7 +139,8 @@ private class FakeRepository : FakeIpRepository {
         return results.removeFirst().await()
     }
 
-    override suspend fun clearHostFakeIpFileCache() = FfiBoolResult(FfiStatus(FfiErrorCode.OK, null), false)
+    override suspend fun clearHostFakeIpFileCache(timeoutMs: Long) =
+        FakeIpCacheClearResult.Completed(removedFile = false)
 }
 
 private fun testScope() = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)

@@ -2,16 +2,9 @@
 //! (servers, enhanced mode, fallback filter) and Fake-IP configuration
 //! (range, filter list, cache store) plus cache clearing.
 
-use super::owner_operation::wire::route_owner_operation;
-use super::owner_operation::{
-    AndroidOwnerDataDomain, AndroidOwnerDataSnapshotData, AndroidOwnerOperation,
-    AndroidOwnerOperationReadback, AndroidOwnerOperationReply, AndroidOwnerOperationRoute,
-    OwnerDataRevisionFenceAcquire, OwnerOperationMutationAdmission, advance_owner_data_revision,
-    android_owner_data_revision, owner_operation_mutation_admission, try_owner_data_revision_fence,
-};
-use crate::ffi::{FfiBoolResult, FfiErrorCode, FfiStatus};
+use crate::ffi::{FfiBoolResult, FfiStatus};
 use crate::host_support::{
-    build_configuration_application, cache_application, get_runtime, map_application_failure,
+    build_configuration_application, cache_application, map_application_failure,
     normalize_optional_string, sanitize_list,
 };
 use infiltrator_domain::{dns, fake_ip};
@@ -87,312 +80,59 @@ pub struct FakeIpSettingsResult {
     pub settings: Option<FakeIpSettings>,
 }
 
-#[uniffi::export]
-pub async fn dns_settings() -> DnsSettingsResult {
-    get_runtime()
-        .spawn(async move {
-            match route_owner_operation(AndroidOwnerOperation::DnsSettings).await {
-                Err(status) => {
-                    return DnsSettingsResult {
-                        status,
-                        settings: None,
-                    };
-                }
-                Ok(AndroidOwnerOperationRoute::UiClient(reply)) => {
-                    return owner_dns_settings_result(*reply);
-                }
-                Ok(AndroidOwnerOperationRoute::CoreOwner) => {}
-            }
-            match load_dns_settings().await {
-                Ok(settings) => DnsSettingsResult {
-                    status: FfiStatus::ok(),
-                    settings: Some(settings),
-                },
-                Err(status) => DnsSettingsResult {
-                    status,
-                    settings: None,
-                },
-            }
-        })
-        .await
-        .unwrap_or_else(|e| DnsSettingsResult {
-            status: FfiStatus::err(FfiErrorCode::Unknown, format!("runtime join error: {}", e)),
-            settings: None,
-        })
-}
-
-#[uniffi::export]
-pub async fn dns_settings_save(patch: DnsSettingsPatch) -> DnsSettingsResult {
-    get_runtime()
-        .spawn(async move {
-            match route_owner_operation(AndroidOwnerOperation::DnsSettingsSave {
-                patch: patch.clone(),
-            })
-            .await
-            {
-                Err(status) => {
-                    return DnsSettingsResult {
-                        status,
-                        settings: None,
-                    };
-                }
-                Ok(AndroidOwnerOperationRoute::UiClient(reply)) => {
-                    return owner_dns_settings_result(*reply);
-                }
-                Ok(AndroidOwnerOperationRoute::CoreOwner) => {}
-            }
-            let _owner_data_fence = match try_owner_data_revision_fence() {
-                OwnerDataRevisionFenceAcquire::Acquired(guard) => guard,
-                OwnerDataRevisionFenceAcquire::Busy => {
-                    return DnsSettingsResult {
-                        status: FfiStatus::err(
-                            FfiErrorCode::NotReady,
-                            "VPN configuration preparation or activation currently fences DNS writes",
-                        ),
-                        settings: None,
-                    };
-                }
-            };
-            match owner_operation_mutation_admission(
-                &AndroidOwnerOperation::DnsSettingsSave {
-                    patch: patch.clone(),
-                },
-                super::vpn::vpn_configuration_activation_status(),
-            ) {
-                OwnerOperationMutationAdmission::VpnConfigurationBusy => {
-                    return DnsSettingsResult {
-                        status: FfiStatus::err(
-                            FfiErrorCode::NotReady,
-                            "VPN configuration activation holds the owner-data revision fence",
-                        ),
-                        settings: None,
-                    };
-                }
-                OwnerOperationMutationAdmission::ReadOnly => {
-                    return DnsSettingsResult {
-                        status: FfiStatus::err(
-                            FfiErrorCode::InvalidState,
-                            "DNS settings save was classified as read-only",
-                        ),
-                        settings: None,
-                    };
-                }
-                OwnerOperationMutationAdmission::WriteAllowed => {}
-            }
-            if android_owner_data_revision() == u64::MAX {
-                return DnsSettingsResult {
-                    status: FfiStatus::err(
-                        FfiErrorCode::InvalidState,
-                        "Android owner data revision is exhausted",
-                    ),
-                    settings: None,
-                };
-            }
-            match dns_settings_save_local(patch).await {
-                Ok(settings) => {
-                    if advance_owner_data_revision().is_none() {
-                        DnsSettingsResult {
-                            status: FfiStatus::err(
-                                FfiErrorCode::InvalidState,
-                                "Android owner data revision could not advance after DNS save",
-                            ),
-                            settings: Some(settings),
-                        }
-                    } else {
-                        DnsSettingsResult {
-                            status: FfiStatus::ok(),
-                            settings: Some(settings),
-                        }
-                    }
-                }
-                Err(status) => DnsSettingsResult {
-                    status,
-                    settings: None,
-                },
-            }
-        })
-        .await
-        .unwrap_or_else(|e| DnsSettingsResult {
-            status: FfiStatus::err(FfiErrorCode::Unknown, format!("runtime join error: {}", e)),
-            settings: None,
-        })
-}
-
-#[uniffi::export]
-pub async fn fake_ip_settings() -> FakeIpSettingsResult {
-    get_runtime()
-        .spawn(async move {
-            match route_owner_operation(AndroidOwnerOperation::FakeIpSettings).await {
-                Err(status) => {
-                    return FakeIpSettingsResult {
-                        status,
-                        settings: None,
-                    };
-                }
-                Ok(AndroidOwnerOperationRoute::UiClient(reply)) => {
-                    return owner_fake_ip_settings_result(*reply);
-                }
-                Ok(AndroidOwnerOperationRoute::CoreOwner) => {}
-            }
-            match load_fake_ip_settings().await {
-                Ok(settings) => FakeIpSettingsResult {
-                    status: FfiStatus::ok(),
-                    settings: Some(settings),
-                },
-                Err(status) => FakeIpSettingsResult {
-                    status,
-                    settings: None,
-                },
-            }
-        })
-        .await
-        .unwrap_or_else(|e| FakeIpSettingsResult {
-            status: FfiStatus::err(FfiErrorCode::Unknown, format!("runtime join error: {}", e)),
-            settings: None,
-        })
-}
-
-#[uniffi::export]
-pub async fn fake_ip_settings_save(patch: FakeIpSettingsPatch) -> FakeIpSettingsResult {
-    get_runtime()
-        .spawn(async move {
-            match route_owner_operation(AndroidOwnerOperation::FakeIpSettingsSave {
-                patch: patch.clone(),
-            })
-            .await
-            {
-                Err(status) => {
-                    return FakeIpSettingsResult {
-                        status,
-                        settings: None,
-                    };
-                }
-                Ok(AndroidOwnerOperationRoute::UiClient(reply)) => {
-                    return owner_fake_ip_settings_result(*reply);
-                }
-                Ok(AndroidOwnerOperationRoute::CoreOwner) => {}
-            }
-            match save_fake_ip_settings(patch).await {
-                Ok(settings) => FakeIpSettingsResult {
-                    status: FfiStatus::ok(),
-                    settings: Some(settings),
-                },
-                Err(status) => FakeIpSettingsResult {
-                    status,
-                    settings: None,
-                },
-            }
-        })
-        .await
-        .unwrap_or_else(|e| FakeIpSettingsResult {
-            status: FfiStatus::err(FfiErrorCode::Unknown, format!("runtime join error: {}", e)),
-            settings: None,
-        })
-}
-
-#[uniffi::export]
-pub async fn fake_ip_cache_clear() -> FfiBoolResult {
-    get_runtime()
-        .spawn(async move {
-            match route_owner_operation(AndroidOwnerOperation::FakeIpCacheClear).await {
-                Err(status) => {
-                    return FfiBoolResult {
-                        status,
-                        value: false,
-                    };
-                }
-                Ok(AndroidOwnerOperationRoute::UiClient(reply)) => {
-                    return match &reply.readback {
-                        AndroidOwnerOperationReadback::FakeIpCacheClear(result)
-                            if reply.data_domain == Some(AndroidOwnerDataDomain::FakeIpCache) =>
-                        {
-                            result.clone()
-                        }
-                        _ => FfiBoolResult::err(
-                            FfiErrorCode::NotReady,
-                            "Android owner returned an invalid Fake-IP cache result",
-                        ),
-                    };
-                }
-                Ok(AndroidOwnerOperationRoute::CoreOwner) => {}
-            }
-            match cache_application()
-                .clear_fake_ip()
-                .await
-                .map_err(map_application_failure)
-            {
-                Ok(removed) => FfiBoolResult::ok(removed),
-                Err(status) => FfiBoolResult {
-                    status,
-                    value: false,
-                },
-            }
-        })
-        .await
-        .unwrap_or_else(|e| {
-            FfiBoolResult::err(FfiErrorCode::Unknown, format!("runtime join error: {}", e))
-        })
-}
-
-fn owner_dns_settings_result(reply: AndroidOwnerOperationReply) -> DnsSettingsResult {
-    if !owner_snapshot_matches(&reply, AndroidOwnerDataDomain::DnsSettings, |data| {
-        matches!(data, AndroidOwnerDataSnapshotData::DnsSettings(_))
-    }) {
-        return DnsSettingsResult {
-            status: FfiStatus::err(
-                FfiErrorCode::NotReady,
-                "Android owner returned an invalid DNS settings snapshot",
-            ),
-            settings: None,
-        };
-    }
-    match reply.readback {
-        AndroidOwnerOperationReadback::DnsSettings(result) => result,
-        _ => DnsSettingsResult {
-            status: FfiStatus::err(
-                FfiErrorCode::NotReady,
-                "Android owner returned an invalid DNS settings result",
-            ),
+pub(super) async fn read_dns_settings_local() -> DnsSettingsResult {
+    match load_dns_settings().await {
+        Ok(settings) => DnsSettingsResult {
+            status: FfiStatus::ok(),
+            settings: Some(settings),
+        },
+        Err(status) => DnsSettingsResult {
+            status,
             settings: None,
         },
     }
 }
 
-fn owner_fake_ip_settings_result(reply: AndroidOwnerOperationReply) -> FakeIpSettingsResult {
-    if !owner_snapshot_matches(&reply, AndroidOwnerDataDomain::FakeIpSettings, |data| {
-        matches!(data, AndroidOwnerDataSnapshotData::FakeIpSettings(_))
-    }) {
-        return FakeIpSettingsResult {
-            status: FfiStatus::err(
-                FfiErrorCode::NotReady,
-                "Android owner returned an invalid Fake-IP settings snapshot",
-            ),
-            settings: None,
-        };
-    }
-    match reply.readback {
-        AndroidOwnerOperationReadback::FakeIpSettings(result) => result,
-        _ => FakeIpSettingsResult {
-            status: FfiStatus::err(
-                FfiErrorCode::NotReady,
-                "Android owner returned an invalid Fake-IP settings result",
-            ),
+pub(super) async fn read_fake_ip_settings_local() -> FakeIpSettingsResult {
+    match load_fake_ip_settings().await {
+        Ok(settings) => FakeIpSettingsResult {
+            status: FfiStatus::ok(),
+            settings: Some(settings),
+        },
+        Err(status) => FakeIpSettingsResult {
+            status,
             settings: None,
         },
     }
 }
 
-pub(super) fn owner_snapshot_matches(
-    reply: &AndroidOwnerOperationReply,
-    expected_domain: AndroidOwnerDataDomain,
-    payload_matches: impl FnOnce(&AndroidOwnerDataSnapshotData) -> bool,
-) -> bool {
-    reply.data_domain == Some(expected_domain)
-        && matches!(
-            reply.snapshot.as_ref(),
-            Some(snapshot)
-                if snapshot.domain == expected_domain && payload_matches(&snapshot.data)
-        )
+pub(super) async fn save_fake_ip_settings_local(
+    patch: FakeIpSettingsPatch,
+) -> FakeIpSettingsResult {
+    match save_fake_ip_settings(patch).await {
+        Ok(settings) => FakeIpSettingsResult {
+            status: FfiStatus::ok(),
+            settings: Some(settings),
+        },
+        Err(status) => FakeIpSettingsResult {
+            status,
+            settings: None,
+        },
+    }
+}
+
+pub(super) async fn clear_fake_ip_cache_local() -> FfiBoolResult {
+    match cache_application()
+        .clear_fake_ip()
+        .await
+        .map_err(map_application_failure)
+    {
+        Ok(removed) => FfiBoolResult::ok(removed),
+        Err(status) => FfiBoolResult {
+            status,
+            value: false,
+        },
+    }
 }
 
 async fn load_dns_settings() -> Result<DnsSettings, FfiStatus> {

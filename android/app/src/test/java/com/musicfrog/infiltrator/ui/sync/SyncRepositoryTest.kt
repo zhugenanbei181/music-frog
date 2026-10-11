@@ -142,7 +142,7 @@ class SyncRepositoryTest {
             else -> 10uL
         }
         return AndroidOwnerOperationReply(
-        protocol = AndroidOwnerOperationProtocolVersion.V4,
+        protocol = AndroidOwnerOperationProtocolVersion.V5,
             context = context(),
             observedCoreGeneration = 7uL,
             dataRevision = revision,

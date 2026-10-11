@@ -5,7 +5,7 @@ use crate::uniffi_api::{VpnTunSettings, VpnTunStack, VpnTunStackUpdate};
 async fn unknown_operation_is_rejected_before_owner_data_revision_changes() {
     let before = android_owner_data_revision();
     let result = android_dispatch_owner_operation_wire_json(
-        r#"{"protocol":"V4","operation":{"Unknown":null}}"#.to_owned(),
+        r#"{"protocol":"V5","operation":{"Unknown":null}}"#.to_owned(),
         "client-a".to_owned(),
         "owner-a".to_owned(),
         "owner-a".to_owned(),

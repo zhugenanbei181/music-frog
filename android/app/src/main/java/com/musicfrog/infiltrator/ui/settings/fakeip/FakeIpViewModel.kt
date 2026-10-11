@@ -2,18 +2,15 @@ package com.musicfrog.infiltrator.ui.settings.fakeip
 
 import androidx.lifecycle.ViewModel
 import com.musicfrog.infiltrator.ui.common.AppFailure
-import com.musicfrog.infiltrator.ui.common.CallResult
 import com.musicfrog.infiltrator.ui.common.DEFAULT_FFI_TIMEOUT_MS
 import com.musicfrog.infiltrator.ui.common.FailureTextKey
 import com.musicfrog.infiltrator.ui.common.LONG_FFI_TIMEOUT_MS
 import com.musicfrog.infiltrator.ui.common.ObservationRevision
 import com.musicfrog.infiltrator.ui.common.localizedFailure
-import com.musicfrog.infiltrator.ui.common.runCall
 import com.musicfrog.infiltrator.ui.common.toAppFailure
 import infiltrator_android.AndroidOwnerOperation
 import infiltrator_android.FakeIpSettings
 import infiltrator_android.FakeIpSettingsPatch
-import infiltrator_android.FfiErrorCode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -122,19 +119,30 @@ internal class FakeIpViewModel internal constructor(
         if (_state.value.hostCacheOperation is HostFakeIpFileCacheState.Clearing) return
         _state.value = _state.value.copy(hostCacheOperation = HostFakeIpFileCacheState.Clearing)
         coroutineScope.launch {
-            when (val call = runCall(LONG_FFI_TIMEOUT_MS) { repository.clearHostFakeIpFileCache() }) {
-                is CallResult.Failure -> {
+            when (val result = repository.clearHostFakeIpFileCache(LONG_FFI_TIMEOUT_MS)) {
+                is FakeIpCacheClearResult.Completed -> {
                     _state.value = _state.value.copy(
-                        hostCacheOperation = HostFakeIpFileCacheState.Failed(call.failure),
+                        hostCacheOperation = hostFakeIpFileCacheReceipt(result.removedFile),
                     )
                 }
-                is CallResult.Success -> {
-                    val result = call.value
+                is FakeIpCacheClearResult.Failed -> {
                     _state.value = _state.value.copy(
-                        hostCacheOperation = when (result.status.code) {
-                            FfiErrorCode.OK -> hostFakeIpFileCacheReceipt(result.value)
-                            else -> HostFakeIpFileCacheState.Failed(result.status.toAppFailure())
-                        },
+                        hostCacheOperation = HostFakeIpFileCacheState.Failed(result.failure),
+                    )
+                }
+                is FakeIpCacheClearResult.Cancelled -> {
+                    _state.value = _state.value.copy(
+                        hostCacheOperation = HostFakeIpFileCacheState.Failed(result.failure),
+                    )
+                }
+                is FakeIpCacheClearResult.TimedOut -> {
+                    _state.value = _state.value.copy(
+                        hostCacheOperation = HostFakeIpFileCacheState.Failed(result.failure),
+                    )
+                }
+                is FakeIpCacheClearResult.Unconfirmed -> {
+                    _state.value = _state.value.copy(
+                        hostCacheOperation = HostFakeIpFileCacheState.Failed(result.failure),
                     )
                 }
             }
@@ -188,7 +196,7 @@ internal class FakeIpViewModel internal constructor(
         }
         return when (result) {
             is FakeIpRepositoryResult.Completed -> when (
-                accept(result.point, FakeIpSettingsOperationState.Idle),
+                accept(result.point, FakeIpSettingsOperationState.Idle)
             ) {
                 FakeIpSnapshotAdmission.Accepted -> FakeIpRequestOutcome.Accepted
                 FakeIpSnapshotAdmission.Stale -> {

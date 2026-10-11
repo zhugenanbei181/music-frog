@@ -25,11 +25,11 @@ use super::rules::{
 };
 use super::settings::DnsSettingsPatch;
 use super::settings::FakeIpSettingsPatch;
-use super::settings::dns_settings;
+use super::settings::clear_fake_ip_cache_local;
 use super::settings::dns_settings_save_local;
-use super::settings::fake_ip_cache_clear;
-use super::settings::fake_ip_settings;
-use super::settings::fake_ip_settings_save;
+use super::settings::read_dns_settings_local;
+use super::settings::read_fake_ip_settings_local;
+use super::settings::save_fake_ip_settings_local;
 #[cfg(test)]
 use super::settings::{DnsSettings, FakeIpSettings};
 use super::settings::{DnsSettingsResult, FakeIpSettingsResult};
@@ -233,7 +233,7 @@ pub(super) fn app_routing_revision() -> u64 {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, uniffi::Enum)]
 pub enum AndroidOwnerOperationProtocolVersion {
-    V4,
+    V5,
 }
 
 /// Request operations are exhaustive typed variants. Unknown enum variants,
@@ -594,7 +594,7 @@ fn rejected_result(
     state: AndroidOwnerOperationIpcState,
 ) -> AndroidOwnerOperationIpcResult {
     let reply = AndroidOwnerOperationReply {
-        protocol: AndroidOwnerOperationProtocolVersion::V4,
+        protocol: AndroidOwnerOperationProtocolVersion::V5,
         context,
         observed_core_generation: observed_generation,
         data_revision,

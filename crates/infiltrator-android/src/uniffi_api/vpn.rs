@@ -829,8 +829,8 @@ fn default_proxy_url() -> String {
 #[cfg(target_os = "android")]
 async fn build_vpn_configuration(proxy_endpoint: String) -> Result<VpnConfiguration, FfiStatus> {
     let tun_settings = load_vpn_tun_settings().await?;
-    let dns_result = super::settings::dns_settings().await;
-    let dns_settings = match (dns_result.status.code, dns_result.settings) {
+    let dns_result = super::settings::read_dns_settings_local().await;
+    let dns_snapshot = match (dns_result.status.code, dns_result.settings) {
         (FfiErrorCode::Ok, Some(settings)) => settings,
         (FfiErrorCode::Ok, None) => {
             return Err(FfiStatus::err(
@@ -841,11 +841,11 @@ async fn build_vpn_configuration(proxy_endpoint: String) -> Result<VpnConfigurat
         (_, _) => return Err(dns_result.status),
     };
     let mtu = tun_settings.mtu.unwrap_or(1500);
-    let ipv6 = dns_settings.ipv6.unwrap_or(true);
-    let dns_servers = if dns_settings.nameserver_configured {
-        dns_settings.nameserver
+    let ipv6 = dns_snapshot.ipv6.unwrap_or(true);
+    let dns_servers = if dns_snapshot.nameserver_configured {
+        dns_snapshot.nameserver
     } else {
-        dns_settings.default_nameserver
+        dns_snapshot.default_nameserver
     }
     .into_iter()
     .filter(|server| server.parse::<IpAddr>().is_ok())

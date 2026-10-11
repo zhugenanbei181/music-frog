@@ -18,6 +18,7 @@ use infiltrator_application::overview::UnavailableOverviewReader;
 use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::vpn_application::VpnServiceApplication;
 use infiltrator_composition::engine_backend_factory::EngineBackendFactoryRegistry;
+use infiltrator_composition::mihomo_engine_backend_provider::MihomoEngineBackendProvider;
 use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_capabilities::{
     ConnectionOperation, CoreLifecycleOperation, CoreOperation, GeoOperation, LogsOperation,
@@ -36,14 +37,13 @@ use infiltrator_ports::core_capability_provider::CoreCapabilityProvider;
 use infiltrator_ports::core_log_level::CoreLogLevelPort;
 use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
 use infiltrator_ports::engine_backend_factory::{
-    EngineBackendFactory, EngineBackendOwnerScopeBinding, EngineBackendOwnerScopeBindingResult,
-    EngineBackendPorts, EngineBackendProvider, EngineOperationPorts,
+    EngineBackendFactory, EngineBackendOwnerScopeBindingResult, EngineBackendPorts,
+    EngineBackendProvider,
 };
 use infiltrator_ports::error::PortError;
-use infiltrator_ports::outbound::OutboundPort;
 use infiltrator_ports::overview::OverviewReader;
 use infiltrator_ports::profile_configuration_transaction::{
-    ProfileConfigurationCandidateValidatorPort, ProfileConfigurationTransactionBinding,
+    ProfileConfigurationCandidateValidatorPort,
     ProfileConfigurationTransactionPort, ProfileConfigurationTransactionScope,
     UnavailableProfileConfigurationTransaction,
 };
@@ -54,13 +54,10 @@ use infiltrator_ports::runtime_gateway::RuntimeStream;
 use infiltrator_ports::secure_store::SecureStore;
 use mihomo_api::client::MihomoClient;
 use mihomo_api::core_capability_provider::MihomoCoreCapabilityProvider;
-use mihomo_api::outbound::MihomoOutboundAdapter;
 use mihomo_api::overview::ControllerOverviewReader;
 use mihomo_api::readiness::ControllerReadiness;
-use mihomo_api::routing_intent::MihomoRoutingIntentAdapter;
 use mihomo_config::endpoint::ProfileEndpointSource;
 use mihomo_config::manager::ConfigManager;
-use mihomo_config::profile_document_codec::MihomoProfileDocumentCodec;
 use mihomo_platform::android_bridge::AndroidBridge;
 use std::sync::Arc;
 
@@ -221,37 +218,23 @@ impl<S: SecureStore + 'static> EngineBackendProvider for AndroidMihomoBackendPro
             self.bridge.clone(),
             launch_spec_source,
         ));
-        let configuration = Arc::new(MihomoProfileDocumentCodec);
-        let transaction = Arc::new(ProfileConfigurationTransactionBinding::new(
-            ProfileConfigurationTransactionScope::new(configuration.scope()),
-        ));
-        let operations = match &self.controller_adapters {
+        let provider = match &self.controller_adapters {
             AndroidControllerAdapters::Available { client } => {
-                let owner_scope = Arc::new(EngineBackendOwnerScopeBinding::new(self.engine_id()));
-                let outbound: Arc<dyn OutboundPort> = Arc::new(MihomoOutboundAdapter::new(
-                    Arc::new(client.clone()),
-                    owner_scope.clone(),
-                ));
-                EngineOperationPorts::available(
-                    outbound,
-                    Arc::new(MihomoRoutingIntentAdapter::new(client.clone())),
-                    owner_scope,
-                )
+                MihomoEngineBackendProvider::new(
+                    process,
+                    Arc::clone(&self.readiness),
+                    client.clone(),
+                )?
             }
             AndroidControllerAdapters::Unavailable { failure } => {
-                EngineOperationPorts::unsupported(format!(
-                    "Mihomo typed engine operations are unavailable: {failure}"
-                ))
+                MihomoEngineBackendProvider::without_controller(
+                    process,
+                    Arc::clone(&self.readiness),
+                    failure.to_string(),
+                )?
             }
         };
-        EngineBackendPorts::new(
-            self.engine_id(),
-            process,
-            Arc::clone(&self.readiness),
-            configuration,
-            transaction,
-            operations,
-        )
+        provider.create_backend()
     }
 }
 

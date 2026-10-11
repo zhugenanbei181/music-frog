@@ -975,6 +975,137 @@
       "source_roots": [
         "android/app/src/main/java/infiltrator_android"
       ]
+    },
+    {
+      "id": "android-local-dns-settings-rust",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "dns_settings",
+      "rationale": "The per-action UniFFI entries were retired; DNS reads and writes now use the typed owner operation dispatched in the :vpn process.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-android/src/uniffi_api/owner_operation_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-android/src"
+      ]
+    },
+    {
+      "id": "android-local-dns-settings-save-rust",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "dns_settings_save",
+      "rationale": "The per-action UniFFI entries were retired; DNS reads and writes now use the typed owner operation dispatched in the :vpn process.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-android/src/uniffi_api/owner_operation_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-android/src"
+      ]
+    },
+    {
+      "id": "android-local-fake-ip-settings-rust",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "fake_ip_settings",
+      "rationale": "The per-action UniFFI entries were retired; Fake-IP settings and cache actions now use typed owner operations dispatched in the :vpn process.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-android/src/uniffi_api/owner_operation_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-android/src"
+      ]
+    },
+    {
+      "id": "android-local-fake-ip-settings-save-rust",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "fake_ip_settings_save",
+      "rationale": "The per-action UniFFI entries were retired; Fake-IP settings and cache actions now use typed owner operations dispatched in the :vpn process.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-android/src/uniffi_api/owner_operation_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-android/src"
+      ]
+    },
+    {
+      "id": "android-local-fake-ip-cache-clear-rust",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "fake_ip_cache_clear",
+      "rationale": "The per-action UniFFI entry was retired; cache clearing now uses the typed AndroidOwnerOperation through the :vpn owner.",
+      "replacement_behavior_tests": [
+        "android/app/src/test/java/com/musicfrog/infiltrator/ui/settings/fakeip/FakeIpRepositoryTest.kt",
+        "crates/infiltrator-android/src/uniffi_api/owner_operation_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-android/src"
+      ]
+    },
+    {
+      "id": "android-local-dns-settings-kotlin",
+      "kind": "public_symbol",
+      "language": "kotlin",
+      "text": "dnsSettings",
+      "rationale": "The direct per-action UniFFI bindings were retired; DNS reads and writes now use the typed AndroidOwnerOperation gateway.",
+      "replacement_behavior_tests": [
+        "android/app/src/test/java/com/musicfrog/infiltrator/ui/settings/dns/DnsRepositoryTest.kt"
+      ],
+      "source_roots": [
+        "android/app/src/main/java/infiltrator_android"
+      ]
+    },
+    {
+      "id": "android-local-dns-settings-save-kotlin",
+      "kind": "public_symbol",
+      "language": "kotlin",
+      "text": "dnsSettingsSave",
+      "rationale": "The direct per-action UniFFI bindings were retired; DNS reads and writes now use the typed AndroidOwnerOperation gateway.",
+      "replacement_behavior_tests": [
+        "android/app/src/test/java/com/musicfrog/infiltrator/ui/settings/dns/DnsRepositoryTest.kt"
+      ],
+      "source_roots": [
+        "android/app/src/main/java/infiltrator_android"
+      ]
+    },
+    {
+      "id": "android-local-fake-ip-settings-kotlin",
+      "kind": "public_symbol",
+      "language": "kotlin",
+      "text": "fakeIpSettings",
+      "rationale": "The direct per-action UniFFI bindings were retired; Fake-IP reads and writes now use the typed AndroidOwnerOperation gateway.",
+      "replacement_behavior_tests": [
+        "android/app/src/test/java/com/musicfrog/infiltrator/ui/settings/fakeip/FakeIpRepositoryTest.kt"
+      ],
+      "source_roots": [
+        "android/app/src/main/java/infiltrator_android"
+      ]
+    },
+    {
+      "id": "android-local-fake-ip-settings-save-kotlin",
+      "kind": "public_symbol",
+      "language": "kotlin",
+      "text": "fakeIpSettingsSave",
+      "rationale": "The direct per-action UniFFI bindings were retired; Fake-IP reads and writes now use the typed AndroidOwnerOperation gateway.",
+      "replacement_behavior_tests": [
+        "android/app/src/test/java/com/musicfrog/infiltrator/ui/settings/fakeip/FakeIpRepositoryTest.kt"
+      ],
+      "source_roots": [
+        "android/app/src/main/java/infiltrator_android"
+      ]
+    },
+    {
+      "id": "android-local-fake-ip-cache-clear-kotlin",
+      "kind": "public_symbol",
+      "language": "kotlin",
+      "text": "fakeIpCacheClear",
+      "rationale": "The direct per-action UniFFI binding was retired; cache clearing now uses the typed AndroidOwnerOperation gateway and revision-fenced readback.",
+      "replacement_behavior_tests": [
+        "android/app/src/test/java/com/musicfrog/infiltrator/ui/settings/fakeip/FakeIpRepositoryTest.kt"
+      ],
+      "source_roots": [
+        "android/app/src/main/java/infiltrator_android"
+      ]
     }
   ]
 }

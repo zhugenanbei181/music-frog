@@ -2,23 +2,21 @@ package com.musicfrog.infiltrator.ui.settings.routing
 
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
+import com.musicfrog.infiltrator.ui.common.AndroidOwnerOperationExchange
 import com.musicfrog.infiltrator.ui.common.AppFailure
 import com.musicfrog.infiltrator.ui.common.FailureTextKey
 import com.musicfrog.infiltrator.ui.common.ObservationRevision
+import com.musicfrog.infiltrator.ui.common.UniFfiAndroidOwnerOperationGateway
 import com.musicfrog.infiltrator.ui.common.localizedFailure
 import com.musicfrog.infiltrator.ui.common.toAppFailure
 import infiltrator_android.AndroidAppRoutingSnapshot
 import infiltrator_android.AndroidOwnerDataSnapshotData
 import infiltrator_android.AndroidOwnerOperation
-import infiltrator_android.AndroidOwnerOperationClientResult
 import infiltrator_android.AndroidOwnerOperationReadback
 import infiltrator_android.AndroidOwnerOperationReply
 import infiltrator_android.FfiErrorCode
-import infiltrator_android.androidExecuteOwnerOperation
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
 
 internal sealed interface AppRoutingRepositoryResult {
     data class Completed(val observation: AppRoutingObservation) : AppRoutingRepositoryResult
@@ -44,18 +42,20 @@ internal object UniFfiAppRoutingRepository : AppRoutingRepository {
     override suspend fun execute(
         operation: AndroidOwnerOperation,
         timeoutMs: Long,
-    ): AppRoutingRepositoryResult = try {
-        when (val result = withTimeoutOrNull(timeoutMs) { androidExecuteOwnerOperation(operation) }) {
-            null -> AppRoutingRepositoryResult.TimedOut(localizedFailure(FailureTextKey.NotReady).toAppFailure())
-            is AndroidOwnerOperationClientResult.Completed -> result.reply.toAppRoutingRepositoryResult()
-            is AndroidOwnerOperationClientResult.Failed -> result.status.toRepositoryFailure(
+    ): AppRoutingRepositoryResult {
+        val exchange = UniFfiAndroidOwnerOperationGateway.execute(operation, timeoutMs)
+        return when (exchange) {
+            is AndroidOwnerOperationExchange.Completed -> exchange.reply.toAppRoutingRepositoryResult()
+            is AndroidOwnerOperationExchange.Failed -> AppRoutingRepositoryResult.Failed(
+                exchange.failure,
                 AcceptedAppRoutingSnapshot.Missing,
             )
+            is AndroidOwnerOperationExchange.Cancelled -> AppRoutingRepositoryResult.Cancelled(
+                exchange.failure,
+                AcceptedAppRoutingSnapshot.Missing,
+            )
+            is AndroidOwnerOperationExchange.TimedOut -> AppRoutingRepositoryResult.TimedOut(exchange.failure)
         }
-    } catch (error: CancellationException) {
-        throw error
-    } catch (error: Exception) {
-        AppRoutingRepositoryResult.Failed(error.toAppFailure(), AcceptedAppRoutingSnapshot.Missing)
     }
 }
 
@@ -109,17 +109,6 @@ private fun AndroidAppRoutingSnapshot.toObservation(
         revision = reply.dataRevision,
     ),
 )
-
-private fun infiltrator_android.FfiStatus.toRepositoryFailure(
-    snapshot: AcceptedAppRoutingSnapshot,
-): AppRoutingRepositoryResult = when (code) {
-    FfiErrorCode.CANCELED -> AppRoutingRepositoryResult.Cancelled(toAppFailure(), snapshot)
-    FfiErrorCode.OK -> AppRoutingRepositoryResult.Failed(
-        localizedFailure(FailureTextKey.Internal).toAppFailure(),
-        snapshot,
-    )
-    else -> AppRoutingRepositoryResult.Failed(toAppFailure(), snapshot)
-}
 
 internal interface InstalledAppsProvider {
     suspend fun loadInstalledApps(): List<AppItem>

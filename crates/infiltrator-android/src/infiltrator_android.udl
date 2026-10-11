@@ -18,21 +18,6 @@ namespace infiltrator_android {
   [Async]
   FfiStatus connections_close_all();
 
-  [Async]
-  DnsSettingsResult dns_settings();
-
-  [Async]
-  DnsSettingsResult dns_settings_save(DnsSettingsPatch patch);
-
-  [Async]
-  FakeIpSettingsResult fake_ip_settings();
-
-  [Async]
-  FakeIpSettingsResult fake_ip_settings_save(FakeIpSettingsPatch patch);
-
-  [Async]
-  FfiBoolResult fake_ip_cache_clear();
-
 };
 
 enum FfiErrorCode {

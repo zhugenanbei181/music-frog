@@ -17,6 +17,7 @@ import infiltrator_android.AndroidOwnerOperationReply
 import infiltrator_android.FakeIpSettings
 import infiltrator_android.FakeIpSettingsPatch
 import infiltrator_android.FakeIpSettingsResult
+import infiltrator_android.FfiBoolResult
 import infiltrator_android.FfiErrorCode
 import infiltrator_android.FfiStatus
 import kotlinx.coroutines.runBlocking
@@ -26,7 +27,34 @@ import org.junit.Test
 
 class FakeIpRepositoryTest {
     @Test
-    fun readUsesV3OwnerSessionCoreGenerationAndDataRevision() = runBlocking {
+    fun cacheClearUsesOwnerOperationAndMatchesRevisionToObservedMutation() = runBlocking {
+        val removedGateway = ReplyGateway(exchange(cacheClearReply(removedFile = true, dataRevision = 11uL)))
+        val removed = UniFfiFakeIpRepository(removedGateway)
+            .clearHostFakeIpFileCache(1_000L)
+
+        assertEquals(FakeIpCacheClearResult.Completed(removedFile = true), removed)
+        assertEquals(AndroidOwnerOperation.FakeIpCacheClear, removedGateway.lastOperation)
+
+        val emptyGateway = ReplyGateway(exchange(cacheClearReply(removedFile = false, dataRevision = 10uL)))
+        val empty = UniFfiFakeIpRepository(emptyGateway)
+            .clearHostFakeIpFileCache(1_000L)
+
+        assertEquals(FakeIpCacheClearResult.Completed(removedFile = false), empty)
+        assertEquals(AndroidOwnerOperation.FakeIpCacheClear, emptyGateway.lastOperation)
+    }
+
+    @Test
+    fun cacheClearRejectsUnfencedOwnerReadback() = runBlocking {
+        val gateway = ReplyGateway(exchange(cacheClearReply(removedFile = true, dataRevision = 10uL)))
+
+        val result = UniFfiFakeIpRepository(gateway).clearHostFakeIpFileCache(1_000L)
+
+        assertTrue(result is FakeIpCacheClearResult.Unconfirmed)
+        assertEquals(AndroidOwnerOperation.FakeIpCacheClear, gateway.lastOperation)
+    }
+
+    @Test
+    fun readUsesV5OwnerSessionCoreGenerationAndDataRevision() = runBlocking {
         val settings = settings()
         val gateway = ReplyGateway(exchange(reply(settings, dataRevision = 10uL)))
 
@@ -138,7 +166,7 @@ class FakeIpRepositoryTest {
         observedCoreGeneration: ULong = 7uL,
         expectedCoreGeneration: ULong = observedCoreGeneration,
     ) = AndroidOwnerOperationReply(
-        protocol = AndroidOwnerOperationProtocolVersion.V4,
+        protocol = AndroidOwnerOperationProtocolVersion.V5,
         context = AndroidOwnerOperationContext(
             clientSessionId = "client-a",
             expectedOwnerSessionId = expectedOwnerSessionId,
@@ -157,6 +185,27 @@ class FakeIpRepositoryTest {
         ),
         readback = AndroidOwnerOperationReadback.FakeIpSettings(
             FakeIpSettingsResult(FfiStatus(FfiErrorCode.OK, null), readback),
+        ),
+    )
+
+    private fun cacheClearReply(
+        removedFile: Boolean,
+        dataRevision: ULong,
+    ) = AndroidOwnerOperationReply(
+        protocol = AndroidOwnerOperationProtocolVersion.V5,
+        context = AndroidOwnerOperationContext(
+            clientSessionId = "client-a",
+            expectedOwnerSessionId = "owner-a",
+            ownerSessionId = "owner-a",
+            expectedCoreGeneration = 7uL,
+            expectedDataRevision = 10uL,
+        ),
+        observedCoreGeneration = 7uL,
+        dataRevision = dataRevision,
+        dataDomain = AndroidOwnerDataDomain.FAKE_IP_CACHE,
+        snapshot = null,
+        readback = AndroidOwnerOperationReadback.FakeIpCacheClear(
+            FfiBoolResult(FfiStatus(FfiErrorCode.OK, null), removedFile),
         ),
     )
 
