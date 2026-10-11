@@ -53,6 +53,13 @@ impl CoreCapabilityApplication {
         let matrix = provider
             .matrix_for(engine_id, core_version)
             .map_err(capability_matrix_failure)?;
+        if let Err(error) = matrix.validate() {
+            return Err(Failure::new(
+                ErrorCode::InvalidState,
+                format!("core capability provider returned an invalid operation matrix: {error}"),
+                false,
+            ));
+        }
         if matrix.scope.engine_id != *engine_id
             || matrix.scope.core_version.as_ref() != core_version
             || matrix.scope.binary_target != EngineBinaryTarget::current()

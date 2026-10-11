@@ -1,5 +1,6 @@
 //! Engine-neutral, operation-level capability declarations.
 
+use crate::adapter_operation_declaration::AdapterOperationOwner;
 use crate::core_identity::{CoreVersion, EngineId};
 use crate::surface::HostKind;
 use serde::de::Error as _;
@@ -62,6 +63,18 @@ impl CoreOperation {
             | Self::ProxyControl(ProxyControlOperation::GetRoutingIntent)
             | Self::ProxyControl(ProxyControlOperation::SetRoutingIntent)
             | Self::CoreGarbageCollection(_) => CoreVersionRequirement::RequiresActiveVersion,
+        }
+    }
+
+    /// The only operations that may be authorized by a shared lifecycle or
+    /// version-management owner instead of engine API evidence.
+    pub const fn owner_managed_owner(self) -> Option<AdapterOperationOwner> {
+        match self {
+            Self::Lifecycle(_) => Some(AdapterOperationOwner::CoreLifecycle),
+            Self::Version(VersionOperation::Inspect | VersionOperation::Rollback) => {
+                Some(AdapterOperationOwner::VersionManagement)
+            }
+            _ => None,
         }
     }
 }
@@ -430,6 +443,7 @@ impl CoreCapabilityKey {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EngineCapabilityDecision {
     Supported,
+    OwnerManaged { owner: AdapterOperationOwner },
     ReadOnly,
     Experimental,
     Unsupported { reason: String },
@@ -566,6 +580,12 @@ impl CoreCapabilityResolution {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CoreCapabilityMatrixError {
     DuplicateOperation(CoreOperation),
+    OwnerManagedOperationNotAllowed(CoreOperation),
+    OwnerManagedOperationMismatch {
+        operation: CoreOperation,
+        expected: AdapterOperationOwner,
+        actual: AdapterOperationOwner,
+    },
 }
 
 impl Display for CoreCapabilityMatrixError {
@@ -577,6 +597,20 @@ impl Display for CoreCapabilityMatrixError {
                     "duplicate core capability operation: {operation:?}"
                 )
             }
+            Self::OwnerManagedOperationNotAllowed(operation) => {
+                write!(
+                    formatter,
+                    "owner-managed capability is not allowed for {operation:?}"
+                )
+            }
+            Self::OwnerManagedOperationMismatch {
+                operation,
+                expected,
+                actual,
+            } => write!(
+                formatter,
+                "owner-managed capability for {operation:?} requires {expected:?}, received {actual:?}"
+            ),
         }
     }
 }
@@ -594,15 +628,40 @@ impl CoreCapabilityMatrix {
         scope: CoreCapabilityScope,
         entries: Vec<CoreCapabilityEntry>,
     ) -> Result<Self, CoreCapabilityMatrixError> {
+        Self::validate_entries(&entries)?;
+        Ok(Self { scope, entries })
+    }
+
+    /// Revalidate the public matrix contents at trust boundaries. Providers
+    /// may construct a valid matrix and then mutate its public entries.
+    pub fn validate(&self) -> Result<(), CoreCapabilityMatrixError> {
+        Self::validate_entries(&self.entries)
+    }
+
+    fn validate_entries(entries: &[CoreCapabilityEntry]) -> Result<(), CoreCapabilityMatrixError> {
         let mut operations = HashSet::with_capacity(entries.len());
-        for entry in &entries {
+        for entry in entries {
             if !operations.insert(entry.operation) {
                 return Err(CoreCapabilityMatrixError::DuplicateOperation(
                     entry.operation,
                 ));
             }
+            if let EngineCapabilityDecision::OwnerManaged { owner } = &entry.engine {
+                let Some(expected) = entry.operation.owner_managed_owner() else {
+                    return Err(CoreCapabilityMatrixError::OwnerManagedOperationNotAllowed(
+                        entry.operation,
+                    ));
+                };
+                if *owner != expected {
+                    return Err(CoreCapabilityMatrixError::OwnerManagedOperationMismatch {
+                        operation: entry.operation,
+                        expected,
+                        actual: *owner,
+                    });
+                }
+            }
         }
-        Ok(Self { scope, entries })
+        Ok(())
     }
 
     pub fn resolve(&self, key: CoreCapabilityKey) -> CoreCapabilityResolution {
@@ -719,6 +778,12 @@ pub enum CoreCapabilitySnapshotError {
     ScopeMismatch,
     DuplicateOperation(CoreOperation),
     MissingOperation(CoreOperation),
+    OwnerManagedOperationNotAllowed(CoreOperation),
+    OwnerManagedOperationMismatch {
+        operation: CoreOperation,
+        expected: AdapterOperationOwner,
+        actual: AdapterOperationOwner,
+    },
 }
 
 impl Display for CoreCapabilitySnapshotError {
@@ -736,6 +801,20 @@ impl Display for CoreCapabilitySnapshotError {
             Self::MissingOperation(operation) => {
                 write!(formatter, "missing capability resolution for {operation:?}")
             }
+            Self::OwnerManagedOperationNotAllowed(operation) => {
+                write!(
+                    formatter,
+                    "owner-managed capability is not allowed for {operation:?}"
+                )
+            }
+            Self::OwnerManagedOperationMismatch {
+                operation,
+                expected,
+                actual,
+            } => write!(
+                formatter,
+                "owner-managed capability for {operation:?} requires {expected:?}, received {actual:?}"
+            ),
         }
     }
 }
@@ -755,6 +834,21 @@ fn validate_capability_resolutions(
             return Err(CoreCapabilitySnapshotError::DuplicateOperation(
                 resolution.key.operation,
             ));
+        }
+        if let Some(EngineCapabilityDecision::OwnerManaged { owner }) = resolution.engine.as_ref() {
+            let operation = resolution.key.operation;
+            let Some(expected) = operation.owner_managed_owner() else {
+                return Err(
+                    CoreCapabilitySnapshotError::OwnerManagedOperationNotAllowed(operation),
+                );
+            };
+            if *owner != expected {
+                return Err(CoreCapabilitySnapshotError::OwnerManagedOperationMismatch {
+                    operation,
+                    expected,
+                    actual: *owner,
+                });
+            }
         }
     }
     if let Some(operation) = CoreOperation::all()
@@ -795,6 +889,7 @@ fn apply_engine_decision(
 ) {
     match decision {
         EngineCapabilityDecision::Supported => {}
+        EngineCapabilityDecision::OwnerManaged { .. } => {}
         EngineCapabilityDecision::ReadOnly => *access = CapabilityAccess::ReadOnly,
         EngineCapabilityDecision::Experimental => *maturity = CapabilityMaturity::Experimental,
         EngineCapabilityDecision::Unsupported { reason } => {
@@ -859,21 +954,63 @@ fn apply_adapter_decision(
     }
 }
 
+#[derive(Clone, Copy)]
+enum CapabilityBlockerClass {
+    None,
+    AdapterMissing,
+    VersionUnavailable,
+    HostUnavailable,
+    Unsupported,
+}
+
+impl CapabilityBlockerClass {
+    fn include(self, blocker: &CapabilityBlocker) -> Self {
+        use CapabilityBlocker::{AdapterMissing, HostUnavailable, Unsupported, VersionUnavailable};
+
+        match self {
+            Self::Unsupported => Self::Unsupported,
+            Self::HostUnavailable => match blocker {
+                Unsupported { .. } => Self::Unsupported,
+                HostUnavailable { .. } | VersionUnavailable { .. } | AdapterMissing { .. } => {
+                    Self::HostUnavailable
+                }
+            },
+            Self::VersionUnavailable => match blocker {
+                Unsupported { .. } => Self::Unsupported,
+                HostUnavailable { .. } => Self::HostUnavailable,
+                VersionUnavailable { .. } | AdapterMissing { .. } => Self::VersionUnavailable,
+            },
+            Self::AdapterMissing => match blocker {
+                Unsupported { .. } => Self::Unsupported,
+                HostUnavailable { .. } => Self::HostUnavailable,
+                VersionUnavailable { .. } => Self::VersionUnavailable,
+                AdapterMissing { .. } => Self::AdapterMissing,
+            },
+            Self::None => match blocker {
+                Unsupported { .. } => Self::Unsupported,
+                HostUnavailable { .. } => Self::HostUnavailable,
+                VersionUnavailable { .. } => Self::VersionUnavailable,
+                AdapterMissing { .. } => Self::AdapterMissing,
+            },
+        }
+    }
+}
+
 fn status_from_blockers(blockers: Vec<CapabilityBlocker>) -> CoreCapabilityStatus {
-    match blockers.first() {
-        Some(CapabilityBlocker::Unsupported { .. }) => {
-            CoreCapabilityStatus::Unsupported { blockers }
-        }
-        Some(CapabilityBlocker::VersionUnavailable { .. }) => {
-            CoreCapabilityStatus::VersionUnavailable { blockers }
-        }
-        Some(CapabilityBlocker::HostUnavailable { .. }) => {
+    let classification = blockers.iter().fold(
+        CapabilityBlockerClass::None,
+        CapabilityBlockerClass::include,
+    );
+    match classification {
+        CapabilityBlockerClass::Unsupported => CoreCapabilityStatus::Unsupported { blockers },
+        CapabilityBlockerClass::HostUnavailable => {
             CoreCapabilityStatus::HostUnavailable { blockers }
         }
-        Some(CapabilityBlocker::AdapterMissing { .. }) => {
-            CoreCapabilityStatus::AdapterMissing { blockers }
+        CapabilityBlockerClass::VersionUnavailable => {
+            CoreCapabilityStatus::VersionUnavailable { blockers }
         }
-        None => CoreCapabilityStatus::Unregistered,
+        CapabilityBlockerClass::AdapterMissing => CoreCapabilityStatus::AdapterMissing { blockers },
+        CapabilityBlockerClass::None => CoreCapabilityStatus::Unregistered,
     }
 }
 

@@ -3,14 +3,15 @@ use super::{
     is_canonical_mihomo_version, operation_declarations,
 };
 use infiltrator_contract::adapter_operation_declaration::{
-    AdapterOperationDeclarationFile, AdapterOperationSupport, OperationEvidenceAsset,
-    OperationEvidenceId, OperationEvidenceLock, ValidatedAdapterOperationDeclarations,
+    AdapterOperationDeclarationFile, AdapterOperationOwner, AdapterOperationSupport,
+    OperationEvidenceAsset, OperationEvidenceId, OperationEvidenceLock,
+    ValidatedAdapterOperationDeclarations,
 };
 use infiltrator_contract::core_capabilities::{
     AdapterCapabilityDecision, AdapterRevision, ConnectionOperation, CoreCapabilityKey,
-    CoreCapabilityStatus, CoreOperation, CoreVersionRequirement, DnsOperation, EngineBinaryTarget,
-    EngineCapabilityDecision, OutboundOperation, ProfileOperation, RulesOperation,
-    SubscriptionOperation, TunOperation, VersionOperation,
+    CoreCapabilityStatus, CoreLifecycleOperation, CoreOperation, CoreVersionRequirement,
+    DnsOperation, EngineBinaryTarget, EngineCapabilityDecision, OutboundOperation,
+    ProfileOperation, RulesOperation, SubscriptionOperation, TunOperation, VersionOperation,
 };
 use infiltrator_contract::core_identity::{CoreVersion, EngineId};
 use infiltrator_contract::surface::HostKind;
@@ -83,7 +84,6 @@ fn version_tuple(version: &str) -> (u64, u64, u64) {
 fn version_install_declarations(
     support: AdapterOperationSupport,
 ) -> ValidatedAdapterOperationDeclarations {
-    let registered_evidence = matches!(&support, AdapterOperationSupport::Supported { .. });
     let mut declaration: AdapterOperationDeclarationFile =
         serde_json::from_str(MIHOMO_OPERATION_DECLARATION).expect("Mihomo declaration");
     let install = declaration
@@ -92,6 +92,16 @@ fn version_install_declarations(
         .find(|entry| entry.operation == CoreOperation::Version(VersionOperation::Install))
         .expect("version install is registered");
     install.support = support;
+    let registered_operations = declaration
+        .operations
+        .iter()
+        .filter_map(|entry| match &entry.support {
+            AdapterOperationSupport::Supported { evidence_id } => Some(evidence_id.clone()),
+            AdapterOperationSupport::OwnerManaged { .. }
+            | AdapterOperationSupport::EvidenceOpen { .. }
+            | AdapterOperationSupport::Unsupported { .. } => None,
+        })
+        .collect::<HashSet<_>>();
 
     let evidence_lock = OperationEvidenceLock::new(
         EngineId::new("mihomo").expect("Mihomo engine ID"),
@@ -99,11 +109,7 @@ fn version_install_declarations(
             version: CoreVersion::new("v1.19.32").expect("version"),
             target: EngineBinaryTarget::X86_64UnknownLinuxGnu,
             adapter_revision: AdapterRevision::new(1),
-            operations: if registered_evidence {
-                HashSet::from([OperationEvidenceId::new("version.install").expect("evidence ID")])
-            } else {
-                HashSet::new()
-            },
+            operations: registered_operations,
         }],
     )
     .expect("target-scoped evidence lock");
@@ -173,12 +179,15 @@ fn only_manifest_verified_operations_are_supported_at_exact_locked_versions() {
                     &entry.engine,
                     EngineCapabilityDecision::Unsupported { .. }
                 )),
-                AdapterOperationSupport::OwnerManaged { .. } => {
+                AdapterOperationSupport::OwnerManaged { owner } => {
                     assert!(matches!(
                         operation.version_requirement(),
                         CoreVersionRequirement::IndependentOfActiveVersion
                     ));
-                    assert_eq!(entry.engine, EngineCapabilityDecision::Supported);
+                    assert_eq!(
+                        entry.engine,
+                        EngineCapabilityDecision::OwnerManaged { owner: *owner }
+                    );
                 }
                 AdapterOperationSupport::EvidenceOpen { .. } => {
                     match operation.version_requirement() {
@@ -285,6 +294,36 @@ fn supported_binary_evidence_still_requires_an_owner_composed_adapter_port() {
     let resolution = matrix.resolve(CoreCapabilityKey::new(matrix.scope.clone(), operation));
 
     assert_eq!(resolution.engine, Some(EngineCapabilityDecision::Supported));
+    assert!(matches!(
+        resolution.status,
+        CoreCapabilityStatus::AdapterMissing { .. }
+    ));
+}
+
+#[test]
+fn owner_managed_lifecycle_still_requires_an_owner_composed_port() {
+    let operation = CoreOperation::Lifecycle(CoreLifecycleOperation::Start);
+    let provider = MihomoCoreCapabilityProvider::new_for_target(
+        HostKind::Desktop,
+        EngineBinaryTarget::X86_64UnknownLinuxGnu,
+        [],
+    );
+    let engine_id = EngineId::new("mihomo").expect("valid engine ID");
+    let matrix = provider
+        .matrix_for(&engine_id, None)
+        .expect("Mihomo lifecycle capability matrix");
+    let resolution = matrix.resolve(CoreCapabilityKey::new(matrix.scope.clone(), operation));
+
+    assert_eq!(
+        resolution.engine,
+        Some(EngineCapabilityDecision::OwnerManaged {
+            owner: AdapterOperationOwner::CoreLifecycle,
+        })
+    );
+    assert!(matches!(
+        resolution.adapter,
+        Some(AdapterCapabilityDecision::AdapterMissing { .. })
+    ));
     assert!(matches!(
         resolution.status,
         CoreCapabilityStatus::AdapterMissing { .. }

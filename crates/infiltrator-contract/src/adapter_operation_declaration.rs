@@ -32,7 +32,7 @@ pub struct AdapterOperationDeclaration {
 }
 
 /// Ownership for operations provided outside an engine's controller API.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AdapterOperationOwner {
     CoreLifecycle,
@@ -357,7 +357,7 @@ fn validate_support(
             }
         }
         AdapterOperationSupport::OwnerManaged { owner } => {
-            let expected = owner_for(operation).ok_or(
+            let expected = operation.owner_managed_owner().ok_or(
                 AdapterOperationDeclarationError::OwnerManagedOperationNotAllowed(operation),
             )?;
             if *owner != expected {
@@ -380,18 +380,6 @@ fn validate_support(
         | AdapterOperationSupport::Unsupported { .. } => {}
     }
     Ok(())
-}
-
-fn owner_for(operation: CoreOperation) -> Option<AdapterOperationOwner> {
-    use crate::core_capabilities::{CoreOperation, VersionOperation};
-
-    match operation {
-        CoreOperation::Lifecycle(_) => Some(AdapterOperationOwner::CoreLifecycle),
-        CoreOperation::Version(VersionOperation::Inspect | VersionOperation::Rollback) => {
-            Some(AdapterOperationOwner::VersionManagement)
-        }
-        _ => None,
-    }
 }
 
 fn canonical_evidence_id(operation: CoreOperation) -> &'static str {

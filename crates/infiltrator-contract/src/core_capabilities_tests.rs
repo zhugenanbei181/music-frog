@@ -8,6 +8,7 @@ use super::{
     HostCapabilityDecision, LogsOperation, OutboundOperation, ProfileOperation, ProviderOperation,
     ProxyControlOperation, RulesOperation, SubscriptionOperation, TunOperation, VersionOperation,
 };
+use crate::adapter_operation_declaration::AdapterOperationOwner;
 use crate::core_identity::{CoreVersion, EngineId};
 use crate::surface::HostKind;
 
@@ -249,6 +250,103 @@ fn supported_decisions_resolve_to_stable_supported_access() {
 }
 
 #[test]
+fn owner_managed_decisions_keep_the_authoritative_owner_in_the_resolution() {
+    let operations = [
+        (
+            CoreOperation::Lifecycle(CoreLifecycleOperation::Start),
+            AdapterOperationOwner::CoreLifecycle,
+        ),
+        (
+            CoreOperation::Version(VersionOperation::Inspect),
+            AdapterOperationOwner::VersionManagement,
+        ),
+        (
+            CoreOperation::Version(VersionOperation::Rollback),
+            AdapterOperationOwner::VersionManagement,
+        ),
+    ];
+
+    for (operation, owner) in operations {
+        let scope = scope(None);
+        let matrix = CoreCapabilityMatrix::new(
+            scope.clone(),
+            vec![entry(
+                operation,
+                EngineCapabilityDecision::OwnerManaged { owner },
+                HostCapabilityDecision::Supported,
+                AdapterCapabilityDecision::Supported,
+            )],
+        )
+        .expect("explicit owner matches its Core operation");
+        let resolution = matrix.resolve(key(scope, operation));
+
+        assert_eq!(
+            resolution.engine,
+            Some(EngineCapabilityDecision::OwnerManaged { owner })
+        );
+        assert_eq!(
+            resolution.status,
+            CoreCapabilityStatus::Available {
+                access: CapabilityAccess::Supported,
+                maturity: CapabilityMaturity::Stable,
+            }
+        );
+    }
+}
+
+#[test]
+fn owner_managed_authority_cannot_be_assigned_to_engine_operations() {
+    let operation = CoreOperation::Version(VersionOperation::Install);
+    let result = CoreCapabilityMatrix::new(
+        scope(None),
+        vec![entry(
+            operation,
+            EngineCapabilityDecision::OwnerManaged {
+                owner: AdapterOperationOwner::VersionManagement,
+            },
+            HostCapabilityDecision::Supported,
+            AdapterCapabilityDecision::Supported,
+        )],
+    );
+
+    assert!(matches!(
+        result,
+        Err(
+            super::CoreCapabilityMatrixError::OwnerManagedOperationNotAllowed(
+                CoreOperation::Version(VersionOperation::Install)
+            )
+        )
+    ));
+}
+
+#[test]
+fn owner_managed_authority_must_match_its_lifecycle_or_version_owner() {
+    let operation = CoreOperation::Lifecycle(CoreLifecycleOperation::Stop);
+    let result = CoreCapabilityMatrix::new(
+        scope(None),
+        vec![entry(
+            operation,
+            EngineCapabilityDecision::OwnerManaged {
+                owner: AdapterOperationOwner::VersionManagement,
+            },
+            HostCapabilityDecision::Supported,
+            AdapterCapabilityDecision::Supported,
+        )],
+    );
+
+    assert!(matches!(
+        result,
+        Err(
+            super::CoreCapabilityMatrixError::OwnerManagedOperationMismatch {
+                operation: CoreOperation::Lifecycle(CoreLifecycleOperation::Stop),
+                expected: AdapterOperationOwner::CoreLifecycle,
+                actual: AdapterOperationOwner::VersionManagement,
+            }
+        )
+    ));
+}
+
+#[test]
 fn published_capability_snapshot_contains_owner_resolved_status_for_every_operation() {
     let operation = CoreOperation::Outbound(OutboundOperation::Select);
     let scope = scope(Some("1.19.0"));
@@ -298,6 +396,30 @@ fn published_capability_snapshot_contains_owner_resolved_status_for_every_operat
     assert!(
         serde_json::from_value::<CoreCapabilitySnapshot>(
             serde_json::to_value(&stale_resolution).expect("serialize stale snapshot")
+        )
+        .is_err()
+    );
+
+    let mut forged_owner = snapshot.clone();
+    let selected_resolution = forged_owner
+        .resolutions
+        .iter_mut()
+        .find(|resolution| resolution.key.operation == operation)
+        .expect("selected operation has a resolution");
+    selected_resolution.engine = Some(EngineCapabilityDecision::OwnerManaged {
+        owner: AdapterOperationOwner::CoreLifecycle,
+    });
+    assert!(matches!(
+        forged_owner.validate(),
+        Err(
+            super::CoreCapabilitySnapshotError::OwnerManagedOperationNotAllowed(
+                CoreOperation::Outbound(OutboundOperation::Select)
+            )
+        )
+    ));
+    assert!(
+        serde_json::from_value::<CoreCapabilitySnapshot>(
+            serde_json::to_value(&forged_owner).expect("serialize forged owner snapshot")
         )
         .is_err()
     );
@@ -510,6 +632,39 @@ fn missing_adapter_is_distinct_from_an_unsupported_operation() {
         resolution.status,
         CoreCapabilityStatus::AdapterMissing { blockers }
             if blockers.len() == 1
+    ));
+}
+
+#[test]
+fn host_target_mismatch_remains_the_effective_blocker_without_engine_evidence() {
+    let operation = CoreOperation::Outbound(OutboundOperation::List);
+    let scope = CoreCapabilityScope::new_for_target(
+        EngineId::new("mihomo").expect("valid engine ID"),
+        Some(CoreVersion::new("v1.19.32").expect("valid version")),
+        HostKind::Desktop,
+        EngineBinaryTarget::Aarch64LinuxAndroid,
+        AdapterRevision::new(1),
+    );
+    let matrix = CoreCapabilityMatrix::new(
+        scope.clone(),
+        vec![entry(
+            operation,
+            EngineCapabilityDecision::VersionUnavailable {
+                reason: "no operation evidence for Android target".to_owned(),
+            },
+            HostCapabilityDecision::HostUnavailable {
+                reason: "host and binary target do not match".to_owned(),
+            },
+            AdapterCapabilityDecision::AdapterMissing {
+                reason: "no adapter port".to_owned(),
+            },
+        )],
+    )
+    .expect("unique typed operation");
+
+    assert!(matches!(
+        matrix.resolve(key(scope, operation)).status,
+        CoreCapabilityStatus::HostUnavailable { .. }
     ));
 }
 

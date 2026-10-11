@@ -163,6 +163,44 @@ async fn stale_core_generation_is_rejected_before_the_handler_runs() {
 }
 
 #[tokio::test]
+async fn expired_owner_scope_is_rejected_before_backend_capability_dispatch() {
+    let app = application(
+        FakeProcess {
+            running: AtomicBool::new(false),
+            fail_start: false,
+            fail_stop: false,
+        },
+        Ok("http://127.0.0.1:9090".to_owned()),
+    );
+    let handler_calls = Arc::new(AtomicUsize::new(0));
+    app.install_command_handler(Arc::new(CountingCommandHandler(handler_calls.clone())));
+    let expired_owner_scope = app.snapshot().scope().expect("owner Core scope");
+
+    assert!(matches!(
+        test_execute_result_at_current_scope(&app, CommandIntent::StartCore).await,
+        CommandResult::Completed { .. }
+    ));
+    app.drain_events();
+    let outcome = app
+        .execute_scoped(CoreCommandRequest {
+            scope: expired_owner_scope,
+            intent: CommandIntent::GetRoutingIntent,
+        })
+        .await;
+
+    assert!(matches!(
+        outcome.result,
+        CommandResult::Rejected { failure, .. } if failure.code == ErrorCode::InvalidState
+    ));
+    assert_eq!(handler_calls.load(Ordering::SeqCst), 0);
+    assert!(
+        app.drain_events()
+            .iter()
+            .all(|event| !matches!(event, CoreEvent::CommandAccepted { .. }))
+    );
+}
+
+#[tokio::test]
 async fn tracked_scoped_dispatch_rejects_old_scope_and_completes_current_scope() {
     let app = application(
         FakeProcess {

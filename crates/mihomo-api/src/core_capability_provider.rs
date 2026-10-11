@@ -226,7 +226,9 @@ fn engine_decision(
         AdapterOperationSupport::Unsupported { reason } => EngineCapabilityDecision::Unsupported {
             reason: reason.clone(),
         },
-        AdapterOperationSupport::OwnerManaged { .. } => EngineCapabilityDecision::Supported,
+        AdapterOperationSupport::OwnerManaged { owner } => {
+            EngineCapabilityDecision::OwnerManaged { owner: *owner }
+        }
         AdapterOperationSupport::EvidenceOpen { reason } => {
             let scope = active_version.map_or_else(
                 || {

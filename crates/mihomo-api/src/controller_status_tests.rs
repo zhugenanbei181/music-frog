@@ -1,10 +1,12 @@
 //! test-intent: behavior
 use crate::client::MihomoClient;
+use crate::runtime_gateway::network_error;
 use crate::types::ConfigResponse;
 use infiltrator_contract::command::CoreLogLevel;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_ports::core_log_level::CoreLogLevelPort;
 use infiltrator_ports::error::PortError;
+use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use mockito::Server;
 use serde_json::json;
 
@@ -21,7 +23,7 @@ async fn controller_permission_denial_is_typed_even_when_the_body_contains_valid
         .await;
     let client = MihomoClient::new(&server.url(), None).unwrap();
     let error = client.get_proxies().await.unwrap_err();
-    let failure = Failure::from(error);
+    let failure = Failure::from(network_error(error));
     assert_eq!(failure.code, ErrorCode::Authentication);
     assert!(!failure.retryable);
     mock.assert_async().await;

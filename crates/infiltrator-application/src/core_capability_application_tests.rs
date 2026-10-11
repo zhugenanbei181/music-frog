@@ -1,4 +1,5 @@
 use super::*;
+use infiltrator_contract::adapter_operation_declaration::AdapterOperationOwner;
 use infiltrator_contract::core_capabilities::{
     AdapterCapabilityDecision, AdapterRevision, CoreCapabilityEntry, CoreOperation,
     EngineBinaryTarget, EngineCapabilityDecision, HostCapabilityDecision, ProfileOperation,
@@ -188,4 +189,40 @@ fn capability_matrix_with_zero_adapter_revision_is_rejected() {
     let application = CoreCapabilityApplication::new(Arc::new(FixedMatrixProvider(matrix)));
 
     assert!(application.matrix_for(&engine, Some(&version)).is_err());
+}
+
+#[test]
+fn capability_application_revalidates_owner_authority_after_provider_return() {
+    let engine = EngineId::new("mihomo").expect("valid engine ID");
+    let version = CoreVersion::new("v1.19.32").expect("valid version");
+    let target = EngineBinaryTarget::current();
+    let operation = CoreOperation::Profile(ProfileOperation::Validate);
+    let mut matrix = supported_matrix_for(CoreCapabilityScope::new_for_target(
+        engine.clone(),
+        Some(version.clone()),
+        target.host_kind().expect("registered build target"),
+        target,
+        AdapterRevision::new(1),
+    ));
+    matrix.entries[0].engine = EngineCapabilityDecision::OwnerManaged {
+        owner: AdapterOperationOwner::CoreLifecycle,
+    };
+    let application = CoreCapabilityApplication::new(Arc::new(FixedMatrixProvider(matrix)));
+
+    assert!(matches!(
+        application.resolve(
+            Some(&CoreScope {
+                identity: CoreIdentity::new(
+                    engine,
+                    CoreInstanceId::new("test-core").expect("valid instance ID"),
+                    Some(version),
+                ),
+                generation: CoreGeneration::new(1),
+                session_token: None,
+            }),
+            operation,
+        ),
+        CoreCapabilityLookup::InvalidProviderMatrix { failure, .. }
+            if failure.code == ErrorCode::InvalidState
+    ));
 }
