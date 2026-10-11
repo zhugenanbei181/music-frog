@@ -10,6 +10,8 @@
 
 多阶段流程一律用显式 `enum`/sealed 状态表达互斥状态，并以 typed transition 和穷尽匹配限定合法迁移。**禁止用多个 `bool`、`Option`/null 或标志位组合藏出隐式状态机；`bool` 只表示真实二值事实。**修改后必须通过 typed-state 质量门禁；细则见 [代码质量底线](docs/CODE_QUALITY_BASELINE.md)。
 
+Core-first 顺序同样是硬门：先完成所有底层 Core TODO（domain/contract/ports、application 与 fake/nextest、Mihomo/sing-box adapter 与 conformance、Android owner/IPC/VPNService），再做 UI 适配。该 Core 阶段全部关闭前，不实现或重编 UI 包；每个 Core 切片用 mock/nextest 验收并提交，阶段统一验证后再进入 UI。
+
 ## 工作规则
 
 - **本地任务台账（gitignored，CI 无这些文件属正常）：** 任务真源是 `TODO.md`（三佛导航、points 台账）与 `todos/` 看板：`CODE_TODO.md` 现在佛、`CODE_TODO_PAST.md` 过去佛、`CODE_TODO_FUTURE.md` 未来佛、`MACHINE_TODO.md` 实机证据。开发会话先按 `TODO.md`「三佛工作流程」的 Agent 执行循环行事：定阶段 → 现在佛按 P0→P1、InProgress→Ready→Planned 选原子条目 → 实现完成同次迁入过去佛（`Integrated`）→ 验证收口通过后办结退出并在台账登记 archived points；三佛之间如何流转按该节流转总表执行，不得在旧描述里另记第二份状态。

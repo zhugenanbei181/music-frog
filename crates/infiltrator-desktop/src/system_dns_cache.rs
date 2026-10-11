@@ -8,13 +8,13 @@
 //! * macOS: `dscacheutil -flushcache` and the `mDNSResponder` HUP;
 //! * Windows: `ipconfig /flushdns`.
 //!
-//! A platform without any of these binaries answers `Ok(false)` — the typed
-//! unsupported the application publishes — instead of claiming a refresh.
+//! A platform without any of these binaries answers `SystemDnsCacheFlush::Unsupported`
+//! instead of claiming a refresh.
 
 use async_trait::async_trait;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_ports::error::PortError;
-use infiltrator_ports::system_dns_cache::SystemDnsCachePort;
+use infiltrator_ports::system_dns_cache::{SystemDnsCacheFlush, SystemDnsCachePort};
 use std::env::consts::OS;
 use std::io::{self, ErrorKind};
 use std::process::{Command, Output};
@@ -32,14 +32,14 @@ impl DesktopSystemDnsCache {
 
 #[async_trait]
 impl SystemDnsCachePort for DesktopSystemDnsCache {
-    async fn flush_system_cache(&self) -> Result<bool, PortError> {
+    async fn flush_system_cache(&self) -> Result<SystemDnsCacheFlush, PortError> {
         spawn_blocking(flush_sync)
             .await
             .map_err(|error| PortError::Io(format!("DNS cache flush worker failed: {error}")))?
     }
 }
 
-fn flush_sync() -> Result<bool, PortError> {
+fn flush_sync() -> Result<SystemDnsCacheFlush, PortError> {
     flush_with(OS, |program, args| {
         Command::new(program).args(args).output()
     })
@@ -49,10 +49,10 @@ fn flush_sync() -> Result<bool, PortError> {
 fn flush_with(
     target: &str,
     mut execute: impl FnMut(&str, &[&str]) -> io::Result<Output>,
-) -> Result<bool, PortError> {
+) -> Result<SystemDnsCacheFlush, PortError> {
     let invocations = flush_invocations(target);
     if invocations.is_empty() {
-        return Ok(false);
+        return Ok(SystemDnsCacheFlush::Unsupported);
     }
     let sequence = target == "macos";
     let mut completed = 0;
@@ -62,7 +62,7 @@ fn flush_with(
             Ok(output) if output.status.success() => {
                 completed += 1;
                 if !sequence {
-                    return Ok(true);
+                    return Ok(SystemDnsCacheFlush::Flushed);
                 }
             }
             Ok(output) => {
@@ -105,7 +105,7 @@ fn flush_with(
             Err(error) if error.kind() == ErrorKind::NotFound => {
                 if sequence {
                     return if completed == 0 {
-                        Ok(false)
+                        Ok(SystemDnsCacheFlush::Unsupported)
                     } else {
                         Err(PortError::Rejected(Failure::new(
                             ErrorCode::NotReady,
@@ -133,11 +133,11 @@ fn flush_with(
         }
     }
     if sequence || completed > 0 {
-        Ok(true)
+        Ok(SystemDnsCacheFlush::Flushed)
     } else if let Some(failure) = first_failure {
         Err(failure)
     } else {
-        Ok(false)
+        Ok(SystemDnsCacheFlush::Unsupported)
     }
 }
 

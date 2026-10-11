@@ -28,6 +28,13 @@ fn windows_flush_uses_ipconfig() {
 fn an_unknown_platform_reports_typed_unsupported() {
     assert!(flush_invocations("redox").is_empty());
     assert!(flush_invocations("").is_empty());
+    assert_eq!(
+        flush_with("redox", |_, _| unreachable!(
+            "unsupported target invokes no command"
+        ))
+        .expect("unknown platform is explicitly unsupported"),
+        SystemDnsCacheFlush::Unsupported
+    );
 }
 
 #[cfg(unix)]
@@ -43,12 +50,13 @@ fn output(code: i32, message: &str) -> Output {
 #[test]
 fn macos_requires_both_cache_layers_and_preserves_the_second_permission_failure() {
     let mut calls = Vec::new();
-    assert!(
+    assert_eq!(
         flush_with("macos", |program, _| {
             calls.push(program.to_owned());
             Ok(output(0, ""))
         })
-        .unwrap()
+        .unwrap(),
+        SystemDnsCacheFlush::Flushed
     );
     assert_eq!(calls, ["dscacheutil", "killall"]);
     let mut calls = Vec::new();
@@ -89,7 +97,10 @@ fn linux_alternatives_cannot_overwrite_permission_or_nonzero_failure_with_a_miss
             .contains("resolver daemon refused the request")
     );
     assert!(failure.retryable);
-    assert!(!flush_with("linux", |_, _| Err(io::Error::from(ErrorKind::NotFound))).unwrap());
+    assert_eq!(
+        flush_with("linux", |_, _| Err(io::Error::from(ErrorKind::NotFound))).unwrap(),
+        SystemDnsCacheFlush::Unsupported
+    );
     assert_eq!(
         Failure::from(
             flush_with("linux", |_, _| Err(io::Error::from(
@@ -105,7 +116,7 @@ fn linux_alternatives_cannot_overwrite_permission_or_nonzero_failure_with_a_miss
 #[test]
 fn linux_uses_a_working_alternative_and_partial_macos_execution_is_never_success() {
     let mut calls = Vec::new();
-    assert!(
+    assert_eq!(
         flush_with("linux", |program, _| {
             calls.push(program.to_owned());
             if program == "resolvectl" {
@@ -114,7 +125,8 @@ fn linux_uses_a_working_alternative_and_partial_macos_execution_is_never_success
                 Ok(output(0, ""))
             }
         })
-        .unwrap()
+        .unwrap(),
+        SystemDnsCacheFlush::Flushed
     );
     assert_eq!(calls, ["resolvectl", "systemd-resolve"]);
     let failure = flush_with("macos", |program, _| {

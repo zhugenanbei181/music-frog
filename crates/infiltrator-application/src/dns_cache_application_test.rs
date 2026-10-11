@@ -1,116 +1,82 @@
 use super::*;
 use async_trait::async_trait;
-#[cfg(test)]
-use futures_util::stream::empty;
 use infiltrator_contract::capability::Capability;
-#[cfg(test)]
-use infiltrator_contract::command::ProxyMode;
-#[cfg(test)]
-use infiltrator_domain::proxy::Proxy;
-use infiltrator_domain::runtime::ConfigSnapshot;
-#[cfg(test)]
-use infiltrator_domain::runtime::ConnectionSnapshot;
-#[cfg(test)]
-use infiltrator_domain::runtime::MemoryData;
-#[cfg(test)]
-use infiltrator_domain::runtime::ProxyProvider;
-#[cfg(test)]
-use infiltrator_domain::runtime::RuleProvider;
-#[cfg(test)]
-use infiltrator_domain::runtime::TrafficData;
-use infiltrator_ports::runtime_gateway::RuntimeStream;
-use std::collections::HashMap;
+use infiltrator_contract::dns_cache::DnsCacheOperationId;
+use infiltrator_contract::error::ErrorCode;
+use infiltrator_ports::controller_fake_ip_cache::{
+    ControllerFakeIpCacheFlushReceipt, ControllerFakeIpCacheFlushRequest,
+    ControllerFakeIpCacheFlushState, ControllerFakeIpCachePort,
+};
+use infiltrator_ports::system_dns_cache::{SystemDnsCacheFlush, SystemDnsCachePort};
 
-struct FakeGateway {
-    flushed: bool,
+#[derive(Clone, Copy)]
+enum FakeFlushBehavior {
+    Flushed,
+    Unsupported,
+    Failed,
+}
+
+struct FakeControllerCache {
+    behavior: FakeFlushBehavior,
 }
 
 #[async_trait]
-impl RuntimeGateway for FakeGateway {
-    async fn get_config(&self) -> Result<ConfigSnapshot, PortError> {
-        Ok(ConfigSnapshot::default())
-    }
-    async fn patch_config(&self, _updates: serde_json::Value) -> Result<(), PortError> {
-        Ok(())
-    }
-    async fn set_proxy_mode(&self, _mode: ProxyMode) -> Result<(), PortError> {
-        Ok(())
-    }
-    async fn get_proxies(&self) -> Result<HashMap<String, Proxy>, PortError> {
-        Ok(HashMap::new())
-    }
-    async fn switch_proxy(&self, _group: &str, _proxy: &str) -> Result<(), PortError> {
-        Ok(())
-    }
-    async fn test_delay(
+impl ControllerFakeIpCachePort for FakeControllerCache {
+    async fn flush(
         &self,
-        _proxy: &str,
-        _url: &str,
-        _timeout_ms: u32,
-    ) -> Result<u32, PortError> {
-        Ok(0)
-    }
-    async fn get_proxy_providers(&self) -> Result<Vec<ProxyProvider>, PortError> {
-        Ok(Vec::new())
-    }
-    async fn get_rule_providers(&self) -> Result<Vec<RuleProvider>, PortError> {
-        Ok(Vec::new())
-    }
-    async fn update_proxy_provider(&self, _name: &str) -> Result<(), PortError> {
-        Ok(())
-    }
-    async fn update_rule_provider(&self, _name: &str) -> Result<(), PortError> {
-        Ok(())
-    }
-    async fn flush_fakeip_cache(&self) -> Result<(), PortError> {
-        self.flushed
-            .then_some(())
-            .ok_or_else(|| PortError::unsupported(Capability::Dns, "controller rejected the flush"))
-    }
-    async fn get_connections(&self) -> Result<ConnectionSnapshot, PortError> {
-        Ok(ConnectionSnapshot::default())
-    }
-    async fn get_memory(&self) -> Result<MemoryData, PortError> {
-        Ok(MemoryData::default())
-    }
-    async fn close_connection(&self, _id: &str) -> Result<(), PortError> {
-        Ok(())
-    }
-    async fn close_all_connections(&self) -> Result<(), PortError> {
-        Ok(())
-    }
-    async fn stream_logs(
-        &self,
-        _level: Option<String>,
-    ) -> Result<RuntimeStream<String>, PortError> {
-        Ok(Box::pin(empty()))
-    }
-    async fn stream_traffic(&self) -> Result<RuntimeStream<TrafficData>, PortError> {
-        Ok(Box::pin(empty()))
-    }
-    async fn stream_connections(&self) -> Result<RuntimeStream<ConnectionSnapshot>, PortError> {
-        Ok(Box::pin(empty()))
+        request: ControllerFakeIpCacheFlushRequest,
+    ) -> Result<ControllerFakeIpCacheFlushReceipt, PortError> {
+        match self.behavior {
+            FakeFlushBehavior::Flushed => Ok(ControllerFakeIpCacheFlushReceipt {
+                scope: request.scope,
+                operation: request.operation,
+                state: ControllerFakeIpCacheFlushState::Flushed,
+            }),
+            FakeFlushBehavior::Unsupported => Err(PortError::unsupported(
+                Capability::Dns,
+                "controller does not expose Fake-IP cache flush",
+            )),
+            FakeFlushBehavior::Failed => Err(PortError::Network(
+                "injected controller flush failure".to_owned(),
+            )),
+        }
     }
 }
 
 struct FakeSystemCache {
-    supported: bool,
+    behavior: FakeFlushBehavior,
 }
 
 #[async_trait]
 impl SystemDnsCachePort for FakeSystemCache {
-    async fn flush_system_cache(&self) -> Result<bool, PortError> {
-        Ok(self.supported)
+    async fn flush_system_cache(&self) -> Result<SystemDnsCacheFlush, PortError> {
+        match self.behavior {
+            FakeFlushBehavior::Flushed => Ok(SystemDnsCacheFlush::Flushed),
+            FakeFlushBehavior::Unsupported => Ok(SystemDnsCacheFlush::Unsupported),
+            FakeFlushBehavior::Failed => Err(PortError::Network(
+                "injected system DNS cache flush failure".to_owned(),
+            )),
+        }
     }
 }
 
 #[tokio::test]
 async fn reports_both_targets_honestly() {
     let application = DnsCacheApplication::new(
-        Some(Arc::new(FakeGateway { flushed: true })),
-        Some(Arc::new(FakeSystemCache { supported: true })),
+        Some(Arc::new(FakeControllerCache {
+            behavior: FakeFlushBehavior::Flushed,
+        })),
+        Some(Arc::new(FakeSystemCache {
+            behavior: FakeFlushBehavior::Flushed,
+        })),
     );
-    let report = application.flush_all().await.expect("flush");
+    let report = application
+        .flush_with_id(
+            crate::dns_cache_fixtures::test_core_scope(),
+            DnsCacheOperationId(1),
+        )
+        .await
+        .expect("flush");
     assert_eq!(report.fake_ip, DnsFlushOutcome::Flushed);
     assert_eq!(report.os_cache, DnsFlushOutcome::Flushed);
     assert_eq!(application.last_report(), report);
@@ -119,10 +85,20 @@ async fn reports_both_targets_honestly() {
 #[tokio::test]
 async fn a_host_without_the_os_adapter_reports_typed_unsupported() {
     let application = DnsCacheApplication::new(
-        Some(Arc::new(FakeGateway { flushed: true })),
-        Some(Arc::new(FakeSystemCache { supported: false })),
+        Some(Arc::new(FakeControllerCache {
+            behavior: FakeFlushBehavior::Flushed,
+        })),
+        Some(Arc::new(FakeSystemCache {
+            behavior: FakeFlushBehavior::Unsupported,
+        })),
     );
-    let report = application.flush_all().await.expect("flush");
+    let report = application
+        .flush_with_id(
+            crate::dns_cache_fixtures::test_core_scope(),
+            DnsCacheOperationId(1),
+        )
+        .await
+        .expect("flush");
     assert!(report.fake_ip.is_flushed());
     assert!(matches!(
         report.os_cache,
@@ -132,9 +108,19 @@ async fn a_host_without_the_os_adapter_reports_typed_unsupported() {
 
 #[tokio::test]
 async fn a_failing_controller_is_reported_not_hidden() {
-    let application =
-        DnsCacheApplication::new(Some(Arc::new(FakeGateway { flushed: false })), None);
-    let report = application.flush_all().await.expect("flush");
+    let application = DnsCacheApplication::new(
+        Some(Arc::new(FakeControllerCache {
+            behavior: FakeFlushBehavior::Unsupported,
+        })),
+        None,
+    );
+    let report = application
+        .flush_with_id(
+            crate::dns_cache_fixtures::test_core_scope(),
+            DnsCacheOperationId(1),
+        )
+        .await
+        .expect("flush");
     assert!(matches!(
         report.fake_ip,
         DnsFlushOutcome::Unsupported { .. }
@@ -144,4 +130,30 @@ async fn a_failing_controller_is_reported_not_hidden() {
         DnsFlushOutcome::Unsupported { .. }
     ));
     assert_eq!(application.last_report(), report);
+}
+
+#[tokio::test]
+async fn a_system_adapter_failure_is_distinct_from_unsupported_and_is_readable() {
+    let application = DnsCacheApplication::new(
+        Some(Arc::new(FakeControllerCache {
+            behavior: FakeFlushBehavior::Flushed,
+        })),
+        Some(Arc::new(FakeSystemCache {
+            behavior: FakeFlushBehavior::Failed,
+        })),
+    );
+
+    let failure = application
+        .flush_with_id(
+            crate::dns_cache_fixtures::test_core_scope(),
+            DnsCacheOperationId(2),
+        )
+        .await
+        .expect_err("adapter failure is not unsupported");
+
+    assert_eq!(failure.code, ErrorCode::Network);
+    assert_eq!(
+        application.last_report().os_cache,
+        DnsFlushOutcome::Failed { failure }
+    );
 }

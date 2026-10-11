@@ -1,20 +1,21 @@
-//! Explicit isolated cache targets for behavior and captures; unrelated controller operations refuse.
+//! Explicit isolated Fake-IP controller and OS cache targets for behavior captures.
 use async_trait::async_trait;
 use futures_util::future::pending;
 use infiltrator_contract::capability::Capability;
-use infiltrator_contract::command::ProxyMode;
+#[cfg(test)]
+use infiltrator_contract::core_identity::{
+    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
+};
 use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_domain::proxy::Proxy;
-use infiltrator_domain::runtime::{
-    ConfigSnapshot, ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider, TrafficData,
+use infiltrator_ports::controller_fake_ip_cache::{
+    ControllerFakeIpCacheFlushReceipt, ControllerFakeIpCacheFlushRequest,
+    ControllerFakeIpCacheFlushState, ControllerFakeIpCachePort,
 };
 use infiltrator_ports::error::PortError;
-use infiltrator_ports::runtime_gateway::{RuntimeGateway, RuntimeStream};
-use infiltrator_ports::system_dns_cache::SystemDnsCachePort;
-use serde_json::Value;
-use std::collections::HashMap;
+use infiltrator_ports::system_dns_cache::{SystemDnsCacheFlush, SystemDnsCachePort};
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CachePortMode {
     Allowed,
@@ -22,6 +23,7 @@ pub enum CachePortMode {
     Unsupported,
     Pending,
 }
+
 pub struct IsolatedCaches {
     pub fake_calls: AtomicUsize,
     pub system_calls: AtomicUsize,
@@ -30,6 +32,7 @@ pub struct IsolatedCaches {
     fake_entries: Mutex<Vec<String>>,
     system_entries: Mutex<Vec<String>>,
 }
+
 impl Default for IsolatedCaches {
     fn default() -> Self {
         Self {
@@ -42,13 +45,16 @@ impl Default for IsolatedCaches {
         }
     }
 }
+
 impl IsolatedCaches {
     pub fn set_fake_mode(&self, mode: CachePortMode) {
         *self.fake_mode.lock().expect("isolated Fake-IP mode") = mode;
     }
+
     pub fn set_system_mode(&self, mode: CachePortMode) {
         *self.system_mode.lock().expect("isolated OS mode") = mode;
     }
+
     pub fn contents(&self) -> (Vec<String>, Vec<String>) {
         (
             self.fake_entries
@@ -62,45 +68,26 @@ impl IsolatedCaches {
         )
     }
 }
-fn refused<T>() -> Result<T, PortError> {
-    Err(PortError::unsupported(
-        Capability::Dns,
-        "unrelated controller operation refused by isolated cache fixture",
-    ))
+
+#[cfg(test)]
+pub(crate) fn test_core_scope() -> CoreScope {
+    CoreScope {
+        identity: CoreIdentity::new(
+            EngineId::new("mihomo").expect("valid engine ID"),
+            CoreInstanceId::new("dns-cache-test").expect("valid instance ID"),
+            Some(CoreVersion::new("v1.19.32").expect("valid core version")),
+        ),
+        generation: CoreGeneration::new(1),
+        session_token: None,
+    }
 }
+
 #[async_trait]
-impl RuntimeGateway for IsolatedCaches {
-    async fn get_config(&self) -> Result<ConfigSnapshot, PortError> {
-        refused()
-    }
-    async fn patch_config(&self, _: Value) -> Result<(), PortError> {
-        refused()
-    }
-    async fn set_proxy_mode(&self, _: ProxyMode) -> Result<(), PortError> {
-        refused()
-    }
-    async fn get_proxies(&self) -> Result<HashMap<String, Proxy>, PortError> {
-        refused()
-    }
-    async fn switch_proxy(&self, _: &str, _: &str) -> Result<(), PortError> {
-        refused()
-    }
-    async fn test_delay(&self, _: &str, _: &str, _: u32) -> Result<u32, PortError> {
-        refused()
-    }
-    async fn get_proxy_providers(&self) -> Result<Vec<ProxyProvider>, PortError> {
-        refused()
-    }
-    async fn get_rule_providers(&self) -> Result<Vec<RuleProvider>, PortError> {
-        refused()
-    }
-    async fn update_proxy_provider(&self, _: &str) -> Result<(), PortError> {
-        refused()
-    }
-    async fn update_rule_provider(&self, _: &str) -> Result<(), PortError> {
-        refused()
-    }
-    async fn flush_fakeip_cache(&self) -> Result<(), PortError> {
+impl ControllerFakeIpCachePort for IsolatedCaches {
+    async fn flush(
+        &self,
+        request: ControllerFakeIpCacheFlushRequest,
+    ) -> Result<ControllerFakeIpCacheFlushReceipt, PortError> {
         self.fake_calls.fetch_add(1, Ordering::SeqCst);
         let mode = *self.fake_mode.lock().expect("isolated Fake-IP mode");
         match mode {
@@ -109,7 +96,11 @@ impl RuntimeGateway for IsolatedCaches {
                     .lock()
                     .expect("isolated Fake-IP entries")
                     .clear();
-                Ok(())
+                Ok(ControllerFakeIpCacheFlushReceipt {
+                    scope: request.scope,
+                    operation: request.operation,
+                    state: ControllerFakeIpCacheFlushState::Flushed,
+                })
             }
             CachePortMode::Denied => Err(PortError::Rejected(Failure::new(
                 ErrorCode::Permission,
@@ -123,31 +114,11 @@ impl RuntimeGateway for IsolatedCaches {
             CachePortMode::Pending => pending().await,
         }
     }
-    async fn get_connections(&self) -> Result<ConnectionSnapshot, PortError> {
-        refused()
-    }
-    async fn get_memory(&self) -> Result<MemoryData, PortError> {
-        refused()
-    }
-    async fn close_connection(&self, _: &str) -> Result<(), PortError> {
-        refused()
-    }
-    async fn close_all_connections(&self) -> Result<(), PortError> {
-        refused()
-    }
-    async fn stream_logs(&self, _: Option<String>) -> Result<RuntimeStream<String>, PortError> {
-        refused()
-    }
-    async fn stream_traffic(&self) -> Result<RuntimeStream<TrafficData>, PortError> {
-        refused()
-    }
-    async fn stream_connections(&self) -> Result<RuntimeStream<ConnectionSnapshot>, PortError> {
-        refused()
-    }
 }
+
 #[async_trait]
 impl SystemDnsCachePort for IsolatedCaches {
-    async fn flush_system_cache(&self) -> Result<bool, PortError> {
+    async fn flush_system_cache(&self) -> Result<SystemDnsCacheFlush, PortError> {
         self.system_calls.fetch_add(1, Ordering::SeqCst);
         let mode = *self.system_mode.lock().expect("isolated OS mode");
         match mode {
@@ -156,14 +127,14 @@ impl SystemDnsCachePort for IsolatedCaches {
                     .lock()
                     .expect("isolated OS entries")
                     .clear();
-                Ok(true)
+                Ok(SystemDnsCacheFlush::Flushed)
             }
             CachePortMode::Denied => Err(PortError::Rejected(Failure::new(
                 ErrorCode::Permission,
                 "Allow system resolver cache access, then retry clearing.",
                 false,
             ))),
-            CachePortMode::Unsupported => Ok(false),
+            CachePortMode::Unsupported => Ok(SystemDnsCacheFlush::Unsupported),
             CachePortMode::Pending => pending().await,
         }
     }

@@ -1,7 +1,7 @@
 //! DNS cache maintenance use-case.
 //!
 //! One flush request covers both targets:
-//! * the running core's Fake-IP mapping table through the controller gateway;
+//! * the running core's Fake-IP mapping table through its scoped controller port;
 //! * the operating system resolver cache through the host
 //!   [`SystemDnsCachePort`](infiltrator_ports::system_dns_cache::SystemDnsCachePort).
 //!
@@ -10,21 +10,23 @@
 //! The command handler and the surface reader share one instance, which is how
 //! the honest last-flush report reaches both surfaces.
 
-use crate::dns_cache_actions::allocate_operation;
 use futures_util::lock;
+use infiltrator_contract::core_identity::CoreScope;
 use infiltrator_contract::dns_cache::{
     DnsCacheFlushReport, DnsCacheOperation, DnsCacheOperationId, DnsCacheSnapshot, DnsFlushOutcome,
 };
 use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::error::Failure;
+use infiltrator_ports::controller_fake_ip_cache::{
+    ControllerFakeIpCacheFlushRequest, ControllerFakeIpCacheFlushState, ControllerFakeIpCachePort,
+};
 use infiltrator_ports::error::PortError;
-use infiltrator_ports::runtime_gateway::RuntimeGateway;
-use infiltrator_ports::system_dns_cache::SystemDnsCachePort;
+use infiltrator_ports::system_dns_cache::{SystemDnsCacheFlush, SystemDnsCachePort};
 use std::sync::{Arc, Mutex};
 
 #[derive(Clone)]
 pub struct DnsCacheApplication {
-    runtime: Option<Arc<dyn RuntimeGateway>>,
+    controller_cache: Option<Arc<dyn ControllerFakeIpCachePort>>,
     system_cache: Option<Arc<dyn SystemDnsCachePort>>,
     last: Arc<Mutex<DnsCacheSnapshot>>,
     serial: Arc<lock::Mutex<()>>,
@@ -32,11 +34,11 @@ pub struct DnsCacheApplication {
 
 impl DnsCacheApplication {
     pub fn new(
-        runtime: Option<Arc<dyn RuntimeGateway>>,
+        controller_cache: Option<Arc<dyn ControllerFakeIpCachePort>>,
         system_cache: Option<Arc<dyn SystemDnsCachePort>>,
     ) -> Self {
         Self {
-            runtime,
+            controller_cache,
             system_cache,
             last: Arc::new(Mutex::new(DnsCacheSnapshot::default())),
             serial: Arc::new(lock::Mutex::new(())),
@@ -72,11 +74,9 @@ impl DnsCacheApplication {
     ///
     /// The returned report is also stored as the last report. A partially
     /// unsupported host is not an error: the report says which target ran.
-    pub async fn flush_all(&self) -> Result<DnsCacheFlushReport, Failure> {
-        self.flush_with_id(allocate_operation()?).await
-    }
-    pub async fn flush_with_id(
+    pub(crate) async fn flush_with_id(
         &self,
+        scope: CoreScope,
         operation: DnsCacheOperationId,
     ) -> Result<DnsCacheFlushReport, Failure> {
         let _serial = self.serial.try_lock().ok_or_else(|| {
@@ -128,16 +128,38 @@ impl DnsCacheApplication {
             operation,
             committed: false,
         };
-        let fake_ip = match self.runtime.as_ref() {
-            Some(runtime) => outcome_from_result(runtime.flush_fakeip_cache().await),
+        let fake_ip = match self.controller_cache.as_ref() {
+            Some(port) => match port
+                .flush(ControllerFakeIpCacheFlushRequest {
+                    scope: scope.clone(),
+                    operation,
+                })
+                .await
+            {
+                Ok(receipt)
+                    if receipt.scope == scope
+                        && receipt.operation == operation
+                        && receipt.state == ControllerFakeIpCacheFlushState::Flushed =>
+                {
+                    DnsFlushOutcome::Flushed
+                }
+                Ok(_) => DnsFlushOutcome::Failed {
+                    failure: Failure::new(
+                        ErrorCode::InvalidState,
+                        "controller Fake-IP flush receipt did not match the active Core scope and operation",
+                        false,
+                    ),
+                },
+                Err(error) => outcome_from_result::<()>(Err(error)),
+            },
             None => DnsFlushOutcome::Unsupported {
                 reason: "no running core controller is attached".to_owned(),
             },
         };
         let os_cache = match self.system_cache.as_ref() {
             Some(port) => match port.flush_system_cache().await {
-                Ok(true) => DnsFlushOutcome::Flushed,
-                Ok(false) => DnsFlushOutcome::Unsupported {
+                Ok(SystemDnsCacheFlush::Flushed) => DnsFlushOutcome::Flushed,
+                Ok(SystemDnsCacheFlush::Unsupported) => DnsFlushOutcome::Unsupported {
                     reason: "host reported no drivable OS DNS cache flush".to_owned(),
                 },
                 Err(error) => outcome_from_result::<()>(Err(error)),
