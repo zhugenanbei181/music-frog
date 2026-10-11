@@ -44,5 +44,5 @@
       "download_url": "https://github.com/SagerNet/sing-box/releases/download/v1.14.3/sing-box-1.14.3-android-amd64.tar.gz"
     }
   ],
-  "evidence_state": "asset_digest_locked_real_binary_unverified"
+  "evidence_state": "asset_digests_locked_linux_amd64_binary_smoke_passed_adapter_integration_open"
 }
