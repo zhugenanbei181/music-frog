@@ -1,5 +1,7 @@
-use crate::command::{CommandKind, ProxyMode, RequestId};
+use crate::command::{CommandKind, RequestId};
+use crate::core_identity::{CoreGeneration, CoreIdentity, CoreScope};
 use crate::error::Failure;
+use crate::routing_intent::RoutingIntentSnapshot;
 use crate::session::SessionToken;
 use serde::{Deserialize, Serialize};
 
@@ -54,9 +56,11 @@ impl Default for CoreWatchdogSnapshot {
 /// and failure cannot drift between UI implementations.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CoreLifecycleSnapshot {
+    #[serde(default)]
+    pub identity: Option<CoreIdentity>,
     pub lifecycle: CoreLifecycle,
     pub generation: u64,
-    #[serde(default)]
+    #[serde(default, with = "core_lifecycle_session_token_wire")]
     pub session_token: Option<SessionToken>,
     pub revision: u64,
     pub failure: Option<Failure>,
@@ -65,6 +69,7 @@ pub struct CoreLifecycleSnapshot {
 impl Default for CoreLifecycleSnapshot {
     fn default() -> Self {
         Self {
+            identity: None,
             lifecycle: CoreLifecycle::Stopped,
             generation: 0,
             session_token: None,
@@ -74,10 +79,52 @@ impl Default for CoreLifecycleSnapshot {
     }
 }
 
+impl CoreLifecycleSnapshot {
+    pub fn scope(&self) -> Option<CoreScope> {
+        self.identity.clone().map(|identity| CoreScope {
+            identity,
+            generation: CoreGeneration::from(self.generation),
+            session_token: self.session_token,
+        })
+    }
+}
+
+mod core_lifecycle_session_token_wire {
+    use crate::session::SessionToken;
+    use serde::de::Error as _;
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    pub fn serialize<S>(token: &Option<SessionToken>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        token
+            .map(|value| value.value().to_string())
+            .serialize(serializer)
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<SessionToken>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        Option::<String>::deserialize(deserializer)?
+            .map(|value| {
+                value
+                    .parse::<u128>()
+                    .map(SessionToken::new)
+                    .map_err(D::Error::custom)
+            })
+            .transpose()
+    }
+}
+
 /// A read-only Core projection. Secrets and client objects never cross this
 /// boundary.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct CoreSnapshot {
+    /// Engine and configured instance that authored this observation.
+    #[serde(default)]
+    pub identity: Option<CoreIdentity>,
     pub lifecycle: CoreLifecycle,
     pub generation: u64,
     /// Identity of the currently active core session. It is absent while
@@ -85,7 +132,7 @@ pub struct CoreSnapshot {
     #[serde(default)]
     pub session_token: Option<SessionToken>,
     pub revision: u64,
-    pub proxy_mode: Option<ProxyMode>,
+    pub routing_intent: RoutingIntentSnapshot,
     pub core_version: Option<String>,
     pub sampled_at_epoch_ms: Option<i64>,
     pub failure: Option<Failure>,
@@ -101,12 +148,21 @@ pub struct CoreSnapshot {
 impl CoreSnapshot {
     pub fn lifecycle_snapshot(&self) -> CoreLifecycleSnapshot {
         CoreLifecycleSnapshot {
+            identity: self.identity.clone(),
             lifecycle: self.lifecycle.clone(),
             generation: self.generation,
             session_token: self.session_token,
             revision: self.revision,
             failure: self.failure.clone(),
         }
+    }
+
+    pub fn scope(&self) -> Option<CoreScope> {
+        self.identity.clone().map(|identity| CoreScope {
+            identity,
+            generation: CoreGeneration::from(self.generation),
+            session_token: self.session_token,
+        })
     }
 }
 
@@ -130,14 +186,17 @@ pub struct PublicIpSnapshot {
 pub enum CoreEvent {
     SnapshotUpdated(CoreSnapshot),
     CommandAccepted {
+        scope: Option<CoreScope>,
         request_id: RequestId,
         kind: CommandKind,
     },
     CommandCompleted {
+        scope: Option<CoreScope>,
         request_id: RequestId,
         kind: CommandKind,
     },
     CommandFailed {
+        scope: Option<CoreScope>,
         request_id: RequestId,
         kind: CommandKind,
         failure: Failure,

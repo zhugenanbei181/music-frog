@@ -1,9 +1,10 @@
 use crate::yaml_edit::SourceDoc;
 use crate::yaml_edit::mixin_fidelity::{apply_mixin_with_reference, can_apply_mixin_via_fidelity};
+use mem::take;
 use serde::{Deserialize, Serialize};
 use serde_yaml_ng::{Mapping, Value};
 use std::collections::HashSet;
-use std::mem::take;
+use std::mem;
 
 /// DUAL-09-01 / LEFT-05 L1: merge a mixin through the byte-faithful text
 /// splice when the mixin only overrides top-level scalars and appends/deletes

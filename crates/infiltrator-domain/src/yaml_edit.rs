@@ -5,7 +5,8 @@
 //! the lines and tokens they must touch. Everything else — comments, blank lines,
 //! anchors (`&a`/`*a`), key order, quoting, CRLF, BOM — passes through byte-for-byte.
 
-use std::mem::take;
+use mem::take;
+use std::mem;
 pub mod anchor;
 pub mod format;
 pub mod mixin_fidelity;

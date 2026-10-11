@@ -15,10 +15,7 @@ fn export_preserves_record_order_and_utf8_bytes_while_removing_structural_and_sh
         (14, "INFO[4] known credential 短; benign café".into()),
     ];
     let artifact = prepare_log_export(
-        LogSession {
-            generation: 2,
-            token: SessionToken::new(19),
-        },
+        LogSession::new(2, SessionToken::new(19)),
         3,
         &records,
         &["短".into()],

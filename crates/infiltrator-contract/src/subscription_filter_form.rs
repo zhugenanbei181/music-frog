@@ -1,5 +1,5 @@
 //! Toolkit-neutral fields and observations of the subscription filter form.
-use crate::profile_source::ProfileSourceIdentity;
+use crate::profile_document_identity::ProfileWorkspaceIdentity;
 use crate::subscription_import::SubscriptionFilterDraft;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -40,6 +40,6 @@ impl FilterField {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FilterObservation {
-    pub source: ProfileSourceIdentity,
+    pub workspace_identity: ProfileWorkspaceIdentity,
     pub filter: SubscriptionFilterDraft,
 }

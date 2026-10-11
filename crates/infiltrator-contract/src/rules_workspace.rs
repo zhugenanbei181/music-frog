@@ -1,12 +1,13 @@
 //! Shared rules-workspace partition vocabulary (DUAL-11-14).
 //!
 //! Both surfaces expose the same three rule-management capability groups and
-//! the same JSON document sections. The *presentation* differs (Iced splits
+//! the same editor document sections. The *presentation* differs (Iced splits
 //! the workspace into four page tabs, Bevy mounts the same four partitions in
 //! one scrolling page and switches their visibility), so the identity and
 //! order of every partition lives here once instead of being re-invented per
 //! surface.
 
+use crate::profile_document_identity::ProfileDocumentIdentity;
 use serde::{Deserialize, Serialize};
 
 /// The four rule-management partitions both surfaces expose.
@@ -58,9 +59,7 @@ impl RulesTab {
     }
 }
 
-/// The three JSON documents the rules JSON partition edits. Each maps onto one
-/// shared `ConfigurationApplication::save_*` use-case, so the intent carries
-/// only the section identity and the edited text.
+/// The three JSON editor sections in the rules workspace.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum RulesJsonSection {
     /// `rule-providers` of the active profile.
@@ -113,20 +112,38 @@ impl RulesJsonSection {
     }
 }
 
-/// One published JSON document of the rules workspace. The shared reader
-/// serialises the same document the Iced surface loads through its ports, so
-/// both surfaces show the same text and hand the same text back to the shared
-/// save use-cases.
+/// Read-only text projection for one section editor, bound to the source
+/// document identity used to decode it. Writes use typed updates.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RulesJsonDocumentSnapshot {
     pub section: RulesJsonSection,
-    /// Pretty-printed JSON of the document, exactly what the editor shows.
+    pub identity: ProfileDocumentIdentity,
+    /// Pretty-printed editor projection. This text is never a command payload.
     pub json: String,
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core_identity::EngineId;
+    use crate::profile_document_identity::{
+        ProfileDocumentRevision, ProfileDocumentSourceIdentity, ProfileDocumentSourceKind,
+        ProfileFormatId, ProfileId, ProfileSchemaVersion, ProfileSourceId,
+    };
+
+    fn document_identity() -> ProfileDocumentIdentity {
+        ProfileDocumentIdentity::new(
+            ProfileId::new("profile-1").unwrap(),
+            EngineId::new("mihomo").unwrap(),
+            ProfileDocumentSourceIdentity::new(
+                ProfileDocumentSourceKind::Local,
+                ProfileSourceId::new("local-1").unwrap(),
+            ),
+            ProfileDocumentRevision::new("revision-1").unwrap(),
+            ProfileFormatId::new("mihomo-yaml").unwrap(),
+            ProfileSchemaVersion::new(1).unwrap(),
+        )
+    }
 
     #[test]
     fn partitions_round_trip_through_their_index() {
@@ -173,6 +190,7 @@ mod tests {
     fn json_document_snapshot_round_trips() {
         let document = RulesJsonDocumentSnapshot {
             section: RulesJsonSection::Sniffer,
+            identity: document_identity(),
             json: "{\n  \"enable\": true\n}".to_owned(),
         };
         let encoded = serde_json::to_string(&document).unwrap();

@@ -5,8 +5,11 @@
 //! `infiltrator-core::settings_io`.
 
 use infiltrator_contract::mini_hud::MiniHudPlacement;
+use infiltrator_contract::runtime_settings::{RuntimeDelaySortOrder, RuntimeProbeSettings};
 use infiltrator_contract::shortcuts::ShortcutBinding;
 use serde::{Deserialize, Serialize};
+
+pub const CURRENT_SETTINGS_SCHEMA_VERSION: u32 = 2;
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(default)]
@@ -35,12 +38,11 @@ impl Default for WebDavConfig {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct RuntimePanelConfig {
     pub auto_refresh: bool,
-    pub delay_sort: String,
-    pub delay_test_url: String,
-    pub delay_timeout_ms: u32,
+    pub delay_sort_order: RuntimeDelaySortOrder,
+    pub probe_settings: RuntimeProbeSettings,
     pub connection_filter: String,
     pub connection_sort: String,
 }
@@ -49,9 +51,8 @@ impl Default for RuntimePanelConfig {
     fn default() -> Self {
         Self {
             auto_refresh: true,
-            delay_sort: "delay_asc".to_string(),
-            delay_test_url: "http://www.gstatic.com/generate_204".to_string(),
-            delay_timeout_ms: 5000,
+            delay_sort_order: RuntimeDelaySortOrder::default(),
+            probe_settings: RuntimeProbeSettings::default(),
             connection_filter: String::new(),
             connection_sort: "download_desc".to_string(),
         }
@@ -78,6 +79,7 @@ impl Default for AdminServerConfig {
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 #[serde(default)]
 pub struct AppSettings {
+    pub settings_schema_version: u32,
     pub editor_path: Option<String>,
     pub use_bundled_core: bool,
     pub core_channel: String,
@@ -122,6 +124,7 @@ fn default_close_to_tray() -> bool {
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
+            settings_schema_version: CURRENT_SETTINGS_SCHEMA_VERSION,
             editor_path: None,
             use_bundled_core: true,
             core_channel: "stable".to_string(),
@@ -155,7 +158,18 @@ mod tests {
         assert!(settings.close_to_tray);
         assert_eq!(settings.language, "zh-CN");
         assert_eq!(settings.admin.port, 25210);
-        assert_eq!(settings.runtime_panel.delay_sort, "delay_asc");
+        assert_eq!(
+            settings.settings_schema_version,
+            CURRENT_SETTINGS_SCHEMA_VERSION
+        );
+        assert_eq!(
+            settings.runtime_panel.delay_sort_order,
+            RuntimeDelaySortOrder::LatencyAscending
+        );
+        assert_eq!(
+            settings.runtime_panel.probe_settings,
+            RuntimeProbeSettings::default()
+        );
     }
 
     #[test]

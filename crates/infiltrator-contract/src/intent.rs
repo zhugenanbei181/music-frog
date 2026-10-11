@@ -11,7 +11,7 @@ pub enum UserIntent {
     StopProxy,
     SwitchProfile,
     EditYaml,
-    TestDelay,
+    ProbeOutbounds,
     FlushFakeIp,
     ToggleTun,
     ToggleSystemProxy,
@@ -51,7 +51,7 @@ impl IntentRegistry {
             UserIntent::StopProxy,
             UserIntent::SwitchProfile,
             UserIntent::EditYaml,
-            UserIntent::TestDelay,
+            UserIntent::ProbeOutbounds,
             UserIntent::FlushFakeIp,
             UserIntent::ToggleTun,
             UserIntent::ToggleSystemProxy,
@@ -63,7 +63,9 @@ impl IntentRegistry {
         let all_surfaces = [
             SurfaceKind::IcedDesktop,
             SurfaceKind::BevyDesktop,
+            SurfaceKind::SlintDesktop,
             SurfaceKind::BevyAndroid,
+            SurfaceKind::SlintAndroid,
             SurfaceKind::AndroidCompose,
             SurfaceKind::IosCompose,
             SurfaceKind::AdminRest,
@@ -80,6 +82,7 @@ impl IntentRegistry {
             if matches!(intent, UserIntent::ToggleSystemProxy) {
                 for surface in [
                     SurfaceKind::BevyAndroid,
+                    SurfaceKind::SlintAndroid,
                     SurfaceKind::AndroidCompose,
                     SurfaceKind::IosCompose,
                 ] {
@@ -92,6 +95,7 @@ impl IntentRegistry {
             if matches!(intent, UserIntent::SetAutostart) {
                 for surface in [
                     SurfaceKind::BevyAndroid,
+                    SurfaceKind::SlintAndroid,
                     SurfaceKind::AndroidCompose,
                     SurfaceKind::IosCompose,
                 ] {

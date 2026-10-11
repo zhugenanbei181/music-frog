@@ -31,8 +31,8 @@ pub enum CoreControlLabel {
 impl CoreControlLabel {
     pub fn key(self) -> &'static str {
         match self {
-            Self::Start => "start_proxy",
-            Self::Stop => "stop_proxy",
+            Self::Start => "start_core",
+            Self::Stop => "stop_core",
             Self::Retry => "core_control_retry",
             Self::Starting => "core_control_starting",
             Self::Stopping => "core_control_stopping",

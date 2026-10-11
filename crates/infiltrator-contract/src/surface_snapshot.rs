@@ -6,10 +6,12 @@
 
 use crate::active_exit::ActiveExitSnapshot;
 use crate::aggregator::{AggregationReport, AggregationTemplate};
+use crate::app_routing::{AppRoutingMode, AppRoutingRule};
 use crate::apply_transaction::ApplyTransactionSnapshot;
 use crate::capability::CapabilitySnapshot;
-use crate::command::ProxyMode;
+use crate::connection::ConnectionRateObservation;
 use crate::controller::ControllerAuthSnapshot;
+use crate::core_capabilities::CoreCapabilitySnapshot;
 use crate::dns::{
     DnsCoreSwitches, DnsEnhancedMode, DnsFakeIpFilterMode, DnsFallbackPolicy, DnsServerTag,
     FakeIpMappingPool,
@@ -31,22 +33,23 @@ use crate::mrs_acceleration::MrsAccelerationSnapshot;
 use crate::mtu::MtuNegotiationSnapshot;
 use crate::network_roaming::NetworkRoamingSnapshot;
 use crate::offline_startup::OfflineStartupSnapshot;
+use crate::outbound::details::OutboundDetailsSnapshot;
+use crate::outbound::inventory::{OutboundInventorySnapshot, OutboundInventoryState};
+use crate::outbound::preferences::OutboundUiPreferencesSnapshot;
 use crate::overview_layout::OverviewLayoutSnapshot;
 use crate::pac::PacSnapshot;
 use crate::port_conflict::PortConflictSnapshot;
 use crate::privileged_network::PrivilegedNetworkSnapshot;
+use crate::profile_document_identity::ProfileWorkspaceIdentity;
 use crate::profile_editor_read::ProfileEditorSnapshot;
 use crate::profile_protection::ProfileWriteProtection;
-use crate::profile_source::ProfileSourceIdentity;
 use crate::protocol_fidelity::ProtocolStudioSnapshot;
 use crate::provider_cache::{KernelEtagSupportSnapshot, RuleProviderCacheSnapshot};
-use crate::proxies::{ProxyFilterAliveSnapshot, ProxyGroupClassification, ProxySortOrder};
-use crate::proxy_inspection::ProxyInspectionSnapshot;
-use crate::proxy_probe_options::ProxyProbeSettingsSnapshot;
 use crate::public_ip::PublicIpProbeSnapshot;
 use crate::reconnect_mask::ReconnectMaskSnapshot;
 use crate::resources::CoreResourceSnapshot;
 use crate::responsive_viewport::ResponsiveViewportSnapshot;
+use crate::routing_intent::RoutingIntentSnapshot;
 use crate::rule_document::RuleDocumentSnapshot;
 use crate::rule_hit_audit::RuleHitAuditSnapshot;
 use crate::rule_provider_snapshot::RuleProviderSnapshot;
@@ -55,9 +58,9 @@ use crate::rule_trace_run::RuleTraceExecution;
 use crate::rule_tracer::RuleTracerSnapshot;
 use crate::rules_workspace::RulesJsonDocumentSnapshot;
 use crate::runtime_control::RuntimeControlSnapshot;
+use crate::runtime_settings::RuntimeProbeSettingsState;
 use crate::script_export::ScriptExportSnapshot;
 use crate::script_sandbox::ScriptSandboxSnapshot;
-use crate::search_text::SearchTextRun;
 use crate::service_mode::ServiceModeSnapshot;
 use crate::shell_readout::ShellReadoutSnapshot;
 use crate::snapshot::{CoreLifecycle, CoreSnapshot};
@@ -74,10 +77,9 @@ use crate::traffic_topology::TrafficTopologySnapshot;
 use crate::traffic_waveform::TrafficWaveformSnapshot;
 use crate::uwp::UwpLoopbackSnapshot;
 use crate::version::CoreVersionSnapshot;
-use crate::vpn::VpnSessionSnapshot;
+use crate::vpn::VpnSurfaceObservation;
 use crate::yaml_ast_diff::YamlAstDiffSnapshot;
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
 
 /// Canonical page vocabulary shared by the two primary UI surfaces.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -191,71 +193,42 @@ impl<T> PageData<T> {
     }
 }
 
+fn outbound_page_status(page: &PageData<OutboundInventorySnapshot>) -> PageStatus {
+    match &page.status {
+        PageStatus::Loading => PageStatus::Loading,
+        PageStatus::Unavailable { failure } => PageStatus::Unavailable {
+            failure: failure.clone(),
+        },
+        PageStatus::Failed { failure } => PageStatus::Failed {
+            failure: failure.clone(),
+        },
+        PageStatus::Ready | PageStatus::Empty => {
+            let Some(inventory) = page.data.as_ref() else {
+                return PageStatus::Loading;
+            };
+            match inventory.inventory() {
+                OutboundInventoryState::Unknown => PageStatus::Loading,
+                OutboundInventoryState::Ready { .. } => PageStatus::Ready,
+                OutboundInventoryState::Empty => PageStatus::Empty,
+                OutboundInventoryState::Unsupported => PageStatus::Unavailable {
+                    failure: Failure::unsupported("outbound inventory is unsupported"),
+                },
+                OutboundInventoryState::Failed { failure } => PageStatus::Failed {
+                    failure: failure.clone(),
+                },
+            }
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct OverviewPageSnapshot {
-    pub proxy_mode: Option<ProxyMode>,
+    pub routing_intent: RoutingIntentSnapshot,
     pub upload_bps: f64,
     pub download_bps: f64,
     pub active_connections: u32,
     pub memory_bytes: Option<u64>,
     pub core_version: Option<String>,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct ProxyNodeSnapshot {
-    pub name: String,
-    pub node_type: String,
-    pub delay_ms: Option<u32>,
-    /// Controller-reported health; None means the source supplied no flag.
-    #[serde(default)]
-    pub alive: Option<bool>,
-    pub selected: bool,
-    pub favorite: bool,
-    pub features: Vec<String>,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct ProxyGroupSnapshot {
-    pub name: String,
-    pub group_type: String,
-    #[serde(default)]
-    pub classification: Option<ProxyGroupClassification>,
-    pub current: String,
-    pub expanded: bool,
-    pub proxies: Vec<ProxyNodeSnapshot>,
-}
-
-impl ProxyGroupSnapshot {
-    pub fn resolved_classification(&self) -> ProxyGroupClassification {
-        self.classification
-            .or_else(|| ProxyGroupClassification::from_str_loose(&self.group_type))
-            .unwrap_or(ProxyGroupClassification::Selector)
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct ProxiesPageSnapshot {
-    #[serde(default)]
-    pub name_runs: BTreeMap<String, Vec<SearchTextRun>>,
-    #[serde(default)]
-    pub search_query: String,
-    /// Full observed catalogue, unaffected by view filters or group ordering.
-    #[serde(default)]
-    pub node_details: Vec<ProxyInspectionSnapshot>,
-    pub groups: Vec<ProxyGroupSnapshot>,
-    pub testing: bool,
-    pub active_exit: String,
-    #[serde(default)]
-    pub filter_alive: ProxyFilterAliveSnapshot,
-    #[serde(default)]
-    pub sort_order: ProxySortOrder,
-    #[serde(default)]
-    pub compact_view: bool,
-    /// DUAL-05: the shared custom-node protocol studio (URI decode/encode,
-    /// typed cipher / REALITY / smux descriptors, codec audit). Both surfaces
-    /// render this single projection; neither keeps a second protocol source.
-    #[serde(default)]
-    pub custom_node: ProtocolStudioSnapshot,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -304,7 +277,7 @@ pub struct ProfileSnapshot {
     #[serde(default)]
     pub filter: SubscriptionFilterDraft,
     #[serde(default = "unobserved_filter_source")]
-    pub filter_source: Result<ProfileSourceIdentity, Failure>,
+    pub filter_source: Result<ProfileWorkspaceIdentity, Failure>,
     /// DUAL-09-12: direct-edit protection derived from the subscription
     /// source. Both surfaces render the same classification.
     #[serde(default)]
@@ -315,7 +288,7 @@ pub struct ProfileSnapshot {
 fn default_auto_reload_core() -> bool {
     true
 }
-fn unobserved_filter_source() -> Result<ProfileSourceIdentity, Failure> {
+fn unobserved_filter_source() -> Result<ProfileWorkspaceIdentity, Failure> {
     Err(Failure::new(
         ErrorCode::NotReady,
         "Profile filter source has not been observed",
@@ -450,7 +423,7 @@ pub struct ConnectionSnapshot {
     #[serde(default)]
     pub destination_ip_asn: String,
     #[serde(default)]
-    pub rate_observed: bool,
+    pub rate_observation: ConnectionRateObservation,
     pub upload_bps: f64,
     pub download_bps: f64,
     pub upload_total: u64,
@@ -573,13 +546,13 @@ pub struct AppSnapshot {
     pub id: String,
     pub name: String,
     pub process_name: String,
-    pub rule: String,
+    pub rule: AppRoutingRule,
     pub is_system: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AppRoutingPageSnapshot {
-    pub mode: String,
+    pub mode: AppRoutingMode,
     pub include_system: bool,
     pub apps: Vec<AppSnapshot>,
     #[serde(default)]
@@ -594,6 +567,8 @@ pub struct SettingsPageSnapshot {
     pub notifications_enabled: Option<bool>,
     #[serde(default = "default_language_code")]
     pub language: String,
+    #[serde(default = "default_theme_preference")]
+    pub theme: String,
     pub autostart: bool,
     pub system_proxy: bool,
     pub mixed_port: Option<u16>,
@@ -626,10 +601,13 @@ fn default_language_code() -> String {
     "zh-CN".into()
 }
 
+fn default_theme_preference() -> String {
+    "system".into()
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SurfacePages {
     pub overview: PageData<OverviewPageSnapshot>,
-    pub proxies: PageData<ProxiesPageSnapshot>,
     pub profiles: PageData<ProfilesPageSnapshot>,
     pub rules: PageData<RulesPageSnapshot>,
     pub connections: PageData<ConnectionsPageSnapshot>,
@@ -645,7 +623,6 @@ impl SurfacePages {
     pub fn unavailable(failure: Failure) -> Self {
         Self {
             overview: PageData::unavailable(failure.clone()),
-            proxies: PageData::unavailable(failure.clone()),
             profiles: PageData::unavailable(failure.clone()),
             rules: PageData::unavailable(failure.clone()),
             connections: PageData::unavailable(failure.clone()),
@@ -658,19 +635,19 @@ impl SurfacePages {
         }
     }
 
-    pub fn status(&self, page: PageId) -> &PageStatus {
+    fn status(&self, page: PageId) -> Option<&PageStatus> {
         match page {
-            PageId::Overview => &self.overview.status,
-            PageId::Proxies => &self.proxies.status,
-            PageId::Profiles => &self.profiles.status,
-            PageId::Rules => &self.rules.status,
-            PageId::Connections => &self.connections.status,
-            PageId::Logs => &self.logs.status,
-            PageId::Dns => &self.dns.status,
-            PageId::Doctor => &self.doctor.status,
-            PageId::AppRouting => &self.app_routing.status,
-            PageId::Sync => &self.sync.status,
-            PageId::Settings => &self.settings.status,
+            PageId::Overview => Some(&self.overview.status),
+            PageId::Proxies => None,
+            PageId::Profiles => Some(&self.profiles.status),
+            PageId::Rules => Some(&self.rules.status),
+            PageId::Connections => Some(&self.connections.status),
+            PageId::Logs => Some(&self.logs.status),
+            PageId::Dns => Some(&self.dns.status),
+            PageId::Doctor => Some(&self.doctor.status),
+            PageId::AppRouting => Some(&self.app_routing.status),
+            PageId::Sync => Some(&self.sync.status),
+            PageId::Settings => Some(&self.settings.status),
         }
     }
 }
@@ -689,7 +666,7 @@ pub struct SurfaceSnapshot {
     #[serde(default)]
     pub shell_readout: ShellReadoutSnapshot,
     #[serde(default)]
-    pub probe_settings: ProxyProbeSettingsSnapshot,
+    pub probe_settings: RuntimeProbeSettingsState,
     #[serde(default)]
     pub language_settings: LanguageSettingsSnapshot,
     /// Independent echo observation stays available when DNS configuration reads fail.
@@ -712,10 +689,13 @@ pub struct SurfaceSnapshot {
     pub revision: u64,
     pub core: CoreSnapshot,
     pub capabilities: CapabilitySnapshot,
+    /// Engine/version/host/adapter capability facts authored by the Core owner.
+    pub core_capability_snapshot: PageData<CoreCapabilitySnapshot>,
     pub failure: Option<Failure>,
     pub pages: SurfacePages,
+    /// Shared custom-node protocol studio with an explicit observation state.
+    pub protocol_studio: PageData<ProtocolStudioSnapshot>,
     /// Independent online core-channel probe results shared by both UIs.
-    #[serde(default)]
     pub versions: CoreVersionSnapshot,
     /// Controller authentication status without exposing the secret.
     #[serde(default)]
@@ -744,9 +724,10 @@ pub struct SurfaceSnapshot {
     /// Physical-link/default-gateway observation and TUN route recovery.
     #[serde(default)]
     pub network_roaming: NetworkRoamingSnapshot,
-    /// Android VpnService permission/foreground/tun2proxy session state.
+    /// Exact `:vpn` owner readback for Android; other hosts report a typed
+    /// unsupported/not-applicable/unavailable disposition.
     #[serde(default)]
-    pub vpn: VpnSessionSnapshot,
+    pub vpn: VpnSurfaceObservation,
     /// Bounded live upload/download samples shared by both primary surfaces.
     #[serde(default)]
     pub traffic_waveform: TrafficWaveformSnapshot,
@@ -759,6 +740,13 @@ pub struct SurfaceSnapshot {
     /// Current selected proxy-group outbound node and its available facts.
     #[serde(default)]
     pub active_exit: ActiveExitSnapshot,
+    /// Engine-neutral outbound inventory observation, fenced to its core scope.
+    pub outbound_inventory: PageData<OutboundInventorySnapshot>,
+    /// Neutral protocol and health facts aligned with the observed inventory revision.
+    pub outbound_details: PageData<OutboundDetailsSnapshot>,
+    /// Typed engine-scoped outbound presentation preferences, owned and
+    /// revisioned by the active Core application.
+    pub outbound_ui_preferences: PageData<OutboundUiPreferencesSnapshot>,
     #[serde(default)]
     pub public_ip: PublicIpProbeSnapshot,
     #[serde(default)]
@@ -799,6 +787,94 @@ pub enum SurfaceEvent {
 }
 
 impl SurfaceSnapshot {
+    /// Ensure the target-scoped capability evidence belongs to this exact
+    /// Core engine/version and host surface. Capability evidence is static
+    /// across Core process generations, so it is intentionally not bound to
+    /// the runtime generation or session token.
+    pub fn validate_core_capability_scope_binding(&self) -> Result<(), Failure> {
+        let capability = match (
+            &self.core_capability_snapshot.status,
+            &self.core_capability_snapshot.data,
+        ) {
+            (PageStatus::Ready | PageStatus::Empty, Some(capability)) => capability,
+            (PageStatus::Ready | PageStatus::Empty, None) => {
+                return Err(Failure::new(
+                    ErrorCode::InvalidState,
+                    "ready Core capability page has no typed snapshot",
+                    true,
+                ));
+            }
+            (_, None) => return Ok(()),
+            (_, Some(_)) => {
+                return Err(Failure::new(
+                    ErrorCode::InvalidState,
+                    "unavailable Core capability page carries untrusted snapshot data",
+                    true,
+                ));
+            }
+        };
+        capability.validate().map_err(|_| {
+            Failure::new(
+                ErrorCode::InvalidState,
+                "Core capability snapshot contains stale, duplicate, or missing operation evidence",
+                true,
+            )
+        })?;
+        let identity = self.core.identity.as_ref().ok_or_else(|| {
+            Failure::new(
+                ErrorCode::InvalidState,
+                "Core capability evidence is present without a Core identity",
+                true,
+            )
+        })?;
+        let scope = &capability.scope;
+        let same_engine_version_host = scope.engine_id == identity.engine
+            && scope.core_version == identity.version
+            && scope.host == self.capabilities.host
+            && scope.binary_target.host_kind() == Some(self.capabilities.host);
+        if same_engine_version_host {
+            Ok(())
+        } else {
+            Err(Failure::new(
+                ErrorCode::InvalidState,
+                "Core capability scope does not match the surface Core identity, version, or target host",
+                true,
+            ))
+        }
+    }
+
+    /// Ensure the Core scope embedded in the Android VPN owner snapshot agrees
+    /// with the top-level Core facts from this surface read.
+    pub fn validate_vpn_owner_core_binding(&self) -> Result<(), Failure> {
+        let owner = match &self.vpn {
+            VpnSurfaceObservation::AndroidOwner(owner) => owner,
+            VpnSurfaceObservation::Unsupported { .. }
+            | VpnSurfaceObservation::NotApplicable
+            | VpnSurfaceObservation::Unavailable { .. } => return Ok(()),
+        };
+        match &owner.core {
+            crate::android_control::VpnOwnerCoreReadback::Available(owner_core) => {
+                if owner_core == &self.core.lifecycle_snapshot() {
+                    Ok(())
+                } else {
+                    Err(Failure::new(
+                        ErrorCode::InvalidState,
+                        "surface Core facts and :vpn owner Core scope/generation do not match",
+                        true,
+                    ))
+                }
+            }
+            crate::android_control::VpnOwnerCoreReadback::Unavailable { .. }
+                if self.core.identity.is_none() =>
+            {
+                Ok(())
+            }
+            crate::android_control::VpnOwnerCoreReadback::Unavailable { failure_message } => Err(
+                Failure::new(ErrorCode::NotReady, failure_message.clone(), true),
+            ),
+        }
+    }
+
     pub fn unavailable(surface: SurfaceKind, host: HostKind, failure: Failure) -> Self {
         Self {
             shell_readout: Default::default(),
@@ -815,11 +891,12 @@ impl SurfaceSnapshot {
             generation: 0,
             revision: 0,
             core: CoreSnapshot {
+                identity: None,
                 lifecycle: CoreLifecycle::Starting,
                 generation: 0,
                 session_token: None,
                 revision: 0,
-                proxy_mode: None,
+                routing_intent: RoutingIntentSnapshot::default(),
                 core_version: None,
                 sampled_at_epoch_ms: None,
                 failure: Some(failure.clone()),
@@ -830,9 +907,19 @@ impl SurfaceSnapshot {
                 watchdog: Default::default(),
             },
             capabilities: CapabilitySnapshot::new(host, 0, Vec::new()),
+            core_capability_snapshot: PageData::unavailable(Failure::new(
+                ErrorCode::NotReady,
+                "core capability matrix has not been observed",
+                true,
+            )),
             failure: Some(failure.clone()),
-            pages: SurfacePages::unavailable(failure),
-            versions: CoreVersionSnapshot::default(),
+            pages: SurfacePages::unavailable(failure.clone()),
+            protocol_studio: PageData::unavailable(Failure::new(
+                ErrorCode::NotReady,
+                "protocol studio has not been observed",
+                true,
+            )),
+            versions: CoreVersionSnapshot::unavailable(),
             controller_auth: ControllerAuthSnapshot::default(),
             service_mode: ServiceModeSnapshot::default(),
             port_conflicts: PortConflictSnapshot::default(),
@@ -842,12 +929,17 @@ impl SurfaceSnapshot {
             system_proxy: SystemProxySnapshot::default(),
             system_proxy_recovery: SystemProxyRecoverySnapshot::default(),
             network_roaming: NetworkRoamingSnapshot::default(),
-            vpn: VpnSessionSnapshot::default(),
+            vpn: VpnSurfaceObservation::NotApplicable,
             privileged_network: PrivilegedNetworkSnapshot::default(),
             traffic_waveform: TrafficWaveformSnapshot::default(),
             traffic_scale: TrafficScaleSnapshot::default(),
             traffic_topology: TrafficTopologySnapshot::default(),
             active_exit: ActiveExitSnapshot::default(),
+            outbound_inventory: PageData::unavailable(failure.clone()),
+            outbound_details: PageData::unavailable(failure.clone()),
+            outbound_ui_preferences: PageData::unavailable(Failure::unsupported(
+                "engine-scoped outbound UI preferences are not composed",
+            )),
             public_ip: PublicIpProbeSnapshot::default(),
             overview_layout: OverviewLayoutSnapshot::default(),
             reconnect_mask: ReconnectMaskSnapshot::default(),
@@ -861,96 +953,65 @@ impl SurfaceSnapshot {
         }
     }
 
-    pub fn page_status(&self, page: PageId) -> &PageStatus {
-        self.pages.status(page)
+    pub fn page_status(&self, page: PageId) -> PageStatus {
+        if page == PageId::Proxies {
+            return outbound_page_status(&self.outbound_inventory);
+        }
+        self.pages
+            .status(page)
+            .expect("non-proxy page has an owning page status")
+            .clone()
     }
 
     /// Whether this snapshot belongs to a newer, still-valid core session.
     /// Generation orders restarts; the token fences delayed events from an
     /// older session even when their transport revision happens to be larger.
     pub fn is_newer_than(&self, current: &Self) -> bool {
+        let next_scope = self.core.scope();
+        let current_scope = current.core.scope();
+        match (&next_scope, &current_scope) {
+            (Some(next), Some(previous))
+                if next.identity.engine != previous.identity.engine
+                    || next.identity.instance != previous.identity.instance =>
+            {
+                return false;
+            }
+            (Some(next), Some(previous))
+                if next.identity.version != previous.identity.version
+                    && next.generation <= previous.generation =>
+            {
+                return false;
+            }
+            // A surface may start with an unavailable snapshot before the
+            // composition has published its core identity. Once an identity
+            // is known, an unscoped snapshot cannot replace it.
+            (None, Some(_)) => return false,
+            _ => {}
+        }
+        if let (Some(next), Some(previous)) = (&next_scope, &current_scope) {
+            if next.generation != previous.generation {
+                return next.generation > previous.generation;
+            }
+        } else if self.core.generation != current.core.generation {
+            return self.core.generation > current.core.generation;
+        }
+        match (self.core.session_token, current.core.session_token) {
+            (Some(_), None) => return true,
+            // A stopped snapshot has no active token but is still the valid
+            // terminal state of the current generation.
+            (None, Some(_)) => {
+                return self.revision > current.revision || self.generation > current.generation;
+            }
+            (Some(next), Some(previous)) if next != previous => return false,
+            _ => {}
+        }
         if self.generation != current.generation {
             return self.generation > current.generation;
         }
-        match (self.core.session_token, current.core.session_token) {
-            (Some(_), None) => true,
-            // A stopped snapshot has no active token but is still the valid
-            // terminal state of the current generation.
-            (None, Some(_)) => self.revision > current.revision,
-            (Some(next), Some(previous)) if next != previous => false,
-            _ => self.revision > current.revision,
-        }
+        self.revision > current.revision
     }
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    #[cfg(test)]
-    use crate::offline_startup::StartupNetworkPolicy;
-    #[cfg(test)]
-    use crate::session::SessionToken;
-
-    #[test]
-    fn page_vocabulary_has_exactly_eleven_entries() {
-        assert_eq!(PageId::ALL.len(), 11);
-        assert_eq!(PageId::ALL[0].as_str(), "overview");
-        assert_eq!(PageId::ALL[10].as_str(), "settings");
-    }
-
-    #[test]
-    fn unavailable_is_not_an_empty_page() {
-        let failure = Failure::unsupported("host did not provide this capability");
-        let page = PageData::<String>::unavailable(failure.clone());
-        assert!(page.data.is_none());
-        assert_eq!(page.status, PageStatus::Unavailable { failure });
-    }
-
-    #[test]
-    fn session_token_fences_old_snapshots_even_with_a_larger_revision() {
-        let mut current = SurfaceSnapshot::unavailable(
-            SurfaceKind::BevyDesktop,
-            HostKind::Desktop,
-            Failure::unsupported("not ready"),
-        );
-        current.generation = 4;
-        current.core.generation = 4;
-        current.core.session_token = Some(SessionToken::new(40));
-        current.revision = 10;
-        current.core.revision = 10;
-
-        let mut stale = current.clone();
-        stale.core.session_token = Some(SessionToken::new(39));
-        stale.revision = 11;
-        stale.core.revision = 11;
-        assert!(!stale.is_newer_than(&current));
-
-        let mut next = current.clone();
-        next.generation = 5;
-        next.core.generation = 5;
-        next.core.session_token = Some(SessionToken::new(50));
-        next.revision = 1;
-        next.core.revision = 1;
-        assert!(next.is_newer_than(&current));
-
-        let mut stopped = current.clone();
-        stopped.core.session_token = None;
-        stopped.revision = 11;
-        stopped.core.revision = 11;
-        assert!(stopped.is_newer_than(&current));
-    }
-
-    #[test]
-    fn unavailable_surface_defaults_to_offline_first_without_claiming_ready() {
-        let snapshot = SurfaceSnapshot::unavailable(
-            SurfaceKind::IcedDesktop,
-            HostKind::Desktop,
-            Failure::unsupported("not composed"),
-        );
-        assert_eq!(
-            snapshot.offline_startup.policy,
-            StartupNetworkPolicy::OfflineFirst
-        );
-        assert!(!snapshot.offline_startup.is_offline_startable());
-    }
-}
+#[path = "surface_snapshot_tests.rs"]
+mod tests;

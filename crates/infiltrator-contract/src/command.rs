@@ -1,4 +1,5 @@
 use crate::aggregator::AggregationDraft;
+use crate::app_routing::{AppRoutingMode, AppRoutingPackageSelection, AppRoutingRule};
 use crate::command_output::CommandOutput;
 use crate::dns::DnsSettingsPatch;
 use crate::dns_cache::DnsCacheOperationId;
@@ -7,26 +8,33 @@ use crate::error::{ErrorCode, Failure};
 use crate::lan::LanCredentials;
 use crate::language::LanguagePreference;
 use crate::log_export::LogExportIdentity;
+use crate::outbound::preferences::OutboundUiPreferenceRequest;
+use crate::outbound::probe::{
+    OutboundSelectionRequest, ProbeOutboundBatchRequest, ProbeOutboundRequest,
+};
 use crate::overview_layout::OverviewCardKind;
-use crate::profile_source::ProfileSourceIdentity;
+use crate::profile_configuration::ProfileConfigurationRequest;
+use crate::profile_document_identity::ProfileWorkspaceIdentity;
+use crate::profile_protection::ProfileWriteAuthorization;
 use crate::protocol_fidelity::ProtocolDraft;
 use crate::protocol_trust::TlsTrustParams;
-use crate::proxies::ProxySortOrder;
-use crate::proxy_probe_options::ProxyProbeOptions;
+use crate::routing_intent::RoutingIntent;
 use crate::rule_document::RuleListCommit;
 use crate::rule_edit::RuleMoveDirection;
 use crate::rule_source::RuleSourceIdentity;
 use crate::rule_trace_run::{RuleTraceOperationId, RuleTraceRequest};
 use crate::rule_tracer::TracerRuleOverride;
-use crate::rules_workspace::RulesJsonSection;
+use crate::runtime_settings::RuntimeProbeSettings;
 use crate::script_export_review::{ScriptExportDraft, ScriptExportIdentity};
 use crate::script_run::{ScriptOperationId, ScriptRunRequest};
 use crate::snapshot_restore::{SnapshotRestoreIdentity, SnapshotRestoreTarget};
+use crate::speedtest::{SpeedtestConcurrency, SpeedtestRunId, SpeedtestTarget};
 use crate::subscription_import::{
     SubscriptionFilterDraft, SubscriptionImportChannel, SubscriptionScheduleDraft,
 };
 use crate::tun::TunStack;
 use serde::{Deserialize, Serialize};
+use std::fmt;
 
 /// Correlates an asynchronous command with its result and events.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -38,17 +46,7 @@ impl RequestId {
     }
 }
 
-/// Mihomo's three controller modes, kept free of transport details.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ProxyMode {
-    #[default]
-    Rule,
-    Global,
-    Direct,
-    Script,
-}
-
-/// Log verbosity accepted by Mihomo's live configuration endpoint.
+/// Shared canonical keys for live core log verbosity.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CoreLogLevel {
     Debug,
@@ -61,7 +59,7 @@ pub enum CoreLogLevel {
 impl CoreLogLevel {
     pub const ALL: [Self; 4] = [Self::Debug, Self::Info, Self::Warn, Self::Error];
 
-    pub const fn as_str(self) -> &'static str {
+    pub const fn as_key(self) -> &'static str {
         match self {
             Self::Debug => "debug",
             Self::Info => "info",
@@ -70,55 +68,20 @@ impl CoreLogLevel {
         }
     }
 
-    pub fn parse(raw: &str) -> Option<Self> {
-        match raw.trim().to_ascii_lowercase().as_str() {
+    pub fn from_key(raw: &str) -> Option<Self> {
+        match raw.trim() {
             "debug" => Some(Self::Debug),
             "info" => Some(Self::Info),
-            "warn" | "warning" => Some(Self::Warn),
-            "error" | "err" => Some(Self::Error),
+            "warn" => Some(Self::Warn),
+            "error" => Some(Self::Error),
             _ => None,
         }
     }
 }
 
-impl ProxyMode {
-    pub const ALL: [Self; 4] = [Self::Rule, Self::Global, Self::Direct, Self::Script];
-
-    pub fn to_wire(self) -> &'static str {
-        match self {
-            Self::Rule => "rule",
-            Self::Global => "global",
-            Self::Direct => "direct",
-            Self::Script => "script",
-        }
-    }
-
-    pub fn from_wire(raw: &str) -> Option<Self> {
-        match raw.trim().to_ascii_lowercase().as_str() {
-            "rule" => Some(Self::Rule),
-            "global" => Some(Self::Global),
-            "direct" => Some(Self::Direct),
-            "script" => Some(Self::Script),
-            _ => None,
-        }
-    }
-
-    pub const fn to_index(self) -> u8 {
-        match self {
-            Self::Rule => 0,
-            Self::Global => 1,
-            Self::Direct => 2,
-            Self::Script => 3,
-        }
-    }
-
-    pub const fn from_index(raw: u8) -> Self {
-        match raw {
-            1 => Self::Global,
-            2 => Self::Direct,
-            3 => Self::Script,
-            _ => Self::Rule,
-        }
+impl fmt::Display for CoreLogLevel {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.as_key())
     }
 }
 
@@ -144,6 +107,11 @@ pub enum CommandIntent {
     StartCore,
     StopCore,
     RestartCore,
+    StartProxy,
+    StopProxy,
+    ResumeKernel,
+    PauseKernel,
+    RestartKernel,
     PrepareServiceMode,
     RepairPortConflicts,
     SetCoreLogLevel {
@@ -155,82 +123,35 @@ pub enum CommandIntent {
     SwitchProfile {
         profile_id: String,
     },
-    SetProxyMode {
-        mode: ProxyMode,
+    SetRoutingIntent {
+        intent: RoutingIntent,
     },
-    SelectProxyNode {
-        group: String,
-        node: String,
+    GetRoutingIntent,
+    ReadOutboundInventory,
+    SelectOutbound {
+        request: OutboundSelectionRequest,
     },
-    TestDelay {
-        group: Option<String>,
-        #[serde(default)]
-        url: Option<String>,
-        #[serde(default)]
-        timeout_ms: Option<u32>,
+    ProbeOutbound {
+        request: ProbeOutboundRequest,
     },
-    TestNodeDelay {
-        node: String,
-        #[serde(default)]
-        url: Option<String>,
-        #[serde(default)]
-        timeout_ms: Option<u32>,
+    ProbeOutboundBatch {
+        request: ProbeOutboundBatchRequest,
     },
-    RunSpeedtest {
-        node: String,
-        #[serde(default)]
-        url: Option<String>,
+    ApplyOutboundUiPreference {
+        request: OutboundUiPreferenceRequest,
     },
-    /// Report a real downlink transfer measured by the host for one node.
-    RecordSpeedtestBandwidth {
-        node: String,
-        total_bytes: u64,
-        duration_ms: u64,
+    StartSpeedtest {
+        target: SpeedtestTarget,
     },
-    /// DUAL-06-12: report the real egress IP + country the host observed when
-    /// probing through a node. The host owns the probe; the engine stores the
-    /// fact and compares it against the node label.
-    RecordSpeedtestOutboundIp {
-        node: String,
-        ip: String,
-        #[serde(default)]
-        country: Option<String>,
-    },
-    /// DUAL-06-01: set the shared speedtest engine's concurrency limit at
-    /// runtime (clamped to >= 1 by the engine).
     SetSpeedtestConcurrency {
-        limit: usize,
+        concurrency: SpeedtestConcurrency,
     },
-    CancelSpeedtest,
-    ToggleProxyGroupExpand {
-        group: String,
+    CancelSpeedtestRun {
+        run_id: SpeedtestRunId,
     },
-    SetProxyGroupExpanded {
-        group: String,
-        expanded: bool,
+    SetRuntimeProbeSettings {
+        settings: RuntimeProbeSettings,
     },
-    SetProxySortOrder {
-        order: ProxySortOrder,
-    },
-    SetProxyProbeOptions {
-        options: ProxyProbeOptions,
-    },
-    SetProxySearchQuery {
-        query: String,
-    },
-    ToggleFilterAlive {
-        enabled: bool,
-    },
-    ToggleFavoriteProxy {
-        proxy: String,
-    },
-    SetProxyCompactView {
-        compact: bool,
-    },
-    ReorderProxyGroups {
-        group_names: Vec<String>,
-    },
-    ResetProxyGroupOrder,
     ReorderOverviewCards {
         order: Vec<OverviewCardKind>,
     },
@@ -270,7 +191,7 @@ pub enum CommandIntent {
     /// filter (include/exclude/protocol/rename/dedupe) through the shared
     /// pipeline.
     SaveSubscriptionFilter {
-        source: ProfileSourceIdentity,
+        workspace_identity: ProfileWorkspaceIdentity,
         filter: SubscriptionFilterDraft,
     },
     /// DUAL-07-01: import a profile from a URL, local file, or the clipboard
@@ -359,12 +280,10 @@ pub enum CommandIntent {
     /// (`POST /upgrade/geo`) through the shared runtime gateway, so both
     /// surfaces expose the same entry point.
     UpgradeGeoDatabases,
-    /// DUAL-11-14: replace one rules-workspace JSON document (rule providers /
-    /// proxy providers / sniffer) through the shared configuration use-case,
-    /// which validates the document before writing the active profile.
-    ApplyRulesJsonDocument {
-        section: RulesJsonSection,
-        json: String,
+    /// Apply a typed profile section only to the engine/format/schema/revision
+    /// from which the editor buffer was read.
+    ApplyProfileConfiguration {
+        request: Box<ProfileConfigurationRequest>,
     },
     CloseConnection {
         id: String,
@@ -451,22 +370,20 @@ pub enum CommandIntent {
     },
     RefreshNetworkRoaming,
     RepairNetworkRoutes,
+    CheckVpnAuthorization,
     StartVpn,
     StopVpn,
     RunPrivilegedNetworkRegression,
-    ToggleAppRouting {
+    SetAppRoutingPackageSelection {
         app_id: String,
-        enabled: bool,
+        selection: AppRoutingPackageSelection,
     },
     SetAppRoutingMode {
-        mode: String,
-    },
-    ToggleIncludeSystemApps {
-        include: bool,
+        mode: AppRoutingMode,
     },
     SetAppRule {
         app_id: String,
-        rule: String,
+        rule: AppRoutingRule,
     },
     SyncNow,
     CreateBackupSnapshot {
@@ -503,16 +420,16 @@ pub enum CommandIntent {
         keep: Option<usize>,
     },
     /// DUAL-09-03/14: load the active profile's stored document (content +
-    /// protection + shared syntax preflight) for the editor surfaces.
+    /// protection + identity-scoped codec inspection) for the editor surfaces.
     LoadProfileDocument {
         profile: Option<String>,
     },
     /// DUAL-09-14: commit an editor buffer through the shared guarded write
     /// path, comparing the exact document/options source the user observed.
     SaveProfileDocument {
-        source: ProfileSourceIdentity,
+        workspace_identity: ProfileWorkspaceIdentity,
         content: String,
-        allow_protected: bool,
+        authorization: ProfileWriteAuthorization,
     },
     /// DUAL-09-14: load a profile's option sidecar (Mixin overlay + filter
     /// draft) through the shared use-case and publish it for the editor panes.
@@ -525,7 +442,7 @@ pub enum CommandIntent {
     /// byte-faithful engine, apply through the transaction and persist the
     /// sidecar). The same call the Iced editor makes.
     SaveMixinOverlay {
-        source: ProfileSourceIdentity,
+        workspace_identity: ProfileWorkspaceIdentity,
         mixin_yaml: String,
     },
     /// Select the last installed, locally recorded core version.
@@ -597,7 +514,7 @@ pub enum CommandResult {
     },
     Produced {
         request_id: RequestId,
-        output: CommandOutput,
+        output: Box<CommandOutput>,
     },
     Rejected {
         request_id: RequestId,
@@ -608,7 +525,14 @@ pub enum CommandResult {
 impl CommandIntent {
     pub const fn kind(&self) -> CommandKind {
         match self {
-            Self::StartCore | Self::StopCore | Self::RestartCore => CommandKind::CoreLifecycle,
+            Self::StartCore
+            | Self::StopCore
+            | Self::RestartCore
+            | Self::StartProxy
+            | Self::StopProxy
+            | Self::ResumeKernel
+            | Self::PauseKernel
+            | Self::RestartKernel => CommandKind::CoreLifecycle,
             Self::PrepareServiceMode => CommandKind::Network,
             Self::RepairPortConflicts => CommandKind::Network,
             Self::SetCoreLogLevel { .. } | Self::SetTunStack { .. } => CommandKind::Runtime,
@@ -647,31 +571,23 @@ impl CommandIntent {
             | Self::AddCustomRule { .. }
             | Self::ApplyGameRoutingPresets { .. } => CommandKind::Profile,
             Self::UpgradeGeoDatabases => CommandKind::Runtime,
-            Self::ApplyRulesJsonDocument { .. } => CommandKind::Profile,
+            Self::ApplyProfileConfiguration { .. } => CommandKind::Profile,
             Self::SimulateRuleTrace { .. }
             | Self::ApplyTracerRuleOverride { .. }
             | Self::ResetRuleHitCounters { .. }
             | Self::ReorderOverviewCards { .. }
             | Self::ResetOverviewCardOrder => CommandKind::Runtime,
-            Self::SetProxyMode { .. }
-            | Self::SelectProxyNode { .. }
-            | Self::TestDelay { .. }
-            | Self::TestNodeDelay { .. }
-            | Self::RunSpeedtest { .. }
-            | Self::RecordSpeedtestBandwidth { .. }
-            | Self::RecordSpeedtestOutboundIp { .. }
+            Self::SetRoutingIntent { .. }
+            | Self::GetRoutingIntent
+            | Self::ReadOutboundInventory
+            | Self::SelectOutbound { .. }
+            | Self::ProbeOutbound { .. }
+            | Self::ProbeOutboundBatch { .. }
+            | Self::ApplyOutboundUiPreference { .. }
+            | Self::StartSpeedtest { .. }
             | Self::SetSpeedtestConcurrency { .. }
-            | Self::CancelSpeedtest
-            | Self::ToggleProxyGroupExpand { .. }
-            | Self::SetProxyGroupExpanded { .. }
-            | Self::SetProxySortOrder { .. }
-            | Self::SetProxySearchQuery { .. }
-            | Self::SetProxyProbeOptions { .. }
-            | Self::ToggleFilterAlive { .. }
-            | Self::ToggleFavoriteProxy { .. }
-            | Self::SetProxyCompactView { .. }
-            | Self::ReorderProxyGroups { .. }
-            | Self::ResetProxyGroupOrder => CommandKind::Proxy,
+            | Self::CancelSpeedtestRun { .. }
+            | Self::SetRuntimeProbeSettings { .. } => CommandKind::Proxy,
             Self::CloseConnection { .. }
             | Self::CloseAllConnections
             | Self::ClearDnsCache { .. } => CommandKind::Runtime,
@@ -704,12 +620,12 @@ impl CommandIntent {
             | Self::ApplyPac { .. }
             | Self::RefreshNetworkRoaming
             | Self::RepairNetworkRoutes
+            | Self::CheckVpnAuthorization
             | Self::StartVpn
             | Self::StopVpn
             | Self::RunPrivilegedNetworkRegression
-            | Self::ToggleAppRouting { .. }
+            | Self::SetAppRoutingPackageSelection { .. }
             | Self::SetAppRoutingMode { .. }
-            | Self::ToggleIncludeSystemApps { .. }
             | Self::SetAppRule { .. } => CommandKind::Network,
             Self::SyncNow
             | Self::CreateBackupSnapshot { .. }
@@ -736,7 +652,7 @@ impl CommandResult {
     pub fn into_output(self) -> Result<CommandOutput, Failure> {
         match self {
             Self::Completed { .. } => Ok(CommandOutput::Unit),
-            Self::Produced { output, .. } => Ok(output),
+            Self::Produced { output, .. } => Ok(*output),
             Self::Rejected { failure, .. } => Err(failure),
             Self::Accepted { .. } => Err(Failure::new(
                 ErrorCode::NotReady,

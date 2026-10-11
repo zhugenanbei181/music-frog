@@ -6,58 +6,6 @@
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
-pub struct ConfigSnapshot {
-    pub mode: String,
-    pub port: u16,
-    pub mixed_port: u16,
-    pub log_level: String,
-    pub allow_lan: bool,
-    /// Missing controller fields remain unobserved. Configuration defaults are not observations.
-    #[serde(default)]
-    pub ipv6: Option<bool>,
-    #[serde(default)]
-    pub bind_address: Option<String>,
-    #[serde(default)]
-    pub lan_allowed_ips: Option<Vec<String>>,
-    #[serde(default)]
-    pub lan_disallowed_ips: Option<Vec<String>>,
-    #[serde(default)]
-    pub skip_auth_prefixes: Option<Vec<String>>,
-    #[serde(default)]
-    pub authentication_enabled: Option<bool>,
-    #[serde(default)]
-    pub authentication_user_count: Option<usize>,
-    #[serde(default)]
-    pub authentication_username: Option<String>,
-    pub tun: Option<TunSnapshot>,
-    pub dns: Option<DnsSnapshot>,
-    pub sniffer: Option<SnifferSnapshot>,
-    pub script: Option<serde_json::Value>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
-pub struct TunSnapshot {
-    pub enable: Option<bool>,
-    pub stack: Option<String>,
-    pub auto_route: Option<bool>,
-    pub strict_route: Option<bool>,
-    #[serde(default)]
-    pub mtu: Option<u32>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
-pub struct DnsSnapshot {
-    pub nameserver: Vec<String>,
-    pub fallback: Vec<String>,
-    pub enhanced_mode: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
-pub struct SnifferSnapshot {
-    pub enable: bool,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
 pub struct TrafficData {
     pub up: u64,

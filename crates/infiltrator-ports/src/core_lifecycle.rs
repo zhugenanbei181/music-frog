@@ -1,5 +1,6 @@
 use crate::error::PortError;
 use async_trait::async_trait;
+use infiltrator_contract::core_identity::CoreIdentity;
 use infiltrator_contract::session::SessionToken;
 use infiltrator_contract::snapshot::{CoreLifecycle, CoreLifecycleSnapshot};
 use std::time::Duration;
@@ -8,6 +9,10 @@ use std::time::Duration;
 /// inbound adapters. It contains no session implementation or executor type.
 #[async_trait]
 pub trait CoreLifecyclePort: Send + Sync {
+    fn core_identity(&self) -> Option<CoreIdentity> {
+        None
+    }
+
     fn lifecycle(&self) -> CoreLifecycle;
     fn generation(&self) -> u64;
     fn session_token(&self) -> Option<SessionToken>;
@@ -17,6 +22,7 @@ pub trait CoreLifecyclePort: Send + Sync {
     /// CoreApplication supplies its real revision/failure fields.
     fn lifecycle_snapshot(&self) -> CoreLifecycleSnapshot {
         CoreLifecycleSnapshot {
+            identity: self.core_identity(),
             lifecycle: self.lifecycle(),
             generation: self.generation(),
             session_token: self.session_token(),

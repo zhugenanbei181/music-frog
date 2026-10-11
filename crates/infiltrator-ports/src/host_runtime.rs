@@ -7,13 +7,13 @@ use crate::dns_leak::DnsLeakProbePort;
 use crate::mini_hud_window::MiniHudWindowPort;
 use crate::mtu_probe::MtuProbePort;
 use crate::network_roaming::NetworkRoamingPort;
+use crate::outbound::{OutboundPort, OutboundScopeSource};
 use crate::pac::PacServicePort;
 use crate::privileged_network::PrivilegedNetworkPort;
 use crate::rule_provider_cache::RuleProviderCachePort;
 use crate::runtime_gateway::ManagedRuntime;
 use crate::script_export::ScriptExportPort;
 use crate::service_mode::ServiceModePort;
-use crate::speedtest::SpeedtestPort;
 use crate::stun_probe::StunEgressProbePort;
 use crate::system_dns_cache::SystemDnsCachePort;
 use crate::system_proxy::SystemProxyPort;
@@ -81,11 +81,6 @@ pub trait HostRuntime: ManagedRuntime {
     fn vpn_service_port(&self) -> Option<Arc<dyn VpnServicePort>> {
         None
     }
-    /// Optional speedtest / jitter / packet-loss engine adapter. Hosts without
-    /// one surface a typed unsupported state instead of fabricating metrics.
-    fn speedtest_port(&self) -> Option<Arc<dyn SpeedtestPort>> {
-        None
-    }
     /// Optional operating-system resolver cache adapter. Hosts without one
     /// surface a typed unsupported OS-cache outcome instead of claiming the
     /// system cache was refreshed.
@@ -131,4 +126,12 @@ pub trait HostRuntime: ManagedRuntime {
         None
     }
     fn lifecycle_port(&self) -> Arc<dyn CoreLifecyclePort>;
+    /// Optional typed outbound owner ports. Inbound surfaces obtain the active
+    /// scope from the owner and never synthesize an identity or generation.
+    fn outbound_port(&self) -> Option<Arc<dyn OutboundPort>> {
+        None
+    }
+    fn outbound_scope_source(&self) -> Option<Arc<dyn OutboundScopeSource>> {
+        None
+    }
 }

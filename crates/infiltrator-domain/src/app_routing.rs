@@ -1,6 +1,7 @@
 //! Per-app proxy routing configuration, corporate subnet detection, process traffic tracking,
 //! and multi-platform process alias registry.
 
+use infiltrator_contract::app_routing;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
@@ -25,6 +26,72 @@ pub enum AppRoutingMode {
     ProxyAll,
     ProxySelected,
     BypassSelected,
+}
+
+/// Explicit selection state for per-package routing updates.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AppRoutingPackageSelection {
+    Selected,
+    Unselected,
+}
+
+impl From<app_routing::AppRoutingMode> for AppRoutingMode {
+    fn from(mode: app_routing::AppRoutingMode) -> Self {
+        match mode {
+            app_routing::AppRoutingMode::ProxyAll => Self::ProxyAll,
+            app_routing::AppRoutingMode::ProxySelected => Self::ProxySelected,
+            app_routing::AppRoutingMode::BypassSelected => Self::BypassSelected,
+        }
+    }
+}
+
+impl From<AppRoutingMode> for app_routing::AppRoutingMode {
+    fn from(mode: AppRoutingMode) -> Self {
+        match mode {
+            AppRoutingMode::ProxyAll => Self::ProxyAll,
+            AppRoutingMode::ProxySelected => Self::ProxySelected,
+            AppRoutingMode::BypassSelected => Self::BypassSelected,
+        }
+    }
+}
+
+impl From<app_routing::AppRoutingPackageSelection> for AppRoutingPackageSelection {
+    fn from(selection: app_routing::AppRoutingPackageSelection) -> Self {
+        match selection {
+            app_routing::AppRoutingPackageSelection::Selected => Self::Selected,
+            app_routing::AppRoutingPackageSelection::Unselected => Self::Unselected,
+        }
+    }
+}
+
+impl From<AppRoutingPackageSelection> for app_routing::AppRoutingPackageSelection {
+    fn from(selection: AppRoutingPackageSelection) -> Self {
+        match selection {
+            AppRoutingPackageSelection::Selected => Self::Selected,
+            AppRoutingPackageSelection::Unselected => Self::Unselected,
+        }
+    }
+}
+
+impl From<app_routing::AppRoutingRule> for AppRoutingRule {
+    fn from(rule: app_routing::AppRoutingRule) -> Self {
+        match rule {
+            app_routing::AppRoutingRule::Proxy => Self::Proxy,
+            app_routing::AppRoutingRule::Direct => Self::Direct,
+            app_routing::AppRoutingRule::Block => Self::Block,
+        }
+    }
+}
+
+impl From<AppRoutingRule> for app_routing::AppRoutingRule {
+    fn from(rule: AppRoutingRule) -> Self {
+        match rule {
+            AppRoutingRule::Proxy => Self::Proxy,
+            AppRoutingRule::Direct => Self::Direct,
+            AppRoutingRule::Block => Self::Block,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]

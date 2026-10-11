@@ -32,7 +32,12 @@ members = [
   "crates/infiltrator-bevy-widgets",
   "crates/infiltrator-bevy-ui"]
 
+[workspace.package]
+version = "0.41.0"
+
 [workspace.dependencies]
+# Toolkit-neutral text projection types used by shared contracts.
+zhuge-ui-core = { git = "https://github.com/YellowWhiteBlackCat/zhuge-ui-kit.git", rev = "7bd25ea87739c926ff230e0b0da4d0f107ce000d", version = "0.1" }
 # Network & Async
 tokio = { version = "1.53", features = ["full"] }
 reqwest = { version = "0.13", default-features = false, features = ["json", "socks", "stream", "http2"] }

@@ -28,7 +28,7 @@ fn catalogue_ids_and_locale_keys_are_unique_and_stable() {
 fn every_catalogue_entry_keeps_a_real_document_parseable() {
     // The catalogue is the contract, so this test pins the *shape* of every
     // body: a snippets test in the application layer re-checks the same bodies
-    // with the shared YAML preflight.
+    // with the identity-scoped codec inspection path.
     for snippet in YAML_SNIPPETS {
         assert!(
             snippet.body.ends_with('\n'),

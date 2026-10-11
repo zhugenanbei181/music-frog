@@ -17,8 +17,22 @@
 //! does not generate values (no random UUID/port). A caret outside the
 //! document is clamped, never silently rejected.
 
-use crate::profile_document::SyntaxDiagnosticSnapshot;
+use serde::{Deserialize, Serialize};
 use std::fmt;
+
+/// YAML-specific syntax detail for the Mihomo snippet/editor extension.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SyntaxDiagnosticSnapshot {
+    pub line: usize,
+    pub column: usize,
+    pub message: String,
+}
+
+impl SyntaxDiagnosticSnapshot {
+    pub fn line_label(&self) -> String {
+        format!("Line {} : Col {}", self.line, self.column)
+    }
+}
 
 /// Category of a snippet, shared for grouping and for surface copy.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

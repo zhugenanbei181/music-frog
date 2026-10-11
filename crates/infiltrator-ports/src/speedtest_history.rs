@@ -1,6 +1,6 @@
 //! Host-owned persistence seam for the bounded speedtest run history.
 //!
-//! The shared `SpeedtestApplication` owns the canonical snapshot; this port is
+//! The Core actor owns the canonical snapshot; this port is
 //! the zero-toolkit seam a host uses to survive a process restart without the
 //! application layer depending on a filesystem or async runtime.
 

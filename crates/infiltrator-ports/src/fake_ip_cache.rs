@@ -1,4 +1,6 @@
-//! Fake-IP cache maintenance capability supplied by a host adapter.
+//! Host-local Fake-IP file-cache maintenance; this does not address the
+//! running controller's Fake-IP table. That operation uses
+//! [`crate::controller_fake_ip_cache::ControllerFakeIpCachePort`].
 
 use crate::error::PortError;
 

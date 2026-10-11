@@ -1,5 +1,5 @@
 //! Detailed filtering facts and the actual source published by a commit.
-use crate::profile_source::ProfileSourceIdentity;
+use crate::profile_document_identity::ProfileWorkspaceIdentity;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -21,6 +21,6 @@ pub struct FilterReport {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SubscriptionFilterApplied {
-    pub source: ProfileSourceIdentity,
+    pub workspace_identity: ProfileWorkspaceIdentity,
     pub report: FilterReport,
 }

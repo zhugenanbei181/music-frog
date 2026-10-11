@@ -13,7 +13,9 @@ pub enum HostKind {
 pub enum SurfaceKind {
     IcedDesktop,
     BevyDesktop,
+    SlintDesktop,
     BevyAndroid,
+    SlintAndroid,
     AndroidCompose,
     IosCompose,
     AdminRest,

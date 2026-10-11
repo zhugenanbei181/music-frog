@@ -2,10 +2,17 @@
 use crate::command::CommandIntent;
 use crate::error::{ErrorCode, Failure};
 use crate::log_export::{LogExportReceipt, LogExportSummary};
+use crate::outbound::inventory::{
+    OutboundInventorySnapshot, OutboundProbeSnapshot, OutboundProbeState,
+};
+use crate::outbound::preferences::OutboundUiPreferencesSnapshot;
+use crate::outbound::probe::OutboundProbeBatchSnapshot;
 use crate::profile_document::{
     ProfileDocumentSaved, ProfileDocumentSnapshot, ProfileWorkspaceReceipt,
 };
+use crate::profile_document_identity::ProfileWorkspaceIdentity;
 use crate::profile_options::ProfileOptionsSnapshot;
+use crate::routing_intent::{RoutingIntent, RoutingIntentSnapshot};
 use crate::rule_statistics::RuleStatisticsResetReceipt;
 use crate::script_export_review::{ScriptExportReview, ScriptExportSaved};
 use crate::script_run::{ScriptClearReceipt, ScriptRunResult};
@@ -16,6 +23,7 @@ use crate::snapshot_history::{
 use crate::snapshot_restore::{
     SnapshotRestoreCancelled, SnapshotRestoreReceipt, SnapshotRestoreReview,
 };
+use crate::speedtest::{SpeedtestCancelOutcome, SpeedtestStartReceipt};
 use crate::subscription_filter_result::SubscriptionFilterApplied;
 use crate::yaml_ast_diff::YamlAstDiffSnapshot;
 use serde::{Deserialize, Serialize};
@@ -27,6 +35,14 @@ pub enum CommandOutput {
     ScriptExportPrepared(Box<ScriptExportReview>),
     ScriptExportSaved(Box<ScriptExportSaved>),
     Unit,
+    RoutingIntentApplied { observed: RoutingIntent },
+    RoutingIntentObserved { snapshot: RoutingIntentSnapshot },
+    OutboundInventory(OutboundInventorySnapshot),
+    OutboundProbe(OutboundProbeSnapshot),
+    OutboundProbeBatch(OutboundProbeBatchSnapshot),
+    OutboundUiPreferencesApplied(OutboundUiPreferencesSnapshot),
+    SpeedtestStarted(SpeedtestStartReceipt),
+    SpeedtestCancelled(SpeedtestCancelOutcome),
     RuleStatisticsReset(RuleStatisticsResetReceipt),
     LogExportPrepared(LogExportSummary),
     LogExportSaved(LogExportReceipt),
@@ -47,6 +63,42 @@ pub enum CommandOutput {
 impl CommandOutput {
     pub fn validate_for(&self, intent: &CommandIntent) -> Result<(), Failure> {
         let matches = match (intent, self) {
+            (
+                CommandIntent::SetRoutingIntent { intent },
+                Self::RoutingIntentApplied { observed },
+            ) => intent == observed,
+            (CommandIntent::GetRoutingIntent, Self::RoutingIntentObserved { .. }) => true,
+            (CommandIntent::ReadOutboundInventory, Self::OutboundInventory(_)) => true,
+            (CommandIntent::SelectOutbound { request }, Self::OutboundInventory(snapshot)) => {
+                request.is_confirmed_by(snapshot)
+            }
+            (CommandIntent::ProbeOutbound { request }, Self::OutboundProbe(snapshot)) => {
+                request.is_confirmed_by(snapshot)
+                    && !matches!(
+                        snapshot.state(),
+                        OutboundProbeState::Unknown | OutboundProbeState::Probing
+                    )
+            }
+            (CommandIntent::ProbeOutboundBatch { request }, Self::OutboundProbeBatch(snapshot)) => {
+                snapshot.is_confirmed_by(request)
+            }
+            (
+                CommandIntent::ApplyOutboundUiPreference { request },
+                Self::OutboundUiPreferencesApplied(snapshot),
+            ) => request.is_confirmed_by(snapshot),
+            (CommandIntent::StartSpeedtest { .. }, Self::SpeedtestStarted(_)) => true,
+            (CommandIntent::CancelSpeedtestRun { run_id }, Self::SpeedtestCancelled(outcome)) => {
+                match outcome {
+                    SpeedtestCancelOutcome::Requested { run_id: observed }
+                    | SpeedtestCancelOutcome::AlreadyRequested { run_id: observed }
+                    | SpeedtestCancelOutcome::RunAlreadyFinished { run_id: observed } => {
+                        run_id == observed
+                    }
+                    SpeedtestCancelOutcome::StaleRun {
+                        requested_run_id, ..
+                    } => run_id == requested_run_id,
+                }
+            }
             (
                 CommandIntent::PrepareSnapshotRestore { target },
                 Self::SnapshotRestorePrepared(review),
@@ -127,51 +179,57 @@ impl CommandOutput {
                 receipt.summary.identity == *identity && receipt.validate(&receipt.summary).is_ok()
             }
             (
-                CommandIntent::SaveSubscriptionFilter { source, .. },
+                CommandIntent::SaveSubscriptionFilter {
+                    workspace_identity, ..
+                },
                 Self::SubscriptionFilterApplied(applied),
-            ) => source.profile == applied.source.profile,
+            ) => same_document_namespace(workspace_identity, &applied.workspace_identity),
             (
                 CommandIntent::LoadProfileDocument { profile },
                 Self::ProfileDocumentLoaded(document),
             ) => {
-                document
-                    .source
-                    .as_ref()
-                    .is_some_and(|source| source.profile == document.profile)
-                    && profile
-                        .as_ref()
-                        .is_none_or(|name| *name == document.profile)
-                    && document.line_count == document.content.lines().count()
+                profile.as_ref().is_none_or(|name| {
+                    *name == document.workspace_identity.document.profile_id.as_str()
+                }) && document.line_count == document.content.lines().count()
             }
             (
                 CommandIntent::SaveProfileDocument {
-                    source, content, ..
+                    workspace_identity,
+                    content,
+                    ..
                 },
                 Self::ProfileDocumentSaved(saved),
             ) => {
-                saved.previous == *source
-                    && saved.document.profile == source.profile
+                saved.previous == *workspace_identity
                     && saved.document.content == *content
-                    && saved.document.source.as_ref().is_some_and(|after| {
-                        after.profile == source.profile && after.options_hash == source.options_hash
-                    })
+                    && same_document_namespace(
+                        workspace_identity,
+                        &saved.document.workspace_identity,
+                    )
+                    && saved.document.workspace_identity.sidecar_revision
+                        == workspace_identity.sidecar_revision
             }
             (
-                CommandIntent::SaveMixinOverlay { source, mixin_yaml },
+                CommandIntent::SaveMixinOverlay {
+                    workspace_identity,
+                    mixin_yaml,
+                },
                 Self::ProfileMixinSaved(saved),
             ) => {
-                saved.previous == *source
+                saved.previous == *workspace_identity
                     && saved.submitted_mixin_yaml == *mixin_yaml
-                    && saved.document.profile == source.profile
-                    && saved.document.source.as_ref() == Some(&saved.options.source)
-                    && saved.options.source.profile == source.profile
+                    && saved.document.workspace_identity == saved.options.workspace_identity
+                    && same_document_namespace(
+                        workspace_identity,
+                        &saved.document.workspace_identity,
+                    )
             }
             (
                 CommandIntent::LoadProfileOptions { profile },
                 Self::ProfileOptionsLoaded(options),
-            ) => profile
-                .as_ref()
-                .is_none_or(|profile| *profile == options.source.profile),
+            ) => profile.as_ref().is_none_or(|profile| {
+                *profile == options.workspace_identity.document.profile_id.as_str()
+            }),
             (
                 CommandIntent::PrepareSnapshotRestore { .. }
                 | CommandIntent::ConfirmSnapshotRestore { .. }
@@ -189,9 +247,18 @@ impl CommandOutput {
                 | CommandIntent::LoadProfileDocument { .. }
                 | CommandIntent::SaveProfileDocument { .. }
                 | CommandIntent::SaveMixinOverlay { .. }
+                | CommandIntent::SetRoutingIntent { .. }
+                | CommandIntent::GetRoutingIntent
                 | CommandIntent::PrepareLogExport
                 | CommandIntent::SaveLogExport { .. }
-                | CommandIntent::ResetRuleHitCounters { .. },
+                | CommandIntent::ResetRuleHitCounters { .. }
+                | CommandIntent::ReadOutboundInventory
+                | CommandIntent::SelectOutbound { .. }
+                | CommandIntent::ProbeOutbound { .. }
+                | CommandIntent::ProbeOutboundBatch { .. }
+                | CommandIntent::ApplyOutboundUiPreference { .. }
+                | CommandIntent::StartSpeedtest { .. }
+                | CommandIntent::CancelSpeedtestRun { .. },
                 _,
             ) => false,
             (_, Self::Unit) => true,
@@ -335,24 +402,66 @@ impl CommandOutput {
     }
 }
 
+fn same_document_namespace(
+    previous: &ProfileWorkspaceIdentity,
+    current: &ProfileWorkspaceIdentity,
+) -> bool {
+    previous.document.profile_id == current.document.profile_id
+        && previous.document.engine_id == current.document.engine_id
+        && previous.document.source == current.document.source
+        && previous.document.format_id == current.document.format_id
+        && previous.document.schema_version == current.document.schema_version
+}
+
 #[cfg(test)]
 mod tests {
     use super::CommandOutput;
     use crate::command::{CommandIntent, CommandResult, RequestId};
+    use crate::core_identity::EngineId;
     use crate::error::{ErrorCode, Failure};
+    use crate::profile_document_identity::{
+        ProfileDocumentIdentity, ProfileDocumentRevision, ProfileDocumentSourceIdentity,
+        ProfileDocumentSourceKind, ProfileFormatId, ProfileId, ProfileSchemaVersion,
+        ProfileSidecarRevision, ProfileSourceId, ProfileWorkspaceIdentity,
+    };
     use crate::profile_options::ProfileOptionsSnapshot;
-    use crate::profile_source::ProfileSourceIdentity;
+    use crate::routing_intent::RoutingIntent;
     use crate::subscription_filter_result::{FilterReport, SubscriptionFilterApplied};
+
+    #[test]
+    fn routing_intent_command_requires_matching_typed_readback() {
+        let request = CommandIntent::SetRoutingIntent {
+            intent: RoutingIntent::RouteAllThroughProxy,
+        };
+        let matching = CommandOutput::RoutingIntentApplied {
+            observed: RoutingIntent::RouteAllThroughProxy,
+        };
+        let mismatched = CommandOutput::RoutingIntentApplied {
+            observed: RoutingIntent::BypassProxy,
+        };
+
+        assert!(matching.validate_for(&request).is_ok());
+        assert_eq!(
+            mismatched.validate_for(&request).unwrap_err().code,
+            ErrorCode::InvalidState
+        );
+        assert_eq!(
+            CommandOutput::Unit.validate_for(&request).unwrap_err().code,
+            ErrorCode::InvalidState
+        );
+    }
 
     #[test]
     fn command_result_preserves_actual_filter_output_and_rejects_incomplete_receipts() {
         let request_id = RequestId::new(19);
         let applied = SubscriptionFilterApplied {
-            source: ProfileSourceIdentity {
-                profile: "alpha".into(),
-                document_hash: "applied-document".into(),
-                options_hash: Some("applied-options".into()),
-            },
+            workspace_identity: workspace_identity(
+                "alpha",
+                "applied-document",
+                ProfileSidecarRevision::Present(
+                    ProfileDocumentRevision::new("applied-options").expect("valid revision"),
+                ),
+            ),
             report: FilterReport {
                 total_input: 3,
                 passed: 1,
@@ -361,7 +470,7 @@ mod tests {
         };
         let output = CommandResult::Produced {
             request_id,
-            output: CommandOutput::SubscriptionFilterApplied(applied.clone()),
+            output: Box::new(CommandOutput::SubscriptionFilterApplied(applied.clone())),
         };
         assert_eq!(
             output
@@ -405,11 +514,7 @@ mod tests {
     #[test]
     fn typed_profile_options_are_bound_to_the_requested_profile_and_command_kind() {
         let options = ProfileOptionsSnapshot::new(
-            ProfileSourceIdentity {
-                profile: "alpha".into(),
-                document_hash: "observed-document".into(),
-                options_hash: None,
-            },
+            workspace_identity("alpha", "observed-document", ProfileSidecarRevision::Absent),
             "{}\n",
             Default::default(),
         );
@@ -445,6 +550,25 @@ mod tests {
             output.into_unit().unwrap_err().code,
             ErrorCode::InvalidState
         );
+    }
+
+    fn workspace_identity(
+        profile: &str,
+        revision: &str,
+        sidecar_revision: ProfileSidecarRevision,
+    ) -> ProfileWorkspaceIdentity {
+        let document = ProfileDocumentIdentity::new(
+            ProfileId::new(profile).expect("valid profile"),
+            EngineId::new("mihomo").expect("valid engine"),
+            ProfileDocumentSourceIdentity::new(
+                ProfileDocumentSourceKind::Local,
+                ProfileSourceId::new(format!("local-{profile}")).expect("valid source"),
+            ),
+            ProfileDocumentRevision::new(revision).expect("valid revision"),
+            ProfileFormatId::new("mihomo-yaml").expect("valid format"),
+            ProfileSchemaVersion::new(1).expect("valid schema"),
+        );
+        ProfileWorkspaceIdentity::new(document, sidecar_revision)
     }
 }
 

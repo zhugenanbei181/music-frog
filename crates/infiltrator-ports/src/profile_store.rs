@@ -6,8 +6,8 @@ use async_trait::async_trait;
 use infiltrator_contract::aggregator::AggregationTemplate;
 use infiltrator_contract::apply_transaction::ApplyTransactionSnapshot;
 use infiltrator_contract::capability::Capability;
-use infiltrator_contract::profile_source::ProfileSourceIdentity;
-use infiltrator_domain::profile_options::ProfileOptions;
+use infiltrator_contract::core_identity::EngineId;
+use infiltrator_contract::profile_document_identity::{ProfileId, ProfileWorkspaceIdentity};
 use infiltrator_domain::profiles::{ProfileInfo, ProfileMetadata};
 use std::path::PathBuf;
 
@@ -19,6 +19,10 @@ use std::path::PathBuf;
 /// boundary.
 #[async_trait]
 pub trait ProfileStore: Send + Sync {
+    /// Namespace of every operation in this store, including string-keyed
+    /// legacy domain metadata, the active pointer, credentials and backups.
+    fn engine_id(&self) -> EngineId;
+    /// Filesystem root already scoped to `engine_id()`.
     fn config_dir(&self) -> PathBuf;
     /// A prior actual transaction from this host instance for this profile, if observed.
     fn apply_transaction(&self, _profile: &str) -> Option<ApplyTransactionSnapshot> {
@@ -38,14 +42,8 @@ pub trait ProfileStore: Send + Sync {
         metadata: &ProfileMetadata,
     ) -> Result<(), PortError>;
     async fn delete_subscription_credential(&self, profile: &str) -> Result<(), PortError>;
-    /// DUAL-07-08: load a profile's option sidecar (filter + mixin). A missing
-    /// sidecar is the default (empty) options, not an error.
-    async fn load_options(&self, profile: &str) -> Result<ProfileOptions, PortError>;
-    /// DUAL-07-08: persist a profile's option sidecar; empty options remove it.
-    async fn save_options(&self, profile: &str, options: &ProfileOptions) -> Result<(), PortError>;
-    async fn delete_options(&self, profile: &str) -> Result<(), PortError>;
     /// Both documents must be read under the same persistence boundary.
-    async fn load_workspace(&self, _profile: &str) -> Result<ProfileWorkspace, PortError> {
+    async fn load_workspace(&self, _profile: &ProfileId) -> Result<ProfileWorkspace, PortError> {
         Err(PortError::unsupported(
             Capability::Profiles,
             "coherent profile editing is unavailable",
@@ -62,7 +60,7 @@ pub trait ProfileStore: Send + Sync {
     /// separate managed-runtime transaction.
     async fn compare_and_save_workspace(
         &self,
-        _expected: &ProfileSourceIdentity,
+        _expected: &ProfileWorkspaceIdentity,
         _update: &ProfileWorkspaceUpdate,
     ) -> Result<ProfileWorkspace, PortError> {
         Err(PortError::unsupported(
@@ -74,7 +72,7 @@ pub trait ProfileStore: Send + Sync {
     /// boundary. Managed hosts must use this for a running-core edit.
     async fn compare_and_save_active_workspace(
         &self,
-        _expected: &ProfileSourceIdentity,
+        _expected: &ProfileWorkspaceIdentity,
         _update: &ProfileWorkspaceUpdate,
     ) -> Result<ProfileWorkspace, PortError> {
         Err(PortError::unsupported(
@@ -84,7 +82,7 @@ pub trait ProfileStore: Send + Sync {
     }
     async fn compare_and_save_inactive_workspace(
         &self,
-        _expected: &ProfileSourceIdentity,
+        _expected: &ProfileWorkspaceIdentity,
         _update: &ProfileWorkspaceUpdate,
     ) -> Result<ProfileWorkspace, PortError> {
         Err(PortError::unsupported(
@@ -96,7 +94,7 @@ pub trait ProfileStore: Send + Sync {
     /// source is still current. Refuse to overwrite later edits.
     async fn restore_workspace(
         &self,
-        _expected: &ProfileSourceIdentity,
+        _expected: &ProfileWorkspaceIdentity,
         _previous: &ProfileWorkspace,
     ) -> Result<ProfileWorkspace, PortError> {
         Err(PortError::unsupported(

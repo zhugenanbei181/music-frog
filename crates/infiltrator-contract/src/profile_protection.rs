@@ -21,6 +21,30 @@ pub enum ProfileWriteProtection {
     RemoteSubscription,
 }
 
+/// Explicit authority carried by a profile document write request.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProfileWriteAuthorization {
+    /// Direct writes are accepted only for profiles already classified editable.
+    #[default]
+    RequireUnlock,
+    /// The user explicitly unlocked writing to a protected subscription profile.
+    ExplicitUnlock,
+}
+
+impl ProfileWriteAuthorization {
+    pub const fn allows_protected_write(self) -> bool {
+        matches!(self, Self::ExplicitUnlock)
+    }
+
+    pub const fn toggled(self) -> Self {
+        match self {
+            Self::RequireUnlock => Self::ExplicitUnlock,
+            Self::ExplicitUnlock => Self::RequireUnlock,
+        }
+    }
+}
+
 impl ProfileWriteProtection {
     /// Classify from the profile's subscription URL. An empty/blank URL means
     /// the profile is local (imported or hand-written) and editable.

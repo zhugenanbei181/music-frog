@@ -1,6 +1,5 @@
 //! Pure selection and migration decisions for physical network roaming.
 
-use crate::runtime::TunSnapshot;
 use infiltrator_contract::network_roaming::{
     NetworkInterfaceKind, NetworkInterfaceSnapshot, NetworkObservation,
 };
@@ -47,7 +46,8 @@ pub fn select_active_interface(
 pub fn decide(
     previous: Option<&NetworkObservation>,
     current: &NetworkObservation,
-    tun: Option<&TunSnapshot>,
+    tun_enabled: Option<bool>,
+    tun_auto_route: Option<bool>,
     tun_interface: Option<&str>,
 ) -> NetworkRoamingDecision {
     let selected = select_active_interface(&current.interfaces);
@@ -69,7 +69,8 @@ pub fn decide(
             || active_address_changed);
     let route_repair_required = changed
         && selected.is_some()
-        && tun.is_some_and(|tun| tun.enable == Some(true) && tun.auto_route == Some(true))
+        && tun_enabled == Some(true)
+        && tun_auto_route == Some(true)
         && tun_interface.is_some();
 
     let reason = if previous.is_none() {
@@ -122,16 +123,6 @@ mod tests {
         }
     }
 
-    fn tun() -> TunSnapshot {
-        TunSnapshot {
-            enable: Some(true),
-            stack: Some("gvisor".to_owned()),
-            auto_route: Some(true),
-            strict_route: Some(true),
-            mtu: Some(1420),
-        }
-    }
-
     #[test]
     fn ethernet_beats_wifi_when_both_are_default_candidates() {
         let interfaces = vec![
@@ -161,8 +152,7 @@ mod tests {
             )],
             observed_at_epoch_ms: Some(2),
         };
-        let tun = tun();
-        let decision = decide(Some(&previous), &current, Some(&tun), Some("Meta"));
+        let decision = decide(Some(&previous), &current, Some(true), Some(true), Some("Meta"));
         assert!(decision.changed);
         assert!(decision.route_repair_required);
         assert_eq!(decision.previous_interface.as_deref(), Some("wlan0"));
@@ -189,11 +179,7 @@ mod tests {
             )],
             observed_at_epoch_ms: Some(2),
         };
-        let tun = TunSnapshot {
-            enable: Some(false),
-            ..tun()
-        };
-        let decision = decide(Some(&previous), &current, Some(&tun), Some("Meta"));
+        let decision = decide(Some(&previous), &current, Some(false), Some(true), Some("Meta"));
         assert!(decision.changed);
         assert!(!decision.route_repair_required);
     }
@@ -209,8 +195,13 @@ mod tests {
             }],
             observed_at_epoch_ms: Some(1),
         };
-        let tun = tun();
-        let decision = decide(Some(&observation), &observation, Some(&tun), Some("Meta"));
+        let decision = decide(
+            Some(&observation),
+            &observation,
+            Some(true),
+            Some(true),
+            Some("Meta"),
+        );
         assert!(decision.active_interface.is_none());
         assert!(!decision.route_repair_required);
     }

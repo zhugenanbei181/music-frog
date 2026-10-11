@@ -318,7 +318,7 @@ impl UserAgentCatalog {
     }
 
     pub fn default_user_agent() -> &'static str {
-        "Clash.Meta; MusicFrog/0.20.0"
+        concat!("Clash.Meta; MusicFrog/", env!("CARGO_PKG_VERSION"))
     }
 
     pub fn find_by_id(id: &str) -> Option<&'static UserAgentPreset> {

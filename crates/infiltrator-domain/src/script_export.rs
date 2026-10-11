@@ -10,7 +10,6 @@
 //! The functions are pure (no I/O, no executor): the application use-case
 //! composes the artifact and the host port decides where it is written.
 
-use crate::mixin_studio;
 use crate::script_engine::{ExtensionPackage, ScriptEngine};
 use infiltrator_contract::script_export::{
     DIRECTIVE_DSL_JS_HEADER, DIRECTIVE_DSL_JS_NOTE_ZH, MIXIN_OVERLAY_YAML_HEADER,
@@ -85,22 +84,15 @@ pub fn sanitize_file_stem(raw: &str) -> String {
 
 /// Compose the `.yaml` export of the Mixin overlay draft.
 ///
-/// The draft must pass the shared preflight (parse + fidelity merge + output
-/// validation) against the open base document: exporting an overlay the kernel
-/// could never load would be a fabricated artifact.
+/// Callers must validate the draft through its engine-scoped profile codec
+/// before preparing this artifact. This function only packages the reviewed
+/// overlay bytes and does not interpret its schema.
 pub fn compose_mixin_overlay_export(
     profile: &str,
-    base_yaml: &str,
     mixin_yaml: &str,
 ) -> Result<ExportArtifact, String> {
     if mixin_yaml.trim().is_empty() {
         return Err("Mixin 覆写为空，没有可导出的内容".to_string());
-    }
-    let report = mixin_studio::preflight_mixin(base_yaml, mixin_yaml);
-    if report.is_blocking() {
-        return Err(report
-            .error
-            .unwrap_or_else(|| "Mixin 覆写未通过共享预检".to_string()));
     }
     let stem = sanitize_file_stem(profile);
     let file_name = format!("{stem}{}", ScriptExportKind::MixinOverlayYaml.file_suffix());
@@ -184,30 +176,22 @@ mod tests {
 
     use super::*;
 
-    const BASE: &str = "mode: rule\nport: 7890\n";
-
     #[test]
-    fn overlay_export_is_a_real_yaml_document_that_parses_back() {
+    fn overlay_export_packages_reviewed_bytes_without_interpreting_schema() {
         let artifact =
-            compose_mixin_overlay_export("main", BASE, "ipv6: true\n").expect("compose overlay");
+            compose_mixin_overlay_export("main", "ipv6: true\n").expect("compose overlay");
         assert_eq!(artifact.kind, ScriptExportKind::MixinOverlayYaml);
         assert_eq!(artifact.file_name, "main.mixin.yaml");
         assert!(artifact.content.starts_with("# Music Frog Mixin"));
-        // The exported bytes re-parse through the shared gate: a real document.
-        let round_trip = mixin_studio::preflight_mixin(BASE, &artifact.content);
-        assert!(round_trip.valid, "{:?}", round_trip.error);
-        assert!(
-            round_trip
-                .merged_preview
-                .expect("preview")
-                .contains("ipv6: true")
-        );
+        assert!(artifact.content.ends_with("ipv6: true\n"));
     }
 
     #[test]
-    fn overlay_export_refuses_an_unmergeable_or_empty_draft() {
-        assert!(compose_mixin_overlay_export("main", BASE, "   ").is_err());
-        assert!(compose_mixin_overlay_export("main", BASE, "mode: [bad\n").is_err());
+    fn overlay_export_refuses_empty_bytes_but_does_not_claim_schema_validation() {
+        assert!(compose_mixin_overlay_export("main", "   ").is_err());
+        let artifact = compose_mixin_overlay_export("main", "mode: [bad\n")
+            .expect("packaging does not perform engine schema validation");
+        assert!(artifact.content.ends_with("mode: [bad\n"));
     }
 
     #[test]

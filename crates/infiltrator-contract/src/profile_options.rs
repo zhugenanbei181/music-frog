@@ -11,14 +11,14 @@
 //! application use-case and read by the surface projection, so a Bevy pane
 //! never reads the file itself.
 
-use crate::profile_source::ProfileSourceIdentity;
+use crate::profile_document_identity::ProfileWorkspaceIdentity;
 use crate::subscription_import::SubscriptionFilterDraft;
 use serde::{Deserialize, Serialize};
 
 /// The stored options of one profile, in surface-editable form.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProfileOptionsSnapshot {
-    pub source: ProfileSourceIdentity,
+    pub workspace_identity: ProfileWorkspaceIdentity,
     /// The stored Mixin overlay serialized as YAML — the document the Mixin
     /// editor pane opens (the same bytes `serde_yaml_ng` produces for the
     /// stored `MixinConfig`, byte-stable across both surfaces).
@@ -29,12 +29,12 @@ pub struct ProfileOptionsSnapshot {
 
 impl ProfileOptionsSnapshot {
     pub fn new(
-        source: ProfileSourceIdentity,
+        workspace_identity: ProfileWorkspaceIdentity,
         mixin_yaml: impl Into<String>,
         filter: SubscriptionFilterDraft,
     ) -> Self {
         Self {
-            source,
+            workspace_identity,
             mixin_yaml: mixin_yaml.into(),
             filter,
         }
@@ -56,12 +56,28 @@ impl ProfileOptionsSnapshot {
 mod tests {
     use super::*;
     use crate::subscription_import::SubscriptionFilterDraft;
-    fn source() -> ProfileSourceIdentity {
-        ProfileSourceIdentity {
-            profile: "main".into(),
-            document_hash: "contract-fixture".into(),
-            options_hash: None,
-        }
+    fn source() -> ProfileWorkspaceIdentity {
+        use crate::core_identity::EngineId;
+        use crate::profile_document_identity::{
+            ProfileDocumentIdentity, ProfileDocumentRevision, ProfileDocumentSourceIdentity,
+            ProfileDocumentSourceKind, ProfileFormatId, ProfileId, ProfileSchemaVersion,
+            ProfileSidecarRevision, ProfileSourceId,
+        };
+
+        ProfileWorkspaceIdentity::new(
+            ProfileDocumentIdentity::new(
+                ProfileId::new("main").unwrap(),
+                EngineId::new("mihomo").unwrap(),
+                ProfileDocumentSourceIdentity::new(
+                    ProfileDocumentSourceKind::Local,
+                    ProfileSourceId::new("local-main").unwrap(),
+                ),
+                ProfileDocumentRevision::new("contract-fixture").unwrap(),
+                ProfileFormatId::new("mihomo-yaml").unwrap(),
+                ProfileSchemaVersion::new(1).unwrap(),
+            ),
+            ProfileSidecarRevision::Absent,
+        )
     }
 
     #[test]

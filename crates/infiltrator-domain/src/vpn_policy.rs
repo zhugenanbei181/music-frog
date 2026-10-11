@@ -10,7 +10,19 @@ pub fn validate_start_request(request: &VpnStartRequest) -> Result<(), String> {
     if request.tun_fd <= 0 {
         return Err("VpnService supplied an invalid tunnel file descriptor".to_owned());
     }
-    validate_configuration(&request.configuration())
+    if request.prepared.preparation_id.value() == 0 || request.prepared.vpn_generation.value() == 0
+    {
+        return Err("VPN start requires a non-zero prepared transaction identity".to_owned());
+    }
+    if !request
+        .prepared
+        .core_scope
+        .session_token
+        .is_some_and(|token| token.is_valid())
+    {
+        return Err("VPN start requires an active Core session scope".to_owned());
+    }
+    validate_configuration(request.configuration())
 }
 
 pub fn validate_configuration(configuration: &VpnConfiguration) -> Result<(), String> {
@@ -63,21 +75,41 @@ pub fn validate_configuration(configuration: &VpnConfiguration) -> Result<(), St
 #[cfg(test)]
 mod tests {
     use super::*;
-    use infiltrator_contract::vpn::{VpnRoute, VpnStartRequest};
+    use infiltrator_contract::core_identity::{
+        CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
+    };
+    use infiltrator_contract::session::SessionToken;
+    use infiltrator_contract::vpn::{VpnGeneration, VpnPreparationId, VpnRoute, VpnStartRequest};
 
     fn request() -> VpnStartRequest {
         VpnStartRequest {
             tun_fd: 7,
-            proxy_endpoint: "socks5://127.0.0.1:7891".to_owned(),
-            mtu: 1500,
-            routes: vec![VpnRoute {
-                address: "0.0.0.0".to_owned(),
-                prefix: 0,
-                exclude: false,
-            }],
-            dns_servers: vec!["1.1.1.1".to_owned()],
-            ipv6: true,
-            foreground_requested: true,
+            prepared: infiltrator_contract::vpn::PreparedVpnConfiguration {
+                preparation_id: VpnPreparationId::new(1),
+                vpn_generation: VpnGeneration::new(1),
+                owner_data_revision: 1,
+                core_scope: CoreScope {
+                    identity: CoreIdentity::new(
+                        EngineId::new("mihomo").expect("engine ID"),
+                        CoreInstanceId::new("primary").expect("instance ID"),
+                        Some(CoreVersion::new("1.19.12").expect("Core version")),
+                    ),
+                    generation: CoreGeneration::new(9),
+                    session_token: Some(SessionToken::new(71)),
+                },
+                configuration: VpnConfiguration {
+                    proxy_endpoint: "socks5://127.0.0.1:7891".to_owned(),
+                    mtu: 1500,
+                    routes: vec![VpnRoute {
+                        address: "0.0.0.0".to_owned(),
+                        prefix: 0,
+                        exclude: false,
+                    }],
+                    dns_servers: vec!["1.1.1.1".to_owned()],
+                    ipv6: true,
+                    foreground_requested: true,
+                },
+            },
         }
     }
 
@@ -92,17 +124,17 @@ mod tests {
         value.tun_fd = 0;
         assert!(validate_start_request(&value).is_err());
         value = request();
-        value.foreground_requested = false;
+        value.prepared.configuration.foreground_requested = false;
         assert!(validate_start_request(&value).is_err());
     }
 
     #[test]
     fn route_and_dns_values_are_validated_as_ip_literals() {
         let mut value = request();
-        value.routes[0].address = "not-an-ip".to_owned();
+        value.prepared.configuration.routes[0].address = "not-an-ip".to_owned();
         assert!(validate_start_request(&value).is_err());
         value = request();
-        value.dns_servers = vec!["dns.example".to_owned()];
+        value.prepared.configuration.dns_servers = vec!["dns.example".to_owned()];
         assert!(validate_start_request(&value).is_err());
     }
 }

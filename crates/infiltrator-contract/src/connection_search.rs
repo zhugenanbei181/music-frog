@@ -1,5 +1,5 @@
 //! Immutable search decisions and original text; no toolkit or UI identity.
-use crate::search_text::SearchTextRun;
+use zhuge_ui_core::text::SearchTextRun;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ConnectionSearchRow {

@@ -1,4 +1,5 @@
 //! Neutral log semantics and session-fenced stream observations.
+use crate::core_identity::{CoreGeneration, CoreIdentity, CoreScope};
 use crate::error::Failure;
 use crate::session::SessionToken;
 use serde::{Deserialize, Serialize};
@@ -40,10 +41,37 @@ impl LogLevel {
         }
     }
 }
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LogSession {
-    pub generation: u64,
+    #[serde(default)]
+    identity: Option<CoreIdentity>,
+    pub generation: CoreGeneration,
     pub token: SessionToken,
+}
+
+impl LogSession {
+    /// Legacy/test session without engine identity. Production callers should
+    /// construct sessions from a lifecycle scope.
+    pub fn new(generation: u64, token: SessionToken) -> Self {
+        Self {
+            identity: None,
+            generation: CoreGeneration::new(generation),
+            token,
+        }
+    }
+
+    pub fn from_core_scope(scope: CoreScope) -> Option<Self> {
+        let token = scope.session_token.filter(|token| token.is_valid())?;
+        Some(Self {
+            identity: Some(scope.identity),
+            generation: scope.generation,
+            token,
+        })
+    }
+
+    pub fn identity(&self) -> Option<&CoreIdentity> {
+        self.identity.as_ref()
+    }
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum LogStreamState {
@@ -53,4 +81,61 @@ pub enum LogStreamState {
     Live,
     Reconnecting(Failure),
     Failed(Failure),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::LogSession;
+    use crate::core_identity::{CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId};
+    use crate::session::SessionToken;
+
+    #[test]
+    fn log_session_round_trips_engine_instance_and_generation_identity() {
+        let session = LogSession::from_core_scope(CoreScope {
+            identity: CoreIdentity::new(
+                EngineId::new("mihomo").expect("valid engine"),
+                CoreInstanceId::new("desktop-main").expect("valid instance"),
+                None,
+            ),
+            generation: CoreGeneration::new(7),
+            session_token: Some(SessionToken::new(41)),
+        })
+        .expect("active identity-bound log session");
+
+        let encoded = serde_json::to_string(&session).expect("serialize log session");
+        let decoded =
+            serde_json::from_str::<LogSession>(&encoded).expect("deserialize log session");
+
+        assert_eq!(decoded, session);
+        assert_eq!(
+            decoded.identity().expect("engine identity").engine.as_str(),
+            "mihomo"
+        );
+        assert_eq!(decoded.generation.value(), 7);
+    }
+
+    #[test]
+    fn legacy_log_session_payload_remains_readable_without_engine_identity() {
+        let decoded = serde_json::from_str::<LogSession>(r#"{"generation":5,"token":25}"#)
+            .expect("deserialize prior log session payload");
+
+        assert!(decoded.identity().is_none());
+        assert_eq!(decoded.generation.value(), 5);
+        assert_eq!(decoded.token, SessionToken::new(25));
+    }
+
+    #[test]
+    fn log_session_requires_a_valid_active_token() {
+        let scope = CoreScope {
+            identity: CoreIdentity::new(
+                EngineId::new("sing-box").expect("valid engine"),
+                CoreInstanceId::new("android-vpn").expect("valid instance"),
+                None,
+            ),
+            generation: CoreGeneration::new(3),
+            session_token: Some(SessionToken::ZERO),
+        };
+
+        assert!(LogSession::from_core_scope(scope).is_none());
+    }
 }

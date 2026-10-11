@@ -1,13 +1,17 @@
 //! Shared read model for the currently selected Mihomo outbound node.
 
+use crate::outbound::identity::OutboundId;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ActiveExitStatus {
     #[default]
     Unknown,
-    Ready,
+    Ready {
+        group_id: OutboundId,
+        outbound_id: OutboundId,
+    },
     Empty,
     Unsupported,
     Failed,
@@ -33,10 +37,17 @@ pub struct ActiveExitSnapshot {
 impl ActiveExitSnapshot {
     /// Explicit fixture for demo/screenshot hosts only.
     pub fn demo_fixture() -> Self {
+        let engine =
+            crate::core_identity::EngineId::new("mihomo").expect("demo engine identity is valid");
         Self {
             generation: 1,
             revision: 1,
-            status: ActiveExitStatus::Ready,
+            status: ActiveExitStatus::Ready {
+                group_id: OutboundId::new(engine.clone(), "GLOBAL")
+                    .expect("demo group identity is valid"),
+                outbound_id: OutboundId::new(engine, "香港 IPLC 01")
+                    .expect("demo outbound identity is valid"),
+            },
             failure: None,
             group: Some("GLOBAL".to_owned()),
             name: Some("香港 IPLC 01".to_owned()),
@@ -78,7 +89,7 @@ impl ActiveExitSnapshot {
     }
 
     pub fn is_drawable(&self) -> bool {
-        self.status == ActiveExitStatus::Ready
+        matches!(&self.status, ActiveExitStatus::Ready { .. })
             && self.name.as_ref().is_some_and(|name| !name.is_empty())
     }
 }

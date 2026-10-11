@@ -1,6 +1,6 @@
 [package]
 name = "infiltrator-ports"
-version = "0.41.0"
+version.workspace = true
 edition = "2024"
 publish = false
 description = "Runtime-neutral outbound ports for MusicFrog Infiltrator application services."
@@ -11,3 +11,7 @@ futures-util = { workspace = true }
 infiltrator-contract = { path = "../infiltrator-contract" }
 infiltrator-domain = { path = "../infiltrator-domain" }
 serde_json = { workspace = true }
+url = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }

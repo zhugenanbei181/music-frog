@@ -1,25 +1,23 @@
-//! Toolkit-neutral detail rows. Metrics and ordering are folded in application.
-use crate::capability::Availability;
-use crate::speedtest::EgressCountryMatch;
+//! Toolkit-neutral rows for one accepted typed speedtest snapshot.
+
+use crate::outbound::identity::OutboundId;
+use crate::speedtest::{SpeedtestPhase, SpeedtestResultState, SpeedtestSampleOutcome};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct SpeedtestDetailRow {
-    pub node_name: String,
-    pub proxy_type: String,
-    pub delay: String,
-    pub jitter: String,
-    pub loss: String,
-    pub bandwidth: String,
-    pub stars: String,
-    pub egress: String,
-    pub egress_match: EgressCountryMatch,
+    pub outbound_id: OutboundId,
+    pub display_name: Option<String>,
+    pub protocol_display_name: Option<String>,
+    pub delay: Option<u32>,
+    pub jitter_ms: Option<f64>,
+    pub loss_percent: Option<f64>,
+    pub sample_count: usize,
+    pub state: SpeedtestResultState,
+    pub samples: Vec<SpeedtestSampleOutcome>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct SpeedtestDetails {
     pub rows: Vec<SpeedtestDetailRow>,
-    pub availability: Option<Availability>,
-    pub failure: Option<String>,
-    pub reported_egress: usize,
-    pub mismatches: usize,
+    pub phase: SpeedtestPhase,
 }

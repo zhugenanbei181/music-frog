@@ -623,6 +623,7 @@ pub fn destination_asn_fact(raw: &str) -> DestinationAsnFact {
 mod tests {
     use super::*;
     use crate::runtime::ConnectionMetadata;
+    use infiltrator_contract::connection::ConnectionRateObservation;
 
     fn connection(id: &str, host: &str, ip: &str, process: &str, up: u64, down: u64) -> Connection {
         Connection {
@@ -693,7 +694,7 @@ mod tests {
             (
                 "c1".to_string(),
                 ConnectionRate {
-                    observed: true,
+                    observation: ConnectionRateObservation::Measured,
                     upload_bps: 0.0,
                     download_bps: 9_000.0,
                 },
@@ -701,7 +702,7 @@ mod tests {
             (
                 "c2".to_string(),
                 ConnectionRate {
-                    observed: true,
+                    observation: ConnectionRateObservation::Measured,
                     upload_bps: 5_000.0,
                     download_bps: 0.0,
                 },
@@ -709,7 +710,7 @@ mod tests {
             (
                 "c3".to_string(),
                 ConnectionRate {
-                    observed: true,
+                    observation: ConnectionRateObservation::Measured,
                     upload_bps: 1_000.0,
                     download_bps: 1_000.0,
                 },

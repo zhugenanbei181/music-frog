@@ -7,7 +7,8 @@ use std::{error, fmt, io};
 /// these owned strings at the boundary.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum InfiltratorError {
-    Mihomo(String),
+    #[serde(alias = "Mihomo")]
+    Backend(String),
     Config(String),
     Io(String),
     Download(String),
@@ -20,7 +21,7 @@ pub enum InfiltratorError {
 impl Display for InfiltratorError {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         let (label, message) = match self {
-            Self::Mihomo(message) => ("Mihomo API error", message),
+            Self::Backend(message) => ("Backend error", message),
             Self::Config(message) => ("Configuration error", message),
             Self::Io(message) => ("IO error", message),
             Self::Download(message) => ("Download error", message),
@@ -53,10 +54,39 @@ impl From<anyhow::Error> for InfiltratorError {
     }
 }
 
-/// Convert a concrete controller/transport failure at an inbound adapter
-/// without making this contract crate depend on that transport's error type.
-pub fn from_mihomo<E: Display>(error: E) -> InfiltratorError {
-    InfiltratorError::Mihomo(error.to_string())
+/// Convert a concrete backend failure at an inbound adapter without making
+/// this contract crate depend on that backend's error type.
+pub fn from_backend<E: Display>(error: E) -> InfiltratorError {
+    InfiltratorError::Backend(error.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{InfiltratorError, from_backend};
+
+    #[test]
+    fn backend_error_writes_neutral_tag_and_reads_legacy_tag() {
+        let error = InfiltratorError::Backend("connection refused".to_owned());
+        let serialized = serde_json::to_string(&error).unwrap();
+        assert_eq!(serialized, r#"{"Backend":"connection refused"}"#);
+        assert_eq!(
+            serde_json::from_str::<InfiltratorError>(&serialized).unwrap(),
+            error
+        );
+        assert_eq!(
+            serde_json::from_str::<InfiltratorError>(r#"{"Mihomo":"connection refused"}"#).unwrap(),
+            error
+        );
+        assert_eq!(error.to_string(), "Backend error: connection refused");
+    }
+
+    #[test]
+    fn backend_conversion_preserves_displayed_message() {
+        assert_eq!(
+            from_backend("controller unavailable"),
+            InfiltratorError::Backend("controller unavailable".to_owned())
+        );
+    }
 }
 
 /// Stable machine-readable failure categories shared by every surface.

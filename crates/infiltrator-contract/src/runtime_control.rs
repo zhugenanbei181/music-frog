@@ -1,5 +1,4 @@
 //! Controller observations independent of successful preference reads.
-use crate::command::ProxyMode;
 use crate::error::Failure;
 use crate::ipv6::Ipv6RoutingSnapshot;
 use crate::lan::LanSecuritySnapshot;
@@ -21,8 +20,6 @@ pub enum RuntimeControlStatus {
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RuntimeControlSnapshot {
     pub status: RuntimeControlStatus,
-    pub mode: Option<ProxyMode>,
-    pub script_available: Option<bool>,
     pub tun_enabled: Option<bool>,
     pub mixed_port: Option<u16>,
     pub allow_lan: Option<bool>,

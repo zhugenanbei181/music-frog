@@ -3,7 +3,7 @@
 //! The floating 260x90 speed HUD shows live facts only: the duplex rates come
 //! from the traffic projection, the exit node from the active-exit snapshot,
 //! the two quick-switch states from the shared [`SystemToggleSnapshot`], and
-//! the mode from the core. Both surfaces build the same
+//! the routing intent from the core. Both surfaces build the same
 //! [`MiniHudReadModel`] and render the same status line — no surface bakes
 //! "RULE" or "系统代理: 开启" into a scene. The duplex waveform strip is the
 //! shared projection of the live `traffic_waveform` samples, so both surfaces
@@ -14,6 +14,7 @@
 //! host port reports a typed unsupported when the platform cannot move the
 //! HUD window (see [`MiniHudHostOutcome`]).
 
+use crate::routing_intent::RoutingIntentSnapshot;
 use crate::system_toggle::{SystemToggle, SystemToggleSnapshot, SystemToggleState};
 use crate::traffic_waveform::TrafficWaveformSnapshot;
 use serde::{Deserialize, Serialize};
@@ -322,7 +323,7 @@ fn sanitize_bps(value: f64) -> f64 {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct MiniHudReadModel {
     pub visible: bool,
-    pub mode_zh: String,
+    pub routing_intent: RoutingIntentSnapshot,
     pub exit_node: String,
     pub down_bytes_per_sec: u64,
     pub up_bytes_per_sec: u64,
@@ -366,8 +367,8 @@ impl MiniHudReadModel {
         self
     }
 
-    pub fn with_mode(mut self, mode_zh: impl Into<String>) -> Self {
-        self.mode_zh = mode_zh.into();
+    pub fn with_routing_intent(mut self, routing_intent: &RoutingIntentSnapshot) -> Self {
+        self.routing_intent = routing_intent.clone();
         self
     }
 
@@ -443,7 +444,7 @@ mod tests {
             .with_toggles(&snapshot)
             .with_traffic(1024, 2_048)
             .with_exit_node("HK-01")
-            .with_mode("规则");
+            .with_routing_intent(&RoutingIntentSnapshot::demo_fixture());
         assert_eq!(model.system_proxy, SystemToggleState::Enabled);
         assert_eq!(model.tun, SystemToggleState::Pending { desired: true });
         assert_eq!(model.next_value(SystemToggle::SystemProxy), Some(false));

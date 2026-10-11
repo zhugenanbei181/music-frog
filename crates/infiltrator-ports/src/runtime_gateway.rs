@@ -2,19 +2,18 @@
 
 use crate::error::PortError;
 use crate::profile_workspace::{ProfileWorkspace, ProfileWorkspaceUpdate};
+use crate::runtime_configuration::RuntimeConfigurationPorts;
 use async_trait::async_trait;
 use futures_util::stream::BoxStream;
 use infiltrator_contract::capability::Capability;
-use infiltrator_contract::command::ProxyMode;
+use infiltrator_contract::core_identity::CoreScope;
+use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::error::Failure;
-use infiltrator_contract::profile_source::ProfileSourceIdentity;
+use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use infiltrator_domain::apply::ApplyStrategy;
-use infiltrator_domain::proxy::Proxy;
-use infiltrator_domain::rules::RuleEntry;
 use infiltrator_domain::runtime::{
-    ConfigSnapshot, ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider, TrafficData,
+    ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider, TrafficData,
 };
-use std::collections::HashMap;
 
 /// Lifecycle-independent events from a controller stream.
 #[derive(Debug)]
@@ -28,6 +27,15 @@ pub enum RuntimeStreamEvent<T> {
 
 pub type RuntimeStream<T> = BoxStream<'static, RuntimeStreamEvent<T>>;
 
+/// A controller event stamped by a gateway that verified its active core scope.
+#[derive(Debug)]
+pub struct ScopedRuntimeStreamEvent<T> {
+    pub scope: CoreScope,
+    pub event: RuntimeStreamEvent<T>,
+}
+
+pub type ScopedRuntimeStream<T> = BoxStream<'static, ScopedRuntimeStreamEvent<T>>;
+
 /// The controller-facing part of a running core host.
 ///
 /// The trait is deliberately expressed only in domain values. It does not
@@ -36,15 +44,19 @@ pub type RuntimeStream<T> = BoxStream<'static, RuntimeStreamEvent<T>>;
 /// implementation without changing an inbound surface.
 #[async_trait]
 pub trait RuntimeGateway: Send + Sync {
-    async fn get_config(&self) -> Result<ConfigSnapshot, PortError>;
-    async fn patch_config(&self, updates: serde_json::Value) -> Result<(), PortError>;
-    /// Current enabled routing rules used by application-level generators.
-    /// Gateways without a rule listing keep the capability explicitly empty.
-    async fn get_rules(&self) -> Result<Vec<RuleEntry>, PortError> {
-        Ok(Vec::new())
+    /// Resolve the active owner-authored scope for non-command observations.
+    /// Core command handlers should pass their already validated request scope.
+    fn current_core_scope(&self) -> Result<CoreScope, PortError> {
+        Err(PortError::unsupported(
+            Capability::CoreLifecycle,
+            "this gateway cannot resolve the active Core scope",
+        ))
     }
-    async fn set_proxy_mode(&self, mode: ProxyMode) -> Result<(), PortError>;
-    async fn get_proxies(&self) -> Result<HashMap<String, Proxy>, PortError>;
+    /// Narrow engine configuration operations. The returned ports require a
+    /// caller-supplied CoreScope and compare revision on every write.
+    fn configuration_ports(&self) -> RuntimeConfigurationPorts {
+        RuntimeConfigurationPorts::unsupported()
+    }
     async fn switch_proxy(&self, group: &str, proxy: &str) -> Result<(), PortError>;
     async fn test_delay(&self, proxy: &str, url: &str, timeout_ms: u32) -> Result<u32, PortError>;
     async fn get_proxy_providers(&self) -> Result<Vec<ProxyProvider>, PortError>;
@@ -63,7 +75,6 @@ pub trait RuntimeGateway: Send + Sync {
             "this gateway does not publish rule-provider payloads",
         ))
     }
-    async fn flush_fakeip_cache(&self) -> Result<(), PortError>;
     /// Ask the running core to refresh its GeoIP/GeoSite rule databases
     /// (`POST /upgrade/geo`). Gateways without the trigger surface a typed
     /// unsupported state instead of fabricating a success.
@@ -90,6 +101,19 @@ pub trait RuntimeGateway: Send + Sync {
     async fn close_all_connections(&self) -> Result<(), PortError>;
 
     async fn stream_logs(&self, level: Option<String>) -> Result<RuntimeStream<String>, PortError>;
+    /// Opens logs only after the gateway proves it currently addresses `scope`.
+    /// The default deliberately refuses to wrap the legacy unscoped stream:
+    /// caller-side tagging would make stale events appear current.
+    async fn stream_logs_scoped(
+        &self,
+        _scope: CoreScope,
+        _level: Option<String>,
+    ) -> Result<ScopedRuntimeStream<String>, PortError> {
+        Err(PortError::unsupported(
+            Capability::Logs,
+            "this gateway cannot prove the requested core scope",
+        ))
+    }
     async fn stream_traffic(&self) -> Result<RuntimeStream<TrafficData>, PortError>;
     async fn stream_connections(&self) -> Result<RuntimeStream<ConnectionSnapshot>, PortError>;
 }
@@ -98,6 +122,8 @@ pub trait RuntimeGateway: Send + Sync {
 /// running core process and its configuration transaction.
 #[async_trait]
 pub trait ManagedRuntime: RuntimeGateway {
+    /// Engine currently owned by this runtime; absence denies a profile apply.
+    fn engine_id(&self) -> Option<EngineId>;
     fn generation(&self) -> u64;
     async fn is_running(&self) -> bool;
     async fn restart(&self) -> Result<u64, PortError>;
@@ -111,7 +137,7 @@ pub trait ManagedRuntime: RuntimeGateway {
     ) -> Result<u64, PortError>;
     async fn apply_profile_workspace(
         &self,
-        _expected: &ProfileSourceIdentity,
+        _expected: &ProfileWorkspaceIdentity,
         _update: &ProfileWorkspaceUpdate,
         _strategy: ApplyStrategy,
     ) -> Result<ProfileWorkspace, PortError> {

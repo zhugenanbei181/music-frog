@@ -157,11 +157,12 @@ mod tests {
 
     fn core(generation: u64, upload: f64, download: f64, lifecycle: CoreLifecycle) -> CoreSnapshot {
         CoreSnapshot {
+            identity: None,
             lifecycle,
             generation,
             session_token: None,
             revision: 0,
-            proxy_mode: None,
+            routing_intent: Default::default(),
             core_version: None,
             sampled_at_epoch_ms: Some(upload as i64),
             failure: None,

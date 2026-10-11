@@ -6,8 +6,8 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum OverviewCardKind {
-    /// Proxy running mode segmented controller (Rule / Global / Direct / Script).
-    ModeSegment,
+    /// Shared traffic routing intent selector.
+    RoutingIntentSegment,
     /// Real-time dual-channel GPU bezier traffic waveform chart.
     Traffic,
     /// Six-item core resource & telemetry metrics grid.
@@ -27,7 +27,7 @@ pub enum OverviewCardKind {
 impl OverviewCardKind {
     /// Canonical default visual order of cards on the Overview page.
     pub const DEFAULT_ORDER: [Self; 8] = [
-        Self::ModeSegment,
+        Self::RoutingIntentSegment,
         Self::Traffic,
         Self::Metrics,
         Self::MasterSwitches,
@@ -39,7 +39,7 @@ impl OverviewCardKind {
 
     pub const fn as_str(self) -> &'static str {
         match self {
-            Self::ModeSegment => "mode_segment",
+            Self::RoutingIntentSegment => "routing_intent_segment",
             Self::Traffic => "traffic",
             Self::Metrics => "metrics",
             Self::MasterSwitches => "master_switches",
@@ -53,7 +53,7 @@ impl OverviewCardKind {
     pub fn from_str_loose(s: &str) -> Option<Self> {
         let clean = s.trim().to_ascii_lowercase().replace(['-', '_'], "");
         match clean.as_str() {
-            "modesegment" | "mode" => Some(Self::ModeSegment),
+            "routingintentsegment" | "routingintent" => Some(Self::RoutingIntentSegment),
             "traffic" | "waveform" | "chart" => Some(Self::Traffic),
             "metrics" | "stats" | "chips" => Some(Self::Metrics),
             "masterswitches" | "switches" | "masters" => Some(Self::MasterSwitches),
@@ -154,21 +154,21 @@ mod tests {
         let snapshot = OverviewLayoutSnapshot::default();
         assert_eq!(snapshot.order.len(), 8);
         assert!(!snapshot.is_customized);
-        assert_eq!(snapshot.order[0], OverviewCardKind::ModeSegment);
+        assert_eq!(snapshot.order[0], OverviewCardKind::RoutingIntentSegment);
         assert_eq!(snapshot.order[7], OverviewCardKind::Quota);
     }
 
     #[test]
     fn reorder_and_move_operations_work() {
         let mut snapshot = OverviewLayoutSnapshot::default();
-        assert!(snapshot.move_down(OverviewCardKind::ModeSegment));
+        assert!(snapshot.move_down(OverviewCardKind::RoutingIntentSegment));
         assert!(snapshot.is_customized);
         assert_eq!(snapshot.order[0], OverviewCardKind::Traffic);
-        assert_eq!(snapshot.order[1], OverviewCardKind::ModeSegment);
+        assert_eq!(snapshot.order[1], OverviewCardKind::RoutingIntentSegment);
 
-        assert!(snapshot.move_up(OverviewCardKind::ModeSegment));
+        assert!(snapshot.move_up(OverviewCardKind::RoutingIntentSegment));
         assert!(!snapshot.is_customized);
-        assert_eq!(snapshot.order[0], OverviewCardKind::ModeSegment);
+        assert_eq!(snapshot.order[0], OverviewCardKind::RoutingIntentSegment);
 
         assert!(snapshot.reorder(0, 3));
         assert!(snapshot.is_customized);

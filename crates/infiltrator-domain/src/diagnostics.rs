@@ -269,30 +269,6 @@ impl ConnectionTimingBreakdown {
     }
 }
 
-/// Downstream bandwidth measurement result for node speedtesting.
-#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]
-pub struct SpeedtestResult {
-    pub proxy_name: String,
-    pub target_url: String,
-    pub duration_ms: u64,
-    pub total_bytes: u64,
-    pub bandwidth_mbps: f64,
-}
-
-pub struct SpeedtestCalculator;
-
-impl SpeedtestCalculator {
-    pub fn calculate_bandwidth(total_bytes: u64, duration_ms: u64) -> f64 {
-        if duration_ms == 0 {
-            return 0.0;
-        }
-        let duration_secs = duration_ms as f64 / 1000.0;
-        let bits = total_bytes as f64 * 8.0;
-        let mbps = (bits / (1024.0 * 1024.0)) / duration_secs;
-        (mbps * 100.0).round() / 100.0
-    }
-}
-
 /// Predefined or custom network condition profiles for traffic throttling simulation.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum NetworkThrottlingProfile {

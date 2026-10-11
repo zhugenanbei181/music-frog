@@ -15,7 +15,11 @@ pub fn identify_profile_source(
 }
 
 pub fn hash_document_bytes(text: &str) -> String {
-    Sha256::digest(text.as_bytes())
+    hash_bytes(text.as_bytes())
+}
+
+pub fn hash_bytes(bytes: &[u8]) -> String {
+    Sha256::digest(bytes)
         .iter()
         .map(|byte| format!("{byte:02x}"))
         .collect()

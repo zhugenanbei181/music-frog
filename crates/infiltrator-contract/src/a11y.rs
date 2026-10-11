@@ -64,8 +64,8 @@ pub enum ShellA11yNode {
     SidebarNav,
     /// The core run-state dot beside the header actions.
     GlobalStatusDot,
-    /// The proxy-mode segmented control.
-    ModeSegment,
+    /// The shared routing-intent selector.
+    RoutingIntentSegment,
     /// The sidebar system-proxy master switch.
     SystemProxySwitch,
     /// The sidebar TUN master switch.
@@ -102,7 +102,7 @@ impl ShellA11yNode {
         Self::ContentRegion,
         Self::SidebarNav,
         Self::GlobalStatusDot,
-        Self::ModeSegment,
+        Self::RoutingIntentSegment,
         Self::SystemProxySwitch,
         Self::TunSwitch,
         Self::ThemeToggle,
@@ -127,7 +127,7 @@ impl ShellA11yNode {
             Self::SidebarNav => A11yRole::Navigation,
             Self::GlobalStatusDot => A11yRole::Status,
             Self::TrafficReadout => A11yRole::Text,
-            Self::ModeSegment | Self::MiniHudCard => A11yRole::Region,
+            Self::RoutingIntentSegment | Self::MiniHudCard => A11yRole::Region,
             Self::SystemProxySwitch
             | Self::TunSwitch
             | Self::MiniHudSystemProxySwitch
@@ -148,7 +148,7 @@ impl ShellA11yNode {
             Self::ContentRegion => "a11y_content_region",
             Self::SidebarNav => "a11y_sidebar_nav",
             Self::GlobalStatusDot => "a11y_global_status_dot",
-            Self::ModeSegment => "a11y_mode_segment",
+            Self::RoutingIntentSegment => "a11y_routing_intent_segment",
             Self::SystemProxySwitch => "a11y_system_proxy_switch",
             Self::TunSwitch => "a11y_tun_switch",
             Self::ThemeToggle => "a11y_theme_toggle",
@@ -174,7 +174,7 @@ impl ShellA11yNode {
             Self::ContentRegion => "内容区",
             Self::SidebarNav => "页面导航",
             Self::GlobalStatusDot => "内核运行状态",
-            Self::ModeSegment => "代理模式选择",
+            Self::RoutingIntentSegment => "流量路由意图选择",
             Self::SystemProxySwitch => "系统代理开关",
             Self::TunSwitch => "TUN 模式开关",
             Self::ThemeToggle => "切换深浅主题",

@@ -1,76 +1,93 @@
-//! DUAL-09-03/14: shared profile-document read model for the editor surfaces.
-//!
-//! Both editors edit the same fact — the *stored* profile document — and both
-//! run the same shared syntax preflight (`infiltrator_domain::config::
-//! preflight_yaml_syntax`). This module carries the loaded document and its
-//! parsed diagnostic across the surface boundary so the Bevy editor starts from
-//! the application's own read instead of reading the file itself.
-//!
-//! The live per-keystroke check stays in the surface: it calls the same domain
-//! function on the buffer, so a keystroke never waits for a round trip while
-//! the *rules* stay single-sourced.
+//! Shared profile-document read model with engine-authored inspection facts.
 
+use crate::core_identity::EngineId;
+use crate::profile_document_identity::{
+    ProfileFormatId, ProfileSchemaVersion, ProfileWorkspaceIdentity,
+};
 use crate::profile_options::ProfileOptionsSnapshot;
 use crate::profile_protection::ProfileWriteProtection;
-use crate::profile_source::ProfileSourceIdentity;
 use serde::{Deserialize, Serialize};
 
-/// Shared form of `infiltrator_domain::config::SyntaxDiagnostic`.
+/// Format-neutral diagnostic emitted by a document codec.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SyntaxDiagnosticSnapshot {
-    /// 1-based line number the parser blamed.
-    pub line: usize,
-    /// 1-based column on that line.
-    pub column: usize,
+pub struct DocumentDiagnosticSnapshot {
+    pub line: Option<usize>,
+    pub column: Option<usize>,
     pub message: String,
 }
 
-impl SyntaxDiagnosticSnapshot {
-    /// Badge text both surfaces can render verbatim.
-    pub fn line_label(&self) -> String {
-        format!("Line {} : Col {}", self.line, self.column)
-    }
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum DocumentValidation {
+    Valid,
+    Invalid {
+        diagnostics: Vec<DocumentDiagnosticSnapshot>,
+    },
 }
 
-/// The stored document of one profile plus its shared preflight verdict.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum DocumentInspectionUnavailableReason {
+    CodecMissing,
+    AdapterUnavailable { detail: String },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum DocumentInspectionUnsupportedReason {
+    EngineMismatch {
+        document: EngineId,
+        expected: EngineId,
+    },
+    FormatMismatch {
+        document: ProfileFormatId,
+        codec: ProfileFormatId,
+    },
+    SchemaMismatch {
+        document: ProfileSchemaVersion,
+        codec: ProfileSchemaVersion,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum DocumentInspection {
+    Inspected(DocumentValidation),
+    Unavailable(DocumentInspectionUnavailableReason),
+    Unsupported(DocumentInspectionUnsupportedReason),
+}
+
+/// The stored document of one profile plus its engine-scoped inspection.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProfileDocumentSnapshot {
-    pub profile: String,
-    #[serde(default)]
-    pub source: Option<ProfileSourceIdentity>,
+    pub workspace_identity: ProfileWorkspaceIdentity,
     pub content: String,
     /// The same write classification the save guard enforces (DUAL-09-12).
     pub write_protection: ProfileWriteProtection,
-    /// `Some` only when the stored document currently fails the preflight.
-    pub syntax: Option<SyntaxDiagnosticSnapshot>,
+    /// A codec-authored result. Missing or mismatched codecs are never treated
+    /// as successful validation.
+    pub inspection: DocumentInspection,
     pub line_count: usize,
 }
 
 impl ProfileDocumentSnapshot {
     pub fn new(
-        profile: impl Into<String>,
+        workspace_identity: ProfileWorkspaceIdentity,
         content: impl Into<String>,
         write_protection: ProfileWriteProtection,
     ) -> Self {
         let content = content.into();
         let line_count = content.lines().count();
         Self {
-            profile: profile.into(),
-            source: None,
+            workspace_identity,
             content,
             write_protection,
-            syntax: None,
+            inspection: DocumentInspection::Unavailable(
+                DocumentInspectionUnavailableReason::CodecMissing,
+            ),
             line_count,
         }
     }
 
-    pub fn with_syntax(mut self, syntax: Option<SyntaxDiagnosticSnapshot>) -> Self {
-        self.syntax = syntax;
+    pub fn with_inspection(mut self, inspection: DocumentInspection) -> Self {
+        self.inspection = inspection;
         self
-    }
-
-    pub fn is_clean(&self) -> bool {
-        self.syntax.is_none()
     }
 
     /// Line numbers rendered in the editor gutter.
@@ -82,7 +99,7 @@ impl ProfileDocumentSnapshot {
 /// Both facets returned by one actual document/sidecar transaction.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProfileWorkspaceReceipt {
-    pub previous: ProfileSourceIdentity,
+    pub previous: ProfileWorkspaceIdentity,
     pub submitted_mixin_yaml: String,
     pub document: ProfileDocumentSnapshot,
     pub options: ProfileOptionsSnapshot,
@@ -90,6 +107,6 @@ pub struct ProfileWorkspaceReceipt {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProfileDocumentSaved {
-    pub previous: ProfileSourceIdentity,
+    pub previous: ProfileWorkspaceIdentity,
     pub document: ProfileDocumentSnapshot,
 }

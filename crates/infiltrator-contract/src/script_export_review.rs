@@ -1,12 +1,22 @@
 //! Frozen export content is reviewed before a host write is admitted.
 use crate::error::{ErrorCode, Failure};
+use crate::profile_document_identity::ProfileDocumentIdentity;
 use crate::script_export::{ScriptExportKind, ScriptExportOutcome, ScriptExportSnapshot};
 use crate::script_run::MAX_SCRIPT_INPUT_BYTES;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ScriptExportValidationScope {
+    /// The artifact does not depend on a profile document schema.
+    Unscoped,
+    /// The artifact must be validated by the codec selected by this document.
+    ProfileDocument(ProfileDocumentIdentity),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ScriptExportDraft {
     pub kind: ScriptExportKind,
+    pub validation_scope: ScriptExportValidationScope,
     pub profile: Option<String>,
     pub base_yaml: String,
     pub mixin_yaml: String,
@@ -30,6 +40,25 @@ impl ScriptExportDraft {
             return Err(Failure::new(
                 ErrorCode::InvalidInput,
                 "Oversized export draft",
+                false,
+            ));
+        }
+        let scope_is_valid = match (self.kind, &self.validation_scope) {
+            (
+                ScriptExportKind::MixinOverlayYaml,
+                ScriptExportValidationScope::ProfileDocument(identity),
+            ) => self
+                .profile
+                .as_deref()
+                .is_some_and(|profile| profile == identity.profile_id.as_str()),
+            (ScriptExportKind::MixinOverlayYaml, ScriptExportValidationScope::Unscoped) => false,
+            (_, ScriptExportValidationScope::Unscoped) => true,
+            (_, ScriptExportValidationScope::ProfileDocument(_)) => false,
+        };
+        if !scope_is_valid {
+            return Err(Failure::new(
+                ErrorCode::InvalidInput,
+                "Invalid export validation scope for artifact kind",
                 false,
             ));
         }

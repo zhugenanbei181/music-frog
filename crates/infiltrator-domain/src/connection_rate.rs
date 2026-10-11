@@ -15,6 +15,7 @@
 //! or a counter regression all report `0.0` rather than a fabricated value.
 
 use crate::connection_view::ConnectionView;
+use infiltrator_contract::connection::ConnectionRateObservation;
 use std::collections::BTreeMap;
 use std::f32::consts::TAU;
 use std::time::Instant;
@@ -37,8 +38,8 @@ pub const PULSE_MAX_INTENSITY: f32 = 0.8;
 /// One connection's instantaneous transfer rates in bytes per second.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct ConnectionRate {
-    /// True after a valid counter window, including a measured zero.
-    pub observed: bool,
+    /// Typed availability for the instantaneous rate values.
+    pub observation: ConnectionRateObservation,
     pub upload_bps: f64,
     pub download_bps: f64,
 }
@@ -165,7 +166,11 @@ impl ConnectionRateDiffer {
             let download = conn.view_download_total();
             let rate = match (window, self.totals.get(id)) {
                 (Some(elapsed), Some((previous_upload, previous_download))) => ConnectionRate {
-                    observed: upload >= *previous_upload && download >= *previous_download,
+                    observation: match (upload >= *previous_upload, download >= *previous_download)
+                    {
+                        (true, true) => ConnectionRateObservation::Measured,
+                        _ => ConnectionRateObservation::Unobserved,
+                    },
                     upload_bps: instantaneous_rate(*previous_upload, upload, elapsed),
                     download_bps: instantaneous_rate(*previous_download, download, elapsed),
                 },
@@ -234,7 +239,7 @@ mod tests {
         assert_eq!(
             rates.get("c1"),
             ConnectionRate {
-                observed: true,
+                observation: ConnectionRateObservation::Measured,
                 upload_bps: 1_000.0,
                 download_bps: 4_000.0,
             }
@@ -328,7 +333,7 @@ mod tests {
             (
                 "slow".to_string(),
                 ConnectionRate {
-                    observed: true,
+                    observation: ConnectionRateObservation::Measured,
                     upload_bps: 1_000.0,
                     download_bps: 2_000.0,
                 },
@@ -336,7 +341,7 @@ mod tests {
             (
                 "fast".to_string(),
                 ConnectionRate {
-                    observed: true,
+                    observation: ConnectionRateObservation::Measured,
                     upload_bps: 100.0,
                     download_bps: HIGH_THROUGHPUT_THRESHOLD_BPS,
                 },

@@ -11,7 +11,7 @@
 //! is *not* smuggled into this list; a surface appends its own entry after
 //! the shared catalogue and the ledger records the deviation.
 
-use crate::command::ProxyMode;
+use crate::routing_intent::RoutingIntent;
 use crate::shortcuts::ShortcutAction;
 
 /// A page both surfaces can navigate to by a stable, shared id.
@@ -106,7 +106,7 @@ impl ShellPage {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum CommandCategory {
     Navigation,
-    Modes,
+    Routing,
     Maintenance,
     Appearance,
     Profiles,
@@ -117,7 +117,7 @@ impl CommandCategory {
     pub const fn label_key(self) -> &'static str {
         match self {
             Self::Navigation => "cmd_cat_nav",
-            Self::Modes => "cmd_cat_modes",
+            Self::Routing => "cmd_cat_routing",
             Self::Maintenance => "cmd_cat_actions",
             Self::Appearance => "cmd_cat_appearance",
             Self::Profiles => "cmd_cat_profiles",
@@ -125,11 +125,11 @@ impl CommandCategory {
     }
 
     /// Bare-Chinese category copy for the Bevy surface (and for the shared
-    /// substring matcher, so "代理模式" finds the mode rows on both ends).
+    /// substring matcher, so "流量路由" finds these rows on both ends).
     pub const fn label_zh(self) -> &'static str {
         match self {
             Self::Navigation => "页面导航",
-            Self::Modes => "代理模式",
+            Self::Routing => "流量路由",
             Self::Maintenance => "快捷运维",
             Self::Appearance => "外观偏好",
             Self::Profiles => "切换配置",
@@ -142,8 +142,8 @@ impl CommandCategory {
 pub enum CommandTarget {
     /// Navigate to a shared page.
     Navigate(ShellPage),
-    /// Switch the core proxy mode.
-    SetProxyMode(ProxyMode),
+    /// Apply a shared traffic-routing policy.
+    SetRoutingIntent(RoutingIntent),
     /// Activate one stored subscription profile.
     SwitchProfile { id: String, name: String },
     /// Toggle the OS system proxy (also the `Ctrl+Alt+P` binding).
@@ -156,8 +156,8 @@ pub enum CommandTarget {
     CycleTheme,
     /// Flush the Fake-IP table and the OS resolver cache.
     FlushDnsCache,
-    /// Run the latency benchmark across every proxy group.
-    TestAllProxyGroups,
+    /// Probe latency for every observed outbound.
+    ProbeAllOutbounds,
     /// Run the Doctor diagnostics suite.
     RunDoctor,
     /// Close every live connection.
@@ -303,25 +303,25 @@ impl CommandCatalogue {
         }
         entries.extend([
             CommandEntry::new(
-                "mode.rule",
-                CommandCategory::Modes,
-                "cmd_mode_rule",
-                "切换至规则分流模式",
-                CommandTarget::SetProxyMode(ProxyMode::Rule),
+                "routing.follow_rules",
+                CommandCategory::Routing,
+                "routing_intent_follow_rules",
+                "按分流规则路由流量",
+                CommandTarget::SetRoutingIntent(RoutingIntent::FollowRules),
             ),
             CommandEntry::new(
-                "mode.global",
-                CommandCategory::Modes,
-                "cmd_mode_global",
-                "切换至全局代理模式",
-                CommandTarget::SetProxyMode(ProxyMode::Global),
+                "routing.route_all_through_proxy",
+                CommandCategory::Routing,
+                "routing_intent_route_all_through_proxy",
+                "全部流量经代理路由",
+                CommandTarget::SetRoutingIntent(RoutingIntent::RouteAllThroughProxy),
             ),
             CommandEntry::new(
-                "mode.direct",
-                CommandCategory::Modes,
-                "cmd_mode_direct",
-                "切换至直接连接模式",
-                CommandTarget::SetProxyMode(ProxyMode::Direct),
+                "routing.bypass_proxy",
+                CommandCategory::Routing,
+                "routing_intent_bypass_proxy",
+                "绕过代理直连",
+                CommandTarget::SetRoutingIntent(RoutingIntent::BypassProxy),
             ),
             CommandEntry::new(
                 "action.toggle_system_proxy",
@@ -352,11 +352,11 @@ impl CommandCatalogue {
                 CommandTarget::FlushDnsCache,
             ),
             CommandEntry::new(
-                "action.test_all_proxy_groups",
+                "action.probe_all_outbounds",
                 CommandCategory::Maintenance,
-                "cmd_action_speed_test_all",
-                "对全部策略组执行测速",
-                CommandTarget::TestAllProxyGroups,
+                "cmd_action_probe_all_outbounds",
+                "探测全部出站延迟",
+                CommandTarget::ProbeAllOutbounds,
             ),
             CommandEntry::new(
                 "action.run_doctor",
@@ -459,7 +459,7 @@ mod tests {
             "action.toggle_tun",
             "action.toggle_mini_hud",
             "action.flush_dns_cache",
-            "action.test_all_proxy_groups",
+            "action.probe_all_outbounds",
             "action.run_doctor",
             "action.close_connections",
             "action.restart_kernel",

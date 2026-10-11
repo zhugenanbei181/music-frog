@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 pub enum Capability {
     CoreLifecycle,
     Profiles,
-    ProxyMode,
+    RoutingIntent,
     Connections,
     Logs,
     Dns,

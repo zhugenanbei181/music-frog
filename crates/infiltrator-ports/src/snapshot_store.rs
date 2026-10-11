@@ -2,11 +2,15 @@
 
 use crate::error::PortError;
 use async_trait::async_trait;
+use infiltrator_contract::core_identity::EngineId;
 use infiltrator_domain::snapshots::SnapshotMeta;
 use std::path::Path;
 
 #[async_trait]
 pub trait SnapshotStore: Send + Sync {
+    /// Namespace whose profile history this store owns. Implementations must
+    /// keep all paths and indexes partitioned by this engine identity.
+    fn engine_id(&self) -> EngineId;
     async fn save(&self, profile: &str, content: &str) -> Result<SnapshotMeta, PortError>;
     async fn list(&self, profile: &str) -> Result<Vec<SnapshotMeta>, PortError>;
     async fn read(&self, profile: &str, path: &Path) -> Result<String, PortError>;

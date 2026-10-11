@@ -1,10 +1,14 @@
 //! Shared contracts and models for latency testing, jitter variance analysis,
-//! packet loss gradient rating, and bandwidth throughput evaluation.
+//! packet-loss classification, and identity-fenced result histories.
 
-use crate::capability::Availability;
+use crate::core_identity::CoreScope;
+use crate::error::Failure;
+use crate::outbound::identity::{OutboundContractError, OutboundId, SnapshotRevision};
+use crate::outbound::inventory::OutboundProbeState;
+use crate::outbound::probe::OutboundProbeBatchScope;
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
-use std::collections::BTreeMap;
+use std::num::{NonZeroU8, NonZeroU64};
 
 /// Packet loss gradient rating reflecting connection quality tiers.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -60,10 +64,6 @@ impl PacketLossRating {
 
     pub const fn is_healthy(self) -> bool {
         matches!(self, Self::Excellent | Self::Good)
-    }
-
-    pub const fn is_alive(self) -> bool {
-        !matches!(self, Self::Dead)
     }
 }
 
@@ -221,363 +221,612 @@ impl JitterCalculation {
     }
 }
 
-/// DUAL-06-12: honest comparison between the country implied by a node label
-/// and the country actually reported by a real egress probe through that node.
-///
-/// This is a pure classification over two already-known facts; the read model
-/// never derives an egress fact it does not have. Desktop hosts that cannot
-/// probe through a node leave the reported country `None`, which stays
-/// [`EgressCountryMatch::Unknown`] rather than being guessed.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum EgressCountryMatch {
-    /// No egress country was reported yet (host cannot probe through a node,
-    /// or the probe has not run). Never a failure — just an unknown fact.
-    Unknown,
-    /// Neither the label nor the probe implies a country.
-    Unlabelled,
-    /// The label-derived country equals the reported egress country.
-    Match,
-    /// Both countries are known and differ: the node's label is misleading.
-    Mismatch,
+/// A target set bound to the exact Core activation and inventory revision the
+/// surface observed. Outbound identities are never inferred from display names.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SpeedtestTarget {
+    core_scope: CoreScope,
+    expected_inventory_revision: SnapshotRevision,
+    outbound_scope: OutboundProbeBatchScope,
+    rounds: SpeedtestRounds,
 }
 
-impl EgressCountryMatch {
-    /// Compare a label-derived country with a reported egress country.
-    pub fn classify(label_country: Option<&str>, egress_country: Option<&str>) -> Self {
-        let label = label_country.map(str::trim).filter(|s| !s.is_empty());
-        let egress = egress_country.map(str::trim).filter(|s| !s.is_empty());
-        match (label, egress) {
-            (_, None) => Self::Unknown,
-            (None, Some(_)) => Self::Unlabelled,
-            (Some(l), Some(e)) if l.eq_ignore_ascii_case(e) => Self::Match,
-            (Some(_), Some(_)) => Self::Mismatch,
-        }
+impl SpeedtestTarget {
+    pub fn new(
+        core_scope: CoreScope,
+        expected_inventory_revision: SnapshotRevision,
+        outbound_scope: OutboundProbeBatchScope,
+        rounds: SpeedtestRounds,
+    ) -> Result<Self, SpeedtestTargetError> {
+        outbound_scope
+            .validate_scope(&core_scope)
+            .map_err(SpeedtestTargetError::InvalidOutboundScope)?;
+        Ok(Self {
+            core_scope,
+            expected_inventory_revision,
+            outbound_scope,
+            rounds,
+        })
     }
 
-    pub const fn is_mismatch(self) -> bool {
-        matches!(self, Self::Mismatch)
+    /// Recheck the boundary invariants after deserialization.
+    pub fn validate(&self) -> Result<(), SpeedtestTargetError> {
+        self.outbound_scope
+            .validate_scope(&self.core_scope)
+            .map_err(SpeedtestTargetError::InvalidOutboundScope)
     }
 
-    /// One honest token for guards and compact captions.
-    pub const fn as_token(self) -> &'static str {
+    pub fn core_scope(&self) -> &CoreScope {
+        &self.core_scope
+    }
+
+    pub const fn expected_inventory_revision(&self) -> SnapshotRevision {
+        self.expected_inventory_revision
+    }
+
+    pub fn outbound_scope(&self) -> &OutboundProbeBatchScope {
+        &self.outbound_scope
+    }
+
+    pub const fn rounds(&self) -> SpeedtestRounds {
+        self.rounds
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SpeedtestTargetError {
+    InvalidOutboundScope(OutboundContractError),
+}
+
+impl std::fmt::Display for SpeedtestTargetError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Unknown => "unknown",
-            Self::Unlabelled => "unlabelled",
-            Self::Match => "match",
-            Self::Mismatch => "mismatch",
+            Self::InvalidOutboundScope(error) => error.fmt(formatter),
         }
     }
 }
 
-/// Lifecycle phases of the speedtest engine.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum SpeedtestPhase {
-    Idle,
-    ProbingLatency,
-    MeasuringBandwidth,
-    Completed,
-    Cancelled,
-    Failed,
+impl std::error::Error for SpeedtestTargetError {}
+
+/// Number of latency samples to collect for every target in one run.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+pub struct SpeedtestRounds(NonZeroU8);
+
+impl SpeedtestRounds {
+    pub const DEFAULT: Self = Self(NonZeroU8::new(5).expect("non-zero rounds"));
+
+    pub fn new(value: u8) -> Result<Self, SpeedtestRoundsError> {
+        if value > 50 {
+            return Err(SpeedtestRoundsError::ExceedsMaximum);
+        }
+        NonZeroU8::new(value)
+            .map(Self)
+            .ok_or(SpeedtestRoundsError::Zero)
+    }
+
+    pub const fn get(self) -> u8 {
+        self.0.get()
+    }
 }
 
-/// Target scope for a speedtest run.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum SpeedtestScope {
-    AllGroups,
-    SingleGroup(String),
-    SingleNode(String),
-}
-
-/// Real-time progress update for UI rendering.
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-pub struct SpeedtestProgress {
-    pub completed_nodes: usize,
-    pub total_nodes: usize,
-    pub percent: f64,
-    pub current_node: Option<String>,
-    pub current_mbps: Option<f64>,
-}
-
-/// Configuration parameters for speedtesting.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SpeedtestTargetConfig {
-    pub test_url: String,
-    pub timeout_ms: u32,
-    pub concurrency: usize,
-    pub probe_rounds: usize,
-}
-
-impl Default for SpeedtestTargetConfig {
+impl Default for SpeedtestRounds {
     fn default() -> Self {
-        Self {
-            test_url: "http://www.gstatic.com/generate_204".to_string(),
-            timeout_ms: 5000,
-            concurrency: 30,
-            probe_rounds: 3,
+        Self::DEFAULT
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for SpeedtestRounds {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        use serde::de::Error as _;
+        Self::new(u8::deserialize(deserializer)?).map_err(D::Error::custom)
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SpeedtestRoundsError {
+    Zero,
+    ExceedsMaximum,
+}
+
+impl std::fmt::Display for SpeedtestRoundsError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(match self {
+            Self::Zero => "speedtest rounds must be greater than zero",
+            Self::ExceedsMaximum => "speedtest rounds must not exceed 50",
+        })
+    }
+}
+
+impl std::error::Error for SpeedtestRoundsError {}
+
+/// Bounded parallelism for a multi-round speedtest run.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+pub struct SpeedtestConcurrency(NonZeroU8);
+
+impl SpeedtestConcurrency {
+    pub fn new(value: u8) -> Result<Self, SpeedtestConcurrencyError> {
+        if value > 30 {
+            return Err(SpeedtestConcurrencyError::ExceedsMaximum);
+        }
+        NonZeroU8::new(value)
+            .map(Self)
+            .ok_or(SpeedtestConcurrencyError::Zero)
+    }
+
+    pub const fn get(self) -> u8 {
+        self.0.get()
+    }
+}
+
+impl Default for SpeedtestConcurrency {
+    fn default() -> Self {
+        Self(NonZeroU8::new(30).expect("non-zero concurrency"))
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for SpeedtestConcurrency {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        use serde::de::Error as _;
+        Self::new(u8::deserialize(deserializer)?).map_err(D::Error::custom)
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SpeedtestConcurrencyError {
+    Zero,
+    ExceedsMaximum,
+}
+
+impl std::fmt::Display for SpeedtestConcurrencyError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(match self {
+            Self::Zero => "speedtest concurrency must be greater than zero",
+            Self::ExceedsMaximum => "speedtest concurrency must not exceed 30",
+        })
+    }
+}
+
+impl std::error::Error for SpeedtestConcurrencyError {}
+
+/// The outcome of one sample in the multi-round speedtest.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SpeedtestSampleOutcome {
+    Measured { delay_ms: u32 },
+    TimedOut,
+    Unsupported,
+    Failed { failure: Failure },
+    Cancelled,
+}
+
+impl From<&OutboundProbeState> for SpeedtestSampleOutcome {
+    fn from(state: &OutboundProbeState) -> Self {
+        match state {
+            OutboundProbeState::Measured { delay_ms } => Self::Measured {
+                delay_ms: *delay_ms,
+            },
+            OutboundProbeState::TimedOut => Self::TimedOut,
+            OutboundProbeState::Unsupported => Self::Unsupported,
+            OutboundProbeState::Failed { failure } => Self::Failed {
+                failure: failure.clone(),
+            },
+            OutboundProbeState::Unknown | OutboundProbeState::Probing => Self::Failed {
+                failure: Failure::new(
+                    crate::error::ErrorCode::InvalidState,
+                    "outbound probe returned a nonterminal sample",
+                    false,
+                ),
+            },
         }
     }
 }
 
-/// Measured speedtest metrics for an individual proxy node.
+/// Explicit terminal state for one outbound's multi-round probe sequence.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SpeedtestResultState {
+    Completed,
+    TimedOut,
+    Unsupported,
+    Failed { failure: Failure },
+    Cancelled,
+}
+
+/// One target result, identified by the engine-owned outbound ID.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct NodeSpeedtestResult {
-    pub node_name: String,
-    pub group_name: Option<String>,
-    pub proxy_type: String,
-    pub delay_ms: Option<u32>,
-    pub jitter: Option<JitterCalculation>,
-    pub bandwidth_mbps: Option<f64>,
-    pub packet_loss: PacketLossRating,
-    pub star_rating: u8,
-    /// DUAL-06-12: ISO country code derived from the node's own label. This is
-    /// a label fact, kept separate from the reported egress fact so the two can
-    /// be compared honestly instead of conflated.
-    pub label_country: Option<String>,
-    /// DUAL-06-12: real egress IP reported by the host's outbound probe. `None`
-    /// until a probe through the node has actually succeeded.
-    pub outbound_ip: Option<String>,
-    /// DUAL-06-12: real egress country reported by the host's outbound probe.
-    pub outbound_country: Option<String>,
-    pub is_alive: bool,
+pub struct SpeedtestOutboundResult {
+    pub outbound_id: OutboundId,
+    pub display_name: Option<String>,
+    pub protocol_display_name: Option<String>,
+    pub samples: Vec<SpeedtestSampleOutcome>,
+    pub state: SpeedtestResultState,
     pub tested_at_epoch_ms: u64,
 }
 
-impl NodeSpeedtestResult {
-    /// Classify the label-derived country against the reported egress country.
-    pub fn egress_country_match(&self) -> EgressCountryMatch {
-        EgressCountryMatch::classify(
-            self.label_country.as_deref(),
-            self.outbound_country.as_deref(),
-        )
+impl SpeedtestOutboundResult {
+    pub fn calculation(&self) -> Option<JitterCalculation> {
+        let samples = self
+            .samples
+            .iter()
+            .filter_map(|sample| match sample {
+                SpeedtestSampleOutcome::Measured { delay_ms } => Some(Some(*delay_ms)),
+                SpeedtestSampleOutcome::TimedOut | SpeedtestSampleOutcome::Failed { .. } => {
+                    Some(None)
+                }
+                SpeedtestSampleOutcome::Unsupported | SpeedtestSampleOutcome::Cancelled => None,
+            })
+            .collect::<Vec<_>>();
+        (!samples.is_empty()).then(|| JitterCalculation::from_samples(&samples))
     }
 
-    /// Honest one-line egress endpoint caption: `ip (CC)` when reported, `—`
-    /// when the host has not probed through this node.
-    pub fn egress_endpoint_label(&self) -> String {
-        match (
-            self.outbound_ip.as_deref(),
-            self.outbound_country.as_deref(),
-        ) {
-            (Some(ip), Some(country)) if !country.is_empty() => format!("{ip} ({country})"),
-            (Some(ip), _) => ip.to_string(),
-            (None, Some(country)) if !country.is_empty() => format!("— ({country})"),
-            _ => "—".to_string(),
+    pub fn delay_ms(&self) -> Option<u32> {
+        self.calculation()
+            .and_then(|calculation| calculation.min_rtt_ms)
+    }
+
+    pub fn is_available(&self) -> bool {
+        self.calculation()
+            .is_some_and(|calculation| calculation.successful_probes > 0)
+    }
+}
+
+/// Stable identifier for one accepted speedtest run.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct SpeedtestRunId(NonZeroU64);
+
+impl SpeedtestRunId {
+    pub fn new(value: u64) -> Result<Self, SpeedtestRunIdError> {
+        NonZeroU64::new(value)
+            .map(Self)
+            .ok_or(SpeedtestRunIdError::Zero)
+    }
+
+    pub const fn get(self) -> u64 {
+        self.0.get()
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SpeedtestRunIdError {
+    Zero,
+}
+
+/// Mutually exclusive lifecycle of the current speedtest run. Run identity,
+/// target and progress live in the variant that owns them, so impossible
+/// combinations cannot be represented in a snapshot.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SpeedtestRunState {
+    Idle,
+    Probing {
+        run_id: SpeedtestRunId,
+        target: SpeedtestTarget,
+        progress: SpeedtestProgress,
+    },
+    CancelRequested {
+        run_id: SpeedtestRunId,
+        target: SpeedtestTarget,
+        progress: SpeedtestProgress,
+    },
+    Completed {
+        run_id: SpeedtestRunId,
+        target: SpeedtestTarget,
+        progress: SpeedtestProgress,
+    },
+    Cancelled {
+        run_id: SpeedtestRunId,
+        target: SpeedtestTarget,
+        progress: SpeedtestProgress,
+    },
+    Failed {
+        run_id: SpeedtestRunId,
+        target: SpeedtestTarget,
+        failure: Failure,
+    },
+    Unavailable {
+        failure: Failure,
+    },
+}
+
+impl SpeedtestRunState {
+    pub fn run_id(&self) -> Option<SpeedtestRunId> {
+        match self {
+            Self::Idle | Self::Unavailable { .. } => None,
+            Self::Probing { run_id, .. }
+            | Self::CancelRequested { run_id, .. }
+            | Self::Completed { run_id, .. }
+            | Self::Cancelled { run_id, .. }
+            | Self::Failed { run_id, .. } => Some(*run_id),
+        }
+    }
+
+    pub fn target(&self) -> Option<&SpeedtestTarget> {
+        match self {
+            Self::Idle => None,
+            Self::Probing { target, .. }
+            | Self::CancelRequested { target, .. }
+            | Self::Completed { target, .. }
+            | Self::Cancelled { target, .. }
+            | Self::Failed { target, .. } => Some(target),
+            Self::Unavailable { .. } => None,
+        }
+    }
+
+    pub fn progress(&self) -> Option<&SpeedtestProgress> {
+        match self {
+            Self::Probing { progress, .. }
+            | Self::CancelRequested { progress, .. }
+            | Self::Completed { progress, .. }
+            | Self::Cancelled { progress, .. } => Some(progress),
+            Self::Idle | Self::Failed { .. } | Self::Unavailable { .. } => None,
+        }
+    }
+
+    pub fn phase(&self) -> SpeedtestPhase {
+        match self {
+            Self::Idle => SpeedtestPhase::Idle,
+            Self::Probing { .. } => SpeedtestPhase::Probing,
+            Self::CancelRequested { .. } => SpeedtestPhase::CancelRequested,
+            Self::Completed { .. } => SpeedtestPhase::Completed,
+            Self::Cancelled { .. } => SpeedtestPhase::Cancelled,
+            Self::Failed { failure, .. } => SpeedtestPhase::Failed {
+                failure: failure.clone(),
+            },
+            Self::Unavailable { failure, .. } => SpeedtestPhase::Unavailable {
+                failure: failure.clone(),
+            },
+        }
+    }
+
+    pub fn is_running(&self) -> bool {
+        matches!(self, Self::Probing { .. } | Self::CancelRequested { .. })
+    }
+}
+
+/// Presentation phase derived from [`SpeedtestRunState`]. It deliberately
+/// carries no independent run identity or target fields.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SpeedtestPhase {
+    Idle,
+    Probing,
+    CancelRequested,
+    Completed,
+    Cancelled,
+    Failed { failure: Failure },
+    Unavailable { failure: Failure },
+}
+
+/// Receipt that a run passed preflight and was scheduled by its Core owner.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SpeedtestStartReceipt {
+    pub run_id: SpeedtestRunId,
+}
+
+/// Result of requesting cancellation from the shared speedtest owner.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SpeedtestCancelOutcome {
+    Requested {
+        run_id: SpeedtestRunId,
+    },
+    AlreadyRequested {
+        run_id: SpeedtestRunId,
+    },
+    RunAlreadyFinished {
+        run_id: SpeedtestRunId,
+    },
+    StaleRun {
+        requested_run_id: SpeedtestRunId,
+        current_run_id: Option<SpeedtestRunId>,
+    },
+}
+
+/// Real-time progress update; completion is represented by the enclosing phase.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SpeedtestProgress {
+    pub completed_targets: usize,
+    pub total_targets: usize,
+}
+
+impl SpeedtestProgress {
+    pub fn percent(&self) -> f64 {
+        if self.total_targets == 0 {
+            0.0
+        } else {
+            (self.completed_targets.min(self.total_targets) as f64 / self.total_targets as f64)
+                * 100.0
         }
     }
 }
 
-/// Historical summary entry of a completed speedtest run.
+/// Historical summary entry. Older runs may have aggregate metrics without a
+/// recoverable outbound identity; those remain explicitly unattributed.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct HistoricalSpeedtestRecord {
-    pub run_id: u64,
+    pub run_id: SpeedtestRunId,
     pub timestamp_epoch_ms: u64,
-    pub scope: SpeedtestScope,
-    pub target_url: String,
-    pub total_nodes: usize,
-    pub alive_nodes: usize,
+    pub target: Option<SpeedtestTarget>,
+    pub total_targets: usize,
+    pub completed_targets: usize,
     pub avg_latency_ms: Option<f64>,
     pub avg_jitter_ms: Option<f64>,
-    pub avg_bandwidth_mbps: Option<f64>,
-    pub overall_star_rating: u8,
 }
 
-/// Shared canonical read model for concurrent speedtesting and stability telemetry.
+/// Shared canonical read model for multi-round typed outbound probing.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SpeedtestSnapshot {
-    /// None means unobserved; a missing host engine is explicitly unsupported.
-    #[serde(default)]
-    pub availability: Option<Availability>,
-    pub generation: u64,
     pub revision: u64,
-    pub phase: SpeedtestPhase,
-    pub scope: SpeedtestScope,
-    pub config: SpeedtestTargetConfig,
-    pub progress: SpeedtestProgress,
-    pub node_results: BTreeMap<String, NodeSpeedtestResult>,
+    pub state: SpeedtestRunState,
+    pub concurrency: SpeedtestConcurrency,
+    /// Preserves observed target order for stable ties and deterministic UI.
+    pub results: Vec<SpeedtestOutboundResult>,
     pub recent_history: Vec<HistoricalSpeedtestRecord>,
-    pub failure: Option<String>,
 }
 
 impl Default for SpeedtestSnapshot {
     fn default() -> Self {
         Self {
-            generation: 0,
             revision: 0,
-            phase: SpeedtestPhase::Idle,
-            scope: SpeedtestScope::AllGroups,
-            config: SpeedtestTargetConfig::default(),
-            progress: SpeedtestProgress::default(),
-            node_results: BTreeMap::new(),
+            state: SpeedtestRunState::Idle,
+            concurrency: SpeedtestConcurrency::default(),
+            results: Vec::new(),
             recent_history: Vec::new(),
-            failure: None,
-            availability: None,
         }
     }
 }
 
 impl SpeedtestSnapshot {
     pub fn is_running(&self) -> bool {
-        matches!(
-            self.phase,
-            SpeedtestPhase::ProbingLatency | SpeedtestPhase::MeasuringBandwidth
-        )
+        self.state.is_running()
     }
 
     pub fn is_drawable(&self) -> bool {
-        !self.node_results.is_empty() || self.is_running()
+        !self.results.is_empty() || self.is_running()
     }
 
-    pub fn demo_fixture() -> Self {
-        let mut node_results = BTreeMap::new();
+    pub fn phase(&self) -> SpeedtestPhase {
+        self.state.phase()
+    }
 
-        let hk_calc = JitterCalculation::from_samples(&[Some(36), Some(38), Some(35), Some(37)]);
-        node_results.insert(
-            "🇭🇰 香港 01 · BGP 专线".to_string(),
-            NodeSpeedtestResult {
-                node_name: "🇭🇰 香港 01 · BGP 专线".to_string(),
-                group_name: Some("节点选择 (PROXIES)".to_string()),
-                proxy_type: "Shadowsocks".to_string(),
-                delay_ms: Some(36),
-                jitter: Some(hk_calc),
-                bandwidth_mbps: Some(184.5),
-                packet_loss: PacketLossRating::Excellent,
-                star_rating: 5,
-                label_country: Some("HK".to_string()),
-                outbound_ip: Some("103.242.175.12".to_string()),
-                outbound_country: Some("HK".to_string()),
-                is_alive: true,
-                tested_at_epoch_ms: 1700000000000,
-            },
-        );
-
-        let jp_calc = JitterCalculation::from_samples(&[Some(65), Some(68), Some(64), Some(66)]);
-        node_results.insert(
-            "🇯🇵 日本东京 02 · 极速".to_string(),
-            NodeSpeedtestResult {
-                node_name: "🇯🇵 日本东京 02 · 极速".to_string(),
-                group_name: Some("节点选择 (PROXIES)".to_string()),
-                proxy_type: "Vmess".to_string(),
-                delay_ms: Some(65),
-                jitter: Some(jp_calc),
-                bandwidth_mbps: Some(125.0),
-                packet_loss: PacketLossRating::Excellent,
-                star_rating: 4,
-                label_country: Some("JP".to_string()),
-                outbound_ip: Some("133.242.18.5".to_string()),
-                outbound_country: Some("JP".to_string()),
-                is_alive: true,
-                tested_at_epoch_ms: 1700000000000,
-            },
-        );
-
-        let dead_calc = JitterCalculation::from_samples(&[None, None, None]);
-        node_results.insert(
-            "💀 超时不可用节点 01".to_string(),
-            NodeSpeedtestResult {
-                node_name: "💀 超时不可用节点 01".to_string(),
-                group_name: Some("节点选择 (PROXIES)".to_string()),
-                proxy_type: "Trojan".to_string(),
-                delay_ms: None,
-                jitter: Some(dead_calc),
-                bandwidth_mbps: None,
-                packet_loss: PacketLossRating::Dead,
-                star_rating: 1,
-                label_country: None,
-                outbound_ip: None,
-                outbound_country: None,
-                is_alive: false,
-                tested_at_epoch_ms: 1700000000000,
-            },
-        );
-
+    pub fn unavailable(failure: Failure) -> Self {
         Self {
-            generation: 1,
-            revision: 1,
-            phase: SpeedtestPhase::Completed,
-            scope: SpeedtestScope::AllGroups,
-            config: SpeedtestTargetConfig::default(),
-            progress: SpeedtestProgress {
-                completed_nodes: 3,
-                total_nodes: 3,
-                percent: 100.0,
-                current_node: None,
-                current_mbps: None,
-            },
-            node_results,
-            recent_history: vec![HistoricalSpeedtestRecord {
-                run_id: 1,
-                timestamp_epoch_ms: 1700000000000,
-                scope: SpeedtestScope::AllGroups,
-                target_url: "http://www.gstatic.com/generate_204".to_string(),
-                total_nodes: 3,
-                alive_nodes: 2,
-                avg_latency_ms: Some(50.5),
-                avg_jitter_ms: Some(1.5),
-                avg_bandwidth_mbps: Some(154.75),
-                overall_star_rating: 5,
-            }],
-            failure: None,
-            availability: Some(Availability::Supported),
+            state: SpeedtestRunState::Unavailable { failure },
+            ..Self::default()
         }
     }
 
+    /// Deterministic typed fixture for demo/capture surfaces. Product surfaces
+    /// must consume an owner-authored snapshot instead of using this fixture.
+    pub fn demo_fixture() -> Self {
+        use crate::core_identity::{CoreGeneration, CoreIdentity, CoreInstanceId, EngineId};
+
+        let core_scope = CoreScope {
+            identity: CoreIdentity::new(
+                EngineId::new("fixture").expect("fixture engine"),
+                CoreInstanceId::new("speedtest-demo").expect("fixture instance"),
+                None,
+            ),
+            generation: CoreGeneration::new(1),
+            session_token: None,
+        };
+        let outbound_engine = core_scope.identity.engine.clone();
+        let outbound_id = move |value: &str| {
+            OutboundId::new(outbound_engine.clone(), value).expect("fixture outbound")
+        };
+        let target = SpeedtestTarget::new(
+            core_scope,
+            SnapshotRevision::new(1),
+            OutboundProbeBatchScope::All,
+            SpeedtestRounds::DEFAULT,
+        )
+        .expect("fixture target");
+        let run_id = SpeedtestRunId::new(1).expect("fixture run identity");
+        let result =
+            |id: &str, name: &str, delays: &[Option<u32>], state| SpeedtestOutboundResult {
+                outbound_id: outbound_id(id),
+                display_name: Some(name.to_owned()),
+                protocol_display_name: Some("Shadowsocks".to_owned()),
+                samples: delays
+                    .iter()
+                    .map(|delay| match delay {
+                        Some(delay_ms) => SpeedtestSampleOutcome::Measured {
+                            delay_ms: *delay_ms,
+                        },
+                        None => SpeedtestSampleOutcome::TimedOut,
+                    })
+                    .collect(),
+                state,
+                tested_at_epoch_ms: 1_700_000_000_000,
+            };
+        Self {
+            revision: 1,
+            state: SpeedtestRunState::Completed {
+                run_id,
+                target: target.clone(),
+                progress: SpeedtestProgress {
+                    completed_targets: 3,
+                    total_targets: 3,
+                },
+            },
+            concurrency: SpeedtestConcurrency::default(),
+            results: vec![
+                result(
+                    "hk-primary",
+                    "🇭🇰 香港 01 · BGP 专线",
+                    &[Some(36), Some(38), Some(35), Some(37)],
+                    SpeedtestResultState::Completed,
+                ),
+                result(
+                    "jp-primary",
+                    "🇯🇵 日本东京 02 · 极速",
+                    &[Some(65), Some(68), Some(64), Some(66)],
+                    SpeedtestResultState::Completed,
+                ),
+                result(
+                    "unavailable-node",
+                    "💀 超时不可用节点 01",
+                    &[None, None, None],
+                    SpeedtestResultState::TimedOut,
+                ),
+            ],
+            recent_history: vec![HistoricalSpeedtestRecord {
+                run_id,
+                timestamp_epoch_ms: 1_700_000_000_000,
+                target: Some(target),
+                total_targets: 3,
+                completed_targets: 3,
+                avg_latency_ms: Some(50.5),
+                avg_jitter_ms: Some(1.5),
+            }],
+        }
+    }
+
+    pub fn result(&self, outbound_id: &OutboundId) -> Option<&SpeedtestOutboundResult> {
+        self.results
+            .iter()
+            .find(|result| &result.outbound_id == outbound_id)
+    }
+
     pub fn node_count(&self) -> usize {
-        self.node_results.len()
+        self.results.len()
     }
 
-    pub fn alive_nodes_count(&self) -> usize {
-        self.node_results.values().filter(|n| n.is_alive).count()
-    }
-
-    pub fn dead_nodes(&self) -> Vec<&NodeSpeedtestResult> {
-        self.node_results.values().filter(|n| !n.is_alive).collect()
-    }
-
-    /// DUAL-06-12: nodes whose label country and reported egress country are
-    /// both known and disagree. Derived purely from the published results.
-    pub fn egress_country_mismatches(&self) -> Vec<&NodeSpeedtestResult> {
-        self.node_results
-            .values()
-            .filter(|n| n.egress_country_match().is_mismatch())
-            .collect()
-    }
-
-    /// DUAL-06-12: how many nodes have a real reported egress IP.
-    pub fn egress_reported_count(&self) -> usize {
-        self.node_results
-            .values()
-            .filter(|n| n.outbound_ip.is_some())
+    pub fn available_count(&self) -> usize {
+        self.results
+            .iter()
+            .filter(|result| result.is_available())
             .count()
     }
 
-    /// DUAL-06-12: compact read-model caption for the egress comparison, e.g.
-    /// `出口 2/3 · 不一致 1`. Honest zero/empty facts are represented literally.
-    pub fn egress_summary(&self) -> String {
-        format!(
-            "出口 {}/{} · 不一致 {}",
-            self.egress_reported_count(),
-            self.node_count(),
-            self.egress_country_mismatches().len()
-        )
+    pub fn timed_out(&self) -> Vec<&SpeedtestOutboundResult> {
+        self.results
+            .iter()
+            .filter(|result| matches!(&result.state, SpeedtestResultState::TimedOut))
+            .collect()
     }
 
-    pub fn fastest_node(&self) -> Option<&NodeSpeedtestResult> {
-        self.node_results
-            .values()
-            .filter(|n| n.is_alive && n.delay_ms.is_some())
-            .min_by_key(|n| n.delay_ms.unwrap_or(u32::MAX))
+    pub fn fastest(&self) -> Option<&SpeedtestOutboundResult> {
+        self.results
+            .iter()
+            .filter(|result| result.is_available())
+            .min_by_key(|result| result.delay_ms())
     }
 
-    pub fn sorted_by_latency(&self) -> Vec<&NodeSpeedtestResult> {
-        let mut list: Vec<&NodeSpeedtestResult> = self.node_results.values().collect();
-        list.sort_by(|a, b| match (a.delay_ms, b.delay_ms) {
-            (Some(da), Some(db)) => da.cmp(&db),
+    pub fn sorted_by_latency(&self) -> Vec<&SpeedtestOutboundResult> {
+        let mut list = self.results.iter().collect::<Vec<_>>();
+        list.sort_by(|left, right| match (left.delay_ms(), right.delay_ms()) {
+            (Some(left), Some(right)) => left.cmp(&right),
             (Some(_), None) => Ordering::Less,
             (None, Some(_)) => Ordering::Greater,
-            (None, None) => a.node_name.cmp(&b.node_name),
+            (None, None) => Ordering::Equal,
         });
         list
     }
@@ -588,131 +837,75 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_packet_loss_gradient_ratings() {
-        assert_eq!(
-            PacketLossRating::from_loss_percent(0.0),
-            PacketLossRating::Excellent
-        );
-        assert_eq!(
-            PacketLossRating::from_loss_percent(0.00005),
-            PacketLossRating::Excellent
-        );
-        assert_eq!(
-            PacketLossRating::from_loss_percent(1.5),
-            PacketLossRating::Good
-        );
-        assert_eq!(
-            PacketLossRating::from_loss_percent(5.0),
-            PacketLossRating::Good
-        );
-        assert_eq!(
-            PacketLossRating::from_loss_percent(5.1),
-            PacketLossRating::Fair
-        );
-        assert_eq!(
-            PacketLossRating::from_loss_percent(15.0),
-            PacketLossRating::Fair
-        );
-        assert_eq!(
-            PacketLossRating::from_loss_percent(20.0),
-            PacketLossRating::Fair
-        );
-        assert_eq!(
-            PacketLossRating::from_loss_percent(20.1),
-            PacketLossRating::Poor
-        );
-        assert_eq!(
-            PacketLossRating::from_loss_percent(50.0),
-            PacketLossRating::Poor
-        );
-        assert_eq!(
-            PacketLossRating::from_loss_percent(100.0),
-            PacketLossRating::Dead
-        );
+    fn jitter_calculation_preserves_multi_round_samples_and_loss() {
+        let calculation =
+            JitterCalculation::from_samples(&[Some(50), None, Some(60), Some(55), None]);
+        assert_eq!(calculation.sample_count, 5);
+        assert_eq!(calculation.successful_probes, 3);
+        assert_eq!(calculation.lost_probes, 2);
+        assert_eq!(calculation.loss_percent, 40.0);
+        assert_eq!(calculation.loss_rating, PacketLossRating::Poor);
+        assert_eq!(calculation.min_rtt_ms, Some(50));
+        assert_eq!(calculation.max_rtt_ms, Some(60));
     }
 
     #[test]
-    fn test_jitter_calculation_known_samples() {
-        // 4 successful probes: 100, 110, 90, 100
-        // Mean = 100.0
-        // Diff from mean: 0, 10, -10, 0 -> squared: 0, 100, 100, 0 = 200
-        // Variance = 200 / 3 = 66.666...
-        // Std Dev = sqrt(66.666...) ≈ 8.165
-        let calc = JitterCalculation::from_samples(&[Some(100), Some(110), Some(90), Some(100)]);
-
-        assert_eq!(calc.sample_count, 4);
-        assert_eq!(calc.successful_probes, 4);
-        assert_eq!(calc.lost_probes, 0);
-        assert_eq!(calc.loss_percent, 0.0);
-        assert_eq!(calc.loss_rating, PacketLossRating::Excellent);
-        assert!((calc.mean_rtt_ms - 100.0).abs() < 1e-4);
-        assert_eq!(calc.min_rtt_ms, Some(90));
-        assert_eq!(calc.max_rtt_ms, Some(110));
-        assert!((calc.std_dev_ms - 8.16496).abs() < 1e-3);
-
-        // Jitter: (|110-100| + |90-110| + |100-90|) / 3 = (10 + 20 + 10) / 3 = 13.333...
-        assert!((calc.jitter_ms - 13.3333).abs() < 1e-3);
+    fn speedtest_limits_fail_closed_at_construction_and_deserialization() {
+        assert!(matches!(
+            SpeedtestRounds::new(0),
+            Err(SpeedtestRoundsError::Zero)
+        ));
+        assert!(matches!(
+            SpeedtestRounds::new(51),
+            Err(SpeedtestRoundsError::ExceedsMaximum)
+        ));
+        assert!(matches!(
+            SpeedtestConcurrency::new(0),
+            Err(SpeedtestConcurrencyError::Zero)
+        ));
+        assert!(matches!(
+            SpeedtestConcurrency::new(31),
+            Err(SpeedtestConcurrencyError::ExceedsMaximum)
+        ));
+        assert!(serde_json::from_str::<SpeedtestRounds>("0").is_err());
+        assert!(serde_json::from_str::<SpeedtestConcurrency>("31").is_err());
     }
 
     #[test]
-    fn test_jitter_calculation_with_packet_loss() {
-        let calc = JitterCalculation::from_samples(&[Some(50), None, Some(60), Some(55), None]);
-
-        assert_eq!(calc.sample_count, 5);
-        assert_eq!(calc.successful_probes, 3);
-        assert_eq!(calc.lost_probes, 2);
-        assert_eq!(calc.loss_percent, 40.0);
-        assert_eq!(calc.loss_rating, PacketLossRating::Poor);
-        assert_eq!(calc.min_rtt_ms, Some(50));
-        assert_eq!(calc.max_rtt_ms, Some(60));
-    }
-
-    #[test]
-    fn test_speedtest_snapshot_fixture() {
-        let snapshot = SpeedtestSnapshot::demo_fixture();
-        assert!(snapshot.is_drawable());
-        assert!(!snapshot.is_running());
-        assert_eq!(snapshot.node_count(), 3);
-        assert_eq!(snapshot.alive_nodes_count(), 2);
-        assert_eq!(snapshot.dead_nodes().len(), 1);
+    fn stable_latency_sort_keeps_inventory_order_for_equal_and_missing_samples() {
+        let engine = crate::core_identity::EngineId::new("fixture").expect("engine");
+        let first_id = OutboundId::new(engine.clone(), "first").expect("outbound");
+        let second_id = OutboundId::new(engine.clone(), "second").expect("outbound");
+        let third_id = OutboundId::new(engine, "third").expect("outbound");
+        let result = |outbound_id: OutboundId, delay: Option<u32>| SpeedtestOutboundResult {
+            outbound_id,
+            display_name: None,
+            protocol_display_name: None,
+            samples: delay
+                .map(|delay_ms| vec![SpeedtestSampleOutcome::Measured { delay_ms }])
+                .unwrap_or_default(),
+            state: if delay.is_some() {
+                SpeedtestResultState::Completed
+            } else {
+                SpeedtestResultState::TimedOut
+            },
+            tested_at_epoch_ms: 1,
+        };
+        let snapshot = SpeedtestSnapshot {
+            results: vec![
+                result(first_id.clone(), Some(40)),
+                result(second_id.clone(), Some(40)),
+                result(third_id.clone(), None),
+            ],
+            ..SpeedtestSnapshot::default()
+        };
         assert_eq!(
-            snapshot.fastest_node().unwrap().node_name,
-            "🇭🇰 香港 01 · BGP 专线"
+            snapshot
+                .sorted_by_latency()
+                .into_iter()
+                .map(|entry| entry.outbound_id.clone())
+                .collect::<Vec<_>>(),
+            vec![first_id, second_id, third_id]
         );
-    }
-
-    #[test]
-    fn test_egress_country_match_classification() {
-        assert_eq!(
-            EgressCountryMatch::classify(None, None),
-            EgressCountryMatch::Unknown
-        );
-        assert_eq!(
-            EgressCountryMatch::classify(Some("HK"), None),
-            EgressCountryMatch::Unknown
-        );
-        assert_eq!(
-            EgressCountryMatch::classify(None, Some("US")),
-            EgressCountryMatch::Unlabelled
-        );
-        assert_eq!(
-            EgressCountryMatch::classify(Some("hk"), Some("HK")),
-            EgressCountryMatch::Match
-        );
-        assert_eq!(
-            EgressCountryMatch::classify(Some("HK"), Some("US")),
-            EgressCountryMatch::Mismatch
-        );
-        assert!(EgressCountryMatch::Mismatch.is_mismatch());
-        assert_eq!(EgressCountryMatch::Mismatch.as_token(), "mismatch");
-    }
-
-    #[test]
-    fn test_snapshot_egress_summary_from_fixture() {
-        let snapshot = SpeedtestSnapshot::demo_fixture();
-        // Two nodes reported a real egress IP; neither label contradicts it.
-        assert_eq!(snapshot.egress_reported_count(), 2);
-        assert!(snapshot.egress_country_mismatches().is_empty());
-        assert_eq!(snapshot.egress_summary(), "出口 2/3 · 不一致 0");
     }
 }

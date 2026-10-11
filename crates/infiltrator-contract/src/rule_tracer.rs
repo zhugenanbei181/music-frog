@@ -1,6 +1,7 @@
 //! Shared read model and decision tree replay contract for the Live Rule Tracer (交互式分流追踪器).
 
 use crate::error::{ErrorCode, Failure};
+use crate::outbound::identity::{OutboundId, SnapshotRevision};
 use crate::rule_condition::{ConditionOutcome, EvaluationNodeKind, RuleEvaluationNode};
 #[cfg(test)]
 use crate::rule_hit_audit::{RuleDeadReason, RuleHitAuditSnapshot};
@@ -19,6 +20,38 @@ pub enum RuleTracerStatus {
     Empty,
     Unsupported,
     Failed,
+}
+
+/// Whether a completed trace used a live Core session or only local profile
+/// AST facts. `Unknown` is reserved for unscoped/default read models.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RuleTraceRuntimeMode {
+    #[default]
+    Unknown,
+    Live,
+    Offline,
+}
+
+/// Resolution outcome for the outbound stage of one AST rule trace.
+/// `NotEvaluated` means no query ran, `Unavailable` is an intentional offline
+/// projection, and `Unknown` means an observation did not uniquely resolve
+/// the target.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "state", content = "value", rename_all = "snake_case")]
+pub enum RuleTraceOutboundResolution {
+    #[default]
+    NotEvaluated,
+    Unknown,
+    NotRequired,
+    Resolved {
+        outbound_id: OutboundId,
+        inventory_revision: SnapshotRevision,
+        details_revision: SnapshotRevision,
+    },
+    Unavailable {
+        failure: Failure,
+    },
 }
 
 /// The 5 core stages in a Mihomo routing decision chain:
@@ -304,6 +337,8 @@ pub struct RuleTracerSnapshot {
     pub generation: u64,
     pub revision: u64,
     pub status: RuleTracerStatus,
+    #[serde(default)]
+    pub runtime_mode: RuleTraceRuntimeMode,
     pub failure: Option<String>,
     pub active_query: String,
     pub simulated_context: TrafficContextSnapshot,
@@ -317,6 +352,8 @@ pub struct RuleTracerSnapshot {
     pub source: Option<RuleSourceIdentity>,
     #[serde(default)]
     pub targets: Vec<String>,
+    #[serde(default)]
+    pub outbound_resolution: RuleTraceOutboundResolution,
 }
 
 impl RuleTracerSnapshot {
@@ -483,8 +520,10 @@ impl RuleTracerSnapshot {
             generation: 1,
             revision: 1,
             status: RuleTracerStatus::Ready,
+            runtime_mode: RuleTraceRuntimeMode::Unknown,
             source: None,
             targets: Vec::new(),
+            outbound_resolution: RuleTraceOutboundResolution::NotEvaluated,
             failure: None,
             active_query: "github.com".to_owned(),
             simulated_context: TrafficContextSnapshot {
@@ -533,8 +572,10 @@ impl RuleTracerSnapshot {
             generation,
             revision,
             status: RuleTracerStatus::Ready,
+            runtime_mode: RuleTraceRuntimeMode::Unknown,
             source: None,
             targets: Vec::new(),
+            outbound_resolution: RuleTraceOutboundResolution::NotEvaluated,
             failure: None,
             active_query: query,
             simulated_context: context,
@@ -552,8 +593,10 @@ impl RuleTracerSnapshot {
             generation,
             revision,
             status: RuleTracerStatus::Empty,
+            runtime_mode: RuleTraceRuntimeMode::Unknown,
             source: None,
             targets: Vec::new(),
+            outbound_resolution: RuleTraceOutboundResolution::NotEvaluated,
             failure: None,
             active_query: String::new(),
             simulated_context: TrafficContextSnapshot::default(),

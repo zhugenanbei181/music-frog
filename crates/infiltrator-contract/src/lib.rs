@@ -6,7 +6,10 @@
 
 pub mod a11y;
 pub mod active_exit;
+pub mod adapter_operation_declaration;
 pub mod aggregator;
+pub mod android_control;
+pub mod app_routing;
 pub mod apply_transaction;
 pub mod cadence;
 pub mod capability;
@@ -16,7 +19,9 @@ pub mod command_output;
 pub mod connection;
 pub mod connection_search;
 pub mod controller;
+pub mod core_capabilities;
 pub mod core_control;
+pub mod core_identity;
 pub mod design_tokens;
 pub mod dialer_chain;
 pub mod dns;
@@ -31,6 +36,7 @@ pub mod dns_self_heal;
 pub mod doctor;
 pub mod editor_viewport;
 pub mod error;
+pub mod fixture_identities;
 pub mod ime;
 pub mod intent;
 pub mod ipv6;
@@ -42,12 +48,15 @@ pub mod mrs_acceleration;
 pub mod mtu;
 pub mod network_roaming;
 pub mod offline_startup;
+pub mod outbound;
 pub mod overview_layout;
 pub mod pac;
 pub mod parity;
 pub mod port_conflict;
 pub mod privileged_network;
+pub mod profile_configuration;
 pub mod profile_document;
+pub mod profile_document_identity;
 pub mod profile_options;
 pub mod profile_protection;
 pub mod profile_source;
@@ -59,9 +68,7 @@ mod protocol_psk;
 pub mod protocol_trust;
 pub mod provider_cache;
 pub mod proxies;
-pub mod proxy_inspection;
-pub mod proxy_probe_options;
-pub mod search_text;
+pub mod runtime_settings;
 
 pub mod speedtest_details;
 
@@ -70,13 +77,16 @@ pub mod speedtest_details;
 mod protocol_fidelity_test;
 
 #[cfg(test)]
+#[path = "adapter_operation_declaration_tests.rs"]
+mod adapter_operation_declaration_tests;
+#[cfg(test)]
 #[path = "protocol_params_test.rs"]
 mod protocol_params_test;
-pub mod proxy_mode;
 pub mod public_ip;
 pub mod reconnect_mask;
 pub mod resources;
 pub mod responsive_viewport;
+pub mod routing_intent;
 pub mod rule_condition;
 pub mod rule_document;
 pub mod rule_edit;
@@ -103,7 +113,6 @@ pub mod snapshot;
 pub mod snapshot_history;
 pub mod snapshot_restore;
 pub mod speedtest;
-pub mod speedtest_matrix;
 pub mod stun_probe;
 pub mod subscription_filter_form;
 pub mod subscription_filter_result;
@@ -132,17 +141,18 @@ pub mod yaml_snippets;
 #[cfg(test)]
 mod tests {
     use super::capability::{Availability, Capability, CapabilitySnapshot, CapabilityStatus};
-    use super::command::{CommandIntent, CommandKind, CoreLogLevel, ProxyMode};
+    use super::command::{CommandIntent, CommandKind, CoreLogLevel};
     use super::ipv6::Ipv6RoutingSnapshot;
     use super::lan::LanCredentials;
+    use super::routing_intent::RoutingIntent;
     use super::surface::HostKind;
     use super::tun::TunStack;
 
     #[test]
     fn command_kind_is_stable_and_transport_free() {
         assert_eq!(
-            CommandIntent::SetProxyMode {
-                mode: ProxyMode::Rule,
+            CommandIntent::SetRoutingIntent {
+                intent: RoutingIntent::FollowRules,
             }
             .kind(),
             CommandKind::Proxy
@@ -182,8 +192,9 @@ mod tests {
             .kind(),
             CommandKind::Network
         );
-        assert_eq!(CoreLogLevel::parse("warning"), Some(CoreLogLevel::Warn));
-        assert_eq!(CoreLogLevel::parse("trace"), None);
+        assert_eq!(CoreLogLevel::from_key("warn"), Some(CoreLogLevel::Warn));
+        assert_eq!(CoreLogLevel::from_key("warning"), None);
+        assert_eq!(CoreLogLevel::from_key("trace"), None);
     }
 
     #[test]

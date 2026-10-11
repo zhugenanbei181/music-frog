@@ -27,6 +27,17 @@ pub enum ConnectionStreamPhase {
     Unavailable,
 }
 
+/// Availability of a derived instantaneous connection rate.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ConnectionRateObservation {
+    /// No valid two-snapshot counter window is available yet.
+    #[default]
+    Unobserved,
+    /// Both byte counters came from a valid, monotonic counter window.
+    Measured,
+}
+
 impl ConnectionStreamPhase {
     /// Canonical ordering used by the segmented badges on both surfaces.
     pub const ALL: [Self; 5] = [
@@ -89,6 +100,18 @@ pub fn timing_availability() -> Availability {
 mod tests {
     use super::*;
     use crate::error::Failure;
+
+    #[test]
+    fn rate_observation_serializes_as_a_typed_state() {
+        assert_eq!(
+            serde_json::to_string(&ConnectionRateObservation::Unobserved).unwrap(),
+            "\"unobserved\""
+        );
+        assert_eq!(
+            serde_json::to_string(&ConnectionRateObservation::Measured).unwrap(),
+            "\"measured\""
+        );
+    }
 
     #[test]
     fn stream_phase_round_trips_its_identifier() {

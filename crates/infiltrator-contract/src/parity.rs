@@ -48,7 +48,6 @@ features! {
     SpeedtestProgressCancel => ("speedtest-progress-cancel", "overview", "overview", ["success", "cancel", "error"]),
     SpeedtestDetailsModal => ("speedtest-details-modal", "runtime", "overview", ["success", "close", "unsupported"]),
     SpeedtestHistoryComparison => ("speedtest-history-comparison", "runtime", "overview", ["success", "empty"]),
-    SpeedtestConfigForm => ("speedtest-config-form", "runtime", "overview", ["success", "error"]),
     ProfilesImportModal => ("profiles-import-modal", "profiles", "profiles", ["success", "cancel", "error"]),
     ProfilesDeleteConfirm => ("profiles-delete-confirm", "profiles", "profiles", ["success", "cancel", "error"]),
     ProfilesSubscriptionError => ("profiles-subscription-error", "profiles", "profiles", ["error", "retry"]),
@@ -84,8 +83,8 @@ features! {
     SyncRestoreConfirm => ("sync-restore-confirm", "sync", "sync", ["success", "cancel", "error"]),
     DoctorFailureRecovery => ("doctor-failure-recovery", "doctor", "doctor", ["success", "error", "retry"]),
     ShellCommandPalette => ("shell-command-palette", "overview", "overview", ["success", "cancel", "empty", "full-list", "locale", "refresh"]),
-    ShellProxyModeControl => ("shell-proxy-mode-control", "overview", "overview", ["success", "error", "retry", "close", "stale", "refresh", "pending", "unsupported", "guide"]),
-    ShellProxyModeAuthentication => ("shell-proxy-mode-authentication", "overview", "overview", ["error", "guide", "close"]),
+    ShellRoutingIntentControl => ("shell-routing-intent-control", "overview", "overview", ["success", "error", "retry", "close", "stale", "refresh", "pending", "unsupported", "guide"]),
+    ShellRoutingIntentAuthentication => ("shell-routing-intent-authentication", "overview", "overview", ["error", "guide", "close"]),
     ShellKeyboardFocus => ("shell-keyboard-focus", "overview", "overview", ["success"]),
 }
 

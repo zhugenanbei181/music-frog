@@ -96,16 +96,6 @@ fn test_connection_timing_breakdown() {
 }
 
 #[test]
-fn test_speedtest_calculator() {
-    let bytes = 10 * 1024 * 1024;
-    let mbps = SpeedtestCalculator::calculate_bandwidth(bytes, 2000);
-    assert!((mbps - 40.0).abs() < 0.1);
-
-    assert_eq!(SpeedtestCalculator::calculate_bandwidth(0, 1000), 0.0);
-    assert_eq!(SpeedtestCalculator::calculate_bandwidth(1000, 0), 0.0);
-}
-
-#[test]
 fn test_network_throttling_profiles() {
     let p2g = NetworkThrottlingProfile::Profile2G;
     assert_eq!(p2g.max_down_kbps(), 250);

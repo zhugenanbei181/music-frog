@@ -1,6 +1,6 @@
 //! Frozen snapshot restoration reviews and actual source-bound terminal receipts.
 use crate::error::{ErrorCode, Failure};
-use crate::profile_source::ProfileSourceIdentity;
+use crate::profile_document_identity::ProfileWorkspaceIdentity;
 use crate::yaml_ast_diff::YamlAstDiffSnapshot;
 use serde::{Deserialize, Serialize};
 
@@ -14,7 +14,7 @@ pub struct SnapshotRestoreIdentity {
     pub owner: u64,
     pub sequence: u64,
     pub snapshot_hash: String,
-    pub source: ProfileSourceIdentity,
+    pub workspace_identity: ProfileWorkspaceIdentity,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SnapshotRestoreReview {
@@ -30,7 +30,13 @@ impl SnapshotRestoreReview {
             || self.identity.sequence == 0
             || self.target.profile.is_empty()
             || self.target.snapshot_id.is_empty()
-            || self.identity.source.profile != self.target.profile
+            || self
+                .identity
+                .workspace_identity
+                .document
+                .profile_id
+                .as_str()
+                != self.target.profile
             || self.identity.snapshot_hash.len() != 64
             || !self
                 .identity
@@ -52,14 +58,15 @@ impl SnapshotRestoreReview {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SnapshotRestoreReceipt {
     pub identity: SnapshotRestoreIdentity,
-    pub committed: ProfileSourceIdentity,
+    pub committed: ProfileWorkspaceIdentity,
 }
 impl SnapshotRestoreReceipt {
     pub fn validate(&self, identity: &SnapshotRestoreIdentity) -> Result<(), Failure> {
         if self.identity != *identity
-            || self.committed.profile != identity.source.profile
-            || self.committed.document_hash != identity.snapshot_hash
-            || self.committed.options_hash != identity.source.options_hash
+            || self.committed.document.profile_id != identity.workspace_identity.document.profile_id
+            || self.committed.document.engine_id != identity.workspace_identity.document.engine_id
+            || self.committed.document.revision.as_str() != identity.snapshot_hash
+            || self.committed.sidecar_revision != identity.workspace_identity.sidecar_revision
         {
             return Err(Failure::new(
                 ErrorCode::InvalidState,

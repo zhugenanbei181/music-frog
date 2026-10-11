@@ -5,7 +5,7 @@
 //! (it is business-agnostic by charter), so it mirrors the same numbers and
 //! `crates/infiltrator-bevy-ui/tests/headless/responsive_ui_tests.rs` fails if
 //! the two drift.
-//! See `docs/RESPONSIVE_PARITY_LEDGER.md`.
+//! See `crates/infiltrator-contract/docs/UI_PARITY_AUDIT.md` for the shared breakpoints.
 
 use serde::{Deserialize, Serialize};
 

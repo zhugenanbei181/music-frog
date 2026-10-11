@@ -7,13 +7,16 @@
 use crate::error::PortError;
 use async_trait::async_trait;
 use infiltrator_contract::error::Failure;
+use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use infiltrator_contract::rule_location::RuleLocation;
 use infiltrator_contract::rule_source::RuleSourceIdentity;
+use infiltrator_contract::rule_trace_run::RuleTraceOwnerBinding;
 use infiltrator_domain::rules::RuleEntry;
 use std::collections::BTreeMap;
 
 pub struct RuleWorkspace {
     pub source: RuleSourceIdentity,
+    pub profile_identity: ProfileWorkspaceIdentity,
     pub rules: Vec<RuleEntry>,
     pub targets: Vec<String>,
     pub sub_rules: BTreeMap<String, Vec<RuleEntry>>,
@@ -27,6 +30,29 @@ pub struct RuleWorkspace {
 pub trait RuleOverridePort: Send + Sync {
     /// Load the current profile's rule list, in file order.
     async fn load_rule_workspace(&self) -> Result<RuleWorkspace, PortError>;
+
+    /// Load rules only for the exact Core activation and typed profile
+    /// workspace already admitted by the application. Implementations should
+    /// recheck the active owner and workspace at their read boundary.
+    async fn load_rule_workspace_for_trace(
+        &self,
+        owner: &RuleTraceOwnerBinding,
+    ) -> Result<RuleWorkspace, PortError> {
+        if owner.workspace.document.engine_id != owner.scope.identity.engine {
+            return Err(PortError::Rejected(Failure::unsupported(
+                "rule trace profile belongs to another engine",
+            )));
+        }
+        let workspace = self.load_rule_workspace().await?;
+        if workspace.profile_identity != owner.workspace {
+            return Err(PortError::Rejected(Failure::new(
+                infiltrator_contract::error::ErrorCode::NotReady,
+                "Profile workspace changed; refresh before simulating rules",
+                true,
+            )));
+        }
+        Ok(workspace)
+    }
 
     /// Persist a complete rewritten rule list through the atomic apply
     /// transaction (validate, temp write, reload/restart, readiness, rollback).

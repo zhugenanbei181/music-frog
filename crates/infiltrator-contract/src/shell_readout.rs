@@ -4,16 +4,42 @@ use crate::mini_hud::MiniHudWaveformStrip;
 use crate::session::SessionToken;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct ShellObservation<T> {
-    pub value: Option<T>,
-    pub current: bool,
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "state", content = "value", rename_all = "snake_case")]
+pub enum ShellObservation<T> {
+    /// No value has been observed for this session.
+    #[default]
+    Unobserved,
+    /// The value belongs to the accepted snapshot.
+    Current(T),
+    /// The accepted page is current and explicitly contains no profile.
+    CurrentEmpty,
+    /// The last accepted value is retained after the reader became unavailable.
+    Stale(T),
 }
-impl<T> Default for ShellObservation<T> {
-    fn default() -> Self {
-        Self {
-            value: None,
-            current: false,
+
+impl<T> ShellObservation<T> {
+    /// Return any observed value, including a retained stale value.
+    pub fn value(&self) -> Option<&T> {
+        match self {
+            Self::Current(value) | Self::Stale(value) => Some(value),
+            Self::Unobserved | Self::CurrentEmpty => None,
+        }
+    }
+
+    /// Return a value only when it belongs to the current accepted snapshot.
+    pub fn current_value(&self) -> Option<&T> {
+        match self {
+            Self::Current(value) => Some(value),
+            Self::Unobserved | Self::CurrentEmpty | Self::Stale(_) => None,
+        }
+    }
+
+    /// Retain an observed value as stale; empty/unobserved states stay unobserved.
+    pub fn into_stale(self) -> Self {
+        match self {
+            Self::Current(value) | Self::Stale(value) => Self::Stale(value),
+            Self::Unobserved | Self::CurrentEmpty => Self::Unobserved,
         }
     }
 }
@@ -44,3 +70,7 @@ pub struct ShellReadoutSnapshot {
     pub upload_bps: ShellObservation<f64>,
     pub download_bps: ShellObservation<f64>,
 }
+
+#[cfg(test)]
+#[path = "shell_readout_tests.rs"]
+mod tests;
