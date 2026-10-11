@@ -488,8 +488,8 @@ mod tests {
     #[async_trait]
     impl CoreLaunchSpecSource for TestLaunchSpecSource {
         async fn resolve(&self) -> result::Result<CoreLaunchSpec, PortError> {
-            Ok(CoreLaunchSpec {
-                configuration_identity: CoreLaunchConfigurationIdentity {
+            CoreLaunchSpec::new(
+                CoreLaunchConfigurationIdentity {
                     engine_id: EngineId::new("mihomo").expect("engine ID"),
                     profile_id: infiltrator_contract::profile_document_identity::ProfileId::new(
                         "default",
@@ -500,9 +500,10 @@ mod tests {
                     )
                     .expect("document revision"),
                 },
-                working_directory: PathBuf::from("data"),
-                launch_arguments: vec!["-d".to_owned(), "data".to_owned()],
-            })
+                PathBuf::from("/data"),
+                vec!["-d".to_owned(), "/data".to_owned()],
+            )
+            .map_err(|error| PortError::Failed(error.to_string()))
         }
     }
 

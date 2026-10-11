@@ -391,14 +391,15 @@ mod tests {
     #[tokio::test]
     async fn native_rejection_is_a_typed_configuration_failure() {
         let directory = tempfile::tempdir().expect("temporary Android files root");
-        let client: Arc<dyn AndroidCoreConfigurationValidationClient> = Arc::new(FakeClient {
+        let client = Arc::new(FakeClient {
             role: AndroidHostProcessRole::CoreOwner,
             outcome: AndroidCoreConfigurationValidationOutcome::ConfigurationRejected {
                 exit_code: 1,
             },
             request: Mutex::new(None),
         });
-        let validator = validator(directory.path(), client);
+        let client_port: Arc<dyn AndroidCoreConfigurationValidationClient> = client.clone();
+        let validator = validator(directory.path(), client_port);
 
         let error = validator
             .validate_candidate(&workspace_identity(), b"invalid")
@@ -412,5 +413,63 @@ mod tests {
                 ..
             })
         ));
+        let request = client
+            .request
+            .lock()
+            .expect("request mutex")
+            .clone()
+            .expect("native validation request");
+        assert_eq!(
+            std::fs::read(&request.candidate_path).unwrap_err().kind(),
+            std::io::ErrorKind::NotFound
+        );
+    }
+
+    struct UnavailableClient {
+        request: Mutex<Option<AndroidCoreConfigurationValidationRequest>>,
+    }
+
+    #[async_trait]
+    impl AndroidCoreConfigurationValidationClient for UnavailableClient {
+        fn process_role(&self) -> AndroidHostProcessRole {
+            AndroidHostProcessRole::CoreOwner
+        }
+
+        async fn validate_configuration(
+            &self,
+            request: &AndroidCoreConfigurationValidationRequest,
+        ) -> Result<AndroidCoreConfigurationValidationOutcome, String> {
+            *self.request.lock().expect("request mutex") = Some(request.clone());
+            Err("owner validation IPC is unavailable".to_owned())
+        }
+    }
+
+    #[tokio::test]
+    async fn owner_ipc_failure_is_typed_and_removes_the_staged_candidate() {
+        let directory = tempfile::tempdir().expect("temporary Android files root");
+        let client = Arc::new(UnavailableClient {
+            request: Mutex::new(None),
+        });
+        let client_port: Arc<dyn AndroidCoreConfigurationValidationClient> = client.clone();
+        let validator = validator(directory.path(), client_port);
+
+        let error = validator
+            .validate_candidate(&workspace_identity(), b"candidate")
+            .await
+            .expect_err("missing owner IPC must fail closed");
+
+        assert!(
+            matches!(error, PortError::Failed(message) if message.contains("IPC is unavailable"))
+        );
+        let request = client
+            .request
+            .lock()
+            .expect("request mutex")
+            .clone()
+            .expect("staged request");
+        assert_eq!(
+            std::fs::read(&request.candidate_path).unwrap_err().kind(),
+            std::io::ErrorKind::NotFound
+        );
     }
 }

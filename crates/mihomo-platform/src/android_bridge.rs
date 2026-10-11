@@ -482,21 +482,22 @@ fn android_bridge_state() -> &'static RwLock<Option<Arc<dyn AndroidBridge>>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use infiltrator_contract::android_control::CoreLaunchConfigurationIdentity;
     use infiltrator_contract::core_identity::EngineId;
     use infiltrator_contract::profile_document_identity::{ProfileDocumentRevision, ProfileId};
 
     fn launch_spec() -> CoreLaunchSpec {
-        CoreLaunchSpec {
-            configuration_identity:
-                infiltrator_contract::android_control::CoreLaunchConfigurationIdentity {
-                    engine_id: EngineId::new("mihomo").expect("engine ID"),
-                    profile_id: ProfileId::new("default").expect("profile ID"),
-                    document_revision: ProfileDocumentRevision::new("sha256:test")
-                        .expect("document revision"),
-                },
-            working_directory: PathBuf::from("data"),
-            launch_arguments: vec!["-d".to_owned(), "data".to_owned()],
-        }
+        CoreLaunchSpec::new(
+            CoreLaunchConfigurationIdentity {
+                engine_id: EngineId::new("mihomo").expect("engine ID"),
+                profile_id: ProfileId::new("default").expect("profile ID"),
+                document_revision: ProfileDocumentRevision::new("sha256:test")
+                    .expect("document revision"),
+            },
+            PathBuf::from("/data"),
+            vec!["-d".to_owned(), "/data".to_owned()],
+        )
+        .expect("valid test launch spec")
     }
 
     #[test]
@@ -505,13 +506,12 @@ mod tests {
         let request = AndroidCoreConfigurationValidationRequest {
             request_id: 41,
             timeout_millis: 30_000,
-            configuration_identity:
-                infiltrator_contract::android_control::CoreLaunchConfigurationIdentity {
-                    engine_id: EngineId::new("mihomo").expect("engine ID"),
-                    profile_id: ProfileId::new("primary").expect("profile ID"),
-                    document_revision: ProfileDocumentRevision::new("a".repeat(64))
-                        .expect("candidate revision"),
-                },
+            configuration_identity: CoreLaunchConfigurationIdentity {
+                engine_id: EngineId::new("mihomo").expect("engine ID"),
+                profile_id: ProfileId::new("primary").expect("profile ID"),
+                document_revision: ProfileDocumentRevision::new("a".repeat(64))
+                    .expect("candidate revision"),
+            },
             candidate_path: PathBuf::from(
                 "/data/user/0/com.musicfrog.infiltrator/files/cloud/profiles/engines/mihomo/.primary.yaml.tmp-1-41",
             ),

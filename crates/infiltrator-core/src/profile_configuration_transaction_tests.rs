@@ -89,6 +89,9 @@ impl ProfileConfigurationCandidateValidatorPort for FakeStoppedValidator {
     }
 }
 
+#[path = "profile_configuration_transaction_lifecycle_tests.rs"]
+mod lifecycle_tests;
+
 struct TransactionFixture {
     _directory: TempDir,
     config: Arc<ConfigManager<MockStore>>,

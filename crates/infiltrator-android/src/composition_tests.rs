@@ -740,14 +740,14 @@ async fn core_start_sends_the_active_profile_identity_and_rust_resolved_argument
         spec.configuration_identity.document_revision,
         workspace.document.identity.revision
     );
-    assert_eq!(spec.working_directory, workdir);
+    assert_eq!(spec.working_directory.as_path(), workdir);
     assert_eq!(
-        spec.launch_arguments,
-        vec![
+        spec.launch_parameters.as_slice(),
+        &[
             "-d".to_owned(),
             workdir.to_string_lossy().into_owned(),
             "-f".to_owned(),
-            config_path.to_string_lossy().into_owned(),
+            config_path.to_string_lossy().into_owned()
         ],
     );
 }

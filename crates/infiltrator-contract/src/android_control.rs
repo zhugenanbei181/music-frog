@@ -11,8 +11,10 @@ use crate::profile_document_identity::{ProfileDocumentRevision, ProfileId};
 use crate::session::SessionToken;
 use crate::snapshot::{CoreLifecycle, CoreLifecycleSnapshot};
 use crate::vpn::{VpnGeneration, VpnOwnerStopReceipt};
+use serde::de;
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::{error, fmt};
 
 /// Process role reported by the Android host bridge.
 ///
@@ -134,8 +136,188 @@ pub struct CoreLaunchConfigurationIdentity {
 #[serde(deny_unknown_fields)]
 pub struct CoreLaunchSpec {
     pub configuration_identity: CoreLaunchConfigurationIdentity,
-    pub working_directory: PathBuf,
-    pub launch_arguments: Vec<String>,
+    pub working_directory: CoreLaunchWorkingDirectory,
+    #[serde(rename = "launch_arguments")]
+    pub launch_parameters: CoreLaunchParameters,
+}
+
+impl CoreLaunchSpec {
+    pub fn new(
+        configuration_identity: CoreLaunchConfigurationIdentity,
+        working_directory: PathBuf,
+        launch_parameters: Vec<String>,
+    ) -> Result<Self, CoreLaunchSpecValidationError> {
+        Ok(Self {
+            configuration_identity,
+            working_directory: CoreLaunchWorkingDirectory::new(working_directory)?,
+            launch_parameters: CoreLaunchParameters::new(launch_parameters)?,
+        })
+    }
+}
+
+/// Absolute host path supplied to Android's process spawn adapter.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(transparent)]
+pub struct CoreLaunchWorkingDirectory(PathBuf);
+
+impl CoreLaunchWorkingDirectory {
+    pub fn new(path: PathBuf) -> Result<Self, CoreLaunchSpecValidationError> {
+        if !path.is_absolute() {
+            return Err(CoreLaunchSpecValidationError::RelativeWorkingDirectory);
+        }
+        Ok(Self(path))
+    }
+
+    pub fn as_path(&self) -> &Path {
+        &self.0
+    }
+}
+
+impl<'de> Deserialize<'de> for CoreLaunchWorkingDirectory {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let path = PathBuf::deserialize(deserializer)?;
+        Self::new(path).map_err(de::Error::custom)
+    }
+}
+
+/// Process arguments authored by the Rust owner and passed as distinct argv
+/// elements, preserving spaces without shell parsing.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(transparent)]
+pub struct CoreLaunchParameters(Vec<String>);
+
+impl CoreLaunchParameters {
+    pub fn new(values: Vec<String>) -> Result<Self, CoreLaunchSpecValidationError> {
+        if values.is_empty() {
+            return Err(CoreLaunchSpecValidationError::EmptyLaunchParameters);
+        }
+        for (index, value) in values.iter().enumerate() {
+            if value.trim().is_empty() {
+                return Err(CoreLaunchSpecValidationError::EmptyLaunchParameter { index });
+            }
+            if value.contains('\0') {
+                return Err(CoreLaunchSpecValidationError::NullByteInLaunchParameter { index });
+            }
+        }
+        Ok(Self(values))
+    }
+
+    pub fn as_slice(&self) -> &[String] {
+        &self.0
+    }
+}
+
+impl<'de> Deserialize<'de> for CoreLaunchParameters {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let values = Vec::<String>::deserialize(deserializer)?;
+        Self::new(values).map_err(de::Error::custom)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CoreLaunchSpecValidationError {
+    RelativeWorkingDirectory,
+    EmptyLaunchParameters,
+    EmptyLaunchParameter { index: usize },
+    NullByteInLaunchParameter { index: usize },
+}
+
+impl fmt::Display for CoreLaunchSpecValidationError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::RelativeWorkingDirectory => {
+                formatter.write_str("Core launch working directory must be absolute")
+            }
+            Self::EmptyLaunchParameters => {
+                formatter.write_str("Core launch parameters must not be empty")
+            }
+            Self::EmptyLaunchParameter { index } => {
+                write!(formatter, "Core launch parameter {index} must not be blank")
+            }
+            Self::NullByteInLaunchParameter { index } => {
+                write!(
+                    formatter,
+                    "Core launch parameter {index} contains a null byte"
+                )
+            }
+        }
+    }
+}
+
+impl error::Error for CoreLaunchSpecValidationError {}
+
+#[cfg(test)]
+mod core_launch_spec_tests {
+    use super::{
+        CoreLaunchConfigurationIdentity, CoreLaunchParameters, CoreLaunchSpec,
+        CoreLaunchSpecValidationError,
+    };
+    use crate::core_identity::EngineId;
+    use crate::profile_document_identity::{ProfileDocumentRevision, ProfileId};
+    use std::path::PathBuf;
+
+    fn identity() -> CoreLaunchConfigurationIdentity {
+        CoreLaunchConfigurationIdentity {
+            engine_id: EngineId::new("mihomo").expect("engine ID"),
+            profile_id: ProfileId::new("primary").expect("profile ID"),
+            document_revision: ProfileDocumentRevision::new("sha256:abc123")
+                .expect("configuration revision"),
+        }
+    }
+
+    #[test]
+    fn core_launch_spec_rejects_invalid_paths_and_parameters_before_wire_use() {
+        assert_eq!(
+            CoreLaunchSpec::new(identity(), PathBuf::from("relative"), vec!["-f".to_owned()],)
+                .expect_err("relative working directory is rejected"),
+            CoreLaunchSpecValidationError::RelativeWorkingDirectory,
+        );
+        assert_eq!(
+            CoreLaunchParameters::new(Vec::new()).expect_err("empty argument vector is rejected"),
+            CoreLaunchSpecValidationError::EmptyLaunchParameters,
+        );
+        assert_eq!(
+            CoreLaunchParameters::new(vec!["-f".to_owned(), "  ".to_owned()])
+                .expect_err("blank argument is rejected"),
+            CoreLaunchSpecValidationError::EmptyLaunchParameter { index: 1 },
+        );
+        assert_eq!(
+            CoreLaunchParameters::new(vec!["bad\0argument".to_owned()])
+                .expect_err("NUL cannot be passed to a process"),
+            CoreLaunchSpecValidationError::NullByteInLaunchParameter { index: 0 },
+        );
+    }
+
+    #[test]
+    fn core_launch_spec_deserialization_applies_the_same_validation() {
+        let relative_directory = r#"{
+            "configuration_identity": {
+                "engine_id": "mihomo",
+                "profile_id": "primary",
+                "document_revision": "sha256:abc123"
+            },
+            "working_directory": "relative",
+            "launch_arguments": ["-f", "profile.yaml"]
+        }"#;
+        assert!(serde_json::from_str::<CoreLaunchSpec>(relative_directory).is_err());
+
+        let blank_argument = r#"{
+            "configuration_identity": {
+                "engine_id": "mihomo",
+                "profile_id": "primary",
+                "document_revision": "sha256:abc123"
+            },
+            "working_directory": "/data/app/files",
+            "launch_arguments": ["-f", " "]
+        }"#;
+        assert!(serde_json::from_str::<CoreLaunchSpec>(blank_argument).is_err());
+    }
 }
 
 /// Terminal command result crossing the Android UI/owner process boundary.
@@ -637,24 +819,26 @@ mod tests {
     use crate::profile_document_identity::{ProfileDocumentRevision, ProfileId};
     use crate::session::SessionToken;
     use crate::snapshot::{CoreLifecycle, CoreLifecycleSnapshot};
+    use std::path::{Path, PathBuf};
 
     #[test]
     fn core_launch_spec_round_trips_owner_selected_profile_and_process_arguments() {
-        let spec = CoreLaunchSpec {
-            configuration_identity: CoreLaunchConfigurationIdentity {
+        let spec = CoreLaunchSpec::new(
+            CoreLaunchConfigurationIdentity {
                 engine_id: EngineId::new("mihomo").expect("engine ID"),
                 profile_id: ProfileId::new("primary").expect("profile ID"),
                 document_revision: ProfileDocumentRevision::new("sha256:abc123")
                     .expect("configuration revision"),
             },
-            working_directory: std::path::PathBuf::from("/data/app/files"),
-            launch_arguments: vec![
+            PathBuf::from("/data/app/files"),
+            vec![
                 "-d".to_owned(),
                 "/data/app/files".to_owned(),
                 "-f".to_owned(),
                 "/data/app/files/configs/engines/mihomo/primary.yaml".to_owned(),
             ],
-        };
+        )
+        .expect("launch spec inputs are valid");
 
         let encoded = serde_json::to_string(&spec).expect("serialize launch spec");
         let value: serde_json::Value = serde_json::from_str(&encoded).expect("parse launch spec");
@@ -666,6 +850,11 @@ mod tests {
         );
         assert_eq!(value["working_directory"], "/data/app/files");
         assert_eq!(value["launch_arguments"][0], "-d");
+        assert_eq!(
+            spec.working_directory.as_path(),
+            Path::new("/data/app/files")
+        );
+        assert_eq!(spec.launch_parameters.as_slice()[0], "-d");
         assert_eq!(
             serde_json::from_str::<CoreLaunchSpec>(&encoded).expect("deserialize launch spec"),
             spec,

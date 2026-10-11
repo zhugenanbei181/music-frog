@@ -1,6 +1,9 @@
 use crate::runtime::CoreLaunchSpecSource;
 use async_trait::async_trait;
-use infiltrator_contract::android_control::{CoreLaunchConfigurationIdentity, CoreLaunchSpec};
+use infiltrator_contract::android_control::{
+    CoreLaunchConfigurationIdentity, CoreLaunchParameters, CoreLaunchSpec,
+    CoreLaunchWorkingDirectory,
+};
 use infiltrator_contract::core_identity::CoreVersion;
 use infiltrator_ports::core_process::CoreReadiness;
 use infiltrator_ports::endpoint::EndpointSource;
@@ -10,6 +13,7 @@ use infiltrator_ports::secure_store::SecureStore;
 use mihomo_api::readiness::ControllerReadiness;
 use mihomo_config::endpoint::ProfileEndpointSource;
 use mihomo_config::manager::ConfigManager;
+use std::fmt;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -30,11 +34,9 @@ impl<S: SecureStore> AndroidProfileLaunchSpecProvider<S> {
 #[async_trait]
 impl<S: SecureStore> CoreLaunchSpecSource for AndroidProfileLaunchSpecProvider<S> {
     async fn resolve(&self) -> Result<CoreLaunchSpec, PortError> {
-        if !self.working_directory.is_absolute() {
-            return Err(PortError::Failed(
-                "Android Core working directory must be an absolute host path".to_owned(),
-            ));
-        }
+        let working_directory = CoreLaunchWorkingDirectory::new(self.working_directory.clone())
+            .map_err(config_failure)?;
+        let working_directory_argument = path_argument(working_directory.as_path())?;
 
         self.config
             .ensure_default_config()
@@ -65,26 +67,27 @@ impl<S: SecureStore> CoreLaunchSpecSource for AndroidProfileLaunchSpecProvider<S
             .existing_profile_yaml_path(document_identity.profile_id.as_str())
             .await
             .map_err(config_failure)?;
-        let working_directory = path_argument(&self.working_directory)?;
         let configuration_path = path_argument(&configuration_path)?;
+        let launch_parameters = CoreLaunchParameters::new(vec![
+            "-d".to_owned(),
+            working_directory_argument,
+            "-f".to_owned(),
+            configuration_path,
+        ])
+        .map_err(config_failure)?;
         Ok(CoreLaunchSpec {
             configuration_identity: CoreLaunchConfigurationIdentity {
                 engine_id,
                 profile_id: document_identity.profile_id,
                 document_revision: document_identity.revision,
             },
-            working_directory: self.working_directory.clone(),
-            launch_arguments: vec![
-                "-d".to_owned(),
-                working_directory,
-                "-f".to_owned(),
-                configuration_path,
-            ],
+            working_directory,
+            launch_parameters,
         })
     }
 }
 
-fn config_failure(error: impl std::fmt::Display) -> PortError {
+fn config_failure(error: impl fmt::Display) -> PortError {
     PortError::Failed(format!(
         "Android Core launch configuration is unavailable: {error}"
     ))
@@ -125,6 +128,7 @@ impl<S: SecureStore> CoreReadiness for AndroidProfileReadiness<S> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::env::temp_dir;
     use std::fs;
     use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -151,13 +155,13 @@ mod tests {
             .duration_since(UNIX_EPOCH)
             .expect("clock is after the Unix epoch")
             .as_nanos();
-        let home = std::env::temp_dir().join(format!("android-launch-spec-{stamp}"));
+        let home = temp_dir().join(format!("android-launch-spec-{stamp}"));
         fs::create_dir_all(&home).expect("test home is created");
         let config = Arc::new(
             ConfigManager::with_home_and_store(home.clone(), TestCredentialStore)
                 .expect("test config manager is created"),
         );
-        let working_directory = home.join("android-data");
+        let working_directory = home.join("android data");
         let provider =
             AndroidProfileLaunchSpecProvider::new(Arc::clone(&config), working_directory.clone());
 
@@ -184,19 +188,47 @@ mod tests {
             spec.configuration_identity.document_revision,
             workspace.document.identity.revision
         );
-        assert_eq!(spec.working_directory, working_directory);
+        assert_eq!(spec.working_directory.as_path(), working_directory);
         assert_eq!(
-            spec.launch_arguments,
-            vec![
+            spec.launch_parameters.as_slice(),
+            &[
                 "-d".to_owned(),
                 working_directory.to_string_lossy().into_owned(),
                 "-f".to_owned(),
-                config_path.to_string_lossy().into_owned(),
+                config_path.to_string_lossy().into_owned()
             ],
         );
         let generated_config = fs::read_to_string(&config_path)
             .expect("Rust owner writes the selected default profile");
         assert!(generated_config.contains("external-controller:"));
+
+        fs::remove_dir_all(home).expect("test home is removed");
+    }
+
+    #[tokio::test]
+    async fn owner_rejects_relative_working_directory_before_default_config_bootstrap() {
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock is after the Unix epoch")
+            .as_nanos();
+        let home = temp_dir().join(format!("android-launch-invalid-{stamp}"));
+        fs::create_dir_all(&home).expect("test home is created");
+        let config = Arc::new(
+            ConfigManager::with_home_and_store(home.clone(), TestCredentialStore)
+                .expect("test config manager is created"),
+        );
+        let provider = AndroidProfileLaunchSpecProvider::new(
+            Arc::clone(&config),
+            PathBuf::from("relative-owner-directory"),
+        );
+
+        let default_path = config
+            .get_current_path()
+            .await
+            .expect("default profile path is resolved");
+        assert!(!default_path.exists());
+        assert!(provider.resolve().await.is_err());
+        assert!(!default_path.exists());
 
         fs::remove_dir_all(home).expect("test home is removed");
     }
