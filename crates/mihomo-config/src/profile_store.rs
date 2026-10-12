@@ -1,7 +1,7 @@
 //! Engine-scoped ProfileStore implementation over the codec-bound ConfigManager.
 
 use crate::manager::ConfigManager;
-use crate::profile::Profile;
+use crate::manager::paths::profile_id;
 use infiltrator_contract::active_profile_reference::{
     ActiveProfileReference, ActiveProfileReferenceCasOutcome, ActiveProfileReferenceState,
     ActiveProfileReferenceTarget, ActiveProfileReferenceWriteAuthorization,
@@ -90,16 +90,14 @@ where
     }
 
     async fn load(&self, profile: &str) -> Result<String, PortError> {
-        ConfigManager::load(self, profile)
-            .await
-            .map_err(storage_error)
+        ensure_namespace(self).await?;
+        let _guard = self.lock_profile_writes().await.map_err(storage_error)?;
+        let profile = profile_id(profile).map_err(storage_error)?;
+        self.profile_store.read_profile_document(&profile).await
     }
 
     async fn save_inactive_profile(&self, profile: &str, content: &str) -> Result<(), PortError> {
-        self.validate_document_bytes(content.as_bytes())?;
-        ConfigManager::save_inactive_profile(self, profile, content)
-            .await
-            .map_err(storage_error)
+        ConfigManager::save_inactive_profile_port(self, profile, content).await
     }
 
     async fn delete_profile(&self, profile: &str) -> Result<(), PortError> {
@@ -109,10 +107,12 @@ where
     }
 
     async fn get_profile_metadata(&self, profile: &str) -> Result<ProfileMetadata, PortError> {
-        ConfigManager::get_profile_metadata(self, profile)
+        ensure_namespace(self).await?;
+        let _guard = self.lock_profile_writes().await.map_err(storage_error)?;
+        let profile = profile_id(profile).map_err(storage_error)?;
+        self.profile_store
+            .get_profile_metadata(profile.as_str())
             .await
-            .map(profile_metadata)
-            .map_err(storage_error)
     }
 
     async fn update_profile_metadata(
@@ -120,25 +120,15 @@ where
         profile: &str,
         metadata: &ProfileMetadata,
     ) -> Result<(), PortError> {
-        let mut concrete = Profile::new(profile.to_owned(), PathBuf::new(), false);
-        concrete.subscription_url = metadata.subscription_url.clone();
-        concrete.auto_update_enabled = metadata.auto_update_enabled;
-        concrete.update_interval_hours = metadata.update_interval_hours;
-        concrete.last_updated = metadata.last_updated;
-        concrete.next_update = metadata.next_update;
-        concrete.traffic_upload = metadata.traffic_upload;
-        concrete.traffic_download = metadata.traffic_download;
-        concrete.traffic_total = metadata.traffic_total;
-        concrete.expire_at = metadata.expire_at;
-        concrete.user_agent = metadata.user_agent.clone();
-        concrete.etag = metadata.etag.clone();
-        concrete.last_modified = metadata.last_modified.clone();
-        concrete.cron_expression = metadata.cron_expression.clone();
-        concrete.insecure_skip_verify = metadata.insecure_skip_verify;
-        concrete.auto_reload_core = metadata.auto_reload_core;
-        ConfigManager::update_profile_metadata(self, profile, &concrete)
+        ensure_namespace(self).await?;
+        let _guard = crate::manager::lock_reset_fenced_profile_mutation_for_dir(
+            ConfigManager::config_dir(self),
+        )
+        .await?;
+        let profile = profile_id(profile).map_err(storage_error)?;
+        self.profile_store
+            .update_profile_metadata(profile.as_str(), metadata)
             .await
-            .map_err(storage_error)
     }
 
     async fn load_workspace(&self, profile: &ProfileId) -> Result<ProfileWorkspace, PortError> {
@@ -238,26 +228,6 @@ async fn ensure_namespace<S: SecureStore>(manager: &ConfigManager<S>) -> Result<
         .initialize_profile_namespace()
         .await
         .map_err(storage_error)
-}
-
-fn profile_metadata(profile: Profile) -> ProfileMetadata {
-    ProfileMetadata {
-        subscription_url: profile.subscription_url,
-        auto_update_enabled: profile.auto_update_enabled,
-        update_interval_hours: profile.update_interval_hours,
-        last_updated: profile.last_updated,
-        next_update: profile.next_update,
-        traffic_upload: profile.traffic_upload,
-        traffic_download: profile.traffic_download,
-        traffic_total: profile.traffic_total,
-        expire_at: profile.expire_at,
-        user_agent: profile.user_agent,
-        etag: profile.etag,
-        last_modified: profile.last_modified,
-        cron_expression: profile.cron_expression,
-        insecure_skip_verify: profile.insecure_skip_verify,
-        auto_reload_core: profile.auto_reload_core,
-    }
 }
 
 fn storage_error<E: Display>(error: E) -> PortError {

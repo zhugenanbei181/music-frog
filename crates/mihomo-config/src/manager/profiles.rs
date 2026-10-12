@@ -49,23 +49,28 @@ impl<S: SecureStore> ConfigManager<S> {
     /// profile-write lock, so a concurrent selection cannot turn this into an
     /// unowned active-profile write.
     pub async fn save_inactive_profile(&self, profile: &str, content: &str) -> Result<()> {
-        self.initialize_profile_namespace().await?;
-        let selection_lease = ActiveProfileReferenceStore::acquire_selection_lease(self)
+        self.save_inactive_profile_port(profile, content)
             .await
-            .map_err(|error| MihomoError::Config(error.to_string()))?;
-        let profile_id = profile_id(profile)?;
-        if matches!(
-            selection_lease.state(),
-            ActiveProfileReferenceState::Selected(reference)
-                if reference.engine_id == self.engine_id()
-                    && reference.profile_id == profile_id
-        ) {
-            return Err(MihomoError::Config(
-                "Cannot write the active profile through an inactive-profile operation".into(),
-            ));
-        }
-        let _guard = self.lock_profile_writes().await?;
-        self.save_profile_locked(profile, content).await
+            .map_err(|error| MihomoError::Config(error.to_string()))
+    }
+
+    pub(crate) async fn save_inactive_profile_port(
+        &self,
+        profile: &str,
+        content: &str,
+    ) -> std::result::Result<(), PortError> {
+        self.initialize_profile_namespace()
+            .await
+            .map_err(|error| PortError::Io(error.to_string()))?;
+        let selection_lease = ActiveProfileReferenceStore::acquire_selection_lease(self).await?;
+        let profile_id = profile_id(profile).map_err(|error| PortError::Io(error.to_string()))?;
+        self.profile_store
+            .save_inactive_profile_under_selection_lease(
+                &profile_id,
+                content.as_bytes(),
+                selection_lease.as_ref(),
+            )
+            .await
     }
 
     pub(crate) async fn save_profile_locked(&self, profile: &str, content: &str) -> Result<()> {

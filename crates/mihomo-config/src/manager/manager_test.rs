@@ -304,6 +304,31 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_save_inactive_profile_rejects_selected_profile_without_mutation() {
+        let temp_dir = TempDir::new().unwrap();
+        let manager = setup_test_manager(&temp_dir).await;
+        let original = "port: 7890\n";
+
+        manager
+            .save_inactive_profile("active-profile", original)
+            .await
+            .unwrap();
+        select_profile(&manager, "active-profile").await.unwrap();
+
+        let error = manager
+            .save_inactive_profile("active-profile", "port: 7891\n")
+            .await
+            .unwrap_err();
+
+        assert!(
+            error
+                .to_string()
+                .contains("Cannot write the active profile")
+        );
+        assert_eq!(manager.load("active-profile").await.unwrap(), original);
+    }
+
+    #[tokio::test]
     async fn test_revisioned_selection_commits_the_expected_profile() {
         let temp_dir = TempDir::new().unwrap();
         let manager = setup_test_manager(&temp_dir).await;

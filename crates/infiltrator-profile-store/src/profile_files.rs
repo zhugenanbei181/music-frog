@@ -58,6 +58,42 @@ impl<S: SecureStore> EngineProfileStore<S> {
         document: &[u8],
     ) -> Result<(), PortError> {
         self.validate_document_bytes(document)?;
+        self.write_profile_document_validated_locked(profile, document)
+            .await
+    }
+
+    /// Save an inactive profile while the caller retains the product-wide
+    /// selection fence. Validation and active-reference checks happen before
+    /// the engine profile lock is acquired.
+    pub async fn save_inactive_profile_under_selection_lease(
+        &self,
+        profile: &ProfileId,
+        document: &[u8],
+        selection: &dyn ActiveProfileReferenceLease,
+    ) -> Result<(), PortError> {
+        if matches!(
+            selection.state(),
+            ActiveProfileReferenceState::Selected(reference)
+                if reference.engine_id == self.engine_id()
+                    && reference.profile_id == *profile
+        ) {
+            return Err(PortError::Rejected(Failure::new(
+                ErrorCode::NotReady,
+                "Cannot write the active profile through an inactive-profile operation",
+                false,
+            )));
+        }
+        self.validate_document_bytes(document)?;
+        let _profile_guard = lock_profile_writes_for_dir(self.config_dir()).await?;
+        self.write_profile_document_validated_locked(profile, document)
+            .await
+    }
+
+    async fn write_profile_document_validated_locked(
+        &self,
+        profile: &ProfileId,
+        document: &[u8],
+    ) -> Result<(), PortError> {
         let path = self.profile_document_path(profile).await?;
         let backup = profile_document_backup_path(&path);
         if fs::try_exists(&path)
