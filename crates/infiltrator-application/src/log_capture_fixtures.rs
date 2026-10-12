@@ -31,7 +31,10 @@ impl CoreProcess for LogCaptureProcess {
         ))
     }
 
-    async fn start(&self) -> Result<(), PortError> {
+    async fn start(
+        &self,
+        _context: infiltrator_ports::core_process::CoreProcessStartContext,
+    ) -> Result<(), PortError> {
         self.0.store(true, Ordering::Release);
         Ok(())
     }

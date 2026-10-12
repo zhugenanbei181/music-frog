@@ -35,7 +35,10 @@ impl CoreProcess for ShutdownProcess {
         ))
     }
 
-    async fn start(&self) -> StdResult<(), PortError> {
+    async fn start(
+        &self,
+        _context: infiltrator_ports::core_process::CoreProcessStartContext,
+    ) -> StdResult<(), PortError> {
         self.events.lock().expect("event lock").push("core.start");
         *self.state.lock().expect("process state lock") = CoreLifecycle::Running;
         Ok(())

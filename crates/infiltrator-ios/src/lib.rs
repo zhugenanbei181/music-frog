@@ -18,7 +18,7 @@ use infiltrator_contract::offline_startup::OfflineStartupSnapshot;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface::HostKind;
 use infiltrator_ports::capability_provider::CapabilityProvider;
-use infiltrator_ports::core_process::CoreProcess;
+use infiltrator_ports::core_process::{CoreProcess, CoreProcessStartContext};
 use infiltrator_ports::data_dir::DataDirProvider;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::mtu_probe::MtuProbePort;
@@ -130,7 +130,16 @@ impl CoreProcess for IosHostAdapter {
         self.bridge.core_identity()
     }
 
-    async fn start(&self) -> Result<(), PortError> {
+    async fn start(&self, context: CoreProcessStartContext) -> Result<(), PortError> {
+        let identity = self
+            .bridge
+            .core_identity()
+            .ok_or_else(|| PortError::Failed("iOS Core identity is unavailable".to_owned()))?;
+        if !context.identity().same_instance(&identity) {
+            return Err(PortError::Failed(
+                "Core start context targets a different iOS process".to_owned(),
+            ));
+        }
         self.bridge.core_start().await
     }
 
@@ -390,7 +399,12 @@ mod tests {
             running: Mutex::new(false),
         });
         assert_eq!(adapter.status().await.unwrap(), CoreLifecycle::Stopped);
-        adapter.start().await.unwrap();
+        adapter
+            .start(CoreProcessStartContext::standalone(
+                adapter.core_identity().expect("test adapter identity"),
+            ))
+            .await
+            .unwrap();
         assert_eq!(adapter.status().await.unwrap(), CoreLifecycle::Running);
         adapter.stop().await.unwrap();
         assert_eq!(adapter.status().await.unwrap(), CoreLifecycle::Stopped);
@@ -504,10 +518,12 @@ mod tests {
             scope: app.snapshot().scope().expect("iOS owner scope"),
             intent: CommandIntent::StartCore,
         };
-        assert!(matches!(
-            app.execute_scoped(request).await.result,
-            CommandResult::Completed { .. }
-        ));
+        let outcome = app.execute_scoped(request).await;
+        assert!(
+            matches!(outcome.result, CommandResult::Completed { .. }),
+            "iOS Core start outcome: {:?}",
+            outcome.result
+        );
         let before = app.snapshot();
         let token = CoreLifecyclePort::begin_reload(&app).expect("begin iOS reload");
         CoreLifecyclePort::complete_reload(&app, token).expect("complete iOS reload");

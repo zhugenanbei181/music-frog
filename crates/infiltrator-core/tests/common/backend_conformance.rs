@@ -30,7 +30,7 @@ use infiltrator_contract::routing_intent::RoutingIntent;
 use infiltrator_contract::session::SessionToken;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
-use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
+use infiltrator_ports::core_process::{CoreProcess, CoreProcessStartContext, CoreReadiness};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::outbound::{OutboundPort, OutboundProbeRequest};
 use infiltrator_ports::profile_configuration_transaction::{
@@ -148,7 +148,12 @@ pub async fn run_backend_conformance(
     verify_document_inspection(case, ports)?;
     profile_support::verify_native_profile_behavior(case, ports).await?;
 
-    match ports.process.start().await {
+    let start_context = ports
+        .process
+        .core_identity()
+        .map(CoreProcessStartContext::standalone)
+        .ok_or_else(|| "backend process has no stable identity for start".to_owned())?;
+    match ports.process.start(start_context).await {
         Ok(()) => {}
         Err(start_error) => {
             let stop_result = ports.process.stop().await;

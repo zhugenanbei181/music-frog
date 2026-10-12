@@ -281,7 +281,10 @@ impl CoreProcess for FakeProcess {
         Some(self.identity.clone())
     }
 
-    async fn start(&self) -> Result<(), PortError> {
+    async fn start(
+        &self,
+        _context: infiltrator_ports::core_process::CoreProcessStartContext,
+    ) -> Result<(), PortError> {
         let mut phase = self.phase.lock().expect("fake process phase lock");
         match *phase {
             FakeProcessPhase::Stopped => {

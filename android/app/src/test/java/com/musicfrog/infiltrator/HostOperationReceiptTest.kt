@@ -14,13 +14,14 @@ class HostOperationReceiptTest {
             CoreProcessStartReceipt.LaunchSpecRejected,
             CoreProcessStartReceipt.SpawnFailed,
             CoreProcessStartReceipt.NotVpnOwner,
+            CoreProcessStartReceipt.OwnerContextMismatch,
         )
         receipts.forEach { receipt ->
             assertEquals(receipt, CoreProcessStartReceipt.fromWireCode(receipt.wireCode))
         }
-        assertEquals(listOf(0, 1, 2, 3, 4, 5), receipts.map { it.wireCode })
+        assertEquals(listOf(0, 1, 2, 3, 4, 5, 6), receipts.map { it.wireCode })
         assertNull(CoreProcessStartReceipt.fromWireCode(-1))
-        assertNull(CoreProcessStartReceipt.fromWireCode(6))
+        assertNull(CoreProcessStartReceipt.fromWireCode(7))
     }
 
     @Test

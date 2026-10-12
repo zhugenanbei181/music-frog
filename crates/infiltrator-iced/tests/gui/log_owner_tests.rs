@@ -36,7 +36,10 @@ impl CoreProcess for RunningIdentifiedProcess {
         ))
     }
 
-    async fn start(&self) -> Result<(), PortError> {
+    async fn start(
+        &self,
+        _context: infiltrator_ports::core_process::CoreProcessStartContext,
+    ) -> Result<(), PortError> {
         Ok(())
     }
 

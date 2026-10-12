@@ -99,7 +99,10 @@ struct TestProcess;
 
 #[async_trait]
 impl CoreProcess for TestProcess {
-    async fn start(&self) -> Result<(), PortError> {
+    async fn start(
+        &self,
+        _context: infiltrator_ports::core_process::CoreProcessStartContext,
+    ) -> Result<(), PortError> {
         Ok(())
     }
 
@@ -130,7 +133,10 @@ impl CoreProcess for ScopeProcess {
         ))
     }
 
-    async fn start(&self) -> Result<(), PortError> {
+    async fn start(
+        &self,
+        _context: infiltrator_ports::core_process::CoreProcessStartContext,
+    ) -> Result<(), PortError> {
         self.running.store(true, Ordering::SeqCst);
         Ok(())
     }

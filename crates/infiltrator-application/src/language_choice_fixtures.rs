@@ -42,7 +42,10 @@ impl CoreProcess for LanguageCaptureProcess {
         ))
     }
 
-    async fn start(&self) -> Result<(), PortError> {
+    async fn start(
+        &self,
+        _context: infiltrator_ports::core_process::CoreProcessStartContext,
+    ) -> Result<(), PortError> {
         Err(PortError::Failed(
             "language capture refuses lifecycle effects".into(),
         ))

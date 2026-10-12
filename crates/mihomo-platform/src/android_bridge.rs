@@ -8,6 +8,7 @@ use infiltrator_contract::vpn::{
     PreparedVpnConfiguration, VpnConfigurationApplyOutcome, VpnOwnerStopReceipt, VpnStartOutcome,
     VpnStopTarget,
 };
+use infiltrator_ports::core_process::CoreProcessStartContext;
 use infiltrator_ports::error::PortError;
 use mihomo_api::error::{MihomoError, Result};
 use serde::{Deserialize, Serialize};
@@ -71,6 +72,7 @@ pub enum CoreProcessStartReceipt {
     LaunchSpecRejected,
     SpawnFailed,
     NotVpnOwner,
+    OwnerContextMismatch,
 }
 
 impl CoreProcessStartReceipt {
@@ -82,6 +84,7 @@ impl CoreProcessStartReceipt {
             Self::LaunchSpecRejected => 3,
             Self::SpawnFailed => 4,
             Self::NotVpnOwner => 5,
+            Self::OwnerContextMismatch => 6,
         }
     }
 
@@ -93,6 +96,7 @@ impl CoreProcessStartReceipt {
             3 => Some(Self::LaunchSpecRejected),
             4 => Some(Self::SpawnFailed),
             5 => Some(Self::NotVpnOwner),
+            6 => Some(Self::OwnerContextMismatch),
             _ => None,
         }
     }
@@ -111,6 +115,9 @@ impl CoreProcessStartReceipt {
             )),
             Self::NotVpnOwner => Err(PortError::Failed(
                 "Android UI process cannot start the core locally".to_owned(),
+            )),
+            Self::OwnerContextMismatch => Err(PortError::Failed(
+                "Android Mihomo child belongs to a different Core session".to_owned(),
             )),
         }
     }
@@ -176,7 +183,11 @@ pub trait AndroidBridge: Send + Sync {
     }
 
     /// Core process result receipt; operation failures remain typed values.
-    async fn core_start(&self, launch_spec: &CoreLaunchSpec) -> Result<CoreProcessStartReceipt>;
+    async fn core_start(
+        &self,
+        launch_spec: &CoreLaunchSpec,
+        context: &CoreProcessStartContext,
+    ) -> Result<CoreProcessStartReceipt>;
     /// Core process result receipt; operation failures remain typed values.
     async fn core_stop(&self) -> Result<CoreProcessStopReceipt>;
     async fn core_process_state(&self) -> Result<AndroidCoreProcessState>;
@@ -265,8 +276,12 @@ impl AndroidBridge for Box<dyn AndroidBridge> {
         self.as_ref().process_role()
     }
 
-    async fn core_start(&self, launch_spec: &CoreLaunchSpec) -> Result<CoreProcessStartReceipt> {
-        self.as_ref().core_start(launch_spec).await
+    async fn core_start(
+        &self,
+        launch_spec: &CoreLaunchSpec,
+        context: &CoreProcessStartContext,
+    ) -> Result<CoreProcessStartReceipt> {
+        self.as_ref().core_start(launch_spec, context).await
     }
 
     async fn core_stop(&self) -> Result<CoreProcessStopReceipt> {
@@ -362,8 +377,12 @@ impl AndroidBridge for Arc<dyn AndroidBridge> {
         self.as_ref().process_role()
     }
 
-    async fn core_start(&self, launch_spec: &CoreLaunchSpec) -> Result<CoreProcessStartReceipt> {
-        self.as_ref().core_start(launch_spec).await
+    async fn core_start(
+        &self,
+        launch_spec: &CoreLaunchSpec,
+        context: &CoreProcessStartContext,
+    ) -> Result<CoreProcessStartReceipt> {
+        self.as_ref().core_start(launch_spec, context).await
     }
 
     async fn core_stop(&self) -> Result<CoreProcessStopReceipt> {
@@ -500,6 +519,19 @@ mod tests {
         .expect("valid test launch spec")
     }
 
+    fn start_context() -> CoreProcessStartContext {
+        CoreProcessStartContext::managed(
+            infiltrator_contract::core_identity::CoreIdentity::new(
+                infiltrator_contract::core_identity::EngineId::new("mihomo").expect("test engine"),
+                infiltrator_contract::core_identity::CoreInstanceId::new("android-test")
+                    .expect("test instance"),
+                None,
+            ),
+            infiltrator_contract::core_identity::CoreGeneration::new(4),
+            infiltrator_contract::session::SessionToken::new(9),
+        )
+    }
+
     #[test]
     fn native_configuration_validation_wire_matches_kotlin_receipt_shape() {
         let digest = format!("sha256:{}", "a".repeat(64));
@@ -547,6 +579,7 @@ mod tests {
         async fn core_start(
             &self,
             _launch_spec: &CoreLaunchSpec,
+            _context: &CoreProcessStartContext,
         ) -> Result<CoreProcessStartReceipt> {
             Ok(CoreProcessStartReceipt::Started)
         }
@@ -642,7 +675,10 @@ mod tests {
 
         // Exhaustive check of proxied methods via Arc
         assert_eq!(
-            bridge.core_start(&launch_spec()).await.unwrap(),
+            bridge
+                .core_start(&launch_spec(), &start_context())
+                .await
+                .unwrap(),
             CoreProcessStartReceipt::Started
         );
         assert_eq!(
@@ -716,7 +752,10 @@ mod tests {
         // Test Box proxy
         let boxed: Box<dyn AndroidBridge> = Box::new(TestBridge);
         assert_eq!(
-            boxed.core_start(&launch_spec()).await.unwrap(),
+            boxed
+                .core_start(&launch_spec(), &start_context())
+                .await
+                .unwrap(),
             CoreProcessStartReceipt::Started
         );
         assert_eq!(boxed.data_dir().unwrap(), PathBuf::from("data"));
@@ -734,12 +773,13 @@ mod tests {
             (CoreProcessStartReceipt::LaunchSpecRejected, 3),
             (CoreProcessStartReceipt::SpawnFailed, 4),
             (CoreProcessStartReceipt::NotVpnOwner, 5),
+            (CoreProcessStartReceipt::OwnerContextMismatch, 6),
         ] {
             assert_eq!(receipt.wire_code(), code);
             assert_eq!(CoreProcessStartReceipt::from_wire_code(code), Some(receipt));
         }
         assert_eq!(CoreProcessStartReceipt::from_wire_code(-1), None);
-        assert_eq!(CoreProcessStartReceipt::from_wire_code(6), None);
+        assert_eq!(CoreProcessStartReceipt::from_wire_code(7), None);
     }
 
     #[test]

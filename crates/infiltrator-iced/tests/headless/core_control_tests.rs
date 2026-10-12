@@ -38,7 +38,10 @@ impl CoreProcess for Process {
         ))
     }
 
-    async fn start(&self) -> Result<(), PortError> {
+    async fn start(
+        &self,
+        _context: infiltrator_ports::core_process::CoreProcessStartContext,
+    ) -> Result<(), PortError> {
         self.starts.fetch_add(1, Ordering::SeqCst);
         if self.deny_start.load(Ordering::SeqCst) {
             return Err(PortError::PermissionDenied(

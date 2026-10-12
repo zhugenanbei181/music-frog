@@ -95,7 +95,10 @@ impl CoreProcess for RoutingIntentScenarioController {
         ))
     }
 
-    async fn start(&self) -> Result<(), PortError> {
+    async fn start(
+        &self,
+        _context: infiltrator_ports::core_process::CoreProcessStartContext,
+    ) -> Result<(), PortError> {
         Err(PortError::Failed(
             "Routing intent scenario refuses lifecycle effects".into(),
         ))

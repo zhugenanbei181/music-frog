@@ -9,7 +9,7 @@ use infiltrator_contract::offline_startup::OfflineStartupSnapshot;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface::HostKind;
 use infiltrator_ports::capability_provider::CapabilityProvider;
-use infiltrator_ports::core_process::CoreProcess;
+use infiltrator_ports::core_process::{CoreProcess, CoreProcessStartContext};
 use infiltrator_ports::data_dir::DataDirProvider;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::mtu_probe::MtuProbePort;
@@ -119,24 +119,51 @@ where
         ))
     }
 
-    async fn start(&self) -> result::Result<(), PortError> {
+    async fn start(
+        &self,
+        context: infiltrator_ports::core_process::CoreProcessStartContext,
+    ) -> result::Result<(), PortError> {
+        let expected_identity = self
+            .core_identity()
+            .ok_or_else(|| PortError::Failed("Android Core identity is unavailable".to_owned()))?;
+        match &context {
+            CoreProcessStartContext::Managed {
+                identity,
+                generation,
+                session_token,
+            } if identity.same_instance(&expected_identity)
+                && generation.value() > 0
+                && session_token.is_valid() => {}
+            CoreProcessStartContext::Managed { .. } => {
+                return Err(PortError::Failed(
+                    "Core start context targets a different Android process".to_owned(),
+                ));
+            }
+            CoreProcessStartContext::Standalone { .. } => {
+                return Err(PortError::Failed(
+                    "Android Core start requires a managed owner session".to_owned(),
+                ));
+            }
+        }
         match self
             .bridge
             .core_process_state()
             .await
             .map_err(map_port_error)?
         {
-            AndroidCoreProcessState::Running => return Ok(()),
+            // The host compares the request context with the active child
+            // owner before returning AlreadyRunning. Do not treat process
+            // presence alone as proof that this Core session owns it.
+            AndroidCoreProcessState::Running | AndroidCoreProcessState::Stopped => {}
             AndroidCoreProcessState::Unavailable => {
                 return Err(PortError::Failed(
                     "Android core owner did not return process state before launch".to_owned(),
                 ));
             }
-            AndroidCoreProcessState::Stopped => {}
         }
         let launch_spec = self.launch_spec_source.resolve().await?;
         self.bridge
-            .core_start(&launch_spec)
+            .core_start(&launch_spec, &context)
             .await
             .map_err(map_port_error)?
             .into_port_result()
@@ -327,6 +354,7 @@ mod tests {
         CoreLifecycleOperation, CoreOperation, EngineBinaryTarget,
     };
     use infiltrator_contract::core_identity::CoreCommandRequest;
+    use infiltrator_contract::core_identity::CoreGeneration;
     #[cfg(test)]
     use infiltrator_contract::mtu::MtuProbeState;
     #[cfg(test)]
@@ -335,6 +363,7 @@ mod tests {
     use infiltrator_contract::offline_startup::StartupNetworkPolicy;
     #[cfg(test)]
     use infiltrator_contract::offline_startup::StartupRemoteDependency;
+    use infiltrator_contract::session::SessionToken;
     use infiltrator_contract::snapshot::CoreLifecycle;
     use infiltrator_contract::vpn::{
         PreparedVpnConfiguration, VpnConfigurationApplyOutcome, VpnOwnerStopReceipt,
@@ -348,9 +377,11 @@ mod tests {
     #[cfg(test)]
     use std::time;
 
+    #[derive(Clone)]
     struct TestBridge {
-        running: Mutex<bool>,
-        store: Mutex<HashMap<(String, String), String>>,
+        running: Arc<Mutex<bool>>,
+        start_contexts: Arc<Mutex<Vec<CoreProcessStartContext>>>,
+        store: Arc<Mutex<HashMap<(String, String), String>>>,
         data_dir: Option<PathBuf>,
         cache_dir: Option<PathBuf>,
     }
@@ -358,8 +389,9 @@ mod tests {
     impl TestBridge {
         fn new() -> Self {
             Self {
-                running: Mutex::new(false),
-                store: Mutex::new(HashMap::new()),
+                running: Arc::new(Mutex::new(false)),
+                start_contexts: Arc::new(Mutex::new(Vec::new())),
+                store: Arc::new(Mutex::new(HashMap::new())),
                 data_dir: Some(PathBuf::from("data")),
                 cache_dir: Some(PathBuf::from("cache")),
             }
@@ -371,7 +403,12 @@ mod tests {
         async fn core_start(
             &self,
             _launch_spec: &CoreLaunchSpec,
+            context: &infiltrator_ports::core_process::CoreProcessStartContext,
         ) -> Result<CoreProcessStartReceipt> {
+            self.start_contexts
+                .lock()
+                .expect("start context lock")
+                .push(context.clone());
             if let Ok(mut guard) = self.running.lock() {
                 *guard = true;
             }
@@ -509,13 +546,30 @@ mod tests {
 
     #[tokio::test]
     async fn test_adapter_core_cycle() {
+        let bridge = TestBridge::new();
         let adapter =
-            AndroidCoreProcessAdapter::new(TestBridge::new(), Arc::new(TestLaunchSpecSource));
+            AndroidCoreProcessAdapter::new(bridge.clone(), Arc::new(TestLaunchSpecSource));
         assert!(matches!(
             CoreProcess::status(&adapter).await.unwrap(),
             CoreLifecycle::Stopped
         ));
-        adapter.start().await.expect("start ok");
+        let start_context = CoreProcessStartContext::managed(
+            adapter.core_identity().expect("Android Core identity"),
+            CoreGeneration::new(1),
+            SessionToken::new(1),
+        );
+        adapter
+            .start(start_context.clone())
+            .await
+            .expect("start ok");
+        assert_eq!(
+            bridge
+                .start_contexts
+                .lock()
+                .expect("start context lock")
+                .as_slice(),
+            [start_context],
+        );
         assert!(matches!(
             CoreProcess::status(&adapter).await.unwrap(),
             CoreLifecycle::Running
@@ -525,6 +579,29 @@ mod tests {
             CoreProcess::status(&adapter).await.unwrap(),
             CoreLifecycle::Stopped
         ));
+    }
+
+    #[tokio::test]
+    async fn android_process_adapter_rejects_standalone_context_before_host_call() {
+        let bridge = TestBridge::new();
+        let adapter =
+            AndroidCoreProcessAdapter::new(bridge.clone(), Arc::new(TestLaunchSpecSource));
+        let context = CoreProcessStartContext::standalone(
+            adapter.core_identity().expect("Android Core identity"),
+        );
+
+        let error = adapter
+            .start(context)
+            .await
+            .expect_err("Android requires owner scope");
+        assert!(error.to_string().contains("managed owner session"));
+        assert!(
+            bridge
+                .start_contexts
+                .lock()
+                .expect("start context lock")
+                .is_empty()
+        );
     }
 
     #[tokio::test]

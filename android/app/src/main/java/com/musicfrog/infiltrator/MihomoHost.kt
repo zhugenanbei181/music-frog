@@ -17,8 +17,8 @@ class MihomoHost(private val context: Context) : BridgeHost {
 
     override fun processRole(): Int = processRole.toWireCode()
 
-    override fun coreStart(launchSpecJson: String): Int = when (processRole) {
-        AndroidProcessRole.VpnOwner -> startCoreLocally(launchSpecJson).wireCode
+    override fun coreStart(startRequestJson: String): Int = when (processRole) {
+        AndroidProcessRole.VpnOwner -> startCoreLocally(startRequestJson).wireCode
         AndroidProcessRole.Ui,
         is AndroidProcessRole.Unsupported -> CoreProcessStartReceipt.NotVpnOwner.wireCode
     }
@@ -31,16 +31,16 @@ class MihomoHost(private val context: Context) : BridgeHost {
         controller = processController,
     )
 
-    internal fun startCoreLocally(launchSpecJson: String): CoreProcessStartReceipt {
-        val spec = when (val decoded = CoreLaunchSpecWire.decode(launchSpecJson)) {
-            is CoreLaunchSpecDecode.Accepted -> decoded.spec
-            is CoreLaunchSpecDecode.Rejected -> {
-                Log.w(TAG, "Rust owner supplied an invalid Core launch spec: ${decoded.reason}")
+    internal fun startCoreLocally(startRequestJson: String): CoreProcessStartReceipt {
+        val request = when (val decoded = CoreStartRequestWire.decode(startRequestJson)) {
+            is CoreStartRequestDecode.Accepted -> decoded.request
+            is CoreStartRequestDecode.Rejected -> {
+                Log.w(TAG, "Rust owner supplied an invalid Core start request: ${decoded.reason}")
                 return CoreProcessStartReceipt.LaunchSpecRejected
             }
         }
         ensureCoreAssets()
-        return processController.start(spec)
+        return processController.start(request.launchSpec, request.context)
     }
 
     private fun ensureCoreAssets() {

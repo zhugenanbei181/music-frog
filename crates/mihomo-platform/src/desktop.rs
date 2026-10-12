@@ -216,7 +216,18 @@ impl CoreProcess for ProcessCoreController {
         ))
     }
 
-    async fn start(&self) -> result::Result<(), PortError> {
+    async fn start(
+        &self,
+        context: infiltrator_ports::core_process::CoreProcessStartContext,
+    ) -> result::Result<(), PortError> {
+        let identity = self
+            .core_identity()
+            .ok_or_else(|| PortError::Failed("desktop Core identity is unavailable".into()))?;
+        if !context.identity().same_instance(&identity) {
+            return Err(PortError::Failed(
+                "Core start context targets a different desktop process".into(),
+            ));
+        }
         self.cleanup_orphaned().await?;
         if self
             .read_running_pid()

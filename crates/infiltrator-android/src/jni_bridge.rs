@@ -19,6 +19,7 @@ use infiltrator_contract::vpn::{
     PreparedVpnConfiguration, VpnConfiguration, VpnConfigurationApplyOutcome, VpnOwnerStopReceipt,
     VpnStartOutcome, VpnStopTarget,
 };
+use infiltrator_ports::core_process::CoreProcessStartContext;
 use jni::errors::LogErrorAndDefault;
 use jni::objects::{Global, JObject, JString, JValue, Reference as _};
 use jni::signature::RuntimeMethodSignature;
@@ -51,6 +52,12 @@ struct PreparedVpnCoreScopeWire<'a> {
     version: Option<&'a str>,
     generation: u64,
     session_token: String,
+}
+
+#[derive(serde::Serialize)]
+struct CoreStartRequestWire<'a> {
+    launch_spec: &'a CoreLaunchSpec,
+    start_context: &'a CoreProcessStartContext,
 }
 
 const SIG_NOARGS_INT: &str = "()I";
@@ -219,13 +226,21 @@ impl AndroidBridge for JniBridge {
             .unwrap_or(AndroidHostProcessRole::Unsupported)
     }
 
-    async fn core_start(&self, launch_spec: &CoreLaunchSpec) -> Result<CoreProcessStartReceipt> {
-        let launch_spec_json = serde_json::to_string(launch_spec).map_err(|error| {
+    async fn core_start(
+        &self,
+        launch_spec: &CoreLaunchSpec,
+        context: &CoreProcessStartContext,
+    ) -> Result<CoreProcessStartReceipt> {
+        let request = CoreStartRequestWire {
+            launch_spec,
+            start_context: context,
+        };
+        let start_request_json = serde_json::to_string(&request).map_err(|error| {
             MihomoError::Service(format!(
-                "Android Core launch spec could not be serialized: {error}"
+                "Android Core start request could not be serialized: {error}"
             ))
         })?;
-        let code = self.call_int_with_string("coreStart", &launch_spec_json)?;
+        let code = self.call_int_with_string("coreStart", &start_request_json)?;
         CoreProcessStartReceipt::from_wire_code(code).ok_or_else(|| {
             MihomoError::Service(format!(
                 "android bridge returned unknown core start receipt code {code}"
@@ -710,4 +725,71 @@ pub(crate) fn parse_method_signature(method: &str, sig: &str) -> Result<RuntimeM
 
 pub(crate) fn map_jni_error(context: &str, err: errors::Error) -> MihomoError {
     MihomoError::Service(format!("jni {context} failed: {err}"))
+}
+
+#[cfg(test)]
+mod start_request_tests {
+    use super::CoreStartRequestWire;
+    use infiltrator_contract::android_control::{CoreLaunchConfigurationIdentity, CoreLaunchSpec};
+    use infiltrator_contract::core_identity::{
+        CoreGeneration, CoreIdentity, CoreInstanceId, EngineId,
+    };
+    use infiltrator_contract::profile_document_identity::{ProfileDocumentRevision, ProfileId};
+    use infiltrator_contract::session::SessionToken;
+    use infiltrator_ports::core_process::CoreProcessStartContext;
+    use std::path::PathBuf;
+
+    #[test]
+    fn core_start_wire_carries_the_rust_selected_profile_and_managed_owner_context() {
+        let launch_spec = CoreLaunchSpec::new(
+            CoreLaunchConfigurationIdentity {
+                engine_id: EngineId::new("mihomo").expect("engine ID"),
+                profile_id: ProfileId::new("primary").expect("profile ID"),
+                document_revision: ProfileDocumentRevision::new("sha256:abc")
+                    .expect("document revision"),
+            },
+            PathBuf::from("/data/app/files"),
+            vec!["-d".to_owned(), "/data/app/files".to_owned()],
+        )
+        .expect("launch spec");
+        let context = CoreProcessStartContext::managed(
+            CoreIdentity::new(
+                EngineId::new("mihomo").expect("engine ID"),
+                CoreInstanceId::new("android-active").expect("instance ID"),
+                None,
+            ),
+            CoreGeneration::new(7),
+            SessionToken::new(42),
+        );
+        let request = CoreStartRequestWire {
+            launch_spec: &launch_spec,
+            start_context: &context,
+        };
+
+        assert_eq!(
+            serde_json::to_value(request).expect("serialize Android Core start request"),
+            serde_json::json!({
+                "launch_spec": {
+                    "configuration_identity": {
+                        "engine_id": "mihomo",
+                        "profile_id": "primary",
+                        "document_revision": "sha256:abc"
+                    },
+                    "working_directory": "/data/app/files",
+                    "launch_arguments": ["-d", "/data/app/files"]
+                },
+                "start_context": {
+                    "Managed": {
+                        "identity": {
+                            "engine": "mihomo",
+                            "instance": "android-active",
+                            "version": null
+                        },
+                        "generation": 7,
+                        "session_token": 42
+                    }
+                }
+            }),
+        );
+    }
 }

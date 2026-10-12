@@ -41,6 +41,7 @@ use infiltrator_core::version_port::MihomoVersionPort;
 use infiltrator_ports::core_capability_provider::{
     CoreCapabilityProvider, CoreCapabilityProviderError,
 };
+use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::core_process::CoreReadiness;
 use infiltrator_ports::engine_backend_factory::EngineBackendFactory;
 use infiltrator_ports::error::PortError;
@@ -153,6 +154,7 @@ fn relative_entries(root: &Path) -> Vec<PathBuf> {
 struct TestBridge {
     state: Arc<Mutex<AndroidCoreProcessState>>,
     launch_specs: Arc<Mutex<Vec<CoreLaunchSpec>>>,
+    start_contexts: Arc<Mutex<Vec<infiltrator_ports::core_process::CoreProcessStartContext>>>,
     data_dir_calls: Arc<AtomicUsize>,
 }
 
@@ -161,6 +163,7 @@ impl TestBridge {
         Self {
             state: Arc::new(Mutex::new(AndroidCoreProcessState::Stopped)),
             launch_specs: Arc::new(Mutex::new(Vec::new())),
+            start_contexts: Arc::new(Mutex::new(Vec::new())),
             data_dir_calls: Arc::new(AtomicUsize::new(0)),
         }
     }
@@ -175,11 +178,16 @@ impl AndroidBridge for TestBridge {
     async fn core_start(
         &self,
         launch_spec: &CoreLaunchSpec,
+        context: &infiltrator_ports::core_process::CoreProcessStartContext,
     ) -> error::Result<CoreProcessStartReceipt> {
         self.launch_specs
             .lock()
             .expect("test launch spec lock")
             .push(launch_spec.clone());
+        self.start_contexts
+            .lock()
+            .expect("captured Core start contexts")
+            .push(context.clone());
         *self.state.lock().expect("test process state lock") = AndroidCoreProcessState::Running;
         Ok(CoreProcessStartReceipt::Started)
     }
@@ -764,6 +772,30 @@ async fn core_start_sends_the_active_profile_identity_and_rust_resolved_argument
         .first()
         .cloned()
         .expect("Rust owner must submit one launch spec");
+    let start_context = bridge
+        .start_contexts
+        .lock()
+        .expect("captured Core start contexts")
+        .first()
+        .cloned()
+        .expect("Rust owner must submit one typed Core start context");
+    let infiltrator_ports::core_process::CoreProcessStartContext::Managed {
+        identity,
+        generation,
+        session_token,
+    } = start_context
+    else {
+        panic!("Android Core launch must carry a managed owner context");
+    };
+    assert!(identity.same_instance(&owner.core_identity().expect("active Core identity")));
+    assert_eq!(
+        generation,
+        infiltrator_contract::core_identity::CoreGeneration::new(owner.generation()),
+    );
+    assert_eq!(
+        session_token,
+        owner.session_token().expect("active session token")
+    );
     let workspace = store.load_active_workspace().await.unwrap();
     let config_path = store.existing_profile_yaml_path("main").await.unwrap();
     let workdir = PathBuf::from("/android-test-data");

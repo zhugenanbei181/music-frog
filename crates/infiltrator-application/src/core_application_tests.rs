@@ -69,7 +69,10 @@ impl CoreProcess for WatchdogProcess {
         ))
     }
 
-    async fn start(&self) -> Result<(), PortError> {
+    async fn start(
+        &self,
+        _context: infiltrator_ports::core_process::CoreProcessStartContext,
+    ) -> Result<(), PortError> {
         self.starts.fetch_add(1, Ordering::SeqCst);
         if self.fail_starts.load(Ordering::SeqCst) > 0 {
             self.fail_starts.fetch_sub(1, Ordering::SeqCst);
@@ -107,7 +110,10 @@ impl CoreProcess for FakeProcess {
         ))
     }
 
-    async fn start(&self) -> Result<(), PortError> {
+    async fn start(
+        &self,
+        _context: infiltrator_ports::core_process::CoreProcessStartContext,
+    ) -> Result<(), PortError> {
         if self.fail_start {
             return Err(PortError::Failed("fake start failure".to_string()));
         }
@@ -157,7 +163,10 @@ impl CoreProcess for ReadinessRollbackProcess {
         ))
     }
 
-    async fn start(&self) -> Result<(), PortError> {
+    async fn start(
+        &self,
+        _context: infiltrator_ports::core_process::CoreProcessStartContext,
+    ) -> Result<(), PortError> {
         *self.state.lock().expect("process state lock") = CoreLifecycle::Running;
         Ok(())
     }
@@ -192,7 +201,10 @@ impl CoreProcess for CleanupTrackingProcess {
         ))
     }
 
-    async fn start(&self) -> Result<(), PortError> {
+    async fn start(
+        &self,
+        _context: infiltrator_ports::core_process::CoreProcessStartContext,
+    ) -> Result<(), PortError> {
         assert!(
             self.cleanup_called.load(Ordering::SeqCst),
             "application must reconcile orphan state before starting"

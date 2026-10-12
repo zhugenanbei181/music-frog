@@ -1,6 +1,7 @@
 package com.musicfrog.infiltrator
 
 import org.json.JSONObject
+import java.math.BigInteger
 
 internal data class CoreLaunchConfigurationIdentityWire(
     val engineId: String,
@@ -14,7 +15,7 @@ internal data class CoreLaunchSpecWire(
     val launchArguments: List<String>,
 ) {
     companion object {
-        fun decode(raw: String): CoreLaunchSpecDecode = runCatching {
+        internal fun decodeLaunchSpec(raw: String): CoreLaunchSpecDecode = runCatching {
             val json = JSONObject(raw)
             require(json.keys().asSequence().toSet() == setOf(
                 "configuration_identity", "working_directory", "launch_arguments",
@@ -44,11 +45,66 @@ internal data class CoreLaunchSpecWire(
                 }
             }
             require(arguments.isNotEmpty())
-            CoreLaunchSpecDecode.Accepted(
-                CoreLaunchSpecWire(configurationIdentity, workingDirectory, arguments),
-            )
+            CoreLaunchSpecDecode.Accepted(CoreLaunchSpecWire(configurationIdentity, workingDirectory, arguments))
         }.getOrElse { error ->
             CoreLaunchSpecDecode.Rejected(error.message ?: "invalid Core launch spec")
+        }
+    }
+}
+
+internal data class CoreProcessStartContextWire(
+    val identity: CoreIdentityWire,
+    val generation: BigInteger,
+    val sessionToken: BigInteger,
+)
+
+internal data class CoreIdentityWire(
+    val engine: String,
+    val instance: String,
+    val version: String?,
+)
+
+internal data class CoreStartRequestWire(
+    val launchSpec: CoreLaunchSpecWire,
+    val context: CoreProcessStartContextWire,
+) {
+    companion object {
+        fun decode(raw: String): CoreStartRequestDecode = runCatching {
+            val request = JSONObject(raw)
+            require(request.keys().asSequence().toSet() == setOf("launch_spec", "start_context"))
+            val launchSpec = when (
+                val decoded = CoreLaunchSpecWire.decodeLaunchSpec(request.getJSONObject("launch_spec").toString()),
+            ) {
+                is CoreLaunchSpecDecode.Accepted -> decoded.spec
+                is CoreLaunchSpecDecode.Rejected -> error(decoded.reason)
+            }
+            val taggedContext = request.getJSONObject("start_context")
+            require(taggedContext.keys().asSequence().toSet() == setOf("Managed")) {
+                "Android Core start requires a managed owner context"
+            }
+            val context = taggedContext.getJSONObject("Managed")
+            require(context.keys().asSequence().toSet() == setOf("identity", "generation", "session_token"))
+            val identityJson = context.getJSONObject("identity")
+            require(identityJson.keys().asSequence().toSet() == setOf("engine", "instance", "version"))
+            val identity = CoreIdentityWire(
+                engine = identityJson.requiredString("engine").also { require(it == "mihomo") },
+                instance = identityJson.requiredString("instance").also {
+                    require(it == "android-active")
+                },
+                version = if (identityJson.isNull("version")) null else identityJson.requiredString("version"),
+            )
+            val generation = BigInteger(context.get("generation").toString())
+                .also { require(it.signum() > 0) }
+            val sessionToken = BigInteger(context.get("session_token").toString())
+                .also { require(it.signum() > 0) }
+            CoreStartRequestDecode.Accepted(
+                CoreStartRequestWire(
+                    launchSpec,
+                    CoreProcessStartContextWire(identity, generation, sessionToken),
+                ),
+            )
+        }.getOrElse { error ->
+            CoreStartRequestDecode.Rejected(error.message ?: "invalid Core start request")
         }
     }
 }
@@ -60,4 +116,10 @@ internal sealed interface CoreLaunchSpecDecode {
     data class Accepted(val spec: CoreLaunchSpecWire) : CoreLaunchSpecDecode
 
     data class Rejected(val reason: String) : CoreLaunchSpecDecode
+}
+
+internal sealed interface CoreStartRequestDecode {
+    data class Accepted(val request: CoreStartRequestWire) : CoreStartRequestDecode
+
+    data class Rejected(val reason: String) : CoreStartRequestDecode
 }

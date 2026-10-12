@@ -13,7 +13,8 @@ internal enum class CoreProcessStartReceipt(val wireCode: Int) {
     BinaryUnavailable(2),
     LaunchSpecRejected(3),
     SpawnFailed(4),
-    NotVpnOwner(5);
+    NotVpnOwner(5),
+    OwnerContextMismatch(6);
 
     companion object {
         fun fromWireCode(code: Int): CoreProcessStartReceipt? = when (code) {
@@ -23,6 +24,7 @@ internal enum class CoreProcessStartReceipt(val wireCode: Int) {
             3 -> LaunchSpecRejected
             4 -> SpawnFailed
             5 -> NotVpnOwner
+            6 -> OwnerContextMismatch
             else -> null
         }
     }
@@ -83,7 +85,10 @@ internal class MihomoProcessController(
     private sealed interface ProcessState {
         data object Stopped : ProcessState
 
-        data class Running(val process: Process) : ProcessState
+        data class Running(
+            val process: Process,
+            val context: CoreProcessStartContextWire,
+        ) : ProcessState
     }
 
     private sealed interface CoreBinaryResolution {
@@ -107,14 +112,21 @@ internal class MihomoProcessController(
     )
 
     @Synchronized
-    fun start(spec: CoreLaunchSpecWire): CoreProcessStartReceipt =
+    fun start(
+        spec: CoreLaunchSpecWire,
+        context: CoreProcessStartContextWire,
+    ): CoreProcessStartReceipt =
         when (configurationValidator.coreStartReadiness()) {
             CoreValidationWorkerReadiness.CleanupPending -> CoreProcessStartReceipt.SpawnFailed
-            CoreValidationWorkerReadiness.Ready -> when (reconcileProcessState()) {
-                is ProcessState.Running -> CoreProcessStartReceipt.AlreadyRunning
+            CoreValidationWorkerReadiness.Ready -> when (val state = reconcileProcessState()) {
+                is ProcessState.Running -> if (state.context == context) {
+                    CoreProcessStartReceipt.AlreadyRunning
+                } else {
+                    CoreProcessStartReceipt.OwnerContextMismatch
+                }
                 ProcessState.Stopped -> when (val binary = resolveBinary()) {
                     CoreBinaryResolution.Missing -> CoreProcessStartReceipt.BinaryUnavailable
-                    is CoreBinaryResolution.Available -> spawn(binary.file, spec)
+                    is CoreBinaryResolution.Available -> spawn(binary.file, spec, context)
                 }
             }
         }
@@ -127,10 +139,14 @@ internal class MihomoProcessController(
         ProcessState.Stopped -> configurationValidator.validate(request)
     }
 
-    private fun spawn(binary: File, spec: CoreLaunchSpecWire): CoreProcessStartReceipt = try {
+    private fun spawn(
+        binary: File,
+        spec: CoreLaunchSpecWire,
+        context: CoreProcessStartContextWire,
+    ): CoreProcessStartReceipt = try {
         val command = MihomoSpawnCommand.from(binary, spec)
         val child = processStarter.start(command.processBuilder())
-        processState = ProcessState.Running(child)
+        processState = ProcessState.Running(child, context)
         Thread {
             try {
                 child.inputStream.bufferedReader().use { reader ->

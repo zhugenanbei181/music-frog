@@ -201,7 +201,10 @@ pub struct HostlessProcess;
 
 #[async_trait::async_trait]
 impl CoreProcess for HostlessProcess {
-    async fn start(&self) -> Result<(), PortError> {
+    async fn start(
+        &self,
+        _context: infiltrator_ports::core_process::CoreProcessStartContext,
+    ) -> Result<(), PortError> {
         Err(PortError::Failed("unexpected lifecycle command".into()))
     }
     async fn stop(&self) -> Result<(), PortError> {
@@ -234,7 +237,10 @@ impl CoreProcess for IdentifiedHostlessProcess {
         ))
     }
 
-    async fn start(&self) -> Result<(), PortError> {
+    async fn start(
+        &self,
+        _context: infiltrator_ports::core_process::CoreProcessStartContext,
+    ) -> Result<(), PortError> {
         Err(PortError::Failed("unexpected lifecycle command".into()))
     }
 

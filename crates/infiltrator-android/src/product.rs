@@ -428,6 +428,7 @@ mod tests {
         async fn core_start(
             &self,
             _launch_spec: &CoreLaunchSpec,
+            _context: &infiltrator_ports::core_process::CoreProcessStartContext,
         ) -> Result<CoreProcessStartReceipt> {
             *self.state.lock().expect("test process state lock") = AndroidCoreProcessState::Running;
             Ok(CoreProcessStartReceipt::Started)

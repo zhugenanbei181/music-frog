@@ -1,5 +1,6 @@
 use super::{Lifecycle, run_lifecycle, status_message};
 use async_trait::async_trait;
+use infiltrator_contract::core_identity::{CoreIdentity, CoreInstanceId, EngineId};
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_ports::core_process::CoreProcess;
 use infiltrator_ports::error::PortError;
@@ -27,7 +28,18 @@ impl MockController {
 
 #[async_trait]
 impl CoreProcess for MockController {
-    async fn start(&self) -> Result<(), PortError> {
+    fn core_identity(&self) -> Option<CoreIdentity> {
+        Some(CoreIdentity::new(
+            EngineId::new("mihomo").expect("valid test engine"),
+            CoreInstanceId::new("cli-service-test").expect("valid test instance"),
+            None,
+        ))
+    }
+
+    async fn start(
+        &self,
+        _context: infiltrator_ports::core_process::CoreProcessStartContext,
+    ) -> Result<(), PortError> {
         if self.is_running() {
             return Err(PortError::Failed("Service is already running".to_string()));
         }

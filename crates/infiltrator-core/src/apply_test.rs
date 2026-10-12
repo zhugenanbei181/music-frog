@@ -14,7 +14,7 @@ use infiltrator_contract::active_profile_reference::{
     ActiveProfileReferenceTarget, ActiveProfileReferenceWriteAuthorization, CoreApplyFailureKind,
 };
 use infiltrator_contract::apply_transaction::ApplyTransactionStage;
-use infiltrator_contract::core_identity::{CoreIdentity, CoreInstanceId, EngineId};
+use infiltrator_contract::core_identity::{CoreGeneration, CoreIdentity, CoreInstanceId, EngineId};
 use infiltrator_contract::error::{ErrorCode, FailureReason};
 use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_contract::session::SessionToken;
@@ -24,6 +24,7 @@ use infiltrator_domain::rules::source_identity::identify_rules_document;
 use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceStore;
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::core_process::CoreProcess;
+use infiltrator_ports::core_process::CoreProcessStartContext;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::{
     ActiveProfileWorkspacePublishOutcome, ActiveProfileWorkspaceRecoveryLease,
@@ -47,7 +48,10 @@ struct MockController {
 
 #[async_trait]
 impl CoreProcess for MockController {
-    async fn start(&self) -> result::Result<(), PortError> {
+    async fn start(
+        &self,
+        _context: infiltrator_ports::core_process::CoreProcessStartContext,
+    ) -> result::Result<(), PortError> {
         if self.fail_starts_left.load(Ordering::SeqCst) > 0 {
             self.fail_starts_left.fetch_sub(1, Ordering::SeqCst);
             return Err(PortError::Failed("start rejected".into()));
@@ -152,14 +156,30 @@ impl CoreLifecyclePort for TestLifecycle {
 
     async fn start(&self) -> Result<u64, PortError> {
         self.start_calls.fetch_add(1, Ordering::SeqCst);
-        let generation = {
+        let (generation, session_token) = {
             let mut state = self.state.lock().expect("lifecycle lock");
             state.generation += 1;
             state.lifecycle = CoreLifecycle::Starting;
             state.session_token = Some(SessionToken::new(state.generation as u128));
-            state.generation
+            (
+                state.generation,
+                state
+                    .session_token
+                    .expect("start allocated a session token"),
+            )
         };
-        CoreProcess::start(self.controller.as_ref()).await?;
+        let identity = self
+            .core_identity()
+            .expect("test lifecycle has a stable core identity");
+        CoreProcess::start(
+            self.controller.as_ref(),
+            CoreProcessStartContext::managed(
+                identity,
+                CoreGeneration::new(generation),
+                session_token,
+            ),
+        )
+        .await?;
         Ok(generation)
     }
 

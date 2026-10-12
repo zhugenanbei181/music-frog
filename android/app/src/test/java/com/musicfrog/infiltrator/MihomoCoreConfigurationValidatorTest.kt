@@ -5,6 +5,7 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.InputStream
 import java.io.OutputStream
+import java.math.BigInteger
 import java.nio.file.Files
 import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
@@ -15,6 +16,31 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class MihomoCoreConfigurationValidatorTest {
+    @Test
+    fun runningChildIsAdoptedOnlyByTheSameTypedOwnerContext() = withFiles { files ->
+        val child = FakeProcess(FakeProcessBehavior.Running)
+        var starts = 0
+        val controller = files.controller {
+            starts += 1
+            child
+        }
+        val ownerContext = startContext(generation = 3L, token = BigInteger("88"))
+
+        assertEquals(
+            CoreProcessStartReceipt.Started,
+            controller.start(files.launchSpec(), ownerContext),
+        )
+        assertEquals(
+            CoreProcessStartReceipt.AlreadyRunning,
+            controller.start(files.launchSpec(), ownerContext),
+        )
+        assertEquals(
+            CoreProcessStartReceipt.OwnerContextMismatch,
+            controller.start(files.launchSpec(), startContext(generation = 4L, token = BigInteger("89"))),
+        )
+        assertEquals(1, starts)
+    }
+
     @Test
     fun validationRunsSameAbiBinaryWithOnlyCheckArgumentsAndDoesNotWriteCandidate() = withFiles { files ->
         val contentBefore = files.candidate.readBytes()
@@ -70,7 +96,7 @@ class MihomoCoreConfigurationValidatorTest {
         }
         assertEquals(
             CoreProcessStartReceipt.Started,
-            controller.start(files.launchSpec()),
+            controller.start(files.launchSpec(), startContext()),
         )
         assertEquals(
             CoreConfigurationValidationOutcomeWire.CoreActive,
@@ -108,11 +134,11 @@ class MihomoCoreConfigurationValidatorTest {
             CoreConfigurationValidationOutcomeWire.ValidationCleanupPending,
             controller.validateConfiguration(files.request()),
         )
-        assertEquals(CoreProcessStartReceipt.SpawnFailed, controller.start(files.launchSpec()))
+        assertEquals(CoreProcessStartReceipt.SpawnFailed, controller.start(files.launchSpec(), startContext()))
         assertEquals(1, starts)
 
         unreapedChild.reapExternally()
-        assertEquals(CoreProcessStartReceipt.Started, controller.start(files.launchSpec()))
+        assertEquals(CoreProcessStartReceipt.Started, controller.start(files.launchSpec(), startContext()))
         assertEquals(2, starts)
     }
 
@@ -404,3 +430,10 @@ class MihomoCoreConfigurationValidatorTest {
         }
     }
 }
+
+private fun startContext(generation: Long = 1L, token: BigInteger = BigInteger("42")) =
+    CoreProcessStartContextWire(
+        CoreIdentityWire("mihomo", "android-active", null),
+        BigInteger.valueOf(generation),
+        token,
+    )

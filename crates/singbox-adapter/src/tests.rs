@@ -12,10 +12,10 @@ use crate::process::SingBoxProcess;
 use crate::profile_document_codec::{PROFILE_FORMAT, SingBoxProfileDocumentCodec};
 use crate::readiness::SingBoxControllerReadiness;
 use async_trait::async_trait;
-use infiltrator_contract::core_identity::CoreInstanceId;
+use infiltrator_contract::core_identity::{CoreIdentity, CoreInstanceId, EngineId};
 use infiltrator_contract::profile_document::DocumentValidation;
 use infiltrator_contract::snapshot::CoreLifecycle;
-use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
+use infiltrator_ports::core_process::{CoreProcess, CoreProcessStartContext, CoreReadiness};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_document_codec::ProfileDocumentCodecPort;
 use std::net::SocketAddr;
@@ -395,15 +395,25 @@ async fn process_lifecycle_tracks_a_single_child_and_fails_closed_on_duplicate_s
     .unwrap();
 
     assert_eq!(core.status().await.unwrap(), CoreLifecycle::Stopped);
-    core.start().await.unwrap();
+    let foreign_context = CoreProcessStartContext::standalone(CoreIdentity::new(
+        EngineId::new("sing-box").expect("sing-box engine"),
+        CoreInstanceId::new("different-sing-box").expect("foreign instance"),
+        None,
+    ));
+    assert!(core.start(foreign_context).await.is_err());
+    assert_eq!(command.spawn_count.load(Ordering::SeqCst), 0);
+    let start_context = CoreProcessStartContext::standalone(
+        core.core_identity().expect("stable sing-box test identity"),
+    );
+    core.start(start_context.clone()).await.unwrap();
     assert_eq!(core.status().await.unwrap(), CoreLifecycle::Running);
     assert_eq!(core.pid().await, Some(9001));
-    assert!(core.start().await.is_err());
+    assert!(core.start(start_context.clone()).await.is_err());
     assert_eq!(command.spawn_count.load(Ordering::SeqCst), 1);
     core.stop().await.unwrap();
     assert_eq!(core.status().await.unwrap(), CoreLifecycle::Stopped);
     assert_eq!(core.pid().await, None);
-    core.start().await.unwrap();
+    core.start(start_context).await.unwrap();
     assert_eq!(core.status().await.unwrap(), CoreLifecycle::Running);
     assert_eq!(command.spawn_count.load(Ordering::SeqCst), 2);
     core.stop().await.unwrap();

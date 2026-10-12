@@ -53,7 +53,10 @@ struct MissingIdentityProcess;
 
 #[async_trait::async_trait]
 impl CoreProcess for MissingIdentityProcess {
-    async fn start(&self) -> Result<(), PortError> {
+    async fn start(
+        &self,
+        _context: infiltrator_ports::core_process::CoreProcessStartContext,
+    ) -> Result<(), PortError> {
         Ok(())
     }
 

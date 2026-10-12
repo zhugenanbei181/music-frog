@@ -20,7 +20,10 @@ impl CoreProcess for IdentifiedLanguageCaptureProcess {
         ))
     }
 
-    async fn start(&self) -> Result<(), PortError> {
+    async fn start(
+        &self,
+        _context: infiltrator_ports::core_process::CoreProcessStartContext,
+    ) -> Result<(), PortError> {
         LanguageCaptureProcess.start().await
     }
 

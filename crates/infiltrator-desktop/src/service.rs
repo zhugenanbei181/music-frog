@@ -5,7 +5,7 @@
 //! service helper (TUN route injection, system proxy override, and power/status telemetry).
 
 use infiltrator_contract::snapshot::CoreLifecycle;
-use infiltrator_ports::core_process::CoreProcess;
+use infiltrator_ports::core_process::{CoreProcess, CoreProcessStartContext};
 use infiltrator_ports::error::PortError;
 use mihomo_api::error;
 use mihomo_platform::desktop::ProcessCoreController;
@@ -101,7 +101,11 @@ impl ServiceManager {
     }
 
     pub async fn start(&self) -> Result<(), PortError> {
-        CoreProcess::start(self.controller.as_ref()).await
+        let context = CoreProcessStartContext::standalone(
+            CoreProcess::core_identity(self.controller.as_ref())
+                .ok_or_else(|| PortError::Failed("Core process has no stable identity".into()))?,
+        );
+        CoreProcess::start(self.controller.as_ref(), context).await
     }
 
     pub async fn stop(&self) -> Result<(), PortError> {
@@ -109,7 +113,11 @@ impl ServiceManager {
     }
 
     pub async fn restart(&self) -> Result<(), PortError> {
-        CoreProcess::start(self.controller.as_ref()).await
+        let context = CoreProcessStartContext::standalone(
+            CoreProcess::core_identity(self.controller.as_ref())
+                .ok_or_else(|| PortError::Failed("Core process has no stable identity".into()))?,
+        );
+        CoreProcess::start(self.controller.as_ref(), context).await
     }
 
     pub async fn status(&self) -> error::Result<ServiceStatus> {

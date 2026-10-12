@@ -2,7 +2,7 @@ use crate::commands::ServiceAction;
 use crate::context::Runtime;
 use crate::handlers::telemetry;
 use infiltrator_contract::snapshot::CoreLifecycle;
-use infiltrator_ports::core_process::CoreProcess;
+use infiltrator_ports::core_process::{CoreProcess, CoreProcessStartContext};
 use mihomo_platform::desktop::ProcessCoreController;
 use std::time;
 use tokio::time::sleep;
@@ -59,7 +59,7 @@ pub(crate) async fn run_lifecycle(
     match action {
         Lifecycle::Start => {
             controller
-                .start()
+                .start(standalone_start_context(controller)?)
                 .await
                 .map_err(|error| anyhow::anyhow!(error))?;
             Ok("Service started".to_string())
@@ -86,7 +86,7 @@ pub(crate) async fn run_lifecycle(
                 sleep(time::Duration::from_secs(1)).await;
             }
             controller
-                .start()
+                .start(standalone_start_context(controller)?)
                 .await
                 .map_err(|error| anyhow::anyhow!(error))?;
             Ok("Service restarted".to_string())
@@ -102,6 +102,15 @@ pub(crate) async fn run_lifecycle(
             controller.pid().await,
         )),
     }
+}
+
+fn standalone_start_context(
+    controller: &dyn CoreProcess,
+) -> anyhow::Result<CoreProcessStartContext> {
+    let identity = controller
+        .core_identity()
+        .ok_or_else(|| anyhow::anyhow!("Core process has no stable identity"))?;
+    Ok(CoreProcessStartContext::standalone(identity))
 }
 
 pub(crate) fn status_message(running: bool, pid: Option<u32>) -> String {

@@ -424,7 +424,10 @@ mod tests {
             Some(self.identity.clone())
         }
 
-        async fn start(&self) -> Result<(), PortError> {
+        async fn start(
+            &self,
+            _context: crate::core_process::CoreProcessStartContext,
+        ) -> Result<(), PortError> {
             Ok(())
         }
 

@@ -146,7 +146,15 @@ impl CoreProcess for SingBoxProcess {
         Some(self.identity.clone())
     }
 
-    async fn start(&self) -> Result<(), PortError> {
+    async fn start(
+        &self,
+        context: infiltrator_ports::core_process::CoreProcessStartContext,
+    ) -> Result<(), PortError> {
+        if !context.identity().same_instance(&self.identity) {
+            return Err(PortError::Failed(
+                "Core start context targets a different sing-box process".to_owned(),
+            ));
+        }
         let _gate = self.operation_gate.acquire().await;
         let mut state = self.state.lock().await;
         self.prepare_start(&mut state).await?;

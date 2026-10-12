@@ -6,7 +6,7 @@ interface BridgeHost {
     /** Wire value mirrors Rust `AndroidHostProcessRole`; unknown values fail closed. */
     fun processRole(): Int
     /** CoreProcessStartReceipt wire code; decoded exhaustively by Rust. */
-    fun coreStart(launchSpecJson: String): Int
+    fun coreStart(startRequestJson: String): Int
     /** Serde-tagged validation receipt produced by the stopped :vpn owner. */
     fun coreValidateConfiguration(requestJson: String): String
     /** CoreProcessStopReceipt wire code; decoded exhaustively by Rust. */

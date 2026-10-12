@@ -1151,7 +1151,10 @@ impl CoreProcess for FakeProcess {
         Some(self.identity.clone())
     }
 
-    async fn start(&self) -> Result<(), PortError> {
+    async fn start(
+        &self,
+        _context: infiltrator_ports::core_process::CoreProcessStartContext,
+    ) -> Result<(), PortError> {
         self.starts.starts.fetch_add(1, Ordering::SeqCst);
         Ok(())
     }

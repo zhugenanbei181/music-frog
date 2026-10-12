@@ -12,7 +12,7 @@ use infiltrator_contract::routing_intent::{
     EngineDefinedRoutingIntent, RoutingIntent, RoutingIntentExtensionId,
 };
 use infiltrator_contract::snapshot::CoreLifecycle;
-use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
+use infiltrator_ports::core_process::{CoreProcess, CoreProcessStartContext, CoreReadiness};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::outbound::{OutboundPort, OutboundScopeSource};
 use infiltrator_ports::profile_document_codec::ProfileDocumentCodecPort;
@@ -116,7 +116,14 @@ async fn locked_sing_box_binary_checks_applies_starts_and_answers_loopback_readi
         SingBoxControllerReadiness::with_reqwest(&format!("http://{controller_address}"))
             .expect("construct loopback readiness adapter");
 
-    process.start().await.expect("start the locked real binary");
+    process
+        .start(CoreProcessStartContext::standalone(
+            process
+                .core_identity()
+                .expect("sing-box process has a stable identity"),
+        ))
+        .await
+        .expect("start the locked real binary");
     let ready = tokio::time::timeout(
         Duration::from_secs(10),
         readiness.wait_until_ready(Duration::from_secs(9)),

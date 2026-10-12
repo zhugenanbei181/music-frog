@@ -12,7 +12,7 @@ use futures_util::lock;
 use infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization;
 use infiltrator_contract::command::{CommandIntent, CommandResult, RequestId};
 use infiltrator_contract::core_identity::{
-    CoreCommandOutcome, CoreCommandRequest, CoreIdentity, CoreScope,
+    CoreCommandOutcome, CoreCommandRequest, CoreGeneration, CoreIdentity, CoreScope,
 };
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document::DocumentInspection;
@@ -27,7 +27,7 @@ use infiltrator_domain::core_state::{CoreState, CoreStateMachine};
 use infiltrator_ports::active_profile_reference_store::ActiveProfileOwnerLease;
 use infiltrator_ports::application_runtime::ApplicationRuntime;
 use infiltrator_ports::core_lifecycle::{CoreLifecyclePort, CoreOwnerTerminationPort};
-use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
+use infiltrator_ports::core_process::{CoreProcess, CoreProcessStartContext, CoreReadiness};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::outbound::OutboundPort;
 use infiltrator_ports::outbound::OutboundScopeSource;
@@ -694,6 +694,23 @@ impl CoreApplication {
 
         let session_token = self.allocate_session_token();
         self.apply_domain_event(core_state::CoreEvent::StartRequested { session_token });
+        let Some(identity) = self.inner.process.core_identity() else {
+            let failure = Failure::new(
+                ErrorCode::InvalidState,
+                "Core process launch requires a stable Core identity",
+                false,
+            );
+            self.apply_domain_event(core_state::CoreEvent::StartFailed {
+                session_token,
+                error: failure.message.clone(),
+            });
+            return Err(failure);
+        };
+        let start_context = CoreProcessStartContext::Managed {
+            identity,
+            generation: CoreGeneration::new(self.generation()),
+            session_token,
+        };
         if let Err(error) = self.inner.process.cleanup_orphaned().await {
             let message = error.to_string();
             self.apply_domain_event(core_state::CoreEvent::StartFailed {
@@ -702,7 +719,7 @@ impl CoreApplication {
             });
             return Err(Failure::from(error));
         }
-        if let Err(error) = self.inner.process.start().await {
+        if let Err(error) = self.inner.process.start(start_context).await {
             let message = error.to_string();
             self.apply_domain_event(core_state::CoreEvent::StartFailed {
                 session_token,
