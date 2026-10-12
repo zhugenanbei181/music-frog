@@ -55,10 +55,12 @@ use mihomo_api::client::MihomoClient;
 use mihomo_api::core_capability_provider::MihomoCoreCapabilityProvider;
 use mihomo_api::overview::ControllerOverviewReader;
 use mihomo_api::readiness::ControllerReadiness;
+use mihomo_api::runtime_configuration::RuntimeScopeResolver;
 use mihomo_config::endpoint::ProfileEndpointSource;
 use mihomo_config::manager::ConfigManager;
 use mihomo_platform::android_bridge::AndroidBridge;
 use std::sync::Arc;
+use tokio::sync::Mutex;
 
 /// Explicit dependencies owned by the Android `:vpn` composition.
 ///
@@ -135,23 +137,22 @@ impl AndroidControllerAdapters {
     fn bind_configuration_scope(&self, application: &CoreApplication) {
         if let Self::Available { client } = self {
             let scope_application = application.clone();
-            let scope_resolver: mihomo_api::runtime_configuration::RuntimeScopeResolver =
-                Arc::new(move || {
-                    let lifecycle = scope_application.snapshot().lifecycle_snapshot();
-                    match &lifecycle.lifecycle {
-                        CoreLifecycle::Running | CoreLifecycle::Ready => {
-                            lifecycle.scope().ok_or_else(|| {
-                                PortError::Failed(
-                                    "active Core identity is unavailable for configuration access"
-                                        .to_owned(),
-                                )
-                            })
-                        }
-                        _ => Err(PortError::Failed(
-                            "configuration access requires a running Core".to_owned(),
-                        )),
+            let scope_resolver: RuntimeScopeResolver = Arc::new(move || {
+                let lifecycle = scope_application.snapshot().lifecycle_snapshot();
+                match &lifecycle.lifecycle {
+                    CoreLifecycle::Running | CoreLifecycle::Ready => {
+                        lifecycle.scope().ok_or_else(|| {
+                            PortError::Failed(
+                                "active Core identity is unavailable for configuration access"
+                                    .to_owned(),
+                            )
+                        })
                     }
-                });
+                    _ => Err(PortError::Failed(
+                        "configuration access requires a running Core".to_owned(),
+                    )),
+                }
+            });
             client.set_configuration_scope_resolver(scope_resolver);
         }
     }
@@ -237,6 +238,7 @@ impl<S: SecureStore + 'static> EngineBackendProvider for AndroidMihomoBackendPro
             working_directory,
         ));
         let process: Arc<dyn CoreProcess> = Arc::new(AndroidCoreProcessAdapter::new(
+            self.engine_id(),
             self.bridge.clone(),
             launch_spec_source,
         ));
@@ -511,7 +513,7 @@ where
                 Arc::new(application.clone()),
                 Arc::clone(&composition.profile_store),
                 Arc::new(EndpointConfigReloader::new(endpoints)),
-                Arc::new(tokio::sync::Mutex::new(())),
+                Arc::new(Mutex::new(())),
             )?)
         }
         AndroidControllerAdapters::Unavailable { failure } => {

@@ -113,13 +113,13 @@ impl CoreProcessStartReceipt {
         match self {
             Self::Started | Self::AlreadyRunning => Ok(()),
             Self::BinaryUnavailable => Err(PortError::NotFound(
-                "Android Mihomo executable is unavailable".to_owned(),
+                "Android Core executable is unavailable".to_owned(),
             )),
             Self::LaunchSpecRejected => Err(PortError::Failed(
                 "Android Core launch specification was rejected".to_owned(),
             )),
             Self::SpawnFailed => Err(PortError::Failed(
-                "Android Mihomo process could not be started".to_owned(),
+                "Android Core process could not be started".to_owned(),
             )),
             Self::NotVpnOwner => Err(PortError::Failed(
                 "Android UI process cannot start the core locally".to_owned(),
@@ -179,10 +179,10 @@ impl CoreProcessStopReceipt {
         match self {
             Self::StoppedGracefully | Self::StoppedForcibly | Self::AlreadyStopped => Ok(()),
             Self::TimedOut => Err(PortError::Failed(
-                "Android Mihomo process did not stop before the deadline".to_owned(),
+                "Android Core process did not stop before the deadline".to_owned(),
             )),
             Self::Interrupted => Err(PortError::Failed(
-                "Android Mihomo process stop was interrupted".to_owned(),
+                "Android Core process stop was interrupted".to_owned(),
             )),
             Self::NotVpnOwner => Err(PortError::Failed(
                 "Android UI process cannot stop the core locally".to_owned(),
