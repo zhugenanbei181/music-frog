@@ -546,11 +546,7 @@ impl CoreApplication {
             .expect("command handler lock")
             .take();
         let _operation = self.inner.operation.lock().await;
-        let stop_result = if self.session_token().is_some() {
-            self.stop_locked().await
-        } else {
-            Ok(())
-        };
+        let stop_result = self.stop_locked().await;
         let scheduler_result = self.inner.runtime.shutdown_background_tasks();
         if matches!(scheduler_result, ApplicationTaskShutdown::WorkerFailed) {
             return Err(Failure::new(

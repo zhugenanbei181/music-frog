@@ -34,6 +34,8 @@ use std::{thread, time};
 use tokio::runtime::Builder;
 use tokio::time::sleep;
 
+#[path = "core_application/owner_shutdown_tests.rs"]
+mod owner_shutdown_tests;
 #[path = "core_application/ownership_tests.rs"]
 mod ownership_tests;
 #[path = "core_application/speedtest_actor_tests.rs"]

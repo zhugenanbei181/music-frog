@@ -18,6 +18,8 @@ import infiltrator_android.AndroidHostReply
 import infiltrator_android.AndroidHostRequest
 import infiltrator_android.AndroidOwnerOperationIpcState
 import infiltrator_android.FfiErrorCode
+import infiltrator_android.androidBeginCoreOwnerSession
+import infiltrator_android.androidCloseCoreOwner
 import infiltrator_android.androidCoreLifecycleStatus
 import infiltrator_android.androidDispatchOwnerOperationWireJson
 import infiltrator_android.androidOwnerDataRevision
@@ -40,10 +42,20 @@ import java.util.UUID
  * start Mihomo or establish a VPN interface.
  */
 class MihomoControlService : Service() {
+    private enum class OwnerServicePhase {
+        Initializing,
+        Accepting,
+        Closing,
+        Unavailable,
+    }
+
     private lateinit var commandThread: HandlerThread
     private lateinit var endpoint: Messenger
     private lateinit var commandHandler: Handler
     private lateinit var ownerSessionId: String
+    @Volatile
+    private var ownerServicePhase: OwnerServicePhase = OwnerServicePhase.Initializing
+    private var ownerSessionStartJob: Job? = null
     private lateinit var vpnStartExecutor: ThreadPoolExecutor
     private val vpnStartAdmission = VpnOwnerStartRequestAdmission()
     private val vpnStartTasks = ConcurrentHashMap<VpnOwnerRequestKey, FutureTask<Unit>>()
@@ -58,7 +70,25 @@ class MihomoControlService : Service() {
     override fun onCreate() {
         super.onCreate()
         ownerSessionId = UUID.randomUUID().toString()
-        (application as? MihomoApplication)?.beginVpnOwnerSession(ownerSessionId)
+        val ownerApplication = application as? MihomoApplication
+        ownerServicePhase = OwnerServicePhase.Initializing
+        ownerSessionStartJob = ownerApplication?.let { app ->
+            app.ownerIpcScope.launch {
+                val status = androidBeginCoreOwnerSession()
+                if (ownerServicePhase != OwnerServicePhase.Initializing) return@launch
+                if (status.code != FfiErrorCode.OK) {
+                    ownerServicePhase = OwnerServicePhase.Unavailable
+                    Log.e(TAG, "Core owner session initialization failed: ${status.message}")
+                    return@launch
+                }
+                app.beginVpnOwnerSession(ownerSessionId)
+                ownerServicePhase = OwnerServicePhase.Accepting
+            }
+        } ?: run {
+            ownerServicePhase = OwnerServicePhase.Unavailable
+            Log.e(TAG, "MihomoApplication is unavailable for Core owner initialization")
+            null
+        }
         commandThread = HandlerThread("mihomo-control-ipc").also { it.start() }
         commandHandler = Handler(commandThread.looper, Handler.Callback(::handleMessage))
         endpoint = Messenger(commandHandler)
@@ -77,7 +107,7 @@ class MihomoControlService : Service() {
     override fun onBind(intent: Intent?): IBinder = endpoint.binder
 
     override fun onDestroy() {
-        (application as? MihomoApplication)?.endVpnOwnerSession(ownerSessionId)
+        ownerServicePhase = OwnerServicePhase.Closing
         for (key in vpnStartAdmission.activeKeys()) {
             when (val cancellation = vpnStartAdmission.cancel(key)) {
                 is VpnOwnerStartCancellation.CancelGeneration -> {
@@ -128,6 +158,18 @@ class MihomoControlService : Service() {
         }
         vpnStartExecutor.shutdownNow()
         commandThread.quitSafely()
+        val ownerApplication = application as? MihomoApplication
+        val startup = ownerSessionStartJob
+        ownerApplication?.let { app ->
+            app.ownerIpcScope.launch {
+                startup?.join()
+                val status = androidCloseCoreOwner()
+                if (status.code != FfiErrorCode.OK) {
+                    Log.e(TAG, "Core owner terminal close failed: ${status.message}")
+                }
+                app.endVpnOwnerSession(ownerSessionId)
+            }
+        }
         super.onDestroy()
     }
 
@@ -148,6 +190,19 @@ class MihomoControlService : Service() {
         }
         val requestId = arguments.getLong(REQUEST_ID, Long.MIN_VALUE)
         val clientSessionId = arguments.getString(CLIENT_SESSION_ID)
+        if (ownerServicePhase != OwnerServicePhase.Accepting) {
+            sendResponse(
+                message,
+                requestId,
+                clientSessionId,
+                OwnerResponse(
+                    AndroidHostReply.SERVICE_UNAVAILABLE,
+                    FfiErrorCode.NOT_READY,
+                    "Android Core owner session is not accepting requests",
+                ),
+            )
+            return true
+        }
         val protocolVersion = readProtocolVersion(arguments)
         val expectedOwnerSession = arguments.getString(EXPECTED_OWNER_SESSION_ID)
         val request = readRequest(arguments)

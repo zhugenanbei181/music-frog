@@ -6,6 +6,7 @@
 mod app_routing;
 mod control;
 mod controller;
+mod core_owner_session;
 mod doctor;
 mod localization;
 mod logs;
@@ -31,6 +32,7 @@ pub use control::{
     android_control, android_core_lifecycle_status, vpn_authorization_result,
 };
 pub use controller::{IpCheckResult, IpResult};
+pub use core_owner_session::{android_begin_core_owner_session, android_close_core_owner};
 pub use doctor::{
     BootstrapResult, BootstrapStepRecord, DoctorCheckMetaRecord, DoctorCheckMetaResult,
     DoctorCheckResultRecord, DoctorFixActionRecord, DoctorFixResult, DoctorReportRecord,

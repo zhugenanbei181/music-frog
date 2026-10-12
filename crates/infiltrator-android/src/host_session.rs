@@ -5,6 +5,8 @@
 use infiltrator_application::android_control_application::AndroidControlApplication;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::core_capability_application::CoreCapabilityApplication;
+use infiltrator_application::core_owner_shutdown_application::CoreOwnerShutdownApplication;
+use infiltrator_application::vpn_application::VpnServiceApplication;
 use infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization;
 use infiltrator_contract::active_profile_reference::{
     ActiveProfileReference, ActiveProfileReferenceState,
@@ -32,10 +34,10 @@ use infiltrator_ports::profile_workspace::{ProfileWorkspace, ProfileWorkspaceUpd
 use infiltrator_ports::runtime_gateway::ActiveProfileReferenceApplier;
 use mihomo_config::endpoint::ProfileEndpointSource;
 use mihomo_config::manager::ConfigManager;
-use mihomo_platform::android_bridge::get_android_bridge;
+use mihomo_platform::android_bridge::{AndroidBridge, get_android_bridge};
 use mihomo_platform::defaults::DefaultCredentialStore;
 use std::sync::{Arc, OnceLock};
-use tokio::sync::OnceCell;
+use tokio::sync::Mutex;
 
 use crate::composition::{
     AndroidCoreComposition, android_core_capability_provider,
@@ -58,6 +60,24 @@ pub(crate) struct SharedCore {
     pub(crate) _watchdog: infiltrator_composition::CoreWatchdogHandle,
 }
 
+enum SharedCoreOwnerState {
+    Uninitialized,
+    Active(Arc<SharedCore>),
+    Closing(Arc<SharedCore>),
+    ClosingWithoutCore,
+    Closed,
+}
+
+pub(crate) enum SharedCoreOwnerSessionBegin {
+    Ready,
+    RetryClose,
+}
+
+fn shared_core_owner_slot() -> &'static Mutex<SharedCoreOwnerState> {
+    static SHARED_CORE: OnceLock<Mutex<SharedCoreOwnerState>> = OnceLock::new();
+    SHARED_CORE.get_or_init(|| Mutex::new(SharedCoreOwnerState::Uninitialized))
+}
+
 pub(crate) async fn shared_core() -> Result<Arc<SharedCore>, FfiStatus> {
     let bridge = get_android_bridge().ok_or_else(|| {
         FfiStatus::err(
@@ -72,169 +92,212 @@ pub(crate) async fn shared_core() -> Result<Arc<SharedCore>, FfiStatus> {
         ));
     }
 
-    static SHARED_CORE: OnceLock<OnceCell<Arc<SharedCore>>> = OnceLock::new();
-    let slot = SHARED_CORE.get_or_init(OnceCell::new);
-    let core = slot
-        .get_or_try_init(|| {
-            let bridge = Arc::clone(&bridge);
-            async move {
-                let config = Arc::new(build_config_manager().await?);
-                let mihomo_engine_id = config.engine_id();
-                authorize_android_core_start(
-                    android_core_lifecycle_capability_provider(),
-                    &mihomo_engine_id,
-                )?;
-                config
-                    .migrate_legacy_mihomo_selection()
-                    .await
-                    .map_err(|error| {
-                        FfiStatus::err(
-                            FfiErrorCode::NotReady,
-                            format!("Android legacy Mihomo selection migration failed: {error}"),
-                        )
-                    })?;
-                let endpoints = Arc::new(ProfileEndpointSource::new(Arc::clone(&config)));
-                let selection_lease =
-                    ActiveProfileReferenceStore::acquire_provider_selection_lease(config.as_ref())
-                        .await
-                        .map_err(|error| {
-                            FfiStatus::err(
-                                FfiErrorCode::NotReady,
-                                format!("Android active Core selection is unavailable: {error}"),
-                            )
-                        })?;
-                let reference = match selection_lease.state() {
-                    ActiveProfileReferenceState::Unselected { .. } => {
-                        return Err(FfiStatus::err(
-                            FfiErrorCode::NotReady,
-                            "Android has no product-wide active profile reference",
-                        ));
-                    }
-                    ActiveProfileReferenceState::Selected(reference) => reference.clone(),
-                };
-                if reference.engine_id != config.engine_id() {
-                    return Err(FfiStatus::err(
-                        FfiErrorCode::NotReady,
-                        format!(
-                            "Android Mihomo owner cannot bind active engine {}",
-                            reference.engine_id.as_str()
-                        ),
-                    ));
-                }
-                let workspace =
-                    ProfileStore::load_workspace(config.as_ref(), &reference.profile_id)
-                        .await
-                        .map_err(|error| {
-                            FfiStatus::err(
-                                FfiErrorCode::Config,
-                                format!("Android active profile document is unavailable: {error}"),
-                            )
-                        })?;
-                if workspace.document.identity.engine_id != reference.engine_id
-                    || workspace.document.identity.profile_id != reference.profile_id
-                {
-                    return Err(FfiStatus::err(
-                        FfiErrorCode::NotReady,
-                        "Android active profile reference does not match its persisted document",
-                    ));
-                }
-                let initial_endpoint = endpoints
-                    .resolve_profile(&reference.profile_id)
-                    .await
-                    .map_err(|error| {
-                        FfiStatus::err(
-                            FfiErrorCode::Config,
-                            format!("Android active Core endpoint is unavailable: {error}"),
-                        )
-                    })?;
-                let initial_capability_provider = android_core_capability_provider(
-                    &initial_endpoint.url,
-                    initial_endpoint.secret.clone(),
-                );
-                authorize_android_core_start(
-                    Arc::clone(&initial_capability_provider),
-                    &reference.engine_id,
-                )?;
+    let mut state = shared_core_owner_slot().lock().await;
+    match &*state {
+        SharedCoreOwnerState::Active(core) => return Ok(Arc::clone(core)),
+        SharedCoreOwnerState::Closing(_)
+        | SharedCoreOwnerState::ClosingWithoutCore
+        | SharedCoreOwnerState::Closed => {
+            return Err(FfiStatus::err(
+                FfiErrorCode::NotReady,
+                "Android Core owner session is closing or closed",
+            ));
+        }
+        SharedCoreOwnerState::Uninitialized => {}
+    }
+    let core = build_shared_core(bridge).await?;
+    *state = SharedCoreOwnerState::Active(Arc::clone(&core));
+    Ok(core)
+}
 
-                // All provider, profile, and target capability checks pass
-                // before this profile-specific configuration write.
-                config
-                    .ensure_external_controller_for_profile(&reference.profile_id)
-                    .await
-                    .map_err(map_mihomo_error)?;
-                let endpoint = endpoints
-                    .resolve_profile(&reference.profile_id)
-                    .await
-                    .map_err(|error| {
-                        FfiStatus::err(
-                            FfiErrorCode::Config,
-                            format!("Android active Core endpoint is unavailable: {error}"),
-                        )
-                    })?;
-                let capability_provider =
-                    android_core_capability_provider(&endpoint.url, endpoint.secret.clone());
-                authorize_android_core_start(
-                    Arc::clone(&capability_provider),
-                    &reference.engine_id,
-                )?;
-                let controller_url = endpoint.url;
-                let controller_secret = endpoint.secret;
-                // Compose/FFI and Bevy both reach this product composition. It
-                // installs the Rust command handler, including VPN lifecycle.
-                let application = core_application_with_readiness_and_provider(
-                    bridge,
-                    controller_url,
-                    controller_secret,
-                    AndroidCoreComposition::new(Arc::clone(&config)),
-                    Arc::new(AndroidProfileReadiness::new(Arc::clone(&endpoints))),
-                    capability_provider,
+pub(crate) async fn begin_shared_core_owner_session()
+-> Result<SharedCoreOwnerSessionBegin, FfiStatus> {
+    let mut state = shared_core_owner_slot().lock().await;
+    match &*state {
+        SharedCoreOwnerState::Uninitialized | SharedCoreOwnerState::Active(_) => {
+            Ok(SharedCoreOwnerSessionBegin::Ready)
+        }
+        SharedCoreOwnerState::Closed => {
+            *state = SharedCoreOwnerState::Uninitialized;
+            Ok(SharedCoreOwnerSessionBegin::Ready)
+        }
+        SharedCoreOwnerState::Closing(_) | SharedCoreOwnerState::ClosingWithoutCore => {
+            Ok(SharedCoreOwnerSessionBegin::RetryClose)
+        }
+    }
+}
+
+pub(crate) async fn close_shared_core_owner(vpn: VpnServiceApplication) -> Result<(), FfiStatus> {
+    let mut state = shared_core_owner_slot().lock().await;
+    let core = match &*state {
+        SharedCoreOwnerState::Uninitialized | SharedCoreOwnerState::ClosingWithoutCore => None,
+        SharedCoreOwnerState::Active(core) | SharedCoreOwnerState::Closing(core) => {
+            Some(Arc::clone(core))
+        }
+        SharedCoreOwnerState::Closed => return Ok(()),
+    };
+    match core {
+        None => {
+            *state = SharedCoreOwnerState::ClosingWithoutCore;
+            vpn.stop()
+                .await
+                .map_err(|failure| FfiStatus::err(FfiErrorCode::NotReady, failure.message))?;
+            *state = SharedCoreOwnerState::Closed;
+            Ok(())
+        }
+        Some(core) => {
+            *state = SharedCoreOwnerState::Closing(Arc::clone(&core));
+            CoreOwnerShutdownApplication::new(core.application.clone(), vpn)
+                .close()
+                .await
+                .map_err(|failure| FfiStatus::err(FfiErrorCode::NotReady, failure.message))?;
+            *state = SharedCoreOwnerState::Closed;
+            Ok(())
+        }
+    }
+}
+
+async fn build_shared_core(bridge: Arc<dyn AndroidBridge>) -> Result<Arc<SharedCore>, FfiStatus> {
+    let config = Arc::new(build_config_manager().await?);
+    let mihomo_engine_id = config.engine_id();
+    authorize_android_core_start(
+        android_core_lifecycle_capability_provider(),
+        &mihomo_engine_id,
+    )?;
+    config
+        .migrate_legacy_mihomo_selection()
+        .await
+        .map_err(|error| {
+            FfiStatus::err(
+                FfiErrorCode::NotReady,
+                format!("Android legacy Mihomo selection migration failed: {error}"),
+            )
+        })?;
+    let endpoints = Arc::new(ProfileEndpointSource::new(Arc::clone(&config)));
+    let selection_lease =
+        ActiveProfileReferenceStore::acquire_provider_selection_lease(config.as_ref())
+            .await
+            .map_err(|error| {
+                FfiStatus::err(
+                    FfiErrorCode::NotReady,
+                    format!("Android active Core selection is unavailable: {error}"),
                 )
-                .map_err(|error| FfiStatus::err(FfiErrorCode::Unknown, error))?;
-                let owner_identity = application.snapshot().identity.ok_or_else(|| {
-                    FfiStatus::err(
-                        FfiErrorCode::NotReady,
-                        "Android Core backend has no typed owner identity",
-                    )
-                })?;
-                if owner_identity.engine != reference.engine_id {
-                    return Err(FfiStatus::err(
-                        FfiErrorCode::NotReady,
-                        "Android Core backend identity does not match the active profile engine",
-                    ));
-                }
-                let owner_binding = selection_lease
-                    .into_owner_binding(
-                        owner_identity,
-                        CoreGeneration::new(application.snapshot().generation),
-                    )
-                    .await
-                    .map_err(|error| {
-                        FfiStatus::err(
-                            FfiErrorCode::NotReady,
-                            format!(
-                                "Android Core owner could not bind the active profile: {error}"
-                            ),
-                        )
-                    })?;
-                application
-                    .install_active_profile_owner_binding(owner_binding)
-                    .map_err(|failure| {
-                        FfiStatus::from(InfiltratorError::Backend(failure.message))
-                    })?;
-                let control = AndroidControlApplication::new(application.clone());
-                let watchdog =
-                    infiltrator_composition::spawn_core_watchdog(Arc::new(application.clone()));
-                Ok::<Arc<SharedCore>, FfiStatus>(Arc::new(SharedCore {
-                    application,
-                    control,
-                    endpoints: endpoints as Arc<dyn EndpointSource>,
-                    config,
-                    _watchdog: watchdog,
-                }))
-            }
-        })
-        .await?;
-    Ok(Arc::clone(core))
+            })?;
+    let reference = match selection_lease.state() {
+        ActiveProfileReferenceState::Unselected { .. } => {
+            return Err(FfiStatus::err(
+                FfiErrorCode::NotReady,
+                "Android has no product-wide active profile reference",
+            ));
+        }
+        ActiveProfileReferenceState::Selected(reference) => reference.clone(),
+    };
+    if reference.engine_id != config.engine_id() {
+        return Err(FfiStatus::err(
+            FfiErrorCode::NotReady,
+            format!(
+                "Android Mihomo owner cannot bind active engine {}",
+                reference.engine_id.as_str()
+            ),
+        ));
+    }
+    let workspace = ProfileStore::load_workspace(config.as_ref(), &reference.profile_id)
+        .await
+        .map_err(|error| {
+            FfiStatus::err(
+                FfiErrorCode::Config,
+                format!("Android active profile document is unavailable: {error}"),
+            )
+        })?;
+    if workspace.document.identity.engine_id != reference.engine_id
+        || workspace.document.identity.profile_id != reference.profile_id
+    {
+        return Err(FfiStatus::err(
+            FfiErrorCode::NotReady,
+            "Android active profile reference does not match its persisted document",
+        ));
+    }
+    let initial_endpoint = endpoints
+        .resolve_profile(&reference.profile_id)
+        .await
+        .map_err(|error| {
+            FfiStatus::err(
+                FfiErrorCode::Config,
+                format!("Android active Core endpoint is unavailable: {error}"),
+            )
+        })?;
+    let initial_capability_provider =
+        android_core_capability_provider(&initial_endpoint.url, initial_endpoint.secret.clone());
+    authorize_android_core_start(
+        Arc::clone(&initial_capability_provider),
+        &reference.engine_id,
+    )?;
+
+    // All provider, profile, and target capability checks pass before this
+    // profile-specific configuration write.
+    config
+        .ensure_external_controller_for_profile(&reference.profile_id)
+        .await
+        .map_err(map_mihomo_error)?;
+    let endpoint = endpoints
+        .resolve_profile(&reference.profile_id)
+        .await
+        .map_err(|error| {
+            FfiStatus::err(
+                FfiErrorCode::Config,
+                format!("Android active Core endpoint is unavailable: {error}"),
+            )
+        })?;
+    let capability_provider =
+        android_core_capability_provider(&endpoint.url, endpoint.secret.clone());
+    authorize_android_core_start(Arc::clone(&capability_provider), &reference.engine_id)?;
+    let controller_url = endpoint.url;
+    let controller_secret = endpoint.secret;
+    let application = core_application_with_readiness_and_provider(
+        bridge,
+        controller_url,
+        controller_secret,
+        AndroidCoreComposition::new(Arc::clone(&config)),
+        Arc::new(AndroidProfileReadiness::new(Arc::clone(&endpoints))),
+        capability_provider,
+    )
+    .map_err(|error| FfiStatus::err(FfiErrorCode::Unknown, error))?;
+    let owner_identity = application.snapshot().identity.ok_or_else(|| {
+        FfiStatus::err(
+            FfiErrorCode::NotReady,
+            "Android Core backend has no typed owner identity",
+        )
+    })?;
+    if owner_identity.engine != reference.engine_id {
+        return Err(FfiStatus::err(
+            FfiErrorCode::NotReady,
+            "Android Core backend identity does not match the active profile engine",
+        ));
+    }
+    let owner_binding = selection_lease
+        .into_owner_binding(
+            owner_identity,
+            CoreGeneration::new(application.snapshot().generation),
+        )
+        .await
+        .map_err(|error| {
+            FfiStatus::err(
+                FfiErrorCode::NotReady,
+                format!("Android Core owner could not bind the active profile: {error}"),
+            )
+        })?;
+    application
+        .install_active_profile_owner_binding(owner_binding)
+        .map_err(|failure| FfiStatus::from(InfiltratorError::Backend(failure.message)))?;
+    let control = AndroidControlApplication::new(application.clone());
+    let watchdog = infiltrator_composition::spawn_core_watchdog(Arc::new(application.clone()));
+    Ok(Arc::new(SharedCore {
+        application,
+        control,
+        endpoints: endpoints as Arc<dyn EndpointSource>,
+        config,
+        _watchdog: watchdog,
+    }))
 }
 
 fn authorize_android_core_start(

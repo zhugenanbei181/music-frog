@@ -26,6 +26,7 @@ pub mod core_capability_application;
 #[cfg(test)]
 pub mod core_capability_test_support;
 pub mod core_control_projection;
+pub mod core_owner_shutdown_application;
 #[cfg(test)]
 mod core_product_control_tests;
 pub mod core_status_projection;

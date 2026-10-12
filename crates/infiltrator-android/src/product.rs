@@ -11,7 +11,8 @@ use crate::composition::mtu_application;
 use crate::composition::offline_startup_application;
 #[cfg(test)]
 use crate::composition::{AndroidCoreComposition, core_application};
-use crate::host_session::shared_core;
+use crate::ffi::FfiStatus;
+use crate::host_session::{close_shared_core_owner, shared_core};
 use crate::host_support::get_runtime;
 use crate::runtime::AndroidBridgeAdapter;
 use crate::vpn_service::AndroidVpnServicePort;
@@ -42,9 +43,9 @@ use infiltrator_ports::secure_store::SecureStore;
 use mihomo_api::client::MihomoClient;
 use mihomo_api::routing_intent::MihomoRoutingIntentAdapter;
 use mihomo_platform::android_bridge::{AndroidBridge, get_android_bridge};
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use std::time::Duration;
-use tokio::sync::OnceCell;
+use tokio::sync::Mutex;
 
 #[cfg(feature = "slint-ui")]
 const ANDROID_PRODUCT_SURFACE: SurfaceKind = SurfaceKind::SlintAndroid;
@@ -260,15 +261,49 @@ impl AndroidProductComposition {
 
 /// Owner-side product session used by the typed Messenger surface read.
 /// The UI process never constructs this composition or a second Core actor.
-static OWNER_PRODUCT: OnceCell<AndroidProductComposition> = OnceCell::const_new();
+enum OwnerProductState {
+    Uninitialized,
+    Active(AndroidProductComposition),
+    Closed,
+}
+
+fn owner_product_slot() -> &'static Mutex<OwnerProductState> {
+    static OWNER_PRODUCT: OnceLock<Mutex<OwnerProductState>> = OnceLock::new();
+    OWNER_PRODUCT.get_or_init(|| Mutex::new(OwnerProductState::Uninitialized))
+}
 
 pub(crate) async fn owner_surface_snapshot_json() -> Result<String, String> {
-    let owner = OWNER_PRODUCT
-        .get_or_try_init(AndroidProductComposition::open_shared_owner)
-        .await
-        .map_err(|error| error.to_string())?;
-    let snapshot = owner.surface_pump().current();
+    let mut state = owner_product_slot().lock().await;
+    if matches!(&*state, OwnerProductState::Uninitialized) {
+        let owner = AndroidProductComposition::open_shared_owner()
+            .await
+            .map_err(|error| error.to_string())?;
+        *state = OwnerProductState::Active(owner);
+    }
+    let snapshot = match &*state {
+        OwnerProductState::Active(owner) => owner.surface_pump().current(),
+        OwnerProductState::Uninitialized | OwnerProductState::Closed => {
+            return Err("Android Core owner product session is closed".to_owned());
+        }
+    };
     serialize_owner_surface_snapshot(&snapshot)
+}
+
+pub(crate) async fn begin_owner_product_session() {
+    let mut state = owner_product_slot().lock().await;
+    if matches!(&*state, OwnerProductState::Closed) {
+        *state = OwnerProductState::Uninitialized;
+    }
+}
+
+pub(crate) async fn close_owner_product_session() -> Result<(), FfiStatus> {
+    let mut state = owner_product_slot().lock().await;
+    let previous = std::mem::replace(&mut *state, OwnerProductState::Closed);
+    drop(state);
+    drop(previous);
+
+    let vpn = VpnServiceApplication::new(Arc::new(AndroidVpnServicePort::shared()));
+    close_shared_core_owner(vpn).await
 }
 
 fn serialize_owner_surface_snapshot(snapshot: &SurfaceSnapshot) -> Result<String, String> {
