@@ -22,7 +22,9 @@
 
 2026-10-12 engine-scoped ProfileStore checkpoint：`mihomo-config::ConfigManager` 现在可注入 engine-owned document codec，并按 `EngineId` 隔离 ProfileStore/ProfileWorkspace、metadata、credential key 与原始文档扩展；默认 Mihomo 构造保留显式 legacy migration，sing-box 初始化只创建自己的 JSON namespace、不导入 Mihomo 旧文件。两 engine 共用产品级 revisioned active reference 与 owner fence。测试覆盖同名隔离、JSON 与 opaque sidecar 精确读回、stale/foreign 零写入，以及 sing-box active workspace lease 的 engine identity；受影响 Core/Android/desktop-host 包 nextest 825/825、4 skipped（run `36cdeb27-d4ad-4d35-95ac-0ae9cd64a943`），存储包最终复跑 186/186、1 skipped（run `fa92e0a6-af64-496e-a382-2924b2a840b9`）。这只是 store/adapter 源码和 fake/nextest 证据，尚未证明 Desktop 或 Android 组合根注入该 store，也未证明真实进程配置事务；两产品仍只选择 Mihomo。
 
-2026-10-12 sing-box 版本生命周期源码 checkpoint：SingBoxEngineVersionBackendFactory 已按编译 target 解析不可变资产锁，并实现共享 VersionPort 与 CoreBinarySelectionPort；archive SHA-256 与解压二进制报告版本均通过后才原子发布，安装 receipt 与选择 journal 绑定 engine、binary target 和 adapter revision。Fake nextest run 70b81a9d-a445-40d0-b3df-6e5f8524dedf 为 32/32、1 skipped，覆盖错摘要/错版本、取消后清理重试、选择、激活与回滚。该证据不包含真实 archive 下载/安装、目标二进制运行、Desktop/Android registry 接线或设备验收；两产品根仍只选择 Mihomo。
+2026-10-12 sing-box 版本生命周期源码 checkpoint：SingBoxEngineVersionBackendFactory 已按编译 target 解析不可变资产锁，并实现共享 VersionPort 与 CoreBinarySelectionPort；archive SHA-256 与解压二进制报告版本均通过后才原子发布，安装 receipt 与选择 journal 绑定 engine、binary target 和 adapter revision。Fake nextest run 70b81a9d-a445-40d0-b3df-6e5f8524dedf 为 32/32、1 skipped，覆盖错摘要/错版本、取消后清理重试、选择、激活与回滚。该 fake 版本测试不覆盖 VersionPort 管理式 archive 安装/发布，也不证明 Desktop/Android registry 或设备接线；单独的 Linux adapter real-process smoke 见下方。两产品根仍只选择 Mihomo。
+
+2026-10-12 sing-box Linux adapter 真实进程 smoke：官方 v1.14.3 amd64 资产 SHA-256 和二进制版本锁定验证通过；nextest run `c40baec6-25a9-4412-9a05-8d767ce9eed5` 为 1/1，覆盖 native config、进程 start/stop、loopback readiness、selector 读写恢复与 mode-list。该主机证据不替代 Android/桌面产品根接入、operation evidence 注册、APK 或目标设备验收。
 
 ## 专项规则
 
