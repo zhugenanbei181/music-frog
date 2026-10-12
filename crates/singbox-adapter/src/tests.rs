@@ -4,6 +4,7 @@ use crate::command::{
     NativeConfigCheck, SingBoxChildPoll, SingBoxChildProcess, SingBoxCommandPort,
 };
 use crate::config::SingBoxProfileConfigurationAdapter;
+use crate::controller_configuration::SingBoxControllerConfiguration;
 use crate::http::{
     ReqwestSingBoxClashHttpPort, SingBoxClashHttpPort, SingBoxClashMethod, SingBoxClashResponse,
     SingBoxControllerAuthorization,
@@ -18,13 +19,39 @@ use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_ports::core_process::{CoreProcess, CoreProcessStartContext, CoreReadiness};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_document_codec::ProfileDocumentCodecPort;
-use std::net::SocketAddr;
+use serde_json::Value;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex as StdMutex};
 use tempfile::TempDir;
 use tokio::sync::{Mutex, Semaphore};
 use url::Url;
+
+fn controller_configuration(address: &str, secret: Option<&str>) -> SingBoxControllerConfiguration {
+    let mut clash_api = serde_json::json!({ "external_controller": address });
+    if let Some(secret) = secret {
+        clash_api["secret"] = Value::String(secret.to_owned());
+    }
+    let profile = serde_json::json!({ "experimental": { "clash_api": clash_api } });
+    SingBoxControllerConfiguration::from_profile_json(
+        &serde_json::to_vec(&profile).expect("serialize controller test profile"),
+    )
+    .expect("controller test profile is loopback and fixed-port")
+}
+
+fn controller_configuration_for_endpoint(
+    endpoint: &str,
+    secret: Option<&str>,
+) -> SingBoxControllerConfiguration {
+    let endpoint = Url::parse(endpoint).expect("test controller URL is valid");
+    let port = endpoint.port().expect("test controller URL has a port");
+    let address = match endpoint.host().expect("test controller URL has a host") {
+        url::Host::Ipv4(host) => format!("{host}:{port}"),
+        url::Host::Ipv6(host) => format!("[{host}]:{port}"),
+        url::Host::Domain(_) => panic!("test controller must use a numeric loopback host"),
+    };
+    controller_configuration(&address, secret)
+}
 
 #[derive(Clone, Copy)]
 enum FakeChildPhase {
@@ -381,15 +408,14 @@ async fn concurrent_apply_transactions_on_one_adapter_serialize_validation_throu
 async fn process_lifecycle_tracks_a_single_child_and_fails_closed_on_duplicate_start() {
     let home = TempDir::new().unwrap();
     let config_path = home.path().join("config.json");
-    tokio::fs::write(&config_path, br#"{"outbounds":[]}"#)
-        .await
-        .unwrap();
+    let raw_config = br#"{"outbounds":[],"experimental":{"clash_api":{"external_controller":"127.0.0.1:9090"}}}"#;
+    tokio::fs::write(&config_path, raw_config).await.unwrap();
     let command = Arc::new(FakeSingBoxCommandPort::new(NativeConfigCheck::Accepted));
     let core = SingBoxProcess::new(
         PathBuf::from("sing-box"),
         config_path,
         CoreInstanceId::new("test-sing-box").unwrap(),
-        "127.0.0.1:9090".parse::<SocketAddr>().unwrap(),
+        controller_configuration("127.0.0.1:9090", None),
         command.clone(),
     )
     .unwrap();
@@ -425,8 +451,11 @@ async fn readiness_uses_the_injected_http_port_and_rejects_non_loopback_endpoint
         outcome: FakeHttpOutcome::Ready,
         requests: StdMutex::new(Vec::new()),
     });
-    let readiness = SingBoxControllerReadiness::new("http://127.0.0.1:9090", http.clone())
-        .expect("loopback endpoint is accepted");
+    let readiness = SingBoxControllerReadiness::new(
+        controller_configuration("127.0.0.1:9090", None),
+        http.clone(),
+    )
+    .expect("loopback endpoint is accepted");
 
     assert_eq!(readiness.probe().await.unwrap(), "http://127.0.0.1:9090");
     let requests = http
@@ -437,22 +466,18 @@ async fn readiness_uses_the_injected_http_port_and_rejects_non_loopback_endpoint
     assert_eq!(requests[0].1, SingBoxClashMethod::Get);
     assert_eq!(requests[0].3, std::time::Duration::from_secs(5));
     assert_eq!(requests[0].4, FakeObservedAuthorization::NoSecret);
-    assert!(
-        SingBoxControllerReadiness::new(
-            "http://192.0.2.1:9090",
-            Arc::new(FakeReadinessHttpPort {
-                outcome: FakeHttpOutcome::Ready,
-                requests: StdMutex::new(Vec::new()),
-            })
-        )
-        .is_err()
+    assert_eq!(
+        SingBoxControllerConfiguration::from_profile_json(
+            br#"{"experimental":{"clash_api":{"external_controller":"192.0.2.1:9090"}}}"#,
+        ),
+        Err(crate::controller_configuration::SingBoxControllerConfigurationError::ExternalControllerNotLoopback)
     );
 }
 
 #[tokio::test]
 async fn readiness_rejects_an_unavailable_loopback_controller() {
     let readiness = SingBoxControllerReadiness::new(
-        "http://127.0.0.1:9090",
+        controller_configuration("127.0.0.1:9090", None),
         Arc::new(FakeReadinessHttpPort {
             outcome: FakeHttpOutcome::Unavailable,
             requests: StdMutex::new(Vec::new()),
@@ -475,9 +500,8 @@ async fn readiness_reads_a_successful_loopback_http_version_response() {
         .expect(2)
         .create_async()
         .await;
-    let readiness = SingBoxControllerReadiness::with_authorization(
-        &server.url(),
-        SingBoxControllerAuthorization::BearerToken("fixture-token".to_owned()),
+    let readiness = SingBoxControllerReadiness::new(
+        controller_configuration_for_endpoint(&server.url(), Some("fixture-token")),
         Arc::new(ReqwestSingBoxClashHttpPort),
     )
     .unwrap();
@@ -508,7 +532,10 @@ async fn readiness_does_not_accept_http_errors_or_unstructured_version_bodies() 
         .with_body(r#"{"error":"not ready"}"#)
         .create_async()
         .await;
-    let readiness = SingBoxControllerReadiness::with_reqwest(&server.url()).unwrap();
+    let readiness = SingBoxControllerReadiness::with_reqwest(
+        controller_configuration_for_endpoint(&server.url(), None),
+    )
+    .unwrap();
 
     assert!(readiness.probe().await.is_err());
 

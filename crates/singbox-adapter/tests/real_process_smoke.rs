@@ -20,7 +20,7 @@ use infiltrator_ports::routing_intent::RoutingIntentPort;
 use singbox_adapter::clash_api::SingBoxClashApiClient;
 use singbox_adapter::clash_runtime::{SingBoxOutboundAdapter, SingBoxRoutingIntentAdapter};
 use singbox_adapter::config::SingBoxProfileConfigurationAdapter;
-use singbox_adapter::http::SingBoxControllerAuthorization;
+use singbox_adapter::controller_configuration::SingBoxControllerConfiguration;
 use singbox_adapter::process::SingBoxProcess;
 use singbox_adapter::profile_document_codec::SingBoxProfileDocumentCodec;
 use singbox_adapter::readiness::SingBoxControllerReadiness;
@@ -105,16 +105,17 @@ async fn locked_sing_box_binary_checks_applies_starts_and_answers_loopback_readi
         raw_config.as_slice()
     );
 
+    let controller_configuration = SingBoxControllerConfiguration::from_profile_json(&raw_config)
+        .expect("the profile has a fixed loopback Clash API");
     let process = SingBoxProcess::with_tokio(
         binary_path,
         config_path,
         CoreInstanceId::new("sing-box-real-process-smoke").expect("valid smoke identity"),
-        controller_address,
+        controller_configuration.clone(),
     )
     .expect("construct loopback-only process adapter");
-    let readiness =
-        SingBoxControllerReadiness::with_reqwest(&format!("http://{controller_address}"))
-            .expect("construct loopback readiness adapter");
+    let readiness = SingBoxControllerReadiness::with_reqwest(controller_configuration.clone())
+        .expect("construct loopback readiness adapter");
 
     process
         .start(CoreProcessStartContext::standalone(
@@ -154,11 +155,8 @@ async fn locked_sing_box_binary_checks_applies_starts_and_answers_loopback_readi
         generation: CoreGeneration::new(1),
         session_token: None,
     };
-    let api = SingBoxClashApiClient::with_reqwest(
-        &format!("http://{controller_address}"),
-        SingBoxControllerAuthorization::NoSecret,
-    )
-    .expect("construct the loopback Clash API client");
+    let api = SingBoxClashApiClient::with_reqwest(controller_configuration)
+        .expect("construct the loopback Clash API client");
     let scope_source = Arc::new(FixedScope(scope.clone()));
     let outbounds = SingBoxOutboundAdapter::new(api.clone(), scope_source.clone());
     let inventory = outbounds

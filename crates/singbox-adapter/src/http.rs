@@ -2,6 +2,7 @@
 
 use async_trait::async_trait;
 use infiltrator_ports::error::PortError;
+use std::fmt::{self, Debug, Formatter};
 use std::time::Duration;
 use url::{Host, Url};
 
@@ -17,10 +18,19 @@ pub struct SingBoxClashResponse {
     pub body: Vec<u8>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub enum SingBoxControllerAuthorization {
     NoSecret,
     BearerToken(String),
+}
+
+impl Debug for SingBoxControllerAuthorization {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::NoSecret => formatter.write_str("NoSecret"),
+            Self::BearerToken(_) => formatter.write_str("BearerToken(<redacted>)"),
+        }
+    }
 }
 
 #[async_trait]

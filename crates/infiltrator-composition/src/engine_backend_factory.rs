@@ -17,15 +17,13 @@ use singbox_adapter::clash_api::SingBoxClashApiClient;
 use singbox_adapter::clash_runtime::{SingBoxOutboundAdapter, SingBoxRoutingIntentAdapter};
 use singbox_adapter::command::{SingBoxCommandPort, TokioSingBoxCommandPort};
 use singbox_adapter::config::SingBoxProfileConfigurationAdapter;
-use singbox_adapter::http::{
-    ReqwestSingBoxClashHttpPort, SingBoxClashHttpPort, SingBoxControllerAuthorization,
-};
+use singbox_adapter::controller_configuration::SingBoxControllerConfiguration;
+use singbox_adapter::http::{ReqwestSingBoxClashHttpPort, SingBoxClashHttpPort};
 use singbox_adapter::process::{SingBoxCoreOperationGate, SingBoxProcess};
 use singbox_adapter::profile_configuration_transaction::SingBoxProfileConfigurationTransactionAdapter;
 use singbox_adapter::profile_document_codec::SingBoxProfileDocumentCodec;
 use singbox_adapter::readiness::SingBoxControllerReadiness;
 use std::collections::HashMap;
-use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -105,15 +103,13 @@ impl SingBoxEngineBackendProvider {
         binary_path: PathBuf,
         config_path: PathBuf,
         instance_id: CoreInstanceId,
-        controller_address: SocketAddr,
-        authorization: SingBoxControllerAuthorization,
+        controller: SingBoxControllerConfiguration,
     ) -> Result<Self, PortError> {
         Self::new(
             binary_path,
             config_path,
             instance_id,
-            controller_address,
-            authorization,
+            controller,
             Arc::new(TokioSingBoxCommandPort),
             Arc::new(ReqwestSingBoxClashHttpPort),
         )
@@ -123,8 +119,7 @@ impl SingBoxEngineBackendProvider {
         binary_path: PathBuf,
         config_path: PathBuf,
         instance_id: CoreInstanceId,
-        controller_address: SocketAddr,
-        authorization: SingBoxControllerAuthorization,
+        controller: SingBoxControllerConfiguration,
         command: Arc<dyn SingBoxCommandPort>,
         http: Arc<dyn SingBoxClashHttpPort>,
     ) -> Result<Self, PortError> {
@@ -135,15 +130,13 @@ impl SingBoxEngineBackendProvider {
                 binary_path.clone(),
                 config_path.clone(),
                 instance_id,
-                controller_address,
+                controller.clone(),
                 Arc::clone(&command),
                 Arc::clone(&operation_gate),
             )?);
-        let endpoint = format!("http://{controller_address}");
-        let api = SingBoxClashApiClient::new(&endpoint, authorization.clone(), Arc::clone(&http))?;
-        let readiness: Arc<dyn infiltrator_ports::core_process::CoreReadiness> = Arc::new(
-            SingBoxControllerReadiness::with_authorization(&endpoint, authorization, http)?,
-        );
+        let api = SingBoxClashApiClient::new(controller.clone(), Arc::clone(&http))?;
+        let readiness: Arc<dyn infiltrator_ports::core_process::CoreReadiness> =
+            Arc::new(SingBoxControllerReadiness::new(controller, http)?);
         let codec: Arc<dyn infiltrator_ports::profile_document_codec::ProfileDocumentCodecPort> =
             Arc::new(SingBoxProfileDocumentCodec);
         let transaction = Arc::new(ProfileConfigurationTransactionBinding::new(
@@ -426,8 +419,10 @@ mod tests {
                 directory.path().join("sing-box"),
                 directory.path().join("active.json"),
                 CoreInstanceId::new("singbox-provider-test").unwrap(),
-                "127.0.0.1:9090".parse().unwrap(),
-                SingBoxControllerAuthorization::BearerToken("test-token".to_owned()),
+                SingBoxControllerConfiguration::from_profile_json(
+                    br#"{"experimental":{"clash_api":{"external_controller":"127.0.0.1:9090","secret":"test-token"}}}"#,
+                )
+                .unwrap(),
                 Arc::new(FakeSingBoxCommand),
                 Arc::new(FakeSingBoxHttp {
                     requests: Arc::clone(&requests),

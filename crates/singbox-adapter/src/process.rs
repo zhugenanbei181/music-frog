@@ -3,12 +3,12 @@
 use crate::command::{
     NativeConfigCheck, SingBoxChildPoll, SingBoxCommandPort, TokioSingBoxCommandPort,
 };
+use crate::controller_configuration::SingBoxControllerConfiguration;
 use async_trait::async_trait;
 use infiltrator_contract::core_identity::{CoreIdentity, CoreInstanceId};
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_ports::core_process::CoreProcess;
 use infiltrator_ports::error::PortError;
-use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -52,13 +52,13 @@ impl SingBoxProcess {
         binary_path: PathBuf,
         config_path: PathBuf,
         instance_id: CoreInstanceId,
-        controller_address: SocketAddr,
+        controller: SingBoxControllerConfiguration,
     ) -> Result<Self, PortError> {
         Self::new(
             binary_path,
             config_path,
             instance_id,
-            controller_address,
+            controller,
             Arc::new(TokioSingBoxCommandPort),
         )
     }
@@ -67,14 +67,14 @@ impl SingBoxProcess {
         binary_path: PathBuf,
         config_path: PathBuf,
         instance_id: CoreInstanceId,
-        controller_address: SocketAddr,
+        controller: SingBoxControllerConfiguration,
         command: Arc<dyn SingBoxCommandPort>,
     ) -> Result<Self, PortError> {
         Self::new_with_operation_gate(
             binary_path,
             config_path,
             instance_id,
-            controller_address,
+            controller,
             command,
             Arc::new(SingBoxCoreOperationGate::new()),
         )
@@ -84,13 +84,13 @@ impl SingBoxProcess {
         binary_path: PathBuf,
         config_path: PathBuf,
         instance_id: CoreInstanceId,
-        controller_address: SocketAddr,
+        controller: SingBoxControllerConfiguration,
         command: Arc<dyn SingBoxCommandPort>,
         operation_gate: Arc<SingBoxCoreOperationGate>,
     ) -> Result<Self, PortError> {
-        if !controller_address.ip().is_loopback() {
+        if !controller.address().ip().is_loopback() || controller.address().port() == 0 {
             return Err(PortError::Failed(
-                "sing-box controller must bind to a loopback address".to_owned(),
+                "sing-box controller must bind to a fixed loopback address".to_owned(),
             ));
         }
 
@@ -98,7 +98,7 @@ impl SingBoxProcess {
             binary_path,
             config_path,
             identity: CoreIdentity::new(crate::engine_id(), instance_id, None),
-            controller_endpoint: format!("http://{controller_address}"),
+            controller_endpoint: controller.endpoint(),
             command,
             operation_gate,
             state: Mutex::new(ProcessState::Stopped),

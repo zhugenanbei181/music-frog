@@ -1,5 +1,6 @@
 //! sing-box-specific Clash API client and live version observation.
 
+use crate::controller_configuration::SingBoxControllerConfiguration;
 use crate::http::{
     ReqwestSingBoxClashHttpPort, SingBoxClashHttpPort, SingBoxClashMethod, SingBoxClashResponse,
     SingBoxControllerAuthorization, endpoint_with_path, parse_loopback_endpoint,
@@ -21,25 +22,17 @@ pub struct SingBoxClashApiClient {
 }
 
 impl SingBoxClashApiClient {
-    pub fn with_reqwest(
-        endpoint: &str,
-        authorization: SingBoxControllerAuthorization,
-    ) -> Result<Self, PortError> {
-        Self::new(
-            endpoint,
-            authorization,
-            Arc::new(ReqwestSingBoxClashHttpPort),
-        )
+    pub fn with_reqwest(controller: SingBoxControllerConfiguration) -> Result<Self, PortError> {
+        Self::new(controller, Arc::new(ReqwestSingBoxClashHttpPort))
     }
 
     pub fn new(
-        endpoint: &str,
-        authorization: SingBoxControllerAuthorization,
+        controller: SingBoxControllerConfiguration,
         http: Arc<dyn SingBoxClashHttpPort>,
     ) -> Result<Self, PortError> {
         Ok(Self {
-            base_url: parse_loopback_endpoint(endpoint)?,
-            authorization,
+            base_url: parse_loopback_endpoint(&controller.endpoint())?,
+            authorization: controller.authorization().clone(),
             http,
         })
     }

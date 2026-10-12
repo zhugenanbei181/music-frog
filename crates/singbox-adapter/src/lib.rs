@@ -11,6 +11,7 @@ pub mod clash_api;
 pub mod clash_runtime;
 pub mod command;
 pub mod config;
+pub mod controller_configuration;
 pub mod http;
 pub mod process;
 pub mod profile_configuration_transaction;

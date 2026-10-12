@@ -2,6 +2,7 @@
 
 use crate::clash_api::SingBoxClashApiClient;
 use crate::clash_runtime::{SingBoxOutboundAdapter, SingBoxRoutingIntentAdapter};
+use crate::controller_configuration::SingBoxControllerConfiguration;
 use crate::http::{
     SingBoxClashHttpPort, SingBoxClashMethod, SingBoxClashResponse, SingBoxControllerAuthorization,
 };
@@ -126,8 +127,10 @@ fn scope(generation: u64) -> CoreScope {
 
 fn client(http: Arc<ScriptedHttpPort>) -> SingBoxClashApiClient {
     SingBoxClashApiClient::new(
-        "http://127.0.0.1:9090",
-        SingBoxControllerAuthorization::BearerToken("fixture-secret".to_owned()),
+        SingBoxControllerConfiguration::from_profile_json(
+            br#"{"experimental":{"clash_api":{"external_controller":"127.0.0.1:9090","secret":"fixture-secret"}}}"#,
+        )
+        .unwrap(),
         http,
     )
     .unwrap()

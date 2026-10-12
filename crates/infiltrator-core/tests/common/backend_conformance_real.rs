@@ -41,6 +41,7 @@ use mihomo_config::endpoint::ProfileEndpointSource;
 use mihomo_config::manager::ConfigManager;
 use mihomo_platform::desktop::ProcessCoreController;
 use mihomo_platform::paths::{clear_home_dir_override, set_home_dir_override};
+use singbox_adapter::controller_configuration::SingBoxControllerConfiguration;
 use std::collections::HashMap;
 use std::env;
 use std::net::{SocketAddr, TcpListener};
@@ -541,6 +542,8 @@ pub async fn locked_real_sing_box_runs_the_shared_core_conformance_suite() -> Re
     .map_err(|error| format!("serialize sing-box conformance profile: {error}"))?;
     let engine = infiltrator_contract::core_identity::EngineId::new("sing-box")
         .expect("static sing-box engine ID is valid");
+    let controller = SingBoxControllerConfiguration::from_profile_json(&valid_profile)
+        .map_err(|error| format!("sing-box controller preflight rejected the fixture: {error}"))?;
     let case = BackendConformanceCase {
         engine: engine.clone(),
         expected_version,
@@ -582,8 +585,7 @@ pub async fn locked_real_sing_box_runs_the_shared_core_conformance_suite() -> Re
             binary,
             config_path.clone(),
             instance.clone(),
-            controller_address,
-            singbox_adapter::http::SingBoxControllerAuthorization::NoSecret,
+            controller,
         )
         .map_err(|error| format!("construct production sing-box backend provider: {error}"))?,
     );

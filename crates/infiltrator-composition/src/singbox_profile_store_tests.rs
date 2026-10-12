@@ -23,6 +23,7 @@ use infiltrator_ports::profile_workspace::{ProfileWorkspacePurpose, ProfileWorks
 use infiltrator_ports::secure_store::SecureStore;
 use mihomo_config::manager::{ConfigManager, ProfileDocumentExtension};
 use singbox_adapter::command::{NativeConfigCheck, SingBoxChildProcess, SingBoxCommandPort};
+use singbox_adapter::controller_configuration::SingBoxControllerConfiguration;
 use singbox_adapter::http::{
     SingBoxClashHttpPort, SingBoxClashMethod, SingBoxClashResponse, SingBoxControllerAuthorization,
 };
@@ -215,8 +216,10 @@ async fn singbox_profile_store_and_native_transaction_share_engine_and_core_iden
         home.path().join("bin/sing-box"),
         native_config_path.clone(),
         instance_id.clone(),
-        "127.0.0.1:9090".parse().expect("loopback controller"),
-        SingBoxControllerAuthorization::BearerToken("test-token".to_owned()),
+        SingBoxControllerConfiguration::from_profile_json(
+            br#"{"experimental":{"clash_api":{"external_controller":"127.0.0.1:9090","secret":"test-token"}}}"#,
+        )
+        .expect("valid sing-box controller configuration"),
         Arc::new(AcceptingSingBoxCommand),
         Arc::new(UnusedSingBoxHttp),
     )

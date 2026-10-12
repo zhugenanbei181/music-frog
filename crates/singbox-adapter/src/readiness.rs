@@ -1,9 +1,8 @@
 //! Loopback-only readiness and live version observation for sing-box.
 
 use crate::clash_api::{SingBoxClashApiClient, SingBoxCoreVersionProvider};
-use crate::http::{
-    ReqwestSingBoxClashHttpPort, SingBoxClashHttpPort, SingBoxControllerAuthorization,
-};
+use crate::controller_configuration::SingBoxControllerConfiguration;
+use crate::http::{ReqwestSingBoxClashHttpPort, SingBoxClashHttpPort};
 use async_trait::async_trait;
 use infiltrator_contract::core_identity::CoreVersion;
 use infiltrator_ports::core_process::CoreReadiness;
@@ -26,35 +25,15 @@ pub struct SingBoxControllerReadiness {
 }
 
 impl SingBoxControllerReadiness {
-    pub fn with_reqwest(endpoint: &str) -> Result<Self, PortError> {
-        Self::with_authorization(
-            endpoint,
-            SingBoxControllerAuthorization::NoSecret,
-            Arc::new(ReqwestSingBoxClashHttpPort),
-        )
+    pub fn with_reqwest(controller: SingBoxControllerConfiguration) -> Result<Self, PortError> {
+        Self::new(controller, Arc::new(ReqwestSingBoxClashHttpPort))
     }
 
-    pub fn with_reqwest_authorization(
-        endpoint: &str,
-        authorization: SingBoxControllerAuthorization,
-    ) -> Result<Self, PortError> {
-        Self::with_authorization(
-            endpoint,
-            authorization,
-            Arc::new(ReqwestSingBoxClashHttpPort),
-        )
-    }
-
-    pub fn new(endpoint: &str, http: Arc<dyn SingBoxClashHttpPort>) -> Result<Self, PortError> {
-        Self::with_authorization(endpoint, SingBoxControllerAuthorization::NoSecret, http)
-    }
-
-    pub fn with_authorization(
-        endpoint: &str,
-        authorization: SingBoxControllerAuthorization,
+    pub fn new(
+        controller: SingBoxControllerConfiguration,
         http: Arc<dyn SingBoxClashHttpPort>,
     ) -> Result<Self, PortError> {
-        let api = SingBoxClashApiClient::new(endpoint, authorization, http)?;
+        let api = SingBoxClashApiClient::new(controller, http)?;
         let version_provider = SingBoxCoreVersionProvider::new(api.clone());
         Ok(Self {
             api,
