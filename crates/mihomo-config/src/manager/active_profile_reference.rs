@@ -9,7 +9,6 @@ use infiltrator_contract::active_profile_reference::{
     ActiveProfileReferenceTarget, ActiveProfileReferenceWriteAuthorization,
 };
 use infiltrator_contract::core_identity::{CoreGeneration, CoreIdentity, EngineId};
-use infiltrator_contract::core_process::CoreProcessStartContext;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document_identity::{ProfileId, ProfileWorkspaceIdentity};
 use infiltrator_platform::instance_lock::ThreadedInstanceLockGuard;
@@ -30,6 +29,7 @@ use infiltrator_ports::profile_workspace::{
     ProfileWorkspace, ProfileWorkspacePurpose, ProfileWorkspaceUpdate,
 };
 use infiltrator_ports::secure_store::SecureStore;
+use infiltrator_profile_store::active_owner_lease::ActiveCoreOwnerLease;
 use infiltrator_profile_store::active_owner_registry::{
     LocalOwnerRegistrationState, LocalSwitchRegistrationRecovery,
     local_owner_registration_matches as local_registration_matches, local_owner_registration_state,
@@ -558,237 +558,6 @@ fn recover_local_switch_registration(
     Ok(registrations.recover_switch(config_root, token, transition_id, identity, generation))
 }
 
-struct ConfigManagerActiveCoreOwnerLease {
-    identity: CoreIdentity,
-    generation: CoreGeneration,
-    token: ActiveOwnerToken,
-    config_root: PathBuf,
-}
-
-fn release_owner_after_terminal(
-    identity: &CoreIdentity,
-    generation: CoreGeneration,
-    token: &ActiveOwnerToken,
-    config_root: &Path,
-    terminal: &infiltrator_contract::snapshot::CoreLifecycleSnapshot,
-    _owner_state_guard: ThreadedInstanceLockGuard,
-) -> Result<(), PortError> {
-    let terminal_generation = validate_terminal_for_owner(terminal, identity, generation)?;
-    // Terminal release takes only the owner-state lock. Store operations use
-    // root reference -> owner-state; close never waits for the root lock.
-    let mut proof = sync_read_active_core_owner_proof(config_root)?;
-    let local_state = local_owner_registration_state(config_root, token)?;
-    match proof.state.clone() {
-        ActiveCoreOwnerProof::Bound {
-            identity: proof_identity,
-            generation: proof_generation,
-            token: proof_token,
-        } if proof_identity.same_instance(identity)
-            && proof_generation == generation
-            && proof_token == *token =>
-        {
-            let local_state_matches = match local_state {
-                Some(LocalOwnerRegistrationState::Bound {
-                    identity: registered_identity,
-                    generation: registered_generation,
-                }) => {
-                    registered_identity.same_instance(identity)
-                        && registered_generation == generation
-                }
-                Some(LocalOwnerRegistrationState::Switching {
-                    identity: registered_identity,
-                    generation: registered_generation,
-                    ..
-                }) => {
-                    registered_identity.same_instance(identity)
-                        && registered_generation == generation
-                }
-                Some(LocalOwnerRegistrationState::Binding { .. }) | None => false,
-            };
-            if !local_state_matches {
-                return Err(transition_rejected(
-                    "active Core owner kernel lease is not held by this process",
-                ));
-            }
-            proof.state = ActiveCoreOwnerProof::Terminal {
-                identity: identity.clone(),
-                bound_generation: generation,
-                terminal_generation,
-                token: token.clone(),
-            };
-            sync_publish_active_core_owner_proof(config_root, &proof)?;
-            remove_local_owner_registration(config_root, token)
-        }
-        ActiveCoreOwnerProof::Terminal {
-            identity: proof_identity,
-            bound_generation: proof_generation,
-            terminal_generation: proof_terminal_generation,
-            token: proof_token,
-        } if proof_identity.same_instance(identity)
-            && proof_generation == generation
-            && proof_terminal_generation == terminal_generation
-            && proof_token == *token =>
-        {
-            match local_state {
-                Some(LocalOwnerRegistrationState::Bound {
-                    identity: registered_identity,
-                    generation: registered_generation,
-                })
-                | Some(LocalOwnerRegistrationState::Switching {
-                    identity: registered_identity,
-                    generation: registered_generation,
-                    ..
-                }) if registered_identity.same_instance(identity)
-                    && registered_generation == generation =>
-                {
-                    remove_local_owner_registration(config_root, token)
-                }
-                Some(LocalOwnerRegistrationState::Binding { .. }) => Err(transition_rejected(
-                    "active Core owner registration is not bound to the terminal identity",
-                )),
-                None => Ok(()),
-                _ => Err(transition_rejected(
-                    "active Core owner registration differs from the terminal proof",
-                )),
-            }
-        }
-        _ => Err(transition_rejected(
-            "active Core owner lease is stale or no longer bound",
-        )),
-    }
-}
-
-#[async_trait::async_trait]
-impl ActiveProfileOwnerLease for ConfigManagerActiveCoreOwnerLease {
-    fn identity(&self) -> &CoreIdentity {
-        &self.identity
-    }
-
-    fn generation(&self) -> CoreGeneration {
-        self.generation
-    }
-
-    async fn record_start_context(
-        &self,
-        context: &CoreProcessStartContext,
-    ) -> Result<(), PortError> {
-        let identity = self.identity.clone();
-        let generation = self.generation;
-        let token = self.token.clone();
-        let context = context.clone();
-        let config_root = self.config_root.clone();
-        let owner_state_guard = ActiveProfileReferenceFile::new(config_root.clone())
-            .acquire_owner_state_lock()
-            .await?;
-        tokio::task::spawn_blocking(move || {
-            let _owner_state_guard = owner_state_guard;
-            let (context_identity, context_generation, session_token) = match &context {
-                CoreProcessStartContext::Managed {
-                    identity,
-                    generation,
-                    session_token,
-                } => (identity, *generation, *session_token),
-                CoreProcessStartContext::Standalone { .. } => {
-                    return Err(transition_rejected(
-                        "active Core owner proof only accepts managed start contexts",
-                    ));
-                }
-            };
-            if !context_identity.same_instance(&identity)
-                || context_generation <= generation
-                || !session_token.is_valid()
-            {
-                return Err(transition_rejected(
-                    "managed start context does not advance the bound Core owner session",
-                ));
-            }
-            if !local_registration_matches(
-                &config_root,
-                &token,
-                &LocalOwnerRegistrationState::Bound {
-                    identity: identity.clone(),
-                    generation,
-                },
-            )? {
-                return Err(transition_rejected(
-                    "managed start context owner is no longer bound in this process",
-                ));
-            }
-            let mut proof = sync_read_active_core_owner_proof(&config_root)?;
-            match &proof.state {
-                ActiveCoreOwnerProof::Bound {
-                    identity: proof_identity,
-                    generation: proof_generation,
-                    token: proof_token,
-                } if proof_identity.same_instance(&identity)
-                    && *proof_generation == generation
-                    && *proof_token == token => {}
-                _ => {
-                    return Err(transition_rejected(
-                        "managed start context does not match the persisted Core owner proof",
-                    ));
-                }
-            }
-            match &proof.launch {
-                ActiveCoreOwnerLaunchProof::Unstarted => {}
-                ActiveCoreOwnerLaunchProof::Managed(previous) if previous == &context => {
-                    return Ok(());
-                }
-                ActiveCoreOwnerLaunchProof::Managed(previous) => {
-                    let previous_generation = match previous {
-                        CoreProcessStartContext::Managed { generation, .. } => *generation,
-                        CoreProcessStartContext::Standalone { .. } => {
-                            return Err(transition_rejected(
-                                "persisted owner launch proof contains a standalone context",
-                            ));
-                        }
-                    };
-                    if context_generation <= previous_generation {
-                        return Err(transition_rejected(
-                            "managed start context does not advance the persisted session",
-                        ));
-                    }
-                }
-                ActiveCoreOwnerLaunchProof::LegacyUnverified => {
-                    return Err(transition_rejected(
-                        "legacy Core owner proof has no exact session and cannot launch",
-                    ));
-                }
-            }
-            proof.launch = ActiveCoreOwnerLaunchProof::Managed(context);
-            sync_publish_active_core_owner_proof(&config_root, &proof)
-        })
-        .await
-        .map_err(|error| PortError::Failed(error.to_string()))?
-    }
-
-    async fn release_after_terminal(
-        &self,
-        terminal: &infiltrator_contract::snapshot::CoreLifecycleSnapshot,
-    ) -> Result<(), PortError> {
-        let identity = self.identity.clone();
-        let generation = self.generation;
-        let token = self.token.clone();
-        let config_root = self.config_root.clone();
-        let terminal = terminal.clone();
-        let owner_state_guard = ActiveProfileReferenceFile::new(config_root.clone())
-            .acquire_owner_state_lock()
-            .await?;
-        tokio::task::spawn_blocking(move || {
-            release_owner_after_terminal(
-                &identity,
-                generation,
-                &token,
-                &config_root,
-                &terminal,
-                owner_state_guard,
-            )
-        })
-        .await
-        .map_err(|error| PortError::Failed(error.to_string()))?
-    }
-}
-
 struct ConfigManagerSelectionLease {
     state: ActiveProfileReferenceState,
     config_root: PathBuf,
@@ -900,12 +669,12 @@ impl ActiveProfileReferenceLease for ConfigManagerSelectionLease {
                 owner_guard,
             )?;
             drop(root_guard);
-            Ok(Box::new(ConfigManagerActiveCoreOwnerLease {
+            Ok(Box::new(ActiveCoreOwnerLease::new(
                 identity,
                 generation,
                 token,
                 config_root,
-            }) as Box<dyn ActiveProfileOwnerLease>)
+            )) as Box<dyn ActiveProfileOwnerLease>)
         })
         .await
         .map_err(|error| PortError::Failed(error.to_string()))?
@@ -1737,12 +1506,12 @@ impl ActiveProfileOwnerBindingLease for ConfigManagerOwnerBindingLease {
                 generation,
             )?;
         }
-        Ok(Box::new(ConfigManagerActiveCoreOwnerLease {
+        Ok(Box::new(ActiveCoreOwnerLease::new(
             identity,
             generation,
             token,
             config_root,
-        }))
+        )))
     }
 
     async fn discard_unstarted_candidate(
@@ -3820,6 +3589,7 @@ async fn restore_reset_default(
 mod tests {
     use super::*;
     use infiltrator_contract::core_identity::CoreVersion;
+    use infiltrator_contract::core_process::CoreProcessStartContext;
     use infiltrator_contract::session::SessionToken;
     use std::process::{Child, Command};
     use std::sync::Arc;
