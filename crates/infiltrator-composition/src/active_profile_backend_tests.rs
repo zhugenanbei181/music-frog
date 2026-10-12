@@ -1420,6 +1420,14 @@ fn selector(
     ActiveProfileBackendSelector::new(reference_store, stores, factory, capabilities)
 }
 
+async fn load_prepared_profile_document(store: &dyn ProfileStore) -> ProfileDocument {
+    store
+        .load_workspace(&ProfileId::new("primary").unwrap())
+        .await
+        .unwrap()
+        .document
+}
+
 fn supported_capabilities() -> Arc<dyn CoreCapabilityProvider> {
     Arc::new(FakeCapabilities {
         state: CapabilityFixtureState::Available,
@@ -1468,6 +1476,7 @@ async fn deleted_target_after_preflight_is_revalidated_and_cancelled_before_old_
     );
     let store: Arc<dyn ProfileStore> = profile_store.clone();
     let (provider, counts) = FakeProvider::new("sing-box", "singbox-instance", Arc::clone(&events));
+    let prepared_target_document = load_prepared_profile_document(store.as_ref()).await;
     let selector = selector(
         Arc::clone(&refs),
         vec![store],
@@ -1490,12 +1499,13 @@ async fn deleted_target_after_preflight_is_revalidated_and_cancelled_before_old_
                 engine_id_value("sing-box"),
                 ProfileId::new("primary").unwrap(),
             ),
+            &prepared_target_document,
             &PreviousCoreOwner::Owned(owner_as_port),
         )
         .await;
 
     assert!(matches!(result, Err(PortError::Rejected(_))));
-    assert_eq!(profile_store.workspace_reads.load(Ordering::SeqCst), 2);
+    assert_eq!(profile_store.workspace_reads.load(Ordering::SeqCst), 3);
     assert_eq!(owner.terminations.load(Ordering::SeqCst), 0);
     assert_eq!(counts.created.load(Ordering::SeqCst), 0);
     assert_eq!(refs.read().await.unwrap(), source_reference);
@@ -1686,6 +1696,7 @@ async fn cross_engine_switch_uses_stable_binding_generation_after_lifecycle_adva
     let store: Arc<dyn ProfileStore> =
         Arc::new(FakeProfileStore::new("sing-box", "sing-box", "primary"));
     let (provider, counts) = FakeProvider::new("sing-box", "singbox-instance", Arc::clone(&events));
+    let prepared_target_document = load_prepared_profile_document(store.as_ref()).await;
     let selector = selector(
         Arc::clone(&refs),
         vec![store],
@@ -1718,6 +1729,7 @@ async fn cross_engine_switch_uses_stable_binding_generation_after_lifecycle_adva
                 engine_id_value("sing-box"),
                 ProfileId::new("primary").unwrap(),
             ),
+            &prepared_target_document,
             &PreviousCoreOwner::Owned(owner_as_port),
         )
         .await
@@ -1777,6 +1789,53 @@ async fn cross_engine_switch_uses_stable_binding_generation_after_lifecycle_adva
 }
 
 #[tokio::test]
+async fn provider_prepared_from_another_document_fails_before_old_owner_close() {
+    let events = Arc::new(Mutex::new(Vec::new()));
+    let refs = Arc::new(MemoryReferenceStore::with_events(
+        reference("mihomo", "main", 1),
+        Arc::clone(&events),
+    ));
+    let store: Arc<dyn ProfileStore> =
+        Arc::new(FakeProfileStore::new("sing-box", "sing-box", "primary"));
+    let mut prepared_document = load_prepared_profile_document(store.as_ref()).await;
+    prepared_document.raw_bytes.push(b' ');
+    let (provider, counts) = FakeProvider::new("sing-box", "singbox-instance", Arc::clone(&events));
+    let selector = selector(
+        Arc::clone(&refs),
+        vec![store],
+        vec![Arc::new(provider)],
+        supported_capabilities(),
+    );
+    let before = running_owner_snapshot("mihomo", "mihomo-old-instance", 2);
+    let owner = bound_fake_owner(
+        Arc::clone(&refs),
+        before.clone(),
+        Ok(terminal_owner_snapshot(&before)),
+        Arc::clone(&events),
+    )
+    .await;
+    let owner_as_port: Arc<dyn CoreOwnerTerminationPort> = owner.clone();
+
+    let result = selector
+        .switch_backend(
+            ActiveProfileReferenceTarget::selected(
+                engine_id_value("sing-box"),
+                ProfileId::new("primary").unwrap(),
+            ),
+            &prepared_document,
+            &PreviousCoreOwner::Owned(owner_as_port),
+        )
+        .await;
+
+    assert!(matches!(result, Err(PortError::Rejected(_))));
+    assert_eq!(owner.terminations.load(Ordering::SeqCst), 0);
+    assert_eq!(counts.created.load(Ordering::SeqCst), 0);
+    assert_eq!(refs.read().await.unwrap(), reference("mihomo", "main", 1));
+    assert_eq!(*refs.transition.lock().unwrap(), None);
+    assert!(events.lock().unwrap().is_empty());
+}
+
+#[tokio::test]
 async fn mismatching_constructed_application_is_closed_then_explicitly_discarded() {
     let events = Arc::new(Mutex::new(Vec::new()));
     let refs = Arc::new(MemoryReferenceStore::with_events(
@@ -1786,6 +1845,7 @@ async fn mismatching_constructed_application_is_closed_then_explicitly_discarded
     let store: Arc<dyn ProfileStore> =
         Arc::new(FakeProfileStore::new("sing-box", "sing-box", "primary"));
     let (provider, counts) = FakeProvider::new("sing-box", "singbox-instance", Arc::clone(&events));
+    let prepared_target_document = load_prepared_profile_document(store.as_ref()).await;
     let selector = selector(
         Arc::clone(&refs),
         vec![store],
@@ -1807,6 +1867,7 @@ async fn mismatching_constructed_application_is_closed_then_explicitly_discarded
                 engine_id_value("sing-box"),
                 ProfileId::new("primary").unwrap(),
             ),
+            &prepared_target_document,
             &PreviousCoreOwner::Owned(owner_as_port),
         )
         .await
@@ -1857,6 +1918,7 @@ async fn failed_owner_install_releases_only_after_exact_application_terminal() {
     let store: Arc<dyn ProfileStore> =
         Arc::new(FakeProfileStore::new("sing-box", "sing-box", "primary"));
     let (provider, counts) = FakeProvider::new("sing-box", "singbox-instance", Arc::clone(&events));
+    let prepared_target_document = load_prepared_profile_document(store.as_ref()).await;
     let selector = selector(
         Arc::clone(&refs),
         vec![store],
@@ -1878,6 +1940,7 @@ async fn failed_owner_install_releases_only_after_exact_application_terminal() {
                 engine_id_value("sing-box"),
                 ProfileId::new("primary").unwrap(),
             ),
+            &prepared_target_document,
             &PreviousCoreOwner::Owned(owner_as_port),
         )
         .await
@@ -1951,6 +2014,7 @@ async fn foreign_target_document_fails_before_close_or_provider_dispatch() {
     let store: Arc<dyn ProfileStore> =
         Arc::new(FakeProfileStore::new("sing-box", "mihomo", "primary"));
     let (provider, counts) = FakeProvider::new("sing-box", "singbox-instance", Arc::clone(&events));
+    let prepared_target_document = load_prepared_profile_document(store.as_ref()).await;
     let selector = selector(
         Arc::clone(&refs),
         vec![store],
@@ -1973,6 +2037,7 @@ async fn foreign_target_document_fails_before_close_or_provider_dispatch() {
                 engine_id_value("sing-box"),
                 ProfileId::new("primary").unwrap(),
             ),
+            &prepared_target_document,
             &PreviousCoreOwner::Owned(owner_as_port),
         )
         .await;
@@ -2009,6 +2074,7 @@ async fn missing_provider_or_target_capability_fails_before_close_or_dispatch() 
             sing_box_counts = Some(counts);
             providers.push(Arc::new(sing_box));
         }
+        let prepared_target_document = load_prepared_profile_document(store.as_ref()).await;
         let selector = selector(
             Arc::clone(&refs),
             vec![store],
@@ -2033,6 +2099,7 @@ async fn missing_provider_or_target_capability_fails_before_close_or_dispatch() 
                     engine_id_value("sing-box"),
                     ProfileId::new("primary").unwrap(),
                 ),
+                &prepared_target_document,
                 &PreviousCoreOwner::Owned(owner_as_port),
             )
             .await;
@@ -2060,6 +2127,7 @@ async fn stale_revision_at_reservation_fails_before_close_or_provider_dispatch()
     let store: Arc<dyn ProfileStore> =
         Arc::new(FakeProfileStore::new("sing-box", "sing-box", "primary"));
     let (provider, counts) = FakeProvider::new("sing-box", "singbox-instance", Arc::clone(&events));
+    let prepared_target_document = load_prepared_profile_document(store.as_ref()).await;
     let selector = selector(
         Arc::clone(&refs),
         vec![store],
@@ -2082,6 +2150,7 @@ async fn stale_revision_at_reservation_fails_before_close_or_provider_dispatch()
                 engine_id_value("sing-box"),
                 ProfileId::new("primary").unwrap(),
             ),
+            &prepared_target_document,
             &PreviousCoreOwner::Owned(owner_as_port),
         )
         .await;
@@ -2104,6 +2173,7 @@ async fn terminal_receipt_must_match_exact_preclose_generation_before_cas() {
     let store: Arc<dyn ProfileStore> =
         Arc::new(FakeProfileStore::new("sing-box", "sing-box", "primary"));
     let (provider, counts) = FakeProvider::new("sing-box", "singbox-instance", Arc::clone(&events));
+    let prepared_target_document = load_prepared_profile_document(store.as_ref()).await;
     let selector = selector(
         Arc::clone(&refs),
         vec![store],
@@ -2128,6 +2198,7 @@ async fn terminal_receipt_must_match_exact_preclose_generation_before_cas() {
                 engine_id_value("sing-box"),
                 ProfileId::new("primary").unwrap(),
             ),
+            &prepared_target_document,
             &PreviousCoreOwner::Owned(owner_as_port),
         )
         .await;
@@ -2152,6 +2223,7 @@ async fn close_failure_keeps_closing_reservation_and_never_dispatches_target() {
     let store: Arc<dyn ProfileStore> =
         Arc::new(FakeProfileStore::new("sing-box", "sing-box", "primary"));
     let (provider, counts) = FakeProvider::new("sing-box", "singbox-instance", Arc::clone(&events));
+    let prepared_target_document = load_prepared_profile_document(store.as_ref()).await;
     let selector = selector(
         Arc::clone(&refs),
         vec![store],
@@ -2174,6 +2246,7 @@ async fn close_failure_keeps_closing_reservation_and_never_dispatches_target() {
                 engine_id_value("sing-box"),
                 ProfileId::new("primary").unwrap(),
             ),
+            &prepared_target_document,
             &PreviousCoreOwner::Owned(owner_as_port),
         )
         .await;
@@ -2203,6 +2276,7 @@ async fn failed_new_owner_reservation_has_zero_provider_dispatch() {
     let store: Arc<dyn ProfileStore> =
         Arc::new(FakeProfileStore::new("sing-box", "sing-box", "primary"));
     let (provider, counts) = FakeProvider::new("sing-box", "singbox-instance", Arc::clone(&events));
+    let prepared_target_document = load_prepared_profile_document(store.as_ref()).await;
     let selector = selector(
         Arc::clone(&refs),
         vec![store],
@@ -2225,6 +2299,7 @@ async fn failed_new_owner_reservation_has_zero_provider_dispatch() {
                 engine_id_value("sing-box"),
                 ProfileId::new("primary").unwrap(),
             ),
+            &prepared_target_document,
             &PreviousCoreOwner::Owned(owner_as_port),
         )
         .await;
@@ -2253,6 +2328,7 @@ async fn provider_dispatch_failure_explicitly_aborts_only_pre_application_reserv
     let store: Arc<dyn ProfileStore> =
         Arc::new(FakeProfileStore::new("sing-box", "sing-box", "primary"));
     let (provider, counts) = FakeProvider::new("sing-box", "singbox-instance", Arc::clone(&events));
+    let prepared_target_document = load_prepared_profile_document(store.as_ref()).await;
     let selector = selector(
         Arc::clone(&refs),
         vec![store],
@@ -2275,6 +2351,7 @@ async fn provider_dispatch_failure_explicitly_aborts_only_pre_application_reserv
                 engine_id_value("sing-box"),
                 ProfileId::new("primary").unwrap(),
             ),
+            &prepared_target_document,
             &PreviousCoreOwner::Owned(owner_as_port),
         )
         .await;
@@ -2304,6 +2381,7 @@ async fn provider_identity_preflight_failure_aborts_before_core_application() {
     let store: Arc<dyn ProfileStore> =
         Arc::new(FakeProfileStore::new("sing-box", "sing-box", "primary"));
     let (provider, counts) = FakeProvider::new("sing-box", "singbox-instance", Arc::clone(&events));
+    let prepared_target_document = load_prepared_profile_document(store.as_ref()).await;
     let selector = selector(
         Arc::clone(&refs),
         vec![store],
@@ -2326,6 +2404,7 @@ async fn provider_identity_preflight_failure_aborts_before_core_application() {
                 engine_id_value("sing-box"),
                 ProfileId::new("primary").unwrap(),
             ),
+            &prepared_target_document,
             &PreviousCoreOwner::Owned(owner_as_port),
         )
         .await;

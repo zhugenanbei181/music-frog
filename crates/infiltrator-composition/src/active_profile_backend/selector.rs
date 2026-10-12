@@ -1,4 +1,6 @@
 use super::*;
+use infiltrator_contract::capability::Capability;
+use tokio::sync::Mutex;
 
 impl ActiveProfileBackendSelector {
     pub fn new(
@@ -16,7 +18,7 @@ impl ActiveProfileBackendSelector {
             profile_stores,
             factory,
             capabilities,
-            selection_gate: tokio::sync::Mutex::new(()),
+            selection_gate: Mutex::new(()),
         }
     }
 
@@ -61,10 +63,7 @@ impl ActiveProfileBackendSelector {
         {
             EngineBackendProviderAvailability::Registered => {}
             EngineBackendProviderAvailability::Unsupported { reason } => {
-                return Err(PortError::unsupported(
-                    infiltrator_contract::capability::Capability::CoreLifecycle,
-                    reason,
-                ));
+                return Err(PortError::unsupported(Capability::CoreLifecycle, reason));
             }
         }
         let store = self
@@ -72,7 +71,7 @@ impl ActiveProfileBackendSelector {
             .get(&preflight.reference.engine_id)
             .ok_or_else(|| {
                 PortError::unsupported(
-                    infiltrator_contract::capability::Capability::Profiles,
+                    Capability::Profiles,
                     format!(
                         "no profile-document store is registered for engine {}",
                         preflight.reference.engine_id.as_str()
@@ -116,13 +115,14 @@ impl ActiveProfileBackendSelector {
     pub async fn switch_backend(
         &self,
         target: ActiveProfileReferenceTarget,
+        prepared_document: &ProfileDocument,
         previous_owner: &PreviousCoreOwner,
     ) -> Result<SelectedActiveProfileBackend, PortError> {
         let _writer = self.selection_gate.lock().await;
         let (target_engine, target_profile) = match target {
             ActiveProfileReferenceTarget::Unselected => {
                 return Err(PortError::unsupported(
-                    infiltrator_contract::capability::Capability::Profiles,
+                    Capability::Profiles,
                     "a Core owner switch requires a selected target profile",
                 ));
             }
@@ -163,6 +163,13 @@ impl ActiveProfileBackendSelector {
         let target_store = Arc::clone(&referenced.store);
         let validated = self.load_and_validate_document(referenced).await?;
         let authorized = self.authorize_target(validated).await?;
+        if &authorized.document != prepared_document {
+            return Err(PortError::Rejected(Failure::new(
+                ErrorCode::NotReady,
+                "prepared target backend does not match the exact selected profile document",
+                true,
+            )));
+        }
 
         let owner = match previous_owner {
             PreviousCoreOwner::Unowned => {
@@ -177,7 +184,7 @@ impl ActiveProfileBackendSelector {
         let before = owner.lifecycle_snapshot();
         let expected_identity = before.identity.clone().ok_or_else(|| {
             PortError::unsupported(
-                infiltrator_contract::capability::Capability::CoreLifecycle,
+                Capability::CoreLifecycle,
                 "previous Core owner has no typed identity to terminate",
             )
         })?;
@@ -340,10 +347,7 @@ impl ActiveProfileBackendSelector {
         match self.factory.provider_availability(&reference.engine_id) {
             EngineBackendProviderAvailability::Registered => {}
             EngineBackendProviderAvailability::Unsupported { reason } => {
-                return Err(PortError::unsupported(
-                    infiltrator_contract::capability::Capability::CoreLifecycle,
-                    reason,
-                ));
+                return Err(PortError::unsupported(Capability::CoreLifecycle, reason));
             }
         }
 
@@ -352,7 +356,7 @@ impl ActiveProfileBackendSelector {
             .get(&reference.engine_id)
             .ok_or_else(|| {
                 PortError::unsupported(
-                    infiltrator_contract::capability::Capability::Profiles,
+                    Capability::Profiles,
                     format!(
                         "no profile-document store is registered for engine {}",
                         reference.engine_id.as_str()
@@ -379,7 +383,7 @@ impl ActiveProfileBackendSelector {
         let reference = match state {
             ActiveProfileReferenceState::Unselected { .. } => {
                 return Err(PortError::unsupported(
-                    infiltrator_contract::capability::Capability::Profiles,
+                    Capability::Profiles,
                     "no product-wide active profile reference is selected",
                 ));
             }
@@ -432,7 +436,7 @@ impl ActiveProfileBackendSelector {
             ) => {}
             (status, _) => {
                 return Err(PortError::unsupported(
-                    infiltrator_contract::capability::Capability::CoreLifecycle,
+                    Capability::CoreLifecycle,
                     format!(
                         "Core start is not evidenced for engine {} on the current target: {status:?}",
                         validated.reference.engine_id.as_str()

@@ -10,6 +10,7 @@ async fn product_root_can_abort_returned_switch_candidate_before_application_cre
     let store: Arc<dyn ProfileStore> =
         Arc::new(FakeProfileStore::new("sing-box", "sing-box", "primary"));
     let (provider, counts) = FakeProvider::new("sing-box", "singbox-instance", Arc::clone(&events));
+    let prepared_target_document = load_prepared_profile_document(store.as_ref()).await;
     let selector = selector(
         Arc::clone(&refs),
         vec![store],
@@ -32,6 +33,7 @@ async fn product_root_can_abort_returned_switch_candidate_before_application_cre
                 engine_id_value("sing-box"),
                 ProfileId::new("primary").unwrap(),
             ),
+            &prepared_target_document,
             &PreviousCoreOwner::Owned(owner_as_port),
         )
         .await
