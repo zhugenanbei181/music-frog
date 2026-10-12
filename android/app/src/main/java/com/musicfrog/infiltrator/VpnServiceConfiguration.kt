@@ -1,6 +1,5 @@
 package com.musicfrog.infiltrator
 
-import android.net.InetAddresses
 import android.net.IpPrefix
 import android.net.VpnService
 import android.os.Build
@@ -143,10 +142,30 @@ private fun parseBuilderVpnConfiguration(json: JSONObject): NativeVpnConfigurati
     null
 }
 
-private fun parseNumericAddress(value: String): InetAddress? = try {
-    if (value.isEmpty()) null else InetAddresses.parseNumericAddress(value)
-} catch (_: IllegalArgumentException) {
-    null
+private fun parseNumericAddress(value: String): InetAddress? {
+    if (value.isEmpty()) return null
+    return try {
+        if (value.contains(':')) {
+            if (!value.all { it == ':' || it == '.' || it in '0'..'9' || it in 'a'..'f' || it in 'A'..'F' }) {
+                return null
+            }
+            InetAddress.getByName(value)
+        } else {
+            val parts = value.split('.')
+            if (parts.size != 4) return null
+            val octets = ByteArray(4)
+            for (index in parts.indices) {
+                val part = parts[index]
+                if (part.isEmpty() || part.length > 3 || part.any { it !in '0'..'9' }) return null
+                val octet = part.toIntOrNull() ?: return null
+                if (octet !in 0..255) return null
+                octets[index] = octet.toByte()
+            }
+            InetAddress.getByAddress(octets)
+        }
+    } catch (_: Exception) {
+        null
+    }
 }
 
 private fun JSONObject.hasOnly(vararg expected: String): Boolean =
@@ -352,7 +371,8 @@ internal fun buildVpnPackageRoutingPlan(
 
 @Suppress("NewApi")
 internal fun applyVpnRoute(builder: VpnService.Builder, route: NativeVpnRoute) {
-    val address = InetAddresses.parseNumericAddress(route.address)
+    val address = parseNumericAddress(route.address)
+        ?: throw IllegalArgumentException("VPN route address is not numeric")
     if (route.exclude) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
             throw IllegalArgumentException("VPN excluded routes require Android API 33 or newer")

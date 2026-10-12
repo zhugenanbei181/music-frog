@@ -44,6 +44,33 @@ class VpnPreparedConfigurationTest {
     }
 
     @Test
+    fun routeAndDnsParsingAcceptsOnlyNumericIpv4OrIpv6Literals() {
+        val ipv6 = requireNotNull(
+            NativePreparedVpnConfiguration.parse(
+                PREPARED_CONFIGURATION
+                    .replace("\"0.0.0.0\"", "\"2001:db8::\"")
+                    .replace("\"1.1.1.1\"", "\"2001:4860:4860::8888\"")
+                    .replace("\"ipv6\": false", "\"ipv6\": true"),
+            ),
+        )
+        assertEquals("2001:db8::", ipv6.configuration.routes.single().address)
+        assertEquals(listOf("2001:4860:4860::8888"), ipv6.configuration.dnsServers)
+
+        assertEquals(
+            null,
+            NativePreparedVpnConfiguration.parse(
+                PREPARED_CONFIGURATION.replace("\"1.1.1.1\"", "\"localhost\""),
+            ),
+        )
+        assertEquals(
+            null,
+            NativePreparedVpnConfiguration.parse(
+                PREPARED_CONFIGURATION.replace("\"1.1.1.1\"", "\"1.1.1.999\""),
+            ),
+        )
+    }
+
+    @Test
     fun preparedValueIsConsumedOnceAndOlderGenerationCannotConsumeNewerValue() {
         val store = VpnPreparedConfigurationStore()
         val prepared = requireNotNull(NativePreparedVpnConfiguration.parse(PREPARED_CONFIGURATION))

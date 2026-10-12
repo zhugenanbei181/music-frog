@@ -80,6 +80,40 @@ data class AndroidVpnRoutingActivationLease(
     val routingRevision: ULong,
 )
 
+data class AndroidVpnConfigurationActivationLease(
+    val leaseId: ULong,
+    val preparationId: ULong,
+    val vpnGeneration: ULong,
+    val ownerDataRevision: ULong,
+)
+
+sealed interface AndroidVpnConfigurationActivationResult {
+    data class Acquired(
+        val lease: AndroidVpnConfigurationActivationLease,
+    ) : AndroidVpnConfigurationActivationResult
+    data class StaleOwnerData(
+        val expectedRevision: ULong,
+        val observedRevision: ULong,
+    ) : AndroidVpnConfigurationActivationResult
+    data class PreparedRevisionMismatch(
+        val preparedRevision: ULong,
+        val requestedRevision: ULong,
+    ) : AndroidVpnConfigurationActivationResult
+    data object Busy : AndroidVpnConfigurationActivationResult
+    data object Missing : AndroidVpnConfigurationActivationResult
+    data object NotReady : AndroidVpnConfigurationActivationResult
+    data object TransactionMismatch : AndroidVpnConfigurationActivationResult
+    data object StaleGeneration : AndroidVpnConfigurationActivationResult
+    data class Failed(val status: FfiStatus) : AndroidVpnConfigurationActivationResult
+}
+
+enum class AndroidVpnConfigurationActivationReleaseResult {
+    RELEASED_BEFORE_CONSUME,
+    RELEASED_AFTER_CONSUME,
+    LEASE_MISSING,
+    LEASE_MISMATCH,
+}
+
 sealed interface AndroidVpnRoutingActivationReleaseResult {
     data object Released : AndroidVpnRoutingActivationReleaseResult
     data object LeaseMismatch : AndroidVpnRoutingActivationReleaseResult
