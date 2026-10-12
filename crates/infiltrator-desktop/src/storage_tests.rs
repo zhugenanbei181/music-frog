@@ -15,8 +15,8 @@ async fn product_profile_store_registry_uses_the_resolved_shared_configs_root() 
         .expect("Mihomo manager uses the configured shared root"),
     );
 
-    let stores = engine_profile_stores(home.path().to_path_buf(), Arc::clone(&mihomo))
-        .expect("register both engine profile stores");
+    let stores =
+        engine_profile_stores(Arc::clone(&mihomo)).expect("register both engine profile stores");
     let registered_stores = stores.all();
     let mut engines: Vec<_> = registered_stores
         .iter()

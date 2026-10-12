@@ -84,10 +84,8 @@ pub(crate) async fn switch_default_product_engine(
     let (engine_id, profile_id) = selected_target(target.clone())?;
     let config_manager = Arc::new(app_config_manager().await.map_err(before_reservation)?);
     let home = home_dir().map_err(before_reservation)?;
-    let profile_stores = Arc::new(
-        engine_profile_stores(home.clone(), Arc::clone(&config_manager))
-            .map_err(before_reservation)?,
-    );
+    let profile_stores =
+        Arc::new(engine_profile_stores(Arc::clone(&config_manager)).map_err(before_reservation)?);
     let profile_store = profile_stores
         .for_engine(&engine_id)
         .map_err(|error| before_reservation(error))?;

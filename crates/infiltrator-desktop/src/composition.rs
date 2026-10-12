@@ -119,7 +119,7 @@ pub(crate) async fn open_default_product_backend(
     // until this host/target is evidenced to own Core lifecycle.
     config_manager.migrate_legacy_mihomo_selection().await?;
     let home = home_dir()?;
-    let profile_stores = engine_profile_stores(home.clone(), config_manager.clone())?;
+    let profile_stores = engine_profile_stores(config_manager.clone())?;
     let references: Arc<dyn ActiveProfileReferenceStore> = config_manager.clone();
     let preflight = preflight_active_profile_reference(
         references,

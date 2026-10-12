@@ -18,7 +18,7 @@ mod controller;
 mod defaults;
 #[cfg(test)]
 mod manager_test;
-mod namespace_migration;
+mod namespace_facade;
 pub mod paths;
 pub(crate) mod profiles;
 
@@ -31,6 +31,9 @@ use infiltrator_ports::profile_document_codec::{
 };
 use infiltrator_ports::secure_store::SecureStore;
 use infiltrator_profile_store::file_lock::lock_profile_writes_for_dir;
+use infiltrator_profile_store::namespace::{
+    LegacyProfileNamespaceMigrationV1, ProfileNamespaceInitialization,
+};
 use infiltrator_profile_store::store::{EngineProfileStore, ProfileDocumentExtension};
 use mihomo_api::error::{MihomoError, Result};
 use std::path::{Path, PathBuf};
@@ -38,14 +41,6 @@ use std::sync::Arc;
 
 pub struct ConfigManager<S: SecureStore> {
     pub(crate) profile_store: EngineProfileStore<S>,
-    legacy_settings_file: PathBuf,
-    namespace_initialization: ProfileNamespaceInitialization,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum ProfileNamespaceInitialization {
-    MigrateLegacyMihomo,
-    EngineScoped,
 }
 
 /// Result of a reset whose profile files and active reference share one
@@ -117,6 +112,12 @@ impl<S: SecureStore> ConfigManager<S> {
         configs_dir: Option<&str>,
         credential_store: S,
     ) -> Result<Self> {
+        let migration =
+            ProfileNamespaceInitialization::LegacyV1(LegacyProfileNamespaceMigrationV1::new(
+                home.join("config.toml"),
+                Some("sync_state.db".into()),
+                vec!["options".into(), "snapshots".into()],
+            ));
         Self::build_for_engine(
             home,
             configs_dir,
@@ -124,7 +125,7 @@ impl<S: SecureStore> ConfigManager<S> {
             crate::engine_id(),
             Arc::new(MihomoProfileDocumentCodec),
             ProfileDocumentExtension::Yaml,
-            ProfileNamespaceInitialization::MigrateLegacyMihomo,
+            migration,
         )
     }
 
@@ -154,7 +155,6 @@ impl<S: SecureStore> ConfigManager<S> {
     /// already-resolved shared configs root. This preserves non-UTF paths and
     /// user-selected configs roots when a product registers another engine.
     pub fn with_profile_codec_and_store_at_root(
-        home: PathBuf,
         config_root: PathBuf,
         credential_store: S,
         document_codec: Arc<dyn ProfileDocumentCodecPort>,
@@ -162,7 +162,6 @@ impl<S: SecureStore> ConfigManager<S> {
     ) -> Result<Self> {
         let codec_scope = document_codec.scope();
         Self::build_for_engine_at_root(
-            home,
             config_root,
             credential_store,
             codec_scope.engine_id.clone(),
@@ -183,7 +182,6 @@ impl<S: SecureStore> ConfigManager<S> {
     ) -> Result<Self> {
         let config_root = paths::resolve_configs_dir_in(configs_dir, &home)?;
         Self::build_for_engine_at_root(
-            home,
             config_root,
             credential_store,
             engine_id,
@@ -194,7 +192,6 @@ impl<S: SecureStore> ConfigManager<S> {
     }
 
     fn build_for_engine_at_root(
-        home: PathBuf,
         config_root: PathBuf,
         credential_store: S,
         engine_id: EngineId,
@@ -202,28 +199,27 @@ impl<S: SecureStore> ConfigManager<S> {
         document_extension: ProfileDocumentExtension,
         namespace_initialization: ProfileNamespaceInitialization,
     ) -> Result<Self> {
-        if namespace_initialization == ProfileNamespaceInitialization::MigrateLegacyMihomo
-            && engine_id != crate::engine_id()
+        if matches!(
+            &namespace_initialization,
+            ProfileNamespaceInitialization::LegacyV1(_)
+        ) && (engine_id != crate::engine_id()
+            || document_extension != ProfileDocumentExtension::Yaml)
         {
             return Err(MihomoError::Config(
-                "legacy shared profile migration is only valid for Mihomo".to_owned(),
+                "legacy shared profile migration is only valid for Mihomo YAML".to_owned(),
             ));
         }
-        let profile_store = EngineProfileStore::new(
+        let profile_store = EngineProfileStore::new_with_namespace_initialization(
             engine_id,
             config_root,
             document_codec,
             document_extension,
             credential_store,
+            namespace_initialization,
         )
         .map_err(|error| MihomoError::Config(error.to_string()))?;
-        let legacy_settings_file = home.join("config.toml");
 
-        Ok(Self {
-            profile_store,
-            legacy_settings_file,
-            namespace_initialization,
-        })
+        Ok(Self { profile_store })
     }
 
     /// 解析后的 Mihomo namespace 目录。它位于共享 configs 根下的

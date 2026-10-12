@@ -59,7 +59,6 @@ fn engine_store_can_reuse_an_exact_shared_configs_root_path() {
     let home = TempDir::new().unwrap();
     let configs_root = home.path().join("shared configs");
     let singbox = ConfigManager::with_profile_codec_and_store_at_root(
-        home.path().to_path_buf(),
         configs_root.clone(),
         TestCredentialStore,
         Arc::new(SingBoxProfileDocumentCodec),

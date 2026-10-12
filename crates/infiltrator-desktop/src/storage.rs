@@ -84,11 +84,9 @@ impl DesktopEngineProfileStores {
 }
 
 pub fn engine_profile_stores(
-    home: PathBuf,
     mihomo: Arc<ConfigManager<DefaultCredentialStore>>,
 ) -> anyhow::Result<DesktopEngineProfileStores> {
     let sing_box_manager = Arc::new(ConfigManager::with_profile_codec_and_store_at_root(
-        home,
         mihomo.config_root().to_path_buf(),
         DefaultCredentialStore::default(),
         Arc::new(SingBoxProfileDocumentCodec),

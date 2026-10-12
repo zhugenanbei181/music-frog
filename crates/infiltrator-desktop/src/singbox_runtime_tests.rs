@@ -58,7 +58,6 @@ impl SelectedSingBoxFixture {
         let home = TempDir::new().expect("create desktop sing-box fixture home");
         let manager = Arc::new(
             ConfigManager::with_profile_codec_and_store_at_root(
-                home.path().to_path_buf(),
                 home.path().join("configs"),
                 DefaultCredentialStore::default(),
                 Arc::new(SingBoxProfileDocumentCodec),

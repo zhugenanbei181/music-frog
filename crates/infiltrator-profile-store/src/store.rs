@@ -1,5 +1,6 @@
 //! Engine-scoped storage identity and state shared by config facades.
 
+use crate::namespace::ProfileNamespaceInitialization;
 use infiltrator_contract::apply_transaction::ApplyTransactionSnapshot;
 use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::error::{ErrorCode, Failure};
@@ -44,6 +45,7 @@ pub struct EngineProfileStore<S: SecureStore> {
     document_codec_scope: ProfileDocumentCodecScope,
     document_extension: ProfileDocumentExtension,
     credential_store: S,
+    namespace_initialization: ProfileNamespaceInitialization,
     namespace_initialized: OnceCell<()>,
     apply_observations: RwLock<BTreeMap<String, ApplyTransactionSnapshot>>,
 }
@@ -55,6 +57,24 @@ impl<S: SecureStore> EngineProfileStore<S> {
         document_codec: Arc<dyn ProfileDocumentCodecPort>,
         document_extension: ProfileDocumentExtension,
         credential_store: S,
+    ) -> Result<Self, PortError> {
+        Self::new_with_namespace_initialization(
+            engine_id,
+            config_root,
+            document_codec,
+            document_extension,
+            credential_store,
+            ProfileNamespaceInitialization::EngineScoped,
+        )
+    }
+
+    pub fn new_with_namespace_initialization(
+        engine_id: EngineId,
+        config_root: PathBuf,
+        document_codec: Arc<dyn ProfileDocumentCodecPort>,
+        document_extension: ProfileDocumentExtension,
+        credential_store: S,
+        namespace_initialization: ProfileNamespaceInitialization,
     ) -> Result<Self, PortError> {
         let document_codec_scope = document_codec.scope();
         if document_codec_scope.engine_id != engine_id {
@@ -80,6 +100,7 @@ impl<S: SecureStore> EngineProfileStore<S> {
             document_codec_scope,
             document_extension,
             credential_store,
+            namespace_initialization,
             namespace_initialized: OnceCell::new(),
             apply_observations: RwLock::new(BTreeMap::new()),
         })
@@ -117,11 +138,15 @@ impl<S: SecureStore> EngineProfileStore<S> {
         &self.credential_store
     }
 
+    pub fn namespace_initialization(&self) -> &ProfileNamespaceInitialization {
+        &self.namespace_initialization
+    }
+
     pub fn namespace_is_initialized(&self) -> bool {
         self.namespace_initialized.get().is_some()
     }
 
-    pub async fn initialize_namespace_with<F, Fut, E>(&self, initialize: F) -> Result<(), E>
+    pub(crate) async fn initialize_namespace_with<F, Fut, E>(&self, initialize: F) -> Result<(), E>
     where
         F: FnOnce() -> Fut,
         Fut: Future<Output = Result<(), E>>,

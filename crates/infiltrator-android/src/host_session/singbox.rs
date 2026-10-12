@@ -2,7 +2,7 @@ use super::{SharedCore, SharedCoreEngine, authorize_android_core_start};
 use crate::composition::core_application_for_singbox;
 use crate::core_version_owner::{core_binary_selection_port, core_version_application};
 use crate::ffi::{FfiErrorCode, FfiStatus};
-use crate::host_support::{build_settings_application, map_mihomo_error, map_port_error};
+use crate::host_support::{build_settings_application, map_mihomo_error};
 use infiltrator_application::android_control_application::AndroidControlApplication;
 use infiltrator_contract::active_profile_reference::ActiveProfileReference;
 use infiltrator_contract::core_capabilities::{
@@ -11,7 +11,6 @@ use infiltrator_contract::core_capabilities::{
 use infiltrator_contract::core_identity::CoreGeneration;
 use infiltrator_contract::version::CoreArtifactVerification;
 use infiltrator_platform::defaults::DefaultCredentialStore;
-use infiltrator_platform::paths::get_home_dir;
 use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceLease;
 use infiltrator_ports::core_binary_selection::{
     CoreBinarySelection, CoreBinarySelectionPolicy, CoreBinarySelectionRequest,
@@ -34,10 +33,8 @@ pub(super) async fn build_shared_core(
     selection_lease: Box<dyn ActiveProfileReferenceLease>,
 ) -> Result<Arc<SharedCore>, FfiStatus> {
     let engine_id = singbox_api::engine_id();
-    let home = get_home_dir().map_err(map_port_error)?;
     let config = Arc::new(
         ConfigManager::with_profile_codec_and_store_at_root(
-            home.clone(),
             reference_store.config_root().to_path_buf(),
             DefaultCredentialStore::default(),
             Arc::new(SingBoxProfileDocumentCodec),
