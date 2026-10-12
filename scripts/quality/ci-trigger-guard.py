@@ -16,10 +16,7 @@ EXPECTED_EVENTS = {
     "release.yml": {"push"},
     "test.yml": {"workflow_call"},
 }
-TAG_JOB_CONDITION = re.compile(
-    r"(?m)^    if:\s*github\.ref_type == 'tag' && "
-    r"startsWith\(github\.ref_name, 'v'\)\s*$"
-)
+TAG_JOB_CONDITION = "    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')"
 
 
 def top_level_events(text: str) -> set[str]:
@@ -37,6 +34,28 @@ def top_level_events(text: str) -> set[str]:
         if match:
             events.add(match.group(1))
     return events
+
+
+def job_blocks(text: str) -> dict[str, list[str]]:
+    """Return top-level job blocks without depending on a YAML package."""
+    lines = text.splitlines()
+    try:
+        jobs_index = next(index for index, line in enumerate(lines) if line == "jobs:")
+    except StopIteration:
+        return {}
+
+    jobs: dict[str, list[str]] = {}
+    active_job: str | None = None
+    for line in lines[jobs_index + 1 :]:
+        if line and not line[0].isspace() and not line.lstrip().startswith("#"):
+            break
+        match = re.match(r"^  ([A-Za-z][A-Za-z0-9_-]*):\s*(?:#.*)?$", line)
+        if match:
+            active_job = match.group(1)
+            jobs[active_job] = []
+        elif active_job is not None:
+            jobs[active_job].append(line)
+    return jobs
 
 
 def source_problems(root: Path = ROOT) -> list[str]:
@@ -70,10 +89,16 @@ def source_problems(root: Path = ROOT) -> list[str]:
                 ).group("body")
                 if "tags:" not in push_body or '"v*"' not in push_body or "branches:" in push_body:
                     problems.append(".github/workflows/release.yml push trigger must match v* tags only")
-        elif not TAG_JOB_CONDITION.search(text):
-            problems.append(
-                f".github/workflows/{filename} must skip non-v* refs before assigning a runner"
-            )
+        else:
+            jobs = job_blocks(text)
+            if not jobs:
+                problems.append(f".github/workflows/{filename} must declare at least one job")
+            for job_name, lines in jobs.items():
+                if TAG_JOB_CONDITION not in lines:
+                    problems.append(
+                        f".github/workflows/{filename} job '{job_name}' must skip non-v* refs "
+                        "before assigning a runner"
+                    )
 
     test_callers = [
         path.name

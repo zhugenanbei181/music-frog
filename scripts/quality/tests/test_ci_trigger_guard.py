@@ -58,6 +58,26 @@ class CiTriggerRules(unittest.TestCase):
             problems = GUARD.source_problems(root)
         self.assertTrue(any("release.yml push trigger" in problem for problem in problems))
 
+    def test_each_job_must_be_tag_gated(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            write_workflows(root)
+            android = root / ".github/workflows/android.yml"
+            android.write_text(
+                android.read_text(encoding="utf-8").replace(
+                    "  run:\n    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')\n",
+                    "  dispatch-check:\n"
+                    "    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')\n"
+                    "  android-build:\n"
+                    "    runs-on: ubuntu-latest\n",
+                ),
+                encoding="utf-8",
+            )
+            problems = GUARD.source_problems(root)
+        self.assertTrue(
+            any("android.yml job 'android-build'" in problem for problem in problems)
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
