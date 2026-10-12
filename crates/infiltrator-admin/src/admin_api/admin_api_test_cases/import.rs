@@ -22,7 +22,7 @@ async fn test_import_profile_integration() {
     let temp_dir = tempfile::tempdir().unwrap();
     set_home_dir_override(temp_dir.path().to_path_buf());
     let manager = app_config_manager().await.unwrap();
-    let config_dir = ProfileStore::config_dir(&manager);
+    let config_dir = ProfileStore::config_dir(manager.engine_profile_store());
 
     let app = setup_app();
     let payload = ImportProfilePayload {

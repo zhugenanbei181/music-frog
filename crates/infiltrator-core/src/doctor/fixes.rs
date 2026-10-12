@@ -32,7 +32,8 @@ pub(super) async fn fix_configs_dir(env: &DoctorEnv) -> anyhow::Result<Option<Do
 
 pub(super) async fn fix_current_yaml(env: &DoctorEnv) -> anyhow::Result<Option<DoctorFixAction>> {
     let manager = env.initialized_config_manager().await?;
-    let previous_selection = ActiveProfileReferenceStore::read(&manager).await?;
+    let profile_store = manager.engine_profile_store();
+    let previous_selection = ActiveProfileReferenceStore::read(profile_store).await?;
     let selection = manager.migrate_legacy_mihomo_selection().await?;
     let path = manager.get_current_path().await?;
     if path.exists() {

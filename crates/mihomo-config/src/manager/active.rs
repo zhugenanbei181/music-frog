@@ -13,9 +13,10 @@ use tokio::fs;
 impl<S: SecureStore> ConfigManager<S> {
     pub async fn get_current(&self) -> Result<String> {
         self.initialize_profile_namespace().await?;
-        let lease = ActiveProfileReferenceStore::acquire_selection_lease(self)
-            .await
-            .map_err(active_reference_error)?;
+        let lease =
+            ActiveProfileReferenceStore::acquire_selection_lease(self.profile_store.as_ref())
+                .await
+                .map_err(active_reference_error)?;
         self.profile_store
             .get_current_under_selection_lease(lease.as_ref())
             .map_err(active_reference_error)
@@ -41,7 +42,9 @@ impl<S: SecureStore> ConfigManager<S> {
     }
 
     pub async fn get_current_path(&self) -> Result<PathBuf> {
-        let profile = ProfileStore::get_current(self)
+        let profile = self
+            .profile_store
+            .get_current()
             .await
             .map_err(|error| MihomoError::Config(error.to_string()))?;
         Ok(self.config_dir().join(format!("{}.yaml", profile)))
@@ -50,7 +53,9 @@ impl<S: SecureStore> ConfigManager<S> {
     /// Validate the product-wide active profile before any Core process is
     /// started. This follows the cross-engine reference through ProfileStore.
     pub async fn validate_current_profile(&self) -> Result<()> {
-        let profile = ProfileStore::get_current(self)
+        let profile = self
+            .profile_store
+            .get_current()
             .await
             .map_err(|error| MihomoError::Config(error.to_string()))?;
         let content = self.load(&profile).await?;

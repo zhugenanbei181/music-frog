@@ -257,7 +257,7 @@ impl ManagedRuntime for MihomoRuntime {
         let runtime_engine = self.engine_id().ok_or_else(|| {
             PortError::Failed("managed core engine identity is unavailable".into())
         })?;
-        let store_engine = ProfileStore::engine_id(self.config_manager.as_ref());
+        let store_engine = ProfileStore::engine_id(self.config_manager.engine_profile_store());
         if expected.document.engine_id != runtime_engine
             || expected.document.engine_id != store_engine
             || expected_reference.engine_id != expected.document.engine_id

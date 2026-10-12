@@ -302,11 +302,11 @@ impl ActiveProfileWorkspacePublishedLease for FaultInjectingWorkspacePublishedLe
 #[async_trait]
 impl ProfileStore for FaultInjectingProfileStore {
     fn engine_id(&self) -> EngineId {
-        ProfileStore::engine_id(self.inner.as_ref())
+        ProfileStore::engine_id(self.inner.engine_profile_store())
     }
 
     fn config_dir(&self) -> std::path::PathBuf {
-        ProfileStore::config_dir(self.inner.as_ref())
+        ProfileStore::config_dir(self.inner.engine_profile_store())
     }
 
     async fn list_profiles(&self) -> Result<Vec<ProfileInfo>, PortError> {
@@ -355,7 +355,7 @@ impl ProfileStore for FaultInjectingProfileStore {
     async fn load_active_workspace(
         &self,
     ) -> Result<infiltrator_ports::profile_workspace::ProfileWorkspace, PortError> {
-        self.inner.load_active_workspace().await
+        ProfileStore::load_active_workspace(self.inner.engine_profile_store()).await
     }
 
     async fn acquire_active_workspace_write_lease(
@@ -366,6 +366,7 @@ impl ProfileStore for FaultInjectingProfileStore {
     ) -> Result<Box<dyn ActiveProfileWorkspaceWriteLease + '_>, PortError> {
         let inner = self
             .inner
+            .engine_profile_store()
             .acquire_active_workspace_write_lease(expected_reference, expected, authorization)
             .await?;
         Ok(Box::new(FaultInjectingWorkspaceWriteLease {
@@ -411,6 +412,7 @@ async fn stopped_native_invalid_candidate_is_rejected_before_profile_store_write
     assert_eq!(fixture.lifecycle.lifecycle(), CoreLifecycle::Stopped);
     let before = fixture
         .config
+        .engine_profile_store()
         .load_active_workspace()
         .await
         .expect("initial workspace");
@@ -431,6 +433,7 @@ async fn stopped_native_invalid_candidate_is_rejected_before_profile_store_write
     assert_eq!(
         fixture
             .config
+            .engine_profile_store()
             .load_active_workspace()
             .await
             .expect("workspace remains unchanged"),
@@ -448,6 +451,7 @@ async fn stopped_without_native_validator_is_unsupported_before_profile_store_wr
     let fixture = transaction_fixture(NativeValidationResult::Unsupported).await;
     let before = fixture
         .config
+        .engine_profile_store()
         .load_active_workspace()
         .await
         .expect("initial workspace");
@@ -462,6 +466,7 @@ async fn stopped_without_native_validator_is_unsupported_before_profile_store_wr
     assert_eq!(
         fixture
             .config
+            .engine_profile_store()
             .load_active_workspace()
             .await
             .expect("workspace remains unchanged"),
@@ -479,6 +484,7 @@ async fn foreign_scope_and_invalid_codec_candidate_have_zero_write_effects() {
     let fixture = transaction_fixture(NativeValidationResult::Accept).await;
     let before = fixture
         .config
+        .engine_profile_store()
         .load_active_workspace()
         .await
         .expect("initial workspace");
@@ -527,6 +533,7 @@ async fn foreign_scope_and_invalid_codec_candidate_have_zero_write_effects() {
     assert_eq!(
         fixture
             .config
+            .engine_profile_store()
             .load_active_workspace()
             .await
             .expect("workspace is unchanged after foreign and invalid proposals"),
@@ -544,6 +551,7 @@ async fn stale_workspace_revision_is_rejected_without_replacing_the_newer_bytes(
     let fixture = transaction_fixture(NativeValidationResult::Accept).await;
     let stale = fixture
         .config
+        .engine_profile_store()
         .load_active_workspace()
         .await
         .expect("initial workspace");
@@ -555,6 +563,7 @@ async fn stale_workspace_revision_is_rejected_without_replacing_the_newer_bytes(
     .await;
     let newer = fixture
         .config
+        .engine_profile_store()
         .load_active_workspace()
         .await
         .expect("newer workspace");
@@ -574,6 +583,7 @@ async fn stale_workspace_revision_is_rejected_without_replacing_the_newer_bytes(
     assert_eq!(
         fixture
             .config
+            .engine_profile_store()
             .load_active_workspace()
             .await
             .expect("newer workspace remains authoritative"),
@@ -591,6 +601,7 @@ async fn stopped_native_valid_candidate_can_commit_with_typed_terminal_state() {
     let fixture = transaction_fixture(NativeValidationResult::Accept).await;
     let before = fixture
         .config
+        .engine_profile_store()
         .load_active_workspace()
         .await
         .expect("initial workspace");
@@ -611,6 +622,7 @@ async fn stopped_native_valid_candidate_can_commit_with_typed_terminal_state() {
     assert_eq!(
         fixture
             .config
+            .engine_profile_store()
             .load_active_workspace()
             .await
             .expect("committed workspace readback"),
@@ -636,6 +648,7 @@ async fn running_transaction_applies_through_the_live_reload_seam() {
     let starts_before = fixture.lifecycle.start_calls();
     let before = fixture
         .config
+        .engine_profile_store()
         .load_active_workspace()
         .await
         .expect("initial workspace");
@@ -657,6 +670,7 @@ async fn running_transaction_applies_through_the_live_reload_seam() {
     assert_eq!(
         fixture
             .config
+            .engine_profile_store()
             .load_active_workspace()
             .await
             .expect("exact live transaction readback"),
@@ -674,6 +688,7 @@ async fn stopped_transaction_reads_back_the_exact_document_and_sidecar_bytes() {
     let fixture = transaction_fixture(NativeValidationResult::Accept).await;
     let before = fixture
         .config
+        .engine_profile_store()
         .load_active_workspace()
         .await
         .expect("initial workspace");
@@ -698,6 +713,7 @@ async fn stopped_transaction_reads_back_the_exact_document_and_sidecar_bytes() {
     assert_eq!(
         fixture
             .config
+            .engine_profile_store()
             .load_active_workspace()
             .await
             .expect("exact committed readback"),
@@ -722,6 +738,7 @@ async fn valid_failed_candidate_is_stored_without_start_stop_or_runtime_calls() 
     fixture.lifecycle.set_status(CoreLifecycle::Failed);
     let before = fixture
         .config
+        .engine_profile_store()
         .load_active_workspace()
         .await
         .expect("initial workspace");
@@ -739,6 +756,7 @@ async fn valid_failed_candidate_is_stored_without_start_stop_or_runtime_calls() 
     assert_eq!(
         fixture
             .config
+            .engine_profile_store()
             .load_active_workspace()
             .await
             .expect("committed workspace readback"),

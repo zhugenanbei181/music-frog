@@ -8,7 +8,6 @@ use infiltrator_contract::core_identity::CoreVersion;
 use infiltrator_ports::core_process::CoreReadiness;
 use infiltrator_ports::endpoint::EndpointSource;
 use infiltrator_ports::error::PortError;
-use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::secure_store::SecureStore;
 use mihomo_api::readiness::ControllerReadiness;
 use mihomo_config::endpoint::ProfileEndpointSource;
@@ -60,7 +59,10 @@ impl<S: SecureStore> CoreLaunchSpecSource for AndroidMihomoProfileLaunchSpecProv
             .await
             .map_err(config_failure)?;
 
-        let workspace = self.config.load_active_workspace().await?;
+        let workspace = infiltrator_ports::profile_store::ProfileStore::load_active_workspace(
+            self.config.engine_profile_store(),
+        )
+        .await?;
         let document_identity = workspace.document.identity;
         if document_identity.engine_id != engine_id {
             return Err(PortError::Failed(format!(
@@ -182,10 +184,11 @@ mod tests {
             .existing_profile_document_path(&current_profile)
             .await
             .expect("Rust-created default profile exists");
-        let workspace = config
-            .load_active_workspace()
-            .await
-            .expect("active workspace readback");
+        let workspace = infiltrator_ports::profile_store::ProfileStore::load_active_workspace(
+            config.engine_profile_store(),
+        )
+        .await
+        .expect("active workspace readback");
 
         assert_eq!(spec.configuration_identity().engine_id, config.engine_id());
         assert_eq!(

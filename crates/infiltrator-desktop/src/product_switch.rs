@@ -181,7 +181,8 @@ pub(crate) async fn switch_default_product_engine(
         )));
     }
 
-    let reference_store: Arc<dyn ActiveProfileReferenceStore> = config_manager;
+    let reference_store: Arc<dyn ActiveProfileReferenceStore> =
+        config_manager.shared_engine_profile_store();
     let selector = ActiveProfileBackendSelector::new(
         reference_store,
         profile_stores.all(),

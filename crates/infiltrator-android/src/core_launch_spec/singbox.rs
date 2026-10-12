@@ -81,7 +81,7 @@ impl<S: SecureStore> CoreLaunchSpecSource for AndroidSingBoxProfileLaunchSpecPro
         validate_binary_storage_path(&selection.binary_path, &self.working_directory).await?;
 
         let workspace = ProfileStore::load_workspace(
-            self.profile_store.as_ref(),
+            self.profile_store.engine_profile_store(),
             &self.profile_document.identity.profile_id,
         )
         .await?;
@@ -118,7 +118,7 @@ impl<S: SecureStore> CoreLaunchSpecSource for AndroidSingBoxProfileLaunchSpecPro
         }
 
         let final_workspace = ProfileStore::load_workspace(
-            self.profile_store.as_ref(),
+            self.profile_store.engine_profile_store(),
             &self.profile_document.identity.profile_id,
         )
         .await?;

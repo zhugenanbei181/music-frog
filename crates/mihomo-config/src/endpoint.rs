@@ -54,7 +54,7 @@ impl<S: SecureStore> ProfileEndpointSource<S> {
 #[async_trait]
 impl<S: SecureStore> EndpointSource for ProfileEndpointSource<S> {
     async fn resolve(&self) -> Result<ControllerEndpoint, PortError> {
-        let profile = ProfileStore::get_current(self.config.as_ref()).await?;
+        let profile = ProfileStore::get_current(self.config.engine_profile_store()).await?;
         let profile = ProfileId::new(profile).map_err(|error| {
             PortError::Rejected(infiltrator_contract::error::Failure::new(
                 infiltrator_contract::error::ErrorCode::InvalidInput,

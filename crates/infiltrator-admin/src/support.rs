@@ -64,7 +64,7 @@ where
     use infiltrator_contract::profile_document_identity::ProfileId;
     use infiltrator_ports::profile_store::ProfileStore;
 
-    let expected = ProfileStore::read_active_profile_reference(manager)
+    let expected = ProfileStore::read_active_profile_reference(manager.engine_profile_store())
         .await
         .expect("read active profile reference before test selection");
     let target = ActiveProfileReferenceTarget::selected(
@@ -72,7 +72,7 @@ where
         ProfileId::new(profile).expect("valid test profile ID"),
     );
     match ProfileStore::compare_and_set_active_profile_reference(
-        manager,
+        manager.engine_profile_store(),
         expected,
         target,
         ActiveProfileReferenceWriteAuthorization::Unowned,
@@ -242,10 +242,11 @@ mod tests {
         write_settings_with_configs_dir(temp_dir.path(), &cloud).await;
 
         let manager = app_config_manager().await.unwrap();
-        ProfileStore::save_inactive_profile(&manager, "probe", "port: 7890")
+        ProfileStore::save_inactive_profile(manager.engine_profile_store(), "probe", "port: 7890")
             .await
             .unwrap();
-        let profile_path = ProfileStore::config_dir(&manager).join("probe.yaml");
+        let profile_path =
+            ProfileStore::config_dir(manager.engine_profile_store()).join("probe.yaml");
         assert!(profile_path.starts_with(&cloud));
         assert!(profile_path.exists());
         assert!(!cloud.join("probe.yaml").exists());

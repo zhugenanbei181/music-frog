@@ -21,6 +21,7 @@ async fn inactive_readback_failure_returns_rolled_back_or_rollback_failed_truthf
             .expect("seed exact prior sidecar bytes");
         let before = fixture
             .config
+            .engine_profile_store()
             .load_active_workspace()
             .await
             .expect("workspace with exact prior sidecar");
@@ -45,6 +46,7 @@ async fn inactive_readback_failure_returns_rolled_back_or_rollback_failed_truthf
                 assert_eq!(
                     fixture
                         .config
+                        .engine_profile_store()
                         .load_active_workspace()
                         .await
                         .expect("exact previous workspace after recovery"),
@@ -61,6 +63,7 @@ async fn inactive_readback_failure_returns_rolled_back_or_rollback_failed_truthf
                 assert_eq!(rollback.code, ErrorCode::Storage);
                 let uncertain = fixture
                     .config
+                    .engine_profile_store()
                     .load_active_workspace()
                     .await
                     .expect("workspace state after injected restore failure");

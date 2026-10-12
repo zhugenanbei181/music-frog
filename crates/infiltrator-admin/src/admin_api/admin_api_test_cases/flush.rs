@@ -12,7 +12,7 @@ async fn test_flush_fake_ip_route() {
     let temp_dir = tempfile::tempdir().unwrap();
     set_home_dir_override(temp_dir.path().to_path_buf());
     let manager = app_config_manager().await.unwrap();
-    ProfileStore::save_inactive_profile(&manager, "default", "port: 7890")
+    ProfileStore::save_inactive_profile(manager.engine_profile_store(), "default", "port: 7890")
         .await
         .unwrap();
     select_test_profile(&manager, "default").await;

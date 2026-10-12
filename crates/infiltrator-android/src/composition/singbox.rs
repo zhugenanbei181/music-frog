@@ -102,7 +102,7 @@ where
     application
         .install_core_capability_application(core_capabilities.clone())
         .map_err(|failure| PortError::Failed(failure.message))?;
-    let store: Arc<dyn ProfileStore> = profile_store;
+    let store: Arc<dyn ProfileStore> = profile_store.shared_engine_profile_store();
     let handler = CommandApplication::new()
         .with_core_capabilities(core_capabilities)
         .with_host_capabilities(Arc::new(AndroidBridgeAdapter::new(Arc::clone(&bridge))))

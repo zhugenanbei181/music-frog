@@ -40,7 +40,7 @@ fn test_home() -> PathBuf {
 }
 
 async fn select_profile(manager: &ConfigManager<DefaultCredentialStore>, profile: &str) {
-    let expected = ProfileStore::read_active_profile_reference(manager)
+    let expected = ProfileStore::read_active_profile_reference(manager.engine_profile_store())
         .await
         .expect("read selection before test CAS");
     let target = ActiveProfileReferenceTarget::selected(
@@ -48,7 +48,7 @@ async fn select_profile(manager: &ConfigManager<DefaultCredentialStore>, profile
         ProfileId::new(profile).expect("valid test profile ID"),
     );
     match ProfileStore::compare_and_set_active_profile_reference(
-        manager,
+        manager.engine_profile_store(),
         expected,
         target,
         infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization::Unowned,

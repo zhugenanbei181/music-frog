@@ -81,7 +81,8 @@ pub async fn ensure_bootstrap_at(home: &Path) -> anyhow::Result<BootstrapReport>
     // Step 2: the explicit V0 migration selects the historical Mihomo profile
     // and creates the default document only for a new install. A cleared or
     // invalid global reference never falls back to the namespace pointer.
-    let previous_selection = ActiveProfileReferenceStore::read(&manager).await?;
+    let profile_store = manager.engine_profile_store();
+    let previous_selection = ActiveProfileReferenceStore::read(profile_store).await?;
     let selection = manager.migrate_legacy_mihomo_selection().await?;
     let profile_path = manager.get_current_path().await?;
     steps.push(BootstrapStep {

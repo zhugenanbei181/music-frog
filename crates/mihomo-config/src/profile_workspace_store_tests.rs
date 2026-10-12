@@ -1,6 +1,5 @@
 //! test-intent: behavior
 use super::*;
-use crate::manager::ActiveProfileReferenceResetRequest;
 use crate::profile_document_codec::{PROFILE_FORMAT, PROFILE_SCHEMA_VERSION};
 use async_trait::async_trait;
 use infiltrator_contract::active_profile_reference::{
@@ -12,7 +11,7 @@ use infiltrator_contract::error::Failure;
 use infiltrator_contract::profile_document_identity::{
     ProfileDocument, ProfileDocumentIdentity, ProfileDocumentSourceIdentity,
     ProfileDocumentSourceKind, ProfileFormatId, ProfileId, ProfileSchemaVersion,
-    ProfileSidecarRevision, ProfileSourceId,
+    ProfileSidecarRevision, ProfileSourceId, ProfileWorkspaceIdentity,
 };
 use infiltrator_contract::profile_protection::{ProfileWriteAuthorization, ProfileWriteProtection};
 use infiltrator_domain::profile_options::options_path;
@@ -22,10 +21,15 @@ use infiltrator_ports::profile_store::{
     ActiveProfileWorkspaceRecoveryResolution, ActiveProfileWorkspaceRestoreOutcome,
     ActiveProfileWorkspaceWriteLease, ProfileStore,
 };
-use infiltrator_ports::profile_workspace::ProfileWorkspacePurpose;
+use infiltrator_ports::profile_workspace::{
+    ProfileWorkspace, ProfileWorkspacePurpose, ProfileWorkspaceUpdate,
+};
 use infiltrator_ports::secure_store::SecureStore;
 use infiltrator_profile_store::document_store::{
     read_optional_bytes, write_document, write_document_bytes,
+};
+use infiltrator_profile_store::profile_reset::{
+    ActiveProfileReferenceResetOutcome, ActiveProfileReferenceResetRequest,
 };
 use infiltrator_profile_store::workspace::{
     document_revision as revision, publish_document_pair as publish_pair, sha256_hex,
@@ -59,7 +63,7 @@ fn manager(dir: &TempDir) -> ConfigManager<TestStore> {
 }
 
 async fn select_profile<S: SecureStore>(manager: &ConfigManager<S>, profile: &str) {
-    let expected = ProfileStore::read_active_profile_reference(manager)
+    let expected = ProfileStore::read_active_profile_reference(manager.engine_profile_store())
         .await
         .expect("read selection before test CAS");
     let target = ActiveProfileReferenceTarget::selected(
@@ -67,7 +71,7 @@ async fn select_profile<S: SecureStore>(manager: &ConfigManager<S>, profile: &st
         ProfileId::new(profile).expect("valid test profile ID"),
     );
     match ProfileStore::compare_and_set_active_profile_reference(
-        manager,
+        manager.engine_profile_store(),
         expected,
         target,
         infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization::Unowned,
@@ -192,7 +196,11 @@ async fn workspace_identity_tracks_exact_document_and_sidecar_bytes() {
         .save_inactive_profile("main", "mode: rule\n")
         .await
         .unwrap();
-    let original = store.load_workspace(&profile_id()).await.unwrap();
+    let original = store
+        .engine_profile_store()
+        .load_workspace(&profile_id())
+        .await
+        .unwrap();
     assert_eq!(original.sidecar_revision, ProfileSidecarRevision::Absent);
     assert_eq!(original.sidecar_bytes, None);
     assert_eq!(
@@ -203,7 +211,11 @@ async fn workspace_identity_tracks_exact_document_and_sidecar_bytes() {
     let sidecar = options_path(store.config_dir(), "main");
     create_dir_all(sidecar.parent().unwrap()).await.unwrap();
     write(&sidecar, b"").await.unwrap();
-    let empty = store.load_workspace(&profile_id()).await.unwrap();
+    let empty = store
+        .engine_profile_store()
+        .load_workspace(&profile_id())
+        .await
+        .unwrap();
     assert_ne!(empty.identity(), original.identity());
     assert_eq!(empty.sidecar_bytes, Some(Vec::new()));
     assert_eq!(
@@ -213,7 +225,11 @@ async fn workspace_identity_tracks_exact_document_and_sidecar_bytes() {
 
     let annotated = b"# exact annotation\r\n{}\r\n";
     write(&sidecar, annotated).await.unwrap();
-    let with_comments = store.load_workspace(&profile_id()).await.unwrap();
+    let with_comments = store
+        .engine_profile_store()
+        .load_workspace(&profile_id())
+        .await
+        .unwrap();
     assert_eq!(with_comments.document, empty.document);
     assert_eq!(
         with_comments.sidecar_bytes.as_deref(),
@@ -226,7 +242,11 @@ async fn workspace_identity_tracks_exact_document_and_sidecar_bytes() {
         .save_inactive_profile("main", str::from_utf8(edited_document).unwrap())
         .await
         .unwrap();
-    let edited = store.load_workspace(&profile_id()).await.unwrap();
+    let edited = store
+        .engine_profile_store()
+        .load_workspace(&profile_id())
+        .await
+        .unwrap();
     assert_eq!(edited.document.raw_bytes, edited_document);
     assert_ne!(
         edited.document.identity.revision,
@@ -256,15 +276,24 @@ async fn stale_document_or_sidecar_rejects_before_either_file_changes() {
         .save_inactive_profile("main", "mode: rule\n")
         .await
         .unwrap();
-    let original = store.load_workspace(&profile_id()).await.unwrap();
+    let original = store
+        .engine_profile_store()
+        .load_workspace(&profile_id())
+        .await
+        .unwrap();
     store
         .save_inactive_profile("main", "# newer\nmode: direct\n")
         .await
         .unwrap();
-    let changed = store.load_workspace(&profile_id()).await.unwrap();
+    let changed = store
+        .engine_profile_store()
+        .load_workspace(&profile_id())
+        .await
+        .unwrap();
 
     let failure = Failure::from(
         store
+            .engine_profile_store()
             .compare_and_save_inactive_workspace(
                 &original.identity(),
                 &update(b"mode: global\n", None),
@@ -273,17 +302,29 @@ async fn stale_document_or_sidecar_rejects_before_either_file_changes() {
             .unwrap_err(),
     );
     assert_eq!(failure.code, ErrorCode::NotReady);
-    assert_eq!(store.load_workspace(&profile_id()).await.unwrap(), changed);
+    assert_eq!(
+        store
+            .engine_profile_store()
+            .load_workspace(&profile_id())
+            .await
+            .unwrap(),
+        changed
+    );
 
     let sidecar = options_path(store.config_dir(), "main");
     create_dir_all(sidecar.parent().unwrap()).await.unwrap();
     write(&sidecar, b"filter: [old]\n").await.unwrap();
-    let sidecar_changed = store.load_workspace(&profile_id()).await.unwrap();
+    let sidecar_changed = store
+        .engine_profile_store()
+        .load_workspace(&profile_id())
+        .await
+        .unwrap();
     let profile_path = store.config_dir().join("main.yaml");
     let profile_before = read(&profile_path).await.unwrap();
     let sidecar_before = read(&sidecar).await.unwrap();
     let failure = Failure::from(
         store
+            .engine_profile_store()
             .compare_and_save_inactive_workspace(
                 &changed.identity(),
                 &update(b"mode: global\n", Some(b"filter: [new]\n")),
@@ -295,7 +336,11 @@ async fn stale_document_or_sidecar_rejects_before_either_file_changes() {
     assert_eq!(read(&profile_path).await.unwrap(), profile_before);
     assert_eq!(read(&sidecar).await.unwrap(), sidecar_before);
     assert_eq!(
-        store.load_workspace(&profile_id()).await.unwrap(),
+        store
+            .engine_profile_store()
+            .load_workspace(&profile_id())
+            .await
+            .unwrap(),
         sidecar_changed
     );
 }
@@ -311,9 +356,14 @@ async fn inactive_workspace_replaces_existing_profile_and_sidecar() {
     let sidecar = options_path(store.config_dir(), "main");
     create_dir_all(sidecar.parent().unwrap()).await.unwrap();
     write(&sidecar, b"filter: [old]\n").await.unwrap();
-    let previous = store.load_workspace(&profile_id()).await.unwrap();
+    let previous = store
+        .engine_profile_store()
+        .load_workspace(&profile_id())
+        .await
+        .unwrap();
 
     let committed = store
+        .engine_profile_store()
         .compare_and_save_inactive_workspace(
             &previous.identity(),
             &update(b"mode: direct\n", Some(b"filter: [new]\n")),
@@ -348,21 +398,29 @@ async fn unowned_derived_active_document_write_is_single_file_and_revision_fence
     select_profile(&store, "main").await;
 
     let ActiveProfileReferenceState::Selected(reference) =
-        ProfileStore::read_active_profile_reference(&store)
+        ProfileStore::read_active_profile_reference(store.engine_profile_store())
             .await
             .unwrap()
     else {
         panic!("test profile must be selected");
     };
-    let observed = store.load_active_workspace().await.unwrap();
+    let observed = store
+        .engine_profile_store()
+        .load_active_workspace()
+        .await
+        .unwrap();
     let sidecar_path = options_path(store.config_dir(), "main");
     create_dir_all(sidecar_path.parent().unwrap())
         .await
         .unwrap();
     write(&sidecar_path, b"filter: [keep]\n").await.unwrap();
-    let sidecar_observed = store.load_active_workspace().await.unwrap();
+    let sidecar_observed = store
+        .engine_profile_store()
+        .load_active_workspace()
+        .await
+        .unwrap();
     let committed = ProfileStore::compare_and_save_unowned_active_derived_document(
-        &store,
+        store.engine_profile_store(),
         reference.clone(),
         sidecar_observed.identity(),
         &update(b"mode: global\n", sidecar_observed.sidecar_bytes.as_deref()),
@@ -379,7 +437,7 @@ async fn unowned_derived_active_document_write_is_single_file_and_revision_fence
     let before_stale_attempt = read(store.config_dir().join("main.yaml")).await.unwrap();
     select_profile(&store, "default").await;
     let stale = ProfileStore::compare_and_save_unowned_active_derived_document(
-        &store,
+        store.engine_profile_store(),
         reference,
         observed.identity(),
         &update(b"mode: rule\n", None),
@@ -401,16 +459,25 @@ async fn absent_and_present_empty_identities_cross_reject_without_writes() {
         .save_inactive_profile("main", "mode: rule\n")
         .await
         .unwrap();
-    let absent = store.load_workspace(&profile_id()).await.unwrap();
+    let absent = store
+        .engine_profile_store()
+        .load_workspace(&profile_id())
+        .await
+        .unwrap();
     let sidecar = options_path(store.config_dir(), "main");
     create_dir_all(sidecar.parent().unwrap()).await.unwrap();
     write(&sidecar, b"").await.unwrap();
-    let present_empty = store.load_workspace(&profile_id()).await.unwrap();
+    let present_empty = store
+        .engine_profile_store()
+        .load_workspace(&profile_id())
+        .await
+        .unwrap();
     let profile_path = store.config_dir().join("main.yaml");
     let profile_bytes = read(&profile_path).await.unwrap();
 
     let failure = Failure::from(
         store
+            .engine_profile_store()
             .compare_and_save_inactive_workspace(
                 &absent.identity(),
                 &update(b"mode: global\n", Some(b"replacement")),
@@ -425,6 +492,7 @@ async fn absent_and_present_empty_identities_cross_reject_without_writes() {
     remove_file(&sidecar).await.unwrap();
     let failure = Failure::from(
         store
+            .engine_profile_store()
             .compare_and_save_inactive_workspace(
                 &present_empty.identity(),
                 &update(b"mode: global\n", Some(b"replacement")),
@@ -451,9 +519,14 @@ async fn protected_document_requires_explicit_direct_edit_unlock() {
     )
     .await
     .unwrap();
-    let current = store.load_workspace(&profile_id()).await.unwrap();
+    let current = store
+        .engine_profile_store()
+        .load_workspace(&profile_id())
+        .await
+        .unwrap();
     let failure = Failure::from(
         store
+            .engine_profile_store()
             .compare_and_save_inactive_workspace(
                 &current.identity(),
                 &direct_update(
@@ -469,6 +542,7 @@ async fn protected_document_requires_explicit_direct_edit_unlock() {
     assert_eq!(store.load("main").await.unwrap(), "mode: rule\n");
 
     let unlocked = store
+        .engine_profile_store()
         .compare_and_save_inactive_workspace(
             &current.identity(),
             &direct_update(
@@ -502,7 +576,11 @@ async fn changed_subscription_source_rejects_stale_workspace_before_writing() {
     )
     .await
     .unwrap();
-    let original = store.load_workspace(&profile_id()).await.unwrap();
+    let original = store
+        .engine_profile_store()
+        .load_workspace(&profile_id())
+        .await
+        .unwrap();
     assert_eq!(
         original.document.identity.source.kind,
         ProfileDocumentSourceKind::Subscription
@@ -518,6 +596,7 @@ async fn changed_subscription_source_rejects_stale_workspace_before_writing() {
 
     let failure = Failure::from(
         store
+            .engine_profile_store()
             .compare_and_save_inactive_workspace(
                 &original.identity(),
                 &update(b"mode: global\n", None),
@@ -550,6 +629,7 @@ async fn foreign_engine_workspace_is_rejected_before_profile_path_access() {
     };
 
     let error = store
+        .engine_profile_store()
         .compare_and_save_inactive_workspace(&expected, &update(b"mode: global\n", None))
         .await
         .unwrap_err();
@@ -562,6 +642,7 @@ async fn foreign_engine_workspace_is_rejected_before_profile_path_access() {
     ));
 
     let error = store
+        .engine_profile_store()
         .restore_inactive_workspace(&expected, &previous)
         .await
         .unwrap_err();
@@ -594,6 +675,7 @@ async fn unsupported_mihomo_format_and_schema_reject_before_profile_path_access(
         };
 
         let compare_error = store
+            .engine_profile_store()
             .compare_and_save_inactive_workspace(&expected, &update(b"mode: global\n", None))
             .await
             .unwrap_err();
@@ -606,6 +688,7 @@ async fn unsupported_mihomo_format_and_schema_reject_before_profile_path_access(
         ));
 
         let restore_error = store
+            .engine_profile_store()
             .restore_inactive_workspace(&expected, &previous)
             .await
             .unwrap_err();
@@ -629,7 +712,11 @@ async fn document_and_sidecar_revision_must_match_the_exact_raw_bytes() {
         .save_inactive_profile("main", "mode: rule\n")
         .await
         .unwrap();
-    let current = store.load_workspace(&profile_id()).await.unwrap();
+    let current = store
+        .engine_profile_store()
+        .load_workspace(&profile_id())
+        .await
+        .unwrap();
     let profile_path = store.config_dir().join("main.yaml");
     let before = read(&profile_path).await.unwrap();
     let mut forged = current.clone();
@@ -637,6 +724,7 @@ async fn document_and_sidecar_revision_must_match_the_exact_raw_bytes() {
 
     let failure = Failure::from(
         store
+            .engine_profile_store()
             .restore_inactive_workspace(&current.identity(), &forged)
             .await
             .unwrap_err(),
@@ -648,6 +736,7 @@ async fn document_and_sidecar_revision_must_match_the_exact_raw_bytes() {
     forged.sidecar_bytes = Some(b"# bytes without matching revision\n".to_vec());
     let failure = Failure::from(
         store
+            .engine_profile_store()
             .restore_inactive_workspace(&current.identity(), &forged)
             .await
             .unwrap_err(),
@@ -658,7 +747,11 @@ async fn document_and_sidecar_revision_must_match_the_exact_raw_bytes() {
     let sidecar = options_path(store.config_dir(), "main");
     create_dir_all(sidecar.parent().unwrap()).await.unwrap();
     write(&sidecar, b"\xff\x00#opaque\n").await.unwrap();
-    let current = store.load_workspace(&profile_id()).await.unwrap();
+    let current = store
+        .engine_profile_store()
+        .load_workspace(&profile_id())
+        .await
+        .unwrap();
     assert_eq!(
         current.sidecar_bytes.as_deref(),
         Some(b"\xff\x00#opaque\n".as_slice())
@@ -691,6 +784,7 @@ async fn separate_managers_share_the_cas_boundary_and_only_one_proposal_commits(
     assert_eq!(first.load("main").await.unwrap(), "mode: rule\n");
 
     let source = first
+        .engine_profile_store()
         .load_workspace(&profile_id())
         .await
         .unwrap()
@@ -698,16 +792,34 @@ async fn separate_managers_share_the_cas_boundary_and_only_one_proposal_commits(
     let first_update = update(b"mode: global\n", Some(b"global-sidecar"));
     let second_update = update(b"mode: direct\n", Some(b"direct-sidecar"));
     let (left, right) = tokio::join!(
-        first.compare_and_save_inactive_workspace(&source, &first_update),
-        second.compare_and_save_inactive_workspace(&source, &second_update),
+        first
+            .engine_profile_store()
+            .compare_and_save_inactive_workspace(&source, &first_update),
+        second
+            .engine_profile_store()
+            .compare_and_save_inactive_workspace(&source, &second_update),
     );
     let (winner, rejected) = match (left, right) {
         (Ok(winner), Err(rejected)) | (Err(rejected), Ok(winner)) => (winner, rejected),
         results => panic!("exactly one same-source proposal may publish: {results:?}"),
     };
     assert_eq!(Failure::from(rejected).code, ErrorCode::NotReady);
-    assert_eq!(first.load_workspace(&profile_id()).await.unwrap(), winner);
-    assert_eq!(second.load_workspace(&profile_id()).await.unwrap(), winner);
+    assert_eq!(
+        first
+            .engine_profile_store()
+            .load_workspace(&profile_id())
+            .await
+            .unwrap(),
+        winner
+    );
+    assert_eq!(
+        second
+            .engine_profile_store()
+            .load_workspace(&profile_id())
+            .await
+            .unwrap(),
+        winner
+    );
     assert!(
         winner.sidecar_bytes.as_deref() == Some(b"global-sidecar".as_slice())
             || winner.sidecar_bytes.as_deref() == Some(b"direct-sidecar".as_slice())
@@ -775,12 +887,22 @@ async fn active_and_inactive_publications_check_selection_inside_the_write_bound
         .unwrap();
     select_profile(&store, "main").await;
     let other_id = ProfileId::new("other").unwrap();
-    let other = store.load_workspace(&other_id).await.unwrap();
-    let selected = match store.read_active_profile_reference().await.unwrap() {
+    let other = store
+        .engine_profile_store()
+        .load_workspace(&other_id)
+        .await
+        .unwrap();
+    let selected = match store
+        .engine_profile_store()
+        .read_active_profile_reference()
+        .await
+        .unwrap()
+    {
         ActiveProfileReferenceState::Selected(reference) => reference,
         state => panic!("expected selected profile, got {state:?}"),
     };
     let error = match store
+        .engine_profile_store()
         .acquire_active_workspace_write_lease(
             selected,
             other.identity(),
@@ -793,11 +915,19 @@ async fn active_and_inactive_publications_check_selection_inside_the_write_bound
     };
     let failure = Failure::from(error);
     assert_eq!(failure.code, ErrorCode::NotReady);
-    assert_eq!(store.load_workspace(&other_id).await.unwrap(), other);
+    assert_eq!(
+        store
+            .engine_profile_store()
+            .load_workspace(&other_id)
+            .await
+            .unwrap(),
+        other
+    );
 
     select_profile(&store, "other").await;
     let failure = Failure::from(
         store
+            .engine_profile_store()
             .compare_and_save_inactive_workspace(
                 &other.identity(),
                 &update(b"mode: global\n", None),
@@ -806,11 +936,17 @@ async fn active_and_inactive_publications_check_selection_inside_the_write_bound
             .unwrap_err(),
     );
     assert_eq!(failure.code, ErrorCode::NotReady);
-    let selected = match store.read_active_profile_reference().await.unwrap() {
+    let selected = match store
+        .engine_profile_store()
+        .read_active_profile_reference()
+        .await
+        .unwrap()
+    {
         ActiveProfileReferenceState::Selected(reference) => reference,
         state => panic!("expected selected profile, got {state:?}"),
     };
     let active_lease = store
+        .engine_profile_store()
         .acquire_active_workspace_write_lease(
             selected,
             other.identity(),
@@ -821,7 +957,14 @@ async fn active_and_inactive_publications_check_selection_inside_the_write_bound
     let committed = publish_or_panic(active_lease, update(b"mode: global\n", None))
         .await
         .commit();
-    assert_eq!(store.load_active_workspace().await.unwrap(), committed);
+    assert_eq!(
+        store
+            .engine_profile_store()
+            .load_active_workspace()
+            .await
+            .unwrap(),
+        committed
+    );
     assert!(!store.config_dir().join("other.yaml.bak").exists());
     assert_eq!(store.load("main").await.unwrap(), "mode: rule\n");
 }
@@ -841,12 +984,22 @@ async fn managed_workspace_lease_holds_reference_through_restore_and_native_reco
         .unwrap();
     select_profile(&first, "main").await;
 
-    let reference = match first.read_active_profile_reference().await.unwrap() {
+    let reference = match first
+        .engine_profile_store()
+        .read_active_profile_reference()
+        .await
+        .unwrap()
+    {
         ActiveProfileReferenceState::Selected(reference) => reference,
         state => panic!("expected selected profile, got {state:?}"),
     };
-    let previous = first.load_workspace(&reference.profile_id).await.unwrap();
+    let previous = first
+        .engine_profile_store()
+        .load_workspace(&reference.profile_id)
+        .await
+        .unwrap();
     let observed = first
+        .engine_profile_store()
         .acquire_active_workspace_write_lease(
             reference.clone(),
             previous.identity(),
@@ -858,14 +1011,16 @@ async fn managed_workspace_lease_holds_reference_through_restore_and_native_reco
 
     let blocked_cas = tokio::time::timeout(
         Duration::from_millis(30),
-        second.compare_and_set_active_profile_reference(
-            ActiveProfileReferenceState::Selected(reference.clone()),
-            ActiveProfileReferenceTarget::selected(
-                ConfigManager::engine_id(&second),
-                ProfileId::new("other").unwrap(),
+        second
+            .engine_profile_store()
+            .compare_and_set_active_profile_reference(
+                ActiveProfileReferenceState::Selected(reference.clone()),
+                ActiveProfileReferenceTarget::selected(
+                    ConfigManager::engine_id(&second),
+                    ProfileId::new("other").unwrap(),
+                ),
+                ActiveProfileReferenceWriteAuthorization::Unowned,
             ),
-            ActiveProfileReferenceWriteAuthorization::Unowned,
-        ),
     )
     .await;
     assert!(
@@ -902,14 +1057,16 @@ async fn managed_workspace_lease_holds_reference_through_restore_and_native_reco
 
     let blocked_until_native_restore = tokio::time::timeout(
         Duration::from_millis(30),
-        second.compare_and_set_active_profile_reference(
-            ActiveProfileReferenceState::Selected(reference.clone()),
-            ActiveProfileReferenceTarget::selected(
-                ConfigManager::engine_id(&second),
-                ProfileId::new("other").unwrap(),
+        second
+            .engine_profile_store()
+            .compare_and_set_active_profile_reference(
+                ActiveProfileReferenceState::Selected(reference.clone()),
+                ActiveProfileReferenceTarget::selected(
+                    ConfigManager::engine_id(&second),
+                    ProfileId::new("other").unwrap(),
+                ),
+                ActiveProfileReferenceWriteAuthorization::Unowned,
             ),
-            ActiveProfileReferenceWriteAuthorization::Unowned,
-        ),
     )
     .await;
     assert!(
@@ -920,6 +1077,7 @@ async fn managed_workspace_lease_holds_reference_through_restore_and_native_reco
 
     assert!(matches!(
         second
+            .engine_profile_store()
             .compare_and_set_active_profile_reference(
                 ActiveProfileReferenceState::Selected(reference),
                 ActiveProfileReferenceTarget::selected(
@@ -946,7 +1104,11 @@ async fn reset_commits_default_reference_before_cleaning_profile_files() {
         .save_inactive_profile("other", "mode: global\n")
         .await
         .unwrap();
-    let previous = store.read_active_profile_reference().await.unwrap();
+    let previous = store
+        .engine_profile_store()
+        .read_active_profile_reference()
+        .await
+        .unwrap();
     let default_content = "mode: direct\n";
     let expected_revision = previous.revision().next().unwrap();
 
@@ -958,7 +1120,7 @@ async fn reset_commits_default_reference_before_cleaning_profile_files() {
         .await
         .unwrap();
     let current = match outcome {
-        crate::manager::ActiveProfileReferenceResetOutcome::Committed {
+        ActiveProfileReferenceResetOutcome::Committed {
             previous: committed_previous,
             current,
         } => {
@@ -975,7 +1137,11 @@ async fn reset_commits_default_reference_before_cleaning_profile_files() {
                 && reference.revision == expected_revision
     ));
     assert_eq!(
-        store.read_active_profile_reference().await.unwrap(),
+        store
+            .engine_profile_store()
+            .read_active_profile_reference()
+            .await
+            .unwrap(),
         current
     );
     assert_eq!(store.load("default").await.unwrap(), default_content);
@@ -989,7 +1155,7 @@ async fn reset_commits_default_reference_before_cleaning_profile_files() {
             })
             .await
             .unwrap(),
-        crate::manager::ActiveProfileReferenceResetOutcome::Committed {
+        ActiveProfileReferenceResetOutcome::Committed {
             previous: retried_previous,
             current: retried_current,
         } if retried_previous == previous && retried_current == current
@@ -1010,7 +1176,11 @@ async fn reset_of_an_already_default_profile_advances_revision_and_completes_int
         .await
         .unwrap();
     select_profile(&store, "default").await;
-    let expected = store.read_active_profile_reference().await.unwrap();
+    let expected = store
+        .engine_profile_store()
+        .read_active_profile_reference()
+        .await
+        .unwrap();
     let expected_next_revision = expected.revision().next().unwrap();
 
     let current = match store
@@ -1021,7 +1191,7 @@ async fn reset_of_an_already_default_profile_advances_revision_and_completes_int
         .await
         .unwrap()
     {
-        crate::manager::ActiveProfileReferenceResetOutcome::Committed { previous, current } => {
+        ActiveProfileReferenceResetOutcome::Committed { previous, current } => {
             assert_eq!(previous, expected);
             current
         }
@@ -1036,7 +1206,11 @@ async fn reset_of_an_already_default_profile_advances_revision_and_completes_int
                 && reference.revision == expected_next_revision
     ));
     assert_eq!(
-        store.read_active_profile_reference().await.unwrap(),
+        store
+            .engine_profile_store()
+            .read_active_profile_reference()
+            .await
+            .unwrap(),
         current
     );
     assert_eq!(store.load("default").await.unwrap(), default_content);
@@ -1069,9 +1243,17 @@ async fn reset_resumes_already_default_cleanup_from_its_durable_intent() {
         .await
         .unwrap();
     select_profile(&store, "default").await;
-    let expected = store.read_active_profile_reference().await.unwrap();
+    let expected = store
+        .engine_profile_store()
+        .read_active_profile_reference()
+        .await
+        .unwrap();
     select_profile(&store, "default").await;
-    let current = store.read_active_profile_reference().await.unwrap();
+    let current = store
+        .engine_profile_store()
+        .read_active_profile_reference()
+        .await
+        .unwrap();
     assert_eq!(current.revision(), expected.revision().next().unwrap());
 
     let digest = sha256_hex(default_content.as_bytes());
@@ -1095,7 +1277,7 @@ async fn reset_resumes_already_default_cleanup_from_its_durable_intent() {
         .unwrap();
     assert!(matches!(
         outcome,
-        crate::manager::ActiveProfileReferenceResetOutcome::Committed {
+        ActiveProfileReferenceResetOutcome::Committed {
             previous,
             current: committed,
         } if previous == expected && committed == current
@@ -1122,7 +1304,11 @@ async fn stale_reset_leaves_profile_tree_untouched() {
         .save_inactive_profile("other", "mode: global\n")
         .await
         .unwrap();
-    let stale = store.read_active_profile_reference().await.unwrap();
+    let stale = store
+        .engine_profile_store()
+        .read_active_profile_reference()
+        .await
+        .unwrap();
     let default_before = tokio::fs::read(store.config_dir().join("default.yaml"))
         .await
         .unwrap();
@@ -1139,7 +1325,7 @@ async fn stale_reset_leaves_profile_tree_untouched() {
             })
             .await
             .unwrap(),
-        crate::manager::ActiveProfileReferenceResetOutcome::Stale { expected, .. }
+        ActiveProfileReferenceResetOutcome::Stale { expected, .. }
             if expected == stale
     ));
     assert_eq!(
@@ -1169,7 +1355,11 @@ async fn reset_rejects_a_bound_owner_and_preserves_profile_files() {
         .await
         .unwrap();
     select_profile(&store, "default").await;
-    let expected = store.read_active_profile_reference().await.unwrap();
+    let expected = store
+        .engine_profile_store()
+        .read_active_profile_reference()
+        .await
+        .unwrap();
     let previous_default = tokio::fs::read(store.config_dir().join("default.yaml"))
         .await
         .unwrap();
@@ -1177,7 +1367,8 @@ async fn reset_rejects_a_bound_owner_and_preserves_profile_files() {
         .await
         .unwrap();
 
-    let selection = ActiveProfileReferenceStore::acquire_selection_lease(&store)
+    let profile_store = store.engine_profile_store();
+    let selection = ActiveProfileReferenceStore::acquire_selection_lease(profile_store)
         .await
         .unwrap();
     let identity = infiltrator_contract::core_identity::CoreIdentity::new(
@@ -1242,8 +1433,13 @@ async fn exact_recovery_rejects_forged_or_later_documents_and_restores_raw_bytes
     create_dir_all(path.parent().unwrap()).await.unwrap();
     let previous_sidecar = b"# retain exact annotation\r\n\xff\x00";
     write(&path, previous_sidecar).await.unwrap();
-    let previous = store.load_workspace(&profile_id()).await.unwrap();
+    let previous = store
+        .engine_profile_store()
+        .load_workspace(&profile_id())
+        .await
+        .unwrap();
     let committed = store
+        .engine_profile_store()
         .compare_and_save_inactive_workspace(
             &previous.identity(),
             &update(b"mode: global\n", Some(b"new-sidecar")),
@@ -1255,6 +1451,7 @@ async fn exact_recovery_rejects_forged_or_later_documents_and_restores_raw_bytes
     assert_eq!(
         Failure::from(
             store
+                .engine_profile_store()
                 .restore_inactive_workspace(&committed.identity(), &forged)
                 .await
                 .unwrap_err()
@@ -1263,11 +1460,16 @@ async fn exact_recovery_rejects_forged_or_later_documents_and_restores_raw_bytes
         ErrorCode::InvalidInput
     );
     assert_eq!(
-        store.load_workspace(&profile_id()).await.unwrap(),
+        store
+            .engine_profile_store()
+            .load_workspace(&profile_id())
+            .await
+            .unwrap(),
         committed
     );
 
     let recovered = store
+        .engine_profile_store()
         .restore_inactive_workspace(&committed.identity(), &previous)
         .await
         .unwrap();
@@ -1279,6 +1481,7 @@ async fn exact_recovery_rejects_forged_or_later_documents_and_restores_raw_bytes
     assert_eq!(read(&path).await.unwrap(), previous_sidecar);
 
     let later = store
+        .engine_profile_store()
         .compare_and_save_inactive_workspace(
             &recovered.identity(),
             &update(b"mode: direct\n", Some(previous_sidecar)),
@@ -1288,6 +1491,7 @@ async fn exact_recovery_rejects_forged_or_later_documents_and_restores_raw_bytes
     assert_eq!(
         Failure::from(
             store
+                .engine_profile_store()
                 .restore_inactive_workspace(&committed.identity(), &previous)
                 .await
                 .unwrap_err()
@@ -1295,7 +1499,14 @@ async fn exact_recovery_rejects_forged_or_later_documents_and_restores_raw_bytes
         .code,
         ErrorCode::NotReady
     );
-    assert_eq!(store.load_workspace(&profile_id()).await.unwrap(), later);
+    assert_eq!(
+        store
+            .engine_profile_store()
+            .load_workspace(&profile_id())
+            .await
+            .unwrap(),
+        later
+    );
 }
 
 #[tokio::test]

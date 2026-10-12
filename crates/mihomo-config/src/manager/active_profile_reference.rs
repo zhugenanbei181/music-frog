@@ -1,40 +1,31 @@
 //! Product-wide active-profile reference storage and the explicit legacy
 //! Mihomo selection migration.
 
-use super::{
-    ActiveProfileReferenceResetOutcome, ActiveProfileReferenceResetRequest, ConfigManager,
-};
+use super::ConfigManager;
 use infiltrator_contract::active_profile_reference::{
-    ActiveProfileReference, ActiveProfileReferenceRevision, ActiveProfileReferenceState,
-    ActiveProfileReferenceTarget, ActiveProfileReferenceWriteAuthorization,
+    ActiveProfileReference, ActiveProfileReferenceState,
 };
-use infiltrator_contract::core_identity::{CoreGeneration, CoreIdentity, EngineId};
+#[cfg(test)]
+use infiltrator_contract::active_profile_reference::{
+    ActiveProfileReferenceRevision, ActiveProfileReferenceTarget,
+    ActiveProfileReferenceWriteAuthorization,
+};
+use infiltrator_contract::core_identity::EngineId;
+#[cfg(test)]
+use infiltrator_contract::core_identity::{CoreGeneration, CoreIdentity};
 use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::profile_document_identity::{ProfileId, ProfileWorkspaceIdentity};
+use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_platform::instance_lock::ThreadedInstanceLockGuard;
+#[cfg(test)]
 use infiltrator_ports::active_profile_reference_store::{
     ActiveProfileOwnerRecoveryEvidence, ActiveProfileOwnerRecoveryOutcome,
-    ActiveProfileOwnerStoppedSwitchLease, ActiveProfileOwnerSwitchLease,
-    ActiveProfileOwnerSwitchRecovery, ActiveProfileReferenceLease, ActiveProfileReferenceStore,
+    ActiveProfileOwnerSwitchRecovery, ActiveProfileReferenceStore,
 };
 use infiltrator_ports::error::PortError;
-use infiltrator_ports::profile_store::{
-    ActiveProfileWorkspacePublishOutcome, ActiveProfileWorkspacePublishedLease,
-    ActiveProfileWorkspaceRecoveryLease, ActiveProfileWorkspaceRecoveryResolution,
-    ActiveProfileWorkspaceRecoveryState, ActiveProfileWorkspaceRestoreOutcome,
-    ActiveProfileWorkspaceRestoredLease, ActiveProfileWorkspaceWriteLease, ProfileStore,
-};
-use infiltrator_ports::profile_workspace::{
-    ProfileWorkspace, ProfileWorkspacePurpose, ProfileWorkspaceUpdate,
-};
 use infiltrator_ports::secure_store::SecureStore;
 #[cfg(test)]
 use infiltrator_profile_store::active_owner_registry::remove_local_owner_registration;
-use infiltrator_profile_store::active_profile_selection_lease::ActiveProfileSelectionLease;
-use infiltrator_profile_store::active_reference_cas::ActiveProfileReferenceTargetEvidence;
-use infiltrator_profile_store::active_reference_file::{
-    ActiveProfileReferenceFile, is_durability_uncertain,
-};
+use infiltrator_profile_store::active_reference_file::ActiveProfileReferenceFile;
 #[cfg(test)]
 use infiltrator_profile_store::active_reference_owner::{
     ACTIVE_CORE_OWNER_PROOF_SCHEMA_VERSION, ACTIVE_CORE_OWNER_STATE_FILE,
@@ -48,199 +39,32 @@ use infiltrator_profile_store::active_reference_owner::{
     ActiveCoreOwnerState, ActiveProfileReferenceRecord, LegacySelectionMigration,
     transition_rejected,
 };
-use infiltrator_profile_store::active_reference_owner_coordinator::{
-    ActiveProfileOwnerCoordinator, validate_reference_write_authorization,
+use infiltrator_profile_store::active_reference_owner_coordinator::ActiveProfileOwnerCoordinator;
+use infiltrator_profile_store::profile_reset::{
+    ActiveProfileReferenceResetOutcome, ActiveProfileReferenceResetRequest,
 };
-use infiltrator_profile_store::document_store::{
-    read_optional_bytes, remove_optional, remove_optional_durable, write_document_bytes_durable,
+#[cfg(test)]
+use infiltrator_profile_store::reset_fence::{
+    ACTIVE_PROFILE_RESET_COMPLETE_FILE, ACTIVE_PROFILE_RESET_DEFAULT_BACKUP_FILE,
+    ACTIVE_PROFILE_RESET_INTENT_FILE, ActiveProfileResetIntentRecord,
+    LEGACY_ACTIVE_PROFILE_RESET_INTENT_SCHEMA_VERSION, ParsedActiveProfileResetIntentRecord,
+    parse_reset_intent_record,
 };
-use infiltrator_profile_store::file_lock::{ProfileWriteGuard, lock_profile_writes_for_dir};
-use infiltrator_profile_store::profile_files::profile_document_backup_path;
-use infiltrator_profile_store::workspace::{sha256_hex, workspace_for_update};
+use infiltrator_profile_store::reset_fence::{
+    ActiveProfileResetMutationAccess, PROFILE_RESET_PENDING_MUTATION_MESSAGE,
+    ensure_no_pending_reset_in_engine_namespaces, reset_pending_for_dir,
+};
+#[cfg(test)]
+use infiltrator_profile_store::workspace::sha256_hex;
 use mihomo_api::error::MihomoError;
-use serde::{Deserialize, Serialize};
-use std::path::{Path, PathBuf};
+#[cfg(test)]
+use std::path::Path;
+use std::path::PathBuf;
 
-const ACTIVE_PROFILE_RESET_INTENT_SCHEMA_VERSION: u32 = 2;
-const LEGACY_ACTIVE_PROFILE_RESET_INTENT_SCHEMA_VERSION: u32 = 1;
-const ACTIVE_PROFILE_RESET_DEFAULT_BACKUP_FILE: &str = ".active-profile-reset-default.previous";
-const ACTIVE_PROFILE_RESET_DEFAULT_ABSENT_FILE: &str = ".active-profile-reset-default.was-absent";
-const ACTIVE_PROFILE_RESET_INTENT_FILE: &str = ".active-profile-reset-intent.json";
-const ACTIVE_PROFILE_RESET_COMPLETE_FILE: &str = ".active-profile-reset-complete.json";
-const PROFILE_RESET_PENDING_MUTATION_MESSAGE: &str =
-    "a profile reset is awaiting durable cleanup; retry that reset before other profile mutations";
 // Cross-process lock order is fixed: root reference lock -> owner-state lock
 // -> owner admission lock. Terminal owner release takes only owner-state and
 // local-registration locks, never the root lock; no path acquires root after
-// owner-state. These kernel locks fence only processes using this protocol.
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
-#[serde(deny_unknown_fields)]
-struct ActiveProfileResetIntentRecord {
-    schema_version: u32,
-    expected_reference: ActiveProfileReferenceState,
-    target_reference: ActiveProfileReferenceState,
-    default_document_sha256: String,
-    default_document: Vec<u8>,
-}
-
-impl ActiveProfileResetIntentRecord {
-    fn new(
-        expected_reference: ActiveProfileReferenceState,
-        target_reference: ActiveProfileReferenceState,
-        default_content: &[u8],
-    ) -> Self {
-        Self {
-            schema_version: ACTIVE_PROFILE_RESET_INTENT_SCHEMA_VERSION,
-            expected_reference,
-            target_reference,
-            default_document_sha256: sha256_hex(default_content),
-            default_document: default_content.to_vec(),
-        }
-    }
-
-    fn validate(&self) -> Result<(), PortError> {
-        if self.schema_version != ACTIVE_PROFILE_RESET_INTENT_SCHEMA_VERSION {
-            return Err(PortError::unsupported(
-                infiltrator_contract::capability::Capability::Profiles,
-                format!(
-                    "active profile reset intent schema {} is unsupported",
-                    self.schema_version
-                ),
-            ));
-        }
-        if self.default_document_sha256.len() != 64
-            || !self
-                .default_document_sha256
-                .bytes()
-                .all(|byte| byte.is_ascii_hexdigit())
-        {
-            return Err(PortError::Io(
-                "active profile reset intent has an invalid default digest".into(),
-            ));
-        }
-        if self.default_document_sha256 != sha256_hex(&self.default_document) {
-            return Err(PortError::Io(
-                "active profile reset intent default bytes do not match their digest".into(),
-            ));
-        }
-        Ok(())
-    }
-
-    fn matches_transition(
-        &self,
-        expected: &ActiveProfileReferenceState,
-        target: &ActiveProfileReferenceState,
-    ) -> bool {
-        &self.expected_reference == expected && &self.target_reference == target
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct LegacyActiveProfileResetIntentRecord {
-    expected_reference: ActiveProfileReferenceState,
-    target_reference: ActiveProfileReferenceState,
-    default_document_sha256: String,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-enum ParsedActiveProfileResetIntentRecord {
-    LegacyV1(LegacyActiveProfileResetIntentRecord),
-    CurrentV2(ActiveProfileResetIntentRecord),
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct ActiveProfileResetIntentEnvelope {
-    schema_version: u32,
-    expected_reference: ActiveProfileReferenceState,
-    target_reference: ActiveProfileReferenceState,
-    default_document_sha256: String,
-    default_document: Option<Vec<u8>>,
-}
-
-impl ParsedActiveProfileResetIntentRecord {
-    fn expected_reference(&self) -> &ActiveProfileReferenceState {
-        match self {
-            Self::LegacyV1(record) => &record.expected_reference,
-            Self::CurrentV2(record) => &record.expected_reference,
-        }
-    }
-
-    fn target_reference(&self) -> &ActiveProfileReferenceState {
-        match self {
-            Self::LegacyV1(record) => &record.target_reference,
-            Self::CurrentV2(record) => &record.target_reference,
-        }
-    }
-
-    fn current_record(&self) -> Option<&ActiveProfileResetIntentRecord> {
-        match self {
-            Self::LegacyV1(_) => None,
-            Self::CurrentV2(record) => Some(record),
-        }
-    }
-}
-
-/// Lock bundle owned by a multi-step active-workspace transaction. Managed
-/// consumers keep this bundle in an owned continuation until commit or
-/// conditional restoration is complete; process shutdown releases the OS
-/// locks while the owner proof remains bound unless exact terminal release
-/// already committed.
-struct ActiveWorkspaceWriteGuards {
-    _root: ThreadedInstanceLockGuard,
-    _owner_state: ThreadedInstanceLockGuard,
-    _profile: ProfileWriteGuard,
-}
-
-struct ConfigManagerObservedWorkspaceLease<'a, S: SecureStore> {
-    manager: &'a ConfigManager<S>,
-    observed: ProfileWorkspace,
-    guards: ActiveWorkspaceWriteGuards,
-}
-
-struct ConfigManagerPublishedWorkspaceLease<'a, S: SecureStore> {
-    manager: &'a ConfigManager<S>,
-    previous: ProfileWorkspace,
-    published: ProfileWorkspace,
-    guards: ActiveWorkspaceWriteGuards,
-}
-
-struct ConfigManagerRestoredWorkspaceLease {
-    restored: ProfileWorkspace,
-    _guards: ActiveWorkspaceWriteGuards,
-}
-
-enum ActiveWorkspaceRecoveryPurpose {
-    ConfirmPublished { target: ProfileWorkspace },
-    RestorePrevious { published: ProfileWorkspace },
-}
-
-enum ActiveProfileResetAttempt {
-    Publish,
-    FinishCommittedCleanup,
-}
-
-enum ActiveProfileResetMutationAccess {
-    OrdinaryMutation,
-    RetryEngine(EngineId),
-}
-
-/// Holds the product-wide reset fence before the engine-scoped profile lock.
-/// Direct sidecar/metadata writers use this when they do not own a
-/// ConfigManager reference lease themselves.
-pub(crate) struct ResetFencedProfileMutationGuard {
-    _root: ThreadedInstanceLockGuard,
-    _profile: ProfileWriteGuard,
-}
-
-struct ConfigManagerWorkspaceRecoveryLease<'a, S: SecureStore> {
-    manager: &'a ConfigManager<S>,
-    previous: ProfileWorkspace,
-    purpose: ActiveWorkspaceRecoveryPurpose,
-    guards: ActiveWorkspaceWriteGuards,
-    last_error: String,
-}
+// owner-state.
 
 fn lock_error(error: impl std::fmt::Display) -> PortError {
     PortError::Io(error.to_string())
@@ -255,150 +79,7 @@ fn profile_namespace_initialization_error(error: MihomoError) -> PortError {
     }
 }
 
-fn parse_reset_intent_record(
-    bytes: &[u8],
-) -> Result<ParsedActiveProfileResetIntentRecord, PortError> {
-    let record: ActiveProfileResetIntentEnvelope = serde_json::from_slice(bytes)
-        .map_err(|error| PortError::Io(format!("invalid profile reset intent record: {error}")))?;
-    if record.default_document_sha256.len() != 64
-        || !record
-            .default_document_sha256
-            .bytes()
-            .all(|byte| byte.is_ascii_hexdigit())
-    {
-        return Err(PortError::Io(
-            "active profile reset intent has an invalid default digest".into(),
-        ));
-    }
-    match (record.schema_version, record.default_document) {
-        (LEGACY_ACTIVE_PROFILE_RESET_INTENT_SCHEMA_VERSION, None) => Ok(
-            ParsedActiveProfileResetIntentRecord::LegacyV1(LegacyActiveProfileResetIntentRecord {
-                expected_reference: record.expected_reference,
-                target_reference: record.target_reference,
-                default_document_sha256: record.default_document_sha256,
-            }),
-        ),
-        (ACTIVE_PROFILE_RESET_INTENT_SCHEMA_VERSION, Some(default_document)) => {
-            let current = ActiveProfileResetIntentRecord {
-                schema_version: record.schema_version,
-                expected_reference: record.expected_reference,
-                target_reference: record.target_reference,
-                default_document_sha256: record.default_document_sha256,
-                default_document,
-            };
-            current.validate()?;
-            Ok(ParsedActiveProfileResetIntentRecord::CurrentV2(current))
-        }
-        (schema_version, _) => Err(PortError::unsupported(
-            infiltrator_contract::capability::Capability::Profiles,
-            format!("active profile reset intent schema {schema_version} is unsupported"),
-        )),
-    }
-}
-
-pub(super) async fn ensure_reset_not_pending_for_dir(config_dir: &Path) -> Result<(), PortError> {
-    if reset_pending_for_dir(config_dir).await? {
-        return Err(PortError::Rejected(Failure::new(
-            ErrorCode::NotReady,
-            PROFILE_RESET_PENDING_MUTATION_MESSAGE,
-            true,
-        )));
-    }
-    Ok(())
-}
-
-async fn reset_pending_for_dir(config_dir: &Path) -> Result<bool, PortError> {
-    let intent_path = config_dir.join(ACTIVE_PROFILE_RESET_INTENT_FILE);
-    let Some(intent_bytes) = read_optional_bytes(&intent_path).await? else {
-        return Ok(false);
-    };
-    let intent = parse_reset_intent_record(&intent_bytes)?;
-    let complete_path = config_dir.join(ACTIVE_PROFILE_RESET_COMPLETE_FILE);
-    let complete = read_optional_bytes(&complete_path).await?;
-    if complete
-        .as_deref()
-        .map(parse_reset_intent_record)
-        .transpose()?
-        .as_ref()
-        == Some(&intent)
-    {
-        return Ok(false);
-    }
-    Ok(true)
-}
-
-async fn ensure_no_pending_reset_in_engine_namespaces(
-    config_root: &Path,
-    access: ActiveProfileResetMutationAccess,
-) -> Result<(), PortError> {
-    let engines_root = config_root.join("engines");
-    let mut entries = match tokio::fs::read_dir(&engines_root).await {
-        Ok(entries) => entries,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
-        Err(error) => return Err(lock_error(error)),
-    };
-    while let Some(entry) = entries.next_entry().await.map_err(lock_error)? {
-        let file_type = entry.file_type().await.map_err(lock_error)?;
-        if file_type.is_symlink() {
-            return Err(PortError::Rejected(Failure::new(
-                ErrorCode::NotReady,
-                "engine namespace scan encountered a symlink and cannot prove reset state",
-                true,
-            )));
-        }
-        if !file_type.is_dir() {
-            continue;
-        }
-        let engine_name = entry.file_name();
-        let skip_local_retry_engine = match &access {
-            ActiveProfileResetMutationAccess::OrdinaryMutation => false,
-            ActiveProfileResetMutationAccess::RetryEngine(engine_id) => {
-                engine_name == engine_id.as_str()
-            }
-        };
-        if skip_local_retry_engine {
-            continue;
-        }
-        ensure_reset_not_pending_for_dir(&entry.path()).await?;
-    }
-    Ok(())
-}
-
-/// Acquire the existing root reference OS lock, inspect every engine reset
-/// intent, then acquire this engine's profile-write boundary. This preserves
-/// root -> profile order and closes the race between reset intent publication
-/// and ordinary profile mutations.
-pub(crate) async fn acquire_reset_fenced_profile_mutation_for_dir(
-    config_dir: &Path,
-) -> Result<ResetFencedProfileMutationGuard, PortError> {
-    let engines_root = config_dir
-        .parent()
-        .ok_or_else(|| PortError::Io("engine config directory has no parent".into()))?;
-    if engines_root.file_name().and_then(|name| name.to_str()) != Some("engines") {
-        return Err(PortError::Io(
-            "engine config directory is outside the shared engines namespace".into(),
-        ));
-    }
-    let config_root = engines_root
-        .parent()
-        .ok_or_else(|| PortError::Io("engine config namespace has no shared config root".into()))?;
-    let (config_root, root) = ActiveProfileReferenceFile::new(config_root.to_path_buf())
-        .acquire_root_lock()
-        .await?;
-    ensure_no_pending_reset_in_engine_namespaces(
-        &config_root,
-        ActiveProfileResetMutationAccess::OrdinaryMutation,
-    )
-    .await?;
-    let profile = lock_profile_writes_for_dir(config_dir)
-        .await
-        .map_err(lock_error)?;
-    Ok(ResetFencedProfileMutationGuard {
-        _root: root,
-        _profile: profile,
-    })
-}
-
+#[cfg(test)]
 fn sync_read_active_profile_record(
     config_root: &Path,
 ) -> Result<ActiveProfileReferenceRecord, PortError> {
@@ -412,14 +93,6 @@ fn sync_read_active_core_owner_proof(
     config_root: &Path,
 ) -> Result<ActiveCoreOwnerProofRecord, PortError> {
     ActiveProfileReferenceFile::new(config_root).read_owner_proof_sync()
-}
-
-fn sync_publish_active_profile_record(
-    config_root: &Path,
-    record: &ActiveProfileReferenceRecord,
-) -> Result<(), PortError> {
-    ActiveProfileReferenceFile::new(config_root)
-        .publish_active_profile_record_sync_reconciled(record)
 }
 
 impl<S: SecureStore> ConfigManager<S> {
@@ -568,196 +241,6 @@ impl<S: SecureStore> ConfigManager<S> {
         }
         Ok((engine_id, profile_id))
     }
-
-    async fn compare_and_set_record_unlocked(
-        &self,
-        record: &mut ActiveProfileReferenceRecord,
-        expected_revision: ActiveProfileReferenceRevision,
-        target: ActiveProfileReferenceTarget,
-        authorization: ActiveProfileReferenceWriteAuthorization,
-        config_root: &Path,
-    ) -> Result<ActiveProfileReferenceState, PortError> {
-        ensure_no_pending_reset_in_engine_namespaces(
-            config_root,
-            ActiveProfileResetMutationAccess::OrdinaryMutation,
-        )
-        .await?;
-        ActiveProfileOwnerCoordinator::new(config_root.to_path_buf())
-            .compare_and_set_reference_unlocked(
-                record,
-                expected_revision,
-                target,
-                authorization,
-                self.engine_id(),
-                |target, local_engine| async move {
-                    match target {
-                        ActiveProfileReferenceTarget::Unselected => {
-                            Ok(ActiveProfileReferenceTargetEvidence::Unselected)
-                        }
-                        ActiveProfileReferenceTarget::Selected {
-                            engine_id,
-                            profile_id,
-                        } if engine_id == local_engine => {
-                            let workspace = ProfileStore::load_workspace(self, &profile_id).await?;
-                            Ok(ActiveProfileReferenceTargetEvidence::LocalWorkspace(
-                                workspace.identity(),
-                            ))
-                        }
-                        ActiveProfileReferenceTarget::Selected { .. } => {
-                            Ok(ActiveProfileReferenceTargetEvidence::OtherEngine)
-                        }
-                    }
-                },
-            )
-            .await
-    }
-}
-
-#[async_trait::async_trait]
-impl<S: SecureStore> ActiveProfileReferenceStore for ConfigManager<S> {
-    async fn read(&self) -> Result<ActiveProfileReferenceState, PortError> {
-        Ok(self.read_active_profile_record_unlocked().await?.selection)
-    }
-
-    async fn acquire_selection_lease(
-        &self,
-    ) -> Result<Box<dyn ActiveProfileReferenceLease>, PortError> {
-        self.initialize_profile_namespace()
-            .await
-            .map_err(profile_namespace_initialization_error)?;
-        let (config_root, guard) = self.acquire_active_profile_reference_lock().await?;
-        ensure_no_pending_reset_in_engine_namespaces(
-            &config_root,
-            ActiveProfileResetMutationAccess::OrdinaryMutation,
-        )
-        .await?;
-        let mut record = self.read_active_profile_record_unlocked().await?;
-        let (_owner_state, _owner_state_guard) =
-            ActiveProfileOwnerCoordinator::new(config_root.clone())
-                .normalize_owner_state_unlocked(&mut record)
-                .await?;
-        Ok(Box::new(ActiveProfileSelectionLease::new(
-            record.selection,
-            config_root,
-            guard,
-        )))
-    }
-
-    async fn acquire_provider_selection_lease(
-        &self,
-    ) -> Result<Box<dyn ActiveProfileReferenceLease>, PortError> {
-        self.initialize_profile_namespace()
-            .await
-            .map_err(profile_namespace_initialization_error)?;
-        let (config_root, guard) = self.acquire_active_profile_reference_lock().await?;
-        ensure_no_pending_reset_in_engine_namespaces(
-            &config_root,
-            ActiveProfileResetMutationAccess::OrdinaryMutation,
-        )
-        .await?;
-        let mut record = self.read_active_profile_record_unlocked().await?;
-        let (owner_state, _owner_state_guard) =
-            ActiveProfileOwnerCoordinator::new(config_root.clone())
-                .normalize_owner_state_unlocked(&mut record)
-                .await?;
-        if let ActiveCoreOwnerState::Bound {
-            identity,
-            generation,
-            ..
-        } = owner_state
-        {
-            return Err(PortError::Rejected(Failure::new(
-                ErrorCode::NotReady,
-                format!(
-                    "active Core {} at generation {} must close before another provider is composed",
-                    identity.instance.as_str(),
-                    generation.value()
-                ),
-                true,
-            )));
-        }
-        Ok(Box::new(ActiveProfileSelectionLease::new(
-            record.selection,
-            config_root,
-            guard,
-        )))
-    }
-
-    async fn recover_bound_owner_after_terminal(
-        &self,
-        evidence: ActiveProfileOwnerRecoveryEvidence,
-    ) -> Result<ActiveProfileOwnerRecoveryOutcome, PortError> {
-        ActiveProfileOwnerCoordinator::new(self.config_root().to_path_buf())
-            .recover_bound_owner_after_terminal(evidence)
-            .await
-    }
-
-    async fn compare_and_set(
-        &self,
-        expected_revision: ActiveProfileReferenceRevision,
-        target: ActiveProfileReferenceTarget,
-        authorization: ActiveProfileReferenceWriteAuthorization,
-    ) -> Result<ActiveProfileReferenceState, PortError> {
-        self.initialize_profile_namespace()
-            .await
-            .map_err(profile_namespace_initialization_error)?;
-        let (config_root, _guard) = self.acquire_active_profile_reference_lock().await?;
-        let mut record = self.read_active_profile_record_unlocked().await?;
-        self.compare_and_set_record_unlocked(
-            &mut record,
-            expected_revision,
-            target,
-            authorization,
-            &config_root,
-        )
-        .await
-    }
-
-    async fn begin_owner_switch(
-        &self,
-        expected_revision: ActiveProfileReferenceRevision,
-        expected_owner: CoreIdentity,
-        expected_binding_generation: CoreGeneration,
-    ) -> Result<Box<dyn ActiveProfileOwnerSwitchLease>, PortError> {
-        let (config_root, root_guard) = self.acquire_active_profile_reference_lock().await?;
-        ensure_no_pending_reset_in_engine_namespaces(
-            &config_root,
-            ActiveProfileResetMutationAccess::OrdinaryMutation,
-        )
-        .await?;
-        ActiveProfileOwnerCoordinator::new(config_root)
-            .begin_owner_switch_while_root_locked(
-                root_guard,
-                expected_revision,
-                expected_owner,
-                expected_binding_generation,
-            )
-            .await
-    }
-
-    async fn recover_owner_switch(&self) -> Result<ActiveProfileOwnerSwitchRecovery, PortError> {
-        ActiveProfileOwnerCoordinator::new(self.config_root().to_path_buf())
-            .recover_owner_switch()
-            .await
-    }
-
-    async fn recover_old_owner_after_terminal(
-        &self,
-        terminal: &infiltrator_contract::snapshot::CoreLifecycleSnapshot,
-    ) -> Result<Box<dyn ActiveProfileOwnerStoppedSwitchLease>, PortError> {
-        ActiveProfileOwnerCoordinator::new(self.config_root().to_path_buf())
-            .recover_old_owner_after_terminal(terminal)
-            .await
-    }
-
-    async fn recover_candidate_after_terminal(
-        &self,
-        terminal: &infiltrator_contract::snapshot::CoreLifecycleSnapshot,
-    ) -> Result<ActiveProfileReferenceState, PortError> {
-        ActiveProfileOwnerCoordinator::new(self.config_root().to_path_buf())
-            .recover_candidate_after_terminal(terminal)
-            .await
-    }
 }
 
 impl<S: SecureStore> ConfigManager<S> {
@@ -782,1056 +265,13 @@ impl<S: SecureStore> ConfigManager<S> {
         reset_pending_for_dir(self.config_dir()).await
     }
 
-    /// Persist one derived active-profile document as a single atomic file
-    /// replacement while the reference is selected and no Core owner is
-    /// bound. This path deliberately cannot change sidecar bytes or perform a
-    /// runtime apply, so caller cancellation leaves either the previous file
-    /// or the complete replacement.
-    pub(crate) async fn compare_and_save_unowned_active_derived_document(
-        &self,
-        expected_reference: ActiveProfileReference,
-        expected_workspace: ProfileWorkspaceIdentity,
-        update: &ProfileWorkspaceUpdate,
-    ) -> Result<ProfileWorkspace, PortError> {
-        if expected_reference.engine_id != self.engine_id()
-            || expected_workspace.document.engine_id != expected_reference.engine_id
-            || expected_workspace.document.profile_id != expected_reference.profile_id
-        {
-            return Err(PortError::Rejected(Failure::new(
-                ErrorCode::NotReady,
-                "derived document identity differs from the active profile reference",
-                false,
-            )));
-        }
-        if update.purpose != ProfileWorkspacePurpose::Derived {
-            return Err(PortError::Rejected(Failure::new(
-                ErrorCode::InvalidInput,
-                "unowned active-document persistence accepts derived updates only",
-                false,
-            )));
-        }
-        self.validate_document_bytes(&update.document_bytes)?;
-
-        self.initialize_profile_namespace()
-            .await
-            .map_err(profile_namespace_initialization_error)?;
-        let (config_root, _root_guard) = self.acquire_active_profile_reference_lock().await?;
-        ensure_no_pending_reset_in_engine_namespaces(
-            &config_root,
-            ActiveProfileResetMutationAccess::OrdinaryMutation,
-        )
-        .await?;
-        let mut record = self.read_active_profile_record_unlocked().await?;
-        let expected_state = ActiveProfileReferenceState::Selected(expected_reference.clone());
-        if record.selection != expected_state {
-            return Err(PortError::Rejected(Failure::new(
-                ErrorCode::NotReady,
-                "active profile reference changed before derived document persistence",
-                true,
-            )));
-        }
-        let (owner_state, _owner_state_guard) =
-            ActiveProfileOwnerCoordinator::new(config_root.clone())
-                .normalize_owner_state_unlocked(&mut record)
-                .await?;
-        validate_reference_write_authorization(
-            &owner_state,
-            &ActiveProfileReferenceWriteAuthorization::Unowned,
-            &config_root,
-        )?;
-        let _profile_guard = self.lock_profile_writes().await.map_err(lock_error)?;
-        let observed = self
-            .read_workspace_locked(&expected_reference.profile_id)
-            .await?;
-        if observed.identity() != expected_workspace {
-            return Err(PortError::Rejected(Failure::new(
-                ErrorCode::NotReady,
-                "active workspace changed before derived document persistence",
-                true,
-            )));
-        }
-        if observed.sidecar_bytes != update.sidecar_bytes {
-            return Err(PortError::Rejected(Failure::new(
-                ErrorCode::NotReady,
-                "derived document persistence cannot modify profile sidecar bytes",
-                false,
-            )));
-        }
-        if observed.document.raw_bytes == update.document_bytes {
-            return Ok(observed);
-        }
-
-        let path = self
-            .existing_profile_document_path(expected_reference.profile_id.as_str())
-            .await
-            .map_err(crate::profile_workspace_store::config_error)?;
-        write_document_bytes_durable(&path, &update.document_bytes).await?;
-        if let Err(error) = remove_optional(&profile_document_backup_path(&path)).await {
-            log::warn!("committed derived workspace backup cleanup failed: {error}");
-        }
-        Ok(workspace_for_update(
-            self.document_codec_scope(),
-            &observed,
-            update,
-        ))
-    }
-
-    /// Acquire a typed active-workspace transaction lease in root -> owner
-    /// state -> profile order. No content bytes are written until the caller
-    /// consumes the observed lease through `publish`.
-    pub(crate) async fn acquire_active_workspace_write_lease<'a>(
-        &'a self,
-        expected_reference: ActiveProfileReference,
-        expected_workspace: ProfileWorkspaceIdentity,
-        authorization: ActiveProfileReferenceWriteAuthorization,
-    ) -> Result<Box<dyn ActiveProfileWorkspaceWriteLease + 'a>, PortError> {
-        if expected_reference.engine_id != self.engine_id()
-            || expected_workspace.document.profile_id != expected_reference.profile_id
-            || expected_workspace.document.engine_id != expected_reference.engine_id
-        {
-            return Err(PortError::Rejected(Failure::new(
-                ErrorCode::NotReady,
-                "active workspace identity differs from its expected reference",
-                false,
-            )));
-        }
-        self.initialize_profile_namespace()
-            .await
-            .map_err(profile_namespace_initialization_error)?;
-        let (config_root, root_guard) = self.acquire_active_profile_reference_lock().await?;
-        ensure_no_pending_reset_in_engine_namespaces(
-            &config_root,
-            ActiveProfileResetMutationAccess::OrdinaryMutation,
-        )
-        .await?;
-        let mut record = sync_read_active_profile_record(&config_root)?;
-        let expected_state = ActiveProfileReferenceState::Selected(expected_reference.clone());
-        if record.selection != expected_state {
-            return Err(PortError::Rejected(Failure::new(
-                ErrorCode::NotReady,
-                "active profile reference changed before workspace publication",
-                true,
-            )));
-        }
-        let (owner_state, owner_state_guard) =
-            ActiveProfileOwnerCoordinator::new(config_root.clone())
-                .normalize_owner_state_unlocked(&mut record)
-                .await?;
-        validate_reference_write_authorization(&owner_state, &authorization, &config_root)?;
-        let profile_guard = lock_profile_writes_for_dir(self.config_dir())
-            .await
-            .map_err(lock_error)?;
-        let observed = self
-            .read_workspace_locked(&expected_reference.profile_id)
-            .await?;
-        if observed.identity() != expected_workspace {
-            return Err(PortError::Rejected(Failure::new(
-                ErrorCode::NotReady,
-                "active workspace identity changed before transaction lease acquisition",
-                true,
-            )));
-        }
-        let guards = ActiveWorkspaceWriteGuards {
-            _root: root_guard,
-            _owner_state: owner_state_guard,
-            _profile: profile_guard,
-        };
-        Ok(Box::new(ConfigManagerObservedWorkspaceLease {
-            manager: self,
-            observed,
-            guards,
-        }))
-    }
-
-    /// Reset this engine's profile files and select its default profile as
-    /// one unowned reference transaction. The default is written before CAS;
-    /// old files remain available until the CAS commits, and cleanup can be
-    /// retried safely if the process exits after commit.
+    /// Delegate the product reset transaction to the engine-neutral profile owner.
     pub async fn reset_profiles_to_default(
         &self,
         request: ActiveProfileReferenceResetRequest,
     ) -> Result<ActiveProfileReferenceResetOutcome, PortError> {
-        let (expected, default_document, config_root, root_guard) = match request {
-            ActiveProfileReferenceResetRequest::Start {
-                expected,
-                default_document,
-            } => {
-                self.validate_document_bytes(default_document.as_bytes())
-                    .map_err(lock_error)?;
-                if read_optional_bytes(&self.config_dir().join(ACTIVE_PROFILE_RESET_INTENT_FILE))
-                    .await?
-                    .is_none()
-                {
-                    self.initialize_profile_namespace()
-                        .await
-                        .map_err(profile_namespace_initialization_error)?;
-                }
-                let (config_root, root_guard) =
-                    self.acquire_active_profile_reference_lock().await?;
-                (expected, default_document, config_root, root_guard)
-            }
-            ActiveProfileReferenceResetRequest::ResumePendingIntent => {
-                let (config_root, root_guard) =
-                    self.acquire_active_profile_reference_lock().await?;
-                if !reset_pending_for_dir(self.config_dir()).await? {
-                    return Ok(ActiveProfileReferenceResetOutcome::NoPendingIntent);
-                }
-                let intent_path = self.config_dir().join(ACTIVE_PROFILE_RESET_INTENT_FILE);
-                let intent_bytes = read_optional_bytes(&intent_path).await?.ok_or_else(|| {
-                    PortError::Failed(
-                        "pending profile reset disappeared while its root lock was held".into(),
-                    )
-                })?;
-                let intent = parse_reset_intent_record(&intent_bytes)?;
-                let expected = intent.expected_reference().clone();
-                let next_revision = expected
-                    .revision()
-                    .next()
-                    .ok_or_else(|| PortError::Failed("active-profile revision exhausted".into()))?;
-                let target = ActiveProfileReferenceState::Selected(ActiveProfileReference::new(
-                    self.engine_id(),
-                    ProfileId::new("default")
-                        .map_err(|error| PortError::Failed(error.to_string()))?,
-                    next_revision,
-                ));
-                if intent.target_reference() != &target {
-                    return Err(transition_rejected(
-                        "pending reset intent has an invalid expected-to-default transition",
-                    ));
-                }
-                let default_document = match &intent {
-                    ParsedActiveProfileResetIntentRecord::CurrentV2(record) => {
-                        record.default_document.clone()
-                    }
-                    ParsedActiveProfileResetIntentRecord::LegacyV1(record) => {
-                        let default_path = self
-                            .profile_document_path("default")
-                            .await
-                            .map_err(lock_error)?;
-                        let backup_path = self
-                            .config_dir()
-                            .join(ACTIVE_PROFILE_RESET_DEFAULT_BACKUP_FILE);
-                        let current = read_optional_bytes(&default_path).await?;
-                        let backup = read_optional_bytes(&backup_path).await?;
-                        current
-                            .as_deref()
-                            .filter(|bytes| sha256_hex(bytes) == record.default_document_sha256)
-                            .or_else(|| {
-                                backup.as_deref().filter(|bytes| {
-                                    sha256_hex(bytes) == record.default_document_sha256
-                                })
-                            })
-                            .ok_or_else(|| {
-                                PortError::unsupported(
-                                    infiltrator_contract::capability::Capability::Profiles,
-                                    "legacy reset intent does not contain recoverable default bytes",
-                                )
-                            })?
-                            .to_vec()
-                    }
-                };
-                let default_document = String::from_utf8(default_document).map_err(|error| {
-                    PortError::Io(format!(
-                        "pending reset default document is not UTF-8: {error}"
-                    ))
-                })?;
-                (expected, default_document, config_root, root_guard)
-            }
-        };
-        self.reset_profiles_to_default_locked(expected, &default_document, config_root, root_guard)
-            .await
+        self.profile_store.reset_profiles_to_default(request).await
     }
-
-    async fn reset_profiles_to_default_locked(
-        &self,
-        expected: ActiveProfileReferenceState,
-        default_content: &str,
-        config_root: PathBuf,
-        _root_guard: ThreadedInstanceLockGuard,
-    ) -> Result<ActiveProfileReferenceResetOutcome, PortError> {
-        self.validate_document_bytes(default_content.as_bytes())
-            .map_err(lock_error)?;
-        ensure_no_pending_reset_in_engine_namespaces(
-            &config_root,
-            ActiveProfileResetMutationAccess::RetryEngine(self.engine_id()),
-        )
-        .await?;
-        let mut record = sync_read_active_profile_record(&config_root)?;
-        let revision = expected
-            .revision()
-            .next()
-            .ok_or_else(|| PortError::Failed("active-profile revision exhausted".into()))?;
-        let default_id =
-            ProfileId::new("default").map_err(|error| PortError::Failed(error.to_string()))?;
-        let current = ActiveProfileReferenceState::Selected(ActiveProfileReference::new(
-            self.engine_id(),
-            default_id.clone(),
-            revision,
-        ));
-        let attempt = if record.selection == expected {
-            ActiveProfileResetAttempt::Publish
-        } else if record.selection == current {
-            ActiveProfileResetAttempt::FinishCommittedCleanup
-        } else {
-            return Ok(ActiveProfileReferenceResetOutcome::Stale {
-                expected: expected.clone(),
-                observed: record.selection,
-            });
-        };
-        let (owner_state, _owner_state_guard) =
-            ActiveProfileOwnerCoordinator::new(config_root.clone())
-                .normalize_owner_state_unlocked(&mut record)
-                .await?;
-        validate_reference_write_authorization(
-            &owner_state,
-            &ActiveProfileReferenceWriteAuthorization::Unowned,
-            &config_root,
-        )?;
-
-        let _profile_guard = self.lock_profile_writes().await.map_err(lock_error)?;
-        let default_path = self
-            .profile_document_path("default")
-            .await
-            .map_err(lock_error)?;
-        let backup_path = self
-            .config_dir()
-            .join(ACTIVE_PROFILE_RESET_DEFAULT_BACKUP_FILE);
-        let absent_marker_path = self
-            .config_dir()
-            .join(ACTIVE_PROFILE_RESET_DEFAULT_ABSENT_FILE);
-        let intent_path = self.config_dir().join(ACTIVE_PROFILE_RESET_INTENT_FILE);
-        let complete_path = self.config_dir().join(ACTIVE_PROFILE_RESET_COMPLETE_FILE);
-
-        let previous_default = read_optional_bytes(&default_path).await?;
-        let mut backup_bytes = read_optional_bytes(&backup_path).await?;
-        let mut absent_marker = read_optional_bytes(&absent_marker_path).await?;
-        let stored_intent_bytes = read_optional_bytes(&intent_path).await?;
-        let complete_bytes = read_optional_bytes(&complete_path).await?;
-        if backup_bytes.is_some() && absent_marker.is_some() {
-            return Err(transition_rejected(
-                "profile reset has conflicting default recovery markers",
-            ));
-        }
-        let mut stored_intent = stored_intent_bytes
-            .as_deref()
-            .map(parse_reset_intent_record)
-            .transpose()?;
-        let complete_intent = complete_bytes
-            .as_deref()
-            .map(parse_reset_intent_record)
-            .transpose()?;
-        if let Some(ParsedActiveProfileResetIntentRecord::LegacyV1(legacy)) = stored_intent.as_ref()
-        {
-            let recoverable_default = previous_default
-                .as_deref()
-                .filter(|bytes| sha256_hex(bytes) == legacy.default_document_sha256)
-                .or_else(|| {
-                    let bytes = default_content.as_bytes();
-                    (sha256_hex(bytes) == legacy.default_document_sha256).then_some(bytes)
-                });
-            let Some(recoverable_default) = recoverable_default else {
-                return Err(PortError::unsupported(
-                    infiltrator_contract::capability::Capability::Profiles,
-                    "legacy reset intent contains only a digest and its exact default document cannot be recovered",
-                ));
-            };
-            let migrated = ActiveProfileResetIntentRecord::new(
-                legacy.expected_reference.clone(),
-                legacy.target_reference.clone(),
-                recoverable_default,
-            );
-            let bytes = serde_json::to_vec_pretty(&migrated)
-                .map_err(|error| PortError::Io(error.to_string()))?;
-            write_document_bytes_durable(&intent_path, &bytes).await?;
-            stored_intent = Some(ParsedActiveProfileResetIntentRecord::CurrentV2(migrated));
-        }
-        let reset_default_document = stored_intent
-            .as_ref()
-            .and_then(ParsedActiveProfileResetIntentRecord::current_record)
-            .filter(|stored| stored.matches_transition(&expected, &current))
-            .map(|stored| stored.default_document.as_slice())
-            .unwrap_or_else(|| default_content.as_bytes())
-            .to_vec();
-        self.validate_document_bytes(&reset_default_document)
-            .map_err(lock_error)?;
-        let desired_intent = ActiveProfileResetIntentRecord::new(
-            expected.clone(),
-            current.clone(),
-            &reset_default_document,
-        );
-        let desired_intent_state =
-            ParsedActiveProfileResetIntentRecord::CurrentV2(desired_intent.clone());
-        if let ActiveProfileResetAttempt::FinishCommittedCleanup = attempt {
-            if complete_intent.as_ref() == Some(&desired_intent_state)
-                && stored_intent
-                    .as_ref()
-                    .is_none_or(|stored| stored == &desired_intent_state)
-            {
-                remove_optional_durable(&intent_path)?;
-                return Ok(ActiveProfileReferenceResetOutcome::Committed {
-                    previous: expected,
-                    current,
-                });
-            }
-            if stored_intent.as_ref() != Some(&desired_intent_state) {
-                return Ok(ActiveProfileReferenceResetOutcome::Stale {
-                    expected,
-                    observed: record.selection,
-                });
-            }
-            if previous_default.as_deref() != Some(reset_default_document.as_slice()) {
-                write_document_bytes_durable(&default_path, &reset_default_document).await?;
-            }
-            let workspace = self.read_workspace_locked(&default_id).await?;
-            if workspace.document.identity.engine_id != self.engine_id()
-                || workspace.document.identity.profile_id != default_id
-                || workspace.document.raw_bytes.as_slice() != reset_default_document.as_slice()
-            {
-                return Err(PortError::Failed(
-                    "committed reset target could not be re-established from its durable intent"
-                        .into(),
-                ));
-            }
-            let cleanup = self
-                .cleanup_profiles_after_reset(
-                    &default_path,
-                    &intent_path,
-                    &backup_path,
-                    &absent_marker_path,
-                    &complete_path,
-                )
-                .await;
-            return match cleanup {
-                Ok(()) => match self
-                    .complete_profile_reset(&desired_intent, &intent_path, &complete_path)
-                    .await
-                {
-                    Ok(()) => Ok(ActiveProfileReferenceResetOutcome::Committed {
-                        previous: expected,
-                        current,
-                    }),
-                    Err(error) => Ok(ActiveProfileReferenceResetOutcome::CleanupPending {
-                        previous: expected,
-                        current,
-                        error: error.to_string(),
-                    }),
-                },
-                Err(error) => Ok(ActiveProfileReferenceResetOutcome::CleanupPending {
-                    previous: expected,
-                    current,
-                    error: error.to_string(),
-                }),
-            };
-        }
-        if let Some(previous_intent) = stored_intent
-            .as_ref()
-            .filter(|stored| stored.target_reference() == &expected)
-            .cloned()
-        {
-            if complete_intent.as_ref() != Some(&previous_intent) {
-                let previous_record = previous_intent.current_record().ok_or_else(|| {
-                    PortError::unsupported(
-                        infiltrator_contract::capability::Capability::Profiles,
-                        "legacy reset intent was not upgraded before cleanup",
-                    )
-                })?;
-                self.cleanup_profiles_after_reset(
-                    &default_path,
-                    &intent_path,
-                    &backup_path,
-                    &absent_marker_path,
-                    &complete_path,
-                )
-                .await?;
-                self.complete_profile_reset(previous_record, &intent_path, &complete_path)
-                    .await?;
-            } else {
-                remove_optional_durable(&intent_path)?;
-            }
-            stored_intent = None;
-            backup_bytes = None;
-            absent_marker = None;
-        }
-        if stored_intent
-            .as_ref()
-            .is_some_and(|stored| stored != &desired_intent_state)
-        {
-            return Err(transition_rejected(
-                "profile reset already has an intent for a different source or target",
-            ));
-        }
-        let rollback_default = if let Some(bytes) = &backup_bytes {
-            Some(bytes.clone())
-        } else if absent_marker.is_some() {
-            None
-        } else {
-            previous_default.clone()
-        };
-        let mut default_write_attempted = false;
-        if previous_default.as_deref() != Some(reset_default_document.as_slice())
-            && backup_bytes.is_none()
-            && absent_marker.is_none()
-        {
-            match previous_default.as_deref() {
-                Some(bytes) => write_document_bytes_durable(&backup_path, bytes).await?,
-                None => write_document_bytes_durable(&absent_marker_path, b"absent").await?,
-            }
-        }
-        if stored_intent.is_none() {
-            let bytes = serde_json::to_vec_pretty(&desired_intent)
-                .map_err(|error| PortError::Io(error.to_string()))?;
-            write_document_bytes_durable(&intent_path, &bytes).await?;
-        }
-        if previous_default.as_deref() != Some(reset_default_document.as_slice()) {
-            default_write_attempted = true;
-            if let Err(error) =
-                write_document_bytes_durable(&default_path, &reset_default_document).await
-            {
-                restore_reset_default(
-                    &default_path,
-                    &backup_path,
-                    &absent_marker_path,
-                    &intent_path,
-                    rollback_default.as_deref(),
-                    default_write_attempted,
-                )
-                .await?;
-                return Err(error);
-            }
-        }
-
-        let workspace = match self.read_workspace_locked(&default_id).await {
-            Ok(workspace) => workspace,
-            Err(error) => {
-                restore_reset_default(
-                    &default_path,
-                    &backup_path,
-                    &absent_marker_path,
-                    &intent_path,
-                    rollback_default.as_deref(),
-                    default_write_attempted,
-                )
-                .await?;
-                return Err(error);
-            }
-        };
-        if workspace.document.identity.engine_id != self.engine_id()
-            || workspace.document.identity.profile_id != default_id
-            || workspace.document.raw_bytes.as_slice() != reset_default_document.as_slice()
-        {
-            restore_reset_default(
-                &default_path,
-                &backup_path,
-                &absent_marker_path,
-                &intent_path,
-                rollback_default.as_deref(),
-                default_write_attempted,
-            )
-            .await?;
-            return Err(PortError::Rejected(Failure::new(
-                ErrorCode::NotReady,
-                "default workspace identity or bytes changed before reference CAS",
-                true,
-            )));
-        }
-
-        record.selection = current.clone();
-        record.legacy_migration = LegacySelectionMigration::ExplicitSelection;
-        record.owner = ActiveCoreOwnerState::Unowned;
-        let (previous, current) = match sync_publish_active_profile_record(&config_root, &record) {
-            Ok(()) => (expected.clone(), current),
-            Err(commit_error) => {
-                if is_durability_uncertain(&commit_error) {
-                    return Err(PortError::Failed(format!(
-                        "{commit_error}; reset recovery bytes were retained"
-                    )));
-                }
-                match sync_read_active_profile_record(&config_root) {
-                    Ok(observed)
-                        if observed.selection == current
-                            && matches!(observed.owner, ActiveCoreOwnerState::Unowned) =>
-                    {
-                        (expected.clone(), current)
-                    }
-                    Ok(observed)
-                        if observed.selection == expected
-                            && matches!(observed.owner, ActiveCoreOwnerState::Unowned) =>
-                    {
-                        restore_reset_default(
-                            &default_path,
-                            &backup_path,
-                            &absent_marker_path,
-                            &intent_path,
-                            rollback_default.as_deref(),
-                            default_write_attempted,
-                        )
-                        .await?;
-                        return Err(commit_error);
-                    }
-                    Ok(_) | Err(_) => {
-                        return Err(PortError::Failed(format!(
-                            "active-reference reset outcome is uncertain; retained old profile files and default recovery data ({commit_error})"
-                        )));
-                    }
-                }
-            }
-        };
-
-        match self
-            .cleanup_profiles_after_reset(
-                &default_path,
-                &intent_path,
-                &backup_path,
-                &absent_marker_path,
-                &complete_path,
-            )
-            .await
-        {
-            Ok(()) => {
-                if previous != current {
-                    if let Err(error) = self
-                        .complete_profile_reset(&desired_intent, &intent_path, &complete_path)
-                        .await
-                    {
-                        return Ok(ActiveProfileReferenceResetOutcome::CleanupPending {
-                            previous,
-                            current,
-                            error: error.to_string(),
-                        });
-                    }
-                }
-                Ok(ActiveProfileReferenceResetOutcome::Committed { previous, current })
-            }
-            Err(error) => Ok(ActiveProfileReferenceResetOutcome::CleanupPending {
-                previous,
-                current,
-                error: error.to_string(),
-            }),
-        }
-    }
-
-    async fn cleanup_profiles_after_reset(
-        &self,
-        default_path: &Path,
-        intent_path: &Path,
-        backup_path: &Path,
-        absent_marker_path: &Path,
-        complete_path: &Path,
-    ) -> Result<(), PortError> {
-        self.reset_profile_namespace_marker_unlocked()
-            .await
-            .map_err(lock_error)?;
-        let mut entries = tokio::fs::read_dir(self.config_dir())
-            .await
-            .map_err(lock_error)?;
-        let default_name = default_path
-            .file_name()
-            .ok_or_else(|| PortError::Failed("default profile path has no filename".into()))?;
-        let intent_name = intent_path
-            .file_name()
-            .ok_or_else(|| PortError::Failed("reset intent path has no filename".into()))?;
-        let backup_name = backup_path
-            .file_name()
-            .ok_or_else(|| PortError::Failed("reset backup path has no filename".into()))?;
-        let absent_marker_name = absent_marker_path
-            .file_name()
-            .ok_or_else(|| PortError::Failed("reset absent marker path has no filename".into()))?;
-        let complete_name = complete_path
-            .file_name()
-            .ok_or_else(|| PortError::Failed("reset completion path has no filename".into()))?;
-        while let Some(entry) = entries.next_entry().await.map_err(lock_error)? {
-            let name = entry.file_name();
-            if name == default_name
-                || name == "profile-state.toml"
-                || name == intent_name
-                || name == backup_name
-                || name == absent_marker_name
-                || name == complete_name
-            {
-                continue;
-            }
-            let path = entry.path();
-            if entry.file_type().await.map_err(lock_error)?.is_dir() {
-                tokio::fs::remove_dir_all(path).await.map_err(lock_error)?;
-            } else {
-                tokio::fs::remove_file(path).await.map_err(lock_error)?;
-            }
-        }
-        remove_optional_durable(backup_path)?;
-        remove_optional_durable(absent_marker_path)?;
-        Ok(())
-    }
-
-    async fn complete_profile_reset(
-        &self,
-        intent: &ActiveProfileResetIntentRecord,
-        intent_path: &Path,
-        complete_path: &Path,
-    ) -> Result<(), PortError> {
-        let bytes =
-            serde_json::to_vec_pretty(intent).map_err(|error| PortError::Io(error.to_string()))?;
-        write_document_bytes_durable(complete_path, &bytes).await?;
-        remove_optional_durable(intent_path)
-    }
-}
-
-#[async_trait::async_trait]
-impl<S: SecureStore> ActiveProfileWorkspaceWriteLease
-    for ConfigManagerObservedWorkspaceLease<'_, S>
-{
-    fn observed_workspace(&self) -> &ProfileWorkspace {
-        &self.observed
-    }
-
-    async fn publish(
-        self: Box<Self>,
-        update: ProfileWorkspaceUpdate,
-    ) -> ActiveProfileWorkspacePublishOutcome<'async_trait> {
-        let ConfigManagerObservedWorkspaceLease {
-            manager,
-            observed,
-            guards,
-        } = *self;
-        let target = workspace_for_update(manager.document_codec_scope(), &observed, &update);
-        let write_result = manager
-            .publish_active_workspace_locked(&observed.identity(), &update)
-            .await;
-        let (target, last_error) = match write_result {
-            Ok(published) => (
-                published,
-                "publication returned success; verifying readback".into(),
-            ),
-            Err(error) if is_definitely_unpublished_workspace_error(&error) => {
-                return ActiveProfileWorkspacePublishOutcome::Unpublished(error);
-            }
-            Err(error) => (target, error.to_string()),
-        };
-        let recovery = Box::new(ConfigManagerWorkspaceRecoveryLease {
-            manager,
-            previous: observed,
-            purpose: ActiveWorkspaceRecoveryPurpose::ConfirmPublished { target },
-            guards,
-            last_error,
-        });
-        match recovery.resolve().await {
-            ActiveProfileWorkspaceRecoveryResolution::Published(published) => {
-                ActiveProfileWorkspacePublishOutcome::Published(published)
-            }
-            ActiveProfileWorkspaceRecoveryResolution::Unpublished(error) => {
-                ActiveProfileWorkspacePublishOutcome::Unpublished(error)
-            }
-            ActiveProfileWorkspaceRecoveryResolution::Superseded { observed } => {
-                ActiveProfileWorkspacePublishOutcome::Superseded { observed }
-            }
-            ActiveProfileWorkspaceRecoveryResolution::RecoveryRequired(recovery) => {
-                ActiveProfileWorkspacePublishOutcome::RecoveryRequired(recovery)
-            }
-            ActiveProfileWorkspaceRecoveryResolution::Restored(restored) => {
-                restored.finish();
-                ActiveProfileWorkspacePublishOutcome::Unpublished(PortError::Failed(
-                    "active workspace publication was restored to its previous bytes".into(),
-                ))
-            }
-        }
-    }
-}
-
-#[async_trait::async_trait]
-impl<S: SecureStore> ActiveProfileWorkspaceRecoveryLease
-    for ConfigManagerWorkspaceRecoveryLease<'_, S>
-{
-    fn state(&self) -> ActiveProfileWorkspaceRecoveryState {
-        match &self.purpose {
-            ActiveWorkspaceRecoveryPurpose::ConfirmPublished { target } => {
-                ActiveProfileWorkspaceRecoveryState::ConfirmPublished {
-                    previous: self.previous.identity(),
-                    target: target.identity(),
-                }
-            }
-            ActiveWorkspaceRecoveryPurpose::RestorePrevious { published } => {
-                ActiveProfileWorkspaceRecoveryState::RestorePrevious {
-                    previous: self.previous.identity(),
-                    published: published.identity(),
-                }
-            }
-        }
-    }
-
-    fn last_error(&self) -> &str {
-        &self.last_error
-    }
-
-    async fn resolve(self: Box<Self>) -> ActiveProfileWorkspaceRecoveryResolution<'async_trait> {
-        let ConfigManagerWorkspaceRecoveryLease {
-            manager,
-            previous,
-            purpose,
-            guards,
-            last_error,
-        } = *self;
-        let profile_id = previous.document.identity.profile_id.clone();
-        let observed = match manager.read_workspace_locked(&profile_id).await {
-            Ok(observed) => observed,
-            Err(error) => {
-                return ActiveProfileWorkspaceRecoveryResolution::RecoveryRequired(Box::new(
-                    ConfigManagerWorkspaceRecoveryLease {
-                        manager,
-                        previous,
-                        purpose,
-                        guards,
-                        last_error: format!("{last_error}; readback failed: {error}"),
-                    },
-                ));
-            }
-        };
-
-        match purpose {
-            ActiveWorkspaceRecoveryPurpose::ConfirmPublished { target } => {
-                if same_workspace_bytes(&observed, &target) {
-                    return ActiveProfileWorkspaceRecoveryResolution::Published(Box::new(
-                        ConfigManagerPublishedWorkspaceLease {
-                            manager,
-                            previous,
-                            published: observed,
-                            guards,
-                        },
-                    ));
-                }
-                if same_workspace_bytes(&observed, &previous) {
-                    return ActiveProfileWorkspaceRecoveryResolution::Unpublished(
-                        PortError::Failed(format!(
-                            "active workspace publication did not commit: {last_error}"
-                        )),
-                    );
-                }
-
-                let recovery_result = manager
-                    .recover_workspace_locked(&observed.identity(), &previous)
-                    .await;
-                let recovered = match manager.read_workspace_locked(&profile_id).await {
-                    Ok(current) => current,
-                    Err(error) => {
-                        let detail = match recovery_result {
-                            Ok(_) => format!(
-                                "{last_error}; conditional rollback returned success but readback failed: {error}"
-                            ),
-                            Err(rollback_error) => format!(
-                                "{last_error}; conditional rollback failed: {rollback_error}; readback failed: {error}"
-                            ),
-                        };
-                        return ActiveProfileWorkspaceRecoveryResolution::RecoveryRequired(
-                            Box::new(ConfigManagerWorkspaceRecoveryLease {
-                                manager,
-                                previous,
-                                purpose: ActiveWorkspaceRecoveryPurpose::ConfirmPublished {
-                                    target,
-                                },
-                                guards,
-                                last_error: detail,
-                            }),
-                        );
-                    }
-                };
-                if same_workspace_bytes(&recovered, &previous) {
-                    return ActiveProfileWorkspaceRecoveryResolution::Unpublished(
-                        PortError::Failed(format!(
-                            "active workspace publication was conditionally rolled back: {last_error}"
-                        )),
-                    );
-                }
-                if same_workspace_bytes(&recovered, &target) {
-                    return ActiveProfileWorkspaceRecoveryResolution::Published(Box::new(
-                        ConfigManagerPublishedWorkspaceLease {
-                            manager,
-                            previous,
-                            published: recovered,
-                            guards,
-                        },
-                    ));
-                }
-                ActiveProfileWorkspaceRecoveryResolution::Superseded {
-                    observed: recovered.identity(),
-                }
-            }
-            ActiveWorkspaceRecoveryPurpose::RestorePrevious { published } => {
-                if same_workspace_bytes(&observed, &previous) {
-                    return ActiveProfileWorkspaceRecoveryResolution::Restored(Box::new(
-                        ConfigManagerRestoredWorkspaceLease {
-                            restored: observed,
-                            _guards: guards,
-                        },
-                    ));
-                }
-                if !same_workspace_bytes(&observed, &published) {
-                    return ActiveProfileWorkspaceRecoveryResolution::Superseded {
-                        observed: observed.identity(),
-                    };
-                }
-
-                let recovery_result = manager
-                    .recover_workspace_locked(&published.identity(), &previous)
-                    .await;
-                let recovered = match manager.read_workspace_locked(&profile_id).await {
-                    Ok(current) => current,
-                    Err(error) => {
-                        let detail = match recovery_result {
-                            Ok(_) => format!(
-                                "conditional workspace restore returned success but readback failed: {error}"
-                            ),
-                            Err(rollback_error) => format!(
-                                "conditional workspace restore failed: {rollback_error}; readback failed: {error}"
-                            ),
-                        };
-                        return ActiveProfileWorkspaceRecoveryResolution::RecoveryRequired(
-                            Box::new(ConfigManagerWorkspaceRecoveryLease {
-                                manager,
-                                previous,
-                                purpose: ActiveWorkspaceRecoveryPurpose::RestorePrevious {
-                                    published,
-                                },
-                                guards,
-                                last_error: detail,
-                            }),
-                        );
-                    }
-                };
-                if same_workspace_bytes(&recovered, &previous) {
-                    return ActiveProfileWorkspaceRecoveryResolution::Restored(Box::new(
-                        ConfigManagerRestoredWorkspaceLease {
-                            restored: recovered,
-                            _guards: guards,
-                        },
-                    ));
-                }
-                if same_workspace_bytes(&recovered, &published) {
-                    let detail = match recovery_result {
-                        Ok(_) => format!(
-                            "conditional workspace restore did not change published bytes: {last_error}"
-                        ),
-                        Err(error) => format!("{last_error}; restore failed: {error}"),
-                    };
-                    return ActiveProfileWorkspaceRecoveryResolution::RecoveryRequired(Box::new(
-                        ConfigManagerWorkspaceRecoveryLease {
-                            manager,
-                            previous,
-                            purpose: ActiveWorkspaceRecoveryPurpose::RestorePrevious { published },
-                            guards,
-                            last_error: detail,
-                        },
-                    ));
-                }
-                ActiveProfileWorkspaceRecoveryResolution::Superseded {
-                    observed: recovered.identity(),
-                }
-            }
-        }
-    }
-}
-
-#[async_trait::async_trait]
-impl<S: SecureStore> ActiveProfileWorkspacePublishedLease
-    for ConfigManagerPublishedWorkspaceLease<'_, S>
-{
-    fn previous_workspace(&self) -> &ProfileWorkspace {
-        &self.previous
-    }
-
-    fn published_workspace(&self) -> &ProfileWorkspace {
-        &self.published
-    }
-
-    fn commit(self: Box<Self>) -> ProfileWorkspace {
-        let lease = *self;
-        lease.published
-    }
-
-    async fn restore_if_current(
-        self: Box<Self>,
-    ) -> Result<ActiveProfileWorkspaceRestoreOutcome<'async_trait>, PortError> {
-        let ConfigManagerPublishedWorkspaceLease {
-            manager,
-            previous,
-            published,
-            guards,
-        } = *self;
-        let recovery = Box::new(ConfigManagerWorkspaceRecoveryLease {
-            manager,
-            previous,
-            purpose: ActiveWorkspaceRecoveryPurpose::RestorePrevious { published },
-            guards,
-            last_error: "restore requested after managed apply failure".into(),
-        });
-        match recovery.resolve().await {
-            ActiveProfileWorkspaceRecoveryResolution::Restored(restored) => {
-                Ok(ActiveProfileWorkspaceRestoreOutcome::Restored(restored))
-            }
-            ActiveProfileWorkspaceRecoveryResolution::Superseded { observed } => {
-                Ok(ActiveProfileWorkspaceRestoreOutcome::Superseded { observed })
-            }
-            ActiveProfileWorkspaceRecoveryResolution::RecoveryRequired(recovery) => Ok(
-                ActiveProfileWorkspaceRestoreOutcome::RecoveryRequired(recovery),
-            ),
-            ActiveProfileWorkspaceRecoveryResolution::Published(published) => {
-                published.restore_if_current().await
-            }
-            ActiveProfileWorkspaceRecoveryResolution::Unpublished(error) => Err(error),
-        }
-    }
-}
-
-#[async_trait::async_trait]
-impl ActiveProfileWorkspaceRestoredLease for ConfigManagerRestoredWorkspaceLease {
-    fn restored_workspace(&self) -> &ProfileWorkspace {
-        &self.restored
-    }
-
-    fn finish(self: Box<Self>) -> ProfileWorkspace {
-        let lease = *self;
-        lease.restored
-    }
-}
-
-fn is_definitely_unpublished_workspace_error(error: &PortError) -> bool {
-    match error {
-        PortError::Rejected(failure) => {
-            failure.code == ErrorCode::NotReady
-                || failure.code == ErrorCode::Configuration
-                || failure.code == ErrorCode::InvalidInput
-        }
-        PortError::Unsupported { .. } => true,
-        PortError::PermissionDenied(_)
-        | PortError::NotFound(_)
-        | PortError::Io(_)
-        | PortError::Network(_)
-        | PortError::Failed(_) => false,
-    }
-}
-
-fn same_workspace_bytes(left: &ProfileWorkspace, right: &ProfileWorkspace) -> bool {
-    left.identity() == right.identity()
-        && left.document.raw_bytes == right.document.raw_bytes
-        && left.sidecar_bytes == right.sidecar_bytes
-        && left.write_protection == right.write_protection
-}
-
-async fn restore_reset_default(
-    default_path: &Path,
-    backup_path: &Path,
-    absent_marker_path: &Path,
-    intent_path: &Path,
-    previous_default: Option<&[u8]>,
-    write_attempted: bool,
-) -> Result<(), PortError> {
-    if write_attempted {
-        match previous_default {
-            Some(bytes) => write_document_bytes_durable(default_path, bytes).await?,
-            None => remove_optional_durable(default_path)?,
-        }
-    }
-    remove_optional_durable(backup_path)?;
-    remove_optional_durable(absent_marker_path)?;
-    remove_optional_durable(intent_path)?;
-    Ok(())
 }
 
 #[cfg(test)]
@@ -1902,6 +342,7 @@ mod tests {
         manager.migrate_legacy_mihomo_selection().await.unwrap();
         let owner_identity = identity(crate::engine_id().as_str(), "managed-session-owner");
         let owner = manager
+            .engine_profile_store()
             .acquire_provider_selection_lease()
             .await
             .unwrap()
@@ -1972,6 +413,7 @@ mod tests {
 
         assert!(matches!(
             manager
+                .engine_profile_store()
                 .compare_and_set(
                     ActiveProfileReferenceRevision::new(0),
                     ActiveProfileReferenceTarget::selected(
@@ -1988,7 +430,10 @@ mod tests {
             }))
         ));
         assert!(matches!(
-            manager.acquire_selection_lease().await,
+            manager
+                .engine_profile_store()
+                .acquire_selection_lease()
+                .await,
             Err(PortError::Rejected(Failure {
                 code: ErrorCode::NotReady,
                 retryable: true,
@@ -2028,7 +473,7 @@ mod tests {
             expected.revision().next().unwrap(),
         ));
         let default_path = initial_manager
-            .profile_document_path("default")
+            .existing_profile_document_path("default")
             .await
             .unwrap();
         let previous_default = tokio::fs::read(&default_path).await.unwrap();
@@ -2076,8 +521,11 @@ mod tests {
             persisted_default
         );
         assert!(!intent_path.exists());
+        let restarted_profile_store = restarted.engine_profile_store();
         assert_eq!(
-            ActiveProfileReferenceStore::read(&restarted).await.unwrap(),
+            ActiveProfileReferenceStore::read(restarted_profile_store)
+                .await
+                .unwrap(),
             current
         );
     }
@@ -2123,7 +571,7 @@ mod tests {
             expected.revision().next().unwrap(),
         ));
         let default_path = initial_manager
-            .profile_document_path("default")
+            .existing_profile_document_path("default")
             .await
             .unwrap();
         let previous_default = tokio::fs::read(&default_path).await.unwrap();
@@ -2251,10 +699,15 @@ mod tests {
             }
         );
         assert_eq!(
-            tokio::fs::read(restarted.profile_document_path("default").await.unwrap())
-                .await
-                .unwrap()
-                .as_slice(),
+            tokio::fs::read(
+                restarted
+                    .existing_profile_document_path("default")
+                    .await
+                    .unwrap()
+            )
+            .await
+            .unwrap()
+            .as_slice(),
             persisted_default.as_bytes()
         );
         assert!(!obsolete_path.exists());
@@ -2276,7 +729,7 @@ mod tests {
         ));
         let previous_default = tokio::fs::read(
             initial_manager
-                .profile_document_path("default")
+                .existing_profile_document_path("default")
                 .await
                 .unwrap(),
         )
@@ -2308,15 +761,23 @@ mod tests {
         );
 
         assert_eq!(
-            tokio::fs::read(restarted.profile_document_path("default").await.unwrap())
-                .await
-                .unwrap()
-                .as_slice(),
+            tokio::fs::read(
+                restarted
+                    .existing_profile_document_path("default")
+                    .await
+                    .unwrap()
+            )
+            .await
+            .unwrap()
+            .as_slice(),
             previous_default.as_slice()
         );
         assert_eq!(tokio::fs::read(intent_path).await.unwrap(), intent_bytes);
+        let restarted_profile_store = restarted.engine_profile_store();
         assert_eq!(
-            ActiveProfileReferenceStore::read(&restarted).await.unwrap(),
+            ActiveProfileReferenceStore::read(restarted_profile_store)
+                .await
+                .unwrap(),
             expected
         );
     }
@@ -2408,6 +869,7 @@ mod tests {
         );
 
         let explicit_clear = config
+            .engine_profile_store()
             .compare_and_set(
                 migrated.revision(),
                 ActiveProfileReferenceTarget::Unselected,
@@ -2418,7 +880,10 @@ mod tests {
         let local_pointer = config.get_current_unlocked().await.unwrap();
         config.migrate_legacy_mihomo_selection().await.unwrap();
 
-        assert_eq!(config.read().await.unwrap(), explicit_clear);
+        assert_eq!(
+            config.engine_profile_store().read().await.unwrap(),
+            explicit_clear
+        );
         assert_eq!(config.get_current_unlocked().await.unwrap(), local_pointer);
         assert_eq!(
             config
@@ -2464,7 +929,10 @@ mod tests {
             .unwrap();
         assert_eq!(workspace.document.identity.engine_id, crate::engine_id());
         assert_eq!(workspace.document.identity.profile_id.as_str(), "default");
-        assert_eq!(manager.read().await.unwrap(), selected);
+        assert_eq!(
+            manager.engine_profile_store().read().await.unwrap(),
+            selected
+        );
     }
 
     #[tokio::test]
@@ -2483,6 +951,7 @@ mod tests {
         let legacy_pointer = manager.get_current_unlocked().await.unwrap();
 
         let selected = manager
+            .engine_profile_store()
             .compare_and_set(
                 initial.revision(),
                 ActiveProfileReferenceTarget::selected(
@@ -2516,13 +985,18 @@ mod tests {
         let directory = TempDir::new().unwrap();
         let manager = Arc::new(manager(&directory));
         let selected = manager.migrate_legacy_mihomo_selection().await.unwrap();
-        let lease = manager.acquire_selection_lease().await.unwrap();
+        let lease = manager
+            .engine_profile_store()
+            .acquire_selection_lease()
+            .await
+            .unwrap();
         assert_eq!(lease.state(), &selected);
 
         let writer = Arc::clone(&manager);
         let expected = selected.revision();
         let pending = tokio::spawn(async move {
             writer
+                .engine_profile_store()
                 .compare_and_set(
                     expected,
                     ActiveProfileReferenceTarget::Unselected,
@@ -2544,7 +1018,11 @@ mod tests {
         let manager = Arc::new(manager(&directory));
         let selected = manager.migrate_legacy_mihomo_selection().await.unwrap();
 
-        let lease = manager.acquire_provider_selection_lease().await.unwrap();
+        let lease = manager
+            .engine_profile_store()
+            .acquire_provider_selection_lease()
+            .await
+            .unwrap();
         let identity = CoreIdentity::new(
             crate::engine_id(),
             infiltrator_contract::core_identity::CoreInstanceId::new("mihomo-owner").unwrap(),
@@ -2557,6 +1035,7 @@ mod tests {
             .unwrap();
 
         let same_engine_update = manager
+            .engine_profile_store()
             .compare_and_set(
                 selected.revision(),
                 ActiveProfileReferenceTarget::selected(
@@ -2574,6 +1053,7 @@ mod tests {
 
         let foreign_engine = EngineId::new("sing-box").unwrap();
         let denied = manager
+            .engine_profile_store()
             .compare_and_set(
                 same_engine_update.revision(),
                 ActiveProfileReferenceTarget::selected(
@@ -2589,7 +1069,11 @@ mod tests {
             .unwrap_err();
         assert!(matches!(denied, PortError::Rejected(_)));
 
-        match manager.acquire_provider_selection_lease().await {
+        match manager
+            .engine_profile_store()
+            .acquire_provider_selection_lease()
+            .await
+        {
             Err(PortError::Rejected(_)) => {}
             Ok(_) => panic!("a second provider lease bypassed the active owner"),
             Err(other) => panic!("unexpected provider lease failure: {other}"),
@@ -2606,7 +1090,11 @@ mod tests {
         owner.release_after_terminal(&terminal).await.unwrap();
         owner.release_after_terminal(&terminal).await.unwrap();
         drop(owner);
-        let next_provider = manager.acquire_provider_selection_lease().await.unwrap();
+        let next_provider = manager
+            .engine_profile_store()
+            .acquire_provider_selection_lease()
+            .await
+            .unwrap();
         assert_eq!(next_provider.state(), &same_engine_update);
     }
 
@@ -2617,6 +1105,7 @@ mod tests {
         let selected = manager.migrate_legacy_mihomo_selection().await.unwrap();
         let bound_identity = identity(crate::engine_id().as_str(), "version-refresh-owner");
         let owner = manager
+            .engine_profile_store()
             .acquire_provider_selection_lease()
             .await
             .unwrap()
@@ -2647,6 +1136,7 @@ mod tests {
 
         assert_eq!(
             manager
+                .engine_profile_store()
                 .recover_bound_owner_after_terminal(
                     ActiveProfileOwnerRecoveryEvidence::ManagedChildExited {
                         context: session_context,
@@ -2657,7 +1147,11 @@ mod tests {
                 .unwrap(),
             ActiveProfileOwnerRecoveryOutcome::Recovered(selected.clone())
         );
-        let provider_lease = manager.acquire_provider_selection_lease().await.unwrap();
+        let provider_lease = manager
+            .engine_profile_store()
+            .acquire_provider_selection_lease()
+            .await
+            .unwrap();
         assert_eq!(provider_lease.state(), &selected);
     }
 
@@ -2667,6 +1161,7 @@ mod tests {
         let manager = manager(&directory);
 
         let outcome = manager
+            .engine_profile_store()
             .recover_bound_owner_after_terminal(ActiveProfileOwnerRecoveryEvidence::NeverStarted {
                 terminal: stopped_snapshot(identity("mihomo", "android-active"), 0),
             })
@@ -2686,6 +1181,7 @@ mod tests {
         let selected = manager.migrate_legacy_mihomo_selection().await.unwrap();
         let old_identity = identity(crate::engine_id().as_str(), "close-cas-owner");
         let owner = manager
+            .engine_profile_store()
             .acquire_provider_selection_lease()
             .await
             .unwrap()
@@ -2697,7 +1193,11 @@ mod tests {
         // A normal selector may hold the root reference lock. Terminal
         // release takes only owner-state, so CoreApplication::close cannot
         // deadlock behind that selector's lease.
-        let selection_lease = manager.acquire_selection_lease().await.unwrap();
+        let selection_lease = manager
+            .engine_profile_store()
+            .acquire_selection_lease()
+            .await
+            .unwrap();
         let release = tokio::spawn(async move { owner.release_after_terminal(&terminal).await });
         tokio::time::timeout(Duration::from_secs(3), release)
             .await
@@ -2708,6 +1208,7 @@ mod tests {
         let writer = Arc::clone(&manager);
         let pending = tokio::spawn(async move {
             writer
+                .engine_profile_store()
                 .compare_and_set(
                     selected.revision(),
                     ActiveProfileReferenceTarget::selected(
@@ -2732,6 +1233,7 @@ mod tests {
         let selected = manager.migrate_legacy_mihomo_selection().await.unwrap();
         let old_identity = identity(crate::engine_id().as_str(), "old-owner");
         let owner = manager
+            .engine_profile_store()
             .acquire_provider_selection_lease()
             .await
             .unwrap()
@@ -2739,6 +1241,7 @@ mod tests {
             .await
             .unwrap();
         let switch = manager
+            .engine_profile_store()
             .begin_owner_switch(
                 selected.revision(),
                 old_identity.clone(),
@@ -2752,6 +1255,7 @@ mod tests {
         ));
 
         let blocked_cas = manager
+            .engine_profile_store()
             .compare_and_set(
                 selected.revision(),
                 ActiveProfileReferenceTarget::selected(
@@ -2763,13 +1267,20 @@ mod tests {
             .await;
         assert!(matches!(blocked_cas, Err(PortError::Rejected(_))));
         assert!(matches!(
-            manager.acquire_provider_selection_lease().await,
+            manager
+                .engine_profile_store()
+                .acquire_provider_selection_lease()
+                .await,
             Err(PortError::Rejected(_))
         ));
 
         let old_terminal = stopped_snapshot(old_identity.clone(), 1);
         owner.release_after_terminal(&old_terminal).await.unwrap();
-        let recovery = manager.recover_owner_switch().await.unwrap();
+        let recovery = manager
+            .engine_profile_store()
+            .recover_owner_switch()
+            .await
+            .unwrap();
         let old_stopped = match recovery {
             ActiveProfileOwnerSwitchRecovery::ResumeOldStopped(lease) => lease,
             _ => panic!("expected resumable OldStopped stage"),
@@ -2790,7 +1301,12 @@ mod tests {
             .await
             .unwrap();
         drop(changed);
-        let changed = match manager.recover_owner_switch().await.unwrap() {
+        let changed = match manager
+            .engine_profile_store()
+            .recover_owner_switch()
+            .await
+            .unwrap()
+        {
             ActiveProfileOwnerSwitchRecovery::ResumeReferenceChanged(lease) => lease,
             _ => panic!("expected resumable ReferenceChanged stage"),
         };
@@ -2806,7 +1322,12 @@ mod tests {
                 .await
                 .is_err()
         );
-        let candidate = match manager.recover_owner_switch().await.unwrap() {
+        let candidate = match manager
+            .engine_profile_store()
+            .recover_owner_switch()
+            .await
+            .unwrap()
+        {
             ActiveProfileOwnerSwitchRecovery::ResumeBindingNew(lease) => lease,
             _ => panic!("expected resumable BindingNew stage"),
         };
@@ -2814,7 +1335,7 @@ mod tests {
             .finalize(candidate_identity.clone(), CoreGeneration::new(0))
             .await
             .unwrap();
-        let committed = manager.read().await.unwrap();
+        let committed = manager.engine_profile_store().read().await.unwrap();
         assert!(matches!(
             &committed,
             ActiveProfileReferenceState::Selected(reference)
@@ -2837,6 +1358,7 @@ mod tests {
         let mut observed_identity = old_identity.clone();
         observed_identity.version = Some(CoreVersion::new("1.19.12").unwrap());
         let owner = manager
+            .engine_profile_store()
             .acquire_provider_selection_lease()
             .await
             .unwrap()
@@ -2844,6 +1366,7 @@ mod tests {
             .await
             .unwrap();
         let switch = manager
+            .engine_profile_store()
             .begin_owner_switch(
                 selected.revision(),
                 observed_identity.clone(),
@@ -2866,7 +1389,7 @@ mod tests {
         remove_local_owner_registration(&config_root, &owner_token).unwrap();
         drop(owner);
         assert!(matches!(
-            manager.recover_owner_switch().await.unwrap(),
+            manager.engine_profile_store().recover_owner_switch().await.unwrap(),
             ActiveProfileOwnerSwitchRecovery::OwnerTerminalEvidenceRequired {
                 identity,
                 bound_generation,
@@ -2875,6 +1398,7 @@ mod tests {
 
         let old_terminal = stopped_snapshot(observed_identity, 2);
         let old_stopped = manager
+            .engine_profile_store()
             .recover_old_owner_after_terminal(&old_terminal)
             .await
             .unwrap();
@@ -2906,7 +1430,11 @@ mod tests {
                     && reference.revision.value() == 2
         ));
         assert!(matches!(
-            manager.recover_owner_switch().await.unwrap(),
+            manager
+                .engine_profile_store()
+                .recover_owner_switch()
+                .await
+                .unwrap(),
             ActiveProfileOwnerSwitchRecovery::NoPendingSwitch
         ));
     }
@@ -2924,6 +1452,7 @@ mod tests {
         wait_for_marker(Path::new(&gate)).await;
         let manager = manager_at(Path::new(&home));
         let result = manager
+            .engine_profile_store()
             .compare_and_set(
                 ActiveProfileReferenceRevision::new(0),
                 ActiveProfileReferenceTarget::selected(
@@ -2998,6 +1527,7 @@ mod tests {
         assert!(!results.iter().any(|result| result.starts_with("error:")));
         assert_eq!(
             manager_at(directory.path())
+                .engine_profile_store()
                 .read()
                 .await
                 .unwrap()
@@ -3033,6 +1563,7 @@ mod tests {
         );
         assert!(matches!(
             manager
+                .engine_profile_store()
                 .compare_and_set(
                     ActiveProfileReferenceRevision::new(1),
                     ActiveProfileReferenceTarget::selected(
@@ -3045,11 +1576,15 @@ mod tests {
             Err(PortError::Rejected(_))
         ));
         assert!(matches!(
-            manager.acquire_provider_selection_lease().await,
+            manager
+                .engine_profile_store()
+                .acquire_provider_selection_lease()
+                .await,
             Err(PortError::Rejected(_))
         ));
         assert!(
             manager
+                .engine_profile_store()
                 .recover_bound_owner_after_terminal(
                     ActiveProfileOwnerRecoveryEvidence::ManagedChildExited {
                         context: owner_context.clone(),
@@ -3067,6 +1602,7 @@ mod tests {
         // proof fenced until the platform supplies exact terminal evidence.
         assert!(matches!(
             manager
+                .engine_profile_store()
                 .compare_and_set(
                     ActiveProfileReferenceRevision::new(1),
                     ActiveProfileReferenceTarget::selected(
@@ -3085,6 +1621,7 @@ mod tests {
         );
         assert!(
             manager
+                .engine_profile_store()
                 .recover_bound_owner_after_terminal(
                     ActiveProfileOwnerRecoveryEvidence::ManagedChildExited {
                         context: wrong_session,
@@ -3101,6 +1638,7 @@ mod tests {
         );
         assert!(
             manager
+                .engine_profile_store()
                 .recover_bound_owner_after_terminal(
                     ActiveProfileOwnerRecoveryEvidence::ManagedChildExited {
                         context: wrong_generation,
@@ -3113,6 +1651,7 @@ mod tests {
         let owner_terminal = stopped_snapshot(identity("engine-live", "live-owner"), 2);
         assert!(matches!(
             manager
+                .engine_profile_store()
                 .recover_bound_owner_after_terminal(
                     ActiveProfileOwnerRecoveryEvidence::ManagedChildExited {
                         context: owner_context,
@@ -3125,6 +1664,7 @@ mod tests {
         ));
 
         let after_exit = manager
+            .engine_profile_store()
             .compare_and_set(
                 ActiveProfileReferenceRevision::new(1),
                 ActiveProfileReferenceTarget::selected(
@@ -3148,6 +1688,7 @@ mod tests {
         let manager = manager_at(Path::new(&home));
         let engine = EngineId::new("engine-live").unwrap();
         let selected = manager
+            .engine_profile_store()
             .compare_and_set(
                 ActiveProfileReferenceRevision::new(0),
                 ActiveProfileReferenceTarget::selected(
@@ -3159,6 +1700,7 @@ mod tests {
             .await
             .unwrap();
         let owner = manager
+            .engine_profile_store()
             .acquire_provider_selection_lease()
             .await
             .unwrap()

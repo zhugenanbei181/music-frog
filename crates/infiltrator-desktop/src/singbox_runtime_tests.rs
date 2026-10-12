@@ -70,7 +70,7 @@ impl SelectedSingBoxFixture {
             .await
             .expect("initialize sing-box profile namespace");
         let profile_id = ProfileId::new("primary").expect("valid profile id");
-        let profile_store: Arc<dyn ProfileStore> = manager.clone();
+        let profile_store: Arc<dyn ProfileStore> = manager.shared_engine_profile_store();
         profile_store
             .save_inactive_profile(profile_id.as_str(), profile)
             .await
@@ -94,7 +94,8 @@ impl SelectedSingBoxFixture {
                 ..
             }
         ));
-        let reference_store: Arc<dyn ActiveProfileReferenceStore> = manager.clone();
+        let reference_store: Arc<dyn ActiveProfileReferenceStore> =
+            manager.shared_engine_profile_store();
         let capabilities: Arc<dyn CoreCapabilityProvider> =
             Arc::new(SingBoxCoreCapabilityProvider::new(
                 HostKind::Desktop,

@@ -97,13 +97,15 @@ async fn engine_profile_stores_share_one_active_reference_and_isolate_native_doc
     assert!(singbox.config_dir().join("profile-state.toml").exists());
 
     let singbox_document = r#"{"outbounds":[],"route":{}}"#;
-    ProfileStore::save_inactive_profile(&singbox, "main", singbox_document)
+    ProfileStore::save_inactive_profile(singbox.engine_profile_store(), "main", singbox_document)
         .await
         .expect("save codec-validated sing-box JSON");
-    let singbox_workspace =
-        ProfileStore::load_workspace(&singbox, &ProfileId::new("main").expect("profile ID"))
-            .await
-            .expect("read sing-box workspace");
+    let singbox_workspace = ProfileStore::load_workspace(
+        singbox.engine_profile_store(),
+        &ProfileId::new("main").expect("profile ID"),
+    )
+    .await
+    .expect("read sing-box workspace");
     assert_eq!(
         singbox_workspace.document.identity.engine_id,
         EngineId::new("sing-box").unwrap()
@@ -122,19 +124,19 @@ async fn engine_profile_stores_share_one_active_reference_and_isolate_native_doc
     );
     assert!(!singbox.config_dir().join("main.yaml").exists());
     assert!(matches!(
-        ProfileStore::load_active_workspace(&singbox).await,
+        ProfileStore::load_active_workspace(singbox.engine_profile_store()).await,
         Err(PortError::Unsupported { .. })
     ));
     assert!(matches!(
-        ProfileStore::get_current(&singbox).await,
+        ProfileStore::get_current(singbox.engine_profile_store()).await,
         Err(PortError::Unsupported { .. })
     ));
 
-    let expected = ProfileStore::read_active_profile_reference(&singbox)
+    let expected = ProfileStore::read_active_profile_reference(singbox.engine_profile_store())
         .await
         .expect("read product-wide reference");
     let selected = match ProfileStore::compare_and_set_active_profile_reference(
-        &singbox,
+        singbox.engine_profile_store(),
         expected.clone(),
         ActiveProfileReferenceTarget::selected(
             singbox.engine_id(),
@@ -151,13 +153,13 @@ async fn engine_profile_stores_share_one_active_reference_and_isolate_native_doc
         }
     };
     assert_eq!(
-        ProfileStore::get_current(&singbox)
+        ProfileStore::get_current(singbox.engine_profile_store())
             .await
             .expect("sing-box sees its selected profile"),
         "main"
     );
     assert_eq!(
-        ProfileStore::load_active_workspace(&singbox)
+        ProfileStore::load_active_workspace(singbox.engine_profile_store())
             .await
             .expect("sing-box reads its selected workspace")
             .document
@@ -167,20 +169,20 @@ async fn engine_profile_stores_share_one_active_reference_and_isolate_native_doc
 
     let mihomo = mihomo_store(&home);
     assert_eq!(
-        ProfileStore::read_active_profile_reference(&mihomo)
+        ProfileStore::read_active_profile_reference(mihomo.engine_profile_store())
             .await
             .expect("Mihomo observes the same product-wide reference"),
         selected
     );
     assert!(matches!(
-        ProfileStore::get_current(&mihomo).await,
+        ProfileStore::get_current(mihomo.engine_profile_store()).await,
         Err(PortError::Unsupported { .. })
     ));
     assert!(matches!(
-        ProfileStore::load_active_workspace(&mihomo).await,
+        ProfileStore::load_active_workspace(mihomo.engine_profile_store()).await,
         Err(PortError::Unsupported { .. })
     ));
-    ProfileStore::save_inactive_profile(&mihomo, "main", "mode: rule\n")
+    ProfileStore::save_inactive_profile(mihomo.engine_profile_store(), "main", "mode: rule\n")
         .await
         .expect("same profile name has an independent Mihomo namespace");
     assert_eq!(
@@ -199,8 +201,12 @@ async fn singbox_store_rejects_invalid_json_before_document_publication() {
     let home = TempDir::new().unwrap();
     let singbox = singbox_store(&home);
 
-    let result =
-        ProfileStore::save_inactive_profile(&singbox, "invalid", "{\"outbounds\":[}").await;
+    let result = ProfileStore::save_inactive_profile(
+        singbox.engine_profile_store(),
+        "invalid",
+        "{\"outbounds\":[}",
+    )
+    .await;
     assert!(matches!(
         result,
         Err(PortError::Rejected(failure)) if failure.code == ErrorCode::Configuration
@@ -214,9 +220,13 @@ async fn singbox_workspace_round_trips_exact_sidecar_and_fences_stale_or_foreign
     let singbox = singbox_store(&home);
     let profile = ProfileId::new("main").unwrap();
     let initial_document = br#"{"outbounds":[{"type":"direct","tag":"direct"}]}"#;
-    ProfileStore::save_inactive_profile(&singbox, "main", from_utf8(initial_document).unwrap())
-        .await
-        .unwrap();
+    ProfileStore::save_inactive_profile(
+        singbox.engine_profile_store(),
+        "main",
+        from_utf8(initial_document).unwrap(),
+    )
+    .await
+    .unwrap();
 
     let sidecar_path = options_path(&singbox.config_dir(), "main");
     create_dir_all(sidecar_path.parent().unwrap())
@@ -224,7 +234,7 @@ async fn singbox_workspace_round_trips_exact_sidecar_and_fences_stale_or_foreign
         .unwrap();
     let original_sidecar = b"\x00opaque\xffsidecar\r\n";
     write(&sidecar_path, original_sidecar).await.unwrap();
-    let observed = ProfileStore::load_workspace(&singbox, &profile)
+    let observed = ProfileStore::load_workspace(singbox.engine_profile_store(), &profile)
         .await
         .unwrap();
     assert_eq!(observed.document.raw_bytes, initial_document);
@@ -240,10 +250,13 @@ async fn singbox_workspace_round_trips_exact_sidecar_and_fences_stale_or_foreign
         document_bytes: next_document.to_vec(),
         sidecar_bytes: Some(next_sidecar.to_vec()),
     };
-    let committed =
-        ProfileStore::compare_and_save_inactive_workspace(&singbox, &observed.identity(), &update)
-            .await
-            .unwrap();
+    let committed = ProfileStore::compare_and_save_inactive_workspace(
+        singbox.engine_profile_store(),
+        &observed.identity(),
+        &update,
+    )
+    .await
+    .unwrap();
     assert_eq!(committed.document.raw_bytes, next_document);
     assert_eq!(
         committed.sidecar_bytes.as_deref(),
@@ -255,11 +268,11 @@ async fn singbox_workspace_round_trips_exact_sidecar_and_fences_stale_or_foreign
     );
     assert_eq!(read(&sidecar_path).await.unwrap(), next_sidecar);
 
-    let before_stale = ProfileStore::load_workspace(&singbox, &profile)
+    let before_stale = ProfileStore::load_workspace(singbox.engine_profile_store(), &profile)
         .await
         .unwrap();
     let stale = ProfileStore::compare_and_save_inactive_workspace(
-        &singbox,
+        singbox.engine_profile_store(),
         &observed.identity(),
         &ProfileWorkspaceUpdate {
             purpose: ProfileWorkspacePurpose::Derived,
@@ -271,7 +284,7 @@ async fn singbox_workspace_round_trips_exact_sidecar_and_fences_stale_or_foreign
     .unwrap_err();
     assert!(matches!(stale, PortError::Rejected(failure) if failure.code == ErrorCode::NotReady));
     assert_eq!(
-        ProfileStore::load_workspace(&singbox, &profile)
+        ProfileStore::load_workspace(singbox.engine_profile_store(), &profile)
             .await
             .unwrap(),
         before_stale
@@ -280,7 +293,7 @@ async fn singbox_workspace_round_trips_exact_sidecar_and_fences_stale_or_foreign
     let mut foreign = before_stale.identity();
     foreign.document.engine_id = EngineId::new("mihomo").unwrap();
     let foreign_write = ProfileStore::compare_and_save_inactive_workspace(
-        &singbox,
+        singbox.engine_profile_store(),
         &foreign,
         &ProfileWorkspaceUpdate {
             purpose: ProfileWorkspacePurpose::Derived,
@@ -292,17 +305,18 @@ async fn singbox_workspace_round_trips_exact_sidecar_and_fences_stale_or_foreign
     .unwrap_err();
     assert!(matches!(foreign_write, PortError::Unsupported { .. }));
     assert_eq!(
-        ProfileStore::load_workspace(&singbox, &profile)
+        ProfileStore::load_workspace(singbox.engine_profile_store(), &profile)
             .await
             .unwrap(),
         before_stale
     );
 
-    let expected_reference = ProfileStore::read_active_profile_reference(&singbox)
-        .await
-        .unwrap();
+    let expected_reference =
+        ProfileStore::read_active_profile_reference(singbox.engine_profile_store())
+            .await
+            .unwrap();
     let selected = match ProfileStore::compare_and_set_active_profile_reference(
-        &singbox,
+        singbox.engine_profile_store(),
         expected_reference,
         ActiveProfileReferenceTarget::selected(singbox.engine_id(), profile.clone()),
         ActiveProfileReferenceWriteAuthorization::Unowned,
@@ -321,9 +335,11 @@ async fn singbox_workspace_round_trips_exact_sidecar_and_fences_stale_or_foreign
             panic!("sing-box profile selection was not published")
         }
     };
-    let active_workspace = ProfileStore::load_active_workspace(&singbox).await.unwrap();
+    let active_workspace = ProfileStore::load_active_workspace(singbox.engine_profile_store())
+        .await
+        .unwrap();
     let lease = ProfileStore::acquire_active_workspace_write_lease(
-        &singbox,
+        singbox.engine_profile_store(),
         reference,
         active_workspace.identity(),
         ActiveProfileReferenceWriteAuthorization::Unowned,

@@ -108,7 +108,8 @@ pub(crate) async fn open_default_product_backend(
     let config_manager = Arc::new(app_config_manager().await?);
     let capability_provider =
         desktop_core_capability_provider(DesktopLogStreamAdapter::ManagedRuntimeScopeBound)?;
-    let initial_reference = ActiveProfileReferenceStore::read(config_manager.as_ref()).await?;
+    let profile_store = config_manager.engine_profile_store();
+    let initial_reference = ActiveProfileReferenceStore::read(profile_store).await?;
     let migration_engine = match initial_reference {
         ActiveProfileReferenceState::Selected(reference) => reference.engine_id,
         ActiveProfileReferenceState::Unselected { .. } => MihomoVersionPort::engine_identifier(),
@@ -120,7 +121,8 @@ pub(crate) async fn open_default_product_backend(
     config_manager.migrate_legacy_mihomo_selection().await?;
     let home = home_dir()?;
     let profile_stores = engine_profile_stores(config_manager.clone())?;
-    let references: Arc<dyn ActiveProfileReferenceStore> = config_manager.clone();
+    let references: Arc<dyn ActiveProfileReferenceStore> =
+        config_manager.shared_engine_profile_store();
     let preflight = preflight_active_profile_reference(
         references,
         profile_stores.all(),
@@ -170,7 +172,8 @@ async fn open_product_backend_with_source(
                 .sing_box_manager
                 .existing_profile_document_path(preflight.reference.profile_id.as_str())
                 .await?;
-            let reference_store: Arc<dyn ActiveProfileReferenceStore> = config_manager;
+            let reference_store: Arc<dyn ActiveProfileReferenceStore> =
+                config_manager.shared_engine_profile_store();
             DesktopRuntimeRequest::SingBoxProduct {
                 surface,
                 reference_store,
@@ -734,8 +737,9 @@ pub(crate) async fn desktop_product_backend(
         mihomo_backend::desktop_mihomo_engine_provider(service, controller_url, secret)?;
     let factory_provider: Arc<dyn EngineBackendProvider> = provider;
     let factory = Arc::new(EngineBackendFactoryRegistry::new([factory_provider])?);
-    let references: Arc<dyn ActiveProfileReferenceStore> = config_manager.clone();
-    let profiles: Arc<dyn ProfileStore> = config_manager;
+    let references: Arc<dyn ActiveProfileReferenceStore> =
+        config_manager.shared_engine_profile_store();
+    let profiles: Arc<dyn ProfileStore> = config_manager.shared_engine_profile_store();
     let selector = ActiveProfileBackendSelector::new(
         references,
         [profiles],

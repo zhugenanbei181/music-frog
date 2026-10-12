@@ -1,13 +1,16 @@
 use crate::settings_io::app_config_manager_for_profile_reset;
 use anyhow::anyhow;
-use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
+use infiltrator_contract::active_profile_reference::{
+    ActiveProfileReferenceRevision, ActiveProfileReferenceState,
+};
+use infiltrator_contract::core_identity::EngineId;
 use infiltrator_platform::defaults::DefaultCredentialStore;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_reset::ProfileResetPort;
-use infiltrator_ports::profile_store::ProfileStore;
-use mihomo_config::manager::{
-    ActiveProfileReferenceResetOutcome, ActiveProfileReferenceResetRequest, ConfigManager,
+use infiltrator_profile_store::profile_reset::{
+    ActiveProfileReferenceResetOutcome, ActiveProfileReferenceResetRequest,
 };
+use mihomo_config::manager::ConfigManager;
 use mihomo_config::port::find_available_port;
 
 pub struct FileProfileReset;
@@ -59,7 +62,10 @@ async fn reset_profiles_with_default_builder(
     // no pending reset. A pending v2 intent already contains the exact bytes
     // needed for recovery and must not depend on port discovery succeeding.
     let default_config = build_default_config()?;
-    let expected = manager.read_active_profile_reference().await?;
+    let expected = infiltrator_ports::profile_store::ProfileStore::read_active_profile_reference(
+        manager.engine_profile_store(),
+    )
+    .await?;
     let outcome = manager
         .reset_profiles_to_default(ActiveProfileReferenceResetRequest::Start {
             expected,
@@ -72,7 +78,7 @@ async fn reset_profiles_with_default_builder(
 
 fn finish_reset_outcome(
     outcome: ActiveProfileReferenceResetOutcome,
-    engine_id: &infiltrator_contract::core_identity::EngineId,
+    engine_id: &EngineId,
 ) -> anyhow::Result<()> {
     match outcome {
         ActiveProfileReferenceResetOutcome::NoPendingIntent => Err(anyhow!(
@@ -122,8 +128,8 @@ fn finish_reset_outcome(
 
 fn validate_reset_commit(
     expected: &ActiveProfileReferenceState,
-    expected_next_revision: infiltrator_contract::active_profile_reference::ActiveProfileReferenceRevision,
-    engine_id: &infiltrator_contract::core_identity::EngineId,
+    expected_next_revision: ActiveProfileReferenceRevision,
+    engine_id: &EngineId,
     previous: &ActiveProfileReferenceState,
     current: &ActiveProfileReferenceState,
 ) -> anyhow::Result<()> {
@@ -168,6 +174,7 @@ mod tests {
     use sha2::{Digest, Sha256};
     use std::sync::Arc;
     use std::sync::atomic::{AtomicBool, Ordering};
+    use tokio::fs::{read, write};
 
     fn manager(directory: &tempfile::TempDir) -> ConfigManager<DefaultCredentialStore> {
         ConfigManager::with_home_and_store(
@@ -189,8 +196,8 @@ mod tests {
         ));
         let default_document = b"mode: rule\nmixed-port: 7890\n";
         let previous_default_path = manager.config_dir().join("default.yaml");
-        let previous_default = tokio::fs::read(&previous_default_path).await.unwrap();
-        tokio::fs::write(
+        let previous_default = read(&previous_default_path).await.unwrap();
+        write(
             manager
                 .config_dir()
                 .join(".active-profile-reset-default.previous"),
@@ -209,7 +216,7 @@ mod tests {
             "default_document_sha256": digest,
             "default_document": default_document,
         });
-        tokio::fs::write(
+        write(
             manager
                 .config_dir()
                 .join(".active-profile-reset-intent.json"),
@@ -228,12 +235,13 @@ mod tests {
         .unwrap();
 
         assert!(!builder_called.load(Ordering::SeqCst));
+        assert_eq!(read(previous_default_path).await.unwrap(), default_document);
         assert_eq!(
-            tokio::fs::read(previous_default_path).await.unwrap(),
-            default_document
-        );
-        assert_eq!(
-            manager.read_active_profile_reference().await.unwrap(),
+            infiltrator_ports::profile_store::ProfileStore::read_active_profile_reference(
+                manager.engine_profile_store(),
+            )
+            .await
+            .unwrap(),
             current
         );
     }
@@ -249,7 +257,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(
-            tokio::fs::read(manager.config_dir().join("default.yaml"))
+            read(manager.config_dir().join("default.yaml"))
                 .await
                 .unwrap(),
             default_document.as_bytes()

@@ -41,7 +41,9 @@ external-controller: 127.0.0.1:{}
     }
 
     pub async fn ensure_proxy_ports(&self) -> Result<()> {
-        let profile = ProfileStore::get_current(self)
+        let profile = self
+            .profile_store
+            .get_current()
             .await
             .map_err(|error| MihomoError::Config(error.to_string()))?;
         let profile_id =
@@ -95,7 +97,9 @@ external-controller: 127.0.0.1:{}
     /// of implied. A profile without `dns.listen` is left untouched, and the
     /// host part of the address is preserved.
     pub async fn ensure_dns_listen_port(&self) -> Result<()> {
-        let profile = ProfileStore::get_current(self)
+        let profile = self
+            .profile_store
+            .get_current()
             .await
             .map_err(|error| MihomoError::Config(error.to_string()))?;
         let profile_id =

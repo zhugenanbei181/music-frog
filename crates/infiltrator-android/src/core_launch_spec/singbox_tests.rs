@@ -142,16 +142,17 @@ impl Fixture {
             .await
             .expect("initialize sing-box namespace");
         ProfileStore::save_inactive_profile(
-            profile_store.as_ref(),
+            profile_store.engine_profile_store(),
             "main",
             std::str::from_utf8(profile_bytes).expect("profile JSON is UTF-8"),
         )
         .await
         .expect("save sing-box profile");
         let profile_id = ProfileId::new("main").expect("profile ID");
-        let workspace = ProfileStore::load_workspace(profile_store.as_ref(), &profile_id)
-            .await
-            .expect("load persisted profile");
+        let workspace =
+            ProfileStore::load_workspace(profile_store.engine_profile_store(), &profile_id)
+                .await
+                .expect("load persisted profile");
         let configuration_path = profile_store
             .existing_profile_document_path(profile_id.as_str())
             .await
@@ -267,7 +268,7 @@ async fn stale_profile_revision_is_rejected_before_native_check() {
     let command = Arc::new(RecordingSingBoxCommand::new(NativeConfigCheck::Accepted));
     let provider = fixture.provider(command.clone());
     ProfileStore::save_inactive_profile(
-        fixture.profile_store.as_ref(),
+        fixture.profile_store.engine_profile_store(),
         "main",
         r#"{"outbounds":[{"type":"direct","tag":"changed"}]}"#,
     )

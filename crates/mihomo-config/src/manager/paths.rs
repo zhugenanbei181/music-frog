@@ -88,17 +88,7 @@ fn expand_tilde(path: &str) -> Result<PathBuf> {
 }
 
 impl<S: SecureStore> ConfigManager<S> {
-    /// 以规范化的 engine config 目录为根构造 profile document 路径：
-    /// 先验证共享领域 profile 名，再由 engine-neutral owner 解析受限路径。
-    pub(super) async fn profile_document_path(&self, profile: &str) -> Result<PathBuf> {
-        let id = profile_id(profile)?;
-        self.profile_store
-            .profile_document_path(&id)
-            .await
-            .map_err(profile_path_error)
-    }
-
-    /// 同 [`Self::profile_document_path`]，但要求文件已存在并返回其规范化路径。
+    /// Resolve an existing profile document through the shared engine owner.
     pub async fn existing_profile_document_path(&self, profile: &str) -> Result<PathBuf> {
         let id = profile_id(profile)?;
         self.profile_store

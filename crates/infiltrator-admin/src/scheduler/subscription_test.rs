@@ -250,11 +250,15 @@ mod tests {
 
         for i in 0..10 {
             let profile_name = format!("test-profile-{}", i);
-            ProfileStore::save_inactive_profile(&manager, &profile_name, "port: 7890")
-                .await
-                .unwrap();
+            ProfileStore::save_inactive_profile(
+                manager.engine_profile_store(),
+                &profile_name,
+                "port: 7890",
+            )
+            .await
+            .unwrap();
             ProfileStore::update_profile_metadata(
-                &manager,
+                manager.engine_profile_store(),
                 &profile_name,
                 &ProfileMetadata {
                     subscription_url: Some(format!("http://example.com/subscription/{}", i)),
@@ -267,7 +271,9 @@ mod tests {
             .unwrap();
         }
 
-        let profiles = ProfileStore::list_profiles(&manager).await.unwrap();
+        let profiles = ProfileStore::list_profiles(manager.engine_profile_store())
+            .await
+            .unwrap();
         assert!(
             profiles.len() >= 10,
             "Manager should see at least 10 profiles, but saw {}",
@@ -322,7 +328,7 @@ mod tests {
         let now = Utc::now();
         let interval_hours = 24u32;
 
-        let application = ProfileApplication::new(Arc::new(manager));
+        let application = ProfileApplication::new(manager.shared_engine_profile_store());
         schedule_next_attempt(&application, &profile_name, interval_hours, now)
             .await
             .unwrap();
@@ -608,11 +614,11 @@ mod tests {
         url: String,
         next_update: Option<chrono::DateTime<Utc>>,
     ) -> PathBuf {
-        ProfileStore::save_inactive_profile(manager, name, "port: 7890")
+        ProfileStore::save_inactive_profile(manager.engine_profile_store(), name, "port: 7890")
             .await
             .unwrap();
         ProfileStore::update_profile_metadata(
-            manager,
+            manager.engine_profile_store(),
             name,
             &ProfileMetadata {
                 subscription_url: Some(url),
@@ -624,7 +630,7 @@ mod tests {
         )
         .await
         .unwrap();
-        ProfileStore::config_dir(manager).join(format!("{name}.yaml"))
+        ProfileStore::config_dir(manager.engine_profile_store()).join(format!("{name}.yaml"))
     }
 
     /// settings 写入 configs_dir 后，单 profile 更新任务（tick）的读写必须

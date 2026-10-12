@@ -92,7 +92,10 @@ pub fn engine_profile_stores(
         Arc::new(SingBoxProfileDocumentCodec),
         ProfileDocumentExtension::Json,
     )?);
-    let stores: [Arc<dyn ProfileStore>; 2] = [mihomo, sing_box_manager.clone()];
+    let stores: [Arc<dyn ProfileStore>; 2] = [
+        mihomo.shared_engine_profile_store(),
+        sing_box_manager.shared_engine_profile_store(),
+    ];
     let mut by_engine = HashMap::with_capacity(stores.len());
     for store in stores {
         let engine = store.engine_id();

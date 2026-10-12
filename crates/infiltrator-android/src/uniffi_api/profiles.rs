@@ -22,7 +22,6 @@ use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
 use infiltrator_domain::config::validate_yaml;
 use infiltrator_domain::profiles;
 use infiltrator_domain::profiles::{ProfileInfo, sanitize_profile_name};
-use std::sync::Arc;
 
 // --- Profiles API ---
 
@@ -474,7 +473,9 @@ pub(super) async fn clear_owner_profile_subscription(name: String) -> FfiStatus 
 
 async fn build_profile_application() -> Result<ProfileApplication, FfiStatus> {
     let manager = build_config_manager().await?;
-    Ok(ProfileApplication::new(Arc::new(manager)))
+    Ok(ProfileApplication::new(
+        manager.shared_engine_profile_store(),
+    ))
 }
 
 fn profile_snapshot_is_valid(reply: &AndroidOwnerOperationReply) -> bool {

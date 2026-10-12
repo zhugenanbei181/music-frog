@@ -128,6 +128,27 @@ impl<S: SecureStore> EngineProfileStore<S> {
         Ok(true)
     }
 
+    pub async fn restore_inactive_profile_backup_under_selection_lease(
+        &self,
+        profile: &ProfileId,
+        selection: &dyn ActiveProfileReferenceLease,
+    ) -> Result<bool, PortError> {
+        if matches!(
+            selection.state(),
+            ActiveProfileReferenceState::Selected(reference)
+                if reference.engine_id == self.engine_id()
+                    && reference.profile_id == *profile
+        ) {
+            return Err(PortError::Rejected(Failure::new(
+                ErrorCode::NotReady,
+                "Cannot restore an active profile backup through an inactive-profile operation",
+                false,
+            )));
+        }
+        let _profile_guard = lock_profile_writes_for_dir(self.config_dir()).await?;
+        self.restore_profile_document_backup_locked(profile).await
+    }
+
     pub async fn clear_profile_document_backup(
         &self,
         profile: &ProfileId,

@@ -123,7 +123,9 @@ impl Runtime {
     }
 
     pub fn profile_application(&self) -> error::Result<ProfileApplication> {
-        Ok(ProfileApplication::new(Arc::new(self.config_manager()?)))
+        Ok(ProfileApplication::new(
+            self.config_manager()?.shared_engine_profile_store(),
+        ))
     }
 
     pub fn subscription_source(&self) -> impl SubscriptionSource {

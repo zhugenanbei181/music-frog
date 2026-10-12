@@ -13,7 +13,9 @@ use ring::rand::{SecureRandom, SystemRandom};
 
 impl<S: SecureStore> ConfigManager<S> {
     pub async fn get_external_controller(&self) -> Result<String> {
-        let profile = ProfileStore::get_current(self)
+        let profile = self
+            .profile_store
+            .get_current()
             .await
             .map_err(|error| MihomoError::Config(error.to_string()))?;
         let profile =
@@ -46,7 +48,9 @@ impl<S: SecureStore> ConfigManager<S> {
     /// Ensure external-controller is configured in the current profile
     /// If not present or port is occupied, add/update it with an available port
     pub async fn ensure_external_controller(&self) -> Result<String> {
-        let profile = ProfileStore::get_current(self)
+        let profile = self
+            .profile_store
+            .get_current()
             .await
             .map_err(|error| MihomoError::Config(error.to_string()))?;
         let profile_id =
@@ -130,7 +134,9 @@ impl<S: SecureStore> ConfigManager<S> {
     /// Forcefully rotate the external-controller port to a new available one.
     /// Used when the service fails to start despite the port appearing available initially.
     pub async fn rotate_external_controller(&self) -> Result<String> {
-        let profile = ProfileStore::get_current(self)
+        let profile = self
+            .profile_store
+            .get_current()
             .await
             .map_err(|error| MihomoError::Config(error.to_string()))?;
         let profile =

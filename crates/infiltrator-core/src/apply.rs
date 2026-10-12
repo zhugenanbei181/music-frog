@@ -417,7 +417,8 @@ async fn acquire_exact_selection_lease<S: SecureStore>(
     if expected.engine_id != config.engine_id() {
         return Err(ApplyError::SourceChanged);
     }
-    let lease = ActiveProfileReferenceStore::acquire_selection_lease(config)
+    let profile_store = config.engine_profile_store();
+    let lease = ActiveProfileReferenceStore::acquire_selection_lease(profile_store)
         .await
         .map_err(|error| ApplyError::Write(error.to_string()))?;
     if lease.state() != &ActiveProfileReferenceState::Selected(expected.clone()) {
@@ -577,9 +578,10 @@ async fn load_expected_workspace<S: SecureStore>(
     if expected.engine_id != config.engine_id() {
         return Err(ApplyError::SourceChanged);
     }
-    let workspace = ProfileStore::load_workspace(config, &expected.profile_id)
-        .await
-        .map_err(|error| ApplyError::Write(error.to_string()))?;
+    let workspace =
+        ProfileStore::load_workspace(config.engine_profile_store(), &expected.profile_id)
+            .await
+            .map_err(|error| ApplyError::Write(error.to_string()))?;
     if workspace.document.identity.engine_id != expected.engine_id
         || workspace.document.identity.profile_id != expected.profile_id
     {

@@ -1,7 +1,7 @@
 //! DUAL-08-13: real-store coverage for the aggregation template sidecar.
 //!
 //! Mounted from `profile_store.rs` so the file stays a business module while
-//! the round-trip runs against the concrete `ConfigManager`.
+//! the round-trip runs against the shared engine profile store.
 
 use crate::manager::ConfigManager;
 use crate::profile_option_store::{delete_options, load_options, save_options};
@@ -57,30 +57,31 @@ async fn aggregation_templates_persist_beside_the_profile_options() {
 
     // A fresh store answers with an empty library, not an error.
     assert!(
-        manager
-            .load_aggregation_templates()
+        ProfileStore::load_aggregation_templates(manager.engine_profile_store())
             .await
             .unwrap()
             .is_empty()
     );
     assert!(!path.exists());
 
-    manager
-        .save_aggregation_templates(&[template()])
+    ProfileStore::save_aggregation_templates(manager.engine_profile_store(), &[template()])
         .await
         .expect("save templates");
     assert!(path.exists(), "the sidecar is written under options/");
     assert_eq!(
-        manager.load_aggregation_templates().await.unwrap(),
+        ProfileStore::load_aggregation_templates(manager.engine_profile_store())
+            .await
+            .unwrap(),
         vec![template()]
     );
 
     // Saving an empty library removes the sidecar entirely.
-    manager.save_aggregation_templates(&[]).await.unwrap();
+    ProfileStore::save_aggregation_templates(manager.engine_profile_store(), &[])
+        .await
+        .unwrap();
     assert!(!path.exists());
     assert!(
-        manager
-            .load_aggregation_templates()
+        ProfileStore::load_aggregation_templates(manager.engine_profile_store())
             .await
             .unwrap()
             .is_empty()
@@ -89,7 +90,9 @@ async fn aggregation_templates_persist_beside_the_profile_options() {
     // A malformed sidecar is a typed storage error, never a fake empty library.
     create_dir_all(path.parent().unwrap()).await.unwrap();
     write(&path, "not: [a, template").await.unwrap();
-    let failure = manager.load_aggregation_templates().await.unwrap_err();
+    let failure = ProfileStore::load_aggregation_templates(manager.engine_profile_store())
+        .await
+        .unwrap_err();
     assert!(matches!(failure, PortError::Io(_)));
 }
 
@@ -125,7 +128,7 @@ async fn unreadable_sidecars_and_failed_removal_do_not_become_empty_success() {
         Err(PortError::Io(_))
     ));
     assert!(matches!(
-        manager.load_aggregation_templates().await,
+        ProfileStore::load_aggregation_templates(manager.engine_profile_store()).await,
         Err(PortError::Io(_))
     ));
     assert!(
@@ -134,15 +137,18 @@ async fn unreadable_sidecars_and_failed_removal_do_not_become_empty_success() {
             .is_err()
     );
     assert!(delete_options(manager.config_dir(), "main").await.is_err());
-    assert!(manager.save_aggregation_templates(&[]).await.is_err());
+    assert!(
+        ProfileStore::save_aggregation_templates(manager.engine_profile_store(), &[])
+            .await
+            .is_err()
+    );
     assert!(
         save_options(manager.config_dir(), "main", &options("new".into()))
             .await
             .is_err()
     );
     assert!(
-        manager
-            .save_aggregation_templates(&[template()])
+        ProfileStore::save_aggregation_templates(manager.engine_profile_store(), &[template()],)
             .await
             .is_err()
     );

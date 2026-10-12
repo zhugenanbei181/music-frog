@@ -18,7 +18,7 @@ async fn test_delete_active_profile_rejected() {
         DefaultCredentialStore::default(),
     )
     .unwrap();
-    ProfileStore::save_inactive_profile(&manager, "active", "port: 7890")
+    ProfileStore::save_inactive_profile(manager.engine_profile_store(), "active", "port: 7890")
         .await
         .unwrap();
     select_test_profile(&manager, "active").await;

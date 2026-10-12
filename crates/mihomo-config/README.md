@@ -2,11 +2,11 @@
 
 > 层级：L3
 
-Mihomo YAML codec 与配置 adapter：解析、校验、应用观察和 Mihomo 专属选项编解码。共享契约是 `infiltrator-ports::ProfileStore`；engine-scoped document/sidecar/workspace 文件协议、source-bound compare/publish、profile catalog、aggregation-template sidecar、typed active-reference/owner-proof record、owner normalization、current-profile selection projection 与 active-workspace selection/identity projection 已迁入 `infiltrator-profile-store`。`ConfigManager` 仍协调 namespace 初始化/reset fence、selection/owner/profile 锁顺序和 workspace transaction lease，并暂时实现共享 `ProfileStore` port；CORE-018.3 尚未收口。
+Mihomo YAML codec 与配置 adapter：解析、校验、应用观察和 Mihomo 专属选项编解码。共享契约是 `infiltrator-ports::ProfileStore`；engine-scoped document/sidecar/workspace 文件协议、source-bound compare/publish、profile catalog、aggregation-template sidecar、typed active-reference/owner-proof record、owner normalization、current-profile selection projection、active-workspace transaction 与跨-engine reset transaction/fence 由 `infiltrator-profile-store::EngineProfileStore` 拥有。`EngineProfileStore` 直接实现共享 `ProfileStore` 与 `ActiveProfileReferenceStore` ports；`ConfigManager` 只提供 Mihomo YAML 操作、显式 legacy migration 与 namespace 初始化门面，不实现共享 persistence port。
 
 原始用户文档身份和跨引擎意图由共享 contract/application 定义；本 crate 不解释 UI 状态。Mihomo controller 边界见 [`mihomo-api` 本地文档](../mihomo-api/docs/README.md)。
 
-`ConfigManager::with_home_configs_dir_and_store` 是 Mihomo 的 YAML/legacy-migration 组合；通用 `ProfileStore` persistence 可由 `with_profile_codec_and_store` 注入 engine-owned codec 与文件后缀。它复用同一 raw-byte、sidecar、write-lease、owner-fence、revision CAS 与 engine namespace 实现，不解析其他引擎的文档，也不导入旧 Mihomo 路径。Profile data、metadata、backup 和凭据位于共享 configs 根下的 `engines/<engine-id>/`；产品级 active-profile reference 与 Core owner proof 仍落在共享根，由所有 engine store 读写同一 CAS 协议。
+`ConfigManager::with_home_configs_dir_and_store` 是 Mihomo 的 YAML/legacy-migration 组合；通用 `EngineProfileStore` 可由 `with_profile_codec_and_store` 注入 engine-owned codec 与文件后缀，再通过 `shared_engine_profile_store` 交给 application 和 host。两个 engine 复用同一 raw-byte、sidecar、write-lease、owner-fence、revision CAS 与 engine namespace 实现；Mihomo facade 不解析其他引擎文档，也不导入旧 Mihomo 路径。Profile data、metadata、backup 和凭据位于共享 configs 根下的 `engines/<engine-id>/`；产品级 active-profile reference 与 Core owner proof 仍落在共享根，由所有 engine store 读写同一 CAS 协议。
 
 Mihomo profile 文档由本 crate 的 YAML codec 验证；其他引擎的格式和 schema 来自注入的 `ProfileDocumentCodecPort`。未注入对应 engine codec 的 store 不得读写该 engine profile。该排他边界只约束使用同一 lock files 并遵守此 store 协议的进程；直接改写持久化文件的程序会绕过门禁。
 

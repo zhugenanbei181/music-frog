@@ -47,9 +47,13 @@ async fn test_save_rules_route_schedules_rebuild() {
         DefaultCredentialStore::default(),
     )
     .unwrap();
-    ProfileStore::save_inactive_profile(&manager, "default", "rules:\n  - DIRECT")
-        .await
-        .unwrap();
+    ProfileStore::save_inactive_profile(
+        manager.engine_profile_store(),
+        "default",
+        "rules:\n  - DIRECT",
+    )
+    .await
+    .unwrap();
     select_test_profile(&manager, "default").await;
 
     let app = setup_app();

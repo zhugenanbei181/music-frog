@@ -23,16 +23,17 @@ pub mod paths;
 pub(crate) mod profiles;
 
 use crate::profile_document_codec::MihomoProfileDocumentCodec;
-use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
 use infiltrator_contract::core_identity::EngineId;
 use infiltrator_ports::error::PortError;
-use infiltrator_ports::profile_document_codec::{
-    ProfileDocumentCodecPort, ProfileDocumentCodecScope,
-};
+use infiltrator_ports::profile_document_codec::ProfileDocumentCodecPort;
 use infiltrator_ports::secure_store::SecureStore;
 use infiltrator_profile_store::file_lock::lock_profile_writes_for_dir;
 use infiltrator_profile_store::namespace::{
     LegacyProfileNamespaceMigrationV1, ProfileNamespaceInitialization,
+};
+use infiltrator_profile_store::reset_fence::{
+    ResetFencedProfileMutationGuard, acquire_reset_fenced_profile_mutation_for_dir,
+    ensure_reset_not_pending_for_dir,
 };
 use infiltrator_profile_store::store::{EngineProfileStore, ProfileDocumentExtension};
 use mihomo_api::error::{MihomoError, Result};
@@ -40,51 +41,19 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 pub struct ConfigManager<S: SecureStore> {
-    pub(crate) profile_store: EngineProfileStore<S>,
-}
-
-/// Result of a reset whose profile files and active reference share one
-/// unowned, revision-fenced transaction. `CleanupPending` means the default
-/// reference already committed; a retry can finish deleting inactive files.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum ActiveProfileReferenceResetOutcome {
-    NoPendingIntent,
-    Committed {
-        previous: ActiveProfileReferenceState,
-        current: ActiveProfileReferenceState,
-    },
-    Stale {
-        expected: ActiveProfileReferenceState,
-        observed: ActiveProfileReferenceState,
-    },
-    CleanupPending {
-        previous: ActiveProfileReferenceState,
-        current: ActiveProfileReferenceState,
-        error: String,
-    },
-}
-
-/// A reset either resumes the durable transaction as recorded on disk or
-/// starts a new transaction with caller-provided default document bytes.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum ActiveProfileReferenceResetRequest {
-    ResumePendingIntent,
-    Start {
-        expected: ActiveProfileReferenceState,
-        default_document: String,
-    },
+    pub(crate) profile_store: Arc<EngineProfileStore<S>>,
 }
 
 pub(crate) async fn ensure_profile_reset_not_pending_for_dir(
     config_dir: &Path,
 ) -> result::Result<(), PortError> {
-    active_profile_reference::ensure_reset_not_pending_for_dir(config_dir).await
+    ensure_reset_not_pending_for_dir(config_dir).await
 }
 
 pub(crate) async fn lock_reset_fenced_profile_mutation_for_dir(
     config_dir: &Path,
-) -> result::Result<active_profile_reference::ResetFencedProfileMutationGuard, PortError> {
-    active_profile_reference::acquire_reset_fenced_profile_mutation_for_dir(config_dir).await
+) -> result::Result<ResetFencedProfileMutationGuard, PortError> {
+    acquire_reset_fenced_profile_mutation_for_dir(config_dir).await
 }
 
 impl<S: SecureStore> ConfigManager<S> {
@@ -92,12 +61,12 @@ impl<S: SecureStore> ConfigManager<S> {
         self.profile_store.engine_id()
     }
 
-    pub(crate) fn document_codec_scope(&self) -> &ProfileDocumentCodecScope {
-        self.profile_store.document_codec_scope()
+    pub fn engine_profile_store(&self) -> &EngineProfileStore<S> {
+        self.profile_store.as_ref()
     }
 
-    pub(crate) fn validate_document_bytes(&self, document: &[u8]) -> result::Result<(), PortError> {
-        self.profile_store.validate_document_bytes(document)
+    pub fn shared_engine_profile_store(&self) -> Arc<EngineProfileStore<S>> {
+        Arc::clone(&self.profile_store)
     }
 
     pub fn with_home_and_store(home: PathBuf, credential_store: S) -> Result<Self> {
@@ -209,15 +178,17 @@ impl<S: SecureStore> ConfigManager<S> {
                 "legacy shared profile migration is only valid for Mihomo YAML".to_owned(),
             ));
         }
-        let profile_store = EngineProfileStore::new_with_namespace_initialization(
-            engine_id,
-            config_root,
-            document_codec,
-            document_extension,
-            credential_store,
-            namespace_initialization,
-        )
-        .map_err(|error| MihomoError::Config(error.to_string()))?;
+        let profile_store = Arc::new(
+            EngineProfileStore::new_with_namespace_initialization(
+                engine_id,
+                config_root,
+                document_codec,
+                document_extension,
+                credential_store,
+                namespace_initialization,
+            )
+            .map_err(|error| MihomoError::Config(error.to_string()))?,
+        );
 
         Ok(Self { profile_store })
     }

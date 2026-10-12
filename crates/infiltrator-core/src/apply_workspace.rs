@@ -196,7 +196,7 @@ async fn apply_confirmed_workspace_inner<S: SecureStore, C: CoreLifecyclePort + 
     // workspace revision in root -> owner -> profile lock order. It remains
     // alive through native apply and any conditional recovery below.
     let observed_lease = ProfileStore::acquire_active_workspace_write_lease(
-        config,
+        config.engine_profile_store(),
         expected_reference.clone(),
         expected.clone(),
         authorization,

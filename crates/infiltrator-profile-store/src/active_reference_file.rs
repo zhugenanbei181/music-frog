@@ -75,6 +75,15 @@ impl ActiveProfileReferenceFile {
             .transpose()
     }
 
+    pub async fn read_active_profile_record_or_pending(
+        &self,
+    ) -> Result<ActiveProfileReferenceRecord, PortError> {
+        Ok(self
+            .read_active_profile_record()
+            .await?
+            .unwrap_or_else(ActiveProfileReferenceRecord::pending_legacy_migration))
+    }
+
     pub fn read_active_profile_record_sync(
         &self,
     ) -> Result<Option<ActiveProfileReferenceRecord>, PortError> {
@@ -82,6 +91,14 @@ impl ActiveProfileReferenceFile {
         record
             .map(|record| record.validate().map(|()| record))
             .transpose()
+    }
+
+    pub fn read_active_profile_record_sync_or_pending(
+        &self,
+    ) -> Result<ActiveProfileReferenceRecord, PortError> {
+        Ok(self
+            .read_active_profile_record_sync()?
+            .unwrap_or_else(ActiveProfileReferenceRecord::pending_legacy_migration))
     }
 
     pub fn write_active_profile_record_sync(

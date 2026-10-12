@@ -75,7 +75,7 @@ impl<S: SecureStore + 'static> MihomoProfileConfigurationTransactionAdapter<S> {
         reloader: Arc<dyn ConfigReloader>,
         apply_guard: Arc<Mutex<()>>,
     ) -> Result<Self, PortError> {
-        let profile_store: Arc<dyn ProfileStore> = config.clone();
+        let profile_store: Arc<dyn ProfileStore> = config.shared_engine_profile_store();
         Self::build(
             codec,
             stopped_validator,
@@ -266,7 +266,11 @@ impl<S: SecureStore + 'static> MihomoProfileConfigurationTransactionAdapter<S> {
                         })
                     }
                     Err(ApplyError::RolledBack { cause }) => {
-                        match self.config.load_active_workspace().await {
+                        match ProfileStore::load_active_workspace(
+                            self.config.engine_profile_store(),
+                        )
+                        .await
+                        {
                             Ok(restored) if restored == previous => {
                                 Ok(ProfileConfigurationTransactionOutcome::RolledBack {
                                     restored,

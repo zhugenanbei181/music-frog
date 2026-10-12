@@ -165,18 +165,19 @@ async fn singbox_profile_store_and_native_transaction_share_engine_and_core_iden
     let profile_id = ProfileId::new("main").expect("valid profile id");
     let initial_document = br#"{"log":{"level":"warn"},"outbounds":[]}"#;
     ProfileStore::save_inactive_profile(
-        store.as_ref(),
+        store.engine_profile_store(),
         profile_id.as_str(),
         std::str::from_utf8(initial_document).expect("JSON is UTF-8"),
     )
     .await
     .expect("save initial sing-box profile");
 
-    let initial_reference = ProfileStore::read_active_profile_reference(store.as_ref())
-        .await
-        .expect("read product-wide reference");
+    let initial_reference =
+        ProfileStore::read_active_profile_reference(store.engine_profile_store())
+            .await
+            .expect("read product-wide reference");
     let selected_reference = match ProfileStore::compare_and_set_active_profile_reference(
-        store.as_ref(),
+        store.engine_profile_store(),
         initial_reference,
         ActiveProfileReferenceTarget::selected(store.engine_id(), profile_id.clone()),
         ActiveProfileReferenceWriteAuthorization::Unowned,
@@ -194,7 +195,7 @@ async fn singbox_profile_store_and_native_transaction_share_engine_and_core_iden
             panic!("isolated profile reference unexpectedly went stale")
         }
     };
-    let before = ProfileStore::load_active_workspace(store.as_ref())
+    let before = ProfileStore::load_active_workspace(store.engine_profile_store())
         .await
         .expect("load selected workspace");
     assert_eq!(before.document.identity.engine_id, EngineId::sing_box());
@@ -226,7 +227,7 @@ async fn singbox_profile_store_and_native_transaction_share_engine_and_core_iden
     let session: Arc<dyn CoreLifecyclePort> = Arc::new(StoppedCoreSession {
         identity: CoreIdentity::new(EngineId::sing_box(), instance_id, None),
     });
-    let profile_store: Arc<dyn ProfileStore> = store.clone();
+    let profile_store: Arc<dyn ProfileStore> = store.shared_engine_profile_store();
     provider
         .bind_profile_configuration_transaction(&backend, profile_store, session)
         .expect("bind native transaction to the same engine and Core instance");
@@ -287,7 +288,7 @@ async fn singbox_profile_store_and_native_transaction_share_engine_and_core_iden
         next_document
     );
     assert_eq!(
-        ProfileStore::read_active_profile_reference(store.as_ref())
+        ProfileStore::read_active_profile_reference(store.engine_profile_store())
             .await
             .expect("read shared active reference"),
         ActiveProfileReferenceState::Selected(selected_reference)

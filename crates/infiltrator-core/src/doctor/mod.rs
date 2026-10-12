@@ -328,7 +328,8 @@ impl DoctorEnv {
         &self,
     ) -> anyhow::Result<ActiveProfileObservation> {
         let manager = self.read_only_config_manager().await?;
-        match ActiveProfileReferenceStore::read(&manager).await? {
+        let profile_store = manager.engine_profile_store();
+        match ActiveProfileReferenceStore::read(profile_store).await? {
             ActiveProfileReferenceState::Unselected { .. } => {
                 Ok(ActiveProfileObservation::Unselected)
             }

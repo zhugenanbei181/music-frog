@@ -112,7 +112,7 @@ fn config_manager() -> (TestHome, Arc<ConfigManager<TestCredentialStore>>) {
 }
 
 async fn select_profile<S: SecureStore>(manager: &ConfigManager<S>, profile: &str) {
-    let expected = ProfileStore::read_active_profile_reference(manager)
+    let expected = ProfileStore::read_active_profile_reference(manager.engine_profile_store())
         .await
         .expect("read selection before test CAS");
     let target = ActiveProfileReferenceTarget::selected(
@@ -120,7 +120,7 @@ async fn select_profile<S: SecureStore>(manager: &ConfigManager<S>, profile: &st
         ProfileId::new(profile).expect("valid test profile ID"),
     );
     match ProfileStore::compare_and_set_active_profile_reference(
-        manager,
+        manager.engine_profile_store(),
         expected,
         target,
         infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization::Unowned,
@@ -822,7 +822,9 @@ async fn core_start_sends_the_active_profile_identity_and_rust_resolved_argument
         session_token,
         owner.session_token().expect("active session token")
     );
-    let workspace = store.load_active_workspace().await.unwrap();
+    let workspace = ProfileStore::load_active_workspace(store.engine_profile_store())
+        .await
+        .unwrap();
     let config_path = store.existing_profile_document_path("main").await.unwrap();
     let workdir = PathBuf::from("/android-test-data");
     assert_eq!(spec.configuration_identity().engine_id.as_str(), "mihomo");

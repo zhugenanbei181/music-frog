@@ -120,11 +120,11 @@ async fn singbox_core_composition_keeps_the_engine_codec_and_owner_identity_alig
         .initialize_profile_namespace()
         .await
         .expect("initialize sing-box profile namespace");
-    ProfileStore::save_inactive_profile(profile_store.as_ref(), "main", PROFILE)
+    ProfileStore::save_inactive_profile(profile_store.engine_profile_store(), "main", PROFILE)
         .await
         .expect("save sing-box profile");
     let profile_id = ProfileId::new("main").expect("profile ID");
-    let document = ProfileStore::load_workspace(profile_store.as_ref(), &profile_id)
+    let document = ProfileStore::load_workspace(profile_store.engine_profile_store(), &profile_id)
         .await
         .expect("load exact sing-box profile")
         .document;

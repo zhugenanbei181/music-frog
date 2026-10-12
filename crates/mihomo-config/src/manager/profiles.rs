@@ -62,7 +62,9 @@ impl<S: SecureStore> ConfigManager<S> {
         self.initialize_profile_namespace()
             .await
             .map_err(|error| PortError::Io(error.to_string()))?;
-        let selection_lease = ActiveProfileReferenceStore::acquire_selection_lease(self).await?;
+        let selection_lease =
+            ActiveProfileReferenceStore::acquire_selection_lease(self.profile_store.as_ref())
+                .await?;
         let profile_id = profile_id(profile).map_err(|error| PortError::Io(error.to_string()))?;
         self.profile_store
             .save_inactive_profile_under_selection_lease(
@@ -96,7 +98,7 @@ impl<S: SecureStore> ConfigManager<S> {
             document_bytes: content.as_bytes().to_vec(),
             sidecar_bytes: workspace.sidecar_bytes.clone(),
         };
-        let reference = ProfileStore::read_active_profile_reference(self)
+        let reference = ProfileStore::read_active_profile_reference(self.profile_store.as_ref())
             .await
             .map_err(|error| MihomoError::Config(error.to_string()))?;
         match reference {
@@ -105,7 +107,7 @@ impl<S: SecureStore> ConfigManager<S> {
                     && reference.profile_id == identity.document.profile_id =>
             {
                 ProfileStore::compare_and_save_unowned_active_derived_document(
-                    self,
+                    self.profile_store.as_ref(),
                     reference.clone(),
                     identity,
                     &update,
@@ -114,9 +116,13 @@ impl<S: SecureStore> ConfigManager<S> {
                 .map_err(|error| MihomoError::Config(error.to_string()))?;
             }
             _ => {
-                ProfileStore::compare_and_save_inactive_workspace(self, &identity, &update)
-                    .await
-                    .map_err(|error| MihomoError::Config(error.to_string()))?;
+                ProfileStore::compare_and_save_inactive_workspace(
+                    self.profile_store.as_ref(),
+                    &identity,
+                    &update,
+                )
+                .await
+                .map_err(|error| MihomoError::Config(error.to_string()))?;
             }
         }
         Ok(())
@@ -127,9 +133,10 @@ impl<S: SecureStore> ConfigManager<S> {
     /// workspace transaction lease.
     pub async fn restore_inactive_profile_backup(&self, profile: &str) -> Result<bool> {
         self.initialize_profile_namespace().await?;
-        let selection_lease = ActiveProfileReferenceStore::acquire_selection_lease(self)
-            .await
-            .map_err(|error| MihomoError::Config(error.to_string()))?;
+        let selection_lease =
+            ActiveProfileReferenceStore::acquire_selection_lease(self.profile_store.as_ref())
+                .await
+                .map_err(|error| MihomoError::Config(error.to_string()))?;
         let profile_id = profile_id(profile)?;
         if matches!(
             selection_lease.state(),
@@ -177,7 +184,9 @@ impl<S: SecureStore> ConfigManager<S> {
         // engine+profile reference. Keep its read lease while projecting the
         // list so a concurrent selection cannot make this view point at a
         // different document halfway through enumeration.
-        let selection_lease = ActiveProfileReferenceStore::acquire_selection_lease(self).await?;
+        let selection_lease =
+            ActiveProfileReferenceStore::acquire_selection_lease(self.profile_store.as_ref())
+                .await?;
         let _profile_guard = self.lock_profile_writes().await.map_err(config_error)?;
         self.profile_store
             .list_profile_info_locked(selection_lease.state())
@@ -197,9 +206,10 @@ impl<S: SecureStore> ConfigManager<S> {
         // This prevents a profile becoming selected between the active check
         // and deletion, and preserves the root→engine lock order used by
         // active workspace writes.
-        let selection_lease = ActiveProfileReferenceStore::acquire_selection_lease(self)
-            .await
-            .map_err(|error| MihomoError::Config(error.to_string()))?;
+        let selection_lease =
+            ActiveProfileReferenceStore::acquire_selection_lease(self.profile_store.as_ref())
+                .await
+                .map_err(|error| MihomoError::Config(error.to_string()))?;
         let profile_id = profile_id(profile)?;
         self.profile_store
             .delete_profile_under_selection_lease(&profile_id, selection_lease.as_ref())

@@ -18,7 +18,7 @@ use tokio::sync::Notify;
 use tokio::time::timeout;
 
 async fn selected_reference(fixture: &Fixture) -> ActiveProfileReference {
-    match ProfileStore::read_active_profile_reference(&fixture.config)
+    match ProfileStore::read_active_profile_reference(fixture.config.engine_profile_store())
         .await
         .unwrap()
     {
@@ -76,7 +76,12 @@ async fn ready(f: &Fixture) {
 async fn confirmed_workspace_commits_both_documents_and_reports_actual_stored_source() {
     let f = fixture(0, false).await;
     ready(&f).await;
-    let before = f.config.load_active_workspace().await.unwrap();
+    let before = f
+        .config
+        .engine_profile_store()
+        .load_active_workspace()
+        .await
+        .unwrap();
     let reference = selected_reference(&f).await;
     let committed = apply_workspace(
         &f,
@@ -90,7 +95,14 @@ async fn confirmed_workspace_commits_both_documents_and_reports_actual_stored_so
     .unwrap();
     assert_eq!(committed.document.utf8_text().unwrap(), NEW);
     assert_eq!(committed.sidecar_bytes, proposal().sidecar_bytes);
-    assert_eq!(f.config.load_active_workspace().await.unwrap(), committed);
+    assert_eq!(
+        f.config
+            .engine_profile_store()
+            .load_active_workspace()
+            .await
+            .unwrap(),
+        committed
+    );
     assert_ne!(committed.identity(), before.identity());
     assert!(committed.sidecar_bytes.is_some());
     assert_eq!(f.reloader.calls.load(Ordering::SeqCst), 1);
@@ -104,7 +116,12 @@ async fn confirmed_workspace_commits_both_documents_and_reports_actual_stored_so
 #[tokio::test]
 async fn changed_options_or_active_profile_rejects_without_applying_or_writing() {
     let f = fixture(0, false).await;
-    let before = f.config.load_active_workspace().await.unwrap();
+    let before = f
+        .config
+        .engine_profile_store()
+        .load_active_workspace()
+        .await
+        .unwrap();
     let reference = selected_reference(&f).await;
     let mut changed_sidecar = proposal();
     changed_sidecar.document_bytes = before.document.raw_bytes.clone();
@@ -129,7 +146,14 @@ async fn changed_options_or_active_profile_rejects_without_applying_or_writing()
         .unwrap_err(),
         ApplyError::SourceChanged
     );
-    assert_eq!(f.config.load_active_workspace().await.unwrap(), changed);
+    assert_eq!(
+        f.config
+            .engine_profile_store()
+            .load_active_workspace()
+            .await
+            .unwrap(),
+        changed
+    );
     f.config.save_inactive_profile("other", OLD).await.unwrap();
     super::select_profile(&f.config, "other").await;
     assert_eq!(
@@ -155,7 +179,12 @@ async fn changed_options_or_active_profile_rejects_without_applying_or_writing()
 #[tokio::test]
 async fn foreign_engine_is_rejected_before_document_validation_or_runtime_work() {
     let f = fixture(0, false).await;
-    let before = f.config.load_active_workspace().await.unwrap();
+    let before = f
+        .config
+        .engine_profile_store()
+        .load_active_workspace()
+        .await
+        .unwrap();
     let reference = selected_reference(&f).await;
     let mut foreign = before.identity();
     foreign.document.engine_id = EngineId::new("sing-box").unwrap();
@@ -176,7 +205,14 @@ async fn foreign_engine_is_rejected_before_document_validation_or_runtime_work()
     .unwrap_err();
 
     assert_eq!(failure, ApplyError::SourceChanged);
-    assert_eq!(f.config.load_active_workspace().await.unwrap(), before);
+    assert_eq!(
+        f.config
+            .engine_profile_store()
+            .load_active_workspace()
+            .await
+            .unwrap(),
+        before
+    );
     assert_eq!(f.reloader.calls.load(Ordering::SeqCst), 0);
     assert_eq!(f.session.lifecycle(), CoreLifecycle::Stopped);
     assert!(!f.controller.running.load(Ordering::SeqCst));
@@ -188,7 +224,12 @@ async fn apply_failure_restores_exact_sidecar_or_absence_and_recovers_the_old_co
         let f = fixture(0, true).await;
         if let Some(text) = sidecar {
             let reference = selected_reference(&f).await;
-            let previous = f.config.load_active_workspace().await.unwrap();
+            let previous = f
+                .config
+                .engine_profile_store()
+                .load_active_workspace()
+                .await
+                .unwrap();
             let update = ProfileWorkspaceUpdate {
                 purpose: ProfileWorkspacePurpose::Derived,
                 document_bytes: previous.document.raw_bytes.clone(),
@@ -198,7 +239,12 @@ async fn apply_failure_restores_exact_sidecar_or_absence_and_recovers_the_old_co
                 .await;
         }
         ready(&f).await;
-        let before = f.config.load_active_workspace().await.unwrap();
+        let before = f
+            .config
+            .engine_profile_store()
+            .load_active_workspace()
+            .await
+            .unwrap();
         let reference = selected_reference(&f).await;
         f.controller.fail_starts_left.store(1, Ordering::SeqCst);
         let failure = apply_workspace(
@@ -212,7 +258,14 @@ async fn apply_failure_restores_exact_sidecar_or_absence_and_recovers_the_old_co
         .await
         .unwrap_err();
         assert!(matches!(failure, ApplyError::RolledBack { .. }));
-        assert_eq!(f.config.load_active_workspace().await.unwrap(), before);
+        assert_eq!(
+            f.config
+                .engine_profile_store()
+                .load_active_workspace()
+                .await
+                .unwrap(),
+            before
+        );
         assert_eq!(before.sidecar_bytes.as_deref(), sidecar.map(str::as_bytes));
         assert_eq!(f.session.lifecycle(), CoreLifecycle::Ready);
         assert!(f.controller.running.load(Ordering::SeqCst));
@@ -307,7 +360,7 @@ impl ConfigReloader for EndpointPreparationProbe<'_> {
     async fn prepare(&self) -> Result<Box<dyn PreparedConfigReload + '_>, String> {
         match timeout(
             Duration::from_secs(1),
-            ProfileStore::read_active_profile_reference(self.config),
+            ProfileStore::read_active_profile_reference(self.config.engine_profile_store()),
         )
         .await
         {
@@ -343,7 +396,12 @@ impl ConfigReloader for EndpointPreparationProbe<'_> {
 async fn workspace_reload_endpoint_is_prepared_before_active_workspace_lease() {
     let f = fixture(0, false).await;
     ready(&f).await;
-    let before = f.config.load_active_workspace().await.unwrap();
+    let before = f
+        .config
+        .engine_profile_store()
+        .load_active_workspace()
+        .await
+        .unwrap();
     let reference = selected_reference(&f).await;
     let reloader = EndpointPreparationProbe {
         config: &f.config,
@@ -398,7 +456,12 @@ async fn selected_profile_reload_endpoint_is_prepared_before_selection_lease() {
 async fn competing_option_edit_waits_for_the_apply_lease_and_is_fenced_after_recovery() {
     let f = fixture(0, false).await;
     ready(&f).await;
-    let before = f.config.load_active_workspace().await.unwrap();
+    let before = f
+        .config
+        .engine_profile_store()
+        .load_active_workspace()
+        .await
+        .unwrap();
     let reference = selected_reference(&f).await;
     f.controller.fail_starts_left.store(1, Ordering::SeqCst);
     let options = ProfileOptions {
@@ -437,6 +500,7 @@ async fn competing_option_edit_waits_for_the_apply_lease_and_is_fenced_after_rec
 
         let competing_write = f
             .config
+            .engine_profile_store()
             .compare_and_save_inactive_workspace(&expected_identity, &competing_update);
         tokio::pin!(competing_write);
         assert_pending(
@@ -456,7 +520,14 @@ async fn competing_option_edit_waits_for_the_apply_lease_and_is_fenced_after_rec
         competing_write.unwrap_err().error_code(),
         ErrorCode::NotReady
     );
-    assert_eq!(f.config.load_active_workspace().await.unwrap(), before);
+    assert_eq!(
+        f.config
+            .engine_profile_store()
+            .load_active_workspace()
+            .await
+            .unwrap(),
+        before
+    );
     assert_eq!(f.config.load("main").await.unwrap(), OLD);
     assert_eq!(
         f.config.apply_transaction("main").unwrap().stage,
@@ -469,7 +540,12 @@ async fn active_profile_switch_waits_for_apply_lease_and_runs_after_commit() {
     let f = fixture(0, false).await;
     f.config.save_inactive_profile("other", OLD).await.unwrap();
     ready(&f).await;
-    let before = f.config.load_active_workspace().await.unwrap();
+    let before = f
+        .config
+        .engine_profile_store()
+        .load_active_workspace()
+        .await
+        .unwrap();
     let reference = selected_reference(&f).await;
     let gate = ReloadGate::default();
     let reloader = GatedReloader {

@@ -66,7 +66,7 @@ impl DesktopRuleOverridePort {
             ))
         })?;
         let expected_reference =
-            ProfileStore::read_active_profile_reference(self.config.as_ref()).await?;
+            ProfileStore::read_active_profile_reference(self.config.engine_profile_store()).await?;
         let infiltrator_contract::active_profile_reference::ActiveProfileReferenceState::Selected(
             expected_reference,
         ) = expected_reference

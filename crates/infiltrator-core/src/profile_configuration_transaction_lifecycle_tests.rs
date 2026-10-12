@@ -48,6 +48,7 @@ async fn foreign_and_stale_candidates_have_zero_writes_across_lifecycles() {
         let stops_before = fixture.lifecycle.stop_calls();
         let original = fixture
             .config
+            .engine_profile_store()
             .load_active_workspace()
             .await
             .expect("initial workspace");
@@ -71,6 +72,7 @@ async fn foreign_and_stale_candidates_have_zero_writes_across_lifecycles() {
         .await;
         let newer = fixture
             .config
+            .engine_profile_store()
             .load_active_workspace()
             .await
             .expect("newer workspace");
@@ -101,6 +103,7 @@ async fn foreign_and_stale_candidates_have_zero_writes_across_lifecycles() {
         assert_eq!(
             fixture
                 .config
+                .engine_profile_store()
                 .load_active_workspace()
                 .await
                 .expect("foreign and stale candidates do not replace the workspace"),
@@ -118,6 +121,7 @@ async fn inactive_native_invalid_candidates_have_zero_writes() {
         let stops_before = fixture.lifecycle.stop_calls();
         let previous = fixture
             .config
+            .engine_profile_store()
             .load_active_workspace()
             .await
             .expect("initial workspace");
@@ -137,6 +141,7 @@ async fn inactive_native_invalid_candidates_have_zero_writes() {
         assert_eq!(
             fixture
                 .config
+                .engine_profile_store()
                 .load_active_workspace()
                 .await
                 .expect("native-invalid candidate leaves active workspace unchanged"),

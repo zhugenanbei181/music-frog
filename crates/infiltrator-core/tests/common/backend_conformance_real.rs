@@ -369,18 +369,23 @@ rules:
     );
     let valid_text = String::from_utf8(case.valid_profile.clone())
         .map_err(|error| format!("Mihomo valid fixture is not UTF-8: {error}"))?;
-    ProfileStore::save_inactive_profile(profile_store.as_ref(), "profile", &valid_text)
-        .await
-        .map_err(|error| format!("seed Mihomo profile workspace: {error}"))?;
-    let expected = ProfileStore::read_active_profile_reference(profile_store.as_ref())
-        .await
-        .map_err(|error| format!("read Mihomo active profile reference: {error}"))?;
+    ProfileStore::save_inactive_profile(
+        profile_store.engine_profile_store(),
+        "profile",
+        &valid_text,
+    )
+    .await
+    .map_err(|error| format!("seed Mihomo profile workspace: {error}"))?;
+    let expected =
+        ProfileStore::read_active_profile_reference(profile_store.engine_profile_store())
+            .await
+            .map_err(|error| format!("read Mihomo active profile reference: {error}"))?;
     let target = ActiveProfileReferenceTarget::selected(
-        ProfileStore::engine_id(profile_store.as_ref()),
+        ProfileStore::engine_id(profile_store.engine_profile_store()),
         ProfileId::new("profile").expect("valid conformance profile ID"),
     );
     match ProfileStore::compare_and_set_active_profile_reference(
-        profile_store.as_ref(),
+        profile_store.engine_profile_store(),
         expected,
         target,
         infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization::Unowned,
@@ -482,7 +487,7 @@ rules:
             readiness: readiness.as_ref(),
             codec: codec.as_ref(),
             configuration_transaction: transaction.as_ref(),
-            profile_store: profile_store.as_ref(),
+            profile_store: profile_store.engine_profile_store(),
             transaction_owner: transaction_owner.as_ref(),
             outbound: outbound.as_ref(),
             routing: routing.as_ref(),

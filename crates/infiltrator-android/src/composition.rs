@@ -347,7 +347,7 @@ impl<S: SecureStore + 'static> AndroidCoreComposition<S> {
         &self,
         document_codec: Arc<dyn ProfileDocumentCodecPort>,
     ) -> ProfileApplication {
-        let store: Arc<dyn ProfileStore> = self.profile_store.clone();
+        let store: Arc<dyn ProfileStore> = self.profile_store.shared_engine_profile_store();
         ProfileApplication::new(store).with_document_codec(document_codec)
     }
 }

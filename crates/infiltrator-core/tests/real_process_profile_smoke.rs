@@ -240,15 +240,15 @@ async fn profile_apply_readback_and_restore_use_the_live_mihomo_transaction() {
         "the integration must use the profile directory owned by the running Mihomo process"
     );
 
-    let expected = ProfileStore::read_active_profile_reference(config.as_ref())
+    let expected = ProfileStore::read_active_profile_reference(config.engine_profile_store())
         .await
         .expect("read selection before profile CAS");
     let target = ActiveProfileReferenceTarget::selected(
-        ProfileStore::engine_id(config.as_ref()),
+        ProfileStore::engine_id(config.engine_profile_store()),
         ProfileId::new(profile_name).expect("valid smoke profile ID"),
     );
     match ProfileStore::compare_and_set_active_profile_reference(
-        config.as_ref(),
+        config.engine_profile_store(),
         expected,
         target,
         ActiveProfileReferenceWriteAuthorization::Unowned,
@@ -311,7 +311,7 @@ async fn profile_apply_readback_and_restore_use_the_live_mihomo_transaction() {
     )
     .expect("compose the Mihomo codec and transaction owner for the same engine");
 
-    let before = ProfileStore::load_active_workspace(config.as_ref())
+    let before = ProfileStore::load_active_workspace(config.engine_profile_store())
         .await
         .expect("read the active profile workspace through ProfileStore");
     let before_text = before
@@ -340,15 +340,16 @@ async fn profile_apply_readback_and_restore_use_the_live_mihomo_transaction() {
 
     let changed_text = replace_one(&before_text, "log-level: info", "log-level: debug");
     let changed_bytes = changed_text.as_bytes().to_vec();
-    let expected_reference = match ProfileStore::read_active_profile_reference(config.as_ref())
-        .await
-        .expect("read exact selected reference before transaction")
-    {
-        ActiveProfileReferenceState::Selected(reference) => reference,
-        ActiveProfileReferenceState::Unselected { .. } => {
-            panic!("real-process smoke requires selected active profile")
-        }
-    };
+    let expected_reference =
+        match ProfileStore::read_active_profile_reference(config.engine_profile_store())
+            .await
+            .expect("read exact selected reference before transaction")
+        {
+            ActiveProfileReferenceState::Selected(reference) => reference,
+            ActiveProfileReferenceState::Unselected { .. } => {
+                panic!("real-process smoke requires selected active profile")
+            }
+        };
     let changed = transaction
         .transact(ProfileConfigurationTransactionRequest {
             expected_reference: expected_reference.clone(),
@@ -363,7 +364,7 @@ async fn profile_apply_readback_and_restore_use_the_live_mihomo_transaction() {
     assert_eq!(changed.document.utf8_text().unwrap(), changed_text);
     assert_eq!(changed.sidecar_bytes, before.sidecar_bytes);
     assert_eq!(
-        ProfileStore::load_active_workspace(config.as_ref())
+        ProfileStore::load_active_workspace(config.engine_profile_store())
             .await
             .expect("read persisted changed workspace"),
         changed,
@@ -390,7 +391,7 @@ async fn profile_apply_readback_and_restore_use_the_live_mihomo_transaction() {
     assert_eq!(restored.document.raw_bytes, before.document.raw_bytes);
     assert_eq!(restored.sidecar_bytes, before.sidecar_bytes);
     assert_eq!(
-        ProfileStore::load_active_workspace(config.as_ref())
+        ProfileStore::load_active_workspace(config.engine_profile_store())
             .await
             .expect("read restored workspace"),
         restored

@@ -33,14 +33,6 @@ impl<S: SecureStore> ConfigManager<S> {
             .await
             .map_err(namespace_error)
     }
-
-    /// Reset code already holds the cross-process profile-write fence.
-    pub(crate) async fn reset_profile_namespace_marker_unlocked(&self) -> Result<()> {
-        self.profile_store
-            .reset_engine_scoped_namespace_marker_unlocked()
-            .await
-            .map_err(namespace_error)
-    }
 }
 
 #[cfg(test)]

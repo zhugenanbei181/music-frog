@@ -58,13 +58,14 @@ mod tests {
         manager: &ConfigManager<S>,
         profile: &str,
     ) -> Result<ActiveProfileReferenceCasOutcome, PortError> {
-        let expected = ProfileStore::read_active_profile_reference(manager).await?;
+        let expected =
+            ProfileStore::read_active_profile_reference(manager.engine_profile_store()).await?;
         let target = ActiveProfileReferenceTarget::selected(
             ConfigManager::engine_id(manager),
             ProfileId::new(profile).expect("valid test profile ID"),
         );
         ProfileStore::compare_and_set_active_profile_reference(
-            manager,
+            manager.engine_profile_store(),
             expected,
             target,
             infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization::Unowned,

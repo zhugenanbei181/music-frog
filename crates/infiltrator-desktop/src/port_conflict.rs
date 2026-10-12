@@ -367,18 +367,19 @@ mod tests {
         manager: &ConfigManager<DefaultCredentialStore>,
         content: &str,
     ) {
-        let reference = match ProfileStore::read_active_profile_reference(manager)
-            .await
-            .expect("read active profile reference")
-        {
-            ActiveProfileReferenceState::Selected(reference) => reference,
-            state => panic!("expected a selected profile, got {state:?}"),
-        };
-        let previous = ProfileStore::load_active_workspace(manager)
+        let reference =
+            match ProfileStore::read_active_profile_reference(manager.engine_profile_store())
+                .await
+                .expect("read active profile reference")
+            {
+                ActiveProfileReferenceState::Selected(reference) => reference,
+                state => panic!("expected a selected profile, got {state:?}"),
+            };
+        let previous = ProfileStore::load_active_workspace(manager.engine_profile_store())
             .await
             .expect("load active profile workspace");
         let lease = ProfileStore::acquire_active_workspace_write_lease(
-            manager,
+            manager.engine_profile_store(),
             reference,
             previous.identity(),
             ActiveProfileReferenceWriteAuthorization::Unowned,

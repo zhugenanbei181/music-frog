@@ -88,7 +88,7 @@ pub(super) async fn build_settings_application() -> Result<SettingsApplication, 
 pub(super) async fn build_configuration_application() -> Result<ConfigurationApplication, FfiStatus>
 {
     let manager = build_config_manager().await?;
-    let profiles = ProfileApplication::new(Arc::new(manager))
+    let profiles = ProfileApplication::new(manager.shared_engine_profile_store())
         .with_document_codec(Arc::new(MihomoProfileDocumentCodec));
     Ok(ConfigurationApplication::from_profile_application(profiles))
 }

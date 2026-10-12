@@ -24,6 +24,7 @@ infiltrator-domain = { path = "../infiltrator-domain" }
 infiltrator-ports = { path = "../infiltrator-ports" }
 mihomo-config = { path = "../mihomo-config" }
 infiltrator-platform = { path = "../infiltrator-platform" }
+infiltrator-profile-store = { path = "../infiltrator-profile-store" }
 mihomo-api = { path = "../mihomo-api" }
 mihomo-version = { path = "../mihomo-version" }
 infiltrator-http = { path = "../infiltrator-http" }

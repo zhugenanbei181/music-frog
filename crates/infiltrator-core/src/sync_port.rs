@@ -201,9 +201,10 @@ where
 
         let config_root = manager.config_dir().to_path_buf();
         let sandbox = SandboxValidator::new(config_root.clone());
-        let active_reference = ProfileStore::read_active_profile_reference(&manager)
-            .await
-            .map_err(|error| PortError::Io(error.to_string()))?;
+        let active_reference =
+            ProfileStore::read_active_profile_reference(manager.engine_profile_store())
+                .await
+                .map_err(|error| PortError::Io(error.to_string()))?;
         let total = remote_profiles.len() as u64;
         observer.progress(SyncProgress {
             phase: "下载配置".to_string(),

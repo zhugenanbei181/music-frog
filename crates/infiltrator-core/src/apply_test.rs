@@ -336,7 +336,7 @@ async fn fixture(probe_failures: u64, reload_fails: bool) -> Fixture {
 }
 
 async fn select_profile<S: SecureStore>(config: &ConfigManager<S>, profile: &str) {
-    let expected = ProfileStore::read_active_profile_reference(config)
+    let expected = ProfileStore::read_active_profile_reference(config.engine_profile_store())
         .await
         .expect("read selection before test CAS");
     let target = ActiveProfileReferenceTarget::selected(
@@ -344,7 +344,7 @@ async fn select_profile<S: SecureStore>(config: &ConfigManager<S>, profile: &str
         ProfileId::new(profile).expect("valid test profile ID"),
     );
     match ProfileStore::compare_and_set_active_profile_reference(
-        config,
+        config.engine_profile_store(),
         expected,
         target,
         ActiveProfileReferenceWriteAuthorization::Unowned,
@@ -360,7 +360,8 @@ async fn select_profile<S: SecureStore>(config: &ConfigManager<S>, profile: &str
 }
 
 async fn selected_reference<S: SecureStore>(config: &ConfigManager<S>) -> ActiveProfileReference {
-    match ActiveProfileReferenceStore::read(config)
+    let profile_store = config.engine_profile_store();
+    match ActiveProfileReferenceStore::read(profile_store)
         .await
         .expect("read active profile reference")
     {
@@ -378,7 +379,7 @@ async fn publish_active_workspace_for_test(
     update: ProfileWorkspaceUpdate,
 ) -> ProfileWorkspace {
     let lease = ProfileStore::acquire_active_workspace_write_lease(
-        config,
+        config.engine_profile_store(),
         expected_reference.clone(),
         expected_workspace.clone(),
         ActiveProfileReferenceWriteAuthorization::Unowned,
@@ -452,9 +453,12 @@ async fn apply_confirmed_to_selected_reference(
     expected_rules: &RuleSourceIdentity,
 ) -> ApplyResult<ApplyOutcome> {
     let expected_reference = selected_reference(config).await;
-    let workspace = ProfileStore::load_workspace(config, &expected_reference.profile_id)
-        .await
-        .map_err(|error| ApplyError::Write(error.to_string()))?;
+    let workspace = ProfileStore::load_workspace(
+        config.engine_profile_store(),
+        &expected_reference.profile_id,
+    )
+    .await
+    .map_err(|error| ApplyError::Write(error.to_string()))?;
     let existing = workspace
         .document
         .utf8_text()
@@ -484,9 +488,10 @@ async fn apply_workspace_content_for_reference(
     content: &str,
     params: ApplyParams,
 ) -> ApplyResult<ApplyOutcome> {
-    let workspace = ProfileStore::load_workspace(config, &expected.profile_id)
-        .await
-        .map_err(|error| ApplyError::Write(error.to_string()))?;
+    let workspace =
+        ProfileStore::load_workspace(config.engine_profile_store(), &expected.profile_id)
+            .await
+            .map_err(|error| ApplyError::Write(error.to_string()))?;
     apply_workspace_content_for_reference_with_workspace(
         session, config, reloader, expected, &workspace, content, params,
     )
@@ -749,7 +754,7 @@ async fn replace_profile_file_for_test(
 ) {
     let reference = selected_reference(config).await;
     assert_eq!(reference.profile_id.as_str(), profile);
-    let before = ProfileStore::load_workspace(config, &reference.profile_id)
+    let before = ProfileStore::load_workspace(config.engine_profile_store(), &reference.profile_id)
         .await
         .expect("read active workspace before fixture edit");
     let update = ProfileWorkspaceUpdate {
@@ -812,8 +817,9 @@ async fn active_reference_apply_uses_the_exact_selected_profile_under_its_lease(
         .save_inactive_profile("other", NEW)
         .await
         .expect("seed another profile");
+    let profile_store = f.config.engine_profile_store();
     let ActiveProfileReferenceState::Selected(expected) =
-        ActiveProfileReferenceStore::read(&f.config)
+        ActiveProfileReferenceStore::read(profile_store)
             .await
             .expect("active profile reference")
     else {
@@ -848,8 +854,9 @@ async fn active_reference_content_apply_writes_only_the_exact_selected_profile()
         .save_inactive_profile("other", "port: 7888\n")
         .await
         .expect("seed a second profile");
+    let profile_store = f.config.engine_profile_store();
     let ActiveProfileReferenceState::Selected(expected) =
-        ActiveProfileReferenceStore::read(&f.config)
+        ActiveProfileReferenceStore::read(profile_store)
             .await
             .expect("active profile reference")
     else {
@@ -872,8 +879,9 @@ async fn active_reference_content_apply_writes_only_the_exact_selected_profile()
         f.config.load("other").await.expect("other file"),
         "port: 7888\n"
     );
+    let profile_store = f.config.engine_profile_store();
     assert_eq!(
-        ActiveProfileReferenceStore::read(&f.config)
+        ActiveProfileReferenceStore::read(profile_store)
             .await
             .expect("reference remains selected"),
         ActiveProfileReferenceState::Selected(expected)
@@ -884,8 +892,9 @@ async fn active_reference_content_apply_writes_only_the_exact_selected_profile()
 #[tokio::test]
 async fn stale_active_reference_content_apply_has_zero_profile_or_runtime_effects() {
     let f = fixture(0, false).await;
+    let profile_store = f.config.engine_profile_store();
     let ActiveProfileReferenceState::Selected(expected) =
-        ActiveProfileReferenceStore::read(&f.config)
+        ActiveProfileReferenceStore::read(profile_store)
             .await
             .expect("active profile reference")
     else {
@@ -930,8 +939,9 @@ async fn stale_active_reference_content_apply_has_zero_profile_or_runtime_effect
 #[tokio::test]
 async fn active_reference_apply_rejects_a_stale_revision_before_core_or_file_effects() {
     let f = fixture(0, false).await;
+    let profile_store = f.config.engine_profile_store();
     let ActiveProfileReferenceState::Selected(expected) =
-        ActiveProfileReferenceStore::read(&f.config)
+        ActiveProfileReferenceStore::read(profile_store)
             .await
             .expect("active profile reference")
     else {
@@ -1457,6 +1467,7 @@ async fn confirmed_profile_commits_only_exact_observed_source_and_rolls_back_to_
     replace_profile_file_for_test(&failing.config, "main", observed).await;
     let observed_workspace = failing
         .config
+        .engine_profile_store()
         .load_active_workspace()
         .await
         .expect("capture the exact active workspace before apply");
@@ -1484,7 +1495,12 @@ async fn confirmed_profile_commits_only_exact_observed_source_and_rolls_back_to_
     assert!(matches!(result, Err(ApplyError::RolledBack { .. })));
     assert_eq!(file_content(&failing.config).await, observed);
     assert_eq!(
-        failing.config.load_active_workspace().await.unwrap(),
+        failing
+            .config
+            .engine_profile_store()
+            .load_active_workspace()
+            .await
+            .unwrap(),
         observed_workspace
     );
     assert_eq!(failing.session.lifecycle(), CoreLifecycle::Ready);

@@ -52,14 +52,15 @@ pub(super) async fn build_shared_core(
             "Android sing-box owner received a foreign active profile reference",
         ));
     }
-    let workspace = ProfileStore::load_workspace(config.as_ref(), &reference.profile_id)
-        .await
-        .map_err(|error| {
-            FfiStatus::err(
-                FfiErrorCode::Config,
-                format!("Android sing-box profile document is unavailable: {error}"),
-            )
-        })?;
+    let workspace =
+        ProfileStore::load_workspace(config.engine_profile_store(), &reference.profile_id)
+            .await
+            .map_err(|error| {
+                FfiStatus::err(
+                    FfiErrorCode::Config,
+                    format!("Android sing-box profile document is unavailable: {error}"),
+                )
+            })?;
     if workspace.document.identity.engine_id != reference.engine_id
         || workspace.document.identity.profile_id != reference.profile_id
     {

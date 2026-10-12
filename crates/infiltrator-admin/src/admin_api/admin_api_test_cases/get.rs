@@ -137,9 +137,13 @@ async fn test_get_dns_config_route() {
         DefaultCredentialStore::default(),
     )
     .unwrap();
-    ProfileStore::save_inactive_profile(&manager, "default", "dns:\n  enable: true")
-        .await
-        .unwrap();
+    ProfileStore::save_inactive_profile(
+        manager.engine_profile_store(),
+        "default",
+        "dns:\n  enable: true",
+    )
+    .await
+    .unwrap();
     select_test_profile(&manager, "default").await;
 
     let app = setup_app();
@@ -166,9 +170,13 @@ async fn test_get_tun_config_route() {
         DefaultCredentialStore::default(),
     )
     .unwrap();
-    ProfileStore::save_inactive_profile(&manager, "default", "tun:\n  enable: true")
-        .await
-        .unwrap();
+    ProfileStore::save_inactive_profile(
+        manager.engine_profile_store(),
+        "default",
+        "tun:\n  enable: true",
+    )
+    .await
+    .unwrap();
     select_test_profile(&manager, "default").await;
 
     let app = setup_app();
@@ -195,9 +203,13 @@ async fn test_get_rules_route() {
         DefaultCredentialStore::default(),
     )
     .unwrap();
-    ProfileStore::save_inactive_profile(&manager, "default", "rules:\n  - DIRECT")
-        .await
-        .unwrap();
+    ProfileStore::save_inactive_profile(
+        manager.engine_profile_store(),
+        "default",
+        "rules:\n  - DIRECT",
+    )
+    .await
+    .unwrap();
     select_test_profile(&manager, "default").await;
 
     let app = setup_app();
@@ -225,7 +237,7 @@ async fn test_get_proxy_providers_route() {
     )
     .unwrap();
     ProfileStore::save_inactive_profile(
-        &manager,
+        manager.engine_profile_store(),
         "default",
         "proxy-providers:\n  p1:\n    type: http\n    url: https://example.com/p1.yaml\n",
     )
@@ -258,7 +270,7 @@ async fn test_get_sniffer_route() {
     )
     .unwrap();
     ProfileStore::save_inactive_profile(
-        &manager,
+        manager.engine_profile_store(),
         "default",
         "sniffer:\n  enable: true\n  sniff:\n    TLS:\n      ports: [443]\n",
     )

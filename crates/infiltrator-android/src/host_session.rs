@@ -238,7 +238,7 @@ pub(crate) async fn recover_android_owner_before_binding(
         },
         AndroidCoreProcessObservation::NeverStarted
         | AndroidCoreProcessObservation::Unavailable { .. } => {
-            let state = ProfileStore::read_active_profile_reference(config.as_ref())
+            let state = ProfileStore::read_active_profile_reference(config.engine_profile_store())
                 .await
                 .map_err(|error| {
                     FfiStatus::err(
@@ -259,7 +259,7 @@ pub(crate) async fn recover_android_owner_before_binding(
         }
     };
     let process = Arc::new(AndroidBridgeAdapter::new(Arc::clone(&bridge)));
-    let owner_store: Arc<dyn ActiveProfileReferenceStore> = config.clone();
+    let owner_store: Arc<dyn ActiveProfileReferenceStore> = config.shared_engine_profile_store();
     AndroidCoreOwnerRecoveryApplication::new(process, owner_store, vpn, identity)
         .recover()
         .await
@@ -325,8 +325,9 @@ async fn build_shared_core(bridge: Arc<dyn AndroidBridge>) -> Result<Arc<SharedC
                 format!("Android legacy Mihomo selection migration failed: {error}"),
             )
         })?;
+    let profile_store = config.engine_profile_store();
     let selection_lease =
-        ActiveProfileReferenceStore::acquire_provider_selection_lease(config.as_ref())
+        ActiveProfileReferenceStore::acquire_provider_selection_lease(profile_store)
             .await
             .map_err(|error| {
                 FfiStatus::err(
@@ -372,14 +373,15 @@ async fn build_mihomo_shared_core(
         &reference.engine_id,
     )?;
     let endpoints = Arc::new(ProfileEndpointSource::new(Arc::clone(&config)));
-    let workspace = ProfileStore::load_workspace(config.as_ref(), &reference.profile_id)
-        .await
-        .map_err(|error| {
-            FfiStatus::err(
-                FfiErrorCode::Config,
-                format!("Android active profile document is unavailable: {error}"),
-            )
-        })?;
+    let workspace =
+        ProfileStore::load_workspace(config.engine_profile_store(), &reference.profile_id)
+            .await
+            .map_err(|error| {
+                FfiStatus::err(
+                    FfiErrorCode::Config,
+                    format!("Android active profile document is unavailable: {error}"),
+                )
+            })?;
     if workspace.document.identity.engine_id != reference.engine_id
         || workspace.document.identity.profile_id != reference.profile_id
     {
@@ -647,8 +649,9 @@ pub(crate) async fn apply_selected_profile_reference_status(
     if let Err(failure) = core.application.adopt_if_running().await {
         return FfiStatus::from(InfiltratorError::Backend(failure.message));
     }
-    let application =
-        infiltrator_application::profile_application::ProfileApplication::new(core.config.clone());
+    let application = infiltrator_application::profile_application::ProfileApplication::new(
+        core.config.shared_engine_profile_store(),
+    );
     let applier: Arc<dyn ActiveProfileReferenceApplier> = Arc::new(AndroidCoreProfileApplier {
         core: Arc::clone(&core),
     });
@@ -693,8 +696,9 @@ pub(crate) async fn activate_profile_status(profile: &str) -> FfiStatus {
     if let Err(failure) = core.application.adopt_if_running().await {
         return FfiStatus::from(InfiltratorError::Backend(failure.message));
     }
-    let application =
-        infiltrator_application::profile_application::ProfileApplication::new(core.config.clone());
+    let application = infiltrator_application::profile_application::ProfileApplication::new(
+        core.config.shared_engine_profile_store(),
+    );
     let applier: Arc<dyn ActiveProfileReferenceApplier> = Arc::new(AndroidCoreProfileApplier {
         core: Arc::clone(&core),
     });
@@ -707,7 +711,7 @@ pub(crate) async fn activate_profile_status(profile: &str) -> FfiStatus {
     };
     match outcome {
         infiltrator_application::profile_application::ProfileActivationOutcome::AlreadySelectedWithRuntime => {
-            let expected = match ProfileStore::read_active_profile_reference(core.config.as_ref()).await {
+            let expected = match ProfileStore::read_active_profile_reference(core.config.engine_profile_store()).await {
                 Ok(expected) => expected,
                 Err(error) => {
                     return FfiStatus::err(
@@ -780,7 +784,7 @@ pub(crate) async fn activate_profile_status(profile: &str) -> FfiStatus {
 pub(crate) async fn active_profile_reference_state()
 -> Result<infiltrator_contract::active_profile_reference::ActiveProfileReferenceState, FfiStatus> {
     let core = shared_core().await?;
-    ProfileStore::read_active_profile_reference(core.config.as_ref())
+    ProfileStore::read_active_profile_reference(core.config.engine_profile_store())
         .await
         .map_err(|error| {
             FfiStatus::err(

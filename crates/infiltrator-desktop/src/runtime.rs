@@ -172,7 +172,8 @@ impl MihomoRuntime {
         }
         let cm = config_manager;
         let active_profile = preflight.reference.profile_id.clone();
-        let workspace = ProfileStore::load_workspace(cm.as_ref(), &active_profile).await?;
+        let workspace =
+            ProfileStore::load_workspace(cm.engine_profile_store(), &active_profile).await?;
         if workspace.document.identity != preflight.document.identity
             || workspace.document.identity.engine_id != preflight.reference.engine_id
             || workspace.document.identity.profile_id != preflight.reference.profile_id
@@ -192,7 +193,8 @@ impl MihomoRuntime {
         let controller_url = cm
             .ensure_external_controller_for_profile(&active_profile)
             .await?;
-        let workspace = ProfileStore::load_workspace(cm.as_ref(), &active_profile).await?;
+        let workspace =
+            ProfileStore::load_workspace(cm.engine_profile_store(), &active_profile).await?;
         preflight.refresh_document(workspace.document)?;
         let geoip_candidates =
             collect_geoip_candidates(&binary, &selection.related_asset_candidates);
@@ -504,8 +506,8 @@ async fn prepare_mihomo_runtime(
     let stun_probe =
         StunProbeApplication::new(Some(Arc::new(UdpStunProbe::new())), DEFAULT_STUN_SERVER);
     let doctor = DoctorApplication::new(Arc::new(doctor()?));
-    let profiles =
-        ProfileApplication::new(cm.clone()).with_document_codec(backend_ports.configuration());
+    let profiles = ProfileApplication::new(cm.shared_engine_profile_store())
+        .with_document_codec(backend_ports.configuration());
     let configuration = ConfigurationApplication::from_profile_application(profiles.clone());
     let apply_guard = Arc::new(Mutex::new(()));
     let snapshots = SnapshotApplication::new(
