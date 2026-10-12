@@ -1,4 +1,10 @@
 use crate::active_reference_file::ActiveProfileReferenceFile;
+use crate::active_reference_owner::ActiveProfileReferenceRecord;
+use crate::document_store::RECORD_DURABILITY_UNCERTAIN_PREFIX;
+use infiltrator_contract::active_profile_reference::{
+    ActiveProfileReferenceRevision, ActiveProfileReferenceState,
+};
+use infiltrator_ports::error::PortError;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use tempfile::TempDir;
@@ -44,6 +50,42 @@ fn synchronous_owner_read_and_write_use_the_same_record_path() {
     assert!(file.read_sync::<ReferenceRecord>().unwrap().is_none());
     file.write_sync(&record).unwrap();
     assert_eq!(file.read_sync::<ReferenceRecord>().unwrap(), Some(record));
+}
+
+#[test]
+fn durable_record_publication_reconciles_visible_state_after_durability_error() {
+    let expected = ActiveProfileReferenceRecord::pending_legacy_migration();
+    let write_error = PortError::Failed(format!(
+        "{RECORD_DURABILITY_UNCERTAIN_PREFIX}: simulated directory flush failure"
+    ));
+
+    let result =
+        super::reconcile_record_publication("test record", &expected, Err(write_error), || {
+            Ok(expected.clone())
+        });
+
+    assert!(result.is_ok());
+}
+
+#[test]
+fn durable_record_publication_rejects_mismatched_readback_after_durability_error() {
+    let expected = ActiveProfileReferenceRecord::pending_legacy_migration();
+    let observed = ActiveProfileReferenceRecord {
+        selection: ActiveProfileReferenceState::Unselected {
+            revision: ActiveProfileReferenceRevision::new(1),
+        },
+        ..expected.clone()
+    };
+    let write_error = PortError::Failed(format!(
+        "{RECORD_DURABILITY_UNCERTAIN_PREFIX}: simulated directory flush failure"
+    ));
+
+    let result =
+        super::reconcile_record_publication("test record", &expected, Err(write_error), || {
+            Ok(observed)
+        });
+
+    assert!(matches!(result, Err(PortError::Failed(_))));
 }
 
 #[tokio::test]

@@ -474,75 +474,19 @@ fn sync_read_active_core_owner_proof(
     ActiveProfileReferenceFile::new(config_root).read_owner_proof_sync()
 }
 
-fn sync_write_active_profile_record(
-    config_root: &Path,
-    record: &ActiveProfileReferenceRecord,
-) -> Result<(), PortError> {
-    ActiveProfileReferenceFile::new(config_root).write_active_profile_record_sync(record)
-}
-
-fn sync_write_active_core_owner_proof(
-    config_root: &Path,
-    record: &ActiveCoreOwnerProofRecord,
-) -> Result<(), PortError> {
-    ActiveProfileReferenceFile::new(config_root).write_owner_proof_sync(record)
-}
-
 fn sync_publish_active_core_owner_proof(
     config_root: &Path,
     record: &ActiveCoreOwnerProofRecord,
 ) -> Result<(), PortError> {
-    let write_result = sync_write_active_core_owner_proof(config_root, record);
-    reconcile_durable_record_publication("active Core owner", record, write_result, || {
-        sync_read_active_core_owner_proof(config_root)
-    })
+    ActiveProfileReferenceFile::new(config_root).publish_owner_proof_sync_reconciled(record)
 }
 
 fn sync_publish_active_profile_record(
     config_root: &Path,
     record: &ActiveProfileReferenceRecord,
 ) -> Result<(), PortError> {
-    let write_result = sync_write_active_profile_record(config_root, record);
-    reconcile_durable_record_publication("active profile reference", record, write_result, || {
-        sync_read_active_profile_record(config_root)
-    })
-}
-
-fn reconcile_durable_record_publication<T: PartialEq>(
-    record_name: &str,
-    expected: &T,
-    write_result: Result<(), PortError>,
-    readback: impl FnOnce() -> Result<T, PortError>,
-) -> Result<(), PortError> {
-    match write_result {
-        Ok(()) => {
-            let observed = readback()?;
-            if observed == *expected {
-                Ok(())
-            } else {
-                Err(PortError::Failed(format!(
-                    "{record_name} readback differed from the committed record"
-                )))
-            }
-        }
-        Err(write_error) if is_durability_uncertain(&write_error) => {
-            let observed = readback().map_err(|read_error| {
-                PortError::Failed(format!(
-                    "{record_name} replacement is visible but durability is uncertain; readback also failed: {read_error}"
-                ))
-            })?;
-            if observed != *expected {
-                return Err(PortError::Failed(format!(
-                    "{record_name} replacement is visible but durability is uncertain; readback differed from the intended record ({write_error})"
-                )));
-            }
-            log::warn!(
-                "{record_name} readback matches after a directory durability error; continuing with the visible committed state: {write_error}"
-            );
-            Ok(())
-        }
-        Err(write_error) => Err(write_error),
-    }
+    ActiveProfileReferenceFile::new(config_root)
+        .publish_active_profile_record_sync_reconciled(record)
 }
 
 fn transition_rejected(message: impl Into<String>) -> PortError {
@@ -4369,7 +4313,6 @@ mod tests {
     use super::*;
     use infiltrator_contract::core_identity::CoreVersion;
     use infiltrator_contract::session::SessionToken;
-    use infiltrator_profile_store::document_store::RECORD_DURABILITY_UNCERTAIN_PREFIX;
     use std::process::{Child, Command};
     use std::sync::Arc;
     use std::time::Duration;
@@ -4390,46 +4333,6 @@ mod tests {
         async fn delete(&self, _namespace: &str, _key: &str) -> Result<(), PortError> {
             Ok(())
         }
-    }
-
-    #[test]
-    fn durable_record_publication_reconciles_visible_state_after_durability_error() {
-        let expected = ActiveProfileReferenceRecord::pending_legacy_migration();
-        let write_error = PortError::Failed(format!(
-            "{RECORD_DURABILITY_UNCERTAIN_PREFIX}: simulated directory flush failure"
-        ));
-
-        let result = reconcile_durable_record_publication(
-            "test record",
-            &expected,
-            Err(write_error),
-            || Ok(expected.clone()),
-        );
-
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn durable_record_publication_rejects_mismatched_readback_after_durability_error() {
-        let expected = ActiveProfileReferenceRecord::pending_legacy_migration();
-        let observed = ActiveProfileReferenceRecord {
-            selection: ActiveProfileReferenceState::Unselected {
-                revision: ActiveProfileReferenceRevision::new(1),
-            },
-            ..expected.clone()
-        };
-        let write_error = PortError::Failed(format!(
-            "{RECORD_DURABILITY_UNCERTAIN_PREFIX}: simulated directory flush failure"
-        ));
-
-        let result = reconcile_durable_record_publication(
-            "test record",
-            &expected,
-            Err(write_error),
-            || Ok(observed),
-        );
-
-        assert!(matches!(result, Err(PortError::Failed(_))));
     }
 
     #[test]

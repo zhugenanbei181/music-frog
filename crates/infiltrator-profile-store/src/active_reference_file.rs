@@ -137,6 +137,28 @@ impl ActiveProfileReferenceFile {
         )
     }
 
+    pub fn publish_active_profile_record_sync_reconciled(
+        &self,
+        record: &ActiveProfileReferenceRecord,
+    ) -> Result<(), PortError> {
+        let write_result = self.write_active_profile_record_sync(record);
+        reconcile_record_publication("active profile reference", record, write_result, || {
+            self.read_active_profile_record_sync()?.ok_or_else(|| {
+                PortError::Failed("active profile reference disappeared after write".into())
+            })
+        })
+    }
+
+    pub fn publish_owner_proof_sync_reconciled(
+        &self,
+        record: &ActiveCoreOwnerProofRecord,
+    ) -> Result<(), PortError> {
+        let write_result = self.write_owner_proof_sync(record);
+        reconcile_record_publication("active Core owner", record, write_result, || {
+            self.read_owner_proof_sync()
+        })
+    }
+
     pub async fn read<T: DeserializeOwned>(&self) -> Result<Option<T>, PortError> {
         let Some(text) = read_optional(&self.path()).await? else {
             return Ok(None);
@@ -225,6 +247,43 @@ async fn acquire_instance_lock_async(
             return Ok(guard);
         }
         tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+}
+
+fn reconcile_record_publication<T: PartialEq>(
+    record_name: &str,
+    expected: &T,
+    write_result: Result<(), PortError>,
+    readback: impl FnOnce() -> Result<T, PortError>,
+) -> Result<(), PortError> {
+    match write_result {
+        Ok(()) => {
+            let observed = readback()?;
+            if observed == *expected {
+                Ok(())
+            } else {
+                Err(PortError::Failed(format!(
+                    "{record_name} readback differed from the committed record"
+                )))
+            }
+        }
+        Err(write_error) if is_durability_uncertain(&write_error) => {
+            let observed = readback().map_err(|read_error| {
+                PortError::Failed(format!(
+                    "{record_name} replacement is visible but durability is uncertain; readback also failed: {read_error}"
+                ))
+            })?;
+            if observed != *expected {
+                return Err(PortError::Failed(format!(
+                    "{record_name} replacement is visible but durability is uncertain; readback differed from the intended record ({write_error})"
+                )));
+            }
+            log::warn!(
+                "{record_name} readback matches after a directory durability error; continuing with the visible committed state: {write_error}"
+            );
+            Ok(())
+        }
+        Err(write_error) => Err(write_error),
     }
 }
 
