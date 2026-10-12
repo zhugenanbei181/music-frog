@@ -30,6 +30,11 @@ use infiltrator_ports::profile_workspace::{
     ProfileWorkspace, ProfileWorkspacePurpose, ProfileWorkspaceUpdate,
 };
 use infiltrator_ports::secure_store::SecureStore;
+use infiltrator_profile_store::active_owner_registry::{
+    LocalOwnerRegistrationState, LocalSwitchRegistrationRecovery,
+    local_owner_registration_matches as local_registration_matches, local_owner_registration_state,
+    lock_local_owner_registry, remove_local_owner_registration,
+};
 use infiltrator_profile_store::active_reference_cas::{
     ActiveProfileReferenceCasReady, ActiveProfileReferenceOwnerFence,
 };
@@ -56,9 +61,7 @@ use infiltrator_profile_store::workspace::{sha256_hex, workspace_for_update};
 use mihomo_api::error::MihomoError;
 use ring::rand::{SecureRandom, SystemRandom};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::{Mutex as StdMutex, OnceLock};
 
 const ACTIVE_PROFILE_RESET_INTENT_SCHEMA_VERSION: u32 = 2;
 const LEGACY_ACTIVE_PROFILE_RESET_INTENT_SCHEMA_VERSION: u32 = 1;
@@ -181,28 +184,6 @@ impl ParsedActiveProfileResetIntentRecord {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-enum LocalOwnerRegistrationState {
-    Bound {
-        identity: CoreIdentity,
-        generation: CoreGeneration,
-    },
-    Binding {
-        transition_id: ActiveOwnerToken,
-    },
-    Switching {
-        transition_id: ActiveOwnerToken,
-        identity: CoreIdentity,
-        generation: CoreGeneration,
-    },
-}
-
-enum LocalSwitchRegistrationRecovery {
-    AlreadySwitching,
-    PromotedBound,
-    NotHeldByThisOwner,
-}
-
 #[derive(Clone, Copy)]
 enum OwnerRecoveryRecordPosition {
     Bound,
@@ -218,12 +199,6 @@ enum OwnerRecoveryProofPosition {
 enum OwnerRecoveryLaunchRequirement {
     NeverStarted,
     ManagedChildExited(CoreProcessStartContext),
-}
-
-struct LocalOwnerRegistration {
-    token: ActiveOwnerToken,
-    state: LocalOwnerRegistrationState,
-    _guard: ThreadedInstanceLockGuard,
 }
 
 /// Lock bundle owned by a multi-step active-workspace transaction. Managed
@@ -284,12 +259,6 @@ struct ConfigManagerWorkspaceRecoveryLease<'a, S: SecureStore> {
     purpose: ActiveWorkspaceRecoveryPurpose,
     guards: ActiveWorkspaceWriteGuards,
     last_error: String,
-}
-
-fn local_owner_registrations() -> &'static StdMutex<HashMap<PathBuf, LocalOwnerRegistration>> {
-    static REGISTRATIONS: OnceLock<StdMutex<HashMap<PathBuf, LocalOwnerRegistration>>> =
-        OnceLock::new();
-    REGISTRATIONS.get_or_init(|| StdMutex::new(HashMap::new()))
 }
 
 fn next_owner_token() -> Result<ActiveOwnerToken, PortError> {
@@ -615,32 +584,6 @@ fn terminal_proof_generation(
     }
 }
 
-fn local_registration_matches(
-    config_root: &Path,
-    token: &ActiveOwnerToken,
-    state: &LocalOwnerRegistrationState,
-) -> Result<bool, PortError> {
-    let registrations = local_owner_registrations()
-        .lock()
-        .map_err(|_| PortError::Failed("active owner registration lock is poisoned".into()))?;
-    Ok(registrations
-        .get(config_root)
-        .is_some_and(|registration| registration.token == *token && registration.state == *state))
-}
-
-fn local_owner_registration_state(
-    config_root: &Path,
-    token: &ActiveOwnerToken,
-) -> Result<Option<LocalOwnerRegistrationState>, PortError> {
-    let registrations = local_owner_registrations()
-        .lock()
-        .map_err(|_| PortError::Failed("active owner registration lock is poisoned".into()))?;
-    Ok(registrations
-        .get(config_root)
-        .filter(|registration| registration.token == *token)
-        .map(|registration| registration.state.clone()))
-}
-
 fn recover_local_switch_registration(
     config_root: &Path,
     token: &ActiveOwnerToken,
@@ -648,61 +591,8 @@ fn recover_local_switch_registration(
     identity: &CoreIdentity,
     generation: CoreGeneration,
 ) -> Result<LocalSwitchRegistrationRecovery, PortError> {
-    let mut registrations = local_owner_registrations()
-        .lock()
-        .map_err(|_| PortError::Failed("active owner registration lock is poisoned".into()))?;
-    let Some(registration) = registrations
-        .get_mut(config_root)
-        .filter(|registration| registration.token == *token)
-    else {
-        return Ok(LocalSwitchRegistrationRecovery::NotHeldByThisOwner);
-    };
-    match &registration.state {
-        LocalOwnerRegistrationState::Bound {
-            identity: registered_identity,
-            generation: registered_generation,
-        } if registered_identity.same_instance(identity)
-            && *registered_generation == generation =>
-        {
-            registration.state = LocalOwnerRegistrationState::Switching {
-                transition_id: transition_id.clone(),
-                identity: identity.clone(),
-                generation,
-            };
-            Ok(LocalSwitchRegistrationRecovery::PromotedBound)
-        }
-        LocalOwnerRegistrationState::Switching {
-            transition_id: registered_transition,
-            identity: registered_identity,
-            generation: registered_generation,
-        } if registered_transition == transition_id
-            && registered_identity.same_instance(identity)
-            && *registered_generation == generation =>
-        {
-            Ok(LocalSwitchRegistrationRecovery::AlreadySwitching)
-        }
-        _ => Ok(LocalSwitchRegistrationRecovery::NotHeldByThisOwner),
-    }
-}
-
-fn remove_local_owner_registration(
-    config_root: &Path,
-    token: &ActiveOwnerToken,
-) -> Result<(), PortError> {
-    let mut registrations = local_owner_registrations()
-        .lock()
-        .map_err(|_| PortError::Failed("active owner registration lock is poisoned".into()))?;
-    match registrations.get(config_root) {
-        Some(registration) if registration.token == *token => {
-            registrations.remove(config_root);
-            Ok(())
-        }
-        Some(_) | None => Err(PortError::Rejected(Failure::new(
-            ErrorCode::NotReady,
-            "active Core owner lease is stale or no longer registered",
-            true,
-        ))),
-    }
+    let mut registrations = lock_local_owner_registry()?;
+    Ok(registrations.recover_switch(config_root, token, transition_id, identity, generation))
 }
 
 struct ConfigManagerActiveCoreOwnerLease {
@@ -995,10 +885,8 @@ impl ActiveProfileReferenceLease for ConfigManagerSelectionLease {
                         true,
                     ))
                 })?;
-            let mut registrations = local_owner_registrations().lock().map_err(|_| {
-                PortError::Failed("active owner registration lock is poisoned".into())
-            })?;
-            if registrations.contains_key(&config_root) {
+            let mut registrations = lock_local_owner_registry()?;
+            if registrations.contains(&config_root) {
                 return Err(PortError::Rejected(Failure::new(
                     ErrorCode::NotReady,
                     "this process already has an active Core owner registration",
@@ -1043,15 +931,13 @@ impl ActiveProfileReferenceLease for ConfigManagerSelectionLease {
             sync_publish_active_profile_record(&config_root, &record)?;
             registrations.insert(
                 config_root.clone(),
-                LocalOwnerRegistration {
-                    token: token.clone(),
-                    state: LocalOwnerRegistrationState::Bound {
-                        identity: identity.clone(),
-                        generation,
-                    },
-                    _guard: owner_guard,
+                token.clone(),
+                LocalOwnerRegistrationState::Bound {
+                    identity: identity.clone(),
+                    generation,
                 },
-            );
+                owner_guard,
+            )?;
             drop(root_guard);
             Ok(Box::new(ConfigManagerActiveCoreOwnerLease {
                 identity,
@@ -1145,17 +1031,12 @@ impl ActiveProfileOwnerSwitchLease for ConfigManagerOwnerSwitchLease {
             identity: owner_identity.clone(),
             generation: owner_generation,
         };
-        let mut registrations = local_owner_registrations()
-            .lock()
-            .map_err(|_| PortError::Failed("active owner registration lock is poisoned".into()))?;
-        let registration = registrations
-            .get_mut(&config_root)
-            .filter(|registration| {
-                registration.token == owner_token && registration.state == switching_registration
-            })
-            .ok_or_else(|| {
-                transition_rejected("only the process holding the old owner fence can cancel")
-            })?;
+        let mut registrations = lock_local_owner_registry()?;
+        if !registrations.matches(&config_root, &owner_token, &switching_registration) {
+            return Err(transition_rejected(
+                "only the process holding the old owner fence can cancel",
+            ));
+        }
         if let Some(owner_probe) =
             ActiveProfileReferenceFile::new(config_root.clone()).try_acquire_owner_lock()?
         {
@@ -1168,10 +1049,14 @@ impl ActiveProfileOwnerSwitchLease for ConfigManagerOwnerSwitchLease {
         // Restore the in-process lease first. If publication fails, the
         // durable ClosingOld marker still blocks other selectors and recovery
         // can promote this exact Bound registration back to Switching.
-        registration.state = LocalOwnerRegistrationState::Bound {
-            identity: owner_identity.clone(),
-            generation: owner_generation,
-        };
+        registrations.set_state(
+            &config_root,
+            &owner_token,
+            LocalOwnerRegistrationState::Bound {
+                identity: owner_identity.clone(),
+                generation: owner_generation,
+            },
+        )?;
         record.owner = ActiveCoreOwnerState::Bound {
             identity: owner_identity,
             generation: owner_generation,
@@ -1564,10 +1449,8 @@ impl ActiveProfileReferenceChangedLease for ConfigManagerReferenceChangedLease {
             .ok_or_else(|| {
                 transition_rejected("an active Core owner still holds the owner fence")
             })?;
-        let mut registrations = local_owner_registrations()
-            .lock()
-            .map_err(|_| PortError::Failed("active owner registration lock is poisoned".into()))?;
-        if registrations.contains_key(&config_root) {
+        let mut registrations = lock_local_owner_registry()?;
+        if registrations.contains(&config_root) {
             return Err(transition_rejected(
                 "this process already has an active Core owner registration",
             ));
@@ -1594,14 +1477,12 @@ impl ActiveProfileReferenceChangedLease for ConfigManagerReferenceChangedLease {
         sync_publish_active_profile_record(&config_root, &record)?;
         registrations.insert(
             config_root.clone(),
-            LocalOwnerRegistration {
-                token: token.clone(),
-                state: LocalOwnerRegistrationState::Binding {
-                    transition_id: transition_id.clone(),
-                },
-                _guard: owner_guard,
+            token.clone(),
+            LocalOwnerRegistrationState::Binding {
+                transition_id: transition_id.clone(),
             },
-        );
+            owner_guard,
+        )?;
         let state = ActiveProfileOwnerSwitchState::BindingNew {
             selection,
             engine_id,
@@ -1883,23 +1764,21 @@ impl ActiveProfileOwnerBindingLease for ConfigManagerOwnerBindingLease {
         };
         sync_publish_active_profile_record(&config_root, &record)?;
         {
-            let mut registrations = local_owner_registrations().lock().map_err(|_| {
-                PortError::Failed("active owner registration lock is poisoned".into())
-            })?;
-            let registration = registrations
-                .get_mut(&config_root)
-                .filter(|registration| {
-                    registration.token == token
-                        && registration.state
-                            == (LocalOwnerRegistrationState::Binding {
-                                transition_id: transition_id.clone(),
-                            })
-                })
-                .ok_or_else(|| transition_rejected("new owner registration is stale"))?;
-            registration.state = LocalOwnerRegistrationState::Bound {
-                identity: identity.clone(),
-                generation,
+            let mut registrations = lock_local_owner_registry()?;
+            let binding_state = LocalOwnerRegistrationState::Binding {
+                transition_id: transition_id.clone(),
             };
+            if !registrations.matches(&config_root, &token, &binding_state) {
+                return Err(transition_rejected("new owner registration is stale"));
+            }
+            registrations.set_state(
+                &config_root,
+                &token,
+                LocalOwnerRegistrationState::Bound {
+                    identity: identity.clone(),
+                    generation,
+                },
+            )?;
         }
         Ok(Box::new(ConfigManagerActiveCoreOwnerLease {
             identity,
@@ -2276,13 +2155,7 @@ impl<S: SecureStore> ActiveProfileReferenceStore for ConfigManager<S> {
         if matches!(record.owner, ActiveCoreOwnerState::Unowned)
             && (no_owner_proof || already_terminal_without_child_record)
         {
-            if local_owner_registrations()
-                .lock()
-                .map_err(|_| {
-                    PortError::Failed("active owner registration lock is poisoned".into())
-                })?
-                .contains_key(&config_root)
-            {
+            if lock_local_owner_registry()?.contains(&config_root) {
                 return Err(transition_rejected(
                     "an active local owner registration exists without a bound owner record",
                 ));
@@ -2608,18 +2481,16 @@ impl<S: SecureStore> ActiveProfileReferenceStore for ConfigManager<S> {
         };
         sync_publish_active_profile_record(&config_root, &record)?;
         {
-            let mut registrations = local_owner_registrations().lock().map_err(|_| {
-                PortError::Failed("active owner registration lock is poisoned".into())
-            })?;
-            let registration = registrations
-                .get_mut(&config_root)
-                .filter(|registration| registration.token == owner_token)
-                .ok_or_else(|| transition_rejected("active owner registration is stale"))?;
-            registration.state = LocalOwnerRegistrationState::Switching {
-                transition_id: transition_id.clone(),
-                identity: owner_identity.clone(),
-                generation: owner_generation,
-            };
+            let mut registrations = lock_local_owner_registry()?;
+            registrations.set_state(
+                &config_root,
+                &owner_token,
+                LocalOwnerRegistrationState::Switching {
+                    transition_id: transition_id.clone(),
+                    identity: owner_identity.clone(),
+                    generation: owner_generation,
+                },
+            )?;
         }
         let state = ActiveProfileOwnerSwitchState::ClosingOld {
             previous_reference,

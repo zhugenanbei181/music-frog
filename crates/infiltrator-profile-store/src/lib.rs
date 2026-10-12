@@ -1,5 +1,6 @@
 //! Engine-neutral durable profile persistence.
 
+pub mod active_owner_registry;
 pub mod active_reference_cas;
 pub mod active_reference_file;
 pub mod active_reference_owner;
