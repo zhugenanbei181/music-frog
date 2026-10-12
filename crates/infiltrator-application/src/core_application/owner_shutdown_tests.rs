@@ -2,16 +2,21 @@ use super::*;
 use crate::core_application::ReadinessPolicy;
 use crate::core_owner_shutdown_application::CoreOwnerShutdownApplication;
 use crate::vpn_application::VpnServiceApplication;
-use infiltrator_contract::core_identity::{CoreIdentity, CoreInstanceId, EngineId};
+use infiltrator_contract::core_identity::{CoreGeneration, CoreIdentity, CoreInstanceId, EngineId};
+use infiltrator_contract::core_process::CoreProcessStartContext;
+use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::snapshot::CoreLifecycleSnapshot;
 use infiltrator_contract::vpn::{
     PreparedVpnConfiguration, VpnSessionSnapshot, VpnSessionState, VpnStartRequest,
 };
+use infiltrator_ports::active_profile_reference_store::ActiveProfileOwnerLease;
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::core_process::CoreProcess;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::vpn_service::{VpnServicePort, VpnStartReceipt};
 use std::collections::VecDeque;
 use std::result::Result as StdResult;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use tokio::sync::Notify;
 
@@ -83,6 +88,52 @@ struct ShutdownVpnPort {
 enum ShutdownVpnFirstStopGate {
     Open,
     SuspendFirst(Arc<Notify>),
+}
+
+struct ShutdownOwnerLease {
+    identity: CoreIdentity,
+    generation: CoreGeneration,
+    releases: Arc<AtomicUsize>,
+}
+
+#[async_trait::async_trait]
+impl ActiveProfileOwnerLease for ShutdownOwnerLease {
+    fn identity(&self) -> &CoreIdentity {
+        &self.identity
+    }
+
+    fn generation(&self) -> CoreGeneration {
+        self.generation
+    }
+
+    async fn record_start_context(
+        &self,
+        _context: &CoreProcessStartContext,
+    ) -> StdResult<(), PortError> {
+        Ok(())
+    }
+
+    async fn release_after_terminal(
+        &self,
+        terminal: &CoreLifecycleSnapshot,
+    ) -> StdResult<(), PortError> {
+        if !terminal
+            .identity
+            .as_ref()
+            .is_some_and(|identity| identity.same_instance(&self.identity))
+            || terminal.lifecycle != CoreLifecycle::Stopped
+            || terminal.session_token.is_some()
+            || terminal.generation < self.generation.value()
+        {
+            return Err(PortError::Rejected(Failure::new(
+                ErrorCode::NotReady,
+                "shutdown test owner lease received a nonterminal snapshot",
+                true,
+            )));
+        }
+        self.releases.fetch_add(1, Ordering::SeqCst);
+        Ok(())
+    }
 }
 
 #[async_trait::async_trait]
@@ -334,5 +385,55 @@ async fn canceling_owner_shutdown_during_vpn_stop_never_stops_core_and_can_retry
     assert_eq!(
         *events.lock().expect("event lock"),
         vec!["vpn.stop", "vpn.stop", "core.stop"]
+    );
+}
+
+#[tokio::test]
+async fn owner_shutdown_retains_binding_through_vpn_and_core_failures_then_releases_once() {
+    let events = Arc::new(Mutex::new(Vec::new()));
+    let releases = Arc::new(AtomicUsize::new(0));
+    let (core, shutdown) = shutdown_application_with_outcomes(
+        VecDeque::from([
+            StopDisposition::Failed,
+            StopDisposition::Confirmed,
+            StopDisposition::Confirmed,
+        ]),
+        VecDeque::from([StopDisposition::Failed, StopDisposition::Confirmed]),
+        ShutdownVpnFirstStopGate::Open,
+        Arc::clone(&events),
+    );
+    CoreLifecyclePort::start(&core).await.unwrap();
+    let snapshot = core.snapshot().lifecycle_snapshot();
+    core.install_active_profile_owner_binding(Box::new(ShutdownOwnerLease {
+        identity: snapshot.identity.expect("owner identity"),
+        generation: CoreGeneration::new(snapshot.generation),
+        releases: Arc::clone(&releases),
+    }))
+    .expect("install owner binding");
+    events.lock().expect("event lock").clear();
+
+    assert!(shutdown.close().await.is_err());
+    assert_eq!(releases.load(Ordering::SeqCst), 0);
+    assert!(matches!(
+        *core.inner.active_profile_owner_binding.lock().unwrap(),
+        super::ActiveProfileOwnerBindingState::Bound(_)
+    ));
+
+    assert!(shutdown.close().await.is_err());
+    assert_eq!(releases.load(Ordering::SeqCst), 0);
+    assert!(matches!(
+        *core.inner.active_profile_owner_binding.lock().unwrap(),
+        super::ActiveProfileOwnerBindingState::Bound(_)
+    ));
+
+    shutdown.close().await.expect("terminal retry");
+    assert_eq!(releases.load(Ordering::SeqCst), 1);
+    assert!(matches!(
+        *core.inner.active_profile_owner_binding.lock().unwrap(),
+        super::ActiveProfileOwnerBindingState::Released
+    ));
+    assert_eq!(
+        *events.lock().expect("event lock"),
+        vec!["vpn.stop", "vpn.stop", "core.stop", "vpn.stop", "core.stop",]
     );
 }
