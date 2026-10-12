@@ -201,6 +201,7 @@
     <string name="notification_title">MusicFrog Infiltrator VPN</string>
     <string name="notification_starting">Starting...</string>
     <string name="notification_active">Protection Active</string>
+    <string name="notification_start_failed">VPN startup failed</string>
     <string name="notification_permission_denied">Notifications are off. The proxy can still run, but its status notification may be hidden.</string>
     <string name="notification_permission_prompt_failed">Could not request notification permission. The proxy will still start, but its status notification may be hidden.</string>
 

@@ -14,6 +14,7 @@ import android.os.ParcelFileDescriptor
 import android.os.SystemClock
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import infiltrator_android.AndroidControlIntent
 import infiltrator_android.FfiErrorCode
 import infiltrator_android.AndroidVpnConfigurationActivationLease
 import infiltrator_android.AndroidVpnRoutingActivationLease
@@ -21,6 +22,7 @@ import infiltrator_android.AndroidVpnRoutingActivationReleaseResult
 import infiltrator_android.AndroidVpnRoutingActivationResult
 import infiltrator_android.androidBeginVpnRoutingActivation
 import infiltrator_android.androidBeginVpnConfigurationActivation
+import infiltrator_android.androidControl
 import infiltrator_android.androidFinishVpnConfigurationActivation
 import infiltrator_android.androidFinishVpnRoutingActivation
 import infiltrator_android.cancelVpnPreparation
@@ -33,11 +35,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.TimeUnit
-
-private enum class VpnServiceCommand {
-    Start,
-    Stop,
-}
+import kotlinx.coroutines.runBlocking
 
 private fun <T> VpnOwnedResource<T>.toOwnerWireState(): VpnOwnerResourceStateWire = when (this) {
     VpnOwnedResource.Absent -> VpnOwnerResourceStateWire.Absent
@@ -75,8 +73,10 @@ class MihomoVpnService : VpnService() {
     private val ownerResources: MihomoVpnOwnerResources
         get() = sharedOwnerResources
     private lateinit var vpnExecutor: ThreadPoolExecutor
+    private lateinit var systemPolicyExecutor: ThreadPoolExecutor
     private val serviceAdmission = VpnServiceExecutorAdmission()
     private val queuedStartTasks = ConcurrentHashMap<Long, StartTransactionTask>()
+    private var notificationActionMode = VpnServiceNotificationActionMode.UserManaged
 
     override fun onCreate() {
         super.onCreate()
@@ -87,6 +87,13 @@ class MihomoVpnService : VpnService() {
             TimeUnit.MILLISECONDS,
             ArrayBlockingQueue(1),
         ) { runnable -> Thread(runnable, "musicfrog-vpn-lifecycle") }
+        systemPolicyExecutor = ThreadPoolExecutor(
+            1,
+            1,
+            0L,
+            TimeUnit.MILLISECONDS,
+            ArrayBlockingQueue(1),
+        ) { runnable -> Thread(runnable, "musicfrog-vpn-system-start") }
         createNotificationChannel()
         when (val retry = lifecycle.retryPendingCleanup()) {
             is VpnCleanupPlan.Retry -> queueCleanup(retry, stopId = null)
@@ -99,20 +106,202 @@ class MihomoVpnService : VpnService() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (serviceAdmission.phase() != VpnServiceAdmissionPhase.Accepting) return START_NOT_STICKY
-        return when (readServiceCommand(intent)) {
-            VpnServiceCommand.Start -> startForegroundAndQueue(requireNotNull(intent), startId)
-            VpnServiceCommand.Stop -> queueStop(requireNotNull(intent), startId)
-            else -> failClosedUnrequestedRestart(startId)
+        val decision = decideVpnServiceStartup(
+            command = readServiceCommand(intent),
+            delivery = readServiceDelivery(flags),
+            alwaysOn = readAlwaysOnObservation(),
+        )
+        notificationActionMode = when (decision) {
+            is VpnServiceStartupDecision.ExecuteCommand -> decision.notificationMode
+            is VpnServiceStartupDecision.RestoreSystemManagedProxy ->
+                VpnServiceNotificationActionMode.SystemManaged
+            is VpnServiceStartupDecision.Reject -> VpnServiceNotificationActionMode.UserManaged
+        }
+        return when (decision) {
+            is VpnServiceStartupDecision.ExecuteCommand -> when (decision.command) {
+                VpnServiceCommand.Start -> intent?.let { startForegroundAndQueue(it, startId) }
+                    ?: failClosedUnrequestedRestart(startId, VpnServiceStartupRejection.MalformedCommand)
+                VpnServiceCommand.Stop -> intent?.let { queueStop(it, startId) }
+                    ?: failClosedUnrequestedRestart(startId, VpnServiceStartupRejection.MalformedCommand)
+            }
+            is VpnServiceStartupDecision.RestoreSystemManagedProxy ->
+                startSystemManagedProxy(startId, decision)
+            is VpnServiceStartupDecision.Reject ->
+                failClosedUnrequestedRestart(startId, decision.reason)
         }
     }
 
-    private fun readServiceCommand(intent: Intent?): VpnServiceCommand? {
-        if (intent == null) return null
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            intent.getSerializableExtra(EXTRA_COMMAND, VpnServiceCommand::class.java)
-        } else {
-            @Suppress("DEPRECATION")
-            intent.getSerializableExtra(EXTRA_COMMAND) as? VpnServiceCommand
+    private fun readServiceCommand(intent: Intent?): VpnServiceCommandExtra {
+        if (intent == null || !intent.hasExtra(EXTRA_COMMAND)) return VpnServiceCommandExtra.Missing
+        val command = try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                intent.getSerializableExtra(EXTRA_COMMAND, VpnServiceCommand::class.java)
+            } else {
+                @Suppress("DEPRECATION")
+                intent.getSerializableExtra(EXTRA_COMMAND) as? VpnServiceCommand
+            }
+        } catch (_: Exception) {
+            return VpnServiceCommandExtra.Malformed
+        }
+        return when (command) {
+            VpnServiceCommand.Start -> VpnServiceCommandExtra.Present(VpnServiceCommand.Start)
+            VpnServiceCommand.Stop -> VpnServiceCommandExtra.Present(VpnServiceCommand.Stop)
+            null -> VpnServiceCommandExtra.Malformed
+        }
+    }
+
+    private fun readServiceDelivery(flags: Int): VpnServiceDelivery = when {
+        flags and android.app.Service.START_FLAG_REDELIVERY != 0 -> VpnServiceDelivery.Redelivered
+        flags and android.app.Service.START_FLAG_RETRY != 0 -> VpnServiceDelivery.Retried
+        else -> VpnServiceDelivery.Initial
+    }
+
+    private fun readAlwaysOnObservation(): VpnAlwaysOnObservation = when {
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.Q -> VpnAlwaysOnObservation.NotQueryable
+        isAlwaysOn -> VpnAlwaysOnObservation.Enabled
+        else -> VpnAlwaysOnObservation.Disabled
+    }
+
+    private fun startSystemManagedProxy(
+        startId: Int,
+        decision: VpnServiceStartupDecision.RestoreSystemManagedProxy,
+    ): Int {
+        notificationActionMode = VpnServiceNotificationActionMode.SystemManaged
+        when (val promotion = promoteToForeground(getString(R.string.notification_starting))) {
+            VpnForegroundPromotion.Promoted -> Unit
+            is VpnForegroundPromotion.Failed -> {
+                Log.e(TAG, "Always-on VPN service could not enter foreground: ${promotion.reason}")
+                stopSelfResult(startId)
+                return START_NOT_STICKY
+            }
+        }
+        try {
+            startService(Intent(this, MihomoControlService::class.java))
+        } catch (error: Exception) {
+            showSystemManagedStartupFailure(
+                startId,
+                "Core owner service could not be initialized: ${error.message ?: error.javaClass.simpleName}",
+            )
+            return START_STICKY
+        }
+        try {
+            systemPolicyExecutor.execute {
+                dispatchSystemManagedProxyStart(startId, decision)
+            }
+        } catch (_: RejectedExecutionException) {
+            showSystemManagedStartupFailure(startId, "VPN system-start queue is full")
+        }
+        return START_STICKY
+    }
+
+    private fun dispatchSystemManagedProxyStart(
+        startId: Int,
+        decision: VpnServiceStartupDecision.RestoreSystemManagedProxy,
+    ) {
+        val deadline = VpnOwnerRequestDeadline.after(
+            SystemClock.elapsedRealtime(),
+            SYSTEM_POLICY_START_TIMEOUT_MILLIS,
+        )
+        val application = application as? MihomoApplication
+        if (application == null) {
+            showSystemManagedStartupFailure(startId, "Core owner application is unavailable")
+            return
+        }
+        when (val readiness = awaitCoreOwnerSession(application, deadline)) {
+            is VpnOwnerSessionWaitOutcome.Ready -> Unit
+            is VpnOwnerSessionWaitOutcome.Failed -> {
+                showSystemManagedStartupFailure(startId, readiness.reason)
+                return
+            }
+            VpnOwnerSessionWaitOutcome.TimedOut -> {
+                showSystemManagedStartupFailure(startId, "Core owner initialization timed out")
+                return
+            }
+            VpnOwnerSessionWaitOutcome.Interrupted -> {
+                showSystemManagedStartupFailure(startId, "Core owner initialization was interrupted")
+                return
+            }
+        }
+        if (serviceAdmission.phase() != VpnServiceAdmissionPhase.Accepting) return
+        val status = try {
+            runBlocking { androidControl(AndroidControlIntent.StartProxy) }
+        } catch (error: Exception) {
+            showSystemManagedStartupFailure(
+                startId,
+                "Always-on proxy start failed: ${error.message ?: error.javaClass.simpleName}",
+            )
+            return
+        }
+        when (status.code) {
+            FfiErrorCode.OK -> showSystemManagedStartupStatus(getString(R.string.notification_active))
+            else -> showSystemManagedStartupFailure(
+                startId,
+                status.message ?: "Always-on proxy start failed",
+            )
+        }
+        Log.i(TAG, "System-managed VPN startup completed with ${decision.policy}/${decision.delivery}")
+    }
+
+    private fun awaitCoreOwnerSession(
+        application: MihomoApplication,
+        deadline: VpnOwnerRequestDeadline,
+    ): VpnOwnerSessionWaitOutcome {
+        while (true) {
+            val budget = when (
+                val remaining = deadline.remainingAt(SystemClock.elapsedRealtime())
+            ) {
+                VpnDeadlineState.Expired -> VpnOwnerSessionWaitBudget.Expired
+                is VpnDeadlineState.Remaining -> VpnOwnerSessionWaitBudget.Remaining(remaining.millis)
+            }
+            when (
+                val directive = decideVpnOwnerSessionWait(
+                    readiness = application.vpnOwnerSessionReadiness(),
+                    budget = budget,
+                    pollIntervalMillis = OWNER_SESSION_POLL_MILLIS,
+                )
+            ) {
+                is VpnOwnerSessionWaitDirective.Complete -> return directive.outcome
+                is VpnOwnerSessionWaitDirective.Wait -> try {
+                    Thread.sleep(directive.millis)
+                } catch (_: InterruptedException) {
+                    Thread.currentThread().interrupt()
+                    return VpnOwnerSessionWaitOutcome.Interrupted
+                }
+            }
+        }
+    }
+
+    private fun showSystemManagedStartupFailure(startId: Int, reason: String) {
+        Log.e(TAG, reason)
+        when (serviceAdmission.phase()) {
+            VpnServiceAdmissionPhase.Accepting -> Unit
+            VpnServiceAdmissionPhase.Destroying,
+            VpnServiceAdmissionPhase.Destroyed -> return
+        }
+        val snapshot = lifecycle.snapshot()
+        when (snapshot.state) {
+            VpnProcessState.Running -> Unit
+            VpnProcessState.StartRequested,
+            VpnProcessState.Starting,
+            VpnProcessState.Foreground,
+            VpnProcessState.TunnelEstablished -> cleanupFailedStart(snapshot.generation, startId, reason)
+            VpnProcessState.Stopping -> Unit
+            VpnProcessState.Stopped,
+            VpnProcessState.Revoked,
+            is VpnProcessState.Failed -> lifecycle.failUnrequestedRestart(reason)
+        }
+        showSystemManagedStartupStatus("${getString(R.string.notification_start_failed)}: $reason")
+    }
+
+    private fun showSystemManagedStartupStatus(status: String) {
+        mainHandler.post {
+            if (serviceAdmission.phase() == VpnServiceAdmissionPhase.Destroyed) return@post
+            val notification = createNotification(
+                status,
+                VpnServiceNotificationActionMode.SystemManaged,
+            )
+            val manager = getSystemService(NotificationManager::class.java)
+            manager.notify(NOTIFICATION_ID, notification)
         }
     }
 
@@ -155,6 +344,7 @@ class MihomoVpnService : VpnService() {
             }
             queueCleanup(cleanupPlan, stopId = null)
             vpnExecutor.shutdown()
+            systemPolicyExecutor.shutdownNow()
         }
         serviceAdmission.finishDestroy()
         super.onDestroy()
@@ -193,15 +383,16 @@ class MihomoVpnService : VpnService() {
             VpnTransitionOutcome.RunningRequiresDataPlaneReceipt -> return START_NOT_STICKY
         }
         try {
-            val notification = createNotification(getString(R.string.notification_starting))
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                startForeground(
-                    NOTIFICATION_ID,
-                    notification,
-                    ServiceInfo.FOREGROUND_SERVICE_TYPE_SYSTEM_EXEMPTED,
+            when (
+                val promotion = promoteToForeground(
+                    createNotification(
+                        getString(R.string.notification_starting),
+                        notificationActionMode,
+                    ),
                 )
-            } else {
-                startForeground(NOTIFICATION_ID, notification)
+            ) {
+                VpnForegroundPromotion.Promoted -> Unit
+                is VpnForegroundPromotion.Failed -> throw IOException(promotion.reason)
             }
         } catch (e: Exception) {
             val message = e.message ?: "Failed to enter foreground"
@@ -542,7 +733,7 @@ class MihomoVpnService : VpnService() {
             try {
                 getSystemService(NotificationManager::class.java).notify(
                     NOTIFICATION_ID,
-                    createNotification(getString(R.string.notification_active)),
+                    createNotification(getString(R.string.notification_active), notificationActionMode),
                 )
             } catch (error: Exception) {
                 Log.w(TAG, "VPN is active but its notification update failed: ${error.message}", error)
@@ -919,7 +1110,10 @@ class MihomoVpnService : VpnService() {
         }
     }
 
-    private fun failClosedUnrequestedRestart(startId: Int): Int {
+    private fun failClosedUnrequestedRestart(
+        startId: Int,
+        reason: VpnServiceStartupRejection,
+    ): Int {
         val before = lifecycle.snapshot()
         when (before.state) {
             VpnProcessState.StartRequested,
@@ -935,10 +1129,16 @@ class MihomoVpnService : VpnService() {
             VpnProcessState.Revoked,
             is VpnProcessState.Failed -> Unit
         }
+        val message = when (reason) {
+            VpnServiceStartupRejection.MalformedCommand ->
+                "VPN service start contained a malformed command"
+            VpnServiceStartupRejection.AlwaysOnNotEnabled ->
+                "VPN service started without an explicit command while always-on is disabled"
+        }
         val snapshot = lifecycle.failUnrequestedRestart(
-            "VPN service was recreated without an explicit command; Core/VPN recovery is not verified",
+            message,
         )
-        Log.w(TAG, "Stopping unrequested VPN service restart at generation ${snapshot.generation}")
+        Log.w(TAG, "Stopping unrequested VPN service start at generation ${snapshot.generation}: $message")
         stopSelfResult(startId)
         return START_NOT_STICKY
     }
@@ -966,32 +1166,60 @@ class MihomoVpnService : VpnService() {
         }
     }
 
-    private fun createNotification(statusText: String): Notification {
-        val stopIntent = Intent(this, MihomoVpnService::class.java).apply {
-            putExtra(EXTRA_COMMAND, VpnServiceCommand.Stop)
-            putExtra(EXTRA_GENERATION, lifecycle.snapshot().generation)
-        }
-        val pendingStopIntent = PendingIntent.getService(
-            this,
-            0,
-            stopIntent,
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
-        )
+    private fun promoteToForeground(statusText: String): VpnForegroundPromotion =
+        promoteToForeground(createNotification(statusText, notificationActionMode))
 
+    private fun promoteToForeground(notification: Notification): VpnForegroundPromotion = try {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            startForeground(
+                NOTIFICATION_ID,
+                notification,
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_SYSTEM_EXEMPTED,
+            )
+        } else {
+            startForeground(NOTIFICATION_ID, notification)
+        }
+        VpnForegroundPromotion.Promoted
+    } catch (error: Exception) {
+        VpnForegroundPromotion.Failed(error.message ?: "Failed to enter foreground")
+    }
+
+    private fun createNotification(
+        statusText: String,
+        actionMode: VpnServiceNotificationActionMode,
+    ): Notification {
         val mainIntent = Intent().setClassName(this, getString(R.string.notification_activity))
         val pendingMainIntent = PendingIntent.getActivity(
             this, 0, mainIntent, PendingIntent.FLAG_IMMUTABLE
         )
-
-        return NotificationCompat.Builder(this, CHANNEL_ID)
+        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(getString(R.string.notification_title))
             .setContentText(statusText)
             .setSmallIcon(R.drawable.ic_app_icon)
             .setContentIntent(pendingMainIntent)
-            .addAction(android.R.drawable.ic_menu_close_clear_cancel, getString(R.string.action_stop), pendingStopIntent)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
-            .build()
+        when (actionMode) {
+            VpnServiceNotificationActionMode.UserManaged -> {
+                val stopIntent = Intent(this, MihomoVpnService::class.java).apply {
+                    putExtra(EXTRA_COMMAND, VpnServiceCommand.Stop)
+                    putExtra(EXTRA_GENERATION, lifecycle.snapshot().generation)
+                }
+                val pendingStopIntent = PendingIntent.getService(
+                    this,
+                    0,
+                    stopIntent,
+                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+                )
+                builder.addAction(
+                    android.R.drawable.ic_menu_close_clear_cancel,
+                    getString(R.string.action_stop),
+                    pendingStopIntent,
+                )
+            }
+            VpnServiceNotificationActionMode.SystemManaged -> Unit
+        }
+        return builder.build()
     }
 
     companion object {
@@ -1015,6 +1243,8 @@ class MihomoVpnService : VpnService() {
 
         private val preparedConfigurationStore = VpnPreparedConfigurationStore()
         private const val OWNER_REQUEST_TIMEOUT_MILLIS = 15_000L
+        private const val SYSTEM_POLICY_START_TIMEOUT_MILLIS = 30_000L
+        private const val OWNER_SESSION_POLL_MILLIS = 50L
 
         private fun readStartDeadline(intent: Intent): VpnOwnerRequestDeadline? {
             if (!intent.hasExtra(EXTRA_DEADLINE_ELAPSED_REALTIME)) return null

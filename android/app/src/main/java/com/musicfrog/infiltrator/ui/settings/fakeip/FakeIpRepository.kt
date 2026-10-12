@@ -75,7 +75,7 @@ internal class UniFfiFakeIpRepository(
 private fun AndroidOwnerOperationReply.toFakeIpCacheClearResult(): FakeIpCacheClearResult {
     val result = readback as? AndroidOwnerOperationReadback.FakeIpCacheClear
         ?: return unconfirmedFakeIpCacheClear()
-    val ownerContextIsValid = protocol == AndroidOwnerOperationProtocolVersion.V5 &&
+    val ownerContextIsValid = protocol == AndroidOwnerOperationProtocolVersion.V6 &&
         context.clientSessionId.isNotBlank() &&
         context.ownerSessionId.isNotBlank() &&
         context.expectedOwnerSessionId == context.ownerSessionId &&
@@ -113,7 +113,7 @@ private fun AndroidOwnerOperationReply.toFakeIpRepositoryResult(
         FakeIpOperationPurpose.Unsupported -> return unconfirmedFakeIp(latest)
     }
 
-    if (protocol != AndroidOwnerOperationProtocolVersion.V5 ||
+    if (protocol != AndroidOwnerOperationProtocolVersion.V6 ||
         dataDomain != AndroidOwnerDataDomain.FAKE_IP_SETTINGS ||
         snapshot?.domain != AndroidOwnerDataDomain.FAKE_IP_SETTINGS ||
         context.clientSessionId.isBlank() ||
@@ -162,7 +162,7 @@ private fun AndroidOwnerOperation.fakeIpPurpose(): FakeIpOperationPurpose = when
 }
 
 private fun AndroidOwnerOperationReply.latestFakeIpSnapshot(): FakeIpSettingsObservationPoint? {
-    if (protocol != AndroidOwnerOperationProtocolVersion.V5 ||
+    if (protocol != AndroidOwnerOperationProtocolVersion.V6 ||
         dataDomain != AndroidOwnerDataDomain.FAKE_IP_SETTINGS ||
         snapshot?.domain != AndroidOwnerDataDomain.FAKE_IP_SETTINGS ||
         context.clientSessionId.isBlank() ||

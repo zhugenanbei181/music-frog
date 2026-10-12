@@ -190,7 +190,7 @@ pub(crate) async fn switch_default_product_engine(
         capability_provider,
     );
     let selected = selector
-        .switch_backend(
+        .replace_owner_for_profile(
             target,
             &prepared_document,
             &PreviousCoreOwner::Owned(previous_application),

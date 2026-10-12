@@ -1,5 +1,5 @@
 use super::{SharedCore, SharedCoreEngine, authorize_android_core_start};
-use crate::composition::core_application_for_singbox;
+use crate::composition::singbox::core_application_for_singbox;
 use crate::core_version_owner::{core_binary_selection_port, core_version_application};
 use crate::ffi::{FfiErrorCode, FfiStatus};
 use crate::host_support::{build_settings_application, map_mihomo_error};
@@ -9,6 +9,7 @@ use infiltrator_contract::core_capabilities::{
     CoreLifecycleOperation, CoreOperation, EngineBinaryTarget, VersionOperation,
 };
 use infiltrator_contract::core_identity::CoreGeneration;
+use infiltrator_contract::surface::HostKind;
 use infiltrator_contract::version::CoreArtifactVerification;
 use infiltrator_platform::defaults::DefaultCredentialStore;
 use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceLease;
@@ -24,6 +25,8 @@ use singbox_api::capability_provider::SingBoxCoreCapabilityProvider;
 use singbox_api::controller_configuration::SingBoxControllerConfiguration;
 use singbox_api::readiness::SingBoxControllerReadiness;
 use singbox_config::profile_document_codec::SingBoxProfileDocumentCodec;
+use singbox_process::command::TokioSingBoxCommandPort;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 pub(super) async fn build_shared_core(
@@ -33,19 +36,7 @@ pub(super) async fn build_shared_core(
     selection_lease: Box<dyn ActiveProfileReferenceLease>,
 ) -> Result<Arc<SharedCore>, FfiStatus> {
     let engine_id = singbox_api::engine_id();
-    let config = Arc::new(
-        ConfigManager::with_profile_codec_and_store_at_root(
-            reference_store.config_root().to_path_buf(),
-            DefaultCredentialStore::default(),
-            Arc::new(SingBoxProfileDocumentCodec),
-            ProfileDocumentExtension::Json,
-        )
-        .map_err(map_mihomo_error)?,
-    );
-    config
-        .initialize_profile_namespace()
-        .await
-        .map_err(map_mihomo_error)?;
+    let config = profile_store_at_root(reference_store.config_root().to_path_buf()).await?;
     if reference.engine_id != engine_id || config.engine_id() != engine_id {
         return Err(FfiStatus::err(
             FfiErrorCode::NotReady,
@@ -99,7 +90,7 @@ pub(super) async fn build_shared_core(
 
     let capability_provider: Arc<dyn CoreCapabilityProvider> =
         Arc::new(SingBoxCoreCapabilityProvider::new(
-            infiltrator_contract::surface::HostKind::Android,
+            HostKind::Android,
             [
                 CoreOperation::Lifecycle(CoreLifecycleOperation::Start),
                 CoreOperation::Lifecycle(CoreLifecycleOperation::Stop),
@@ -131,13 +122,16 @@ pub(super) async fn build_shared_core(
         Arc::clone(&config),
         workspace.document,
         binary_selection,
+        selected_binary,
         working_directory,
         EngineBinaryTarget::current(),
+        Arc::new(TokioSingBoxCommandPort),
         readiness,
         capability_provider,
         versions,
         settings,
     )
+    .await
     .map_err(|error| {
         FfiStatus::err(
             FfiErrorCode::NotReady,
@@ -186,7 +180,26 @@ pub(super) async fn build_shared_core(
     }))
 }
 
-fn validate_binary_selection(
+pub(super) async fn profile_store_at_root(
+    config_root: PathBuf,
+) -> Result<Arc<ConfigManager<DefaultCredentialStore>>, FfiStatus> {
+    let config = Arc::new(
+        ConfigManager::with_profile_codec_and_store_at_root(
+            config_root,
+            DefaultCredentialStore::default(),
+            Arc::new(SingBoxProfileDocumentCodec),
+            ProfileDocumentExtension::Json,
+        )
+        .map_err(map_mihomo_error)?,
+    );
+    config
+        .initialize_profile_namespace()
+        .await
+        .map_err(map_mihomo_error)?;
+    Ok(config)
+}
+
+pub(super) fn validate_binary_selection(
     selection: &CoreBinarySelection,
     engine_id: &infiltrator_contract::core_identity::EngineId,
     expected_target: EngineBinaryTarget,

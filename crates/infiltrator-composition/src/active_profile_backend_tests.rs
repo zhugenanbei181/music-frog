@@ -1510,7 +1510,7 @@ async fn deleted_target_after_preflight_is_revalidated_and_cancelled_before_old_
     let owner_as_port: Arc<dyn CoreOwnerTerminationPort> = owner.clone();
 
     let result = selector
-        .switch_backend(
+        .replace_owner_for_profile(
             ActiveProfileReferenceTarget::selected(
                 engine_id_value("sing-box"),
                 ProfileId::new("primary").unwrap(),
@@ -1746,7 +1746,7 @@ async fn cross_engine_switch_uses_stable_binding_generation_after_lifecycle_adva
     let owner_as_port: Arc<dyn CoreOwnerTerminationPort> = owner.clone();
 
     let selected = selector
-        .switch_backend(
+        .replace_owner_for_profile(
             ActiveProfileReferenceTarget::selected(
                 engine_id_value("sing-box"),
                 ProfileId::new("primary").unwrap(),
@@ -1811,6 +1811,98 @@ async fn cross_engine_switch_uses_stable_binding_generation_after_lifecycle_adva
 }
 
 #[tokio::test]
+async fn same_engine_profile_replacement_uses_the_same_durable_owner_transaction() {
+    let events = Arc::new(Mutex::new(Vec::new()));
+    let refs = Arc::new(MemoryReferenceStore::with_events(
+        reference("sing-box", "previous", 7),
+        Arc::clone(&events),
+    ));
+    let store: Arc<dyn ProfileStore> =
+        Arc::new(FakeProfileStore::new("sing-box", "sing-box", "primary"));
+    let (provider, counts) =
+        FakeProvider::new("sing-box", "singbox-next-instance", Arc::clone(&events));
+    let prepared_target_document = load_prepared_profile_document(store.as_ref()).await;
+    let selector = selector(
+        Arc::clone(&refs),
+        vec![store],
+        vec![Arc::new(provider)],
+        supported_capabilities(),
+    );
+    let before = running_owner_snapshot("sing-box", "singbox-old-instance", 12);
+    let owner = bound_fake_owner(
+        Arc::clone(&refs),
+        before.clone(),
+        Ok(terminal_owner_snapshot(&before)),
+        Arc::clone(&events),
+    )
+    .await;
+    let owner_as_port: Arc<dyn CoreOwnerTerminationPort> = owner.clone();
+
+    let selected = selector
+        .replace_owner_for_profile(
+            ActiveProfileReferenceTarget::selected(
+                engine_id_value("sing-box"),
+                ProfileId::new("primary").unwrap(),
+            ),
+            &prepared_target_document,
+            &PreviousCoreOwner::Owned(owner_as_port),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        selected.reference,
+        ActiveProfileReference::new(
+            engine_id_value("sing-box"),
+            ProfileId::new("primary").unwrap(),
+            ActiveProfileReferenceRevision::new(8),
+        )
+    );
+    assert_eq!(
+        selected.previous_owner,
+        PreviousCoreDisposition::Stopped {
+            identity: before.identity.unwrap(),
+            generation: CoreGeneration::new(12),
+        }
+    );
+    let application = CoreApplication::new(
+        selected.backend.process(),
+        selected.backend.readiness(),
+        Arc::new(SelectorTestRuntime),
+    );
+    selected
+        .install_owner_binding_for_application(&application)
+        .await
+        .unwrap();
+    assert_eq!(
+        refs.read().await.unwrap(),
+        reference("sing-box", "primary", 8)
+    );
+    assert_eq!(owner.terminations.load(Ordering::SeqCst), 1);
+    assert_eq!(counts.created.load(Ordering::SeqCst), 1);
+    assert_eq!(counts.starts.load(Ordering::SeqCst), 0);
+    assert_eq!(*refs.transition.lock().unwrap(), None);
+    assert_eq!(
+        *events.lock().unwrap(),
+        vec![
+            "switch-reserved",
+            "old-owner-close",
+            "close-root-read",
+            "ordinary-cas-blocked",
+            "ordinary-provider-blocked",
+            "old-owner-released",
+            "old-owner-confirmed",
+            "reference-cas",
+            "new-owner-reserved",
+            "provider:sing-box",
+            "new-owner-bound",
+        ]
+    );
+    application.close().await.unwrap();
+    assert_eq!(*refs.owner.lock().unwrap(), FakeOwnerAdmission::Unowned);
+}
+
+#[tokio::test]
 async fn provider_prepared_from_another_document_fails_before_old_owner_close() {
     let events = Arc::new(Mutex::new(Vec::new()));
     let refs = Arc::new(MemoryReferenceStore::with_events(
@@ -1839,7 +1931,7 @@ async fn provider_prepared_from_another_document_fails_before_old_owner_close() 
     let owner_as_port: Arc<dyn CoreOwnerTerminationPort> = owner.clone();
 
     let result = selector
-        .switch_backend(
+        .replace_owner_for_profile(
             ActiveProfileReferenceTarget::selected(
                 engine_id_value("sing-box"),
                 ProfileId::new("primary").unwrap(),
@@ -1890,7 +1982,7 @@ async fn mismatching_constructed_application_is_closed_then_explicitly_discarded
     .await;
     let owner_as_port: Arc<dyn CoreOwnerTerminationPort> = owner.clone();
     let selected = selector
-        .switch_backend(
+        .replace_owner_for_profile(
             ActiveProfileReferenceTarget::selected(
                 engine_id_value("sing-box"),
                 ProfileId::new("primary").unwrap(),
@@ -1963,7 +2055,7 @@ async fn failed_owner_install_releases_only_after_exact_application_terminal() {
     .await;
     let owner_as_port: Arc<dyn CoreOwnerTerminationPort> = owner.clone();
     let selected = selector
-        .switch_backend(
+        .replace_owner_for_profile(
             ActiveProfileReferenceTarget::selected(
                 engine_id_value("sing-box"),
                 ProfileId::new("primary").unwrap(),
@@ -2060,7 +2152,7 @@ async fn foreign_target_document_fails_before_close_or_provider_dispatch() {
     let owner_as_port: Arc<dyn CoreOwnerTerminationPort> = owner.clone();
 
     let result = selector
-        .switch_backend(
+        .replace_owner_for_profile(
             ActiveProfileReferenceTarget::selected(
                 engine_id_value("sing-box"),
                 ProfileId::new("primary").unwrap(),
@@ -2128,7 +2220,7 @@ async fn missing_provider_or_target_capability_fails_before_close_or_dispatch() 
         let owner_as_port: Arc<dyn CoreOwnerTerminationPort> = owner.clone();
 
         let result = selector
-            .switch_backend(
+            .replace_owner_for_profile(
                 ActiveProfileReferenceTarget::selected(
                     engine_id_value("sing-box"),
                     ProfileId::new("primary").unwrap(),
@@ -2185,7 +2277,7 @@ async fn stale_revision_at_reservation_fails_before_close_or_provider_dispatch()
     let owner_as_port: Arc<dyn CoreOwnerTerminationPort> = owner.clone();
 
     let result = selector
-        .switch_backend(
+        .replace_owner_for_profile(
             ActiveProfileReferenceTarget::selected(
                 engine_id_value("sing-box"),
                 ProfileId::new("primary").unwrap(),
@@ -2239,7 +2331,7 @@ async fn terminal_receipt_must_match_exact_preclose_generation_before_cas() {
     let owner_as_port: Arc<dyn CoreOwnerTerminationPort> = owner.clone();
 
     let result = selector
-        .switch_backend(
+        .replace_owner_for_profile(
             ActiveProfileReferenceTarget::selected(
                 engine_id_value("sing-box"),
                 ProfileId::new("primary").unwrap(),
@@ -2293,7 +2385,7 @@ async fn close_failure_keeps_closing_reservation_and_never_dispatches_target() {
     let owner_as_port: Arc<dyn CoreOwnerTerminationPort> = owner.clone();
 
     let result = selector
-        .switch_backend(
+        .replace_owner_for_profile(
             ActiveProfileReferenceTarget::selected(
                 engine_id_value("sing-box"),
                 ProfileId::new("primary").unwrap(),
@@ -2352,7 +2444,7 @@ async fn failed_new_owner_reservation_has_zero_provider_dispatch() {
     let owner_as_port: Arc<dyn CoreOwnerTerminationPort> = owner.clone();
 
     let result = selector
-        .switch_backend(
+        .replace_owner_for_profile(
             ActiveProfileReferenceTarget::selected(
                 engine_id_value("sing-box"),
                 ProfileId::new("primary").unwrap(),
@@ -2410,7 +2502,7 @@ async fn provider_dispatch_failure_explicitly_aborts_only_pre_application_reserv
     let owner_as_port: Arc<dyn CoreOwnerTerminationPort> = owner.clone();
 
     let result = selector
-        .switch_backend(
+        .replace_owner_for_profile(
             ActiveProfileReferenceTarget::selected(
                 engine_id_value("sing-box"),
                 ProfileId::new("primary").unwrap(),
@@ -2469,7 +2561,7 @@ async fn provider_identity_preflight_failure_aborts_before_core_application() {
     let owner_as_port: Arc<dyn CoreOwnerTerminationPort> = owner.clone();
 
     let result = selector
-        .switch_backend(
+        .replace_owner_for_profile(
             ActiveProfileReferenceTarget::selected(
                 engine_id_value("sing-box"),
                 ProfileId::new("primary").unwrap(),

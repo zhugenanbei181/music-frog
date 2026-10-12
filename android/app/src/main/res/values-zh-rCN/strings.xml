@@ -201,6 +201,7 @@
     <string name="notification_title">MusicFrog Infiltrator VPN</string>
     <string name="notification_starting">正在启动...</string>
     <string name="notification_active">保护已开启</string>
+    <string name="notification_start_failed">VPN 启动失败</string>
     <string name="notification_permission_denied">通知未开启。代理仍可运行，但状态通知可能不会显示在通知栏。</string>
     <string name="notification_permission_prompt_failed">无法请求通知权限。代理仍会启动，但状态通知可能不会显示在通知栏。</string>
 

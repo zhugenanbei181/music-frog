@@ -1,4 +1,4 @@
-use super::super::core_application_for_singbox;
+use super::super::singbox::core_application_for_singbox;
 use super::{
     TestBridge, TestCredentialStore, TestLifecycleCapabilityProvider, TestReadiness, config_manager,
 };
@@ -6,14 +6,17 @@ use async_trait::async_trait;
 use infiltrator_application::settings_application::SettingsApplication;
 use infiltrator_application::version_application::VersionApplication;
 use infiltrator_contract::core_capabilities::EngineBinaryTarget;
+use infiltrator_contract::core_identity::CoreVersion;
 use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::version::{
-    CoreRelease, CoreReleaseSummary, EngineReleaseChannel, InstalledCoreVersion,
+    CoreArtifactVerification, CoreRelease, CoreReleaseSummary, EngineReleaseChannel,
+    InstalledCoreVersion,
 };
 use infiltrator_ports::core_binary_selection::{
     CoreBinarySelection, CoreBinarySelectionPort, CoreBinarySelectionRequest,
+    CoreBinarySelectionSource,
 };
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::ProfileStore;
@@ -23,11 +26,37 @@ use infiltrator_ports::version::{
 use infiltrator_profile_store::store::ProfileDocumentExtension;
 use mihomo_config::manager::ConfigManager;
 use singbox_config::profile_document_codec::SingBoxProfileDocumentCodec;
+use singbox_process::command::{NativeConfigCheck, SingBoxChildProcess, SingBoxCommandPort};
+use std::path::Path;
 use std::sync::Arc;
 
 const PROFILE: &str = r#"{"experimental":{"clash_api":{"external_controller":"127.0.0.1:9090"}},"inbounds":[],"outbounds":[]}"#;
 
 struct UnavailableBinarySelection;
+
+struct AcceptingSingBoxCommand;
+
+#[async_trait]
+impl SingBoxCommandPort for AcceptingSingBoxCommand {
+    async fn check_config(
+        &self,
+        _binary_path: &Path,
+        _config_path: &Path,
+    ) -> Result<NativeConfigCheck, PortError> {
+        Ok(NativeConfigCheck::Accepted)
+    }
+
+    async fn spawn_core(
+        &self,
+        _binary_path: &Path,
+        _config_path: &Path,
+    ) -> Result<Box<dyn SingBoxChildProcess>, PortError> {
+        Err(PortError::unsupported(
+            infiltrator_contract::capability::Capability::CoreLifecycle,
+            "composition identity test does not start a local Core process",
+        ))
+    }
+}
 
 struct TestVersionPort;
 
@@ -128,14 +157,33 @@ async fn singbox_core_composition_keeps_the_engine_codec_and_owner_identity_alig
         .await
         .expect("load exact sing-box profile")
         .document;
+    let engine_id = singbox_api::engine_id();
+    let version = CoreVersion::new("1.2.3").expect("valid Core version");
+    let target = EngineBinaryTarget::Aarch64LinuxAndroid;
+    let selected_binary = CoreBinarySelection {
+        engine_id: engine_id.clone(),
+        binary_target: target,
+        version: version.clone(),
+        binary_path: home
+            .0
+            .join("engines/sing-box/targets/aarch64-linux-android/versions/1.2.3/sing-box"),
+        related_asset_candidates: Vec::new(),
+        source: CoreBinarySelectionSource::ManagedVersion,
+        verification: CoreArtifactVerification::Verified {
+            engine_id,
+            version: version.raw().to_owned(),
+        },
+    };
 
     let application = core_application_for_singbox(
         TestBridge::new(),
         profile_store,
         document,
         Arc::new(UnavailableBinarySelection),
+        selected_binary,
         home.0.clone(),
-        EngineBinaryTarget::Aarch64LinuxAndroid,
+        target,
+        Arc::new(AcceptingSingBoxCommand),
         Arc::new(TestReadiness),
         Arc::new(TestLifecycleCapabilityProvider),
         version_application(),
@@ -143,6 +191,7 @@ async fn singbox_core_composition_keeps_the_engine_codec_and_owner_identity_alig
             infiltrator_core::settings_store::FileSettingsStore::for_home(home.0.clone()),
         )),
     )
+    .await
     .expect("compose lifecycle owner without selecting a test binary");
 
     assert_eq!(

@@ -25,9 +25,11 @@ use infiltrator_ports::error::PortError;
 use infiltrator_ports::mtu_probe::MtuProbePort;
 use infiltrator_ports::offline_startup::OfflineStartupPort;
 use infiltrator_ports::secure_store::SecureStore;
+use singbox_process::process::SingBoxCoreOperationGate;
 use std::path::PathBuf;
 use std::result;
 use std::sync::Arc;
+use tokio::sync::OwnedMutexGuard;
 
 #[derive(Clone)]
 pub struct AndroidBridgeAdapter<B> {
@@ -50,6 +52,29 @@ pub(crate) struct AndroidCoreProcessAdapter<B> {
     engine_id: EngineId,
     bridge: B,
     launch_spec_source: Arc<dyn CoreLaunchSpecSource>,
+    operation_gate: AndroidCoreOperationGate,
+}
+
+#[derive(Clone)]
+enum AndroidCoreOperationGate {
+    Uncoordinated,
+    SingBox(Arc<SingBoxCoreOperationGate>),
+}
+
+enum AndroidCoreOperationGuard {
+    Uncoordinated,
+    SingBox { _guard: OwnedMutexGuard<()> },
+}
+
+impl AndroidCoreOperationGate {
+    async fn acquire(&self) -> AndroidCoreOperationGuard {
+        match self {
+            Self::Uncoordinated => AndroidCoreOperationGuard::Uncoordinated,
+            Self::SingBox(gate) => AndroidCoreOperationGuard::SingBox {
+                _guard: gate.acquire().await,
+            },
+        }
+    }
 }
 
 impl<B> AndroidCoreProcessAdapter<B> {
@@ -62,6 +87,21 @@ impl<B> AndroidCoreProcessAdapter<B> {
             engine_id,
             bridge,
             launch_spec_source,
+            operation_gate: AndroidCoreOperationGate::Uncoordinated,
+        }
+    }
+
+    pub(crate) fn new_singbox(
+        engine_id: EngineId,
+        bridge: B,
+        launch_spec_source: Arc<dyn CoreLaunchSpecSource>,
+        operation_gate: Arc<SingBoxCoreOperationGate>,
+    ) -> Self {
+        Self {
+            engine_id,
+            bridge,
+            launch_spec_source,
+            operation_gate: AndroidCoreOperationGate::SingBox(operation_gate),
         }
     }
 }
@@ -164,6 +204,7 @@ where
     }
 
     async fn start(&self, context: CoreProcessStartContext) -> result::Result<(), PortError> {
+        let _operation_guard = self.operation_gate.acquire().await;
         match self.prepare_start(&context).await? {
             CoreProcessStartAdmission::LaunchNewProcess => {}
             CoreProcessStartAdmission::ReuseExactOwnedProcess => return Ok(()),
@@ -182,6 +223,7 @@ where
     }
 
     async fn stop(&self) -> result::Result<(), PortError> {
+        let _operation_guard = self.operation_gate.acquire().await;
         self.bridge.core_stop().await?.into_port_result()
     }
 

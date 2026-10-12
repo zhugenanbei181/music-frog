@@ -10,7 +10,9 @@ use crate::uniffi_api::{VpnTunStack, VpnTunStackUpdate};
 use infiltrator_application::vpn_preparation::VpnConfigurationActivationStatus;
 use infiltrator_contract::active_profile_reference::{
     ActiveProfileReferenceCasOutcome, ActiveProfileReferenceTarget,
+    ActiveProfileReferenceWriteAuthorization,
 };
+use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_domain::app_routing::AppRoutingMode;
 use infiltrator_domain::app_routing::AppRoutingRule;
@@ -51,10 +53,10 @@ async fn select_profile(manager: &ConfigManager<DefaultCredentialStore>, profile
         manager.engine_profile_store(),
         expected,
         target,
-        infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization::Unowned,
+        ActiveProfileReferenceWriteAuthorization::Unowned,
     )
-        .await
-        .expect("revisioned test selection CAS")
+    .await
+    .expect("revisioned test selection CAS")
     {
         ActiveProfileReferenceCasOutcome::Committed { .. } => {}
         ActiveProfileReferenceCasOutcome::Stale { expected, observed } => {
@@ -212,7 +214,7 @@ impl Drop for TestOwnerEnvironment {
 #[test]
 fn owner_operation_json_is_a_versioned_exhaustive_rust_enum() {
     let request = AndroidOwnerOperationRequest {
-        protocol: AndroidOwnerOperationProtocolVersion::V5,
+        protocol: AndroidOwnerOperationProtocolVersion::V6,
         operation: AndroidOwnerOperation::ProfileSubscriptionSave {
             name: "main".to_owned(),
             url: "https://example.invalid/sub".to_owned(),
@@ -228,13 +230,13 @@ fn owner_operation_json_is_a_versioned_exhaustive_rust_enum() {
     );
     assert!(
         serde_json::from_str::<AndroidOwnerOperationRequest>(
-            r#"{"protocol":"V5","operation":{"Unknown":{"name":"main"}}}"#,
+            r#"{"protocol":"V6","operation":{"Unknown":{"name":"main"}}}"#,
         )
         .is_err()
     );
     assert!(
         serde_json::from_str::<AndroidOwnerOperationRequest>(
-            r#"{"protocol":"V5","operation":"ProfilesList","action":"save"}"#,
+            r#"{"protocol":"V6","operation":"ProfilesList","action":"save"}"#,
         )
         .is_err()
     );
@@ -266,8 +268,26 @@ fn owner_operation_json_is_a_versioned_exhaustive_rust_enum() {
         .is_err(),
         "the replaced V4 operation protocol is retired",
     );
+    assert!(
+        serde_json::from_str::<AndroidOwnerOperationRequest>(
+            r#"{"protocol":"V5","operation":"ProfilesList"}"#,
+        )
+        .is_err(),
+        "the replaced V5 operation protocol is retired",
+    );
+    assert!(
+        serde_json::from_str::<AndroidOwnerOperationRequest>(
+            r#"{"protocol":"V6","operation":{"ProfileSelect":{"name":"main"}}}"#,
+        )
+        .is_err(),
+        "the replaced name-only ProfileSelect operation is retired",
+    );
+    assert!(serde_json::from_str::<AndroidOwnerOperationRequest>(
+        r#"{"protocol":"V6","operation":{"ProfileSelect":{"target":{"engine":"mihomo","profile_id":"main","legacy_name":"main"}}}}"#,
+    )
+    .is_err());
     let app_routing_request = AndroidOwnerOperationRequest {
-        protocol: AndroidOwnerOperationProtocolVersion::V5,
+        protocol: AndroidOwnerOperationProtocolVersion::V6,
         operation: AndroidOwnerOperation::AppRoutingPackagesSet {
             packages: vec!["com.example.app".to_owned()],
             selection: AndroidAppRoutingPackageSelection::Selected,
@@ -281,7 +301,7 @@ fn owner_operation_json_is_a_versioned_exhaustive_rust_enum() {
         app_routing_request,
     );
     let dns_request = AndroidOwnerOperationRequest {
-        protocol: AndroidOwnerOperationProtocolVersion::V5,
+        protocol: AndroidOwnerOperationProtocolVersion::V6,
         operation: AndroidOwnerOperation::DnsSettingsSave {
             patch: settings::DnsSettingsPatch {
                 enable: Some(false),
@@ -300,11 +320,11 @@ fn owner_operation_json_is_a_versioned_exhaustive_rust_enum() {
         dns_request,
     );
     assert!(serde_json::from_str::<AndroidOwnerOperationRequest>(
-        r#"{"protocol":"V5","operation":{"DnsSettingsSave":{"patch":{"enable":true,"unknown":1}}}}"#,
+        r#"{"protocol":"V6","operation":{"DnsSettingsSave":{"patch":{"enable":true,"unknown":1}}}}"#,
     )
     .is_err());
     let tun_request = AndroidOwnerOperationRequest {
-        protocol: AndroidOwnerOperationProtocolVersion::V5,
+        protocol: AndroidOwnerOperationProtocolVersion::V6,
         operation: AndroidOwnerOperation::TunSettingsSave {
             patch: VpnTunSettingsPatch {
                 mtu: Some(1420),
@@ -324,7 +344,7 @@ fn owner_operation_json_is_a_versioned_exhaustive_rust_enum() {
         tun_request,
     );
     let clear_tun_request = AndroidOwnerOperationRequest {
-        protocol: AndroidOwnerOperationProtocolVersion::V5,
+        protocol: AndroidOwnerOperationProtocolVersion::V6,
         operation: AndroidOwnerOperation::TunSettingsSave {
             patch: VpnTunSettingsPatch {
                 mtu: None,
@@ -343,11 +363,11 @@ fn owner_operation_json_is_a_versioned_exhaustive_rust_enum() {
         clear_tun_request,
     );
     assert!(serde_json::from_str::<AndroidOwnerOperationRequest>(
-        r#"{"protocol":"V5","operation":{"TunSettingsSave":{"patch":{"mtu":1420,"dns_servers":["1.1.1.1"]}}}}"#,
+        r#"{"protocol":"V6","operation":{"TunSettingsSave":{"patch":{"mtu":1420,"dns_servers":["1.1.1.1"]}}}}"#,
     )
     .is_err());
     let rules_request = AndroidOwnerOperationRequest {
-        protocol: AndroidOwnerOperationProtocolVersion::V5,
+        protocol: AndroidOwnerOperationProtocolVersion::V6,
         operation: AndroidOwnerOperation::RulesSave {
             rules: vec![AndroidRuleEntry {
                 rule: "MATCH,DIRECT".to_owned(),
@@ -362,15 +382,15 @@ fn owner_operation_json_is_a_versioned_exhaustive_rust_enum() {
         rules_request,
     );
     assert!(serde_json::from_str::<AndroidOwnerOperationRequest>(
-        r#"{"protocol":"V5","operation":{"RulesSave":{"rules":[{"rule":"MATCH,DIRECT","enabled":true,"unexpected":1}]}}}"#,
+        r#"{"protocol":"V6","operation":{"RulesSave":{"rules":[{"rule":"MATCH,DIRECT","enabled":true,"unexpected":1}]}}}"#,
     )
     .is_err());
     assert!(serde_json::from_str::<AndroidOwnerOperationRequest>(
-        r#"{"protocol":"V5","operation":{"RuleProvidersSave":{"providers":{},"unexpected":1}}}"#,
+        r#"{"protocol":"V6","operation":{"RuleProvidersSave":{"providers":{},"unexpected":1}}}"#,
     )
     .is_err());
     let providers_request = AndroidOwnerOperationRequest {
-        protocol: AndroidOwnerOperationProtocolVersion::V5,
+        protocol: AndroidOwnerOperationProtocolVersion::V6,
         operation: AndroidOwnerOperation::RuleProvidersSave {
             providers: vec![AndroidRuleProviderEntry {
                 name: "remote".to_owned(),
@@ -393,7 +413,7 @@ fn owner_operation_json_is_a_versioned_exhaustive_rust_enum() {
         providers_request,
     );
     assert!(serde_json::from_str::<AndroidOwnerOperationRequest>(
-        r#"{"protocol":"V5","operation":{"RuleProvidersSave":{"providers":[{"name":"remote","configuration":{"kind":"StringValue","value":"http","extra":1}}]}}}"#,
+        r#"{"protocol":"V6","operation":{"RuleProvidersSave":{"providers":[{"name":"remote","configuration":{"kind":"StringValue","value":"http","extra":1}}]}}}"#,
     )
     .is_err());
 
@@ -416,7 +436,7 @@ fn owner_operation_json_is_a_versioned_exhaustive_rust_enum() {
         AndroidOwnerOperation::WebDavSyncNow,
     ] {
         let request = AndroidOwnerOperationRequest {
-            protocol: AndroidOwnerOperationProtocolVersion::V5,
+            protocol: AndroidOwnerOperationProtocolVersion::V6,
             operation,
         };
         let encoded = serde_json::to_string(&request).expect("WebDAV operation serializes");
@@ -426,6 +446,110 @@ fn owner_operation_json_is_a_versioned_exhaustive_rust_enum() {
             request,
         );
     }
+
+    for target in [
+        AndroidProfileSelectionTarget::Mihomo {
+            profile_id: "main".to_owned(),
+        },
+        AndroidProfileSelectionTarget::SingBox {
+            profile_id: "mobile".to_owned(),
+        },
+    ] {
+        let request = AndroidOwnerOperationRequest {
+            protocol: AndroidOwnerOperationProtocolVersion::V6,
+            operation: AndroidOwnerOperation::ProfileSelect { target },
+        };
+        let encoded = serde_json::to_string(&request).expect("engine target serializes");
+        assert_eq!(
+            serde_json::from_str::<AndroidOwnerOperationRequest>(&encoded)
+                .expect("engine target decodes"),
+            request,
+        );
+    }
+}
+
+#[test]
+fn android_profile_target_resolves_a_validated_engine_scoped_reference() {
+    use infiltrator_contract::active_profile_reference::ActiveProfileReferenceTarget;
+
+    let target = AndroidProfileSelectionTarget::SingBox {
+        profile_id: "mobile".to_owned(),
+    }
+    .into_reference_target()
+    .expect("valid sing-box target");
+    assert_eq!(
+        target,
+        ActiveProfileReferenceTarget::selected(
+            EngineId::sing_box(),
+            ProfileId::new("mobile").expect("valid profile ID"),
+        ),
+    );
+
+    let error = AndroidProfileSelectionTarget::Mihomo {
+        profile_id: "../outside".to_owned(),
+    }
+    .into_reference_target()
+    .expect_err("profile path characters are rejected before dispatch");
+    assert_eq!(error.code, FfiErrorCode::Config);
+}
+
+fn profile_selection_reply(observed: AndroidProfileSelectionTarget) -> AndroidOwnerOperationReply {
+    AndroidOwnerOperationReply {
+        protocol: AndroidOwnerOperationProtocolVersion::V6,
+        context: test_context_for_generation(7, 10),
+        observed_core_generation: 7,
+        data_revision: 11,
+        data_domain: Some(AndroidOwnerDataDomain::Profiles),
+        snapshot: Some(AndroidOwnerDataSnapshot {
+            domain: AndroidOwnerDataDomain::Profiles,
+            data: AndroidOwnerDataSnapshotData::Profiles(ProfilesResult {
+                status: FfiStatus::ok(),
+                profiles: Vec::new(),
+            }),
+        }),
+        readback: AndroidOwnerOperationReadback::ProfileSelection(
+            AndroidProfileSelectionReadback {
+                operation_status: FfiStatus::ok(),
+                active_reference: AndroidActiveProfileReferenceObservation::Selected {
+                    target: observed,
+                    revision: 4,
+                },
+            },
+        ),
+    }
+}
+
+#[test]
+fn profile_selection_success_requires_exact_engine_scoped_owner_readback() {
+    let target = AndroidProfileSelectionTarget::SingBox {
+        profile_id: "mobile".to_owned(),
+    };
+    let operation = AndroidOwnerOperation::ProfileSelect {
+        target: target.clone(),
+    };
+    let matching = profile_selection_reply(target.clone());
+    let accepted = validate_owner_operation_reply(&operation, matching)
+        .expect("exact target owner readback is accepted");
+    assert_eq!(
+        accepted.readback,
+        AndroidOwnerOperationReadback::ProfileSelection(AndroidProfileSelectionReadback {
+            operation_status: FfiStatus::ok(),
+            active_reference: AndroidActiveProfileReferenceObservation::Selected {
+                target: target.clone(),
+                revision: 4,
+            },
+        }),
+    );
+
+    let mismatching = profile_selection_reply(AndroidProfileSelectionTarget::Mihomo {
+        profile_id: "mobile".to_owned(),
+    });
+    assert_eq!(
+        validate_owner_operation_reply(&operation, mismatching)
+            .expect_err("a different active engine cannot confirm selection")
+            .code,
+        FfiErrorCode::NotReady,
+    );
 }
 
 #[test]
@@ -443,7 +567,9 @@ fn read_operations_do_not_advance_the_persisted_data_revision() {
     );
     assert_eq!(
         AndroidOwnerOperation::ProfileSelect {
-            name: "main".to_owned()
+            target: AndroidProfileSelectionTarget::Mihomo {
+                profile_id: "main".to_owned(),
+            }
         }
         .data_mutation(),
         AndroidOwnerDataMutation::CommitRegardlessOfOutcome

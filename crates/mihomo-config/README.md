@@ -10,4 +10,4 @@ Mihomo YAML codec 与配置 adapter：解析、校验、应用观察和 Mihomo �
 
 Mihomo profile 文档由本 crate 的 YAML codec 验证；其他引擎的格式和 schema 来自注入的 `ProfileDocumentCodecPort`。未注入对应 engine codec 的 store 不得读写该 engine profile。该排他边界只约束使用同一 lock files 并遵守此 store 协议的进程；直接改写持久化文件的程序会绕过门禁。
 
-跨引擎 owner switch 的 `Switching` stage 在进程重启后保持 fail-closed；store 暴露按 stage 重建 lease 与提交 exact terminal snapshot 的 recovery API，不会因进程内 lease 消失而自动清除。Android/Desktop 的进程退出证据接线仍 OPEN；ClosingOld 缺少旧 owner 的 exact Stopped/no-session snapshot 时保持 durable reservation，BindingNew 只接受 generation 为 0 的 Stopped/no-session 候选快照。
+Live profile owner replacement 的 `Switching` stage 在进程重启后保持 fail-closed；store 暴露按 stage 重建 lease 与提交 exact terminal snapshot 的 recovery API，不会因进程内 lease 消失而自动清除。Android/Desktop 的进程退出证据接线仍 OPEN；ClosingOld 缺少旧 owner 的 exact Stopped/no-session snapshot 时保持 durable reservation，BindingNew 只接受 generation 为 0 的 Stopped/no-session 候选快照。

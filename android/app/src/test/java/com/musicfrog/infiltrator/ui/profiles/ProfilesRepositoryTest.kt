@@ -8,11 +8,14 @@ import com.musicfrog.infiltrator.ui.common.FailureTextKey
 import infiltrator_android.AndroidOwnerDataDomain
 import infiltrator_android.AndroidOwnerDataSnapshot
 import infiltrator_android.AndroidOwnerDataSnapshotData
+import infiltrator_android.AndroidActiveProfileReferenceObservation
 import infiltrator_android.AndroidOwnerOperation
 import infiltrator_android.AndroidOwnerOperationContext
 import infiltrator_android.AndroidOwnerOperationProtocolVersion
 import infiltrator_android.AndroidOwnerOperationReadback
 import infiltrator_android.AndroidOwnerOperationReply
+import infiltrator_android.AndroidProfileSelectionReadback
+import infiltrator_android.AndroidProfileSelectionTarget
 import infiltrator_android.FfiErrorCode
 import infiltrator_android.FfiStatus
 import infiltrator_android.ProfileDetail
@@ -40,20 +43,39 @@ class ProfilesRepositoryTest {
     }
 
     @Test
-    fun mutationRequiresTypedReceiptAndOwnerReadbackAtAdvancedRevision() = runBlocking {
+    fun selectionRequiresExactEngineScopedReadbackAtAdvancedRevision() = runBlocking {
         val ownerProfiles = listOf(profile("alpha", active = true))
-        val operation = AndroidOwnerOperation.ProfileSelect("alpha")
+        val target = AndroidProfileSelectionTarget.Mihomo("alpha")
+        val operation = AndroidOwnerOperation.ProfileSelect(target)
         val repository = repository { requested -> clientCompleted(reply(requested, ownerProfiles)) }
 
         val result = repository.execute(operation, 1000L)
 
         val completed = result as ProfilesRepositoryResult.Completed
-        val snapshot = (completed.observation as ProfilesRepositoryObservation.Profiles).snapshot
-        assertEquals(ProfilesRevision("owner-session-1", 7uL, 11uL), snapshot.revision)
-        assertEquals(
-            ProfileReadbackResult.Confirmed,
-            snapshot.satisfies(ProfileReadbackExpectation.Active("alpha")),
+        val selection = completed.observation as ProfilesRepositoryObservation.Selection
+        assertEquals(ProfilesRevision("owner-session-1", 7uL, 11uL), selection.snapshot.revision)
+        assertEquals(target, selection.target)
+        assertEquals(4uL, selection.activeReferenceRevision)
+    }
+
+    @Test
+    fun selectionRejectsReadbackForAnotherEngine() = runBlocking {
+        val target = AndroidProfileSelectionTarget.Mihomo("alpha")
+        val requested = AndroidOwnerOperation.ProfileSelect(target)
+        val mismatching = reply(requested, listOf(profile("alpha", active = false))).copy(
+            readback = AndroidOwnerOperationReadback.ProfileSelection(
+                AndroidProfileSelectionReadback(
+                    operationStatus = FfiStatus(FfiErrorCode.OK, null),
+                    activeReference = AndroidActiveProfileReferenceObservation.Selected(
+                        target = AndroidProfileSelectionTarget.SingBox("alpha"),
+                        revision = 4uL,
+                    ),
+                ),
+            ),
         )
+        val repository = repository { clientCompleted(mismatching) }
+
+        assertTrue(repository.execute(requested, 1000L) is ProfilesRepositoryResult.Unconfirmed)
     }
 
     @Test
@@ -180,8 +202,16 @@ class ProfilesRepositoryTest {
             is AndroidOwnerOperation.ProfileDetail -> AndroidOwnerOperationReadback.ProfileDetail(
                 ProfileDetailResult(status, profileDetail),
             )
+            is AndroidOwnerOperation.ProfileSelect -> AndroidOwnerOperationReadback.ProfileSelection(
+                AndroidProfileSelectionReadback(
+                    operationStatus = status,
+                    activeReference = AndroidActiveProfileReferenceObservation.Selected(
+                        target = operation.target,
+                        revision = 4uL,
+                    ),
+                ),
+            )
             is AndroidOwnerOperation.ProfileCreate,
-            is AndroidOwnerOperation.ProfileSelect,
             is AndroidOwnerOperation.ProfileUpdate,
             is AndroidOwnerOperation.ProfileSave,
             is AndroidOwnerOperation.ProfileDelete,
@@ -195,7 +225,7 @@ class ProfilesRepositoryTest {
             else -> 1uL
         }
         return AndroidOwnerOperationReply(
-            protocol = AndroidOwnerOperationProtocolVersion.V5,
+            protocol = AndroidOwnerOperationProtocolVersion.V6,
             context = context(),
             observedCoreGeneration = 7uL,
             dataRevision = 10uL + operationRevision,

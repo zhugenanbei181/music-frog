@@ -28,7 +28,7 @@ fn version_operation_and_readback_round_trip_as_typed_owner_wire_values() {
     };
 
     let request = AndroidOwnerOperationRequest {
-        protocol: AndroidOwnerOperationProtocolVersion::V5,
+        protocol: AndroidOwnerOperationProtocolVersion::V6,
         operation: AndroidOwnerOperation::CoreVersionManagement {
             operation: AndroidCoreVersionManagementOperation::Install {
                 engine_id: "sing-box".to_owned(),

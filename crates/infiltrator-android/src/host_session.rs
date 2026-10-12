@@ -54,6 +54,8 @@ use crate::host_support::{build_config_manager, map_mihomo_error, map_port_error
 
 #[path = "host_session/singbox.rs"]
 mod singbox;
+#[path = "host_session/switch.rs"]
+pub(crate) mod switch;
 
 /// Shared frontend wiring for the mihomo core: the application service plus
 /// the [`ConfigManager`] endpoint source it resolves against. Lazily
@@ -78,6 +80,8 @@ enum SharedCoreOwnerState {
     Recovering,
     Ready,
     Active(Arc<SharedCore>),
+    Switching(Arc<SharedCore>),
+    RecoveryRequired,
     Closing(Arc<SharedCore>),
     ClosingWithoutCore,
     Closed,
@@ -87,7 +91,21 @@ enum SharedCoreOwnerAdmission<'a> {
     Existing(&'a Arc<SharedCore>),
     Build,
     RecoveryRequired,
+    Switching,
     Closing,
+}
+
+enum SharedCoreOwnerSwitchCompletion {
+    Installed(Arc<SharedCore>),
+    RestorePrevious,
+    RecoveryRequired,
+}
+
+enum SharedCoreOwnerSwitchFinish {
+    Installed,
+    Restored,
+    RecoveryRequired,
+    OwnerStateChanged,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -103,12 +121,15 @@ enum SharedCoreOwnerSessionCompletion {
     Ready,
     AlreadyReady,
     RecoveryNotStarted,
+    RecoveryRequired,
     Closing,
 }
 
 fn begin_owner_session_transition(state: &mut SharedCoreOwnerState) -> SharedCoreOwnerSessionBegin {
     match state {
-        SharedCoreOwnerState::Uninitialized | SharedCoreOwnerState::Closed => {
+        SharedCoreOwnerState::Uninitialized
+        | SharedCoreOwnerState::RecoveryRequired
+        | SharedCoreOwnerState::Closed => {
             *state = SharedCoreOwnerState::Recovering;
             SharedCoreOwnerSessionBegin::NewSession
         }
@@ -116,6 +137,7 @@ fn begin_owner_session_transition(state: &mut SharedCoreOwnerState) -> SharedCor
         SharedCoreOwnerState::Ready | SharedCoreOwnerState::Active(_) => {
             SharedCoreOwnerSessionBegin::AlreadyReady
         }
+        SharedCoreOwnerState::Switching(_) => SharedCoreOwnerSessionBegin::RecoveryInProgress,
         SharedCoreOwnerState::Closing(_) | SharedCoreOwnerState::ClosingWithoutCore => {
             SharedCoreOwnerSessionBegin::RetryClose
         }
@@ -134,6 +156,10 @@ fn complete_owner_session_transition(
             SharedCoreOwnerSessionCompletion::AlreadyReady
         }
         SharedCoreOwnerState::Uninitialized => SharedCoreOwnerSessionCompletion::RecoveryNotStarted,
+        SharedCoreOwnerState::Switching(_) => SharedCoreOwnerSessionCompletion::Closing,
+        SharedCoreOwnerState::RecoveryRequired => {
+            SharedCoreOwnerSessionCompletion::RecoveryRequired
+        }
         SharedCoreOwnerState::Closing(_)
         | SharedCoreOwnerState::ClosingWithoutCore
         | SharedCoreOwnerState::Closed => SharedCoreOwnerSessionCompletion::Closing,
@@ -144,12 +170,60 @@ fn shared_core_owner_admission(state: &SharedCoreOwnerState) -> SharedCoreOwnerA
     match state {
         SharedCoreOwnerState::Active(core) => SharedCoreOwnerAdmission::Existing(core),
         SharedCoreOwnerState::Ready => SharedCoreOwnerAdmission::Build,
-        SharedCoreOwnerState::Uninitialized | SharedCoreOwnerState::Recovering => {
-            SharedCoreOwnerAdmission::RecoveryRequired
-        }
+        SharedCoreOwnerState::Uninitialized
+        | SharedCoreOwnerState::Recovering
+        | SharedCoreOwnerState::RecoveryRequired => SharedCoreOwnerAdmission::RecoveryRequired,
+        SharedCoreOwnerState::Switching(_) => SharedCoreOwnerAdmission::Switching,
         SharedCoreOwnerState::Closing(_)
         | SharedCoreOwnerState::ClosingWithoutCore
         | SharedCoreOwnerState::Closed => SharedCoreOwnerAdmission::Closing,
+    }
+}
+
+fn begin_shared_core_switch(
+    state: &mut SharedCoreOwnerState,
+) -> Result<Arc<SharedCore>, SharedCoreOwnerAdmission<'static>> {
+    match state {
+        SharedCoreOwnerState::Active(core) => {
+            let previous = Arc::clone(core);
+            *state = SharedCoreOwnerState::Switching(Arc::clone(&previous));
+            Ok(previous)
+        }
+        SharedCoreOwnerState::Switching(_) => Err(SharedCoreOwnerAdmission::Switching),
+        SharedCoreOwnerState::Uninitialized
+        | SharedCoreOwnerState::Recovering
+        | SharedCoreOwnerState::RecoveryRequired => Err(SharedCoreOwnerAdmission::RecoveryRequired),
+        SharedCoreOwnerState::Ready => Err(SharedCoreOwnerAdmission::Build),
+        SharedCoreOwnerState::Closing(_)
+        | SharedCoreOwnerState::ClosingWithoutCore
+        | SharedCoreOwnerState::Closed => Err(SharedCoreOwnerAdmission::Closing),
+    }
+}
+
+fn finish_shared_core_switch(
+    state: &mut SharedCoreOwnerState,
+    previous: &Arc<SharedCore>,
+    completion: SharedCoreOwnerSwitchCompletion,
+) -> SharedCoreOwnerSwitchFinish {
+    match state {
+        SharedCoreOwnerState::Switching(current) if Arc::ptr_eq(current, previous) => {
+            match completion {
+                SharedCoreOwnerSwitchCompletion::Installed(candidate) => {
+                    *state = SharedCoreOwnerState::Active(candidate);
+                    SharedCoreOwnerSwitchFinish::Installed
+                }
+                SharedCoreOwnerSwitchCompletion::RestorePrevious => {
+                    *state = SharedCoreOwnerState::Active(Arc::clone(previous));
+                    SharedCoreOwnerSwitchFinish::Restored
+                }
+                SharedCoreOwnerSwitchCompletion::RecoveryRequired => {
+                    *state = SharedCoreOwnerState::RecoveryRequired;
+                    SharedCoreOwnerSwitchFinish::RecoveryRequired
+                }
+            }
+        }
+        SharedCoreOwnerState::Switching(_) => SharedCoreOwnerSwitchFinish::OwnerStateChanged,
+        _ => SharedCoreOwnerSwitchFinish::OwnerStateChanged,
     }
 }
 
@@ -188,6 +262,12 @@ pub(crate) async fn shared_core() -> Result<Arc<SharedCore>, FfiStatus> {
                 "Android Core owner session is closing or closed",
             ));
         }
+        SharedCoreOwnerAdmission::Switching => {
+            return Err(FfiStatus::err(
+                FfiErrorCode::NotReady,
+                "Android Core owner is switching engine; retry after owner readback",
+            ));
+        }
     }
     let core = build_shared_core(bridge).await?;
     *state = SharedCoreOwnerState::Active(Arc::clone(&core));
@@ -208,6 +288,10 @@ pub(crate) async fn complete_shared_core_owner_session() -> Result<(), FfiStatus
         SharedCoreOwnerSessionCompletion::RecoveryNotStarted => Err(FfiStatus::err(
             FfiErrorCode::NotReady,
             "Android Core owner session cannot become ready before startup recovery",
+        )),
+        SharedCoreOwnerSessionCompletion::RecoveryRequired => Err(FfiStatus::err(
+            FfiErrorCode::NotReady,
+            "Android Core owner recovery is required before the session can become ready",
         )),
         SharedCoreOwnerSessionCompletion::Closing => Err(FfiStatus::err(
             FfiErrorCode::NotReady,
@@ -287,7 +371,14 @@ pub(crate) async fn close_shared_core_owner(vpn: VpnServiceApplication) -> Resul
         SharedCoreOwnerState::Uninitialized
         | SharedCoreOwnerState::Recovering
         | SharedCoreOwnerState::Ready
+        | SharedCoreOwnerState::RecoveryRequired
         | SharedCoreOwnerState::ClosingWithoutCore => None,
+        SharedCoreOwnerState::Switching(_) => {
+            return Err(FfiStatus::err(
+                FfiErrorCode::NotReady,
+                "Android Core owner cannot close during profile owner replacement",
+            ));
+        }
         SharedCoreOwnerState::Active(core) | SharedCoreOwnerState::Closing(core) => {
             Some(Arc::clone(core))
         }
@@ -690,7 +781,7 @@ pub(crate) async fn activate_profile_status(profile: &str) -> FfiStatus {
     if matches!(&core.engine, SharedCoreEngine::SingBox) {
         return FfiStatus::err(
             FfiErrorCode::NotSupported,
-            "Android sing-box profile activation is not connected",
+            "Android sing-box profile activation requires rebuilding its selected-document Core owner",
         );
     }
     if let Err(failure) = core.application.adopt_if_running().await {

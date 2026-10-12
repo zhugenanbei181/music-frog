@@ -132,7 +132,7 @@ private fun AndroidOwnerOperationReply.toSyncRepositoryResult(
 }
 
 private fun AndroidOwnerOperationReply.hasSyncOwnerFence(): Boolean =
-    protocol == AndroidOwnerOperationProtocolVersion.V5 &&
+    protocol == AndroidOwnerOperationProtocolVersion.V6 &&
         context.clientSessionId.isNotBlank() &&
         context.ownerSessionId.isNotBlank() &&
         context.expectedOwnerSessionId == context.ownerSessionId &&

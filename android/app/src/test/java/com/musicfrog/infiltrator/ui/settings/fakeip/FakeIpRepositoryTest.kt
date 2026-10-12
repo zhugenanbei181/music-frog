@@ -54,7 +54,7 @@ class FakeIpRepositoryTest {
     }
 
     @Test
-    fun readUsesV5OwnerSessionCoreGenerationAndDataRevision() = runBlocking {
+    fun readUsesV6OwnerSessionCoreGenerationAndDataRevision() = runBlocking {
         val settings = settings()
         val gateway = ReplyGateway(exchange(reply(settings, dataRevision = 10uL)))
 
@@ -166,7 +166,7 @@ class FakeIpRepositoryTest {
         observedCoreGeneration: ULong = 7uL,
         expectedCoreGeneration: ULong = observedCoreGeneration,
     ) = AndroidOwnerOperationReply(
-        protocol = AndroidOwnerOperationProtocolVersion.V5,
+        protocol = AndroidOwnerOperationProtocolVersion.V6,
         context = AndroidOwnerOperationContext(
             clientSessionId = "client-a",
             expectedOwnerSessionId = expectedOwnerSessionId,
@@ -192,7 +192,7 @@ class FakeIpRepositoryTest {
         removedFile: Boolean,
         dataRevision: ULong,
     ) = AndroidOwnerOperationReply(
-        protocol = AndroidOwnerOperationProtocolVersion.V5,
+        protocol = AndroidOwnerOperationProtocolVersion.V6,
         context = AndroidOwnerOperationContext(
             clientSessionId = "client-a",
             expectedOwnerSessionId = "owner-a",

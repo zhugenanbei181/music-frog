@@ -63,9 +63,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 #[path = "composition/singbox.rs"]
-mod singbox;
-
-pub(crate) use singbox::core_application_for_singbox;
+pub(crate) mod singbox;
 
 /// Explicit dependencies owned by the Android `:vpn` composition.
 ///
@@ -76,6 +74,7 @@ pub struct AndroidCoreComposition<S: SecureStore + 'static> {
     profile_store: Arc<ConfigManager<S>>,
 }
 
+#[derive(Clone)]
 enum AndroidControllerAdapters {
     Available { client: MihomoClient },
     Unavailable { failure: PortError },
@@ -263,6 +262,24 @@ impl<S: SecureStore + 'static> EngineBackendProvider for AndroidMihomoBackendPro
         };
         provider.create_backend()
     }
+}
+
+pub(crate) fn android_mihomo_backend_provider<S: SecureStore + 'static>(
+    engine_id: EngineId,
+    bridge: Arc<dyn AndroidBridge>,
+    profile_store: Arc<ConfigManager<S>>,
+    controller_url: &str,
+    secret: Option<String>,
+    readiness: Arc<dyn CoreReadiness>,
+) -> Result<Arc<dyn EngineBackendProvider>, PortError> {
+    Ok(Arc::new(AndroidMihomoBackendProvider::new(
+        engine_id,
+        bridge,
+        profile_store,
+        controller_url,
+        secret,
+        readiness,
+    )?))
 }
 
 struct UnavailableAndroidRuntimeGateway {
@@ -469,6 +486,43 @@ where
     // behind the successful engine selection.
     let backend = factory.backend_ports(&engine_id)?;
     let controller_adapters = &provider.controller_adapters;
+    core_application_from_backend(
+        backend,
+        bridge,
+        composition,
+        controller_adapters,
+        capability_source,
+    )
+}
+
+pub(crate) fn core_application_from_selected_mihomo_backend<S>(
+    backend: EngineBackendPorts,
+    bridge: Arc<dyn AndroidBridge>,
+    profile_store: Arc<ConfigManager<S>>,
+    controller_url: &str,
+    secret: Option<String>,
+    capability_provider: Arc<dyn CoreCapabilityProvider>,
+) -> Result<CoreApplication, PortError>
+where
+    S: SecureStore + 'static,
+{
+    let controller_adapters = AndroidControllerAdapters::new(controller_url, secret);
+    core_application_from_backend(
+        backend,
+        bridge,
+        AndroidCoreComposition::new(profile_store),
+        &controller_adapters,
+        AndroidCapabilitySource::Provided(capability_provider),
+    )
+}
+
+fn core_application_from_backend<S: SecureStore + 'static>(
+    backend: EngineBackendPorts,
+    bridge: Arc<dyn AndroidBridge>,
+    composition: AndroidCoreComposition<S>,
+    controller_adapters: &AndroidControllerAdapters,
+    capability_source: AndroidCapabilitySource,
+) -> Result<CoreApplication, PortError> {
     let overview_reader = controller_adapters.overview_reader();
     let capability_provider: Arc<dyn CoreCapabilityProvider> = match capability_source {
         AndroidCapabilitySource::Provided(provider) => provider,

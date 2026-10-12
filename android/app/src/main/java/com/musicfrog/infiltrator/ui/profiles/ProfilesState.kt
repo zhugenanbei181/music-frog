@@ -1,6 +1,7 @@
 package com.musicfrog.infiltrator.ui.profiles
 
 import com.musicfrog.infiltrator.ui.common.AppFailure
+import infiltrator_android.AndroidProfileSelectionTarget
 import infiltrator_android.ProfileDetail
 import infiltrator_android.ProfileSummary
 
@@ -84,6 +85,7 @@ internal data class ProfilesUiState(
 internal sealed interface ProfileReadbackExpectation {
     data class Present(val name: String) : ProfileReadbackExpectation
     data class Active(val name: String) : ProfileReadbackExpectation
+    data class ActiveReference(val target: AndroidProfileSelectionTarget) : ProfileReadbackExpectation
     data class Absent(val name: String) : ProfileReadbackExpectation
     data class Subscription(
         val name: String,
@@ -123,6 +125,7 @@ internal enum class ProfilesSnapshotAdmission {
 internal fun ProfilesSnapshot.satisfies(expectation: ProfileReadbackExpectation): ProfileReadbackResult = when (expectation) {
     is ProfileReadbackExpectation.Present -> profiles.any { it.name == expectation.name }.toReadbackResult()
     is ProfileReadbackExpectation.Active -> profiles.any { it.name == expectation.name && it.active }.toReadbackResult()
+    is ProfileReadbackExpectation.ActiveReference -> ProfileReadbackResult.NotConfirmed
     is ProfileReadbackExpectation.Absent -> profiles.none { it.name == expectation.name }.toReadbackResult()
     is ProfileReadbackExpectation.Subscription -> profiles
         .firstOrNull { it.name == expectation.name }

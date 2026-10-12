@@ -60,6 +60,13 @@ class MihomoApplication : Application() {
         return outcome
     }
 
+    internal fun failVpnOwnerSession(sessionId: String, reason: String) {
+        vpnSnapshotOwnerSession.fail(sessionId, reason)
+    }
+
+    internal fun vpnOwnerSessionReadiness(): VpnOwnerSessionReadiness =
+        vpnSnapshotOwnerSession.readiness()
+
     internal fun endVpnOwnerSession(sessionId: String) {
         vpnSnapshotOwnerSession.end(sessionId)
     }

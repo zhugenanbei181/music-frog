@@ -9,6 +9,7 @@ import com.musicfrog.infiltrator.ui.common.LONG_FFI_TIMEOUT_MS
 import com.musicfrog.infiltrator.ui.common.localizedFailure
 import com.musicfrog.infiltrator.ui.common.toAppFailure
 import infiltrator_android.AndroidOwnerOperation
+import infiltrator_android.AndroidProfileSelectionTarget
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -56,6 +57,10 @@ class ProfilesViewModel internal constructor(
                         ProfileOperation.ReadProfiles,
                         notReadyFailure(),
                     )
+                    is ProfilesRepositoryObservation.Selection -> setUnconfirmed(
+                        ProfileOperation.ReadProfiles,
+                        notReadyFailure(),
+                    )
                 }
                 is ProfilesRepositoryResult.Failed -> {
                     acceptLatestProfiles(result.latest, sequence)
@@ -88,8 +93,10 @@ class ProfilesViewModel internal constructor(
 
     fun selectProfile(name: String) = executeProfileCommand(
         operation = ProfileOperation.Select,
-        expectation = ProfileReadbackExpectation.Active(name),
-        command = AndroidOwnerOperation.ProfileSelect(name),
+        expectation = ProfileReadbackExpectation.ActiveReference(
+            AndroidProfileSelectionTarget.Mihomo(name),
+        ),
+        command = AndroidOwnerOperation.ProfileSelect(AndroidProfileSelectionTarget.Mihomo(name)),
     )
 
     fun updateProfile(name: String) = executeProfileCommand(
@@ -253,6 +260,27 @@ class ProfilesViewModel internal constructor(
                             )
                         }
                     }
+                    is ProfilesRepositoryObservation.Selection -> {
+                        when (acceptProfilesSnapshot(observation.snapshot, sequence)) {
+                            ProfilesSnapshotAdmission.Accepted -> when (expectation) {
+                                is ProfileReadbackExpectation.ActiveReference -> when (
+                                    expectation.target == observation.target
+                                ) {
+                                    true -> {
+                                        onConfirmed()
+                                        setIdle()
+                                    }
+                                    false -> setUnconfirmed(operation, notReadyFailure())
+                                }
+                                else -> setUnconfirmed(operation, notReadyFailure())
+                            }
+                            ProfilesSnapshotAdmission.Stale,
+                            ProfilesSnapshotAdmission.Conflicting -> setUnconfirmed(
+                                operation,
+                                notReadyFailure(),
+                            )
+                        }
+                    }
                     is ProfilesRepositoryObservation.Detail -> setUnconfirmed(operation, notReadyFailure())
                 }
                 is ProfilesRepositoryResult.Failed -> {
@@ -306,7 +334,8 @@ class ProfilesViewModel internal constructor(
                         ProfilesSnapshotAdmission.Conflicting -> setUnconfirmed(operation, notReadyFailure())
                     }
                 }
-                is ProfilesRepositoryObservation.Profiles -> setUnconfirmed(operation, notReadyFailure())
+                is ProfilesRepositoryObservation.Profiles,
+                is ProfilesRepositoryObservation.Selection -> setUnconfirmed(operation, notReadyFailure())
             }
             is ProfilesRepositoryResult.Failed -> {
                 acceptLatestProfiles(result.latest, sequence)
@@ -352,6 +381,10 @@ class ProfilesViewModel internal constructor(
                     }
                 }
                 is ProfilesRepositoryObservation.Profiles -> {
+                    markDetailUnavailable(notReadyFailure())
+                    setUnconfirmed(operation, notReadyFailure())
+                }
+                is ProfilesRepositoryObservation.Selection -> {
                     markDetailUnavailable(notReadyFailure())
                     setUnconfirmed(operation, notReadyFailure())
                 }

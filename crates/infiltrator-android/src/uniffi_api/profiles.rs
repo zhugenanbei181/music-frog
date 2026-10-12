@@ -4,10 +4,12 @@
 
 use super::owner_operation::wire::route_owner_operation;
 use super::owner_operation::{
-    AndroidOwnerDataDomain, AndroidOwnerDataSnapshotData, AndroidOwnerOperation,
-    AndroidOwnerOperationReadback, AndroidOwnerOperationReply, AndroidOwnerOperationRoute,
+    AndroidActiveProfileReferenceObservation, AndroidOwnerDataDomain, AndroidOwnerDataSnapshotData,
+    AndroidOwnerOperation, AndroidOwnerOperationReadback, AndroidOwnerOperationReply,
+    AndroidOwnerOperationRoute, AndroidProfileSelectionTarget,
 };
 use crate::ffi::{FfiErrorCode, FfiStatus};
+use crate::host_session::switch::select_profile_target_status;
 use crate::host_session::{
     activate_profile_status, active_profile_reference_state,
     apply_selected_profile_reference_status,
@@ -149,19 +151,24 @@ pub(super) async fn create_owner_profile(name: String, url: String) -> FfiStatus
         })
 }
 
-pub(super) async fn select_owner_profile(name: String) -> FfiStatus {
+pub(super) async fn select_owner_profile(target: AndroidProfileSelectionTarget) -> FfiStatus {
     get_runtime()
         .spawn(async move {
-            match route_owner_operation(AndroidOwnerOperation::ProfileSelect { name: name.clone() })
-                .await
+            match route_owner_operation(AndroidOwnerOperation::ProfileSelect {
+                target: target.clone(),
+            })
+            .await
             {
                 Err(status) => return status,
                 Ok(AndroidOwnerOperationRoute::UiClient(reply)) => {
-                    return profile_mutation_status(*reply);
+                    return profile_selection_status(*reply, &target);
                 }
                 Ok(AndroidOwnerOperationRoute::CoreOwner) => {}
             }
-            activate_profile_status(&name).await
+            match target.into_reference_target() {
+                Ok(target) => select_profile_target_status(target).await,
+                Err(status) => status,
+            }
         })
         .await
         .unwrap_or_else(|e| {
@@ -501,6 +508,38 @@ fn profile_mutation_status(reply: AndroidOwnerOperationReply) -> FfiStatus {
             FfiErrorCode::NotReady,
             "Android owner returned an invalid profile mutation result",
         ),
+    }
+}
+
+fn profile_selection_status(
+    reply: AndroidOwnerOperationReply,
+    target: &AndroidProfileSelectionTarget,
+) -> FfiStatus {
+    if !profile_snapshot_is_valid(&reply) {
+        return FfiStatus::err(
+            FfiErrorCode::NotReady,
+            "Android owner selection did not include a profiles snapshot readback",
+        );
+    }
+    let AndroidOwnerOperationReadback::ProfileSelection(readback) = reply.readback else {
+        return FfiStatus::err(
+            FfiErrorCode::NotReady,
+            "Android owner returned an invalid profile selection readback",
+        );
+    };
+    match &readback.active_reference {
+        AndroidActiveProfileReferenceObservation::Selected {
+            target: observed, ..
+        } if observed == target && readback.operation_status.code == FfiErrorCode::Ok => {
+            readback.status()
+        }
+        _ => match readback.operation_status.code {
+            FfiErrorCode::Ok => FfiStatus::err(
+                FfiErrorCode::NotReady,
+                "Android owner selection readback did not match the requested engine and profile",
+            ),
+            _ => readback.status(),
+        },
     }
 }
 

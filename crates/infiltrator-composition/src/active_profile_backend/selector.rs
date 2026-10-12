@@ -31,8 +31,8 @@ impl ActiveProfileBackendSelector {
     }
 
     /// Resolve the persisted global reference and compose its provider for an
-    /// unowned startup. A live owner must use `switch_backend` so termination
-    /// cannot bypass the revision-fenced owner-switch transaction.
+    /// unowned startup. A live owner must use `replace_owner_for_profile` so
+    /// termination cannot bypass the revision-fenced replacement transaction.
     pub async fn select_backend(
         &self,
         previous_owner: &PreviousCoreOwner,
@@ -116,36 +116,41 @@ impl ActiveProfileBackendSelector {
         .await
     }
 
-    /// Switch a live product owner to a different engine through a durable,
-    /// revision-fenced transaction. Target validation is complete before the
-    /// old owner is asked to close. The switch lease persists each phase but
-    /// holds no root lock while `terminate_owner` drains CoreApplication.
-    pub async fn switch_backend(
+    /// Replace a live product owner for a selected profile through a durable,
+    /// revision-fenced transaction. The profile may use the current backend or
+    /// another engine. Target validation completes before the old owner closes.
+    /// The lease persists each phase without holding a root lock while draining.
+    pub async fn replace_owner_for_profile(
         &self,
         target: ActiveProfileReferenceTarget,
         prepared_document: &ProfileDocument,
         previous_owner: &PreviousCoreOwner,
     ) -> Result<SelectedActiveProfileBackend, ActiveProfileBackendSwitchError> {
         let mut phase = SwitchExecutionPhase::BeforeReservation;
-        self.switch_backend_transaction(target, prepared_document, previous_owner, &mut phase)
-            .await
-            .map_err(|failure| match phase {
-                SwitchExecutionPhase::BeforeReservation => {
-                    ActiveProfileBackendSwitchError::BeforeReservation(failure)
-                }
-                SwitchExecutionPhase::ReservationPending => {
-                    ActiveProfileBackendSwitchError::ReservationPending(failure)
-                }
-                SwitchExecutionPhase::OwnerTerminationUnconfirmed => {
-                    ActiveProfileBackendSwitchError::OwnerTerminationUnconfirmed(failure)
-                }
-                SwitchExecutionPhase::OldOwnerClosed => {
-                    ActiveProfileBackendSwitchError::OldOwnerClosed(failure)
-                }
-            })
+        self.replace_owner_for_profile_transaction(
+            target,
+            prepared_document,
+            previous_owner,
+            &mut phase,
+        )
+        .await
+        .map_err(|failure| match phase {
+            SwitchExecutionPhase::BeforeReservation => {
+                ActiveProfileBackendSwitchError::BeforeReservation(failure)
+            }
+            SwitchExecutionPhase::ReservationPending => {
+                ActiveProfileBackendSwitchError::ReservationPending(failure)
+            }
+            SwitchExecutionPhase::OwnerTerminationUnconfirmed => {
+                ActiveProfileBackendSwitchError::OwnerTerminationUnconfirmed(failure)
+            }
+            SwitchExecutionPhase::OldOwnerClosed => {
+                ActiveProfileBackendSwitchError::OldOwnerClosed(failure)
+            }
+        })
     }
 
-    async fn switch_backend_transaction(
+    async fn replace_owner_for_profile_transaction(
         &self,
         target: ActiveProfileReferenceTarget,
         prepared_document: &ProfileDocument,
@@ -157,7 +162,7 @@ impl ActiveProfileBackendSelector {
             ActiveProfileReferenceTarget::Unselected => {
                 return Err(PortError::unsupported(
                     Capability::Profiles,
-                    "a Core owner switch requires a selected target profile",
+                    "Core owner replacement requires a selected target profile",
                 ));
             }
             ActiveProfileReferenceTarget::Selected {
@@ -177,13 +182,6 @@ impl ActiveProfileBackendSelector {
                 )));
             }
         };
-        if current_reference.engine_id == target_engine {
-            return Err(PortError::Rejected(Failure::new(
-                ErrorCode::InvalidState,
-                "cross-engine Core switching requires a different target engine",
-                false,
-            )));
-        }
         let expected_revision = previous_reference.revision();
         let target_revision = expected_revision.next().ok_or_else(|| {
             PortError::Failed("active profile reference revision exhausted".into())
@@ -209,7 +207,7 @@ impl ActiveProfileBackendSelector {
             PreviousCoreOwner::Unowned => {
                 return Err(PortError::Rejected(Failure::new(
                     ErrorCode::NotReady,
-                    "cross-engine Core switching requires the current owned Core owner",
+                    "a live Core owner replacement requires the current owned owner",
                     true,
                 )));
             }
@@ -237,7 +235,7 @@ impl ActiveProfileBackendSelector {
             ActiveProfileReferenceWriteAuthorization::Unowned => {
                 return Err(PortError::Rejected(Failure::new(
                     ErrorCode::NotReady,
-                    "cross-engine Core switching requires the exact bound owner lease",
+                    "a live Core owner replacement requires the exact bound owner lease",
                     true,
                 )));
             }
@@ -545,7 +543,7 @@ fn require_unowned_startup(previous_owner: &PreviousCoreOwner) -> Result<(), Por
         PreviousCoreOwner::Unowned => Ok(()),
         PreviousCoreOwner::Owned(_) => Err(PortError::Rejected(Failure::new(
             ErrorCode::NotReady,
-            "an owned Core must use the revision-fenced cross-engine switch transaction",
+            "an owned Core must use the revision-fenced profile-owner replacement transaction",
             true,
         ))),
     }

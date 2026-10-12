@@ -28,7 +28,7 @@ async fn product_root_can_abort_returned_switch_candidate_before_application_cre
     let owner_as_port: Arc<dyn CoreOwnerTerminationPort> = owner.clone();
 
     let candidate = selector
-        .switch_backend(
+        .replace_owner_for_profile(
             ActiveProfileReferenceTarget::selected(
                 engine_id_value("sing-box"),
                 ProfileId::new("primary").unwrap(),
@@ -93,7 +93,7 @@ async fn product_root_can_close_and_discard_an_unstarted_switch_application() {
     .await;
     let owner_as_port: Arc<dyn CoreOwnerTerminationPort> = owner.clone();
     let candidate = selector
-        .switch_backend(
+        .replace_owner_for_profile(
             ActiveProfileReferenceTarget::selected(
                 engine_id_value("sing-box"),
                 ProfileId::new("primary").unwrap(),

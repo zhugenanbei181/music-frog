@@ -45,15 +45,17 @@ pub use owner_operation::wire::{
     android_dispatch_owner_operation_wire_json, android_execute_owner_operation,
 };
 pub use owner_operation::{
-    AndroidCoreRelease, AndroidCoreReleaseSummary, AndroidCoreVersionInstallCancellation,
-    AndroidCoreVersionInstallContext, AndroidCoreVersionInstallObservation,
-    AndroidCoreVersionInstallState, AndroidCoreVersionManagementOperation,
-    AndroidCoreVersionManagementReadback, AndroidEngineNeutralReleaseChannel,
-    AndroidInstalledCoreVersion, AndroidOwnerDataDomain, AndroidOwnerDataSnapshot,
-    AndroidOwnerDataSnapshotData, AndroidOwnerOperation, AndroidOwnerOperationClientResult,
-    AndroidOwnerOperationContext, AndroidOwnerOperationIpcResult, AndroidOwnerOperationIpcState,
+    AndroidActiveProfileReferenceObservation, AndroidCoreRelease, AndroidCoreReleaseSummary,
+    AndroidCoreVersionInstallCancellation, AndroidCoreVersionInstallContext,
+    AndroidCoreVersionInstallObservation, AndroidCoreVersionInstallState,
+    AndroidCoreVersionManagementOperation, AndroidCoreVersionManagementReadback,
+    AndroidEngineNeutralReleaseChannel, AndroidInstalledCoreVersion, AndroidOwnerDataDomain,
+    AndroidOwnerDataSnapshot, AndroidOwnerDataSnapshotData, AndroidOwnerOperation,
+    AndroidOwnerOperationClientResult, AndroidOwnerOperationContext,
+    AndroidOwnerOperationIpcResult, AndroidOwnerOperationIpcState,
     AndroidOwnerOperationProtocolVersion, AndroidOwnerOperationReadback,
-    AndroidOwnerOperationReply, AndroidVersionDownloadProgress, android_owner_data_revision,
+    AndroidOwnerOperationReply, AndroidProfileSelectionReadback, AndroidProfileSelectionTarget,
+    AndroidVersionDownloadProgress, android_owner_data_revision,
 };
 pub use product::{android_execute_product_command_json, android_surface_snapshot_json};
 pub use profiles::{ProfileSummary, ProfilesResult};

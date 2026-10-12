@@ -83,7 +83,7 @@ SERVICE_CONTRACTS = (
             ("foregroundServiceType", "systemExempted"),
         ),
         actions=frozenset({"android.net.VpnService"}),
-        metadata=(("android.net.VpnService.SUPPORTS_ALWAYS_ON", "false"),),
+        metadata=(("android.net.VpnService.SUPPORTS_ALWAYS_ON", "true"),),
     ),
     ServiceContract(
         ".InfiltratorTileService",

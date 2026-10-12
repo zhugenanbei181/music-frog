@@ -79,7 +79,9 @@ class MihomoControlService : Service() {
                 if (ownerServicePhase != OwnerServicePhase.Initializing) return@launch
                 if (status.code != FfiErrorCode.OK) {
                     ownerServicePhase = OwnerServicePhase.Unavailable
-                    Log.e(TAG, "Core owner session initialization failed: ${status.message}")
+                    val reason = status.message ?: "Core owner session initialization failed"
+                    app.failVpnOwnerSession(ownerSessionId, reason)
+                    Log.e(TAG, reason)
                     return@launch
                 }
                 when (app.activateVpnOwnerSession(ownerSessionId)) {
@@ -88,7 +90,9 @@ class MihomoControlService : Service() {
                         ownerServicePhase = OwnerServicePhase.Accepting
                     VpnOwnerSessionActivationOutcome.StaleSession -> {
                         ownerServicePhase = OwnerServicePhase.Unavailable
-                        Log.e(TAG, "VPN owner snapshot session changed during initialization")
+                        val reason = "VPN owner snapshot session changed during initialization"
+                        app.failVpnOwnerSession(ownerSessionId, reason)
+                        Log.e(TAG, reason)
                     }
                 }
             }

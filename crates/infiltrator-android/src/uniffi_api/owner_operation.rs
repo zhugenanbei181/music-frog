@@ -37,7 +37,11 @@ use super::vpn::{VpnTunSettingsPatch, VpnTunSettingsResult};
 use super::webdav::{WebDavSettings, WebDavSettingsResult, WebDavSyncResult};
 use crate::ffi::FfiBoolResult;
 use crate::ffi::{FfiErrorCode, FfiStatus};
+use crate::host_session::active_profile_reference_state;
 use crate::host_support::get_runtime;
+use infiltrator_contract::active_profile_reference::{
+    ActiveProfileReferenceState, ActiveProfileReferenceTarget,
+};
 use infiltrator_contract::android_control::AndroidHostProcessRole;
 use infiltrator_platform::android_bridge::get_android_bridge;
 use serde::{Deserialize, Serialize};
@@ -259,7 +263,7 @@ pub(super) fn app_routing_revision() -> u64 {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, uniffi::Enum)]
 pub enum AndroidOwnerOperationProtocolVersion {
-    V5,
+    V6,
 }
 
 /// Request operations are exhaustive typed variants. Unknown enum variants,
@@ -271,6 +275,69 @@ pub struct AndroidOwnerOperationRequest {
     pub operation: AndroidOwnerOperation,
 }
 
+/// Engine-scoped profile identity sent over the Android owner IPC boundary.
+/// The enum prevents a profile ID from being interpreted in the wrong engine
+/// namespace when more than one Core backend is installed.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, uniffi::Enum)]
+#[serde(tag = "engine", rename_all = "snake_case")]
+#[serde(deny_unknown_fields)]
+pub enum AndroidProfileSelectionTarget {
+    Mihomo { profile_id: String },
+    SingBox { profile_id: String },
+}
+
+impl AndroidProfileSelectionTarget {
+    pub(super) fn into_reference_target(self) -> Result<ActiveProfileReferenceTarget, FfiStatus> {
+        use infiltrator_contract::active_profile_reference::ActiveProfileReferenceTarget;
+        use infiltrator_contract::core_identity::EngineId;
+        use infiltrator_contract::profile_document_identity::ProfileId;
+
+        let (engine_id, profile_id) = match self {
+            Self::Mihomo { profile_id } => (EngineId::mihomo(), profile_id),
+            Self::SingBox { profile_id } => (EngineId::sing_box(), profile_id),
+        };
+        let profile_id = ProfileId::new(profile_id)
+            .map_err(|error| FfiStatus::err(FfiErrorCode::Config, error.to_string()))?;
+        Ok(ActiveProfileReferenceTarget::selected(
+            engine_id, profile_id,
+        ))
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, uniffi::Enum)]
+#[serde(deny_unknown_fields)]
+pub enum AndroidActiveProfileReferenceObservation {
+    Selected {
+        target: AndroidProfileSelectionTarget,
+        revision: u64,
+    },
+    Unselected {
+        revision: u64,
+    },
+    Unavailable {
+        failure: FfiStatus,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, uniffi::Record)]
+#[serde(deny_unknown_fields)]
+pub struct AndroidProfileSelectionReadback {
+    pub operation_status: FfiStatus,
+    pub active_reference: AndroidActiveProfileReferenceObservation,
+}
+
+impl AndroidProfileSelectionReadback {
+    pub(super) fn status(&self) -> FfiStatus {
+        match (&self.active_reference, self.operation_status.code) {
+            (
+                AndroidActiveProfileReferenceObservation::Unavailable { failure },
+                FfiErrorCode::Ok,
+            ) => failure.clone(),
+            _ => self.operation_status.clone(),
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, uniffi::Enum)]
 #[serde(deny_unknown_fields)]
 pub enum AndroidOwnerOperation {
@@ -280,7 +347,7 @@ pub enum AndroidOwnerOperation {
         url: String,
     },
     ProfileSelect {
-        name: String,
+        target: AndroidProfileSelectionTarget,
     },
     ProfileUpdate {
         name: String,
@@ -474,6 +541,7 @@ pub enum AndroidOwnerDataSnapshotData {
 pub enum AndroidOwnerOperationReadback {
     ProfilesList(ProfilesResult),
     ProfileDetail(ProfileDetailResult),
+    ProfileSelection(AndroidProfileSelectionReadback),
     ProfileMutation(FfiStatus),
     CoreVersionManagement(AndroidCoreVersionManagementReadback),
     DnsSettings(DnsSettingsResult),
@@ -628,6 +696,81 @@ async fn profile_mutation_readback(
     )
 }
 
+async fn profile_selection_readback(
+    operation_status: FfiStatus,
+) -> (
+    AndroidOwnerOperationReadback,
+    Option<AndroidOwnerDataSnapshot>,
+) {
+    let active_reference = match active_profile_reference_state().await {
+        Ok(ActiveProfileReferenceState::Unselected { revision }) => {
+            AndroidActiveProfileReferenceObservation::Unselected {
+                revision: revision.value(),
+            }
+        }
+        Ok(ActiveProfileReferenceState::Selected(reference)) => {
+            let target = match reference.engine_id.as_str() {
+                "mihomo" => AndroidProfileSelectionTarget::Mihomo {
+                    profile_id: reference.profile_id.as_str().to_owned(),
+                },
+                "sing-box" => AndroidProfileSelectionTarget::SingBox {
+                    profile_id: reference.profile_id.as_str().to_owned(),
+                },
+                engine => {
+                    return profile_selection_readback_with_unavailable(
+                        operation_status,
+                        FfiStatus::err(
+                            FfiErrorCode::NotSupported,
+                            format!("Android profile selection readback has no engine `{engine}`"),
+                        ),
+                    )
+                    .await;
+                }
+            };
+            AndroidActiveProfileReferenceObservation::Selected {
+                target,
+                revision: reference.revision.value(),
+            }
+        }
+        Err(failure) => {
+            return profile_selection_readback_with_unavailable(operation_status, failure).await;
+        }
+    };
+    let profiles = read_owner_profiles().await;
+    let snapshot = AndroidOwnerDataSnapshot {
+        domain: AndroidOwnerDataDomain::Profiles,
+        data: AndroidOwnerDataSnapshotData::Profiles(profiles),
+    };
+    (
+        AndroidOwnerOperationReadback::ProfileSelection(AndroidProfileSelectionReadback {
+            operation_status,
+            active_reference,
+        }),
+        Some(snapshot),
+    )
+}
+
+async fn profile_selection_readback_with_unavailable(
+    operation_status: FfiStatus,
+    failure: FfiStatus,
+) -> (
+    AndroidOwnerOperationReadback,
+    Option<AndroidOwnerDataSnapshot>,
+) {
+    let profiles = read_owner_profiles().await;
+    let snapshot = AndroidOwnerDataSnapshot {
+        domain: AndroidOwnerDataDomain::Profiles,
+        data: AndroidOwnerDataSnapshotData::Profiles(profiles),
+    };
+    (
+        AndroidOwnerOperationReadback::ProfileSelection(AndroidProfileSelectionReadback {
+            operation_status,
+            active_reference: AndroidActiveProfileReferenceObservation::Unavailable { failure },
+        }),
+        Some(snapshot),
+    )
+}
+
 fn rejected_result(
     context: AndroidOwnerOperationContext,
     observed_generation: u64,
@@ -636,7 +779,7 @@ fn rejected_result(
     state: AndroidOwnerOperationIpcState,
 ) -> AndroidOwnerOperationIpcResult {
     let reply = AndroidOwnerOperationReply {
-        protocol: AndroidOwnerOperationProtocolVersion::V5,
+        protocol: AndroidOwnerOperationProtocolVersion::V6,
         context,
         observed_core_generation: observed_generation,
         data_revision,
@@ -678,6 +821,7 @@ fn status_from_readback(readback: &AndroidOwnerOperationReadback) -> FfiStatus {
     match readback {
         AndroidOwnerOperationReadback::ProfilesList(result) => result.status.clone(),
         AndroidOwnerOperationReadback::ProfileDetail(result) => result.status.clone(),
+        AndroidOwnerOperationReadback::ProfileSelection(result) => result.status(),
         AndroidOwnerOperationReadback::DnsSettings(result) => result.status.clone(),
         AndroidOwnerOperationReadback::TunSettings(result) => result.status.clone(),
         AndroidOwnerOperationReadback::FakeIpSettings(result) => result.status.clone(),

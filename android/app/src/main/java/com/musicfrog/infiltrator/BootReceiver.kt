@@ -10,7 +10,7 @@ class BootReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action == Intent.ACTION_BOOT_COMPLETED) {
-            Log.i(TAG, "Device boot completed; core and VPN remain paused until an explicit user command")
+            Log.i(TAG, "Device boot completed; Core remains paused unless Android restarts the always-on VPN service")
         }
     }
 }

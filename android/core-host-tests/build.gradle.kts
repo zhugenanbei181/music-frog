@@ -32,6 +32,7 @@ kotlin {
                 "com/musicfrog/infiltrator/AndroidOwnerSessionFence.kt",
                 "com/musicfrog/infiltrator/OwnerIpcClientPendingLedger.kt",
                 "com/musicfrog/infiltrator/VpnOwnerSessionGate.kt",
+                "com/musicfrog/infiltrator/VpnServiceStartup.kt",
             )
         }
         test {
@@ -44,6 +45,7 @@ kotlin {
                 "com/musicfrog/infiltrator/OwnerIpcClientPendingLedgerTypedStateTest.kt",
                 "com/musicfrog/infiltrator/OwnerIpcClientPendingLedgerTest.kt",
                 "com/musicfrog/infiltrator/VpnOwnerSessionGateTest.kt",
+                "com/musicfrog/infiltrator/VpnServiceStartupTest.kt",
             )
         }
     }

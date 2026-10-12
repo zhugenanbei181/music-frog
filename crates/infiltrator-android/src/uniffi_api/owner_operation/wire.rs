@@ -25,7 +25,7 @@ pub async fn android_dispatch_owner_operation_wire_json(
             let context = task_context;
             let request =
                 match serde_json::from_str::<AndroidOwnerOperationRequest>(&operation_json) {
-                    Ok(request) if request.protocol == AndroidOwnerOperationProtocolVersion::V5 => {
+                    Ok(request) if request.protocol == AndroidOwnerOperationProtocolVersion::V6 => {
                         request
                     }
                     Ok(_) => {
@@ -243,7 +243,7 @@ pub(super) fn validate_owner_operation_reply(
     operation: &AndroidOwnerOperation,
     reply: AndroidOwnerOperationReply,
 ) -> Result<AndroidOwnerOperationReply, FfiStatus> {
-    if reply.protocol != AndroidOwnerOperationProtocolVersion::V5 {
+    if reply.protocol != AndroidOwnerOperationProtocolVersion::V6 {
         return Err(FfiStatus::err(
             FfiErrorCode::NotSupported,
             "Android owner operation reply protocol is unsupported",
@@ -321,8 +321,10 @@ fn readback_matches_operation(
             AndroidOwnerOperation::ProfileDetail { .. },
             AndroidOwnerOperationReadback::ProfileDetail(_)
         ) | (
+            AndroidOwnerOperation::ProfileSelect { .. },
+            AndroidOwnerOperationReadback::ProfileSelection(_)
+        ) | (
             AndroidOwnerOperation::ProfileCreate { .. }
-                | AndroidOwnerOperation::ProfileSelect { .. }
                 | AndroidOwnerOperation::ProfileUpdate { .. }
                 | AndroidOwnerOperation::ProfileSave { .. }
                 | AndroidOwnerOperation::ProfileDelete { .. }
@@ -516,8 +518,22 @@ fn readback_matches_snapshot(
             Some(AndroidOwnerDataSnapshotData::Profiles(_)),
         ) => true,
         (
+            AndroidOwnerOperation::ProfileSelect { target },
+            AndroidOwnerOperationReadback::ProfileSelection(readback),
+            Some(AndroidOwnerDataSnapshotData::Profiles(snapshot)),
+        ) => match &readback.active_reference {
+            super::AndroidActiveProfileReferenceObservation::Selected {
+                target: observed, ..
+            } => {
+                readback.operation_status.code == FfiErrorCode::Ok
+                    && observed == target
+                    && snapshot.status.code == FfiErrorCode::Ok
+            }
+            super::AndroidActiveProfileReferenceObservation::Unselected { .. }
+            | super::AndroidActiveProfileReferenceObservation::Unavailable { .. } => false,
+        },
+        (
             AndroidOwnerOperation::ProfileCreate { .. }
-            | AndroidOwnerOperation::ProfileSelect { .. }
             | AndroidOwnerOperation::ProfileUpdate { .. }
             | AndroidOwnerOperation::ProfileSave { .. }
             | AndroidOwnerOperation::ProfileDelete { .. }
@@ -646,9 +662,9 @@ pub(super) async fn execute_operation(
             let status = profiles::create_owner_profile(name, url).await;
             profile_mutation_readback(status).await
         }
-        AndroidOwnerOperation::ProfileSelect { name } => {
-            let status = profiles::select_owner_profile(name).await;
-            profile_mutation_readback(status).await
+        AndroidOwnerOperation::ProfileSelect { target } => {
+            let status = profiles::select_owner_profile(target).await;
+            profile_selection_readback(status).await
         }
         AndroidOwnerOperation::ProfileUpdate { name } => {
             let status = profiles::update_owner_profile(name).await;
@@ -916,7 +932,7 @@ pub(super) async fn execute_operation(
         AndroidOwnerRevisionTransition::Unchanged => android_owner_data_revision(),
     };
     let reply = AndroidOwnerOperationReply {
-        protocol: AndroidOwnerOperationProtocolVersion::V5,
+        protocol: AndroidOwnerOperationProtocolVersion::V6,
         context,
         observed_core_generation: observed_generation,
         data_revision,
@@ -955,7 +971,7 @@ pub(in crate::uniffi_api) async fn route_owner_operation(
         )),
         AndroidHostProcessRole::UiClient => {
             let request = AndroidOwnerOperationRequest {
-                protocol: AndroidOwnerOperationProtocolVersion::V5,
+                protocol: AndroidOwnerOperationProtocolVersion::V6,
                 operation,
             };
             let request_json = serde_json::to_string(&request).map_err(|error| {
@@ -976,7 +992,7 @@ pub(in crate::uniffi_api) async fn route_owner_operation(
                     )
                 },
             )?;
-            if reply.protocol != AndroidOwnerOperationProtocolVersion::V5 {
+            if reply.protocol != AndroidOwnerOperationProtocolVersion::V6 {
                 return Err(FfiStatus::err(
                     FfiErrorCode::NotSupported,
                     "Android owner reply protocol version is unsupported",

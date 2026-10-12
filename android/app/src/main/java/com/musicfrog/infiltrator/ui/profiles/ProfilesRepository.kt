@@ -13,11 +13,19 @@ import infiltrator_android.AndroidOwnerOperation
 import infiltrator_android.AndroidOwnerOperationProtocolVersion
 import infiltrator_android.AndroidOwnerOperationReadback
 import infiltrator_android.AndroidOwnerOperationReply
+import infiltrator_android.AndroidActiveProfileReferenceObservation
+import infiltrator_android.AndroidProfileSelectionReadback
+import infiltrator_android.AndroidProfileSelectionTarget
 import infiltrator_android.FfiErrorCode
 import infiltrator_android.FfiStatus
 
 internal sealed interface ProfilesRepositoryObservation {
     data class Profiles(val snapshot: ProfilesSnapshot) : ProfilesRepositoryObservation
+    data class Selection(
+        val snapshot: ProfilesSnapshot,
+        val target: AndroidProfileSelectionTarget,
+        val activeReferenceRevision: ULong,
+    ) : ProfilesRepositoryObservation
     data class Detail(
         val detail: ProfileDetailSnapshot,
         val profiles: ProfilesSnapshot,
@@ -84,6 +92,7 @@ private fun AndroidOwnerOperationReply.toProfilesRepositoryResult(
 
     val status = when (val receipt = readbackStatus(kind)) {
         is ProfilesReadbackReceipt.Observed -> receipt.status
+        is ProfilesReadbackReceipt.Selection -> receipt.status
         ProfilesReadbackReceipt.Mismatch -> return unconfirmedProfiles(latest)
     }
     return when (status.code) {
@@ -97,7 +106,7 @@ private fun AndroidOwnerOperationReply.toProfilesRepositoryResult(
 private fun AndroidOwnerOperationReply.matchesOwnerFence(kind: ProfilesRequestKind): Boolean {
     if (kind == ProfilesRequestKind.Unsupported) return false
     val ownerSnapshot = snapshot ?: return false
-    return protocol == AndroidOwnerOperationProtocolVersion.V5 &&
+    return protocol == AndroidOwnerOperationProtocolVersion.V6 &&
         context.clientSessionId.isNotBlank() &&
         context.ownerSessionId.isNotBlank() &&
         context.expectedOwnerSessionId == context.ownerSessionId &&
@@ -120,6 +129,23 @@ private fun AndroidOwnerOperationReply.readbackStatus(
     }
     ProfilesRequestKind.Mutation -> when (val receipt = readback) {
         is AndroidOwnerOperationReadback.ProfileMutation -> ProfilesReadbackReceipt.Observed(receipt.v1)
+        else -> ProfilesReadbackReceipt.Mismatch
+    }
+    ProfilesRequestKind.Selection -> when (val receipt = readback) {
+        is AndroidOwnerOperationReadback.ProfileSelection -> {
+            val reference = receipt.v1.activeReference
+            val status = when (reference) {
+                is AndroidActiveProfileReferenceObservation.Selected,
+                is AndroidActiveProfileReferenceObservation.Unselected -> receipt.v1.operationStatus
+                is AndroidActiveProfileReferenceObservation.Unavailable -> when (
+                    receipt.v1.operationStatus.code
+                ) {
+                    FfiErrorCode.OK -> reference.failure
+                    else -> receipt.v1.operationStatus
+                }
+            }
+            ProfilesReadbackReceipt.Selection(status, receipt.v1)
+        }
         else -> ProfilesReadbackReceipt.Mismatch
     }
     ProfilesRequestKind.Unsupported -> ProfilesReadbackReceipt.Mismatch
@@ -147,8 +173,20 @@ private fun AndroidOwnerOperation.toCompletedObservation(
                 profiles = profiles,
             )
         }
+        is AndroidOwnerOperation.ProfileSelect -> {
+            val readback = reply.readback as? AndroidOwnerOperationReadback.ProfileSelection ?: return null
+            val reference = readback.v1.activeReference as? AndroidActiveProfileReferenceObservation.Selected
+                ?: return null
+            if (readback.v1.operationStatus.code != FfiErrorCode.OK || reference.target != target) {
+                return null
+            }
+            ProfilesRepositoryObservation.Selection(
+                snapshot = profiles,
+                target = reference.target,
+                activeReferenceRevision = reference.revision,
+            )
+        }
         is AndroidOwnerOperation.ProfileCreate,
-        is AndroidOwnerOperation.ProfileSelect,
         is AndroidOwnerOperation.ProfileUpdate,
         is AndroidOwnerOperation.ProfileSave,
         is AndroidOwnerOperation.ProfileDelete,
@@ -184,8 +222,8 @@ private fun AndroidOwnerOperationReply.latestProfilesSnapshot(): ProfilesSnapsho
 private fun AndroidOwnerOperation.profilesRequestKind(): ProfilesRequestKind = when (this) {
     AndroidOwnerOperation.ProfilesList -> ProfilesRequestKind.List
     is AndroidOwnerOperation.ProfileDetail -> ProfilesRequestKind.Detail
+    is AndroidOwnerOperation.ProfileSelect -> ProfilesRequestKind.Selection
     is AndroidOwnerOperation.ProfileCreate,
-    is AndroidOwnerOperation.ProfileSelect,
     is AndroidOwnerOperation.ProfileUpdate,
     is AndroidOwnerOperation.ProfileSave,
     is AndroidOwnerOperation.ProfileDelete,
@@ -197,13 +235,15 @@ private fun AndroidOwnerOperation.profilesRequestKind(): ProfilesRequestKind = w
 private fun ProfilesRequestKind.revisionAdvance(): ProfilesRevisionAdvance = when (this) {
     ProfilesRequestKind.List,
     ProfilesRequestKind.Detail -> ProfilesRevisionAdvance.None
-    ProfilesRequestKind.Mutation -> ProfilesRevisionAdvance.One
+    ProfilesRequestKind.Mutation,
+    ProfilesRequestKind.Selection -> ProfilesRevisionAdvance.One
     ProfilesRequestKind.Unsupported -> ProfilesRevisionAdvance.Unsupported
 }
 
 private enum class ProfilesRequestKind {
     List,
     Detail,
+    Selection,
     Mutation,
     Unsupported,
 }
@@ -216,6 +256,10 @@ private enum class ProfilesRevisionAdvance {
 
 private sealed interface ProfilesReadbackReceipt {
     data class Observed(val status: FfiStatus) : ProfilesReadbackReceipt
+    data class Selection(
+        val status: FfiStatus,
+        val readback: AndroidProfileSelectionReadback,
+    ) : ProfilesReadbackReceipt
     data object Mismatch : ProfilesReadbackReceipt
 }
 
