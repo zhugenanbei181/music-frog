@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use infiltrator_contract::android_control::{
-    AndroidCoreLifecycleSnapshot, AndroidCoreProcessState, AndroidHostProcessRole,
+    AndroidCoreLifecycleSnapshot, AndroidCoreProcessObservation, AndroidHostProcessRole,
     CoreLaunchConfigurationIdentity, CoreLaunchSpec, VpnAuthorizationState, VpnOwnerSnapshot,
 };
 use infiltrator_contract::offline_startup::OfflineStartupSnapshot;
@@ -47,6 +47,7 @@ pub enum AndroidCoreConfigurationValidationOutcome {
     InterruptedCleanupFailed,
     ProcessCleanupFailed,
     ValidationCleanupPending,
+    CoreProcessObservationUnavailable,
     ProcessLaunchFailed,
     NotVpnOwner,
 }
@@ -73,6 +74,8 @@ pub enum CoreProcessStartReceipt {
     SpawnFailed,
     NotVpnOwner,
     OwnerContextMismatch,
+    PreviousChildExitPending,
+    OwnershipRecordUnavailable,
 }
 
 impl CoreProcessStartReceipt {
@@ -85,6 +88,8 @@ impl CoreProcessStartReceipt {
             Self::SpawnFailed => 4,
             Self::NotVpnOwner => 5,
             Self::OwnerContextMismatch => 6,
+            Self::PreviousChildExitPending => 7,
+            Self::OwnershipRecordUnavailable => 8,
         }
     }
 
@@ -97,6 +102,8 @@ impl CoreProcessStartReceipt {
             4 => Some(Self::SpawnFailed),
             5 => Some(Self::NotVpnOwner),
             6 => Some(Self::OwnerContextMismatch),
+            7 => Some(Self::PreviousChildExitPending),
+            8 => Some(Self::OwnershipRecordUnavailable),
             _ => None,
         }
     }
@@ -119,6 +126,12 @@ impl CoreProcessStartReceipt {
             Self::OwnerContextMismatch => Err(PortError::Failed(
                 "Android Mihomo child belongs to a different Core session".to_owned(),
             )),
+            Self::PreviousChildExitPending => Err(PortError::Failed(
+                "Android Core child exit awaits owner recovery".to_owned(),
+            )),
+            Self::OwnershipRecordUnavailable => Err(PortError::Failed(
+                "Android Core process ownership record is unavailable".to_owned(),
+            )),
         }
     }
 }
@@ -132,6 +145,7 @@ pub enum CoreProcessStopReceipt {
     TimedOut,
     Interrupted,
     NotVpnOwner,
+    OwnershipRecordUnavailable,
 }
 
 impl CoreProcessStopReceipt {
@@ -143,6 +157,7 @@ impl CoreProcessStopReceipt {
             Self::TimedOut => 3,
             Self::Interrupted => 4,
             Self::NotVpnOwner => 5,
+            Self::OwnershipRecordUnavailable => 6,
         }
     }
 
@@ -154,6 +169,7 @@ impl CoreProcessStopReceipt {
             3 => Some(Self::TimedOut),
             4 => Some(Self::Interrupted),
             5 => Some(Self::NotVpnOwner),
+            6 => Some(Self::OwnershipRecordUnavailable),
             _ => None,
         }
     }
@@ -169,6 +185,9 @@ impl CoreProcessStopReceipt {
             )),
             Self::NotVpnOwner => Err(PortError::Failed(
                 "Android UI process cannot stop the core locally".to_owned(),
+            )),
+            Self::OwnershipRecordUnavailable => Err(PortError::Failed(
+                "Android Core process ownership record is unavailable".to_owned(),
             )),
         }
     }
@@ -190,7 +209,7 @@ pub trait AndroidBridge: Send + Sync {
     ) -> Result<CoreProcessStartReceipt>;
     /// Core process result receipt; operation failures remain typed values.
     async fn core_stop(&self) -> Result<CoreProcessStopReceipt>;
-    async fn core_process_state(&self) -> Result<AndroidCoreProcessState>;
+    async fn core_process_observation(&self) -> Result<AndroidCoreProcessObservation>;
     /// Validate one frozen candidate on the process that owns the packaged
     /// Android Core binary. Implementations without that host capability fail closed.
     async fn core_validate_configuration(
@@ -288,8 +307,8 @@ impl AndroidBridge for Box<dyn AndroidBridge> {
         self.as_ref().core_stop().await
     }
 
-    async fn core_process_state(&self) -> Result<AndroidCoreProcessState> {
-        self.as_ref().core_process_state().await
+    async fn core_process_observation(&self) -> Result<AndroidCoreProcessObservation> {
+        self.as_ref().core_process_observation().await
     }
 
     async fn core_validate_configuration(
@@ -389,8 +408,8 @@ impl AndroidBridge for Arc<dyn AndroidBridge> {
         self.as_ref().core_stop().await
     }
 
-    async fn core_process_state(&self) -> Result<AndroidCoreProcessState> {
-        self.as_ref().core_process_state().await
+    async fn core_process_observation(&self) -> Result<AndroidCoreProcessObservation> {
+        self.as_ref().core_process_observation().await
     }
 
     async fn core_validate_configuration(
@@ -588,8 +607,16 @@ mod tests {
             Ok(CoreProcessStopReceipt::StoppedGracefully)
         }
 
-        async fn core_process_state(&self) -> Result<AndroidCoreProcessState> {
-            Ok(AndroidCoreProcessState::Running)
+        async fn core_process_observation(&self) -> Result<AndroidCoreProcessObservation> {
+            Ok(AndroidCoreProcessObservation::Running {
+                owned: infiltrator_contract::android_control::AndroidOwnedCoreProcess {
+                    context: start_context(),
+                    child: infiltrator_contract::android_control::AndroidChildProcessIdentity {
+                        pid: 321,
+                        start_time_ticks: 987_654,
+                    },
+                },
+            })
         }
 
         async fn credential_get(&self, _service: &str, _key: &str) -> Result<Option<String>> {
@@ -686,8 +713,16 @@ mod tests {
             CoreProcessStopReceipt::StoppedGracefully
         );
         assert_eq!(
-            bridge.core_process_state().await.unwrap(),
-            AndroidCoreProcessState::Running
+            bridge.core_process_observation().await.unwrap(),
+            AndroidCoreProcessObservation::Running {
+                owned: infiltrator_contract::android_control::AndroidOwnedCoreProcess {
+                    context: start_context(),
+                    child: infiltrator_contract::android_control::AndroidChildProcessIdentity {
+                        pid: 321,
+                        start_time_ticks: 987_654,
+                    },
+                },
+            }
         );
         assert_eq!(
             bridge.credential_get("s", "k").await.unwrap(),
@@ -774,12 +809,14 @@ mod tests {
             (CoreProcessStartReceipt::SpawnFailed, 4),
             (CoreProcessStartReceipt::NotVpnOwner, 5),
             (CoreProcessStartReceipt::OwnerContextMismatch, 6),
+            (CoreProcessStartReceipt::PreviousChildExitPending, 7),
+            (CoreProcessStartReceipt::OwnershipRecordUnavailable, 8),
         ] {
             assert_eq!(receipt.wire_code(), code);
             assert_eq!(CoreProcessStartReceipt::from_wire_code(code), Some(receipt));
         }
         assert_eq!(CoreProcessStartReceipt::from_wire_code(-1), None);
-        assert_eq!(CoreProcessStartReceipt::from_wire_code(7), None);
+        assert_eq!(CoreProcessStartReceipt::from_wire_code(9), None);
     }
 
     #[test]
@@ -791,11 +828,12 @@ mod tests {
             (CoreProcessStopReceipt::TimedOut, 3),
             (CoreProcessStopReceipt::Interrupted, 4),
             (CoreProcessStopReceipt::NotVpnOwner, 5),
+            (CoreProcessStopReceipt::OwnershipRecordUnavailable, 6),
         ] {
             assert_eq!(receipt.wire_code(), code);
             assert_eq!(CoreProcessStopReceipt::from_wire_code(code), Some(receipt));
         }
         assert_eq!(CoreProcessStopReceipt::from_wire_code(-1), None);
-        assert_eq!(CoreProcessStopReceipt::from_wire_code(6), None);
+        assert_eq!(CoreProcessStopReceipt::from_wire_code(7), None);
     }
 }

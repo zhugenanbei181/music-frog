@@ -322,8 +322,9 @@ mod tests {
     use super::*;
     use async_trait::async_trait;
     use infiltrator_contract::android_control::{
-        AndroidCoreProcessState, CoreLaunchSpec, VpnOwnerCoreReadback, VpnOwnerLifecycle,
-        VpnOwnerReadiness, VpnOwnerSnapshot,
+        AndroidChildProcessIdentity, AndroidCoreProcessObservation,
+        AndroidCoreProcessUnavailableReason, AndroidOwnedCoreProcess, CoreLaunchSpec,
+        VpnOwnerCoreReadback, VpnOwnerLifecycle, VpnOwnerReadiness, VpnOwnerSnapshot,
     };
     use infiltrator_contract::snapshot::CoreLifecycle;
     use infiltrator_ports::error::PortError;
@@ -395,21 +396,23 @@ mod tests {
     }
 
     struct TestBridge {
-        state: Mutex<AndroidCoreProcessState>,
+        observation: Mutex<AndroidCoreProcessObservation>,
         core_owner: bool,
     }
 
     impl TestBridge {
         fn new() -> Self {
             Self {
-                state: Mutex::new(AndroidCoreProcessState::Stopped),
+                observation: Mutex::new(AndroidCoreProcessObservation::NeverStarted),
                 core_owner: true,
             }
         }
 
         fn client_process() -> Self {
             Self {
-                state: Mutex::new(AndroidCoreProcessState::Stopped),
+                observation: Mutex::new(AndroidCoreProcessObservation::Unavailable {
+                    reason: AndroidCoreProcessUnavailableReason::ProcessInspectionUnavailable,
+                }),
                 core_owner: false,
             }
         }
@@ -428,19 +431,33 @@ mod tests {
         async fn core_start(
             &self,
             _launch_spec: &CoreLaunchSpec,
-            _context: &infiltrator_ports::core_process::CoreProcessStartContext,
+            context: &infiltrator_ports::core_process::CoreProcessStartContext,
         ) -> Result<CoreProcessStartReceipt> {
-            *self.state.lock().expect("test process state lock") = AndroidCoreProcessState::Running;
+            *self.observation.lock().expect("test observation lock") =
+                AndroidCoreProcessObservation::Running {
+                    owned: AndroidOwnedCoreProcess {
+                        context: context.clone(),
+                        child: AndroidChildProcessIdentity {
+                            pid: 321,
+                            start_time_ticks: 987_654,
+                        },
+                    },
+                };
             Ok(CoreProcessStartReceipt::Started)
         }
 
         async fn core_stop(&self) -> Result<CoreProcessStopReceipt> {
-            *self.state.lock().expect("test process state lock") = AndroidCoreProcessState::Stopped;
+            *self.observation.lock().expect("test observation lock") =
+                AndroidCoreProcessObservation::NeverStarted;
             Ok(CoreProcessStopReceipt::StoppedGracefully)
         }
 
-        async fn core_process_state(&self) -> Result<AndroidCoreProcessState> {
-            Ok(*self.state.lock().expect("test process state lock"))
+        async fn core_process_observation(&self) -> Result<AndroidCoreProcessObservation> {
+            Ok(self
+                .observation
+                .lock()
+                .expect("test observation lock")
+                .clone())
         }
 
         async fn credential_get(&self, _service: &str, _key: &str) -> Result<Option<String>> {

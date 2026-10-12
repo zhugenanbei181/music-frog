@@ -420,6 +420,7 @@ jobs:
           chmod +x android/gradlew
           # Gradle resolves the project from the CWD, so run inside android/.
           ( cd android && ./gradlew --no-daemon --stacktrace \
+            :core-host-tests:test \
             :app:assembleComposeRelease :app:assembleBevyRelease :app:assembleSlintRelease )
 
       - name: Verify and collect registered Android APKs

@@ -433,10 +433,11 @@ mod tests {
     use crate::ffi::FfiErrorCode;
     use async_trait::async_trait;
     use infiltrator_contract::android_control::{
-        AndroidCoreLifecycleSnapshot, AndroidCoreProcessState, AndroidHostProcessRole,
-        AndroidProductCommandOutcome, AndroidProductCommandRequest, AndroidProductControlIntent,
-        CoreLaunchSpec, VpnOwnerCoreReadback, VpnOwnerLifecycle, VpnOwnerReadiness,
-        VpnOwnerResourceFact, VpnOwnerResourceKind, VpnOwnerResourceState, VpnOwnerSnapshot,
+        AndroidCoreLifecycleSnapshot, AndroidCoreProcessObservation,
+        AndroidCoreProcessUnavailableReason, AndroidHostProcessRole, AndroidProductCommandOutcome,
+        AndroidProductCommandRequest, AndroidProductControlIntent, CoreLaunchSpec,
+        VpnOwnerCoreReadback, VpnOwnerLifecycle, VpnOwnerReadiness, VpnOwnerResourceFact,
+        VpnOwnerResourceKind, VpnOwnerResourceState, VpnOwnerSnapshot,
         validate_android_control_terminal_readback, validate_android_vpn_stop_terminal_readback,
     };
     use infiltrator_contract::command::{CommandResult, RequestId};
@@ -512,8 +513,10 @@ mod tests {
             Ok(CoreProcessStopReceipt::NotVpnOwner)
         }
 
-        async fn core_process_state(&self) -> Result<AndroidCoreProcessState> {
-            Ok(AndroidCoreProcessState::Unavailable)
+        async fn core_process_observation(&self) -> Result<AndroidCoreProcessObservation> {
+            Ok(AndroidCoreProcessObservation::Unavailable {
+                reason: AndroidCoreProcessUnavailableReason::ProcessInspectionUnavailable,
+            })
         }
 
         async fn core_lifecycle_snapshot(&self) -> Result<AndroidCoreLifecycleSnapshot> {

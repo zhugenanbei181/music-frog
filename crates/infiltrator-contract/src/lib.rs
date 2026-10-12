@@ -23,6 +23,7 @@ pub mod controller;
 pub mod core_capabilities;
 pub mod core_control;
 pub mod core_identity;
+pub mod core_process;
 pub mod design_tokens;
 pub mod dialer_chain;
 pub mod dns;

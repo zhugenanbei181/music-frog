@@ -149,6 +149,7 @@ internal sealed interface CoreConfigurationValidationOutcomeWire {
     data object InterruptedCleanupFailed : CoreConfigurationValidationOutcomeWire
     data object ProcessCleanupFailed : CoreConfigurationValidationOutcomeWire
     data object ValidationCleanupPending : CoreConfigurationValidationOutcomeWire
+    data object CoreProcessObservationUnavailable : CoreConfigurationValidationOutcomeWire
     data object ProcessLaunchFailed : CoreConfigurationValidationOutcomeWire
     data object NotVpnOwner : CoreConfigurationValidationOutcomeWire
 }
@@ -194,6 +195,7 @@ private fun CoreConfigurationValidationOutcomeWire.toJsonValue(): Any = when (th
     CoreConfigurationValidationOutcomeWire.InterruptedCleanupFailed -> "InterruptedCleanupFailed"
     CoreConfigurationValidationOutcomeWire.ProcessCleanupFailed -> "ProcessCleanupFailed"
     CoreConfigurationValidationOutcomeWire.ValidationCleanupPending -> "ValidationCleanupPending"
+    CoreConfigurationValidationOutcomeWire.CoreProcessObservationUnavailable -> "CoreProcessObservationUnavailable"
     CoreConfigurationValidationOutcomeWire.ProcessLaunchFailed -> "ProcessLaunchFailed"
     CoreConfigurationValidationOutcomeWire.NotVpnOwner -> "NotVpnOwner"
 }

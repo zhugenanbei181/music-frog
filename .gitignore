@@ -65,6 +65,7 @@ android/*.iml
 android/build/
 android/app/build/
 android/bevy-host/build/
+android/core-host-tests/build/
 android/app/.cxx/
 android/app/.externalNativeBuild/
 android/app/src/main/jniLibs/

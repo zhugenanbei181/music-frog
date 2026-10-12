@@ -12,8 +12,8 @@ use crate::native_host::push_raw_insets;
 use crate::service_init::init_android_process;
 use crate::{FfiErrorCode, FfiStatus};
 use infiltrator_contract::android_control::{
-    AndroidCoreLifecycleSnapshot, AndroidCoreProcessState, AndroidHostProcessRole, CoreLaunchSpec,
-    VpnAuthorizationState, VpnOwnerSnapshot,
+    AndroidCoreLifecycleSnapshot, AndroidCoreProcessObservation, AndroidHostProcessRole,
+    CoreLaunchSpec, VpnAuthorizationState, VpnOwnerSnapshot,
 };
 use infiltrator_contract::vpn::{
     PreparedVpnConfiguration, VpnConfiguration, VpnConfigurationApplyOutcome, VpnOwnerStopReceipt,
@@ -257,11 +257,17 @@ impl AndroidBridge for JniBridge {
         })
     }
 
-    async fn core_process_state(&self) -> Result<AndroidCoreProcessState> {
-        let code = self.call_int("coreProcessState", SIG_NOARGS_INT, &[])?;
-        AndroidCoreProcessState::from_wire_code(code).ok_or_else(|| {
+    async fn core_process_observation(&self) -> Result<AndroidCoreProcessObservation> {
+        let json = self
+            .call_string("coreProcessObservationJson", SIG_NOARGS_STRING, &[])?
+            .ok_or_else(|| {
+                MihomoError::Service(
+                    "android bridge returned no Core process observation".to_owned(),
+                )
+            })?;
+        serde_json::from_str(&json).map_err(|error| {
             MihomoError::Service(format!(
-                "android bridge returned unknown core process state code {code}"
+                "android bridge returned an invalid Core process observation: {error}"
             ))
         })
     }

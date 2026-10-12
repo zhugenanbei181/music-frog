@@ -56,29 +56,22 @@ internal data class CoreProcessStartContextWire(
     val identity: CoreIdentityWire,
     val generation: BigInteger,
     val sessionToken: BigInteger,
-)
-
-internal data class CoreIdentityWire(
-    val engine: String,
-    val instance: String,
-    val version: String?,
-)
-
-internal data class CoreStartRequestWire(
-    val launchSpec: CoreLaunchSpecWire,
-    val context: CoreProcessStartContextWire,
 ) {
+    fun toManagedJson(): JSONObject {
+        val identityJson = JSONObject()
+            .put("engine", identity.engine)
+            .put("instance", identity.instance)
+            .put("version", identity.version ?: JSONObject.NULL)
+        val contextJson = JSONObject()
+            .put("identity", identityJson)
+            .put("generation", generation)
+            .put("session_token", sessionToken)
+        return JSONObject().put("Managed", contextJson)
+    }
+
     companion object {
-        fun decode(raw: String): CoreStartRequestDecode = runCatching {
-            val request = JSONObject(raw)
-            require(request.keys().asSequence().toSet() == setOf("launch_spec", "start_context"))
-            val launchSpec = when (
-                val decoded = CoreLaunchSpecWire.decodeLaunchSpec(request.getJSONObject("launch_spec").toString()),
-            ) {
-                is CoreLaunchSpecDecode.Accepted -> decoded.spec
-                is CoreLaunchSpecDecode.Rejected -> error(decoded.reason)
-            }
-            val taggedContext = request.getJSONObject("start_context")
+        fun decode(raw: String): CoreProcessStartContextDecode = runCatching {
+            val taggedContext = JSONObject(raw)
             require(taggedContext.keys().asSequence().toSet() == setOf("Managed")) {
                 "Android Core start requires a managed owner context"
             }
@@ -97,10 +90,47 @@ internal data class CoreStartRequestWire(
                 .also { require(it.signum() > 0) }
             val sessionToken = BigInteger(context.get("session_token").toString())
                 .also { require(it.signum() > 0) }
+            CoreProcessStartContextDecode.Accepted(
+                CoreProcessStartContextWire(identity, generation, sessionToken),
+            )
+        }.getOrElse { error ->
+            CoreProcessStartContextDecode.Rejected(error.message ?: "invalid Core owner context")
+        }
+    }
+}
+
+internal data class CoreIdentityWire(
+    val engine: String,
+    val instance: String,
+    val version: String?,
+)
+
+internal data class CoreStartRequestWire(
+    val launchSpec: CoreLaunchSpecWire,
+    val context: CoreProcessStartContextWire,
+) {
+    companion object {
+        fun decode(raw: String): CoreStartRequestDecode = runCatching {
+            val request = JSONObject(raw)
+            require(request.keys().asSequence().toSet() == setOf("launch_spec", "start_context"))
+            val decodedLaunchSpec = CoreLaunchSpecWire.decodeLaunchSpec(
+                request.getJSONObject("launch_spec").toString(),
+            )
+            val launchSpec = when (decodedLaunchSpec) {
+                is CoreLaunchSpecDecode.Accepted -> decodedLaunchSpec.spec
+                is CoreLaunchSpecDecode.Rejected -> error(decodedLaunchSpec.reason)
+            }
+            val decodedStartContext = CoreProcessStartContextWire.decode(
+                request.getJSONObject("start_context").toString(),
+            )
+            val startContext = when (decodedStartContext) {
+                is CoreProcessStartContextDecode.Accepted -> decodedStartContext.context
+                is CoreProcessStartContextDecode.Rejected -> error(decodedStartContext.reason)
+            }
             CoreStartRequestDecode.Accepted(
                 CoreStartRequestWire(
                     launchSpec,
-                    CoreProcessStartContextWire(identity, generation, sessionToken),
+                    startContext,
                 ),
             )
         }.getOrElse { error ->
@@ -122,4 +152,10 @@ internal sealed interface CoreStartRequestDecode {
     data class Accepted(val request: CoreStartRequestWire) : CoreStartRequestDecode
 
     data class Rejected(val reason: String) : CoreStartRequestDecode
+}
+
+internal sealed interface CoreProcessStartContextDecode {
+    data class Accepted(val context: CoreProcessStartContextWire) : CoreProcessStartContextDecode
+
+    data class Rejected(val reason: String) : CoreProcessStartContextDecode
 }

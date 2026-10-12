@@ -70,16 +70,13 @@ class MihomoHost(private val context: Context) : BridgeHost {
 
     internal fun stopCoreLocally(): CoreProcessStopReceipt = processController.stop()
 
-    override fun coreProcessState(): Int {
-        val state = when (processRole) {
-            AndroidProcessRole.VpnOwner -> coreProcessStateLocally()
-            AndroidProcessRole.Ui -> AndroidCoreProcessState.UNAVAILABLE
-            is AndroidProcessRole.Unsupported -> AndroidCoreProcessState.UNAVAILABLE
-        }
-        return state.wireCode
+    override fun coreProcessObservationJson(): String = when (processRole) {
+        AndroidProcessRole.VpnOwner -> processController.observation().toJson()
+        AndroidProcessRole.Ui,
+        is AndroidProcessRole.Unsupported -> AndroidCoreProcessObservationWire.Unavailable(
+            AndroidCoreProcessUnavailableReasonWire.ProcessInspectionUnavailable,
+        ).toJson()
     }
-
-    internal fun coreProcessStateLocally(): AndroidCoreProcessState = processController.state()
 
     override fun coreLifecycleSnapshot(): String? = when (processRole) {
         AndroidProcessRole.Ui -> controlClient.readCoreLifecycleSnapshotJson()

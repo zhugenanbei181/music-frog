@@ -11,5 +11,4 @@ futures-util = { workspace = true }
 infiltrator-contract = { path = "../infiltrator-contract" }
 infiltrator-domain = { path = "../infiltrator-domain" }
 serde_json = { workspace = true }
-serde = { workspace = true }
 url = { workspace = true }

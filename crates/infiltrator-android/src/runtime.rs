@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use infiltrator_contract::android_control::{AndroidCoreProcessState, CoreLaunchSpec};
+use infiltrator_contract::android_control::{AndroidCoreProcessObservation, CoreLaunchSpec};
 use infiltrator_contract::capability::{
     Availability, Capability, CapabilitySnapshot, CapabilityStatus,
 };
@@ -147,18 +147,28 @@ where
         }
         match self
             .bridge
-            .core_process_state()
+            .core_process_observation()
             .await
             .map_err(map_port_error)?
         {
-            // The host compares the request context with the active child
-            // owner before returning AlreadyRunning. Do not treat process
-            // presence alone as proof that this Core session owns it.
-            AndroidCoreProcessState::Running | AndroidCoreProcessState::Stopped => {}
-            AndroidCoreProcessState::Unavailable => {
+            AndroidCoreProcessObservation::NeverStarted => {}
+            AndroidCoreProcessObservation::Running { owned } if owned.context == context => {
+                return Ok(());
+            }
+            AndroidCoreProcessObservation::Running { .. } => {
                 return Err(PortError::Failed(
-                    "Android core owner did not return process state before launch".to_owned(),
+                    "Android Mihomo child belongs to a different Core session".to_owned(),
                 ));
+            }
+            AndroidCoreProcessObservation::Exited { .. } => {
+                return Err(PortError::Failed(
+                    "Android Mihomo child exit awaits owner recovery".to_owned(),
+                ));
+            }
+            AndroidCoreProcessObservation::Unavailable { reason } => {
+                return Err(PortError::Failed(format!(
+                    "Android Core process observation is unavailable: {reason:?}"
+                )));
             }
         }
         let launch_spec = self.launch_spec_source.resolve().await?;
@@ -180,14 +190,15 @@ where
     async fn status(&self) -> result::Result<CoreLifecycle, PortError> {
         match self
             .bridge
-            .core_process_state()
+            .core_process_observation()
             .await
             .map_err(map_port_error)?
         {
-            AndroidCoreProcessState::Stopped => Ok(CoreLifecycle::Stopped),
-            AndroidCoreProcessState::Running => Ok(CoreLifecycle::Running),
-            AndroidCoreProcessState::Unavailable => Err(PortError::Failed(
-                "Android core owner did not return a process state".to_owned(),
+            AndroidCoreProcessObservation::NeverStarted
+            | AndroidCoreProcessObservation::Exited { .. } => Ok(CoreLifecycle::Stopped),
+            AndroidCoreProcessObservation::Running { .. } => Ok(CoreLifecycle::Running),
+            AndroidCoreProcessObservation::Unavailable { reason } => Err(PortError::Failed(
+                format!("Android Core process observation is unavailable: {reason:?}"),
             )),
         }
     }
@@ -346,8 +357,10 @@ mod tests {
     #[cfg(test)]
     use infiltrator_application::offline_startup_application::OfflineStartupApplication;
     use infiltrator_contract::android_control::{
-        AndroidCoreLifecycleSnapshot, CoreLaunchConfigurationIdentity, CoreLaunchSpec,
-        VpnOwnerCoreReadback, VpnOwnerLifecycle, VpnOwnerReadiness, VpnOwnerSnapshot,
+        AndroidChildProcessIdentity, AndroidCoreLifecycleSnapshot, AndroidCoreProcessObservation,
+        AndroidCoreProcessUnavailableReason, AndroidOwnedCoreProcess,
+        CoreLaunchConfigurationIdentity, CoreLaunchSpec, VpnOwnerCoreReadback, VpnOwnerLifecycle,
+        VpnOwnerReadiness, VpnOwnerSnapshot,
     };
     use infiltrator_contract::command::{CommandIntent, CommandResult};
     use infiltrator_contract::core_capabilities::{
@@ -422,20 +435,31 @@ mod tests {
             Ok(CoreProcessStopReceipt::StoppedGracefully)
         }
 
-        async fn core_process_state(&self) -> Result<AndroidCoreProcessState> {
-            Ok(
-                if self
-                    .running
-                    .lock()
-                    .ok()
-                    .map(|guard| *guard)
-                    .unwrap_or(false)
-                {
-                    AndroidCoreProcessState::Running
-                } else {
-                    AndroidCoreProcessState::Stopped
-                },
-            )
+        async fn core_process_observation(&self) -> Result<AndroidCoreProcessObservation> {
+            let running = self.running.lock().map(|guard| *guard).unwrap_or(false);
+            if !running {
+                return Ok(AndroidCoreProcessObservation::NeverStarted);
+            }
+            let context = self
+                .start_contexts
+                .lock()
+                .expect("start context lock")
+                .last()
+                .cloned();
+            match context {
+                Some(context) => Ok(AndroidCoreProcessObservation::Running {
+                    owned: AndroidOwnedCoreProcess {
+                        context,
+                        child: AndroidChildProcessIdentity {
+                            pid: 321,
+                            start_time_ticks: 987_654,
+                        },
+                    },
+                }),
+                None => Ok(AndroidCoreProcessObservation::Unavailable {
+                    reason: AndroidCoreProcessUnavailableReason::OwnershipRecordCorrupt,
+                }),
+            }
         }
 
         async fn credential_get(&self, service: &str, key: &str) -> Result<Option<String>> {

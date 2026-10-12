@@ -6,6 +6,7 @@
 
 use crate::command::CommandIntent;
 use crate::core_identity::{CoreCommandOutcome, CoreGeneration, CoreIdentity, CoreScope, EngineId};
+use crate::core_process::CoreProcessStartContext;
 use crate::error::{ErrorCode, Failure};
 use crate::profile_document_identity::{ProfileDocumentRevision, ProfileId};
 use crate::session::SessionToken;
@@ -774,41 +775,65 @@ pub enum VpnAuthorizationState {
     Granted,
 }
 
-/// Readback of the selected core child process from the Android owner process.
+/// Exact Android child identity used to distinguish a live process from PID reuse.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum AndroidCoreProcessState {
-    Stopped,
-    Running,
-    Unavailable,
+#[serde(deny_unknown_fields)]
+pub struct AndroidChildProcessIdentity {
+    pub pid: u32,
+    pub start_time_ticks: u64,
 }
 
-impl AndroidCoreProcessState {
-    pub const fn wire_code(self) -> i32 {
-        match self {
-            Self::Stopped => 0,
-            Self::Running => 1,
-            Self::Unavailable => 2,
-        }
-    }
+/// Persisted relation between one managed Core session and its Android child.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AndroidOwnedCoreProcess {
+    pub context: CoreProcessStartContext,
+    pub child: AndroidChildProcessIdentity,
+}
 
-    pub const fn from_wire_code(code: i32) -> Option<Self> {
-        match code {
-            0 => Some(Self::Stopped),
-            1 => Some(Self::Running),
-            2 => Some(Self::Unavailable),
-            _ => None,
-        }
-    }
+/// Kernel evidence that a previously recorded Android child has exited.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AndroidCoreProcessExitEvidence {
+    ProcessEntryMissing,
+    ProcessStartIdentityChanged,
+    ProcessHandleExited,
+}
+
+/// Why the Android owner could not make an exact child-process observation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AndroidCoreProcessUnavailableReason {
+    LaunchReservationIncomplete,
+    OwnershipRecordCorrupt,
+    ProcessInspectionUnavailable,
+    OwnershipRecordUnavailable,
+}
+
+/// Typed readback of Android's persisted Core child ownership record.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AndroidCoreProcessObservation {
+    NeverStarted,
+    Running {
+        owned: AndroidOwnedCoreProcess,
+    },
+    Exited {
+        owned: AndroidOwnedCoreProcess,
+        evidence: AndroidCoreProcessExitEvidence,
+    },
+    Unavailable {
+        reason: AndroidCoreProcessUnavailableReason,
+    },
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
-        AndroidControlIntent, AndroidCoreLifecycleSnapshot, AndroidCoreProcessState,
-        AndroidHostProcessRole, AndroidProductCommand, AndroidProductCommandOutcome,
-        AndroidProductCommandRequest, AndroidProductControlIntent, CoreLaunchConfigurationIdentity,
-        CoreLaunchSpec, VpnOwnerCoreReadback, VpnOwnerLifecycle, VpnOwnerReadiness,
-        VpnOwnerResourceFact, VpnOwnerResourceKind, VpnOwnerResourceState, VpnOwnerSnapshot,
+        AndroidChildProcessIdentity, AndroidControlIntent, AndroidCoreLifecycleSnapshot,
+        AndroidCoreProcessExitEvidence, AndroidCoreProcessObservation,
+        AndroidCoreProcessUnavailableReason, AndroidHostProcessRole, AndroidOwnedCoreProcess,
+        AndroidProductCommand, AndroidProductCommandOutcome, AndroidProductCommandRequest,
+        AndroidProductControlIntent, CoreLaunchConfigurationIdentity, CoreLaunchSpec,
+        VpnOwnerCoreReadback, VpnOwnerLifecycle, VpnOwnerReadiness, VpnOwnerResourceFact,
+        VpnOwnerResourceKind, VpnOwnerResourceState, VpnOwnerSnapshot,
         validate_android_control_owner_observation, validate_android_control_terminal_readback,
     };
     use crate::command::{CommandIntent, CommandResult, RequestId};
@@ -972,21 +997,44 @@ mod tests {
     }
 
     #[test]
-    fn core_process_state_wire_codes_round_trip_and_reject_unknown_values() {
-        let states = [
-            AndroidCoreProcessState::Stopped,
-            AndroidCoreProcessState::Running,
-            AndroidCoreProcessState::Unavailable,
+    fn typed_core_process_observations_round_trip_exact_child_facts() {
+        let owned = AndroidOwnedCoreProcess {
+            context: crate::core_process::CoreProcessStartContext::managed(
+                CoreIdentity::new(
+                    EngineId::new("mihomo").expect("engine ID"),
+                    CoreInstanceId::new("android-active").expect("instance ID"),
+                    None,
+                ),
+                CoreGeneration::new(7),
+                crate::session::SessionToken::new(42),
+            ),
+            child: AndroidChildProcessIdentity {
+                pid: 321,
+                start_time_ticks: 987_654,
+            },
+        };
+        let observations = [
+            AndroidCoreProcessObservation::NeverStarted,
+            AndroidCoreProcessObservation::Running {
+                owned: owned.clone(),
+            },
+            AndroidCoreProcessObservation::Exited {
+                owned,
+                evidence: AndroidCoreProcessExitEvidence::ProcessStartIdentityChanged,
+            },
+            AndroidCoreProcessObservation::Unavailable {
+                reason: AndroidCoreProcessUnavailableReason::OwnershipRecordCorrupt,
+            },
         ];
 
-        for state in states {
+        for observation in observations {
+            let encoded = serde_json::to_string(&observation).expect("serialize observation");
             assert_eq!(
-                AndroidCoreProcessState::from_wire_code(state.wire_code()),
-                Some(state)
+                serde_json::from_str::<AndroidCoreProcessObservation>(&encoded)
+                    .expect("deserialize observation"),
+                observation,
             );
         }
-        assert_eq!(AndroidCoreProcessState::from_wire_code(-1), None);
-        assert_eq!(AndroidCoreProcessState::from_wire_code(3), None);
     }
 
     #[test]

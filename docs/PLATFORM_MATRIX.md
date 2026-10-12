@@ -16,6 +16,8 @@
 
 2026-10-12 Core owner 源码 checkpoint：Desktop 产品组合与 Android `:vpn` owner 已改为解析同一 typed、revisioned active-profile reference，校验目标 `ProfileDocument` 与 Start capability，再把 owner guard 绑定到 `CoreApplication`。产品根仍只选择 Mihomo；sing-box 仍 fail closed。旧 Desktop Host retry 和 Iced admin/rebuild bootstrap 因不能转交同一 owner session 而 typed `Unsupported`。受影响 Core/Android/desktop-host 包 `cargo nextest` 为 1430 passed、3 skipped、0 failed（run `a28d1e15-a904-4524-918b-a84105ff2b2e`）；此 Rust 源码结果不是 APK、Gradle 或设备验收。跨进程 CAS/owner fence、revision-aware activation rollback、完整 Core owner 切换事务与 Android close 生命周期证据仍未完成，见[Core 后端契约](CORE_BACKENDS.md)。
 
+2026-10-12 Android Core child identity checkpoint：Rust typed process observation 与 Android Kotlin 持久 reservation/owned-child record 已接线；`:core-host-tests:test` 直接编译 app 中的 host 源文件、隔离 UI 源集，21 项 JVM 测试通过。该证据覆盖 fake process、owner context、PID start ticks、typed signal、损坏/歧义 fail-closed；不证明真机 `/proc` 可读、`:vpn` 重启恢复、signal/exit 或 APK 链接行为。Compose 全 flavor Gradle、Android instrumentation 与设备验收仍 OPEN。
+
 ## 专项规则
 
 - Android 产品与真机验收见 [Android 文档](../android/docs/README.md)。

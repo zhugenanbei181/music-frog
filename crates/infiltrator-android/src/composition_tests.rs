@@ -10,9 +10,10 @@ use infiltrator_contract::active_profile_reference::{
     ActiveProfileReferenceCasOutcome, ActiveProfileReferenceTarget,
 };
 use infiltrator_contract::android_control::{
-    AndroidCoreLifecycleSnapshot, AndroidCoreProcessState, AndroidHostProcessRole,
-    AndroidProductCommand, AndroidProductCommandRequest, CoreLaunchSpec, VpnOwnerCoreReadback,
-    VpnOwnerLifecycle, VpnOwnerReadiness, VpnOwnerSnapshot,
+    AndroidChildProcessIdentity, AndroidCoreLifecycleSnapshot, AndroidCoreProcessObservation,
+    AndroidHostProcessRole, AndroidOwnedCoreProcess, AndroidProductCommand,
+    AndroidProductCommandRequest, CoreLaunchSpec, VpnOwnerCoreReadback, VpnOwnerLifecycle,
+    VpnOwnerReadiness, VpnOwnerSnapshot,
 };
 use infiltrator_contract::command::{CommandIntent, CommandResult};
 use infiltrator_contract::command_output::CommandOutput;
@@ -152,7 +153,7 @@ fn relative_entries(root: &Path) -> Vec<PathBuf> {
 
 #[derive(Clone)]
 struct TestBridge {
-    state: Arc<Mutex<AndroidCoreProcessState>>,
+    observation: Arc<Mutex<AndroidCoreProcessObservation>>,
     launch_specs: Arc<Mutex<Vec<CoreLaunchSpec>>>,
     start_contexts: Arc<Mutex<Vec<infiltrator_ports::core_process::CoreProcessStartContext>>>,
     data_dir_calls: Arc<AtomicUsize>,
@@ -161,7 +162,7 @@ struct TestBridge {
 impl TestBridge {
     fn new() -> Self {
         Self {
-            state: Arc::new(Mutex::new(AndroidCoreProcessState::Stopped)),
+            observation: Arc::new(Mutex::new(AndroidCoreProcessObservation::NeverStarted)),
             launch_specs: Arc::new(Mutex::new(Vec::new())),
             start_contexts: Arc::new(Mutex::new(Vec::new())),
             data_dir_calls: Arc::new(AtomicUsize::new(0)),
@@ -188,17 +189,31 @@ impl AndroidBridge for TestBridge {
             .lock()
             .expect("captured Core start contexts")
             .push(context.clone());
-        *self.state.lock().expect("test process state lock") = AndroidCoreProcessState::Running;
+        *self.observation.lock().expect("test observation lock") =
+            AndroidCoreProcessObservation::Running {
+                owned: AndroidOwnedCoreProcess {
+                    context: context.clone(),
+                    child: AndroidChildProcessIdentity {
+                        pid: 321,
+                        start_time_ticks: 987_654,
+                    },
+                },
+            };
         Ok(CoreProcessStartReceipt::Started)
     }
 
     async fn core_stop(&self) -> error::Result<CoreProcessStopReceipt> {
-        *self.state.lock().expect("test process state lock") = AndroidCoreProcessState::Stopped;
+        *self.observation.lock().expect("test observation lock") =
+            AndroidCoreProcessObservation::NeverStarted;
         Ok(CoreProcessStopReceipt::StoppedGracefully)
     }
 
-    async fn core_process_state(&self) -> error::Result<AndroidCoreProcessState> {
-        Ok(*self.state.lock().expect("test process state lock"))
+    async fn core_process_observation(&self) -> error::Result<AndroidCoreProcessObservation> {
+        Ok(self
+            .observation
+            .lock()
+            .expect("test observation lock")
+            .clone())
     }
 
     async fn credential_get(&self, _service: &str, _key: &str) -> error::Result<Option<String>> {
@@ -497,8 +512,8 @@ fn unknown_android_engine_is_unsupported_before_bridge_or_controller_side_effect
     assert_eq!(bridge_probe.data_dir_calls.load(Ordering::SeqCst), 0);
     assert!(bridge_probe.launch_specs.lock().unwrap().is_empty());
     assert_eq!(
-        *bridge_probe.state.lock().unwrap(),
-        AndroidCoreProcessState::Stopped
+        *bridge_probe.observation.lock().unwrap(),
+        AndroidCoreProcessObservation::NeverStarted
     );
     assert_eq!(relative_entries(&home.0), files_before);
 }

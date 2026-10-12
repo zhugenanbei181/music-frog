@@ -15,13 +15,15 @@ class HostOperationReceiptTest {
             CoreProcessStartReceipt.SpawnFailed,
             CoreProcessStartReceipt.NotVpnOwner,
             CoreProcessStartReceipt.OwnerContextMismatch,
+            CoreProcessStartReceipt.PreviousChildExitPending,
+            CoreProcessStartReceipt.OwnershipRecordUnavailable,
         )
         receipts.forEach { receipt ->
             assertEquals(receipt, CoreProcessStartReceipt.fromWireCode(receipt.wireCode))
         }
-        assertEquals(listOf(0, 1, 2, 3, 4, 5, 6), receipts.map { it.wireCode })
+        assertEquals(listOf(0, 1, 2, 3, 4, 5, 6, 7, 8), receipts.map { it.wireCode })
         assertNull(CoreProcessStartReceipt.fromWireCode(-1))
-        assertNull(CoreProcessStartReceipt.fromWireCode(7))
+        assertNull(CoreProcessStartReceipt.fromWireCode(9))
     }
 
     @Test
@@ -33,13 +35,14 @@ class HostOperationReceiptTest {
             CoreProcessStopReceipt.TimedOut,
             CoreProcessStopReceipt.Interrupted,
             CoreProcessStopReceipt.NotVpnOwner,
+            CoreProcessStopReceipt.OwnershipRecordUnavailable,
         )
         receipts.forEach { receipt ->
             assertEquals(receipt, CoreProcessStopReceipt.fromWireCode(receipt.wireCode))
         }
-        assertEquals(listOf(0, 1, 2, 3, 4, 5), receipts.map { it.wireCode })
+        assertEquals(listOf(0, 1, 2, 3, 4, 5, 6), receipts.map { it.wireCode })
         assertNull(CoreProcessStopReceipt.fromWireCode(-1))
-        assertNull(CoreProcessStopReceipt.fromWireCode(6))
+        assertNull(CoreProcessStopReceipt.fromWireCode(7))
     }
 
     @Test

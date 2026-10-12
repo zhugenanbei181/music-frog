@@ -15,4 +15,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "musicfrog-infiltrator-android"
-include(":app", ":bevy-host")
+include(":app", ":bevy-host", ":core-host-tests")

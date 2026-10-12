@@ -11,7 +11,7 @@ interface BridgeHost {
     fun coreValidateConfiguration(requestJson: String): String
     /** CoreProcessStopReceipt wire code; decoded exhaustively by Rust. */
     fun coreStop(): Int
-    fun coreProcessState(): Int
+    fun coreProcessObservationJson(): String
     /** JSON-encoded typed lifecycle snapshot from the `:vpn` owner. */
     fun coreLifecycleSnapshot(): String?
     /** Execute shared typed Rust command JSON through the `:vpn` owner. */

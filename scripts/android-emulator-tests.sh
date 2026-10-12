@@ -152,6 +152,7 @@ export PATH="$SDK_ROOT/platform-tools:$SDK_ROOT/emulator:$ANDROID_NDK_HOME/toolc
     cd "$ANDROID_DIR"
     ./gradlew --no-daemon --stacktrace --console=plain \
         -Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader_indirect \
+        :core-host-tests:test \
         :app:assembleComposeDebug :app:testComposeDebugUnitTest :app:pixel6Api36ComposeDebugAndroidTest \
         :app:assembleBevyDebug :app:testBevyDebugUnitTest :app:pixel6Api36BevyDebugAndroidTest \
         :app:assembleSlintDebug :app:testSlintDebugUnitTest :app:pixel6Api36SlintDebugAndroidTest

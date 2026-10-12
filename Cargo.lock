@@ -6263,7 +6263,6 @@ dependencies = [
  "futures-util",
  "infiltrator-contract",
  "infiltrator-domain",
- "serde",
  "serde_json",
  "url",
 ]
