@@ -12,6 +12,14 @@ import org.junit.Test
 
 class AndroidCoreProcessRecordStoreTest {
     @Test
+    fun recoveryReceiptWireCodesAreExhaustiveAndStable() {
+        assertEquals(
+            listOf(0, 1, 2, 3, 4, 5),
+            AndroidCoreProcessRecoveryReceiptWire.entries.map { it.wireCode },
+        )
+    }
+
+    @Test
     fun reservationAndOwnedChildRecordRoundTripWithFullOwnerFence() = withDirectory { directory ->
         val store = AndroidCoreProcessRecordStore(directory)
         val context = managedContext()
@@ -220,6 +228,64 @@ class AndroidCoreProcessRecordStoreTest {
             controller.start(launchSpec(files), owned.context),
         )
         assertEquals(CoreProcessStopReceipt.AlreadyStopped, controller.stop())
+        assertEquals(StoredAndroidCoreProcessRecord.Owned(owned), store.read())
+    }
+
+    @Test
+    fun recoveredExitRecordIsConsumedOnlyForTheExactExitedManagedContext() = withDirectory { root ->
+        val files = File(root, "files").apply { mkdirs() }
+        val store = AndroidCoreProcessRecordStore(files)
+        val owned = AndroidOwnedCoreProcessWire(
+            managedContext(),
+            AndroidChildProcessIdentityWire(321L, BigInteger("987654")),
+        )
+        assertEquals(AndroidCoreProcessRecordMutationOutcome.Committed, store.writeOwned(owned))
+        val controller = MihomoProcessController(
+            nativeLibraryDirectory = File(root, "native"),
+            filesDirectory = files,
+            recordStore = store,
+            childInspector = FixedChildInspector(
+                AndroidChildProcessInspection.Exited(
+                    AndroidCoreProcessExitEvidenceWire.ProcessStartIdentityChanged,
+                ),
+            ),
+        )
+
+        assertEquals(
+            AndroidCoreProcessRecoveryReceiptWire.ContextMismatch,
+            controller.consumeRecoveredExit(
+                owned.context.copy(sessionToken = BigInteger("43")),
+            ),
+        )
+        assertEquals(StoredAndroidCoreProcessRecord.Owned(owned), store.read())
+        assertEquals(
+            AndroidCoreProcessRecoveryReceiptWire.Consumed,
+            controller.consumeRecoveredExit(owned.context),
+        )
+        assertEquals(StoredAndroidCoreProcessRecord.Missing, store.read())
+        assertEquals(AndroidCoreProcessObservationWire.NeverStarted, controller.observation())
+    }
+
+    @Test
+    fun recoveredExitConsumptionRefusesALiveExactChild() = withDirectory { root ->
+        val files = File(root, "files").apply { mkdirs() }
+        val store = AndroidCoreProcessRecordStore(files)
+        val owned = AndroidOwnedCoreProcessWire(
+            managedContext(),
+            AndroidChildProcessIdentityWire(321L, BigInteger("987654")),
+        )
+        assertEquals(AndroidCoreProcessRecordMutationOutcome.Committed, store.writeOwned(owned))
+        val controller = MihomoProcessController(
+            nativeLibraryDirectory = File(root, "native"),
+            filesDirectory = files,
+            recordStore = store,
+            childInspector = ExactChildInspector,
+        )
+
+        assertEquals(
+            AndroidCoreProcessRecoveryReceiptWire.ChildStillRunning,
+            controller.consumeRecoveredExit(owned.context),
+        )
         assertEquals(StoredAndroidCoreProcessRecord.Owned(owned), store.read())
     }
 

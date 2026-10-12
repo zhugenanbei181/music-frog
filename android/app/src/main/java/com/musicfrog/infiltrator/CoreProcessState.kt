@@ -67,6 +67,15 @@ internal enum class AndroidCoreProcessUnavailableReasonWire {
     OwnershipRecordUnavailable,
 }
 
+internal enum class AndroidCoreProcessRecoveryReceiptWire(val wireCode: Int) {
+    Consumed(0),
+    AlreadyAbsent(1),
+    ContextMismatch(2),
+    ChildStillRunning(3),
+    ObservationUnavailable(4),
+    NotVpnOwner(5),
+}
+
 internal sealed interface AndroidCoreProcessObservationWire {
     data object NeverStarted : AndroidCoreProcessObservationWire
 

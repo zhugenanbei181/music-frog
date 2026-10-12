@@ -1,5 +1,7 @@
 use async_trait::async_trait;
-use infiltrator_contract::android_control::{AndroidCoreProcessObservation, CoreLaunchSpec};
+use infiltrator_contract::android_control::{
+    AndroidCoreProcessObservation, AndroidCoreProcessRecoveryReceipt, CoreLaunchSpec,
+};
 use infiltrator_contract::capability::{
     Availability, Capability, CapabilitySnapshot, CapabilityStatus,
 };
@@ -8,6 +10,7 @@ use infiltrator_contract::mtu::PhysicalMtuSnapshot;
 use infiltrator_contract::offline_startup::OfflineStartupSnapshot;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface::HostKind;
+use infiltrator_ports::android_core_process_recovery::AndroidCoreProcessRecoveryPort;
 use infiltrator_ports::capability_provider::CapabilityProvider;
 use infiltrator_ports::core_process::{
     CoreProcess, CoreProcessStartAdmission, CoreProcessStartContext,
@@ -95,6 +98,29 @@ where
                     "Android native bridge does not expose physical MTU",
                 )
             })
+    }
+}
+
+#[async_trait]
+impl<B> AndroidCoreProcessRecoveryPort for AndroidBridgeAdapter<B>
+where
+    B: AndroidBridge,
+{
+    async fn observe(&self) -> result::Result<AndroidCoreProcessObservation, PortError> {
+        self.bridge
+            .core_process_observation()
+            .await
+            .map_err(map_port_error)
+    }
+
+    async fn consume_exited(
+        &self,
+        context: &CoreProcessStartContext,
+    ) -> result::Result<AndroidCoreProcessRecoveryReceipt, PortError> {
+        self.bridge
+            .core_process_recovery_completed(context)
+            .await
+            .map_err(map_port_error)
     }
 }
 

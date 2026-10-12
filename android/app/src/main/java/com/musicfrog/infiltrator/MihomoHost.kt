@@ -78,6 +78,20 @@ class MihomoHost(private val context: Context) : BridgeHost {
         ).toJson()
     }
 
+    override fun coreProcessExitRecovered(contextJson: String): Int = when (processRole) {
+        AndroidProcessRole.VpnOwner -> when (
+            val decoded = CoreProcessStartContextWire.decode(contextJson)
+        ) {
+            is CoreProcessStartContextDecode.Accepted ->
+                processController.consumeRecoveredExit(decoded.context).wireCode
+            is CoreProcessStartContextDecode.Rejected ->
+                AndroidCoreProcessRecoveryReceiptWire.ContextMismatch.wireCode
+        }
+        AndroidProcessRole.Ui,
+        is AndroidProcessRole.Unsupported ->
+            AndroidCoreProcessRecoveryReceiptWire.NotVpnOwner.wireCode
+    }
+
     override fun coreLifecycleSnapshot(): String? = when (processRole) {
         AndroidProcessRole.Ui -> controlClient.readCoreLifecycleSnapshotJson()
         AndroidProcessRole.VpnOwner,

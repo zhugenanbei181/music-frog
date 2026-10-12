@@ -1,7 +1,8 @@
 use async_trait::async_trait;
 use infiltrator_contract::android_control::{
-    AndroidCoreLifecycleSnapshot, AndroidCoreProcessObservation, AndroidHostProcessRole,
-    CoreLaunchConfigurationIdentity, CoreLaunchSpec, VpnAuthorizationState, VpnOwnerSnapshot,
+    AndroidCoreLifecycleSnapshot, AndroidCoreProcessObservation, AndroidCoreProcessRecoveryReceipt,
+    AndroidHostProcessRole, CoreLaunchConfigurationIdentity, CoreLaunchSpec, VpnAuthorizationState,
+    VpnOwnerSnapshot,
 };
 use infiltrator_contract::offline_startup::OfflineStartupSnapshot;
 use infiltrator_contract::vpn::{
@@ -210,6 +211,17 @@ pub trait AndroidBridge: Send + Sync {
     /// Core process result receipt; operation failures remain typed values.
     async fn core_stop(&self) -> Result<CoreProcessStopReceipt>;
     async fn core_process_observation(&self) -> Result<AndroidCoreProcessObservation>;
+    /// Consume a matching exited-child record only after the shared Rust owner
+    /// proof has been recovered from that exact managed context.
+    async fn core_process_recovery_completed(
+        &self,
+        _context: &CoreProcessStartContext,
+    ) -> Result<AndroidCoreProcessRecoveryReceipt> {
+        Err(MihomoError::Service(
+            "Android Core process recovery acknowledgement is unavailable on this bridge"
+                .to_owned(),
+        ))
+    }
     /// Validate one frozen candidate on the process that owns the packaged
     /// Android Core binary. Implementations without that host capability fail closed.
     async fn core_validate_configuration(
@@ -311,6 +323,13 @@ impl AndroidBridge for Box<dyn AndroidBridge> {
         self.as_ref().core_process_observation().await
     }
 
+    async fn core_process_recovery_completed(
+        &self,
+        context: &CoreProcessStartContext,
+    ) -> Result<AndroidCoreProcessRecoveryReceipt> {
+        self.as_ref().core_process_recovery_completed(context).await
+    }
+
     async fn core_validate_configuration(
         &self,
         request: &AndroidCoreConfigurationValidationRequest,
@@ -410,6 +429,13 @@ impl AndroidBridge for Arc<dyn AndroidBridge> {
 
     async fn core_process_observation(&self) -> Result<AndroidCoreProcessObservation> {
         self.as_ref().core_process_observation().await
+    }
+
+    async fn core_process_recovery_completed(
+        &self,
+        context: &CoreProcessStartContext,
+    ) -> Result<AndroidCoreProcessRecoveryReceipt> {
+        self.as_ref().core_process_recovery_completed(context).await
     }
 
     async fn core_validate_configuration(

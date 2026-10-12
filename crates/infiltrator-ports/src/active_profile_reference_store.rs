@@ -92,6 +92,12 @@ pub enum ActiveProfileOwnerRecoveryEvidence {
     },
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ActiveProfileOwnerRecoveryOutcome {
+    NoRecoveryRequired,
+    Recovered(ActiveProfileReferenceState),
+}
+
 /// Revision-fenced persistence for the unique profile reference that selects
 /// which engine provider may own the product's Core.
 #[async_trait]
@@ -125,7 +131,7 @@ pub trait ActiveProfileReferenceStore: Send + Sync {
     async fn recover_bound_owner_after_terminal(
         &self,
         _evidence: ActiveProfileOwnerRecoveryEvidence,
-    ) -> Result<ActiveProfileReferenceState, PortError> {
+    ) -> Result<ActiveProfileOwnerRecoveryOutcome, PortError> {
         Err(PortError::unsupported(
             infiltrator_contract::capability::Capability::Profiles,
             "active profile owner terminal recovery is unavailable for this store",

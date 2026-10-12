@@ -73,6 +73,7 @@ class MihomoControlService : Service() {
         val ownerApplication = application as? MihomoApplication
         ownerServicePhase = OwnerServicePhase.Initializing
         ownerSessionStartJob = ownerApplication?.let { app ->
+            app.prepareVpnOwnerSession(ownerSessionId)
             app.ownerIpcScope.launch {
                 val status = androidBeginCoreOwnerSession()
                 if (ownerServicePhase != OwnerServicePhase.Initializing) return@launch
@@ -81,8 +82,15 @@ class MihomoControlService : Service() {
                     Log.e(TAG, "Core owner session initialization failed: ${status.message}")
                     return@launch
                 }
-                app.beginVpnOwnerSession(ownerSessionId)
-                ownerServicePhase = OwnerServicePhase.Accepting
+                when (app.activateVpnOwnerSession(ownerSessionId)) {
+                    VpnOwnerSessionActivationOutcome.Activated,
+                    VpnOwnerSessionActivationOutcome.AlreadyActive ->
+                        ownerServicePhase = OwnerServicePhase.Accepting
+                    VpnOwnerSessionActivationOutcome.StaleSession -> {
+                        ownerServicePhase = OwnerServicePhase.Unavailable
+                        Log.e(TAG, "VPN owner snapshot session changed during initialization")
+                    }
+                }
             }
         } ?: run {
             ownerServicePhase = OwnerServicePhase.Unavailable

@@ -19,8 +19,8 @@ use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document_identity::{ProfileId, ProfileWorkspaceIdentity};
 use infiltrator_ports::active_profile_reference_store::{
     ActiveProfileOwnerBindingLease, ActiveProfileOwnerLease, ActiveProfileOwnerRecoveryEvidence,
-    ActiveProfileOwnerStoppedSwitchLease, ActiveProfileOwnerSwitchLease,
-    ActiveProfileOwnerSwitchRecovery, ActiveProfileOwnerSwitchState,
+    ActiveProfileOwnerRecoveryOutcome, ActiveProfileOwnerStoppedSwitchLease,
+    ActiveProfileOwnerSwitchLease, ActiveProfileOwnerSwitchRecovery, ActiveProfileOwnerSwitchState,
     ActiveProfileReferenceChangedLease, ActiveProfileReferenceLease, ActiveProfileReferenceStore,
 };
 use infiltrator_ports::error::PortError;
@@ -2819,7 +2819,7 @@ impl<S: SecureStore> ActiveProfileReferenceStore for ConfigManager<S> {
     async fn recover_bound_owner_after_terminal(
         &self,
         evidence: ActiveProfileOwnerRecoveryEvidence,
-    ) -> Result<ActiveProfileReferenceState, PortError> {
+    ) -> Result<ActiveProfileOwnerRecoveryOutcome, PortError> {
         let (launch_requirement, terminal) = match evidence {
             ActiveProfileOwnerRecoveryEvidence::NeverStarted { terminal } => {
                 (OwnerRecoveryLaunchRequirement::NeverStarted, terminal)
@@ -2833,6 +2833,36 @@ impl<S: SecureStore> ActiveProfileReferenceStore for ConfigManager<S> {
         let _owner_state_guard = acquire_owner_state_lock_async(config_root.clone()).await?;
         let mut record = sync_read_active_profile_record(&config_root)?;
         let mut proof = sync_read_active_core_owner_proof(&config_root)?;
+        let no_owner_proof = matches!(proof.state, ActiveCoreOwnerProof::Unowned);
+        let already_terminal_without_child_record = matches!(
+            (&launch_requirement, &proof.state),
+            (
+                OwnerRecoveryLaunchRequirement::NeverStarted,
+                ActiveCoreOwnerProof::Terminal { .. }
+            )
+        );
+        if matches!(record.owner, ActiveCoreOwnerState::Unowned)
+            && (no_owner_proof || already_terminal_without_child_record)
+        {
+            if local_owner_registrations()
+                .lock()
+                .map_err(|_| {
+                    PortError::Failed("active owner registration lock is poisoned".into())
+                })?
+                .contains_key(&config_root)
+            {
+                return Err(transition_rejected(
+                    "an active local owner registration exists without a bound owner record",
+                ));
+            }
+            let owner_probe = try_acquire_owner_lock(&config_root)?.ok_or_else(|| {
+                transition_rejected(
+                    "an active Core owner holds the fence while its persisted record is unowned",
+                )
+            })?;
+            drop(owner_probe);
+            return Ok(ActiveProfileOwnerRecoveryOutcome::NoRecoveryRequired);
+        }
         let (identity, bound_generation, token, record_position, proof_position) =
             match (record.owner.clone(), proof.state.clone()) {
                 (
@@ -3001,7 +3031,9 @@ impl<S: SecureStore> ActiveProfileReferenceStore for ConfigManager<S> {
             record.owner = ActiveCoreOwnerState::Unowned;
             sync_publish_active_profile_record(&config_root, &record)?;
         }
-        Ok(record.selection)
+        Ok(ActiveProfileOwnerRecoveryOutcome::Recovered(
+            record.selection,
+        ))
     }
 
     async fn compare_and_set(
@@ -5559,10 +5591,28 @@ mod tests {
                 )
                 .await
                 .unwrap(),
-            selected
+            ActiveProfileOwnerRecoveryOutcome::Recovered(selected.clone())
         );
         let provider_lease = manager.acquire_provider_selection_lease().await.unwrap();
         assert_eq!(provider_lease.state(), &selected);
+    }
+
+    #[tokio::test]
+    async fn never_started_terminal_evidence_is_a_noop_without_a_persisted_owner() {
+        let directory = TempDir::new().unwrap();
+        let manager = manager(&directory);
+
+        let outcome = manager
+            .recover_bound_owner_after_terminal(ActiveProfileOwnerRecoveryEvidence::NeverStarted {
+                terminal: stopped_snapshot(identity("mihomo", "android-active"), 0),
+            })
+            .await
+            .unwrap();
+
+        assert_eq!(
+            outcome,
+            ActiveProfileOwnerRecoveryOutcome::NoRecoveryRequired
+        );
     }
 
     #[tokio::test]
@@ -5995,7 +6045,7 @@ mod tests {
                 .is_err()
         );
         let owner_terminal = stopped_snapshot(identity("engine-live", "live-owner"), 2);
-        assert_eq!(
+        assert!(matches!(
             manager
                 .recover_bound_owner_after_terminal(
                     ActiveProfileOwnerRecoveryEvidence::ManagedChildExited {
@@ -6004,11 +6054,9 @@ mod tests {
                     },
                 )
                 .await
-                .unwrap()
-                .revision()
-                .value(),
-            1
-        );
+                .unwrap(),
+            ActiveProfileOwnerRecoveryOutcome::Recovered(_)
+        ));
 
         let after_exit = manager
             .compare_and_set(

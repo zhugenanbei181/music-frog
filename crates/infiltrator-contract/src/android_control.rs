@@ -824,17 +824,56 @@ pub enum AndroidCoreProcessObservation {
     },
 }
 
+/// Receipt from the `:vpn` host after Rust owner recovery has committed. The
+/// child record may be consumed only when it is absent or still matches the
+/// exact managed context and the host confirms it has exited.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AndroidCoreProcessRecoveryReceipt {
+    Consumed,
+    AlreadyAbsent,
+    ContextMismatch,
+    ChildStillRunning,
+    ObservationUnavailable,
+    NotVpnOwner,
+}
+
+impl AndroidCoreProcessRecoveryReceipt {
+    pub const fn wire_code(self) -> i32 {
+        match self {
+            Self::Consumed => 0,
+            Self::AlreadyAbsent => 1,
+            Self::ContextMismatch => 2,
+            Self::ChildStillRunning => 3,
+            Self::ObservationUnavailable => 4,
+            Self::NotVpnOwner => 5,
+        }
+    }
+
+    pub const fn from_wire_code(code: i32) -> Option<Self> {
+        match code {
+            0 => Some(Self::Consumed),
+            1 => Some(Self::AlreadyAbsent),
+            2 => Some(Self::ContextMismatch),
+            3 => Some(Self::ChildStillRunning),
+            4 => Some(Self::ObservationUnavailable),
+            5 => Some(Self::NotVpnOwner),
+            _ => None,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
         AndroidChildProcessIdentity, AndroidControlIntent, AndroidCoreLifecycleSnapshot,
         AndroidCoreProcessExitEvidence, AndroidCoreProcessObservation,
-        AndroidCoreProcessUnavailableReason, AndroidHostProcessRole, AndroidOwnedCoreProcess,
-        AndroidProductCommand, AndroidProductCommandOutcome, AndroidProductCommandRequest,
-        AndroidProductControlIntent, CoreLaunchConfigurationIdentity, CoreLaunchSpec,
-        VpnOwnerCoreReadback, VpnOwnerLifecycle, VpnOwnerReadiness, VpnOwnerResourceFact,
-        VpnOwnerResourceKind, VpnOwnerResourceState, VpnOwnerSnapshot,
-        validate_android_control_owner_observation, validate_android_control_terminal_readback,
+        AndroidCoreProcessRecoveryReceipt, AndroidCoreProcessUnavailableReason,
+        AndroidHostProcessRole, AndroidOwnedCoreProcess, AndroidProductCommand,
+        AndroidProductCommandOutcome, AndroidProductCommandRequest, AndroidProductControlIntent,
+        CoreLaunchConfigurationIdentity, CoreLaunchSpec, VpnOwnerCoreReadback, VpnOwnerLifecycle,
+        VpnOwnerReadiness, VpnOwnerResourceFact, VpnOwnerResourceKind, VpnOwnerResourceState,
+        VpnOwnerSnapshot, validate_android_control_owner_observation,
+        validate_android_control_terminal_readback,
     };
     use crate::command::{CommandIntent, CommandResult, RequestId};
     use crate::core_identity::{
@@ -1035,6 +1074,26 @@ mod tests {
                 observation,
             );
         }
+    }
+
+    #[test]
+    fn android_core_process_recovery_receipts_have_exhaustive_wire_codes() {
+        let receipts = [
+            AndroidCoreProcessRecoveryReceipt::Consumed,
+            AndroidCoreProcessRecoveryReceipt::AlreadyAbsent,
+            AndroidCoreProcessRecoveryReceipt::ContextMismatch,
+            AndroidCoreProcessRecoveryReceipt::ChildStillRunning,
+            AndroidCoreProcessRecoveryReceipt::ObservationUnavailable,
+            AndroidCoreProcessRecoveryReceipt::NotVpnOwner,
+        ];
+        for receipt in receipts {
+            assert_eq!(
+                AndroidCoreProcessRecoveryReceipt::from_wire_code(receipt.wire_code()),
+                Some(receipt),
+            );
+        }
+        assert_eq!(AndroidCoreProcessRecoveryReceipt::from_wire_code(-1), None);
+        assert_eq!(AndroidCoreProcessRecoveryReceipt::from_wire_code(6), None);
     }
 
     #[test]

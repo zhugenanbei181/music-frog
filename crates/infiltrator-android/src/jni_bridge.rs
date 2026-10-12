@@ -12,8 +12,8 @@ use crate::native_host::push_raw_insets;
 use crate::service_init::init_android_process;
 use crate::{FfiErrorCode, FfiStatus};
 use infiltrator_contract::android_control::{
-    AndroidCoreLifecycleSnapshot, AndroidCoreProcessObservation, AndroidHostProcessRole,
-    CoreLaunchSpec, VpnAuthorizationState, VpnOwnerSnapshot,
+    AndroidCoreLifecycleSnapshot, AndroidCoreProcessObservation, AndroidCoreProcessRecoveryReceipt,
+    AndroidHostProcessRole, CoreLaunchSpec, VpnAuthorizationState, VpnOwnerSnapshot,
 };
 use infiltrator_contract::vpn::{
     PreparedVpnConfiguration, VpnConfiguration, VpnConfigurationApplyOutcome, VpnOwnerStopReceipt,
@@ -268,6 +268,23 @@ impl AndroidBridge for JniBridge {
         serde_json::from_str(&json).map_err(|error| {
             MihomoError::Service(format!(
                 "android bridge returned an invalid Core process observation: {error}"
+            ))
+        })
+    }
+
+    async fn core_process_recovery_completed(
+        &self,
+        context: &CoreProcessStartContext,
+    ) -> Result<AndroidCoreProcessRecoveryReceipt> {
+        let context_json = serde_json::to_string(context).map_err(|error| {
+            MihomoError::Service(format!(
+                "Android Core recovery context could not be serialized: {error}"
+            ))
+        })?;
+        let code = self.call_int_with_string("coreProcessExitRecovered", &context_json)?;
+        AndroidCoreProcessRecoveryReceipt::from_wire_code(code).ok_or_else(|| {
+            MihomoError::Service(format!(
+                "android bridge returned unknown Core recovery receipt code {code}"
             ))
         })
     }

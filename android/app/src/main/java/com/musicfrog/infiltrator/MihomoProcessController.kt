@@ -329,6 +329,49 @@ internal class MihomoProcessController(
         is ProcessState.Unavailable -> AndroidCoreProcessObservationWire.Unavailable(state.reason)
     }
 
+    @Synchronized
+    fun consumeRecoveredExit(
+        context: CoreProcessStartContextWire,
+    ): AndroidCoreProcessRecoveryReceiptWire = when (val state = reconcileProcessState()) {
+        ProcessState.NeverStarted -> AndroidCoreProcessRecoveryReceiptWire.AlreadyAbsent
+        is ProcessState.RunningWithHandle -> when (state.owned.context == context) {
+            true -> AndroidCoreProcessRecoveryReceiptWire.ChildStillRunning
+            false -> AndroidCoreProcessRecoveryReceiptWire.ContextMismatch
+        }
+        is ProcessState.RunningByIdentity -> when (state.owned.context == context) {
+            true -> AndroidCoreProcessRecoveryReceiptWire.ChildStillRunning
+            false -> AndroidCoreProcessRecoveryReceiptWire.ContextMismatch
+        }
+        is ProcessState.Exited -> when (state.owned.context == context) {
+            false -> AndroidCoreProcessRecoveryReceiptWire.ContextMismatch
+            true -> when (val stored = recordStore.read()) {
+                StoredAndroidCoreProcessRecord.Missing -> {
+                    processState = ProcessState.NeverStarted
+                    AndroidCoreProcessRecoveryReceiptWire.AlreadyAbsent
+                }
+                is StoredAndroidCoreProcessRecord.LaunchReserved,
+                StoredAndroidCoreProcessRecord.Corrupt ->
+                    AndroidCoreProcessRecoveryReceiptWire.ObservationUnavailable
+                is StoredAndroidCoreProcessRecord.Owned -> when (stored.process) {
+                    state.owned -> when (recordStore.clear()) {
+                        AndroidCoreProcessRecordMutationOutcome.Committed -> {
+                            processState = ProcessState.NeverStarted
+                            AndroidCoreProcessRecoveryReceiptWire.Consumed
+                        }
+                        AndroidCoreProcessRecordMutationOutcome.Unavailable -> {
+                            processState = ProcessState.Unavailable(
+                                AndroidCoreProcessUnavailableReasonWire.OwnershipRecordUnavailable,
+                            )
+                            AndroidCoreProcessRecoveryReceiptWire.ObservationUnavailable
+                        }
+                    }
+                    else -> AndroidCoreProcessRecoveryReceiptWire.ContextMismatch
+                }
+            }
+        }
+        is ProcessState.Unavailable -> AndroidCoreProcessRecoveryReceiptWire.ObservationUnavailable
+    }
+
     private fun reconcileProcessState(): ProcessState = when (val current = processState) {
         ProcessState.NeverStarted,
         is ProcessState.Exited,

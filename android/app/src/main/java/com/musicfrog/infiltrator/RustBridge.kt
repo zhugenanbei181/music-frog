@@ -12,6 +12,8 @@ interface BridgeHost {
     /** CoreProcessStopReceipt wire code; decoded exhaustively by Rust. */
     fun coreStop(): Int
     fun coreProcessObservationJson(): String
+    /** Consume the exact exited child record after Rust owner proof recovery. */
+    fun coreProcessExitRecovered(contextJson: String): Int
     /** JSON-encoded typed lifecycle snapshot from the `:vpn` owner. */
     fun coreLifecycleSnapshot(): String?
     /** Execute shared typed Rust command JSON through the `:vpn` owner. */

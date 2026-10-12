@@ -2,7 +2,9 @@
 //! already-running core, the restart-with-readiness path, and the
 //! apply-current-profile transaction with rollback.
 
+use crate::runtime::AndroidBridgeAdapter;
 use infiltrator_application::android_control_application::AndroidControlApplication;
+use infiltrator_application::android_core_owner_recovery_application::AndroidCoreOwnerRecoveryApplication;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::core_capability_application::CoreCapabilityApplication;
 use infiltrator_application::core_owner_shutdown_application::CoreOwnerShutdownApplication;
@@ -62,15 +64,82 @@ pub(crate) struct SharedCore {
 
 enum SharedCoreOwnerState {
     Uninitialized,
+    Recovering,
+    Ready,
     Active(Arc<SharedCore>),
     Closing(Arc<SharedCore>),
     ClosingWithoutCore,
     Closed,
 }
 
+enum SharedCoreOwnerAdmission<'a> {
+    Existing(&'a Arc<SharedCore>),
+    Build,
+    RecoveryRequired,
+    Closing,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum SharedCoreOwnerSessionBegin {
-    Ready,
+    NewSession,
+    AlreadyReady,
+    RecoveryInProgress,
     RetryClose,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum SharedCoreOwnerSessionCompletion {
+    Ready,
+    AlreadyReady,
+    RecoveryNotStarted,
+    Closing,
+}
+
+fn begin_owner_session_transition(state: &mut SharedCoreOwnerState) -> SharedCoreOwnerSessionBegin {
+    match state {
+        SharedCoreOwnerState::Uninitialized | SharedCoreOwnerState::Closed => {
+            *state = SharedCoreOwnerState::Recovering;
+            SharedCoreOwnerSessionBegin::NewSession
+        }
+        SharedCoreOwnerState::Recovering => SharedCoreOwnerSessionBegin::RecoveryInProgress,
+        SharedCoreOwnerState::Ready | SharedCoreOwnerState::Active(_) => {
+            SharedCoreOwnerSessionBegin::AlreadyReady
+        }
+        SharedCoreOwnerState::Closing(_) | SharedCoreOwnerState::ClosingWithoutCore => {
+            SharedCoreOwnerSessionBegin::RetryClose
+        }
+    }
+}
+
+fn complete_owner_session_transition(
+    state: &mut SharedCoreOwnerState,
+) -> SharedCoreOwnerSessionCompletion {
+    match state {
+        SharedCoreOwnerState::Recovering => {
+            *state = SharedCoreOwnerState::Ready;
+            SharedCoreOwnerSessionCompletion::Ready
+        }
+        SharedCoreOwnerState::Ready | SharedCoreOwnerState::Active(_) => {
+            SharedCoreOwnerSessionCompletion::AlreadyReady
+        }
+        SharedCoreOwnerState::Uninitialized => SharedCoreOwnerSessionCompletion::RecoveryNotStarted,
+        SharedCoreOwnerState::Closing(_)
+        | SharedCoreOwnerState::ClosingWithoutCore
+        | SharedCoreOwnerState::Closed => SharedCoreOwnerSessionCompletion::Closing,
+    }
+}
+
+fn shared_core_owner_admission(state: &SharedCoreOwnerState) -> SharedCoreOwnerAdmission<'_> {
+    match state {
+        SharedCoreOwnerState::Active(core) => SharedCoreOwnerAdmission::Existing(core),
+        SharedCoreOwnerState::Ready => SharedCoreOwnerAdmission::Build,
+        SharedCoreOwnerState::Uninitialized | SharedCoreOwnerState::Recovering => {
+            SharedCoreOwnerAdmission::RecoveryRequired
+        }
+        SharedCoreOwnerState::Closing(_)
+        | SharedCoreOwnerState::ClosingWithoutCore
+        | SharedCoreOwnerState::Closed => SharedCoreOwnerAdmission::Closing,
+    }
 }
 
 fn shared_core_owner_slot() -> &'static Mutex<SharedCoreOwnerState> {
@@ -93,17 +162,21 @@ pub(crate) async fn shared_core() -> Result<Arc<SharedCore>, FfiStatus> {
     }
 
     let mut state = shared_core_owner_slot().lock().await;
-    match &*state {
-        SharedCoreOwnerState::Active(core) => return Ok(Arc::clone(core)),
-        SharedCoreOwnerState::Closing(_)
-        | SharedCoreOwnerState::ClosingWithoutCore
-        | SharedCoreOwnerState::Closed => {
+    match shared_core_owner_admission(&state) {
+        SharedCoreOwnerAdmission::Existing(core) => return Ok(Arc::clone(core)),
+        SharedCoreOwnerAdmission::RecoveryRequired => {
+            return Err(FfiStatus::err(
+                FfiErrorCode::NotReady,
+                "Android Core owner startup recovery has not completed",
+            ));
+        }
+        SharedCoreOwnerAdmission::Build => {}
+        SharedCoreOwnerAdmission::Closing => {
             return Err(FfiStatus::err(
                 FfiErrorCode::NotReady,
                 "Android Core owner session is closing or closed",
             ));
         }
-        SharedCoreOwnerState::Uninitialized => {}
     }
     let core = build_shared_core(bridge).await?;
     *state = SharedCoreOwnerState::Active(Arc::clone(&core));
@@ -113,24 +186,66 @@ pub(crate) async fn shared_core() -> Result<Arc<SharedCore>, FfiStatus> {
 pub(crate) async fn begin_shared_core_owner_session()
 -> Result<SharedCoreOwnerSessionBegin, FfiStatus> {
     let mut state = shared_core_owner_slot().lock().await;
-    match &*state {
-        SharedCoreOwnerState::Uninitialized | SharedCoreOwnerState::Active(_) => {
-            Ok(SharedCoreOwnerSessionBegin::Ready)
-        }
-        SharedCoreOwnerState::Closed => {
-            *state = SharedCoreOwnerState::Uninitialized;
-            Ok(SharedCoreOwnerSessionBegin::Ready)
-        }
-        SharedCoreOwnerState::Closing(_) | SharedCoreOwnerState::ClosingWithoutCore => {
-            Ok(SharedCoreOwnerSessionBegin::RetryClose)
-        }
+    Ok(begin_owner_session_transition(&mut state))
+}
+
+pub(crate) async fn complete_shared_core_owner_session() -> Result<(), FfiStatus> {
+    let mut state = shared_core_owner_slot().lock().await;
+    match complete_owner_session_transition(&mut state) {
+        SharedCoreOwnerSessionCompletion::Ready
+        | SharedCoreOwnerSessionCompletion::AlreadyReady => Ok(()),
+        SharedCoreOwnerSessionCompletion::RecoveryNotStarted => Err(FfiStatus::err(
+            FfiErrorCode::NotReady,
+            "Android Core owner session cannot become ready before startup recovery",
+        )),
+        SharedCoreOwnerSessionCompletion::Closing => Err(FfiStatus::err(
+            FfiErrorCode::NotReady,
+            "Android Core owner session is closing",
+        )),
     }
+}
+
+pub(crate) async fn recover_android_owner_before_binding(
+    bridge: Arc<dyn AndroidBridge>,
+    vpn: VpnServiceApplication,
+) -> Result<(), FfiStatus> {
+    let config = Arc::new(build_config_manager().await?);
+    let identity = infiltrator_contract::core_identity::CoreIdentity::new(
+        config.engine_id(),
+        infiltrator_contract::core_identity::CoreInstanceId::new("android-active")
+            .map_err(|error| FfiStatus::err(FfiErrorCode::Unknown, error.to_string()))?,
+        None,
+    );
+    let process = Arc::new(AndroidBridgeAdapter::new(bridge));
+    let owner_store: Arc<dyn ActiveProfileReferenceStore> = config.clone();
+    AndroidCoreOwnerRecoveryApplication::new(process, owner_store, vpn, identity)
+        .recover()
+        .await
+        .map_err(|failure| {
+            FfiStatus::err(
+                FfiErrorCode::NotReady,
+                format!("Android Core owner recovery failed: {}", failure.message),
+            )
+        })?;
+    config
+        .migrate_legacy_mihomo_selection()
+        .await
+        .map_err(|error| {
+            FfiStatus::err(
+                FfiErrorCode::NotReady,
+                format!("Android active profile reference is unavailable after recovery: {error}"),
+            )
+        })?;
+    Ok(())
 }
 
 pub(crate) async fn close_shared_core_owner(vpn: VpnServiceApplication) -> Result<(), FfiStatus> {
     let mut state = shared_core_owner_slot().lock().await;
     let core = match &*state {
-        SharedCoreOwnerState::Uninitialized | SharedCoreOwnerState::ClosingWithoutCore => None,
+        SharedCoreOwnerState::Uninitialized
+        | SharedCoreOwnerState::Recovering
+        | SharedCoreOwnerState::Ready
+        | SharedCoreOwnerState::ClosingWithoutCore => None,
         SharedCoreOwnerState::Active(core) | SharedCoreOwnerState::Closing(core) => {
             Some(Arc::clone(core))
         }
@@ -587,4 +702,69 @@ pub(crate) async fn active_profile_reference_state()
                 format!("active profile reference is unavailable: {error}"),
             )
         })
+}
+
+#[cfg(test)]
+mod shared_core_owner_session_state_tests {
+    use super::{
+        SharedCoreOwnerAdmission, SharedCoreOwnerSessionBegin, SharedCoreOwnerSessionCompletion,
+        SharedCoreOwnerState, begin_owner_session_transition, complete_owner_session_transition,
+        shared_core_owner_admission,
+    };
+
+    #[test]
+    fn shared_core_is_unavailable_until_startup_recovery_completes() {
+        let mut state = SharedCoreOwnerState::Uninitialized;
+        assert!(matches!(
+            shared_core_owner_admission(&state),
+            SharedCoreOwnerAdmission::RecoveryRequired
+        ));
+        assert_eq!(
+            begin_owner_session_transition(&mut state),
+            SharedCoreOwnerSessionBegin::NewSession
+        );
+        assert!(matches!(
+            shared_core_owner_admission(&state),
+            SharedCoreOwnerAdmission::RecoveryRequired
+        ));
+        assert_eq!(
+            begin_owner_session_transition(&mut state),
+            SharedCoreOwnerSessionBegin::RecoveryInProgress
+        );
+        assert_eq!(
+            complete_owner_session_transition(&mut state),
+            SharedCoreOwnerSessionCompletion::Ready
+        );
+        assert!(matches!(
+            shared_core_owner_admission(&state),
+            SharedCoreOwnerAdmission::Build
+        ));
+        assert_eq!(
+            begin_owner_session_transition(&mut state),
+            SharedCoreOwnerSessionBegin::AlreadyReady
+        );
+    }
+
+    #[test]
+    fn closing_or_unstarted_owner_cannot_be_marked_ready() {
+        let mut uninitialized = SharedCoreOwnerState::Uninitialized;
+        assert_eq!(
+            complete_owner_session_transition(&mut uninitialized),
+            SharedCoreOwnerSessionCompletion::RecoveryNotStarted
+        );
+
+        let mut closing = SharedCoreOwnerState::ClosingWithoutCore;
+        assert_eq!(
+            begin_owner_session_transition(&mut closing),
+            SharedCoreOwnerSessionBegin::RetryClose
+        );
+        assert_eq!(
+            complete_owner_session_transition(&mut closing),
+            SharedCoreOwnerSessionCompletion::Closing
+        );
+        assert!(matches!(
+            shared_core_owner_admission(&closing),
+            SharedCoreOwnerAdmission::Closing
+        ));
+    }
 }

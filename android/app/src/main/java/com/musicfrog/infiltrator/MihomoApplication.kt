@@ -16,17 +16,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 
 class MihomoApplication : Application() {
-    private sealed interface VpnSnapshotOwnerSession {
-        data object Unavailable : VpnSnapshotOwnerSession
-
-        data class Active(
-            val id: String,
-            val publisher: VpnOwnerSnapshotPublisher,
-        ) : VpnSnapshotOwnerSession
-    }
-
-    @Volatile
-    private var vpnSnapshotOwnerSession: VpnSnapshotOwnerSession = VpnSnapshotOwnerSession.Unavailable
+    private val vpnSnapshotOwnerSession = VpnOwnerSessionGate<VpnOwnerSnapshotPublisher>()
 
     @Volatile
     private var latestCoreReadback: VpnOwnerCoreReadbackWire =
@@ -50,37 +40,40 @@ class MihomoApplication : Application() {
     internal var processHost: MihomoHost? = null
         private set
 
-    internal fun beginVpnOwnerSession(sessionId: String) {
-        synchronized(this) {
-            vpnSnapshotOwnerSession = VpnSnapshotOwnerSession.Active(
-                sessionId,
-                VpnOwnerSnapshotPublisher(),
-            )
-            latestCoreReadback =
-                VpnOwnerCoreReadbackWire.Unavailable("Core lifecycle readback is being refreshed")
+    internal fun prepareVpnOwnerSession(sessionId: String) {
+        latestCoreReadback =
+            VpnOwnerCoreReadbackWire.Unavailable("Core lifecycle readback is being refreshed")
+        vpnSnapshotOwnerSession.prepare(sessionId, VpnOwnerSnapshotPublisher())
+    }
+
+    internal fun activateVpnOwnerSession(
+        sessionId: String,
+    ): VpnOwnerSessionActivationOutcome {
+        val outcome = vpnSnapshotOwnerSession.activate(sessionId)
+        when (outcome) {
+            VpnOwnerSessionActivationOutcome.Activated -> ownerIpcScope.launch {
+                refreshCoreReadback()
+            }
+            VpnOwnerSessionActivationOutcome.AlreadyActive,
+            VpnOwnerSessionActivationOutcome.StaleSession -> Unit
         }
-        ownerIpcScope.launch { refreshCoreReadback() }
+        return outcome
     }
 
     internal fun endVpnOwnerSession(sessionId: String) {
-        synchronized(this) {
-            val current = vpnSnapshotOwnerSession
-            if (current is VpnSnapshotOwnerSession.Active && current.id == sessionId) {
-                vpnSnapshotOwnerSession = VpnSnapshotOwnerSession.Unavailable
-            }
-        }
+        vpnSnapshotOwnerSession.end(sessionId)
     }
 
     internal fun vpnOwnerSnapshotJson(): String? {
-        val active = vpnSnapshotOwnerSession as? VpnSnapshotOwnerSession.Active ?: return null
+        val session = vpnSnapshotOwnerSession.snapshotSession() ?: return null
         val lifecycle = MihomoVpnService.lifecycleSnapshot()
         val resources = MihomoVpnService.ownerResourceFacts()
         val configuration = MihomoVpnService.ownerConfiguration()
         val permissionRequired = VpnService.prepare(this) != null && lifecycle.state == VpnProcessState.Stopped
         val state = lifecycle.state.toOwnerLifecycle(permissionRequired)
-        return active.publisher.publish(
+        return session.value.publish(
             VpnOwnerSnapshotFacts(
-                ownerSessionId = active.id,
+                ownerSessionId = session.id,
                 vpnGeneration = lifecycle.generation,
                 vpnState = state,
                 readiness = state.toOwnerReadiness(resources),
@@ -103,10 +96,11 @@ class MihomoApplication : Application() {
     private suspend fun refreshCoreReadback() {
         coreReadbackMutex.lock()
         try {
-            val active = vpnSnapshotOwnerSession as? VpnSnapshotOwnerSession.Active ?: return
+            val active = vpnSnapshotOwnerSession.activeSession() ?: return
             val core = androidCoreLifecycleStatus().toOwnerCoreReadback()
-            val current = vpnSnapshotOwnerSession as? VpnSnapshotOwnerSession.Active
-            if (current?.id == active.id) latestCoreReadback = core
+            if (vpnSnapshotOwnerSession.activeSession()?.id == active.id) {
+                latestCoreReadback = core
+            }
         } finally {
             coreReadbackMutex.unlock()
         }
