@@ -214,6 +214,7 @@ fn verified_selection() -> CoreBinarySelection {
     let version = CoreVersion::new("v1.14.3").expect("locked sing-box version is valid");
     CoreBinarySelection {
         engine_id: engine_id.clone(),
+        binary_target: EngineBinaryTarget::current(),
         version: version.clone(),
         binary_path: PathBuf::from("/managed/sing-box/1.14.3/sing-box"),
         related_asset_candidates: Vec::new(),
@@ -235,6 +236,16 @@ fn selection_requires_managed_source_and_matching_verification() {
     wrong_version.version = CoreVersion::new("v1.14.4").expect("valid test version");
     assert!(matches!(
         validate_selection(&wrong_version, &engine_id),
+        Err(PortError::Unsupported {
+            capability: Capability::CoreLifecycle,
+            ..
+        })
+    ));
+
+    let mut unregistered_target = selection.clone();
+    unregistered_target.binary_target = EngineBinaryTarget::Unregistered;
+    assert!(matches!(
+        validate_selection(&unregistered_target, &engine_id),
         Err(PortError::Unsupported {
             capability: Capability::CoreLifecycle,
             ..

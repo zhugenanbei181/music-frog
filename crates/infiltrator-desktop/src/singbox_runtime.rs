@@ -10,6 +10,7 @@ use infiltrator_composition::engine_backend_factory::{
     EngineBackendFactoryRegistry, SingBoxEngineBackendProvider,
 };
 use infiltrator_contract::capability::Capability;
+use infiltrator_contract::core_capabilities::EngineBinaryTarget;
 use infiltrator_contract::core_identity::{CoreInstanceId, EngineId};
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::version::CoreArtifactVerification;
@@ -221,12 +222,7 @@ pub(crate) fn validate_selection(
     selection: &CoreBinarySelection,
     engine_id: &EngineId,
 ) -> Result<(), PortError> {
-    if selection.engine_id != *engine_id {
-        return Err(PortError::unsupported(
-            Capability::CoreLifecycle,
-            "sing-box desktop runtime received a selection for another engine",
-        ));
-    }
+    selection.validate_for(engine_id, EngineBinaryTarget::current())?;
     if !matches!(selection.source, CoreBinarySelectionSource::ManagedVersion) {
         return Err(PortError::unsupported(
             Capability::CoreLifecycle,

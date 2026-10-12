@@ -2,6 +2,8 @@
 
 use crate::error::PortError;
 use async_trait::async_trait;
+use infiltrator_contract::capability::Capability;
+use infiltrator_contract::core_capabilities::EngineBinaryTarget;
 use infiltrator_contract::core_identity::{CoreVersion, EngineId};
 use infiltrator_contract::version::CoreArtifactVerification;
 use std::path::PathBuf;
@@ -38,6 +40,9 @@ pub enum CoreBinarySelectionSource {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CoreBinarySelection {
     pub engine_id: EngineId,
+    /// Exact Cargo target of the selected executable. This is independent of
+    /// engine/version verification and must match the current host build.
+    pub binary_target: EngineBinaryTarget,
     pub version: CoreVersion,
     pub binary_path: PathBuf,
     /// Additional package directories that may contain matching sidecar
@@ -48,6 +53,36 @@ pub struct CoreBinarySelection {
     /// Bundled assets stay `Unknown` until an official evidence lock verifies
     /// them for the active target.
     pub verification: CoreArtifactVerification,
+}
+
+impl CoreBinarySelection {
+    /// Reject cross-engine, cross-target, and unregistered selections before
+    /// a product owner constructs a process or capability-scoped adapter.
+    pub fn validate_for(
+        &self,
+        engine_id: &EngineId,
+        expected_target: EngineBinaryTarget,
+    ) -> Result<(), PortError> {
+        if self.engine_id != *engine_id {
+            return Err(PortError::Failed(format!(
+                "Core binary selection for {} was supplied to {}",
+                self.engine_id.as_str(),
+                engine_id.as_str()
+            )));
+        }
+        if expected_target == EngineBinaryTarget::Unregistered
+            || self.binary_target != expected_target
+        {
+            return Err(PortError::unsupported(
+                Capability::CoreLifecycle,
+                format!(
+                    "Core binary target {:?} does not match registered host target {:?}",
+                    self.binary_target, expected_target
+                ),
+            ));
+        }
+        Ok(())
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -64,4 +99,47 @@ pub trait CoreBinarySelectionPort: Send + Sync {
         &self,
         request: CoreBinarySelectionRequest,
     ) -> Result<CoreBinarySelection, PortError>;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn selection(binary_target: EngineBinaryTarget) -> CoreBinarySelection {
+        CoreBinarySelection {
+            engine_id: EngineId::new("sing-box").expect("engine ID"),
+            binary_target,
+            version: CoreVersion::new("1.14.3").expect("version"),
+            binary_path: PathBuf::from("/managed/sing-box"),
+            related_asset_candidates: Vec::new(),
+            source: CoreBinarySelectionSource::ManagedVersion,
+            verification: CoreArtifactVerification::Unknown,
+        }
+    }
+
+    #[test]
+    fn binary_selection_requires_exact_engine_and_registered_target() {
+        let engine_id = EngineId::new("sing-box").expect("engine ID");
+        let host_target = EngineBinaryTarget::current();
+        assert_ne!(host_target, EngineBinaryTarget::Unregistered);
+        selection(host_target)
+            .validate_for(&engine_id, host_target)
+            .expect("matching engine and target are accepted");
+
+        assert!(
+            selection(EngineBinaryTarget::Unregistered)
+                .validate_for(&engine_id, host_target)
+                .is_err()
+        );
+        assert!(
+            selection(host_target)
+                .validate_for(&EngineId::new("mihomo").expect("engine ID"), host_target,)
+                .is_err()
+        );
+        assert!(
+            selection(EngineBinaryTarget::Unregistered)
+                .validate_for(&engine_id, EngineBinaryTarget::Unregistered)
+                .is_err()
+        );
+    }
 }

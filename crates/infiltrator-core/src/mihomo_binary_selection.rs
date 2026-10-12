@@ -1,6 +1,7 @@
 //! Engine-specific executable selection backed by `VersionManager`.
 
 use infiltrator_contract::capability::Capability;
+use infiltrator_contract::core_capabilities::EngineBinaryTarget;
 use infiltrator_contract::core_identity::{CoreVersion, EngineId};
 use infiltrator_contract::version::CoreArtifactVerification;
 use infiltrator_ports::core_binary_selection::{
@@ -74,6 +75,7 @@ impl MihomoBinarySelectionAdapter {
         }
         Ok(CoreBinarySelection {
             engine_id: self.engine_id.clone(),
+            binary_target: EngineBinaryTarget::current(),
             verification: matching_verification(&self.verification, &self.engine_id, &version),
             version,
             binary_path: path,
@@ -99,6 +101,7 @@ impl MihomoBinarySelectionAdapter {
             .map_err(|error| PortError::Io(error.to_string()))?;
         Ok(Some(CoreBinarySelection {
             engine_id: self.engine_id.clone(),
+            binary_target: EngineBinaryTarget::current(),
             version,
             binary_path: path,
             related_asset_candidates: candidates.to_vec(),

@@ -13,6 +13,7 @@ use crate::engine_id;
 use async_trait::async_trait;
 use flate2::Compression;
 use flate2::write::GzEncoder;
+use infiltrator_contract::core_capabilities::EngineBinaryTarget;
 use infiltrator_contract::core_identity::CoreVersion;
 use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::version::{CoreArtifactVerification, VersionDownloadProgress};
@@ -255,6 +256,11 @@ async fn locked_target_install_activation_selection_and_rollback_are_engine_scop
     .await
     .unwrap();
     assert_eq!(selected.version.raw(), "v1.14.2");
+    assert_eq!(
+        selected.binary_target,
+        EngineBinaryTarget::from_target_triple(target.as_triple())
+            .expect("locked target is registered"),
+    );
     assert!(matches!(
         selected.source,
         CoreBinarySelectionSource::ManagedVersion

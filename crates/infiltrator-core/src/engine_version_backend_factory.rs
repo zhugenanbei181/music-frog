@@ -160,6 +160,7 @@ impl EngineVersionBackendFactory for MihomoEngineVersionBackendFactory {
 mod tests {
     use super::*;
     use async_trait::async_trait;
+    use infiltrator_contract::core_capabilities::EngineBinaryTarget;
     use infiltrator_contract::core_identity::CoreVersion;
     use infiltrator_contract::version::{
         CoreRelease, CoreReleaseSummary, CoreRollbackSnapshot, EngineReleaseChannel,
@@ -268,6 +269,7 @@ mod tests {
         ) -> Result<CoreBinarySelection, PortError> {
             Ok(CoreBinarySelection {
                 engine_id: request.engine_id,
+                binary_target: EngineBinaryTarget::current(),
                 version: CoreVersion::new("v1.0.0").expect("test version is valid"),
                 binary_path: PathBuf::from("/fake/core"),
                 related_asset_candidates: Vec::new(),

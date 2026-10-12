@@ -15,6 +15,7 @@ use state::{
 use crate::engine_id;
 use async_trait::async_trait;
 use infiltrator_contract::capability::Capability;
+use infiltrator_contract::core_capabilities::EngineBinaryTarget;
 use infiltrator_contract::core_identity::{CoreVersion, EngineId};
 use infiltrator_contract::error::{ErrorCode, Failure, FailureReason};
 use infiltrator_contract::version::{
@@ -592,8 +593,16 @@ impl CoreBinarySelectionPort for SingBoxVersionBackend {
             VersionSelectionState::Selected { version, .. } => version,
         };
         let verified = self.verify_installed(&version).await?;
+        let binary_target = EngineBinaryTarget::from_target_triple(self.target.as_triple())
+            .ok_or_else(|| {
+                PortError::unsupported(
+                    Capability::CoreLifecycle,
+                    "sing-box version backend target is not a registered Core binary target",
+                )
+            })?;
         Ok(CoreBinarySelection {
             engine_id: engine_id(),
+            binary_target,
             version: verified.version,
             binary_path: verified.binary_path,
             related_asset_candidates: Vec::new(),

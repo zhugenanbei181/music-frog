@@ -51,8 +51,8 @@ use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
 use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_capabilities::{
     ConnectionOperation, CoreGarbageCollectionOperation, CoreLifecycleOperation, CoreOperation,
-    DnsOperation, FakeIpCacheOperation, GeoOperation, LogsOperation, OutboundOperation,
-    ProfileOperation, ProviderOperation, ProxyControlOperation, RulesOperation,
+    DnsOperation, EngineBinaryTarget, FakeIpCacheOperation, GeoOperation, LogsOperation,
+    OutboundOperation, ProfileOperation, ProviderOperation, ProxyControlOperation, RulesOperation,
     SubscriptionOperation, TunOperation, VersionOperation,
 };
 use infiltrator_contract::core_identity::EngineId;
@@ -431,13 +431,7 @@ pub(crate) async fn select_product_binary(
             policy,
         })
         .await?;
-    if selection.engine_id != *engine_id {
-        return Err(PortError::Failed(format!(
-            "binary selector for {} returned a selection for {}",
-            engine_id.as_str(),
-            selection.engine_id.as_str()
-        )));
-    }
+    selection.validate_for(engine_id, EngineBinaryTarget::current())?;
     Ok(selection)
 }
 
