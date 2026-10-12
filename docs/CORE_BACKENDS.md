@@ -30,4 +30,6 @@ UI → typed intent + CoreScope → application → backend adapter → core
 
 新增后端须验证启动、健康探测、原生配置校验与读回、代表性操作、失败语义和资产摘要；实现细节见 [mihomo-api 文档](../crates/mihomo-api/docs/README.md)。
 
+CORE-015.11 的组合 conformance 已将生产 engine-scoped sing-box `ProfileStore` 绑定到 native transaction，并验证 Core engine/instance identity、active workspace lease、原始 JSON/sidecar 与 native 文件的精确读回。composition、mihomo-config、singbox-adapter nextest run `4d667a0a-4b33-44e6-8003-a2c875f2011d` 为 219 passed、1 skipped；fake native validator 证据不代表真实进程运行，也不代表 Desktop/Android 产品根接入。
+
 Mihomo 的逐操作能力证据由 [`MihomoCoreCapabilityProvider`](../crates/mihomo-api/src/core_capability_provider.rs) 按 target-scoped schema v2 的 [`mihomo-evidence-assets.json`](../packaging/mihomo-evidence-assets.json) 登记。每条证据绑定引擎版本、完整 Rust `binary_target` triple 和 `adapter_revision`；`CoreCapabilityScope` 也携带同一构建目标与 adapter revision，目标值取自 Cargo `TARGET`。`CoreCapabilityApplication` 在解析前再次要求矩阵目标与当前编译产物 target 完全一致，并校验 host/target 一致；伪造或过期目标 fail closed。引擎操作证据与 Core lifecycle/version manager 的 `OwnerManaged` 权限分开校验，宿主组合仍须逐操作接入 adapter port。当前 lock 只覆盖 `x86_64-unknown-linux-gnu`、adapter revision 1；Android/iOS、musl、Windows/macOS 或其他 target triple 和不同 revision 均 fail closed，不继承 Linux GNU 进程结果。实现步骤、nextest run ID 与 OPEN 剩项（CORE-008）见 [Mihomo adapter 证据](../crates/mihomo-api/docs/MIHOMO_CORE.md)。
