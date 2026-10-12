@@ -14,7 +14,7 @@ use crate::rule_provider_cache::DesktopRuleProviderCache;
 use crate::runtime::MihomoRuntime;
 use crate::service::ServiceManager;
 use crate::service_mode::DesktopServiceMode;
-use crate::storage::{home_dir, port_conflict, version_factory};
+use crate::storage::{engine_profile_stores, home_dir, port_conflict, version_factory};
 use crate::subscription_import_port::DesktopSubscriptionImportPort;
 use crate::subscription_notification_port::DesktopSubscriptionNotificationPort;
 use crate::surface::SurfaceEngines;
@@ -43,6 +43,7 @@ use infiltrator_composition::active_profile_backend::{
 use infiltrator_composition::engine_backend_factory::EngineBackendFactoryRegistry;
 use infiltrator_composition::engine_capability_provider_registry::EngineCoreCapabilityProviderRegistry;
 use infiltrator_composition::mihomo_engine_backend_provider::MihomoEngineBackendProvider;
+use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
 use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_capabilities::{
     ConnectionOperation, CoreGarbageCollectionOperation, CoreLifecycleOperation, CoreOperation,
@@ -103,27 +104,31 @@ pub(crate) async fn open_default_product_backend(
     let config_manager = Arc::new(app_config_manager().await?);
     let capability_provider =
         desktop_core_capability_provider(DesktopLogStreamAdapter::ManagedRuntimeScopeBound)?;
-    let mihomo_engine_id = MihomoVersionPort::engine_identifier();
-    desktop_runtime_factory()?.provider(&mihomo_engine_id)?;
-    authorize_lifecycle_start(&capability_provider, &mihomo_engine_id)?;
+    let initial_reference = ActiveProfileReferenceStore::read(config_manager.as_ref()).await?;
+    let migration_engine = match initial_reference {
+        ActiveProfileReferenceState::Selected(reference) => reference.engine_id,
+        ActiveProfileReferenceState::Unselected { .. } => MihomoVersionPort::engine_identifier(),
+    };
+    desktop_runtime_factory()?.provider(&migration_engine)?;
+    authorize_lifecycle_start(&capability_provider, &migration_engine)?;
     // Do not create a new-install profile or publish a migrated reference
     // until this host/target is evidenced to own Core lifecycle.
     config_manager.migrate_legacy_mihomo_selection().await?;
+    let home = home_dir()?;
+    let profile_stores = engine_profile_stores(home.clone(), config_manager.clone())?;
     let references: Arc<dyn ActiveProfileReferenceStore> = config_manager.clone();
-    let profiles: Arc<dyn ProfileStore> = config_manager.clone();
     let preflight = preflight_active_profile_reference(
         references,
-        [profiles],
+        profile_stores,
         Arc::clone(&capability_provider),
     )
     .await?;
     let engine_id = preflight.reference.engine_id.clone();
-    // Provider existence is checked before binary selection can copy or stage
-    // any candidate. Desktop SingBox remains Unsupported until a host provider
-    // and target-specific Start capability exist.
+    // Revalidate the exact selected engine under the reference lease before
+    // binary selection can copy or stage any candidate.
     desktop_runtime_factory()?.provider(&engine_id)?;
+    authorize_lifecycle_start(&capability_provider, &engine_id)?;
     let version_factory = version_factory()?;
-    let home = home_dir()?;
     open_product_backend_with_source(
         preflight,
         config_manager,

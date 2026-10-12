@@ -28,6 +28,7 @@ use infiltrator_ports::app_routing_store::AppRoutingStore;
 use infiltrator_ports::doctor::DoctorPort;
 use infiltrator_ports::endpoint::EndpointSource;
 use infiltrator_ports::engine_version_backend_factory::EngineVersionBackendFactory;
+use infiltrator_ports::error::PortError;
 use infiltrator_ports::fake_ip_cache::FakeIpCachePort;
 use infiltrator_ports::port_conflict::PortConflictPort;
 use infiltrator_ports::profile_reset::ProfileResetPort;
@@ -39,7 +40,11 @@ use infiltrator_ports::speedtest_history::SpeedtestHistoryStore;
 use infiltrator_ports::subscription_source::SubscriptionSource;
 use infiltrator_ports::sync::SyncPort;
 use mihomo_config::endpoint::ProfileEndpointSource;
+use mihomo_config::manager::{ConfigManager, ProfileDocumentExtension};
 use mihomo_config::profile_option_store::{load_options, save_options};
+use mihomo_platform::defaults::DefaultCredentialStore;
+use singbox_adapter::profile_document_codec::SingBoxProfileDocumentCodec;
+use singbox_adapter::version::SingBoxEngineVersionBackendFactory;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock};
 
@@ -49,6 +54,22 @@ pub fn home_dir() -> anyhow::Result<PathBuf> {
 
 pub async fn profile_store() -> anyhow::Result<Arc<dyn ProfileStore>> {
     open().await
+}
+
+pub fn engine_profile_stores(
+    home: PathBuf,
+    mihomo: Arc<ConfigManager<DefaultCredentialStore>>,
+) -> anyhow::Result<Vec<Arc<dyn ProfileStore>>> {
+    let sing_box: Arc<dyn ProfileStore> =
+        Arc::new(ConfigManager::with_profile_codec_and_store_at_root(
+            home,
+            mihomo.config_root().to_path_buf(),
+            DefaultCredentialStore::default(),
+            Arc::new(SingBoxProfileDocumentCodec),
+            ProfileDocumentExtension::Json,
+        )?);
+    let mihomo: Arc<dyn ProfileStore> = mihomo;
+    Ok(vec![mihomo, sing_box])
 }
 
 pub async fn profile_controller_url() -> anyhow::Result<String> {
@@ -101,17 +122,27 @@ pub fn port_conflict() -> anyhow::Result<impl PortConflictPort> {
 static DESKTOP_CORE_VERIFICATION: OnceLock<Arc<Mutex<CoreArtifactVerification>>> = OnceLock::new();
 
 pub fn version_factory() -> anyhow::Result<EngineVersionBackendFactoryRegistry> {
+    version_factory_for(home_dir()?)
+}
+
+fn version_factory_for(home: PathBuf) -> anyhow::Result<EngineVersionBackendFactoryRegistry> {
     let handle = DESKTOP_CORE_VERIFICATION
         .get_or_init(|| Arc::new(Mutex::new(CoreArtifactVerification::Unknown)));
     let mihomo_factory: Arc<dyn EngineVersionBackendFactory> =
         Arc::new(MihomoEngineVersionBackendFactory::with_shared_verification(
-            home_dir()?,
+            home.clone(),
             Arc::clone(handle),
         ));
-    Ok(EngineVersionBackendFactoryRegistry::new([(
-        MihomoVersionPort::engine_identifier(),
-        mihomo_factory,
-    )])?)
+    let mut factories = vec![(MihomoVersionPort::engine_identifier(), mihomo_factory)];
+    match SingBoxEngineVersionBackendFactory::current(home) {
+        Ok(factory) => factories.push((
+            singbox_adapter::engine_id(),
+            Arc::new(factory) as Arc<dyn EngineVersionBackendFactory>,
+        )),
+        Err(PortError::Unsupported { .. }) => {}
+        Err(error) => return Err(anyhow::anyhow!(error)),
+    }
+    Ok(EngineVersionBackendFactoryRegistry::new(factories)?)
 }
 
 pub fn version_application() -> anyhow::Result<VersionApplication> {
@@ -149,6 +180,10 @@ pub fn app_routing_store() -> anyhow::Result<impl AppRoutingStore> {
 pub async fn reset_profiles_to_default() -> anyhow::Result<()> {
     profile_reset::reset_profiles_to_default().await
 }
+
+#[cfg(test)]
+#[path = "storage_tests.rs"]
+mod tests;
 
 pub fn factory_reset(home: &Path, configs_dir: Option<&Path>) -> anyhow::Result<Vec<String>> {
     execute(home, configs_dir).map(|report| report.warnings)

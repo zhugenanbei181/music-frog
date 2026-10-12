@@ -53,6 +53,26 @@ fn singbox_store(home: &TempDir) -> ConfigManager<TestCredentialStore> {
     .expect("sing-box profile store")
 }
 
+#[test]
+fn engine_store_can_reuse_an_exact_shared_configs_root_path() {
+    let home = TempDir::new().unwrap();
+    let configs_root = home.path().join("shared configs");
+    let singbox = ConfigManager::with_profile_codec_and_store_at_root(
+        home.path().to_path_buf(),
+        configs_root.clone(),
+        TestCredentialStore,
+        Arc::new(SingBoxProfileDocumentCodec),
+        ProfileDocumentExtension::Json,
+    )
+    .expect("construct sing-box manager using the resolved root");
+
+    assert_eq!(singbox.config_root(), configs_root);
+    assert_eq!(
+        singbox.config_dir(),
+        singbox.config_root().join("engines").join("sing-box")
+    );
+}
+
 #[tokio::test]
 async fn engine_profile_stores_share_one_active_reference_and_isolate_native_documents() {
     let home = TempDir::new().unwrap();

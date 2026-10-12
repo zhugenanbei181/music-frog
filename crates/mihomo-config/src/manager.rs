@@ -48,7 +48,10 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
+use tokio::fs::{canonicalize, create_dir_all};
 use tokio::sync::{OnceCell, OwnedMutexGuard};
+use tokio::task::spawn_blocking;
+use tokio::time::sleep;
 
 pub struct ConfigManager<S: SecureStore> {
     engine_id: EngineId,
@@ -132,16 +135,15 @@ pub(crate) async fn lock_profile_writes_for_dir(config_dir: &Path) -> Result<Pro
     let lock_path = profile_write_lock_path(config_dir).await?;
     let cross_process = loop {
         let attempt_path = lock_path.clone();
-        let attempt =
-            tokio::task::spawn_blocking(move || try_acquire_threaded_instance_lock(&attempt_path))
-                .await
-                .map_err(|error| {
-                    MihomoError::Service(format!("profile write lock worker: {error}"))
-                })??;
+        let attempt = spawn_blocking(move || try_acquire_threaded_instance_lock(&attempt_path))
+            .await
+            .map_err(|error| {
+                MihomoError::Service(format!("profile write lock worker: {error}"))
+            })??;
         if let Some(guard) = attempt {
             break guard;
         }
-        tokio::time::sleep(Duration::from_millis(10)).await;
+        sleep(Duration::from_millis(10)).await;
     };
     let local = boundary.lock_owned().await;
     Ok(ProfileWriteGuard {
@@ -159,8 +161,8 @@ async fn profile_write_lock_path(config_dir: &Path) -> Result<PathBuf> {
     let parent = config_dir
         .parent()
         .ok_or_else(|| MihomoError::Config("engine config directory has no parent".into()))?;
-    tokio::fs::create_dir_all(parent).await?;
-    let canonical_parent = tokio::fs::canonicalize(parent).await?;
+    create_dir_all(parent).await?;
+    let canonical_parent = canonicalize(parent).await?;
     Ok(canonical_parent.join(format!(".profile-write-{engine}.lock")))
 }
 
@@ -248,9 +250,52 @@ impl<S: SecureStore> ConfigManager<S> {
         )
     }
 
+    /// Construct an engine-scoped store beside an existing product manager's
+    /// already-resolved shared configs root. This preserves non-UTF paths and
+    /// user-selected configs roots when a product registers another engine.
+    pub fn with_profile_codec_and_store_at_root(
+        home: PathBuf,
+        config_root: PathBuf,
+        credential_store: S,
+        document_codec: Arc<dyn ProfileDocumentCodecPort>,
+        document_extension: ProfileDocumentExtension,
+    ) -> Result<Self> {
+        let codec_scope = document_codec.scope();
+        Self::build_for_engine_at_root(
+            home,
+            config_root,
+            credential_store,
+            codec_scope.engine_id.clone(),
+            document_codec,
+            document_extension,
+            ProfileNamespaceInitialization::EngineScoped,
+        )
+    }
+
     fn build_for_engine(
         home: PathBuf,
         configs_dir: Option<&str>,
+        credential_store: S,
+        engine_id: EngineId,
+        document_codec: Arc<dyn ProfileDocumentCodecPort>,
+        document_extension: ProfileDocumentExtension,
+        namespace_initialization: ProfileNamespaceInitialization,
+    ) -> Result<Self> {
+        let config_root = paths::resolve_configs_dir_in(configs_dir, &home)?;
+        Self::build_for_engine_at_root(
+            home,
+            config_root,
+            credential_store,
+            engine_id,
+            document_codec,
+            document_extension,
+            namespace_initialization,
+        )
+    }
+
+    fn build_for_engine_at_root(
+        home: PathBuf,
+        config_root: PathBuf,
         credential_store: S,
         engine_id: EngineId,
         document_codec: Arc<dyn ProfileDocumentCodecPort>,
@@ -272,7 +317,6 @@ impl<S: SecureStore> ConfigManager<S> {
                 engine_id.as_str()
             )));
         }
-        let config_root = paths::resolve_configs_dir_in(configs_dir, &home)?;
         let config_dir = paths::engine_config_dir(&config_root, &engine_id);
         let settings_file = config_dir.join("profile-state.toml");
         let legacy_settings_file = home.join("config.toml");
