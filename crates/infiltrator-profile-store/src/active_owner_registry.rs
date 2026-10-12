@@ -80,7 +80,7 @@ impl LocalOwnerRegistryGuard<'_> {
             .map(|registration| registration.state.clone())
     }
 
-    pub fn insert(
+    fn insert_registration(
         &mut self,
         config_root: PathBuf,
         token: ActiveOwnerToken,
@@ -107,25 +107,134 @@ impl LocalOwnerRegistryGuard<'_> {
         Ok(())
     }
 
-    pub fn set_state(
+    pub fn register_bound(
+        &mut self,
+        config_root: PathBuf,
+        token: ActiveOwnerToken,
+        identity: CoreIdentity,
+        generation: CoreGeneration,
+        guard: ThreadedInstanceLockGuard,
+    ) -> Result<(), PortError> {
+        self.insert_registration(
+            config_root,
+            token,
+            LocalOwnerRegistrationState::Bound {
+                identity,
+                generation,
+            },
+            guard,
+        )
+    }
+
+    pub fn register_binding(
+        &mut self,
+        config_root: PathBuf,
+        token: ActiveOwnerToken,
+        transition_id: ActiveOwnerToken,
+        guard: ThreadedInstanceLockGuard,
+    ) -> Result<(), PortError> {
+        self.insert_registration(
+            config_root,
+            token,
+            LocalOwnerRegistrationState::Binding { transition_id },
+            guard,
+        )
+    }
+
+    pub fn begin_switching(
         &mut self,
         config_root: &Path,
         token: &ActiveOwnerToken,
-        state: LocalOwnerRegistrationState,
+        transition_id: ActiveOwnerToken,
+        identity: CoreIdentity,
+        generation: CoreGeneration,
     ) -> Result<(), PortError> {
         let registration = self
             .registrations
             .get_mut(config_root)
             .filter(|registration| registration.token == *token)
-            .ok_or_else(|| {
-                PortError::Rejected(infiltrator_contract::error::Failure::new(
-                    infiltrator_contract::error::ErrorCode::NotReady,
-                    "active Core owner registration is stale",
-                    true,
-                ))
-            })?;
-        registration.state = state;
-        Ok(())
+            .ok_or_else(|| stale_registration("active Core owner registration is stale"))?;
+        match &registration.state {
+            LocalOwnerRegistrationState::Bound {
+                identity: registered_identity,
+                generation: registered_generation,
+            } if registered_identity.same_instance(&identity)
+                && *registered_generation == generation =>
+            {
+                registration.state = LocalOwnerRegistrationState::Switching {
+                    transition_id,
+                    identity,
+                    generation,
+                };
+                Ok(())
+            }
+            _ => Err(stale_registration(
+                "active Core owner cannot enter switching from its current registration",
+            )),
+        }
+    }
+
+    pub fn cancel_switch_before_close(
+        &mut self,
+        config_root: &Path,
+        token: &ActiveOwnerToken,
+        transition_id: &ActiveOwnerToken,
+        identity: CoreIdentity,
+        generation: CoreGeneration,
+    ) -> Result<(), PortError> {
+        let registration = self
+            .registrations
+            .get_mut(config_root)
+            .filter(|registration| registration.token == *token)
+            .ok_or_else(|| stale_registration("active Core owner registration is stale"))?;
+        match &registration.state {
+            LocalOwnerRegistrationState::Switching {
+                transition_id: registered_transition,
+                identity: registered_identity,
+                generation: registered_generation,
+            } if registered_transition == transition_id
+                && registered_identity.same_instance(&identity)
+                && *registered_generation == generation =>
+            {
+                registration.state = LocalOwnerRegistrationState::Bound {
+                    identity,
+                    generation,
+                };
+                Ok(())
+            }
+            _ => Err(stale_registration(
+                "active Core owner cannot cancel a different switch registration",
+            )),
+        }
+    }
+
+    pub fn finalize_binding(
+        &mut self,
+        config_root: &Path,
+        token: &ActiveOwnerToken,
+        transition_id: &ActiveOwnerToken,
+        identity: CoreIdentity,
+        generation: CoreGeneration,
+    ) -> Result<(), PortError> {
+        let registration = self
+            .registrations
+            .get_mut(config_root)
+            .filter(|registration| registration.token == *token)
+            .ok_or_else(|| stale_registration("active Core owner registration is stale"))?;
+        match &registration.state {
+            LocalOwnerRegistrationState::Binding {
+                transition_id: registered_transition,
+            } if registered_transition == transition_id => {
+                registration.state = LocalOwnerRegistrationState::Bound {
+                    identity,
+                    generation,
+                };
+                Ok(())
+            }
+            _ => Err(stale_registration(
+                "active Core owner cannot finalize a different binding registration",
+            )),
+        }
     }
 
     pub fn remove(
@@ -190,6 +299,14 @@ impl LocalOwnerRegistryGuard<'_> {
             _ => LocalSwitchRegistrationRecovery::NotHeldByThisOwner,
         }
     }
+}
+
+fn stale_registration(message: &str) -> PortError {
+    PortError::Rejected(infiltrator_contract::error::Failure::new(
+        infiltrator_contract::error::ErrorCode::NotReady,
+        message,
+        true,
+    ))
 }
 
 pub fn local_owner_registration_matches(

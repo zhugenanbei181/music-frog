@@ -929,13 +929,11 @@ impl ActiveProfileReferenceLease for ConfigManagerSelectionLease {
             };
             sync_publish_active_core_owner_proof(&config_root, &owner_proof)?;
             sync_publish_active_profile_record(&config_root, &record)?;
-            registrations.insert(
+            registrations.register_bound(
                 config_root.clone(),
                 token.clone(),
-                LocalOwnerRegistrationState::Bound {
-                    identity: identity.clone(),
-                    generation,
-                },
+                identity.clone(),
+                generation,
                 owner_guard,
             )?;
             drop(root_guard);
@@ -1049,13 +1047,12 @@ impl ActiveProfileOwnerSwitchLease for ConfigManagerOwnerSwitchLease {
         // Restore the in-process lease first. If publication fails, the
         // durable ClosingOld marker still blocks other selectors and recovery
         // can promote this exact Bound registration back to Switching.
-        registrations.set_state(
+        registrations.cancel_switch_before_close(
             &config_root,
             &owner_token,
-            LocalOwnerRegistrationState::Bound {
-                identity: owner_identity.clone(),
-                generation: owner_generation,
-            },
+            &transition_id,
+            owner_identity.clone(),
+            owner_generation,
         )?;
         record.owner = ActiveCoreOwnerState::Bound {
             identity: owner_identity,
@@ -1475,12 +1472,10 @@ impl ActiveProfileReferenceChangedLease for ConfigManagerReferenceChangedLease {
             },
         };
         sync_publish_active_profile_record(&config_root, &record)?;
-        registrations.insert(
+        registrations.register_binding(
             config_root.clone(),
             token.clone(),
-            LocalOwnerRegistrationState::Binding {
-                transition_id: transition_id.clone(),
-            },
+            transition_id.clone(),
             owner_guard,
         )?;
         let state = ActiveProfileOwnerSwitchState::BindingNew {
@@ -1771,13 +1766,12 @@ impl ActiveProfileOwnerBindingLease for ConfigManagerOwnerBindingLease {
             if !registrations.matches(&config_root, &token, &binding_state) {
                 return Err(transition_rejected("new owner registration is stale"));
             }
-            registrations.set_state(
+            registrations.finalize_binding(
                 &config_root,
                 &token,
-                LocalOwnerRegistrationState::Bound {
-                    identity: identity.clone(),
-                    generation,
-                },
+                &transition_id,
+                identity.clone(),
+                generation,
             )?;
         }
         Ok(Box::new(ConfigManagerActiveCoreOwnerLease {
@@ -2482,14 +2476,12 @@ impl<S: SecureStore> ActiveProfileReferenceStore for ConfigManager<S> {
         sync_publish_active_profile_record(&config_root, &record)?;
         {
             let mut registrations = lock_local_owner_registry()?;
-            registrations.set_state(
+            registrations.begin_switching(
                 &config_root,
                 &owner_token,
-                LocalOwnerRegistrationState::Switching {
-                    transition_id: transition_id.clone(),
-                    identity: owner_identity.clone(),
-                    generation: owner_generation,
-                },
+                transition_id.clone(),
+                owner_identity.clone(),
+                owner_generation,
             )?;
         }
         let state = ActiveProfileOwnerSwitchState::ClosingOld {
