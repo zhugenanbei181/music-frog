@@ -182,9 +182,18 @@ class MihomoControlService : Service() {
     }
 
     private fun handleMessage(message: Message): Boolean {
-        if (message.what == CANCEL_START_REQUEST) return cancelStartRequest(message)
-        if (message.what == CANCEL_OWNER_REQUEST) return cancelOwnerRequest(message)
-        if (message.what == ACK_START_REQUEST) return acknowledgeStartRequest(message)
+        if (message.what == CANCEL_START_REQUEST) {
+            cancelStartRequest(message)
+            return true
+        }
+        if (message.what == CANCEL_OWNER_REQUEST) {
+            cancelOwnerRequest(message)
+            return true
+        }
+        if (message.what == ACK_START_REQUEST) {
+            acknowledgeStartRequest(message)
+            return true
+        }
         if (message.what != REQUEST) return false
         val arguments = runCatching { Bundle(message.data) }.getOrNull()
         if (arguments == null) {
@@ -538,8 +547,8 @@ class MihomoControlService : Service() {
         return "$request\u0000$values"
     }
 
-    private fun cancelOwnerRequest(message: Message): Boolean {
-        val arguments = runCatching { message.data }.getOrNull() ?: return true
+    private fun cancelOwnerRequest(message: Message) {
+        val arguments = runCatching { message.data }.getOrNull() ?: return
         arguments.classLoader = AndroidHostProtocolVersion::class.java.classLoader
         val key = OwnerIpcRequestKey(
             clientSessionId = arguments.getString(CLIENT_SESSION_ID).orEmpty(),
@@ -549,7 +558,7 @@ class MihomoControlService : Service() {
             key.clientSessionId.isBlank() || key.requestId <= 0L
         ) {
             Log.w(TAG, "ignored malformed owner IPC cancellation")
-            return true
+            return
         }
         when (ownerRequestAdmission.cancel(key)) {
             OwnerIpcCancellation.CanceledBeforeExecution -> {
@@ -575,7 +584,6 @@ class MihomoControlService : Service() {
             is OwnerIpcCancellation.TerminalReadback,
             OwnerIpcCancellation.Unknown -> Unit
         }
-        return true
     }
 
     private fun executeVpnStart(
@@ -656,15 +664,15 @@ class MihomoControlService : Service() {
         )
     }
 
-    private fun cancelStartRequest(message: Message): Boolean {
-        val arguments = runCatching { message.data }.getOrNull() ?: return true
+    private fun cancelStartRequest(message: Message) {
+        val arguments = runCatching { message.data }.getOrNull() ?: return
         arguments.classLoader = AndroidHostProtocolVersion::class.java.classLoader
         val protocol = readProtocolVersion(arguments)
         val clientSessionId = arguments.getString(CLIENT_SESSION_ID)
         val requestId = arguments.getLong(REQUEST_ID, Long.MIN_VALUE)
         if (protocol != AndroidHostProtocolVersion.V9 || clientSessionId.isNullOrBlank() || requestId <= 0L) {
             Log.w(TAG, "ignored malformed VPN start cancellation")
-            return true
+            return
         }
         val key = VpnOwnerRequestKey(clientSessionId, requestId)
         when (val cancellation = vpnStartAdmission.cancel(key)) {
@@ -697,21 +705,19 @@ class MihomoControlService : Service() {
             VpnOwnerStartCancellation.AlreadyCanceled,
             VpnOwnerStartCancellation.Unknown -> Unit
         }
-        return true
     }
 
-    private fun acknowledgeStartRequest(message: Message): Boolean {
-        val arguments = runCatching { message.data }.getOrNull() ?: return true
+    private fun acknowledgeStartRequest(message: Message) {
+        val arguments = runCatching { message.data }.getOrNull() ?: return
         arguments.classLoader = AndroidHostProtocolVersion::class.java.classLoader
         val protocol = readProtocolVersion(arguments)
         val clientSessionId = arguments.getString(CLIENT_SESSION_ID)
         val requestId = arguments.getLong(REQUEST_ID, Long.MIN_VALUE)
         if (protocol != AndroidHostProtocolVersion.V9 || clientSessionId.isNullOrBlank() || requestId <= 0L) {
             Log.w(TAG, "ignored malformed VPN start acknowledgment")
-            return true
+            return
         }
         vpnStartAdmission.acknowledgeTerminal(VpnOwnerRequestKey(clientSessionId, requestId))
-        return true
     }
 
     private fun scheduleStartExpiry(key: VpnOwnerRequestKey, deadline: VpnOwnerRequestDeadline) {

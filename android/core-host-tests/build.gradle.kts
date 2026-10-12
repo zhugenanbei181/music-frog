@@ -28,6 +28,8 @@ kotlin {
                 "com/musicfrog/infiltrator/CoreProcessState.kt",
                 "com/musicfrog/infiltrator/MihomoCoreConfigurationValidator.kt",
                 "com/musicfrog/infiltrator/MihomoProcessController.kt",
+                "com/musicfrog/infiltrator/AndroidOwnerSessionFence.kt",
+                "com/musicfrog/infiltrator/OwnerIpcClientPendingLedger.kt",
                 "com/musicfrog/infiltrator/VpnOwnerSessionGate.kt",
             )
         }
@@ -36,6 +38,8 @@ kotlin {
             kotlin.include(
                 "com/musicfrog/infiltrator/AndroidCoreProcessRecordStoreTest.kt",
                 "com/musicfrog/infiltrator/MihomoCoreConfigurationValidatorTest.kt",
+                "com/musicfrog/infiltrator/OwnerIpcClientPendingLedgerTypedStateTest.kt",
+                "com/musicfrog/infiltrator/OwnerIpcClientPendingLedgerTest.kt",
                 "com/musicfrog/infiltrator/VpnOwnerSessionGateTest.kt",
             )
         }

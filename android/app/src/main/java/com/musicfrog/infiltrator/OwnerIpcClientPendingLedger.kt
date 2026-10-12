@@ -14,6 +14,30 @@ internal enum class OwnerIpcPendingDispatch {
     CancellationSent,
 }
 
+internal enum class OwnerIpcPendingSendAdmission {
+    Sent,
+    AlreadySent,
+    CancellationPending,
+    Unknown,
+}
+
+internal enum class OwnerIpcPendingCompletion {
+    Completed,
+    Unknown,
+}
+
+internal enum class OwnerBindAcceptance {
+    Accepted,
+    Rejected;
+
+    companion object {
+        fun fromPlatformResult(accepted: Boolean): OwnerBindAcceptance = when (accepted) {
+            true -> Accepted
+            false -> Rejected
+        }
+    }
+}
+
 internal sealed interface OwnerIpcPendingCancellation {
     data object CanceledBeforeDispatch : OwnerIpcPendingCancellation
 
@@ -50,14 +74,14 @@ internal class OwnerIpcClientPendingLedger(
     }
 
     @Synchronized
-    fun markSent(requestId: Long): Boolean = when (requests[requestId]) {
+    fun markSent(requestId: Long): OwnerIpcPendingSendAdmission = when (requests[requestId]) {
         OwnerIpcPendingDispatch.WaitingForBinding -> {
             requests[requestId] = OwnerIpcPendingDispatch.Sent
-            true
+            OwnerIpcPendingSendAdmission.Sent
         }
-        OwnerIpcPendingDispatch.Sent,
-        OwnerIpcPendingDispatch.CancellationSent,
-        null -> false
+        OwnerIpcPendingDispatch.Sent -> OwnerIpcPendingSendAdmission.AlreadySent
+        OwnerIpcPendingDispatch.CancellationSent -> OwnerIpcPendingSendAdmission.CancellationPending
+        null -> OwnerIpcPendingSendAdmission.Unknown
     }
 
     @Synchronized
@@ -75,7 +99,10 @@ internal class OwnerIpcClientPendingLedger(
     }
 
     @Synchronized
-    fun complete(requestId: Long): Boolean = requests.remove(requestId) != null
+    fun complete(requestId: Long): OwnerIpcPendingCompletion = when (requests.remove(requestId)) {
+        null -> OwnerIpcPendingCompletion.Unknown
+        else -> OwnerIpcPendingCompletion.Completed
+    }
 
     @Synchronized
     fun disconnect(terminal: OwnerClientTerminal): List<OwnerIpcPendingFailure> {

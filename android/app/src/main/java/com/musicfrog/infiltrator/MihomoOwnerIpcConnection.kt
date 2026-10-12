@@ -27,18 +27,6 @@ internal sealed interface OwnerIpcTransportResult<out T> {
     data object RequestIdAlreadyPending : OwnerIpcTransportResult<Nothing>
 }
 
-internal enum class OwnerBindAcceptance {
-    Accepted,
-    Rejected;
-
-    companion object {
-        fun fromPlatformResult(accepted: Boolean): OwnerBindAcceptance = when (accepted) {
-            true -> Accepted
-            false -> Rejected
-        }
-    }
-}
-
 /** Application-owned Binder binding, reply Handler and bounded request table. */
 internal class MihomoOwnerIpcConnection(
     context: Context,
@@ -229,18 +217,25 @@ internal class MihomoOwnerIpcConnection(
                     if (pendingRequest.isExpired()) {
                         pendingRequest.markCanceledBeforeDispatch()
                         DispatchResult.Expired
-                    } else if (!pendingLedger.markSent(pendingRequest.requestId)) {
-                        pendingRequest.markCanceledBeforeDispatch()
-                        DispatchResult.AlreadyDispatched
                     } else {
-                        pendingRequest.markSent(messenger)
-                        pendingRequest.message.replyTo = replyMessenger
-                        try {
-                            messenger.send(pendingRequest.message)
-                            DispatchResult.Sent
-                        } catch (error: RemoteException) {
-                            Log.w(TAG, "owner IPC request send failed: ${error.message}")
-                            DispatchResult.SendFailed
+                        when (pendingLedger.markSent(pendingRequest.requestId)) {
+                            OwnerIpcPendingSendAdmission.Sent -> {
+                                pendingRequest.markSent(messenger)
+                                pendingRequest.message.replyTo = replyMessenger
+                                try {
+                                    messenger.send(pendingRequest.message)
+                                    DispatchResult.Sent
+                                } catch (error: RemoteException) {
+                                    Log.w(TAG, "owner IPC request send failed: ${error.message}")
+                                    DispatchResult.SendFailed
+                                }
+                            }
+                            OwnerIpcPendingSendAdmission.AlreadySent,
+                            OwnerIpcPendingSendAdmission.CancellationPending,
+                            OwnerIpcPendingSendAdmission.Unknown -> {
+                                pendingRequest.markCanceledBeforeDispatch()
+                                DispatchResult.AlreadyDispatched
+                            }
                         }
                     }
                 }

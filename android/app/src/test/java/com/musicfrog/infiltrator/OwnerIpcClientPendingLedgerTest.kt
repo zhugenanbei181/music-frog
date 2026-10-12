@@ -1,8 +1,6 @@
 package com.musicfrog.infiltrator
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class OwnerIpcClientPendingLedgerTest {
@@ -29,7 +27,7 @@ class OwnerIpcClientPendingLedgerTest {
         assertEquals(OwnerIpcPendingAdmission.Admitted, ledger.admit(7L))
 
         assertEquals(OwnerIpcPendingCancellation.CanceledBeforeDispatch, ledger.cancel(7L))
-        assertFalse(ledger.markSent(7L))
+        assertEquals(OwnerIpcPendingSendAdmission.Unknown, ledger.markSent(7L))
         assertEquals(0, ledger.pendingCount())
     }
 
@@ -37,12 +35,14 @@ class OwnerIpcClientPendingLedgerTest {
     fun timeoutAfterDispatchSendsCancellationAndClearsLocalPendingEntry() {
         val ledger = OwnerIpcClientPendingLedger()
         assertEquals(OwnerIpcPendingAdmission.Admitted, ledger.admit(8L))
-        assertTrue(ledger.markSent(8L))
+        assertEquals(OwnerIpcPendingSendAdmission.Sent, ledger.markSent(8L))
 
         assertEquals(OwnerIpcPendingCancellation.CancelSentRequest, ledger.cancel(8L))
         assertEquals(OwnerIpcPendingCancellation.AlreadyCanceled, ledger.cancel(8L))
+        assertEquals(1, ledger.pendingCount())
+        assertEquals(OwnerIpcPendingCompletion.Completed, ledger.complete(8L))
         assertEquals(0, ledger.pendingCount())
-        assertFalse(ledger.complete(8L))
+        assertEquals(OwnerIpcPendingCompletion.Unknown, ledger.complete(8L))
     }
 
     @Test
@@ -50,7 +50,7 @@ class OwnerIpcClientPendingLedgerTest {
         val ledger = OwnerIpcClientPendingLedger()
         assertEquals(OwnerIpcPendingAdmission.Admitted, ledger.admit(10L))
         assertEquals(OwnerIpcPendingAdmission.Admitted, ledger.admit(11L))
-        assertTrue(ledger.markSent(11L))
+        assertEquals(OwnerIpcPendingSendAdmission.Sent, ledger.markSent(11L))
 
         assertEquals(
             listOf(
