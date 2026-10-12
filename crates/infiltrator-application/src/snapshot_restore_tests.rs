@@ -40,15 +40,21 @@ async fn preparation_and_cancel_write_nothing_and_cancelled_identity_cannot_be_c
     let other = fixture().0;
     assert!(
         other
-            .confirm_restore(None::<Arc<dyn ManagedRuntime>>, &review.identity)
+            .confirm_restore(
+                crate::profile_application::ProfileRuntimeAccess::<dyn ManagedRuntime>::Offline,
+                &review.identity
+            )
             .await
             .is_err()
     );
     app.cancel_restore(&review.identity).unwrap();
     assert!(
-        app.confirm_restore(None::<Arc<dyn ManagedRuntime>>, &review.identity)
-            .await
-            .is_err()
+        app.confirm_restore(
+            crate::profile_application::ProfileRuntimeAccess::<dyn ManagedRuntime>::Offline,
+            &review.identity
+        )
+        .await
+        .is_err()
     );
     assert_eq!(profiles.writes.load(Ordering::SeqCst), 0);
     assert_eq!(profiles.load("main").await.unwrap(), review.before_yaml);
@@ -59,25 +65,34 @@ async fn permission_retry_keeps_review_and_commits_exactly_once() {
     let review = app.prepare_restore(&target(&app).await).await.unwrap();
     profiles.denied.store(true, Ordering::SeqCst);
     assert_eq!(
-        app.confirm_restore(None::<Arc<dyn ManagedRuntime>>, &review.identity)
-            .await
-            .unwrap_err()
-            .code,
+        app.confirm_restore(
+            crate::profile_application::ProfileRuntimeAccess::<dyn ManagedRuntime>::Offline,
+            &review.identity
+        )
+        .await
+        .unwrap_err()
+        .code,
         ErrorCode::Permission
     );
     assert_eq!(profiles.writes.load(Ordering::SeqCst), 0);
     profiles.denied.store(false, Ordering::SeqCst);
     let receipt = app
-        .confirm_restore(None::<Arc<dyn ManagedRuntime>>, &review.identity)
+        .confirm_restore(
+            crate::profile_application::ProfileRuntimeAccess::<dyn ManagedRuntime>::Offline,
+            &review.identity,
+        )
         .await
         .unwrap();
     receipt.validate(&review.identity).unwrap();
     assert_eq!(profiles.load("main").await.unwrap(), review.restored_yaml);
     assert_eq!(profiles.writes.load(Ordering::SeqCst), 1);
     assert!(
-        app.confirm_restore(None::<Arc<dyn ManagedRuntime>>, &review.identity)
-            .await
-            .is_err()
+        app.confirm_restore(
+            crate::profile_application::ProfileRuntimeAccess::<dyn ManagedRuntime>::Offline,
+            &review.identity
+        )
+        .await
+        .is_err()
     );
     assert_eq!(profiles.writes.load(Ordering::SeqCst), 1);
 }
@@ -85,16 +100,16 @@ async fn permission_retry_keeps_review_and_commits_exactly_once() {
 async fn changed_profile_or_snapshot_rejects_restore_without_overwriting_later_edits() {
     let (app, profiles, _) = fixture();
     let review = app.prepare_restore(&target(&app).await).await.unwrap();
-    profiles
-        .save("main", "# later user edit\nmode: direct\n")
-        .await
-        .unwrap();
+    profiles.replace_for_test("main", "# later user edit\nmode: direct\n");
     let before = profiles.writes.load(Ordering::SeqCst);
     assert_eq!(
-        app.confirm_restore(None::<Arc<dyn ManagedRuntime>>, &review.identity)
-            .await
-            .unwrap_err()
-            .code,
+        app.confirm_restore(
+            crate::profile_application::ProfileRuntimeAccess::<dyn ManagedRuntime>::Offline,
+            &review.identity
+        )
+        .await
+        .unwrap_err()
+        .code,
         ErrorCode::NotReady
     );
     assert_eq!(profiles.writes.load(Ordering::SeqCst), before);
@@ -107,11 +122,39 @@ async fn changed_profile_or_snapshot_rejects_restore_without_overwriting_later_e
     let review = app.prepare_restore(&target(&app).await).await.unwrap();
     snapshots.snapshots.lock().unwrap().get_mut("main").unwrap()[0].1 = "mode: direct\n".into();
     assert_eq!(
-        app.confirm_restore(None::<Arc<dyn ManagedRuntime>>, &review.identity)
-            .await
-            .unwrap_err()
-            .code,
+        app.confirm_restore(
+            crate::profile_application::ProfileRuntimeAccess::<dyn ManagedRuntime>::Offline,
+            &review.identity
+        )
+        .await
+        .unwrap_err()
+        .code,
         ErrorCode::NotReady
     );
     assert_eq!(profiles.writes.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test]
+async fn changed_active_reference_expires_snapshot_review_before_workspace_write() {
+    let (app, profiles, _) = fixture();
+    let review = app.prepare_restore(&target(&app).await).await.unwrap();
+    *profiles.active_reference.lock().unwrap() =
+        infiltrator_contract::active_profile_reference::ActiveProfileReferenceState::Unselected {
+            revision:
+                infiltrator_contract::active_profile_reference::ActiveProfileReferenceRevision::new(
+                    2,
+                ),
+        };
+
+    let failure = app
+        .confirm_restore(
+            crate::profile_application::ProfileRuntimeAccess::<dyn ManagedRuntime>::Offline,
+            &review.identity,
+        )
+        .await
+        .expect_err("review must retain its opening-time reference fence");
+
+    assert_eq!(failure.code, ErrorCode::NotReady);
+    assert_eq!(profiles.writes.load(Ordering::SeqCst), 0);
+    assert_eq!(profiles.load("main").await.unwrap(), review.before_yaml);
 }

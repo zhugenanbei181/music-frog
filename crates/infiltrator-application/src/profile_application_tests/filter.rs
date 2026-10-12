@@ -9,6 +9,8 @@ use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::subscription_import::SubscriptionFilterDraft;
 use infiltrator_domain::profile_options::{FilterSpec, ProfileOptions};
+use infiltrator_ports::runtime_gateway::ManagedRuntime;
+use std::sync::Arc;
 
 /// The scoped Mihomo codec rejects malformed drafts before a write, then
 /// reshapes the document and returns the persisted neutral projection.
@@ -29,7 +31,11 @@ async fn filter_draft_save_uses_the_scoped_codec_and_persists_projection() {
         ..Default::default()
     };
     let failure = application
-        .save_filter(None::<Arc<dyn ManagedRuntime>>, &source, &invalid_mode)
+        .save_filter(
+            crate::profile_application::ProfileRuntimeAccess::<dyn ManagedRuntime>::Offline,
+            &source,
+            &invalid_mode,
+        )
         .await
         .expect_err("unknown strategy must not become disabled");
     assert_eq!(failure.code, ErrorCode::InvalidInput);
@@ -44,7 +50,11 @@ async fn filter_draft_save_uses_the_scoped_codec_and_persists_projection() {
         ..SubscriptionFilterDraft::default()
     };
     let failure = application
-        .save_filter(None::<Arc<dyn ManagedRuntime>>, &source, &broken)
+        .save_filter(
+            crate::profile_application::ProfileRuntimeAccess::<dyn ManagedRuntime>::Offline,
+            &source,
+            &broken,
+        )
         .await
         .expect_err("a malformed rename line must fail before any write");
     assert_eq!(failure.code, ErrorCode::InvalidInput);
@@ -55,7 +65,11 @@ async fn filter_draft_save_uses_the_scoped_codec_and_persists_projection() {
         ..SubscriptionFilterDraft::default()
     };
     let report = application
-        .save_filter(None::<Arc<dyn ManagedRuntime>>, &source, &draft)
+        .save_filter(
+            crate::profile_application::ProfileRuntimeAccess::<dyn ManagedRuntime>::Offline,
+            &source,
+            &draft,
+        )
         .await
         .expect("filter run")
         .report;
@@ -95,7 +109,11 @@ async fn filter_commit_rejects_unreadable_options_before_mutating_the_profile() 
     ] {
         *store.options_read_error.lock().unwrap() = Some(error);
         let failure = application
-            .save_filter(None::<Arc<dyn ManagedRuntime>>, &source, &draft)
+            .save_filter(
+                crate::profile_application::ProfileRuntimeAccess::<dyn ManagedRuntime>::Offline,
+                &source,
+                &draft,
+            )
             .await
             .unwrap_err();
         assert_eq!(failure.code, code);
@@ -106,7 +124,11 @@ async fn filter_commit_rejects_unreadable_options_before_mutating_the_profile() 
     }
     *store.options_read_error.lock().unwrap() = None;
     let report = application
-        .save_filter(None::<Arc<dyn ManagedRuntime>>, &source, &draft)
+        .save_filter(
+            crate::profile_application::ProfileRuntimeAccess::<dyn ManagedRuntime>::Offline,
+            &source,
+            &draft,
+        )
         .await
         .unwrap()
         .report;

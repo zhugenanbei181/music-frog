@@ -15,7 +15,8 @@ use iced::Task;
 use infiltrator_application::profile_aggregation_application::ProfileAggregationApplication;
 use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_contract::aggregator::{
-    AggregatedProfileOutcome, AggregationCustomGroup, AggregationDraft, AggregationRenameRule,
+    AggregatedProfileOutcome, AggregationActivationOutcome, AggregationCustomGroup,
+    AggregationDraft, AggregationRenameRule,
 };
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_ports::profile_store::ProfileStore;
@@ -336,9 +337,18 @@ impl AppState {
                     Err(task) => return task,
                 };
                 self.profile.is_aggregating = true;
-                // DUAL-08-12: the host runtime is the shared activation seam;
-                // without one the shared path still switches the active profile.
-                let runtime = self.runtime.runtime.clone();
+                // DUAL-08-12: carry the selected runtime access mode into the
+                // shared exact-reference activation use case.
+                let runtime = match self.runtime.runtime.clone() {
+                    Some(runtime) => {
+                        infiltrator_application::profile_application::ProfileRuntimeAccess::Managed(
+                            runtime,
+                        )
+                    }
+                    None => {
+                        infiltrator_application::profile_application::ProfileRuntimeAccess::Offline
+                    }
+                };
                 Task::perform(
                     async move {
                         let store = config_manager().await?;
@@ -355,7 +365,16 @@ impl AppState {
                 self.aggregation_outcome_tasks(result, "aggregator_created")
             }
             Message::ReAggregateProfile(template_name) => {
-                let runtime = self.runtime.runtime.clone();
+                let runtime = match self.runtime.runtime.clone() {
+                    Some(runtime) => {
+                        infiltrator_application::profile_application::ProfileRuntimeAccess::Managed(
+                            runtime,
+                        )
+                    }
+                    None => {
+                        infiltrator_application::profile_application::ProfileRuntimeAccess::Offline
+                    }
+                };
                 Task::perform(
                     async move {
                         let store = config_manager().await?;
@@ -399,18 +418,43 @@ impl AppState {
         match result {
             Ok(outcome) => {
                 let lang = Lang(&self.shell.lang);
-                let state_key = if outcome.core_reloaded {
-                    "aggregator_state_reloaded"
-                } else if outcome.activated {
-                    "aggregator_state_switched"
-                } else {
-                    "aggregator_state_saved"
+                let state = match outcome.activation {
+                    AggregationActivationOutcome::NotRequested => {
+                        lang.tr("aggregator_state_saved").into_owned()
+                    }
+                    AggregationActivationOutcome::AlreadySelectedWithoutRuntime
+                    | AggregationActivationOutcome::AlreadySelectedWithRuntime
+                    | AggregationActivationOutcome::SelectedWithoutRuntime => {
+                        lang.tr("aggregator_state_switched").into_owned()
+                    }
+                    AggregationActivationOutcome::AlreadySelectedWhileInactive(
+                        infiltrator_contract::snapshot::CoreInactiveLifecycle::Stopped,
+                    )
+                    | AggregationActivationOutcome::SelectedWhileInactive(
+                        infiltrator_contract::snapshot::CoreInactiveLifecycle::Stopped,
+                    )
+                    | AggregationActivationOutcome::CurrentProfileUpdatedWhileInactive(
+                        infiltrator_contract::snapshot::CoreInactiveLifecycle::Stopped,
+                    ) => lang.tr("aggregator_state_core_stopped").into_owned(),
+                    AggregationActivationOutcome::AlreadySelectedWhileInactive(
+                        infiltrator_contract::snapshot::CoreInactiveLifecycle::Failed,
+                    )
+                    | AggregationActivationOutcome::SelectedWhileInactive(
+                        infiltrator_contract::snapshot::CoreInactiveLifecycle::Failed,
+                    )
+                    | AggregationActivationOutcome::CurrentProfileUpdatedWhileInactive(
+                        infiltrator_contract::snapshot::CoreInactiveLifecycle::Failed,
+                    ) => lang.tr("aggregator_state_core_failed").into_owned(),
+                    AggregationActivationOutcome::SelectedAndApplied
+                    | AggregationActivationOutcome::CurrentProfileUpdatedAndApplied => {
+                        lang.tr("aggregator_state_reloaded").into_owned()
+                    }
                 };
                 let text = interpolate(
                     &lang.tr(key),
                     &[
                         ("name", outcome.profile_name.as_str()),
-                        ("state", lang.tr(state_key).as_ref()),
+                        ("state", state.as_str()),
                     ],
                 );
                 Task::batch(vec![

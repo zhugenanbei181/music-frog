@@ -8,12 +8,12 @@
 //! source-bound transaction. Format-specific snippets and live preflight are
 //! delegated to the document codec adapter.
 
-use crate::profile_application::{ProfileApplication, valid_name};
+use crate::profile_application::{ProfileApplication, ProfileRuntimeAccess, valid_name};
 use crate::profile_editor_observations::EditorFacet;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document::{DocumentInspection, ProfileDocumentSnapshot};
 use infiltrator_contract::profile_document_identity::{
-    ProfileDocumentIdentity, ProfileWorkspaceIdentity,
+    ProfileDocumentIdentity, ProfileId, ProfileWorkspaceIdentity,
 };
 use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
 use infiltrator_ports::profile_document_codec::{
@@ -23,7 +23,6 @@ use infiltrator_ports::profile_workspace::{
     ProfileWorkspace, ProfileWorkspacePurpose, ProfileWorkspaceUpdate,
 };
 use infiltrator_ports::runtime_gateway::ManagedRuntime;
-use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct ProfileDocumentApplication {
@@ -72,11 +71,13 @@ impl ProfileDocumentApplication {
             _ => self.profiles.current_profile().await?,
         };
         let name = valid_name(&name)?;
+        let profile_id = ProfileId::new(name.clone())
+            .map_err(|error| Failure::new(ErrorCode::InvalidInput, error.to_string(), false))?;
         let read = self
             .profiles
             .begin_editor_read(&name, EditorFacet::Document);
         self.profiles.mark_editor_loading(&read);
-        let workspace = match self.profiles.load_workspace(&name).await {
+        let workspace = match self.profiles.load_workspace(&profile_id).await {
             Ok(workspace) => workspace,
             Err(failure) => {
                 self.profiles.fail_editor_read(&read, failure.clone());
@@ -107,7 +108,7 @@ impl ProfileDocumentApplication {
     /// re-checks the stored subscription metadata.
     pub async fn save<R: ManagedRuntime + ?Sized>(
         &self,
-        runtime: Option<Arc<R>>,
+        runtime: ProfileRuntimeAccess<R>,
         expected: &ProfileWorkspaceIdentity,
         content: &str,
         authorization: ProfileWriteAuthorization,
@@ -118,7 +119,7 @@ impl ProfileDocumentApplication {
         let read = self.profiles.begin_editor_read(name, EditorFacet::Document);
         let workspace = self
             .profiles
-            .load_workspace_id(&expected.document.profile_id)
+            .load_workspace(&expected.document.profile_id)
             .await?;
         if workspace.identity() != *expected {
             return Err(Failure::new(

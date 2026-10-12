@@ -11,9 +11,9 @@ use infiltrator_ports::secure_store::SecureStore;
 use mihomo_api::error::{MihomoError, Result};
 
 impl<S: SecureStore> ConfigManager<S> {
-    /// Create a missing Mihomo profile document for the one-time legacy
-    /// selection migration. The caller has already fenced this operation to
-    /// the Pending V0 migration state and exact default profile identity.
+    /// Create a missing Mihomo profile during legacy selection migration. The
+    /// caller holds the product reference lock; take only the engine profile
+    /// lock here to preserve root -> profile order without reacquiring root.
     pub(crate) async fn ensure_profile_document(&self, profile: &str) -> Result<()> {
         let path = self.config_dir.join(format!("{}.yaml", profile));
         if !path.exists() {
@@ -33,7 +33,8 @@ external-controller: 127.0.0.1:{}
                 port
             );
 
-            self.save(&profile, &default_config).await?;
+            let _profile_guard = self.lock_profile_writes().await?;
+            self.save_profile_locked(profile, &default_config).await?;
             log::info!("Created default config at: {}", path.display());
         }
         Ok(())
@@ -49,8 +50,12 @@ external-controller: 127.0.0.1:{}
     }
 
     pub async fn ensure_proxy_ports_for_profile(&self, profile: &ProfileId) -> Result<()> {
-        let profile = profile.as_str();
-        let content = self.load(&profile).await?;
+        let workspace = self
+            .read_workspace(profile)
+            .await
+            .map_err(|error| MihomoError::Config(error.to_string()))?;
+        let content = String::from_utf8(workspace.document.raw_bytes.clone())
+            .map_err(|error| MihomoError::Config(format!("profile YAML is not UTF-8: {error}")))?;
         let mut doc = yaml::load_yaml(&content)?;
         let mut changed = false;
 
@@ -76,7 +81,8 @@ external-controller: 127.0.0.1:{}
 
         if changed {
             let updated = yaml::to_string(&doc)?;
-            self.save(&profile, &updated).await?;
+            self.persist_derived_workspace_content(&workspace, &updated)
+                .await?;
         }
 
         Ok(())
@@ -98,8 +104,12 @@ external-controller: 127.0.0.1:{}
     }
 
     pub async fn ensure_dns_listen_port_for_profile(&self, profile: &ProfileId) -> Result<()> {
-        let profile = profile.as_str();
-        let content = self.load(&profile).await?;
+        let workspace = self
+            .read_workspace(profile)
+            .await
+            .map_err(|error| MihomoError::Config(error.to_string()))?;
+        let content = String::from_utf8(workspace.document.raw_bytes.clone())
+            .map_err(|error| MihomoError::Config(format!("profile YAML is not UTF-8: {error}")))?;
         let doc = yaml::load_yaml(&content)?;
         let Some(raw) = doc["dns"]["listen"].as_str() else {
             return Ok(());
@@ -121,7 +131,8 @@ external-controller: 127.0.0.1:{}
             update_nested_field(&content, &["dns", "listen"], &format!("{host}:{fallback}"))
                 .map_err(|error| MihomoError::Config(error.to_string()))?;
         if updated != content {
-            self.save(&profile, &updated).await?;
+            self.persist_derived_workspace_content(&workspace, &updated)
+                .await?;
             log::warn!("dns.listen {port} is in use, switched to {fallback}");
         }
         Ok(())

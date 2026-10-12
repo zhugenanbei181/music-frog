@@ -1,42 +1,175 @@
 //! Explicit isolated profile ports for Hosts behavior and capture; no filesystem or network fallback.
 use async_trait::async_trait;
+use infiltrator_contract::active_profile_reference::{
+    ActiveProfileReference, ActiveProfileReferenceCasOutcome, ActiveProfileReferenceRevision,
+    ActiveProfileReferenceState, ActiveProfileReferenceTarget,
+};
 use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document_identity::{ProfileId, ProfileWorkspaceIdentity};
 use infiltrator_contract::profile_protection::{ProfileWriteAuthorization, ProfileWriteProtection};
 use infiltrator_domain::profiles::{ProfileInfo, ProfileMetadata};
 use infiltrator_ports::error::PortError;
-use infiltrator_ports::profile_store::ProfileStore;
+use infiltrator_ports::profile_store::{
+    ActiveProfileWorkspacePublishOutcome, ActiveProfileWorkspacePublishedLease,
+    ActiveProfileWorkspaceRestoreOutcome, ActiveProfileWorkspaceRestoredLease,
+    ActiveProfileWorkspaceWriteLease, ProfileStore,
+};
 use infiltrator_ports::profile_workspace::{
     ProfileWorkspace, ProfileWorkspacePurpose, ProfileWorkspaceUpdate,
 };
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::{
-    Mutex,
+    Arc, Mutex,
     atomic::{AtomicBool, AtomicUsize, Ordering},
 };
 pub const HOSTS_PROFILE: &str = "hosts-work";
 pub const ORIGINAL_HOSTS: &str = "mixed-port: 7890\ndns:\n  enable: false\n  future-setting: preserve-me\n  hosts:\n    legacy.test: 1.1.1.1\nhosts:\n  live.test: 9.9.9.9\n  second.test: 8.8.8.8\n";
 pub struct HostsCaptureStore {
-    current: Mutex<String>,
+    active_reference: Mutex<ActiveProfileReferenceState>,
     files: Mutex<BTreeMap<String, String>>,
+    workspace_write_gate: Arc<tokio::sync::Mutex<()>>,
     pub deny_save: AtomicBool,
     pub deny_read: AtomicBool,
     pub writes: AtomicUsize,
 }
+
+struct HostsWorkspaceWriteLease<'a> {
+    store: &'a HostsCaptureStore,
+    expected_reference: ActiveProfileReference,
+    observed: ProfileWorkspace,
+    _guard: tokio::sync::OwnedMutexGuard<()>,
+}
+
+struct HostsWorkspacePublishedLease<'a> {
+    store: &'a HostsCaptureStore,
+    expected_reference: ActiveProfileReference,
+    published: ProfileWorkspace,
+    previous: ProfileWorkspace,
+    _guard: tokio::sync::OwnedMutexGuard<()>,
+}
+
+struct HostsWorkspaceRestoredLease {
+    workspace: ProfileWorkspace,
+    _guard: tokio::sync::OwnedMutexGuard<()>,
+}
 impl Default for HostsCaptureStore {
     fn default() -> Self {
         Self {
-            current: Mutex::new(HOSTS_PROFILE.into()),
+            active_reference: Mutex::new(ActiveProfileReferenceState::Selected(
+                ActiveProfileReference::new(
+                    EngineId::new("mihomo").expect("test engine ID"),
+                    ProfileId::new(HOSTS_PROFILE).expect("test profile ID"),
+                    ActiveProfileReferenceRevision::default(),
+                ),
+            )),
             files: Mutex::new(BTreeMap::from([
                 (HOSTS_PROFILE.into(), ORIGINAL_HOSTS.into()),
                 ("other".into(), "hosts:\n  other.test: 4.4.4.4\n".into()),
             ])),
+            workspace_write_gate: Arc::new(tokio::sync::Mutex::new(())),
             deny_save: AtomicBool::new(false),
             deny_read: AtomicBool::new(false),
             writes: AtomicUsize::new(0),
         }
+    }
+}
+
+#[async_trait]
+impl ActiveProfileWorkspaceWriteLease for HostsWorkspaceWriteLease<'_> {
+    fn observed_workspace(&self) -> &ProfileWorkspace {
+        &self.observed
+    }
+
+    async fn publish(
+        self: Box<Self>,
+        update: ProfileWorkspaceUpdate,
+    ) -> ActiveProfileWorkspacePublishOutcome<'async_trait> {
+        match self.store.read_active_profile_reference().await {
+            Ok(ActiveProfileReferenceState::Selected(reference))
+                if reference == self.expected_reference => {}
+            Ok(_) => {
+                return ActiveProfileWorkspacePublishOutcome::Unpublished(PortError::Rejected(
+                    Failure::new(ErrorCode::NotReady, "active reference changed", true),
+                ));
+            }
+            Err(error) => return ActiveProfileWorkspacePublishOutcome::Unpublished(error),
+        }
+        let published = match self
+            .store
+            .commit_workspace(&self.observed.identity(), &update, true)
+        {
+            Ok(workspace) => workspace,
+            Err(error) => return ActiveProfileWorkspacePublishOutcome::Unpublished(error),
+        };
+        ActiveProfileWorkspacePublishOutcome::Published(Box::new(HostsWorkspacePublishedLease {
+            store: self.store,
+            expected_reference: self.expected_reference.clone(),
+            previous: self.observed.clone(),
+            published,
+            _guard: self._guard,
+        }))
+    }
+}
+
+#[async_trait]
+impl ActiveProfileWorkspacePublishedLease for HostsWorkspacePublishedLease<'_> {
+    fn previous_workspace(&self) -> &ProfileWorkspace {
+        &self.previous
+    }
+
+    fn published_workspace(&self) -> &ProfileWorkspace {
+        &self.published
+    }
+
+    fn commit(self: Box<Self>) -> ProfileWorkspace {
+        self.published.clone()
+    }
+
+    async fn restore_if_current(
+        self: Box<Self>,
+    ) -> Result<ActiveProfileWorkspaceRestoreOutcome<'async_trait>, PortError> {
+        if self.store.read_active_profile_reference().await?
+            != ActiveProfileReferenceState::Selected(self.expected_reference.clone())
+        {
+            let active = self.store.load_active_workspace().await?;
+            return Ok(ActiveProfileWorkspaceRestoreOutcome::Superseded {
+                observed: active.identity(),
+            });
+        }
+        let actual = self.store.load_active_workspace().await?;
+        if actual.identity() != self.published.identity() {
+            return Ok(ActiveProfileWorkspaceRestoreOutcome::Superseded {
+                observed: actual.identity(),
+            });
+        }
+        let restored = self.store.commit_workspace(
+            &self.published.identity(),
+            &ProfileWorkspaceUpdate {
+                purpose: ProfileWorkspacePurpose::Derived,
+                document_bytes: self.previous.document.raw_bytes.clone(),
+                sidecar_bytes: self.previous.sidecar_bytes.clone(),
+            },
+            true,
+        )?;
+        Ok(ActiveProfileWorkspaceRestoreOutcome::Restored(Box::new(
+            HostsWorkspaceRestoredLease {
+                workspace: restored,
+                _guard: self._guard,
+            },
+        )))
+    }
+}
+
+#[async_trait]
+impl ActiveProfileWorkspaceRestoredLease for HostsWorkspaceRestoredLease {
+    fn restored_workspace(&self) -> &ProfileWorkspace {
+        &self.workspace
+    }
+
+    fn finish(self: Box<Self>) -> ProfileWorkspace {
+        self.workspace.clone()
     }
 }
 impl HostsCaptureStore {
@@ -60,7 +193,16 @@ impl ProfileStore for HostsCaptureStore {
         PathBuf::from("/isolated-hosts")
     }
     async fn list_profiles(&self) -> Result<Vec<ProfileInfo>, PortError> {
-        let current = self.current.lock().expect("isolated current").clone();
+        let current = match &*self
+            .active_reference
+            .lock()
+            .expect("isolated active reference")
+        {
+            ActiveProfileReferenceState::Selected(reference) => {
+                Some(reference.profile_id.as_str().to_owned())
+            }
+            ActiveProfileReferenceState::Unselected { .. } => None,
+        };
         Ok(self
             .files
             .lock()
@@ -68,17 +210,85 @@ impl ProfileStore for HostsCaptureStore {
             .keys()
             .map(|name| ProfileInfo {
                 name: name.clone(),
-                active: name == &current,
+                active: current.as_deref() == Some(name.as_str()),
                 ..Default::default()
             })
             .collect())
     }
     async fn get_current(&self) -> Result<String, PortError> {
-        Ok(self.current.lock().expect("isolated current").clone())
+        match &*self
+            .active_reference
+            .lock()
+            .expect("isolated active reference")
+        {
+            ActiveProfileReferenceState::Selected(reference) => {
+                Ok(reference.profile_id.as_str().to_owned())
+            }
+            ActiveProfileReferenceState::Unselected { .. } => Err(PortError::unsupported(
+                infiltrator_contract::capability::Capability::Profiles,
+                "test store has no selected active profile",
+            )),
+        }
     }
-    async fn set_current(&self, profile: &str) -> Result<(), PortError> {
-        *self.current.lock().expect("isolated current") = profile.into();
-        Ok(())
+    async fn read_active_profile_reference(
+        &self,
+    ) -> Result<ActiveProfileReferenceState, PortError> {
+        Ok(self
+            .active_reference
+            .lock()
+            .expect("isolated active reference")
+            .clone())
+    }
+    async fn compare_and_set_active_profile_reference(
+        &self,
+        expected: ActiveProfileReferenceState,
+        target: ActiveProfileReferenceTarget,
+        _: infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization,
+    ) -> Result<ActiveProfileReferenceCasOutcome, PortError> {
+        let _workspace_guard = Arc::clone(&self.workspace_write_gate).lock_owned().await;
+        let mut active_reference = self
+            .active_reference
+            .lock()
+            .expect("isolated active reference");
+        if *active_reference != expected {
+            return Ok(ActiveProfileReferenceCasOutcome::Stale {
+                expected,
+                observed: active_reference.clone(),
+            });
+        }
+        let revision = expected
+            .revision()
+            .next()
+            .ok_or_else(|| PortError::Io("test active-profile revision overflow".into()))?;
+        let current = match target {
+            ActiveProfileReferenceTarget::Unselected => {
+                ActiveProfileReferenceState::Unselected { revision }
+            }
+            ActiveProfileReferenceTarget::Selected {
+                engine_id,
+                profile_id,
+            } => {
+                if engine_id != self.engine_id() {
+                    return Err(PortError::unsupported(
+                        infiltrator_contract::capability::Capability::Profiles,
+                        "test store cannot select a foreign engine",
+                    ));
+                }
+                if !self
+                    .files
+                    .lock()
+                    .expect("isolated files")
+                    .contains_key(profile_id.as_str())
+                {
+                    return Err(PortError::NotFound(profile_id.as_str().to_owned()));
+                }
+                ActiveProfileReferenceState::Selected(ActiveProfileReference::new(
+                    engine_id, profile_id, revision,
+                ))
+            }
+        };
+        let previous = std::mem::replace(&mut *active_reference, current.clone());
+        Ok(ActiveProfileReferenceCasOutcome::Committed { previous, current })
     }
     async fn load(&self, profile: &str) -> Result<String, PortError> {
         if self.deny_read.load(Ordering::SeqCst) {
@@ -118,25 +328,74 @@ impl ProfileStore for HostsCaptureStore {
         )
     }
     async fn load_active_workspace(&self) -> Result<ProfileWorkspace, PortError> {
-        let profile = self.current.lock().expect("isolated current").clone();
+        let profile = match &*self
+            .active_reference
+            .lock()
+            .expect("isolated active reference")
+        {
+            ActiveProfileReferenceState::Selected(reference) => {
+                reference.profile_id.as_str().to_owned()
+            }
+            ActiveProfileReferenceState::Unselected { .. } => {
+                return Err(PortError::unsupported(
+                    infiltrator_contract::capability::Capability::Profiles,
+                    "test store has no selected active profile",
+                ));
+            }
+        };
         let profile = ProfileId::new(profile).map_err(|error| PortError::Io(error.to_string()))?;
         self.load_workspace(&profile).await
     }
-    async fn compare_and_save_workspace(
+    async fn compare_and_save_inactive_workspace(
         &self,
         expected: &ProfileWorkspaceIdentity,
         update: &ProfileWorkspaceUpdate,
     ) -> Result<ProfileWorkspace, PortError> {
         self.commit_workspace(expected, update, false)
     }
-    async fn compare_and_save_active_workspace(
+    async fn acquire_active_workspace_write_lease(
         &self,
-        expected: &ProfileWorkspaceIdentity,
-        update: &ProfileWorkspaceUpdate,
-    ) -> Result<ProfileWorkspace, PortError> {
-        self.commit_workspace(expected, update, true)
+        expected_reference: ActiveProfileReference,
+        expected: ProfileWorkspaceIdentity,
+        authorization: infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization,
+    ) -> Result<Box<dyn ActiveProfileWorkspaceWriteLease + '_>, PortError> {
+        let guard = Arc::clone(&self.workspace_write_gate).lock_owned().await;
+        if authorization
+            != infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization::Unowned
+        {
+            return Err(PortError::Rejected(Failure::new(
+                ErrorCode::NotReady,
+                "isolated Hosts fixture has no bound Core owner",
+                true,
+            )));
+        }
+        if self.read_active_profile_reference().await?
+            != ActiveProfileReferenceState::Selected(expected_reference.clone())
+            || expected.document.engine_id != expected_reference.engine_id
+            || expected.document.profile_id != expected_reference.profile_id
+        {
+            return Err(PortError::Rejected(Failure::new(
+                ErrorCode::NotReady,
+                "active reference changed",
+                true,
+            )));
+        }
+        let observed = self.load_active_workspace().await?;
+        if observed.identity() != expected {
+            return Err(PortError::Rejected(Failure::new(
+                ErrorCode::NotReady,
+                "profile document changed",
+                true,
+            )));
+        }
+        Ok(Box::new(HostsWorkspaceWriteLease {
+            store: self,
+            expected_reference,
+            observed,
+            _guard: guard,
+        }))
     }
-    async fn save(&self, profile: &str, content: &str) -> Result<(), PortError> {
+    async fn save_inactive_profile(&self, profile: &str, content: &str) -> Result<(), PortError> {
         if self.deny_save.load(Ordering::SeqCst) {
             return Err(PortError::Rejected(Failure::new(
                 ErrorCode::Permission,
@@ -170,7 +429,7 @@ impl ProfileStore for HostsCaptureStore {
     async fn clear_backup(&self, _: &str) -> Result<(), PortError> {
         Ok(())
     }
-    async fn restore_backup(&self, _: &str) -> Result<bool, PortError> {
+    async fn restore_inactive_profile_backup(&self, _: &str) -> Result<bool, PortError> {
         Ok(false)
     }
 }
@@ -190,7 +449,17 @@ impl HostsCaptureStore {
             )));
         }
         let profile = expected.document.profile_id.as_str();
-        if require_active && *self.current.lock().expect("isolated current") != profile {
+        let active_profile = match &*self
+            .active_reference
+            .lock()
+            .expect("isolated active reference")
+        {
+            ActiveProfileReferenceState::Selected(reference) => {
+                Some(reference.profile_id.as_str().to_owned())
+            }
+            ActiveProfileReferenceState::Unselected { .. } => None,
+        };
+        if require_active && active_profile.as_deref() != Some(profile) {
             return Err(PortError::Rejected(Failure::new(
                 ErrorCode::NotReady,
                 "active profile changed",

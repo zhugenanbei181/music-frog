@@ -8,8 +8,13 @@
 //! not assert the product capability matrix or composition wiring.
 
 use async_trait::async_trait;
+use infiltrator_contract::active_profile_reference::{
+    ActiveProfileReferenceCasOutcome, ActiveProfileReferenceState, ActiveProfileReferenceTarget,
+    ActiveProfileReferenceWriteAuthorization,
+};
 use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_identity::{CoreIdentity, CoreInstanceId, CoreVersion, EngineId};
+use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_contract::session::SessionToken;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_core::apply::{ConfigReloader, EndpointConfigReloader};
@@ -234,9 +239,27 @@ async fn profile_preflight_apply_readback_and_restore_use_the_live_mihomo_transa
         "the integration must use the profile directory owned by the running Mihomo process"
     );
 
-    ProfileStore::set_current(config.as_ref(), profile_name)
+    let expected = ProfileStore::read_active_profile_reference(config.as_ref())
         .await
-        .expect("select the real-process profile in the isolated settings file");
+        .expect("read selection before profile CAS");
+    let target = ActiveProfileReferenceTarget::selected(
+        ProfileStore::engine_id(config.as_ref()),
+        ProfileId::new(profile_name).expect("valid smoke profile ID"),
+    );
+    match ProfileStore::compare_and_set_active_profile_reference(
+        config.as_ref(),
+        expected,
+        target,
+        infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization::Unowned,
+    )
+        .await
+        .expect("revisioned profile selection CAS")
+    {
+        ActiveProfileReferenceCasOutcome::Committed { .. } => {}
+        ActiveProfileReferenceCasOutcome::Stale { expected, observed } => {
+            panic!("real-process selection unexpectedly stale: {expected:?} -> {observed:?}")
+        }
+    }
     let endpoint_source: Arc<dyn EndpointSource> =
         Arc::new(ProfileEndpointSource::new(config.clone()));
     let endpoint = endpoint_source
@@ -331,10 +354,21 @@ async fn profile_preflight_apply_readback_and_restore_use_the_live_mihomo_transa
 
     let changed_text = replace_one(&before_text, "log-level: info", "log-level: debug");
     let changed_bytes = changed_text.as_bytes().to_vec();
+    let expected_reference = match ProfileStore::read_active_profile_reference(config.as_ref())
+        .await
+        .expect("read exact selected reference before transaction")
+    {
+        ActiveProfileReferenceState::Selected(reference) => reference,
+        ActiveProfileReferenceState::Unselected { .. } => {
+            panic!("real-process smoke requires selected active profile")
+        }
+    };
     let changed = transaction
         .transact(ProfileConfigurationTransactionRequest {
+            expected_reference: expected_reference.clone(),
             expected: before.identity(),
             update: workspace_update(&before, changed_bytes),
+            authorization: ActiveProfileReferenceWriteAuthorization::Unowned,
             strategy: ApplyStrategy::PreferReload,
         })
         .await
@@ -358,8 +392,10 @@ async fn profile_preflight_apply_readback_and_restore_use_the_live_mihomo_transa
 
     let restored = transaction
         .transact(ProfileConfigurationTransactionRequest {
+            expected_reference,
             expected: changed.identity(),
             update: workspace_update(&changed, before.document.raw_bytes.clone()),
+            authorization: ActiveProfileReferenceWriteAuthorization::Unowned,
             strategy: ApplyStrategy::PreferReload,
         })
         .await

@@ -324,7 +324,7 @@ async fn select_product_binary(
 ///
 /// The speedtest owner and surfaces use the same engine-scoped outbound port
 /// and accepted inventory revision as selection and one-shot probes.
-pub(crate) fn core_application(
+pub(crate) async fn core_application(
     service: &ServiceManager,
     backend: DesktopMihomoBackend,
     secret: Option<String>,
@@ -412,10 +412,9 @@ pub(crate) fn core_application(
             )),
     ));
     let DesktopBackendSelection::ActiveProfile(selection) = selection;
-    let owner_binding = selection.into_owner_binding()?;
-    application
-        .install_active_profile_owner_binding(owner_binding)
-        .map_err(|failure| anyhow::anyhow!(failure.message))?;
+    selection
+        .install_owner_binding_for_application(&application)
+        .await?;
     Ok(application)
 }
 

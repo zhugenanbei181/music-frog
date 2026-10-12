@@ -1,7 +1,7 @@
 //! WebDAV sync handlers: upload/download of profiles to the user's DAV
 //! account, completion toasts and the periodic sync tick.
 
-use crate::configs_dir::{config_manager, configs_dir};
+use crate::configs_dir::configs_dir;
 use crate::host::storage;
 use crate::notify::NotifyUrgency;
 use crate::state::AppState;
@@ -75,7 +75,6 @@ fn transfer_to_summary(report: SyncTransferReport) -> SyncSummary {
         uploaded: report.uploaded as usize,
         downloaded: report.downloaded as usize,
         conflicts: report.conflicts as usize,
-        active_profile_changed: report.active_profile_changed,
         conflict_files: report
             .conflict_files
             .into_iter()
@@ -156,7 +155,6 @@ impl AppState {
                 self.profile.sync_cancel = Some(cancel.clone());
                 self.profile.is_syncing = true;
                 self.refresh_tray();
-                let runtime_present = self.runtime.runtime.is_some();
                 let operation =
                     stream::channel(100, move |mut output: mpsc::Sender<Message>| async move {
                         let observer =
@@ -164,7 +162,7 @@ impl AppState {
                         let result = async {
                             let configs_dir = configs_dir().await?.to_string_lossy().into_owned();
                             application
-                                .download(config, Some(configs_dir), runtime_present, observer)
+                                .download(config, Some(configs_dir), observer)
                                 .await
                                 .map(transfer_to_summary)
                                 .map_err(|failure| InfiltratorError::Sync(failure.message))
@@ -187,25 +185,6 @@ impl AppState {
                     Ok(summary) => {
                         self.profile.sync_conflicts = summary.conflict_files.clone();
                         let mut tasks = vec![Task::done(Message::LoadProfiles)];
-                        if summary.active_profile_changed && self.runtime.runtime.is_some() {
-                            tasks.push(self.trigger_runtime_rebuild());
-                        } else if summary.active_profile_changed {
-                            // The worker deliberately kept the backup for
-                            // an active profile in case a live core needed a
-                            // rebuild. If the core stopped meanwhile there
-                            // is no rebuild consumer, so clear that transient
-                            // file after the durable download succeeds.
-                            tasks.push(Task::perform(
-                                async {
-                                    if let Ok(manager) = config_manager().await
-                                        && let Ok(profile) = manager.get_current().await
-                                    {
-                                        let _ = manager.clear_backup(&profile).await;
-                                    }
-                                },
-                                |_| Message::Noop,
-                            ));
-                        }
                         let lang = Lang(&self.shell.lang);
                         tasks.push(Task::done(Message::ShowToast(
                             format!(
@@ -297,7 +276,7 @@ impl AppState {
                         validate_yaml(&content)
                             .map_err(|error| InfiltratorError::Config(error.to_string()))?;
                         save_profile_content(
-                            runtime,
+                            crate::update::core::profile_apply::runtime_access(runtime),
                             conflict.profile.clone(),
                             content,
                             ApplyStrategy::PreferReload,

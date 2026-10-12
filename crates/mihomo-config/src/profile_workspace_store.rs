@@ -3,7 +3,7 @@ use crate::manager::ConfigManager;
 use crate::manager::paths::sanitized_profile_key;
 use crate::manager::profiles::backup_path;
 use crate::profile_document_codec::{PROFILE_FORMAT, PROFILE_SCHEMA_VERSION};
-use crate::sidecar_store::{read_optional_bytes, remove_optional, write_document_bytes};
+use crate::sidecar_store::{read_optional_bytes, remove_optional, write_document_bytes_durable};
 use crate::yaml::validate;
 use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
 use infiltrator_contract::capability::Capability;
@@ -35,9 +35,8 @@ use tokio::fs;
 
 #[derive(Clone, Copy)]
 pub(crate) enum WorkspaceTarget {
-    Any,
-    Active,
     Inactive,
+    AuthorizedActive,
 }
 
 enum SelectionFence {
@@ -94,11 +93,11 @@ impl<S: SecureStore> ConfigManager<S> {
         self.initialize_profile_namespace()
             .await
             .map_err(config_error)?;
-        let _guard = self.lock_profile_writes().await;
+        let _guard = self.lock_profile_writes().await.map_err(config_error)?;
         self.read_workspace_locked(profile).await
     }
 
-    async fn read_workspace_locked(
+    pub(crate) async fn read_workspace_locked(
         &self,
         profile: &ProfileId,
     ) -> Result<ProfileWorkspace, PortError> {
@@ -167,7 +166,42 @@ impl<S: SecureStore> ConfigManager<S> {
                 document_bytes: previous.document.raw_bytes.clone(),
                 sidecar_bytes: previous.sidecar_bytes.clone(),
             },
-            WorkspaceTarget::Any,
+            WorkspaceTarget::Inactive,
+        )
+        .await
+    }
+
+    /// Restore exact prior bytes while the caller already holds the root
+    /// reference and cross-process profile-write fences.
+    pub(crate) async fn recover_workspace_locked(
+        &self,
+        expected: &ProfileWorkspaceIdentity,
+        previous: &ProfileWorkspace,
+    ) -> Result<ProfileWorkspace, PortError> {
+        ensure_mihomo_identity(expected)?;
+        ensure_mihomo_engine(&previous.document.identity.engine_id)?;
+        validate_document_format(
+            &previous.document.identity.format_id,
+            previous.document.identity.schema_version,
+        )?;
+        validate_workspace_bytes(previous)?;
+        if previous.document.identity.profile_id != expected.document.profile_id
+            || previous.document.identity.source != expected.document.source
+        {
+            return Err(invalid_recovery(
+                "Recovery document does not belong to the observed profile source",
+            ));
+        }
+        validate_document_bytes(&previous.document.raw_bytes)?;
+        self.publish_workspace_locked(
+            expected,
+            &ProfileWorkspaceUpdate {
+                purpose: ProfileWorkspacePurpose::Derived,
+                document_bytes: previous.document.raw_bytes.clone(),
+                sidecar_bytes: previous.sidecar_bytes.clone(),
+            },
+            WorkspaceTarget::AuthorizedActive,
+            &SelectionFence::NotRequired,
         )
         .await
     }
@@ -182,22 +216,54 @@ impl<S: SecureStore> ConfigManager<S> {
             .await
             .map_err(config_error)?;
         let selection_fence = match target {
-            WorkspaceTarget::Any => SelectionFence::NotRequired,
-            WorkspaceTarget::Active | WorkspaceTarget::Inactive => SelectionFence::Held(
+            WorkspaceTarget::Inactive => SelectionFence::Held(
                 ActiveProfileReferenceStore::acquire_selection_lease(self).await?,
             ),
+            WorkspaceTarget::AuthorizedActive => SelectionFence::NotRequired,
         };
-        let _guard = self.lock_profile_writes().await;
+        let _guard = self.lock_profile_writes().await.map_err(config_error)?;
+        self.publish_workspace_locked(expected, update, target, &selection_fence)
+            .await
+    }
+
+    /// Publish while the caller already holds the root reference and
+    /// cross-process profile-write fences. This is used by managed active
+    /// content saves whose exact reference and owner authority were checked
+    /// in the same transaction.
+    pub(crate) async fn publish_active_workspace_locked(
+        &self,
+        expected: &ProfileWorkspaceIdentity,
+        update: &ProfileWorkspaceUpdate,
+    ) -> Result<ProfileWorkspace, PortError> {
+        ensure_mihomo_identity(expected)?;
+        validate_document_format(
+            &expected.document.format_id,
+            expected.document.schema_version,
+        )?;
+        validate_document_bytes(&update.document_bytes)?;
+        self.publish_workspace_locked(
+            expected,
+            update,
+            WorkspaceTarget::AuthorizedActive,
+            &SelectionFence::NotRequired,
+        )
+        .await
+    }
+
+    async fn publish_workspace_locked(
+        &self,
+        expected: &ProfileWorkspaceIdentity,
+        update: &ProfileWorkspaceUpdate,
+        target: WorkspaceTarget,
+        selection_fence: &SelectionFence,
+    ) -> Result<ProfileWorkspace, PortError> {
         let profile = &expected.document.profile_id;
         let workspace = self.read_workspace_locked(profile).await?;
         let target_matches = match target {
-            WorkspaceTarget::Any => true,
-            WorkspaceTarget::Active => {
-                selection_matches_profile(&selection_fence, &self.engine_id(), profile.as_str())
-            }
             WorkspaceTarget::Inactive => {
-                !selection_matches_profile(&selection_fence, &self.engine_id(), profile.as_str())
+                !selection_matches_profile(selection_fence, &self.engine_id(), profile.as_str())
             }
+            WorkspaceTarget::AuthorizedActive => true,
         };
         if workspace.identity() != *expected || !target_matches {
             return Err(PortError::Rejected(Failure::new(
@@ -227,11 +293,13 @@ impl<S: SecureStore> ConfigManager<S> {
             .await
             .map_err(config_error)?;
         let sidecar_path = options_path(self.config_dir(), profile.as_str());
+        let profile_publication =
+            write_document_bytes_durable(&profile_path, &update.document_bytes);
         publish_pair(
             &sidecar_path,
             workspace.sidecar_bytes.as_deref(),
             update.sidecar_bytes.as_deref(),
-            write_document_bytes(&profile_path, &update.document_bytes),
+            profile_publication,
         )
         .await?;
         if let Err(error) = remove_optional(&backup_path(&profile_path)).await {
@@ -313,6 +381,19 @@ fn workspace_from_bytes(
         write_protection,
         sidecar_bytes,
     }
+}
+
+pub(crate) fn workspace_for_update(
+    previous: &ProfileWorkspace,
+    update: &ProfileWorkspaceUpdate,
+) -> ProfileWorkspace {
+    workspace_from_bytes(
+        previous.document.identity.profile_id.clone(),
+        previous.document.identity.source.clone(),
+        previous.write_protection.clone(),
+        update.document_bytes.clone(),
+        update.sidecar_bytes.clone(),
+    )
 }
 
 fn validate_workspace_bytes(workspace: &ProfileWorkspace) -> Result<(), PortError> {
@@ -439,7 +520,7 @@ async fn publish_pair(
 
 async fn publish_sidecar(path: &Path, bytes: Option<&[u8]>) -> Result<(), PortError> {
     match bytes {
-        Some(bytes) => write_document_bytes(path, bytes).await,
+        Some(bytes) => write_document_bytes_durable(path, bytes).await,
         None => remove_optional(path).await,
     }
 }

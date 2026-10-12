@@ -1,7 +1,6 @@
 //! Typed configuration use-cases over an engine-scoped profile codec.
 
-use crate::profile_application::ProfileApplication;
-use infiltrator_contract::dns::DnsSettingsPatch;
+use crate::profile_application::{ProfileApplication, ProfileRuntimeAccess};
 use infiltrator_contract::dns_hosts::DnsHostEntry;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_configuration::{
@@ -13,10 +12,12 @@ use infiltrator_domain::{dns, fake_ip, proxy_providers, rules, sniffer, tun};
 use infiltrator_ports::profile_document_codec::{
     ProfileConfigurationQuery, ProfileConfigurationReadout, ProfileConfigurationUpdate,
 };
+#[cfg(test)]
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::profile_workspace::{ProfileWorkspacePurpose, ProfileWorkspaceUpdate};
 use infiltrator_ports::rule_tracer::RuleWorkspace;
 use infiltrator_ports::runtime_gateway::ManagedRuntime;
+#[cfg(test)]
 use std::sync::Arc;
 
 #[path = "configuration_dns.rs"]
@@ -54,7 +55,7 @@ impl ConfigurationApplication {
 
     async fn apply_configuration<R: ManagedRuntime + ?Sized>(
         &self,
-        runtime: Option<Arc<R>>,
+        runtime: ProfileRuntimeAccess<R>,
         expected_profile: Option<&str>,
         expected_hosts: Option<&[DnsHostEntry]>,
         update: ProfileConfigurationUpdate,
@@ -101,15 +102,9 @@ impl ConfigurationApplication {
             document_bytes: mutation.document_bytes,
             sidecar_bytes: workspace.sidecar_bytes,
         };
-        if let Some(runtime) = runtime {
-            self.profiles
-                .commit_workspace(Some(runtime), &expected_identity, &workspace_update)
-                .await?;
-        } else {
-            self.profiles
-                .commit_active_workspace(&expected_identity, &workspace_update)
-                .await?;
-        }
+        self.profiles
+            .commit_workspace(runtime, &expected_identity, &workspace_update)
+            .await?;
         Ok(mutation.readback)
     }
 
@@ -217,7 +212,11 @@ impl ConfigurationApplication {
             sidecar_bytes: workspace.sidecar_bytes,
         };
         self.profiles
-            .commit_active_workspace(&expected_workspace, &update)
+            .commit_workspace::<dyn ManagedRuntime>(
+                ProfileRuntimeAccess::Offline,
+                &expected_workspace,
+                &update,
+            )
             .await?;
         Ok(mutation.readback)
     }
@@ -238,7 +237,7 @@ impl ConfigurationApplication {
     ) -> Result<dns::DnsConfig, Failure> {
         match self
             .apply_configuration::<dyn ManagedRuntime>(
-                None,
+                ProfileRuntimeAccess::Offline,
                 None,
                 None,
                 ProfileConfigurationUpdate::Dns(patch),
@@ -266,7 +265,7 @@ impl ConfigurationApplication {
     ) -> Result<fake_ip::FakeIpConfig, Failure> {
         match self
             .apply_configuration::<dyn ManagedRuntime>(
-                None,
+                ProfileRuntimeAccess::Offline,
                 None,
                 None,
                 ProfileConfigurationUpdate::FakeIp(patch),
@@ -294,7 +293,7 @@ impl ConfigurationApplication {
     ) -> Result<tun::TunConfig, Failure> {
         match self
             .apply_configuration::<dyn ManagedRuntime>(
-                None,
+                ProfileRuntimeAccess::Offline,
                 None,
                 None,
                 ProfileConfigurationUpdate::Tun(patch),
@@ -322,7 +321,7 @@ impl ConfigurationApplication {
     ) -> Result<Vec<rules::RuleEntry>, Failure> {
         match self
             .apply_configuration::<dyn ManagedRuntime>(
-                None,
+                ProfileRuntimeAccess::Offline,
                 None,
                 None,
                 ProfileConfigurationUpdate::Rules(entries),
@@ -362,7 +361,7 @@ impl ConfigurationApplication {
     ) -> Result<rules::RuleProviders, Failure> {
         match self
             .apply_configuration::<dyn ManagedRuntime>(
-                None,
+                ProfileRuntimeAccess::Offline,
                 None,
                 None,
                 ProfileConfigurationUpdate::RuleProviders(providers),
@@ -390,7 +389,7 @@ impl ConfigurationApplication {
     ) -> Result<proxy_providers::ProxyProviders, Failure> {
         match self
             .apply_configuration::<dyn ManagedRuntime>(
-                None,
+                ProfileRuntimeAccess::Offline,
                 None,
                 None,
                 ProfileConfigurationUpdate::ProxyProviders(providers),
@@ -439,7 +438,7 @@ impl ConfigurationApplication {
     ) -> Result<sniffer::SnifferConfig, Failure> {
         match self
             .apply_configuration::<dyn ManagedRuntime>(
-                None,
+                ProfileRuntimeAccess::Offline,
                 None,
                 None,
                 ProfileConfigurationUpdate::Sniffer(config),

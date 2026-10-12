@@ -14,6 +14,7 @@ use infiltrator_domain::runtime::{
 };
 use infiltrator_ports::profile_workspace::{ProfileWorkspacePurpose, ProfileWorkspaceUpdate};
 use infiltrator_ports::runtime_gateway::{ManagedRuntime, RuntimeGateway, RuntimeStream};
+use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 #[derive(Default)]
@@ -90,6 +91,17 @@ impl ManagedRuntime for NoCallRuntime {
     fn generation(&self) -> u64 {
         self.unexpected()
     }
+    fn core_lifecycle(&self) -> infiltrator_contract::snapshot::CoreLifecycle {
+        self.unexpected()
+    }
+    fn active_profile_reference_write_authorization(
+        &self,
+    ) -> Result<
+        infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization,
+        PortError,
+    > {
+        self.unexpected()
+    }
     async fn is_running(&self) -> bool {
         self.unexpected()
     }
@@ -102,16 +114,12 @@ impl ManagedRuntime for NoCallRuntime {
     async fn shutdown(&self) -> Result<(), PortError> {
         self.unexpected()
     }
-    async fn apply_current_config(&self, _: ApplyStrategy) -> Result<u64, PortError> {
-        self.unexpected()
-    }
-    async fn apply_profile_content(&self, _: &str, _: ApplyStrategy) -> Result<u64, PortError> {
-        self.unexpected()
-    }
     async fn apply_profile_workspace(
         &self,
+        _: &infiltrator_contract::active_profile_reference::ActiveProfileReference,
         _: &ProfileWorkspaceIdentity,
         _: &ProfileWorkspaceUpdate,
+        _: infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization,
         _: ApplyStrategy,
     ) -> Result<ProfileWorkspace, PortError> {
         self.unexpected()
@@ -123,7 +131,11 @@ async fn foreign_engine_cas_is_rejected_before_store_or_runtime_calls() {
     let store = Arc::new(FakeStore::with_profile("main", "mode: rule\n", true));
     let profiles = ProfileApplication::new(store.clone())
         .with_document_codec(Arc::new(TestProfileDocumentCodec::mihomo()));
-    let mut foreign = profiles.load_workspace("main").await.unwrap().identity();
+    let mut foreign = profiles
+        .load_workspace(&profile_id("main"))
+        .await
+        .unwrap()
+        .identity();
     let store_reads_before = store.workspace_reads.load(Ordering::SeqCst);
     foreign.document.engine_id = EngineId::new("sing-box").unwrap();
     let runtime = Arc::new(NoCallRuntime::default());
@@ -134,7 +146,11 @@ async fn foreign_engine_cas_is_rejected_before_store_or_runtime_calls() {
     };
 
     let failure = profiles
-        .commit_workspace(Some(runtime.clone()), &foreign, &update)
+        .commit_workspace(
+            crate::profile_application::ProfileRuntimeAccess::Managed(runtime.clone()),
+            &foreign,
+            &update,
+        )
         .await
         .unwrap_err();
 
@@ -153,7 +169,11 @@ async fn foreign_source_bound_writes_fail_before_workspace_reads_or_validation()
     let store = Arc::new(FakeStore::with_profile("main", "mode: rule\n", true));
     let codec = Arc::new(TestProfileDocumentCodec::mihomo());
     let profiles = ProfileApplication::new(store.clone()).with_document_codec(codec.clone());
-    let mut foreign = profiles.load_workspace("main").await.unwrap().identity();
+    let mut foreign = profiles
+        .load_workspace(&profile_id("main"))
+        .await
+        .unwrap()
+        .identity();
     let reads_before = store.workspace_reads.load(Ordering::SeqCst);
     foreign.document.engine_id = EngineId::new("sing-box").unwrap();
     let document = ProfileDocumentApplication::new(profiles.clone());
@@ -162,7 +182,7 @@ async fn foreign_source_bound_writes_fail_before_workspace_reads_or_validation()
 
     let document_failure = document
         .save::<NoCallRuntime>(
-            Some(runtime.clone()),
+            crate::profile_application::ProfileRuntimeAccess::Managed(runtime.clone()),
             &foreign,
             "proxies: [malformed",
             ProfileWriteAuthorization::RequireUnlock,
@@ -173,14 +193,18 @@ async fn foreign_source_bound_writes_fail_before_workspace_reads_or_validation()
     assert_eq!(runtime.calls.load(Ordering::SeqCst), 0);
 
     let mixin_failure = options
-        .save_mixin::<NoCallRuntime>(None, &foreign, "not: [valid")
+        .save_mixin::<NoCallRuntime>(
+            crate::profile_application::ProfileRuntimeAccess::Offline,
+            &foreign,
+            "not: [valid",
+        )
         .await
         .unwrap_err();
     assert_eq!(mixin_failure.code, ErrorCode::Unsupported);
 
     let filter_failure = options
         .save_filter::<NoCallRuntime>(
-            None,
+            crate::profile_application::ProfileRuntimeAccess::Offline,
             &foreign,
             &SubscriptionFilterDraft {
                 advanced_policy: Some("not: [valid".into()),
@@ -226,13 +250,17 @@ async fn options_codec_rejects_foreign_document_format_and_schema_before_fake_co
             infiltrator_contract::profile_document_identity::ProfileSidecarRevision::Absent,
         );
         let mixin_failure = options
-            .save_mixin(None::<Arc<dyn ManagedRuntime>>, &expected, "not: [valid")
+            .save_mixin(
+                crate::profile_application::ProfileRuntimeAccess::<dyn ManagedRuntime>::Offline,
+                &expected,
+                "not: [valid",
+            )
             .await
             .unwrap_err();
         assert_eq!(mixin_failure.code, ErrorCode::Unsupported);
         let filter_failure = options
             .save_filter(
-                None::<Arc<dyn ManagedRuntime>>,
+                crate::profile_application::ProfileRuntimeAccess::<dyn ManagedRuntime>::Offline,
                 &expected,
                 &SubscriptionFilterDraft {
                     advanced_policy: Some("not: [valid".into()),
@@ -253,7 +281,11 @@ async fn options_codec_rejects_foreign_document_format_and_schema_before_fake_co
 async fn foreign_engine_workspace_receipt_is_rejected_after_adapter_return() {
     let store = Arc::new(FakeStore::with_profile("main", "mode: rule\n", true));
     let profiles = ProfileApplication::new(store.clone());
-    let expected = profiles.load_workspace("main").await.unwrap().identity();
+    let expected = profiles
+        .load_workspace(&profile_id("main"))
+        .await
+        .unwrap()
+        .identity();
     store
         .foreign_workspace_receipt
         .store(true, Ordering::SeqCst);
@@ -264,26 +296,38 @@ async fn foreign_engine_workspace_receipt_is_rejected_after_adapter_return() {
     };
 
     let failure = profiles
-        .commit_workspace::<NoCallRuntime>(None, &expected, &update)
+        .commit_workspace::<NoCallRuntime>(
+            crate::profile_application::ProfileRuntimeAccess::Offline,
+            &expected,
+            &update,
+        )
         .await
         .unwrap_err();
 
     assert_eq!(failure.code, ErrorCode::InvalidState);
-    assert_eq!(store.workspace_writes.load(Ordering::SeqCst), 1);
-    assert_eq!(store.load("main").await.unwrap(), "mode: global\n");
+    assert_eq!(
+        store.workspace_writes.load(Ordering::SeqCst),
+        2,
+        "the invalid adapter receipt is followed by a conditional rollback"
+    );
+    assert_eq!(store.load("main").await.unwrap(), "mode: rule\n");
 }
 
 #[tokio::test]
 async fn workspace_receipt_must_advance_changed_document_and_sidecar_revisions() {
     let store = Arc::new(FakeStore::with_profile("main", "mode: rule\n", true));
     let profiles = ProfileApplication::new(store.clone());
-    let expected = profiles.load_workspace("main").await.unwrap().identity();
+    let expected = profiles
+        .load_workspace(&profile_id("main"))
+        .await
+        .unwrap()
+        .identity();
     store
         .stale_document_revision_receipt
         .store(true, Ordering::SeqCst);
     let failure = profiles
         .commit_workspace::<NoCallRuntime>(
-            None,
+            crate::profile_application::ProfileRuntimeAccess::Offline,
             &expected,
             &ProfileWorkspaceUpdate {
                 purpose: ProfileWorkspacePurpose::Derived,
@@ -302,13 +346,17 @@ async fn workspace_receipt_must_advance_changed_document_and_sidecar_revisions()
         .unwrap()
         .insert("main".into(), b"previous sidecar".to_vec());
     let profiles = ProfileApplication::new(store.clone());
-    let expected = profiles.load_workspace("main").await.unwrap().identity();
+    let expected = profiles
+        .load_workspace(&profile_id("main"))
+        .await
+        .unwrap()
+        .identity();
     store
         .stale_sidecar_revision_receipt
         .store(true, Ordering::SeqCst);
     let failure = profiles
         .commit_workspace::<NoCallRuntime>(
-            None,
+            crate::profile_application::ProfileRuntimeAccess::Offline,
             &expected,
             &ProfileWorkspaceUpdate {
                 purpose: ProfileWorkspacePurpose::Derived,

@@ -9,6 +9,7 @@ use crate::speedtest_application::{
     SpeedtestApplication, SpeedtestCompletionAdmission, SpeedtestTaskOutcome,
 };
 use futures_util::lock;
+use infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization;
 use infiltrator_contract::command::{CommandIntent, CommandResult, RequestId};
 use infiltrator_contract::core_identity::{
     CoreCommandOutcome, CoreCommandRequest, CoreIdentity, CoreScope,
@@ -81,6 +82,7 @@ struct StateMirror {
 enum ActiveProfileOwnerBindingState {
     Unbound,
     Bound(Box<dyn ActiveProfileOwnerLease>),
+    Releasing,
     Released,
 }
 
@@ -161,6 +163,48 @@ impl OutboundScopeSource for CoreApplication {
 }
 
 impl CoreApplication {
+    /// Return the exact persisted active-profile owner binding installed when
+    /// this application was composed. The bound generation is stable across
+    /// later process restarts and must not be reconstructed from a snapshot.
+    pub fn active_profile_reference_write_authorization(
+        &self,
+    ) -> Result<ActiveProfileReferenceWriteAuthorization, Failure> {
+        let state = self
+            .inner
+            .active_profile_owner_binding
+            .lock()
+            .map_err(|_| {
+                Failure::new(
+                    ErrorCode::Internal,
+                    "active Core owner binding lock is poisoned",
+                    false,
+                )
+            })?;
+        match &*state {
+            ActiveProfileOwnerBindingState::Bound(binding) => {
+                Ok(ActiveProfileReferenceWriteAuthorization::BoundOwner {
+                    identity: binding.identity().clone(),
+                    generation: binding.generation(),
+                })
+            }
+            ActiveProfileOwnerBindingState::Unbound => Err(Failure::new(
+                ErrorCode::NotReady,
+                "Core has no active-profile owner binding",
+                true,
+            )),
+            ActiveProfileOwnerBindingState::Releasing => Err(Failure::new(
+                ErrorCode::NotReady,
+                "Core active-profile owner binding is being released",
+                true,
+            )),
+            ActiveProfileOwnerBindingState::Released => Err(Failure::new(
+                ErrorCode::InvalidState,
+                "Core active-profile owner binding has been released",
+                false,
+            )),
+        }
+    }
+
     /// Tie the selected engine reference to this single Core owner. The guard
     /// is released only after `close` successfully reaches terminal state.
     pub fn install_active_profile_owner_binding(
@@ -189,6 +233,11 @@ impl CoreApplication {
                 ErrorCode::InvalidState,
                 "a closed Core owner cannot acquire a profile reference binding",
                 false,
+            )),
+            ActiveProfileOwnerBindingState::Releasing => Err(Failure::new(
+                ErrorCode::NotReady,
+                "Core owner profile binding release is still in progress",
+                true,
             )),
         }
     }
@@ -1069,6 +1118,13 @@ impl CoreLifecyclePort for CoreApplication {
 
 #[async_trait::async_trait]
 impl CoreOwnerTerminationPort for CoreApplication {
+    fn active_profile_reference_write_authorization(
+        &self,
+    ) -> Result<ActiveProfileReferenceWriteAuthorization, PortError> {
+        CoreApplication::active_profile_reference_write_authorization(self)
+            .map_err(PortError::Rejected)
+    }
+
     async fn terminate_owner(&self) -> Result<CoreLifecycleSnapshot, PortError> {
         self.close().await.map_err(PortError::Rejected)?;
         Ok(self.snapshot().lifecycle_snapshot())

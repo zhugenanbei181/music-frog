@@ -302,7 +302,7 @@ impl ProfileApplication {
                 return snapshot;
             }
         };
-        match self.load_workspace_id(&profile_id).await {
+        match self.load_workspace(&profile_id).await {
             Ok(workspace) => {
                 if let Some(document) = snapshot.document.as_mut()
                     && document.workspace_identity == workspace.identity()

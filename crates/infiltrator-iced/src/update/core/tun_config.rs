@@ -230,7 +230,7 @@ impl AppState {
                     }
                 };
                 save_task_with_strategy(
-                    self.runtime.runtime.clone(),
+                    super::profile_apply::runtime_access(self.runtime.runtime.clone()),
                     ApplyStrategy::AlwaysRestart,
                     move |content| apply_tun_patch_to_yaml(content, patch),
                     Message::TunConfigSaved,

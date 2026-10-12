@@ -12,6 +12,7 @@ infiltrator-ports = { path = "../infiltrator-ports" }
 infiltrator-contract = { path = "../infiltrator-contract" }
 log = { workspace = true }
 mihomo-api = { path = "../mihomo-api" }
+mihomo-platform = { path = "../mihomo-platform" }
 ring = "0.17"
 serde = { workspace = true }
 serde_json = { workspace = true }

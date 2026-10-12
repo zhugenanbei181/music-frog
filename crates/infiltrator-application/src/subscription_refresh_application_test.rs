@@ -7,6 +7,10 @@ use crate::profile_options_application::ProfileOptionsApplication;
 use crate::profile_workspace_test_support::workspace_with_raw_sidecar;
 use async_trait::async_trait;
 use chrono::Timelike;
+use infiltrator_contract::active_profile_reference::{
+    ActiveProfileReference, ActiveProfileReferenceCasOutcome, ActiveProfileReferenceState,
+    ActiveProfileReferenceTarget,
+};
 use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::profile_document_identity::{ProfileId, ProfileWorkspaceIdentity};
 use infiltrator_contract::subscription_import::{
@@ -17,7 +21,6 @@ use infiltrator_domain::subscription::CheckedSubscriptionUrl;
 use infiltrator_ports::application_runtime::{
     ApplicationFuture, ApplicationRuntime, ApplicationSleep,
 };
-use infiltrator_ports::core_reload::CoreReloadPort;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::profile_workspace::{ProfileWorkspace, ProfileWorkspaceUpdate};
@@ -60,7 +63,7 @@ impl ApplicationRuntime for RecordingRuntime {
 
 struct FakeStore {
     dir: PathBuf,
-    current: Mutex<String>,
+    active_reference: Mutex<ActiveProfileReferenceState>,
     profiles: Mutex<BTreeMap<String, (String, ProfileMetadata)>>,
     sidecars: Mutex<BTreeMap<String, Vec<u8>>>,
 }
@@ -75,7 +78,7 @@ impl FakeStore {
         profiles.insert(profile.to_string(), ("proxies: []\n".to_string(), metadata));
         Self {
             dir: PathBuf::from(dir),
-            current: Mutex::new(profile.to_string()),
+            active_reference: Mutex::new(ActiveProfileReferenceState::default()),
             profiles: Mutex::new(profiles),
             sidecars: Mutex::new(BTreeMap::new()),
         }
@@ -103,7 +106,7 @@ impl ProfileStore for FakeStore {
         )
     }
 
-    async fn compare_and_save_workspace(
+    async fn compare_and_save_inactive_workspace(
         &self,
         expected: &ProfileWorkspaceIdentity,
         update: &ProfileWorkspaceUpdate,
@@ -155,7 +158,12 @@ impl ProfileStore for FakeStore {
     }
 
     async fn list_profiles(&self) -> Result<Vec<ProfileInfo>, PortError> {
-        let current = self.current.lock().expect("current lock").clone();
+        let current = match &*self.active_reference.lock().expect("active reference lock") {
+            ActiveProfileReferenceState::Selected(reference) => {
+                Some(reference.profile_id.as_str().to_owned())
+            }
+            ActiveProfileReferenceState::Unselected { .. } => None,
+        };
         Ok(self
             .profiles
             .lock()
@@ -163,7 +171,7 @@ impl ProfileStore for FakeStore {
             .iter()
             .map(|(name, (_content, metadata))| ProfileInfo {
                 name: name.clone(),
-                active: current == *name,
+                active: current.as_deref() == Some(name.as_str()),
                 path: format!("/fake/{name}.yaml"),
                 subscription_url: metadata.subscription_url.clone(),
                 auto_update_enabled: metadata.auto_update_enabled,
@@ -188,12 +196,73 @@ impl ProfileStore for FakeStore {
     }
 
     async fn get_current(&self) -> Result<String, PortError> {
-        Ok(self.current.lock().expect("current lock").clone())
+        match &*self.active_reference.lock().expect("active reference lock") {
+            ActiveProfileReferenceState::Selected(reference) => {
+                Ok(reference.profile_id.as_str().to_owned())
+            }
+            ActiveProfileReferenceState::Unselected { .. } => Err(PortError::unsupported(
+                infiltrator_contract::capability::Capability::Profiles,
+                "test store has no selected profile",
+            )),
+        }
     }
 
-    async fn set_current(&self, profile: &str) -> Result<(), PortError> {
-        *self.current.lock().expect("current lock") = profile.to_string();
-        Ok(())
+    async fn read_active_profile_reference(
+        &self,
+    ) -> Result<ActiveProfileReferenceState, PortError> {
+        Ok(self
+            .active_reference
+            .lock()
+            .expect("active reference lock")
+            .clone())
+    }
+
+    async fn compare_and_set_active_profile_reference(
+        &self,
+        expected: ActiveProfileReferenceState,
+        target: ActiveProfileReferenceTarget,
+        _: infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization,
+    ) -> Result<ActiveProfileReferenceCasOutcome, PortError> {
+        let mut active_reference = self.active_reference.lock().expect("active reference lock");
+        if *active_reference != expected {
+            return Ok(ActiveProfileReferenceCasOutcome::Stale {
+                expected,
+                observed: active_reference.clone(),
+            });
+        }
+        let revision = expected
+            .revision()
+            .next()
+            .ok_or_else(|| PortError::Io("test active-profile revision overflow".into()))?;
+        let current = match target {
+            ActiveProfileReferenceTarget::Unselected => {
+                ActiveProfileReferenceState::Unselected { revision }
+            }
+            ActiveProfileReferenceTarget::Selected {
+                engine_id,
+                profile_id,
+            } => {
+                if engine_id != self.engine_id() {
+                    return Err(PortError::unsupported(
+                        infiltrator_contract::capability::Capability::Profiles,
+                        "test store cannot select a foreign engine",
+                    ));
+                }
+                if !self
+                    .profiles
+                    .lock()
+                    .expect("profiles lock")
+                    .contains_key(profile_id.as_str())
+                {
+                    return Err(PortError::NotFound(profile_id.as_str().into()));
+                }
+                ActiveProfileReferenceState::Selected(ActiveProfileReference::new(
+                    engine_id, profile_id, revision,
+                ))
+            }
+        };
+        let previous = std::mem::replace(&mut *active_reference, current.clone());
+        Ok(ActiveProfileReferenceCasOutcome::Committed { previous, current })
     }
 
     async fn load(&self, profile: &str) -> Result<String, PortError> {
@@ -205,7 +274,19 @@ impl ProfileStore for FakeStore {
             .ok_or_else(|| PortError::NotFound(profile.to_string()))
     }
 
-    async fn save(&self, profile: &str, content: &str) -> Result<(), PortError> {
+    async fn save_inactive_profile(&self, profile: &str, content: &str) -> Result<(), PortError> {
+        if matches!(
+            &*self.active_reference.lock().expect("active reference lock"),
+            ActiveProfileReferenceState::Selected(reference)
+                if reference.engine_id == self.engine_id()
+                    && reference.profile_id.as_str() == profile
+        ) {
+            return Err(PortError::Rejected(Failure::new(
+                ErrorCode::NotReady,
+                "fake inactive save cannot write the selected profile",
+                true,
+            )));
+        }
         self.profiles
             .lock()
             .expect("profiles lock")
@@ -249,7 +330,7 @@ impl ProfileStore for FakeStore {
         Ok(())
     }
 
-    async fn restore_backup(&self, _profile: &str) -> Result<bool, PortError> {
+    async fn restore_inactive_profile_backup(&self, _profile: &str) -> Result<bool, PortError> {
         Ok(false)
     }
 }
@@ -570,11 +651,15 @@ async fn subscription_update_pipeline_regression_matrix() {
         exclude: "广告".to_string(),
         ..Default::default()
     };
-    let runtime: Option<Arc<dyn ManagedRuntime>> = None;
+    let runtime = crate::profile_application::ProfileRuntimeAccess::<dyn ManagedRuntime>::Offline;
     let report = ProfileOptionsApplication::new(profile.clone())
         .save_filter(
             runtime,
-            &profile.load_workspace("main").await.unwrap().identity(),
+            &profile
+                .load_workspace(&ProfileId::new("main").unwrap())
+                .await
+                .unwrap()
+                .identity(),
             &draft,
         )
         .await
@@ -639,172 +724,5 @@ async fn command_application_update_profile_uses_the_shared_retry_seam() {
         runtime.sleeps.lock().expect("sleeps lock").as_slice(),
         &[Duration::from_secs(30), Duration::from_secs(60)],
         "the command path backs off through the injected runtime, not a busy loop"
-    );
-}
-
-/// DUAL-07-09: records every reload the shared refresh asks the host to make.
-#[derive(Clone, Default)]
-struct RecordingReload {
-    calls: Arc<AtomicUsize>,
-    fail: bool,
-}
-
-impl RecordingReload {
-    fn failing() -> Self {
-        Self {
-            calls: Arc::new(AtomicUsize::new(0)),
-            fail: true,
-        }
-    }
-
-    fn calls(&self) -> usize {
-        self.calls.load(Ordering::SeqCst)
-    }
-}
-
-#[async_trait]
-impl CoreReloadPort for RecordingReload {
-    async fn reload_active_profile(&self) -> Result<(), PortError> {
-        self.calls.fetch_add(1, Ordering::SeqCst);
-        if self.fail {
-            return Err(PortError::Failed("core reload rejected".to_string()));
-        }
-        Ok(())
-    }
-}
-
-/// DUAL-07-09: the post-update reload follows the persisted preference, the
-/// active-profile fact, and the host seam — every other case is a typed,
-/// visible outcome rather than a silent no-op.
-#[tokio::test]
-async fn core_reload_follows_the_preference_and_the_host_seam() {
-    let store = Arc::new(FakeStore::new(
-        "/fake/core-reload",
-        "main",
-        Some("https://example.com/sub"),
-    ));
-    let profile = ProfileApplication::new(Arc::clone(&store) as Arc<dyn ProfileStore>);
-    let runtime = Arc::new(RecordingRuntime::default());
-    let reload = RecordingReload::default();
-    let app = SubscriptionRefreshApplication::new(
-        profile.clone(),
-        runtime,
-        RetryBackoffPolicy::test_immediate(),
-    )
-    .with_core_reload(reload.clone());
-    let source = FlakySource::new(0);
-
-    // Opted out: content is committed, the core is untouched.
-    let report = app.refresh_profile(&source, "main").await.expect("refresh");
-    assert_eq!(report.core_reload, CoreReloadOutcome::Disabled);
-    assert!(!report.reloaded_core());
-    assert_eq!(reload.calls(), 0);
-
-    // Enabled + active + seam: the host really reloads.
-    profile
-        .update_subscription_auto_reload("main", true)
-        .await
-        .expect("preference persists");
-    let report = app.refresh_profile(&source, "main").await.expect("refresh");
-    assert_eq!(report.core_reload, CoreReloadOutcome::Reloaded);
-    assert!(report.reloaded_core());
-    assert_eq!(reload.calls(), 1);
-
-    // A non-active profile never reloads.
-    store.set_current("other").await.expect("switch pointer");
-    let report = app.refresh_profile(&source, "main").await.expect("refresh");
-    assert_eq!(report.core_reload, CoreReloadOutcome::NotActive);
-    assert_eq!(reload.calls(), 1);
-    store.set_current("main").await.expect("restore pointer");
-
-    // A host without the seam reports the typed unsupported outcome.
-    let without_seam = SubscriptionRefreshApplication::new(
-        profile.clone(),
-        Arc::new(RecordingRuntime::default()),
-        RetryBackoffPolicy::test_immediate(),
-    );
-    assert!(!without_seam.has_core_reload());
-    let report = without_seam
-        .refresh_profile(&source, "main")
-        .await
-        .expect("refresh");
-    assert_eq!(report.core_reload, CoreReloadOutcome::Unsupported);
-    assert!(!report.reloaded_core());
-
-    // A failing seam keeps the update and records the adapter error.
-    let failing = RecordingReload::failing();
-    let failing_app = SubscriptionRefreshApplication::new(
-        profile.clone(),
-        Arc::new(RecordingRuntime::default()),
-        RetryBackoffPolicy::test_immediate(),
-    )
-    .with_core_reload(failing.clone());
-    let report = failing_app
-        .refresh_profile(&source, "main")
-        .await
-        .expect("the update itself succeeds");
-    assert!(matches!(
-        report.core_reload,
-        CoreReloadOutcome::Failed { .. }
-    ));
-    assert_eq!(failing.calls(), 1);
-    assert!(
-        matches!(report.outcome, SubscriptionUpdateOutcome::Updated { .. }),
-        "the committed content survives a failed reload"
-    );
-}
-
-/// DUAL-07-09: a batch reloads the core at most once — only the active
-/// profile's own report carries the reload decision.
-#[tokio::test]
-async fn batch_reloads_the_core_once_for_the_active_profile() {
-    let store = Arc::new(FakeStore::new(
-        "/fake/batch-reload",
-        "main",
-        Some("https://example.com/sub"),
-    ));
-    store.profiles.lock().expect("profiles lock").insert(
-        "backup".to_string(),
-        (
-            "proxies: []\n".to_string(),
-            ProfileMetadata {
-                subscription_url: Some("https://example.com/backup".to_string()),
-                auto_reload_core: true,
-                ..ProfileMetadata::default()
-            },
-        ),
-    );
-    let profile = ProfileApplication::new(Arc::clone(&store) as Arc<dyn ProfileStore>);
-    profile
-        .update_subscription_auto_reload("main", true)
-        .await
-        .expect("preference persists");
-    let reload = RecordingReload::default();
-    let app = SubscriptionRefreshApplication::new(
-        profile,
-        Arc::new(RecordingRuntime::default()),
-        RetryBackoffPolicy::test_immediate(),
-    )
-    .with_core_reload(reload.clone());
-    let source = FlakySource::new(0);
-
-    let report = app.refresh_all(&source, 4).await.expect("batch");
-    assert_eq!(report.updated, 2);
-    assert_eq!(reload.calls(), 1, "one batch-wide reload");
-    let active = report
-        .outcomes
-        .iter()
-        .find(|outcome| outcome.profile_name == "main")
-        .expect("active outcome");
-    assert_eq!(active.core_reload, CoreReloadOutcome::Reloaded);
-    let inactive = report
-        .outcomes
-        .iter()
-        .find(|outcome| outcome.profile_name == "backup")
-        .expect("inactive outcome");
-    assert_eq!(
-        inactive.core_reload,
-        CoreReloadOutcome::NotAttempted,
-        "an inactive profile's report carries no reload claim"
     );
 }

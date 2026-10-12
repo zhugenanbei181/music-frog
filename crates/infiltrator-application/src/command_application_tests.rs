@@ -13,10 +13,12 @@ use crate::core_capability_test_support::{core_scope, with_test_capabilities};
 use crate::profile_document_codec_test_support::TestProfileDocumentCodec;
 use crate::profile_workspace_test_support::{workspace_with_origin, workspace_with_raw_sidecar};
 use async_trait::async_trait;
-use infiltrator_contract::core_identity::EngineId;
-use infiltrator_contract::profile_document_identity::{
-    ProfileDocumentIdentity, ProfileId, ProfileWorkspaceIdentity,
+use infiltrator_contract::active_profile_reference::{
+    ActiveProfileReference, ActiveProfileReferenceRevision, ActiveProfileReferenceState,
+    ActiveProfileReferenceWriteAuthorization,
 };
+use infiltrator_contract::core_identity::EngineId;
+use infiltrator_contract::profile_document_identity::{ProfileId, ProfileWorkspaceIdentity};
 use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
 use infiltrator_contract::profile_protection::ProfileWriteProtection;
 use infiltrator_contract::provider_cache::{ProviderCachePurge, RuleProviderCacheSnapshot};
@@ -30,7 +32,11 @@ use infiltrator_domain::runtime::{
     ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider, TrafficData,
 };
 use infiltrator_ports::error::PortError;
-use infiltrator_ports::profile_store::ProfileStore;
+use infiltrator_ports::profile_store::{
+    ActiveProfileWorkspacePublishOutcome, ActiveProfileWorkspacePublishedLease,
+    ActiveProfileWorkspaceRestoreOutcome, ActiveProfileWorkspaceRestoredLease,
+    ActiveProfileWorkspaceWriteLease, ProfileStore,
+};
 use infiltrator_ports::profile_workspace::{
     ProfileWorkspace, ProfileWorkspacePurpose, ProfileWorkspaceUpdate,
 };
@@ -49,6 +55,27 @@ struct FakeStore {
     metadata: Mutex<ProfileMetadata>,
     workspace_reads: AtomicUsize,
     workspace_writes: AtomicUsize,
+    workspace_lease_gate: Arc<tokio::sync::Mutex<()>>,
+}
+
+struct FakeActiveWorkspaceWriteLease<'a> {
+    store: &'a FakeStore,
+    expected_reference: ActiveProfileReference,
+    observed: ProfileWorkspace,
+    _guard: tokio::sync::OwnedMutexGuard<()>,
+}
+
+struct FakeActiveWorkspacePublishedLease<'a> {
+    store: &'a FakeStore,
+    previous: ProfileWorkspace,
+    published: ProfileWorkspace,
+    published_state: ProfileWorkspace,
+    _guard: tokio::sync::OwnedMutexGuard<()>,
+}
+
+struct FakeActiveWorkspaceRestoredLease {
+    workspace: ProfileWorkspace,
+    _guard: tokio::sync::OwnedMutexGuard<()>,
 }
 
 impl FakeStore {
@@ -68,56 +95,8 @@ impl FakeStore {
     fn metadata(&self) -> ProfileMetadata {
         self.metadata.lock().expect("metadata lock").clone()
     }
-}
 
-#[async_trait]
-impl ProfileStore for FakeStore {
-    fn engine_id(&self) -> EngineId {
-        EngineId::new("mihomo").expect("test engine ID")
-    }
-
-    fn config_dir(&self) -> PathBuf {
-        PathBuf::from("/fake/configs")
-    }
-
-    async fn list_profiles(&self) -> Result<Vec<ProfileInfo>, PortError> {
-        let name = self.profile.lock().expect("profile lock").clone();
-        Ok(vec![ProfileInfo {
-            name,
-            active: true,
-            path: "/fake/configs/main.yaml".to_owned(),
-            ..ProfileInfo::default()
-        }])
-    }
-
-    async fn get_current(&self) -> Result<String, PortError> {
-        Ok(self.profile.lock().expect("profile lock").clone())
-    }
-
-    async fn set_current(&self, _profile: &str) -> Result<(), PortError> {
-        Ok(())
-    }
-
-    async fn load(&self, _profile: &str) -> Result<String, PortError> {
-        Ok(self.content())
-    }
-
-    async fn load_workspace(&self, profile: &ProfileId) -> Result<ProfileWorkspace, PortError> {
-        self.workspace_reads.fetch_add(1, Ordering::SeqCst);
-        let content = self.content();
-        let mut workspace =
-            workspace_with_origin(profile.as_str(), content.as_bytes(), None, None)?;
-        workspace.write_protection = ProfileWriteProtection::Editable;
-        Ok(workspace)
-    }
-
-    async fn load_active_workspace(&self) -> Result<ProfileWorkspace, PortError> {
-        let profile = self.profile.lock().expect("profile lock").clone();
-        let profile = ProfileId::new(profile).map_err(|error| PortError::Io(error.to_string()))?;
-        self.load_workspace(&profile).await
-    }
-
-    async fn compare_and_save_workspace(
+    fn publish_workspace_locked(
         &self,
         expected: &ProfileWorkspaceIdentity,
         update: &ProfileWorkspaceUpdate,
@@ -169,25 +148,213 @@ impl ProfileStore for FakeStore {
         committed.write_protection = protection;
         Ok(committed)
     }
+}
 
-    async fn compare_and_save_active_workspace(
+#[async_trait]
+impl ActiveProfileWorkspaceWriteLease for FakeActiveWorkspaceWriteLease<'_> {
+    fn observed_workspace(&self) -> &ProfileWorkspace {
+        &self.observed
+    }
+
+    async fn publish(
+        self: Box<Self>,
+        update: ProfileWorkspaceUpdate,
+    ) -> ActiveProfileWorkspacePublishOutcome<'async_trait> {
+        match self.store.read_active_profile_reference().await {
+            Ok(ActiveProfileReferenceState::Selected(reference))
+                if reference == self.expected_reference => {}
+            Ok(_) => {
+                return ActiveProfileWorkspacePublishOutcome::Unpublished(PortError::Rejected(
+                    Failure::new(
+                        ErrorCode::NotReady,
+                        "active reference changed before fake workspace publication",
+                        true,
+                    ),
+                ));
+            }
+            Err(error) => return ActiveProfileWorkspacePublishOutcome::Unpublished(error),
+        }
+        let expected = self.observed.identity();
+        let published = match self.store.publish_workspace_locked(&expected, &update) {
+            Ok(workspace) => workspace,
+            Err(error) => return ActiveProfileWorkspacePublishOutcome::Unpublished(error),
+        };
+        let profile = expected.document.profile_id.clone();
+        let published_state = match ProfileStore::load_workspace(self.store, &profile).await {
+            Ok(workspace) => workspace,
+            Err(error) => return ActiveProfileWorkspacePublishOutcome::Unpublished(error),
+        };
+        ActiveProfileWorkspacePublishOutcome::Published(Box::new(
+            FakeActiveWorkspacePublishedLease {
+                store: self.store,
+                previous: self.observed.clone(),
+                published,
+                published_state,
+                _guard: self._guard,
+            },
+        ))
+    }
+}
+
+#[async_trait]
+impl ActiveProfileWorkspacePublishedLease for FakeActiveWorkspacePublishedLease<'_> {
+    fn previous_workspace(&self) -> &ProfileWorkspace {
+        &self.previous
+    }
+
+    fn published_workspace(&self) -> &ProfileWorkspace {
+        &self.published
+    }
+
+    fn commit(self: Box<Self>) -> ProfileWorkspace {
+        self.published.clone()
+    }
+
+    async fn restore_if_current(
+        self: Box<Self>,
+    ) -> Result<ActiveProfileWorkspaceRestoreOutcome<'async_trait>, PortError> {
+        let profile = self.published_state.document.identity.profile_id.clone();
+        let current = ProfileStore::load_workspace(self.store, &profile).await?;
+        if current.identity() != self.published_state.identity() {
+            return Ok(ActiveProfileWorkspaceRestoreOutcome::Superseded {
+                observed: current.identity(),
+            });
+        }
+        let update = ProfileWorkspaceUpdate {
+            purpose: ProfileWorkspacePurpose::Derived,
+            document_bytes: self.previous.document.raw_bytes.clone(),
+            sidecar_bytes: self.previous.sidecar_bytes.clone(),
+        };
+        let workspace = self
+            .store
+            .publish_workspace_locked(&self.published_state.identity(), &update)?;
+        Ok(ActiveProfileWorkspaceRestoreOutcome::Restored(Box::new(
+            FakeActiveWorkspaceRestoredLease {
+                workspace,
+                _guard: self._guard,
+            },
+        )))
+    }
+}
+
+#[async_trait]
+impl ActiveProfileWorkspaceRestoredLease for FakeActiveWorkspaceRestoredLease {
+    fn restored_workspace(&self) -> &ProfileWorkspace {
+        &self.workspace
+    }
+
+    fn finish(self: Box<Self>) -> ProfileWorkspace {
+        self.workspace.clone()
+    }
+}
+
+#[async_trait]
+impl ProfileStore for FakeStore {
+    fn engine_id(&self) -> EngineId {
+        EngineId::new("mihomo").expect("test engine ID")
+    }
+
+    fn config_dir(&self) -> PathBuf {
+        PathBuf::from("/fake/configs")
+    }
+
+    async fn list_profiles(&self) -> Result<Vec<ProfileInfo>, PortError> {
+        let name = self.profile.lock().expect("profile lock").clone();
+        Ok(vec![ProfileInfo {
+            name,
+            active: true,
+            path: "/fake/configs/main.yaml".to_owned(),
+            ..ProfileInfo::default()
+        }])
+    }
+
+    async fn get_current(&self) -> Result<String, PortError> {
+        Ok(self.profile.lock().expect("profile lock").clone())
+    }
+
+    async fn read_active_profile_reference(
+        &self,
+    ) -> Result<ActiveProfileReferenceState, PortError> {
+        let profile = ProfileId::new(self.profile.lock().expect("profile lock").clone())
+            .map_err(|error| PortError::Io(error.to_string()))?;
+        Ok(ActiveProfileReferenceState::Selected(
+            ActiveProfileReference::new(
+                self.engine_id(),
+                profile,
+                ActiveProfileReferenceRevision::default(),
+            ),
+        ))
+    }
+
+    async fn acquire_active_workspace_write_lease(
+        &self,
+        expected_reference: ActiveProfileReference,
+        expected_workspace: ProfileWorkspaceIdentity,
+        authorization: ActiveProfileReferenceWriteAuthorization,
+    ) -> Result<Box<dyn ActiveProfileWorkspaceWriteLease + '_>, PortError> {
+        let guard = Arc::clone(&self.workspace_lease_gate).lock_owned().await;
+        if authorization != ActiveProfileReferenceWriteAuthorization::Unowned {
+            return Err(PortError::Rejected(Failure::new(
+                ErrorCode::NotReady,
+                "command fixture has no bound Core owner",
+                true,
+            )));
+        }
+        if self.read_active_profile_reference().await?
+            != ActiveProfileReferenceState::Selected(expected_reference.clone())
+            || expected_workspace.document.engine_id != expected_reference.engine_id
+            || expected_workspace.document.profile_id != expected_reference.profile_id
+        {
+            return Err(PortError::Rejected(Failure::new(
+                ErrorCode::NotReady,
+                "active profile reference changed",
+                true,
+            )));
+        }
+        let observed = ProfileStore::load_workspace(self, &expected_reference.profile_id).await?;
+        if observed.identity() != expected_workspace {
+            return Err(PortError::Rejected(Failure::new(
+                ErrorCode::NotReady,
+                "active workspace identity is stale",
+                true,
+            )));
+        }
+        Ok(Box::new(FakeActiveWorkspaceWriteLease {
+            store: self,
+            expected_reference,
+            observed,
+            _guard: guard,
+        }))
+    }
+
+    async fn load(&self, _profile: &str) -> Result<String, PortError> {
+        Ok(self.content())
+    }
+
+    async fn load_workspace(&self, profile: &ProfileId) -> Result<ProfileWorkspace, PortError> {
+        self.workspace_reads.fetch_add(1, Ordering::SeqCst);
+        let content = self.content();
+        let mut workspace =
+            workspace_with_origin(profile.as_str(), content.as_bytes(), None, None)?;
+        workspace.write_protection = ProfileWriteProtection::Editable;
+        Ok(workspace)
+    }
+
+    async fn load_active_workspace(&self) -> Result<ProfileWorkspace, PortError> {
+        let profile = self.profile.lock().expect("profile lock").clone();
+        let profile = ProfileId::new(profile).map_err(|error| PortError::Io(error.to_string()))?;
+        self.load_workspace(&profile).await
+    }
+
+    async fn compare_and_save_inactive_workspace(
         &self,
         expected: &ProfileWorkspaceIdentity,
         update: &ProfileWorkspaceUpdate,
     ) -> Result<ProfileWorkspace, PortError> {
-        if self.profile.lock().expect("profile lock").as_str()
-            != expected.document.profile_id.as_str()
-        {
-            return Err(PortError::Rejected(Failure::new(
-                ErrorCode::NotReady,
-                "active profile changed",
-                true,
-            )));
-        }
-        self.compare_and_save_workspace(expected, update).await
+        self.publish_workspace_locked(expected, update)
     }
 
-    async fn save(&self, _profile: &str, content: &str) -> Result<(), PortError> {
+    async fn save_inactive_profile(&self, _profile: &str, content: &str) -> Result<(), PortError> {
         *self.content.lock().expect("content lock") = content.to_owned();
         Ok(())
     }
@@ -217,7 +384,7 @@ impl ProfileStore for FakeStore {
         Ok(())
     }
 
-    async fn restore_backup(&self, _profile: &str) -> Result<bool, PortError> {
+    async fn restore_inactive_profile_backup(&self, _profile: &str) -> Result<bool, PortError> {
         Ok(false)
     }
 }

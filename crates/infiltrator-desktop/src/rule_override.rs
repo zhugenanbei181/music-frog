@@ -65,11 +65,37 @@ impl DesktopRuleOverridePort {
                 false,
             ))
         })?;
+        let expected_reference =
+            ProfileStore::read_active_profile_reference(self.config.as_ref()).await?;
+        let infiltrator_contract::active_profile_reference::ActiveProfileReferenceState::Selected(
+            expected_reference,
+        ) = expected_reference
+        else {
+            return Err(PortError::Rejected(Failure::new(
+                ErrorCode::NotReady,
+                "rule override requires a selected active profile",
+                false,
+            )));
+        };
+        if expected_reference.engine_id != expected.document.engine_id
+            || expected_reference.profile_id != expected.document.profile_id
+        {
+            return Err(PortError::Rejected(Failure::new(
+                ErrorCode::NotReady,
+                "rule override workspace no longer belongs to the selected profile",
+                true,
+            )));
+        }
+        let authorization = _session
+            .active_profile_reference_write_authorization()
+            .map_err(PortError::Rejected)?;
         let outcome = self
             .configuration_transaction
             .transact(ProfileConfigurationTransactionRequest {
+                expected_reference,
                 expected: expected.clone(),
                 update: update.clone(),
+                authorization,
                 strategy: ApplyStrategy::PreferReload,
             })
             .await?;

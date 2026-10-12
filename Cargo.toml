@@ -81,7 +81,7 @@ toml = "1"
 yaml-rust2 = "0.11"
 serde_yaml_ng = "0.10"
 serde_yaml = { package = "serde_yaml_ng", version = "0.10" }
-windows-sys = { version = "0.61", features = ["Win32_System_Threading", "Win32_System_JobObjects", "Win32_Foundation", "Win32_Security"] }
+windows-sys = { version = "0.61", features = ["Win32_System_Threading", "Win32_System_JobObjects", "Win32_Foundation", "Win32_Security", "Win32_Storage_FileSystem"] }
 libc = "0.2"
 keyring = { version = "4.1" }
 winreg = "0.56"

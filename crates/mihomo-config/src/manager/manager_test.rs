@@ -7,9 +7,14 @@ mod tests {
     use crate::endpoint::ProfileEndpointSource;
     use crate::manager::ConfigManager;
     use crate::profile::Profile;
+    use infiltrator_contract::active_profile_reference::{
+        ActiveProfileReferenceCasOutcome, ActiveProfileReferenceTarget,
+    };
+    use infiltrator_contract::profile_document_identity::ProfileId;
     use infiltrator_ports::endpoint::EndpointSource;
     #[cfg(test)]
     use infiltrator_ports::error::PortError;
+    use infiltrator_ports::profile_store::ProfileStore;
     use infiltrator_ports::secure_store::SecureStore;
     use std::path::PathBuf;
     #[cfg(test)]
@@ -49,6 +54,23 @@ mod tests {
         ConfigManager::with_home_and_store(home, TestStore).unwrap()
     }
 
+    async fn select_profile<S: SecureStore>(
+        manager: &ConfigManager<S>,
+        profile: &str,
+    ) -> Result<ActiveProfileReferenceCasOutcome, PortError> {
+        let expected = ProfileStore::read_active_profile_reference(manager).await?;
+        let target = ActiveProfileReferenceTarget::selected(
+            ConfigManager::engine_id(manager),
+            ProfileId::new(profile).expect("valid test profile ID"),
+        );
+        ProfileStore::compare_and_set_active_profile_reference(
+            manager,
+            expected,
+            target,
+            infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization::Unowned,
+        ).await
+    }
+
     #[tokio::test]
     async fn test_manager_new() {
         let temp_dir = TempDir::new().unwrap();
@@ -73,7 +95,9 @@ mod tests {
         let manager = setup_test_manager(&temp_dir).await;
 
         let profile_content = "port: 7890\nsocks-port: 7891\nmode: rule";
-        let result = manager.save("test-profile", profile_content).await;
+        let result = manager
+            .save_inactive_profile("test-profile", profile_content)
+            .await;
 
         assert!(result.is_ok());
         let profile_path = manager.config_dir.join("test-profile.yaml");
@@ -87,15 +111,26 @@ mod tests {
     async fn test_save_keeps_one_shot_backup_until_apply_clears_it() {
         let temp_dir = TempDir::new().unwrap();
         let manager = setup_test_manager(&temp_dir).await;
-        manager.save("current", "port: 7890\n").await.unwrap();
-        manager.save("current", "port: 7891\n").await.unwrap();
+        manager
+            .save_inactive_profile("current", "port: 7890\n")
+            .await
+            .unwrap();
+        manager
+            .save_inactive_profile("current", "port: 7891\n")
+            .await
+            .unwrap();
 
         let path = manager.config_dir.join("current.yaml");
         let backup = manager.config_dir.join("current.yaml.bak");
         assert_eq!(fs::read_to_string(&path).await.unwrap(), "port: 7891\n");
         assert_eq!(fs::read_to_string(&backup).await.unwrap(), "port: 7890\n");
 
-        assert!(manager.restore_backup("current").await.unwrap());
+        assert!(
+            manager
+                .restore_inactive_profile_backup("current")
+                .await
+                .unwrap()
+        );
         assert_eq!(fs::read_to_string(&path).await.unwrap(), "port: 7890\n");
         manager.clear_backup("current").await.unwrap();
         assert!(!backup.exists());
@@ -107,7 +142,9 @@ mod tests {
         let manager = setup_test_manager(&temp_dir).await;
 
         let profile_content = "invalid: yaml: content: [";
-        let result = manager.save("test-profile", profile_content).await;
+        let result = manager
+            .save_inactive_profile("test-profile", profile_content)
+            .await;
 
         assert!(result.is_err());
     }
@@ -118,7 +155,10 @@ mod tests {
         let manager = setup_test_manager(&temp_dir).await;
 
         let profile_content = "port: 7890\nsocks-port: 7891\nmode: rule";
-        manager.save("test-profile", profile_content).await.unwrap();
+        manager
+            .save_inactive_profile("test-profile", profile_content)
+            .await
+            .unwrap();
 
         let result = manager.load("test-profile").await;
         assert!(result.is_ok());
@@ -129,7 +169,10 @@ mod tests {
     async fn validate_current_profile_is_local_and_fail_closed() {
         let temp_dir = TempDir::new().unwrap();
         let manager = setup_test_manager(&temp_dir).await;
-        manager.save("default", "mode: rule\n").await.unwrap();
+        manager
+            .save_inactive_profile("default", "mode: rule\n")
+            .await
+            .unwrap();
         manager.migrate_legacy_mihomo_selection().await.unwrap();
         manager.validate_current_profile().await.unwrap();
 
@@ -164,8 +207,14 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let manager = setup_test_manager(&temp_dir).await;
 
-        manager.save("profile1", "port: 7890").await.unwrap();
-        manager.save("profile2", "port: 7891").await.unwrap();
+        manager
+            .save_inactive_profile("profile1", "port: 7890")
+            .await
+            .unwrap();
+        manager
+            .save_inactive_profile("profile2", "port: 7891")
+            .await
+            .unwrap();
 
         let result = manager.list_profiles().await;
         assert!(result.is_ok());
@@ -180,9 +229,18 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let manager = setup_test_manager(&temp_dir).await;
 
-        manager.save("z-profile", "port: 7890").await.unwrap();
-        manager.save("a-profile", "port: 7891").await.unwrap();
-        manager.save("m-profile", "port: 7892").await.unwrap();
+        manager
+            .save_inactive_profile("z-profile", "port: 7890")
+            .await
+            .unwrap();
+        manager
+            .save_inactive_profile("a-profile", "port: 7891")
+            .await
+            .unwrap();
+        manager
+            .save_inactive_profile("m-profile", "port: 7892")
+            .await
+            .unwrap();
 
         let result = manager.list_profiles().await;
         assert!(result.is_ok());
@@ -197,7 +255,10 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let manager = setup_test_manager(&temp_dir).await;
 
-        manager.save("test-profile", "port: 7890").await.unwrap();
+        manager
+            .save_inactive_profile("test-profile", "port: 7890")
+            .await
+            .unwrap();
         assert!(manager.config_dir.join("test-profile.yaml").exists());
 
         let result = manager.delete_profile("test-profile").await;
@@ -220,8 +281,14 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let manager = setup_test_manager(&temp_dir).await;
 
-        manager.save("active-profile", "port: 7890").await.unwrap();
-        manager.set_current("active-profile").await.unwrap();
+        manager
+            .save_inactive_profile("active-profile", "port: 7890")
+            .await
+            .unwrap();
+        assert!(matches!(
+            select_profile(&manager, "active-profile").await.unwrap(),
+            ActiveProfileReferenceCasOutcome::Committed { .. }
+        ));
 
         let result = manager.delete_profile("active-profile").await;
         assert!(result.is_err());
@@ -234,14 +301,20 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_set_current_profile() {
+    async fn test_revisioned_selection_commits_the_expected_profile() {
         let temp_dir = TempDir::new().unwrap();
         let manager = setup_test_manager(&temp_dir).await;
 
-        manager.save("test-profile", "port: 7890").await.unwrap();
+        manager
+            .save_inactive_profile("test-profile", "port: 7890")
+            .await
+            .unwrap();
 
-        let result = manager.set_current("test-profile").await;
-        assert!(result.is_ok());
+        let result = select_profile(&manager, "test-profile").await.unwrap();
+        assert!(matches!(
+            result,
+            ActiveProfileReferenceCasOutcome::Committed { .. }
+        ));
 
         let current = manager.get_current().await.unwrap();
         assert_eq!(current, "test-profile");
@@ -252,7 +325,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let manager = setup_test_manager(&temp_dir).await;
 
-        let result = manager.set_current("nonexistent").await;
+        let result = select_profile(&manager, "nonexistent").await;
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("not found"));
     }
@@ -272,8 +345,14 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let manager = setup_test_manager(&temp_dir).await;
 
-        manager.save("test-profile", "port: 7890").await.unwrap();
-        manager.set_current("test-profile").await.unwrap();
+        manager
+            .save_inactive_profile("test-profile", "port: 7890")
+            .await
+            .unwrap();
+        assert!(matches!(
+            select_profile(&manager, "test-profile").await.unwrap(),
+            ActiveProfileReferenceCasOutcome::Committed { .. }
+        ));
 
         let path = manager.get_current_path().await.unwrap();
         assert_eq!(path, manager.config_dir.join("test-profile.yaml"));
@@ -299,7 +378,10 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let manager = setup_test_manager(&temp_dir).await;
 
-        manager.save("default", "port: 7890").await.unwrap();
+        manager
+            .save_inactive_profile("default", "port: 7890")
+            .await
+            .unwrap();
 
         manager.migrate_legacy_mihomo_selection().await.unwrap();
         assert_eq!(manager.load("default").await.unwrap(), "port: 7890");
@@ -314,7 +396,10 @@ mod tests {
 port: 7890
 external-controller: 127.0.0.1:9090
 "#;
-        manager.save("default", config).await.unwrap();
+        manager
+            .save_inactive_profile("default", config)
+            .await
+            .unwrap();
         manager.migrate_legacy_mihomo_selection().await.unwrap();
 
         let result = manager.get_external_controller().await;
@@ -330,7 +415,10 @@ external-controller: 127.0.0.1:9090
         let config = r#"
 port: 7890
 "#;
-        manager.save("default", config).await.unwrap();
+        manager
+            .save_inactive_profile("default", config)
+            .await
+            .unwrap();
         manager.migrate_legacy_mihomo_selection().await.unwrap();
 
         let result = manager.get_external_controller().await;
@@ -347,7 +435,10 @@ port: 7890
 port: 7890
 external-controller: ":9090"
 "#;
-        manager.save("default", config).await.unwrap();
+        manager
+            .save_inactive_profile("default", config)
+            .await
+            .unwrap();
         manager.migrate_legacy_mihomo_selection().await.unwrap();
 
         let result = manager.get_external_controller().await;
@@ -364,7 +455,10 @@ external-controller: ":9090"
 port: 7890
 external-controller: http://127.0.0.1:9090
 "#;
-        manager.save("default", config).await.unwrap();
+        manager
+            .save_inactive_profile("default", config)
+            .await
+            .unwrap();
         manager.migrate_legacy_mihomo_selection().await.unwrap();
 
         let result = manager.get_external_controller().await;
@@ -377,7 +471,7 @@ external-controller: http://127.0.0.1:9090
         let temp_dir = TempDir::new().unwrap();
         let manager = setup_test_manager(&temp_dir).await;
         manager
-            .save(
+            .save_inactive_profile(
                 "default",
                 "port: 7890\nexternal-controller: 127.0.0.1:19090\n",
             )
@@ -411,7 +505,7 @@ external-controller: http://127.0.0.1:9090
         let temp_dir = TempDir::new().unwrap();
         let manager = setup_test_manager(&temp_dir).await;
         manager
-            .save(
+            .save_inactive_profile(
                 "default",
                 "port: 7890\nexternal-controller: 127.0.0.1:19091\nsecret: generated-by-host\n",
             )
@@ -548,7 +642,10 @@ external-controller: http://127.0.0.1:9090
             "a:b",
         ] {
             assert!(
-                manager.save(name, "port: 1\n").await.is_err(),
+                manager
+                    .save_inactive_profile(name, "port: 1\n")
+                    .await
+                    .is_err(),
                 "save should reject: {name:?}"
             );
             assert!(
@@ -562,7 +659,12 @@ external-controller: http://127.0.0.1:9090
         }
 
         // 合法名字不受影响（空格/中文/下划线/连字符）
-        assert!(manager.save("我的 配置-1", "port: 1\n").await.is_ok());
+        assert!(
+            manager
+                .save_inactive_profile("我的 配置-1", "port: 1\n")
+                .await
+                .is_ok()
+        );
         assert_eq!(manager.load("我的 配置-1").await.unwrap(), "port: 1\n");
     }
 }

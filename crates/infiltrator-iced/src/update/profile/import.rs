@@ -10,15 +10,20 @@ use crate::update::core::profile_apply::activate_profile;
 use iced::Task;
 use infiltrator_application::profile_application::ProfileActivationOutcome;
 use infiltrator_application::profile_application::ProfileApplication;
-use infiltrator_contract::error::{InfiltratorError, from_backend};
+use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
+use infiltrator_contract::error::InfiltratorError;
 use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_domain::config::validate_yaml;
 use infiltrator_domain::profile_converter::ProfileConverter;
 use infiltrator_domain::profiles::sanitize_profile_name;
-use infiltrator_ports::runtime_gateway::ManagedRuntime;
 use infiltrator_shared::locales::{Lang, Localizer};
 use std::path;
 use tokio::task::spawn_blocking;
+
+enum ProfileImportTarget {
+    SelectedActive,
+    OtherSelection,
+}
 
 impl AppState {
     pub(super) fn update_import(&mut self, message: Message) -> Task<Message> {
@@ -41,6 +46,7 @@ impl AppState {
                 let name = self.profile.import_name.trim().to_string();
                 let activate = self.profile.import_activate;
                 let runtime = self.runtime.runtime.clone();
+                let runtime = crate::update::core::profile_apply::runtime_access(runtime);
                 if name.is_empty() || url.is_empty() {
                     return Task::done(Message::ShowToast(
                         "Name and subscription URL are required".to_string(),
@@ -54,16 +60,51 @@ impl AppState {
                         let profile_name = sanitize_profile_name(&name)
                             .map_err(|e| InfiltratorError::Config(e.to_string()))?;
                         let cm = config_manager().await?;
-                        let current = cm.get_current().await.map_err(from_backend)?;
-                        if runtime.is_some() && current == profile_name {
-                            return Err(InfiltratorError::Config(
-                                Lang(&copy_locale)
-                                    .tr("profile_import_requires_stopped_core")
-                                    .into_owned(),
-                            ));
+                        let profiles = ProfileApplication::new(cm.clone());
+                        let active_reference = profiles
+                            .active_profile_reference()
+                            .await
+                            .map_err(|failure| InfiltratorError::Config(failure.message))?;
+                        let target = match &active_reference {
+                            ActiveProfileReferenceState::Selected(reference)
+                                if reference.engine_id == profiles.engine_id()
+                                    && reference.profile_id.as_str() == profile_name =>
+                            {
+                                ProfileImportTarget::SelectedActive
+                            }
+                            ActiveProfileReferenceState::Selected(_)
+                            | ActiveProfileReferenceState::Unselected { .. } => {
+                                ProfileImportTarget::OtherSelection
+                            }
+                        };
+                        match (&runtime, target) {
+                            (
+                                infiltrator_application::profile_application::ProfileRuntimeAccess::Managed(_),
+                                ProfileImportTarget::SelectedActive,
+                            ) => {
+                                return Err(InfiltratorError::Config(
+                                    Lang(&copy_locale)
+                                        .tr("profile_import_requires_stopped_core")
+                                        .into_owned(),
+                                ));
+                            }
+                            (
+                                infiltrator_application::profile_application::ProfileRuntimeAccess::Offline,
+                                ProfileImportTarget::SelectedActive,
+                            ) => {
+                                return Err(InfiltratorError::Config(
+                                    "selected profile import must use the revision-bound content editor"
+                                        .to_owned(),
+                                ));
+                            }
+                            (
+                                infiltrator_application::profile_application::ProfileRuntimeAccess::Offline
+                                | infiltrator_application::profile_application::ProfileRuntimeAccess::Managed(_),
+                                ProfileImportTarget::OtherSelection,
+                            ) => {}
                         }
                         let source = subscription_source();
-                        ProfileApplication::new(cm)
+                        profiles
                             .import_subscription(&source, &profile_name, &url)
                             .await
                             .map_err(|failure| InfiltratorError::Config(failure.message))?;
@@ -97,7 +138,7 @@ impl AppState {
                             Some(
                                 ProfileActivationOutcome::AlreadySelectedWithoutRuntime
                                 | ProfileActivationOutcome::SelectedWithoutRuntime,
-                            ) => tasks.push(Task::done(Message::StartCore)),
+                            ) => {}
                             Some(
                                 ProfileActivationOutcome::AlreadySelectedWithRuntime
                                 | ProfileActivationOutcome::SelectedAndApplied
@@ -107,6 +148,38 @@ impl AppState {
                                     self.sync_runtime_slot(Some(runtime));
                                 }
                             }
+                            Some(
+                                ProfileActivationOutcome::AlreadySelectedWhileInactive(
+                                    infiltrator_contract::snapshot::CoreInactiveLifecycle::Stopped,
+                                )
+                                | ProfileActivationOutcome::SelectedWhileInactive(
+                                    infiltrator_contract::snapshot::CoreInactiveLifecycle::Stopped,
+                                )
+                                | ProfileActivationOutcome::CurrentProfileUpdatedWhileInactive(
+                                    infiltrator_contract::snapshot::CoreInactiveLifecycle::Stopped,
+                                ),
+                            ) => tasks.push(Task::done(Message::ShowToast(
+                                Lang(&self.shell.lang)
+                                    .tr("profile_selected_core_stopped")
+                                    .into_owned(),
+                                ToastStatus::Info,
+                            ))),
+                            Some(
+                                ProfileActivationOutcome::AlreadySelectedWhileInactive(
+                                    infiltrator_contract::snapshot::CoreInactiveLifecycle::Failed,
+                                )
+                                | ProfileActivationOutcome::SelectedWhileInactive(
+                                    infiltrator_contract::snapshot::CoreInactiveLifecycle::Failed,
+                                )
+                                | ProfileActivationOutcome::CurrentProfileUpdatedWhileInactive(
+                                    infiltrator_contract::snapshot::CoreInactiveLifecycle::Failed,
+                                ),
+                            ) => tasks.push(Task::done(Message::ShowToast(
+                                Lang(&self.shell.lang)
+                                    .tr("profile_selected_core_failed")
+                                    .into_owned(),
+                                ToastStatus::Warning,
+                            ))),
                         }
                         Task::batch(tasks)
                     }
@@ -189,35 +262,81 @@ impl AppState {
                             .map_err(|e| InfiltratorError::Config(e.to_string()))?;
 
                         let cm = config_manager().await?;
-                        let current = cm.get_current().await.map_err(from_backend)?;
-                        let activation = match (runtime, current == profile_name) {
-                            (Some(runtime), true) => {
-                                ManagedRuntime::apply_profile_content(
-                                    runtime.as_ref(),
-                                    &content,
-                                    ApplyStrategy::AlwaysRestart,
-                                )
-                                .await
-                                .map_err(|error| InfiltratorError::Config(error.to_string()))?;
-                                Some(ProfileActivationOutcome::CurrentProfileUpdatedAndApplied)
+                        let profiles = ProfileApplication::new(cm.clone());
+                        let expected = profiles
+                            .active_profile_reference()
+                            .await
+                            .map_err(|failure| InfiltratorError::Config(failure.message))?;
+                        let target = match &expected {
+                            ActiveProfileReferenceState::Selected(reference)
+                                if reference.engine_id == profiles.engine_id()
+                                    && reference.profile_id.as_str() == profile_name =>
+                            {
+                                ProfileImportTarget::SelectedActive
                             }
-                            (runtime, false) => {
-                                cm.save(&profile_name, &content)
+                            ActiveProfileReferenceState::Selected(_)
+                            | ActiveProfileReferenceState::Unselected { .. } => {
+                                ProfileImportTarget::OtherSelection
+                            }
+                        };
+                        let runtime = crate::update::core::profile_apply::runtime_access(runtime);
+                        let activation = match target {
+                            ProfileImportTarget::SelectedActive => {
+                                let saved = profiles
+                                    .save_profile_content_at_reference(
+                                        runtime,
+                                        profile_name,
+                                        content,
+                                        ApplyStrategy::AlwaysRestart,
+                                        expected,
+                                    )
                                     .await
-                                    .map_err(from_backend)?;
+                                    .map_err(|failure| InfiltratorError::Config(failure.message))?;
+                                Some(match saved {
+                                    infiltrator_application::profile_application::ProfileContentSaveOutcome::Applied => {
+                                        ProfileActivationOutcome::CurrentProfileUpdatedAndApplied
+                                    }
+                                    infiltrator_application::profile_application::ProfileContentSaveOutcome::StoredWhileInactive(
+                                        infiltrator_contract::snapshot::CoreInactiveLifecycle::Stopped,
+                                    ) => {
+                                        ProfileActivationOutcome::CurrentProfileUpdatedWhileInactive(
+                                            infiltrator_contract::snapshot::CoreInactiveLifecycle::Stopped,
+                                        )
+                                    }
+                                    infiltrator_application::profile_application::ProfileContentSaveOutcome::StoredWhileInactive(
+                                        infiltrator_contract::snapshot::CoreInactiveLifecycle::Failed,
+                                    ) => {
+                                        ProfileActivationOutcome::CurrentProfileUpdatedWhileInactive(
+                                            infiltrator_contract::snapshot::CoreInactiveLifecycle::Failed,
+                                        )
+                                    }
+                                    infiltrator_application::profile_application::ProfileContentSaveOutcome::StoredOffline => {
+                                        ProfileActivationOutcome::AlreadySelectedWithoutRuntime
+                                    }
+                                    infiltrator_application::profile_application::ProfileContentSaveOutcome::StoredInactive => {
+                                        return Err(InfiltratorError::Config(
+                                            "selected profile import was stored as inactive".to_owned(),
+                                        ));
+                                    }
+                                })
+                            }
+                            ProfileImportTarget::OtherSelection => {
+                                profiles
+                                    .save_profile_content_at_reference(
+                                        infiltrator_application::profile_application::ProfileRuntimeAccess::<
+                                            dyn infiltrator_ports::runtime_gateway::ActiveProfileReferenceApplier,
+                                        >::Offline,
+                                        profile_name.clone(),
+                                        content,
+                                        ApplyStrategy::AlwaysRestart,
+                                        expected,
+                                    )
+                                    .await
+                                    .map_err(|failure| {
+                                        InfiltratorError::Config(failure.message)
+                                    })?;
                                 match activate {
                                     true => Some(activate_profile(runtime, &profile_name).await?),
-                                    false => None,
-                                }
-                            }
-                            (None, true) => {
-                                cm.save(&profile_name, &content)
-                                    .await
-                                    .map_err(from_backend)?;
-                                match activate {
-                                    true => Some(
-                                        ProfileActivationOutcome::AlreadySelectedWithoutRuntime,
-                                    ),
                                     false => None,
                                 }
                             }
@@ -247,7 +366,7 @@ impl AppState {
                             Some(
                                 ProfileActivationOutcome::AlreadySelectedWithoutRuntime
                                 | ProfileActivationOutcome::SelectedWithoutRuntime,
-                            ) => tasks.push(Task::done(Message::StartCore)),
+                            ) => {}
                             Some(
                                 ProfileActivationOutcome::AlreadySelectedWithRuntime
                                 | ProfileActivationOutcome::SelectedAndApplied
@@ -257,6 +376,38 @@ impl AppState {
                                     self.sync_runtime_slot(Some(runtime));
                                 }
                             }
+                            Some(
+                                ProfileActivationOutcome::AlreadySelectedWhileInactive(
+                                    infiltrator_contract::snapshot::CoreInactiveLifecycle::Stopped,
+                                )
+                                | ProfileActivationOutcome::SelectedWhileInactive(
+                                    infiltrator_contract::snapshot::CoreInactiveLifecycle::Stopped,
+                                )
+                                | ProfileActivationOutcome::CurrentProfileUpdatedWhileInactive(
+                                    infiltrator_contract::snapshot::CoreInactiveLifecycle::Stopped,
+                                ),
+                            ) => tasks.push(Task::done(Message::ShowToast(
+                                Lang(&self.shell.lang)
+                                    .tr("profile_selected_core_stopped")
+                                    .into_owned(),
+                                ToastStatus::Info,
+                            ))),
+                            Some(
+                                ProfileActivationOutcome::AlreadySelectedWhileInactive(
+                                    infiltrator_contract::snapshot::CoreInactiveLifecycle::Failed,
+                                )
+                                | ProfileActivationOutcome::SelectedWhileInactive(
+                                    infiltrator_contract::snapshot::CoreInactiveLifecycle::Failed,
+                                )
+                                | ProfileActivationOutcome::CurrentProfileUpdatedWhileInactive(
+                                    infiltrator_contract::snapshot::CoreInactiveLifecycle::Failed,
+                                ),
+                            ) => tasks.push(Task::done(Message::ShowToast(
+                                Lang(&self.shell.lang)
+                                    .tr("profile_selected_core_failed")
+                                    .into_owned(),
+                                ToastStatus::Warning,
+                            ))),
                         }
                         Task::batch(tasks)
                     }

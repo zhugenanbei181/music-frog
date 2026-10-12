@@ -12,7 +12,9 @@ use infiltrator_ports::profile_configuration_transaction::{
     ProfileConfigurationTransactionPort, ProfileConfigurationTransactionRequest,
     ProfileConfigurationTransactionScope,
 };
-use infiltrator_ports::profile_store::ProfileStore;
+use infiltrator_ports::profile_store::{
+    ActiveProfileWorkspacePublishOutcome, ActiveProfileWorkspaceRecoveryResolution, ProfileStore,
+};
 use infiltrator_ports::profile_workspace::{ProfileWorkspacePurpose, ProfileWorkspaceUpdate};
 use std::sync::Arc;
 
@@ -71,17 +73,60 @@ impl ProfileConfigurationTransactionPort for FakeNativeProfile {
                 "fake sing-box transaction does not apply while Core is running",
             ));
         }
-        let committed = self
+        let workspace_update = ProfileWorkspaceUpdate {
+            purpose: ProfileWorkspacePurpose::Derived,
+            document_bytes: request.update.document_bytes,
+            sidecar_bytes: request.update.sidecar_bytes,
+        };
+        let lease = self
             .store
-            .compare_and_save_active_workspace(
-                &request.expected,
-                &ProfileWorkspaceUpdate {
-                    purpose: ProfileWorkspacePurpose::Derived,
-                    document_bytes: request.update.document_bytes,
-                    sidecar_bytes: request.update.sidecar_bytes,
-                },
+            .acquire_active_workspace_write_lease(
+                request.expected_reference,
+                request.expected,
+                request.authorization,
             )
             .await?;
+        let committed = match lease.publish(workspace_update).await {
+            ActiveProfileWorkspacePublishOutcome::Published(published) => published.commit(),
+            ActiveProfileWorkspacePublishOutcome::Unpublished(error) => return Err(error),
+            ActiveProfileWorkspacePublishOutcome::Superseded { observed } => {
+                return Err(PortError::Rejected(Failure::new(
+                    ErrorCode::NotReady,
+                    format!("fake transaction observed stale workspace {observed:?}"),
+                    false,
+                )));
+            }
+            ActiveProfileWorkspacePublishOutcome::RecoveryRequired(mut recovery) => loop {
+                match recovery.resolve().await {
+                    ActiveProfileWorkspaceRecoveryResolution::Published(published) => {
+                        break published.commit();
+                    }
+                    ActiveProfileWorkspaceRecoveryResolution::Restored(restored) => {
+                        restored.finish();
+                        return Err(PortError::Rejected(Failure::new(
+                            ErrorCode::NotReady,
+                            "fake transaction publication was restored during recovery",
+                            false,
+                        )));
+                    }
+                    ActiveProfileWorkspaceRecoveryResolution::Unpublished(error) => {
+                        return Err(error);
+                    }
+                    ActiveProfileWorkspaceRecoveryResolution::Superseded { observed } => {
+                        return Err(PortError::Rejected(Failure::new(
+                            ErrorCode::NotReady,
+                            format!(
+                                "fake transaction recovery observed stale workspace {observed:?}"
+                            ),
+                            false,
+                        )));
+                    }
+                    ActiveProfileWorkspaceRecoveryResolution::RecoveryRequired(next) => {
+                        recovery = next;
+                    }
+                }
+            },
+        };
         let effect = match observed_lifecycle {
             CoreLifecycle::Stopped => ProfileConfigurationCommitEffect::StoredWhileStopped,
             CoreLifecycle::Ready | CoreLifecycle::Running => {

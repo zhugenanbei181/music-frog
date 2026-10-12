@@ -16,6 +16,15 @@ pub enum CoreLifecycle {
     Failed,
 }
 
+/// Exact inactive lifecycle fact carried by operations that persist selected
+/// profile content without starting or applying Core.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CoreInactiveLifecycle {
+    Stopped,
+    Failed,
+}
+
 /// State of the application-owned crash recovery loop.
 ///
 /// The value is deliberately a contract type rather than a UI status string:

@@ -144,7 +144,7 @@ impl AppState {
                         validate_yaml(&merged)
                             .map_err(|error| InfiltratorError::Config(error.to_string()))?;
                         save_profile_content(
-                            runtime,
+                            crate::update::core::profile_apply::runtime_access(runtime),
                             conflict.profile.clone(),
                             merged,
                             ApplyStrategy::PreferReload,

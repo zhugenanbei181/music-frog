@@ -3,6 +3,7 @@
 
 use super::*;
 use axum::body::to_bytes;
+use infiltrator_ports::profile_store::ProfileStore;
 use mihomo_platform::paths::{clear_home_dir_override, set_home_dir_override};
 
 #[tokio::test]
@@ -20,6 +21,8 @@ async fn test_import_profile_integration() {
 
     let temp_dir = tempfile::tempdir().unwrap();
     set_home_dir_override(temp_dir.path().to_path_buf());
+    let manager = app_config_manager().await.unwrap();
+    let config_dir = ProfileStore::config_dir(&manager);
 
     let app = setup_app();
     let payload = ImportProfilePayload {
@@ -52,7 +55,7 @@ async fn test_import_profile_integration() {
     }
 
     // Verify file was saved
-    let config_path = temp_dir.path().join("configs").join("test-import.yaml");
+    let config_path = config_dir.join("test-import.yaml");
     assert!(config_path.exists());
 
     clear_home_dir_override();

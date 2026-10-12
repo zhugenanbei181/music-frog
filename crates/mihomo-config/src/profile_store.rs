@@ -4,7 +4,10 @@ use crate::manager::ConfigManager;
 use crate::profile::Profile;
 use crate::profile_workspace_store::WorkspaceTarget;
 use crate::sidecar_store::{read_optional, remove_optional, write_document};
-use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
+use infiltrator_contract::active_profile_reference::{
+    ActiveProfileReference, ActiveProfileReferenceCasOutcome, ActiveProfileReferenceState,
+    ActiveProfileReferenceTarget, ActiveProfileReferenceWriteAuthorization,
+};
 use infiltrator_contract::aggregator::AggregationTemplate;
 use infiltrator_contract::apply_transaction::ApplyTransactionSnapshot;
 use infiltrator_contract::core_identity::EngineId;
@@ -12,7 +15,7 @@ use infiltrator_contract::profile_document_identity::{ProfileId, ProfileWorkspac
 use infiltrator_domain::profiles::{ProfileInfo, ProfileMetadata};
 use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceStore;
 use infiltrator_ports::error::PortError;
-use infiltrator_ports::profile_store::ProfileStore;
+use infiltrator_ports::profile_store::{ActiveProfileWorkspaceWriteLease, ProfileStore};
 use infiltrator_ports::profile_workspace::{ProfileWorkspace, ProfileWorkspaceUpdate};
 use infiltrator_ports::secure_store::SecureStore;
 use std::fmt::Display;
@@ -70,8 +73,43 @@ where
         }
     }
 
-    async fn set_current(&self, profile: &str) -> Result<(), PortError> {
-        self.set_current_with_active_reference(profile).await
+    async fn read_active_profile_reference(
+        &self,
+    ) -> Result<ActiveProfileReferenceState, PortError> {
+        ActiveProfileReferenceStore::read(self).await
+    }
+
+    async fn compare_and_set_active_profile_reference(
+        &self,
+        expected: ActiveProfileReferenceState,
+        target: ActiveProfileReferenceTarget,
+        authorization: ActiveProfileReferenceWriteAuthorization,
+    ) -> Result<ActiveProfileReferenceCasOutcome, PortError> {
+        let expected_revision = expected.revision();
+        match ActiveProfileReferenceStore::compare_and_set(
+            self,
+            expected_revision,
+            target,
+            authorization,
+        )
+        .await
+        {
+            Ok(current) => Ok(ActiveProfileReferenceCasOutcome::Committed {
+                previous: expected,
+                current,
+            }),
+            Err(PortError::Rejected(failure))
+                if failure.code == infiltrator_contract::error::ErrorCode::NotReady =>
+            {
+                let observed = ActiveProfileReferenceStore::read(self).await?;
+                if observed.revision() == expected_revision {
+                    Err(PortError::Rejected(failure))
+                } else {
+                    Ok(ActiveProfileReferenceCasOutcome::Stale { expected, observed })
+                }
+            }
+            Err(error) => Err(error),
+        }
     }
 
     async fn load(&self, profile: &str) -> Result<String, PortError> {
@@ -80,8 +118,8 @@ where
             .map_err(storage_error)
     }
 
-    async fn save(&self, profile: &str, content: &str) -> Result<(), PortError> {
-        ConfigManager::save(self, profile, content)
+    async fn save_inactive_profile(&self, profile: &str, content: &str) -> Result<(), PortError> {
+        ConfigManager::save_inactive_profile(self, profile, content)
             .await
             .map_err(storage_error)
     }
@@ -132,22 +170,34 @@ where
         self.read_active_workspace().await
     }
 
-    async fn compare_and_save_workspace(
+    async fn acquire_active_workspace_write_lease(
         &self,
-        expected: &ProfileWorkspaceIdentity,
-        update: &ProfileWorkspaceUpdate,
-    ) -> Result<ProfileWorkspace, PortError> {
-        self.save_workspace(expected, update, WorkspaceTarget::Any)
-            .await
+        expected_reference: ActiveProfileReference,
+        expected_workspace: ProfileWorkspaceIdentity,
+        authorization: ActiveProfileReferenceWriteAuthorization,
+    ) -> Result<Box<dyn ActiveProfileWorkspaceWriteLease + '_>, PortError> {
+        ConfigManager::acquire_active_workspace_write_lease(
+            self,
+            expected_reference,
+            expected_workspace,
+            authorization,
+        )
+        .await
     }
 
-    async fn compare_and_save_active_workspace(
+    async fn compare_and_save_unowned_active_derived_document(
         &self,
-        expected: &ProfileWorkspaceIdentity,
+        expected_reference: ActiveProfileReference,
+        expected_workspace: ProfileWorkspaceIdentity,
         update: &ProfileWorkspaceUpdate,
     ) -> Result<ProfileWorkspace, PortError> {
-        self.save_workspace(expected, update, WorkspaceTarget::Active)
-            .await
+        ConfigManager::compare_and_save_unowned_active_derived_document(
+            self,
+            expected_reference,
+            expected_workspace,
+            update,
+        )
+        .await
     }
 
     async fn compare_and_save_inactive_workspace(
@@ -159,7 +209,7 @@ where
             .await
     }
 
-    async fn restore_workspace(
+    async fn restore_inactive_workspace(
         &self,
         expected: &ProfileWorkspaceIdentity,
         previous: &ProfileWorkspace,
@@ -175,6 +225,7 @@ where
 
     async fn load_aggregation_templates(&self) -> Result<Vec<AggregationTemplate>, PortError> {
         ensure_namespace(self).await?;
+        let _guard = self.lock_profile_writes().await.map_err(storage_error)?;
         let path = aggregation_templates_path(ConfigManager::config_dir(self));
         let Some(text) = read_optional(&path).await? else {
             return Ok(Vec::new());
@@ -187,6 +238,10 @@ where
         templates: &[AggregationTemplate],
     ) -> Result<(), PortError> {
         ensure_namespace(self).await?;
+        let _guard = crate::manager::lock_reset_fenced_profile_mutation_for_dir(
+            ConfigManager::config_dir(self),
+        )
+        .await?;
         let path = aggregation_templates_path(ConfigManager::config_dir(self));
         if templates.is_empty() {
             return remove_optional(&path).await;
@@ -201,8 +256,8 @@ where
             .map_err(storage_error)
     }
 
-    async fn restore_backup(&self, profile: &str) -> Result<bool, PortError> {
-        ConfigManager::restore_backup(self, profile)
+    async fn restore_inactive_profile_backup(&self, profile: &str) -> Result<bool, PortError> {
+        ConfigManager::restore_inactive_profile_backup(self, profile)
             .await
             .map_err(storage_error)
     }

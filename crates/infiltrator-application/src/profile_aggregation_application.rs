@@ -11,11 +11,13 @@
 //! registry) because the desktop service outlives any single surface window:
 //! a preview produced from either surface is projected to both.
 
-use crate::profile_application::{ProfileActivationOutcome, ProfileApplication};
+use crate::profile_application::{
+    ProfileActivationOutcome, ProfileApplication, ProfileRuntimeAccess,
+};
 use chrono::Utc;
 use infiltrator_contract::aggregator::{
-    AggregatedProfileOutcome, AggregationDraft, AggregationReport, AggregationTemplate,
-    GeneratedGroupSnapshot, RegionalClusterSnapshot,
+    AggregatedProfileOutcome, AggregationActivationOutcome, AggregationDraft, AggregationReport,
+    AggregationTemplate, GeneratedGroupSnapshot, RegionalClusterSnapshot,
 };
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_domain::filter::{ContentDedupStrategy, DeduplicationStrategy, NodeSortOrder};
@@ -23,7 +25,7 @@ use infiltrator_domain::profile_aggregator::{AggregationPlan, ProfileAggregator}
 use infiltrator_domain::profile_converter::{AggregationOptions, SourceSubscription};
 use infiltrator_domain::profiles::sanitize_profile_name;
 use infiltrator_ports::runtime_gateway::ManagedRuntime;
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Mutex, OnceLock};
 
 #[cfg(test)]
 #[path = "profile_aggregation_application_test.rs"]
@@ -95,6 +97,36 @@ enum AggregationActivation {
     Completed(ProfileActivationOutcome),
 }
 
+fn activation_effect(activation: AggregationActivation) -> AggregationActivationOutcome {
+    match activation {
+        AggregationActivation::NotRequested => AggregationActivationOutcome::NotRequested,
+        AggregationActivation::Completed(
+            ProfileActivationOutcome::AlreadySelectedWithoutRuntime,
+        ) => AggregationActivationOutcome::AlreadySelectedWithoutRuntime,
+        AggregationActivation::Completed(ProfileActivationOutcome::AlreadySelectedWithRuntime) => {
+            AggregationActivationOutcome::AlreadySelectedWithRuntime
+        }
+        AggregationActivation::Completed(
+            ProfileActivationOutcome::AlreadySelectedWhileInactive(lifecycle),
+        ) => AggregationActivationOutcome::AlreadySelectedWhileInactive(lifecycle),
+        AggregationActivation::Completed(ProfileActivationOutcome::SelectedWithoutRuntime) => {
+            AggregationActivationOutcome::SelectedWithoutRuntime
+        }
+        AggregationActivation::Completed(ProfileActivationOutcome::SelectedWhileInactive(
+            lifecycle,
+        )) => AggregationActivationOutcome::SelectedWhileInactive(lifecycle),
+        AggregationActivation::Completed(ProfileActivationOutcome::SelectedAndApplied) => {
+            AggregationActivationOutcome::SelectedAndApplied
+        }
+        AggregationActivation::Completed(
+            ProfileActivationOutcome::CurrentProfileUpdatedAndApplied,
+        ) => AggregationActivationOutcome::CurrentProfileUpdatedAndApplied,
+        AggregationActivation::Completed(
+            ProfileActivationOutcome::CurrentProfileUpdatedWhileInactive(lifecycle),
+        ) => AggregationActivationOutcome::CurrentProfileUpdatedWhileInactive(lifecycle),
+    }
+}
+
 impl ProfileAggregationApplication {
     pub fn new(profile: ProfileApplication) -> Self {
         Self { profile }
@@ -154,7 +186,7 @@ impl ProfileAggregationApplication {
         &self,
         draft: &AggregationDraft,
     ) -> Result<AggregatedProfileOutcome, Failure> {
-        self.create_profile_with_runtime::<dyn ManagedRuntime>(None, draft)
+        self.create_profile_with_runtime::<dyn ManagedRuntime>(ProfileRuntimeAccess::Offline, draft)
             .await
     }
 
@@ -168,7 +200,7 @@ impl ProfileAggregationApplication {
     /// shared `SwitchProfile` route.
     pub async fn create_profile_with_runtime<R: ManagedRuntime + ?Sized>(
         &self,
-        runtime: Option<Arc<R>>,
+        runtime: ProfileRuntimeAccess<R>,
         draft: &AggregationDraft,
     ) -> Result<AggregatedProfileOutcome, Failure> {
         let name = sanitize_profile_name(&draft.target_name)
@@ -206,22 +238,7 @@ impl ProfileAggregationApplication {
         Ok(AggregatedProfileOutcome {
             profile_name: name,
             report,
-            activated: match activation {
-                AggregationActivation::NotRequested => false,
-                AggregationActivation::Completed(_) => true,
-            },
-            core_reloaded: match activation {
-                AggregationActivation::NotRequested
-                | AggregationActivation::Completed(
-                    ProfileActivationOutcome::AlreadySelectedWithoutRuntime
-                    | ProfileActivationOutcome::AlreadySelectedWithRuntime
-                    | ProfileActivationOutcome::SelectedWithoutRuntime
-                    | ProfileActivationOutcome::CurrentProfileUpdatedAndApplied,
-                ) => false,
-                AggregationActivation::Completed(ProfileActivationOutcome::SelectedAndApplied) => {
-                    true
-                }
-            },
+            activation: activation_effect(activation),
             template_name,
         })
     }
@@ -296,7 +313,7 @@ impl ProfileAggregationApplication {
     /// Only profiles that the template itself produced are touched.
     pub async fn reaggregate<R: ManagedRuntime + ?Sized>(
         &self,
-        runtime: Option<Arc<R>>,
+        runtime: ProfileRuntimeAccess<R>,
         template_name: &str,
     ) -> Result<AggregatedProfileOutcome, Failure> {
         let template = self.find_template(template_name).await?.ok_or_else(|| {
@@ -329,22 +346,7 @@ impl ProfileAggregationApplication {
         Ok(AggregatedProfileOutcome {
             profile_name: name,
             report,
-            activated: match activation {
-                AggregationActivation::NotRequested => false,
-                AggregationActivation::Completed(_) => true,
-            },
-            core_reloaded: match activation {
-                AggregationActivation::NotRequested
-                | AggregationActivation::Completed(
-                    ProfileActivationOutcome::AlreadySelectedWithoutRuntime
-                    | ProfileActivationOutcome::AlreadySelectedWithRuntime
-                    | ProfileActivationOutcome::SelectedWithoutRuntime
-                    | ProfileActivationOutcome::CurrentProfileUpdatedAndApplied,
-                ) => false,
-                AggregationActivation::Completed(ProfileActivationOutcome::SelectedAndApplied) => {
-                    true
-                }
-            },
+            activation: activation_effect(activation),
             template_name: Some(template.name),
         })
     }
@@ -352,7 +354,7 @@ impl ProfileAggregationApplication {
     /// Switch to a freshly generated profile through the shared typed activation path.
     async fn activate_generated_profile<R: ManagedRuntime + ?Sized>(
         &self,
-        runtime: Option<Arc<R>>,
+        runtime: ProfileRuntimeAccess<R>,
         name: &str,
     ) -> Result<ProfileActivationOutcome, Failure> {
         self.profile.activate_profile(runtime, name).await

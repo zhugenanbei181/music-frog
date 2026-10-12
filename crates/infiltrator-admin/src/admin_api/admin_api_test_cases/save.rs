@@ -2,7 +2,9 @@
 //! test-intent: behavior
 
 use super::*;
+use crate::support::select_test_profile;
 use axum::body::to_bytes;
+use infiltrator_ports::profile_store::ProfileStore;
 use mihomo_config::manager::ConfigManager;
 use mihomo_platform::paths::{clear_home_dir_override, set_home_dir_override};
 use std::time;
@@ -45,7 +47,10 @@ async fn test_save_rules_route_schedules_rebuild() {
         DefaultCredentialStore::default(),
     )
     .unwrap();
-    manager.save("default", "rules:\n  - DIRECT").await.unwrap();
+    ProfileStore::save_inactive_profile(&manager, "default", "rules:\n  - DIRECT")
+        .await
+        .unwrap();
+    select_test_profile(&manager, "default").await;
 
     let app = setup_app();
     let payload = serde_json::json!({

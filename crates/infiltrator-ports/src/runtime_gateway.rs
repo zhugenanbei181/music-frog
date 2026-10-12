@@ -5,11 +5,15 @@ use crate::profile_workspace::{ProfileWorkspace, ProfileWorkspaceUpdate};
 use crate::runtime_configuration::RuntimeConfigurationPorts;
 use async_trait::async_trait;
 use futures_util::stream::BoxStream;
+use infiltrator_contract::active_profile_reference::{
+    ActiveProfileReference, ActiveProfileReferenceWriteAuthorization,
+};
 use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_identity::CoreScope;
 use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::error::Failure;
 use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
+use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_domain::runtime::{
     ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider, TrafficData,
@@ -125,25 +129,130 @@ pub trait ManagedRuntime: RuntimeGateway {
     /// Engine currently owned by this runtime; absence denies a profile apply.
     fn engine_id(&self) -> Option<EngineId>;
     fn generation(&self) -> u64;
+    /// Exact lifecycle read used to prevent a profile operation from starting
+    /// a paused Core or racing a lifecycle transition.
+    fn core_lifecycle(&self) -> CoreLifecycle;
+    /// The persisted owner binding, which remains stable across runtime
+    /// restarts. Implementations must not derive its generation from the
+    /// current lifecycle snapshot.
+    fn active_profile_reference_write_authorization(
+        &self,
+    ) -> Result<ActiveProfileReferenceWriteAuthorization, PortError>;
     async fn is_running(&self) -> bool;
     async fn restart(&self) -> Result<u64, PortError>;
     async fn http_proxy_endpoint(&self) -> Result<Option<String>, PortError>;
     async fn shutdown(&self) -> Result<(), PortError>;
-    async fn apply_current_config(&self, strategy: ApplyStrategy) -> Result<u64, PortError>;
-    async fn apply_profile_content(
+    /// Apply the document named by one exact committed active-profile
+    /// reference. Implementations must hold the reference stable through the
+    /// full native apply/rollback transaction and address `profile_id`
+    /// directly; re-reading an unbound current pointer is not sufficient.
+    async fn apply_active_profile_reference(
         &self,
-        content: &str,
-        strategy: ApplyStrategy,
-    ) -> Result<u64, PortError>;
+        _expected: &ActiveProfileReference,
+        _strategy: ApplyStrategy,
+    ) -> Result<u64, PortError> {
+        Err(PortError::unsupported(
+            Capability::Profiles,
+            "revision-bound active-profile apply is unavailable",
+        ))
+    }
     async fn apply_profile_workspace(
         &self,
+        _expected_reference: &ActiveProfileReference,
         _expected: &ProfileWorkspaceIdentity,
         _update: &ProfileWorkspaceUpdate,
+        _authorization: ActiveProfileReferenceWriteAuthorization,
         _strategy: ApplyStrategy,
     ) -> Result<ProfileWorkspace, PortError> {
         Err(PortError::unsupported(
             Capability::Profiles,
             "source-bound profile/options apply is unavailable",
         ))
+    }
+}
+
+/// Narrow application port for applying one exact, revision-fenced active
+/// profile reference. A provider-specific owner can implement this without
+/// implementing the broader controller and lifecycle surface in
+/// [`ManagedRuntime`].
+#[async_trait]
+pub trait ActiveProfileReferenceApplier: Send + Sync {
+    fn engine_id(&self) -> Option<EngineId>;
+
+    fn core_lifecycle(&self) -> CoreLifecycle;
+
+    fn write_authorization(&self) -> Result<ActiveProfileReferenceWriteAuthorization, PortError>;
+
+    async fn apply_active_profile_reference(
+        &self,
+        expected: &ActiveProfileReference,
+        strategy: ApplyStrategy,
+    ) -> Result<u64, PortError>;
+
+    /// Apply a selected profile update against both the captured reference
+    /// revision and the full opening-time workspace identity. Implementations
+    /// keep the selected-reference and workspace lease through native
+    /// readback and any conditional rollback.
+    async fn apply_active_profile_workspace(
+        &self,
+        expected_reference: &ActiveProfileReference,
+        expected_workspace: &ProfileWorkspaceIdentity,
+        update: &ProfileWorkspaceUpdate,
+        authorization: ActiveProfileReferenceWriteAuthorization,
+        strategy: ApplyStrategy,
+    ) -> Result<ProfileWorkspace, PortError> {
+        let _ = (
+            expected_reference,
+            expected_workspace,
+            update,
+            authorization,
+            strategy,
+        );
+        Err(PortError::unsupported(
+            Capability::Profiles,
+            "revision- and workspace-bound active-profile apply is unavailable",
+        ))
+    }
+}
+
+#[async_trait]
+impl<T: ManagedRuntime + ?Sized> ActiveProfileReferenceApplier for T {
+    fn engine_id(&self) -> Option<EngineId> {
+        ManagedRuntime::engine_id(self)
+    }
+
+    fn core_lifecycle(&self) -> CoreLifecycle {
+        ManagedRuntime::core_lifecycle(self)
+    }
+
+    fn write_authorization(&self) -> Result<ActiveProfileReferenceWriteAuthorization, PortError> {
+        ManagedRuntime::active_profile_reference_write_authorization(self)
+    }
+
+    async fn apply_active_profile_reference(
+        &self,
+        expected: &ActiveProfileReference,
+        strategy: ApplyStrategy,
+    ) -> Result<u64, PortError> {
+        ManagedRuntime::apply_active_profile_reference(self, expected, strategy).await
+    }
+
+    async fn apply_active_profile_workspace(
+        &self,
+        expected_reference: &ActiveProfileReference,
+        expected_workspace: &ProfileWorkspaceIdentity,
+        update: &ProfileWorkspaceUpdate,
+        authorization: ActiveProfileReferenceWriteAuthorization,
+        strategy: ApplyStrategy,
+    ) -> Result<ProfileWorkspace, PortError> {
+        ManagedRuntime::apply_profile_workspace(
+            self,
+            expected_reference,
+            expected_workspace,
+            update,
+            authorization,
+            strategy,
+        )
+        .await
     }
 }

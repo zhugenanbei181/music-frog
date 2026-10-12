@@ -573,7 +573,7 @@ impl AppState {
                     ..Default::default()
                 };
 
-                let runtime = self.runtime.runtime.clone();
+                let runtime = super::profile_apply::runtime_access(self.runtime.runtime.clone());
                 save_task(
                     runtime,
                     move |content| {

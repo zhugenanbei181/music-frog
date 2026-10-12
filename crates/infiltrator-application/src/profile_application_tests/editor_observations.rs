@@ -52,7 +52,7 @@ async fn changed_workspace_source_retires_the_other_facet_and_old_read_cannot_re
         .await
         .unwrap();
     let old_read = profiles.begin_editor_read("main", EditorFacet::Document);
-    store.save("main", "mode: global\n").await.unwrap();
+    store.replace_document_for_test("main", "mode: global\n");
     let options = ProfileOptionsApplication::new(profiles.clone())
         .load(None)
         .await
@@ -150,18 +150,18 @@ async fn mixin_save_commits_a_coherent_workspace_preserves_filter_and_repeated_a
         },
     );
     let profiles = profiles_with_mihomo_codec(store.clone());
-    let before = profiles.load_workspace("main").await.unwrap();
+    let before = profiles.load_workspace(&profile_id("main")).await.unwrap();
     let application = ProfileOptionsApplication::new(profiles.clone());
     let proposal = "mode: global\nrules:\n  prepend:\n    - DOMAIN,new.example,DIRECT\n";
     let result = application
         .save_mixin(
-            None::<Arc<dyn ManagedRuntime>>,
+            crate::profile_application::ProfileRuntimeAccess::<dyn ManagedRuntime>::Offline,
             &before.identity(),
             proposal,
         )
         .await
         .unwrap();
-    let committed = profiles.load_workspace("main").await.unwrap();
+    let committed = profiles.load_workspace(&profile_id("main")).await.unwrap();
     assert_eq!(result.options.workspace_identity, committed.identity());
     assert_ne!(result.options.workspace_identity, before.identity());
     let committed_options = application.load(Some("main")).await.unwrap();
@@ -176,13 +176,13 @@ async fn mixin_save_commits_a_coherent_workspace_preserves_filter_and_repeated_a
     );
     let repeated = application
         .save_mixin(
-            None::<Arc<dyn ManagedRuntime>>,
+            crate::profile_application::ProfileRuntimeAccess::<dyn ManagedRuntime>::Offline,
             &committed.identity(),
             proposal,
         )
         .await
         .unwrap();
-    let after = profiles.load_workspace("main").await.unwrap();
+    let after = profiles.load_workspace(&profile_id("main")).await.unwrap();
     assert_eq!(after.document.raw_bytes, committed.document.raw_bytes);
     assert_eq!(
         application.load(Some("main")).await.unwrap().filter.include,
@@ -199,12 +199,12 @@ async fn failed_mixin_workspace_read_preserves_both_files_and_the_prior_product_
     let profiles = profiles_with_mihomo_codec(store.clone());
     let application = ProfileOptionsApplication::new(profiles.clone());
     let observed = application.load(None).await.unwrap();
-    let before = profiles.load_workspace("main").await.unwrap();
+    let before = profiles.load_workspace(&profile_id("main")).await.unwrap();
     *store.options_read_error.lock().unwrap() =
         Some(PortError::PermissionDenied("denied sidecar".into()));
     let failure = application
         .save_mixin(
-            None::<Arc<dyn ManagedRuntime>>,
+            crate::profile_application::ProfileRuntimeAccess::<dyn ManagedRuntime>::Offline,
             &before.identity(),
             "mode: global\n",
         )
@@ -217,7 +217,10 @@ async fn failed_mixin_workspace_read_preserves_both_files_and_the_prior_product_
     );
     assert_eq!(profiles.editor_observations().1, Some(observed));
     *store.options_read_error.lock().unwrap() = None;
-    assert_eq!(profiles.load_workspace("main").await.unwrap(), before);
+    assert_eq!(
+        profiles.load_workspace(&profile_id("main")).await.unwrap(),
+        before
+    );
 }
 
 #[tokio::test]

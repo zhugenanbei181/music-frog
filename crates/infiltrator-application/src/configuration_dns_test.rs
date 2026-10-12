@@ -1,10 +1,38 @@
 //! test-intent: behavior
 use super::*;
 use crate::dns_hosts_fixtures::{HOSTS_PROFILE, HostsCaptureStore, ORIGINAL_HOSTS};
+use infiltrator_contract::active_profile_reference::{
+    ActiveProfileReferenceCasOutcome, ActiveProfileReferenceTarget,
+};
 use infiltrator_contract::dns_hosts::DnsHostEntry;
+use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_ports::profile_store::ProfileStore;
 use serde_yaml_ng::Value;
+use std::sync::Arc;
 use std::sync::atomic::Ordering;
+async fn select_profile(store: &HostsCaptureStore, profile: &str) {
+    let expected = ProfileStore::read_active_profile_reference(store)
+        .await
+        .expect("read selection before test CAS");
+    let target = ActiveProfileReferenceTarget::selected(
+        ProfileStore::engine_id(store),
+        ProfileId::new(profile).expect("valid test profile ID"),
+    );
+    match ProfileStore::compare_and_set_active_profile_reference(
+        store,
+        expected,
+        target,
+        infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization::Unowned,
+    )
+        .await
+        .expect("revisioned test selection CAS")
+    {
+        ActiveProfileReferenceCasOutcome::Committed { .. } => {}
+        ActiveProfileReferenceCasOutcome::Stale { expected, observed } => {
+            panic!("test selection unexpectedly stale: {expected:?} -> {observed:?}")
+        }
+    }
+}
 fn row(domain: &str, address: &str) -> DnsHostEntry {
     DnsHostEntry {
         domain: domain.into(),
@@ -81,7 +109,7 @@ async fn stale_profile_stale_root_invalid_rows_and_read_failure_cannot_write_or_
         hosts: Some(vec![row("new.test", "1.2.3.4")]),
         ..Default::default()
     };
-    store.set_current("other").await.unwrap();
+    select_profile(&store, "other").await;
     assert_eq!(
         application
             .apply_dns_settings(patch.clone())
@@ -90,7 +118,7 @@ async fn stale_profile_stale_root_invalid_rows_and_read_failure_cannot_write_or_
             .code,
         ErrorCode::InvalidState
     );
-    store.set_current(HOSTS_PROFILE).await.unwrap();
+    select_profile(&store, HOSTS_PROFILE).await;
     store.replace("hosts:\n  changed.test: 7.7.7.7\n");
     assert_eq!(
         application

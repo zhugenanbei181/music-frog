@@ -5,7 +5,7 @@ use super::*;
 
 #[tokio::test]
 async fn restore_backup_reports_availability_and_is_one_shot() {
-    let store = Arc::new(FakeStore::with_profile("main", "proxies: []\n", true));
+    let store = Arc::new(FakeStore::with_profile("main", "proxies: []\n", false));
     store
         .restorable_backups
         .lock()
@@ -17,11 +17,17 @@ async fn restore_backup_reports_availability_and_is_one_shot() {
     assert!(listed[0].has_backup, "backup presence is projected");
 
     assert!(
-        application.restore_backup("main").await.expect("restore"),
+        application
+            .restore_inactive_profile_backup("main")
+            .await
+            .expect("restore"),
         "an existing backup restores"
     );
     assert!(
-        !application.restore_backup("main").await.expect("restore"),
+        !application
+            .restore_inactive_profile_backup("main")
+            .await
+            .expect("restore"),
         "a consumed backup is not restored twice"
     );
     let listed = application.list_profiles().await.expect("list");

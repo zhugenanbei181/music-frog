@@ -61,7 +61,7 @@ impl CommandApplication {
                 .map(|review| CommandOutput::SnapshotRestorePrepared(Box::new(review))),
             CommandIntent::ConfirmSnapshotRestore { identity } => self
                 .snapshots()?
-                .confirm_restore(self.managed_runtime.clone(), &identity)
+                .confirm_restore(self.profile_runtime_access(), &identity)
                 .await
                 .map(CommandOutput::SnapshotRestored),
             CommandIntent::CancelSnapshotRestore { identity } => self

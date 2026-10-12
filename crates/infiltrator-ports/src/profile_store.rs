@@ -3,6 +3,10 @@
 use crate::error::PortError;
 use crate::profile_workspace::{ProfileWorkspace, ProfileWorkspaceUpdate};
 use async_trait::async_trait;
+use infiltrator_contract::active_profile_reference::{
+    ActiveProfileReference, ActiveProfileReferenceCasOutcome, ActiveProfileReferenceState,
+    ActiveProfileReferenceTarget, ActiveProfileReferenceWriteAuthorization,
+};
 use infiltrator_contract::aggregator::AggregationTemplate;
 use infiltrator_contract::apply_transaction::ApplyTransactionSnapshot;
 use infiltrator_contract::capability::Capability;
@@ -10,6 +14,103 @@ use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::profile_document_identity::{ProfileId, ProfileWorkspaceIdentity};
 use infiltrator_domain::profiles::{ProfileInfo, ProfileMetadata};
 use std::path::PathBuf;
+
+/// Active-workspace transaction outcome when a conditional restoration finds
+/// that another writer has already changed the published workspace.
+pub enum ActiveProfileWorkspaceRestoreOutcome<'a> {
+    Restored(Box<dyn ActiveProfileWorkspaceRestoredLease + 'a>),
+    Superseded { observed: ProfileWorkspaceIdentity },
+    RecoveryRequired(Box<dyn ActiveProfileWorkspaceRecoveryLease + 'a>),
+}
+
+/// Durable phase of an active-workspace operation that could not yet be
+/// classified by readback and conditional recovery.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ActiveProfileWorkspaceRecoveryState {
+    ConfirmPublished {
+        previous: ProfileWorkspaceIdentity,
+        target: ProfileWorkspaceIdentity,
+    },
+    RestorePrevious {
+        previous: ProfileWorkspaceIdentity,
+        published: ProfileWorkspaceIdentity,
+    },
+}
+
+#[must_use = "a recovery-required workspace lease must be resolved while its fences remain held"]
+pub enum ActiveProfileWorkspacePublishOutcome<'a> {
+    Published(Box<dyn ActiveProfileWorkspacePublishedLease + 'a>),
+    Unpublished(PortError),
+    Superseded { observed: ProfileWorkspaceIdentity },
+    RecoveryRequired(Box<dyn ActiveProfileWorkspaceRecoveryLease + 'a>),
+}
+
+#[must_use = "a recovery-required workspace lease must be resolved while its fences remain held"]
+pub enum ActiveProfileWorkspaceRecoveryResolution<'a> {
+    Published(Box<dyn ActiveProfileWorkspacePublishedLease + 'a>),
+    Restored(Box<dyn ActiveProfileWorkspaceRestoredLease + 'a>),
+    Unpublished(PortError),
+    Superseded { observed: ProfileWorkspaceIdentity },
+    RecoveryRequired(Box<dyn ActiveProfileWorkspaceRecoveryLease + 'a>),
+}
+
+/// The observed phase of a managed active-workspace transaction. Acquisition
+/// validates the full active reference, workspace identity and owner
+/// authorization before returning; dropping this lease performs no writes.
+#[must_use = "an observed active-workspace lease must be published or explicitly dropped"]
+#[async_trait]
+pub trait ActiveProfileWorkspaceWriteLease: Send {
+    fn observed_workspace(&self) -> &ProfileWorkspace;
+
+    /// Publish the new files while retaining all transaction fences. A failed
+    /// or cancelled publication is kept alive by the managed consumer's owned
+    /// continuation. Process/runtime shutdown recovery remains an OPEN
+    /// boundary and must rely on the separate durable owner terminal proof.
+    async fn publish(
+        self: Box<Self>,
+        update: ProfileWorkspaceUpdate,
+    ) -> ActiveProfileWorkspacePublishOutcome<'async_trait>;
+}
+
+/// Recovery continuation returned when an I/O error prevents the adapter from
+/// proving whether publication/restoration completed. It retains the original
+/// cross-process fences; callers must keep resolving it inside the owned
+/// transaction continuation and must never translate it into a plain error.
+#[must_use = "dropping this lease releases fences before active workspace recovery is proven"]
+#[async_trait]
+pub trait ActiveProfileWorkspaceRecoveryLease: Send {
+    fn state(&self) -> ActiveProfileWorkspaceRecoveryState;
+    fn last_error(&self) -> &str;
+
+    async fn resolve(self: Box<Self>) -> ActiveProfileWorkspaceRecoveryResolution<'async_trait>;
+}
+
+/// The published phase remains fenced through runtime apply and readback.
+/// Call `commit` only after runtime success; otherwise restore conditionally
+/// and keep the returned restored lease through native recovery. Managed
+/// callers must put the whole sequence in an owned continuation: dropping a
+/// pending lease releases its kernel locks and does not report a commit.
+#[must_use = "a published active-workspace lease must be committed or restored"]
+#[async_trait]
+pub trait ActiveProfileWorkspacePublishedLease: Send {
+    fn previous_workspace(&self) -> &ProfileWorkspace;
+    fn published_workspace(&self) -> &ProfileWorkspace;
+
+    fn commit(self: Box<Self>) -> ProfileWorkspace;
+
+    async fn restore_if_current(
+        self: Box<Self>,
+    ) -> Result<ActiveProfileWorkspaceRestoreOutcome<'async_trait>, PortError>;
+}
+
+/// Restored files remain fenced until the runtime has confirmed the old
+/// configuration or the caller explicitly accepts the recovered state.
+#[must_use = "a restored active-workspace lease must be finished after native recovery"]
+#[async_trait]
+pub trait ActiveProfileWorkspaceRestoredLease: Send {
+    fn restored_workspace(&self) -> &ProfileWorkspace;
+    fn finish(self: Box<Self>) -> ProfileWorkspace;
+}
 
 /// Profile persistence operations needed by application/inbound surfaces.
 ///
@@ -31,9 +132,38 @@ pub trait ProfileStore: Send + Sync {
 
     async fn list_profiles(&self) -> Result<Vec<ProfileInfo>, PortError>;
     async fn get_current(&self) -> Result<String, PortError>;
-    async fn set_current(&self, profile: &str) -> Result<(), PortError>;
+    /// Read the product-wide engine/profile selector, including its revision.
+    /// Activation and rollback paths use this complete revisioned state as the
+    /// expected value for every active-selection transition.
+    async fn read_active_profile_reference(
+        &self,
+    ) -> Result<ActiveProfileReferenceState, PortError> {
+        Err(PortError::unsupported(
+            Capability::Profiles,
+            "revisioned active-profile selection is unavailable",
+        ))
+    }
+    /// Compare the complete observed state by revision before publishing a
+    /// target. The authorization is part of the write contract: offline
+    /// selection requires an unowned Core, while a live Core write must name
+    /// its exact bound identity and generation. A stale compare is an explicit
+    /// result with the readback; adapter failures remain errors.
+    async fn compare_and_set_active_profile_reference(
+        &self,
+        _expected: ActiveProfileReferenceState,
+        _target: ActiveProfileReferenceTarget,
+        _authorization: ActiveProfileReferenceWriteAuthorization,
+    ) -> Result<ActiveProfileReferenceCasOutcome, PortError> {
+        Err(PortError::unsupported(
+            Capability::Profiles,
+            "revision-fenced active-profile selection is unavailable",
+        ))
+    }
     async fn load(&self, profile: &str) -> Result<String, PortError>;
-    async fn save(&self, profile: &str, content: &str) -> Result<(), PortError>;
+    /// Create or replace a profile only while it is inactive under the exact
+    /// product-wide reference fence. Active-profile content changes require
+    /// the revisioned workspace transaction lease below.
+    async fn save_inactive_profile(&self, profile: &str, content: &str) -> Result<(), PortError>;
     async fn delete_profile(&self, profile: &str) -> Result<(), PortError>;
     async fn get_profile_metadata(&self, profile: &str) -> Result<ProfileMetadata, PortError>;
     async fn update_profile_metadata(
@@ -55,31 +185,41 @@ pub trait ProfileStore: Send + Sync {
             "coherent active profile editing is unavailable",
         ))
     }
-    /// Compare before any write. Failed publication restores prior bytes or
-    /// surfaces a typed rollback failure. This persists files only; applying a running core is a
-    /// separate managed-runtime transaction.
-    async fn compare_and_save_workspace(
+    /// Acquire the complete active content transaction fence. This must fail
+    /// before any content write if reference, workspace identity or owner
+    /// authorization differs. The returned lease keeps the root reference,
+    /// owner-state and profile-write fences until a typed terminal method is
+    /// consumed.
+    async fn acquire_active_workspace_write_lease(
         &self,
-        _expected: &ProfileWorkspaceIdentity,
+        _expected_reference: ActiveProfileReference,
+        _expected_workspace: ProfileWorkspaceIdentity,
+        _authorization: ActiveProfileReferenceWriteAuthorization,
+    ) -> Result<Box<dyn ActiveProfileWorkspaceWriteLease + '_>, PortError> {
+        Err(PortError::unsupported(
+            Capability::Profiles,
+            "fenced active profile workspace transactions are unavailable",
+        ))
+    }
+    /// Publish one engine-derived active document while the Core owner is
+    /// unbound. This path may change no sidecar bytes and performs exactly one
+    /// atomic document replacement, so cancellation leaves either the prior
+    /// document or the complete new document. User edits and runtime-applied
+    /// changes must use the owned workspace transaction lease above.
+    async fn compare_and_save_unowned_active_derived_document(
+        &self,
+        _expected_reference: ActiveProfileReference,
+        _expected_workspace: ProfileWorkspaceIdentity,
         _update: &ProfileWorkspaceUpdate,
     ) -> Result<ProfileWorkspace, PortError> {
         Err(PortError::unsupported(
             Capability::Profiles,
-            "source-bound profile editing is unavailable",
+            "atomic unowned derived active-document writes are unavailable",
         ))
     }
-    /// Active-profile check belongs to the same comparison/publication
-    /// boundary. Managed hosts must use this for a running-core edit.
-    async fn compare_and_save_active_workspace(
-        &self,
-        _expected: &ProfileWorkspaceIdentity,
-        _update: &ProfileWorkspaceUpdate,
-    ) -> Result<ProfileWorkspace, PortError> {
-        Err(PortError::unsupported(
-            Capability::Profiles,
-            "source-bound active profile editing is unavailable",
-        ))
-    }
+    /// Compare and publish a document plus sidecar only while that profile is
+    /// inactive under the product-wide reference fence. Active content changes
+    /// require the held transaction lease above.
     async fn compare_and_save_inactive_workspace(
         &self,
         _expected: &ProfileWorkspaceIdentity,
@@ -90,16 +230,17 @@ pub trait ProfileStore: Send + Sync {
             "source-bound inactive profile editing is unavailable",
         ))
     }
-    /// Restore exact prior bytes only while this transaction's published
-    /// source is still current. Refuse to overwrite later edits.
-    async fn restore_workspace(
+    /// Restore exact prior bytes of an inactive workspace only while its
+    /// published source is still current. Active workspace recovery remains
+    /// part of the held active transaction lease.
+    async fn restore_inactive_workspace(
         &self,
         _expected: &ProfileWorkspaceIdentity,
         _previous: &ProfileWorkspace,
     ) -> Result<ProfileWorkspace, PortError> {
         Err(PortError::unsupported(
             Capability::Profiles,
-            "source-bound profile recovery is unavailable",
+            "source-bound inactive profile recovery is unavailable",
         ))
     }
     /// DUAL-08-13: load the saved aggregation templates, empty when none where
@@ -123,5 +264,5 @@ pub trait ProfileStore: Send + Sync {
         ))
     }
     async fn clear_backup(&self, profile: &str) -> Result<(), PortError>;
-    async fn restore_backup(&self, profile: &str) -> Result<bool, PortError>;
+    async fn restore_inactive_profile_backup(&self, profile: &str) -> Result<bool, PortError>;
 }

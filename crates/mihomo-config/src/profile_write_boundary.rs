@@ -13,7 +13,7 @@ pub(crate) fn shared_boundary(root: &Path) -> Result<Arc<sync::Mutex<()>>> {
     let mut stores = STORES
         .get_or_init(|| Mutex::new(HashMap::new()))
         .lock()
-        .expect("profile boundary registry poisoned");
+        .map_err(|_| std::io::Error::other("profile boundary registry poisoned"))?;
     stores.retain(|_, boundary| boundary.strong_count() > 0);
     if let Some(boundary) = stores.get(&root).and_then(Weak::upgrade) {
         return Ok(boundary);

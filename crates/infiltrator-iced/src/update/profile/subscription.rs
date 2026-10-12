@@ -14,7 +14,7 @@ use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::subscription_refresh_application::SubscriptionRefreshApplication;
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_contract::subscription_import::{
-    CoreReloadOutcome, SubscriptionBatchReport, SubscriptionScheduleDraft,
+    SubscriptionBatchReport, SubscriptionContentEffectOutcome, SubscriptionScheduleDraft,
     SubscriptionUpdateOutcome, SubscriptionUpdateReport,
 };
 use infiltrator_domain::subscription_scheduler_policy::CronSchedule;
@@ -23,15 +23,14 @@ use infiltrator_shared::i18n_interpolator::localize;
 use infiltrator_shared::locales::{Lang, Localizer};
 use std::sync::Arc;
 
-/// DUAL-07-09: install the host's managed-runtime reload seam on the shared
-/// refresh when this surface owns one. Without a seam the refresh reports a
-/// typed [`CoreReloadOutcome::Unsupported`] instead of a silent no-op.
-fn with_core_reload_seam(
+/// Install this surface's managed runtime for exact selected-workspace
+/// transactions. Offline refreshes retain an explicit Unowned access path.
+fn with_managed_runtime(
     refresh: SubscriptionRefreshApplication,
     managed: Option<Arc<dyn HostRuntime>>,
 ) -> SubscriptionRefreshApplication {
     match managed {
-        Some(runtime) => refresh.with_core_reload(runtime),
+        Some(runtime) => refresh.with_managed_runtime(runtime),
         None => refresh,
     }
 }
@@ -138,7 +137,7 @@ impl AppState {
                     .trim()
                     .to_string();
                 let cron_raw = self.profile.subscription_cron_expression.trim().to_string();
-                let has_reload_seam = self.runtime.runtime.is_some();
+                let has_managed_runtime = self.runtime.runtime.is_some();
                 let auto_reload_was_enabled = self
                     .profile
                     .profiles
@@ -199,10 +198,10 @@ impl AppState {
                 // DUAL-07-09: enabling a reload this host cannot perform is a
                 // typed unsupported action, not a stored no-op. A preference
                 // that is already persisted stays a no-op-free pass-through.
-                if auto_reload_core && !auto_reload_was_enabled && !has_reload_seam {
+                if auto_reload_core && !auto_reload_was_enabled && !has_managed_runtime {
                     let lang = Lang(&self.shell.lang);
                     return Task::done(Message::ShowToast(
-                        lang.tr("sub_reload_core_unsupported").into_owned(),
+                        lang.tr("sub_content_effect_unsupported").into_owned(),
                         ToastStatus::Error,
                     ));
                 }
@@ -287,12 +286,12 @@ impl AppState {
                             application_runtime(),
                         )
                         .with_notifier(subscription_notifier());
-                        let refresh = with_core_reload_seam(refresh, managed);
+                        let refresh = with_managed_runtime(refresh, managed);
                         let report = refresh
                             .refresh_profile(&source, &profile_name)
                             .await
                             .map_err(|failure| InfiltratorError::Config(failure.message))?;
-                        if !report.reloaded_core() {
+                        if !report.applied_to_core() {
                             // No live apply happened: the transient pre-save
                             // backup of an unapplied update is cleared.
                             application
@@ -310,7 +309,7 @@ impl AppState {
                 self.refresh_tray();
                 match result {
                     Ok(report) => {
-                        if report.reloaded_core()
+                        if report.applied_to_core()
                             && let Some(runtime) = self.runtime.runtime.clone()
                         {
                             self.sync_runtime_slot(Some(runtime));
@@ -349,10 +348,10 @@ impl AppState {
                             application_runtime(),
                         )
                         .with_notifier(subscription_notifier());
-                        let refresh = with_core_reload_seam(refresh, managed);
+                        let refresh = with_managed_runtime(refresh, managed);
                         let now = Utc::now();
                         let mut updated_names = Vec::new();
-                        let mut reloaded_core = false;
+                        let mut applied_to_core = false;
 
                         for profile in profiles {
                             if !profile.auto_update_enabled {
@@ -374,8 +373,8 @@ impl AppState {
                                 .refresh_profile(&source, &profile.name)
                                 .await
                                 .map_err(|failure| InfiltratorError::Config(failure.message))?;
-                            reloaded_core |= report.reloaded_core();
-                            if !report.reloaded_core() {
+                            applied_to_core |= report.applied_to_core();
+                            if !report.applied_to_core() {
                                 application
                                     .clear_backup(&profile.name)
                                     .await
@@ -384,7 +383,7 @@ impl AppState {
                             updated_names.push(profile.name);
                         }
 
-                        Ok((updated_names, reloaded_core))
+                        Ok((updated_names, applied_to_core))
                     },
                     Message::SubscriptionAutoUpdated,
                 )
@@ -455,7 +454,7 @@ impl AppState {
                             application_runtime(),
                         )
                         .with_notifier(subscription_notifier());
-                        let refresh = with_core_reload_seam(refresh, managed);
+                        let refresh = with_managed_runtime(refresh, managed);
                         refresh
                             .refresh_all(&source, BATCH_UPDATE_CONCURRENCY)
                             .await
@@ -468,11 +467,11 @@ impl AppState {
                 self.profile.is_updating_subscription_now = false;
                 match result {
                     Ok(report) => {
-                        let reloaded_core = report
+                        let applied_to_core = report
                             .outcomes
                             .iter()
-                            .any(|outcome| outcome.reloaded_core());
-                        if reloaded_core && let Some(runtime) = self.runtime.runtime.clone() {
+                            .any(|outcome| outcome.applied_to_core());
+                        if applied_to_core && let Some(runtime) = self.runtime.runtime.clone() {
                             self.sync_runtime_slot(Some(runtime));
                         }
                         self.refresh_tray();
@@ -504,7 +503,7 @@ impl AppState {
                         let cm = config_manager().await?;
                         let application = ProfileApplication::new(cm);
                         application
-                            .restore_backup(&profile_name)
+                            .restore_inactive_profile_backup(&profile_name)
                             .await
                             .map_err(|failure| InfiltratorError::Config(failure.message))
                     },
@@ -608,13 +607,15 @@ pub(crate) fn batch_update_toast(
     if attempted == 0 {
         return (lang.tr("update_all_none").into_owned(), ToastStatus::Info);
     }
-    let reload_failed = report.outcomes.iter().any(|outcome| {
+    let content_effect_incomplete = report.outcomes.iter().any(|outcome| {
         matches!(
-            outcome.core_reload,
-            CoreReloadOutcome::Failed { .. } | CoreReloadOutcome::Unsupported
+            outcome.content_effect,
+            SubscriptionContentEffectOutcome::Failed { .. }
+                | SubscriptionContentEffectOutcome::StoredForNextStart { .. }
+                | SubscriptionContentEffectOutcome::Unsupported
         )
     });
-    if report.failed > 0 || reload_failed {
+    if report.failed > 0 || content_effect_incomplete {
         return (
             format!(
                 "{} (✓{} ⟳{} ✗{})",
@@ -641,27 +642,34 @@ pub(crate) fn batch_update_toast(
 /// Map a shared subscription update report to the user-facing toast text and
 /// status. A `304 Not Modified` is reported as informational, never as a
 /// fabricated success; quota/expiry warnings downgrade a success to warning.
-/// DUAL-07-09: a reload that the host could not perform (typed unsupported) or
-/// that failed is reported too, so a stored-but-not-live update never looks
-/// like a clean success.
+/// Stored-for-next-start, unsupported, and failed effects remain visible so a
+/// not-live update never looks like a live apply.
 pub(crate) fn subscription_update_toast(
     lang: &Lang<'_>,
     report: &SubscriptionUpdateReport,
 ) -> (String, ToastStatus) {
-    match &report.core_reload {
-        CoreReloadOutcome::Unsupported => (
+    match &report.content_effect {
+        SubscriptionContentEffectOutcome::StoredForNextStart { .. } => (
             format!(
                 "{} · {}",
                 lang.tr("sub_update_done"),
-                lang.tr("sub_reload_core_unsupported")
+                lang.tr("sub_profile_stored_for_next_start")
             ),
             ToastStatus::Warning,
         ),
-        CoreReloadOutcome::Failed { error } => (
+        SubscriptionContentEffectOutcome::Unsupported => (
+            format!(
+                "{} · {}",
+                lang.tr("sub_update_done"),
+                lang.tr("sub_content_effect_unsupported")
+            ),
+            ToastStatus::Warning,
+        ),
+        SubscriptionContentEffectOutcome::Failed { error } => (
             format!(
                 "{} · {}: {}",
                 lang.tr("sub_update_done"),
-                lang.tr("sub_reload_core_failed"),
+                lang.tr("sub_content_apply_failed"),
                 error
             ),
             ToastStatus::Warning,

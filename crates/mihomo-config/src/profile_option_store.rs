@@ -1,9 +1,8 @@
 //! Mihomo option-sidecar storage. Schema transforms live in
 //! [`crate::profile_options_codec`].
 use crate::manager::paths::{scope_config_dir, validate_profile_name};
-use crate::profile_write_boundary::shared_boundary;
+use crate::manager::{lock_profile_writes_for_dir, lock_reset_fenced_profile_mutation_for_dir};
 use crate::sidecar_store::{read_optional_bytes, remove_optional, write_document_bytes};
-use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_domain::profile_options::{ProfileOptions, options_path};
 use infiltrator_ports::error::PortError;
 use std::fmt::Display;
@@ -26,8 +25,9 @@ pub(crate) async fn read_options_bytes(
 ) -> Result<Option<Vec<u8>>, PortError> {
     validate_profile_name(profile).map_err(storage_error)?;
     let config_dir = scoped_dir(config_dir)?;
-    let boundary = shared_boundary(&config_dir).map_err(storage_error)?;
-    let _guard = boundary.lock().await;
+    let _guard = lock_profile_writes_for_dir(&config_dir)
+        .await
+        .map_err(storage_error)?;
     read_optional_bytes(&options_path(&config_dir, profile)).await
 }
 
@@ -48,8 +48,7 @@ pub(crate) async fn write_options_bytes(
 ) -> Result<(), PortError> {
     validate_profile_name(profile).map_err(storage_error)?;
     let config_dir = scoped_dir(config_dir)?;
-    let boundary = shared_boundary(&config_dir).map_err(storage_error)?;
-    let _guard = boundary.lock().await;
+    let _guard = lock_reset_fenced_profile_mutation_for_dir(&config_dir).await?;
     let path = options_path(&config_dir, profile);
     match bytes {
         None => remove_optional(&path).await,
@@ -60,8 +59,7 @@ pub(crate) async fn write_options_bytes(
 pub async fn delete_options(config_dir: &Path, profile: &str) -> Result<(), PortError> {
     validate_profile_name(profile).map_err(storage_error)?;
     let config_dir = scoped_dir(config_dir)?;
-    let boundary = shared_boundary(&config_dir).map_err(storage_error)?;
-    let _guard = boundary.lock().await;
+    let _guard = lock_reset_fenced_profile_mutation_for_dir(&config_dir).await?;
     remove_optional(&options_path(&config_dir, profile)).await
 }
 

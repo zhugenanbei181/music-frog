@@ -19,7 +19,12 @@ use crate::tray::spec::{TrayController, TraySpec};
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use infiltrator_application::profile_application::ProfileApplication;
+use infiltrator_contract::active_profile_reference::{
+    ActiveProfileReferenceCasOutcome, ActiveProfileReferenceTarget,
+};
+use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_domain::profiles::ProfileInfo;
+use infiltrator_ports::profile_store::ProfileStore;
 use mihomo_platform::paths::{clear_home_dir_override, set_home_dir_override};
 use std::env::temp_dir;
 use std::fs::{create_dir_all, remove_dir_all};
@@ -100,12 +105,35 @@ impl TempHome {
         self.dir.join("configs")
     }
 
-    /// Seed one profile through the real config manager and make it current.
+    /// Save one inactive profile through the typed store and select it by CAS.
     pub fn seed_profile(&self, name: &str, yaml: &str) {
         block_on(async {
             let manager = config_manager().await.unwrap();
-            manager.save(name, yaml).await.unwrap();
-            manager.set_current(name).await.unwrap();
+            ProfileStore::save_inactive_profile(manager.as_ref(), name, yaml)
+                .await
+                .unwrap();
+            let expected = manager
+                .read_active_profile_reference()
+                .await
+                .expect("read selection before test CAS");
+            let target = ActiveProfileReferenceTarget::selected(
+                manager.engine_id(),
+                ProfileId::new(name).expect("valid test profile ID"),
+            );
+            match manager
+                .compare_and_set_active_profile_reference(
+                    expected,
+                    target,
+                    infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization::Unowned,
+                )
+                .await
+                .expect("revisioned test selection CAS")
+            {
+                ActiveProfileReferenceCasOutcome::Committed { .. } => {}
+                ActiveProfileReferenceCasOutcome::Stale { expected, observed } => {
+                    panic!("test selection unexpectedly stale: {expected:?} -> {observed:?}")
+                }
+            }
         });
     }
 }

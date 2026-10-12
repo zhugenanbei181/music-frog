@@ -8,12 +8,17 @@ use super::*;
 use crate::profile_workspace_test_support::{workspace_with_origin, workspace_with_raw_sidecar};
 use crate::snapshot_presentation;
 use async_trait::async_trait;
+use infiltrator_contract::active_profile_reference::{
+    ActiveProfileReference, ActiveProfileReferenceRevision, ActiveProfileReferenceState,
+    ActiveProfileReferenceWriteAuthorization,
+};
 use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::profile_document_identity::{ProfileId, ProfileWorkspaceIdentity};
 use infiltrator_contract::snapshot_restore::SnapshotRestoreTarget;
 use infiltrator_domain::profiles::{ProfileInfo, ProfileMetadata};
 use infiltrator_domain::snapshots::content_hash;
 use infiltrator_ports::error::PortError;
+use infiltrator_ports::profile_store::{ActiveProfileWorkspaceWriteLease, ProfileStore};
 use infiltrator_ports::profile_workspace::{ProfileWorkspace, ProfileWorkspaceUpdate};
 use infiltrator_ports::runtime_gateway::ManagedRuntime;
 use std::collections::BTreeMap;
@@ -21,12 +26,18 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
+#[path = "snapshot_active_workspace_fake.rs"]
+mod active_workspace_fake;
+use active_workspace_fake::FakeActiveWorkspaceWriteLease;
+
 #[derive(Default)]
 struct FakeProfileStore {
     denied: AtomicBool,
     writes: AtomicUsize,
     current: Mutex<String>,
+    active_reference: Mutex<ActiveProfileReferenceState>,
     profiles: Mutex<BTreeMap<String, (String, ProfileMetadata)>>,
+    workspace_lease_gate: Arc<tokio::sync::Mutex<()>>,
 }
 
 impl FakeProfileStore {
@@ -38,9 +49,58 @@ impl FakeProfileStore {
         );
         Self {
             current: Mutex::new(name.to_string()),
+            active_reference: Mutex::new(ActiveProfileReferenceState::Selected(
+                ActiveProfileReference::new(
+                    EngineId::new("mihomo").expect("test engine ID"),
+                    ProfileId::new(name).expect("test profile ID"),
+                    ActiveProfileReferenceRevision::default(),
+                ),
+            )),
             profiles: Mutex::new(profiles),
             ..Default::default()
         }
+    }
+
+    fn replace_for_test(&self, profile: &str, content: &str) {
+        self.profiles
+            .lock()
+            .expect("profiles lock")
+            .get_mut(profile)
+            .expect("test profile exists")
+            .0 = content.to_owned();
+    }
+
+    fn publish_workspace_locked(
+        &self,
+        expected: &ProfileWorkspaceIdentity,
+        update: &ProfileWorkspaceUpdate,
+    ) -> Result<ProfileWorkspace, PortError> {
+        if self.denied.load(Ordering::SeqCst) {
+            return Err(PortError::PermissionDenied(
+                "fixture denies the commit".into(),
+            ));
+        }
+        let mut profiles = self.profiles.lock().unwrap();
+        let profile = expected.document.profile_id.as_str();
+        let entry = profiles
+            .get_mut(profile)
+            .ok_or_else(|| PortError::NotFound(profile.into()))?;
+        if workspace_with_origin(profile, entry.0.as_bytes(), None, None)?.identity() != *expected {
+            return Err(PortError::Rejected(Failure::new(
+                ErrorCode::NotReady,
+                "source changed",
+                false,
+            )));
+        }
+        self.writes.fetch_add(1, Ordering::SeqCst);
+        entry.0 = String::from_utf8(update.document_bytes.clone())
+            .map_err(|error| PortError::Io(error.to_string()))?;
+        workspace_with_raw_sidecar(
+            profile,
+            &update.document_bytes,
+            update.sidecar_bytes.clone(),
+            None,
+        )
     }
 }
 
@@ -74,9 +134,55 @@ impl ProfileStore for FakeProfileStore {
         Ok(self.current.lock().expect("current lock").clone())
     }
 
-    async fn set_current(&self, profile: &str) -> Result<(), PortError> {
-        *self.current.lock().expect("current lock") = profile.to_string();
-        Ok(())
+    async fn read_active_profile_reference(
+        &self,
+    ) -> Result<ActiveProfileReferenceState, PortError> {
+        Ok(self
+            .active_reference
+            .lock()
+            .expect("active reference")
+            .clone())
+    }
+
+    async fn acquire_active_workspace_write_lease(
+        &self,
+        expected_reference: ActiveProfileReference,
+        expected_workspace: ProfileWorkspaceIdentity,
+        authorization: ActiveProfileReferenceWriteAuthorization,
+    ) -> Result<Box<dyn ActiveProfileWorkspaceWriteLease + '_>, PortError> {
+        let guard = Arc::clone(&self.workspace_lease_gate).lock_owned().await;
+        if authorization != ActiveProfileReferenceWriteAuthorization::Unowned {
+            return Err(PortError::Rejected(Failure::new(
+                ErrorCode::NotReady,
+                "snapshot fixture has no bound Core owner",
+                true,
+            )));
+        }
+        if self.read_active_profile_reference().await?
+            != ActiveProfileReferenceState::Selected(expected_reference.clone())
+            || expected_workspace.document.engine_id != expected_reference.engine_id
+            || expected_workspace.document.profile_id != expected_reference.profile_id
+        {
+            return Err(PortError::Rejected(Failure::new(
+                ErrorCode::NotReady,
+                "active profile reference changed",
+                true,
+            )));
+        }
+        let observed = ProfileStore::load_workspace(self, &expected_reference.profile_id).await?;
+        if observed.identity() != expected_workspace {
+            return Err(PortError::Rejected(Failure::new(
+                ErrorCode::NotReady,
+                "active workspace identity is stale",
+                true,
+            )));
+        }
+        Ok(Box::new(FakeActiveWorkspaceWriteLease {
+            store: self,
+            expected_reference,
+            observed,
+            _guard: guard,
+        }))
     }
 
     async fn load(&self, profile: &str) -> Result<String, PortError> {
@@ -88,7 +194,7 @@ impl ProfileStore for FakeProfileStore {
             .ok_or_else(|| PortError::NotFound(profile.to_string()))
     }
 
-    async fn save(&self, profile: &str, content: &str) -> Result<(), PortError> {
+    async fn save_inactive_profile(&self, profile: &str, content: &str) -> Result<(), PortError> {
         self.writes.fetch_add(1, Ordering::SeqCst);
         self.profiles
             .lock()
@@ -143,43 +249,19 @@ impl ProfileStore for FakeProfileStore {
             .0;
         workspace_with_origin(profile, content.as_bytes(), None, None)
     }
-    async fn compare_and_save_workspace(
+    async fn compare_and_save_inactive_workspace(
         &self,
         expected: &ProfileWorkspaceIdentity,
         update: &ProfileWorkspaceUpdate,
     ) -> Result<ProfileWorkspace, PortError> {
-        if self.denied.load(Ordering::SeqCst) {
-            return Err(PortError::PermissionDenied(
-                "fixture denies the commit".into(),
-            ));
-        }
-        let mut profiles = self.profiles.lock().unwrap();
-        let profile = expected.document.profile_id.as_str();
-        let entry = profiles
-            .get_mut(profile)
-            .ok_or_else(|| PortError::NotFound(profile.into()))?;
-        if workspace_with_origin(profile, entry.0.as_bytes(), None, None)?.identity() != *expected {
-            return Err(PortError::Rejected(Failure::new(
-                ErrorCode::NotReady,
-                "source changed",
-                false,
-            )));
-        }
-        self.writes.fetch_add(1, Ordering::SeqCst);
-        entry.0 = String::from_utf8(update.document_bytes.clone())
-            .map_err(|error| PortError::Io(error.to_string()))?;
-        workspace_with_raw_sidecar(
-            profile,
-            &update.document_bytes,
-            update.sidecar_bytes.clone(),
-            None,
-        )
+        self.publish_workspace_locked(expected, update)
     }
+
     async fn clear_backup(&self, _profile: &str) -> Result<(), PortError> {
         Ok(())
     }
 
-    async fn restore_backup(&self, _profile: &str) -> Result<bool, PortError> {
+    async fn restore_inactive_profile_backup(&self, _profile: &str) -> Result<bool, PortError> {
         Ok(false)
     }
 }
@@ -411,9 +493,12 @@ async fn restore_clears_the_cached_diff() {
         })
         .await
         .expect("prepare");
-    app.confirm_restore(None::<Arc<dyn ManagedRuntime>>, &review.identity)
-        .await
-        .expect("restore");
+    app.confirm_restore(
+        crate::profile_application::ProfileRuntimeAccess::<dyn ManagedRuntime>::Offline,
+        &review.identity,
+    )
+    .await
+    .expect("restore");
     assert!(
         app.diff_observation(
             "main",

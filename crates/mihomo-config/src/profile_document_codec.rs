@@ -9,9 +9,9 @@ use infiltrator_ports::profile_document_codec::{
     ProfileConfigurationMutation, ProfileConfigurationQuery, ProfileConfigurationReadout,
     ProfileConfigurationUpdate, ProfileDocumentCaret, ProfileDocumentCodecPort,
     ProfileDocumentCodecScope, ProfileDocumentSnippetInsertion, ProfileDocumentSnippetOutcome,
-    ProfileFilterMutation, ProfileMixinMutation, ProfileMixinStudioProjection,
-    ProfileMixinToggleId, ProfileOptionsCodecScope, ProfileOptionsProjection,
-    ProfileRuleWorkspaceMutation, ProfileRuleWorkspaceProjection, ProfileRuleWorkspaceUpdate,
+    ProfileFilterMutation, ProfileMixinMutation, ProfileMixinToggleId, ProfileOptionsCodecScope,
+    ProfileOptionsProjection, ProfileRuleWorkspaceMutation, ProfileRuleWorkspaceProjection,
+    ProfileRuleWorkspaceUpdate,
 };
 use std::str::from_utf8;
 use yaml_rust2::YamlLoader;

@@ -31,7 +31,7 @@ pub(super) async fn fix_configs_dir(env: &DoctorEnv) -> anyhow::Result<Option<Do
 }
 
 pub(super) async fn fix_current_yaml(env: &DoctorEnv) -> anyhow::Result<Option<DoctorFixAction>> {
-    let manager = env.config_manager().await?;
+    let manager = env.initialized_config_manager().await?;
     let previous_selection = ActiveProfileReferenceStore::read(&manager).await?;
     let selection = manager.migrate_legacy_mihomo_selection().await?;
     let path = manager.get_current_path().await?;
@@ -52,7 +52,7 @@ pub(super) async fn fix_current_yaml(env: &DoctorEnv) -> anyhow::Result<Option<D
 pub(super) async fn fix_external_controller(
     env: &DoctorEnv,
 ) -> anyhow::Result<Option<DoctorFixAction>> {
-    let manager = env.config_manager().await?;
+    let manager = env.initialized_config_manager().await?;
     manager.migrate_legacy_mihomo_selection().await?;
     let profile_path = manager.get_current_path().await?;
     // A write happened iff the profile content changed; the resolved URL can

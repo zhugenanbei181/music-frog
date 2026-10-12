@@ -9,14 +9,28 @@
 use crate::configs_dir::config_manager;
 use crate::types::message::Message;
 use iced::Task;
-use infiltrator_application::profile_application::{ProfileActivationOutcome, ProfileApplication};
+use infiltrator_application::profile_application::{
+    ProfileActivationOutcome, ProfileApplication, ProfileRuntimeAccess,
+};
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_ports::host_runtime::HostRuntime;
 use std::sync::Arc;
 
-pub(crate) fn save_task<F>(
+/// Convert the host's optional capability slot at the Iced-to-application
+/// boundary. Application use cases themselves receive only the explicit
+/// Offline/Managed access enum.
+pub(crate) fn runtime_access(
     runtime: Option<Arc<dyn HostRuntime>>,
+) -> ProfileRuntimeAccess<dyn HostRuntime> {
+    match runtime {
+        Some(runtime) => ProfileRuntimeAccess::Managed(runtime),
+        None => ProfileRuntimeAccess::Offline,
+    }
+}
+
+pub(crate) fn save_task<F>(
+    runtime: ProfileRuntimeAccess<dyn HostRuntime>,
     transform: F,
     result_message: fn(Result<(), InfiltratorError>) -> Message,
 ) -> Task<Message>
@@ -32,7 +46,7 @@ where
 }
 
 pub(crate) fn save_task_with_strategy<F>(
-    runtime: Option<Arc<dyn HostRuntime>>,
+    runtime: ProfileRuntimeAccess<dyn HostRuntime>,
     strategy: ApplyStrategy,
     transform: F,
     result_message: fn(Result<(), InfiltratorError>) -> Message,
@@ -47,7 +61,7 @@ where
 }
 
 pub(super) async fn save_current_profile_content<F>(
-    runtime: Option<Arc<dyn HostRuntime>>,
+    runtime: ProfileRuntimeAccess<dyn HostRuntime>,
     strategy: ApplyStrategy,
     transform: F,
 ) -> Result<(), InfiltratorError>
@@ -59,6 +73,7 @@ where
     application
         .save_current_profile_content(runtime, strategy, transform)
         .await
+        .map(|_| ())
         .map_err(|failure| InfiltratorError::Config(failure.message))
 }
 
@@ -66,7 +81,7 @@ where
 /// core's atomic apply transaction; inactive profiles still use the validated
 /// manager writer and clear their transient backup immediately.
 pub(crate) async fn save_profile_content(
-    runtime: Option<Arc<dyn HostRuntime>>,
+    runtime: ProfileRuntimeAccess<dyn HostRuntime>,
     profile: String,
     content: String,
     strategy: ApplyStrategy,
@@ -75,6 +90,7 @@ pub(crate) async fn save_profile_content(
     ProfileApplication::new(store)
         .save_profile_content(runtime, profile, content, strategy)
         .await
+        .map(|_| ())
         .map_err(|failure| InfiltratorError::Config(failure.message))
 }
 
@@ -82,7 +98,7 @@ pub(crate) async fn save_profile_content(
 /// target. If applying the target fails, restore the pointer and explicitly
 /// re-apply the previous profile so the old core configuration is live again.
 pub(crate) async fn activate_profile(
-    runtime: Option<Arc<dyn HostRuntime>>,
+    runtime: ProfileRuntimeAccess<dyn HostRuntime>,
     profile: &str,
 ) -> Result<ProfileActivationOutcome, InfiltratorError> {
     let store = config_manager().await?;

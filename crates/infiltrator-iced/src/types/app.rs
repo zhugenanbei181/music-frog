@@ -157,7 +157,6 @@ pub struct SyncSummary {
     pub uploaded: usize,
     pub downloaded: usize,
     pub conflicts: usize,
-    pub active_profile_changed: bool,
     pub conflict_files: Vec<SyncConflict>,
 }
 

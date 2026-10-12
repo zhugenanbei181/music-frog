@@ -8,13 +8,17 @@ use super::owner_operation::{
     AndroidOwnerOperationReadback, AndroidOwnerOperationReply, AndroidOwnerOperationRoute,
 };
 use crate::ffi::{FfiErrorCode, FfiStatus};
-use crate::host_session::apply_current_profile_status;
+use crate::host_session::{
+    activate_profile_status, active_profile_reference_state,
+    apply_selected_profile_reference_status,
+};
 use crate::host_support::{
     build_config_manager, get_runtime, map_anyhow_error, map_application_failure,
     subscription_source,
 };
 use chrono::Utc;
 use infiltrator_application::profile_application::ProfileApplication;
+use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
 use infiltrator_domain::config::validate_yaml;
 use infiltrator_domain::profiles;
 use infiltrator_domain::profiles::{ProfileInfo, sanitize_profile_name};
@@ -158,17 +162,7 @@ pub(super) async fn select_owner_profile(name: String) -> FfiStatus {
                 }
                 Ok(AndroidOwnerOperationRoute::CoreOwner) => {}
             }
-            let application = match build_profile_application().await {
-                Ok(application) => application,
-                Err(status) => return status,
-            };
-            let previous = application.current_profile().await.ok();
-            match application.select_profile(&name).await {
-                // Apply the newly current profile through the session
-                // transaction; on rollback the switch above is undone.
-                Ok(_) => apply_current_profile_status(previous).await,
-                Err(failure) => map_application_failure(failure),
-            }
+            activate_profile_status(&name).await
         })
         .await
         .unwrap_or_else(|e| {
@@ -192,12 +186,15 @@ pub(super) async fn update_owner_profile(name: String) -> FfiStatus {
                 Ok(application) => application,
                 Err(status) => return status,
             };
-            let previous = application.current_profile().await.ok();
+            let previous = match active_profile_reference_state().await {
+                Ok(previous) => previous,
+                Err(status) => return status,
+            };
             let source = subscription_source();
             match application.update_subscription(&source, &name).await {
                 Ok(profile) => {
                     if profile.active {
-                        apply_current_profile_status(previous).await
+                        apply_selected_profile_reference_status(previous).await
                     } else {
                         FfiStatus::ok()
                     }
@@ -296,20 +293,24 @@ pub(super) async fn save_owner_profile(name: String, content: String, activate: 
                 Ok(value) => value,
                 Err(status) => return status,
             };
-            let previous = application.current_profile().await.ok();
+            let previous = match active_profile_reference_state().await {
+                Ok(previous) => previous,
+                Err(status) => return status,
+            };
             if let Err(failure) = application.save_profile(&profile_name, &content).await {
                 return map_application_failure(failure);
             }
 
-            let should_apply = activate || previous.as_deref() == Some(profile_name.as_str());
-            if activate && let Err(failure) = application.select_profile(&profile_name).await {
-                return map_application_failure(failure);
+            let was_selected = matches!(
+                &previous,
+                ActiveProfileReferenceState::Selected(reference)
+                    if reference.profile_id.as_str() == profile_name
+            );
+            if activate {
+                return activate_profile_status(&profile_name).await;
             }
-            if should_apply {
-                // set_current + apply transaction; on rollback the activation
-                // above is restored to the previous profile.
-                let restore_to = if activate { previous } else { None };
-                return apply_current_profile_status(restore_to).await;
+            if was_selected {
+                return apply_selected_profile_reference_status(previous).await;
             }
             FfiStatus::ok()
         })

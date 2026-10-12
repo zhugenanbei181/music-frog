@@ -1,65 +1,1082 @@
 //! Product-wide active-profile reference storage and the explicit legacy
 //! Mihomo selection migration.
 
-use super::ConfigManager;
-use crate::profile_write_boundary::shared_boundary;
-use crate::sidecar_store::{read_optional, write_document};
+use super::{
+    ActiveProfileReferenceResetOutcome, ActiveProfileReferenceResetRequest, ConfigManager,
+    ProfileWriteGuard, lock_profile_writes_for_dir,
+};
+use crate::sidecar_store::{
+    read_optional, read_optional_bytes, remove_optional, remove_optional_durable,
+    write_document_bytes_durable,
+};
 use infiltrator_contract::active_profile_reference::{
     ActiveProfileReference, ActiveProfileReferenceRevision, ActiveProfileReferenceState,
-    ActiveProfileReferenceTarget,
+    ActiveProfileReferenceTarget, ActiveProfileReferenceWriteAuthorization,
 };
-use infiltrator_contract::core_identity::EngineId;
-use infiltrator_contract::core_identity::{CoreGeneration, CoreIdentity};
+use infiltrator_contract::core_identity::{CoreGeneration, CoreIdentity, EngineId};
 use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::profile_document_identity::ProfileId;
+use infiltrator_contract::profile_document_identity::{ProfileId, ProfileWorkspaceIdentity};
 use infiltrator_ports::active_profile_reference_store::{
-    ActiveProfileOwnerLease, ActiveProfileReferenceLease, ActiveProfileReferenceStore,
+    ActiveProfileOwnerBindingLease, ActiveProfileOwnerLease, ActiveProfileOwnerStoppedSwitchLease,
+    ActiveProfileOwnerSwitchLease, ActiveProfileOwnerSwitchRecovery, ActiveProfileOwnerSwitchState,
+    ActiveProfileReferenceChangedLease, ActiveProfileReferenceLease, ActiveProfileReferenceStore,
 };
 use infiltrator_ports::error::PortError;
+use infiltrator_ports::profile_store::{
+    ActiveProfileWorkspacePublishOutcome, ActiveProfileWorkspacePublishedLease,
+    ActiveProfileWorkspaceRecoveryLease, ActiveProfileWorkspaceRecoveryResolution,
+    ActiveProfileWorkspaceRecoveryState, ActiveProfileWorkspaceRestoreOutcome,
+    ActiveProfileWorkspaceRestoredLease, ActiveProfileWorkspaceWriteLease, ProfileStore,
+};
+use infiltrator_ports::profile_workspace::{
+    ProfileWorkspace, ProfileWorkspacePurpose, ProfileWorkspaceUpdate,
+};
 use infiltrator_ports::secure_store::SecureStore;
 use mihomo_api::error::MihomoError;
+use mihomo_platform::durable_replace::{DurableReplaceError, replace_durable};
+use mihomo_platform::instance_lock::{
+    ThreadedInstanceLockGuard, try_acquire_threaded_instance_lock,
+};
+use ring::rand::{SecureRandom, SystemRandom};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::collections::HashMap;
-use std::path::Path;
-use std::path::PathBuf;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Mutex as StdMutex, OnceLock};
-use tokio::sync::OwnedMutexGuard;
+use std::fs::{self, OpenOptions};
+use std::io::Write;
+use std::path::{Path, PathBuf};
+use std::sync::{Mutex as StdMutex, OnceLock};
+use std::time::Duration;
 
 const ACTIVE_PROFILE_REFERENCE_SCHEMA_VERSION: u32 = 1;
+const ACTIVE_CORE_OWNER_PROOF_SCHEMA_VERSION: u32 = 1;
+const ACTIVE_PROFILE_RESET_INTENT_SCHEMA_VERSION: u32 = 2;
+const LEGACY_ACTIVE_PROFILE_RESET_INTENT_SCHEMA_VERSION: u32 = 1;
 const ACTIVE_PROFILE_REFERENCE_FILE: &str = "active-profile-reference.json";
+const ACTIVE_PROFILE_REFERENCE_LOCK_FILE: &str = "active-profile-reference.lock";
+const ACTIVE_CORE_OWNER_LOCK_FILE: &str = "active-core-owner.lock";
+const ACTIVE_CORE_OWNER_STATE_FILE: &str = "active-core-owner.json";
+const ACTIVE_CORE_OWNER_STATE_LOCK_FILE: &str = "active-core-owner-state.lock";
+const ACTIVE_PROFILE_RESET_DEFAULT_BACKUP_FILE: &str = ".active-profile-reset-default.previous";
+const ACTIVE_PROFILE_RESET_DEFAULT_ABSENT_FILE: &str = ".active-profile-reset-default.was-absent";
+const ACTIVE_PROFILE_RESET_INTENT_FILE: &str = ".active-profile-reset-intent.json";
+const ACTIVE_PROFILE_RESET_COMPLETE_FILE: &str = ".active-profile-reset-complete.json";
+const RECORD_DURABILITY_UNCERTAIN_PREFIX: &str =
+    "record rename succeeded but directory durability is uncertain";
+const PROFILE_RESET_PENDING_MUTATION_MESSAGE: &str =
+    "a profile reset is awaiting durable cleanup; retry that reset before other profile mutations";
+static ACTIVE_PROFILE_REFERENCE_TEMP_SEQUENCE: std::sync::atomic::AtomicU64 =
+    std::sync::atomic::AtomicU64::new(0);
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+// Cross-process lock order is fixed: root reference lock -> owner-state lock
+// -> owner admission lock. Terminal owner release takes only owner-state and
+// local-registration locks, never the root lock; no path acquires root after
+// owner-state. These kernel locks fence only processes using this protocol.
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
+struct ActiveOwnerToken(String);
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "state", content = "owner", rename_all = "snake_case")]
 enum ActiveCoreOwnerState {
     Unowned,
     Bound {
         identity: CoreIdentity,
         generation: CoreGeneration,
-        token: u64,
+        token: ActiveOwnerToken,
+    },
+    Switching {
+        transition_id: ActiveOwnerToken,
+        previous_reference: ActiveProfileReferenceState,
+        owner_identity: CoreIdentity,
+        owner_generation: CoreGeneration,
+        owner_token: ActiveOwnerToken,
+        stage: ActiveOwnerSwitchStage,
     },
 }
 
-fn owner_state_boundary(config_root: &Path) -> Arc<StdMutex<ActiveCoreOwnerState>> {
-    static BOUNDARIES: OnceLock<StdMutex<HashMap<PathBuf, Arc<StdMutex<ActiveCoreOwnerState>>>>> =
+impl Default for ActiveCoreOwnerState {
+    fn default() -> Self {
+        Self::Unowned
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "stage", content = "details", rename_all = "snake_case")]
+enum ActiveOwnerSwitchStage {
+    ClosingOld,
+    OldStopped {
+        terminal_generation: CoreGeneration,
+    },
+    ReferenceChanged {
+        terminal_generation: CoreGeneration,
+    },
+    BindingNew {
+        terminal_generation: CoreGeneration,
+        engine_id: EngineId,
+        token: ActiveOwnerToken,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "state", content = "owner", rename_all = "snake_case")]
+enum ActiveCoreOwnerProof {
+    Unowned,
+    Bound {
+        identity: CoreIdentity,
+        generation: CoreGeneration,
+        token: ActiveOwnerToken,
+    },
+    Terminal {
+        identity: CoreIdentity,
+        bound_generation: CoreGeneration,
+        terminal_generation: CoreGeneration,
+        token: ActiveOwnerToken,
+    },
+    Reserved {
+        transition_id: ActiveOwnerToken,
+        engine_id: EngineId,
+        token: ActiveOwnerToken,
+    },
+}
+
+impl Default for ActiveCoreOwnerProof {
+    fn default() -> Self {
+        Self::Unowned
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ActiveCoreOwnerProofRecord {
+    schema_version: u32,
+    state: ActiveCoreOwnerProof,
+}
+
+impl ActiveCoreOwnerProofRecord {
+    fn unowned() -> Self {
+        Self {
+            schema_version: ACTIVE_CORE_OWNER_PROOF_SCHEMA_VERSION,
+            state: ActiveCoreOwnerProof::Unowned,
+        }
+    }
+
+    fn validate(&self) -> Result<(), PortError> {
+        if self.schema_version != ACTIVE_CORE_OWNER_PROOF_SCHEMA_VERSION {
+            return Err(PortError::unsupported(
+                infiltrator_contract::capability::Capability::Profiles,
+                format!(
+                    "active Core owner schema {} is unsupported",
+                    self.schema_version
+                ),
+            ));
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(deny_unknown_fields)]
+struct ActiveProfileResetIntentRecord {
+    schema_version: u32,
+    expected_reference: ActiveProfileReferenceState,
+    target_reference: ActiveProfileReferenceState,
+    default_document_sha256: String,
+    default_document: Vec<u8>,
+}
+
+impl ActiveProfileResetIntentRecord {
+    fn new(
+        expected_reference: ActiveProfileReferenceState,
+        target_reference: ActiveProfileReferenceState,
+        default_content: &[u8],
+    ) -> Self {
+        Self {
+            schema_version: ACTIVE_PROFILE_RESET_INTENT_SCHEMA_VERSION,
+            expected_reference,
+            target_reference,
+            default_document_sha256: sha256_hex(default_content),
+            default_document: default_content.to_vec(),
+        }
+    }
+
+    fn validate(&self) -> Result<(), PortError> {
+        if self.schema_version != ACTIVE_PROFILE_RESET_INTENT_SCHEMA_VERSION {
+            return Err(PortError::unsupported(
+                infiltrator_contract::capability::Capability::Profiles,
+                format!(
+                    "active profile reset intent schema {} is unsupported",
+                    self.schema_version
+                ),
+            ));
+        }
+        if self.default_document_sha256.len() != 64
+            || !self
+                .default_document_sha256
+                .bytes()
+                .all(|byte| byte.is_ascii_hexdigit())
+        {
+            return Err(PortError::Io(
+                "active profile reset intent has an invalid default digest".into(),
+            ));
+        }
+        if self.default_document_sha256 != sha256_hex(&self.default_document) {
+            return Err(PortError::Io(
+                "active profile reset intent default bytes do not match their digest".into(),
+            ));
+        }
+        Ok(())
+    }
+
+    fn matches_transition(
+        &self,
+        expected: &ActiveProfileReferenceState,
+        target: &ActiveProfileReferenceState,
+    ) -> bool {
+        &self.expected_reference == expected && &self.target_reference == target
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct LegacyActiveProfileResetIntentRecord {
+    expected_reference: ActiveProfileReferenceState,
+    target_reference: ActiveProfileReferenceState,
+    default_document_sha256: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum ParsedActiveProfileResetIntentRecord {
+    LegacyV1(LegacyActiveProfileResetIntentRecord),
+    CurrentV2(ActiveProfileResetIntentRecord),
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ActiveProfileResetIntentEnvelope {
+    schema_version: u32,
+    expected_reference: ActiveProfileReferenceState,
+    target_reference: ActiveProfileReferenceState,
+    default_document_sha256: String,
+    default_document: Option<Vec<u8>>,
+}
+
+impl ParsedActiveProfileResetIntentRecord {
+    fn expected_reference(&self) -> &ActiveProfileReferenceState {
+        match self {
+            Self::LegacyV1(record) => &record.expected_reference,
+            Self::CurrentV2(record) => &record.expected_reference,
+        }
+    }
+
+    fn target_reference(&self) -> &ActiveProfileReferenceState {
+        match self {
+            Self::LegacyV1(record) => &record.target_reference,
+            Self::CurrentV2(record) => &record.target_reference,
+        }
+    }
+
+    fn current_record(&self) -> Option<&ActiveProfileResetIntentRecord> {
+        match self {
+            Self::LegacyV1(_) => None,
+            Self::CurrentV2(record) => Some(record),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum LocalOwnerRegistrationState {
+    Bound {
+        identity: CoreIdentity,
+        generation: CoreGeneration,
+    },
+    Binding {
+        transition_id: ActiveOwnerToken,
+    },
+    Switching {
+        transition_id: ActiveOwnerToken,
+        identity: CoreIdentity,
+        generation: CoreGeneration,
+    },
+}
+
+enum LocalSwitchRegistrationRecovery {
+    AlreadySwitching,
+    PromotedBound,
+    NotHeldByThisOwner,
+}
+
+#[derive(Clone, Copy)]
+enum OwnerRecoveryRecordPosition {
+    Bound,
+    Unowned,
+}
+
+#[derive(Clone, Copy)]
+enum OwnerRecoveryProofPosition {
+    Bound,
+    Terminal { terminal_generation: CoreGeneration },
+}
+
+struct LocalOwnerRegistration {
+    token: ActiveOwnerToken,
+    state: LocalOwnerRegistrationState,
+    _guard: ThreadedInstanceLockGuard,
+}
+
+/// Lock bundle owned by a multi-step active-workspace transaction. Managed
+/// consumers keep this bundle in an owned continuation until commit or
+/// conditional restoration is complete; process shutdown releases the OS
+/// locks while the owner proof remains bound unless exact terminal release
+/// already committed.
+struct ActiveWorkspaceWriteGuards {
+    _root: ThreadedInstanceLockGuard,
+    _owner_state: ThreadedInstanceLockGuard,
+    _profile: ProfileWriteGuard,
+}
+
+struct ConfigManagerObservedWorkspaceLease<'a, S: SecureStore> {
+    manager: &'a ConfigManager<S>,
+    observed: ProfileWorkspace,
+    guards: ActiveWorkspaceWriteGuards,
+}
+
+struct ConfigManagerPublishedWorkspaceLease<'a, S: SecureStore> {
+    manager: &'a ConfigManager<S>,
+    previous: ProfileWorkspace,
+    published: ProfileWorkspace,
+    guards: ActiveWorkspaceWriteGuards,
+}
+
+struct ConfigManagerRestoredWorkspaceLease {
+    restored: ProfileWorkspace,
+    _guards: ActiveWorkspaceWriteGuards,
+}
+
+enum ActiveWorkspaceRecoveryPurpose {
+    ConfirmPublished { target: ProfileWorkspace },
+    RestorePrevious { published: ProfileWorkspace },
+}
+
+enum ActiveProfileResetAttempt {
+    Publish,
+    FinishCommittedCleanup,
+}
+
+enum ActiveProfileResetMutationAccess {
+    OrdinaryMutation,
+    RetryEngine(EngineId),
+}
+
+/// Holds the product-wide reset fence before the engine-scoped profile lock.
+/// Direct sidecar/metadata writers use this when they do not own a
+/// ConfigManager reference lease themselves.
+pub(crate) struct ResetFencedProfileMutationGuard {
+    _root: ThreadedInstanceLockGuard,
+    _profile: ProfileWriteGuard,
+}
+
+struct ConfigManagerWorkspaceRecoveryLease<'a, S: SecureStore> {
+    manager: &'a ConfigManager<S>,
+    previous: ProfileWorkspace,
+    purpose: ActiveWorkspaceRecoveryPurpose,
+    guards: ActiveWorkspaceWriteGuards,
+    last_error: String,
+}
+
+fn local_owner_registrations() -> &'static StdMutex<HashMap<PathBuf, LocalOwnerRegistration>> {
+    static REGISTRATIONS: OnceLock<StdMutex<HashMap<PathBuf, LocalOwnerRegistration>>> =
         OnceLock::new();
-    let canonical_root =
-        std::fs::canonicalize(config_root).unwrap_or_else(|_| config_root.to_path_buf());
-    let boundaries = BOUNDARIES.get_or_init(|| StdMutex::new(HashMap::new()));
-    let mut boundaries = boundaries.lock().expect("owner boundary registry lock");
-    Arc::clone(
-        boundaries
-            .entry(canonical_root)
-            .or_insert_with(|| Arc::new(StdMutex::new(ActiveCoreOwnerState::Unowned))),
+    REGISTRATIONS.get_or_init(|| StdMutex::new(HashMap::new()))
+}
+
+fn next_owner_token() -> Result<ActiveOwnerToken, PortError> {
+    let mut bytes = [0_u8; 16];
+    SystemRandom::new()
+        .fill(&mut bytes)
+        .map_err(|_| PortError::Failed("could not create active owner fence token".into()))?;
+    let value = bytes
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+    Ok(ActiveOwnerToken(value))
+}
+
+fn lock_error(error: impl std::fmt::Display) -> PortError {
+    PortError::Io(error.to_string())
+}
+
+fn profile_namespace_initialization_error(error: MihomoError) -> PortError {
+    match error {
+        MihomoError::Config(message) if message == PROFILE_RESET_PENDING_MUTATION_MESSAGE => {
+            PortError::Rejected(Failure::new(ErrorCode::NotReady, message, true))
+        }
+        error => lock_error(error),
+    }
+}
+
+fn sha256_hex(bytes: &[u8]) -> String {
+    Sha256::digest(bytes)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
+}
+
+fn parse_reset_intent_record(
+    bytes: &[u8],
+) -> Result<ParsedActiveProfileResetIntentRecord, PortError> {
+    let record: ActiveProfileResetIntentEnvelope = serde_json::from_slice(bytes)
+        .map_err(|error| PortError::Io(format!("invalid profile reset intent record: {error}")))?;
+    if record.default_document_sha256.len() != 64
+        || !record
+            .default_document_sha256
+            .bytes()
+            .all(|byte| byte.is_ascii_hexdigit())
+    {
+        return Err(PortError::Io(
+            "active profile reset intent has an invalid default digest".into(),
+        ));
+    }
+    match (record.schema_version, record.default_document) {
+        (LEGACY_ACTIVE_PROFILE_RESET_INTENT_SCHEMA_VERSION, None) => Ok(
+            ParsedActiveProfileResetIntentRecord::LegacyV1(LegacyActiveProfileResetIntentRecord {
+                expected_reference: record.expected_reference,
+                target_reference: record.target_reference,
+                default_document_sha256: record.default_document_sha256,
+            }),
+        ),
+        (ACTIVE_PROFILE_RESET_INTENT_SCHEMA_VERSION, Some(default_document)) => {
+            let current = ActiveProfileResetIntentRecord {
+                schema_version: record.schema_version,
+                expected_reference: record.expected_reference,
+                target_reference: record.target_reference,
+                default_document_sha256: record.default_document_sha256,
+                default_document,
+            };
+            current.validate()?;
+            Ok(ParsedActiveProfileResetIntentRecord::CurrentV2(current))
+        }
+        (schema_version, _) => Err(PortError::unsupported(
+            infiltrator_contract::capability::Capability::Profiles,
+            format!("active profile reset intent schema {schema_version} is unsupported"),
+        )),
+    }
+}
+
+pub(super) async fn ensure_reset_not_pending_for_dir(config_dir: &Path) -> Result<(), PortError> {
+    if reset_pending_for_dir(config_dir).await? {
+        return Err(PortError::Rejected(Failure::new(
+            ErrorCode::NotReady,
+            PROFILE_RESET_PENDING_MUTATION_MESSAGE,
+            true,
+        )));
+    }
+    Ok(())
+}
+
+async fn reset_pending_for_dir(config_dir: &Path) -> Result<bool, PortError> {
+    let intent_path = config_dir.join(ACTIVE_PROFILE_RESET_INTENT_FILE);
+    let Some(intent_bytes) = read_optional_bytes(&intent_path).await? else {
+        return Ok(false);
+    };
+    let intent = parse_reset_intent_record(&intent_bytes)?;
+    let complete_path = config_dir.join(ACTIVE_PROFILE_RESET_COMPLETE_FILE);
+    let complete = read_optional_bytes(&complete_path).await?;
+    if complete
+        .as_deref()
+        .map(parse_reset_intent_record)
+        .transpose()?
+        .as_ref()
+        == Some(&intent)
+    {
+        return Ok(false);
+    }
+    Ok(true)
+}
+
+async fn ensure_no_pending_reset_in_engine_namespaces(
+    config_root: &Path,
+    access: ActiveProfileResetMutationAccess,
+) -> Result<(), PortError> {
+    let engines_root = config_root.join("engines");
+    let mut entries = match tokio::fs::read_dir(&engines_root).await {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(lock_error(error)),
+    };
+    while let Some(entry) = entries.next_entry().await.map_err(lock_error)? {
+        let file_type = entry.file_type().await.map_err(lock_error)?;
+        if file_type.is_symlink() {
+            return Err(PortError::Rejected(Failure::new(
+                ErrorCode::NotReady,
+                "engine namespace scan encountered a symlink and cannot prove reset state",
+                true,
+            )));
+        }
+        if !file_type.is_dir() {
+            continue;
+        }
+        let engine_name = entry.file_name();
+        let skip_local_retry_engine = match &access {
+            ActiveProfileResetMutationAccess::OrdinaryMutation => false,
+            ActiveProfileResetMutationAccess::RetryEngine(engine_id) => {
+                engine_name == engine_id.as_str()
+            }
+        };
+        if skip_local_retry_engine {
+            continue;
+        }
+        ensure_reset_not_pending_for_dir(&entry.path()).await?;
+    }
+    Ok(())
+}
+
+/// Acquire the existing root reference OS lock, inspect every engine reset
+/// intent, then acquire this engine's profile-write boundary. This preserves
+/// root -> profile order and closes the race between reset intent publication
+/// and ordinary profile mutations.
+pub(crate) async fn acquire_reset_fenced_profile_mutation_for_dir(
+    config_dir: &Path,
+) -> Result<ResetFencedProfileMutationGuard, PortError> {
+    let engines_root = config_dir
+        .parent()
+        .ok_or_else(|| PortError::Io("engine config directory has no parent".into()))?;
+    if engines_root.file_name().and_then(|name| name.to_str()) != Some("engines") {
+        return Err(PortError::Io(
+            "engine config directory is outside the shared engines namespace".into(),
+        ));
+    }
+    let config_root = engines_root
+        .parent()
+        .ok_or_else(|| PortError::Io("engine config namespace has no shared config root".into()))?;
+    tokio::fs::create_dir_all(config_root)
+        .await
+        .map_err(lock_error)?;
+    let config_root = tokio::fs::canonicalize(config_root)
+        .await
+        .map_err(lock_error)?;
+    let root = acquire_root_lock_async(config_root.clone()).await?;
+    ensure_no_pending_reset_in_engine_namespaces(
+        &config_root,
+        ActiveProfileResetMutationAccess::OrdinaryMutation,
     )
+    .await?;
+    let profile = lock_profile_writes_for_dir(config_dir)
+        .await
+        .map_err(lock_error)?;
+    Ok(ResetFencedProfileMutationGuard {
+        _root: root,
+        _profile: profile,
+    })
+}
+
+fn owner_lock_path(config_root: &Path) -> PathBuf {
+    config_root.join(ACTIVE_CORE_OWNER_LOCK_FILE)
+}
+
+fn owner_state_lock_path(config_root: &Path) -> PathBuf {
+    config_root.join(ACTIVE_CORE_OWNER_STATE_LOCK_FILE)
+}
+
+async fn acquire_os_lock_async(lock_path: PathBuf) -> Result<ThreadedInstanceLockGuard, PortError> {
+    loop {
+        let attempt_path = lock_path.clone();
+        let attempt = tokio::task::spawn_blocking(move || {
+            try_acquire_threaded_instance_lock(&attempt_path).map_err(lock_error)
+        })
+        .await
+        .map_err(|error| PortError::Io(error.to_string()))??;
+        if let Some(guard) = attempt {
+            return Ok(guard);
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+}
+
+async fn acquire_owner_state_lock_async(
+    config_root: PathBuf,
+) -> Result<ThreadedInstanceLockGuard, PortError> {
+    acquire_os_lock_async(owner_state_lock_path(&config_root)).await
+}
+
+fn try_acquire_owner_lock(
+    config_root: &Path,
+) -> Result<Option<ThreadedInstanceLockGuard>, PortError> {
+    try_acquire_threaded_instance_lock(&owner_lock_path(config_root)).map_err(lock_error)
+}
+
+fn sync_read_active_profile_record(
+    config_root: &Path,
+) -> Result<ActiveProfileReferenceRecord, PortError> {
+    let path = config_root.join(ACTIVE_PROFILE_REFERENCE_FILE);
+    let text = match fs::read_to_string(path) {
+        Ok(text) => text,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Ok(ActiveProfileReferenceRecord::pending_legacy_migration());
+        }
+        Err(error) => return Err(lock_error(error)),
+    };
+    let record: ActiveProfileReferenceRecord = serde_json::from_str(&text)
+        .map_err(|error| PortError::Io(format!("invalid active-profile reference: {error}")))?;
+    record.validate()?;
+    Ok(record)
+}
+
+fn sync_read_active_core_owner_proof(
+    config_root: &Path,
+) -> Result<ActiveCoreOwnerProofRecord, PortError> {
+    let path = config_root.join(ACTIVE_CORE_OWNER_STATE_FILE);
+    let text = match fs::read_to_string(path) {
+        Ok(text) => text,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Ok(ActiveCoreOwnerProofRecord::unowned());
+        }
+        Err(error) => return Err(lock_error(error)),
+    };
+    let record: ActiveCoreOwnerProofRecord = serde_json::from_str(&text)
+        .map_err(|error| PortError::Io(format!("invalid active Core owner proof: {error}")))?;
+    record.validate()?;
+    Ok(record)
+}
+
+fn sync_write_document(config_root: &Path, file_name: &str, text: &[u8]) -> Result<(), PortError> {
+    let path = config_root.join(file_name);
+    let sequence =
+        ACTIVE_PROFILE_REFERENCE_TEMP_SEQUENCE.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let temporary = config_root.join(format!(
+        ".{file_name}.tmp-{}-{sequence}",
+        std::process::id()
+    ));
+    let staged = (|| {
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temporary)?;
+        file.write_all(text)?;
+        file.sync_all()?;
+        Ok::<(), std::io::Error>(())
+    })();
+    if let Err(error) = staged {
+        let _ = fs::remove_file(&temporary);
+        return Err(lock_error(error));
+    }
+    match replace_durable(&temporary, &path) {
+        Ok(()) => Ok(()),
+        Err(DurableReplaceError::NotCommitted(error)) => {
+            let _ = fs::remove_file(&temporary);
+            Err(lock_error(error))
+        }
+        Err(DurableReplaceError::DurabilityUncertain(error)) => Err(PortError::Failed(format!(
+            "{RECORD_DURABILITY_UNCERTAIN_PREFIX}: {error}"
+        ))),
+    }
+}
+
+fn sync_write_active_profile_record(
+    config_root: &Path,
+    record: &ActiveProfileReferenceRecord,
+) -> Result<(), PortError> {
+    let text = serde_json::to_vec_pretty(record).map_err(|error| lock_error(error))?;
+    sync_write_document(config_root, ACTIVE_PROFILE_REFERENCE_FILE, &text)
+}
+
+fn sync_write_active_core_owner_proof(
+    config_root: &Path,
+    record: &ActiveCoreOwnerProofRecord,
+) -> Result<(), PortError> {
+    let text = serde_json::to_vec_pretty(record).map_err(|error| lock_error(error))?;
+    sync_write_document(config_root, ACTIVE_CORE_OWNER_STATE_FILE, &text)
+}
+
+fn sync_publish_active_core_owner_proof(
+    config_root: &Path,
+    record: &ActiveCoreOwnerProofRecord,
+) -> Result<(), PortError> {
+    let write_result = sync_write_active_core_owner_proof(config_root, record);
+    reconcile_durable_record_publication("active Core owner", record, write_result, || {
+        sync_read_active_core_owner_proof(config_root)
+    })
+}
+
+fn sync_publish_active_profile_record(
+    config_root: &Path,
+    record: &ActiveProfileReferenceRecord,
+) -> Result<(), PortError> {
+    let write_result = sync_write_active_profile_record(config_root, record);
+    reconcile_durable_record_publication("active profile reference", record, write_result, || {
+        sync_read_active_profile_record(config_root)
+    })
+}
+
+fn reconcile_durable_record_publication<T: PartialEq>(
+    record_name: &str,
+    expected: &T,
+    write_result: Result<(), PortError>,
+    readback: impl FnOnce() -> Result<T, PortError>,
+) -> Result<(), PortError> {
+    match write_result {
+        Ok(()) => {
+            let observed = readback()?;
+            if observed == *expected {
+                Ok(())
+            } else {
+                Err(PortError::Failed(format!(
+                    "{record_name} readback differed from the committed record"
+                )))
+            }
+        }
+        Err(write_error) if is_record_durability_uncertain(&write_error) => {
+            let observed = readback().map_err(|read_error| {
+                PortError::Failed(format!(
+                    "{record_name} replacement is visible but durability is uncertain; readback also failed: {read_error}"
+                ))
+            })?;
+            if observed != *expected {
+                return Err(PortError::Failed(format!(
+                    "{record_name} replacement is visible but durability is uncertain; readback differed from the intended record ({write_error})"
+                )));
+            }
+            log::warn!(
+                "{record_name} readback matches after a directory durability error; continuing with the visible committed state: {write_error}"
+            );
+            Ok(())
+        }
+        Err(write_error) => Err(write_error),
+    }
+}
+
+async fn acquire_root_lock_async(
+    config_root: PathBuf,
+) -> Result<ThreadedInstanceLockGuard, PortError> {
+    acquire_os_lock_async(config_root.join(ACTIVE_PROFILE_REFERENCE_LOCK_FILE)).await
+}
+
+fn transition_rejected(message: impl Into<String>) -> PortError {
+    PortError::Rejected(Failure::new(ErrorCode::NotReady, message.into(), true))
+}
+
+fn is_record_durability_uncertain(error: &PortError) -> bool {
+    matches!(
+        error,
+        PortError::Failed(message) if message.starts_with(RECORD_DURABILITY_UNCERTAIN_PREFIX)
+    )
+}
+
+fn validate_reference_write_authorization(
+    owner_state: &ActiveCoreOwnerState,
+    authorization: &ActiveProfileReferenceWriteAuthorization,
+    config_root: &Path,
+) -> Result<(), PortError> {
+    match (owner_state, authorization) {
+        (ActiveCoreOwnerState::Unowned, ActiveProfileReferenceWriteAuthorization::Unowned) => {
+            Ok(())
+        }
+        (
+            ActiveCoreOwnerState::Bound {
+                identity,
+                generation,
+                token,
+            },
+            ActiveProfileReferenceWriteAuthorization::BoundOwner {
+                identity: authorized_identity,
+                generation: authorized_generation,
+            },
+        ) if identity.same_instance(authorized_identity) && generation == authorized_generation => {
+            if local_registration_matches(
+                config_root,
+                token,
+                &LocalOwnerRegistrationState::Bound {
+                    identity: identity.clone(),
+                    generation: *generation,
+                },
+            )? {
+                Ok(())
+            } else {
+                Err(transition_rejected(
+                    "bound-owner reference writes require this process's exact owner lease",
+                ))
+            }
+        }
+        (ActiveCoreOwnerState::Switching { .. }, _) => Err(transition_rejected(
+            "active profile reference writes are blocked during owner switching",
+        )),
+        _ => Err(transition_rejected(
+            "active profile reference write authorization does not match the owner fence",
+        )),
+    }
+}
+
+fn validate_terminal_for_owner(
+    terminal: &infiltrator_contract::snapshot::CoreLifecycleSnapshot,
+    identity: &CoreIdentity,
+    minimum_generation: CoreGeneration,
+) -> Result<CoreGeneration, PortError> {
+    if !terminal
+        .identity
+        .as_ref()
+        .is_some_and(|terminal_identity| identity.same_instance(terminal_identity))
+        || terminal.generation < minimum_generation.value()
+        || terminal.lifecycle != infiltrator_contract::snapshot::CoreLifecycle::Stopped
+        || terminal.session_token.is_some()
+    {
+        return Err(PortError::Rejected(Failure::new(
+            ErrorCode::NotReady,
+            "active Core owner switch requires matching Stopped readback without a session",
+            true,
+        )));
+    }
+    Ok(CoreGeneration::new(terminal.generation))
+}
+
+fn switching_state(
+    record: &ActiveProfileReferenceRecord,
+    transition_id: &ActiveOwnerToken,
+) -> Result<
+    (
+        ActiveProfileReferenceState,
+        CoreIdentity,
+        CoreGeneration,
+        ActiveOwnerToken,
+        ActiveOwnerSwitchStage,
+    ),
+    PortError,
+> {
+    match &record.owner {
+        ActiveCoreOwnerState::Switching {
+            transition_id: persisted_id,
+            previous_reference,
+            owner_identity,
+            owner_generation,
+            owner_token,
+            stage,
+        } if persisted_id == transition_id => Ok((
+            previous_reference.clone(),
+            owner_identity.clone(),
+            *owner_generation,
+            owner_token.clone(),
+            stage.clone(),
+        )),
+        _ => Err(transition_rejected(
+            "active Core owner switch reservation is stale or no longer present",
+        )),
+    }
+}
+
+fn terminal_proof_generation(
+    proof: &ActiveCoreOwnerProofRecord,
+    identity: &CoreIdentity,
+    bound_generation: CoreGeneration,
+    token: &ActiveOwnerToken,
+) -> Result<CoreGeneration, PortError> {
+    match &proof.state {
+        ActiveCoreOwnerProof::Terminal {
+            identity: proof_identity,
+            bound_generation: proof_bound_generation,
+            terminal_generation,
+            token: proof_token,
+        } if proof_identity.same_instance(identity)
+            && *proof_bound_generation == bound_generation
+            && proof_token == token
+            && *terminal_generation >= bound_generation =>
+        {
+            Ok(*terminal_generation)
+        }
+        _ => Err(transition_rejected(
+            "persisted owner terminal proof does not match the switch reservation",
+        )),
+    }
+}
+
+fn local_registration_matches(
+    config_root: &Path,
+    token: &ActiveOwnerToken,
+    state: &LocalOwnerRegistrationState,
+) -> Result<bool, PortError> {
+    let registrations = local_owner_registrations()
+        .lock()
+        .map_err(|_| PortError::Failed("active owner registration lock is poisoned".into()))?;
+    Ok(registrations
+        .get(config_root)
+        .is_some_and(|registration| registration.token == *token && registration.state == *state))
+}
+
+fn local_owner_registration_state(
+    config_root: &Path,
+    token: &ActiveOwnerToken,
+) -> Result<Option<LocalOwnerRegistrationState>, PortError> {
+    let registrations = local_owner_registrations()
+        .lock()
+        .map_err(|_| PortError::Failed("active owner registration lock is poisoned".into()))?;
+    Ok(registrations
+        .get(config_root)
+        .filter(|registration| registration.token == *token)
+        .map(|registration| registration.state.clone()))
+}
+
+fn recover_local_switch_registration(
+    config_root: &Path,
+    token: &ActiveOwnerToken,
+    transition_id: &ActiveOwnerToken,
+    identity: &CoreIdentity,
+    generation: CoreGeneration,
+) -> Result<LocalSwitchRegistrationRecovery, PortError> {
+    let mut registrations = local_owner_registrations()
+        .lock()
+        .map_err(|_| PortError::Failed("active owner registration lock is poisoned".into()))?;
+    let Some(registration) = registrations
+        .get_mut(config_root)
+        .filter(|registration| registration.token == *token)
+    else {
+        return Ok(LocalSwitchRegistrationRecovery::NotHeldByThisOwner);
+    };
+    match &registration.state {
+        LocalOwnerRegistrationState::Bound {
+            identity: registered_identity,
+            generation: registered_generation,
+        } if registered_identity.same_instance(identity)
+            && *registered_generation == generation =>
+        {
+            registration.state = LocalOwnerRegistrationState::Switching {
+                transition_id: transition_id.clone(),
+                identity: identity.clone(),
+                generation,
+            };
+            Ok(LocalSwitchRegistrationRecovery::PromotedBound)
+        }
+        LocalOwnerRegistrationState::Switching {
+            transition_id: registered_transition,
+            identity: registered_identity,
+            generation: registered_generation,
+        } if registered_transition == transition_id
+            && registered_identity.same_instance(identity)
+            && *registered_generation == generation =>
+        {
+            Ok(LocalSwitchRegistrationRecovery::AlreadySwitching)
+        }
+        _ => Ok(LocalSwitchRegistrationRecovery::NotHeldByThisOwner),
+    }
+}
+
+fn remove_local_owner_registration(
+    config_root: &Path,
+    token: &ActiveOwnerToken,
+) -> Result<(), PortError> {
+    let mut registrations = local_owner_registrations()
+        .lock()
+        .map_err(|_| PortError::Failed("active owner registration lock is poisoned".into()))?;
+    match registrations.get(config_root) {
+        Some(registration) if registration.token == *token => {
+            registrations.remove(config_root);
+            Ok(())
+        }
+        Some(_) | None => Err(PortError::Rejected(Failure::new(
+            ErrorCode::NotReady,
+            "active Core owner lease is stale or no longer registered",
+            true,
+        ))),
+    }
 }
 
 struct ConfigManagerActiveCoreOwnerLease {
     identity: CoreIdentity,
     generation: CoreGeneration,
-    token: u64,
-    state: Arc<StdMutex<ActiveCoreOwnerState>>,
+    token: ActiveOwnerToken,
+    config_root: PathBuf,
 }
 
+fn release_owner_after_terminal(
+    identity: &CoreIdentity,
+    generation: CoreGeneration,
+    token: &ActiveOwnerToken,
+    config_root: &Path,
+    terminal: &infiltrator_contract::snapshot::CoreLifecycleSnapshot,
+    _owner_state_guard: ThreadedInstanceLockGuard,
+) -> Result<(), PortError> {
+    let terminal_generation = validate_terminal_for_owner(terminal, identity, generation)?;
+    // Terminal release takes only the owner-state lock. Store operations use
+    // root reference -> owner-state; close never waits for the root lock.
+    let mut proof = sync_read_active_core_owner_proof(config_root)?;
+    let local_state = local_owner_registration_state(config_root, token)?;
+    match proof.state.clone() {
+        ActiveCoreOwnerProof::Bound {
+            identity: proof_identity,
+            generation: proof_generation,
+            token: proof_token,
+        } if proof_identity.same_instance(identity)
+            && proof_generation == generation
+            && proof_token == *token =>
+        {
+            let local_state_matches = match local_state {
+                Some(LocalOwnerRegistrationState::Bound {
+                    identity: registered_identity,
+                    generation: registered_generation,
+                }) => {
+                    registered_identity.same_instance(identity)
+                        && registered_generation == generation
+                }
+                Some(LocalOwnerRegistrationState::Switching {
+                    identity: registered_identity,
+                    generation: registered_generation,
+                    ..
+                }) => {
+                    registered_identity.same_instance(identity)
+                        && registered_generation == generation
+                }
+                Some(LocalOwnerRegistrationState::Binding { .. }) | None => false,
+            };
+            if !local_state_matches {
+                return Err(transition_rejected(
+                    "active Core owner kernel lease is not held by this process",
+                ));
+            }
+            proof.state = ActiveCoreOwnerProof::Terminal {
+                identity: identity.clone(),
+                bound_generation: generation,
+                terminal_generation,
+                token: token.clone(),
+            };
+            sync_publish_active_core_owner_proof(config_root, &proof)?;
+            remove_local_owner_registration(config_root, token)
+        }
+        ActiveCoreOwnerProof::Terminal {
+            identity: proof_identity,
+            bound_generation: proof_generation,
+            terminal_generation: proof_terminal_generation,
+            token: proof_token,
+        } if proof_identity.same_instance(identity)
+            && proof_generation == generation
+            && proof_terminal_generation == terminal_generation
+            && proof_token == *token =>
+        {
+            match local_state {
+                Some(LocalOwnerRegistrationState::Bound {
+                    identity: registered_identity,
+                    generation: registered_generation,
+                })
+                | Some(LocalOwnerRegistrationState::Switching {
+                    identity: registered_identity,
+                    generation: registered_generation,
+                    ..
+                }) if registered_identity.same_instance(identity)
+                    && registered_generation == generation =>
+                {
+                    remove_local_owner_registration(config_root, token)
+                }
+                Some(LocalOwnerRegistrationState::Binding { .. }) => Err(transition_rejected(
+                    "active Core owner registration is not bound to the terminal identity",
+                )),
+                None => Ok(()),
+                _ => Err(transition_rejected(
+                    "active Core owner registration differs from the terminal proof",
+                )),
+            }
+        }
+        _ => Err(transition_rejected(
+            "active Core owner lease is stale or no longer bound",
+        )),
+    }
+}
+
+#[async_trait::async_trait]
 impl ActiveProfileOwnerLease for ConfigManagerActiveCoreOwnerLease {
     fn identity(&self) -> &CoreIdentity {
         &self.identity
@@ -69,46 +1086,28 @@ impl ActiveProfileOwnerLease for ConfigManagerActiveCoreOwnerLease {
         self.generation
     }
 
-    fn release_after_terminal(
+    async fn release_after_terminal(
         &self,
         terminal: &infiltrator_contract::snapshot::CoreLifecycleSnapshot,
     ) -> Result<(), PortError> {
-        if terminal.identity.as_ref() != Some(&self.identity)
-            || terminal.generation < self.generation.value()
-            || terminal.lifecycle != infiltrator_contract::snapshot::CoreLifecycle::Stopped
-            || terminal.session_token.is_some()
-        {
-            return Err(PortError::Rejected(Failure::new(
-                ErrorCode::NotReady,
-                "active Core owner lease requires matching Stopped readback without a session",
-                true,
-            )));
-        }
-
-        let mut state = self
-            .state
-            .lock()
-            .map_err(|_| PortError::Failed("active Core owner state lock is poisoned".into()))?;
-        match &*state {
-            ActiveCoreOwnerState::Bound {
-                identity,
+        let identity = self.identity.clone();
+        let generation = self.generation;
+        let token = self.token.clone();
+        let config_root = self.config_root.clone();
+        let terminal = terminal.clone();
+        let owner_state_guard = acquire_owner_state_lock_async(config_root.clone()).await?;
+        tokio::task::spawn_blocking(move || {
+            release_owner_after_terminal(
+                &identity,
                 generation,
-                token,
-            } if identity == &self.identity
-                && *generation == self.generation
-                && *token == self.token =>
-            {
-                *state = ActiveCoreOwnerState::Unowned;
-                Ok(())
-            }
-            ActiveCoreOwnerState::Unowned | ActiveCoreOwnerState::Bound { .. } => {
-                Err(PortError::Rejected(Failure::new(
-                    ErrorCode::NotReady,
-                    "active Core owner lease is stale or no longer bound",
-                    true,
-                )))
-            }
-        }
+                &token,
+                &config_root,
+                &terminal,
+                owner_state_guard,
+            )
+        })
+        .await
+        .map_err(|error| PortError::Failed(error.to_string()))?
     }
 }
 
@@ -127,6 +1126,8 @@ struct ActiveProfileReferenceRecord {
     schema_version: u32,
     selection: ActiveProfileReferenceState,
     legacy_migration: LegacySelectionMigration,
+    #[serde(default)]
+    owner: ActiveCoreOwnerState,
 }
 
 impl ActiveProfileReferenceRecord {
@@ -137,6 +1138,7 @@ impl ActiveProfileReferenceRecord {
                 revision: ActiveProfileReferenceRevision::new(0),
             },
             legacy_migration: LegacySelectionMigration::PendingDesktopMihomoV0,
+            owner: ActiveCoreOwnerState::Unowned,
         }
     }
 
@@ -156,76 +1158,991 @@ impl ActiveProfileReferenceRecord {
 
 struct ConfigManagerSelectionLease {
     state: ActiveProfileReferenceState,
-    _guard: OwnedMutexGuard<()>,
-    owner_state: Arc<StdMutex<ActiveCoreOwnerState>>,
+    config_root: PathBuf,
+    _guard: ThreadedInstanceLockGuard,
 }
 
+#[async_trait::async_trait]
 impl ActiveProfileReferenceLease for ConfigManagerSelectionLease {
     fn state(&self) -> &ActiveProfileReferenceState {
         &self.state
     }
 
-    fn into_owner_binding(
+    async fn into_owner_binding(
         self: Box<Self>,
         identity: CoreIdentity,
         generation: CoreGeneration,
     ) -> Result<Box<dyn ActiveProfileOwnerLease>, PortError> {
         let Self {
             state,
-            _guard,
-            owner_state,
+            _guard: root_guard,
+            config_root,
         } = *self;
-        let selected_engine = match state {
-            ActiveProfileReferenceState::Selected(reference) => reference.engine_id,
-            ActiveProfileReferenceState::Unselected { .. } => {
-                return Err(PortError::Failed(
-                    "an unselected profile cannot bind a Core owner".into(),
+        let owner_state_guard = acquire_owner_state_lock_async(config_root.clone()).await?;
+        tokio::task::spawn_blocking(move || {
+            let selected_engine = match &state {
+                ActiveProfileReferenceState::Selected(reference) => reference.engine_id.clone(),
+                ActiveProfileReferenceState::Unselected { .. } => {
+                    return Err(PortError::Failed(
+                        "an unselected profile cannot bind a Core owner".into(),
+                    ));
+                }
+            };
+            if selected_engine != identity.engine {
+                return Err(PortError::Failed(format!(
+                    "active profile engine {} does not match owner engine {}",
+                    selected_engine.as_str(),
+                    identity.engine.as_str()
+                )));
+            }
+            let mut record = sync_read_active_profile_record(&config_root)?;
+            if record.selection != state {
+                return Err(PortError::Rejected(Failure::new(
+                    ErrorCode::NotReady,
+                    "active profile changed before owner binding",
+                    true,
+                )));
+            }
+            let _owner_state_guard = owner_state_guard;
+            let owner_guard = try_acquire_owner_lock(&config_root)?.ok_or_else(|| {
+                PortError::Rejected(Failure::new(
+                    ErrorCode::NotReady,
+                    "another process holds the active Core owner fence",
+                    true,
+                ))
+            })?;
+            let mut registrations = local_owner_registrations().lock().map_err(|_| {
+                PortError::Failed("active owner registration lock is poisoned".into())
+            })?;
+            if registrations.contains_key(&config_root) {
+                return Err(PortError::Rejected(Failure::new(
+                    ErrorCode::NotReady,
+                    "this process already has an active Core owner registration",
+                    true,
+                )));
+            }
+            let mut owner_proof = sync_read_active_core_owner_proof(&config_root)?;
+            match &record.owner {
+                ActiveCoreOwnerState::Unowned => {}
+                ActiveCoreOwnerState::Bound { .. } => {
+                    return Err(transition_rejected(
+                        "a previous Core owner still needs explicit terminal normalization",
+                    ));
+                }
+                ActiveCoreOwnerState::Switching { .. } => {
+                    return Err(transition_rejected(
+                        "an active Core owner switch is in progress",
+                    ));
+                }
+            }
+            match &owner_proof.state {
+                ActiveCoreOwnerProof::Unowned | ActiveCoreOwnerProof::Terminal { .. } => {}
+                ActiveCoreOwnerProof::Bound { .. } | ActiveCoreOwnerProof::Reserved { .. } => {
+                    return Err(transition_rejected(
+                        "an orphaned owner proof requires explicit terminal recovery",
+                    ));
+                }
+            }
+            let token = next_owner_token()?;
+            owner_proof.state = ActiveCoreOwnerProof::Bound {
+                identity: identity.clone(),
+                generation,
+                token: token.clone(),
+            };
+            record.owner = ActiveCoreOwnerState::Bound {
+                identity: identity.clone(),
+                generation,
+                token: token.clone(),
+            };
+            sync_publish_active_core_owner_proof(&config_root, &owner_proof)?;
+            sync_publish_active_profile_record(&config_root, &record)?;
+            registrations.insert(
+                config_root.clone(),
+                LocalOwnerRegistration {
+                    token: token.clone(),
+                    state: LocalOwnerRegistrationState::Bound {
+                        identity: identity.clone(),
+                        generation,
+                    },
+                    _guard: owner_guard,
+                },
+            );
+            drop(root_guard);
+            Ok(Box::new(ConfigManagerActiveCoreOwnerLease {
+                identity,
+                generation,
+                token,
+                config_root,
+            }) as Box<dyn ActiveProfileOwnerLease>)
+        })
+        .await
+        .map_err(|error| PortError::Failed(error.to_string()))?
+    }
+}
+
+struct ConfigManagerOwnerSwitchLease {
+    config_root: PathBuf,
+    transition_id: ActiveOwnerToken,
+    expected_owner: CoreIdentity,
+    expected_generation: CoreGeneration,
+    state: ActiveProfileOwnerSwitchState,
+}
+
+#[async_trait::async_trait]
+impl ActiveProfileOwnerSwitchLease for ConfigManagerOwnerSwitchLease {
+    fn state(&self) -> &ActiveProfileOwnerSwitchState {
+        &self.state
+    }
+
+    async fn cancel_before_old_owner_close(
+        self: Box<Self>,
+    ) -> Result<ActiveProfileReferenceState, PortError> {
+        let Self {
+            config_root,
+            transition_id,
+            expected_owner,
+            expected_generation,
+            state,
+        } = *self;
+        let (previous_reference, owner_identity, owner_generation) = match state {
+            ActiveProfileOwnerSwitchState::ClosingOld {
+                previous_reference,
+                owner_identity,
+                owner_generation,
+            } => (previous_reference, owner_identity, owner_generation),
+            _ => {
+                return Err(transition_rejected(
+                    "only a ClosingOld owner switch can be canceled before close",
                 ));
             }
         };
-        if selected_engine != identity.engine {
-            return Err(PortError::Failed(format!(
-                "active profile engine {} does not match owner engine {}",
-                selected_engine.as_str(),
-                identity.engine.as_str()
-            )));
-        }
-        static NEXT_OWNER_TOKEN: AtomicU64 = AtomicU64::new(0);
-        let token = NEXT_OWNER_TOKEN.fetch_add(1, Ordering::SeqCst) + 1;
+        if !owner_identity.same_instance(&expected_owner) || owner_generation != expected_generation
         {
-            let mut active_owner = owner_state.lock().map_err(|_| {
-                PortError::Failed("active Core owner state lock is poisoned".into())
+            return Err(transition_rejected("owner switch lease identity changed"));
+        }
+
+        let _root_guard = acquire_root_lock_async(config_root.clone()).await?;
+        let _owner_state_guard = acquire_owner_state_lock_async(config_root.clone()).await?;
+        let mut record = sync_read_active_profile_record(&config_root)?;
+        let (persisted_previous, persisted_owner, persisted_generation, owner_token, stage) =
+            switching_state(&record, &transition_id)?;
+        if persisted_previous != previous_reference
+            || !persisted_owner.same_instance(&owner_identity)
+            || persisted_generation != owner_generation
+            || record.selection != previous_reference
+            || !matches!(stage, ActiveOwnerSwitchStage::ClosingOld)
+        {
+            return Err(transition_rejected(
+                "persisted ClosingOld reservation differs from cancellation request",
+            ));
+        }
+        if !matches!(
+            sync_read_active_core_owner_proof(&config_root)?.state,
+            ActiveCoreOwnerProof::Bound {
+                ref identity,
+                generation,
+                ref token,
+            } if identity.same_instance(&owner_identity)
+                && generation == owner_generation
+                && token == &owner_token
+        ) {
+            return Err(transition_rejected(
+                "old owner has already released or changed its persisted binding",
+            ));
+        }
+        let switching_registration = LocalOwnerRegistrationState::Switching {
+            transition_id: transition_id.clone(),
+            identity: owner_identity.clone(),
+            generation: owner_generation,
+        };
+        let mut registrations = local_owner_registrations()
+            .lock()
+            .map_err(|_| PortError::Failed("active owner registration lock is poisoned".into()))?;
+        let registration = registrations
+            .get_mut(&config_root)
+            .filter(|registration| {
+                registration.token == owner_token && registration.state == switching_registration
+            })
+            .ok_or_else(|| {
+                transition_rejected("only the process holding the old owner fence can cancel")
             })?;
-            match &*active_owner {
-                ActiveCoreOwnerState::Unowned => {
-                    *active_owner = ActiveCoreOwnerState::Bound {
-                        identity: identity.clone(),
-                        generation,
-                        token,
-                    };
-                }
-                ActiveCoreOwnerState::Bound {
-                    identity: existing, ..
-                } => {
-                    return Err(PortError::Rejected(Failure::new(
-                        ErrorCode::NotReady,
-                        format!(
-                            "Core owner {} remains active; close it before binding {}",
-                            existing.instance.as_str(),
-                            identity.instance.as_str()
-                        ),
-                        true,
-                    )));
-                }
+        if let Some(owner_probe) = try_acquire_owner_lock(&config_root)? {
+            drop(owner_probe);
+            return Err(transition_rejected(
+                "old owner no longer holds the cross-process owner fence",
+            ));
+        }
+
+        // Restore the in-process lease first. If publication fails, the
+        // durable ClosingOld marker still blocks other selectors and recovery
+        // can promote this exact Bound registration back to Switching.
+        registration.state = LocalOwnerRegistrationState::Bound {
+            identity: owner_identity.clone(),
+            generation: owner_generation,
+        };
+        record.owner = ActiveCoreOwnerState::Bound {
+            identity: owner_identity,
+            generation: owner_generation,
+            token: owner_token,
+        };
+        sync_publish_active_profile_record(&config_root, &record)?;
+        Ok(record.selection)
+    }
+
+    async fn confirm_old_owner_stopped(
+        self: Box<Self>,
+        terminal: &infiltrator_contract::snapshot::CoreLifecycleSnapshot,
+    ) -> Result<Box<dyn ActiveProfileOwnerStoppedSwitchLease>, PortError> {
+        let Self {
+            config_root,
+            transition_id,
+            expected_owner,
+            expected_generation,
+            state,
+        } = *self;
+        let (previous_reference, owner_identity, owner_generation) = match state {
+            ActiveProfileOwnerSwitchState::ClosingOld {
+                previous_reference,
+                owner_identity,
+                owner_generation,
+            } => (previous_reference, owner_identity, owner_generation),
+            _ => {
+                return Err(transition_rejected(
+                    "owner switch is not closing the old owner",
+                ));
+            }
+        };
+        if !owner_identity.same_instance(&expected_owner) || owner_generation != expected_generation
+        {
+            return Err(transition_rejected("owner switch lease identity changed"));
+        }
+        let terminal_generation =
+            validate_terminal_for_owner(terminal, &owner_identity, owner_generation)?;
+        let _root_guard = acquire_root_lock_async(config_root.clone()).await?;
+        let _owner_state_guard = acquire_owner_state_lock_async(config_root.clone()).await?;
+        let mut record = sync_read_active_profile_record(&config_root)?;
+        let (persisted_previous, persisted_owner, persisted_generation, owner_token, stage) =
+            switching_state(&record, &transition_id)?;
+        if persisted_previous != previous_reference
+            || !persisted_owner.same_instance(&owner_identity)
+            || persisted_generation != owner_generation
+        {
+            return Err(transition_rejected(
+                "persisted owner switch identity changed",
+            ));
+        }
+        match &stage {
+            ActiveOwnerSwitchStage::ClosingOld => {}
+            ActiveOwnerSwitchStage::OldStopped {
+                terminal_generation: persisted_generation,
+            } if *persisted_generation == terminal_generation => {}
+            ActiveOwnerSwitchStage::OldStopped { .. } => {
+                return Err(transition_rejected(
+                    "old owner terminal generation differs from the reserved readback",
+                ));
+            }
+            ActiveOwnerSwitchStage::ReferenceChanged { .. }
+            | ActiveOwnerSwitchStage::BindingNew { .. } => {
+                return Err(transition_rejected(
+                    "owner switch already advanced past old close",
+                ));
             }
         }
-        drop(_guard);
+        if local_registration_matches(
+            &config_root,
+            &owner_token,
+            &LocalOwnerRegistrationState::Switching {
+                transition_id: transition_id.clone(),
+                identity: owner_identity.clone(),
+                generation: owner_generation,
+            },
+        )? {
+            return Err(transition_rejected(
+                "old Core owner kernel lease remains held after terminal readback",
+            ));
+        }
+        let proof = sync_read_active_core_owner_proof(&config_root)?;
+        if !matches!(
+            proof.state,
+            ActiveCoreOwnerProof::Terminal {
+                ref identity,
+                bound_generation,
+                terminal_generation: proof_terminal_generation,
+                ref token,
+            } if identity.same_instance(&owner_identity)
+                && bound_generation == owner_generation
+                && proof_terminal_generation == terminal_generation
+                && token == &owner_token
+        ) {
+            return Err(transition_rejected(
+                "old owner terminal proof does not match this switch reservation",
+            ));
+        }
+        if local_owner_registration_state(&config_root, &owner_token)?.is_some() {
+            return Err(transition_rejected(
+                "old Core owner registration remains after terminal release",
+            ));
+        }
+        if let Some(probe) = try_acquire_owner_lock(&config_root)? {
+            drop(probe);
+        } else {
+            return Err(transition_rejected(
+                "another process still holds the active Core owner fence",
+            ));
+        }
+        if matches!(stage, ActiveOwnerSwitchStage::ClosingOld) {
+            record.owner = ActiveCoreOwnerState::Switching {
+                transition_id: transition_id.clone(),
+                previous_reference: previous_reference.clone(),
+                owner_identity: owner_identity.clone(),
+                owner_generation,
+                owner_token,
+                stage: ActiveOwnerSwitchStage::OldStopped {
+                    terminal_generation,
+                },
+            };
+            sync_publish_active_profile_record(&config_root, &record)?;
+        }
+        let state = ActiveProfileOwnerSwitchState::OldStopped {
+            previous_reference,
+            owner_identity,
+            owner_generation,
+            terminal_generation,
+        };
+        Ok(Box::new(ConfigManagerOwnerStoppedSwitchLease {
+            config_root,
+            transition_id,
+            state,
+        }))
+    }
+}
+
+struct ConfigManagerOwnerStoppedSwitchLease {
+    config_root: PathBuf,
+    transition_id: ActiveOwnerToken,
+    state: ActiveProfileOwnerSwitchState,
+}
+
+#[async_trait::async_trait]
+impl ActiveProfileOwnerStoppedSwitchLease for ConfigManagerOwnerStoppedSwitchLease {
+    fn state(&self) -> &ActiveProfileOwnerSwitchState {
+        &self.state
+    }
+
+    async fn compare_and_set_target(
+        self: Box<Self>,
+        target: ActiveProfileReferenceTarget,
+    ) -> Result<Box<dyn ActiveProfileReferenceChangedLease>, PortError> {
+        let Self {
+            config_root,
+            transition_id,
+            state,
+        } = *self;
+        let (previous_reference, owner_identity, owner_generation, terminal_generation) =
+            match state {
+                ActiveProfileOwnerSwitchState::OldStopped {
+                    previous_reference,
+                    owner_identity,
+                    owner_generation,
+                    terminal_generation,
+                } => (
+                    previous_reference,
+                    owner_identity,
+                    owner_generation,
+                    terminal_generation,
+                ),
+                _ => return Err(transition_rejected("old owner terminal stage is missing")),
+            };
+        let ActiveProfileReferenceTarget::Selected {
+            engine_id: _,
+            profile_id: _,
+        } = &target
+        else {
+            return Err(PortError::Rejected(Failure::new(
+                ErrorCode::InvalidState,
+                "an owner switch must select a concrete profile before binding a provider",
+                false,
+            )));
+        };
+        let _root_guard = acquire_root_lock_async(config_root.clone()).await?;
+        let _owner_state_guard = acquire_owner_state_lock_async(config_root.clone()).await?;
+        let mut record = sync_read_active_profile_record(&config_root)?;
+        let (persisted_previous, persisted_owner, persisted_generation, owner_token, stage) =
+            switching_state(&record, &transition_id)?;
+        if persisted_previous != previous_reference
+            || !persisted_owner.same_instance(&owner_identity)
+            || persisted_generation != owner_generation
+            || record.selection != previous_reference
+            || !matches!(
+                stage,
+                ActiveOwnerSwitchStage::OldStopped {
+                    terminal_generation: persisted_terminal
+                } if persisted_terminal == terminal_generation
+            )
+        {
+            return Err(transition_rejected(
+                "persisted old-owner terminal does not match the switch lease",
+            ));
+        }
+        if !local_registration_matches(
+            &config_root,
+            &owner_token,
+            &LocalOwnerRegistrationState::Bound {
+                identity: owner_identity.clone(),
+                generation: owner_generation,
+            },
+        )? {
+            // The old owner lease must have been released after its terminal
+            // readback; the local registry keeps unconfirmed drops fail-closed.
+            let owner_lock = try_acquire_owner_lock(&config_root)?;
+            if owner_lock.is_none() {
+                return Err(transition_rejected(
+                    "old Core owner lock is still held by another process",
+                ));
+            }
+            drop(owner_lock);
+        } else {
+            return Err(transition_rejected(
+                "old Core owner lease has not released its kernel fence",
+            ));
+        }
+        let owner_proof = sync_read_active_core_owner_proof(&config_root)?;
+        if !matches!(
+            owner_proof.state,
+            ActiveCoreOwnerProof::Terminal {
+                ref identity,
+                bound_generation,
+                terminal_generation: proof_terminal_generation,
+                ref token,
+            } if identity.same_instance(&owner_identity)
+                && bound_generation == owner_generation
+                && proof_terminal_generation == terminal_generation
+                && token == &owner_token
+        ) {
+            return Err(transition_rejected(
+                "old owner terminal proof does not match the owner switch",
+            ));
+        }
+        let revision = previous_reference
+            .revision()
+            .next()
+            .ok_or_else(|| PortError::Failed("active-profile revision exhausted".into()))?;
+        record.selection = match target {
+            ActiveProfileReferenceTarget::Unselected => unreachable!("checked above"),
+            ActiveProfileReferenceTarget::Selected {
+                engine_id,
+                profile_id,
+            } => ActiveProfileReferenceState::Selected(ActiveProfileReference::new(
+                engine_id, profile_id, revision,
+            )),
+        };
+        record.legacy_migration = LegacySelectionMigration::ExplicitSelection;
+        record.owner = ActiveCoreOwnerState::Switching {
+            transition_id: transition_id.clone(),
+            previous_reference: previous_reference.clone(),
+            owner_identity: owner_identity.clone(),
+            owner_generation,
+            owner_token,
+            stage: ActiveOwnerSwitchStage::ReferenceChanged {
+                terminal_generation,
+            },
+        };
+        sync_publish_active_profile_record(&config_root, &record)?;
+        let state = ActiveProfileOwnerSwitchState::ReferenceChanged {
+            previous_reference,
+            selection: record.selection.clone(),
+            owner_identity,
+            terminal_generation,
+        };
+        Ok(Box::new(ConfigManagerReferenceChangedLease {
+            config_root,
+            transition_id,
+            state,
+        }))
+    }
+}
+
+struct ConfigManagerReferenceChangedLease {
+    config_root: PathBuf,
+    transition_id: ActiveOwnerToken,
+    state: ActiveProfileOwnerSwitchState,
+}
+
+#[async_trait::async_trait]
+impl ActiveProfileReferenceChangedLease for ConfigManagerReferenceChangedLease {
+    fn state(&self) -> &ActiveProfileOwnerSwitchState {
+        &self.state
+    }
+
+    async fn reserve_new_owner(
+        self: Box<Self>,
+        engine_id: EngineId,
+    ) -> Result<Box<dyn ActiveProfileOwnerBindingLease>, PortError> {
+        let Self {
+            config_root,
+            transition_id,
+            state,
+        } = *self;
+        let (selection, previous_reference, owner_identity, terminal_generation) = match state {
+            ActiveProfileOwnerSwitchState::ReferenceChanged {
+                previous_reference,
+                selection,
+                owner_identity,
+                terminal_generation,
+            } => (
+                selection,
+                previous_reference,
+                owner_identity,
+                terminal_generation,
+            ),
+            _ => return Err(transition_rejected("reference CAS stage is missing")),
+        };
+        match &selection {
+            ActiveProfileReferenceState::Selected(reference)
+                if reference.engine_id == engine_id => {}
+            ActiveProfileReferenceState::Selected(reference) => {
+                return Err(transition_rejected(format!(
+                    "selected engine {} does not match requested owner engine {}",
+                    reference.engine_id.as_str(),
+                    engine_id.as_str()
+                )));
+            }
+            ActiveProfileReferenceState::Unselected { .. } => {
+                return Err(transition_rejected(
+                    "an unselected reference cannot reserve a Core owner",
+                ));
+            }
+        }
+        let _root_guard = acquire_root_lock_async(config_root.clone()).await?;
+        let _owner_state_guard = acquire_owner_state_lock_async(config_root.clone()).await?;
+        let mut record = sync_read_active_profile_record(&config_root)?;
+        let (persisted_previous, persisted_owner, owner_generation, owner_token, stage) =
+            switching_state(&record, &transition_id)?;
+        if persisted_previous != previous_reference
+            || !persisted_owner.same_instance(&owner_identity)
+            || record.selection != selection
+            || !matches!(
+                stage,
+                ActiveOwnerSwitchStage::ReferenceChanged {
+                    terminal_generation: persisted_terminal
+                } if persisted_terminal == terminal_generation
+            )
+        {
+            return Err(transition_rejected(
+                "persisted active reference differs from the switch reservation",
+            ));
+        }
+        let mut owner_proof = sync_read_active_core_owner_proof(&config_root)?;
+        if !matches!(
+            owner_proof.state,
+            ActiveCoreOwnerProof::Terminal {
+                ref identity,
+                bound_generation,
+                terminal_generation: proof_terminal,
+                ref token,
+            } if identity.same_instance(&owner_identity)
+                && bound_generation == owner_generation
+                && proof_terminal == terminal_generation
+                && token == &owner_token
+        ) {
+            return Err(transition_rejected(
+                "old owner has no matching persisted terminal proof",
+            ));
+        }
+        let owner_guard = try_acquire_owner_lock(&config_root)?.ok_or_else(|| {
+            transition_rejected("an active Core owner still holds the owner fence")
+        })?;
+        let mut registrations = local_owner_registrations()
+            .lock()
+            .map_err(|_| PortError::Failed("active owner registration lock is poisoned".into()))?;
+        if registrations.contains_key(&config_root) {
+            return Err(transition_rejected(
+                "this process already has an active Core owner registration",
+            ));
+        }
+        let token = next_owner_token()?;
+        owner_proof.state = ActiveCoreOwnerProof::Reserved {
+            transition_id: transition_id.clone(),
+            engine_id: engine_id.clone(),
+            token: token.clone(),
+        };
+        sync_publish_active_core_owner_proof(&config_root, &owner_proof)?;
+        record.owner = ActiveCoreOwnerState::Switching {
+            transition_id: transition_id.clone(),
+            previous_reference,
+            owner_identity,
+            owner_generation,
+            owner_token: owner_token.clone(),
+            stage: ActiveOwnerSwitchStage::BindingNew {
+                terminal_generation,
+                engine_id: engine_id.clone(),
+                token: token.clone(),
+            },
+        };
+        sync_publish_active_profile_record(&config_root, &record)?;
+        registrations.insert(
+            config_root.clone(),
+            LocalOwnerRegistration {
+                token: token.clone(),
+                state: LocalOwnerRegistrationState::Binding {
+                    transition_id: transition_id.clone(),
+                },
+                _guard: owner_guard,
+            },
+        );
+        let state = ActiveProfileOwnerSwitchState::BindingNew {
+            selection,
+            engine_id,
+        };
+        Ok(Box::new(ConfigManagerOwnerBindingLease {
+            config_root,
+            transition_id,
+            token,
+            state,
+        }))
+    }
+}
+
+struct ConfigManagerOwnerBindingLease {
+    config_root: PathBuf,
+    transition_id: ActiveOwnerToken,
+    token: ActiveOwnerToken,
+    state: ActiveProfileOwnerSwitchState,
+}
+
+#[derive(Clone, Copy)]
+enum CandidateDiscardAuthorization<'a> {
+    BeforeCoreApplication,
+    Stopped(&'a infiltrator_contract::snapshot::CoreLifecycleSnapshot),
+}
+
+async fn clear_candidate_owner_reservation(
+    config_root: PathBuf,
+    transition_id: ActiveOwnerToken,
+    token: ActiveOwnerToken,
+    selection: ActiveProfileReferenceState,
+    engine_id: EngineId,
+    authorization: CandidateDiscardAuthorization<'_>,
+) -> Result<ActiveProfileReferenceState, PortError> {
+    match authorization {
+        CandidateDiscardAuthorization::BeforeCoreApplication => {}
+        CandidateDiscardAuthorization::Stopped(terminal) => {
+            let identity = terminal
+                .identity
+                .as_ref()
+                .ok_or_else(|| transition_rejected("candidate terminal has no Core identity"))?;
+            if identity.engine != engine_id
+                || terminal.lifecycle != infiltrator_contract::snapshot::CoreLifecycle::Stopped
+                || terminal.generation != 0
+                || terminal.session_token.is_some()
+            {
+                return Err(transition_rejected(
+                    "candidate can be discarded only after a never-started Stopped readback without a session",
+                ));
+            }
+        }
+    }
+    let _root_guard = acquire_root_lock_async(config_root.clone()).await?;
+    let _owner_state_guard = acquire_owner_state_lock_async(config_root.clone()).await?;
+    let mut record = sync_read_active_profile_record(&config_root)?;
+    let (old_owner_identity, old_owner_generation, old_owner_token, old_terminal_generation) =
+        match &record.owner {
+            ActiveCoreOwnerState::Switching {
+                transition_id: persisted_id,
+                owner_identity,
+                owner_generation,
+                owner_token,
+                stage:
+                    ActiveOwnerSwitchStage::BindingNew {
+                        engine_id: persisted_engine,
+                        token: persisted_token,
+                        terminal_generation,
+                    },
+                ..
+            } if persisted_id == &transition_id
+                && persisted_engine == &engine_id
+                && persisted_token == &token =>
+            {
+                (
+                    owner_identity.clone(),
+                    *owner_generation,
+                    owner_token.clone(),
+                    *terminal_generation,
+                )
+            }
+            _ => return Err(transition_rejected("new owner reservation is stale")),
+        };
+    if record.selection != selection
+        || !local_registration_matches(
+            &config_root,
+            &token,
+            &LocalOwnerRegistrationState::Binding {
+                transition_id: transition_id.clone(),
+            },
+        )?
+    {
+        return Err(transition_rejected(
+            "candidate owner reservation does not match the persisted switch",
+        ));
+    }
+    let mut proof = sync_read_active_core_owner_proof(&config_root)?;
+    match (&proof.state, authorization) {
+        (
+            ActiveCoreOwnerProof::Reserved {
+                transition_id: persisted_id,
+                engine_id: persisted_engine,
+                token: persisted_token,
+            },
+            _,
+        ) if persisted_id == &transition_id
+            && persisted_engine == &engine_id
+            && persisted_token == &token => {}
+        (
+            ActiveCoreOwnerProof::Bound {
+                identity: proof_identity,
+                generation: proof_generation,
+                token: proof_token,
+            },
+            CandidateDiscardAuthorization::Stopped(terminal),
+        ) if terminal
+            .identity
+            .as_ref()
+            .is_some_and(|identity| proof_identity.same_instance(identity))
+            && proof_identity.engine == engine_id
+            && *proof_generation == CoreGeneration::new(terminal.generation)
+            && *proof_generation == CoreGeneration::new(0)
+            && proof_token == &token => {}
+        (
+            ActiveCoreOwnerProof::Terminal {
+                identity: proof_identity,
+                bound_generation: proof_bound_generation,
+                terminal_generation: proof_terminal_generation,
+                token: proof_token,
+            },
+            _,
+        ) if proof_identity.same_instance(&old_owner_identity)
+            && *proof_bound_generation == old_owner_generation
+            && *proof_terminal_generation == old_terminal_generation
+            && proof_token == &old_owner_token => {}
+        _ => {
+            return Err(transition_rejected(
+                "candidate owner process reservation is stale",
+            ));
+        }
+    }
+    if let Some(probe) = try_acquire_owner_lock(&config_root)? {
+        drop(probe);
+        return Err(transition_rejected(
+            "candidate owner kernel admission was lost",
+        ));
+    }
+    // Restore the exact old terminal proof before clearing the root stage.
+    // A crash between these writes therefore leaves a BindingNew marker that
+    // can still request candidate terminal evidence; it never leaves an
+    // unowned root with an unproven Reserved/Bound owner proof.
+    proof.state = ActiveCoreOwnerProof::Terminal {
+        identity: old_owner_identity,
+        bound_generation: old_owner_generation,
+        terminal_generation: old_terminal_generation,
+        token: old_owner_token,
+    };
+    sync_publish_active_core_owner_proof(&config_root, &proof)?;
+    record.owner = ActiveCoreOwnerState::Unowned;
+    sync_publish_active_profile_record(&config_root, &record)?;
+    remove_local_owner_registration(&config_root, &token)?;
+    Ok(record.selection)
+}
+
+#[async_trait::async_trait]
+impl ActiveProfileOwnerBindingLease for ConfigManagerOwnerBindingLease {
+    fn state(&self) -> &ActiveProfileOwnerSwitchState {
+        &self.state
+    }
+
+    async fn finalize(
+        self: Box<Self>,
+        identity: CoreIdentity,
+        generation: CoreGeneration,
+    ) -> Result<Box<dyn ActiveProfileOwnerLease>, PortError> {
+        let Self {
+            config_root,
+            transition_id,
+            token,
+            state,
+        } = *self;
+        let (selection, engine_id) = match state {
+            ActiveProfileOwnerSwitchState::BindingNew {
+                selection,
+                engine_id,
+            } => (selection, engine_id),
+            _ => {
+                return Err(transition_rejected(
+                    "new owner binding reservation is missing",
+                ));
+            }
+        };
+        if identity.engine != engine_id {
+            return Err(transition_rejected(
+                "new Core identity does not match the reserved engine",
+            ));
+        }
+        let _root_guard = acquire_root_lock_async(config_root.clone()).await?;
+        let _owner_state_guard = acquire_owner_state_lock_async(config_root.clone()).await?;
+        let mut record = sync_read_active_profile_record(&config_root)?;
+        let stage_token = match &record.owner {
+            ActiveCoreOwnerState::Switching {
+                transition_id: persisted_id,
+                stage:
+                    ActiveOwnerSwitchStage::BindingNew {
+                        engine_id: persisted_engine,
+                        token: persisted_token,
+                        ..
+                    },
+                ..
+            } if persisted_id == &transition_id
+                && persisted_engine == &engine_id
+                && persisted_token == &token =>
+            {
+                persisted_token.clone()
+            }
+            _ => return Err(transition_rejected("new owner reservation is stale")),
+        };
+        if record.selection != selection || stage_token != token {
+            return Err(transition_rejected(
+                "active reference changed after the new owner was reserved",
+            ));
+        }
+        if local_registration_matches(
+            &config_root,
+            &token,
+            &LocalOwnerRegistrationState::Binding {
+                transition_id: transition_id.clone(),
+            },
+        )? == false
+        {
+            return Err(transition_rejected(
+                "new owner kernel admission is no longer held by this process",
+            ));
+        }
+        let mut owner_proof = sync_read_active_core_owner_proof(&config_root)?;
+        if !matches!(
+            &owner_proof.state,
+            ActiveCoreOwnerProof::Reserved {
+                transition_id: persisted_id,
+                engine_id: persisted_engine,
+                token: persisted_token,
+            } if persisted_id == &transition_id
+                && persisted_engine == &engine_id
+                && persisted_token == &token
+        ) {
+            return Err(transition_rejected(
+                "new owner process reservation is stale",
+            ));
+        }
+        if let Some(probe) = try_acquire_owner_lock(&config_root)? {
+            drop(probe);
+            return Err(transition_rejected("new owner kernel admission was lost"));
+        }
+        owner_proof.state = ActiveCoreOwnerProof::Bound {
+            identity: identity.clone(),
+            generation,
+            token: token.clone(),
+        };
+        sync_publish_active_core_owner_proof(&config_root, &owner_proof)?;
+        record.owner = ActiveCoreOwnerState::Bound {
+            identity: identity.clone(),
+            generation,
+            token: token.clone(),
+        };
+        sync_publish_active_profile_record(&config_root, &record)?;
+        {
+            let mut registrations = local_owner_registrations().lock().map_err(|_| {
+                PortError::Failed("active owner registration lock is poisoned".into())
+            })?;
+            let registration = registrations
+                .get_mut(&config_root)
+                .filter(|registration| {
+                    registration.token == token
+                        && registration.state
+                            == (LocalOwnerRegistrationState::Binding {
+                                transition_id: transition_id.clone(),
+                            })
+                })
+                .ok_or_else(|| transition_rejected("new owner registration is stale"))?;
+            registration.state = LocalOwnerRegistrationState::Bound {
+                identity: identity.clone(),
+                generation,
+            };
+        }
         Ok(Box::new(ConfigManagerActiveCoreOwnerLease {
             identity,
             generation,
             token,
-            state: owner_state,
+            config_root,
         }))
+    }
+
+    async fn discard_unstarted_candidate(
+        self: Box<Self>,
+        terminal: &infiltrator_contract::snapshot::CoreLifecycleSnapshot,
+    ) -> Result<ActiveProfileReferenceState, PortError> {
+        let Self {
+            config_root,
+            transition_id,
+            token,
+            state,
+        } = *self;
+        let (selection, engine_id) = match state {
+            ActiveProfileOwnerSwitchState::BindingNew {
+                selection,
+                engine_id,
+            } => (selection, engine_id),
+            _ => {
+                return Err(transition_rejected(
+                    "new owner binding reservation is missing",
+                ));
+            }
+        };
+        clear_candidate_owner_reservation(
+            config_root,
+            transition_id,
+            token,
+            selection,
+            engine_id,
+            CandidateDiscardAuthorization::Stopped(terminal),
+        )
+        .await
+    }
+
+    async fn abort_before_core_application(
+        self: Box<Self>,
+    ) -> Result<ActiveProfileReferenceState, PortError> {
+        let Self {
+            config_root,
+            transition_id,
+            token,
+            state,
+        } = *self;
+        let (selection, engine_id) = match state {
+            ActiveProfileOwnerSwitchState::BindingNew {
+                selection,
+                engine_id,
+            } => (selection, engine_id),
+            _ => {
+                return Err(transition_rejected(
+                    "new owner binding reservation is missing",
+                ));
+            }
+        };
+        clear_candidate_owner_reservation(
+            config_root,
+            transition_id,
+            token,
+            selection,
+            engine_id,
+            CandidateDiscardAuthorization::BeforeCoreApplication,
+        )
+        .await
     }
 }
 
@@ -234,8 +2151,21 @@ impl<S: SecureStore> ConfigManager<S> {
         self.config_root.join(ACTIVE_PROFILE_REFERENCE_FILE)
     }
 
-    fn active_profile_reference_boundary(&self) -> Result<Arc<tokio::sync::Mutex<()>>, PortError> {
-        shared_boundary(&self.config_root).map_err(|error| PortError::Io(error.to_string()))
+    async fn canonical_config_root(&self) -> Result<PathBuf, PortError> {
+        tokio::fs::create_dir_all(&self.config_root)
+            .await
+            .map_err(lock_error)?;
+        tokio::fs::canonicalize(&self.config_root)
+            .await
+            .map_err(lock_error)
+    }
+
+    async fn acquire_active_profile_reference_lock(
+        &self,
+    ) -> Result<(PathBuf, ThreadedInstanceLockGuard), PortError> {
+        let config_root = self.canonical_config_root().await?;
+        let guard = acquire_root_lock_async(config_root.clone()).await?;
+        Ok((config_root, guard))
     }
 
     async fn read_active_profile_record_unlocked(
@@ -257,7 +2187,7 @@ impl<S: SecureStore> ConfigManager<S> {
     ) -> Result<(), PortError> {
         let text = serde_json::to_string_pretty(record)
             .map_err(|error| PortError::Io(error.to_string()))?;
-        write_document(&self.active_profile_reference_path(), &text).await
+        write_document_bytes_durable(&self.active_profile_reference_path(), text.as_bytes()).await
     }
 
     async fn publish_active_profile_record_unlocked(
@@ -284,10 +2214,23 @@ impl<S: SecureStore> ConfigManager<S> {
     ) -> Result<ActiveProfileReferenceState, PortError> {
         self.initialize_profile_namespace()
             .await
-            .map_err(|error| PortError::Io(error.to_string()))?;
-        let boundary = self.active_profile_reference_boundary()?;
-        let _guard = Arc::clone(&boundary).lock_owned().await;
+            .map_err(profile_namespace_initialization_error)?;
+        let (_config_root, _guard) = self.acquire_active_profile_reference_lock().await?;
+        ensure_no_pending_reset_in_engine_namespaces(
+            &_config_root,
+            ActiveProfileResetMutationAccess::OrdinaryMutation,
+        )
+        .await?;
         let mut record = self.read_active_profile_record_unlocked().await?;
+        let (owner_state, owner_state_guard) = self
+            .normalize_owner_state_unlocked(&mut record, _config_root.as_path())
+            .await?;
+        if !matches!(owner_state, ActiveCoreOwnerState::Unowned) {
+            return Err(transition_rejected(
+                "legacy active-profile migration cannot run while a Core owner is bound",
+            ));
+        }
+        drop(owner_state_guard);
         if !matches!(
             record.legacy_migration,
             LegacySelectionMigration::PendingDesktopMihomoV0
@@ -363,164 +2306,129 @@ impl<S: SecureStore> ConfigManager<S> {
         Ok((engine_id, profile_id))
     }
 
-    /// Update the global Core selector while holding the root selection lock.
-    /// The legacy namespaced pointer is retained only as migration input.
-    pub(crate) async fn set_current_with_active_reference(
+    async fn normalize_owner_state_unlocked(
         &self,
-        profile: &str,
-    ) -> Result<(), PortError> {
-        self.initialize_profile_namespace()
-            .await
-            .map_err(|error| PortError::Io(error.to_string()))?;
-        let profile_id = ProfileId::new(profile.to_owned()).map_err(|error| {
-            PortError::Rejected(Failure::new(
-                ErrorCode::InvalidState,
-                error.to_string(),
-                false,
-            ))
-        })?;
-        let boundary = self.active_profile_reference_boundary()?;
-        let _guard = Arc::clone(&boundary).lock_owned().await;
-        let workspace = self.read_workspace(&profile_id).await?;
-        if workspace.document.identity.engine_id != crate::engine_id()
-            || workspace.document.identity.profile_id != profile_id
-        {
-            return Err(PortError::Rejected(Failure::new(
-                ErrorCode::NotReady,
-                "selected profile document identity does not match its engine namespace",
-                false,
-            )));
+        record: &mut ActiveProfileReferenceRecord,
+        config_root: &Path,
+    ) -> Result<(ActiveCoreOwnerState, ThreadedInstanceLockGuard), PortError> {
+        if matches!(&record.owner, ActiveCoreOwnerState::Switching { .. }) {
+            return Err(transition_rejected(
+                "an active Core owner switch is in progress",
+            ));
         }
-        let mut record = self.read_active_profile_record_unlocked().await?;
-        let target = ActiveProfileReferenceTarget::selected(crate::engine_id(), profile_id);
-        self.ensure_owner_allows_target(&target)?;
-        let revision = record
-            .selection
-            .revision()
-            .next()
-            .ok_or_else(|| PortError::Failed("active-profile revision exhausted".into()))?;
-        record.selection = match target {
-            ActiveProfileReferenceTarget::Unselected => {
-                ActiveProfileReferenceState::Unselected { revision }
+        // Fixed multi-lock order: root reference lock is already held by the
+        // caller, then acquire owner-state. Terminal release takes only the
+        // latter and never waits for the root lock. Polling is cancellation
+        // safe; no detached worker may later normalize a record after its
+        // caller has released the root fence.
+        let owner_state_guard = acquire_owner_state_lock_async(config_root.to_path_buf()).await?;
+        let mut normalized = record.clone();
+        let owner_proof = sync_read_active_core_owner_proof(config_root)?;
+        let owner_probe = try_acquire_owner_lock(config_root)?;
+        let owner_state = match (normalized.owner.clone(), owner_probe) {
+            (ActiveCoreOwnerState::Unowned, Some(probe)) => {
+                drop(probe);
+                match &owner_proof.state {
+                    ActiveCoreOwnerProof::Unowned | ActiveCoreOwnerProof::Terminal { .. } => {
+                        ActiveCoreOwnerState::Unowned
+                    }
+                    ActiveCoreOwnerProof::Bound { .. } | ActiveCoreOwnerProof::Reserved { .. } => {
+                        return Err(transition_rejected(
+                            "unowned active reference has an orphaned live-owner proof; explicit terminal recovery is required",
+                        ));
+                    }
+                }
             }
-            ActiveProfileReferenceTarget::Selected {
-                engine_id,
-                profile_id,
-            } => ActiveProfileReferenceState::Selected(ActiveProfileReference::new(
-                engine_id, profile_id, revision,
-            )),
-        };
-        record.legacy_migration = LegacySelectionMigration::ExplicitSelection;
-        self.publish_active_profile_record_unlocked(&record)
-            .await
-            .map(|_| ())
-    }
-
-    fn ensure_owner_allows_target(
-        &self,
-        target: &ActiveProfileReferenceTarget,
-    ) -> Result<(), PortError> {
-        let owner_state = owner_state_boundary(&self.config_root);
-        let owner = owner_state
-            .lock()
-            .map_err(|_| PortError::Failed("active Core owner state lock is poisoned".into()))?;
-        match (&*owner, target) {
-            (ActiveCoreOwnerState::Unowned, _) => Ok(()),
+            (ActiveCoreOwnerState::Unowned, None) => {
+                return Err(transition_rejected(
+                    "active Core owner lock is held without a persisted owner binding",
+                ));
+            }
             (
                 ActiveCoreOwnerState::Bound {
                     identity,
                     generation,
-                    ..
+                    token,
                 },
-                ActiveProfileReferenceTarget::Selected { engine_id, .. },
-            ) if engine_id == &identity.engine => Ok(()),
-            (
-                ActiveCoreOwnerState::Bound {
-                    identity,
-                    generation,
-                    ..
-                },
-                _,
-            ) => Err(PortError::Rejected(Failure::new(
-                ErrorCode::NotReady,
-                format!(
-                    "active Core {} at generation {} must reach terminal before changing its engine selection",
-                    identity.instance.as_str(),
-                    generation.value()
-                ),
-                true,
-            ))),
-        }
-    }
-}
-
-#[async_trait::async_trait]
-impl<S: SecureStore> ActiveProfileReferenceStore for ConfigManager<S> {
-    async fn read(&self) -> Result<ActiveProfileReferenceState, PortError> {
-        let boundary = self.active_profile_reference_boundary()?;
-        let _guard = boundary.lock().await;
-        Ok(self.read_active_profile_record_unlocked().await?.selection)
-    }
-
-    async fn acquire_selection_lease(
-        &self,
-    ) -> Result<Box<dyn ActiveProfileReferenceLease>, PortError> {
-        let boundary = self.active_profile_reference_boundary()?;
-        let guard = Arc::clone(&boundary).lock_owned().await;
-        let state = self.read_active_profile_record_unlocked().await?.selection;
-        Ok(Box::new(ConfigManagerSelectionLease {
-            state,
-            _guard: guard,
-            owner_state: owner_state_boundary(&self.config_root),
-        }))
-    }
-
-    async fn acquire_provider_selection_lease(
-        &self,
-    ) -> Result<Box<dyn ActiveProfileReferenceLease>, PortError> {
-        let boundary = self.active_profile_reference_boundary()?;
-        let guard = Arc::clone(&boundary).lock_owned().await;
-        let owner_state = owner_state_boundary(&self.config_root);
-        let active_owner = {
-            let owner = owner_state.lock().map_err(|_| {
-                PortError::Failed("active Core owner state lock is poisoned".into())
-            })?;
-            match &*owner {
-                ActiveCoreOwnerState::Bound {
-                    identity,
-                    generation,
-                    ..
-                } => Some((identity.clone(), *generation)),
-                ActiveCoreOwnerState::Unowned => None,
+                None,
+            ) => match &owner_proof.state {
+                ActiveCoreOwnerProof::Bound {
+                    identity: proof_identity,
+                    generation: proof_generation,
+                    token: proof_token,
+                } if proof_identity.same_instance(&identity)
+                    && proof_generation == &generation
+                    && proof_token == &token =>
+                {
+                    normalized.owner.clone()
+                }
+                _ => {
+                    return Err(transition_rejected(
+                        "active Core owner lock and persisted owner binding disagree",
+                    ));
+                }
+            },
+            (ActiveCoreOwnerState::Bound { .. }, Some(probe)) => {
+                drop(probe);
+                match &owner_proof.state {
+                    ActiveCoreOwnerProof::Terminal {
+                        identity: proof_identity,
+                        bound_generation: proof_bound_generation,
+                        terminal_generation,
+                        token: proof_token,
+                    } if matches!(
+                        &normalized.owner,
+                        ActiveCoreOwnerState::Bound {
+                            identity,
+                            generation,
+                            token,
+                        } if proof_identity.same_instance(identity)
+                            && proof_bound_generation == generation
+                            && proof_token == token
+                            && terminal_generation >= generation
+                    ) =>
+                    {
+                        normalized.owner = ActiveCoreOwnerState::Unowned;
+                        sync_publish_active_profile_record(config_root, &normalized)?;
+                        ActiveCoreOwnerState::Unowned
+                    }
+                    ActiveCoreOwnerProof::Bound { .. } => {
+                        return Err(transition_rejected(
+                            "active Core owner exited without exact terminal proof; explicit platform recovery is required",
+                        ));
+                    }
+                    ActiveCoreOwnerProof::Unowned
+                    | ActiveCoreOwnerProof::Terminal { .. }
+                    | ActiveCoreOwnerProof::Reserved { .. } => {
+                        return Err(transition_rejected(
+                            "active Core owner record and terminal proof disagree",
+                        ));
+                    }
+                }
+            }
+            (ActiveCoreOwnerState::Switching { .. }, _) => {
+                return Err(transition_rejected(
+                    "an active Core owner switch is in progress",
+                ));
             }
         };
-        if let Some((identity, generation)) = active_owner {
-            return Err(PortError::Rejected(Failure::new(
-                ErrorCode::NotReady,
-                format!(
-                    "active Core {} at generation {} must close before another provider is composed",
-                    identity.instance.as_str(),
-                    generation.value()
-                ),
-                true,
-            )));
-        }
-        let state = self.read_active_profile_record_unlocked().await?.selection;
-        Ok(Box::new(ConfigManagerSelectionLease {
-            state,
-            _guard: guard,
-            owner_state,
-        }))
+        *record = normalized;
+        Ok((owner_state, owner_state_guard))
     }
 
-    async fn compare_and_set(
+    async fn compare_and_set_record_unlocked(
         &self,
+        record: &mut ActiveProfileReferenceRecord,
         expected_revision: ActiveProfileReferenceRevision,
         target: ActiveProfileReferenceTarget,
+        authorization: ActiveProfileReferenceWriteAuthorization,
+        config_root: &Path,
     ) -> Result<ActiveProfileReferenceState, PortError> {
-        let boundary = self.active_profile_reference_boundary()?;
-        let _guard = boundary.lock().await;
-        let mut record = self.read_active_profile_record_unlocked().await?;
+        ensure_no_pending_reset_in_engine_namespaces(
+            config_root,
+            ActiveProfileResetMutationAccess::OrdinaryMutation,
+        )
+        .await?;
         if record.selection.revision() != expected_revision {
             return Err(PortError::Rejected(Failure::new(
                 ErrorCode::NotReady,
@@ -528,7 +2436,59 @@ impl<S: SecureStore> ActiveProfileReferenceStore for ConfigManager<S> {
                 true,
             )));
         }
-        self.ensure_owner_allows_target(&target)?;
+        let (owner_state, _owner_state_guard) = self
+            .normalize_owner_state_unlocked(record, config_root)
+            .await?;
+        validate_reference_write_authorization(&owner_state, &authorization, config_root)?;
+        if let ActiveProfileReferenceTarget::Selected {
+            engine_id,
+            profile_id,
+        } = &target
+            && engine_id == &crate::engine_id()
+        {
+            let workspace = ProfileStore::load_workspace(self, profile_id).await?;
+            if workspace.document.identity.engine_id != *engine_id
+                || workspace.document.identity.profile_id != *profile_id
+            {
+                return Err(PortError::Rejected(Failure::new(
+                    ErrorCode::NotReady,
+                    "selected profile document identity differs from the active reference target",
+                    false,
+                )));
+            }
+        }
+        match (&owner_state, &target) {
+            (ActiveCoreOwnerState::Unowned, _) => {}
+            (
+                ActiveCoreOwnerState::Bound { identity, .. },
+                ActiveProfileReferenceTarget::Selected { engine_id, .. },
+            ) if engine_id == &identity.engine => {}
+            (
+                ActiveCoreOwnerState::Bound {
+                    identity,
+                    generation,
+                    ..
+                },
+                _,
+            ) => {
+                return Err(PortError::Rejected(Failure::new(
+                    ErrorCode::NotReady,
+                    format!(
+                        "active Core {} at generation {} must reach terminal before changing its engine selection",
+                        identity.instance.as_str(),
+                        generation.value()
+                    ),
+                    true,
+                )));
+            }
+            (ActiveCoreOwnerState::Switching { .. }, _) => {
+                return Err(PortError::Rejected(Failure::new(
+                    ErrorCode::NotReady,
+                    "an active Core owner switch is in progress",
+                    true,
+                )));
+            }
+        }
         let revision = expected_revision
             .next()
             .ok_or_else(|| PortError::Failed("active-profile revision exhausted".into()))?;
@@ -544,15 +2504,1935 @@ impl<S: SecureStore> ActiveProfileReferenceStore for ConfigManager<S> {
             )),
         };
         record.legacy_migration = LegacySelectionMigration::ExplicitSelection;
-        self.publish_active_profile_record_unlocked(&record).await
+        sync_publish_active_profile_record(config_root, record)?;
+        Ok(record.selection.clone())
     }
+}
+
+#[async_trait::async_trait]
+impl<S: SecureStore> ActiveProfileReferenceStore for ConfigManager<S> {
+    async fn read(&self) -> Result<ActiveProfileReferenceState, PortError> {
+        Ok(self.read_active_profile_record_unlocked().await?.selection)
+    }
+
+    async fn acquire_selection_lease(
+        &self,
+    ) -> Result<Box<dyn ActiveProfileReferenceLease>, PortError> {
+        self.initialize_profile_namespace()
+            .await
+            .map_err(profile_namespace_initialization_error)?;
+        let (config_root, guard) = self.acquire_active_profile_reference_lock().await?;
+        ensure_no_pending_reset_in_engine_namespaces(
+            &config_root,
+            ActiveProfileResetMutationAccess::OrdinaryMutation,
+        )
+        .await?;
+        let mut record = self.read_active_profile_record_unlocked().await?;
+        let (_owner_state, _owner_state_guard) = self
+            .normalize_owner_state_unlocked(&mut record, &config_root)
+            .await?;
+        Ok(Box::new(ConfigManagerSelectionLease {
+            state: record.selection,
+            config_root,
+            _guard: guard,
+        }))
+    }
+
+    async fn acquire_provider_selection_lease(
+        &self,
+    ) -> Result<Box<dyn ActiveProfileReferenceLease>, PortError> {
+        self.initialize_profile_namespace()
+            .await
+            .map_err(profile_namespace_initialization_error)?;
+        let (config_root, guard) = self.acquire_active_profile_reference_lock().await?;
+        ensure_no_pending_reset_in_engine_namespaces(
+            &config_root,
+            ActiveProfileResetMutationAccess::OrdinaryMutation,
+        )
+        .await?;
+        let mut record = self.read_active_profile_record_unlocked().await?;
+        let (owner_state, _owner_state_guard) = self
+            .normalize_owner_state_unlocked(&mut record, &config_root)
+            .await?;
+        if let ActiveCoreOwnerState::Bound {
+            identity,
+            generation,
+            ..
+        } = owner_state
+        {
+            return Err(PortError::Rejected(Failure::new(
+                ErrorCode::NotReady,
+                format!(
+                    "active Core {} at generation {} must close before another provider is composed",
+                    identity.instance.as_str(),
+                    generation.value()
+                ),
+                true,
+            )));
+        }
+        Ok(Box::new(ConfigManagerSelectionLease {
+            state: record.selection,
+            config_root,
+            _guard: guard,
+        }))
+    }
+
+    async fn recover_bound_owner_after_terminal(
+        &self,
+        terminal: &infiltrator_contract::snapshot::CoreLifecycleSnapshot,
+    ) -> Result<ActiveProfileReferenceState, PortError> {
+        let (config_root, _root_guard) = self.acquire_active_profile_reference_lock().await?;
+        let _owner_state_guard = acquire_owner_state_lock_async(config_root.clone()).await?;
+        let mut record = sync_read_active_profile_record(&config_root)?;
+        let mut proof = sync_read_active_core_owner_proof(&config_root)?;
+        let (identity, bound_generation, token, record_position, proof_position) =
+            match (record.owner.clone(), proof.state.clone()) {
+                (
+                    ActiveCoreOwnerState::Bound {
+                        identity,
+                        generation,
+                        token,
+                    },
+                    ActiveCoreOwnerProof::Bound {
+                        identity: proof_identity,
+                        generation: proof_generation,
+                        token: proof_token,
+                    },
+                ) if identity.same_instance(&proof_identity)
+                    && generation == proof_generation
+                    && token == proof_token =>
+                {
+                    (
+                        identity,
+                        generation,
+                        token,
+                        OwnerRecoveryRecordPosition::Bound,
+                        OwnerRecoveryProofPosition::Bound,
+                    )
+                }
+                (
+                    ActiveCoreOwnerState::Bound {
+                        identity,
+                        generation,
+                        token,
+                    },
+                    ActiveCoreOwnerProof::Terminal {
+                        identity: proof_identity,
+                        bound_generation: proof_bound_generation,
+                        terminal_generation,
+                        token: proof_token,
+                    },
+                ) if identity.same_instance(&proof_identity)
+                    && generation == proof_bound_generation
+                    && token == proof_token =>
+                {
+                    (
+                        identity,
+                        generation,
+                        token,
+                        OwnerRecoveryRecordPosition::Bound,
+                        OwnerRecoveryProofPosition::Terminal {
+                            terminal_generation,
+                        },
+                    )
+                }
+                (
+                    ActiveCoreOwnerState::Unowned,
+                    ActiveCoreOwnerProof::Bound {
+                        identity,
+                        generation,
+                        token,
+                    },
+                ) => (
+                    identity,
+                    generation,
+                    token,
+                    OwnerRecoveryRecordPosition::Unowned,
+                    OwnerRecoveryProofPosition::Bound,
+                ),
+                (
+                    ActiveCoreOwnerState::Unowned,
+                    ActiveCoreOwnerProof::Terminal {
+                        identity,
+                        bound_generation,
+                        terminal_generation,
+                        token,
+                    },
+                ) => (
+                    identity,
+                    bound_generation,
+                    token,
+                    OwnerRecoveryRecordPosition::Unowned,
+                    OwnerRecoveryProofPosition::Terminal {
+                        terminal_generation,
+                    },
+                ),
+                _ => {
+                    return Err(transition_rejected(
+                        "no recoverable bound owner proof is present",
+                    ));
+                }
+            };
+        let terminal_generation =
+            validate_terminal_for_owner(terminal, &identity, bound_generation)?;
+        if matches!(record_position, OwnerRecoveryRecordPosition::Unowned)
+            && matches!(proof_position, OwnerRecoveryProofPosition::Bound)
+            && terminal_generation != CoreGeneration::new(0)
+        {
+            return Err(transition_rejected(
+                "a partially published owner binding can recover only from a never-started terminal snapshot",
+            ));
+        }
+        if let OwnerRecoveryProofPosition::Terminal {
+            terminal_generation: persisted_generation,
+        } = proof_position
+        {
+            if persisted_generation != terminal_generation {
+                return Err(transition_rejected(
+                    "owner terminal snapshot differs from its persisted exact proof",
+                ));
+            }
+        }
+        if local_owner_registration_state(&config_root, &token)?.is_some() {
+            return Err(transition_rejected(
+                "owner is still registered in this process; use its live owner lease",
+            ));
+        }
+        let owner_probe = try_acquire_owner_lock(&config_root)?.ok_or_else(|| {
+            transition_rejected("owner process still holds the active owner fence")
+        })?;
+        drop(owner_probe);
+
+        if matches!(proof_position, OwnerRecoveryProofPosition::Bound) {
+            proof.state = ActiveCoreOwnerProof::Terminal {
+                identity: identity.clone(),
+                bound_generation,
+                terminal_generation,
+                token: token.clone(),
+            };
+            sync_publish_active_core_owner_proof(&config_root, &proof)?;
+        }
+        if matches!(record_position, OwnerRecoveryRecordPosition::Bound) {
+            record.owner = ActiveCoreOwnerState::Unowned;
+            sync_publish_active_profile_record(&config_root, &record)?;
+        }
+        Ok(record.selection)
+    }
+
+    async fn compare_and_set(
+        &self,
+        expected_revision: ActiveProfileReferenceRevision,
+        target: ActiveProfileReferenceTarget,
+        authorization: ActiveProfileReferenceWriteAuthorization,
+    ) -> Result<ActiveProfileReferenceState, PortError> {
+        self.initialize_profile_namespace()
+            .await
+            .map_err(profile_namespace_initialization_error)?;
+        let (config_root, _guard) = self.acquire_active_profile_reference_lock().await?;
+        let mut record = self.read_active_profile_record_unlocked().await?;
+        self.compare_and_set_record_unlocked(
+            &mut record,
+            expected_revision,
+            target,
+            authorization,
+            &config_root,
+        )
+        .await
+    }
+
+    async fn begin_owner_switch(
+        &self,
+        expected_revision: ActiveProfileReferenceRevision,
+        expected_owner: CoreIdentity,
+        expected_binding_generation: CoreGeneration,
+    ) -> Result<Box<dyn ActiveProfileOwnerSwitchLease>, PortError> {
+        let (config_root, _guard) = self.acquire_active_profile_reference_lock().await?;
+        ensure_no_pending_reset_in_engine_namespaces(
+            &config_root,
+            ActiveProfileResetMutationAccess::OrdinaryMutation,
+        )
+        .await?;
+        let mut record = self.read_active_profile_record_unlocked().await?;
+        // Multi-lock order is always root reference lock, then owner-state
+        // lock. Terminal release takes only owner-state and never waits for
+        // the root lock.
+        let _owner_state_guard = acquire_owner_state_lock_async(config_root.clone()).await?;
+        if record.selection.revision() != expected_revision {
+            return Err(PortError::Rejected(Failure::new(
+                ErrorCode::NotReady,
+                "active profile reference revision is stale",
+                true,
+            )));
+        }
+        let (owner_identity, owner_generation, owner_token) = match &record.owner {
+            ActiveCoreOwnerState::Bound {
+                identity,
+                generation,
+                token,
+            } if identity.same_instance(&expected_owner)
+                && *generation == expected_binding_generation =>
+            {
+                (identity.clone(), *generation, token.clone())
+            }
+            ActiveCoreOwnerState::Bound {
+                identity,
+                generation,
+                ..
+            } => {
+                return Err(PortError::Rejected(Failure::new(
+                    ErrorCode::NotReady,
+                    format!(
+                        "active Core owner {}/{} at generation {} does not match switch request",
+                        identity.engine.as_str(),
+                        identity.instance.as_str(),
+                        generation.value()
+                    ),
+                    true,
+                )));
+            }
+            ActiveCoreOwnerState::Unowned => {
+                return Err(PortError::Rejected(Failure::new(
+                    ErrorCode::NotReady,
+                    "owner switching requires a currently bound Core owner",
+                    true,
+                )));
+            }
+            ActiveCoreOwnerState::Switching { .. } => {
+                return Err(PortError::Rejected(Failure::new(
+                    ErrorCode::NotReady,
+                    "an active Core owner switch is already in progress",
+                    true,
+                )));
+            }
+        };
+        let owner_probe = try_acquire_owner_lock(&config_root)?;
+        if owner_probe.is_some() {
+            return Err(PortError::Rejected(Failure::new(
+                ErrorCode::NotReady,
+                "persisted owner binding has no live kernel owner lock",
+                true,
+            )));
+        }
+        let proof = sync_read_active_core_owner_proof(&config_root)?;
+        if !matches!(
+            proof.state,
+            ActiveCoreOwnerProof::Bound {
+                ref identity,
+                generation,
+                ref token,
+            } if identity.same_instance(&owner_identity)
+                && generation == owner_generation
+                && token == &owner_token
+        ) {
+            return Err(transition_rejected(
+                "persisted owner proof does not match the active owner binding",
+            ));
+        }
+        if !local_registration_matches(
+            &config_root,
+            &owner_token,
+            &LocalOwnerRegistrationState::Bound {
+                identity: owner_identity.clone(),
+                generation: owner_generation,
+            },
+        )? {
+            return Err(PortError::Rejected(Failure::new(
+                ErrorCode::NotReady,
+                "only the process holding the old Core owner can reserve its switch",
+                true,
+            )));
+        }
+        let transition_id = next_owner_token()?;
+        let previous_reference = record.selection.clone();
+        record.owner = ActiveCoreOwnerState::Switching {
+            transition_id: transition_id.clone(),
+            previous_reference: previous_reference.clone(),
+            owner_identity: owner_identity.clone(),
+            owner_generation,
+            owner_token: owner_token.clone(),
+            stage: ActiveOwnerSwitchStage::ClosingOld,
+        };
+        sync_publish_active_profile_record(&config_root, &record)?;
+        {
+            let mut registrations = local_owner_registrations().lock().map_err(|_| {
+                PortError::Failed("active owner registration lock is poisoned".into())
+            })?;
+            let registration = registrations
+                .get_mut(&config_root)
+                .filter(|registration| registration.token == owner_token)
+                .ok_or_else(|| transition_rejected("active owner registration is stale"))?;
+            registration.state = LocalOwnerRegistrationState::Switching {
+                transition_id: transition_id.clone(),
+                identity: owner_identity.clone(),
+                generation: owner_generation,
+            };
+        }
+        let state = ActiveProfileOwnerSwitchState::ClosingOld {
+            previous_reference,
+            owner_identity,
+            owner_generation,
+        };
+        Ok(Box::new(ConfigManagerOwnerSwitchLease {
+            config_root,
+            transition_id,
+            expected_owner,
+            expected_generation: expected_binding_generation,
+            state,
+        }))
+    }
+
+    async fn recover_owner_switch(&self) -> Result<ActiveProfileOwnerSwitchRecovery, PortError> {
+        let (config_root, _root_guard) = self.acquire_active_profile_reference_lock().await?;
+        let _owner_state_guard = acquire_owner_state_lock_async(config_root.clone()).await?;
+        let mut record = sync_read_active_profile_record(&config_root)?;
+        let (
+            transition_id,
+            previous_reference,
+            owner_identity,
+            owner_generation,
+            owner_token,
+            stage,
+        ) = match &record.owner {
+            ActiveCoreOwnerState::Switching {
+                transition_id,
+                previous_reference,
+                owner_identity,
+                owner_generation,
+                owner_token,
+                stage,
+            } => (
+                transition_id.clone(),
+                previous_reference.clone(),
+                owner_identity.clone(),
+                *owner_generation,
+                owner_token.clone(),
+                stage.clone(),
+            ),
+            ActiveCoreOwnerState::Unowned | ActiveCoreOwnerState::Bound { .. } => {
+                return Ok(ActiveProfileOwnerSwitchRecovery::NoPendingSwitch);
+            }
+        };
+        match stage {
+            ActiveOwnerSwitchStage::ClosingOld => match try_acquire_owner_lock(&config_root)? {
+                None => {
+                    let local_recovery = recover_local_switch_registration(
+                        &config_root,
+                        &owner_token,
+                        &transition_id,
+                        &owner_identity,
+                        owner_generation,
+                    )?;
+                    if !matches!(
+                        local_recovery,
+                        LocalSwitchRegistrationRecovery::NotHeldByThisOwner
+                    ) {
+                        let state = ActiveProfileOwnerSwitchState::ClosingOld {
+                            previous_reference,
+                            owner_identity: owner_identity.clone(),
+                            owner_generation,
+                        };
+                        return Ok(ActiveProfileOwnerSwitchRecovery::ResumeClosingOld(
+                            Box::new(ConfigManagerOwnerSwitchLease {
+                                config_root,
+                                transition_id,
+                                expected_owner: owner_identity,
+                                expected_generation: owner_generation,
+                                state,
+                            }),
+                        ));
+                    }
+                    Ok(ActiveProfileOwnerSwitchRecovery::OwnerStillLive {
+                        identity: owner_identity,
+                        generation: owner_generation,
+                    })
+                }
+                Some(owner_probe) => {
+                    drop(owner_probe);
+                    let proof = sync_read_active_core_owner_proof(&config_root)?;
+                    match terminal_proof_generation(
+                        &proof,
+                        &owner_identity,
+                        owner_generation,
+                        &owner_token,
+                    ) {
+                        Ok(terminal_generation) => {
+                            record.owner = ActiveCoreOwnerState::Switching {
+                                transition_id: transition_id.clone(),
+                                previous_reference: previous_reference.clone(),
+                                owner_identity: owner_identity.clone(),
+                                owner_generation,
+                                owner_token,
+                                stage: ActiveOwnerSwitchStage::OldStopped {
+                                    terminal_generation,
+                                },
+                            };
+                            sync_publish_active_profile_record(&config_root, &record)?;
+                            let state = ActiveProfileOwnerSwitchState::OldStopped {
+                                previous_reference,
+                                owner_identity,
+                                owner_generation,
+                                terminal_generation,
+                            };
+                            Ok(ActiveProfileOwnerSwitchRecovery::ResumeOldStopped(
+                                Box::new(ConfigManagerOwnerStoppedSwitchLease {
+                                    config_root,
+                                    transition_id,
+                                    state,
+                                }),
+                            ))
+                        }
+                        Err(_) => Ok(
+                            ActiveProfileOwnerSwitchRecovery::OwnerTerminalEvidenceRequired {
+                                identity: owner_identity,
+                                bound_generation: owner_generation,
+                            },
+                        ),
+                    }
+                }
+            },
+            ActiveOwnerSwitchStage::OldStopped {
+                terminal_generation,
+            } => {
+                let proof = sync_read_active_core_owner_proof(&config_root)?;
+                let proven_generation = terminal_proof_generation(
+                    &proof,
+                    &owner_identity,
+                    owner_generation,
+                    &owner_token,
+                )?;
+                if proven_generation != terminal_generation {
+                    return Err(transition_rejected(
+                        "persisted old-owner terminal generation differs from its proof",
+                    ));
+                }
+                if try_acquire_owner_lock(&config_root)?.is_none() {
+                    return Ok(ActiveProfileOwnerSwitchRecovery::OwnerStillLive {
+                        identity: owner_identity,
+                        generation: owner_generation,
+                    });
+                }
+                let state = ActiveProfileOwnerSwitchState::OldStopped {
+                    previous_reference,
+                    owner_identity,
+                    owner_generation,
+                    terminal_generation,
+                };
+                Ok(ActiveProfileOwnerSwitchRecovery::ResumeOldStopped(
+                    Box::new(ConfigManagerOwnerStoppedSwitchLease {
+                        config_root,
+                        transition_id,
+                        state,
+                    }),
+                ))
+            }
+            ActiveOwnerSwitchStage::ReferenceChanged {
+                terminal_generation,
+            } => {
+                let owner_probe = try_acquire_owner_lock(&config_root)?;
+                let Some(owner_probe) = owner_probe else {
+                    return Ok(ActiveProfileOwnerSwitchRecovery::OwnerStillLive {
+                        identity: owner_identity,
+                        generation: owner_generation,
+                    });
+                };
+                drop(owner_probe);
+                let mut proof = sync_read_active_core_owner_proof(&config_root)?;
+                let proven_generation = match terminal_proof_generation(
+                    &proof,
+                    &owner_identity,
+                    owner_generation,
+                    &owner_token,
+                ) {
+                    Ok(proven_generation) => proven_generation,
+                    Err(_) => {
+                        // `reserve_new_owner` persists its kernel admission
+                        // proof before advancing the root record to
+                        // BindingNew. If a process dies between those writes,
+                        // this ReferenceChanged stage proves provider
+                        // dispatch never received a lease. Restore the old
+                        // terminal proof so the durable CAS stage can resume.
+                        let selected_engine = match &record.selection {
+                            ActiveProfileReferenceState::Selected(reference) => {
+                                &reference.engine_id
+                            }
+                            ActiveProfileReferenceState::Unselected { .. } => {
+                                return Err(transition_rejected(
+                                    "reference-changed owner switch has no selected engine",
+                                ));
+                            }
+                        };
+                        if !matches!(
+                            &proof.state,
+                            ActiveCoreOwnerProof::Reserved {
+                                transition_id: proof_transition,
+                                engine_id: proof_engine,
+                                ..
+                            } if proof_transition == &transition_id
+                                && proof_engine == selected_engine
+                        ) {
+                            return Err(transition_rejected(
+                                "persisted owner terminal generation differs from its proof",
+                            ));
+                        }
+                        proof.state = ActiveCoreOwnerProof::Terminal {
+                            identity: owner_identity.clone(),
+                            bound_generation: owner_generation,
+                            terminal_generation,
+                            token: owner_token.clone(),
+                        };
+                        sync_publish_active_core_owner_proof(&config_root, &proof)?;
+                        terminal_generation
+                    }
+                };
+                if proven_generation != terminal_generation {
+                    return Err(transition_rejected(
+                        "persisted owner terminal generation differs from its proof",
+                    ));
+                }
+                let state = ActiveProfileOwnerSwitchState::ReferenceChanged {
+                    previous_reference,
+                    selection: record.selection,
+                    owner_identity,
+                    terminal_generation,
+                };
+                Ok(ActiveProfileOwnerSwitchRecovery::ResumeReferenceChanged(
+                    Box::new(ConfigManagerReferenceChangedLease {
+                        config_root,
+                        transition_id,
+                        state,
+                    }),
+                ))
+            }
+            ActiveOwnerSwitchStage::BindingNew {
+                engine_id, token, ..
+            } => match try_acquire_owner_lock(&config_root)? {
+                None => {
+                    let local_state = LocalOwnerRegistrationState::Binding {
+                        transition_id: transition_id.clone(),
+                    };
+                    if local_registration_matches(&config_root, &token, &local_state)? {
+                        let state = ActiveProfileOwnerSwitchState::BindingNew {
+                            selection: record.selection,
+                            engine_id,
+                        };
+                        Ok(ActiveProfileOwnerSwitchRecovery::ResumeBindingNew(
+                            Box::new(ConfigManagerOwnerBindingLease {
+                                config_root,
+                                transition_id,
+                                token,
+                                state,
+                            }),
+                        ))
+                    } else {
+                        Ok(ActiveProfileOwnerSwitchRecovery::CandidateStillLive { engine_id })
+                    }
+                }
+                Some(owner_probe) => {
+                    drop(owner_probe);
+                    Ok(
+                        ActiveProfileOwnerSwitchRecovery::CandidateTerminalEvidenceRequired {
+                            selection: record.selection,
+                            engine_id,
+                        },
+                    )
+                }
+            },
+        }
+    }
+
+    async fn recover_old_owner_after_terminal(
+        &self,
+        terminal: &infiltrator_contract::snapshot::CoreLifecycleSnapshot,
+    ) -> Result<Box<dyn ActiveProfileOwnerStoppedSwitchLease>, PortError> {
+        let (config_root, _root_guard) = self.acquire_active_profile_reference_lock().await?;
+        let _owner_state_guard = acquire_owner_state_lock_async(config_root.clone()).await?;
+        let mut record = sync_read_active_profile_record(&config_root)?;
+        let (transition_id, previous_reference, owner_identity, owner_generation, owner_token) =
+            match &record.owner {
+                ActiveCoreOwnerState::Switching {
+                    transition_id,
+                    previous_reference,
+                    owner_identity,
+                    owner_generation,
+                    owner_token,
+                    stage: ActiveOwnerSwitchStage::ClosingOld,
+                } => (
+                    transition_id.clone(),
+                    previous_reference.clone(),
+                    owner_identity.clone(),
+                    *owner_generation,
+                    owner_token.clone(),
+                ),
+                _ => {
+                    return Err(transition_rejected(
+                        "old-owner terminal recovery requires a ClosingOld reservation",
+                    ));
+                }
+            };
+        if record.selection != previous_reference {
+            return Err(transition_rejected(
+                "active reference changed before old-owner terminal recovery",
+            ));
+        }
+        let terminal_generation =
+            validate_terminal_for_owner(terminal, &owner_identity, owner_generation)?;
+        if local_owner_registration_state(&config_root, &owner_token)?.is_some() {
+            return Err(transition_rejected(
+                "old owner still has a local registration; recover its live switch lease",
+            ));
+        }
+        let owner_probe = try_acquire_owner_lock(&config_root)?.ok_or_else(|| {
+            transition_rejected("old owner still holds the cross-process owner fence")
+        })?;
+        drop(owner_probe);
+
+        let mut proof = sync_read_active_core_owner_proof(&config_root)?;
+        match proof.state.clone() {
+            ActiveCoreOwnerProof::Bound {
+                identity: proof_identity,
+                generation: proof_generation,
+                token: proof_token,
+            } if proof_identity.same_instance(&owner_identity)
+                && proof_generation == owner_generation
+                && proof_token == owner_token =>
+            {
+                proof.state = ActiveCoreOwnerProof::Terminal {
+                    identity: owner_identity.clone(),
+                    bound_generation: owner_generation,
+                    terminal_generation,
+                    token: owner_token.clone(),
+                };
+                sync_publish_active_core_owner_proof(&config_root, &proof)?;
+            }
+            ActiveCoreOwnerProof::Terminal {
+                identity: proof_identity,
+                bound_generation: proof_generation,
+                terminal_generation: proof_terminal_generation,
+                token: proof_token,
+            } if proof_identity.same_instance(&owner_identity)
+                && proof_generation == owner_generation
+                && proof_terminal_generation == terminal_generation
+                && proof_token == owner_token => {}
+            _ => {
+                return Err(transition_rejected(
+                    "old-owner terminal snapshot does not match the persisted owner proof",
+                ));
+            }
+        }
+        record.owner = ActiveCoreOwnerState::Switching {
+            transition_id: transition_id.clone(),
+            previous_reference: previous_reference.clone(),
+            owner_identity: owner_identity.clone(),
+            owner_generation,
+            owner_token,
+            stage: ActiveOwnerSwitchStage::OldStopped {
+                terminal_generation,
+            },
+        };
+        sync_publish_active_profile_record(&config_root, &record)?;
+        let state = ActiveProfileOwnerSwitchState::OldStopped {
+            previous_reference,
+            owner_identity,
+            owner_generation,
+            terminal_generation,
+        };
+        Ok(Box::new(ConfigManagerOwnerStoppedSwitchLease {
+            config_root,
+            transition_id,
+            state,
+        }))
+    }
+
+    async fn recover_candidate_after_terminal(
+        &self,
+        terminal: &infiltrator_contract::snapshot::CoreLifecycleSnapshot,
+    ) -> Result<ActiveProfileReferenceState, PortError> {
+        let (config_root, _root_guard) = self.acquire_active_profile_reference_lock().await?;
+        let _owner_state_guard = acquire_owner_state_lock_async(config_root.clone()).await?;
+        let mut record = sync_read_active_profile_record(&config_root)?;
+        let (
+            transition_id,
+            engine_id,
+            token,
+            old_owner_identity,
+            old_owner_generation,
+            old_owner_token,
+            old_terminal_generation,
+        ) = match &record.owner {
+            ActiveCoreOwnerState::Switching {
+                transition_id,
+                owner_identity,
+                owner_generation,
+                owner_token,
+                stage:
+                    ActiveOwnerSwitchStage::BindingNew {
+                        engine_id,
+                        token,
+                        terminal_generation,
+                    },
+                ..
+            } => (
+                transition_id.clone(),
+                engine_id.clone(),
+                token.clone(),
+                owner_identity.clone(),
+                *owner_generation,
+                owner_token.clone(),
+                *terminal_generation,
+            ),
+            _ => {
+                return Err(transition_rejected(
+                    "no crashed candidate reservation is pending",
+                ));
+            }
+        };
+        let identity = terminal
+            .identity
+            .as_ref()
+            .ok_or_else(|| transition_rejected("candidate terminal has no Core identity"))?;
+        if identity.engine != engine_id
+            || terminal.lifecycle != infiltrator_contract::snapshot::CoreLifecycle::Stopped
+            || terminal.generation != 0
+            || terminal.session_token.is_some()
+        {
+            return Err(transition_rejected(
+                "candidate recovery requires a never-started Stopped readback without a session",
+            ));
+        }
+        if local_owner_registration_state(&config_root, &token)?.is_some() {
+            return Err(transition_rejected(
+                "candidate owner is still registered in this process; use its binding lease",
+            ));
+        }
+        if try_acquire_owner_lock(&config_root)?.is_none() {
+            return Err(transition_rejected(
+                "candidate process still holds the active owner fence",
+            ));
+        }
+        let mut proof = sync_read_active_core_owner_proof(&config_root)?;
+        match &proof.state {
+            ActiveCoreOwnerProof::Reserved {
+                transition_id: proof_transition,
+                engine_id: proof_engine,
+                token: proof_token,
+            } if proof_transition == &transition_id
+                && proof_engine == &engine_id
+                && proof_token == &token => {}
+            ActiveCoreOwnerProof::Bound {
+                identity: proof_identity,
+                generation: proof_generation,
+                token: proof_token,
+            } if proof_identity.same_instance(identity)
+                && *proof_generation == CoreGeneration::new(terminal.generation)
+                && *proof_generation == CoreGeneration::new(0)
+                && proof_token == &token => {}
+            ActiveCoreOwnerProof::Terminal {
+                identity: proof_identity,
+                bound_generation: proof_bound_generation,
+                terminal_generation: proof_terminal_generation,
+                token: proof_token,
+            } if proof_identity.same_instance(&old_owner_identity)
+                && *proof_bound_generation == old_owner_generation
+                && *proof_terminal_generation == old_terminal_generation
+                && proof_token == &old_owner_token => {}
+            _ => return Err(transition_rejected("candidate owner proof is stale")),
+        }
+        proof.state = ActiveCoreOwnerProof::Terminal {
+            identity: old_owner_identity,
+            bound_generation: old_owner_generation,
+            terminal_generation: old_terminal_generation,
+            token: old_owner_token,
+        };
+        sync_publish_active_core_owner_proof(&config_root, &proof)?;
+        record.owner = ActiveCoreOwnerState::Unowned;
+        sync_publish_active_profile_record(&config_root, &record)?;
+        Ok(record.selection)
+    }
+}
+
+impl<S: SecureStore> ConfigManager<S> {
+    pub async fn initialize_profile_namespace_for_reset_recovery(
+        &self,
+    ) -> std::result::Result<(), MihomoError> {
+        if self.profile_namespace_initialized.get().is_none()
+            && self
+                .has_pending_profile_reset_for_namespace_init()
+                .await
+                .map_err(|error| MihomoError::Config(error.to_string()))?
+        {
+            return Ok(());
+        }
+        self.initialize_profile_namespace().await
+    }
+
+    pub(crate) async fn has_pending_profile_reset_for_namespace_init(
+        &self,
+    ) -> Result<bool, PortError> {
+        let (_config_root, _root_guard) = self.acquire_active_profile_reference_lock().await?;
+        reset_pending_for_dir(&self.config_dir).await
+    }
+
+    /// Persist one derived active-profile document as a single atomic file
+    /// replacement while the reference is selected and no Core owner is
+    /// bound. This path deliberately cannot change sidecar bytes or perform a
+    /// runtime apply, so caller cancellation leaves either the previous file
+    /// or the complete replacement.
+    pub(crate) async fn compare_and_save_unowned_active_derived_document(
+        &self,
+        expected_reference: ActiveProfileReference,
+        expected_workspace: ProfileWorkspaceIdentity,
+        update: &ProfileWorkspaceUpdate,
+    ) -> Result<ProfileWorkspace, PortError> {
+        if expected_reference.engine_id != crate::engine_id()
+            || expected_workspace.document.engine_id != expected_reference.engine_id
+            || expected_workspace.document.profile_id != expected_reference.profile_id
+        {
+            return Err(PortError::Rejected(Failure::new(
+                ErrorCode::NotReady,
+                "derived document identity differs from the active profile reference",
+                false,
+            )));
+        }
+        if update.purpose != ProfileWorkspacePurpose::Derived {
+            return Err(PortError::Rejected(Failure::new(
+                ErrorCode::InvalidInput,
+                "unowned active-document persistence accepts derived updates only",
+                false,
+            )));
+        }
+        let document = std::str::from_utf8(&update.document_bytes).map_err(|error| {
+            PortError::Rejected(Failure::new(
+                ErrorCode::Configuration,
+                format!("derived profile document is not UTF-8: {error}"),
+                false,
+            ))
+        })?;
+        crate::yaml::validate(document).map_err(crate::profile_workspace_store::config_error)?;
+
+        self.initialize_profile_namespace()
+            .await
+            .map_err(profile_namespace_initialization_error)?;
+        let (config_root, _root_guard) = self.acquire_active_profile_reference_lock().await?;
+        ensure_no_pending_reset_in_engine_namespaces(
+            &config_root,
+            ActiveProfileResetMutationAccess::OrdinaryMutation,
+        )
+        .await?;
+        let mut record = self.read_active_profile_record_unlocked().await?;
+        let expected_state = ActiveProfileReferenceState::Selected(expected_reference.clone());
+        if record.selection != expected_state {
+            return Err(PortError::Rejected(Failure::new(
+                ErrorCode::NotReady,
+                "active profile reference changed before derived document persistence",
+                true,
+            )));
+        }
+        let (owner_state, _owner_state_guard) = self
+            .normalize_owner_state_unlocked(&mut record, &config_root)
+            .await?;
+        validate_reference_write_authorization(
+            &owner_state,
+            &ActiveProfileReferenceWriteAuthorization::Unowned,
+            &config_root,
+        )?;
+        let _profile_guard = self.lock_profile_writes().await.map_err(lock_error)?;
+        let observed = self
+            .read_workspace_locked(&expected_reference.profile_id)
+            .await?;
+        if observed.identity() != expected_workspace {
+            return Err(PortError::Rejected(Failure::new(
+                ErrorCode::NotReady,
+                "active workspace changed before derived document persistence",
+                true,
+            )));
+        }
+        if observed.sidecar_bytes != update.sidecar_bytes {
+            return Err(PortError::Rejected(Failure::new(
+                ErrorCode::NotReady,
+                "derived document persistence cannot modify profile sidecar bytes",
+                false,
+            )));
+        }
+        if observed.document.raw_bytes == update.document_bytes {
+            return Ok(observed);
+        }
+
+        let path = self
+            .existing_profile_yaml_path(expected_reference.profile_id.as_str())
+            .await
+            .map_err(crate::profile_workspace_store::config_error)?;
+        write_document_bytes_durable(&path, &update.document_bytes).await?;
+        if let Err(error) = remove_optional(&crate::manager::profiles::backup_path(&path)).await {
+            log::warn!("committed derived workspace backup cleanup failed: {error}");
+        }
+        Ok(crate::profile_workspace_store::workspace_for_update(
+            &observed, update,
+        ))
+    }
+
+    /// Acquire a typed active-workspace transaction lease in root -> owner
+    /// state -> profile order. No content bytes are written until the caller
+    /// consumes the observed lease through `publish`.
+    pub(crate) async fn acquire_active_workspace_write_lease<'a>(
+        &'a self,
+        expected_reference: ActiveProfileReference,
+        expected_workspace: ProfileWorkspaceIdentity,
+        authorization: ActiveProfileReferenceWriteAuthorization,
+    ) -> Result<Box<dyn ActiveProfileWorkspaceWriteLease + 'a>, PortError> {
+        if expected_reference.engine_id != crate::engine_id()
+            || expected_workspace.document.profile_id != expected_reference.profile_id
+            || expected_workspace.document.engine_id != expected_reference.engine_id
+        {
+            return Err(PortError::Rejected(Failure::new(
+                ErrorCode::NotReady,
+                "active workspace identity differs from its expected reference",
+                false,
+            )));
+        }
+        self.initialize_profile_namespace()
+            .await
+            .map_err(profile_namespace_initialization_error)?;
+        let (config_root, root_guard) = self.acquire_active_profile_reference_lock().await?;
+        ensure_no_pending_reset_in_engine_namespaces(
+            &config_root,
+            ActiveProfileResetMutationAccess::OrdinaryMutation,
+        )
+        .await?;
+        let mut record = sync_read_active_profile_record(&config_root)?;
+        let expected_state = ActiveProfileReferenceState::Selected(expected_reference.clone());
+        if record.selection != expected_state {
+            return Err(PortError::Rejected(Failure::new(
+                ErrorCode::NotReady,
+                "active profile reference changed before workspace publication",
+                true,
+            )));
+        }
+        let (owner_state, owner_state_guard) = self
+            .normalize_owner_state_unlocked(&mut record, &config_root)
+            .await?;
+        validate_reference_write_authorization(&owner_state, &authorization, &config_root)?;
+        let profile_guard = lock_profile_writes_for_dir(&self.config_dir)
+            .await
+            .map_err(lock_error)?;
+        let observed = self
+            .read_workspace_locked(&expected_reference.profile_id)
+            .await?;
+        if observed.identity() != expected_workspace {
+            return Err(PortError::Rejected(Failure::new(
+                ErrorCode::NotReady,
+                "active workspace identity changed before transaction lease acquisition",
+                true,
+            )));
+        }
+        let guards = ActiveWorkspaceWriteGuards {
+            _root: root_guard,
+            _owner_state: owner_state_guard,
+            _profile: profile_guard,
+        };
+        Ok(Box::new(ConfigManagerObservedWorkspaceLease {
+            manager: self,
+            observed,
+            guards,
+        }))
+    }
+
+    /// Reset this engine's profile files and select its default profile as
+    /// one unowned reference transaction. The default is written before CAS;
+    /// old files remain available until the CAS commits, and cleanup can be
+    /// retried safely if the process exits after commit.
+    pub async fn reset_profiles_to_default(
+        &self,
+        request: ActiveProfileReferenceResetRequest,
+    ) -> Result<ActiveProfileReferenceResetOutcome, PortError> {
+        let (expected, default_document, config_root, root_guard) = match request {
+            ActiveProfileReferenceResetRequest::Start {
+                expected,
+                default_document,
+            } => {
+                crate::yaml::validate(&default_document).map_err(lock_error)?;
+                if read_optional_bytes(&self.config_dir.join(ACTIVE_PROFILE_RESET_INTENT_FILE))
+                    .await?
+                    .is_none()
+                {
+                    self.initialize_profile_namespace()
+                        .await
+                        .map_err(profile_namespace_initialization_error)?;
+                }
+                let (config_root, root_guard) =
+                    self.acquire_active_profile_reference_lock().await?;
+                (expected, default_document, config_root, root_guard)
+            }
+            ActiveProfileReferenceResetRequest::ResumePendingIntent => {
+                let (config_root, root_guard) =
+                    self.acquire_active_profile_reference_lock().await?;
+                if !reset_pending_for_dir(&self.config_dir).await? {
+                    return Ok(ActiveProfileReferenceResetOutcome::NoPendingIntent);
+                }
+                let intent_path = self.config_dir.join(ACTIVE_PROFILE_RESET_INTENT_FILE);
+                let intent_bytes = read_optional_bytes(&intent_path).await?.ok_or_else(|| {
+                    PortError::Failed(
+                        "pending profile reset disappeared while its root lock was held".into(),
+                    )
+                })?;
+                let intent = parse_reset_intent_record(&intent_bytes)?;
+                let expected = intent.expected_reference().clone();
+                let next_revision = expected
+                    .revision()
+                    .next()
+                    .ok_or_else(|| PortError::Failed("active-profile revision exhausted".into()))?;
+                let target = ActiveProfileReferenceState::Selected(ActiveProfileReference::new(
+                    self.engine_id(),
+                    ProfileId::new("default")
+                        .map_err(|error| PortError::Failed(error.to_string()))?,
+                    next_revision,
+                ));
+                if intent.target_reference() != &target {
+                    return Err(transition_rejected(
+                        "pending reset intent has an invalid expected-to-default transition",
+                    ));
+                }
+                let default_document = match &intent {
+                    ParsedActiveProfileResetIntentRecord::CurrentV2(record) => {
+                        record.default_document.clone()
+                    }
+                    ParsedActiveProfileResetIntentRecord::LegacyV1(record) => {
+                        let default_path = self
+                            .profile_yaml_path("default")
+                            .await
+                            .map_err(lock_error)?;
+                        let backup_path = self
+                            .config_dir
+                            .join(ACTIVE_PROFILE_RESET_DEFAULT_BACKUP_FILE);
+                        let current = read_optional_bytes(&default_path).await?;
+                        let backup = read_optional_bytes(&backup_path).await?;
+                        current
+                            .as_deref()
+                            .filter(|bytes| sha256_hex(bytes) == record.default_document_sha256)
+                            .or_else(|| {
+                                backup.as_deref().filter(|bytes| {
+                                    sha256_hex(bytes) == record.default_document_sha256
+                                })
+                            })
+                            .ok_or_else(|| {
+                                PortError::unsupported(
+                                    infiltrator_contract::capability::Capability::Profiles,
+                                    "legacy reset intent does not contain recoverable default bytes",
+                                )
+                            })?
+                            .to_vec()
+                    }
+                };
+                let default_document = String::from_utf8(default_document).map_err(|error| {
+                    PortError::Io(format!(
+                        "pending reset default document is not UTF-8: {error}"
+                    ))
+                })?;
+                (expected, default_document, config_root, root_guard)
+            }
+        };
+        self.reset_profiles_to_default_locked(expected, &default_document, config_root, root_guard)
+            .await
+    }
+
+    async fn reset_profiles_to_default_locked(
+        &self,
+        expected: ActiveProfileReferenceState,
+        default_content: &str,
+        config_root: PathBuf,
+        _root_guard: ThreadedInstanceLockGuard,
+    ) -> Result<ActiveProfileReferenceResetOutcome, PortError> {
+        crate::yaml::validate(default_content).map_err(lock_error)?;
+        ensure_no_pending_reset_in_engine_namespaces(
+            &config_root,
+            ActiveProfileResetMutationAccess::RetryEngine(self.engine_id()),
+        )
+        .await?;
+        let mut record = sync_read_active_profile_record(&config_root)?;
+        let revision = expected
+            .revision()
+            .next()
+            .ok_or_else(|| PortError::Failed("active-profile revision exhausted".into()))?;
+        let default_id =
+            ProfileId::new("default").map_err(|error| PortError::Failed(error.to_string()))?;
+        let current = ActiveProfileReferenceState::Selected(ActiveProfileReference::new(
+            crate::engine_id(),
+            default_id.clone(),
+            revision,
+        ));
+        let attempt = if record.selection == expected {
+            ActiveProfileResetAttempt::Publish
+        } else if record.selection == current {
+            ActiveProfileResetAttempt::FinishCommittedCleanup
+        } else {
+            return Ok(ActiveProfileReferenceResetOutcome::Stale {
+                expected: expected.clone(),
+                observed: record.selection,
+            });
+        };
+        let (owner_state, _owner_state_guard) = self
+            .normalize_owner_state_unlocked(&mut record, &config_root)
+            .await?;
+        validate_reference_write_authorization(
+            &owner_state,
+            &ActiveProfileReferenceWriteAuthorization::Unowned,
+            &config_root,
+        )?;
+
+        let _profile_guard = self.lock_profile_writes().await.map_err(lock_error)?;
+        let default_path = self
+            .profile_yaml_path("default")
+            .await
+            .map_err(lock_error)?;
+        let backup_path = self
+            .config_dir
+            .join(ACTIVE_PROFILE_RESET_DEFAULT_BACKUP_FILE);
+        let absent_marker_path = self
+            .config_dir
+            .join(ACTIVE_PROFILE_RESET_DEFAULT_ABSENT_FILE);
+        let intent_path = self.config_dir.join(ACTIVE_PROFILE_RESET_INTENT_FILE);
+        let complete_path = self.config_dir.join(ACTIVE_PROFILE_RESET_COMPLETE_FILE);
+
+        let previous_default = read_optional_bytes(&default_path).await?;
+        let mut backup_bytes = read_optional_bytes(&backup_path).await?;
+        let mut absent_marker = read_optional_bytes(&absent_marker_path).await?;
+        let stored_intent_bytes = read_optional_bytes(&intent_path).await?;
+        let complete_bytes = read_optional_bytes(&complete_path).await?;
+        if backup_bytes.is_some() && absent_marker.is_some() {
+            return Err(transition_rejected(
+                "profile reset has conflicting default recovery markers",
+            ));
+        }
+        let mut stored_intent = stored_intent_bytes
+            .as_deref()
+            .map(parse_reset_intent_record)
+            .transpose()?;
+        let complete_intent = complete_bytes
+            .as_deref()
+            .map(parse_reset_intent_record)
+            .transpose()?;
+        if let Some(ParsedActiveProfileResetIntentRecord::LegacyV1(legacy)) = stored_intent.as_ref()
+        {
+            let recoverable_default = previous_default
+                .as_deref()
+                .filter(|bytes| sha256_hex(bytes) == legacy.default_document_sha256)
+                .or_else(|| {
+                    let bytes = default_content.as_bytes();
+                    (sha256_hex(bytes) == legacy.default_document_sha256).then_some(bytes)
+                });
+            let Some(recoverable_default) = recoverable_default else {
+                return Err(PortError::unsupported(
+                    infiltrator_contract::capability::Capability::Profiles,
+                    "legacy reset intent contains only a digest and its exact default document cannot be recovered",
+                ));
+            };
+            let migrated = ActiveProfileResetIntentRecord::new(
+                legacy.expected_reference.clone(),
+                legacy.target_reference.clone(),
+                recoverable_default,
+            );
+            let bytes = serde_json::to_vec_pretty(&migrated)
+                .map_err(|error| PortError::Io(error.to_string()))?;
+            write_document_bytes_durable(&intent_path, &bytes).await?;
+            stored_intent = Some(ParsedActiveProfileResetIntentRecord::CurrentV2(migrated));
+        }
+        let reset_default_document = stored_intent
+            .as_ref()
+            .and_then(ParsedActiveProfileResetIntentRecord::current_record)
+            .filter(|stored| stored.matches_transition(&expected, &current))
+            .map(|stored| stored.default_document.as_slice())
+            .unwrap_or_else(|| default_content.as_bytes())
+            .to_vec();
+        let reset_default_text = std::str::from_utf8(&reset_default_document).map_err(|error| {
+            PortError::Io(format!("reset default document is not UTF-8: {error}"))
+        })?;
+        crate::yaml::validate(reset_default_text).map_err(lock_error)?;
+        let desired_intent = ActiveProfileResetIntentRecord::new(
+            expected.clone(),
+            current.clone(),
+            &reset_default_document,
+        );
+        let desired_intent_state =
+            ParsedActiveProfileResetIntentRecord::CurrentV2(desired_intent.clone());
+        if let ActiveProfileResetAttempt::FinishCommittedCleanup = attempt {
+            if complete_intent.as_ref() == Some(&desired_intent_state)
+                && stored_intent
+                    .as_ref()
+                    .is_none_or(|stored| stored == &desired_intent_state)
+            {
+                remove_optional_durable(&intent_path)?;
+                return Ok(ActiveProfileReferenceResetOutcome::Committed {
+                    previous: expected,
+                    current,
+                });
+            }
+            if stored_intent.as_ref() != Some(&desired_intent_state) {
+                return Ok(ActiveProfileReferenceResetOutcome::Stale {
+                    expected,
+                    observed: record.selection,
+                });
+            }
+            if previous_default.as_deref() != Some(reset_default_document.as_slice()) {
+                write_document_bytes_durable(&default_path, &reset_default_document).await?;
+            }
+            let workspace = self.read_workspace_locked(&default_id).await?;
+            if workspace.document.identity.engine_id != crate::engine_id()
+                || workspace.document.identity.profile_id != default_id
+                || workspace.document.raw_bytes.as_slice() != reset_default_document.as_slice()
+            {
+                return Err(PortError::Failed(
+                    "committed reset target could not be re-established from its durable intent"
+                        .into(),
+                ));
+            }
+            let cleanup = self
+                .cleanup_profiles_after_reset(
+                    &default_path,
+                    &intent_path,
+                    &backup_path,
+                    &absent_marker_path,
+                    &complete_path,
+                )
+                .await;
+            return match cleanup {
+                Ok(()) => match self
+                    .complete_profile_reset(&desired_intent, &intent_path, &complete_path)
+                    .await
+                {
+                    Ok(()) => Ok(ActiveProfileReferenceResetOutcome::Committed {
+                        previous: expected,
+                        current,
+                    }),
+                    Err(error) => Ok(ActiveProfileReferenceResetOutcome::CleanupPending {
+                        previous: expected,
+                        current,
+                        error: error.to_string(),
+                    }),
+                },
+                Err(error) => Ok(ActiveProfileReferenceResetOutcome::CleanupPending {
+                    previous: expected,
+                    current,
+                    error: error.to_string(),
+                }),
+            };
+        }
+        if let Some(previous_intent) = stored_intent
+            .as_ref()
+            .filter(|stored| stored.target_reference() == &expected)
+            .cloned()
+        {
+            if complete_intent.as_ref() != Some(&previous_intent) {
+                let previous_record = previous_intent.current_record().ok_or_else(|| {
+                    PortError::unsupported(
+                        infiltrator_contract::capability::Capability::Profiles,
+                        "legacy reset intent was not upgraded before cleanup",
+                    )
+                })?;
+                self.cleanup_profiles_after_reset(
+                    &default_path,
+                    &intent_path,
+                    &backup_path,
+                    &absent_marker_path,
+                    &complete_path,
+                )
+                .await?;
+                self.complete_profile_reset(previous_record, &intent_path, &complete_path)
+                    .await?;
+            } else {
+                remove_optional_durable(&intent_path)?;
+            }
+            stored_intent = None;
+            backup_bytes = None;
+            absent_marker = None;
+        }
+        if stored_intent
+            .as_ref()
+            .is_some_and(|stored| stored != &desired_intent_state)
+        {
+            return Err(transition_rejected(
+                "profile reset already has an intent for a different source or target",
+            ));
+        }
+        let rollback_default = if let Some(bytes) = &backup_bytes {
+            Some(bytes.clone())
+        } else if absent_marker.is_some() {
+            None
+        } else {
+            previous_default.clone()
+        };
+        let mut default_write_attempted = false;
+        if previous_default.as_deref() != Some(reset_default_document.as_slice())
+            && backup_bytes.is_none()
+            && absent_marker.is_none()
+        {
+            match previous_default.as_deref() {
+                Some(bytes) => write_document_bytes_durable(&backup_path, bytes).await?,
+                None => write_document_bytes_durable(&absent_marker_path, b"absent").await?,
+            }
+        }
+        if stored_intent.is_none() {
+            let bytes = serde_json::to_vec_pretty(&desired_intent)
+                .map_err(|error| PortError::Io(error.to_string()))?;
+            write_document_bytes_durable(&intent_path, &bytes).await?;
+        }
+        if previous_default.as_deref() != Some(reset_default_document.as_slice()) {
+            default_write_attempted = true;
+            if let Err(error) =
+                write_document_bytes_durable(&default_path, &reset_default_document).await
+            {
+                restore_reset_default(
+                    &default_path,
+                    &backup_path,
+                    &absent_marker_path,
+                    &intent_path,
+                    rollback_default.as_deref(),
+                    default_write_attempted,
+                )
+                .await?;
+                return Err(error);
+            }
+        }
+
+        let workspace = match self.read_workspace_locked(&default_id).await {
+            Ok(workspace) => workspace,
+            Err(error) => {
+                restore_reset_default(
+                    &default_path,
+                    &backup_path,
+                    &absent_marker_path,
+                    &intent_path,
+                    rollback_default.as_deref(),
+                    default_write_attempted,
+                )
+                .await?;
+                return Err(error);
+            }
+        };
+        if workspace.document.identity.engine_id != crate::engine_id()
+            || workspace.document.identity.profile_id != default_id
+            || workspace.document.raw_bytes.as_slice() != reset_default_document.as_slice()
+        {
+            restore_reset_default(
+                &default_path,
+                &backup_path,
+                &absent_marker_path,
+                &intent_path,
+                rollback_default.as_deref(),
+                default_write_attempted,
+            )
+            .await?;
+            return Err(PortError::Rejected(Failure::new(
+                ErrorCode::NotReady,
+                "default workspace identity or bytes changed before reference CAS",
+                true,
+            )));
+        }
+
+        record.selection = current.clone();
+        record.legacy_migration = LegacySelectionMigration::ExplicitSelection;
+        record.owner = ActiveCoreOwnerState::Unowned;
+        let (previous, current) = match sync_publish_active_profile_record(&config_root, &record) {
+            Ok(()) => (expected.clone(), current),
+            Err(commit_error) => {
+                if is_record_durability_uncertain(&commit_error) {
+                    return Err(PortError::Failed(format!(
+                        "{commit_error}; reset recovery bytes were retained"
+                    )));
+                }
+                match sync_read_active_profile_record(&config_root) {
+                    Ok(observed)
+                        if observed.selection == current
+                            && matches!(observed.owner, ActiveCoreOwnerState::Unowned) =>
+                    {
+                        (expected.clone(), current)
+                    }
+                    Ok(observed)
+                        if observed.selection == expected
+                            && matches!(observed.owner, ActiveCoreOwnerState::Unowned) =>
+                    {
+                        restore_reset_default(
+                            &default_path,
+                            &backup_path,
+                            &absent_marker_path,
+                            &intent_path,
+                            rollback_default.as_deref(),
+                            default_write_attempted,
+                        )
+                        .await?;
+                        return Err(commit_error);
+                    }
+                    Ok(_) | Err(_) => {
+                        return Err(PortError::Failed(format!(
+                            "active-reference reset outcome is uncertain; retained old profile files and default recovery data ({commit_error})"
+                        )));
+                    }
+                }
+            }
+        };
+
+        match self
+            .cleanup_profiles_after_reset(
+                &default_path,
+                &intent_path,
+                &backup_path,
+                &absent_marker_path,
+                &complete_path,
+            )
+            .await
+        {
+            Ok(()) => {
+                if previous != current {
+                    if let Err(error) = self
+                        .complete_profile_reset(&desired_intent, &intent_path, &complete_path)
+                        .await
+                    {
+                        return Ok(ActiveProfileReferenceResetOutcome::CleanupPending {
+                            previous,
+                            current,
+                            error: error.to_string(),
+                        });
+                    }
+                }
+                Ok(ActiveProfileReferenceResetOutcome::Committed { previous, current })
+            }
+            Err(error) => Ok(ActiveProfileReferenceResetOutcome::CleanupPending {
+                previous,
+                current,
+                error: error.to_string(),
+            }),
+        }
+    }
+
+    async fn cleanup_profiles_after_reset(
+        &self,
+        default_path: &Path,
+        intent_path: &Path,
+        backup_path: &Path,
+        absent_marker_path: &Path,
+        complete_path: &Path,
+    ) -> Result<(), PortError> {
+        self.reset_profile_namespace_marker_unlocked()
+            .await
+            .map_err(lock_error)?;
+        let mut entries = tokio::fs::read_dir(&self.config_dir)
+            .await
+            .map_err(lock_error)?;
+        let default_name = default_path
+            .file_name()
+            .ok_or_else(|| PortError::Failed("default profile path has no filename".into()))?;
+        let intent_name = intent_path
+            .file_name()
+            .ok_or_else(|| PortError::Failed("reset intent path has no filename".into()))?;
+        let backup_name = backup_path
+            .file_name()
+            .ok_or_else(|| PortError::Failed("reset backup path has no filename".into()))?;
+        let absent_marker_name = absent_marker_path
+            .file_name()
+            .ok_or_else(|| PortError::Failed("reset absent marker path has no filename".into()))?;
+        let complete_name = complete_path
+            .file_name()
+            .ok_or_else(|| PortError::Failed("reset completion path has no filename".into()))?;
+        while let Some(entry) = entries.next_entry().await.map_err(lock_error)? {
+            let name = entry.file_name();
+            if name == default_name
+                || name == "profile-state.toml"
+                || name == intent_name
+                || name == backup_name
+                || name == absent_marker_name
+                || name == complete_name
+            {
+                continue;
+            }
+            let path = entry.path();
+            if entry.file_type().await.map_err(lock_error)?.is_dir() {
+                tokio::fs::remove_dir_all(path).await.map_err(lock_error)?;
+            } else {
+                tokio::fs::remove_file(path).await.map_err(lock_error)?;
+            }
+        }
+        remove_optional_durable(backup_path)?;
+        remove_optional_durable(absent_marker_path)?;
+        Ok(())
+    }
+
+    async fn complete_profile_reset(
+        &self,
+        intent: &ActiveProfileResetIntentRecord,
+        intent_path: &Path,
+        complete_path: &Path,
+    ) -> Result<(), PortError> {
+        let bytes =
+            serde_json::to_vec_pretty(intent).map_err(|error| PortError::Io(error.to_string()))?;
+        write_document_bytes_durable(complete_path, &bytes).await?;
+        remove_optional_durable(intent_path)
+    }
+}
+
+#[async_trait::async_trait]
+impl<S: SecureStore> ActiveProfileWorkspaceWriteLease
+    for ConfigManagerObservedWorkspaceLease<'_, S>
+{
+    fn observed_workspace(&self) -> &ProfileWorkspace {
+        &self.observed
+    }
+
+    async fn publish(
+        self: Box<Self>,
+        update: ProfileWorkspaceUpdate,
+    ) -> ActiveProfileWorkspacePublishOutcome<'async_trait> {
+        let ConfigManagerObservedWorkspaceLease {
+            manager,
+            observed,
+            guards,
+        } = *self;
+        let target = crate::profile_workspace_store::workspace_for_update(&observed, &update);
+        let write_result = manager
+            .publish_active_workspace_locked(&observed.identity(), &update)
+            .await;
+        let (target, last_error) = match write_result {
+            Ok(published) => (
+                published,
+                "publication returned success; verifying readback".into(),
+            ),
+            Err(error) if is_definitely_unpublished_workspace_error(&error) => {
+                return ActiveProfileWorkspacePublishOutcome::Unpublished(error);
+            }
+            Err(error) => (target, error.to_string()),
+        };
+        let recovery = Box::new(ConfigManagerWorkspaceRecoveryLease {
+            manager,
+            previous: observed,
+            purpose: ActiveWorkspaceRecoveryPurpose::ConfirmPublished { target },
+            guards,
+            last_error,
+        });
+        match recovery.resolve().await {
+            ActiveProfileWorkspaceRecoveryResolution::Published(published) => {
+                ActiveProfileWorkspacePublishOutcome::Published(published)
+            }
+            ActiveProfileWorkspaceRecoveryResolution::Unpublished(error) => {
+                ActiveProfileWorkspacePublishOutcome::Unpublished(error)
+            }
+            ActiveProfileWorkspaceRecoveryResolution::Superseded { observed } => {
+                ActiveProfileWorkspacePublishOutcome::Superseded { observed }
+            }
+            ActiveProfileWorkspaceRecoveryResolution::RecoveryRequired(recovery) => {
+                ActiveProfileWorkspacePublishOutcome::RecoveryRequired(recovery)
+            }
+            ActiveProfileWorkspaceRecoveryResolution::Restored(restored) => {
+                restored.finish();
+                ActiveProfileWorkspacePublishOutcome::Unpublished(PortError::Failed(
+                    "active workspace publication was restored to its previous bytes".into(),
+                ))
+            }
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl<S: SecureStore> ActiveProfileWorkspaceRecoveryLease
+    for ConfigManagerWorkspaceRecoveryLease<'_, S>
+{
+    fn state(&self) -> ActiveProfileWorkspaceRecoveryState {
+        match &self.purpose {
+            ActiveWorkspaceRecoveryPurpose::ConfirmPublished { target } => {
+                ActiveProfileWorkspaceRecoveryState::ConfirmPublished {
+                    previous: self.previous.identity(),
+                    target: target.identity(),
+                }
+            }
+            ActiveWorkspaceRecoveryPurpose::RestorePrevious { published } => {
+                ActiveProfileWorkspaceRecoveryState::RestorePrevious {
+                    previous: self.previous.identity(),
+                    published: published.identity(),
+                }
+            }
+        }
+    }
+
+    fn last_error(&self) -> &str {
+        &self.last_error
+    }
+
+    async fn resolve(self: Box<Self>) -> ActiveProfileWorkspaceRecoveryResolution<'async_trait> {
+        let ConfigManagerWorkspaceRecoveryLease {
+            manager,
+            previous,
+            purpose,
+            guards,
+            last_error,
+        } = *self;
+        let profile_id = previous.document.identity.profile_id.clone();
+        let observed = match manager.read_workspace_locked(&profile_id).await {
+            Ok(observed) => observed,
+            Err(error) => {
+                return ActiveProfileWorkspaceRecoveryResolution::RecoveryRequired(Box::new(
+                    ConfigManagerWorkspaceRecoveryLease {
+                        manager,
+                        previous,
+                        purpose,
+                        guards,
+                        last_error: format!("{last_error}; readback failed: {error}"),
+                    },
+                ));
+            }
+        };
+
+        match purpose {
+            ActiveWorkspaceRecoveryPurpose::ConfirmPublished { target } => {
+                if same_workspace_bytes(&observed, &target) {
+                    return ActiveProfileWorkspaceRecoveryResolution::Published(Box::new(
+                        ConfigManagerPublishedWorkspaceLease {
+                            manager,
+                            previous,
+                            published: observed,
+                            guards,
+                        },
+                    ));
+                }
+                if same_workspace_bytes(&observed, &previous) {
+                    return ActiveProfileWorkspaceRecoveryResolution::Unpublished(
+                        PortError::Failed(format!(
+                            "active workspace publication did not commit: {last_error}"
+                        )),
+                    );
+                }
+
+                let recovery_result = manager
+                    .recover_workspace_locked(&observed.identity(), &previous)
+                    .await;
+                let recovered = match manager.read_workspace_locked(&profile_id).await {
+                    Ok(current) => current,
+                    Err(error) => {
+                        let detail = match recovery_result {
+                            Ok(_) => format!(
+                                "{last_error}; conditional rollback returned success but readback failed: {error}"
+                            ),
+                            Err(rollback_error) => format!(
+                                "{last_error}; conditional rollback failed: {rollback_error}; readback failed: {error}"
+                            ),
+                        };
+                        return ActiveProfileWorkspaceRecoveryResolution::RecoveryRequired(
+                            Box::new(ConfigManagerWorkspaceRecoveryLease {
+                                manager,
+                                previous,
+                                purpose: ActiveWorkspaceRecoveryPurpose::ConfirmPublished {
+                                    target,
+                                },
+                                guards,
+                                last_error: detail,
+                            }),
+                        );
+                    }
+                };
+                if same_workspace_bytes(&recovered, &previous) {
+                    return ActiveProfileWorkspaceRecoveryResolution::Unpublished(
+                        PortError::Failed(format!(
+                            "active workspace publication was conditionally rolled back: {last_error}"
+                        )),
+                    );
+                }
+                if same_workspace_bytes(&recovered, &target) {
+                    return ActiveProfileWorkspaceRecoveryResolution::Published(Box::new(
+                        ConfigManagerPublishedWorkspaceLease {
+                            manager,
+                            previous,
+                            published: recovered,
+                            guards,
+                        },
+                    ));
+                }
+                ActiveProfileWorkspaceRecoveryResolution::Superseded {
+                    observed: recovered.identity(),
+                }
+            }
+            ActiveWorkspaceRecoveryPurpose::RestorePrevious { published } => {
+                if same_workspace_bytes(&observed, &previous) {
+                    return ActiveProfileWorkspaceRecoveryResolution::Restored(Box::new(
+                        ConfigManagerRestoredWorkspaceLease {
+                            restored: observed,
+                            _guards: guards,
+                        },
+                    ));
+                }
+                if !same_workspace_bytes(&observed, &published) {
+                    return ActiveProfileWorkspaceRecoveryResolution::Superseded {
+                        observed: observed.identity(),
+                    };
+                }
+
+                let recovery_result = manager
+                    .recover_workspace_locked(&published.identity(), &previous)
+                    .await;
+                let recovered = match manager.read_workspace_locked(&profile_id).await {
+                    Ok(current) => current,
+                    Err(error) => {
+                        let detail = match recovery_result {
+                            Ok(_) => format!(
+                                "conditional workspace restore returned success but readback failed: {error}"
+                            ),
+                            Err(rollback_error) => format!(
+                                "conditional workspace restore failed: {rollback_error}; readback failed: {error}"
+                            ),
+                        };
+                        return ActiveProfileWorkspaceRecoveryResolution::RecoveryRequired(
+                            Box::new(ConfigManagerWorkspaceRecoveryLease {
+                                manager,
+                                previous,
+                                purpose: ActiveWorkspaceRecoveryPurpose::RestorePrevious {
+                                    published,
+                                },
+                                guards,
+                                last_error: detail,
+                            }),
+                        );
+                    }
+                };
+                if same_workspace_bytes(&recovered, &previous) {
+                    return ActiveProfileWorkspaceRecoveryResolution::Restored(Box::new(
+                        ConfigManagerRestoredWorkspaceLease {
+                            restored: recovered,
+                            _guards: guards,
+                        },
+                    ));
+                }
+                if same_workspace_bytes(&recovered, &published) {
+                    let detail = match recovery_result {
+                        Ok(_) => format!(
+                            "conditional workspace restore did not change published bytes: {last_error}"
+                        ),
+                        Err(error) => format!("{last_error}; restore failed: {error}"),
+                    };
+                    return ActiveProfileWorkspaceRecoveryResolution::RecoveryRequired(Box::new(
+                        ConfigManagerWorkspaceRecoveryLease {
+                            manager,
+                            previous,
+                            purpose: ActiveWorkspaceRecoveryPurpose::RestorePrevious { published },
+                            guards,
+                            last_error: detail,
+                        },
+                    ));
+                }
+                ActiveProfileWorkspaceRecoveryResolution::Superseded {
+                    observed: recovered.identity(),
+                }
+            }
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl<S: SecureStore> ActiveProfileWorkspacePublishedLease
+    for ConfigManagerPublishedWorkspaceLease<'_, S>
+{
+    fn previous_workspace(&self) -> &ProfileWorkspace {
+        &self.previous
+    }
+
+    fn published_workspace(&self) -> &ProfileWorkspace {
+        &self.published
+    }
+
+    fn commit(self: Box<Self>) -> ProfileWorkspace {
+        let lease = *self;
+        lease.published
+    }
+
+    async fn restore_if_current(
+        self: Box<Self>,
+    ) -> Result<ActiveProfileWorkspaceRestoreOutcome<'async_trait>, PortError> {
+        let ConfigManagerPublishedWorkspaceLease {
+            manager,
+            previous,
+            published,
+            guards,
+        } = *self;
+        let recovery = Box::new(ConfigManagerWorkspaceRecoveryLease {
+            manager,
+            previous,
+            purpose: ActiveWorkspaceRecoveryPurpose::RestorePrevious { published },
+            guards,
+            last_error: "restore requested after managed apply failure".into(),
+        });
+        match recovery.resolve().await {
+            ActiveProfileWorkspaceRecoveryResolution::Restored(restored) => {
+                Ok(ActiveProfileWorkspaceRestoreOutcome::Restored(restored))
+            }
+            ActiveProfileWorkspaceRecoveryResolution::Superseded { observed } => {
+                Ok(ActiveProfileWorkspaceRestoreOutcome::Superseded { observed })
+            }
+            ActiveProfileWorkspaceRecoveryResolution::RecoveryRequired(recovery) => Ok(
+                ActiveProfileWorkspaceRestoreOutcome::RecoveryRequired(recovery),
+            ),
+            ActiveProfileWorkspaceRecoveryResolution::Published(published) => {
+                published.restore_if_current().await
+            }
+            ActiveProfileWorkspaceRecoveryResolution::Unpublished(error) => Err(error),
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl ActiveProfileWorkspaceRestoredLease for ConfigManagerRestoredWorkspaceLease {
+    fn restored_workspace(&self) -> &ProfileWorkspace {
+        &self.restored
+    }
+
+    fn finish(self: Box<Self>) -> ProfileWorkspace {
+        let lease = *self;
+        lease.restored
+    }
+}
+
+fn is_definitely_unpublished_workspace_error(error: &PortError) -> bool {
+    match error {
+        PortError::Rejected(failure) => {
+            failure.code == ErrorCode::NotReady
+                || failure.code == ErrorCode::Configuration
+                || failure.code == ErrorCode::InvalidInput
+        }
+        PortError::Unsupported { .. } => true,
+        PortError::PermissionDenied(_)
+        | PortError::NotFound(_)
+        | PortError::Io(_)
+        | PortError::Network(_)
+        | PortError::Failed(_) => false,
+    }
+}
+
+fn same_workspace_bytes(left: &ProfileWorkspace, right: &ProfileWorkspace) -> bool {
+    left.identity() == right.identity()
+        && left.document.raw_bytes == right.document.raw_bytes
+        && left.sidecar_bytes == right.sidecar_bytes
+        && left.write_protection == right.write_protection
+}
+
+async fn restore_reset_default(
+    default_path: &Path,
+    backup_path: &Path,
+    absent_marker_path: &Path,
+    intent_path: &Path,
+    previous_default: Option<&[u8]>,
+    write_attempted: bool,
+) -> Result<(), PortError> {
+    if write_attempted {
+        match previous_default {
+            Some(bytes) => write_document_bytes_durable(default_path, bytes).await?,
+            None => remove_optional_durable(default_path)?,
+        }
+    }
+    remove_optional_durable(backup_path)?;
+    remove_optional_durable(absent_marker_path)?;
+    remove_optional_durable(intent_path)?;
+    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use infiltrator_ports::profile_store::ProfileStore;
+    use infiltrator_contract::core_identity::CoreVersion;
+    use std::process::{Child, Command};
     use std::sync::Arc;
+    use std::time::Duration;
     use tempfile::TempDir;
 
     struct TestStore;
@@ -572,18 +4452,477 @@ mod tests {
         }
     }
 
+    #[test]
+    fn durable_record_publication_reconciles_visible_state_after_durability_error() {
+        let expected = ActiveProfileReferenceRecord::pending_legacy_migration();
+        let write_error = PortError::Failed(format!(
+            "{RECORD_DURABILITY_UNCERTAIN_PREFIX}: simulated directory flush failure"
+        ));
+
+        let result = reconcile_durable_record_publication(
+            "test record",
+            &expected,
+            Err(write_error),
+            || Ok(expected.clone()),
+        );
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn durable_record_publication_rejects_mismatched_readback_after_durability_error() {
+        let expected = ActiveProfileReferenceRecord::pending_legacy_migration();
+        let observed = ActiveProfileReferenceRecord {
+            selection: ActiveProfileReferenceState::Unselected {
+                revision: ActiveProfileReferenceRevision::new(1),
+            },
+            ..expected.clone()
+        };
+        let write_error = PortError::Failed(format!(
+            "{RECORD_DURABILITY_UNCERTAIN_PREFIX}: simulated directory flush failure"
+        ));
+
+        let result = reconcile_durable_record_publication(
+            "test record",
+            &expected,
+            Err(write_error),
+            || Ok(observed),
+        );
+
+        assert!(matches!(result, Err(PortError::Failed(_))));
+    }
+
     fn manager(directory: &TempDir) -> ConfigManager<TestStore> {
-        ConfigManager::with_home_and_store(directory.path().to_path_buf(), TestStore)
+        manager_at(directory.path())
+    }
+
+    fn manager_at(home: &Path) -> ConfigManager<TestStore> {
+        ConfigManager::with_home_and_store(home.to_path_buf(), TestStore)
             .expect("isolated config manager")
+    }
+
+    #[tokio::test]
+    async fn pending_reset_in_another_engine_blocks_reference_and_sidecar_mutations() {
+        let directory = TempDir::new().unwrap();
+        let manager = manager(&directory);
+        let engines_root = manager.config_root.join("engines");
+        let other_engine_dir = engines_root.join("sing-box");
+        std::fs::create_dir_all(&other_engine_dir).unwrap();
+        let source = ActiveProfileReferenceState::Unselected {
+            revision: ActiveProfileReferenceRevision::new(0),
+        };
+        let target = ActiveProfileReferenceState::Selected(ActiveProfileReference::new(
+            EngineId::new("sing-box").unwrap(),
+            ProfileId::new("default").unwrap(),
+            ActiveProfileReferenceRevision::new(1),
+        ));
+        let intent = ActiveProfileResetIntentRecord::new(source, target, b"mode: direct\n");
+        let intent_path = other_engine_dir.join(ACTIVE_PROFILE_RESET_INTENT_FILE);
+        std::fs::write(&intent_path, serde_json::to_vec(&intent).unwrap()).unwrap();
+
+        assert!(matches!(
+            manager
+                .compare_and_set(
+                    ActiveProfileReferenceRevision::new(0),
+                    ActiveProfileReferenceTarget::selected(
+                        manager.engine_id(),
+                        ProfileId::new("default").unwrap(),
+                    ),
+                    ActiveProfileReferenceWriteAuthorization::Unowned,
+                )
+                .await,
+            Err(PortError::Rejected(Failure {
+                code: ErrorCode::NotReady,
+                retryable: true,
+                ..
+            }))
+        ));
+        assert!(matches!(
+            manager.acquire_selection_lease().await,
+            Err(PortError::Rejected(Failure {
+                code: ErrorCode::NotReady,
+                retryable: true,
+                ..
+            }))
+        ));
+        assert!(matches!(
+            crate::profile_option_store::write_options_bytes(
+                &manager.config_dir,
+                "default",
+                Some(b"{}"),
+            )
+            .await,
+            Err(PortError::Rejected(Failure {
+                code: ErrorCode::NotReady,
+                retryable: true,
+                ..
+            }))
+        ));
+        assert!(
+            !infiltrator_domain::profile_options::options_path(&manager.config_dir, "default")
+                .exists()
+        );
+    }
+
+    #[tokio::test]
+    async fn reset_resume_pending_v2_needs_no_new_default_or_port_discovery() {
+        let directory = TempDir::new().unwrap();
+        let initial_manager = manager(&directory);
+        let expected = initial_manager
+            .migrate_legacy_mihomo_selection()
+            .await
+            .unwrap();
+        let current = ActiveProfileReferenceState::Selected(ActiveProfileReference::new(
+            initial_manager.engine_id(),
+            ProfileId::new("default").unwrap(),
+            expected.revision().next().unwrap(),
+        ));
+        let default_path = initial_manager.profile_yaml_path("default").await.unwrap();
+        let previous_default = tokio::fs::read(&default_path).await.unwrap();
+        let persisted_default = b"mode: rule\nmixed-port: 7890\n";
+        tokio::fs::write(
+            initial_manager
+                .config_dir
+                .join(ACTIVE_PROFILE_RESET_DEFAULT_BACKUP_FILE),
+            &previous_default,
+        )
+        .await
+        .unwrap();
+        let intent = ActiveProfileResetIntentRecord::new(
+            expected.clone(),
+            current.clone(),
+            persisted_default,
+        );
+        let intent_path = initial_manager
+            .config_dir
+            .join(ACTIVE_PROFILE_RESET_INTENT_FILE);
+        tokio::fs::write(&intent_path, serde_json::to_vec(&intent).unwrap())
+            .await
+            .unwrap();
+
+        let restarted = manager(&directory);
+        assert!(restarted.initialize_profile_namespace().await.is_err());
+        restarted
+            .initialize_profile_namespace_for_reset_recovery()
+            .await
+            .unwrap();
+        let outcome = restarted
+            .reset_profiles_to_default(ActiveProfileReferenceResetRequest::ResumePendingIntent)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            outcome,
+            ActiveProfileReferenceResetOutcome::Committed {
+                previous: expected.clone(),
+                current: current.clone(),
+            }
+        );
+        assert_eq!(
+            tokio::fs::read(default_path).await.unwrap().as_slice(),
+            persisted_default
+        );
+        assert!(!intent_path.exists());
+        assert_eq!(
+            ActiveProfileReferenceStore::read(&restarted).await.unwrap(),
+            current
+        );
+    }
+
+    #[tokio::test]
+    async fn reset_resume_without_intent_allows_normal_typed_start() {
+        let directory = TempDir::new().unwrap();
+        let manager = manager(&directory);
+        let expected = manager.migrate_legacy_mihomo_selection().await.unwrap();
+        assert_eq!(
+            manager
+                .reset_profiles_to_default(ActiveProfileReferenceResetRequest::ResumePendingIntent)
+                .await
+                .unwrap(),
+            ActiveProfileReferenceResetOutcome::NoPendingIntent
+        );
+
+        let outcome = manager
+            .reset_profiles_to_default(ActiveProfileReferenceResetRequest::Start {
+                expected: expected.clone(),
+                default_document: "mode: direct\n".to_owned(),
+            })
+            .await
+            .unwrap();
+        assert!(matches!(
+            outcome,
+            ActiveProfileReferenceResetOutcome::Committed { previous, current }
+                if previous == expected && current.revision() == previous.revision().next().unwrap()
+        ));
+    }
+
+    #[tokio::test]
+    async fn legacy_reset_intent_upgrades_when_default_file_proves_exact_bytes() {
+        let directory = TempDir::new().unwrap();
+        let initial_manager = manager(&directory);
+        let expected = initial_manager
+            .migrate_legacy_mihomo_selection()
+            .await
+            .unwrap();
+        let current = ActiveProfileReferenceState::Selected(ActiveProfileReference::new(
+            initial_manager.engine_id(),
+            ProfileId::new("default").unwrap(),
+            expected.revision().next().unwrap(),
+        ));
+        let default_path = initial_manager.profile_yaml_path("default").await.unwrap();
+        let previous_default = tokio::fs::read(&default_path).await.unwrap();
+        let recovered_default = b"mode: rule\nmixed-port: 7890\n";
+        tokio::fs::write(
+            initial_manager
+                .config_dir
+                .join(ACTIVE_PROFILE_RESET_DEFAULT_BACKUP_FILE),
+            previous_default,
+        )
+        .await
+        .unwrap();
+        let legacy_intent = serde_json::json!({
+            "schema_version": LEGACY_ACTIVE_PROFILE_RESET_INTENT_SCHEMA_VERSION,
+            "expected_reference": expected.clone(),
+            "target_reference": current.clone(),
+            "default_document_sha256": sha256_hex(recovered_default),
+        });
+        let intent_path = initial_manager
+            .config_dir
+            .join(ACTIVE_PROFILE_RESET_INTENT_FILE);
+        tokio::fs::write(&intent_path, serde_json::to_vec(&legacy_intent).unwrap())
+            .await
+            .unwrap();
+        tokio::fs::write(&default_path, recovered_default)
+            .await
+            .unwrap();
+
+        let restarted = manager(&directory);
+        restarted
+            .initialize_profile_namespace_for_reset_recovery()
+            .await
+            .unwrap();
+        let outcome = restarted
+            .reset_profiles_to_default(ActiveProfileReferenceResetRequest::ResumePendingIntent)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            outcome,
+            ActiveProfileReferenceResetOutcome::Committed {
+                previous: expected,
+                current,
+            }
+        );
+        assert_eq!(
+            tokio::fs::read(default_path).await.unwrap(),
+            recovered_default
+        );
+        let complete = tokio::fs::read(
+            restarted
+                .config_dir
+                .join(ACTIVE_PROFILE_RESET_COMPLETE_FILE),
+        )
+        .await
+        .unwrap();
+        assert!(matches!(
+            parse_reset_intent_record(&complete).unwrap(),
+            ParsedActiveProfileResetIntentRecord::CurrentV2(_)
+        ));
+        assert!(!intent_path.exists());
+    }
+
+    #[tokio::test]
+    async fn reset_restart_finishes_committed_cleanup_with_changed_default_input() {
+        let directory = TempDir::new().unwrap();
+        let initial_manager = manager(&directory);
+        let expected = initial_manager
+            .migrate_legacy_mihomo_selection()
+            .await
+            .unwrap();
+        let current = ActiveProfileReferenceState::Selected(ActiveProfileReference::new(
+            initial_manager.engine_id(),
+            ProfileId::new("default").unwrap(),
+            expected.revision().next().unwrap(),
+        ));
+        let persisted_default = "mode: rule\nmixed-port: 7890\n";
+        assert!(matches!(
+            initial_manager
+                .reset_profiles_to_default(ActiveProfileReferenceResetRequest::Start {
+                    expected: expected.clone(),
+                    default_document: persisted_default.to_owned(),
+                })
+                .await
+                .unwrap(),
+            ActiveProfileReferenceResetOutcome::Committed { .. }
+        ));
+
+        let intent = ActiveProfileResetIntentRecord::new(
+            expected.clone(),
+            current.clone(),
+            persisted_default.as_bytes(),
+        );
+        let intent_path = initial_manager
+            .config_dir
+            .join(ACTIVE_PROFILE_RESET_INTENT_FILE);
+        let complete_path = initial_manager
+            .config_dir
+            .join(ACTIVE_PROFILE_RESET_COMPLETE_FILE);
+        tokio::fs::write(&intent_path, serde_json::to_vec(&intent).unwrap())
+            .await
+            .unwrap();
+        tokio::fs::remove_file(&complete_path).await.unwrap();
+        let obsolete_path = initial_manager.config_dir.join("obsolete.yaml");
+        tokio::fs::write(&obsolete_path, b"mode: direct\n")
+            .await
+            .unwrap();
+
+        let restarted = manager(&directory);
+        assert!(restarted.initialize_profile_namespace().await.is_err());
+        restarted
+            .initialize_profile_namespace_for_reset_recovery()
+            .await
+            .unwrap();
+        let outcome = restarted
+            .reset_profiles_to_default(ActiveProfileReferenceResetRequest::ResumePendingIntent)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            outcome,
+            ActiveProfileReferenceResetOutcome::Committed {
+                previous: expected,
+                current,
+            }
+        );
+        assert_eq!(
+            tokio::fs::read(restarted.profile_yaml_path("default").await.unwrap())
+                .await
+                .unwrap()
+                .as_slice(),
+            persisted_default.as_bytes()
+        );
+        assert!(!obsolete_path.exists());
+        assert!(!intent_path.exists());
+    }
+
+    #[tokio::test]
+    async fn legacy_reset_intent_fails_closed_when_its_default_bytes_are_unrecoverable() {
+        let directory = TempDir::new().unwrap();
+        let initial_manager = manager(&directory);
+        let expected = initial_manager
+            .migrate_legacy_mihomo_selection()
+            .await
+            .unwrap();
+        let current = ActiveProfileReferenceState::Selected(ActiveProfileReference::new(
+            initial_manager.engine_id(),
+            ProfileId::new("default").unwrap(),
+            expected.revision().next().unwrap(),
+        ));
+        let previous_default =
+            tokio::fs::read(initial_manager.profile_yaml_path("default").await.unwrap())
+                .await
+                .unwrap();
+        let legacy_target_bytes = b"mode: legacy-target\n";
+        let intent_value = serde_json::json!({
+            "schema_version": LEGACY_ACTIVE_PROFILE_RESET_INTENT_SCHEMA_VERSION,
+            "expected_reference": expected.clone(),
+            "target_reference": current,
+            "default_document_sha256": sha256_hex(legacy_target_bytes),
+        });
+        let intent_path = initial_manager
+            .config_dir
+            .join(ACTIVE_PROFILE_RESET_INTENT_FILE);
+        let intent_bytes = serde_json::to_vec(&intent_value).unwrap();
+        tokio::fs::write(&intent_path, &intent_bytes).await.unwrap();
+
+        let restarted = manager(&directory);
+        restarted
+            .initialize_profile_namespace_for_reset_recovery()
+            .await
+            .unwrap();
+        assert!(
+            restarted
+                .reset_profiles_to_default(ActiveProfileReferenceResetRequest::ResumePendingIntent)
+                .await
+                .is_err()
+        );
+
+        assert_eq!(
+            tokio::fs::read(restarted.profile_yaml_path("default").await.unwrap())
+                .await
+                .unwrap()
+                .as_slice(),
+            previous_default.as_slice()
+        );
+        assert_eq!(tokio::fs::read(intent_path).await.unwrap(), intent_bytes);
+        assert_eq!(
+            ActiveProfileReferenceStore::read(&restarted).await.unwrap(),
+            expected
+        );
+    }
+
+    fn spawn_test_child(test_name: &str, environment: &[(&str, &str)]) -> Child {
+        let mut command = Command::new(std::env::current_exe().expect("test binary path"));
+        command.arg(test_name).arg("--nocapture");
+        for (name, value) in environment {
+            command.env(name, value);
+        }
+        command.spawn().expect("spawn lock protocol test child")
+    }
+
+    async fn wait_for_marker(path: &Path) {
+        tokio::time::timeout(Duration::from_secs(30), async {
+            loop {
+                if path.exists() {
+                    return;
+                }
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("timed out waiting for subprocess marker");
+    }
+
+    async fn wait_child(mut child: Child) -> std::process::ExitStatus {
+        tokio::task::spawn_blocking(move || child.wait())
+            .await
+            .expect("join lock protocol child waiter")
+            .expect("wait for lock protocol child")
+    }
+
+    fn identity(engine: &str, instance: &str) -> CoreIdentity {
+        CoreIdentity::new(
+            EngineId::new(engine).expect("valid engine id"),
+            infiltrator_contract::core_identity::CoreInstanceId::new(instance)
+                .expect("valid core instance id"),
+            None,
+        )
+    }
+
+    fn stopped_snapshot(
+        identity: CoreIdentity,
+        generation: u64,
+    ) -> infiltrator_contract::snapshot::CoreLifecycleSnapshot {
+        infiltrator_contract::snapshot::CoreLifecycleSnapshot {
+            identity: Some(identity),
+            lifecycle: infiltrator_contract::snapshot::CoreLifecycle::Stopped,
+            generation,
+            session_token: None,
+            revision: generation,
+            failure: None,
+        }
     }
 
     #[tokio::test]
     async fn migration_persists_the_exact_legacy_mihomo_profile_once() {
         let directory = TempDir::new().unwrap();
         let config = manager(&directory);
-        config.save("default", "mixed-port: 7890\n").await.unwrap();
         config
-            .save("legacy-choice", "mixed-port: 7890\n")
+            .save_inactive_profile("default", "mixed-port: 7890\n")
+            .await
+            .unwrap();
+        config
+            .save_inactive_profile("legacy-choice", "mixed-port: 7890\n")
             .await
             .unwrap();
         tokio::fs::write(
@@ -612,6 +4951,7 @@ mod tests {
             .compare_and_set(
                 migrated.revision(),
                 ActiveProfileReferenceTarget::Unselected,
+                ActiveProfileReferenceWriteAuthorization::Unowned,
             )
             .await
             .unwrap();
@@ -643,7 +4983,13 @@ mod tests {
         let directory = TempDir::new().unwrap();
         let manager = manager(&directory);
 
-        let selected = manager.migrate_legacy_mihomo_selection().await.unwrap();
+        let selected = tokio::time::timeout(
+            Duration::from_secs(3),
+            manager.migrate_legacy_mihomo_selection(),
+        )
+        .await
+        .expect("new-install migration must not reacquire its held reference lock")
+        .unwrap();
 
         assert!(matches!(
             &selected,
@@ -662,24 +5008,39 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn profile_store_selection_updates_only_global_reference() {
+    async fn active_reference_cas_updates_only_the_global_reference() {
         let directory = TempDir::new().unwrap();
         let manager = manager(&directory);
-        manager.save("default", "mixed-port: 7890\n").await.unwrap();
-        manager.save("other", "mixed-port: 7891\n").await.unwrap();
+        manager
+            .save_inactive_profile("default", "mixed-port: 7890\n")
+            .await
+            .unwrap();
+        manager
+            .save_inactive_profile("other", "mixed-port: 7891\n")
+            .await
+            .unwrap();
+        let initial = manager.migrate_legacy_mihomo_selection().await.unwrap();
         let legacy_pointer = manager.get_current_unlocked().await.unwrap();
 
-        ProfileStore::set_current(&manager, "other").await.unwrap();
+        let selected = manager
+            .compare_and_set(
+                initial.revision(),
+                ActiveProfileReferenceTarget::selected(
+                    crate::engine_id(),
+                    ProfileId::new("other").unwrap(),
+                ),
+                ActiveProfileReferenceWriteAuthorization::Unowned,
+            )
+            .await
+            .unwrap();
 
-        let selected = manager.read().await.unwrap();
         assert!(matches!(
             &selected,
             ActiveProfileReferenceState::Selected(reference)
                 if reference.engine_id == crate::engine_id()
                     && reference.profile_id.as_str() == "other"
-                    && reference.revision.value() == 1
+                    && reference.revision.value() == 2
         ));
-        assert_eq!(manager.get_current().await.unwrap(), "other");
         assert_eq!(
             manager.get_current_unlocked().await.unwrap(),
             legacy_pointer
@@ -702,7 +5063,11 @@ mod tests {
         let expected = selected.revision();
         let pending = tokio::spawn(async move {
             writer
-                .compare_and_set(expected, ActiveProfileReferenceTarget::Unselected)
+                .compare_and_set(
+                    expected,
+                    ActiveProfileReferenceTarget::Unselected,
+                    ActiveProfileReferenceWriteAuthorization::Unowned,
+                )
                 .await
         });
         tokio::task::yield_now().await;
@@ -728,6 +5093,7 @@ mod tests {
         let owner_identity = identity.clone();
         let owner = lease
             .into_owner_binding(identity, CoreGeneration::new(1))
+            .await
             .unwrap();
 
         let same_engine_update = manager
@@ -737,6 +5103,10 @@ mod tests {
                     crate::engine_id(),
                     ProfileId::new("default").unwrap(),
                 ),
+                ActiveProfileReferenceWriteAuthorization::BoundOwner {
+                    identity: owner_identity.clone(),
+                    generation: CoreGeneration::new(1),
+                },
             )
             .await
             .unwrap();
@@ -750,6 +5120,10 @@ mod tests {
                     foreign_engine,
                     ProfileId::new("default").unwrap(),
                 ),
+                ActiveProfileReferenceWriteAuthorization::BoundOwner {
+                    identity: owner_identity.clone(),
+                    generation: CoreGeneration::new(1),
+                },
             )
             .await
             .unwrap_err();
@@ -769,9 +5143,503 @@ mod tests {
             revision: 1,
             failure: None,
         };
-        owner.release_after_terminal(&terminal).unwrap();
+        owner.release_after_terminal(&terminal).await.unwrap();
+        owner.release_after_terminal(&terminal).await.unwrap();
         drop(owner);
         let next_provider = manager.acquire_provider_selection_lease().await.unwrap();
         assert_eq!(next_provider.state(), &same_engine_update);
+    }
+
+    #[tokio::test]
+    async fn persisted_owner_release_and_recovery_ignore_runtime_version_changes() {
+        let directory = TempDir::new().unwrap();
+        let manager = manager(&directory);
+        let selected = manager.migrate_legacy_mihomo_selection().await.unwrap();
+        let bound_identity = identity(crate::engine_id().as_str(), "version-refresh-owner");
+        let owner = manager
+            .acquire_provider_selection_lease()
+            .await
+            .unwrap()
+            .into_owner_binding(bound_identity.clone(), CoreGeneration::new(1))
+            .await
+            .unwrap();
+
+        let mut ready_identity = bound_identity.clone();
+        ready_identity.version = Some(CoreVersion::new("1.19.12").unwrap());
+        let ready_terminal = stopped_snapshot(ready_identity.clone(), 1);
+        owner.release_after_terminal(&ready_terminal).await.unwrap();
+
+        // A later observation can refresh capability evidence again while
+        // the persisted owner proof remains bound to the same engine instance.
+        ready_identity.version = Some(CoreVersion::new("1.19.13").unwrap());
+        let refreshed_terminal = stopped_snapshot(ready_identity, 1);
+        owner
+            .release_after_terminal(&refreshed_terminal)
+            .await
+            .unwrap();
+        drop(owner);
+
+        assert_eq!(
+            manager
+                .recover_bound_owner_after_terminal(&refreshed_terminal)
+                .await
+                .unwrap(),
+            selected
+        );
+        let provider_lease = manager.acquire_provider_selection_lease().await.unwrap();
+        assert_eq!(provider_lease.state(), &selected);
+    }
+
+    #[tokio::test]
+    async fn terminal_release_never_waits_for_the_root_selection_lock() {
+        let directory = TempDir::new().unwrap();
+        let manager = Arc::new(manager(&directory));
+        let selected = manager.migrate_legacy_mihomo_selection().await.unwrap();
+        let old_identity = identity(crate::engine_id().as_str(), "close-cas-owner");
+        let owner = manager
+            .acquire_provider_selection_lease()
+            .await
+            .unwrap()
+            .into_owner_binding(old_identity.clone(), CoreGeneration::new(1))
+            .await
+            .unwrap();
+        let terminal = stopped_snapshot(old_identity, 1);
+
+        // A normal selector may hold the root reference lock. Terminal
+        // release takes only owner-state, so CoreApplication::close cannot
+        // deadlock behind that selector's lease.
+        let selection_lease = manager.acquire_selection_lease().await.unwrap();
+        let release = tokio::spawn(async move { owner.release_after_terminal(&terminal).await });
+        tokio::time::timeout(Duration::from_secs(3), release)
+            .await
+            .expect("terminal release waited for root selection lock")
+            .expect("terminal release task panicked")
+            .unwrap();
+
+        let writer = Arc::clone(&manager);
+        let pending = tokio::spawn(async move {
+            writer
+                .compare_and_set(
+                    selected.revision(),
+                    ActiveProfileReferenceTarget::selected(
+                        EngineId::new("sing-box").unwrap(),
+                        ProfileId::new("default").unwrap(),
+                    ),
+                    ActiveProfileReferenceWriteAuthorization::Unowned,
+                )
+                .await
+        });
+        tokio::task::yield_now().await;
+        assert!(!pending.is_finished());
+        drop(selection_lease);
+        let changed = pending.await.unwrap().unwrap();
+        assert_eq!(changed.revision().value(), 2);
+    }
+
+    #[tokio::test]
+    async fn owner_switch_requires_terminal_then_cas_and_candidate_binding() {
+        let directory = TempDir::new().unwrap();
+        let manager = manager(&directory);
+        let selected = manager.migrate_legacy_mihomo_selection().await.unwrap();
+        let old_identity = identity(crate::engine_id().as_str(), "old-owner");
+        let owner = manager
+            .acquire_provider_selection_lease()
+            .await
+            .unwrap()
+            .into_owner_binding(old_identity.clone(), CoreGeneration::new(1))
+            .await
+            .unwrap();
+        let switch = manager
+            .begin_owner_switch(
+                selected.revision(),
+                old_identity.clone(),
+                CoreGeneration::new(1),
+            )
+            .await
+            .unwrap();
+        assert!(matches!(
+            switch.state(),
+            ActiveProfileOwnerSwitchState::ClosingOld { .. }
+        ));
+
+        let blocked_cas = manager
+            .compare_and_set(
+                selected.revision(),
+                ActiveProfileReferenceTarget::selected(
+                    EngineId::new("sing-box").unwrap(),
+                    ProfileId::new("default").unwrap(),
+                ),
+                ActiveProfileReferenceWriteAuthorization::Unowned,
+            )
+            .await;
+        assert!(matches!(blocked_cas, Err(PortError::Rejected(_))));
+        assert!(matches!(
+            manager.acquire_provider_selection_lease().await,
+            Err(PortError::Rejected(_))
+        ));
+
+        let old_terminal = stopped_snapshot(old_identity.clone(), 1);
+        owner.release_after_terminal(&old_terminal).await.unwrap();
+        let recovery = manager.recover_owner_switch().await.unwrap();
+        let old_stopped = match recovery {
+            ActiveProfileOwnerSwitchRecovery::ResumeOldStopped(lease) => lease,
+            _ => panic!("expected resumable OldStopped stage"),
+        };
+        assert!(matches!(
+            old_stopped.state(),
+            ActiveProfileOwnerSwitchState::OldStopped {
+                terminal_generation,
+                ..
+            } if *terminal_generation == CoreGeneration::new(1)
+        ));
+        let target_engine = EngineId::new("sing-box").unwrap();
+        let changed = old_stopped
+            .compare_and_set_target(ActiveProfileReferenceTarget::selected(
+                target_engine.clone(),
+                ProfileId::new("default").unwrap(),
+            ))
+            .await
+            .unwrap();
+        drop(changed);
+        let changed = match manager.recover_owner_switch().await.unwrap() {
+            ActiveProfileOwnerSwitchRecovery::ResumeReferenceChanged(lease) => lease,
+            _ => panic!("expected resumable ReferenceChanged stage"),
+        };
+        let candidate = changed
+            .reserve_new_owner(target_engine.clone())
+            .await
+            .unwrap();
+        let candidate_identity = identity(target_engine.as_str(), "new-owner");
+        let started_candidate_receipt = stopped_snapshot(candidate_identity.clone(), 1);
+        assert!(
+            candidate
+                .discard_unstarted_candidate(&started_candidate_receipt)
+                .await
+                .is_err()
+        );
+        let candidate = match manager.recover_owner_switch().await.unwrap() {
+            ActiveProfileOwnerSwitchRecovery::ResumeBindingNew(lease) => lease,
+            _ => panic!("expected resumable BindingNew stage"),
+        };
+        let new_owner = candidate
+            .finalize(candidate_identity.clone(), CoreGeneration::new(0))
+            .await
+            .unwrap();
+        let committed = manager.read().await.unwrap();
+        assert!(matches!(
+            &committed,
+            ActiveProfileReferenceState::Selected(reference)
+                if reference.engine_id == target_engine
+                    && reference.profile_id.as_str() == "default"
+                    && reference.revision.value() == 2
+        ));
+        new_owner
+            .release_after_terminal(&stopped_snapshot(candidate_identity, 0))
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn crashed_closing_old_requires_explicit_terminal_evidence_and_can_resume() {
+        let directory = TempDir::new().unwrap();
+        let manager = manager(&directory);
+        let selected = manager.migrate_legacy_mihomo_selection().await.unwrap();
+        let old_identity = identity(crate::engine_id().as_str(), "crashed-old-owner");
+        let mut observed_identity = old_identity.clone();
+        observed_identity.version = Some(CoreVersion::new("1.19.12").unwrap());
+        let owner = manager
+            .acquire_provider_selection_lease()
+            .await
+            .unwrap()
+            .into_owner_binding(old_identity.clone(), CoreGeneration::new(1))
+            .await
+            .unwrap();
+        let switch = manager
+            .begin_owner_switch(
+                selected.revision(),
+                observed_identity.clone(),
+                CoreGeneration::new(1),
+            )
+            .await
+            .unwrap();
+        drop(switch);
+
+        // Simulate process death: release the kernel owner guard without
+        // publishing terminal state. Recovery must ask the platform seam.
+        let config_root = manager.canonical_config_root().await.unwrap();
+        let record = sync_read_active_profile_record(&config_root).unwrap();
+        let owner_token = match record.owner {
+            ActiveCoreOwnerState::Switching { owner_token, .. } => owner_token,
+            other => panic!("expected durable switch reservation, got {other:?}"),
+        };
+        remove_local_owner_registration(&config_root, &owner_token).unwrap();
+        drop(owner);
+        assert!(matches!(
+            manager.recover_owner_switch().await.unwrap(),
+            ActiveProfileOwnerSwitchRecovery::OwnerTerminalEvidenceRequired {
+                identity,
+                bound_generation,
+            } if identity == old_identity && bound_generation == CoreGeneration::new(1)
+        ));
+
+        let old_terminal = stopped_snapshot(observed_identity, 2);
+        let old_stopped = manager
+            .recover_old_owner_after_terminal(&old_terminal)
+            .await
+            .unwrap();
+        assert!(matches!(
+            old_stopped.state(),
+            ActiveProfileOwnerSwitchState::OldStopped {
+                terminal_generation,
+                ..
+            } if *terminal_generation == CoreGeneration::new(2)
+        ));
+        let target_engine = EngineId::new("sing-box").unwrap();
+        let changed = old_stopped
+            .compare_and_set_target(ActiveProfileReferenceTarget::selected(
+                target_engine.clone(),
+                ProfileId::new("after-crash").unwrap(),
+            ))
+            .await
+            .unwrap();
+        let candidate = changed
+            .reserve_new_owner(target_engine.clone())
+            .await
+            .unwrap();
+        let selected_after_abort = candidate.abort_before_core_application().await.unwrap();
+        assert!(matches!(
+            &selected_after_abort,
+            ActiveProfileReferenceState::Selected(reference)
+                if reference.engine_id == target_engine
+                    && reference.profile_id.as_str() == "after-crash"
+                    && reference.revision.value() == 2
+        ));
+        assert!(matches!(
+            manager.recover_owner_switch().await.unwrap(),
+            ActiveProfileOwnerSwitchRecovery::NoPendingSwitch
+        ));
+    }
+
+    #[tokio::test]
+    async fn subprocess_compare_and_set_entrypoint() {
+        let Ok(home) = std::env::var("MUSIC_FROG_ACTIVE_REFERENCE_CAS_HOME") else {
+            return;
+        };
+        let ready = std::env::var("MUSIC_FROG_ACTIVE_REFERENCE_CAS_READY").unwrap();
+        let gate = std::env::var("MUSIC_FROG_ACTIVE_REFERENCE_CAS_GATE").unwrap();
+        let result_path = std::env::var("MUSIC_FROG_ACTIVE_REFERENCE_CAS_RESULT").unwrap();
+        let engine = std::env::var("MUSIC_FROG_ACTIVE_REFERENCE_CAS_ENGINE").unwrap();
+        std::fs::write(ready, "ready").unwrap();
+        wait_for_marker(Path::new(&gate)).await;
+        let manager = manager_at(Path::new(&home));
+        let result = manager
+            .compare_and_set(
+                ActiveProfileReferenceRevision::new(0),
+                ActiveProfileReferenceTarget::selected(
+                    EngineId::new(engine).unwrap(),
+                    ProfileId::new("default").unwrap(),
+                ),
+                ActiveProfileReferenceWriteAuthorization::Unowned,
+            )
+            .await;
+        let outcome = match result {
+            Ok(state) => format!("committed:{}", state.revision().value()),
+            Err(PortError::Rejected(_)) => "stale".to_owned(),
+            Err(error) => format!("error:{error}"),
+        };
+        std::fs::write(result_path, outcome).unwrap();
+    }
+
+    #[tokio::test]
+    async fn compare_and_set_has_one_cross_process_revision_winner() {
+        let directory = TempDir::new().unwrap();
+        let home = directory.path().to_string_lossy().into_owned();
+        let gate = directory.path().join("cas-start");
+        let ready_a = directory.path().join("cas-ready-a");
+        let ready_b = directory.path().join("cas-ready-b");
+        let result_a = directory.path().join("cas-result-a");
+        let result_b = directory.path().join("cas-result-b");
+        let ready_a_text = ready_a.to_string_lossy().into_owned();
+        let ready_b_text = ready_b.to_string_lossy().into_owned();
+        let gate_text = gate.to_string_lossy().into_owned();
+        let result_a_text = result_a.to_string_lossy().into_owned();
+        let result_b_text = result_b.to_string_lossy().into_owned();
+        let child_a = spawn_test_child(
+            "subprocess_compare_and_set_entrypoint",
+            &[
+                ("MUSIC_FROG_ACTIVE_REFERENCE_CAS_HOME", &home),
+                ("MUSIC_FROG_ACTIVE_REFERENCE_CAS_READY", &ready_a_text),
+                ("MUSIC_FROG_ACTIVE_REFERENCE_CAS_GATE", &gate_text),
+                ("MUSIC_FROG_ACTIVE_REFERENCE_CAS_RESULT", &result_a_text),
+                ("MUSIC_FROG_ACTIVE_REFERENCE_CAS_ENGINE", "engine-a"),
+            ],
+        );
+        let child_b = spawn_test_child(
+            "subprocess_compare_and_set_entrypoint",
+            &[
+                ("MUSIC_FROG_ACTIVE_REFERENCE_CAS_HOME", &home),
+                ("MUSIC_FROG_ACTIVE_REFERENCE_CAS_READY", &ready_b_text),
+                ("MUSIC_FROG_ACTIVE_REFERENCE_CAS_GATE", &gate_text),
+                ("MUSIC_FROG_ACTIVE_REFERENCE_CAS_RESULT", &result_b_text),
+                ("MUSIC_FROG_ACTIVE_REFERENCE_CAS_ENGINE", "engine-b"),
+            ],
+        );
+        wait_for_marker(&ready_a).await;
+        wait_for_marker(&ready_b).await;
+        std::fs::write(&gate, "go").unwrap();
+        assert!(wait_child(child_a).await.success());
+        assert!(wait_child(child_b).await.success());
+        let results = [
+            std::fs::read_to_string(result_a).unwrap(),
+            std::fs::read_to_string(result_b).unwrap(),
+        ];
+        assert_eq!(
+            results
+                .iter()
+                .filter(|result| result.starts_with("committed:1"))
+                .count(),
+            1
+        );
+        assert_eq!(
+            results.iter().filter(|result| *result == "stale").count(),
+            1
+        );
+        assert!(!results.iter().any(|result| result.starts_with("error:")));
+        assert_eq!(
+            manager_at(directory.path())
+                .read()
+                .await
+                .unwrap()
+                .revision()
+                .value(),
+            1
+        );
+    }
+
+    #[tokio::test]
+    async fn subprocess_owner_lock_fences_cas_and_process_exit_releases_it() {
+        let directory = TempDir::new().unwrap();
+        let home = directory.path().to_string_lossy().into_owned();
+        let ready = directory.path().join("owner-ready");
+        let release = directory.path().join("owner-release");
+        let ready_text = ready.to_string_lossy().into_owned();
+        let release_text = release.to_string_lossy().into_owned();
+        let child = spawn_test_child(
+            "subprocess_owner_fence_entrypoint",
+            &[
+                ("MUSIC_FROG_OWNER_FENCE_HOME", &home),
+                ("MUSIC_FROG_OWNER_FENCE_READY", &ready_text),
+                ("MUSIC_FROG_OWNER_FENCE_RELEASE", &release_text),
+            ],
+        );
+        wait_for_marker(&ready).await;
+        let manager = manager_at(directory.path());
+        let foreign_engine = EngineId::new("engine-after-crash").unwrap();
+        assert!(matches!(
+            manager
+                .compare_and_set(
+                    ActiveProfileReferenceRevision::new(1),
+                    ActiveProfileReferenceTarget::selected(
+                        foreign_engine.clone(),
+                        ProfileId::new("default").unwrap(),
+                    ),
+                    ActiveProfileReferenceWriteAuthorization::Unowned,
+                )
+                .await,
+            Err(PortError::Rejected(_))
+        ));
+        assert!(matches!(
+            manager.acquire_provider_selection_lease().await,
+            Err(PortError::Rejected(_))
+        ));
+        std::fs::write(&release, "exit").unwrap();
+        assert!(wait_child(child).await.success());
+
+        // The kernel lock disappearing proves process exit, not that a
+        // supervised Core child reached Stopped. Keep the persisted Bound
+        // proof fenced until the platform supplies exact terminal evidence.
+        assert!(matches!(
+            manager
+                .compare_and_set(
+                    ActiveProfileReferenceRevision::new(1),
+                    ActiveProfileReferenceTarget::selected(
+                        foreign_engine.clone(),
+                        ProfileId::new("default").unwrap(),
+                    ),
+                    ActiveProfileReferenceWriteAuthorization::Unowned,
+                )
+                .await,
+            Err(PortError::Rejected(_))
+        ));
+        assert!(
+            manager
+                .recover_bound_owner_after_terminal(&stopped_snapshot(
+                    identity("engine-live", "different-owner"),
+                    1,
+                ))
+                .await
+                .is_err()
+        );
+        let owner_terminal = stopped_snapshot(identity("engine-live", "live-owner"), 1);
+        assert_eq!(
+            manager
+                .recover_bound_owner_after_terminal(&owner_terminal)
+                .await
+                .unwrap()
+                .revision()
+                .value(),
+            1
+        );
+
+        let after_exit = manager
+            .compare_and_set(
+                ActiveProfileReferenceRevision::new(1),
+                ActiveProfileReferenceTarget::selected(
+                    foreign_engine,
+                    ProfileId::new("default").unwrap(),
+                ),
+                ActiveProfileReferenceWriteAuthorization::Unowned,
+            )
+            .await
+            .unwrap();
+        assert_eq!(after_exit.revision().value(), 2);
+    }
+
+    #[tokio::test]
+    async fn subprocess_owner_fence_entrypoint() {
+        let Ok(home) = std::env::var("MUSIC_FROG_OWNER_FENCE_HOME") else {
+            return;
+        };
+        let ready = std::env::var("MUSIC_FROG_OWNER_FENCE_READY").unwrap();
+        let release = std::env::var("MUSIC_FROG_OWNER_FENCE_RELEASE").unwrap();
+        let manager = manager_at(Path::new(&home));
+        let engine = EngineId::new("engine-live").unwrap();
+        let selected = manager
+            .compare_and_set(
+                ActiveProfileReferenceRevision::new(0),
+                ActiveProfileReferenceTarget::selected(
+                    engine.clone(),
+                    ProfileId::new("default").unwrap(),
+                ),
+                ActiveProfileReferenceWriteAuthorization::Unowned,
+            )
+            .await
+            .unwrap();
+        let owner = manager
+            .acquire_provider_selection_lease()
+            .await
+            .unwrap()
+            .into_owner_binding(
+                identity(engine.as_str(), "live-owner"),
+                CoreGeneration::new(1),
+            )
+            .await
+            .unwrap();
+        assert_eq!(selected.revision().value(), 1);
+        std::fs::write(ready, "owner-bound").unwrap();
+        wait_for_marker(Path::new(&release)).await;
+        drop(owner);
+        // No terminal release: process exit must release only the kernel
+        // fence, and the next store instance must prove the stale binding.
     }
 }

@@ -1,7 +1,8 @@
 //! Cross-engine active-profile selection identity and revision fence.
 
-use crate::core_identity::EngineId;
+use crate::core_identity::{CoreGeneration, CoreIdentity, EngineId};
 use crate::profile_document_identity::ProfileId;
+use crate::snapshot::CoreInactiveLifecycle;
 use serde::{Deserialize, Serialize};
 
 /// Monotonic revision for the one product-wide active-profile reference.
@@ -62,6 +63,14 @@ pub enum ActiveProfileReferenceState {
     Selected(ActiveProfileReference),
 }
 
+impl Default for ActiveProfileReferenceState {
+    fn default() -> Self {
+        Self::Unselected {
+            revision: ActiveProfileReferenceRevision::default(),
+        }
+    }
+}
+
 impl ActiveProfileReferenceState {
     pub const fn revision(&self) -> ActiveProfileReferenceRevision {
         match self {
@@ -78,6 +87,90 @@ pub enum ActiveProfileReferenceTarget {
     Selected {
         engine_id: EngineId,
         profile_id: ProfileId,
+    },
+}
+
+/// Proof required to publish an active-profile reference change. Offline
+/// selection is accepted only while no Core owner is bound. A live owner may
+/// change the reference only when its stable engine+instance identity and
+/// exact bound generation are supplied by the runtime applier. Runtime version
+/// evidence does not participate in owner identity.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ActiveProfileReferenceWriteAuthorization {
+    Unowned,
+    BoundOwner {
+        identity: CoreIdentity,
+        generation: CoreGeneration,
+    },
+}
+
+/// Result of one revision-fenced selection write. A stale compare is a
+/// normal, explicit outcome so callers can refuse dispatch or conditional
+/// recovery without guessing from adapter error text.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ActiveProfileReferenceCasOutcome {
+    Committed {
+        previous: ActiveProfileReferenceState,
+        current: ActiveProfileReferenceState,
+    },
+    Stale {
+        expected: ActiveProfileReferenceState,
+        observed: ActiveProfileReferenceState,
+    },
+}
+
+/// Stable category of the native apply failure that triggered activation
+/// recovery.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CoreApplyFailureKind {
+    Validation,
+    Write,
+    Permission,
+    SourceChanged,
+    ActiveProfileReferenceStale,
+    InactiveCore,
+    Busy,
+    RolledBack,
+    RollbackFailed,
+    Lifecycle,
+    Adapter,
+}
+
+/// Exhaustive outcome of the application-level recovery after an activation
+/// apply failure.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "outcome", rename_all = "snake_case")]
+pub enum ActiveProfileRecoveryOutcome {
+    RestoredAndReapplied {
+        restored_revision: u64,
+        apply_failure: CoreApplyFailureKind,
+    },
+    RestoredButRuntimeUnavailable {
+        restored_revision: u64,
+        engine_id: EngineId,
+        lifecycle: CoreInactiveLifecycle,
+        apply_failure: CoreApplyFailureKind,
+    },
+    RestoredButRuntimeMismatch {
+        restored_revision: u64,
+        engine_id: EngineId,
+        apply_failure: CoreApplyFailureKind,
+    },
+    Superseded {
+        expected_revision: u64,
+        observed_revision: u64,
+        apply_failure: CoreApplyFailureKind,
+    },
+    CompareFailed {
+        expected_revision: u64,
+        message: String,
+        apply_failure: CoreApplyFailureKind,
+    },
+    ReapplyFailed {
+        restored_revision: u64,
+        message: String,
+        apply_failure: CoreApplyFailureKind,
     },
 }
 

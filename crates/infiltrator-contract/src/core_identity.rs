@@ -129,7 +129,8 @@ impl<'de> Deserialize<'de> for CoreInstanceId {
     }
 }
 
-/// The engine-reported version string. Parsing policy stays in its adapter.
+/// The engine-reported version string. Parsing policy stays in its adapter;
+/// readiness may add or refresh this runtime capability evidence.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize)]
 #[serde(transparent)]
 pub struct CoreVersion(String);
@@ -158,7 +159,13 @@ impl<'de> Deserialize<'de> for CoreVersion {
     }
 }
 
-/// Stable identity; the current activation generation is carried separately.
+/// Runtime identity observation for one core instance.
+///
+/// `engine` and `instance` identify the stable owner. `version` is dynamic
+/// capability evidence and may be absent before readiness or change when the
+/// active process is observed again. Use [`CoreIdentity::same_instance`] for
+/// owner fences; full equality remains appropriate for version-scoped
+/// observations and requests.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct CoreIdentity {
     pub engine: EngineId,
@@ -173,6 +180,12 @@ impl CoreIdentity {
             instance,
             version,
         }
+    }
+
+    /// Whether two runtime observations refer to the same stable engine
+    /// instance, ignoring version evidence that can change after readiness.
+    pub fn same_instance(&self, other: &Self) -> bool {
+        self.engine == other.engine && self.instance == other.instance
     }
 }
 
@@ -242,5 +255,32 @@ mod tests {
             serde_json::from_str::<CoreGeneration>("42").expect("deserialize generation"),
             CoreGeneration::new(42)
         );
+    }
+
+    #[test]
+    fn same_instance_ignores_only_dynamic_version_evidence() {
+        let engine = EngineId::new("mihomo").expect("engine ID");
+        let instance = CoreInstanceId::new("desktop-main").expect("instance ID");
+        let before_readiness = CoreIdentity::new(engine.clone(), instance.clone(), None);
+        let after_readiness = CoreIdentity::new(
+            engine.clone(),
+            instance,
+            Some(CoreVersion::new("1.19.12").expect("version")),
+        );
+        let other_instance = CoreIdentity::new(
+            engine,
+            CoreInstanceId::new("desktop-replacement").expect("instance ID"),
+            Some(CoreVersion::new("1.19.12").expect("version")),
+        );
+        let other_engine = CoreIdentity::new(
+            EngineId::new("sing-box").expect("engine ID"),
+            before_readiness.instance.clone(),
+            None,
+        );
+
+        assert_ne!(before_readiness, after_readiness);
+        assert!(before_readiness.same_instance(&after_readiness));
+        assert!(!before_readiness.same_instance(&other_instance));
+        assert!(!before_readiness.same_instance(&other_engine));
     }
 }

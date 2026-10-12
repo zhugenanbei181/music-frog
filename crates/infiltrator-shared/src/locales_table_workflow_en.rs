@@ -384,7 +384,7 @@ pub(super) fn translate_workflow_en(key: &str) -> Cow<'static, str> {
         "profiles_filter_save_hint" => "Saving applies the filter to the current configuration and stores your choices".into(),
         "profiles_filter_deduplicate" => "Remove duplicate nodes".into(),
         "profiles_filter_apply_action" => "Apply filter".into(),
-        "overview_core_reloading" => "Reloading core · showing the last snapshot".into(),
+        "overview_content_effecting" => "Reloading core · showing the last snapshot".into(),
         "core_control_unavailable_hint" => "Core control service is unavailable".into(),
         "profiles_snippet_quick_insert" => "Quick insert snippets".into(),
         "common_reload" => "Reload".into(),

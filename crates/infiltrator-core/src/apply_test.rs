@@ -9,19 +9,32 @@ mod workspace;
 
 use super::*;
 use crate::history::{list_snapshots, read_snapshot};
+use infiltrator_contract::active_profile_reference::{
+    ActiveProfileReference, ActiveProfileReferenceCasOutcome, ActiveProfileReferenceState,
+    ActiveProfileReferenceTarget, ActiveProfileReferenceWriteAuthorization, CoreApplyFailureKind,
+};
 use infiltrator_contract::apply_transaction::ApplyTransactionStage;
 use infiltrator_contract::core_identity::{CoreIdentity, CoreInstanceId, EngineId};
+use infiltrator_contract::error::{ErrorCode, FailureReason};
+use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_contract::session::SessionToken;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_domain::mixin::{MixinConfig, RuleMixin};
+use infiltrator_domain::rules::source_identity::identify_rules_document;
+use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceStore;
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::core_process::CoreProcess;
 use infiltrator_ports::error::PortError;
+use infiltrator_ports::profile_store::{
+    ActiveProfileWorkspacePublishOutcome, ActiveProfileWorkspaceRecoveryLease,
+    ActiveProfileWorkspaceRecoveryResolution, ProfileStore,
+};
+use infiltrator_ports::profile_workspace::{ProfileWorkspacePurpose, ProfileWorkspaceUpdate};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::{result, time};
-use tokio::fs::read_to_string;
+use tokio::fs::{read_to_string, write};
 use tokio::time::{Instant, sleep};
 
 const OLD: &str = "port: 7890\n";
@@ -271,8 +284,11 @@ async fn fixture(probe_failures: u64, reload_fails: bool) -> Fixture {
         },
     )
     .expect("config manager");
-    config.save("main", OLD).await.expect("seed profile");
-    config.set_current("main").await.expect("set current");
+    config
+        .save_inactive_profile("main", OLD)
+        .await
+        .expect("seed profile");
+    select_profile(&config, "main").await;
 
     let controller = Arc::new(MockController {
         running: AtomicBool::new(false),
@@ -291,6 +307,391 @@ async fn fixture(probe_failures: u64, reload_fails: bool) -> Fixture {
     }
 }
 
+async fn select_profile<S: SecureStore>(config: &ConfigManager<S>, profile: &str) {
+    let expected = ProfileStore::read_active_profile_reference(config)
+        .await
+        .expect("read selection before test CAS");
+    let target = ActiveProfileReferenceTarget::selected(
+        ConfigManager::engine_id(config),
+        ProfileId::new(profile).expect("valid test profile ID"),
+    );
+    match ProfileStore::compare_and_set_active_profile_reference(
+        config,
+        expected,
+        target,
+        infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization::Unowned,
+    )
+        .await
+        .expect("revisioned test selection CAS")
+    {
+        ActiveProfileReferenceCasOutcome::Committed { .. } => {}
+        ActiveProfileReferenceCasOutcome::Stale { expected, observed } => {
+            panic!("test selection unexpectedly stale: {expected:?} -> {observed:?}")
+        }
+    }
+}
+
+async fn selected_reference<S: SecureStore>(config: &ConfigManager<S>) -> ActiveProfileReference {
+    match ActiveProfileReferenceStore::read(config)
+        .await
+        .expect("read active profile reference")
+    {
+        ActiveProfileReferenceState::Selected(reference) => reference,
+        ActiveProfileReferenceState::Unselected { .. } => {
+            panic!("apply test fixture must have a selected profile")
+        }
+    }
+}
+
+async fn publish_active_workspace_for_test(
+    config: &ConfigManager<MockStore>,
+    expected_reference: &ActiveProfileReference,
+    expected_workspace: &infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity,
+    update: ProfileWorkspaceUpdate,
+) -> infiltrator_ports::profile_workspace::ProfileWorkspace {
+    let lease = ProfileStore::acquire_active_workspace_write_lease(
+        config,
+        expected_reference.clone(),
+        expected_workspace.clone(),
+        ActiveProfileReferenceWriteAuthorization::Unowned,
+    )
+    .await
+    .expect("acquire active workspace test lease");
+    assert_eq!(
+        lease.observed_workspace().identity(),
+        *expected_workspace,
+        "active workspace lease observes the requested identity"
+    );
+
+    match lease.publish(update).await {
+        ActiveProfileWorkspacePublishOutcome::Published(published) => published.commit(),
+        ActiveProfileWorkspacePublishOutcome::Unpublished(error) => {
+            panic!("test workspace publication failed: {error}")
+        }
+        ActiveProfileWorkspacePublishOutcome::Superseded { observed } => {
+            panic!("test workspace was superseded before publication: {observed:?}")
+        }
+        ActiveProfileWorkspacePublishOutcome::RecoveryRequired(recovery) => {
+            commit_recovered_workspace_publication(recovery).await
+        }
+    }
+}
+
+async fn commit_recovered_workspace_publication<'a>(
+    mut recovery: Box<dyn ActiveProfileWorkspaceRecoveryLease + 'a>,
+) -> infiltrator_ports::profile_workspace::ProfileWorkspace {
+    loop {
+        let state = recovery.state();
+        match recovery.resolve().await {
+            ActiveProfileWorkspaceRecoveryResolution::Published(published) => {
+                return published.commit();
+            }
+            ActiveProfileWorkspaceRecoveryResolution::Restored(restored) => {
+                restored.finish();
+                panic!("test workspace publication recovered as restored: {state:?}");
+            }
+            ActiveProfileWorkspaceRecoveryResolution::Unpublished(error) => {
+                panic!("test workspace publication was not completed: {error}");
+            }
+            ActiveProfileWorkspaceRecoveryResolution::Superseded { observed } => {
+                panic!("test workspace was superseded during recovery: {observed:?}");
+            }
+            ActiveProfileWorkspaceRecoveryResolution::RecoveryRequired(next) => {
+                recovery = next;
+            }
+        }
+    }
+}
+
+async fn apply_to_selected_reference(
+    session: &TestLifecycle,
+    config: &ConfigManager<MockStore>,
+    reloader: &dyn ConfigReloader,
+    content: &str,
+    params: ApplyParams,
+) -> ApplyResult<ApplyOutcome> {
+    let expected = selected_reference(config).await;
+    apply_workspace_content_for_reference(session, config, reloader, &expected, content, params)
+        .await
+}
+
+async fn apply_confirmed_to_selected_reference(
+    session: &TestLifecycle,
+    config: &ConfigManager<MockStore>,
+    reloader: &dyn ConfigReloader,
+    content: &str,
+    params: ApplyParams,
+    expected_rules: &infiltrator_contract::rule_source::RuleSourceIdentity,
+) -> ApplyResult<ApplyOutcome> {
+    let expected_reference = selected_reference(config).await;
+    let workspace = ProfileStore::load_workspace(config, &expected_reference.profile_id)
+        .await
+        .map_err(|error| ApplyError::Write(error.to_string()))?;
+    let existing = workspace
+        .document
+        .utf8_text()
+        .map_err(|error| ApplyError::Validation(error.to_string()))?;
+    if infiltrator_domain::rules::source_identity::identify_rules_document(
+        expected_reference.profile_id.as_str().to_owned(),
+        existing,
+    ) != *expected_rules
+    {
+        return Err(ApplyError::SourceChanged);
+    }
+    apply_workspace_content_for_reference_with_workspace(
+        session,
+        config,
+        reloader,
+        &expected_reference,
+        &workspace,
+        content,
+        params,
+    )
+    .await
+}
+
+async fn apply_workspace_content_for_reference(
+    session: &TestLifecycle,
+    config: &ConfigManager<MockStore>,
+    reloader: &dyn ConfigReloader,
+    expected: &ActiveProfileReference,
+    content: &str,
+    params: ApplyParams,
+) -> ApplyResult<ApplyOutcome> {
+    let workspace = ProfileStore::load_workspace(config, &expected.profile_id)
+        .await
+        .map_err(|error| ApplyError::Write(error.to_string()))?;
+    apply_workspace_content_for_reference_with_workspace(
+        session, config, reloader, expected, &workspace, content, params,
+    )
+    .await
+}
+
+async fn apply_workspace_content_for_reference_with_workspace(
+    session: &TestLifecycle,
+    config: &ConfigManager<MockStore>,
+    reloader: &dyn ConfigReloader,
+    expected: &ActiveProfileReference,
+    workspace: &infiltrator_ports::profile_workspace::ProfileWorkspace,
+    content: &str,
+    params: ApplyParams,
+) -> ApplyResult<ApplyOutcome> {
+    let update = ProfileWorkspaceUpdate {
+        purpose: ProfileWorkspacePurpose::Derived,
+        document_bytes: content.as_bytes().to_vec(),
+        sidecar_bytes: workspace.sidecar_bytes.clone(),
+    };
+    let receipt = crate::apply_workspace::apply_active_profile_workspace_with_receipt(
+        session,
+        config,
+        reloader,
+        expected,
+        &workspace.identity(),
+        &update,
+        ActiveProfileReferenceWriteAuthorization::Unowned,
+        params,
+    )
+    .await?;
+    Ok(receipt.apply)
+}
+
+async fn apply_active_profile_doc(
+    session: &TestLifecycle,
+    config: &ConfigManager<MockStore>,
+    reloader: &dyn ConfigReloader,
+    expected: &ActiveProfileReference,
+    document: &SourceDoc,
+    params: ApplyParams,
+) -> ApplyResult<ApplyOutcome> {
+    apply_workspace_content_for_reference(
+        session,
+        config,
+        reloader,
+        expected,
+        &document.render(),
+        params,
+    )
+    .await
+}
+
+async fn apply_active_profile_set_scalar(
+    session: &TestLifecycle,
+    config: &ConfigManager<MockStore>,
+    reloader: &dyn ConfigReloader,
+    expected: &ActiveProfileReference,
+    key: &str,
+    value: &str,
+    params: ApplyParams,
+) -> ApplyResult<ApplyOutcome> {
+    super::apply_active_profile_set_scalar(
+        session,
+        config,
+        reloader,
+        expected,
+        ActiveProfileReferenceWriteAuthorization::Unowned,
+        key,
+        value,
+        params,
+    )
+    .await
+}
+
+async fn apply_active_profile_append_rule(
+    session: &TestLifecycle,
+    config: &ConfigManager<MockStore>,
+    reloader: &dyn ConfigReloader,
+    expected: &ActiveProfileReference,
+    rule: &str,
+    params: ApplyParams,
+) -> ApplyResult<ApplyOutcome> {
+    super::apply_active_profile_append_rule(
+        session,
+        config,
+        reloader,
+        expected,
+        ActiveProfileReferenceWriteAuthorization::Unowned,
+        rule,
+        params,
+    )
+    .await
+}
+
+async fn apply_active_profile_remove_rule(
+    session: &TestLifecycle,
+    config: &ConfigManager<MockStore>,
+    reloader: &dyn ConfigReloader,
+    expected: &ActiveProfileReference,
+    rule: &str,
+    params: ApplyParams,
+) -> ApplyResult<ApplyOutcome> {
+    super::apply_active_profile_remove_rule(
+        session,
+        config,
+        reloader,
+        expected,
+        ActiveProfileReferenceWriteAuthorization::Unowned,
+        rule,
+        params,
+    )
+    .await
+}
+
+async fn apply_active_profile_rewrite_anchors(
+    session: &TestLifecycle,
+    config: &ConfigManager<MockStore>,
+    reloader: &dyn ConfigReloader,
+    expected: &ActiveProfileReference,
+    prefix: &str,
+    params: ApplyParams,
+) -> ApplyResult<ApplyOutcome> {
+    super::apply_active_profile_rewrite_anchors(
+        session,
+        config,
+        reloader,
+        expected,
+        ActiveProfileReferenceWriteAuthorization::Unowned,
+        prefix,
+        params,
+    )
+    .await
+}
+
+async fn apply_active_profile_mixin_fidelity(
+    session: &TestLifecycle,
+    config: &ConfigManager<MockStore>,
+    reloader: &dyn ConfigReloader,
+    expected: &ActiveProfileReference,
+    mixin: &MixinConfig,
+    params: ApplyParams,
+) -> ApplyResult<ApplyOutcome> {
+    super::apply_active_profile_mixin_fidelity(
+        session,
+        config,
+        reloader,
+        expected,
+        ActiveProfileReferenceWriteAuthorization::Unowned,
+        mixin,
+        params,
+    )
+    .await
+}
+
+#[test]
+fn apply_error_port_mapping_preserves_typed_failure_classes() {
+    let cases = [
+        (
+            ApplyError::Validation("invalid yaml".into()),
+            ErrorCode::Configuration,
+            CoreApplyFailureKind::Validation,
+        ),
+        (
+            ApplyError::Write("disk error".into()),
+            ErrorCode::Storage,
+            CoreApplyFailureKind::Write,
+        ),
+        (
+            ApplyError::Permission("denied".into()),
+            ErrorCode::Permission,
+            CoreApplyFailureKind::Permission,
+        ),
+        (
+            ApplyError::Busy {
+                status: CoreLifecycle::Starting,
+            },
+            ErrorCode::InvalidState,
+            CoreApplyFailureKind::Busy,
+        ),
+        (
+            ApplyError::NotRunning {
+                status: CoreLifecycle::Stopped,
+            },
+            ErrorCode::NotReady,
+            CoreApplyFailureKind::InactiveCore,
+        ),
+        (
+            ApplyError::RolledBack {
+                cause: "restart rejected".into(),
+            },
+            ErrorCode::InvalidState,
+            CoreApplyFailureKind::RolledBack,
+        ),
+        (
+            ApplyError::RollbackFailed {
+                cause: "restart rejected".into(),
+                rollback: "native rollback failed".into(),
+            },
+            ErrorCode::InvalidState,
+            CoreApplyFailureKind::RollbackFailed,
+        ),
+        (
+            ApplyError::Lifecycle("owner rejected".into()),
+            ErrorCode::InvalidState,
+            CoreApplyFailureKind::Lifecycle,
+        ),
+    ];
+    for (error, expected_code, expected_kind) in cases {
+        let failure = failure_from_apply_error(error);
+        assert_eq!(failure.code, expected_code);
+        assert_eq!(
+            failure.reason,
+            Some(FailureReason::CoreApplyFailure(expected_kind))
+        );
+    }
+
+    let stale = failure_from_apply_error(ApplyError::ActiveProfileReferenceChanged {
+        expected_revision: 7,
+        observed_revision: 8,
+    });
+    assert_eq!(stale.code, ErrorCode::NotReady);
+    assert_eq!(
+        stale.reason,
+        Some(FailureReason::ActiveProfileReferenceStale {
+            expected_revision: 7,
+            observed_revision: 8,
+        })
+    );
+}
+
 fn params(strategy: ApplyStrategy) -> ApplyParams {
     ApplyParams {
         strategy,
@@ -300,10 +701,53 @@ fn params(strategy: ApplyStrategy) -> ApplyParams {
     }
 }
 
+async fn start_ready(fixture: &Fixture) {
+    let generation = fixture.session.start().await.expect("start core");
+    fixture
+        .session
+        .wait_for_ready(generation, Duration::from_secs(5))
+        .await
+        .expect("core ready");
+}
+
 async fn file_content(config: &ConfigManager<MockStore>) -> String {
     let _current = config.get_current().await.expect("current");
     let path = config.get_current_path().await.expect("path");
     read_to_string(path).await.expect("profile file")
+}
+
+async fn replace_profile_file_for_test(
+    config: &ConfigManager<MockStore>,
+    profile: &str,
+    content: &str,
+) {
+    let reference = selected_reference(config).await;
+    assert_eq!(reference.profile_id.as_str(), profile);
+    let before = ProfileStore::load_workspace(config, &reference.profile_id)
+        .await
+        .expect("read active workspace before fixture edit");
+    let update = ProfileWorkspaceUpdate {
+        purpose: ProfileWorkspacePurpose::Derived,
+        document_bytes: content.as_bytes().to_vec(),
+        sidecar_bytes: before.sidecar_bytes.clone(),
+    };
+    let committed =
+        publish_active_workspace_for_test(config, &reference, &before.identity(), update).await;
+    assert_eq!(committed.document.utf8_text().unwrap(), content);
+}
+
+async fn write_profile_file_outside_store_for_test(
+    config: &ConfigManager<MockStore>,
+    profile: &str,
+    content: &str,
+) {
+    let path = config
+        .existing_profile_yaml_path(profile)
+        .await
+        .expect("test profile path");
+    write(path, content)
+        .await
+        .expect("simulate an out-of-store document edit");
 }
 
 #[tokio::test]
@@ -316,7 +760,7 @@ async fn hot_reload_success_keeps_generation_and_updates_file() {
         .expect("ready");
     let session_token = f.session.session_token().expect("session token");
 
-    let outcome = apply_current_profile(
+    let outcome = apply_to_selected_reference(
         &f.session,
         &f.config,
         &f.reloader,
@@ -335,6 +779,171 @@ async fn hot_reload_success_keeps_generation_and_updates_file() {
 }
 
 #[tokio::test]
+async fn active_reference_apply_uses_the_exact_selected_profile_under_its_lease() {
+    let f = fixture(0, false).await;
+    start_ready(&f).await;
+    f.config
+        .save_inactive_profile("other", NEW)
+        .await
+        .expect("seed another profile");
+    let ActiveProfileReferenceState::Selected(expected) =
+        ActiveProfileReferenceStore::read(&f.config)
+            .await
+            .expect("active profile reference")
+    else {
+        panic!("fixture has a selected profile");
+    };
+
+    let outcome = apply_active_profile_reference(
+        &f.session,
+        &f.config,
+        &f.reloader,
+        &expected,
+        params(ApplyStrategy::AlwaysRestart),
+    )
+    .await
+    .expect("apply the exact selected profile");
+
+    assert_eq!(outcome.method, ApplyMethod::Restart);
+    assert_eq!(
+        f.config.get_current().await.expect("selected profile"),
+        "main"
+    );
+    assert_eq!(f.config.load("main").await.expect("target file"), OLD);
+    assert_eq!(f.config.load("other").await.expect("other file"), NEW);
+    assert_eq!(f.session.lifecycle(), CoreLifecycle::Ready);
+}
+
+#[tokio::test]
+async fn active_reference_content_apply_writes_only_the_exact_selected_profile() {
+    let f = fixture(0, false).await;
+    start_ready(&f).await;
+    f.config
+        .save_inactive_profile("other", "port: 7888\n")
+        .await
+        .expect("seed a second profile");
+    let ActiveProfileReferenceState::Selected(expected) =
+        ActiveProfileReferenceStore::read(&f.config)
+            .await
+            .expect("active profile reference")
+    else {
+        panic!("fixture has a selected profile");
+    };
+
+    apply_workspace_content_for_reference(
+        &f.session,
+        &f.config,
+        &f.reloader,
+        &expected,
+        NEW,
+        params(ApplyStrategy::AlwaysRestart),
+    )
+    .await
+    .expect("apply content to the exact selected profile");
+
+    assert_eq!(f.config.load("main").await.expect("main file"), NEW);
+    assert_eq!(
+        f.config.load("other").await.expect("other file"),
+        "port: 7888\n"
+    );
+    assert_eq!(
+        ActiveProfileReferenceStore::read(&f.config)
+            .await
+            .expect("reference remains selected"),
+        ActiveProfileReferenceState::Selected(expected)
+    );
+    assert_eq!(f.session.lifecycle(), CoreLifecycle::Ready);
+}
+
+#[tokio::test]
+async fn stale_active_reference_content_apply_has_zero_profile_or_runtime_effects() {
+    let f = fixture(0, false).await;
+    let ActiveProfileReferenceState::Selected(expected) =
+        ActiveProfileReferenceStore::read(&f.config)
+            .await
+            .expect("active profile reference")
+    else {
+        panic!("fixture has a selected profile");
+    };
+    f.config
+        .save_inactive_profile("other", "port: 7888\n")
+        .await
+        .unwrap();
+    select_profile(&f.config, "other").await;
+    start_ready(&f).await;
+    let generation = f.session.generation();
+    let start_calls = f.session.start_calls();
+    let stop_calls = f.session.stop_calls();
+
+    assert_eq!(
+        apply_workspace_content_for_reference(
+            &f.session,
+            &f.config,
+            &f.reloader,
+            &expected,
+            NEW,
+            params(ApplyStrategy::AlwaysRestart),
+        )
+        .await
+        .expect_err("stale content reference"),
+        ApplyError::SourceChanged
+    );
+    assert_eq!(f.config.load("main").await.expect("main file"), OLD);
+    assert_eq!(
+        f.config.load("other").await.expect("other file"),
+        "port: 7888\n"
+    );
+    assert_eq!(f.reloader.calls.load(Ordering::SeqCst), 0);
+    assert_eq!(f.session.lifecycle(), CoreLifecycle::Ready);
+    assert!(f.controller.running.load(Ordering::SeqCst));
+    assert_eq!(f.session.generation(), generation);
+    assert_eq!(f.session.start_calls(), start_calls);
+    assert_eq!(f.session.stop_calls(), stop_calls);
+}
+
+#[tokio::test]
+async fn active_reference_apply_rejects_a_stale_revision_before_core_or_file_effects() {
+    let f = fixture(0, false).await;
+    let ActiveProfileReferenceState::Selected(expected) =
+        ActiveProfileReferenceStore::read(&f.config)
+            .await
+            .expect("active profile reference")
+    else {
+        panic!("fixture has a selected profile");
+    };
+    f.config
+        .save_inactive_profile("other", NEW)
+        .await
+        .expect("seed other profile");
+    select_profile(&f.config, "other").await;
+
+    assert_eq!(
+        apply_active_profile_reference(
+            &f.session,
+            &f.config,
+            &f.reloader,
+            &expected,
+            params(ApplyStrategy::AlwaysRestart),
+        )
+        .await
+        .expect_err("stale reference"),
+        ApplyError::ActiveProfileReferenceChanged {
+            expected_revision: expected.revision.value(),
+            observed_revision: expected.revision.value() + 1,
+        }
+    );
+    assert_eq!(
+        f.config.get_current().await.expect("winner selection"),
+        "other"
+    );
+    assert_eq!(f.config.load("main").await.expect("main file"), OLD);
+    assert_eq!(f.config.load("other").await.expect("other file"), NEW);
+    assert_eq!(f.reloader.calls.load(Ordering::SeqCst), 0);
+    assert_eq!(f.session.lifecycle(), CoreLifecycle::Stopped);
+    assert!(!f.controller.running.load(Ordering::SeqCst));
+}
+
+#[tokio::test]
 async fn reload_failure_falls_back_to_restart() {
     let f = fixture(0, true).await;
     let generation = f.session.start().await.expect("start");
@@ -345,7 +954,7 @@ async fn reload_failure_falls_back_to_restart() {
     let before = f.session.generation();
     let old_session = f.session.session_token().expect("old session token");
 
-    let outcome = apply_current_profile(
+    let outcome = apply_to_selected_reference(
         &f.session,
         &f.config,
         &f.reloader,
@@ -372,7 +981,7 @@ async fn restart_failure_rolls_back_and_recovers() {
         .expect("ready");
     f.controller.fail_starts_left.store(1, Ordering::SeqCst);
 
-    let err = apply_current_profile(
+    let err = apply_to_selected_reference(
         &f.session,
         &f.config,
         &f.reloader,
@@ -398,10 +1007,10 @@ async fn restart_failure_rolls_back_and_recovers() {
 }
 
 #[tokio::test]
-async fn stopped_core_starts_with_new_config_without_reload() {
+async fn stopped_core_exact_apply_fails_without_starting_or_writing() {
     let f = fixture(0, false).await;
 
-    let outcome = apply_current_profile(
+    let error = apply_to_selected_reference(
         &f.session,
         &f.config,
         &f.reloader,
@@ -409,12 +1018,45 @@ async fn stopped_core_starts_with_new_config_without_reload() {
         params(ApplyStrategy::PreferReload),
     )
     .await
-    .expect("apply");
+    .expect_err("paused Core must not be started by a profile apply");
 
-    assert_eq!(outcome.method, ApplyMethod::Restart);
-    assert_eq!(file_content(&f.config).await, NEW);
-    assert_eq!(f.session.status(), CoreLifecycle::Ready);
+    assert_eq!(
+        error,
+        ApplyError::NotRunning {
+            status: CoreLifecycle::Stopped
+        }
+    );
+    assert_eq!(file_content(&f.config).await, OLD);
+    assert_eq!(f.session.status(), CoreLifecycle::Stopped);
     assert_eq!(f.reloader.calls.load(Ordering::SeqCst), 0);
+    assert!(!f.controller.running.load(Ordering::SeqCst));
+}
+
+#[tokio::test]
+async fn stopped_core_selected_reference_apply_does_not_dispatch_or_start() {
+    let f = fixture(0, false).await;
+    let expected = selected_reference(&f.config).await;
+
+    let error = apply_active_profile_reference(
+        &f.session,
+        &f.config,
+        &f.reloader,
+        &expected,
+        params(ApplyStrategy::AlwaysRestart),
+    )
+    .await
+    .expect_err("exact-reference apply requires an already running Core");
+
+    assert_eq!(
+        error,
+        ApplyError::NotRunning {
+            status: CoreLifecycle::Stopped
+        }
+    );
+    assert_eq!(f.config.load("main").await.unwrap(), OLD);
+    assert_eq!(f.session.status(), CoreLifecycle::Stopped);
+    assert_eq!(f.reloader.calls.load(Ordering::SeqCst), 0);
+    assert!(!f.controller.running.load(Ordering::SeqCst));
 }
 
 #[tokio::test]
@@ -428,7 +1070,7 @@ async fn successful_apply_stores_snapshot_history() {
     let mut p = params(ApplyStrategy::PreferReload);
     p.snapshot_history = true;
 
-    apply_current_profile(&f.session, &f.config, &f.reloader, NEW, p)
+    apply_to_selected_reference(&f.session, &f.config, &f.reloader, NEW, p)
         .await
         .expect("apply");
 
@@ -452,8 +1094,9 @@ async fn successful_apply_stores_snapshot_history() {
 #[tokio::test]
 async fn invalid_content_aborts_before_any_write() {
     let f = fixture(0, false).await;
+    start_ready(&f).await;
 
-    let err = apply_current_profile(
+    let err = apply_to_selected_reference(
         &f.session,
         &f.config,
         &f.reloader,
@@ -473,7 +1116,7 @@ async fn busy_transition_rejects_apply() {
     let f = fixture(0, false).await;
     f.session.start().await.expect("start");
 
-    let err = apply_current_profile(
+    let err = apply_to_selected_reference(
         &f.session,
         &f.config,
         &f.reloader,
@@ -523,25 +1166,25 @@ proxy-groups:
 ";
 
 #[tokio::test]
-async fn fidelity_apply_current_profile_doc_preserves_100_percent() {
+async fn fidelity_apply_active_profile_doc_preserves_100_percent() {
     let f = fixture(0, false).await;
-    f.config
-        .save("main", COMPLEX_YAML_WITH_COMMENTS_AND_ANCHORS)
-        .await
-        .unwrap();
+    start_ready(&f).await;
+    replace_profile_file_for_test(&f.config, "main", COMPLEX_YAML_WITH_COMMENTS_AND_ANCHORS).await;
 
     let doc = SourceDoc::parse(COMPLEX_YAML_WITH_COMMENTS_AND_ANCHORS).unwrap();
-    let outcome = apply_current_profile_doc(
+    let expected_reference = selected_reference(&f.config).await;
+    let outcome = apply_active_profile_doc(
         &f.session,
         &f.config,
         &f.reloader,
+        &expected_reference,
         &doc,
         params(ApplyStrategy::PreferReload),
     )
     .await
     .expect("apply doc");
 
-    assert_eq!(outcome.method, ApplyMethod::Restart);
+    assert_eq!(outcome.method, ApplyMethod::HotReload);
     let disk = file_content(&f.config).await;
     assert_eq!(
         disk, COMPLEX_YAML_WITH_COMMENTS_AND_ANCHORS,
@@ -552,15 +1195,15 @@ async fn fidelity_apply_current_profile_doc_preserves_100_percent() {
 #[tokio::test]
 async fn fidelity_scalar_override_preserves_all_comments_and_anchors() {
     let f = fixture(0, false).await;
-    f.config
-        .save("main", COMPLEX_YAML_WITH_COMMENTS_AND_ANCHORS)
-        .await
-        .unwrap();
+    start_ready(&f).await;
+    replace_profile_file_for_test(&f.config, "main", COMPLEX_YAML_WITH_COMMENTS_AND_ANCHORS).await;
 
-    let outcome = apply_profile_set_scalar(
+    let expected_reference = selected_reference(&f.config).await;
+    let outcome = apply_active_profile_set_scalar(
         &f.session,
         &f.config,
         &f.reloader,
+        &expected_reference,
         "mode",
         "global",
         params(ApplyStrategy::PreferReload),
@@ -568,7 +1211,7 @@ async fn fidelity_scalar_override_preserves_all_comments_and_anchors() {
     .await
     .expect("apply scalar override");
 
-    assert_eq!(outcome.method, ApplyMethod::Restart);
+    assert_eq!(outcome.method, ApplyMethod::HotReload);
     let disk = file_content(&f.config).await;
 
     // Check updated mode
@@ -593,16 +1236,16 @@ async fn fidelity_scalar_override_preserves_all_comments_and_anchors() {
 #[tokio::test]
 async fn fidelity_append_and_remove_rules_preserves_comments_and_anchors() {
     let f = fixture(0, false).await;
-    f.config
-        .save("main", COMPLEX_YAML_WITH_COMMENTS_AND_ANCHORS)
-        .await
-        .unwrap();
+    start_ready(&f).await;
+    replace_profile_file_for_test(&f.config, "main", COMPLEX_YAML_WITH_COMMENTS_AND_ANCHORS).await;
 
     // 1. Append rule
-    apply_profile_append_rule(
+    let expected_reference = selected_reference(&f.config).await;
+    apply_active_profile_append_rule(
         &f.session,
         &f.config,
         &f.reloader,
+        &expected_reference,
         "DOMAIN-SUFFIX,netflix.com,PROXY",
         params(ApplyStrategy::PreferReload),
     )
@@ -617,10 +1260,12 @@ async fn fidelity_append_and_remove_rules_preserves_comments_and_anchors() {
     assert!(disk_appended.contains("*hk_01"));
 
     // 2. Remove rule
-    apply_profile_remove_rule(
+    let expected_reference = selected_reference(&f.config).await;
+    apply_active_profile_remove_rule(
         &f.session,
         &f.config,
         &f.reloader,
+        &expected_reference,
         "DOMAIN-SUFFIX,adservice.google.com,REJECT",
         params(ApplyStrategy::PreferReload),
     )
@@ -638,15 +1283,15 @@ async fn fidelity_append_and_remove_rules_preserves_comments_and_anchors() {
 #[tokio::test]
 async fn fidelity_rewrite_anchors_preserves_comments() {
     let f = fixture(0, false).await;
-    f.config
-        .save("main", COMPLEX_YAML_WITH_COMMENTS_AND_ANCHORS)
-        .await
-        .unwrap();
+    start_ready(&f).await;
+    replace_profile_file_for_test(&f.config, "main", COMPLEX_YAML_WITH_COMMENTS_AND_ANCHORS).await;
 
-    apply_profile_rewrite_anchors(
+    let expected_reference = selected_reference(&f.config).await;
+    apply_active_profile_rewrite_anchors(
         &f.session,
         &f.config,
         &f.reloader,
+        &expected_reference,
         "tenant_a",
         params(ApplyStrategy::PreferReload),
     )
@@ -674,10 +1319,8 @@ async fn fidelity_rewrite_anchors_preserves_comments() {
 #[tokio::test]
 async fn fidelity_mixin_apply_preserves_comments_and_anchors() {
     let f = fixture(0, false).await;
-    f.config
-        .save("main", COMPLEX_YAML_WITH_COMMENTS_AND_ANCHORS)
-        .await
-        .unwrap();
+    start_ready(&f).await;
+    replace_profile_file_for_test(&f.config, "main", COMPLEX_YAML_WITH_COMMENTS_AND_ANCHORS).await;
 
     let mixin = MixinConfig {
         mode: Some("direct".to_string()),
@@ -689,10 +1332,12 @@ async fn fidelity_mixin_apply_preserves_comments_and_anchors() {
         ..Default::default()
     };
 
-    apply_profile_mixin_fidelity(
+    let expected_reference = selected_reference(&f.config).await;
+    apply_active_profile_mixin_fidelity(
         &f.session,
         &f.config,
         &f.reloader,
+        &expected_reference,
         &mixin,
         params(ApplyStrategy::PreferReload),
     )
@@ -715,10 +1360,13 @@ async fn fidelity_mixin_apply_preserves_comments_and_anchors() {
 async fn confirmed_profile_rejects_switched_profile_and_changed_document_before_io() {
     let f = fixture(0, false).await;
     let expected = identify_rules_document("main".into(), OLD);
-    f.config.save("other", OLD).await.expect("other profile");
-    f.config.set_current("other").await.expect("profile switch");
+    f.config
+        .save_inactive_profile("other", OLD)
+        .await
+        .expect("other profile");
+    select_profile(&f.config, "other").await;
     assert_eq!(
-        apply_confirmed_profile(
+        apply_confirmed_to_selected_reference(
             &f.session,
             &f.config,
             &f.reloader,
@@ -732,11 +1380,11 @@ async fn confirmed_profile_rejects_switched_profile_and_changed_document_before_
     );
     assert_eq!(f.config.load("main").await.unwrap(), OLD);
     assert_eq!(f.config.load("other").await.unwrap(), OLD);
-    f.config.set_current("main").await.unwrap();
+    select_profile(&f.config, "main").await;
     let changed = format!("{OLD}# concurrent document edit\n");
-    f.config.save("main", &changed).await.unwrap();
+    replace_profile_file_for_test(&f.config, "main", &changed).await;
     assert_eq!(
-        apply_confirmed_profile(
+        apply_confirmed_to_selected_reference(
             &f.session,
             &f.config,
             &f.reloader,
@@ -763,7 +1411,7 @@ async fn confirmed_profile_commits_only_exact_observed_source_and_rolls_back_to_
         .await
         .unwrap();
     let expected = identify_rules_document("main".into(), OLD);
-    let outcome = apply_confirmed_profile(
+    let outcome = apply_confirmed_to_selected_reference(
         &f.session,
         &f.config,
         &f.reloader,
@@ -780,11 +1428,13 @@ async fn confirmed_profile_commits_only_exact_observed_source_and_rolls_back_to_
 
     let failing = fixture(0, true).await;
     let observed = "port: 7892\n# confirmed annotation\n";
-    failing.config.save("main", observed).await.unwrap();
-    assert_eq!(
-        failing.config.load_backup("main").await.unwrap().as_deref(),
-        Some(OLD)
-    );
+    replace_profile_file_for_test(&failing.config, "main", observed).await;
+    let observed_workspace = failing
+        .config
+        .load_active_workspace()
+        .await
+        .expect("capture the exact active workspace before apply");
+    assert_eq!(observed_workspace.document.utf8_text().unwrap(), observed);
     let generation = failing.session.start().await.unwrap();
     failing
         .session
@@ -796,7 +1446,7 @@ async fn confirmed_profile_commits_only_exact_observed_source_and_rolls_back_to_
         .fail_starts_left
         .store(1, Ordering::SeqCst);
     let expected = identify_rules_document("main".into(), observed);
-    let result = apply_confirmed_profile(
+    let result = apply_confirmed_to_selected_reference(
         &failing.session,
         &failing.config,
         &failing.reloader,
@@ -807,5 +1457,9 @@ async fn confirmed_profile_commits_only_exact_observed_source_and_rolls_back_to_
     .await;
     assert!(matches!(result, Err(ApplyError::RolledBack { .. })));
     assert_eq!(file_content(&failing.config).await, observed);
+    assert_eq!(
+        failing.config.load_active_workspace().await.unwrap(),
+        observed_workspace
+    );
     assert_eq!(failing.session.lifecycle(), CoreLifecycle::Ready);
 }

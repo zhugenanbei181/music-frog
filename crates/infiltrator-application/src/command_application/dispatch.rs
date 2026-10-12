@@ -19,8 +19,21 @@ use infiltrator_contract::privileged_network::PrivilegedNetworkRequest;
 use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
 use infiltrator_contract::rule_edit::RuleDraft;
 use infiltrator_ports::runtime_configuration::ObservedValue;
+use infiltrator_ports::runtime_gateway::ManagedRuntime;
+use std::sync::Arc;
 
 impl CommandApplication {
+    pub(super) fn profile_runtime_access(
+        &self,
+    ) -> crate::profile_application::ProfileRuntimeAccess<dyn ManagedRuntime> {
+        match self.managed_runtime.as_ref() {
+            Some(runtime) => {
+                crate::profile_application::ProfileRuntimeAccess::Managed(Arc::clone(runtime))
+            }
+            None => crate::profile_application::ProfileRuntimeAccess::Offline,
+        }
+    }
+
     fn configuration_for_scope(
         &self,
         scope: Option<&CoreScope>,
@@ -49,14 +62,10 @@ impl CommandApplication {
         match intent {
             CommandIntent::SwitchProfile { profile_id } => {
                 let profile = self.profile()?;
-                if let Some(runtime) = self.managed_runtime.clone() {
-                    profile
-                        .activate_profile(Some(runtime), &profile_id)
-                        .await
-                        .map(|_| ())
-                } else {
-                    profile.select_profile(&profile_id).await.map(|_| ())
-                }
+                profile
+                    .activate_profile(self.profile_runtime_access(), &profile_id)
+                    .await
+                    .map(|_| ())
             }
             CommandIntent::ReadOutboundInventory
             | CommandIntent::SelectOutbound { .. }
@@ -123,7 +132,7 @@ impl CommandApplication {
             }
             CommandIntent::RestoreSubscriptionBackup { profile_id } => self
                 .profile()?
-                .restore_backup(&profile_id)
+                .restore_inactive_profile_backup(&profile_id)
                 .await
                 .map(|_| ()),
             CommandIntent::UpdateSubscriptionFetchSettings {
@@ -150,7 +159,7 @@ impl CommandApplication {
             CommandIntent::CreateAggregatedProfile { draft } => {
                 let application = ProfileAggregationApplication::new(self.profile()?);
                 application
-                    .create_profile_with_runtime(self.managed_runtime.clone(), &draft)
+                    .create_profile_with_runtime(self.profile_runtime_access(), &draft)
                     .await
                     .map(|_| ())
             }
@@ -165,7 +174,7 @@ impl CommandApplication {
             CommandIntent::ReAggregateProfile { template_name } => {
                 let application = ProfileAggregationApplication::new(self.profile()?);
                 application
-                    .reaggregate(self.managed_runtime.clone(), &template_name)
+                    .reaggregate(self.profile_runtime_access(), &template_name)
                     .await
                     .map(|_| ())
             }
@@ -282,7 +291,7 @@ impl CommandApplication {
                 .map_err(Failure::from),
             CommandIntent::ApplyDnsSettings { patch } => self
                 .configuration()?
-                .apply_dns_settings_with_runtime(self.managed_runtime.clone(), patch)
+                .apply_dns_settings_with_runtime(self.profile_runtime_access(), patch)
                 .await
                 .map(|_| ()),
             CommandIntent::RunDoctorDiagnostics => self.doctor()?.run(None).await.map(|_| ()),

@@ -6,13 +6,12 @@
 //! `mihomo-config` manager capabilities and just records whether the step
 //! had to change anything or was already satisfied.
 
-use crate::settings_io::app_config_manager_in;
+use crate::settings_io::{app_config_manager_in, load_settings, settings_path};
 use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceStore;
-use infiltrator_ports::secure_store::SecureStore;
-use mihomo_config::manager::ConfigManager;
+use mihomo_config::manager::paths::resolve_configs_dir_in;
 use mihomo_platform::paths::get_home_dir;
 use serde::Serialize;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use tokio::fs::{create_dir_all, read_to_string};
 
 #[cfg(test)]
@@ -58,14 +57,20 @@ pub async fn ensure_bootstrap() -> anyhow::Result<BootstrapReport> {
 /// Bootstrap the installation rooted at `home`. Idempotent: a second run on
 /// an already-initialized home reports every step as skipped.
 pub async fn ensure_bootstrap_at(home: &Path) -> anyhow::Result<BootstrapReport> {
+    // Capture the root state before manager initialization. Namespace setup
+    // creates the shared root as part of acquiring its reset fence, so
+    // measuring it afterward would report a freshly-created directory as
+    // already present and hide the bootstrap step from callers.
+    let settings = load_settings(&settings_path(home)?).await?;
+    let configs_dir = resolve_configs_dir_in(settings.configs_dir.as_deref(), home)?;
+    let had_dir = configs_dir.is_dir();
+
     // 经由核心规范工厂：settings 的 `configs_dir` 指向云同步目录时，
     // 默认配置必须建到解析后的目录。
     let manager = app_config_manager_in(home).await?;
     let mut steps = Vec::new();
 
     // Step 1: the shared configs root must exist before profile migration.
-    let configs_dir = configs_dir_of(&manager).await?;
-    let had_dir = configs_dir.is_dir();
     create_dir_all(&configs_dir).await?;
     steps.push(BootstrapStep {
         id: "configs_dir",
@@ -101,8 +106,4 @@ pub async fn ensure_bootstrap_at(home: &Path) -> anyhow::Result<BootstrapReport>
     });
 
     Ok(BootstrapReport { steps })
-}
-
-async fn configs_dir_of<S: SecureStore>(manager: &ConfigManager<S>) -> anyhow::Result<PathBuf> {
-    Ok(manager.config_root().to_path_buf())
 }

@@ -2,10 +2,8 @@
 //! state into one [`DoctorCheckResult`] and never mutates anything.
 
 use super::pidfile::{PidFileState, ProcessState, read_pid_state, service_running};
-use super::{DoctorCheckResult, DoctorEnv, DoctorStatus};
+use super::{ActiveProfileObservation, DoctorCheckResult, DoctorEnv, DoctorStatus};
 use crate::settings_io::parse_settings_toml;
-use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
-use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceStore;
 use mihomo_api::client::MihomoClient;
 use mihomo_api::error::MihomoError;
 #[cfg(unix)]
@@ -13,7 +11,7 @@ use std::fs::metadata;
 use std::io::ErrorKind;
 use std::path::Path;
 use tokio::fs;
-use yaml_rust2::YamlLoader;
+use yaml_rust2::{Yaml, YamlLoader};
 
 const FIX_CONFIGS_DIR: &str = "Run doctor fix --only config.configs_dir to create it.";
 const FIX_CURRENT_YAML: &str =
@@ -110,29 +108,30 @@ pub(super) async fn check_configs_dir(env: &DoctorEnv) -> DoctorCheckResult {
 }
 
 pub(super) async fn check_current_profile(env: &DoctorEnv) -> DoctorCheckResult {
-    let manager = match env.config_manager().await {
-        Ok(manager) => manager,
-        Err(err) => return manager_fail("config.current_profile", "config", err),
-    };
-    let profile = match manager.get_current().await {
-        Ok(profile) => profile,
-        Err(err) => {
-            return fail(
+    let (profile_id, path) = match env.active_profile_observation().await {
+        Ok(ActiveProfileObservation::SelectedForMihomo { profile_id, path }) => (profile_id, path),
+        Ok(ActiveProfileObservation::Unselected) => {
+            return skip(
                 "config.current_profile",
                 "config",
-                format!("Cannot determine current profile: {err}"),
-                None,
-                None,
+                "Skipped because no product-wide active profile is selected",
             );
         }
-    };
-    let path = match manager.get_current_path().await {
-        Ok(path) => path,
+        Ok(ActiveProfileObservation::SelectedForAnotherEngine { engine_id }) => {
+            return skip(
+                "config.current_profile",
+                "config",
+                format!(
+                    "Skipped because the active profile belongs to engine {}",
+                    engine_id.as_str()
+                ),
+            );
+        }
         Err(err) => {
             return fail(
                 "config.current_profile",
                 "config",
-                format!("Current profile '{profile}' is unusable: {err}"),
+                format!("Cannot observe active profile: {err}"),
                 None,
                 None,
             );
@@ -142,7 +141,7 @@ pub(super) async fn check_current_profile(env: &DoctorEnv) -> DoctorCheckResult 
         pass(
             "config.current_profile",
             "config",
-            format!("Current profile '{profile}' exists"),
+            format!("Current profile '{}' exists", profile_id.as_str()),
             Some(path.display().to_string()),
             None,
         )
@@ -151,7 +150,8 @@ pub(super) async fn check_current_profile(env: &DoctorEnv) -> DoctorCheckResult 
             "config.current_profile",
             "config",
             format!(
-                "Current profile '{profile}' has no config file at '{}'",
+                "Current profile '{}' has no config file at '{}'",
+                profile_id.as_str(),
                 path.display()
             ),
             None,
@@ -161,13 +161,30 @@ pub(super) async fn check_current_profile(env: &DoctorEnv) -> DoctorCheckResult 
 }
 
 pub(super) async fn check_current_yaml(env: &DoctorEnv) -> DoctorCheckResult {
-    let path = match env.current_profile_path().await {
-        Ok(path) => path,
+    let path = match env.active_profile_observation().await {
+        Ok(ActiveProfileObservation::SelectedForMihomo { path, .. }) => path,
+        Ok(ActiveProfileObservation::Unselected) => {
+            return skip(
+                "config.current_yaml",
+                "config",
+                "Skipped because no product-wide active profile is selected",
+            );
+        }
+        Ok(ActiveProfileObservation::SelectedForAnotherEngine { engine_id }) => {
+            return skip(
+                "config.current_yaml",
+                "config",
+                format!(
+                    "Skipped because the active profile belongs to engine {}",
+                    engine_id.as_str()
+                ),
+            );
+        }
         Err(err) => {
             return skip(
                 "config.current_yaml",
                 "config",
-                format!("Skipped because the current profile path is unavailable: {err}"),
+                format!("Skipped because the active profile path is unavailable: {err}"),
             );
         }
     };
@@ -396,30 +413,36 @@ pub(super) async fn check_stale_pid(env: &DoctorEnv) -> DoctorCheckResult {
 }
 
 pub(super) async fn check_external_controller(env: &DoctorEnv) -> DoctorCheckResult {
-    let manager = match env.config_manager().await {
-        Ok(manager) => manager,
-        Err(err) => return manager_fail("controller.external_controller", "controller", err),
-    };
-    match ActiveProfileReferenceStore::read(&manager).await {
-        Ok(ActiveProfileReferenceState::Unselected { .. }) => {
+    let path = match env.active_profile_observation().await {
+        Ok(ActiveProfileObservation::Unselected) => {
             return skip(
                 "controller.external_controller",
                 "controller",
                 "Skipped because no product-wide active profile is selected",
             );
         }
-        Ok(ActiveProfileReferenceState::Selected(_)) => {}
+        Ok(ActiveProfileObservation::SelectedForAnotherEngine { engine_id }) => {
+            return skip(
+                "controller.external_controller",
+                "controller",
+                format!(
+                    "Skipped because the active profile belongs to engine {}",
+                    engine_id.as_str()
+                ),
+            );
+        }
+        Ok(ActiveProfileObservation::SelectedForMihomo { path, .. }) => path,
         Err(err) => {
             return fail(
                 "controller.external_controller",
                 "controller",
-                format!("Cannot read active profile reference: {err}"),
+                format!("Cannot observe active profile: {err}"),
                 None,
                 None,
             );
         }
-    }
-    match manager.get_external_controller().await {
+    };
+    match read_external_controller_url(&path).await {
         Ok(url) => pass(
             "controller.external_controller",
             "controller",
@@ -427,15 +450,16 @@ pub(super) async fn check_external_controller(env: &DoctorEnv) -> DoctorCheckRes
             Some(url),
             None,
         ),
-        Err(MihomoError::NotFound(reason)) => skip(
+        Err(ControllerEndpointReadError::Missing(reason)) => skip(
             "controller.external_controller",
             "controller",
             format!("Skipped because the current profile config is missing: {reason}"),
         ),
-        Err(err) => fail(
+        Err(ControllerEndpointReadError::Unreadable(reason))
+        | Err(ControllerEndpointReadError::Invalid(reason)) => fail(
             "controller.external_controller",
             "controller",
-            format!("Invalid external-controller: {err}"),
+            format!("Invalid external-controller: {reason}"),
             None,
             Some(
                 "Set external-controller to host:port, http(s)://host:port, or a unix socket path."
@@ -453,17 +477,52 @@ pub(super) async fn check_api_reachable(env: &DoctorEnv) -> DoctorCheckResult {
             "Skipped because the core service is not running",
         );
     }
-    let manager = match env.config_manager().await {
-        Ok(manager) => manager,
-        Err(err) => return manager_fail("controller.api_reachable", "controller", err),
-    };
-    let url = match manager.get_external_controller().await {
-        Ok(url) => url,
+    let path = match env.active_profile_observation().await {
+        Ok(ActiveProfileObservation::Unselected) => {
+            return skip(
+                "controller.api_reachable",
+                "controller",
+                "Skipped because no product-wide active profile is selected",
+            );
+        }
+        Ok(ActiveProfileObservation::SelectedForAnotherEngine { engine_id }) => {
+            return skip(
+                "controller.api_reachable",
+                "controller",
+                format!(
+                    "Skipped because the active profile belongs to engine {}",
+                    engine_id.as_str()
+                ),
+            );
+        }
+        Ok(ActiveProfileObservation::SelectedForMihomo { path, .. }) => path,
         Err(err) => {
             return fail(
                 "controller.api_reachable",
                 "controller",
-                format!("Cannot resolve external-controller: {err}"),
+                format!("Cannot observe active profile: {err}"),
+                None,
+                None,
+            );
+        }
+    };
+    let url = match read_external_controller_url(&path).await {
+        Ok(url) => url,
+        Err(ControllerEndpointReadError::Missing(reason)) => {
+            return fail(
+                "controller.api_reachable",
+                "controller",
+                format!("Cannot resolve external-controller: {reason}"),
+                None,
+                None,
+            );
+        }
+        Err(ControllerEndpointReadError::Unreadable(reason))
+        | Err(ControllerEndpointReadError::Invalid(reason)) => {
+            return fail(
+                "controller.api_reachable",
+                "controller",
+                format!("Cannot resolve external-controller: {reason}"),
                 None,
                 None,
             );
@@ -499,6 +558,37 @@ pub(super) async fn check_api_reachable(env: &DoctorEnv) -> DoctorCheckResult {
             ),
         ),
     }
+}
+
+enum ControllerEndpointReadError {
+    Missing(String),
+    Unreadable(String),
+    Invalid(String),
+}
+
+async fn read_external_controller_url(path: &Path) -> Result<String, ControllerEndpointReadError> {
+    let content = match fs::read_to_string(path).await {
+        Ok(content) => content,
+        Err(error) if error.kind() == ErrorKind::NotFound => {
+            return Err(ControllerEndpointReadError::Missing(error.to_string()));
+        }
+        Err(error) => return Err(ControllerEndpointReadError::Unreadable(error.to_string())),
+    };
+    let documents = YamlLoader::load_from_str(&content)
+        .map_err(|error| ControllerEndpointReadError::Invalid(error.to_string()))?;
+    let controller = documents
+        .first()
+        .and_then(Yaml::as_hash)
+        .and_then(|mapping| mapping.get(&Yaml::String("external-controller".to_string())))
+        .and_then(Yaml::as_str)
+        .unwrap_or("127.0.0.1:9090");
+    Ok(if controller.starts_with(':') {
+        format!("http://127.0.0.1{controller}")
+    } else if controller.starts_with("http://") || controller.starts_with("https://") {
+        controller.to_string()
+    } else {
+        format!("http://{controller}")
+    })
 }
 
 #[cfg(unix)]

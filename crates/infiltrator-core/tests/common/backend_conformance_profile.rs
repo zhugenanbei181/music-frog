@@ -1,4 +1,10 @@
 use super::*;
+use infiltrator_ports::profile_store::{
+    ActiveProfileWorkspacePublishOutcome, ActiveProfileWorkspacePublishedLease,
+    ActiveProfileWorkspaceRestoreOutcome, ActiveProfileWorkspaceRestoredLease,
+    ActiveProfileWorkspaceWriteLease,
+};
+use std::sync::Arc;
 
 pub(crate) trait ConformanceLifecycleControl: CoreLifecyclePort {
     fn update_observed_lifecycle(&self, lifecycle: CoreLifecycle);
@@ -97,9 +103,31 @@ impl ConformanceLifecycleControl for ConformanceLifecycleSession {
 /// production `ProfileStore` implementation is owned by a different host.
 pub(crate) struct ConformanceProfileStore {
     engine: EngineId,
+    reference: tokio::sync::Mutex<ActiveProfileReferenceState>,
     active: tokio::sync::Mutex<ProfileWorkspace>,
+    workspace_write_gate: Arc<tokio::sync::Mutex<()>>,
     next_revision: AtomicU64,
     writes: AtomicU64,
+}
+
+struct ConformanceWorkspaceWriteLease<'a> {
+    store: &'a ConformanceProfileStore,
+    expected_reference: ActiveProfileReference,
+    observed: ProfileWorkspace,
+    _guard: tokio::sync::OwnedMutexGuard<()>,
+}
+
+struct ConformanceWorkspacePublishedLease<'a> {
+    store: &'a ConformanceProfileStore,
+    expected_reference: ActiveProfileReference,
+    previous: ProfileWorkspace,
+    published: ProfileWorkspace,
+    _guard: tokio::sync::OwnedMutexGuard<()>,
+}
+
+struct ConformanceWorkspaceRestoredLease {
+    workspace: ProfileWorkspace,
+    _guard: tokio::sync::OwnedMutexGuard<()>,
 }
 
 impl ConformanceProfileStore {
@@ -119,14 +147,21 @@ impl ConformanceProfileStore {
             scope.format_id.clone(),
             scope.schema_version,
         );
+        let reference = ActiveProfileReferenceState::Selected(ActiveProfileReference::new(
+            identity.engine_id.clone(),
+            identity.profile_id.clone(),
+            ActiveProfileReferenceRevision::default(),
+        ));
         Self {
             engine: scope.engine_id.clone(),
+            reference: tokio::sync::Mutex::new(reference),
             active: tokio::sync::Mutex::new(ProfileWorkspace {
                 document: ProfileDocument::new(identity, initial_bytes.to_vec()),
                 sidecar_revision: ProfileSidecarRevision::Absent,
                 write_protection: ProfileWriteProtection::Editable,
                 sidecar_bytes: None,
             }),
+            workspace_write_gate: Arc::new(tokio::sync::Mutex::new(())),
             next_revision: AtomicU64::new(2),
             writes: AtomicU64::new(0),
         }
@@ -134,6 +169,121 @@ impl ConformanceProfileStore {
 
     pub(crate) fn writes(&self) -> u64 {
         self.writes.load(Ordering::SeqCst)
+    }
+}
+
+#[async_trait]
+impl ActiveProfileWorkspaceWriteLease for ConformanceWorkspaceWriteLease<'_> {
+    fn observed_workspace(&self) -> &ProfileWorkspace {
+        &self.observed
+    }
+
+    async fn publish(
+        self: Box<Self>,
+        update: ProfileWorkspaceUpdate,
+    ) -> ActiveProfileWorkspacePublishOutcome<'async_trait> {
+        let reference = self.store.reference.lock().await;
+        if *reference != ActiveProfileReferenceState::Selected(self.expected_reference.clone()) {
+            return ActiveProfileWorkspacePublishOutcome::Unpublished(PortError::Rejected(
+                Failure::new(
+                    ErrorCode::NotReady,
+                    "conformance active reference changed before workspace publication",
+                    false,
+                ),
+            ));
+        }
+        let mut active = self.store.active.lock().await;
+        if active.identity() != self.observed.identity() {
+            return ActiveProfileWorkspacePublishOutcome::Unpublished(PortError::Rejected(
+                Failure::new(
+                    ErrorCode::NotReady,
+                    "conformance profile workspace revision is stale",
+                    false,
+                ),
+            ));
+        }
+        let revision = self.store.next_revision.fetch_add(1, Ordering::SeqCst);
+        let mut document_identity = active.document.identity.clone();
+        document_identity.revision =
+            ProfileDocumentRevision::new(format!("real-conformance-{revision}"))
+                .expect("generated document revision is valid");
+        let sidecar_revision = match &update.sidecar_bytes {
+            Some(_) => ProfileSidecarRevision::Present(
+                ProfileDocumentRevision::new(format!("real-conformance-sidecar-{revision}"))
+                    .expect("generated sidecar revision is valid"),
+            ),
+            None => ProfileSidecarRevision::Absent,
+        };
+        *active = ProfileWorkspace {
+            document: ProfileDocument::new(document_identity, update.document_bytes),
+            sidecar_revision,
+            write_protection: active.write_protection,
+            sidecar_bytes: update.sidecar_bytes,
+        };
+        let published = active.clone();
+        self.store.writes.fetch_add(1, Ordering::SeqCst);
+        drop(active);
+        drop(reference);
+        ActiveProfileWorkspacePublishOutcome::Published(Box::new(
+            ConformanceWorkspacePublishedLease {
+                store: self.store,
+                expected_reference: self.expected_reference.clone(),
+                previous: self.observed.clone(),
+                published,
+                _guard: self._guard,
+            },
+        ))
+    }
+}
+
+#[async_trait]
+impl ActiveProfileWorkspacePublishedLease for ConformanceWorkspacePublishedLease<'_> {
+    fn previous_workspace(&self) -> &ProfileWorkspace {
+        &self.previous
+    }
+
+    fn published_workspace(&self) -> &ProfileWorkspace {
+        &self.published
+    }
+
+    fn commit(self: Box<Self>) -> ProfileWorkspace {
+        self.published.clone()
+    }
+
+    async fn restore_if_current(
+        self: Box<Self>,
+    ) -> Result<ActiveProfileWorkspaceRestoreOutcome<'async_trait>, PortError> {
+        let reference = self.store.reference.lock().await;
+        let mut active = self.store.active.lock().await;
+        if *reference != ActiveProfileReferenceState::Selected(self.expected_reference.clone())
+            || active.identity() != self.published.identity()
+        {
+            return Ok(ActiveProfileWorkspaceRestoreOutcome::Superseded {
+                observed: active.identity(),
+            });
+        }
+        *active = self.previous.clone();
+        let restored = active.clone();
+        self.store.writes.fetch_add(1, Ordering::SeqCst);
+        drop(active);
+        drop(reference);
+        Ok(ActiveProfileWorkspaceRestoreOutcome::Restored(Box::new(
+            ConformanceWorkspaceRestoredLease {
+                workspace: restored,
+                _guard: self._guard,
+            },
+        )))
+    }
+}
+
+#[async_trait]
+impl ActiveProfileWorkspaceRestoredLease for ConformanceWorkspaceRestoredLease {
+    fn restored_workspace(&self) -> &ProfileWorkspace {
+        &self.workspace
+    }
+
+    fn finish(self: Box<Self>) -> ProfileWorkspace {
+        self.workspace.clone()
     }
 }
 
@@ -157,15 +307,11 @@ impl ProfileStore for ConformanceProfileStore {
         Err(unused_profile_store_operation())
     }
 
-    async fn set_current(&self, _profile: &str) -> Result<(), PortError> {
-        Err(unused_profile_store_operation())
-    }
-
     async fn load(&self, _profile: &str) -> Result<String, PortError> {
         Err(unused_profile_store_operation())
     }
 
-    async fn save(&self, _profile: &str, _content: &str) -> Result<(), PortError> {
+    async fn save_inactive_profile(&self, _profile: &str, _content: &str) -> Result<(), PortError> {
         Err(unused_profile_store_operation())
     }
 
@@ -196,64 +342,53 @@ impl ProfileStore for ConformanceProfileStore {
         Ok(self.active.lock().await.clone())
     }
 
-    async fn compare_and_save_active_workspace(
+    async fn read_active_profile_reference(
         &self,
-        expected: &infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity,
-        update: &ProfileWorkspaceUpdate,
-    ) -> Result<ProfileWorkspace, PortError> {
-        let mut active = self.active.lock().await;
-        if active.identity() != *expected {
+    ) -> Result<ActiveProfileReferenceState, PortError> {
+        Ok(self.reference.lock().await.clone())
+    }
+
+    async fn acquire_active_workspace_write_lease(
+        &self,
+        expected_reference: ActiveProfileReference,
+        expected: infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity,
+        authorization: ActiveProfileReferenceWriteAuthorization,
+    ) -> Result<Box<dyn ActiveProfileWorkspaceWriteLease + '_>, PortError> {
+        let guard = Arc::clone(&self.workspace_write_gate).lock_owned().await;
+        let reference = self.reference.lock().await;
+        if authorization != ActiveProfileReferenceWriteAuthorization::Unowned
+            || *reference != ActiveProfileReferenceState::Selected(expected_reference.clone())
+            || expected_reference.engine_id != expected.document.engine_id
+            || expected_reference.profile_id != expected.document.profile_id
+        {
+            return Err(PortError::Rejected(Failure::new(
+                ErrorCode::NotReady,
+                "conformance active reference is stale or unauthorized",
+                false,
+            )));
+        }
+        let observed = self.active.lock().await.clone();
+        if observed.identity() != expected {
             return Err(PortError::Rejected(Failure::new(
                 ErrorCode::NotReady,
                 "conformance profile workspace revision is stale",
                 false,
             )));
         }
-        let revision = self.next_revision.fetch_add(1, Ordering::SeqCst);
-        let mut document_identity = active.document.identity.clone();
-        document_identity.revision =
-            ProfileDocumentRevision::new(format!("real-conformance-{revision}"))
-                .expect("generated document revision is valid");
-        let sidecar_revision = match &update.sidecar_bytes {
-            Some(_) => ProfileSidecarRevision::Present(
-                ProfileDocumentRevision::new(format!("real-conformance-sidecar-{revision}"))
-                    .expect("generated sidecar revision is valid"),
-            ),
-            None => ProfileSidecarRevision::Absent,
-        };
-        *active = ProfileWorkspace {
-            document: ProfileDocument::new(document_identity, update.document_bytes.clone()),
-            sidecar_revision,
-            write_protection: active.write_protection,
-            sidecar_bytes: update.sidecar_bytes.clone(),
-        };
-        self.writes.fetch_add(1, Ordering::SeqCst);
-        Ok(active.clone())
-    }
-
-    async fn restore_workspace(
-        &self,
-        expected: &infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity,
-        previous: &ProfileWorkspace,
-    ) -> Result<ProfileWorkspace, PortError> {
-        let mut active = self.active.lock().await;
-        if active.identity() != *expected {
-            return Err(PortError::Rejected(Failure::new(
-                ErrorCode::NotReady,
-                "conformance profile workspace changed before rollback",
-                false,
-            )));
-        }
-        *active = previous.clone();
-        self.writes.fetch_add(1, Ordering::SeqCst);
-        Ok(active.clone())
+        drop(reference);
+        Ok(Box::new(ConformanceWorkspaceWriteLease {
+            store: self,
+            expected_reference,
+            observed,
+            _guard: guard,
+        }))
     }
 
     async fn clear_backup(&self, _profile: &str) -> Result<(), PortError> {
         Err(unused_profile_store_operation())
     }
 
-    async fn restore_backup(&self, _profile: &str) -> Result<bool, PortError> {
+    async fn restore_inactive_profile_backup(&self, _profile: &str) -> Result<bool, PortError> {
         Err(unused_profile_store_operation())
     }
 }
@@ -303,6 +438,25 @@ pub(super) async fn verify_native_profile_behavior(
                 case.engine.as_str()
             )
         })?;
+    let expected_reference = ports
+        .profile_store
+        .read_active_profile_reference()
+        .await
+        .map_err(|error| {
+            format!(
+                "{} active reference read failed: {error}",
+                case.engine.as_str()
+            )
+        })?;
+    let infiltrator_contract::active_profile_reference::ActiveProfileReferenceState::Selected(
+        expected_reference,
+    ) = expected_reference
+    else {
+        return Err(format!(
+            "{} conformance store has no selected active reference",
+            case.engine.as_str()
+        ));
+    };
     if initial_workspace.document.raw_bytes != case.valid_profile {
         return Err(format!(
             "{} active workspace is not seeded with the native-valid fixture",
@@ -313,12 +467,14 @@ pub(super) async fn verify_native_profile_behavior(
     let outcome = ports
         .configuration_transaction
         .transact(ProfileConfigurationTransactionRequest {
+            expected_reference: expected_reference.clone(),
             expected: initial_workspace.identity(),
             update: ProfileWorkspaceUpdate {
                 purpose: ProfileWorkspacePurpose::Derived,
                 document_bytes: case.valid_profile.clone(),
                 sidecar_bytes: initial_workspace.sidecar_bytes.clone(),
             },
+            authorization: ActiveProfileReferenceWriteAuthorization::Unowned,
             strategy: infiltrator_domain::apply::ApplyStrategy::PreferReload,
         })
         .await
@@ -380,12 +536,14 @@ pub(super) async fn verify_native_profile_behavior(
     let stale_error = ports
         .configuration_transaction
         .transact(ProfileConfigurationTransactionRequest {
+            expected_reference: expected_reference.clone(),
             expected: stale_identity,
             update: ProfileWorkspaceUpdate {
                 purpose: ProfileWorkspacePurpose::Derived,
                 document_bytes: case.valid_profile.clone(),
                 sidecar_bytes: stored.sidecar_bytes.clone(),
             },
+            authorization: ActiveProfileReferenceWriteAuthorization::Unowned,
             strategy: infiltrator_domain::apply::ApplyStrategy::PreferReload,
         })
         .await
@@ -410,12 +568,14 @@ pub(super) async fn verify_native_profile_behavior(
     let foreign_error = ports
         .configuration_transaction
         .transact(ProfileConfigurationTransactionRequest {
+            expected_reference: expected_reference.clone(),
             expected: foreign_identity,
             update: ProfileWorkspaceUpdate {
                 purpose: ProfileWorkspacePurpose::Derived,
                 document_bytes: case.valid_profile.clone(),
                 sidecar_bytes: stale_before.sidecar_bytes.clone(),
             },
+            authorization: ActiveProfileReferenceWriteAuthorization::Unowned,
             strategy: infiltrator_domain::apply::ApplyStrategy::PreferReload,
         })
         .await
@@ -437,12 +597,14 @@ pub(super) async fn verify_native_profile_behavior(
     let invalid_error = ports
         .configuration_transaction
         .transact(ProfileConfigurationTransactionRequest {
+            expected_reference,
             expected: stale_before.identity(),
             update: ProfileWorkspaceUpdate {
                 purpose: ProfileWorkspacePurpose::Derived,
                 document_bytes: case.native_invalid_profile.clone(),
                 sidecar_bytes: stale_before.sidecar_bytes.clone(),
             },
+            authorization: ActiveProfileReferenceWriteAuthorization::Unowned,
             strategy: infiltrator_domain::apply::ApplyStrategy::PreferReload,
         })
         .await

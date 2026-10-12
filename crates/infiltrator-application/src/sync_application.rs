@@ -58,7 +58,6 @@ impl SyncApplication {
             .upload(SyncTransferRequest {
                 config,
                 configs_dir,
-                runtime_present: false,
                 observer,
             })
             .await
@@ -69,14 +68,12 @@ impl SyncApplication {
         &self,
         config: WebDavConfig,
         configs_dir: Option<String>,
-        runtime_present: bool,
         observer: Arc<dyn SyncProgressSink>,
     ) -> Result<SyncTransferReport, Failure> {
         self.port
             .download(SyncTransferRequest {
                 config,
                 configs_dir,
-                runtime_present,
                 observer,
             })
             .await

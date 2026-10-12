@@ -111,17 +111,12 @@ impl ProfileStore for CountingProfileStore {
         Ok("main".to_owned())
     }
 
-    async fn set_current(&self, _profile: &str) -> Result<(), PortError> {
-        self.record();
-        Ok(())
-    }
-
     async fn load(&self, _profile: &str) -> Result<String, PortError> {
         self.record();
         Ok("profile".to_owned())
     }
 
-    async fn save(&self, _profile: &str, _content: &str) -> Result<(), PortError> {
+    async fn save_inactive_profile(&self, _profile: &str, _content: &str) -> Result<(), PortError> {
         self.record();
         Ok(())
     }
@@ -155,7 +150,7 @@ impl ProfileStore for CountingProfileStore {
         Ok(())
     }
 
-    async fn restore_backup(&self, _profile: &str) -> Result<bool, PortError> {
+    async fn restore_inactive_profile_backup(&self, _profile: &str) -> Result<bool, PortError> {
         self.record();
         Ok(false)
     }

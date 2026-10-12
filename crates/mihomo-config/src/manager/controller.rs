@@ -60,7 +60,14 @@ impl<S: SecureStore> ConfigManager<S> {
         profile: &ProfileId,
     ) -> Result<String> {
         let profile = profile.as_str();
-        let content = self.load(profile).await?;
+        let profile_id = ProfileId::new(profile.to_owned())
+            .map_err(|error| MihomoError::Config(error.to_string()))?;
+        let workspace = self
+            .read_workspace(&profile_id)
+            .await
+            .map_err(|error| MihomoError::Config(error.to_string()))?;
+        let content = String::from_utf8(workspace.document.raw_bytes.clone())
+            .map_err(|error| MihomoError::Config(format!("profile YAML is not UTF-8: {error}")))?;
         let mut config = yaml::load_yaml(&content)?;
 
         let needs_update = match yaml::get_str(&config, "external-controller") {
@@ -112,7 +119,8 @@ impl<S: SecureStore> ConfigManager<S> {
 
         if needs_update || secret_updated {
             let updated_content = yaml::to_string(&config)?;
-            self.save(&profile, &updated_content).await?;
+            self.persist_derived_workspace_content(&workspace, &updated_content)
+                .await?;
         }
         let profile = ProfileId::new(profile.to_owned())
             .map_err(|error| MihomoError::Config(error.to_string()))?;
@@ -135,7 +143,14 @@ impl<S: SecureStore> ConfigManager<S> {
         profile: &ProfileId,
     ) -> Result<String> {
         let profile = profile.as_str();
-        let content = self.load(profile).await?;
+        let profile_id = ProfileId::new(profile.to_owned())
+            .map_err(|error| MihomoError::Config(error.to_string()))?;
+        let workspace = self
+            .read_workspace(&profile_id)
+            .await
+            .map_err(|error| MihomoError::Config(error.to_string()))?;
+        let content = String::from_utf8(workspace.document.raw_bytes.clone())
+            .map_err(|error| MihomoError::Config(format!("profile YAML is not UTF-8: {error}")))?;
         let mut config = yaml::load_yaml(&content)?;
 
         let current_port = yaml::get_str(&config, "external-controller")
@@ -157,7 +172,8 @@ impl<S: SecureStore> ConfigManager<S> {
         yaml::set_str(&mut config, "external-controller", &controller_addr)?;
         ensure_controller_secret(&mut config)?;
         let updated_content = yaml::to_string(&config)?;
-        self.save(&profile, &updated_content).await?;
+        self.persist_derived_workspace_content(&workspace, &updated_content)
+            .await?;
 
         Ok(format!("http://{}", controller_addr))
     }

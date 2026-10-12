@@ -251,8 +251,8 @@ pub(super) fn fmt(m: &Message, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result
         Message::SyncDownload => write!(f, "SyncDownload"),
         Message::SyncFinished(Ok(summary)) => write!(
             f,
-            "SyncFinished(Ok(uploaded={}, downloaded={}, conflicts={}, active_changed={}))",
-            summary.uploaded, summary.downloaded, summary.conflicts, summary.active_profile_changed
+            "SyncFinished(Ok(uploaded={}, downloaded={}, conflicts={}))",
+            summary.uploaded, summary.downloaded, summary.conflicts
         ),
         Message::SyncFinished(Err(e)) => write!(f, "SyncFinished(Err({:?}))", e),
         Message::SyncProgress(progress) => write!(

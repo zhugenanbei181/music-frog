@@ -1,12 +1,27 @@
 //! Whole-document sidecar persistence. Missing files alone mean no stored value.
 
 use infiltrator_ports::error::PortError;
+use mihomo_platform::durable_replace::{DurableReplaceError, remove_durable, replace_durable};
 use std::io::{Error, ErrorKind};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::id;
 use std::sync::atomic::{AtomicU64, Ordering};
-use tokio::fs::{OpenOptions, create_dir_all, read, remove_file, rename};
+use tokio::fs::{OpenOptions, create_dir_all, read, remove_file};
 use tokio::io::AsyncWriteExt;
+
+static NEXT_TEMPORARY: AtomicU64 = AtomicU64::new(0);
+const DURABILITY_UNCERTAIN_PREFIX: &str =
+    "document replacement succeeded but directory durability is uncertain";
+const REMOVAL_DURABILITY_UNCERTAIN_PREFIX: &str =
+    "document removal succeeded but directory durability is uncertain";
+
+struct TemporaryDocumentCleanup(PathBuf);
+
+impl Drop for TemporaryDocumentCleanup {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.0);
+    }
+}
 
 pub(crate) async fn read_optional(path: &Path) -> Result<Option<String>, PortError> {
     let Some(bytes) = read_optional_bytes(path).await? else {
@@ -33,6 +48,16 @@ pub(crate) async fn remove_optional(path: &Path) -> Result<(), PortError> {
     }
 }
 
+pub(crate) fn remove_optional_durable(path: &Path) -> Result<(), PortError> {
+    match remove_durable(path) {
+        Ok(()) => Ok(()),
+        Err(DurableReplaceError::NotCommitted(error)) => Err(io_error(error)),
+        Err(DurableReplaceError::DurabilityUncertain(error)) => Err(PortError::Failed(format!(
+            "{REMOVAL_DURABILITY_UNCERTAIN_PREFIX}: {error}"
+        ))),
+    }
+}
+
 /// Each writer owns a create-new temporary. Publish only a fully flushed file;
 /// never delete the destination to make replacement appear to succeed.
 pub(crate) async fn write_document(path: &Path, text: &str) -> Result<(), PortError> {
@@ -40,7 +65,16 @@ pub(crate) async fn write_document(path: &Path, text: &str) -> Result<(), PortEr
 }
 
 pub(crate) async fn write_document_bytes(path: &Path, content: &[u8]) -> Result<(), PortError> {
-    static NEXT_TEMPORARY: AtomicU64 = AtomicU64::new(0);
+    write_document_bytes_durable(path, content).await
+}
+
+/// Write a document with file flush followed by the platform's durable atomic
+/// replacement. All existing profile, workspace, sidecar, settings, and reset
+/// records use this path so Windows and Unix share replacement semantics.
+pub(crate) async fn write_document_bytes_durable(
+    path: &Path,
+    content: &[u8],
+) -> Result<(), PortError> {
     let parent = path
         .parent()
         .ok_or_else(|| PortError::Io("sidecar path has no parent".into()))?;
@@ -63,18 +97,29 @@ pub(crate) async fn write_document_bytes(path: &Path, content: &[u8]) -> Result<
             Err(error) => return Err(io_error(error)),
         }
     };
-    let result = async {
+    let _temporary_cleanup = TemporaryDocumentCleanup(temporary.clone());
+    let staged = async {
         file.write_all(content).await?;
         file.sync_all().await?;
-        drop(file);
-        rename(&temporary, path).await
+        Ok::<(), Error>(())
     }
     .await;
-    if result.is_err() {
-        // Cleanup cannot replace the original write/publication failure.
+    drop(file);
+    if let Err(error) = staged {
         let _ = remove_file(&temporary).await;
+        return Err(io_error(error));
     }
-    result.map_err(io_error)
+
+    match replace_durable(&temporary, path) {
+        Ok(()) => Ok(()),
+        Err(DurableReplaceError::NotCommitted(error)) => {
+            let _ = remove_file(&temporary).await;
+            Err(io_error(error))
+        }
+        Err(DurableReplaceError::DurabilityUncertain(error)) => Err(PortError::Failed(format!(
+            "{DURABILITY_UNCERTAIN_PREFIX}: {error}"
+        ))),
+    }
 }
 
 fn io_error(error: Error) -> PortError {

@@ -10,10 +10,14 @@ use infiltrator_contract::profile_document::{
     DocumentDiagnosticSnapshot, DocumentInspection, DocumentInspectionUnavailableReason,
     DocumentInspectionUnsupportedReason, DocumentValidation,
 };
-use infiltrator_contract::profile_document_identity::ProfileDocumentIdentity;
+use infiltrator_contract::profile_document_identity::{ProfileDocumentIdentity, ProfileId};
 use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
 use infiltrator_ports::profile_document_codec::ProfileDocumentSnippetOutcome;
 use std::str::from_utf8;
+
+fn profile_id(name: &str) -> ProfileId {
+    ProfileId::new(name).expect("valid profile ID in test fixture")
+}
 
 fn invalid_document_validation() -> DocumentValidation {
     DocumentValidation::Invalid {
@@ -122,7 +126,7 @@ async fn missing_or_mismatched_codec_never_claims_valid_or_reaches_store_on_writ
     let reads_before_write = store.workspace_reads.load(Ordering::SeqCst);
     let error = plain_documents
         .save::<dyn ManagedRuntime>(
-            None,
+            crate::profile_application::ProfileRuntimeAccess::Offline,
             &unavailable.workspace_identity,
             "mode: rule\n",
             ProfileWriteAuthorization::RequireUnlock,
@@ -136,7 +140,10 @@ async fn missing_or_mismatched_codec_never_claims_valid_or_reaches_store_on_writ
     );
     assert_eq!(store.workspace_writes.load(Ordering::SeqCst), 0);
 
-    let workspace = plain_profiles.load_workspace("main").await.unwrap();
+    let workspace = plain_profiles
+        .load_workspace(&profile_id("main"))
+        .await
+        .unwrap();
     for (engine, format, schema) in [
         ("sing-box", "mihomo-yaml", 1),
         ("mihomo", "sing-box-json", 1),
@@ -225,7 +232,7 @@ async fn live_preflight_and_snippet_insertion_use_neutral_codec_diagnostics() {
     let profiles = ProfileApplication::new(Arc::clone(&store) as Arc<dyn ProfileStore>)
         .with_document_codec(codec.clone());
     let workspace = profiles
-        .load_workspace("main")
+        .load_workspace(&profile_id("main"))
         .await
         .expect("workspace identity");
     let application = ProfileDocumentApplication::new(profiles);
@@ -297,7 +304,7 @@ async fn foreign_document_identity_is_rejected_before_codec_or_store_side_effect
     let profiles = ProfileApplication::new(Arc::clone(&store) as Arc<dyn ProfileStore>)
         .with_document_codec(codec.clone());
     let workspace = profiles
-        .load_workspace("main")
+        .load_workspace(&profile_id("main"))
         .await
         .expect("workspace identity");
     let mut foreign: ProfileDocumentIdentity = workspace.document.identity.clone();

@@ -70,6 +70,7 @@ use infiltrator_contract::outbound::inventory::{
     OutboundInventorySnapshot, OutboundInventoryState, OutboundObservationSnapshot,
     SelectionAvailability,
 };
+use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_contract::profile_protection::ProfileWriteProtection;
 use infiltrator_contract::provider_cache::RuleProviderCacheSnapshot;
 use infiltrator_contract::public_ip::PublicIpProbeSnapshot;
@@ -439,15 +440,29 @@ impl SurfaceReader for ApplicationSurfaceReader {
                         // DUAL-07-08: surface the stored node-keyword filter so
                         // both surfaces can prefill the editor.
                         let (filter, filter_source) = match &self.profiles {
-                            Some(profiles) => match profiles.load_workspace(&item.name).await {
-                                Ok(workspace) => match profiles.inspect_profile_options(
-                                    &workspace.document.identity,
-                                    workspace.sidecar_bytes.as_deref(),
-                                ) {
-                                    Ok(options) => (options.filter, Ok(workspace.identity())),
-                                    Err(error) => (Default::default(), Err(error)),
-                                },
-                                Err(failure) => (Default::default(), Err(failure)),
+                            Some(profiles) => match ProfileId::new(item.name.clone()) {
+                                Ok(profile_id) => {
+                                    match profiles.load_workspace(&profile_id).await {
+                                        Ok(workspace) => match profiles.inspect_profile_options(
+                                            &workspace.document.identity,
+                                            workspace.sidecar_bytes.as_deref(),
+                                        ) {
+                                            Ok(options) => {
+                                                (options.filter, Ok(workspace.identity()))
+                                            }
+                                            Err(error) => (Default::default(), Err(error)),
+                                        },
+                                        Err(failure) => (Default::default(), Err(failure)),
+                                    }
+                                }
+                                Err(error) => (
+                                    Default::default(),
+                                    Err(Failure::new(
+                                        ErrorCode::InvalidInput,
+                                        error.to_string(),
+                                        false,
+                                    )),
+                                ),
                             },
                             None => (
                                 Default::default(),

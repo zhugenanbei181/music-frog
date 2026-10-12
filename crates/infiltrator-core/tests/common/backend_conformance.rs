@@ -1,4 +1,8 @@
 use async_trait::async_trait;
+use infiltrator_contract::active_profile_reference::{
+    ActiveProfileReference, ActiveProfileReferenceRevision, ActiveProfileReferenceState,
+    ActiveProfileReferenceWriteAuthorization,
+};
 use infiltrator_contract::adapter_operation_declaration::{
     AdapterOperationSupport, ValidatedAdapterOperationDeclarations,
 };

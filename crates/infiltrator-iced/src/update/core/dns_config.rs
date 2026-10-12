@@ -492,7 +492,7 @@ impl AppState {
                     }
                 };
                 save_task(
-                    self.runtime.runtime.clone(),
+                    super::profile_apply::runtime_access(self.runtime.runtime.clone()),
                     move |content| apply_dns_patch_to_yaml(content, patch),
                     Message::DnsSaved,
                 )
@@ -565,7 +565,7 @@ impl AppState {
                     }
                 };
                 save_task(
-                    self.runtime.runtime.clone(),
+                    super::profile_apply::runtime_access(self.runtime.runtime.clone()),
                     move |content| apply_fake_ip_patch_to_yaml(content, patch),
                     Message::FakeIpConfigSaved,
                 )

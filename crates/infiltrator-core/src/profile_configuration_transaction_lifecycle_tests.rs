@@ -72,11 +72,12 @@ async fn foreign_and_stale_candidates_have_zero_writes_across_lifecycles() {
         ));
         assert_eq!(fixture.profile_store.writes(), 0);
 
-        fixture
-            .config
-            .save("main", "# newer external edit\nport: 7900\n")
-            .await
-            .expect("simulate a newer workspace revision");
+        super::replace_profile_file_for_test(
+            &fixture.config,
+            "main",
+            "# newer external edit\nport: 7900\n",
+        )
+        .await;
         let newer = fixture
             .config
             .load_active_workspace()

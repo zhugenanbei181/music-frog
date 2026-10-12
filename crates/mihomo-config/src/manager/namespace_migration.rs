@@ -5,13 +5,25 @@
 use super::ConfigManager;
 use super::paths::sanitized_profile_key;
 use super::subscription_store::{SUBSCRIPTION_SERVICE, legacy_subscription_key, subscription_key};
-use infiltrator_contract::core_identity::EngineId;
+use crate::sidecar_store::write_document_bytes_durable;
+use infiltrator_ports::error::PortError;
 use infiltrator_ports::secure_store::SecureStore;
 use mihomo_api::error::{MihomoError, Result};
+use std::io::{Error, ErrorKind};
 use std::path::{Path, PathBuf};
 use tokio::fs;
 
 const NAMESPACE_SCHEMA_KEY: &str = "profile_namespace_schema";
+
+fn profile_namespace_fence_error(error: PortError) -> MihomoError {
+    let (kind, message) = match error {
+        PortError::PermissionDenied(message) => (ErrorKind::PermissionDenied, message),
+        PortError::NotFound(message) => (ErrorKind::NotFound, message),
+        PortError::Io(message) => (ErrorKind::Other, message),
+        error => return MihomoError::Config(error.to_string()),
+    };
+    MihomoError::Io(Error::new(kind, message))
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum NamespaceSchema {
@@ -47,8 +59,25 @@ impl<S: SecureStore> ConfigManager<S> {
             .map(|_| ())
     }
 
+    /// Replace profile settings with the minimal engine-scope marker after a
+    /// committed profile reset. The caller holds the cross-process profile
+    /// write lock; this helper deliberately does not reacquire it.
+    pub(crate) async fn reset_profile_namespace_marker_unlocked(&self) -> Result<()> {
+        let mut state = toml::Value::Table(toml::map::Map::new());
+        state
+            .as_table_mut()
+            .ok_or_else(|| MihomoError::Config("profile state table could not be created".into()))?
+            .insert(
+                NAMESPACE_SCHEMA_KEY.into(),
+                toml::Value::String("engine_scoped_v1".into()),
+            );
+        write_toml_atomically(&self.settings_file, &state).await
+    }
+
     async fn initialize_profile_namespace_once(&self) -> Result<()> {
-        let _guard = self.lock_profile_writes().await;
+        let _guard = crate::manager::lock_reset_fenced_profile_mutation_for_dir(&self.config_dir)
+            .await
+            .map_err(profile_namespace_fence_error)?;
 
         let mut scoped_state = read_toml_table(&self.settings_file).await?;
         let schema = NamespaceSchema::parse(scoped_state.get(NAMESPACE_SCHEMA_KEY))?;
@@ -344,36 +373,11 @@ async fn write_legacy_settings(path: &Path, state: &toml::Value) -> Result<()> {
 
 async fn write_toml_atomically(path: &Path, state: &toml::Value) -> Result<()> {
     recover_toml_backup(path).await?;
-    let parent = path
-        .parent()
-        .ok_or_else(|| MihomoError::Config("profile state has no parent directory".into()))?;
-    fs::create_dir_all(parent).await?;
     let content =
         toml::to_string_pretty(state).map_err(|error| MihomoError::Config(error.to_string()))?;
-    let temporary = path.with_extension("toml.namespace-tmp");
-    let backup = namespace_backup_path(path);
-    fs::write(&temporary, content).await?;
-    let had_previous = fs::try_exists(path).await?;
-    if had_previous {
-        fs::rename(path, &backup).await?;
-    }
-    if let Err(error) = fs::rename(&temporary, path).await {
-        if had_previous {
-            if let Err(rollback) = fs::rename(&backup, path).await {
-                let _ = fs::remove_file(&temporary).await;
-                return Err(MihomoError::Config(format!(
-                    "profile state publication failed ({error}); previous bytes remain at `{}` because restore failed ({rollback})",
-                    backup.display()
-                )));
-            }
-        }
-        let _ = fs::remove_file(&temporary).await;
-        return Err(error.into());
-    }
-    if had_previous {
-        fs::remove_file(backup).await?;
-    }
-    Ok(())
+    write_document_bytes_durable(path, content.as_bytes())
+        .await
+        .map_err(|error| MihomoError::Config(error.to_string()))
 }
 
 async fn recover_toml_backup(path: &Path) -> Result<()> {

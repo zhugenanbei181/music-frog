@@ -27,6 +27,7 @@ use axum::extract::{Request, State};
 use axum::http::{StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use iced_runtime::task::into_stream;
+use infiltrator_application::profile_application::ProfileRuntimeAccess;
 use infiltrator_application::runtime_configuration_application::RuntimeConfigurationReadout;
 use infiltrator_contract::core_identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
@@ -354,9 +355,14 @@ fn sync_diff_journey_merges_key_picks_into_the_local_file() {
         let remote = read_to_string(&remote_path).await.unwrap();
         let merged = merge_yaml_key_picks(&local, &remote, &take_remote, &accept_removals).unwrap();
         validate_yaml(&merged).unwrap();
-        save_profile_content(None, "alpha".into(), merged, ApplyStrategy::PreferReload)
-            .await
-            .unwrap();
+        save_profile_content(
+            ProfileRuntimeAccess::Offline,
+            "alpha".into(),
+            merged,
+            ApplyStrategy::PreferReload,
+        )
+        .await
+        .unwrap();
         remove_file(&remote_path).await.unwrap();
     });
 
@@ -492,9 +498,14 @@ fn sync_conflict_network_leg_upload_download_resolve_and_dismiss() {
         {
             let content = read_to_string(&conflict_path).await.unwrap();
             validate_yaml(&content).unwrap();
-            save_profile_content(None, "alpha".into(), content, ApplyStrategy::PreferReload)
-                .await
-                .unwrap();
+            save_profile_content(
+                ProfileRuntimeAccess::Offline,
+                "alpha".into(),
+                content,
+                ApplyStrategy::PreferReload,
+            )
+            .await
+            .unwrap();
             remove_file(&conflict_path).await.unwrap();
         }
         let units = feed(
@@ -550,24 +561,22 @@ fn mixed_profile_switch_rebuild_flow_and_runtime_refetch_chain() {
     state.shell.lang = "zh-CN".into();
     let tray = FakeTray::install(&mut state);
 
-    // Download worker reports the ACTIVE profile changed + one conflict.
+    // Active profile bytes are never written by sync; remote edits stay in a conflict file.
     let conflict_path = home.join("alpha.remote-conflict-2.yaml");
     write(&conflict_path, REMOTE_YAML).unwrap();
     let summary = SyncSummary {
         uploaded: 0,
-        downloaded: 1,
+        downloaded: 0,
         conflicts: 1,
-        active_profile_changed: true,
         conflict_files: vec![SyncConflict {
             profile: "alpha".into(),
             remote_path: conflict_path.clone(),
         }],
     };
     let units = feed(&mut state, Message::SyncFinished(Ok(summary)));
-    // No runtime → no rebuild trigger; the transient backup clear task is
-    // armed instead, conflicts still queue.
+    // No active rebuild path is involved; the conflict still queues for review.
     assert_eq!(state.profile.sync_conflicts.len(), 1);
-    assert!(units >= 3, "clear-backup + LoadProfiles + toast");
+    assert_eq!(units, 2, "LoadProfiles + toast");
     assert!(matches!(state.runtime.rebuild_flow, RebuildFlowState::Idle));
 
     // With a live core this is where trigger_runtime_rebuild() puts the

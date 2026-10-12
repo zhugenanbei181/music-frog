@@ -137,14 +137,11 @@ impl ProfileStore for MemoryProfile {
     async fn get_current(&self) -> Result<String, PortError> {
         Ok("main".into())
     }
-    async fn set_current(&self, profile: &str) -> Result<(), PortError> {
-        scoped(profile)
-    }
     async fn load(&self, profile: &str) -> Result<String, PortError> {
         scoped(profile)?;
         Ok(self.0.lock().unwrap().content.clone())
     }
-    async fn save(&self, _: &str, _: &str) -> Result<(), PortError> {
+    async fn save_inactive_profile(&self, _: &str, _: &str) -> Result<(), PortError> {
         Err(unsupported())
     }
     async fn delete_profile(&self, _: &str) -> Result<(), PortError> {
@@ -165,7 +162,7 @@ impl ProfileStore for MemoryProfile {
         let state = self.0.lock().unwrap();
         Ok(workspace(&state.content, state.sidecar_bytes.as_deref()))
     }
-    async fn compare_and_save_workspace(
+    async fn compare_and_save_inactive_workspace(
         &self,
         expected: &ProfileWorkspaceIdentity,
         update: &ProfileWorkspaceUpdate,
@@ -193,7 +190,7 @@ impl ProfileStore for MemoryProfile {
     async fn clear_backup(&self, _: &str) -> Result<(), PortError> {
         Err(unsupported())
     }
-    async fn restore_backup(&self, _: &str) -> Result<bool, PortError> {
+    async fn restore_inactive_profile_backup(&self, _: &str) -> Result<bool, PortError> {
         Err(unsupported())
     }
 }

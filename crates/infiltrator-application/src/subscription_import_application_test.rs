@@ -2,6 +2,7 @@
 
 use super::*;
 use async_trait::async_trait;
+use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
 use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::error::ErrorCode;
@@ -21,6 +22,7 @@ use std::sync::Mutex;
 struct FakeStore {
     saved: Mutex<BTreeMap<String, String>>,
     metadata: Mutex<BTreeMap<String, ProfileMetadata>>,
+    active_reference: Mutex<ActiveProfileReferenceState>,
 }
 
 #[async_trait]
@@ -51,8 +53,14 @@ impl ProfileStore for FakeStore {
         Ok(String::new())
     }
 
-    async fn set_current(&self, _profile: &str) -> Result<(), PortError> {
-        Ok(())
+    async fn read_active_profile_reference(
+        &self,
+    ) -> Result<ActiveProfileReferenceState, PortError> {
+        Ok(self
+            .active_reference
+            .lock()
+            .expect("active reference")
+            .clone())
     }
 
     async fn load(&self, profile: &str) -> Result<String, PortError> {
@@ -64,7 +72,7 @@ impl ProfileStore for FakeStore {
             .ok_or_else(|| PortError::NotFound(profile.to_string()))
     }
 
-    async fn save(&self, profile: &str, content: &str) -> Result<(), PortError> {
+    async fn save_inactive_profile(&self, profile: &str, content: &str) -> Result<(), PortError> {
         self.saved
             .lock()
             .expect("saved")
@@ -106,7 +114,7 @@ impl ProfileStore for FakeStore {
         Ok(())
     }
 
-    async fn restore_backup(&self, _profile: &str) -> Result<bool, PortError> {
+    async fn restore_inactive_profile_backup(&self, _profile: &str) -> Result<bool, PortError> {
         Ok(false)
     }
 }

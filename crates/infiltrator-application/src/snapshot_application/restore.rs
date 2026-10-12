@@ -1,6 +1,9 @@
 //! Only a live reviewed identity can commit; cancellation never touches a storage write port.
 use super::SnapshotApplication;
+use crate::profile_application::ProfileRuntimeAccess;
+use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
 use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_contract::snapshot_restore::{
     SnapshotRestoreCancelled, SnapshotRestoreIdentity, SnapshotRestoreReceipt,
     SnapshotRestoreReview, SnapshotRestoreTarget,
@@ -13,8 +16,8 @@ use infiltrator_ports::profile_workspace::{
 };
 use infiltrator_ports::runtime_gateway::ManagedRuntime;
 use std::path::Path;
+use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Mutex};
 
 pub(super) fn allocate_owner() -> u64 {
     static NEXT_OWNER: AtomicU64 = AtomicU64::new(1);
@@ -28,17 +31,52 @@ pub(super) fn allocate_owner() -> u64 {
 struct FrozenRestore {
     review: SnapshotRestoreReview,
     workspace: ProfileWorkspace,
+    active_reference: ActiveProfileReferenceState,
 }
-#[derive(Default)]
+#[derive(Clone)]
+enum RestorePhase {
+    Idle { sequence: u64 },
+    Preparing { sequence: u64 },
+    Prepared(FrozenRestore),
+    Committing(FrozenRestore),
+}
 pub(super) struct RestoreState {
-    sequence: u64,
-    review: Option<FrozenRestore>,
-    busy: bool,
+    phase: RestorePhase,
 }
-struct AdmissionGuard<'a>(&'a Mutex<RestoreState>);
-impl Drop for AdmissionGuard<'_> {
+impl Default for RestoreState {
+    fn default() -> Self {
+        Self {
+            phase: RestorePhase::Idle { sequence: 0 },
+        }
+    }
+}
+struct RestoreTransitionGuard<'a> {
+    state: &'a Mutex<RestoreState>,
+    sequence: u64,
+    fallback: RestorePhase,
+    kind: RestoreTransitionKind,
+}
+#[derive(Clone, Copy)]
+enum RestoreTransitionKind {
+    Preparing,
+    Committing,
+}
+impl Drop for RestoreTransitionGuard<'_> {
     fn drop(&mut self) {
-        self.0.lock().expect("snapshot restore state").busy = false;
+        let mut state = self.state.lock().expect("snapshot restore state");
+        let matches_transition = match &state.phase {
+            RestorePhase::Preparing { sequence } => {
+                matches!(self.kind, RestoreTransitionKind::Preparing) && *sequence == self.sequence
+            }
+            RestorePhase::Committing(frozen) => {
+                matches!(self.kind, RestoreTransitionKind::Committing)
+                    && frozen.review.identity.sequence == self.sequence
+            }
+            RestorePhase::Idle { .. } | RestorePhase::Prepared(_) => false,
+        };
+        if matches_transition {
+            state.phase = self.fallback.clone();
+        }
     }
 }
 fn invalid(reason: &str) -> Failure {
@@ -57,15 +95,44 @@ impl SnapshotApplication {
                 false,
             ));
         }
-        {
+        let sequence = {
             let mut state = self.restores.lock().expect("snapshot restore state");
-            if state.busy || state.review.is_some() {
+            let RestorePhase::Idle { sequence: current } = &state.phase else {
                 return Err(invalid("A snapshot restoration review is already active"));
-            }
-            state.busy = true;
+            };
+            let sequence = current
+                .checked_add(1)
+                .ok_or_else(|| invalid("Snapshot restoration sequence exhausted"))?;
+            state.phase = RestorePhase::Preparing { sequence };
+            sequence
+        };
+        let _admission = RestoreTransitionGuard {
+            state: &self.restores,
+            sequence,
+            fallback: RestorePhase::Idle { sequence },
+            kind: RestoreTransitionKind::Preparing,
+        };
+        let active_reference = self
+            .profiles
+            .active_profile_reference()
+            .await
+            .map_err(Failure::from)?;
+        let target_profile = ProfileId::new(target.profile.clone())
+            .map_err(|error| Failure::new(ErrorCode::InvalidInput, error.to_string(), false))?;
+        let workspace = self.profiles.load_workspace(&target_profile).await?;
+        if self
+            .profiles
+            .active_profile_reference()
+            .await
+            .map_err(Failure::from)?
+            != active_reference
+        {
+            return Err(Failure::new(
+                ErrorCode::NotReady,
+                "The active profile selection changed while the restore review was prepared",
+                true,
+            ));
         }
-        let _admission = AdmissionGuard(&self.restores);
-        let workspace = self.profiles.load_workspace(&target.profile).await?;
         if workspace.document.identity.profile_id.as_str() != target.profile {
             return Err(invalid("Snapshot workspace source is inconsistent"));
         }
@@ -88,10 +155,6 @@ impl SnapshotApplication {
         )
         .with_source_path(target.snapshot_id.clone());
         let mut state = self.restores.lock().expect("snapshot restore state");
-        let sequence = state
-            .sequence
-            .checked_add(1)
-            .ok_or_else(|| invalid("Snapshot restoration sequence exhausted"))?;
         let review = SnapshotRestoreReview {
             identity: SnapshotRestoreIdentity {
                 owner: self.restore_owner,
@@ -105,10 +168,10 @@ impl SnapshotApplication {
             difference,
         };
         review.validate()?;
-        state.sequence = sequence;
-        state.review = Some(FrozenRestore {
+        state.phase = RestorePhase::Prepared(FrozenRestore {
             review: review.clone(),
             workspace,
+            active_reference,
         });
         Ok(review)
     }
@@ -117,42 +180,50 @@ impl SnapshotApplication {
         identity: &SnapshotRestoreIdentity,
     ) -> Result<SnapshotRestoreCancelled, Failure> {
         let mut state = self.restores.lock().expect("snapshot restore state");
-        if state.busy {
-            return Err(invalid("Snapshot restoration is pending"));
+        match &state.phase {
+            RestorePhase::Prepared(frozen) if frozen.review.identity == *identity => {}
+            RestorePhase::Preparing { .. } | RestorePhase::Committing(_) => {
+                return Err(invalid("Snapshot restoration is pending"));
+            }
+            RestorePhase::Idle { .. } | RestorePhase::Prepared(_) => {
+                return Err(invalid("Snapshot restoration review expired"));
+            }
         }
-        if state
-            .review
-            .as_ref()
-            .is_none_or(|review| review.review.identity != *identity)
-        {
-            return Err(invalid("Snapshot restoration review expired"));
-        }
-        state.review = None;
+        state.phase = RestorePhase::Idle {
+            sequence: identity.sequence,
+        };
         Ok(SnapshotRestoreCancelled {
             identity: identity.clone(),
         })
     }
     pub async fn confirm_restore<R: ManagedRuntime + ?Sized>(
         &self,
-        runtime: Option<Arc<R>>,
+        runtime: ProfileRuntimeAccess<R>,
         identity: &SnapshotRestoreIdentity,
     ) -> Result<SnapshotRestoreReceipt, Failure> {
         self.validate_namespace()?;
         let frozen = {
             let mut state = self.restores.lock().expect("snapshot restore state");
-            if state.busy {
-                return Err(invalid("Snapshot restoration is pending"));
-            }
-            let frozen = state
-                .review
-                .as_ref()
-                .filter(|review| review.review.identity == *identity)
-                .ok_or_else(|| invalid("Snapshot restoration review expired"))?
-                .clone();
-            state.busy = true;
+            let frozen = match &state.phase {
+                RestorePhase::Prepared(frozen) if frozen.review.identity == *identity => {
+                    frozen.clone()
+                }
+                RestorePhase::Preparing { .. } | RestorePhase::Committing(_) => {
+                    return Err(invalid("Snapshot restoration is pending"));
+                }
+                RestorePhase::Idle { .. } | RestorePhase::Prepared(_) => {
+                    return Err(invalid("Snapshot restoration review expired"));
+                }
+            };
+            state.phase = RestorePhase::Committing(frozen.clone());
             frozen
         };
-        let _admission = AdmissionGuard(&self.restores);
+        let _admission = RestoreTransitionGuard {
+            state: &self.restores,
+            sequence: identity.sequence,
+            fallback: RestorePhase::Prepared(frozen.clone()),
+            kind: RestoreTransitionKind::Committing,
+        };
         let snapshot = self
             .read(
                 &frozen.review.target.profile,
@@ -168,12 +239,25 @@ impl SnapshotApplication {
         }
         let current = self
             .profiles
-            .load_workspace_id(&identity.workspace_identity.document.profile_id)
+            .load_workspace(&identity.workspace_identity.document.profile_id)
             .await?;
         if current.identity() != identity.workspace_identity {
             return Err(Failure::new(
                 ErrorCode::NotReady,
                 "The profile or options changed; cancel and prepare a new review",
+                false,
+            ));
+        }
+        if self
+            .profiles
+            .active_profile_reference()
+            .await
+            .map_err(Failure::from)?
+            != frozen.active_reference
+        {
+            return Err(Failure::new(
+                ErrorCode::NotReady,
+                "The active profile selection changed; cancel and prepare a new review",
                 false,
             ));
         }
@@ -184,7 +268,12 @@ impl SnapshotApplication {
         };
         let committed = self
             .profiles
-            .commit_workspace(runtime, &identity.workspace_identity, &update)
+            .commit_workspace_at_reference(
+                runtime,
+                frozen.active_reference.clone(),
+                &identity.workspace_identity,
+                &update,
+            )
             .await?;
         let receipt = SnapshotRestoreReceipt {
             identity: identity.clone(),
@@ -192,7 +281,9 @@ impl SnapshotApplication {
         };
         receipt.validate(identity)?;
         self.clear_diff(identity.workspace_identity.document.profile_id.as_str());
-        self.restores.lock().expect("snapshot restore state").review = None;
+        self.restores.lock().expect("snapshot restore state").phase = RestorePhase::Idle {
+            sequence: identity.sequence,
+        };
         Ok(receipt)
     }
 }

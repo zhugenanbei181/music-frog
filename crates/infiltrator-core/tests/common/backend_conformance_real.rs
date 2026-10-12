@@ -9,11 +9,15 @@ use infiltrator_composition::engine_backend_factory::{
     EngineBackendFactoryRegistry, SingBoxEngineBackendProvider,
 };
 use infiltrator_composition::mihomo_engine_backend_provider::MihomoEngineBackendProvider;
+use infiltrator_contract::active_profile_reference::{
+    ActiveProfileReferenceCasOutcome, ActiveProfileReferenceTarget,
+};
 use infiltrator_contract::core_capabilities::{AdapterRevision, EngineBinaryTarget};
 use infiltrator_contract::core_identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
 };
 use infiltrator_contract::outbound::identity::OutboundId;
+use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_contract::routing_intent::{
     EngineDefinedRoutingIntent, RoutingIntent, RoutingIntentExtensionId,
 };
@@ -364,12 +368,30 @@ rules:
     );
     let valid_text = String::from_utf8(case.valid_profile.clone())
         .map_err(|error| format!("Mihomo valid fixture is not UTF-8: {error}"))?;
-    ProfileStore::save(profile_store.as_ref(), "profile", &valid_text)
+    ProfileStore::save_inactive_profile(profile_store.as_ref(), "profile", &valid_text)
         .await
         .map_err(|error| format!("seed Mihomo profile workspace: {error}"))?;
-    ProfileStore::set_current(profile_store.as_ref(), "profile")
+    let expected = ProfileStore::read_active_profile_reference(profile_store.as_ref())
         .await
-        .map_err(|error| format!("select Mihomo profile workspace: {error}"))?;
+        .map_err(|error| format!("read Mihomo active profile reference: {error}"))?;
+    let target = ActiveProfileReferenceTarget::selected(
+        ProfileStore::engine_id(profile_store.as_ref()),
+        ProfileId::new("profile").expect("valid conformance profile ID"),
+    );
+    match ProfileStore::compare_and_set_active_profile_reference(
+        profile_store.as_ref(),
+        expected,
+        target,
+        infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization::Unowned,
+    )
+    .await
+    .map_err(|error| format!("select Mihomo profile workspace: {error}"))?
+    {
+        ActiveProfileReferenceCasOutcome::Committed { .. } => {}
+        ActiveProfileReferenceCasOutcome::Stale { expected, observed } => {
+            return Err(format!("conformance profile selection stale: {expected:?} -> {observed:?}"));
+        }
+    }
     let profile_path = profile_store.config_dir().join("profile.yaml");
     let host_process: Arc<dyn CoreProcess> = Arc::new(ProcessCoreController::with_pid_file(
         binary.clone(),

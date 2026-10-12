@@ -14,7 +14,7 @@
 
 use crate::certificate_authority_application::CertificateAuthorityApplication;
 use crate::dialer_chain_application::DialerChainApplication;
-use crate::profile_application::ProfileApplication;
+use crate::profile_application::{ProfileApplication, ProfileRuntimeAccess};
 use crate::protocol_node_params::node_from_draft;
 use crate::protocol_node_projection::draft_from_node;
 use infiltrator_contract::dialer_chain::DialerChainReport;
@@ -373,7 +373,7 @@ impl ProtocolCodecApplication {
             sidecar_bytes: workspace.sidecar_bytes.clone(),
         };
         let committed = profiles
-            .commit_workspace(Some(runtime), &expected, &updated)
+            .commit_workspace(ProfileRuntimeAccess::Managed(runtime), &expected, &updated)
             .await?;
         let profile_yaml = committed
             .document

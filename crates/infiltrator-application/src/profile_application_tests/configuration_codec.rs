@@ -3,6 +3,7 @@
 
 use super::*;
 use crate::configuration_application::ConfigurationApplication;
+use crate::profile_application::ProfileRuntimeAccess;
 use crate::protocol_codec_application::ProtocolCodecApplication;
 use async_trait::async_trait;
 use infiltrator_contract::dns::DnsSettingsPatch;
@@ -27,6 +28,7 @@ use infiltrator_ports::profile_document_codec::{
 };
 use infiltrator_ports::profile_workspace::{ProfileWorkspace, ProfileWorkspaceUpdate};
 use infiltrator_ports::runtime_gateway::{ManagedRuntime, RuntimeGateway, RuntimeStream};
+use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::atomic::AtomicUsize;
 
@@ -93,6 +95,26 @@ impl ManagedRuntime for WorkspaceApplyRuntime {
     fn generation(&self) -> u64 {
         7
     }
+    fn core_lifecycle(&self) -> infiltrator_contract::snapshot::CoreLifecycle {
+        infiltrator_contract::snapshot::CoreLifecycle::Running
+    }
+    fn active_profile_reference_write_authorization(
+        &self,
+    ) -> Result<
+        infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization,
+        PortError,
+    > {
+        Ok(infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization::BoundOwner {
+            identity: infiltrator_contract::core_identity::CoreIdentity::new(
+                infiltrator_contract::core_identity::EngineId::new("mihomo")
+                    .expect("test engine"),
+                infiltrator_contract::core_identity::CoreInstanceId::new("workspace-test-core")
+                    .expect("test owner instance"),
+                None,
+            ),
+            generation: infiltrator_contract::core_identity::CoreGeneration::new(7),
+        })
+    }
     async fn is_running(&self) -> bool {
         true
     }
@@ -105,16 +127,12 @@ impl ManagedRuntime for WorkspaceApplyRuntime {
     async fn shutdown(&self) -> Result<(), PortError> {
         self.unexpected()
     }
-    async fn apply_current_config(&self, _: ApplyStrategy) -> Result<u64, PortError> {
-        self.unexpected()
-    }
-    async fn apply_profile_content(&self, _: &str, _: ApplyStrategy) -> Result<u64, PortError> {
-        self.unexpected()
-    }
     async fn apply_profile_workspace(
         &self,
+        _: &infiltrator_contract::active_profile_reference::ActiveProfileReference,
         expected: &ProfileWorkspaceIdentity,
         update: &ProfileWorkspaceUpdate,
+        _: infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization,
         _: ApplyStrategy,
     ) -> Result<ProfileWorkspace, PortError> {
         self.calls.fetch_add(1, Ordering::SeqCst);
@@ -323,7 +341,7 @@ async fn desktop_managed_runtime_receives_scoped_dns_mutation_and_returns_readba
 
     let readback = application
         .apply_dns_settings_with_runtime(
-            Some(runtime.clone()),
+            ProfileRuntimeAccess::Managed(runtime.clone()),
             DnsSettingsPatch {
                 expected_profile: Some("main".into()),
                 nameserver: Some(vec!["https://dns.example/query".into()]),

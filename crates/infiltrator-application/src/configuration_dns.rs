@@ -1,6 +1,7 @@
 //! Profile-fenced DNS settings and the actual top-level kernel Hosts key.
 
 use super::ConfigurationApplication;
+use crate::profile_application::ProfileRuntimeAccess;
 use infiltrator_contract::dns::DnsSettingsPatch;
 use infiltrator_contract::dns_hosts::{DnsHostsProfile, validate_hosts};
 use infiltrator_contract::error::{ErrorCode, Failure};
@@ -9,7 +10,6 @@ use infiltrator_ports::profile_document_codec::{
     ProfileConfigurationQuery, ProfileConfigurationReadout, ProfileConfigurationUpdate,
 };
 use infiltrator_ports::runtime_gateway::ManagedRuntime;
-use std::sync::Arc;
 
 impl ConfigurationApplication {
     pub async fn load_hosts_profile(&self) -> Result<DnsHostsProfile, Failure> {
@@ -39,13 +39,16 @@ impl ConfigurationApplication {
     }
 
     pub async fn apply_dns_settings(&self, patch: DnsSettingsPatch) -> Result<DnsConfig, Failure> {
-        self.apply_dns_settings_with_runtime::<dyn ManagedRuntime>(None, patch)
-            .await
+        self.apply_dns_settings_with_runtime::<dyn ManagedRuntime>(
+            ProfileRuntimeAccess::Offline,
+            patch,
+        )
+        .await
     }
 
     pub async fn apply_dns_settings_with_runtime<R: ManagedRuntime + ?Sized>(
         &self,
-        runtime: Option<Arc<R>>,
+        runtime: ProfileRuntimeAccess<R>,
         patch: DnsSettingsPatch,
     ) -> Result<DnsConfig, Failure> {
         if patch.clear_hosts && patch.hosts.is_some()

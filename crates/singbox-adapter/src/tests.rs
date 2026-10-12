@@ -440,6 +440,20 @@ async fn readiness_uses_the_injected_http_port_and_rejects_non_loopback_endpoint
 }
 
 #[tokio::test]
+async fn readiness_rejects_an_unavailable_loopback_controller() {
+    let readiness = SingBoxControllerReadiness::new(
+        "http://127.0.0.1:9090",
+        Arc::new(FakeReadinessHttpPort {
+            outcome: FakeHttpOutcome::Unavailable,
+            requests: StdMutex::new(Vec::new()),
+        }),
+    )
+    .expect("loopback endpoint is accepted");
+
+    assert!(readiness.probe().await.is_err());
+}
+
+#[tokio::test]
 async fn readiness_reads_a_successful_loopback_http_version_response() {
     let mut server = mockito::Server::new_async().await;
     let route = server

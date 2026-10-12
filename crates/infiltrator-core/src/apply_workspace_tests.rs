@@ -1,12 +1,52 @@
 //! test-intent: behavior
 use super::*;
 use crate::apply_workspace::apply_confirmed_workspace;
+use infiltrator_contract::active_profile_reference::{
+    ActiveProfileReference, ActiveProfileReferenceState, ActiveProfileReferenceWriteAuthorization,
+};
 use infiltrator_contract::core_identity::EngineId;
-use infiltrator_domain::profile_options::{FilterSpec, ProfileOptions, options_path};
+use infiltrator_domain::profile_options::{FilterSpec, ProfileOptions};
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::profile_workspace::{ProfileWorkspacePurpose, ProfileWorkspaceUpdate};
-use tokio::fs::{create_dir_all, write};
+use std::fmt::Debug;
+use std::future::{Future, poll_fn};
+use std::pin::Pin;
+use std::task::Poll;
+use tokio::sync::Notify;
 use tokio::time::timeout;
+
+async fn selected_reference(fixture: &Fixture) -> ActiveProfileReference {
+    match ProfileStore::read_active_profile_reference(&fixture.config)
+        .await
+        .unwrap()
+    {
+        ActiveProfileReferenceState::Selected(reference) => reference,
+        ActiveProfileReferenceState::Unselected { .. } => {
+            panic!("workspace apply fixture must have a selected profile")
+        }
+    }
+}
+
+async fn apply_workspace(
+    fixture: &Fixture,
+    reloader: &dyn ConfigReloader,
+    reference: &ActiveProfileReference,
+    expected: &infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity,
+    update: &ProfileWorkspaceUpdate,
+    params: ApplyParams,
+) -> ApplyResult<ProfileWorkspace> {
+    apply_confirmed_workspace(
+        &fixture.session,
+        &fixture.config,
+        reloader,
+        reference,
+        expected,
+        update,
+        ActiveProfileReferenceWriteAuthorization::Unowned,
+        params,
+    )
+    .await
+}
 
 fn proposal() -> ProfileWorkspaceUpdate {
     let options = ProfileOptions {
@@ -35,10 +75,11 @@ async fn confirmed_workspace_commits_both_documents_and_reports_actual_stored_so
     let f = fixture(0, false).await;
     ready(&f).await;
     let before = f.config.load_active_workspace().await.unwrap();
-    let committed = apply_confirmed_workspace(
-        &f.session,
-        &f.config,
+    let reference = selected_reference(&f).await;
+    let committed = apply_workspace(
+        &f,
         &f.reloader,
+        &reference,
         &before.identity(),
         &proposal(),
         params(ApplyStrategy::PreferReload),
@@ -62,37 +103,41 @@ async fn confirmed_workspace_commits_both_documents_and_reports_actual_stored_so
 async fn changed_options_or_active_profile_rejects_without_applying_or_writing() {
     let f = fixture(0, false).await;
     let before = f.config.load_active_workspace().await.unwrap();
+    let reference = selected_reference(&f).await;
     let mut changed_sidecar = proposal();
     changed_sidecar.document_bytes = before.document.raw_bytes.clone();
-    f.config
-        .compare_and_save_workspace(&before.identity(), &changed_sidecar)
-        .await
-        .unwrap();
-    let changed = f.config.load_active_workspace().await.unwrap();
+    let changed = publish_active_workspace_for_test(
+        &f.config,
+        &reference,
+        &before.identity(),
+        changed_sidecar,
+    )
+    .await;
+    ready(&f).await;
     assert_eq!(
-        apply_confirmed_workspace(
-            &f.session,
-            &f.config,
+        apply_workspace(
+            &f,
             &f.reloader,
+            &reference,
             &before.identity(),
             &proposal(),
-            params(ApplyStrategy::PreferReload)
+            params(ApplyStrategy::PreferReload),
         )
         .await
         .unwrap_err(),
         ApplyError::SourceChanged
     );
     assert_eq!(f.config.load_active_workspace().await.unwrap(), changed);
-    f.config.save("other", OLD).await.unwrap();
-    f.config.set_current("other").await.unwrap();
+    f.config.save_inactive_profile("other", OLD).await.unwrap();
+    super::select_profile(&f.config, "other").await;
     assert_eq!(
-        apply_confirmed_workspace(
-            &f.session,
-            &f.config,
+        apply_workspace(
+            &f,
             &f.reloader,
+            &reference,
             &changed.identity(),
             &proposal(),
-            params(ApplyStrategy::PreferReload)
+            params(ApplyStrategy::PreferReload),
         )
         .await
         .unwrap_err(),
@@ -101,13 +146,15 @@ async fn changed_options_or_active_profile_rejects_without_applying_or_writing()
     assert_eq!(f.config.load("main").await.unwrap(), OLD);
     assert_eq!(f.config.load("other").await.unwrap(), OLD);
     assert_eq!(f.reloader.calls.load(Ordering::SeqCst), 0);
-    assert_eq!(f.session.lifecycle(), CoreLifecycle::Stopped);
+    assert_eq!(f.session.lifecycle(), CoreLifecycle::Ready);
+    assert!(f.controller.running.load(Ordering::SeqCst));
 }
 
 #[tokio::test]
 async fn foreign_engine_is_rejected_before_document_validation_or_runtime_work() {
     let f = fixture(0, false).await;
     let before = f.config.load_active_workspace().await.unwrap();
+    let reference = selected_reference(&f).await;
     let mut foreign = before.identity();
     foreign.document.engine_id = EngineId::new("sing-box").unwrap();
     let update = ProfileWorkspaceUpdate {
@@ -115,10 +162,10 @@ async fn foreign_engine_is_rejected_before_document_validation_or_runtime_work()
         ..proposal()
     };
 
-    let failure = apply_confirmed_workspace(
-        &f.session,
-        &f.config,
+    let failure = apply_workspace(
+        &f,
         &f.reloader,
+        &reference,
         &foreign,
         &update,
         params(ApplyStrategy::PreferReload),
@@ -138,17 +185,24 @@ async fn apply_failure_restores_exact_sidecar_or_absence_and_recovers_the_old_co
     for sidecar in [None, Some("# operator annotation\nmixin:\n  mode: rule\n")] {
         let f = fixture(0, true).await;
         if let Some(text) = sidecar {
-            let path = options_path(f.config.config_dir(), "main");
-            create_dir_all(path.parent().unwrap()).await.unwrap();
-            write(path, text).await.unwrap();
+            let reference = selected_reference(&f).await;
+            let previous = f.config.load_active_workspace().await.unwrap();
+            let update = ProfileWorkspaceUpdate {
+                purpose: ProfileWorkspacePurpose::Derived,
+                document_bytes: previous.document.raw_bytes.clone(),
+                sidecar_bytes: Some(text.as_bytes().to_vec()),
+            };
+            publish_active_workspace_for_test(&f.config, &reference, &previous.identity(), update)
+                .await;
         }
         ready(&f).await;
         let before = f.config.load_active_workspace().await.unwrap();
+        let reference = selected_reference(&f).await;
         f.controller.fail_starts_left.store(1, Ordering::SeqCst);
-        let failure = apply_confirmed_workspace(
-            &f.session,
-            &f.config,
+        let failure = apply_workspace(
+            &f,
             &f.reloader,
+            &reference,
             &before.identity(),
             &proposal(),
             params(ApplyStrategy::PreferReload),
@@ -167,115 +221,168 @@ async fn apply_failure_restores_exact_sidecar_or_absence_and_recovers_the_old_co
     }
 }
 
-struct LaterOptions<'a> {
-    config: &'a ConfigManager<MockStore>,
+async fn assert_pending<F>(mut future: Pin<&mut F>, description: &str)
+where
+    F: Future,
+    F::Output: Debug,
+{
+    poll_fn(|context| match future.as_mut().poll(context) {
+        Poll::Pending => Poll::Ready(()),
+        Poll::Ready(output) => panic!("{description}: {output:?}"),
+    })
+    .await;
 }
+
+#[derive(Default)]
+struct ReloadGate {
+    entered: Notify,
+    resume: Notify,
+}
+
+#[derive(Clone, Copy)]
+enum GatedReloadOutcome {
+    Succeed,
+    Fail,
+}
+
+struct GatedReloader<'a> {
+    gate: &'a ReloadGate,
+    outcome: GatedReloadOutcome,
+}
+
 #[async_trait]
-impl ConfigReloader for LaterOptions<'_> {
+impl ConfigReloader for GatedReloader<'_> {
     async fn reload(&self, _: &Path) -> Result<(), String> {
-        let options = ProfileOptions {
-            filter: Some(FilterSpec {
-                include_keywords: vec!["later edit".into()],
-                ..Default::default()
-            }),
-            ..Default::default()
-        };
-        let current = self
-            .config
-            .load_active_workspace()
-            .await
-            .map_err(|error| error.to_string())?;
-        let update = ProfileWorkspaceUpdate {
-            purpose: ProfileWorkspacePurpose::Derived,
-            document_bytes: current.document.raw_bytes.clone(),
-            sidecar_bytes: Some(
-                serde_yaml_ng::to_string(&options)
-                    .map_err(|error| error.to_string())?
-                    .into_bytes(),
-            ),
-        };
-        self.config
-            .compare_and_save_workspace(&current.identity(), &update)
-            .await
-            .map_err(|error| error.to_string())?;
-        Err("reload failed after a later option edit".into())
+        self.gate.entered.notify_one();
+        self.gate.resume.notified().await;
+        match self.outcome {
+            GatedReloadOutcome::Succeed => Ok(()),
+            GatedReloadOutcome::Fail => Err("gated reload rejected".into()),
+        }
     }
 }
 #[tokio::test]
-async fn later_option_edit_is_preserved_and_recovery_refuses_to_overwrite_it() {
+async fn competing_option_edit_waits_for_the_apply_lease_and_is_fenced_after_recovery() {
     let f = fixture(0, false).await;
     ready(&f).await;
     let before = f.config.load_active_workspace().await.unwrap();
+    let reference = selected_reference(&f).await;
     f.controller.fail_starts_left.store(1, Ordering::SeqCst);
-    let reloader = LaterOptions { config: &f.config };
-    let failure = timeout(
-        Duration::from_secs(2),
-        apply_confirmed_workspace(
-            &f.session,
-            &f.config,
+    let options = ProfileOptions {
+        filter: Some(FilterSpec {
+            include_keywords: vec!["later edit".into()],
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+    let competing_update = ProfileWorkspaceUpdate {
+        purpose: ProfileWorkspacePurpose::Derived,
+        document_bytes: before.document.raw_bytes.clone(),
+        sidecar_bytes: Some(serde_yaml_ng::to_string(&options).unwrap().into_bytes()),
+    };
+    let gate = ReloadGate::default();
+    let reloader = GatedReloader {
+        gate: &gate,
+        outcome: GatedReloadOutcome::Fail,
+    };
+    let proposed = proposal();
+    let expected_identity = before.identity();
+    let (failure, competing_write) = timeout(Duration::from_secs(2), async {
+        let apply = apply_workspace(
+            &f,
             &reloader,
-            &before.identity(),
-            &proposal(),
+            &reference,
+            &expected_identity,
+            &proposed,
             params(ApplyStrategy::PreferReload),
-        ),
-    )
+        );
+        tokio::pin!(apply);
+        tokio::select! {
+            result = &mut apply => panic!("apply completed before its reload gate: {result:?}"),
+            _ = gate.entered.notified() => {}
+        }
+
+        let competing_write = f
+            .config
+            .compare_and_save_inactive_workspace(&expected_identity, &competing_update);
+        tokio::pin!(competing_write);
+        assert_pending(
+            competing_write.as_mut(),
+            "competing workspace write completed while the apply lease was held",
+        )
+        .await;
+
+        gate.resume.notify_one();
+        tokio::join!(apply, competing_write)
+    })
     .await
-    .expect("lifecycle callback can write through the shared boundary")
-    .unwrap_err();
-    assert!(matches!(failure, ApplyError::RollbackFailed { .. }));
-    assert_eq!(f.config.load("main").await.unwrap(), NEW);
-    let sidecar = f
-        .config
-        .load_active_workspace()
-        .await
-        .unwrap()
-        .sidecar_bytes
-        .expect("later edit sidecar remains committed");
-    let sidecar = String::from_utf8(sidecar).expect("valid options sidecar");
-    assert!(sidecar.contains("later edit"));
+    .expect("apply recovery releases the competing workspace write");
+    let failure = failure.unwrap_err();
+    assert!(matches!(failure, ApplyError::RolledBack { .. }));
+    assert_eq!(
+        competing_write.unwrap_err().error_code(),
+        ErrorCode::NotReady
+    );
+    assert_eq!(f.config.load_active_workspace().await.unwrap(), before);
+    assert_eq!(f.config.load("main").await.unwrap(), OLD);
     assert_eq!(
         f.config.apply_transaction("main").unwrap().stage,
-        ApplyTransactionStage::RollbackFailed
+        ApplyTransactionStage::RolledBack
     );
 }
 
-struct SwitchActive<'a> {
-    config: &'a ConfigManager<MockStore>,
-}
-#[async_trait]
-impl ConfigReloader for SwitchActive<'_> {
-    async fn reload(&self, _: &Path) -> Result<(), String> {
-        self.config
-            .set_current("other")
-            .await
-            .map_err(|error| error.to_string())
-    }
-}
 #[tokio::test]
-async fn successful_reload_cannot_report_applied_after_the_active_profile_changes() {
+async fn active_profile_switch_waits_for_apply_lease_and_runs_after_commit() {
     let f = fixture(0, false).await;
-    f.config.save("other", OLD).await.unwrap();
+    f.config.save_inactive_profile("other", OLD).await.unwrap();
     ready(&f).await;
     let before = f.config.load_active_workspace().await.unwrap();
-    let reloader = SwitchActive { config: &f.config };
-    assert!(matches!(
-        apply_confirmed_workspace(
-            &f.session,
-            &f.config,
+    let reference = selected_reference(&f).await;
+    let gate = ReloadGate::default();
+    let reloader = GatedReloader {
+        gate: &gate,
+        outcome: GatedReloadOutcome::Succeed,
+    };
+    let expected_identity = before.identity();
+    let proposed = proposal();
+    let applied = timeout(Duration::from_secs(2), async {
+        let apply = apply_workspace(
+            &f,
             &reloader,
-            &before.identity(),
-            &proposal(),
-            params(ApplyStrategy::PreferReload)
+            &reference,
+            &expected_identity,
+            &proposed,
+            params(ApplyStrategy::PreferReload),
+        );
+        tokio::pin!(apply);
+        tokio::select! {
+            result = &mut apply => panic!("apply completed before its reload gate: {result:?}"),
+            _ = gate.entered.notified() => {}
+        }
+
+        let switch = super::select_profile(&f.config, "other");
+        tokio::pin!(switch);
+        assert_pending(
+            switch.as_mut(),
+            "active profile switch completed while the apply lease was held",
         )
-        .await
-        .unwrap_err(),
-        ApplyError::RollbackFailed { .. }
-    ));
+        .await;
+
+        gate.resume.notify_one();
+        let (applied, ()) = tokio::join!(apply, switch);
+        applied
+    })
+    .await
+    .expect("apply releases the competing profile switch");
+    let applied = applied.unwrap();
+    assert_eq!(applied.document.utf8_text().unwrap(), NEW);
+    assert_eq!(applied.sidecar_bytes, proposal().sidecar_bytes);
+    assert_ne!(applied.identity(), before.identity());
     assert_eq!(f.config.get_current().await.unwrap(), "other");
     assert_eq!(f.config.load("other").await.unwrap(), OLD);
     assert_eq!(f.config.load("main").await.unwrap(), NEW);
     assert_eq!(
         f.config.apply_transaction("main").unwrap().stage,
-        ApplyTransactionStage::RollbackFailed
+        ApplyTransactionStage::Committed
     );
 }

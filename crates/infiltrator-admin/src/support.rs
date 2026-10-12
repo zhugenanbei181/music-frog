@@ -48,6 +48,45 @@ use mihomo_config::profile_document_codec::MihomoProfileDocumentCodec;
 use mihomo_platform::defaults::DefaultCredentialStore;
 use mihomo_platform::paths::get_home_dir;
 
+/// Publish a typed Mihomo active-profile selection for Admin API test fixtures.
+/// Profile documents are intentionally created inactive first, so tests that
+/// exercise active configuration behavior must explicitly select one through
+/// the revision-fenced profile-store contract.
+#[cfg(test)]
+pub(crate) async fn select_test_profile<S>(manager: &ConfigManager<S>, profile: &str)
+where
+    S: infiltrator_ports::secure_store::SecureStore,
+{
+    use infiltrator_contract::active_profile_reference::{
+        ActiveProfileReferenceCasOutcome, ActiveProfileReferenceTarget,
+        ActiveProfileReferenceWriteAuthorization,
+    };
+    use infiltrator_contract::profile_document_identity::ProfileId;
+    use infiltrator_ports::profile_store::ProfileStore;
+
+    let expected = ProfileStore::read_active_profile_reference(manager)
+        .await
+        .expect("read active profile reference before test selection");
+    let target = ActiveProfileReferenceTarget::selected(
+        ConfigManager::engine_id(manager),
+        ProfileId::new(profile).expect("valid test profile ID"),
+    );
+    match ProfileStore::compare_and_set_active_profile_reference(
+        manager,
+        expected,
+        target,
+        ActiveProfileReferenceWriteAuthorization::Unowned,
+    )
+    .await
+    .expect("revision-fenced active profile selection for test fixture")
+    {
+        ActiveProfileReferenceCasOutcome::Committed { .. } => {}
+        ActiveProfileReferenceCasOutcome::Stale { expected, observed } => {
+            panic!("test profile selection unexpectedly stale: {expected:?} -> {observed:?}")
+        }
+    }
+}
+
 /// home → settings.toml → load_settings。settings 尚未落盘时返回默认值。
 async fn load_app_settings() -> anyhow::Result<AppSettings> {
     let home = get_home_dir()?;
@@ -167,6 +206,7 @@ mod tests {
     use super::{app_config_manager, app_configs_dir, test_env};
     use infiltrator_core::settings_io;
     use infiltrator_domain::settings::AppSettings;
+    use infiltrator_ports::profile_store::ProfileStore;
     #[cfg(test)]
     use mihomo_config::manager::paths::CONFIGS_DIR_ENV;
     use mihomo_platform::TEST_LOCK;
@@ -202,8 +242,13 @@ mod tests {
         write_settings_with_configs_dir(temp_dir.path(), &cloud).await;
 
         let manager = app_config_manager().await.unwrap();
-        manager.save("probe", "port: 7890").await.unwrap();
-        assert!(cloud.join("probe.yaml").exists());
+        ProfileStore::save_inactive_profile(&manager, "probe", "port: 7890")
+            .await
+            .unwrap();
+        let profile_path = ProfileStore::config_dir(&manager).join("probe.yaml");
+        assert!(profile_path.starts_with(&cloud));
+        assert!(profile_path.exists());
+        assert!(!cloud.join("probe.yaml").exists());
         assert!(!temp_dir.path().join("configs").exists());
 
         test_env::restore_configs_dir_env(saved_env);

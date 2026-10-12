@@ -6,6 +6,9 @@ use async_trait::async_trait;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::overview::UnavailableOverviewReader;
 use infiltrator_composition::engine_backend_factory::EngineBackendFactoryRegistry;
+use infiltrator_contract::active_profile_reference::{
+    ActiveProfileReferenceCasOutcome, ActiveProfileReferenceTarget,
+};
 use infiltrator_contract::android_control::{
     AndroidCoreLifecycleSnapshot, AndroidCoreProcessState, AndroidHostProcessRole,
     AndroidProductCommand, AndroidProductCommandRequest, CoreLaunchSpec, VpnOwnerCoreReadback,
@@ -26,7 +29,7 @@ use infiltrator_contract::outbound::{
     identity::{OutboundId, SnapshotRevision},
     probe::OutboundSelectionRequest,
 };
-use infiltrator_contract::profile_document_identity::ProfileFormatId;
+use infiltrator_contract::profile_document_identity::{ProfileFormatId, ProfileId};
 use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface::HostKind;
@@ -102,6 +105,30 @@ fn config_manager() -> (TestHome, Arc<ConfigManager<TestCredentialStore>>) {
     let manager = ConfigManager::with_home_and_store(home.clone(), TestCredentialStore)
         .expect("Mihomo config manager is constructed for the test home");
     (TestHome(home), Arc::new(manager))
+}
+
+async fn select_profile<S: SecureStore>(manager: &ConfigManager<S>, profile: &str) {
+    let expected = ProfileStore::read_active_profile_reference(manager)
+        .await
+        .expect("read selection before test CAS");
+    let target = ActiveProfileReferenceTarget::selected(
+        ConfigManager::engine_id(manager),
+        ProfileId::new(profile).expect("valid test profile ID"),
+    );
+    match ProfileStore::compare_and_set_active_profile_reference(
+        manager,
+        expected,
+        target,
+        infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization::Unowned,
+    )
+        .await
+        .expect("revisioned test selection CAS")
+    {
+        ActiveProfileReferenceCasOutcome::Committed { .. } => {}
+        ActiveProfileReferenceCasOutcome::Stale { expected, observed } => {
+            panic!("test selection unexpectedly stale: {expected:?} -> {observed:?}")
+        }
+    }
 }
 
 fn relative_entries(root: &Path) -> Vec<PathBuf> {
@@ -607,7 +634,10 @@ async fn assert_local_load_succeeds_and_runtime_apply_fails_closed(
     readiness: Arc<dyn CoreReadiness>,
 ) {
     let (_home, store) = config_manager();
-    store.save("main", INITIAL_DOCUMENT).await.unwrap();
+    store
+        .save_inactive_profile("main", INITIAL_DOCUMENT)
+        .await
+        .unwrap();
     let owner = super::core_application_with_readiness_and_provider(
         TestBridge::new(),
         "invalid-controller-endpoint".to_owned(),
@@ -666,7 +696,10 @@ async fn assert_local_load_succeeds_and_runtime_apply_fails_closed(
 #[tokio::test]
 async fn unavailable_controller_keeps_core_lifecycle_and_local_profile_reads_available() {
     let (_home, store) = config_manager();
-    store.save("main", INITIAL_DOCUMENT).await.unwrap();
+    store
+        .save_inactive_profile("main", INITIAL_DOCUMENT)
+        .await
+        .unwrap();
     let owner = super::core_application_with_readiness_and_provider(
         TestBridge::new(),
         "invalid-controller-endpoint".to_owned(),
@@ -701,13 +734,13 @@ async fn unavailable_controller_keeps_core_lifecycle_and_local_profile_reads_ava
 async fn core_start_sends_the_active_profile_identity_and_rust_resolved_arguments() {
     let (_home, store) = config_manager();
     store
-        .save(
+        .save_inactive_profile(
             "main",
             "mode: rule\nexternal-controller: 127.0.0.1:9090\nsecret: test-secret\n",
         )
         .await
         .unwrap();
-    store.set_current("main").await.unwrap();
+    select_profile(store.as_ref(), "main").await;
     let bridge = TestBridge::new();
     let owner = super::core_application_with_readiness_and_provider(
         bridge.clone(),
@@ -761,7 +794,10 @@ async fn local_profile_load_ignores_runtime_version_but_apply_requires_exact_evi
 #[tokio::test]
 async fn owner_profile_commands_use_the_shared_store_and_codec_fail_closed() {
     let (_home, store) = config_manager();
-    store.save("main", INITIAL_DOCUMENT).await.unwrap();
+    store
+        .save_inactive_profile("main", INITIAL_DOCUMENT)
+        .await
+        .unwrap();
     let composition = AndroidCoreComposition::new(Arc::clone(&store));
     let owner = super::core_application_with_readiness_and_provider(
         TestBridge::new(),

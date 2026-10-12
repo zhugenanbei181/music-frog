@@ -6264,7 +6264,6 @@ dependencies = [
  "infiltrator-contract",
  "infiltrator-domain",
  "serde_json",
- "tokio",
  "url",
 ]
 
@@ -7176,6 +7175,7 @@ dependencies = [
  "infiltrator-ports",
  "log",
  "mihomo-api",
+ "mihomo-platform",
  "ring",
  "serde",
  "serde_json",

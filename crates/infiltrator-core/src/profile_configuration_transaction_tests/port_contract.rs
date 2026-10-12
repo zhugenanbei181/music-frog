@@ -1,15 +1,10 @@
 //! test-intent: behavior
 
-use crate::error::PortError;
-use crate::profile_configuration_transaction::{
-    ProfileConfigurationCandidateValidatorPort, ProfileConfigurationCommitEffect,
-    ProfileConfigurationTransactionBinding, ProfileConfigurationTransactionOutcome,
-    ProfileConfigurationTransactionPort, ProfileConfigurationTransactionRequest,
-    ProfileConfigurationTransactionScope,
-};
-use crate::profile_document_codec::ProfileDocumentCodecScope;
-use crate::profile_workspace::{ProfileWorkspace, ProfileWorkspaceUpdate};
 use async_trait::async_trait;
+use infiltrator_contract::active_profile_reference::{
+    ActiveProfileReference, ActiveProfileReferenceRevision,
+    ActiveProfileReferenceWriteAuthorization,
+};
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document_identity::{
     ProfileDocument, ProfileDocumentIdentity, ProfileDocumentRevision,
@@ -18,6 +13,15 @@ use infiltrator_contract::profile_document_identity::{
 };
 use infiltrator_contract::profile_protection::ProfileWriteProtection;
 use infiltrator_domain::apply::ApplyStrategy;
+use infiltrator_ports::error::PortError;
+use infiltrator_ports::profile_configuration_transaction::{
+    ProfileConfigurationCandidateValidatorPort, ProfileConfigurationCommitEffect,
+    ProfileConfigurationTransactionBinding, ProfileConfigurationTransactionOutcome,
+    ProfileConfigurationTransactionPort, ProfileConfigurationTransactionRequest,
+    ProfileConfigurationTransactionScope,
+};
+use infiltrator_ports::profile_document_codec::ProfileDocumentCodecScope;
+use infiltrator_ports::profile_workspace::{ProfileWorkspace, ProfileWorkspaceUpdate};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
@@ -337,13 +341,20 @@ fn request(
     expected: ProfileWorkspaceIdentity,
     document_bytes: &[u8],
 ) -> ProfileConfigurationTransactionRequest {
+    let expected_reference = ActiveProfileReference::new(
+        expected.document.engine_id.clone(),
+        expected.document.profile_id.clone(),
+        ActiveProfileReferenceRevision::default(),
+    );
     ProfileConfigurationTransactionRequest {
+        expected_reference,
         expected,
         update: ProfileWorkspaceUpdate {
-            purpose: crate::profile_workspace::ProfileWorkspacePurpose::Derived,
+            purpose: infiltrator_ports::profile_workspace::ProfileWorkspacePurpose::Derived,
             document_bytes: document_bytes.to_vec(),
             sidecar_bytes: None,
         },
+        authorization: ActiveProfileReferenceWriteAuthorization::Unowned,
         strategy: ApplyStrategy::PreferReload,
     }
 }

@@ -3,6 +3,8 @@
 
 use super::*;
 use crate::profile_options_application::ProfileOptionsApplication;
+use infiltrator_ports::runtime_gateway::ManagedRuntime;
+use std::sync::Arc;
 
 /// The Mixin commit strips the outgoing mixin's injected rule lines, so
 /// re-saving an edited overlay never duplicates rules and never loses the
@@ -21,7 +23,7 @@ async fn mixin_save_is_idempotent_and_keeps_handwritten_comments() {
     for _ in 0..2 {
         application
             .save_mixin(
-                None::<Arc<dyn ManagedRuntime>>,
+                crate::profile_application::ProfileRuntimeAccess::<dyn ManagedRuntime>::Offline,
                 &load_workspace(&store, "main").await.identity(),
                 overlay,
             )
@@ -64,14 +66,14 @@ async fn failed_workspace_pair_commit_keeps_exact_document_and_sidecar_bytes() {
         .insert("main".into(), sidecar.to_vec());
     let profiles = profiles_with_mihomo_codec(store.clone());
     let options = ProfileOptionsApplication::new(profiles.clone());
-    let before = profiles.load_workspace("main").await.unwrap();
+    let before = profiles.load_workspace(&profile_id("main")).await.unwrap();
     *store.workspace_write_error.lock().unwrap() = Some(PortError::PermissionDenied(
         "pair publication denied".into(),
     ));
 
     let failure = options
         .save_mixin(
-            None::<Arc<dyn ManagedRuntime>>,
+            crate::profile_application::ProfileRuntimeAccess::<dyn ManagedRuntime>::Offline,
             &before.identity(),
             "mode: global\n",
         )
@@ -95,5 +97,8 @@ async fn failed_workspace_pair_commit_keeps_exact_document_and_sidecar_bytes() {
     );
     assert_eq!(store.workspace_writes.load(Ordering::SeqCst), 0);
     *store.workspace_write_error.lock().unwrap() = None;
-    assert_eq!(profiles.load_workspace("main").await.unwrap(), before);
+    assert_eq!(
+        profiles.load_workspace(&profile_id("main")).await.unwrap(),
+        before
+    );
 }

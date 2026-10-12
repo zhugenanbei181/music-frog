@@ -7,11 +7,11 @@ use super::*;
 async fn inactive_save_clears_the_transient_backup() {
     let store = Arc::new(FakeStore::with_profile("main", "mode: rule\n", false));
     let application = ProfileApplication::new(Arc::clone(&store) as Arc<dyn ProfileStore>);
-    let runtime: Option<Arc<dyn ManagedRuntime>> = None;
-
     application
         .save_profile_content(
-            runtime,
+            ProfileRuntimeAccess::<
+                dyn infiltrator_ports::runtime_gateway::ActiveProfileReferenceApplier,
+            >::Offline,
             "main".to_string(),
             "mode: direct\n".to_string(),
             ApplyStrategy::PreferReload,

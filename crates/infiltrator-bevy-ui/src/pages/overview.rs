@@ -438,7 +438,7 @@ pub(crate) fn reload_mask_scene(palette: &UiPalette) -> impl Scene + use<> {
             Children [
                 @{ icon_scene(IconId::Activity, 24.0, palette.accent) }
                 --
-                LocalizedText::plain("overview_core_reloading") OverviewReloadMaskText TextRole(Role::BodyStrong) ThemeTextColor({ Token::OnAccent })
+                LocalizedText::plain("overview_content_effecting") OverviewReloadMaskText TextRole(Role::BodyStrong) ThemeTextColor({ Token::OnAccent })
             ]
     }
 }

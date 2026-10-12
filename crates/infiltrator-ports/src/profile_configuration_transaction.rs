@@ -4,6 +4,9 @@ use crate::error::PortError;
 use crate::profile_document_codec::ProfileDocumentCodecScope;
 use crate::profile_workspace::{ProfileWorkspace, ProfileWorkspaceUpdate};
 use async_trait::async_trait;
+use infiltrator_contract::active_profile_reference::{
+    ActiveProfileReference, ActiveProfileReferenceWriteAuthorization,
+};
 use infiltrator_contract::error::Failure;
 use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use infiltrator_domain::apply::ApplyStrategy;
@@ -30,8 +33,12 @@ impl ProfileConfigurationTransactionScope {
 /// Source-bound request for a complete native apply transaction.
 #[derive(Clone, Debug)]
 pub struct ProfileConfigurationTransactionRequest {
+    /// Exact selected reference observed when the editor opened its buffer.
+    /// Native apply must keep this reference fenced through commit/apply/recovery.
+    pub expected_reference: ActiveProfileReference,
     pub expected: ProfileWorkspaceIdentity,
     pub update: ProfileWorkspaceUpdate,
+    pub authorization: ActiveProfileReferenceWriteAuthorization,
     pub strategy: ApplyStrategy,
 }
 

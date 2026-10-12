@@ -124,9 +124,6 @@ impl ProfileStore for FilterCaptureStore {
     async fn get_current(&self) -> Result<String, PortError> {
         Ok(FILTER_PROFILE.into())
     }
-    async fn set_current(&self, _: &str) -> Result<(), PortError> {
-        Err(outside())
-    }
     async fn load(&self, profile: &str) -> Result<String, PortError> {
         Self::check_profile(profile)?;
         self.observed()
@@ -135,7 +132,7 @@ impl ProfileStore for FilterCaptureStore {
             .map(str::to_owned)
             .map_err(|error| PortError::Io(error.to_string()))
     }
-    async fn save(&self, _: &str, _: &str) -> Result<(), PortError> {
+    async fn save_inactive_profile(&self, _: &str, _: &str) -> Result<(), PortError> {
         Err(outside())
     }
     async fn delete_profile(&self, _: &str) -> Result<(), PortError> {
@@ -163,7 +160,7 @@ impl ProfileStore for FilterCaptureStore {
     async fn load_active_workspace(&self) -> Result<ProfileWorkspace, PortError> {
         Ok(self.observed())
     }
-    async fn compare_and_save_workspace(
+    async fn compare_and_save_inactive_workspace(
         &self,
         expected: &ProfileWorkspaceIdentity,
         update: &ProfileWorkspaceUpdate,
@@ -194,7 +191,7 @@ impl ProfileStore for FilterCaptureStore {
     async fn clear_backup(&self, profile: &str) -> Result<(), PortError> {
         Self::check_profile(profile)
     }
-    async fn restore_backup(&self, _: &str) -> Result<bool, PortError> {
+    async fn restore_inactive_profile_backup(&self, _: &str) -> Result<bool, PortError> {
         Err(outside())
     }
 }

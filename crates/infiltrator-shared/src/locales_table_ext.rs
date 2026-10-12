@@ -252,6 +252,10 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
         "aggregator_state_saved" => "未激活".into(),
         "aggregator_state_switched" => "已设为当前配置".into(),
         "aggregator_state_reloaded" => "已激活并热载入内核".into(),
+        "aggregator_state_core_stopped" => "已设为当前配置；内核仍处于停止状态".into(),
+        "aggregator_state_core_failed" => "已设为当前配置；内核当前运行失败".into(),
+        "profile_selected_core_stopped" => "已选择配置；内核仍处于停止状态，启动后生效".into(),
+        "profile_selected_core_failed" => "已选择配置；内核运行失败，尚未应用此配置".into(),
         "aggregator_template_title" => "历史聚合模板".into(),
         "aggregator_template_name_ph" => "模板名称".into(),
         "aggregator_template_save" => "保存为模板".into(),
@@ -579,13 +583,16 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
         }
         "profiles_auto_reload_core" => "更新后自动重载内核 (Auto Reload Core)".into(),
         "profiles_auto_reload_core_hint" => {
-            "仅对当前生效配置生效；开启后在订阅更新成功后按热重载应用，宿主无重载能力时会明确拒绝"
+            "仅对当前生效配置生效。运行中的内核会在订阅更新成功后重载；停止的内核保持停止且只保存更新。"
                 .into()
         }
-        "sub_reload_core_unsupported" => {
-            "此宿主未提供内核重载能力，更新已保存但未应用到运行中的内核".into()
+        "sub_content_effect_unsupported" => {
+            "此宿主无法事务化当前选中配置；配置内容未更改".into()
         }
-        "sub_reload_core_failed" => "内核重载失败（更新已保存）".into(),
+        "sub_profile_stored_for_next_start" => {
+            "订阅内容已保存，将在下次启动内核时生效".into()
+        }
+        "sub_content_apply_failed" => "内核配置应用失败".into(),
         "profiles_cron_placeholder" => "Cron 表达式 (例如 0 */6 * * *，留空则按小时)".into(),
         "profiles_cron_hint" => {
             "5 段 UTC Cron（分 时 日 月 周），支持 @daily / @hourly 等宏；填写后优先于小时周期"

@@ -1,9 +1,15 @@
 //! test-intent: behavior
 
-use super::{MockController, MockReloader, MockStore, OLD, TestLifecycle};
+use super::{
+    MockController, MockReloader, MockStore, OLD, TestLifecycle, replace_profile_file_for_test,
+};
 use crate::apply::ConfigReloader;
 use crate::profile_configuration_transaction::MihomoProfileConfigurationTransactionAdapter;
 use async_trait::async_trait;
+use infiltrator_contract::active_profile_reference::{
+    ActiveProfileReference, ActiveProfileReferenceRevision,
+    ActiveProfileReferenceWriteAuthorization,
+};
 use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document_identity::{ProfileFormatId, ProfileSchemaVersion};
@@ -19,8 +25,13 @@ use infiltrator_ports::profile_configuration_transaction::{
     ProfileConfigurationTransactionRequest, ProfileConfigurationTransactionScope,
 };
 use infiltrator_ports::profile_document_codec::ProfileDocumentCodecPort;
-use infiltrator_ports::profile_store::ProfileStore;
-use infiltrator_ports::profile_workspace::{ProfileWorkspacePurpose, ProfileWorkspaceUpdate};
+use infiltrator_ports::profile_store::{
+    ActiveProfileWorkspacePublishOutcome, ActiveProfileWorkspacePublishedLease,
+    ActiveProfileWorkspaceRestoreOutcome, ActiveProfileWorkspaceWriteLease, ProfileStore,
+};
+use infiltrator_ports::profile_workspace::{
+    ProfileWorkspace, ProfileWorkspacePurpose, ProfileWorkspaceUpdate,
+};
 use mihomo_config::manager::ConfigManager;
 use mihomo_config::profile_document_codec::MihomoProfileDocumentCodec;
 use std::collections::HashMap;
@@ -89,8 +100,12 @@ impl ProfileConfigurationCandidateValidatorPort for FakeStoppedValidator {
     }
 }
 
+#[path = "profile_configuration_transaction_tests/inactive_readback.rs"]
+mod inactive_readback;
 #[path = "profile_configuration_transaction_lifecycle_tests.rs"]
 mod lifecycle_tests;
+#[path = "profile_configuration_transaction_tests/port_contract.rs"]
+mod port_contract;
 
 struct TransactionFixture {
     _directory: TempDir,
@@ -121,8 +136,11 @@ async fn transaction_fixture_with_store_behavior(
         )
         .expect("Mihomo config manager"),
     );
-    config.save("main", OLD).await.expect("seed profile");
-    config.set_current("main").await.expect("select profile");
+    config
+        .save_inactive_profile("main", OLD)
+        .await
+        .expect("seed profile");
+    super::select_profile(&config, "main").await;
 
     let controller = Arc::new(MockController {
         running: std::sync::atomic::AtomicBool::new(false),
@@ -169,12 +187,6 @@ async fn transaction_fixture_with_store_behavior(
 }
 
 #[derive(Clone, Copy)]
-enum ReadbackState {
-    Exact,
-    CorruptNext,
-}
-
-#[derive(Clone, Copy)]
 enum StoreBehavior {
     Exact,
     CorruptReadbackAndRestore,
@@ -183,17 +195,26 @@ enum StoreBehavior {
 
 struct FaultInjectingProfileStore {
     inner: Arc<ConfigManager<MockStore>>,
-    readback: Mutex<ReadbackState>,
     behavior: StoreBehavior,
     writes: AtomicUsize,
     restores: AtomicUsize,
+}
+
+struct FaultInjectingWorkspaceWriteLease<'a> {
+    store: &'a FaultInjectingProfileStore,
+    inner: Box<dyn ActiveProfileWorkspaceWriteLease + 'a>,
+}
+
+struct FaultInjectingWorkspacePublishedLease<'a> {
+    store: &'a FaultInjectingProfileStore,
+    inner: Box<dyn ActiveProfileWorkspacePublishedLease + 'a>,
+    reported_published: ProfileWorkspace,
 }
 
 impl FaultInjectingProfileStore {
     fn new(inner: Arc<ConfigManager<MockStore>>, behavior: StoreBehavior) -> Self {
         Self {
             inner,
-            readback: Mutex::new(ReadbackState::Exact),
             behavior,
             writes: AtomicUsize::new(0),
             restores: AtomicUsize::new(0),
@@ -210,6 +231,71 @@ impl FaultInjectingProfileStore {
 
     fn unused_operation() -> PortError {
         PortError::Failed("transaction fixture does not expose this profile-store operation".into())
+    }
+}
+
+#[async_trait]
+impl ActiveProfileWorkspaceWriteLease for FaultInjectingWorkspaceWriteLease<'_> {
+    fn observed_workspace(&self) -> &ProfileWorkspace {
+        self.inner.observed_workspace()
+    }
+
+    async fn publish(
+        self: Box<Self>,
+        update: ProfileWorkspaceUpdate,
+    ) -> ActiveProfileWorkspacePublishOutcome<'async_trait> {
+        let Self { store, inner } = *self;
+        match inner.publish(update).await {
+            ActiveProfileWorkspacePublishOutcome::Published(published) => {
+                store.writes.fetch_add(1, Ordering::SeqCst);
+                let mut reported_published = published.published_workspace().clone();
+                match store.behavior {
+                    StoreBehavior::Exact => {}
+                    StoreBehavior::CorruptReadbackAndRestore
+                    | StoreBehavior::CorruptReadbackAndFailRestore => {
+                        reported_published.document.raw_bytes =
+                            b"fake readback corruption".to_vec();
+                    }
+                }
+                ActiveProfileWorkspacePublishOutcome::Published(Box::new(
+                    FaultInjectingWorkspacePublishedLease {
+                        store,
+                        inner: published,
+                        reported_published,
+                    },
+                ))
+            }
+            outcome => outcome,
+        }
+    }
+}
+
+#[async_trait]
+impl ActiveProfileWorkspacePublishedLease for FaultInjectingWorkspacePublishedLease<'_> {
+    fn previous_workspace(&self) -> &ProfileWorkspace {
+        self.inner.previous_workspace()
+    }
+
+    fn published_workspace(&self) -> &ProfileWorkspace {
+        &self.reported_published
+    }
+
+    fn commit(self: Box<Self>) -> ProfileWorkspace {
+        self.reported_published.clone()
+    }
+
+    async fn restore_if_current(
+        self: Box<Self>,
+    ) -> Result<ActiveProfileWorkspaceRestoreOutcome<'async_trait>, PortError> {
+        self.store.restores.fetch_add(1, Ordering::SeqCst);
+        match self.store.behavior {
+            StoreBehavior::Exact | StoreBehavior::CorruptReadbackAndRestore => {
+                self.inner.restore_if_current().await
+            }
+            StoreBehavior::CorruptReadbackAndFailRestore => {
+                Err(PortError::Failed("injected exact restore failure".into()))
+            }
+        }
     }
 }
 
@@ -231,15 +317,11 @@ impl ProfileStore for FaultInjectingProfileStore {
         Err(Self::unused_operation())
     }
 
-    async fn set_current(&self, _profile: &str) -> Result<(), PortError> {
-        Err(Self::unused_operation())
-    }
-
     async fn load(&self, _profile: &str) -> Result<String, PortError> {
         Err(Self::unused_operation())
     }
 
-    async fn save(&self, _profile: &str, _content: &str) -> Result<(), PortError> {
+    async fn save_inactive_profile(&self, _profile: &str, _content: &str) -> Result<(), PortError> {
         Err(Self::unused_operation())
     }
 
@@ -273,64 +355,30 @@ impl ProfileStore for FaultInjectingProfileStore {
     async fn load_active_workspace(
         &self,
     ) -> Result<infiltrator_ports::profile_workspace::ProfileWorkspace, PortError> {
-        let mut workspace = self.inner.load_active_workspace().await?;
-        let corrupt = {
-            let mut state = self.readback.lock().expect("readback state");
-            match *state {
-                ReadbackState::Exact => false,
-                ReadbackState::CorruptNext => {
-                    *state = ReadbackState::Exact;
-                    true
-                }
-            }
-        };
-        if corrupt {
-            workspace.document.raw_bytes = b"fake readback corruption".to_vec();
-        }
-        Ok(workspace)
+        self.inner.load_active_workspace().await
     }
 
-    async fn compare_and_save_active_workspace(
+    async fn acquire_active_workspace_write_lease(
         &self,
-        expected: &infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity,
-        update: &ProfileWorkspaceUpdate,
-    ) -> Result<infiltrator_ports::profile_workspace::ProfileWorkspace, PortError> {
-        let committed = self
+        expected_reference: infiltrator_contract::active_profile_reference::ActiveProfileReference,
+        expected: infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity,
+        authorization: ActiveProfileReferenceWriteAuthorization,
+    ) -> Result<Box<dyn ActiveProfileWorkspaceWriteLease + '_>, PortError> {
+        let inner = self
             .inner
-            .compare_and_save_active_workspace(expected, update)
+            .acquire_active_workspace_write_lease(expected_reference, expected, authorization)
             .await?;
-        self.writes.fetch_add(1, Ordering::SeqCst);
-        match self.behavior {
-            StoreBehavior::Exact => {}
-            StoreBehavior::CorruptReadbackAndRestore
-            | StoreBehavior::CorruptReadbackAndFailRestore => {
-                *self.readback.lock().expect("readback state") = ReadbackState::CorruptNext;
-            }
-        }
-        Ok(committed)
-    }
-
-    async fn restore_workspace(
-        &self,
-        expected: &infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity,
-        previous: &infiltrator_ports::profile_workspace::ProfileWorkspace,
-    ) -> Result<infiltrator_ports::profile_workspace::ProfileWorkspace, PortError> {
-        self.restores.fetch_add(1, Ordering::SeqCst);
-        match self.behavior {
-            StoreBehavior::Exact | StoreBehavior::CorruptReadbackAndRestore => {
-                self.inner.restore_workspace(expected, previous).await
-            }
-            StoreBehavior::CorruptReadbackAndFailRestore => {
-                Err(PortError::Failed("injected exact restore failure".into()))
-            }
-        }
+        Ok(Box::new(FaultInjectingWorkspaceWriteLease {
+            store: self,
+            inner,
+        }))
     }
 
     async fn clear_backup(&self, _profile: &str) -> Result<(), PortError> {
         Err(Self::unused_operation())
     }
 
-    async fn restore_backup(&self, _profile: &str) -> Result<bool, PortError> {
+    async fn restore_inactive_profile_backup(&self, _profile: &str) -> Result<bool, PortError> {
         Err(Self::unused_operation())
     }
 }
@@ -339,13 +387,20 @@ fn request(
     expected: infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity,
     document_bytes: &[u8],
 ) -> ProfileConfigurationTransactionRequest {
+    let expected_reference = ActiveProfileReference::new(
+        expected.document.engine_id.clone(),
+        expected.document.profile_id.clone(),
+        ActiveProfileReferenceRevision::new(1),
+    );
     ProfileConfigurationTransactionRequest {
+        expected_reference,
         expected,
         update: ProfileWorkspaceUpdate {
             purpose: ProfileWorkspacePurpose::Derived,
             document_bytes: document_bytes.to_vec(),
             sidecar_bytes: None,
         },
+        authorization: ActiveProfileReferenceWriteAuthorization::Unowned,
         strategy: ApplyStrategy::PreferReload,
     }
 }
@@ -492,11 +547,12 @@ async fn stale_workspace_revision_is_rejected_without_replacing_the_newer_bytes(
         .load_active_workspace()
         .await
         .expect("initial workspace");
-    fixture
-        .config
-        .save("main", "# newer external edit\nport: 7900\n")
-        .await
-        .expect("simulate an external workspace edit");
+    super::replace_profile_file_for_test(
+        &fixture.config,
+        "main",
+        "# newer external edit\nport: 7900\n",
+    )
+    .await;
     let newer = fixture
         .config
         .load_active_workspace()
@@ -695,83 +751,4 @@ async fn valid_failed_candidate_is_stored_without_start_stop_or_runtime_calls() 
     assert_eq!(fixture.lifecycle.stop_calls(), 0);
     assert_eq!(fixture.reloader.calls.load(Ordering::SeqCst), 0);
     assert!(!fixture.controller.running.load(Ordering::SeqCst));
-}
-
-#[tokio::test]
-async fn inactive_readback_failure_returns_rolled_back_or_rollback_failed_truthfully() {
-    for store_behavior in [
-        StoreBehavior::CorruptReadbackAndRestore,
-        StoreBehavior::CorruptReadbackAndFailRestore,
-    ] {
-        let fixture =
-            transaction_fixture_with_store_behavior(NativeValidationResult::Accept, store_behavior)
-                .await;
-        let sidecar_path = options_path(fixture.config.config_dir(), "main");
-        create_dir_all(sidecar_path.parent().expect("sidecar parent"))
-            .await
-            .expect("create sidecar directory");
-        let previous_sidecar = b"# prior opaque bytes\r\n\xff\x00";
-        write(&sidecar_path, previous_sidecar)
-            .await
-            .expect("seed exact prior sidecar bytes");
-        let before = fixture
-            .config
-            .load_active_workspace()
-            .await
-            .expect("workspace with exact prior sidecar");
-        let candidate = b"# candidate\r\nport: 7893\r\n";
-        let mut proposal = request(before.identity(), candidate).clone();
-        let candidate_sidecar = b"# candidate sidecar\r\n\xfe\x01";
-        proposal.update.sidecar_bytes = Some(candidate_sidecar.to_vec());
-
-        let result = fixture
-            .transaction
-            .transact(proposal)
-            .await
-            .expect("post-publication failure is a typed terminal outcome");
-
-        match store_behavior {
-            StoreBehavior::CorruptReadbackAndRestore => {
-                let ProfileConfigurationTransactionOutcome::RolledBack { restored, .. } = result
-                else {
-                    panic!("successful exact recovery must report RolledBack");
-                };
-                assert_eq!(restored, before);
-                assert_eq!(
-                    fixture
-                        .config
-                        .load_active_workspace()
-                        .await
-                        .expect("exact previous workspace after recovery"),
-                    before
-                );
-            }
-            StoreBehavior::CorruptReadbackAndFailRestore => {
-                let ProfileConfigurationTransactionOutcome::RollbackFailed { cause, rollback } =
-                    result
-                else {
-                    panic!("failed exact recovery must report RollbackFailed");
-                };
-                assert_eq!(cause.code, ErrorCode::InvalidState);
-                assert_eq!(rollback.code, ErrorCode::Storage);
-                let uncertain = fixture
-                    .config
-                    .load_active_workspace()
-                    .await
-                    .expect("workspace state after injected restore failure");
-                assert_eq!(uncertain.document.raw_bytes, candidate);
-                assert_eq!(
-                    uncertain.sidecar_bytes.as_deref(),
-                    Some(candidate_sidecar.as_slice())
-                );
-                assert_ne!(uncertain, before);
-            }
-            StoreBehavior::Exact => unreachable!("fault test requires an injected readback error"),
-        }
-        assert_eq!(fixture.profile_store.writes(), 1);
-        assert_eq!(fixture.profile_store.restores(), 1);
-        assert_eq!(fixture.lifecycle.start_calls(), 0);
-        assert_eq!(fixture.lifecycle.stop_calls(), 0);
-        assert_eq!(fixture.reloader.calls.load(Ordering::SeqCst), 0);
-    }
 }

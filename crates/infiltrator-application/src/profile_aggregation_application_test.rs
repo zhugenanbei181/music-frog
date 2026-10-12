@@ -2,6 +2,10 @@
 
 use super::*;
 use async_trait::async_trait;
+use infiltrator_contract::active_profile_reference::{
+    ActiveProfileReference, ActiveProfileReferenceCasOutcome, ActiveProfileReferenceState,
+    ActiveProfileReferenceTarget,
+};
 use infiltrator_contract::aggregator::{
     AggregationCustomGroup, AggregationRenameRule, AggregationTemplate,
 };
@@ -18,6 +22,7 @@ use std::sync::{Arc, Mutex};
 struct FakeStore {
     saved: Mutex<BTreeMap<String, String>>,
     current: Mutex<String>,
+    active_reference: Mutex<ActiveProfileReferenceState>,
     templates: Mutex<Vec<AggregationTemplate>>,
     /// Whether this store exposes an aggregation-template sidecar (DUAL-08-13).
     sidecar_supported: bool,
@@ -84,9 +89,81 @@ impl ProfileStore for FakeStore {
         Ok(self.current.lock().expect("current").clone())
     }
 
-    async fn set_current(&self, _profile: &str) -> Result<(), PortError> {
-        *self.current.lock().expect("current") = _profile.to_string();
-        Ok(())
+    async fn read_active_profile_reference(
+        &self,
+    ) -> Result<ActiveProfileReferenceState, PortError> {
+        Ok(self
+            .active_reference
+            .lock()
+            .expect("active reference")
+            .clone())
+    }
+
+    async fn compare_and_set_active_profile_reference(
+        &self,
+        expected: ActiveProfileReferenceState,
+        target: ActiveProfileReferenceTarget,
+        _: infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization,
+    ) -> Result<ActiveProfileReferenceCasOutcome, PortError> {
+        let mut state = self.active_reference.lock().expect("active reference");
+        if state.revision() != expected.revision() {
+            return Ok(ActiveProfileReferenceCasOutcome::Stale {
+                expected,
+                observed: state.clone(),
+            });
+        }
+        if *state != expected {
+            return Err(PortError::Failed(
+                "active reference state changed without a revision update".to_owned(),
+            ));
+        }
+        if let ActiveProfileReferenceTarget::Selected {
+            engine_id,
+            profile_id,
+        } = &target
+        {
+            if engine_id != &self.engine_id() {
+                return Err(PortError::unsupported(
+                    Capability::Profiles,
+                    "fake store cannot select a foreign engine profile",
+                ));
+            }
+            if !self
+                .saved
+                .lock()
+                .expect("saved")
+                .contains_key(profile_id.as_str())
+            {
+                return Err(PortError::NotFound(profile_id.as_str().to_owned()));
+            }
+        }
+        let revision = expected
+            .revision()
+            .next()
+            .ok_or_else(|| PortError::Failed("active reference revision exhausted".to_owned()))?;
+        let current = match target {
+            ActiveProfileReferenceTarget::Unselected => {
+                ActiveProfileReferenceState::Unselected { revision }
+            }
+            ActiveProfileReferenceTarget::Selected {
+                engine_id,
+                profile_id,
+            } => ActiveProfileReferenceState::Selected(ActiveProfileReference::new(
+                engine_id, profile_id, revision,
+            )),
+        };
+        *state = current.clone();
+        drop(state);
+        *self.current.lock().expect("current") = match &current {
+            ActiveProfileReferenceState::Unselected { .. } => String::new(),
+            ActiveProfileReferenceState::Selected(reference) => {
+                reference.profile_id.as_str().to_owned()
+            }
+        };
+        Ok(ActiveProfileReferenceCasOutcome::Committed {
+            previous: expected,
+            current,
+        })
     }
 
     async fn load(&self, profile: &str) -> Result<String, PortError> {
@@ -98,7 +175,7 @@ impl ProfileStore for FakeStore {
             .ok_or_else(|| PortError::NotFound(profile.to_string()))
     }
 
-    async fn save(&self, profile: &str, content: &str) -> Result<(), PortError> {
+    async fn save_inactive_profile(&self, profile: &str, content: &str) -> Result<(), PortError> {
         self.saved
             .lock()
             .expect("saved")
@@ -157,7 +234,7 @@ impl ProfileStore for FakeStore {
         Ok(())
     }
 
-    async fn restore_backup(&self, _profile: &str) -> Result<bool, PortError> {
+    async fn restore_inactive_profile_backup(&self, _profile: &str) -> Result<bool, PortError> {
         Ok(false)
     }
 }
@@ -292,8 +369,10 @@ async fn create_profile_saves_a_new_independent_profile() {
     assert!(outcome.report.yaml.contains("香港自动测速"));
     assert_eq!(outcome.profile_name, "Aggregated-Test");
     // No activation was requested, so the surface must not claim one.
-    assert!(!outcome.activated);
-    assert!(!outcome.core_reloaded);
+    assert_eq!(
+        outcome.activation,
+        infiltrator_contract::aggregator::AggregationActivationOutcome::NotRequested
+    );
     // DUAL-08-13: creating also remembers the draft under the profile name.
     assert_eq!(outcome.template_name.as_deref(), Some("Aggregated-Test"));
     let templates = app.list_templates().await.expect("templates");
@@ -387,8 +466,8 @@ async fn preview_synthesizes_custom_groups_from_the_draft() {
 }
 
 /// DUAL-08-12: the activation switch reuses the shared activation path and is
-/// reported honestly — a host without a managed-runtime seam still switches
-/// the active profile but reports `core_reloaded = false`.
+/// reported honestly — a host without a managed runtime still switches the
+/// active reference without claiming that Core applied the document.
 #[tokio::test]
 async fn create_profile_activates_through_the_shared_profile_path() {
     let store: Arc<dyn ProfileStore> = FakeStore::with(&[("A", SOURCE_A), ("B", SOURCE_B)]);
@@ -397,8 +476,10 @@ async fn create_profile_activates_through_the_shared_profile_path() {
     request.activate_after_create = true;
 
     let outcome = app.create_profile(&request).await.expect("create");
-    assert!(outcome.activated);
-    assert!(!outcome.core_reloaded);
+    assert_eq!(
+        outcome.activation,
+        infiltrator_contract::aggregator::AggregationActivationOutcome::SelectedWithoutRuntime
+    );
     assert_eq!(
         store.get_current().await.expect("current"),
         "Aggregated-Test"
@@ -471,7 +552,7 @@ async fn reaggregate_refreshes_a_generated_profile_from_live_sources() {
 
     // The source subscription is updated: one more node arrives upstream.
     store
-        .save(
+        .save_inactive_profile(
             "A",
             r#"
 proxies:
@@ -499,7 +580,10 @@ proxies:
         .expect("update source");
 
     let refreshed = app
-        .reaggregate::<dyn ManagedRuntime>(None, "Aggregated-Test")
+        .reaggregate::<dyn ManagedRuntime>(
+            crate::profile_application::ProfileRuntimeAccess::Offline,
+            "Aggregated-Test",
+        )
         .await
         .expect("reaggregate");
     assert_eq!(refreshed.report.total_nodes, 4);
@@ -520,7 +604,10 @@ proxies:
     assert!(source.content.contains("Singapore"));
 
     let unknown = app
-        .reaggregate::<dyn ManagedRuntime>(None, "nope")
+        .reaggregate::<dyn ManagedRuntime>(
+            crate::profile_application::ProfileRuntimeAccess::Offline,
+            "nope",
+        )
         .await
         .expect_err("unknown template");
     assert_eq!(unknown.code, ErrorCode::Configuration);

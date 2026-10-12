@@ -7,3 +7,7 @@ Mihomo YAML 与 profile adapter：解析、校验、应用观察、配置存储�
 原始用户文档身份和跨引擎意图由共享 contract/application 定义；本 crate 不解释 UI 状态。Mihomo controller 边界见 [`mihomo-api` 本地文档](../mihomo-api/docs/README.md)。
 
 Profile YAML、options、profile-state、backup、snapshot 和 WebDAV 本地状态位于共享 configs 根下的 `engines/mihomo/`。首次初始化用显式 `engine_scoped_v1` 迁移旧共享路径与 profile-state；订阅凭据 key 也含 `mihomo` namespace。生产组合必须经 `ConfigManager::initialize_profile_namespace` 或对应 ProfileStore 初始化入口后再读写。
+
+产品级 active-profile reference 与 owner fence 使用共享 configs 根下的 kernel OS locks 和 revision CAS。该排他边界只约束使用同一 lock files 并遵守此 store 协议的进程；直接改写持久化文件的程序会绕过门禁。
+
+跨引擎 owner switch 的 `Switching` stage 在进程重启后保持 fail-closed；store 暴露按 stage 重建 lease 与提交 exact terminal snapshot 的 recovery API，不会因进程内 lease 消失而自动清除。Android/Desktop 的进程退出证据接线仍 OPEN；ClosingOld 缺少旧 owner 的 exact Stopped/no-session snapshot 时保持 durable reservation，BindingNew 只接受 generation 为 0 的 Stopped/no-session 候选快照。

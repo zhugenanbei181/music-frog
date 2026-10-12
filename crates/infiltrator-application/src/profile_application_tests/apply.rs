@@ -4,6 +4,7 @@
 use super::*;
 use crate::profile_options_application::ProfileOptionsApplication;
 use infiltrator_contract::subscription_import::SubscriptionFilterDraft;
+use infiltrator_ports::runtime_gateway::ManagedRuntime;
 
 /// A neutral filter draft is transformed by the selected codec and the
 /// resulting opaque document/sidecar pair is committed as one workspace.
@@ -16,18 +17,26 @@ async fn filter_application_reshapes_document_and_persists_projection() {
     ));
     let profiles = profiles_with_mihomo_codec(Arc::clone(&store) as Arc<dyn ProfileStore>);
     let options = ProfileOptionsApplication::new(profiles.clone());
-    let source = profiles.load_workspace("main").await.unwrap().identity();
+    let source = profiles
+        .load_workspace(&profile_id("main"))
+        .await
+        .unwrap()
+        .identity();
     let draft = SubscriptionFilterDraft {
         exclude: "广告".into(),
         ..Default::default()
     };
 
     let applied = options
-        .save_filter(None::<Arc<dyn ManagedRuntime>>, &source, &draft)
+        .save_filter(
+            crate::profile_application::ProfileRuntimeAccess::<dyn ManagedRuntime>::Offline,
+            &source,
+            &draft,
+        )
         .await
         .expect("filter");
     assert_eq!((applied.report.total_input, applied.report.passed), (2, 1));
-    let committed = profiles.load_workspace("main").await.unwrap();
+    let committed = profiles.load_workspace(&profile_id("main")).await.unwrap();
     let saved = committed.document.utf8_text().unwrap();
     assert!(!saved.contains("广告-02"), "excluded node must be dropped");
     assert!(saved.contains("香港-01"));
@@ -42,46 +51,65 @@ async fn bound_filter_rejects_changed_document_or_options_and_returns_actual_com
     let store = Arc::new(FakeStore::with_profile("main", original, true));
     let profiles = profiles_with_mihomo_codec(store.clone());
     let options = ProfileOptionsApplication::new(profiles.clone());
-    let source = profiles.load_workspace("main").await.unwrap().identity();
+    let source = profiles
+        .load_workspace(&profile_id("main"))
+        .await
+        .unwrap()
+        .identity();
     let draft = SubscriptionFilterDraft {
         exclude: "remove".into(),
         ..Default::default()
     };
-    store
-        .save("main", &format!("# later edit\n{original}"))
-        .await
-        .unwrap();
-    let later = profiles.load_workspace("main").await.unwrap();
+    store.replace_document_for_test("main", &format!("# later edit\n{original}"));
+    let later = profiles.load_workspace(&profile_id("main")).await.unwrap();
     let failure = options
-        .save_filter(None::<Arc<dyn ManagedRuntime>>, &source, &draft)
+        .save_filter(
+            crate::profile_application::ProfileRuntimeAccess::<dyn ManagedRuntime>::Offline,
+            &source,
+            &draft,
+        )
         .await
         .unwrap_err();
     assert_eq!(failure.code, ErrorCode::NotReady);
-    assert_eq!(profiles.load_workspace("main").await.unwrap(), later);
+    assert_eq!(
+        profiles.load_workspace(&profile_id("main")).await.unwrap(),
+        later
+    );
 
     let mixin = options
         .save_mixin(
-            None::<Arc<dyn ManagedRuntime>>,
+            crate::profile_application::ProfileRuntimeAccess::<dyn ManagedRuntime>::Offline,
             &later.identity(),
             "mode: direct\n",
         )
         .await
         .unwrap();
-    let latest = profiles.load_workspace("main").await.unwrap();
+    let latest = profiles.load_workspace(&profile_id("main")).await.unwrap();
     assert_eq!(mixin.options.workspace_identity, latest.identity());
     let failure = options
-        .save_filter(None::<Arc<dyn ManagedRuntime>>, &later.identity(), &draft)
+        .save_filter(
+            crate::profile_application::ProfileRuntimeAccess::<dyn ManagedRuntime>::Offline,
+            &later.identity(),
+            &draft,
+        )
         .await
         .unwrap_err();
     assert_eq!(failure.code, ErrorCode::NotReady);
-    assert_eq!(profiles.load_workspace("main").await.unwrap(), latest);
+    assert_eq!(
+        profiles.load_workspace(&profile_id("main")).await.unwrap(),
+        latest
+    );
 
     let applied = options
-        .save_filter(None::<Arc<dyn ManagedRuntime>>, &latest.identity(), &draft)
+        .save_filter(
+            crate::profile_application::ProfileRuntimeAccess::<dyn ManagedRuntime>::Offline,
+            &latest.identity(),
+            &draft,
+        )
         .await
         .unwrap();
     assert_eq!((applied.report.total_input, applied.report.passed), (2, 1));
-    let committed = profiles.load_workspace("main").await.unwrap();
+    let committed = profiles.load_workspace(&profile_id("main")).await.unwrap();
     assert_eq!(applied.workspace_identity, committed.identity());
     assert_ne!(applied.workspace_identity, latest.identity());
     assert!(

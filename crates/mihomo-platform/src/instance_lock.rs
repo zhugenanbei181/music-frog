@@ -22,15 +22,18 @@
 //! of a "pid file with a staleness check", which would require fragile
 //! cleanup logic and could deadlock the user out of the app after a crash.
 
-#[cfg(not(any(unix, windows)))]
-use mihomo_api::error::MihomoError;
 #[cfg(unix)]
 use std::fs;
 use std::io;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 #[cfg(windows)]
 use std::ptr::null;
+use std::sync::Mutex;
+use std::sync::mpsc::{SyncSender, sync_channel};
+use std::thread::{self, JoinHandle};
+use std::time::Duration;
 
+use mihomo_api::error::MihomoError;
 use mihomo_api::error::Result;
 
 /// Held for the process lifetime; releasing on drop.
@@ -49,6 +52,113 @@ pub struct InstanceLockGuard {
     /// is `!Send`/`!Sync` by construction, matching the owning-thread rule.
     #[cfg(windows)]
     handle: windows_sys::Win32::Foundation::HANDLE,
+}
+
+/// A transferable owner for an OS lock. The worker thread keeps the native
+/// guard on the thread that acquired it, which is required by Windows mutexes;
+/// dropping this value asks that thread to release the guard. Process death
+/// still releases the underlying kernel handle.
+pub struct ThreadedInstanceLockGuard {
+    release: Mutex<Option<SyncSender<()>>>,
+    worker: Mutex<Option<JoinHandle<()>>>,
+}
+
+enum WorkerAcquisition {
+    Acquired,
+    Busy,
+    Failed(String),
+}
+
+/// Acquire a path-scoped OS lock, waiting until another holder releases it.
+/// The returned guard is Send + Sync and can span async work.
+pub fn acquire_threaded_instance_lock(lock_path: &Path) -> Result<ThreadedInstanceLockGuard> {
+    match spawn_threaded_lock(lock_path.to_path_buf(), true)? {
+        Some(guard) => Ok(guard),
+        None => Err(MihomoError::Service(
+            "blocking instance lock worker returned without acquiring".to_string(),
+        )),
+    }
+}
+
+/// Attempt to acquire a path-scoped OS lock without waiting.
+pub fn try_acquire_threaded_instance_lock(
+    lock_path: &Path,
+) -> Result<Option<ThreadedInstanceLockGuard>> {
+    spawn_threaded_lock(lock_path.to_path_buf(), false)
+}
+
+fn spawn_threaded_lock(
+    lock_path: PathBuf,
+    wait_until_available: bool,
+) -> Result<Option<ThreadedInstanceLockGuard>> {
+    let (ready_sender, ready_receiver) = sync_channel(1);
+    let (release_sender, release_receiver) = sync_channel(1);
+    let worker = thread::Builder::new()
+        .name("music-frog-instance-lock".to_string())
+        .spawn(move || {
+            loop {
+                match try_acquire_instance_lock(&lock_path) {
+                    Ok(Some(guard)) => {
+                        let _ = ready_sender.send(WorkerAcquisition::Acquired);
+                        let _ = release_receiver.recv();
+                        drop(guard);
+                        return;
+                    }
+                    Ok(None) if wait_until_available => thread::sleep(Duration::from_millis(10)),
+                    Ok(None) => {
+                        let _ = ready_sender.send(WorkerAcquisition::Busy);
+                        return;
+                    }
+                    Err(error) => {
+                        let _ = ready_sender.send(WorkerAcquisition::Failed(error.to_string()));
+                        return;
+                    }
+                }
+            }
+        })
+        .map_err(|error| MihomoError::Service(format!("instance lock worker: {error}")))?;
+
+    match ready_receiver.recv() {
+        Ok(WorkerAcquisition::Acquired) => Ok(Some(ThreadedInstanceLockGuard {
+            release: Mutex::new(Some(release_sender)),
+            worker: Mutex::new(Some(worker)),
+        })),
+        Ok(WorkerAcquisition::Busy) => {
+            let _ = worker.join();
+            Ok(None)
+        }
+        Ok(WorkerAcquisition::Failed(reason)) => {
+            let _ = worker.join();
+            Err(MihomoError::Service(format!("instance lock: {reason}")))
+        }
+        Err(error) => {
+            let _ = worker.join();
+            Err(MihomoError::Service(format!(
+                "instance lock worker stopped before acquisition: {error}"
+            )))
+        }
+    }
+}
+
+impl Drop for ThreadedInstanceLockGuard {
+    fn drop(&mut self) {
+        let release = self
+            .release
+            .get_mut()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .take();
+        if let Some(release) = release {
+            let _ = release.send(());
+        }
+        let worker = self
+            .worker
+            .get_mut()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .take();
+        if let Some(worker) = worker {
+            let _ = worker.join();
+        }
+    }
 }
 
 /// Try to become the single instance owning `lock_path`.

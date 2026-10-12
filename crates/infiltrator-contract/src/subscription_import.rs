@@ -109,27 +109,37 @@ pub struct SubscriptionQuotaFacts {
     pub expire_at_unix: Option<i64>,
 }
 
-/// DUAL-07-09: how one subscription update handled the optional post-update
-/// core reload. Every variant is a fact the shared refresh observed; a surface
-/// must never fabricate a reload.
+/// How a subscription content update affected its selected Core workspace.
+/// Every variant records the effect the exact workspace transaction proved.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum CoreReloadOutcome {
-    /// The update did not commit new content (not modified or failed), so no
-    /// reload was warranted.
+pub enum SubscriptionContentEffectOutcome {
+    /// The update did not commit new content (not modified or failed).
     #[default]
     NotAttempted,
-    /// The profile opts out of reloading the core after an update.
-    Disabled,
     /// The profile is not the active one; its content applies on activation.
     NotActive,
-    /// The updated active profile was handed to the running core.
-    Reloaded,
-    /// The host exposes no managed-runtime reload seam. Typed, never a silent
-    /// no-op.
+    /// The exact selected workspace transaction applied and read back through
+    /// the managed Core.
+    Applied,
+    /// The exact selected workspace transaction committed for a future Core
+    /// start without starting or redirecting the current one.
+    StoredForNextStart { reason: StoreForNextStartReason },
+    /// The host lacks the exact workspace transaction needed for this update;
+    /// no selected-profile bytes were changed.
     Unsupported,
-    /// The reload seam ran and failed; the new content is stored but not live.
+    /// The selected workspace transaction failed and completed its own typed
+    /// recovery; the error does not claim the new content is live.
     Failed { error: String },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum StoreForNextStartReason {
+    Offline,
+    AutoReloadDisabled,
+    CoreStopped,
+    CoreFailed,
 }
 
 /// Comprehensive report emitted after a subscription update attempt.
@@ -144,14 +154,17 @@ pub struct SubscriptionUpdateReport {
     pub expiry_warning: bool,
     /// DUAL-07-09: the shared post-update core-reload decision.
     #[serde(default)]
-    pub core_reload: CoreReloadOutcome,
+    pub content_effect: SubscriptionContentEffectOutcome,
     pub backed_up: bool,
 }
 
 impl SubscriptionUpdateReport {
-    /// True only when the running core really re-read the updated profile.
-    pub fn reloaded_core(&self) -> bool {
-        matches!(self.core_reload, CoreReloadOutcome::Reloaded)
+    /// True only when the managed workspace transaction applied the update.
+    pub fn applied_to_core(&self) -> bool {
+        matches!(
+            self.content_effect,
+            SubscriptionContentEffectOutcome::Applied
+        )
     }
 }
 

@@ -4,6 +4,13 @@
 use super::*;
 use crate::settings_io::app_config_manager_in;
 use crate::settings_io::test_support::RedirectGuard;
+use infiltrator_contract::active_profile_reference::{
+    ActiveProfileReferenceState, ActiveProfileReferenceWriteAuthorization,
+};
+use infiltrator_ports::profile_store::{
+    ActiveProfileWorkspacePublishOutcome, ActiveProfileWorkspaceRecoveryResolution, ProfileStore,
+};
+use infiltrator_ports::profile_workspace::{ProfileWorkspacePurpose, ProfileWorkspaceUpdate};
 use mihomo_config::manager::ConfigManager;
 use mihomo_platform::defaults::DefaultCredentialStore;
 use tempfile::TempDir;
@@ -103,19 +110,86 @@ async fn bootstrap_repairs_missing_external_controller() {
     let dir = temp_home("repair-controller");
     ensure_bootstrap_at(dir.path()).await.unwrap();
 
-    // Rewrite the profile without external-controller; the next bootstrap
-    // must derive a fresh endpoint and write it back.
     let manager = ConfigManager::with_home_and_store(
         dir.path().to_path_buf(),
         DefaultCredentialStore::default(),
     )
     .unwrap();
-    manager.save("default", "port: 7890\n").await.unwrap();
+    replace_active_profile_document(&manager, "port: 7890\n").await;
 
     let report = ensure_bootstrap_at(dir.path()).await.unwrap();
     let step = step_of(&report, "external_controller");
     assert!(step.executed, "detail: {}", step.detail);
     assert!(manager.get_external_controller().await.is_ok());
+}
+
+async fn replace_active_profile_document(
+    manager: &ConfigManager<DefaultCredentialStore>,
+    content: &str,
+) {
+    let reference = match ProfileStore::read_active_profile_reference(manager)
+        .await
+        .expect("read active profile reference")
+    {
+        ActiveProfileReferenceState::Selected(reference) => reference,
+        state => panic!("expected a selected profile, got {state:?}"),
+    };
+    let previous = ProfileStore::load_active_workspace(manager)
+        .await
+        .expect("load active profile workspace");
+    let lease = ProfileStore::acquire_active_workspace_write_lease(
+        manager,
+        reference,
+        previous.identity(),
+        ActiveProfileReferenceWriteAuthorization::Unowned,
+    )
+    .await
+    .expect("acquire unowned active workspace lease");
+    assert_eq!(lease.observed_workspace(), &previous);
+    let update = ProfileWorkspaceUpdate {
+        purpose: ProfileWorkspacePurpose::Derived,
+        document_bytes: content.as_bytes().to_vec(),
+        sidecar_bytes: previous.sidecar_bytes.clone(),
+    };
+    let published = match lease.publish(update).await {
+        ActiveProfileWorkspacePublishOutcome::Published(published) => published,
+        ActiveProfileWorkspacePublishOutcome::Unpublished(error) => {
+            panic!("active workspace was not published: {error}")
+        }
+        ActiveProfileWorkspacePublishOutcome::Superseded { observed } => {
+            panic!("active workspace was superseded: {observed:?}")
+        }
+        ActiveProfileWorkspacePublishOutcome::RecoveryRequired(recovery) => {
+            match recovery.resolve().await {
+                ActiveProfileWorkspaceRecoveryResolution::Published(published) => published,
+                ActiveProfileWorkspaceRecoveryResolution::Restored(restored) => {
+                    restored.finish();
+                    panic!("active workspace was restored instead of published")
+                }
+                ActiveProfileWorkspaceRecoveryResolution::Unpublished(error) => {
+                    panic!("active workspace publication was not completed: {error}")
+                }
+                ActiveProfileWorkspaceRecoveryResolution::Superseded { observed } => {
+                    panic!("active workspace was superseded during recovery: {observed:?}")
+                }
+                ActiveProfileWorkspaceRecoveryResolution::RecoveryRequired(recovery) => {
+                    panic!(
+                        "active workspace recovery remains unresolved: {:?}",
+                        recovery.state()
+                    )
+                }
+            }
+        }
+    };
+    assert_eq!(
+        published
+            .published_workspace()
+            .document
+            .raw_bytes
+            .as_slice(),
+        content.as_bytes()
+    );
+    published.commit();
 }
 
 #[tokio::test]

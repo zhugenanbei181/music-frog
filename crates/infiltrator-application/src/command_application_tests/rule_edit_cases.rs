@@ -1,6 +1,7 @@
 //! Behavior cases for rule, subscription, profile, and provider commands.
 
 use super::*;
+use infiltrator_contract::profile_document_identity::ProfileDocumentIdentity;
 
 #[tokio::test]
 async fn toggle_and_move_apply_shared_reductions_and_persist() {

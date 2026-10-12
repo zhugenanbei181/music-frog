@@ -75,10 +75,7 @@ async fn an_external_write_without_a_reload_is_verified_stale_and_does_not_repla
         .unwrap();
     let mut session = ProfileEditSession::default();
     session.observe(&document.workspace_identity, &document.content, "");
-    store
-        .save("main", "# external\nmode: direct\n")
-        .await
-        .unwrap();
+    store.replace_document_for_test("main", "# external\nmode: direct\n");
     let snapshot = profiles.verified_editor_snapshot().await;
     assert_eq!(snapshot.document, Some(document));
     assert_ne!(

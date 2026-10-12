@@ -5,7 +5,6 @@ use infiltrator_contract::runtime_settings::{
 use infiltrator_domain::settings::{AppSettings, CURRENT_SETTINGS_SCHEMA_VERSION};
 use infiltrator_ports::secure_store::SecureStore;
 use mihomo_config::manager::ConfigManager;
-use mihomo_config::manager::paths::engine_config_dir;
 use mihomo_platform::defaults::DefaultCredentialStore;
 use mihomo_platform::paths::get_home_dir;
 use std::path::{Path, PathBuf};
@@ -373,10 +372,35 @@ pub async fn app_config_manager() -> anyhow::Result<ConfigManager<DefaultCredent
     app_config_manager_in(&home).await
 }
 
+/// Product reset uses a distinct initialization policy so it can reach and
+/// resume its durable intent before ordinary profile mutations are enabled.
+pub async fn app_config_manager_for_profile_reset()
+-> anyhow::Result<ConfigManager<DefaultCredentialStore>> {
+    let home = get_home_dir()?;
+    app_config_manager_in_with_policy(
+        &home,
+        ConfigManagerInitializationPolicy::ProfileResetRecovery,
+    )
+    .await
+}
+
 /// 同 [`app_config_manager`]，但 home 由调用方提供（bootstrap 与测试路径），
 /// settings 从 `<home>/settings.toml` 读取。
 pub async fn app_config_manager_in(
     home: &Path,
+) -> anyhow::Result<ConfigManager<DefaultCredentialStore>> {
+    app_config_manager_in_with_policy(home, ConfigManagerInitializationPolicy::Standard).await
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ConfigManagerInitializationPolicy {
+    Standard,
+    ProfileResetRecovery,
+}
+
+async fn app_config_manager_in_with_policy(
+    home: &Path,
+    policy: ConfigManagerInitializationPolicy,
 ) -> anyhow::Result<ConfigManager<DefaultCredentialStore>> {
     let settings = load_settings(&settings_path(home)?).await?;
     let manager = ConfigManager::with_home_configs_dir_and_store(
@@ -384,7 +408,16 @@ pub async fn app_config_manager_in(
         settings.configs_dir.as_deref(),
         DefaultCredentialStore::default(),
     )?;
-    manager.initialize_profile_namespace().await?;
+    match policy {
+        ConfigManagerInitializationPolicy::Standard => {
+            manager.initialize_profile_namespace().await?;
+        }
+        ConfigManagerInitializationPolicy::ProfileResetRecovery => {
+            manager
+                .initialize_profile_namespace_for_reset_recovery()
+                .await?;
+        }
+    }
     Ok(manager)
 }
 
@@ -463,6 +496,7 @@ mod tests {
     use infiltrator_domain::settings::AdminServerConfig;
     #[cfg(test)]
     use infiltrator_ports::error::PortError;
+    use mihomo_config::manager::paths::engine_config_dir;
     #[cfg(test)]
     use std::collections::HashMap;
     #[cfg(test)]

@@ -65,15 +65,29 @@ pub(super) async fn run_while_process_is_running(
                 .map_err(|error| {
                     format!("active workspace read before live-save check failed: {error}")
                 })?;
+            let expected_reference = match ports
+                .profile_store
+                .read_active_profile_reference()
+                .await
+                .map_err(|error| {
+                    format!("active reference read before live-save check failed: {error}")
+                })? {
+                ActiveProfileReferenceState::Selected(reference) => reference,
+                ActiveProfileReferenceState::Unselected { .. } => {
+                    return Err("live-save check has no selected profile reference".to_owned());
+                }
+            };
             let result = ports
                 .configuration_transaction
                 .transact(ProfileConfigurationTransactionRequest {
+                    expected_reference,
                     expected: before.identity(),
                     update: ProfileWorkspaceUpdate {
                         purpose: ProfileWorkspacePurpose::Derived,
                         document_bytes: case.valid_profile.clone(),
                         sidecar_bytes: before.sidecar_bytes.clone(),
                     },
+                    authorization: ActiveProfileReferenceWriteAuthorization::Unowned,
                     strategy: infiltrator_domain::apply::ApplyStrategy::PreferReload,
                 })
                 .await;

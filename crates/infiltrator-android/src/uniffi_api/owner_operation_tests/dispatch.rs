@@ -55,16 +55,13 @@ async fn dns_and_fake_ip_owner_dispatches_return_written_configuration_readback(
         ConfigManager::with_home_and_store(home.clone(), DefaultCredentialStore::default())
             .expect("config manager uses the isolated owner home");
     manager
-        .save(
+        .save_inactive_profile(
             "main",
             "mode: rule\ndns:\n  enable: true\n  enhanced-mode: redir-host\n  nameserver:\n    - 1.1.1.1\n  fake-ip-range: 198.18.0.1/16\n",
         )
         .await
         .expect("create the active profile for the owner store");
-    manager
-        .set_current("main")
-        .await
-        .expect("select the test profile");
+    super::select_profile(&manager, "main").await;
 
     let original_revision = android_owner_data_revision();
     let dns_result = execute_operation(
@@ -261,16 +258,13 @@ async fn tun_settings_are_read_and_written_only_through_owner_revisioned_operati
         ConfigManager::with_home_and_store(home.clone(), DefaultCredentialStore::default())
             .expect("config manager uses the isolated owner home");
     manager
-        .save(
+        .save_inactive_profile(
             "main",
             "mode: rule\ntun:\n  enable: true\n  stack: system\n  auto-route: true\n  strict-route: false\n  auto-detect-interface: true\n  mtu: 1500\n",
         )
         .await
         .expect("create an active profile with TUN settings");
-    manager
-        .set_current("main")
-        .await
-        .expect("select the TUN test profile");
+    super::select_profile(&manager, "main").await;
 
     let original_revision = android_owner_data_revision();
     let read_operation = AndroidOwnerOperation::TunSettings;
@@ -501,16 +495,13 @@ async fn rules_owner_dispatches_read_write_and_reject_invalid_data_without_side_
         ConfigManager::with_home_and_store(home.clone(), DefaultCredentialStore::default())
             .expect("config manager uses the isolated owner home");
     manager
-        .save(
+        .save_inactive_profile(
             "main",
             "mode: rule\nrules:\n  - DOMAIN-SUFFIX,example.com,DIRECT\n  - MATCH,DIRECT\nrule-providers:\n  remote:\n    type: http\n    behavior: domain\n    url: https://example.invalid/rules.yaml\n    path: ./rules/remote.yaml\n    interval: 86400\n",
         )
         .await
         .expect("create the active profile for the owner store");
-    manager
-        .set_current("main")
-        .await
-        .expect("select the test profile");
+    super::select_profile(&manager, "main").await;
 
     let initial_revision = android_owner_data_revision();
     let rules_operation = AndroidOwnerOperation::RulesList;

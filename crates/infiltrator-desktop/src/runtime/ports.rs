@@ -14,9 +14,10 @@ use crate::tun_service::{ServiceModeStatus, TunServiceManager};
 use futures_util::StreamExt;
 use futures_util::stream::{BoxStream, unfold};
 use infiltrator_application::core_application::CoreApplication;
+use infiltrator_contract::active_profile_reference::ActiveProfileReference;
 use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_identity::{CoreScope, EngineId};
-use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::error::{ErrorCode, Failure, FailureReason};
 use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_domain::apply::ApplyStrategy;
@@ -232,10 +233,27 @@ impl ManagedRuntime for MihomoRuntime {
         CoreLifecyclePort::core_identity(self.application.as_ref()).map(|identity| identity.engine)
     }
 
+    fn core_lifecycle(&self) -> infiltrator_contract::snapshot::CoreLifecycle {
+        CoreLifecyclePort::lifecycle(self.application.as_ref())
+    }
+
+    fn active_profile_reference_write_authorization(
+        &self,
+    ) -> Result<
+        infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization,
+        PortError,
+    > {
+        self.application
+            .active_profile_reference_write_authorization()
+            .map_err(PortError::Rejected)
+    }
+
     async fn apply_profile_workspace(
         &self,
+        expected_reference: &infiltrator_contract::active_profile_reference::ActiveProfileReference,
         expected: &ProfileWorkspaceIdentity,
         update: &ProfileWorkspaceUpdate,
+        authorization: infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization,
         strategy: ApplyStrategy,
     ) -> Result<ProfileWorkspace, PortError> {
         let runtime_engine = self.engine_id().ok_or_else(|| {
@@ -244,29 +262,21 @@ impl ManagedRuntime for MihomoRuntime {
         let store_engine = ProfileStore::engine_id(self.config_manager.as_ref());
         if expected.document.engine_id != runtime_engine
             || expected.document.engine_id != store_engine
+            || expected_reference.engine_id != expected.document.engine_id
+            || expected_reference.profile_id != expected.document.profile_id
         {
             return Err(PortError::unsupported(
                 Capability::Profiles,
                 "profile engine does not match the managed runtime or profile store",
             ));
         }
-        let active = ProfileStore::get_current(self.config_manager.as_ref()).await?;
-        if active != expected.document.profile_id.as_str() {
-            let guard = self.apply_guard.lock().await;
-            let active = ProfileStore::get_current(self.config_manager.as_ref()).await?;
-            if active != expected.document.profile_id.as_str() {
-                return self
-                    .config_manager
-                    .compare_and_save_inactive_workspace(expected, update)
-                    .await;
-            }
-            drop(guard);
-        }
         let outcome = self
             .configuration_transaction
             .transact(ProfileConfigurationTransactionRequest {
+                expected_reference: expected_reference.clone(),
                 expected: expected.clone(),
                 update: update.clone(),
+                authorization,
                 strategy,
             })
             .await?;
@@ -321,22 +331,17 @@ impl ManagedRuntime for MihomoRuntime {
             .map_err(|error| PortError::Failed(error.to_string()))
     }
 
-    async fn apply_current_config(&self, strategy: ApplyStrategy) -> Result<u64, PortError> {
-        MihomoRuntime::apply_current_config(self, strategy)
-            .await
-            .map(|outcome| outcome.generation)
-            .map_err(|error| PortError::Failed(error.to_string()))
-    }
-
-    async fn apply_profile_content(
+    async fn apply_active_profile_reference(
         &self,
-        content: &str,
+        expected: &ActiveProfileReference,
         strategy: ApplyStrategy,
     ) -> Result<u64, PortError> {
-        MihomoRuntime::apply_profile_content(self, content, strategy)
+        MihomoRuntime::apply_active_profile_reference(self, expected, strategy)
             .await
             .map(|outcome| outcome.generation)
-            .map_err(|error| PortError::Failed(error.to_string()))
+            .map_err(|error| {
+                PortError::Rejected(infiltrator_core::apply::failure_from_apply_error(error))
+            })
     }
 }
 

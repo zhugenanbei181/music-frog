@@ -20,7 +20,6 @@ pub trait SyncProgressSink: Send + Sync {
 pub struct SyncTransferRequest {
     pub config: WebDavConfig,
     pub configs_dir: Option<String>,
-    pub runtime_present: bool,
     pub observer: Arc<dyn SyncProgressSink>,
 }
 

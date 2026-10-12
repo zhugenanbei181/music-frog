@@ -222,6 +222,14 @@ fn config_error(error: MihomoError) -> PortError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use infiltrator_contract::active_profile_reference::{
+        ActiveProfileReferenceState, ActiveProfileReferenceWriteAuthorization,
+    };
+    use infiltrator_ports::profile_store::{
+        ActiveProfileWorkspacePublishOutcome, ActiveProfileWorkspaceRecoveryResolution,
+        ProfileStore,
+    };
+    use infiltrator_ports::profile_workspace::{ProfileWorkspacePurpose, ProfileWorkspaceUpdate};
     #[cfg(test)]
     use std::net::TcpListener;
     use std::path::Path;
@@ -304,13 +312,12 @@ mod tests {
 
         let listener = TcpListener::bind("127.0.0.1:0").expect("reserve port");
         let port = listener.local_addr().expect("addr").port();
-        manager
-            .save(
-                &profile,
-                &format!("port: 7890\ndns:\n  listen: 127.0.0.1:{port}\n"),
-            )
-            .await
-            .expect("save profile");
+        replace_active_profile_document(
+            &manager,
+            &format!("port: 7890\ndns:\n  listen: 127.0.0.1:{port}\n"),
+        )
+        .await;
+        assert_eq!(manager.get_current().await.expect("profile"), profile);
 
         let adapter = DesktopPortConflict::new(home.path().to_path_buf());
         let snapshot = adapter.snapshot().await.expect("snapshot");
@@ -354,5 +361,74 @@ mod tests {
         );
         assert!(content.contains("dns:"), "the dns block must survive");
         drop(listener);
+    }
+
+    async fn replace_active_profile_document(
+        manager: &ConfigManager<DefaultCredentialStore>,
+        content: &str,
+    ) {
+        let reference = match ProfileStore::read_active_profile_reference(manager)
+            .await
+            .expect("read active profile reference")
+        {
+            ActiveProfileReferenceState::Selected(reference) => reference,
+            state => panic!("expected a selected profile, got {state:?}"),
+        };
+        let previous = ProfileStore::load_active_workspace(manager)
+            .await
+            .expect("load active profile workspace");
+        let lease = ProfileStore::acquire_active_workspace_write_lease(
+            manager,
+            reference,
+            previous.identity(),
+            ActiveProfileReferenceWriteAuthorization::Unowned,
+        )
+        .await
+        .expect("acquire unowned active workspace lease");
+        assert_eq!(lease.observed_workspace(), &previous);
+        let update = ProfileWorkspaceUpdate {
+            purpose: ProfileWorkspacePurpose::Derived,
+            document_bytes: content.as_bytes().to_vec(),
+            sidecar_bytes: previous.sidecar_bytes.clone(),
+        };
+        let published = match lease.publish(update).await {
+            ActiveProfileWorkspacePublishOutcome::Published(published) => published,
+            ActiveProfileWorkspacePublishOutcome::Unpublished(error) => {
+                panic!("active workspace was not published: {error}")
+            }
+            ActiveProfileWorkspacePublishOutcome::Superseded { observed } => {
+                panic!("active workspace was superseded: {observed:?}")
+            }
+            ActiveProfileWorkspacePublishOutcome::RecoveryRequired(recovery) => {
+                match recovery.resolve().await {
+                    ActiveProfileWorkspaceRecoveryResolution::Published(published) => published,
+                    ActiveProfileWorkspaceRecoveryResolution::Restored(restored) => {
+                        restored.finish();
+                        panic!("active workspace was restored instead of published")
+                    }
+                    ActiveProfileWorkspaceRecoveryResolution::Unpublished(error) => {
+                        panic!("active workspace publication was not completed: {error}")
+                    }
+                    ActiveProfileWorkspaceRecoveryResolution::Superseded { observed } => {
+                        panic!("active workspace was superseded during recovery: {observed:?}")
+                    }
+                    ActiveProfileWorkspaceRecoveryResolution::RecoveryRequired(recovery) => {
+                        panic!(
+                            "active workspace recovery remains unresolved: {:?}",
+                            recovery.state()
+                        )
+                    }
+                }
+            }
+        };
+        assert_eq!(
+            published
+                .published_workspace()
+                .document
+                .raw_bytes
+                .as_slice(),
+            content.as_bytes()
+        );
+        published.commit();
     }
 }

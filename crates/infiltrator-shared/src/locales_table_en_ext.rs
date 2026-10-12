@@ -244,6 +244,10 @@ pub(super) fn translate_en_ext(key: &str) -> Cow<'static, str> {
         "aggregator_state_saved" => "not activated".into(),
         "aggregator_state_switched" => "now the active profile".into(),
         "aggregator_state_reloaded" => "active with hot reload".into(),
+        "aggregator_state_core_stopped" => "active; Core remains stopped".into(),
+        "aggregator_state_core_failed" => "active; Core has failed".into(),
+        "profile_selected_core_stopped" => "Profile selected; Core remains stopped until started".into(),
+        "profile_selected_core_failed" => "Profile selected; Core is failed and has not applied it".into(),
         "aggregator_template_title" => "Saved aggregation templates".into(),
         "aggregator_template_name_ph" => "Template name".into(),
         "aggregator_template_save" => "Save as template".into(),
@@ -558,12 +562,15 @@ pub(super) fn translate_en_ext(key: &str) -> Cow<'static, str> {
         }
         "profiles_auto_reload_core" => "Reload the Core After Updates".into(),
         "profiles_auto_reload_core_hint" => {
-            "Applies to the active profile only: a successful subscription update is applied with a hot reload; a host without a reload seam rejects the enable action explicitly".into()
+            "Applies to the active profile only. A running core reloads after a successful update; a stopped core stays stopped and stores the update.".into()
         }
-        "sub_reload_core_unsupported" => {
-            "This host exposes no core-reload seam: the update is stored but not applied to the running core".into()
+        "sub_content_effect_unsupported" => {
+            "This host cannot transact the selected profile workspace; no profile content was changed".into()
         }
-        "sub_reload_core_failed" => "Core reload failed (the update is stored)".into(),
+        "sub_profile_stored_for_next_start" => {
+            "Subscription content is stored for the next Core start".into()
+        }
+        "sub_content_apply_failed" => "Core configuration apply failed".into(),
         "profiles_cron_placeholder" => "Cron expression (e.g. 0 */6 * * *, empty = hourly)".into(),
         "profiles_cron_hint" => {
             "5-field UTC cron (min hour day month weekday); @daily / @hourly macros supported; takes precedence over the hourly interval".into()

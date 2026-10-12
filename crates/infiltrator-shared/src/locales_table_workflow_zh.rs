@@ -389,7 +389,7 @@ pub(super) fn translate_workflow_zh(key: &str) -> Cow<'static, str> {
         "profiles_filter_save_hint" => "保存后对当前配置应用过滤，并保留本次选择".into(),
         "profiles_filter_deduplicate" => "重复节点去重".into(),
         "profiles_filter_apply_action" => "应用过滤".into(),
-        "overview_core_reloading" => "内核重载中 · 保持上一帧快照 (Reloading Core)".into(),
+        "overview_content_effecting" => "内核重载中 · 保持上一帧快照 (Reloading Core)".into(),
         "core_control_unavailable_hint" => "核心控制服务暂不可用".into(),
         "profiles_snippet_quick_insert" => "快速插入片段".into(),
         "common_reload" => "重新加载".into(),

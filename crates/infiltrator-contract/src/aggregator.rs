@@ -6,6 +6,7 @@
 //! reader, and both UI surfaces. No surface re-implements clustering or
 //! group synthesis.
 
+use crate::snapshot::CoreInactiveLifecycle;
 use serde::{Deserialize, Serialize};
 
 /// DUAL-08-08: one user-authored regular-expression rename rule applied to
@@ -211,6 +212,22 @@ impl AggregationReport {
     }
 }
 
+/// The activation transition performed while materialising an aggregate.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AggregationActivationOutcome {
+    #[default]
+    NotRequested,
+    AlreadySelectedWithoutRuntime,
+    AlreadySelectedWithRuntime,
+    AlreadySelectedWhileInactive(CoreInactiveLifecycle),
+    SelectedWithoutRuntime,
+    SelectedWhileInactive(CoreInactiveLifecycle),
+    SelectedAndApplied,
+    CurrentProfileUpdatedAndApplied,
+    CurrentProfileUpdatedWhileInactive(CoreInactiveLifecycle),
+}
+
 /// DUAL-08-12: outcome of materialising a draft into a profile.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
@@ -219,14 +236,9 @@ pub struct AggregatedProfileOutcome {
     pub profile_name: String,
     /// The report the profile was rendered from.
     pub report: AggregationReport,
-    /// Whether the profile is now the active profile. When activation was
-    /// requested this is always true (a failed switch is an error, not a
-    /// silent partial success).
-    pub activated: bool,
-    /// Whether a running kernel accepted the re-applied configuration. A host
-    /// without a managed-runtime seam honestly reports `false` here while
-    /// `activated` stays true, exactly like the shared `SwitchProfile` path.
-    pub core_reloaded: bool,
+    /// Exact activation/lifecycle effect; stopped and failed Core states stay
+    /// distinct across the application, transport and surfaces.
+    pub activation: AggregationActivationOutcome,
     /// DUAL-08-13: the template the draft was remembered under, `None` when
     /// the host store keeps no template sidecar (typed unsupported).
     #[serde(default)]

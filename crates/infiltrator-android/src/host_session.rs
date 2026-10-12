@@ -5,7 +5,10 @@
 use infiltrator_application::android_control_application::AndroidControlApplication;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::core_capability_application::CoreCapabilityApplication;
-use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
+use infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization;
+use infiltrator_contract::active_profile_reference::{
+    ActiveProfileReference, ActiveProfileReferenceState,
+};
 use infiltrator_contract::adapter_operation_declaration::AdapterOperationOwner;
 use infiltrator_contract::android_control::AndroidHostProcessRole;
 use infiltrator_contract::core_capabilities::{
@@ -14,15 +17,19 @@ use infiltrator_contract::core_capabilities::{
 };
 use infiltrator_contract::core_identity::CoreGeneration;
 use infiltrator_contract::error::InfiltratorError;
+use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use infiltrator_core::apply::{
-    ApplyError, ApplyParams, EndpointConfigReloader, apply_current_profile,
+    ApplyError, ApplyParams, EndpointConfigReloader, apply_active_profile_reference,
 };
+use infiltrator_core::apply_workspace::apply_active_profile_workspace;
 use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceStore;
 use infiltrator_ports::core_capability_provider::CoreCapabilityProvider;
 use infiltrator_ports::endpoint::EndpointSource;
+use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::ProfileStore;
-use infiltrator_ports::secure_store::SecureStore;
+use infiltrator_ports::profile_workspace::{ProfileWorkspace, ProfileWorkspaceUpdate};
+use infiltrator_ports::runtime_gateway::ActiveProfileReferenceApplier;
 use mihomo_config::endpoint::ProfileEndpointSource;
 use mihomo_config::manager::ConfigManager;
 use mihomo_platform::android_bridge::get_android_bridge;
@@ -200,6 +207,7 @@ pub(crate) async fn shared_core() -> Result<Arc<SharedCore>, FfiStatus> {
                         owner_identity,
                         CoreGeneration::new(application.snapshot().generation),
                     )
+                    .await
                     .map_err(|error| {
                         FfiStatus::err(
                             FfiErrorCode::NotReady,
@@ -265,34 +273,115 @@ fn authorize_android_core_start(
     }
 }
 
-/// Undo a `set_current` after a failed apply so the active-profile metadata
-/// matches the config the core is running again.
-async fn restore_current_profile<S: SecureStore>(
-    config: &ConfigManager<S>,
-    previous: Option<String>,
-) -> Result<(), String> {
-    let Some(previous) = previous else {
-        return Ok(());
-    };
-    let current = config.get_current().await.map_err(|err| err.to_string())?;
-    if current == previous {
-        return Ok(());
-    }
-    config
-        .set_current(&previous)
-        .await
-        .map_err(|err| err.to_string())
+struct AndroidCoreProfileApplier {
+    core: Arc<SharedCore>,
 }
 
-/// Apply the *current* profile content through the application transaction
-/// (validate → atomic write → restart → readiness → rollback on failure).
-/// `previous` is the active profile name before the caller switched to the
-/// profile being applied; it is restored when the transaction rolls back.
-/// This helper is owner-local; UI requests enter through the typed profile
-/// operation, which runs this transaction inside the owner process. Construction
-/// or readiness failures are returned as typed FFI failures; there is no restart
-/// without lifecycle/readback proof.
-pub(crate) async fn apply_current_profile_status(previous: Option<String>) -> FfiStatus {
+#[async_trait::async_trait]
+impl ActiveProfileReferenceApplier for AndroidCoreProfileApplier {
+    fn engine_id(&self) -> Option<infiltrator_contract::core_identity::EngineId> {
+        infiltrator_ports::core_lifecycle::CoreLifecyclePort::core_identity(&self.core.application)
+            .map(|identity| identity.engine)
+    }
+
+    fn core_lifecycle(&self) -> infiltrator_contract::snapshot::CoreLifecycle {
+        infiltrator_ports::core_lifecycle::CoreLifecyclePort::lifecycle(&self.core.application)
+    }
+
+    fn write_authorization(
+        &self,
+    ) -> Result<
+        infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization,
+        PortError,
+    > {
+        self.core
+            .application
+            .active_profile_reference_write_authorization()
+            .map_err(PortError::Rejected)
+    }
+
+    async fn apply_active_profile_reference(
+        &self,
+        expected: &ActiveProfileReference,
+        strategy: ApplyStrategy,
+    ) -> Result<u64, PortError> {
+        let core = Arc::clone(&self.core);
+        let expected = expected.clone();
+        tokio::spawn(async move {
+            let reloader =
+                EndpointConfigReloader::new(core.endpoints.clone() as Arc<dyn EndpointSource>);
+            let outcome = apply_active_profile_reference(
+                &core.application,
+                &core.config,
+                &reloader,
+                &expected,
+                ApplyParams {
+                    strategy,
+                    ..ApplyParams::default()
+                },
+            )
+            .await
+            .map_err(android_apply_error)?;
+            Ok(outcome.generation)
+        })
+        .await
+        .map_err(|error| {
+            PortError::Failed(format!(
+                "Android selected-profile apply continuation failed: {error}"
+            ))
+        })?
+    }
+
+    async fn apply_active_profile_workspace(
+        &self,
+        expected_reference: &ActiveProfileReference,
+        expected_workspace: &ProfileWorkspaceIdentity,
+        update: &ProfileWorkspaceUpdate,
+        authorization: ActiveProfileReferenceWriteAuthorization,
+        strategy: ApplyStrategy,
+    ) -> Result<ProfileWorkspace, PortError> {
+        let core = Arc::clone(&self.core);
+        let expected_reference = expected_reference.clone();
+        let expected_workspace = expected_workspace.clone();
+        let update = update.clone();
+        tokio::spawn(async move {
+            let reloader =
+                EndpointConfigReloader::new(core.endpoints.clone() as Arc<dyn EndpointSource>);
+            apply_active_profile_workspace(
+                &core.application,
+                &core.config,
+                &reloader,
+                &expected_reference,
+                &expected_workspace,
+                &update,
+                authorization,
+                ApplyParams {
+                    strategy,
+                    ..ApplyParams::default()
+                },
+            )
+            .await
+            .map_err(android_apply_error)
+        })
+        .await
+        .map_err(|error| {
+            PortError::Failed(format!(
+                "Android workspace apply continuation failed: {error}"
+            ))
+        })?
+    }
+}
+
+fn android_apply_error(error: ApplyError) -> PortError {
+    PortError::Rejected(infiltrator_core::apply::failure_from_apply_error(error))
+}
+
+/// Apply the observed selected profile through the shared application use-case.
+/// It validates that the full reference state remains current, then the Android
+/// adapter holds the exact selection lease through native apply and rollback.
+pub(crate) async fn apply_selected_profile_reference_status(
+    expected: infiltrator_contract::active_profile_reference::ActiveProfileReferenceState,
+) -> FfiStatus {
     let core = match shared_core().await {
         Ok(core) => core,
         Err(status) => return status,
@@ -300,61 +389,139 @@ pub(crate) async fn apply_current_profile_status(previous: Option<String>) -> Ff
     if let Err(failure) = core.application.adopt_if_running().await {
         return FfiStatus::from(InfiltratorError::Backend(failure.message));
     }
-    let current = match core.config.get_current().await {
-        Ok(current) => current,
-        Err(err) => return map_mihomo_error(err),
+    let application =
+        infiltrator_application::profile_application::ProfileApplication::new(core.config.clone());
+    let applier: Arc<dyn ActiveProfileReferenceApplier> = Arc::new(AndroidCoreProfileApplier {
+        core: Arc::clone(&core),
+    });
+    application
+        .apply_selected_profile_reference(applier, &expected, ApplyStrategy::AlwaysRestart)
+        .await
+        .map(|outcome| {
+            match outcome {
+            infiltrator_application::profile_application::SelectedProfileApplyOutcome::Applied {
+                ..
+            } => FfiStatus::ok(),
+            infiltrator_application::profile_application::SelectedProfileApplyOutcome::NotActive(
+                infiltrator_contract::snapshot::CoreInactiveLifecycle::Stopped,
+            ) => FfiStatus::err(
+                FfiErrorCode::NotReady,
+                "the selected profile was retained while Core remains stopped",
+            ),
+            infiltrator_application::profile_application::SelectedProfileApplyOutcome::NotActive(
+                infiltrator_contract::snapshot::CoreInactiveLifecycle::Failed,
+            ) => FfiStatus::err(
+                FfiErrorCode::NotReady,
+                "the selected profile was retained while Core is failed",
+            ),
+        }
+        })
+        .unwrap_or_else(crate::host_support::map_application_failure)
+}
+
+/// Activate an Android profile through the same application-level CAS and
+/// conditional recovery path used by other managed runtimes.
+pub(crate) async fn activate_profile_status(profile: &str) -> FfiStatus {
+    let core = match shared_core().await {
+        Ok(core) => core,
+        Err(status) => return status,
     };
-    let content = match core.config.load(&current).await {
-        Ok(content) => content,
-        Err(err) => return map_mihomo_error(err),
-    };
-    let reloader = EndpointConfigReloader::new(core.endpoints.clone() as Arc<dyn EndpointSource>);
-    let params = ApplyParams {
-        strategy: ApplyStrategy::AlwaysRestart,
-        ..ApplyParams::default()
-    };
-    match apply_current_profile(&core.application, &core.config, &reloader, &content, params).await
+    if let Err(failure) = core.application.adopt_if_running().await {
+        return FfiStatus::from(InfiltratorError::Backend(failure.message));
+    }
+    let application =
+        infiltrator_application::profile_application::ProfileApplication::new(core.config.clone());
+    let applier: Arc<dyn ActiveProfileReferenceApplier> = Arc::new(AndroidCoreProfileApplier {
+        core: Arc::clone(&core),
+    });
+    let outcome = match application
+        .activate_profile_with_applier(Arc::clone(&applier), profile)
+        .await
     {
-        Ok(_) => FfiStatus::ok(),
-        Err(ApplyError::RolledBack { cause }) => {
-            if let Err(restore_err) = restore_current_profile(&core.config, previous).await {
+        Ok(outcome) => outcome,
+        Err(failure) => return crate::host_support::map_application_failure(failure),
+    };
+    match outcome {
+        infiltrator_application::profile_application::ProfileActivationOutcome::AlreadySelectedWithRuntime => {
+            let expected = match ProfileStore::read_active_profile_reference(core.config.as_ref()).await {
+                Ok(expected) => expected,
+                Err(error) => {
+                    return FfiStatus::err(
+                        FfiErrorCode::NotReady,
+                        format!("active profile reference could not be read after selection: {error}"),
+                    );
+                }
+            };
+            if !matches!(
+                &expected,
+                infiltrator_contract::active_profile_reference::ActiveProfileReferenceState::Selected(reference)
+                    if reference.engine_id == core.config.engine_id()
+                        && reference.profile_id.as_str() == profile.trim()
+            ) {
                 return FfiStatus::err(
-                    FfiErrorCode::InvalidState,
-                    format!(
-                        "apply failed ({cause}) and active profile restore failed: {restore_err}"
-                    ),
+                    FfiErrorCode::NotReady,
+                    "active profile changed after the requested selection was observed",
                 );
             }
+            application
+                .apply_selected_profile_reference(
+                    Arc::clone(&applier),
+                    &expected,
+                    ApplyStrategy::AlwaysRestart,
+                )
+                .await
+                .map(|_| FfiStatus::ok())
+                .unwrap_or_else(crate::host_support::map_application_failure)
+        }
+        infiltrator_application::profile_application::ProfileActivationOutcome::SelectedAndApplied => {
+            FfiStatus::ok()
+        }
+        infiltrator_application::profile_application::ProfileActivationOutcome::AlreadySelectedWhileInactive(
+            infiltrator_contract::snapshot::CoreInactiveLifecycle::Stopped,
+        )
+        | infiltrator_application::profile_application::ProfileActivationOutcome::SelectedWhileInactive(
+            infiltrator_contract::snapshot::CoreInactiveLifecycle::Stopped,
+        )
+        | infiltrator_application::profile_application::ProfileActivationOutcome::CurrentProfileUpdatedWhileInactive(
+            infiltrator_contract::snapshot::CoreInactiveLifecycle::Stopped,
+        ) => FfiStatus {
+            code: FfiErrorCode::Ok,
+            message: Some("profile selected; Core remains stopped".to_owned()),
+            localization: None,
+        },
+        infiltrator_application::profile_application::ProfileActivationOutcome::AlreadySelectedWhileInactive(
+            infiltrator_contract::snapshot::CoreInactiveLifecycle::Failed,
+        )
+        | infiltrator_application::profile_application::ProfileActivationOutcome::SelectedWhileInactive(
+            infiltrator_contract::snapshot::CoreInactiveLifecycle::Failed,
+        )
+        | infiltrator_application::profile_application::ProfileActivationOutcome::CurrentProfileUpdatedWhileInactive(
+            infiltrator_contract::snapshot::CoreInactiveLifecycle::Failed,
+        ) => FfiStatus {
+            code: FfiErrorCode::Ok,
+            message: Some("profile selected; Core is failed".to_owned()),
+            localization: None,
+        },
+        infiltrator_application::profile_application::ProfileActivationOutcome::AlreadySelectedWithoutRuntime
+        | infiltrator_application::profile_application::ProfileActivationOutcome::SelectedWithoutRuntime
+        | infiltrator_application::profile_application::ProfileActivationOutcome::CurrentProfileUpdatedAndApplied => {
             FfiStatus::err(
                 FfiErrorCode::InvalidState,
-                format!("apply failed, previous profile restored and core recovered: {cause}"),
+                "Android profile activation did not produce a runtime apply outcome",
             )
         }
-        Err(ApplyError::RollbackFailed { cause, rollback }) => {
-            // Best-effort metadata restore; both failures stay visible.
-            if let Err(restore_err) = restore_current_profile(&core.config, previous).await {
-                log::error!("active profile restore failed after rollback failure: {restore_err}");
-            }
-            FfiStatus::err(
-                FfiErrorCode::InvalidState,
-                format!(
-                    "apply failed ({cause}) and rollback failed as well; core is down: {rollback}"
-                ),
-            )
-        }
-        Err(err) => map_apply_error(err),
     }
 }
 
-fn map_apply_error(err: ApplyError) -> FfiStatus {
-    match err {
-        ApplyError::Validation(message) | ApplyError::Write(message) => {
-            FfiStatus::err(FfiErrorCode::Config, message)
-        }
-        ApplyError::Lifecycle(message) => FfiStatus::err(FfiErrorCode::InvalidState, message),
-        // RolledBack/RollbackFailed are handled by the apply caller with
-        // set_current restoration; anything reaching here still carries its
-        // readable message.
-        other => FfiStatus::err(FfiErrorCode::InvalidState, other.to_string()),
-    }
+pub(crate) async fn active_profile_reference_state()
+-> Result<infiltrator_contract::active_profile_reference::ActiveProfileReferenceState, FfiStatus> {
+    let core = shared_core().await?;
+    ProfileStore::read_active_profile_reference(core.config.as_ref())
+        .await
+        .map_err(|error| {
+            FfiStatus::err(
+                FfiErrorCode::NotReady,
+                format!("active profile reference is unavailable: {error}"),
+            )
+        })
 }

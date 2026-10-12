@@ -2,6 +2,7 @@
 
 use crate::apply::{ApplyError, ApplyParams, ConfigReloader};
 use crate::apply_workspace::apply_codec_validated_workspace;
+use infiltrator_contract::apply_transaction::ApplyTransactionSnapshot;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document::DocumentValidation;
 use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
@@ -14,7 +15,11 @@ use infiltrator_ports::profile_configuration_transaction::{
     ProfileConfigurationTransactionRequest, ProfileConfigurationTransactionScope,
 };
 use infiltrator_ports::profile_document_codec::ProfileDocumentCodecPort;
-use infiltrator_ports::profile_store::ProfileStore;
+use infiltrator_ports::profile_store::{
+    ActiveProfileWorkspacePublishOutcome, ActiveProfileWorkspacePublishedLease,
+    ActiveProfileWorkspaceRecoveryLease, ActiveProfileWorkspaceRecoveryResolution,
+    ActiveProfileWorkspaceRestoreOutcome, ActiveProfileWorkspaceRestoredLease, ProfileStore,
+};
 use infiltrator_ports::profile_workspace::{ProfileWorkspace, ProfileWorkspaceUpdate};
 use infiltrator_ports::secure_store::SecureStore;
 use mihomo_config::manager::ConfigManager;
@@ -39,6 +44,21 @@ pub struct MihomoProfileConfigurationTransactionAdapter<S: SecureStore> {
     profile_store: Arc<dyn ProfileStore>,
     reloader: Arc<dyn ConfigReloader>,
     apply_guard: Arc<Mutex<()>>,
+}
+
+impl<S: SecureStore> Clone for MihomoProfileConfigurationTransactionAdapter<S> {
+    fn clone(&self) -> Self {
+        Self {
+            codec: Arc::clone(&self.codec),
+            stopped_validator: Arc::clone(&self.stopped_validator),
+            scope: self.scope.clone(),
+            session: Arc::clone(&self.session),
+            config: Arc::clone(&self.config),
+            profile_store: Arc::clone(&self.profile_store),
+            reloader: Arc::clone(&self.reloader),
+            apply_guard: Arc::clone(&self.apply_guard),
+        }
+    }
 }
 
 impl<S: SecureStore + 'static> MihomoProfileConfigurationTransactionAdapter<S> {
@@ -134,6 +154,15 @@ impl<S: SecureStore + 'static> MihomoProfileConfigurationTransactionAdapter<S> {
                 "configuration transaction request has a foreign engine, format, or schema",
             ));
         }
+        if request.expected_reference.engine_id != self.scope.document.engine_id
+            || request.expected_reference.engine_id != request.expected.document.engine_id
+            || request.expected_reference.profile_id != request.expected.document.profile_id
+        {
+            return Err(PortError::unsupported(
+                infiltrator_contract::capability::Capability::Profiles,
+                "configuration transaction reference does not identify the expected workspace",
+            ));
+        }
         let runtime_engine = self
             .session
             .core_identity()
@@ -213,8 +242,10 @@ impl<S: SecureStore + 'static> MihomoProfileConfigurationTransactionAdapter<S> {
                     self.session.as_ref(),
                     self.config.as_ref(),
                     self.reloader.as_ref(),
+                    &request.expected_reference,
                     &request.expected,
                     &request.update,
+                    request.authorization.clone(),
                     params,
                 )
                 .await
@@ -297,117 +328,157 @@ impl<S: SecureStore + 'static> MihomoProfileConfigurationTransactionAdapter<S> {
         previous: &ProfileWorkspace,
         effect: ProfileConfigurationCommitEffect,
     ) -> Result<ProfileConfigurationTransactionOutcome, PortError> {
-        let committed = match self
-            .profile_store
-            .compare_and_save_active_workspace(&request.expected, &request.update)
-            .await
-        {
-            Ok(committed) => committed,
-            Err(cause) => {
-                let publication_recovery_failed = cause.error_code() == ErrorCode::InvalidState;
-                return match self.profile_store.load_active_workspace().await {
-                    Ok(current) if current == *previous => Err(cause),
-                    Ok(current)
-                        if publication_recovery_failed
-                            && is_partial_transaction_workspace(
-                                &request.expected,
-                                previous,
-                                &request.update,
-                                &current,
-                            ) =>
-                    {
-                        Ok(self
-                            .rollback_inactive_write(
-                                current.identity(),
-                                previous,
-                                "inactive workspace persistence failed after publishing bytes",
-                                cause.to_string(),
-                            )
-                            .await)
-                    }
-                    Ok(_) if publication_recovery_failed => Ok(terminal_outcome(
-                        "inactive workspace persistence reported recovery failure",
-                        cause.to_string(),
-                    )),
-                    Ok(_) => Err(cause),
-                    Err(readback) if publication_recovery_failed => Ok(terminal_outcome(
-                        "inactive workspace persistence reported recovery failure and readback failed",
-                        format!("{cause}; readback: {readback}"),
-                    )),
-                    Err(_) => Err(cause),
-                };
+        let method = match effect {
+            ProfileConfigurationCommitEffect::StoredWhileStopped => "stored_while_stopped",
+            ProfileConfigurationCommitEffect::StoredWhileFailed => "stored_while_failed",
+            ProfileConfigurationCommitEffect::AppliedToRunningCore => {
+                return Err(rejected(
+                    ErrorCode::InvalidState,
+                    "inactive workspace transaction cannot report a live apply",
+                ));
             }
         };
-
-        let observed = match self.profile_store.load_active_workspace().await {
-            Ok(observed) => observed,
-            Err(readback) => {
-                return Ok(self
-                    .rollback_inactive_write(
-                        committed.identity(),
-                        previous,
-                        "inactive workspace was stored but exact readback failed",
-                        readback.to_string(),
-                    )
-                    .await);
+        let observed = self
+            .profile_store
+            .acquire_active_workspace_write_lease(
+                request.expected_reference.clone(),
+                request.expected.clone(),
+                request.authorization.clone(),
+            )
+            .await?;
+        if observed.observed_workspace() != previous {
+            return Err(rejected(
+                ErrorCode::NotReady,
+                "active workspace changed before inactive content publication",
+            ));
+        }
+        let published = match observed.publish(request.update.clone()).await {
+            ActiveProfileWorkspacePublishOutcome::Published(published) => published,
+            ActiveProfileWorkspacePublishOutcome::Unpublished(error) => return Err(error),
+            ActiveProfileWorkspacePublishOutcome::Superseded { .. } => {
+                return Err(rejected(
+                    ErrorCode::NotReady,
+                    "active workspace was superseded before content publication",
+                ));
+            }
+            ActiveProfileWorkspacePublishOutcome::RecoveryRequired(recovery) => {
+                resolve_workspace_publication(recovery).await?
             }
         };
-        if committed_matches(&request.expected, previous, &request.update, &observed) {
-            return Ok(ProfileConfigurationTransactionOutcome::Committed {
-                workspace: observed,
-                effect,
-            });
+        let committed = published.published_workspace().clone();
+        if committed_matches(&request.expected, previous, &request.update, &committed) {
+            let workspace = published.commit();
+            self.config
+                .record_apply_transaction(ApplyTransactionSnapshot::committed(
+                    request.expected.document.profile_id.as_str(),
+                    method,
+                ));
+            return Ok(ProfileConfigurationTransactionOutcome::Committed { workspace, effect });
         }
-        if observed.identity() == committed.identity() {
-            return Ok(self
-                .rollback_inactive_write(
-                    committed.identity(),
-                    previous,
-                    "inactive workspace readback differed from the committed bytes",
-                    "the committed identity did not read back as the submitted workspace",
-                )
-                .await);
-        }
-        Ok(terminal_outcome(
-            "inactive workspace changed before exact readback",
-            "preserved a newer workspace instead of overwriting it during recovery",
-        ))
-    }
 
-    async fn rollback_inactive_write(
-        &self,
-        expected_current: ProfileWorkspaceIdentity,
-        previous: &ProfileWorkspace,
-        cause: impl Into<String>,
-        rollback_context: impl Into<String>,
-    ) -> ProfileConfigurationTransactionOutcome {
-        let cause = cause.into();
-        let rollback_context = rollback_context.into();
-        if let Err(rollback) = self
-            .profile_store
-            .restore_workspace(&expected_current, previous)
-            .await
-        {
-            return terminal_outcome(
-                cause,
-                format!("{rollback_context}; restore failed: {rollback}"),
-            );
-        }
-        match self.profile_store.load_active_workspace().await {
-            Ok(restored) if restored == *previous => {
-                ProfileConfigurationTransactionOutcome::RolledBack {
+        let cause = "active workspace readback differed from the submitted documents";
+        match restore_published_workspace(published).await {
+            Err(rollback) => {
+                let rollback = rollback.to_string();
+                self.config
+                    .record_apply_transaction(ApplyTransactionSnapshot::rollback_failed(
+                        request.expected.document.profile_id.as_str(),
+                        cause,
+                        &rollback,
+                    ));
+                Ok(terminal_outcome(cause, rollback))
+            }
+            Ok(restored) if restored.restored_workspace() == previous => {
+                let restored = restored.finish();
+                self.config
+                    .record_apply_transaction(ApplyTransactionSnapshot::rolled_back(
+                        request.expected.document.profile_id.as_str(),
+                        cause,
+                    ));
+                Ok(ProfileConfigurationTransactionOutcome::RolledBack {
                     restored,
                     cause: Failure::new(ErrorCode::Storage, cause, true),
-                }
+                })
             }
-            Ok(_) => terminal_outcome(
-                cause,
-                format!("{rollback_context}; exact previous workspace did not read back"),
-            ),
-            Err(rollback) => terminal_outcome(
-                cause,
-                format!("{rollback_context}; rollback readback failed: {rollback}"),
-            ),
+            Ok(restored) => {
+                restored.finish();
+                let rollback = "conditional restore did not read back the exact previous workspace";
+                self.config
+                    .record_apply_transaction(ApplyTransactionSnapshot::rollback_failed(
+                        request.expected.document.profile_id.as_str(),
+                        cause,
+                        rollback,
+                    ));
+                Ok(terminal_outcome(cause, rollback))
+            }
+        }
+    }
+}
+
+async fn resolve_workspace_publication<'a>(
+    mut recovery: Box<dyn ActiveProfileWorkspaceRecoveryLease + 'a>,
+) -> Result<Box<dyn ActiveProfileWorkspacePublishedLease + 'a>, PortError> {
+    loop {
+        match recovery.resolve().await {
+            ActiveProfileWorkspaceRecoveryResolution::Published(published) => {
+                return Ok(published);
+            }
+            ActiveProfileWorkspaceRecoveryResolution::Restored(restored) => {
+                let _ = restored.finish();
+                return Err(rejected(
+                    ErrorCode::NotReady,
+                    "active workspace publication recovered to its previous content",
+                ));
+            }
+            ActiveProfileWorkspaceRecoveryResolution::Unpublished(error) => return Err(error),
+            ActiveProfileWorkspaceRecoveryResolution::Superseded { .. } => {
+                return Err(rejected(
+                    ErrorCode::NotReady,
+                    "active workspace was superseded during publication recovery",
+                ));
+            }
+            ActiveProfileWorkspaceRecoveryResolution::RecoveryRequired(next) => {
+                recovery = next;
+            }
+        }
+    }
+}
+
+async fn restore_published_workspace<'a>(
+    mut published: Box<dyn ActiveProfileWorkspacePublishedLease + 'a>,
+) -> Result<Box<dyn ActiveProfileWorkspaceRestoredLease + 'a>, PortError> {
+    loop {
+        match published.restore_if_current().await? {
+            ActiveProfileWorkspaceRestoreOutcome::Restored(restored) => return Ok(restored),
+            ActiveProfileWorkspaceRestoreOutcome::Superseded { .. } => {
+                return Err(rejected(
+                    ErrorCode::NotReady,
+                    "active workspace changed before conditional restore",
+                ));
+            }
+            ActiveProfileWorkspaceRestoreOutcome::RecoveryRequired(mut recovery) => loop {
+                match recovery.resolve().await {
+                    ActiveProfileWorkspaceRecoveryResolution::Restored(restored) => {
+                        return Ok(restored);
+                    }
+                    ActiveProfileWorkspaceRecoveryResolution::Published(next) => {
+                        published = next;
+                        break;
+                    }
+                    ActiveProfileWorkspaceRecoveryResolution::Unpublished(error) => {
+                        return Err(error);
+                    }
+                    ActiveProfileWorkspaceRecoveryResolution::Superseded { .. } => {
+                        return Err(rejected(
+                            ErrorCode::NotReady,
+                            "active workspace changed during conditional restore recovery",
+                        ));
+                    }
+                    ActiveProfileWorkspaceRecoveryResolution::RecoveryRequired(next) => {
+                        recovery = next;
+                    }
+                }
+            },
         }
     }
 }
@@ -619,7 +690,17 @@ impl<S: SecureStore + 'static> ProfileConfigurationTransactionPort
         &self,
         request: ProfileConfigurationTransactionRequest,
     ) -> Result<ProfileConfigurationTransactionOutcome, PortError> {
-        self.transact_inner(request).await
+        // Detaching this owned continuation makes caller-future cancellation
+        // harmless after a managed workspace lease is published: it retains
+        // all Arc-owned dependencies and completes runtime readback/recovery.
+        let transaction = self.clone();
+        tokio::spawn(async move { transaction.transact_inner(request).await })
+            .await
+            .map_err(|error| {
+                PortError::Failed(format!(
+                    "owned configuration transaction continuation failed: {error}"
+                ))
+            })?
     }
 }
 
@@ -642,25 +723,6 @@ fn committed_matches(
             || identity.document.revision != previous.document.identity.revision)
         && (update.sidecar_bytes == previous.sidecar_bytes
             || identity.sidecar_revision != previous.sidecar_revision)
-}
-
-fn is_partial_transaction_workspace(
-    expected: &ProfileWorkspaceIdentity,
-    previous: &ProfileWorkspace,
-    update: &ProfileWorkspaceUpdate,
-    observed: &ProfileWorkspace,
-) -> bool {
-    let identity = observed.identity();
-    identity.document.engine_id == expected.document.engine_id
-        && identity.document.profile_id == expected.document.profile_id
-        && identity.document.source == expected.document.source
-        && identity.document.format_id == expected.document.format_id
-        && identity.document.schema_version == expected.document.schema_version
-        && observed.write_protection == previous.write_protection
-        && (observed.document.raw_bytes == previous.document.raw_bytes
-            || observed.document.raw_bytes == update.document_bytes)
-        && (observed.sidecar_bytes == previous.sidecar_bytes
-            || observed.sidecar_bytes == update.sidecar_bytes)
 }
 
 fn rejected(code: ErrorCode, message: impl Into<String>) -> PortError {
@@ -687,9 +749,10 @@ fn terminal_outcome(
 fn apply_error(error: ApplyError) -> PortError {
     let message = error.to_string();
     match error {
-        ApplyError::SourceChanged | ApplyError::Busy { .. } => {
-            rejected(ErrorCode::NotReady, message)
-        }
+        ApplyError::SourceChanged
+        | ApplyError::ActiveProfileReferenceChanged { .. }
+        | ApplyError::NotRunning { .. }
+        | ApplyError::Busy { .. } => rejected(ErrorCode::NotReady, message),
         ApplyError::Validation(_) => rejected(ErrorCode::Configuration, message),
         ApplyError::Write(_) => rejected(ErrorCode::Storage, message),
         ApplyError::Permission(_) => rejected(ErrorCode::Permission, message),

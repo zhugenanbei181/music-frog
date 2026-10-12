@@ -13,6 +13,7 @@ use infiltrator_application::profile_application::ProfileActivationOutcome;
 use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_ports::runtime_gateway::ManagedRuntime;
+use infiltrator_shared::locales::{Lang, Localizer};
 
 impl AppState {
     pub(super) fn update_profiles(&mut self, message: Message) -> Task<Message> {
@@ -103,7 +104,13 @@ impl AppState {
                 self.invalidate_rules_dns_views();
                 let runtime = self.runtime.runtime.clone();
                 Task::perform(
-                    async move { activate_profile(runtime, &name).await },
+                    async move {
+                        activate_profile(
+                            crate::update::core::profile_apply::runtime_access(runtime),
+                            &name,
+                        )
+                        .await
+                    },
                     Message::ProfileActivationFinished,
                 )
             }
@@ -128,9 +135,44 @@ impl AppState {
                 Ok(
                     ProfileActivationOutcome::AlreadySelectedWithoutRuntime
                     | ProfileActivationOutcome::SelectedWithoutRuntime,
+                ) => Task::batch(vec![Task::done(Message::LoadProfiles)]),
+                Ok(
+                    ProfileActivationOutcome::AlreadySelectedWhileInactive(
+                        infiltrator_contract::snapshot::CoreInactiveLifecycle::Stopped,
+                    )
+                    | ProfileActivationOutcome::SelectedWhileInactive(
+                        infiltrator_contract::snapshot::CoreInactiveLifecycle::Stopped,
+                    )
+                    | ProfileActivationOutcome::CurrentProfileUpdatedWhileInactive(
+                        infiltrator_contract::snapshot::CoreInactiveLifecycle::Stopped,
+                    ),
                 ) => Task::batch(vec![
                     Task::done(Message::LoadProfiles),
-                    Task::done(Message::StartCore),
+                    Task::done(Message::ShowToast(
+                        Lang(&self.shell.lang)
+                            .tr("profile_selected_core_stopped")
+                            .into_owned(),
+                        ToastStatus::Info,
+                    )),
+                ]),
+                Ok(
+                    ProfileActivationOutcome::AlreadySelectedWhileInactive(
+                        infiltrator_contract::snapshot::CoreInactiveLifecycle::Failed,
+                    )
+                    | ProfileActivationOutcome::SelectedWhileInactive(
+                        infiltrator_contract::snapshot::CoreInactiveLifecycle::Failed,
+                    )
+                    | ProfileActivationOutcome::CurrentProfileUpdatedWhileInactive(
+                        infiltrator_contract::snapshot::CoreInactiveLifecycle::Failed,
+                    ),
+                ) => Task::batch(vec![
+                    Task::done(Message::LoadProfiles),
+                    Task::done(Message::ShowToast(
+                        Lang(&self.shell.lang)
+                            .tr("profile_selected_core_failed")
+                            .into_owned(),
+                        ToastStatus::Warning,
+                    )),
                 ]),
                 Err(error) => {
                     self.set_error(&error);

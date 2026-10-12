@@ -323,14 +323,6 @@ impl ProfileStore for RuleTraceStore {
             .current
             .clone())
     }
-    async fn set_current(&self, profile: &str) -> Result<(), PortError> {
-        let mut files = self.files.lock().expect("isolated rule files");
-        if !files.documents.contains_key(profile) {
-            return Err(PortError::NotFound(profile.into()));
-        }
-        files.current = profile.into();
-        Ok(())
-    }
     async fn load(&self, profile: &str) -> Result<String, PortError> {
         self.check_read()?;
         self.files
@@ -353,7 +345,7 @@ impl ProfileStore for RuleTraceStore {
         drop(files);
         self.workspace(&profile, &content)
     }
-    async fn save(&self, _: &str, _: &str) -> Result<(), PortError> {
+    async fn save_inactive_profile(&self, _: &str, _: &str) -> Result<(), PortError> {
         Err(outside())
     }
     async fn delete_profile(&self, _: &str) -> Result<(), PortError> {
@@ -371,7 +363,7 @@ impl ProfileStore for RuleTraceStore {
     async fn clear_backup(&self, _: &str) -> Result<(), PortError> {
         Err(outside())
     }
-    async fn restore_backup(&self, _: &str) -> Result<bool, PortError> {
+    async fn restore_inactive_profile_backup(&self, _: &str) -> Result<bool, PortError> {
         Err(outside())
     }
 }

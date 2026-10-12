@@ -27,15 +27,20 @@ pub(crate) mod profiles;
 mod subscription_store;
 
 use crate::profile_write_boundary::shared_boundary;
+use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
 use infiltrator_contract::apply_transaction::ApplyTransactionSnapshot;
 use infiltrator_contract::core_identity::EngineId;
+use infiltrator_ports::error::PortError;
 use infiltrator_ports::secure_store::SecureStore;
-use mihomo_api::error::Result;
+use mihomo_api::error::{MihomoError, Result};
+use mihomo_platform::instance_lock::{
+    ThreadedInstanceLockGuard, try_acquire_threaded_instance_lock,
+};
 use std::collections::BTreeMap;
-use std::path::PathBuf;
-use std::sync::Arc;
+use std::path::{Path, PathBuf};
 use std::sync::RwLock;
-use tokio::sync::{Mutex, OnceCell};
+use std::time::Duration;
+use tokio::sync::{OnceCell, OwnedMutexGuard};
 
 pub struct ConfigManager<S: SecureStore> {
     config_root: PathBuf,
@@ -43,9 +48,97 @@ pub struct ConfigManager<S: SecureStore> {
     settings_file: PathBuf,
     legacy_settings_file: PathBuf,
     credential_store: S,
-    write_boundary: Arc<Mutex<()>>,
     profile_namespace_initialized: OnceCell<()>,
     pub(crate) apply_observations: RwLock<BTreeMap<String, ApplyTransactionSnapshot>>,
+}
+
+/// Both the process-local mutex and the stable OS lock are held across a
+/// profile read/write transaction. The OS lock file lives beside the engine
+/// directory so a directory reset cannot unlink its own fence.
+pub(crate) struct ProfileWriteGuard {
+    _local: OwnedMutexGuard<()>,
+    _cross_process: ThreadedInstanceLockGuard,
+}
+
+/// Result of a reset whose profile files and active reference share one
+/// unowned, revision-fenced transaction. `CleanupPending` means the default
+/// reference already committed; a retry can finish deleting inactive files.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ActiveProfileReferenceResetOutcome {
+    NoPendingIntent,
+    Committed {
+        previous: ActiveProfileReferenceState,
+        current: ActiveProfileReferenceState,
+    },
+    Stale {
+        expected: ActiveProfileReferenceState,
+        observed: ActiveProfileReferenceState,
+    },
+    CleanupPending {
+        previous: ActiveProfileReferenceState,
+        current: ActiveProfileReferenceState,
+        error: String,
+    },
+}
+
+/// A reset either resumes the durable transaction as recorded on disk or
+/// starts a new transaction with caller-provided default document bytes.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ActiveProfileReferenceResetRequest {
+    ResumePendingIntent,
+    Start {
+        expected: ActiveProfileReferenceState,
+        default_document: String,
+    },
+}
+
+pub(crate) async fn lock_profile_writes_for_dir(config_dir: &Path) -> Result<ProfileWriteGuard> {
+    let boundary = shared_boundary(config_dir)?;
+    let lock_path = profile_write_lock_path(config_dir).await?;
+    let cross_process = loop {
+        let attempt_path = lock_path.clone();
+        let attempt =
+            tokio::task::spawn_blocking(move || try_acquire_threaded_instance_lock(&attempt_path))
+                .await
+                .map_err(|error| {
+                    MihomoError::Service(format!("profile write lock worker: {error}"))
+                })??;
+        if let Some(guard) = attempt {
+            break guard;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    };
+    let local = boundary.lock_owned().await;
+    Ok(ProfileWriteGuard {
+        _local: local,
+        _cross_process: cross_process,
+    })
+}
+
+async fn profile_write_lock_path(config_dir: &Path) -> Result<PathBuf> {
+    let engine = config_dir
+        .file_name()
+        .and_then(|name| name.to_str())
+        .filter(|name| !name.is_empty())
+        .ok_or_else(|| MihomoError::Config("engine config directory has no name".into()))?;
+    let parent = config_dir
+        .parent()
+        .ok_or_else(|| MihomoError::Config("engine config directory has no parent".into()))?;
+    tokio::fs::create_dir_all(parent).await?;
+    let canonical_parent = tokio::fs::canonicalize(parent).await?;
+    Ok(canonical_parent.join(format!(".profile-write-{engine}.lock")))
+}
+
+pub(crate) async fn ensure_profile_reset_not_pending_for_dir(
+    config_dir: &Path,
+) -> std::result::Result<(), PortError> {
+    active_profile_reference::ensure_reset_not_pending_for_dir(config_dir).await
+}
+
+pub(crate) async fn lock_reset_fenced_profile_mutation_for_dir(
+    config_dir: &Path,
+) -> std::result::Result<active_profile_reference::ResetFencedProfileMutationGuard, PortError> {
+    active_profile_reference::acquire_reset_fenced_profile_mutation_for_dir(config_dir).await
 }
 
 impl<S: SecureStore> ConfigManager<S> {
@@ -68,7 +161,6 @@ impl<S: SecureStore> ConfigManager<S> {
         let config_root = paths::resolve_configs_dir_in(configs_dir, &home)?;
         let engine = crate::engine_id();
         let config_dir = paths::engine_config_dir(&config_root, &engine);
-        let write_boundary = shared_boundary(&config_dir)?;
         let settings_file = config_dir.join("profile-state.toml");
         let legacy_settings_file = home.join("config.toml");
 
@@ -78,7 +170,6 @@ impl<S: SecureStore> ConfigManager<S> {
             settings_file,
             legacy_settings_file,
             credential_store,
-            write_boundary,
             profile_namespace_initialized: OnceCell::new(),
             apply_observations: RwLock::new(BTreeMap::new()),
         })
@@ -98,7 +189,7 @@ impl<S: SecureStore> ConfigManager<S> {
     /// Adapter transaction boundary shared by every manager of this store.
     /// Hold only across persistence comparison/publication; never across
     /// lifecycle callbacks that can themselves repair or save a profile.
-    pub async fn lock_profile_writes(&self) -> impl Send + '_ {
-        self.write_boundary.lock().await
+    pub async fn lock_profile_writes(&self) -> Result<impl Send + '_> {
+        lock_profile_writes_for_dir(&self.config_dir).await
     }
 }

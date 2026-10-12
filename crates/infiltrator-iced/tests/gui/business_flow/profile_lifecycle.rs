@@ -15,15 +15,18 @@ use crate::types::message::Message;
 use crate::types::options::EditorPane;
 use crate::update::core::profile_apply::activate_profile;
 use crate::update::profile::subscription::subscription_update_toast;
-use infiltrator_application::profile_application::ProfileActivationOutcome;
 use infiltrator_application::profile_application::ProfileApplication;
+use infiltrator_application::profile_application::{
+    ProfileActivationOutcome, ProfileRuntimeAccess,
+};
 use infiltrator_application::profile_options_application::ProfileOptionsApplication;
 use infiltrator_application::subscription_filter_fixture::{FIXTURE_DOCUMENT, observation};
 use infiltrator_contract::core_control::CoreControlLabel;
 use infiltrator_contract::error::InfiltratorError;
+use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_contract::subscription_import::{
-    CoreReloadOutcome, SubscriptionBatchReport, SubscriptionFilterDraft, SubscriptionScheduleDraft,
-    SubscriptionUpdateOutcome, SubscriptionUpdateReport,
+    SubscriptionBatchReport, SubscriptionContentEffectOutcome, SubscriptionFilterDraft,
+    SubscriptionScheduleDraft, SubscriptionUpdateOutcome, SubscriptionUpdateReport,
 };
 use infiltrator_core::subscription_io::HttpSubscriptionSource;
 use infiltrator_domain::config::validate_yaml;
@@ -31,7 +34,7 @@ use infiltrator_domain::profile_options::{FilterSpec, ProfileOptions};
 use infiltrator_domain::profiles::sanitize_profile_name;
 use infiltrator_domain::subscription::CheckedSubscriptionUrl;
 use infiltrator_ports::error::PortError;
-use infiltrator_ports::runtime_gateway::ManagedRuntime;
+use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::subscription_source::{
     ConditionalDocumentResult, ConditionalFetchHeaders, SubscriptionDocument, SubscriptionSource,
 };
@@ -59,7 +62,7 @@ fn subscription_report(profile: &str) -> SubscriptionUpdateReport {
         quota: None,
         usage_warning: false,
         expiry_warning: false,
-        core_reload: CoreReloadOutcome::NotAttempted,
+        content_effect: SubscriptionContentEffectOutcome::NotAttempted,
         backed_up: true,
     }
 }
@@ -76,7 +79,7 @@ fn not_modified_report(profile: &str) -> SubscriptionUpdateReport {
         quota: None,
         usage_warning: false,
         expiry_warning: false,
-        core_reload: CoreReloadOutcome::NotAttempted,
+        content_effect: SubscriptionContentEffectOutcome::NotAttempted,
         backed_up: false,
     }
 }
@@ -158,8 +161,12 @@ fn import_then_activate_then_restart_kernel_chain_round_trips_real_files() {
         let content = read_to_string(&source).await.unwrap();
         validate_yaml(&content).unwrap();
         let manager = config_manager().await.unwrap();
-        manager.save("Travel Node", &content).await.unwrap();
-        activate_profile(None, "Travel Node").await.unwrap()
+        ProfileStore::save_inactive_profile(manager.as_ref(), "Travel Node", &content)
+            .await
+            .unwrap();
+        activate_profile(ProfileRuntimeAccess::Offline, "Travel Node")
+            .await
+            .unwrap()
     });
     assert_eq!(
         stored,
@@ -183,7 +190,9 @@ fn import_then_activate_then_restart_kernel_chain_round_trips_real_files() {
     );
     assert_eq!(units, 1);
 
-    let activation = block_on(async { activate_profile(None, "default").await }).unwrap();
+    let activation =
+        block_on(async { activate_profile(ProfileRuntimeAccess::Offline, "default").await })
+            .unwrap();
     assert_eq!(activation, ProfileActivationOutcome::SelectedWithoutRuntime);
     let units = feed(
         &mut state,
@@ -731,11 +740,15 @@ fn subscription_filter_panel_rides_the_shared_pipeline() {
         let profiles = ProfileApplication::new(manager.clone())
             .with_document_codec(Arc::new(MihomoProfileDocumentCodec));
         let application = ProfileOptionsApplication::new(profiles.clone());
-        let runtime: Option<Arc<dyn ManagedRuntime>> = None;
+        let runtime = ProfileRuntimeAccess::Offline;
         let report = application
             .save_filter(
                 runtime,
-                &profiles.load_workspace("Paid").await.unwrap().identity(),
+                &profiles
+                    .load_workspace(&ProfileId::new("Paid").unwrap())
+                    .await
+                    .unwrap()
+                    .identity(),
                 &draft,
             )
             .await
@@ -951,28 +964,28 @@ fn subscription_policy_and_auto_reload_are_shared_application_wired() {
     );
 }
 
-/// DUAL-07-09: the update toast tells the truth about the post-update reload —
-/// a typed unsupported or failed reload is a warning, not a clean success.
+/// The update toast distinguishes a completed workspace apply from stored,
+/// unsupported, or failed content effects.
 #[test]
-fn subscription_toast_reports_the_reload_outcome_honestly() {
+fn subscription_toast_reports_the_content_effect_honestly() {
     let lang = Lang("zh-CN");
     let mut report = subscription_report("Paid");
-    report.core_reload = CoreReloadOutcome::Reloaded;
-    let (_, reloaded_status) = subscription_update_toast(&lang, &report);
-    assert_eq!(reloaded_status, ToastStatus::Success);
+    report.content_effect = SubscriptionContentEffectOutcome::Applied;
+    let (_, applied_status) = subscription_update_toast(&lang, &report);
+    assert_eq!(applied_status, ToastStatus::Success);
 
-    report.core_reload = CoreReloadOutcome::Unsupported;
+    report.content_effect = SubscriptionContentEffectOutcome::Unsupported;
     let (text, unsupported_status) = subscription_update_toast(&lang, &report);
     assert_eq!(unsupported_status, ToastStatus::Warning);
     assert!(
-        text.contains("宿主") && text.contains("未应用"),
-        "the unsupported reload names the host gap, got {text:?}"
+        text.contains("宿主") && text.contains("未更改"),
+        "the unsupported effect names the host gap, got {text:?}"
     );
 
-    report.core_reload = CoreReloadOutcome::Failed {
-        error: "reload rejected".to_string(),
+    report.content_effect = SubscriptionContentEffectOutcome::Failed {
+        error: "apply rejected".to_string(),
     };
     let (text, failed_status) = subscription_update_toast(&lang, &report);
     assert_eq!(failed_status, ToastStatus::Warning);
-    assert!(text.contains("reload rejected"), "got {text:?}");
+    assert!(text.contains("apply rejected"), "got {text:?}");
 }

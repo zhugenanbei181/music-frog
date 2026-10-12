@@ -30,13 +30,15 @@ use infiltrator_application::speedtest_application::SpeedtestApplication;
 use infiltrator_application::stun_probe_application::StunProbeApplication;
 use infiltrator_application::surface_application::SurfacePump;
 use infiltrator_application::system_proxy_application::SystemProxyApplication;
+use infiltrator_contract::active_profile_reference::ActiveProfileReference;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::stun_probe::DEFAULT_STUN_SERVER;
 use infiltrator_contract::surface::SurfaceKind;
 use infiltrator_contract::system_proxy::SystemProxyRecoveryStatus;
 use infiltrator_core::apply::{
-    ApplyOutcome, ApplyParams, EndpointConfigReloader, apply_current_profile,
+    ApplyOutcome, ApplyParams, ApplyResult, EndpointConfigReloader,
+    apply_active_profile_reference as apply_selected_reference_transaction,
 };
 use infiltrator_core::dns_latency_io::HttpDnsLatencyProber;
 use infiltrator_core::dns_leak_io::HttpDnsLeakEchoProbe;
@@ -249,32 +251,35 @@ impl MihomoRuntime {
         let script_exports = ScriptExportApplication::new(Some(Arc::new(
             DesktopScriptExportPort::new(cm.config_dir()),
         )));
-        let application = Arc::new(core_application(
-            &service_manager,
-            backend,
-            endpoint.secret.clone(),
-            SurfaceEngines {
-                profiles: profiles.clone(),
-                configuration: configuration.clone(),
-                snapshots: snapshots.clone(),
-                scripts: scripts.clone(),
-                script_exports: script_exports.clone(),
-                doctor: doctor.clone(),
-                rule_tracer: rule_tracer.clone(),
-                rule_list: rule_list.clone(),
-                dns_cache: dns_cache.clone(),
-                dns_query: dns_query.clone(),
-                dns_latency: dns_latency.clone(),
-                dns_leak: dns_leak.clone(),
-                stun_probe: stun_probe.clone(),
-            },
-            speedtest.clone(),
-            cm.clone(),
-            Arc::new(subscription_source()),
-            cm.clone(),
-            endpoints.clone() as Arc<dyn EndpointSource>,
-            apply_guard.clone(),
-        )?);
+        let application = Arc::new(
+            core_application(
+                &service_manager,
+                backend,
+                endpoint.secret.clone(),
+                SurfaceEngines {
+                    profiles: profiles.clone(),
+                    configuration: configuration.clone(),
+                    snapshots: snapshots.clone(),
+                    scripts: scripts.clone(),
+                    script_exports: script_exports.clone(),
+                    doctor: doctor.clone(),
+                    rule_tracer: rule_tracer.clone(),
+                    rule_list: rule_list.clone(),
+                    dns_cache: dns_cache.clone(),
+                    dns_query: dns_query.clone(),
+                    dns_latency: dns_latency.clone(),
+                    dns_leak: dns_leak.clone(),
+                    stun_probe: stun_probe.clone(),
+                },
+                speedtest.clone(),
+                cm.clone(),
+                Arc::new(subscription_source()),
+                cm.clone(),
+                endpoints.clone() as Arc<dyn EndpointSource>,
+                apply_guard.clone(),
+            )
+            .await?,
+        );
         let scope_application = application.clone();
         let scope_resolver: mihomo_api::runtime_configuration::RuntimeScopeResolver =
             Arc::new(move || {
@@ -366,66 +371,28 @@ impl MihomoRuntime {
         TunServiceManager::check_status_for(&self.binary_path)
     }
 
-    /// Apply the current profile's content to the core through the
-    /// CORE-004 transaction: atomic write, reload-or-restart, readiness,
-    /// rollback on failure.
-    pub async fn apply_current_config(
+    /// Apply exactly the profile selected by `expected`, keeping its
+    /// revisioned reference fenced through the native transaction and any
+    /// native rollback.
+    pub async fn apply_active_profile_reference(
         &self,
+        expected: &ActiveProfileReference,
         strategy: ApplyStrategy,
-    ) -> anyhow::Result<ApplyOutcome> {
+    ) -> ApplyResult<ApplyOutcome> {
         let _guard = self.apply_guard.lock().await;
-        let profile = ProfileStore::get_current(self.config_manager.as_ref()).await?;
-        let content = self.config_manager.load(&profile).await?;
         let reloader =
             EndpointConfigReloader::new(self.endpoints.clone() as Arc<dyn EndpointSource>);
-        let params = ApplyParams {
-            strategy,
-            ..Default::default()
-        };
-        let outcome = apply_current_profile(
+        apply_selected_reference_transaction(
             self.application.as_ref(),
-            &self.config_manager,
+            self.config_manager.as_ref(),
             &reloader,
-            &content,
-            params,
+            expected,
+            ApplyParams {
+                strategy,
+                ..ApplyParams::default()
+            },
         )
         .await
-        .map_err(|e| anyhow!(e.to_string()))?;
-        if let Err(error) = self.config_manager.clear_backup(&profile).await {
-            // The core is already healthy and the transaction has committed;
-            // a stale transient backup must not turn that success into a
-            // false failure (it will be overwritten by the next save).
-            log::warn!("failed to clear profile apply backup: {error}");
-        }
-        Ok(outcome)
-    }
-
-    /// Apply caller-provided content through the same atomic write,
-    /// readiness and rollback transaction used by the current profile flow.
-    /// This is used by desktop editors so a running core never observes a
-    /// directly-written file that has not been validated and applied.
-    pub async fn apply_profile_content(
-        &self,
-        new_content: &str,
-        strategy: ApplyStrategy,
-    ) -> anyhow::Result<ApplyOutcome> {
-        let _guard = self.apply_guard.lock().await;
-        let profile = ProfileStore::get_current(self.config_manager.as_ref()).await?;
-        let reloader =
-            EndpointConfigReloader::new(self.endpoints.clone() as Arc<dyn EndpointSource>);
-        let params = ApplyParams {
-            strategy,
-            ..Default::default()
-        };
-        apply_current_profile(
-            self.application.as_ref(),
-            &self.config_manager,
-            &reloader,
-            new_content,
-            params,
-        )
-        .await
-        .map_err(|error| anyhow!("profile {profile}: {error}"))
     }
 
     pub fn client(&self) -> MihomoClient {

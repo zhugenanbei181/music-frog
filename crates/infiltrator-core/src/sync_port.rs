@@ -4,6 +4,7 @@ use crate::remote_profile_namespace::{migrate_remote_profile_namespace, remote_p
 use crate::settings_io::load_webdav_password;
 use dav_client::DavClient;
 use dav_client::client::WebDavClient;
+use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
 use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::sync::{SyncConflict, SyncProgress, SyncReport, SyncTransferReport};
 use infiltrator_domain::config::validate_yaml;
@@ -11,6 +12,7 @@ use infiltrator_domain::profiles::sanitize_profile_name;
 use infiltrator_domain::sandbox::{PathValidationResult, SandboxValidator};
 use infiltrator_domain::settings::WebDavConfig;
 use infiltrator_ports::error::PortError;
+use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::secure_store::SecureStore;
 use infiltrator_ports::sync::{SyncPort, SyncProgressSink, SyncRequest, SyncTransferRequest};
 use mihomo_config::manager::ConfigManager;
@@ -173,7 +175,6 @@ where
         let SyncTransferRequest {
             config,
             configs_dir,
-            runtime_present,
             observer,
         } = request;
         let password = self.password(&config).await;
@@ -200,8 +201,7 @@ where
 
         let config_root = manager.config_dir().to_path_buf();
         let sandbox = SandboxValidator::new(config_root.clone());
-        let active_profile = manager
-            .get_current()
+        let active_reference = ProfileStore::read_active_profile_reference(&manager)
             .await
             .map_err(|error| PortError::Io(error.to_string()))?;
         let total = remote_profiles.len() as u64;
@@ -223,6 +223,12 @@ where
             validate_yaml(&content).map_err(|error| PortError::Failed(error.to_string()))?;
 
             let path = config_root.join(format!("{profile_name}.yaml"));
+            let selected_active = matches!(
+                &active_reference,
+                ActiveProfileReferenceState::Selected(reference)
+                    if reference.engine_id == engine
+                        && reference.profile_id.as_str() == profile_name
+            );
             if sandbox.validate_path(&path) != PathValidationResult::Allowed {
                 return Err(PortError::Failed(format!(
                     "远端配置目标超出本地配置目录: {}",
@@ -253,25 +259,34 @@ where
                     });
                     continue;
                 }
+                Err(error) if error.kind() == ErrorKind::NotFound && selected_active => {
+                    let conflict_path = conflict_backup_path(&path);
+                    atomic_write_file(&conflict_path, content.as_bytes()).await?;
+                    report.conflicts += 1;
+                    report.conflict_files.push(SyncConflict {
+                        profile: profile_name,
+                        remote_path: conflict_path.to_string_lossy().into_owned(),
+                    });
+                    observer.progress(SyncProgress {
+                        phase: "下载配置".to_string(),
+                        current: (index + 1) as u64,
+                        total,
+                    });
+                    continue;
+                }
                 Err(error) if error.kind() == ErrorKind::NotFound => {}
                 Err(error) => return Err(PortError::Io(error.to_string())),
             }
 
             ensure_not_cancelled(observer.as_ref())?;
             manager
-                .save(&profile_name, &content)
+                .save_inactive_profile(&profile_name, &content)
                 .await
                 .map_err(|error| PortError::Io(error.to_string()))?;
-            let is_active = active_profile == profile_name;
-            if is_active {
-                report.active_profile_changed = true;
-            }
-            if !is_active || !runtime_present {
-                manager
-                    .clear_backup(&profile_name)
-                    .await
-                    .map_err(|error| PortError::Io(error.to_string()))?;
-            }
+            manager
+                .clear_backup(&profile_name)
+                .await
+                .map_err(|error| PortError::Io(error.to_string()))?;
             report.downloaded += 1;
             observer.progress(SyncProgress {
                 phase: "下载配置".to_string(),

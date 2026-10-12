@@ -1,54 +1,55 @@
-//! Config apply transaction (CORE-004) with SourceDoc YAML fidelity track.
+//! Exact-reference Core apply and source-bound workspace edit helpers.
 //!
-//! [`apply_current_profile`] replaces the content of the *current* profile
-//! and makes the running core pick it up as one all-or-nothing step:
-//! validate → temp write → atomic replace → hot-reload or restart via
-//! [`CoreLifecyclePort`] → readiness health check → rollback to the previous
-//! content on failure. A failed apply must never leave the core without a
-//! usable configuration and must never strand the caller in a half-updated
-//! state (the bug this transaction exists to fix: switching profiles used to
-//! leave the old config running).
-//!
-//! [`apply_profile_edit`], [`apply_profile_set_scalar`], [`apply_profile_append_rule`],
-//! [`apply_profile_remove_rule`], [`apply_profile_rewrite_anchors`], and
-//! [`apply_profile_mixin_fidelity`] integrates the [`infiltrator_domain::yaml_edit::SourceDoc`]
-//! fidelity track directly into this transaction so that hand-annotated comments,
-//! anchors (`&anchor`), alias references (`*alias`), and custom formatting are 100%
-//! preserved during configuration edits and profile switches.
+//! [`apply_active_profile_reference`] applies the profile named by one exact
+//! active-reference revision without changing stored content. Profile edits
+//! use the workspace identity and lease in `apply_workspace`, which holds the
+//! reference and content fences through native readback and conditional
+//! recovery. [`apply_active_profile_edit`], [`apply_active_profile_set_scalar`],
+//! [`apply_active_profile_append_rule`], [`apply_active_profile_remove_rule`],
+//! [`apply_active_profile_rewrite_anchors`], and [`apply_active_profile_mixin_fidelity`]
+//! apply edits through the same workspace transaction so comments, anchors,
+//! aliases, and formatting remain byte-faithful where the domain editor allows.
 
 use crate::history::{DEFAULT_KEEP, prune_snapshots, save_snapshot};
 use async_trait::async_trait;
+use infiltrator_contract::active_profile_reference::{
+    ActiveProfileReference, ActiveProfileReferenceState, ActiveProfileReferenceWriteAuthorization,
+    CoreApplyFailureKind,
+};
 use infiltrator_contract::apply_transaction::ApplyTransactionSnapshot;
-use infiltrator_contract::rule_source::RuleSourceIdentity;
+use infiltrator_contract::error::{ErrorCode, Failure, FailureReason};
 use infiltrator_contract::session::SessionToken;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_domain::mixin::{MixinConfig, merge_profile_with_config};
-use infiltrator_domain::rules::source_identity::identify_rules_document;
 use infiltrator_domain::yaml_edit::mixin_fidelity::{
     apply_mixin_to_doc, can_apply_mixin_via_fidelity,
 };
 use infiltrator_domain::yaml_edit::{SourceDoc, YamlEditError};
+use infiltrator_ports::active_profile_reference_store::{
+    ActiveProfileReferenceLease, ActiveProfileReferenceStore,
+};
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::endpoint::EndpointSource;
+use infiltrator_ports::profile_store::ProfileStore;
+use infiltrator_ports::profile_workspace::{
+    ProfileWorkspace, ProfileWorkspacePurpose, ProfileWorkspaceUpdate,
+};
 use infiltrator_ports::secure_store::SecureStore;
 use mihomo_api::client::MihomoClient;
 use mihomo_api::error::MihomoError;
 use mihomo_config::manager::ConfigManager;
-use std::ffi::OsStr;
 use std::io::ErrorKind;
 use std::path::Path;
-use std::process::id;
+use std::result;
 use std::sync::Arc;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use std::{io, result};
+use std::time::Duration;
 use tokio::fs;
-use tokio::io::AsyncWriteExt;
 use yaml_rust2::{Yaml, YamlLoader};
 
 const DEFAULT_RESTART_TIMEOUT: Duration = Duration::from_secs(15);
 
-/// Tunables for [`apply_current_profile`].
+/// Tunables for revision-bound profile apply transactions.
 #[derive(Clone, Copy, Debug)]
 pub struct ApplyParams {
     pub strategy: ApplyStrategy,
@@ -118,6 +119,15 @@ pub enum ApplyError {
     Permission(String),
     #[error("source profile changed; inspect and confirm the current document again")]
     SourceChanged,
+    #[error(
+        "active profile reference changed from revision {expected_revision} to {observed_revision}"
+    )]
+    ActiveProfileReferenceChanged {
+        expected_revision: u64,
+        observed_revision: u64,
+    },
+    #[error("Core is {status:?}; profile apply requires a running Core")]
+    NotRunning { status: CoreLifecycle },
     #[error("core is {status:?}; wait for the transition to finish before applying")]
     Busy { status: CoreLifecycle },
     #[error("apply failed, previous config restored and core recovered: {cause}")]
@@ -126,6 +136,71 @@ pub enum ApplyError {
     RollbackFailed { cause: String, rollback: String },
     #[error("core lifecycle failed: {0}")]
     Lifecycle(String),
+}
+
+/// Preserve transaction semantics when a host adapter translates an apply
+/// error into the runtime-neutral port error type.
+pub fn failure_from_apply_error(error: ApplyError) -> Failure {
+    let message = error.to_string();
+    let (code, retryable, reason) = match error {
+        ApplyError::Validation(_) => (
+            ErrorCode::Configuration,
+            false,
+            FailureReason::CoreApplyFailure(CoreApplyFailureKind::Validation),
+        ),
+        ApplyError::Write(_) => (
+            ErrorCode::Storage,
+            false,
+            FailureReason::CoreApplyFailure(CoreApplyFailureKind::Write),
+        ),
+        ApplyError::Permission(_) => (
+            ErrorCode::Permission,
+            false,
+            FailureReason::CoreApplyFailure(CoreApplyFailureKind::Permission),
+        ),
+        ApplyError::SourceChanged => (
+            ErrorCode::NotReady,
+            true,
+            FailureReason::CoreApplyFailure(CoreApplyFailureKind::SourceChanged),
+        ),
+        ApplyError::ActiveProfileReferenceChanged {
+            expected_revision,
+            observed_revision,
+        } => {
+            return Failure::new(ErrorCode::NotReady, message, true).with_reason(
+                FailureReason::ActiveProfileReferenceStale {
+                    expected_revision,
+                    observed_revision,
+                },
+            );
+        }
+        ApplyError::NotRunning { .. } => (
+            ErrorCode::NotReady,
+            true,
+            FailureReason::CoreApplyFailure(CoreApplyFailureKind::InactiveCore),
+        ),
+        ApplyError::Busy { .. } => (
+            ErrorCode::InvalidState,
+            true,
+            FailureReason::CoreApplyFailure(CoreApplyFailureKind::Busy),
+        ),
+        ApplyError::RolledBack { .. } => (
+            ErrorCode::InvalidState,
+            false,
+            FailureReason::CoreApplyFailure(CoreApplyFailureKind::RolledBack),
+        ),
+        ApplyError::RollbackFailed { .. } => (
+            ErrorCode::InvalidState,
+            false,
+            FailureReason::CoreApplyFailure(CoreApplyFailureKind::RollbackFailed),
+        ),
+        ApplyError::Lifecycle(_) => (
+            ErrorCode::InvalidState,
+            false,
+            FailureReason::CoreApplyFailure(CoreApplyFailureKind::Lifecycle),
+        ),
+    };
+    Failure::new(code, message, retryable).with_reason(reason)
 }
 
 pub type ApplyResult<T> = result::Result<T, ApplyError>;
@@ -206,40 +281,6 @@ pub(crate) fn validate_config(content: &str) -> Result<(), String> {
     }
 }
 
-/// Write via a temp file in the same directory plus rename: interrupted
-/// writes and crashes leave the previous config intact.
-async fn atomic_write(path: &Path, content: &str) -> io::Result<()> {
-    let dir = path
-        .parent()
-        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "config path has no parent"))?;
-    let file_name = path
-        .file_name()
-        .and_then(OsStr::to_str)
-        .unwrap_or("config.yaml");
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.subsec_nanos())
-        .unwrap_or(0);
-    let tmp = dir.join(format!(".{file_name}.tmp-{}-{nanos}", id()));
-
-    let write = async {
-        let mut file = fs::File::create(&tmp).await?;
-        file.write_all(content.as_bytes()).await?;
-        file.sync_all().await?;
-        Ok::<_, io::Error>(())
-    }
-    .await;
-    if let Err(err) = write {
-        let _ = fs::remove_file(&tmp).await;
-        return Err(err);
-    }
-    if let Err(err) = fs::rename(&tmp, path).await {
-        let _ = fs::remove_file(&tmp).await;
-        return Err(err);
-    }
-    Ok(())
-}
-
 /// Hot-reload path: keep the process, reload, then prove the controller is
 /// still healthy. Returns `Err(cause)` when either step fails; the caller
 /// falls back to the restart path without rolling back yet.
@@ -303,129 +344,79 @@ pub(crate) async fn restart_and_check<C: CoreLifecyclePort + ?Sized>(
     })
 }
 
-pub(crate) async fn start_and_check<C: CoreLifecyclePort + ?Sized>(
-    session: &C,
-    params: &ApplyParams,
-) -> Result<ApplyOutcome, ApplyError> {
-    let generation = session
-        .start()
-        .await
-        .map_err(|error| ApplyError::Lifecycle(error.to_string()))?;
-    let session_token = session.session_token().ok_or_else(|| {
-        ApplyError::Lifecycle("core session token is unavailable after start".to_string())
-    })?;
-    session
-        .wait_for_ready_session(generation, session_token, params.restart_timeout)
-        .await
-        .map_err(|error| ApplyError::Lifecycle(error.to_string()))?;
-    Ok(ApplyOutcome {
-        method: ApplyMethod::Restart,
-        generation,
-        session_token,
-    })
-}
-
-/// Apply `new_content` as the current profile through the full transaction.
-///
-/// Status handling:
-/// - `Starting`/`Stopping`: rejected as [`ApplyError::Busy`]; retry after the
-///   transition settles. This keeps concurrent applies from interleaving.
-/// - `Ready`/`Running`: reload or restart per [`ApplyStrategy`].
-/// - `Stopped`/`Failed`: content is written and the core is started with it.
-///
-/// On failure with a previous file on disk: the previous content is restored
-/// atomically; if the core was running it is restarted on the restored
-/// config before [`ApplyError::RolledBack`] is returned. If the core was not
-/// running, restoring the file is enough — the session keeps its `Failed`
-/// state and the next explicit start picks up the restored config.
-pub async fn apply_current_profile<S: SecureStore>(
+/// Apply the exact profile named by a committed product-wide active-profile
+/// reference. The selection lease stays alive through write, apply, and any
+/// rollback so a concurrent profile switch cannot redirect this transaction.
+pub async fn apply_active_profile_reference<S: SecureStore>(
     session: &impl CoreLifecyclePort,
     config: &ConfigManager<S>,
     reloader: &dyn ConfigReloader,
-    new_content: &str,
+    expected: &ActiveProfileReference,
     params: ApplyParams,
 ) -> ApplyResult<ApplyOutcome> {
-    apply_profile_transaction(session, config, reloader, new_content, params, None).await
+    let lease = acquire_exact_selection_lease(config, expected).await?;
+    apply_profile_transaction(session, config, reloader, expected, lease, params).await
 }
 
-/// Apply only the profile and exact bytes that the user inspected and confirmed.
-pub async fn apply_confirmed_profile<S: SecureStore>(
-    session: &impl CoreLifecyclePort,
+async fn acquire_exact_selection_lease<S: SecureStore>(
     config: &ConfigManager<S>,
-    reloader: &dyn ConfigReloader,
-    new_content: &str,
-    params: ApplyParams,
-    expected: &RuleSourceIdentity,
-) -> ApplyResult<ApplyOutcome> {
-    apply_profile_transaction(
-        session,
-        config,
-        reloader,
-        new_content,
-        params,
-        Some(expected),
-    )
-    .await
+    expected: &ActiveProfileReference,
+) -> ApplyResult<Box<dyn ActiveProfileReferenceLease>> {
+    if expected.engine_id != config.engine_id() {
+        return Err(ApplyError::SourceChanged);
+    }
+    let lease = ActiveProfileReferenceStore::acquire_selection_lease(config)
+        .await
+        .map_err(|error| ApplyError::Write(error.to_string()))?;
+    if lease.state() != &ActiveProfileReferenceState::Selected(expected.clone()) {
+        return Err(ApplyError::ActiveProfileReferenceChanged {
+            expected_revision: expected.revision.value(),
+            observed_revision: lease.state().revision().value(),
+        });
+    }
+    Ok(lease)
 }
 
 async fn apply_profile_transaction<S: SecureStore>(
     session: &impl CoreLifecyclePort,
     config: &ConfigManager<S>,
     reloader: &dyn ConfigReloader,
-    new_content: &str,
+    expected: &ActiveProfileReference,
+    _selection_lease: Box<dyn ActiveProfileReferenceLease>,
     params: ApplyParams,
-    expected: Option<&RuleSourceIdentity>,
 ) -> ApplyResult<ApplyOutcome> {
-    validate_config(new_content).map_err(ApplyError::Validation)?;
     config
         .initialize_profile_namespace()
         .await
         .map_err(config_apply_error)?;
 
     let status = session.lifecycle();
-    if matches!(status, CoreLifecycle::Starting | CoreLifecycle::Stopping) {
-        return Err(ApplyError::Busy { status });
-    }
-    let was_running = matches!(status, CoreLifecycle::Ready | CoreLifecycle::Running);
-
-    let write_guard = config.lock_profile_writes().await;
-    let current = config.get_current().await.map_err(config_apply_error)?;
-    let observed = config.load(&current).await.map_err(config_apply_error)?;
-    if expected
-        .is_some_and(|expected| *expected != identify_rules_document(current.clone(), &observed))
-    {
-        return Err(ApplyError::SourceChanged);
-    }
-    let old_content = if expected.is_some() {
-        Some(observed)
-    } else {
-        match config.load_backup(&current).await {
-            Ok(Some(backup)) => Some(backup),
-            Ok(None) | Err(_) => Some(observed),
+    match status {
+        CoreLifecycle::Ready | CoreLifecycle::Running => {}
+        CoreLifecycle::Starting | CoreLifecycle::Stopping => {
+            return Err(ApplyError::Busy { status });
         }
-    };
-    // Pin the validated path to this profile; a second current-profile lookup
-    // must never redirect already validated rule bytes into another profile.
+        CoreLifecycle::Stopped | CoreLifecycle::Failed => {
+            return Err(ApplyError::NotRunning { status });
+        }
+    }
+
+    let write_guard = config
+        .lock_profile_writes()
+        .await
+        .map_err(config_apply_error)?;
+    let current = expected.profile_id.as_str().to_owned();
     let path = config
         .existing_profile_yaml_path(&current)
         .await
         .map_err(config_apply_error)?;
-    if expected.is_some() && config.get_current().await.map_err(config_apply_error)? != current {
-        return Err(ApplyError::SourceChanged);
-    }
-
-    atomic_write(&path, new_content).await.map_err(|error| {
-        if error.kind() == ErrorKind::PermissionDenied {
-            ApplyError::Permission(format!("{}: {error}", path.display()))
-        } else {
-            ApplyError::Write(format!("{}: {error}", path.display()))
-        }
-    })?;
+    let observed = fs::read_to_string(&path)
+        .await
+        .map_err(|error| config_apply_error(error.into()))?;
+    validate_config(&observed).map_err(ApplyError::Validation)?;
     drop(write_guard);
 
-    let outcome: Result<ApplyOutcome, String> = if !was_running {
-        start_and_check(session, &params).await
-    } else if params.strategy == ApplyStrategy::PreferReload {
+    let outcome: Result<ApplyOutcome, String> = if params.strategy == ApplyStrategy::PreferReload {
         match reload_and_check(session, reloader, &path, &params).await {
             Ok(outcome) => Ok(outcome),
             Err(cause) => {
@@ -446,7 +437,7 @@ async fn apply_profile_transaction<S: SecureStore>(
             if params.snapshot_history
                 && let Some(config_dir) = path.parent()
             {
-                match save_snapshot(&config.engine_id(), config_dir, &current, new_content).await {
+                match save_snapshot(&config.engine_id(), config_dir, &current, &observed).await {
                     Ok(meta) => {
                         log::info!("config snapshot stored: {}", meta.path.display());
                         if let Err(err) =
@@ -470,58 +461,24 @@ async fn apply_profile_transaction<S: SecureStore>(
         Err(failure) => failure,
     };
 
-    // Rollback: restore the previous file; bring the core back if it had
-    // been serving before this transaction.
-    if let Some(old) = old_content {
-        let _write_guard = config.lock_profile_writes().await;
-        match fs::read_to_string(&path).await {
-            Ok(observed) if observed == new_content => {}
-            observed => {
-                let rollback = match observed {
-                    Ok(_) => {
-                        "profile changed after publication; refusing to overwrite it".to_string()
-                    }
-                    Err(error) => format!("cannot confirm profile before rollback: {error}"),
-                };
-                config.record_apply_transaction(ApplyTransactionSnapshot::rollback_failed(
-                    &current, &cause, &rollback,
-                ));
-                return Err(ApplyError::RollbackFailed { cause, rollback });
-            }
+    // `status` was checked before the candidate was written. A failed
+    // candidate restart may leave the lifecycle in `Failed`, but rollback
+    // still has to restart the restored bytes to recover the previously
+    // active session. Do not infer whether recovery is needed from this
+    // post-failure state.
+    match restart_and_check(session, &params).await {
+        Ok(_) => {
+            config
+                .record_apply_transaction(ApplyTransactionSnapshot::rolled_back(&current, &cause));
+            Err(ApplyError::RolledBack { cause })
         }
-        if let Err(err) = atomic_write(&path, &old).await {
-            let rollback = format!("restoring {}: {err}", path.display());
+        Err(err) => {
+            let rollback = err.to_string();
             config.record_apply_transaction(ApplyTransactionSnapshot::rollback_failed(
                 &current, &cause, &rollback,
             ));
-            return Err(ApplyError::RollbackFailed { cause, rollback });
+            Err(ApplyError::RollbackFailed { cause, rollback })
         }
-    } else {
-        log::warn!(
-            "no previous content for {}; rollback only marks the failure",
-            path.display()
-        );
-    }
-
-    if was_running {
-        match restart_and_check(session, &params).await {
-            Ok(_) => {
-                config.record_apply_transaction(ApplyTransactionSnapshot::rolled_back(
-                    &current, &cause,
-                ));
-                Err(ApplyError::RolledBack { cause })
-            }
-            Err(err) => {
-                let rollback = err.to_string();
-                config.record_apply_transaction(ApplyTransactionSnapshot::rollback_failed(
-                    &current, &cause, &rollback,
-                ));
-                Err(ApplyError::RollbackFailed { cause, rollback })
-            }
-        }
-    } else {
-        config.record_apply_transaction(ApplyTransactionSnapshot::rolled_back(&current, &cause));
-        Err(ApplyError::RolledBack { cause })
     }
 }
 
@@ -536,121 +493,176 @@ fn config_apply_error(error: MihomoError) -> ApplyError {
 
 // ---- SourceDoc Fidelity Track Integration ----------------------------------
 
-/// Apply a [`SourceDoc`] as the current profile through the full CORE-004 transaction.
-pub async fn apply_current_profile_doc<S: SecureStore>(
+/// Apply a text-level [`SourceDoc`] edit to one exact active profile. The
+/// coherent workspace identity is captured before running the pure edit and is
+/// passed to the same fenced transaction that publishes, applies, and recovers
+/// the complete workspace.
+pub async fn apply_active_profile_edit<S: SecureStore, F>(
     session: &impl CoreLifecyclePort,
     config: &ConfigManager<S>,
     reloader: &dyn ConfigReloader,
-    doc: &SourceDoc,
-    params: ApplyParams,
-) -> ApplyResult<ApplyOutcome> {
-    let content = doc.render();
-    apply_current_profile(session, config, reloader, &content, params).await
-}
-
-/// Apply a text-level [`SourceDoc`] edit closure to the current profile.
-///
-/// Loads the current profile text from `config`, parses it into a [`SourceDoc`],
-/// invokes `edit_fn(&mut doc)`, renders the spliced document, and applies it
-/// through the CORE-004 transaction. Untouched comments, anchors, formatting,
-/// and line endings remain 100% preserved.
-pub async fn apply_profile_edit<S: SecureStore, F>(
-    session: &impl CoreLifecyclePort,
-    config: &ConfigManager<S>,
-    reloader: &dyn ConfigReloader,
+    expected: &ActiveProfileReference,
+    authorization: ActiveProfileReferenceWriteAuthorization,
     edit_fn: F,
     params: ApplyParams,
 ) -> ApplyResult<ApplyOutcome>
 where
     F: FnOnce(&mut SourceDoc) -> Result<(), YamlEditError>,
 {
-    let current = config
-        .get_current()
-        .await
-        .map_err(|err| ApplyError::Write(err.to_string()))?;
-    let content = match config.load(&current).await {
-        Ok(c) => c,
-        Err(err) => return Err(ApplyError::Write(err.to_string())),
-    };
-    let mut doc = SourceDoc::parse(&content).map_err(|err| {
-        ApplyError::Validation(format!("failed to parse profile for editing: {err}"))
+    let workspace = load_expected_workspace(config, expected).await?;
+    let content = workspace
+        .document
+        .utf8_text()
+        .map_err(|error| ApplyError::Validation(error.to_string()))?;
+    let mut doc = SourceDoc::parse(content).map_err(|error| {
+        ApplyError::Validation(format!("failed to parse profile for editing: {error}"))
     })?;
-    edit_fn(&mut doc).map_err(|err| ApplyError::Validation(format!("YAML edit failed: {err}")))?;
-    let new_content = doc.render();
-    apply_current_profile(session, config, reloader, &new_content, params).await
+    edit_fn(&mut doc)
+        .map_err(|error| ApplyError::Validation(format!("YAML edit failed: {error}")))?;
+    apply_workspace_document(
+        session,
+        config,
+        reloader,
+        expected,
+        &workspace,
+        doc.render(),
+        authorization,
+        params,
+    )
+    .await
 }
 
-/// Update a top-level scalar configuration key (`mode`, `log-level`, `mixed-port`, etc.)
-/// in the current profile while preserving 100% of existing comments, anchors, and formatting.
-pub async fn apply_profile_set_scalar<S: SecureStore>(
+async fn load_expected_workspace<S: SecureStore>(
+    config: &ConfigManager<S>,
+    expected: &ActiveProfileReference,
+) -> ApplyResult<ProfileWorkspace> {
+    if expected.engine_id != config.engine_id() {
+        return Err(ApplyError::SourceChanged);
+    }
+    let workspace = ProfileStore::load_workspace(config, &expected.profile_id)
+        .await
+        .map_err(|error| ApplyError::Write(error.to_string()))?;
+    if workspace.document.identity.engine_id != expected.engine_id
+        || workspace.document.identity.profile_id != expected.profile_id
+    {
+        return Err(ApplyError::SourceChanged);
+    }
+    Ok(workspace)
+}
+
+async fn apply_workspace_document<S: SecureStore>(
     session: &impl CoreLifecyclePort,
     config: &ConfigManager<S>,
     reloader: &dyn ConfigReloader,
+    expected: &ActiveProfileReference,
+    previous: &ProfileWorkspace,
+    document: String,
+    authorization: ActiveProfileReferenceWriteAuthorization,
+    params: ApplyParams,
+) -> ApplyResult<ApplyOutcome> {
+    let expected_workspace = previous.identity();
+    let update = ProfileWorkspaceUpdate {
+        purpose: ProfileWorkspacePurpose::Derived,
+        document_bytes: document.into_bytes(),
+        sidecar_bytes: previous.sidecar_bytes.clone(),
+    };
+    crate::apply_workspace::apply_active_profile_workspace_with_receipt(
+        session,
+        config,
+        reloader,
+        expected,
+        &expected_workspace,
+        &update,
+        authorization,
+        params,
+    )
+    .await
+    .map(|receipt| receipt.apply)
+}
+
+/// Update a top-level scalar key while preserving comments, anchors, and layout.
+pub async fn apply_active_profile_set_scalar<S: SecureStore>(
+    session: &impl CoreLifecyclePort,
+    config: &ConfigManager<S>,
+    reloader: &dyn ConfigReloader,
+    expected: &ActiveProfileReference,
+    authorization: ActiveProfileReferenceWriteAuthorization,
     key: &str,
     value: &str,
     params: ApplyParams,
 ) -> ApplyResult<ApplyOutcome> {
-    apply_profile_edit(
+    apply_active_profile_edit(
         session,
         config,
         reloader,
+        expected,
+        authorization,
         |doc| doc.set_top_scalar(key, value),
         params,
     )
     .await
 }
 
-/// Append a rule to the `rules` section of the current profile while preserving
-/// 100% of existing comments, anchors, and formatting.
-pub async fn apply_profile_append_rule<S: SecureStore>(
+/// Append a rule while preserving comments, anchors, and layout.
+pub async fn apply_active_profile_append_rule<S: SecureStore>(
     session: &impl CoreLifecyclePort,
     config: &ConfigManager<S>,
     reloader: &dyn ConfigReloader,
+    expected: &ActiveProfileReference,
+    authorization: ActiveProfileReferenceWriteAuthorization,
     rule: &str,
     params: ApplyParams,
 ) -> ApplyResult<ApplyOutcome> {
-    apply_profile_edit(
+    apply_active_profile_edit(
         session,
         config,
         reloader,
+        expected,
+        authorization,
         |doc| doc.append_rule(rule),
         params,
     )
     .await
 }
 
-/// Remove a rule from the `rules` section of the current profile while preserving
-/// 100% of existing comments, anchors, and formatting.
-pub async fn apply_profile_remove_rule<S: SecureStore>(
+/// Remove a rule while preserving comments, anchors, and layout.
+pub async fn apply_active_profile_remove_rule<S: SecureStore>(
     session: &impl CoreLifecyclePort,
     config: &ConfigManager<S>,
     reloader: &dyn ConfigReloader,
+    expected: &ActiveProfileReference,
+    authorization: ActiveProfileReferenceWriteAuthorization,
     rule: &str,
     params: ApplyParams,
 ) -> ApplyResult<ApplyOutcome> {
-    apply_profile_edit(
+    apply_active_profile_edit(
         session,
         config,
         reloader,
+        expected,
+        authorization,
         |doc| doc.remove_rule(rule),
         params,
     )
     .await
 }
 
-/// Rewrite anchor namespaces in the current profile while preserving 100% of
-/// existing comments and formatting.
-pub async fn apply_profile_rewrite_anchors<S: SecureStore>(
+/// Rewrite anchor namespaces while preserving comments and layout.
+pub async fn apply_active_profile_rewrite_anchors<S: SecureStore>(
     session: &impl CoreLifecyclePort,
     config: &ConfigManager<S>,
     reloader: &dyn ConfigReloader,
+    expected: &ActiveProfileReference,
+    authorization: ActiveProfileReferenceWriteAuthorization,
     prefix: &str,
     params: ApplyParams,
 ) -> ApplyResult<ApplyOutcome> {
-    apply_profile_edit(
+    apply_active_profile_edit(
         session,
         config,
         reloader,
+        expected,
+        authorization,
         |doc| {
             doc.rewrite_anchor_namespace(prefix)?;
             Ok(())
@@ -660,37 +672,41 @@ pub async fn apply_profile_rewrite_anchors<S: SecureStore>(
     .await
 }
 
-/// Try applying a [`infiltrator_domain::mixin::MixinConfig`] to the current profile using
-/// the [`SourceDoc`] fidelity path (preserving 100% of comments and anchors).
-/// If the mixin contains complex structural edits that require AST merge,
-/// falls back to full merge.
-pub async fn apply_profile_mixin_fidelity<S: SecureStore>(
+/// Apply a mixin through the fidelity path, with a structural merge fallback.
+pub async fn apply_active_profile_mixin_fidelity<S: SecureStore>(
     session: &impl CoreLifecyclePort,
     config: &ConfigManager<S>,
     reloader: &dyn ConfigReloader,
+    expected: &ActiveProfileReference,
+    authorization: ActiveProfileReferenceWriteAuthorization,
     mixin: &MixinConfig,
     params: ApplyParams,
 ) -> ApplyResult<ApplyOutcome> {
-    let current = config
-        .get_current()
-        .await
-        .map_err(|err| ApplyError::Write(err.to_string()))?;
-    let content = match config.load(&current).await {
-        Ok(c) => c,
-        Err(err) => return Err(ApplyError::Write(err.to_string())),
-    };
-
-    if can_apply_mixin_via_fidelity(mixin)
-        && let Ok(mut doc) = SourceDoc::parse(&content)
+    let workspace = load_expected_workspace(config, expected).await?;
+    let content = workspace
+        .document
+        .utf8_text()
+        .map_err(|error| ApplyError::Validation(error.to_string()))?;
+    let new_content = if can_apply_mixin_via_fidelity(mixin)
+        && let Ok(mut doc) = SourceDoc::parse(content)
         && apply_mixin_to_doc(&mut doc, mixin).is_ok()
     {
-        let new_content = doc.render();
-        return apply_current_profile(session, config, reloader, &new_content, params).await;
-    }
-
-    let new_content = merge_profile_with_config(&content, mixin)
-        .map_err(|err| ApplyError::Validation(format!("mixin merge failed: {err}")))?;
-    apply_current_profile(session, config, reloader, &new_content, params).await
+        doc.render()
+    } else {
+        merge_profile_with_config(content, mixin)
+            .map_err(|error| ApplyError::Validation(format!("mixin merge failed: {error}")))?
+    };
+    apply_workspace_document(
+        session,
+        config,
+        reloader,
+        expected,
+        &workspace,
+        new_content,
+        authorization,
+        params,
+    )
+    .await
 }
 
 // The apply transaction publishes a process-wide typed outcome, so its tests

@@ -1,6 +1,16 @@
 //! test-intent: behavior
 use super::*;
+use infiltrator_domain::rules::source_identity::identify_rules_document;
 use tokio::time::timeout;
+
+async fn start_ready(fixture: &Fixture) {
+    let generation = fixture.session.start().await.unwrap();
+    fixture
+        .session
+        .wait_for_ready(generation, Duration::from_secs(5))
+        .await
+        .unwrap();
+}
 
 struct ConcurrentEdit<'a> {
     config: &'a ConfigManager<MockStore>,
@@ -8,10 +18,12 @@ struct ConcurrentEdit<'a> {
 #[async_trait]
 impl ConfigReloader for ConcurrentEdit<'_> {
     async fn reload(&self, _: &Path) -> Result<(), String> {
-        self.config
-            .save("main", "port: 7893\n# newer edit\n")
-            .await
-            .map_err(|error| error.to_string())?;
+        write_profile_file_outside_store_for_test(
+            self.config,
+            "main",
+            "port: 7893\n# newer edit\n",
+        )
+        .await;
         Err("reload rejected after concurrent edit".into())
     }
 }
@@ -29,7 +41,7 @@ async fn failed_apply_releases_persistence_boundary_and_never_rolls_back_over_a_
     let reloader = ConcurrentEdit { config: &f.config };
     let failure = timeout(
         Duration::from_secs(2),
-        apply_confirmed_profile(
+        apply_confirmed_to_selected_reference(
             &f.session,
             &f.config,
             &reloader,
@@ -44,7 +56,7 @@ async fn failed_apply_releases_persistence_boundary_and_never_rolls_back_over_a_
     match failure {
         ApplyError::RollbackFailed { cause, rollback } => {
             assert!(cause.contains("start rejected"));
-            assert!(rollback.contains("profile changed after publication"));
+            assert!(rollback.contains("source profile changed"));
         }
         other => panic!("newer edit must not be silently restored away: {other:?}"),
     }
@@ -62,9 +74,11 @@ async fn failed_apply_releases_persistence_boundary_and_never_rolls_back_over_a_
 async fn independent_runtime_managers_never_borrow_another_products_apply_receipt() {
     let first = fixture(0, false).await;
     let second = fixture(0, false).await;
+    start_ready(&first).await;
+    start_ready(&second).await;
     assert!(first.config.apply_transaction("main").is_none());
     assert!(second.config.apply_transaction("main").is_none());
-    apply_current_profile(
+    apply_to_selected_reference(
         &first.session,
         &first.config,
         &first.reloader,
@@ -85,7 +99,7 @@ async fn independent_runtime_managers_never_borrow_another_products_apply_receip
         first.config.apply_transaction("other").is_none(),
         "unrelated profiles have separate observations"
     );
-    apply_current_profile(
+    apply_to_selected_reference(
         &second.session,
         &second.config,
         &second.reloader,

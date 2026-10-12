@@ -3,6 +3,9 @@
 
 use super::*;
 use async_trait::async_trait;
+use infiltrator_contract::active_profile_reference::{
+    ActiveProfileReference, ActiveProfileReferenceRevision, ActiveProfileReferenceState,
+};
 use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::profile_document_identity::{
     ProfileDocument, ProfileDocumentIdentity, ProfileDocumentRevision,
@@ -220,14 +223,20 @@ impl ProfileStore for NamespaceStore {
             .ok_or_else(|| PortError::NotFound("active profile".into()))
     }
 
-    async fn set_current(&self, profile: &str) -> Result<(), PortError> {
-        let profile = ProfileId::new(profile).map_err(|error| PortError::Io(error.to_string()))?;
-        let mut database = self.database.lock().expect("namespace database");
-        if !database.profiles.contains_key(&self.key(&profile)) {
-            return Err(PortError::NotFound(profile.as_str().to_owned()));
-        }
-        database.active.insert(self.engine.clone(), profile);
-        Ok(())
+    async fn read_active_profile_reference(
+        &self,
+    ) -> Result<ActiveProfileReferenceState, PortError> {
+        let database = self.database.lock().expect("namespace database");
+        Ok(match database.active.get(&self.engine) {
+            Some(profile) => ActiveProfileReferenceState::Selected(ActiveProfileReference::new(
+                self.engine.clone(),
+                profile.clone(),
+                ActiveProfileReferenceRevision::new(1),
+            )),
+            None => ActiveProfileReferenceState::Unselected {
+                revision: ActiveProfileReferenceRevision::default(),
+            },
+        })
     }
 
     async fn load(&self, profile: &str) -> Result<String, PortError> {
@@ -240,7 +249,7 @@ impl ProfileStore for NamespaceStore {
         String::from_utf8(stored.document.clone()).map_err(|error| PortError::Io(error.to_string()))
     }
 
-    async fn save(&self, profile: &str, content: &str) -> Result<(), PortError> {
+    async fn save_inactive_profile(&self, profile: &str, content: &str) -> Result<(), PortError> {
         let profile = ProfileId::new(profile).map_err(|error| PortError::Io(error.to_string()))?;
         let mut database = self.database.lock().expect("namespace database");
         let stored = database
@@ -309,7 +318,7 @@ impl ProfileStore for NamespaceStore {
         Ok(workspace(&self.engine, profile, stored))
     }
 
-    async fn compare_and_save_workspace(
+    async fn compare_and_save_inactive_workspace(
         &self,
         expected: &ProfileWorkspaceIdentity,
         update: &ProfileWorkspaceUpdate,
@@ -353,7 +362,7 @@ impl ProfileStore for NamespaceStore {
             .ok_or_else(|| PortError::NotFound(profile.as_str().to_owned()))
     }
 
-    async fn restore_backup(&self, profile: &str) -> Result<bool, PortError> {
+    async fn restore_inactive_profile_backup(&self, profile: &str) -> Result<bool, PortError> {
         let profile = ProfileId::new(profile).map_err(|error| PortError::Io(error.to_string()))?;
         let mut database = self.database.lock().expect("namespace database");
         let stored = database
@@ -416,8 +425,14 @@ async fn same_profile_id_keeps_documents_options_active_metadata_credentials_and
     let mihomo_app = ProfileApplication::new(Arc::new(mihomo.clone()));
     let sing_box_app = ProfileApplication::new(Arc::new(sing_box.clone()));
     let main_id = ProfileId::new("main").unwrap();
-    let mihomo_workspace = mihomo_app.load_workspace("main").await.unwrap();
-    let sing_box_workspace = sing_box_app.load_workspace("main").await.unwrap();
+    let mihomo_workspace = mihomo_app
+        .load_workspace(&profile_id("main"))
+        .await
+        .unwrap();
+    let sing_box_workspace = sing_box_app
+        .load_workspace(&profile_id("main"))
+        .await
+        .unwrap();
 
     assert_eq!(mihomo_workspace.document.identity.engine_id, mihomo.engine);
     assert_eq!(
@@ -473,12 +488,33 @@ async fn same_profile_id_keeps_documents_options_active_metadata_credentials_and
         CredentialState::Present(value) if value == "sing-box-secret"
     ));
 
-    assert!(mihomo_app.restore_backup("main").await.unwrap());
+    assert_eq!(
+        mihomo_app
+            .restore_inactive_profile_backup("main")
+            .await
+            .unwrap_err()
+            .code,
+        ErrorCode::InvalidState
+    );
+    assert!(
+        mihomo_app
+            .restore_inactive_profile_backup("alternate")
+            .await
+            .unwrap()
+    );
+    assert_eq!(
+        mihomo.load("alternate").await.unwrap(),
+        "# old mihomo alternate\n"
+    );
+    assert!(matches!(mihomo.backup("alternate"), BackupState::Absent));
+    assert!(matches!(
+        mihomo.backup("main"),
+        BackupState::Present(bytes) if bytes == b"# old mihomo\r\nmode: direct\r\n"
+    ));
     assert_eq!(
         mihomo.load("main").await.unwrap(),
-        "# old mihomo\r\nmode: direct\r\n"
+        "# mihomo\r\nmode: rule\r\n"
     );
-    assert!(matches!(mihomo.backup("main"), BackupState::Absent));
     assert!(matches!(
         sing_box.backup("main"),
         BackupState::Present(bytes) if bytes == b"{\"log\": {\"level\": \"warn\"}}"
@@ -487,7 +523,12 @@ async fn same_profile_id_keeps_documents_options_active_metadata_credentials_and
         sing_box.load("main").await.unwrap(),
         "{\r\n  \"log\": {\"level\": \"info\"}\r\n}"
     );
-    assert!(sing_box_app.restore_backup("main").await.unwrap());
+    assert!(
+        sing_box_app
+            .restore_inactive_profile_backup("main")
+            .await
+            .unwrap()
+    );
     assert_eq!(
         sing_box.load("main").await.unwrap(),
         "{\"log\": {\"level\": \"warn\"}}"

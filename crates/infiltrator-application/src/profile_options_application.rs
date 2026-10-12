@@ -5,13 +5,13 @@
 //! workspace, delegates the pure transform to that scoped adapter, then
 //! commits the returned opaque document and sidecar bytes through the shared
 //! compare-and-save transaction.
-use crate::profile_application::{ProfileApplication, valid_name};
+use crate::profile_application::{ProfileApplication, ProfileRuntimeAccess, valid_name};
 use crate::profile_document_application::document_snapshot;
 use crate::profile_editor_observations::EditorFacet;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document::ProfileWorkspaceReceipt;
 use infiltrator_contract::profile_document_identity::{
-    ProfileDocumentIdentity, ProfileWorkspaceIdentity,
+    ProfileDocumentIdentity, ProfileId, ProfileWorkspaceIdentity,
 };
 use infiltrator_contract::profile_options::ProfileOptionsSnapshot;
 use infiltrator_contract::subscription_filter_result::SubscriptionFilterApplied;
@@ -22,7 +22,6 @@ use infiltrator_ports::profile_workspace::{
     ProfileWorkspace, ProfileWorkspacePurpose, ProfileWorkspaceUpdate,
 };
 use infiltrator_ports::runtime_gateway::ManagedRuntime;
-use std::sync::Arc;
 
 /// Resolve the sidecar profile: an explicit name, or the active profile.
 async fn resolve_profile(
@@ -97,11 +96,13 @@ impl ProfileOptionsApplication {
     /// `profile = None` selects the active profile.
     pub async fn load(&self, profile: Option<&str>) -> Result<ProfileOptionsSnapshot, Failure> {
         let name = resolve_profile(&self.profiles, profile).await?;
+        let profile_id = ProfileId::new(name.clone())
+            .map_err(|error| Failure::new(ErrorCode::InvalidInput, error.to_string(), false))?;
         let read = self.profiles.begin_editor_read(&name, EditorFacet::Options);
         self.profiles.mark_editor_loading(&read);
         let result = self
             .profiles
-            .load_workspace(&name)
+            .load_workspace(&profile_id)
             .await
             .and_then(|workspace| project_options(&self.profiles, workspace));
         let snapshot = match result {
@@ -124,7 +125,7 @@ impl ProfileOptionsApplication {
     /// Commit an edited Mixin overlay for `profile`.
     pub async fn save_mixin<R: ManagedRuntime + ?Sized>(
         &self,
-        runtime: Option<Arc<R>>,
+        runtime: ProfileRuntimeAccess<R>,
         expected: &ProfileWorkspaceIdentity,
         mixin_yaml: &str,
     ) -> Result<ProfileWorkspaceReceipt, Failure> {
@@ -139,7 +140,7 @@ impl ProfileOptionsApplication {
             .begin_editor_read(profile, EditorFacet::Document);
         let workspace = self
             .profiles
-            .load_workspace_id(&expected.document.profile_id)
+            .load_workspace(&expected.document.profile_id)
             .await?;
         if workspace.identity() != *expected {
             return Err(Failure::new(
@@ -184,7 +185,7 @@ impl ProfileOptionsApplication {
     /// commit its opaque document and sidecar mutation atomically.
     pub async fn save_filter<R: ManagedRuntime + ?Sized>(
         &self,
-        runtime: Option<Arc<R>>,
+        runtime: ProfileRuntimeAccess<R>,
         expected: &ProfileWorkspaceIdentity,
         draft: &SubscriptionFilterDraft,
     ) -> Result<SubscriptionFilterApplied, Failure> {
@@ -195,7 +196,7 @@ impl ProfileOptionsApplication {
             .begin_editor_read(expected.document.profile_id.as_str(), EditorFacet::Options);
         let workspace = self
             .profiles
-            .load_workspace_id(&expected.document.profile_id)
+            .load_workspace(&expected.document.profile_id)
             .await?;
         if workspace.identity() != *expected {
             return Err(Failure::new(

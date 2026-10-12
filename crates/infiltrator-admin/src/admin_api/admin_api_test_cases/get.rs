@@ -2,7 +2,9 @@
 //! test-intent: behavior
 
 use super::*;
+use crate::support::select_test_profile;
 use axum::body::to_bytes;
+use infiltrator_ports::profile_store::ProfileStore;
 use mihomo_config::manager::ConfigManager;
 use mihomo_platform::paths::{clear_home_dir_override, set_home_dir_override};
 
@@ -135,10 +137,10 @@ async fn test_get_dns_config_route() {
         DefaultCredentialStore::default(),
     )
     .unwrap();
-    manager
-        .save("default", "dns:\n  enable: true")
+    ProfileStore::save_inactive_profile(&manager, "default", "dns:\n  enable: true")
         .await
         .unwrap();
+    select_test_profile(&manager, "default").await;
 
     let app = setup_app();
     let response = app
@@ -164,10 +166,10 @@ async fn test_get_tun_config_route() {
         DefaultCredentialStore::default(),
     )
     .unwrap();
-    manager
-        .save("default", "tun:\n  enable: true")
+    ProfileStore::save_inactive_profile(&manager, "default", "tun:\n  enable: true")
         .await
         .unwrap();
+    select_test_profile(&manager, "default").await;
 
     let app = setup_app();
     let response = app
@@ -193,7 +195,10 @@ async fn test_get_rules_route() {
         DefaultCredentialStore::default(),
     )
     .unwrap();
-    manager.save("default", "rules:\n  - DIRECT").await.unwrap();
+    ProfileStore::save_inactive_profile(&manager, "default", "rules:\n  - DIRECT")
+        .await
+        .unwrap();
+    select_test_profile(&manager, "default").await;
 
     let app = setup_app();
     let response = app
@@ -219,13 +224,14 @@ async fn test_get_proxy_providers_route() {
         DefaultCredentialStore::default(),
     )
     .unwrap();
-    manager
-        .save(
-            "default",
-            "proxy-providers:\n  p1:\n    type: http\n    url: https://example.com/p1.yaml\n",
-        )
-        .await
-        .unwrap();
+    ProfileStore::save_inactive_profile(
+        &manager,
+        "default",
+        "proxy-providers:\n  p1:\n    type: http\n    url: https://example.com/p1.yaml\n",
+    )
+    .await
+    .unwrap();
+    select_test_profile(&manager, "default").await;
 
     let app = setup_app();
     let response = app
@@ -251,13 +257,14 @@ async fn test_get_sniffer_route() {
         DefaultCredentialStore::default(),
     )
     .unwrap();
-    manager
-        .save(
-            "default",
-            "sniffer:\n  enable: true\n  sniff:\n    TLS:\n      ports: [443]\n",
-        )
-        .await
-        .unwrap();
+    ProfileStore::save_inactive_profile(
+        &manager,
+        "default",
+        "sniffer:\n  enable: true\n  sniff:\n    TLS:\n      ports: [443]\n",
+    )
+    .await
+    .unwrap();
+    select_test_profile(&manager, "default").await;
 
     let app = setup_app();
     let response = app

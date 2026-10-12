@@ -12,7 +12,7 @@ use crate::admin_api::models::*;
 use crate::admin_api::state::{AdminApiContext, AdminApiState};
 use axum::{Json, extract};
 use infiltrator_domain::rules::{RuleProvidersPayload, RulesPayload};
-use infiltrator_domain::{dns, fake_ip, proxy_providers, tun};
+use infiltrator_domain::{dns, fake_ip, proxy_providers, sniffer, tun};
 
 pub async fn get_dns_config_http<C: AdminApiContext>(
     extract::State(state): extract::State<AdminApiState<C>>,
@@ -172,14 +172,14 @@ pub async fn get_sniffer_config_http<C: AdminApiContext>(
 
 pub async fn save_sniffer_config_http<C: AdminApiContext>(
     extract::State(state): extract::State<AdminApiState<C>>,
-    Json(payload): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, ApiError> {
+    Json(payload): Json<sniffer::SnifferConfig>,
+) -> Result<Json<sniffer::SnifferConfig>, ApiError> {
     let config = state
         .ctx
         .configuration_application()
         .await
         .map_err(|error| ApiError::internal(error.to_string()))?
-        .save_sniffer_config(payload)
+        .save_typed_sniffer_config(payload)
         .await
         .map_err(|failure| ApiError::bad_request(failure.message))?;
     schedule_rebuild(&state.ctx, &state.rebuild_status, "sniffer-update");

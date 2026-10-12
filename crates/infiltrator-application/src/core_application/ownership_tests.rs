@@ -126,6 +126,50 @@ struct TestActiveOwnerLease {
     drops: Arc<AtomicUsize>,
 }
 
+struct GatedOwnerLease {
+    identity: CoreIdentity,
+    generation: infiltrator_contract::core_identity::CoreGeneration,
+    attempts: Arc<AtomicUsize>,
+    entered: Arc<tokio::sync::Notify>,
+    allow_finish: Arc<tokio::sync::Notify>,
+}
+
+#[async_trait::async_trait]
+impl infiltrator_ports::active_profile_reference_store::ActiveProfileOwnerLease
+    for GatedOwnerLease
+{
+    fn identity(&self) -> &CoreIdentity {
+        &self.identity
+    }
+
+    fn generation(&self) -> infiltrator_contract::core_identity::CoreGeneration {
+        self.generation
+    }
+
+    async fn release_after_terminal(
+        &self,
+        terminal: &infiltrator_contract::snapshot::CoreLifecycleSnapshot,
+    ) -> Result<(), infiltrator_ports::error::PortError> {
+        if !terminal
+            .identity
+            .as_ref()
+            .is_some_and(|identity| self.identity.same_instance(identity))
+            || terminal.generation < self.generation.value()
+            || terminal.lifecycle != CoreLifecycle::Stopped
+            || terminal.session_token.is_some()
+        {
+            return Err(infiltrator_ports::error::PortError::Failed(
+                "owner lease was not released by a matching terminal snapshot".into(),
+            ));
+        }
+        self.attempts.fetch_add(1, Ordering::SeqCst);
+        self.entered.notify_one();
+        self.allow_finish.notified().await;
+        Ok(())
+    }
+}
+
+#[async_trait::async_trait]
 impl infiltrator_ports::active_profile_reference_store::ActiveProfileOwnerLease
     for TestActiveOwnerLease
 {
@@ -137,11 +181,14 @@ impl infiltrator_ports::active_profile_reference_store::ActiveProfileOwnerLease
         self.generation
     }
 
-    fn release_after_terminal(
+    async fn release_after_terminal(
         &self,
         terminal: &infiltrator_contract::snapshot::CoreLifecycleSnapshot,
     ) -> Result<(), infiltrator_ports::error::PortError> {
-        if terminal.identity.as_ref() != Some(&self.identity)
+        if !terminal
+            .identity
+            .as_ref()
+            .is_some_and(|identity| self.identity.same_instance(identity))
             || terminal.generation < self.generation.value()
             || terminal.lifecycle != infiltrator_contract::snapshot::CoreLifecycle::Stopped
             || terminal.session_token.is_some()
@@ -168,14 +215,42 @@ async fn active_profile_owner_binding_releases_only_after_stopped_readback() {
     );
     let identity = app.snapshot().identity.unwrap();
     app.install_active_profile_owner_binding(Box::new(TestActiveOwnerLease {
-        identity,
+        identity: identity.clone(),
         generation: infiltrator_contract::core_identity::CoreGeneration::new(0),
         drops: Arc::clone(&released),
     }))
     .unwrap();
+    assert_eq!(
+        app.active_profile_reference_write_authorization().unwrap(),
+        infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization::BoundOwner {
+            identity: identity.clone(),
+            generation: infiltrator_contract::core_identity::CoreGeneration::new(0),
+        }
+    );
+    assert!(matches!(
+        test_execute_result_at_current_scope(&app, CommandIntent::StartCore).await,
+        CommandResult::Completed { .. }
+    ));
+    assert!(app.generation() > 0);
+    assert_eq!(
+        app.snapshot()
+            .identity
+            .as_ref()
+            .and_then(|identity| identity.version.as_ref())
+            .map(|version| version.raw()),
+        Some("1.19.12")
+    );
+    assert_eq!(
+        app.active_profile_reference_write_authorization().unwrap(),
+        infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization::BoundOwner {
+            identity,
+            generation: infiltrator_contract::core_identity::CoreGeneration::new(0),
+        }
+    );
 
     app.close().await.unwrap();
     assert_eq!(released.load(Ordering::SeqCst), 1);
+    assert!(app.active_profile_reference_write_authorization().is_err());
     assert!(matches!(
         *app.inner.active_profile_owner_binding.lock().unwrap(),
         super::ActiveProfileOwnerBindingState::Released
@@ -215,6 +290,56 @@ async fn active_profile_owner_binding_releases_only_after_stopped_readback() {
     ));
     drop(failed_close);
     assert_eq!(retained.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test]
+async fn canceling_close_restores_owner_binding_for_a_later_retry() {
+    let app = application(
+        FakeProcess {
+            running: AtomicBool::new(false),
+            fail_start: false,
+            fail_stop: false,
+        },
+        Ok("http://127.0.0.1:9090".into()),
+    );
+    let identity = app.snapshot().identity.expect("owner identity");
+    let attempts = Arc::new(AtomicUsize::new(0));
+    let entered = Arc::new(tokio::sync::Notify::new());
+    let allow_finish = Arc::new(tokio::sync::Notify::new());
+    app.install_active_profile_owner_binding(Box::new(GatedOwnerLease {
+        identity,
+        generation: infiltrator_contract::core_identity::CoreGeneration::new(0),
+        attempts: Arc::clone(&attempts),
+        entered: Arc::clone(&entered),
+        allow_finish: Arc::clone(&allow_finish),
+    }))
+    .unwrap();
+
+    let first_app = app.clone();
+    let first_close = tokio::spawn(async move { first_app.close().await });
+    entered.notified().await;
+    assert!(matches!(
+        *app.inner.active_profile_owner_binding.lock().unwrap(),
+        super::ActiveProfileOwnerBindingState::Releasing
+    ));
+    first_close.abort();
+    assert!(first_close.await.unwrap_err().is_cancelled());
+    assert_eq!(attempts.load(Ordering::SeqCst), 1);
+    assert!(matches!(
+        *app.inner.active_profile_owner_binding.lock().unwrap(),
+        super::ActiveProfileOwnerBindingState::Bound(_)
+    ));
+
+    let retry_app = app.clone();
+    let retry = tokio::spawn(async move { retry_app.close().await });
+    entered.notified().await;
+    allow_finish.notify_one();
+    retry.await.unwrap().unwrap();
+    assert_eq!(attempts.load(Ordering::SeqCst), 2);
+    assert!(matches!(
+        *app.inner.active_profile_owner_binding.lock().unwrap(),
+        super::ActiveProfileOwnerBindingState::Released
+    ));
 }
 
 #[tokio::test]

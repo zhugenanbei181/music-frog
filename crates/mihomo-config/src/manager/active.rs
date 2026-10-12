@@ -2,6 +2,7 @@
 
 use super::ConfigManager;
 use super::paths::sanitized_profile_key;
+use crate::sidecar_store::write_document_bytes_durable;
 use crate::yaml::validate;
 use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
 use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceStore;
@@ -14,12 +15,6 @@ use tokio::fs;
 use toml::map::Map;
 
 impl<S: SecureStore> ConfigManager<S> {
-    pub async fn set_current(&self, profile: &str) -> Result<()> {
-        self.set_current_with_active_reference(profile)
-            .await
-            .map_err(|error| MihomoError::Config(error.to_string()))
-    }
-
     pub(super) async fn read_settings_value(&self) -> Result<toml::Value> {
         if !self.settings_file.exists() {
             return Ok(toml::Value::Table(Map::new()));
@@ -41,7 +36,9 @@ impl<S: SecureStore> ConfigManager<S> {
         }
         let content = toml::to_string(&settings)
             .map_err(|e| MihomoError::Config(format!("Failed to serialize config: {}", e)))?;
-        fs::write(&self.settings_file, content).await?;
+        write_document_bytes_durable(&self.settings_file, content.as_bytes())
+            .await
+            .map_err(|error| MihomoError::Config(error.to_string()))?;
         Ok(())
     }
 

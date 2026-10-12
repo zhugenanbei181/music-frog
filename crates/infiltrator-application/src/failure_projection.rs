@@ -69,25 +69,32 @@ pub fn project_failure(failure: &Failure) -> FailureLocalizationProjection {
             FailureLocalizationKey::CurrentTimeUnavailable
         }
         Some(FailureReason::DownloadCanceled) => FailureLocalizationKey::DownloadCanceled,
-        None => match &failure.code {
-            ErrorCode::InvalidInput => FailureLocalizationKey::InvalidInput,
-            ErrorCode::InvalidState => FailureLocalizationKey::InvalidState,
-            ErrorCode::NotReady => FailureLocalizationKey::NotReady,
-            ErrorCode::Unsupported => FailureLocalizationKey::Unsupported,
-            ErrorCode::Network => FailureLocalizationKey::Network,
-            ErrorCode::Authentication => FailureLocalizationKey::Authentication,
-            ErrorCode::Configuration => FailureLocalizationKey::Configuration,
-            ErrorCode::Storage => FailureLocalizationKey::Storage,
-            ErrorCode::Permission => FailureLocalizationKey::Permission,
-            ErrorCode::Canceled => FailureLocalizationKey::Canceled,
-            ErrorCode::Internal => FailureLocalizationKey::Internal,
-        },
+        Some(FailureReason::ActiveProfileReferenceStale { .. }) => FailureLocalizationKey::NotReady,
+        Some(FailureReason::CoreApplyFailure(_))
+        | Some(FailureReason::ActiveProfileRecovery(_))
+        | None => localization_key_for_error_code(failure.code.clone()),
     };
     let (line, column) = match &failure.reason {
         Some(FailureReason::YamlSyntax { line, column }) => (Some(*line), Some(*column)),
         _ => (None, None),
     };
     FailureLocalizationProjection { key, line, column }
+}
+
+fn localization_key_for_error_code(code: ErrorCode) -> FailureLocalizationKey {
+    match code {
+        ErrorCode::InvalidInput => FailureLocalizationKey::InvalidInput,
+        ErrorCode::InvalidState => FailureLocalizationKey::InvalidState,
+        ErrorCode::NotReady => FailureLocalizationKey::NotReady,
+        ErrorCode::Unsupported => FailureLocalizationKey::Unsupported,
+        ErrorCode::Network => FailureLocalizationKey::Network,
+        ErrorCode::Authentication => FailureLocalizationKey::Authentication,
+        ErrorCode::Configuration => FailureLocalizationKey::Configuration,
+        ErrorCode::Storage => FailureLocalizationKey::Storage,
+        ErrorCode::Permission => FailureLocalizationKey::Permission,
+        ErrorCode::Canceled => FailureLocalizationKey::Canceled,
+        ErrorCode::Internal => FailureLocalizationKey::Internal,
+    }
 }
 
 pub fn failure_message(failure: &Failure, locale: &str) -> String {
@@ -120,6 +127,9 @@ pub fn failure_message(failure: &Failure, locale: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use infiltrator_contract::active_profile_reference::{
+        ActiveProfileRecoveryOutcome, CoreApplyFailureKind,
+    };
 
     #[test]
     fn serialized_reason_changes_language_without_reinterpreting_diagnostic_data() {
@@ -199,5 +209,39 @@ mod tests {
             assert_eq!(projection.column, None);
             assert_eq!(failure.message, "opaque platform diagnostic");
         }
+    }
+
+    #[test]
+    fn new_active_profile_reasons_fall_back_to_their_typed_error_category() {
+        let stale = Failure::new(ErrorCode::NotReady, "stale selection", true).with_reason(
+            FailureReason::ActiveProfileReferenceStale {
+                expected_revision: 1,
+                observed_revision: 2,
+            },
+        );
+        assert_eq!(
+            project_failure(&stale).key,
+            FailureLocalizationKey::NotReady
+        );
+
+        let apply = Failure::new(ErrorCode::Permission, "native apply denied", false).with_reason(
+            FailureReason::CoreApplyFailure(CoreApplyFailureKind::Permission),
+        );
+        assert_eq!(
+            project_failure(&apply).key,
+            FailureLocalizationKey::Permission
+        );
+
+        let recovery = Failure::new(ErrorCode::Internal, "recovery failed", false).with_reason(
+            FailureReason::ActiveProfileRecovery(ActiveProfileRecoveryOutcome::Superseded {
+                expected_revision: 1,
+                observed_revision: 2,
+                apply_failure: CoreApplyFailureKind::Adapter,
+            }),
+        );
+        assert_eq!(
+            project_failure(&recovery).key,
+            FailureLocalizationKey::Internal
+        );
     }
 }

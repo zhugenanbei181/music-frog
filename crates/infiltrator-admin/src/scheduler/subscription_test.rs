@@ -42,10 +42,12 @@ mod tests {
     #[cfg(test)]
     use infiltrator_application::version_application::VersionApplication;
     use infiltrator_core::settings_io::{save_settings, settings_path};
+    use infiltrator_domain::profiles::ProfileMetadata;
     use infiltrator_domain::settings::AppSettings;
     use infiltrator_domain::subscription::mask_subscription_url;
     #[cfg(test)]
     use infiltrator_domain::subscription_scheduler_policy::CronSchedule;
+    use infiltrator_ports::profile_store::ProfileStore;
     use infiltrator_ports::runtime_gateway::RuntimeGateway;
     #[cfg(test)]
     use infiltrator_ports::subscription_source::SubscriptionSource;
@@ -239,36 +241,33 @@ mod tests {
             .unwrap();
         clear_home_dir_override();
         set_home_dir_override(temp_dir.path().to_path_buf());
-
-        let manager = ConfigManager::with_home_and_store(
-            temp_dir.path().to_path_buf(),
-            DefaultCredentialStore::default(),
-        )
-        .unwrap();
+        let saved_env = test_env::clear_configs_dir_env();
+        let manager = app_config_manager().await.unwrap();
 
         let ctx = MockContext {
             notifications: Arc::new(Mutex::new(vec![])),
         };
-        let configs_dir = temp_dir.path().join("configs");
-        let _ = create_dir_all(&configs_dir);
 
         for i in 0..10 {
             let profile_name = format!("test-profile-{}", i);
-            let profile_path = configs_dir.join(format!("{}.yaml", profile_name));
-            let _ = write(&profile_path, "port: 7890");
-
-            let mut profile = Profile::new(profile_name.clone(), profile_path, false);
-            profile.subscription_url = Some(format!("http://example.com/subscription/{}", i));
-            profile.auto_update_enabled = true;
-            profile.update_interval_hours = Some(24);
-
-            manager
-                .update_profile_metadata(&profile_name, &profile)
+            ProfileStore::save_inactive_profile(&manager, &profile_name, "port: 7890")
                 .await
                 .unwrap();
+            ProfileStore::update_profile_metadata(
+                &manager,
+                &profile_name,
+                &ProfileMetadata {
+                    subscription_url: Some(format!("http://example.com/subscription/{}", i)),
+                    auto_update_enabled: true,
+                    update_interval_hours: Some(24),
+                    ..ProfileMetadata::default()
+                },
+            )
+            .await
+            .unwrap();
         }
 
-        let profiles = manager.list_profiles().await.unwrap();
+        let profiles = ProfileStore::list_profiles(&manager).await.unwrap();
         assert!(
             profiles.len() >= 10,
             "Manager should see at least 10 profiles, but saw {}",
@@ -285,6 +284,7 @@ mod tests {
             summary.total
         );
 
+        test_env::restore_configs_dir_env(saved_env);
         clear_home_dir_override();
     }
 
@@ -590,10 +590,6 @@ mod tests {
             Self { temp, saved_env }
         }
 
-        fn cloud(&self) -> PathBuf {
-            self.temp.path().join("cloud")
-        }
-
         fn home_configs(&self) -> PathBuf {
             self.temp.path().join("configs")
         }
@@ -604,26 +600,31 @@ mod tests {
         }
     }
 
-    /// 在重定向目录预置一个 auto-update 已启用、立即到期的 profile，
-    /// 返回（profile 名, yaml 路径）。
-    async fn seed_due_profile(
+    /// 在 manager 解析的 engine-scoped 目录中写入一份 auto-update profile，
+    /// 并返回该 profile 的 YAML 路径。
+    async fn seed_subscription_profile(
         manager: &ConfigManager<DefaultCredentialStore>,
-        cloud: &path::Path,
         name: &str,
         url: String,
+        next_update: Option<chrono::DateTime<Utc>>,
     ) -> PathBuf {
-        let profile_path = cloud.join(format!("{name}.yaml"));
-        write(&profile_path, "port: 7890").unwrap();
-        let mut profile = Profile::new(name.to_string(), profile_path.clone(), false);
-        profile.subscription_url = Some(url);
-        profile.auto_update_enabled = true;
-        profile.update_interval_hours = Some(24);
-        profile.next_update = None;
-        manager
-            .update_profile_metadata(name, &profile)
+        ProfileStore::save_inactive_profile(manager, name, "port: 7890")
             .await
             .unwrap();
-        profile_path
+        ProfileStore::update_profile_metadata(
+            manager,
+            name,
+            &ProfileMetadata {
+                subscription_url: Some(url),
+                auto_update_enabled: true,
+                update_interval_hours: Some(24),
+                next_update,
+                ..ProfileMetadata::default()
+            },
+        )
+        .await
+        .unwrap();
+        ProfileStore::config_dir(manager).join(format!("{name}.yaml"))
     }
 
     /// settings 写入 configs_dir 后，单 profile 更新任务（tick）的读写必须
@@ -645,7 +646,7 @@ mod tests {
         let manager = app_config_manager().await.unwrap();
         let profile_name = "redirect-tick".to_string();
         let profile_path =
-            seed_due_profile(&manager, &redirect.cloud(), &profile_name, subscription_url).await;
+            seed_subscription_profile(&manager, &profile_name, subscription_url, None).await;
 
         let ctx = MockContext {
             notifications: Arc::new(Mutex::new(vec![])),
@@ -688,7 +689,7 @@ mod tests {
         let manager = app_config_manager().await.unwrap();
         let profile_name = "redirect-batch".to_string();
         let profile_path =
-            seed_due_profile(&manager, &redirect.cloud(), &profile_name, subscription_url).await;
+            seed_subscription_profile(&manager, &profile_name, subscription_url, None).await;
 
         let ctx = MockContext {
             notifications: Arc::new(Mutex::new(vec![])),
@@ -721,18 +722,14 @@ mod tests {
 
         let manager = app_config_manager().await.unwrap();
         let profile_name = "redirect-seed".to_string();
-        let profile_path = redirect.cloud().join(format!("{profile_name}.yaml"));
-        write(&profile_path, "port: 7890").unwrap();
-        let mut profile = Profile::new(profile_name.clone(), profile_path, false);
-        profile.subscription_url = Some("http://example.com/subscription/seed".to_string());
-        profile.auto_update_enabled = true;
-        profile.update_interval_hours = Some(24);
         // Not due yet: the job's immediate first run must stay a no-op.
-        profile.next_update = Some(Utc::now() + chrono::Duration::hours(24));
-        manager
-            .update_profile_metadata(&profile_name, &profile)
-            .await
-            .unwrap();
+        seed_subscription_profile(
+            &manager,
+            &profile_name,
+            "http://example.com/subscription/seed".to_string(),
+            Some(Utc::now() + chrono::Duration::hours(24)),
+        )
+        .await;
 
         let ctx = MockContext {
             notifications: Arc::new(Mutex::new(vec![])),

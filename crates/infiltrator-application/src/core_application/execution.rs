@@ -22,6 +22,64 @@ impl Drop for CommandScope<'_> {
     }
 }
 
+struct OwnerBindingReleaseGuard<'a> {
+    state: &'a std::sync::Mutex<super::ActiveProfileOwnerBindingState>,
+    binding:
+        Option<Box<dyn infiltrator_ports::active_profile_reference_store::ActiveProfileOwnerLease>>,
+}
+
+impl<'a> OwnerBindingReleaseGuard<'a> {
+    fn new(
+        state: &'a std::sync::Mutex<super::ActiveProfileOwnerBindingState>,
+        binding: Box<
+            dyn infiltrator_ports::active_profile_reference_store::ActiveProfileOwnerLease,
+        >,
+    ) -> Self {
+        Self {
+            state,
+            binding: Some(binding),
+        }
+    }
+
+    fn binding(
+        &self,
+    ) -> &dyn infiltrator_ports::active_profile_reference_store::ActiveProfileOwnerLease {
+        self.binding
+            .as_deref()
+            .expect("owner-binding release guard retains its lease")
+    }
+
+    fn commit(mut self) {
+        let binding = self
+            .binding
+            .take()
+            .expect("owner-binding release guard retains its lease");
+        let mut state = self
+            .state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        *state = super::ActiveProfileOwnerBindingState::Released;
+        drop(state);
+        drop(binding);
+    }
+}
+
+impl Drop for OwnerBindingReleaseGuard<'_> {
+    fn drop(&mut self) {
+        let Some(binding) = self.binding.take() else {
+            return;
+        };
+        let mut state = self
+            .state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        // `Releasing` blocks installation while this future is suspended.
+        // Cancellation or a release error restores the same lease so a later
+        // close can retry with its terminal snapshot.
+        *state = super::ActiveProfileOwnerBindingState::Bound(binding);
+    }
+}
+
 impl CoreApplication {
     pub(super) async fn execute_scoped_with_id(
         &self,
@@ -512,30 +570,58 @@ impl CoreApplication {
                 true,
             ));
         }
-        let mut owner_binding = self
-            .inner
-            .active_profile_owner_binding
-            .lock()
-            .expect("active profile owner binding lock");
-        if let super::ActiveProfileOwnerBindingState::Bound(binding) = &*owner_binding {
-            if terminal.identity.as_ref() != Some(binding.identity())
-                || terminal.generation < binding.generation().value()
-            {
-                return Err(Failure::new(
-                    ErrorCode::NotReady,
-                    "Core owner terminal readback did not match its bound identity and generation",
-                    true,
-                ));
+        let binding = {
+            let mut owner_binding = self
+                .inner
+                .active_profile_owner_binding
+                .lock()
+                .expect("active profile owner binding lock");
+            if let super::ActiveProfileOwnerBindingState::Bound(binding) = &*owner_binding {
+                if !terminal
+                    .identity
+                    .as_ref()
+                    .is_some_and(|identity| binding.identity().same_instance(identity))
+                    || terminal.generation < binding.generation().value()
+                {
+                    return Err(Failure::new(
+                        ErrorCode::NotReady,
+                        "Core owner terminal readback did not match its bound identity and generation",
+                        true,
+                    ));
+                }
             }
-            binding
+            match std::mem::replace(
+                &mut *owner_binding,
+                super::ActiveProfileOwnerBindingState::Releasing,
+            ) {
+                super::ActiveProfileOwnerBindingState::Bound(binding) => Some(binding),
+                super::ActiveProfileOwnerBindingState::Unbound
+                | super::ActiveProfileOwnerBindingState::Released => {
+                    *owner_binding = super::ActiveProfileOwnerBindingState::Released;
+                    None
+                }
+                super::ActiveProfileOwnerBindingState::Releasing => {
+                    *owner_binding = super::ActiveProfileOwnerBindingState::Releasing;
+                    return Err(Failure::new(
+                        ErrorCode::NotReady,
+                        "Core owner profile binding release is already in progress",
+                        true,
+                    ));
+                }
+            }
+        };
+        if let Some(binding) = binding {
+            let release_guard =
+                OwnerBindingReleaseGuard::new(&self.inner.active_profile_owner_binding, binding);
+            if let Err(error) = release_guard
+                .binding()
                 .release_after_terminal(&terminal)
-                .map_err(|error| Failure::new(ErrorCode::NotReady, error.to_string(), true))?;
+                .await
+            {
+                return Err(Failure::new(ErrorCode::NotReady, error.to_string(), true));
+            }
+            release_guard.commit();
         }
-        let previous_binding = std::mem::replace(
-            &mut *owner_binding,
-            super::ActiveProfileOwnerBindingState::Released,
-        );
-        drop(previous_binding);
         Ok(())
     }
 }

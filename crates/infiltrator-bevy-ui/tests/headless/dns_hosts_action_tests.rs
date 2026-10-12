@@ -30,9 +30,13 @@ use infiltrator_bevy_ui::route::{PagesPlugin, Route, RouteChanged};
 use infiltrator_bevy_ui::surface::{LatestSurfaceSnapshot, SurfaceSnapshotUpdated};
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::text_input::{TextField, TextFieldFocused};
+use infiltrator_contract::active_profile_reference::{
+    ActiveProfileReferenceCasOutcome, ActiveProfileReferenceTarget,
+};
 use infiltrator_contract::command::RequestId;
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::PageData;
 use infiltrator_ports::profile_store::ProfileStore;
@@ -42,6 +46,30 @@ use std::sync::atomic::Ordering;
 use std::thread::yield_now;
 use std::time::{Duration, Instant};
 use tokio::runtime::Builder;
+
+async fn select_profile(store: &HostsCaptureStore, profile: &str) {
+    let expected = ProfileStore::read_active_profile_reference(store)
+        .await
+        .expect("read selection before test CAS");
+    let target = ActiveProfileReferenceTarget::selected(
+        ProfileStore::engine_id(store),
+        ProfileId::new(profile).expect("valid test profile ID"),
+    );
+    match ProfileStore::compare_and_set_active_profile_reference(
+        store,
+        expected,
+        target,
+        infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization::Unowned,
+    )
+        .await
+        .expect("revisioned test selection CAS")
+    {
+        ActiveProfileReferenceCasOutcome::Committed { .. } => {}
+        ActiveProfileReferenceCasOutcome::Stale { expected, observed } => {
+            panic!("test selection unexpectedly stale: {expected:?} -> {observed:?}")
+        }
+    }
+}
 
 fn setup(store: Arc<HostsCaptureStore>) -> (App, ApplicationSurfaceReader) {
     let configuration = crate::configuration_codec::mihomo_configuration(store);
@@ -494,7 +522,7 @@ fn native_hosts_ime_locale_reader_fences_invalid_rows_and_navigation_keep_the_dr
         .enable_all()
         .build()
         .unwrap()
-        .block_on(store.set_current("other"))
+        .block_on(select_profile(store.as_ref(), "other"))
         .unwrap();
     publish(&mut app, &reader);
     assert_eq!(

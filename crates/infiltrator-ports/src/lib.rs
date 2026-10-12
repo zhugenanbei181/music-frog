@@ -14,7 +14,6 @@ pub mod core_capability_provider;
 pub mod core_lifecycle;
 pub mod core_log_level;
 pub mod core_process;
-pub mod core_reload;
 pub mod core_watchdog;
 pub mod data_dir;
 pub mod data_store;
@@ -68,10 +67,6 @@ pub mod touch_gesture;
 pub mod uwp_loopback;
 pub mod version;
 pub mod vpn_service;
-
-#[cfg(test)]
-#[path = "profile_configuration_transaction_tests.rs"]
-mod profile_configuration_transaction_tests;
 
 #[cfg(test)]
 mod tests {

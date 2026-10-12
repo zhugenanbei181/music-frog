@@ -46,7 +46,6 @@ pub struct SyncTransferReport {
     pub uploaded: u64,
     pub downloaded: u64,
     pub conflicts: u64,
-    pub active_profile_changed: bool,
     pub conflict_files: Vec<SyncConflict>,
 }
 

@@ -2,6 +2,8 @@
 //! test-intent: behavior
 
 use super::*;
+use crate::support::select_test_profile;
+use infiltrator_ports::profile_store::ProfileStore;
 use mihomo_config::manager::ConfigManager;
 use mihomo_platform::paths::{clear_home_dir_override, set_home_dir_override};
 
@@ -16,8 +18,10 @@ async fn test_delete_active_profile_rejected() {
         DefaultCredentialStore::default(),
     )
     .unwrap();
-    manager.save("active", "port: 7890").await.unwrap();
-    manager.set_current("active").await.unwrap();
+    ProfileStore::save_inactive_profile(&manager, "active", "port: 7890")
+        .await
+        .unwrap();
+    select_test_profile(&manager, "active").await;
 
     let app = setup_app();
     let response = app

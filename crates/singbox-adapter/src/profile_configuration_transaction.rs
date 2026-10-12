@@ -17,7 +17,11 @@ use infiltrator_ports::profile_configuration_transaction::{
     ProfileConfigurationTransactionScope,
 };
 use infiltrator_ports::profile_document_codec::ProfileDocumentCodecPort;
-use infiltrator_ports::profile_store::ProfileStore;
+use infiltrator_ports::profile_store::{
+    ActiveProfileWorkspacePublishOutcome, ActiveProfileWorkspacePublishedLease,
+    ActiveProfileWorkspaceRecoveryLease, ActiveProfileWorkspaceRecoveryResolution,
+    ActiveProfileWorkspaceRestoreOutcome, ActiveProfileWorkspaceRestoredLease, ProfileStore,
+};
 use infiltrator_ports::profile_workspace::{ProfileWorkspace, ProfileWorkspaceUpdate};
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -35,71 +39,11 @@ enum CommittedWorkspaceReadback {
     DifferentIdentity,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum FailedCasReadback {
-    Unchanged,
-    PartialPublication,
-    ConcurrentChange,
-}
-
 #[derive(Debug)]
 enum NativeConfigReadback {
     Exact,
     Different,
     Unavailable(PortError),
-}
-
-#[derive(Debug)]
-enum FinalWorkspaceReadback {
-    Exact(ProfileWorkspace),
-    SameIdentityWithDifferentSnapshot,
-    ConcurrentChange,
-    Unavailable(PortError),
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum CandidateBytesState {
-    Previous,
-    Submitted,
-    Other,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum WorkspaceScopeState {
-    Same,
-    Changed,
-}
-
-#[derive(Debug)]
-enum WorkspaceRestoreState {
-    Exact,
-    Different,
-    Failed(PortError),
-}
-
-#[derive(Debug)]
-enum WorkspaceRollbackReadback {
-    Exact(ProfileWorkspace),
-    Different,
-    Failed(PortError),
-}
-
-#[derive(Debug)]
-enum FileAndWorkspaceRestore {
-    Exact,
-    Different {
-        file: Result<(), PortError>,
-        workspace: Result<ProfileWorkspace, PortError>,
-    },
-}
-
-#[derive(Debug)]
-enum FileAndWorkspaceReadback {
-    Exact(ProfileWorkspace),
-    Different {
-        workspace: Result<ProfileWorkspace, PortError>,
-        file: Result<SingBoxConfigFileState, PortError>,
-    },
 }
 
 /// Owns the profile workspace CAS and sing-box native config-file publication.
@@ -113,7 +57,7 @@ pub struct SingBoxProfileConfigurationTransactionAdapter {
     operation_gate: Arc<SingBoxCoreOperationGate>,
     process_identity: CoreIdentity,
     scope: ProfileConfigurationTransactionScope,
-    transaction_lock: Mutex<()>,
+    transaction_lock: Arc<Mutex<()>>,
 }
 
 impl SingBoxProfileConfigurationTransactionAdapter {
@@ -155,8 +99,20 @@ impl SingBoxProfileConfigurationTransactionAdapter {
             operation_gate,
             process_identity,
             scope,
-            transaction_lock: Mutex::new(()),
+            transaction_lock: Arc::new(Mutex::new(())),
         })
+    }
+
+    fn owned_clone(&self) -> Self {
+        Self {
+            profile_store: Arc::clone(&self.profile_store),
+            session: Arc::clone(&self.session),
+            configuration: Arc::clone(&self.configuration),
+            operation_gate: Arc::clone(&self.operation_gate),
+            process_identity: self.process_identity.clone(),
+            scope: self.scope.clone(),
+            transaction_lock: Arc::clone(&self.transaction_lock),
+        }
     }
 
     async fn transact_inner(
@@ -167,6 +123,25 @@ impl SingBoxProfileConfigurationTransactionAdapter {
             return Err(PortError::unsupported(
                 Capability::Profiles,
                 "sing-box configuration transaction request has a foreign engine, format, or schema",
+            ));
+        }
+        if request.expected_reference.engine_id != self.scope.document.engine_id
+            || request.expected_reference.engine_id != request.expected.document.engine_id
+            || request.expected_reference.profile_id != request.expected.document.profile_id
+        {
+            return Err(PortError::unsupported(
+                Capability::Profiles,
+                "sing-box reference does not identify the expected workspace",
+            ));
+        }
+        if self.profile_store.read_active_profile_reference().await?
+            != infiltrator_contract::active_profile_reference::ActiveProfileReferenceState::Selected(
+                request.expected_reference.clone(),
+            )
+        {
+            return Err(rejected(
+                ErrorCode::NotReady,
+                "sing-box active profile reference changed before configuration save",
             ));
         }
         self.verify_active_process_instance()?;
@@ -240,33 +215,36 @@ impl SingBoxProfileConfigurationTransactionAdapter {
             ));
         }
 
-        let previous_config = self.configuration.file_state().await?;
-        let committed = match self
+        let lease = self
             .profile_store
-            .compare_and_save_active_workspace(&request.expected, &request.update)
-            .await
-        {
-            Ok(committed) => committed,
-            Err(cause) => {
-                return self
-                    .recover_ambiguous_store_write(&previous, &request.update, cause)
-                    .await;
+            .acquire_active_workspace_write_lease(
+                request.expected_reference.clone(),
+                request.expected.clone(),
+                request.authorization.clone(),
+            )
+            .await?;
+        if lease.observed_workspace() != &previous {
+            return Err(rejected(
+                ErrorCode::NotReady,
+                "sing-box profile workspace changed before the transaction began",
+            ));
+        }
+        let previous_config = self.configuration.file_state().await?;
+        let published = match lease.publish(request.update.clone()).await {
+            ActiveProfileWorkspacePublishOutcome::Published(published) => published,
+            ActiveProfileWorkspacePublishOutcome::Unpublished(error) => return Err(error),
+            ActiveProfileWorkspacePublishOutcome::Superseded { .. } => {
+                return Err(rejected(
+                    ErrorCode::NotReady,
+                    "sing-box workspace was superseded before publication",
+                ));
+            }
+            ActiveProfileWorkspacePublishOutcome::RecoveryRequired(recovery) => {
+                resolve_workspace_publication(recovery).await?
             }
         };
-
-        let stored_readback = match self.profile_store.load_active_workspace().await {
-            Ok(workspace) => workspace,
-            Err(readback) => {
-                return Ok(self
-                    .rollback_workspace_only(
-                        committed.identity(),
-                        &previous,
-                        "sing-box profile workspace readback failed after CAS",
-                        readback.to_string(),
-                    )
-                    .await);
-            }
-        };
+        let committed = published.published_workspace().clone();
+        let stored_readback = committed.clone();
         match classify_committed_readback(
             &request.expected,
             &previous,
@@ -278,7 +256,7 @@ impl SingBoxProfileConfigurationTransactionAdapter {
             CommittedWorkspaceReadback::SameIdentityWithDifferentContent => {
                 return Ok(self
                     .rollback_workspace_only(
-                        committed.identity(),
+                        published,
                         &previous,
                         "sing-box profile workspace did not read back the submitted bytes",
                         "the committed identity or exact document/sidecar bytes differed",
@@ -286,10 +264,14 @@ impl SingBoxProfileConfigurationTransactionAdapter {
                     .await);
             }
             CommittedWorkspaceReadback::DifferentIdentity => {
-                return Ok(terminal_outcome(
-                    "sing-box profile workspace changed before exact CAS readback",
-                    "preserved the newer workspace instead of overwriting it during recovery",
-                ));
+                return Ok(self
+                    .rollback_workspace_only(
+                        published,
+                        &previous,
+                        "sing-box profile workspace identity changed before readback",
+                        "the published workspace did not retain the submitted identity",
+                    )
+                    .await);
             }
         }
 
@@ -298,7 +280,7 @@ impl SingBoxProfileConfigurationTransactionAdapter {
             LifecycleFenceState::Changed => {
                 return Ok(self
                     .rollback_workspace_only(
-                        committed.identity(),
+                        published,
                         &previous,
                         "sing-box Core lifecycle changed before native config publication",
                         "configuration file was not changed",
@@ -314,7 +296,7 @@ impl SingBoxProfileConfigurationTransactionAdapter {
         {
             return Ok(self
                 .rollback_after_file_failure(
-                    committed.identity(),
+                    published,
                     &previous,
                     &previous_config,
                     "sing-box native config file publication failed",
@@ -330,7 +312,7 @@ impl SingBoxProfileConfigurationTransactionAdapter {
             NativeConfigReadback::Different => {
                 return Ok(self
                     .rollback_after_file_failure(
-                        committed.identity(),
+                        published,
                         &previous,
                         &previous_config,
                         "sing-box native config file readback differed",
@@ -341,7 +323,7 @@ impl SingBoxProfileConfigurationTransactionAdapter {
             NativeConfigReadback::Unavailable(readback) => {
                 return Ok(self
                     .rollback_after_file_failure(
-                        committed.identity(),
+                        published,
                         &previous,
                         &previous_config,
                         "sing-box native config file readback failed",
@@ -356,7 +338,7 @@ impl SingBoxProfileConfigurationTransactionAdapter {
             LifecycleFenceState::Changed => {
                 return Ok(self
                     .rollback_after_file_failure(
-                        committed.identity(),
+                        published,
                         &previous,
                         &previous_config,
                         "sing-box Core lifecycle changed during native config publication",
@@ -365,49 +347,22 @@ impl SingBoxProfileConfigurationTransactionAdapter {
                     .await);
             }
         }
-        match classify_final_workspace_readback(
-            self.profile_store.load_active_workspace().await,
-            &stored_readback,
-            &committed,
-        ) {
-            FinalWorkspaceReadback::Exact(final_readback) => {
-                Ok(ProfileConfigurationTransactionOutcome::Committed {
-                    workspace: final_readback,
-                    effect,
-                })
-            }
-            FinalWorkspaceReadback::SameIdentityWithDifferentSnapshot => Ok(self
+        let final_readback = published.published_workspace().clone();
+        if final_readback != stored_readback {
+            return Ok(self
                 .rollback_after_file_failure(
-                    committed.identity(),
+                    published,
                     &previous,
                     &previous_config,
                     "sing-box workspace changed after native config publication",
                     "exact workspace readback differed from its committed snapshot",
                 )
-                .await),
-            FinalWorkspaceReadback::ConcurrentChange => {
-                let file_restore = self
-                    .configuration
-                    .restore_file_state(&previous_config)
-                    .await;
-                Ok(terminal_outcome(
-                    "sing-box workspace changed after native config publication",
-                    format!(
-                        "preserved the newer workspace; config-file recovery: {}",
-                        result_description(file_restore)
-                    ),
-                ))
-            }
-            FinalWorkspaceReadback::Unavailable(readback) => Ok(self
-                .rollback_after_file_failure(
-                    committed.identity(),
-                    &previous,
-                    &previous_config,
-                    "sing-box workspace readback failed after native config publication",
-                    readback.to_string(),
-                )
-                .await),
+                .await);
         }
+        Ok(ProfileConfigurationTransactionOutcome::Committed {
+            workspace: published.commit(),
+            effect,
+        })
     }
 
     fn verify_active_process_instance(&self) -> Result<(), PortError> {
@@ -425,86 +380,40 @@ impl SingBoxProfileConfigurationTransactionAdapter {
         Ok(())
     }
 
-    async fn recover_ambiguous_store_write(
-        &self,
-        previous: &ProfileWorkspace,
-        update: &ProfileWorkspaceUpdate,
-        cause: PortError,
-    ) -> Result<ProfileConfigurationTransactionOutcome, PortError> {
-        let current = match self.profile_store.load_active_workspace().await {
-            Ok(current) => match classify_failed_cas_readback(previous, update, &current) {
-                FailedCasReadback::Unchanged | FailedCasReadback::ConcurrentChange => {
-                    return Err(cause);
-                }
-                FailedCasReadback::PartialPublication => current,
-            },
-            Err(readback) => {
-                return Ok(terminal_outcome(
-                    "sing-box profile CAS reported failure and its result could not be read",
-                    format!("CAS: {cause}; readback: {readback}"),
-                ));
-            }
-        };
-        Ok(self
-            .rollback_workspace_only(
-                current.identity(),
-                previous,
-                "sing-box profile CAS failed after publishing workspace bytes",
-                cause.to_string(),
-            )
-            .await)
-    }
-
     async fn rollback_workspace_only(
         &self,
-        expected_current: ProfileWorkspaceIdentity,
+        published: Box<dyn ActiveProfileWorkspacePublishedLease + '_>,
         previous: &ProfileWorkspace,
         cause: impl Into<String>,
         context: impl Into<String>,
     ) -> ProfileConfigurationTransactionOutcome {
         let cause = cause.into();
         let context = context.into();
-        match classify_workspace_restore(
-            self.profile_store
-                .restore_workspace(&expected_current, previous)
-                .await,
-            previous,
-        ) {
-            WorkspaceRestoreState::Exact => {
-                match classify_workspace_rollback_readback(
-                    self.profile_store.load_active_workspace().await,
-                    previous,
-                ) {
-                    WorkspaceRollbackReadback::Exact(readback) => {
-                        ProfileConfigurationTransactionOutcome::RolledBack {
-                            restored: readback,
-                            cause: Failure::new(ErrorCode::Storage, cause, true),
-                        }
-                    }
-                    WorkspaceRollbackReadback::Different => terminal_outcome(
-                        cause,
-                        format!("{context}; previous workspace did not read back exactly"),
-                    ),
-                    WorkspaceRollbackReadback::Failed(error) => terminal_outcome(
-                        cause,
-                        format!("{context}; workspace rollback readback failed: {error}"),
-                    ),
+        match restore_published_workspace(published).await {
+            Ok(restored) if restored.restored_workspace() == previous => {
+                ProfileConfigurationTransactionOutcome::RolledBack {
+                    restored: restored.finish(),
+                    cause: Failure::new(ErrorCode::Storage, cause, true),
                 }
             }
-            WorkspaceRestoreState::Different => terminal_outcome(
+            Ok(restored) => {
+                let observed = restored.restored_workspace().identity();
+                restored.finish();
+                terminal_outcome(
+                    cause,
+                    format!("{context}; restore read back a different workspace: {observed:?}"),
+                )
+            }
+            Err(error) => terminal_outcome(
                 cause,
-                format!("{context}; restore returned a different workspace"),
-            ),
-            WorkspaceRestoreState::Failed(error) => terminal_outcome(
-                cause,
-                format!("{context}; workspace restore failed: {error}"),
+                format!("{context}; conditional workspace restore failed: {error}"),
             ),
         }
     }
 
     async fn rollback_after_file_failure(
         &self,
-        expected_current: ProfileWorkspaceIdentity,
+        published: Box<dyn ActiveProfileWorkspacePublishedLease + '_>,
         previous: &ProfileWorkspace,
         previous_config: &SingBoxConfigFileState,
         cause: impl Into<String>,
@@ -513,42 +422,40 @@ impl SingBoxProfileConfigurationTransactionAdapter {
         let cause = cause.into();
         let context = context.into();
         let file_restored = self.configuration.restore_file_state(previous_config).await;
-        let workspace_restored = self
-            .profile_store
-            .restore_workspace(&expected_current, previous)
-            .await;
-        match classify_file_and_workspace_restore(file_restored, workspace_restored, previous) {
-            FileAndWorkspaceRestore::Exact => {
-                match classify_file_and_workspace_readback(
-                    self.profile_store.load_active_workspace().await,
-                    self.configuration.file_state().await,
-                    previous,
-                    previous_config,
-                ) {
-                    FileAndWorkspaceReadback::Exact(readback) => {
-                        ProfileConfigurationTransactionOutcome::RolledBack {
-                            restored: readback,
-                            cause: Failure::new(ErrorCode::Configuration, cause, true),
-                        }
+        match restore_published_workspace(published).await {
+            Ok(restored) => {
+                let workspace_matches = restored.restored_workspace() == previous;
+                let workspace_readback = restored.restored_workspace().clone();
+                let file_readback = self.configuration.file_state().await;
+                let file_matches = matches!(file_restored, Ok(()))
+                    && matches!(&file_readback, Ok(state) if state == previous_config);
+                if workspace_matches && file_matches {
+                    ProfileConfigurationTransactionOutcome::RolledBack {
+                        restored: restored.finish(),
+                        cause: Failure::new(ErrorCode::Configuration, cause, true),
                     }
-                    FileAndWorkspaceReadback::Different { workspace, file } => terminal_outcome(
+                } else {
+                    let file_restore_detail = result_description(file_restored);
+                    let file_readback_detail = result_description(file_readback);
+                    let _ = restored.finish();
+                    terminal_outcome(
                         cause,
                         format!(
-                            "{context}; workspace rollback: {}; config rollback: {}",
-                            result_description(workspace),
-                            result_description(file)
+                            "{context}; workspace exact: {workspace_matches}; workspace readback: {:?}; config restore: {file_restore_detail}; config readback: {file_readback_detail}",
+                            workspace_readback.identity()
                         ),
-                    ),
+                    )
                 }
             }
-            FileAndWorkspaceRestore::Different { file, workspace } => terminal_outcome(
-                cause,
-                format!(
-                    "{context}; config restore: {}; workspace restore: {}",
-                    result_description(file),
-                    result_description(workspace)
-                ),
-            ),
+            Err(workspace_error) => {
+                let file_detail = result_description(file_restored);
+                terminal_outcome(
+                    cause,
+                    format!(
+                        "{context}; config restore: {file_detail}; workspace restore: {workspace_error}"
+                    ),
+                )
+            }
         }
     }
 }
@@ -563,9 +470,86 @@ impl ProfileConfigurationTransactionPort for SingBoxProfileConfigurationTransact
         &self,
         request: ProfileConfigurationTransactionRequest,
     ) -> Result<ProfileConfigurationTransactionOutcome, PortError> {
-        let _transaction = self.transaction_lock.lock().await;
-        let _process_gate = self.operation_gate.acquire().await;
-        self.transact_inner(request).await
+        let adapter = self.owned_clone();
+        tokio::spawn(async move {
+            let _transaction = adapter.transaction_lock.lock().await;
+            let _process_gate = adapter.operation_gate.acquire().await;
+            adapter.transact_inner(request).await
+        })
+        .await
+        .map_err(|error| {
+            PortError::Failed(format!(
+                "sing-box profile transaction continuation failed: {error}"
+            ))
+        })?
+    }
+}
+
+async fn resolve_workspace_publication<'a>(
+    mut recovery: Box<dyn ActiveProfileWorkspaceRecoveryLease + 'a>,
+) -> Result<Box<dyn ActiveProfileWorkspacePublishedLease + 'a>, PortError> {
+    loop {
+        match recovery.resolve().await {
+            ActiveProfileWorkspaceRecoveryResolution::Published(published) => {
+                return Ok(published);
+            }
+            ActiveProfileWorkspaceRecoveryResolution::Restored(restored) => {
+                let _ = restored.finish();
+                return Err(rejected(
+                    ErrorCode::NotReady,
+                    "sing-box workspace publication recovered to its previous bytes",
+                ));
+            }
+            ActiveProfileWorkspaceRecoveryResolution::Unpublished(error) => return Err(error),
+            ActiveProfileWorkspaceRecoveryResolution::Superseded { .. } => {
+                return Err(rejected(
+                    ErrorCode::NotReady,
+                    "sing-box workspace was superseded during publication recovery",
+                ));
+            }
+            ActiveProfileWorkspaceRecoveryResolution::RecoveryRequired(next) => {
+                recovery = next;
+            }
+        }
+    }
+}
+
+async fn restore_published_workspace<'a>(
+    mut published: Box<dyn ActiveProfileWorkspacePublishedLease + 'a>,
+) -> Result<Box<dyn ActiveProfileWorkspaceRestoredLease + 'a>, PortError> {
+    loop {
+        match published.restore_if_current().await? {
+            ActiveProfileWorkspaceRestoreOutcome::Restored(restored) => return Ok(restored),
+            ActiveProfileWorkspaceRestoreOutcome::Superseded { .. } => {
+                return Err(rejected(
+                    ErrorCode::NotReady,
+                    "sing-box workspace changed before conditional restore",
+                ));
+            }
+            ActiveProfileWorkspaceRestoreOutcome::RecoveryRequired(mut recovery) => loop {
+                match recovery.resolve().await {
+                    ActiveProfileWorkspaceRecoveryResolution::Restored(restored) => {
+                        return Ok(restored);
+                    }
+                    ActiveProfileWorkspaceRecoveryResolution::Published(next) => {
+                        published = next;
+                        break;
+                    }
+                    ActiveProfileWorkspaceRecoveryResolution::Unpublished(error) => {
+                        return Err(error);
+                    }
+                    ActiveProfileWorkspaceRecoveryResolution::Superseded { .. } => {
+                        return Err(rejected(
+                            ErrorCode::NotReady,
+                            "sing-box workspace changed during conditional restore recovery",
+                        ));
+                    }
+                    ActiveProfileWorkspaceRecoveryResolution::RecoveryRequired(next) => {
+                        recovery = next;
+                    }
+                }
+            },
+        }
     }
 }
 
@@ -608,74 +592,6 @@ fn classify_committed_readback(
     CommittedWorkspaceReadback::Exact
 }
 
-fn classify_failed_cas_readback(
-    previous: &ProfileWorkspace,
-    update: &ProfileWorkspaceUpdate,
-    observed: &ProfileWorkspace,
-) -> FailedCasReadback {
-    if observed == previous {
-        return FailedCasReadback::Unchanged;
-    }
-    let previous_identity = previous.identity();
-    let observed_identity = observed.identity();
-    if classify_workspace_scope(&previous_identity, &observed_identity, previous, observed)
-        == WorkspaceScopeState::Changed
-    {
-        return FailedCasReadback::ConcurrentChange;
-    }
-    let document = classify_candidate_value(
-        &previous.document.raw_bytes,
-        &update.document_bytes,
-        &observed.document.raw_bytes,
-    );
-    let sidecar = classify_candidate_value(
-        &previous.sidecar_bytes,
-        &update.sidecar_bytes,
-        &observed.sidecar_bytes,
-    );
-    match (document, sidecar) {
-        (CandidateBytesState::Previous, CandidateBytesState::Previous)
-        | (CandidateBytesState::Other, _)
-        | (_, CandidateBytesState::Other) => FailedCasReadback::ConcurrentChange,
-        (CandidateBytesState::Submitted, _) | (_, CandidateBytesState::Submitted) => {
-            FailedCasReadback::PartialPublication
-        }
-    }
-}
-
-fn classify_workspace_scope(
-    previous_identity: &ProfileWorkspaceIdentity,
-    observed_identity: &ProfileWorkspaceIdentity,
-    previous: &ProfileWorkspace,
-    observed: &ProfileWorkspace,
-) -> WorkspaceScopeState {
-    if observed_identity.document.engine_id == previous_identity.document.engine_id
-        && observed_identity.document.profile_id == previous_identity.document.profile_id
-        && observed_identity.document.source == previous_identity.document.source
-        && observed_identity.document.format_id == previous_identity.document.format_id
-        && observed_identity.document.schema_version == previous_identity.document.schema_version
-        && observed.write_protection == previous.write_protection
-    {
-        WorkspaceScopeState::Same
-    } else {
-        WorkspaceScopeState::Changed
-    }
-}
-
-fn classify_candidate_value<T: PartialEq>(
-    previous: &T,
-    submitted: &T,
-    observed: &T,
-) -> CandidateBytesState {
-    if observed == previous {
-        CandidateBytesState::Previous
-    } else if observed == submitted {
-        CandidateBytesState::Submitted
-    } else {
-        CandidateBytesState::Other
-    }
-}
-
 fn classify_native_readback(
     result: Result<Vec<u8>, PortError>,
     submitted: &[u8],
@@ -684,68 +600,6 @@ fn classify_native_readback(
         Ok(bytes) if bytes == submitted => NativeConfigReadback::Exact,
         Ok(_) => NativeConfigReadback::Different,
         Err(error) => NativeConfigReadback::Unavailable(error),
-    }
-}
-
-fn classify_final_workspace_readback(
-    result: Result<ProfileWorkspace, PortError>,
-    committed: &ProfileWorkspace,
-    returned_by_cas: &ProfileWorkspace,
-) -> FinalWorkspaceReadback {
-    match result {
-        Ok(workspace) if workspace == *committed => FinalWorkspaceReadback::Exact(workspace),
-        Ok(workspace) if workspace.identity() == returned_by_cas.identity() => {
-            FinalWorkspaceReadback::SameIdentityWithDifferentSnapshot
-        }
-        Ok(_) => FinalWorkspaceReadback::ConcurrentChange,
-        Err(error) => FinalWorkspaceReadback::Unavailable(error),
-    }
-}
-
-fn classify_workspace_restore(
-    result: Result<ProfileWorkspace, PortError>,
-    previous: &ProfileWorkspace,
-) -> WorkspaceRestoreState {
-    match result {
-        Ok(restored) if restored == *previous => WorkspaceRestoreState::Exact,
-        Ok(_) => WorkspaceRestoreState::Different,
-        Err(error) => WorkspaceRestoreState::Failed(error),
-    }
-}
-
-fn classify_workspace_rollback_readback(
-    result: Result<ProfileWorkspace, PortError>,
-    previous: &ProfileWorkspace,
-) -> WorkspaceRollbackReadback {
-    match result {
-        Ok(readback) if readback == *previous => WorkspaceRollbackReadback::Exact(readback),
-        Ok(_) => WorkspaceRollbackReadback::Different,
-        Err(error) => WorkspaceRollbackReadback::Failed(error),
-    }
-}
-
-fn classify_file_and_workspace_restore(
-    file: Result<(), PortError>,
-    workspace: Result<ProfileWorkspace, PortError>,
-    previous: &ProfileWorkspace,
-) -> FileAndWorkspaceRestore {
-    match (&file, &workspace) {
-        (Ok(()), Ok(restored)) if restored == previous => FileAndWorkspaceRestore::Exact,
-        _ => FileAndWorkspaceRestore::Different { file, workspace },
-    }
-}
-
-fn classify_file_and_workspace_readback(
-    workspace: Result<ProfileWorkspace, PortError>,
-    file: Result<SingBoxConfigFileState, PortError>,
-    previous: &ProfileWorkspace,
-    previous_config: &SingBoxConfigFileState,
-) -> FileAndWorkspaceReadback {
-    match (&workspace, &file) {
-        (Ok(readback), Ok(file_state)) if readback == previous && file_state == previous_config => {
-            FileAndWorkspaceReadback::Exact(readback.clone())
-        }
-        _ => FileAndWorkspaceReadback::Different { workspace, file },
     }
 }
 

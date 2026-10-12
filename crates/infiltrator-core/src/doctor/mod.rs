@@ -12,8 +12,12 @@
 //! logic. All filesystem inputs come from the injectable [`DoctorEnv`] so
 //! tests and embedded hosts never touch global state.
 
-use crate::settings_io::load_settings;
+use crate::settings_io::{load_settings, parse_settings_toml};
 use crate::version_port::MihomoVersionPort;
+use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
+use infiltrator_contract::core_identity::EngineId;
+use infiltrator_contract::profile_document_identity::ProfileId;
+use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceStore;
 use mihomo_api::error;
 use mihomo_platform::defaults::DefaultCredentialStore;
 mod checks;
@@ -30,6 +34,7 @@ use mihomo_version::manager::VersionManager;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
+use tokio::fs;
 
 /// Outcome of a single check.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -224,6 +229,18 @@ pub struct DoctorEnv {
     settings_file: PathBuf,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) enum ActiveProfileObservation {
+    Unselected,
+    SelectedForMihomo {
+        profile_id: ProfileId,
+        path: PathBuf,
+    },
+    SelectedForAnotherEngine {
+        engine_id: EngineId,
+    },
+}
+
 impl DoctorEnv {
     /// Env pointing at the real installation (home from `mihomo-platform`).
     pub fn detect() -> anyhow::Result<Self> {
@@ -261,7 +278,9 @@ impl DoctorEnv {
         self.home.join("mihomo.pid")
     }
 
-    pub(super) async fn config_manager(
+    /// Manager for repair/setup paths that intentionally initialize or migrate
+    /// the engine-scoped profile namespace.
+    pub(super) async fn initialized_config_manager(
         &self,
     ) -> error::Result<ConfigManager<DefaultCredentialStore>> {
         // configs 目录解析跟随本 env 的 settings 文件（`configs_dir` 字段）。
@@ -277,21 +296,70 @@ impl DoctorEnv {
         Ok(manager)
     }
 
-    pub(super) fn version_manager(&self) -> error::Result<VersionManager> {
-        VersionManager::for_engine(self.home.clone(), MihomoVersionPort::engine_identifier())
+    /// Build a manager for read-only diagnostics. Construction only resolves
+    /// paths; unlike `initialized_config_manager`, this path never initializes
+    /// or migrates the profile namespace.
+    pub(super) async fn read_only_config_manager(
+        &self,
+    ) -> error::Result<ConfigManager<DefaultCredentialStore>> {
+        let settings = self.read_only_settings().await;
+        ConfigManager::with_home_configs_dir_and_store(
+            self.home.clone(),
+            settings.configs_dir.as_deref(),
+            DefaultCredentialStore::default(),
+        )
     }
 
-    /// Resolved current-profile YAML path.
-    pub(super) async fn current_profile_path(&self) -> anyhow::Result<PathBuf> {
-        let manager = self.config_manager().await?;
-        Ok(manager.get_current_path().await?)
+    async fn read_only_settings(&self) -> infiltrator_domain::settings::AppSettings {
+        let content = match fs::read_to_string(&self.settings_file).await {
+            Ok(content) => content,
+            Err(_) => return infiltrator_domain::settings::AppSettings::default(),
+        };
+        parse_settings_toml(&content)
+            .map(|(settings, _)| settings)
+            .unwrap_or_default()
+    }
+
+    /// Observe the product-wide active profile without acquiring the store's
+    /// mutating migration/owner-normalization lease. A missing reference stays
+    /// explicitly unselected; diagnostics never fall back to an engine-local
+    /// pointer.
+    pub(super) async fn active_profile_observation(
+        &self,
+    ) -> anyhow::Result<ActiveProfileObservation> {
+        let manager = self.read_only_config_manager().await?;
+        match ActiveProfileReferenceStore::read(&manager).await? {
+            ActiveProfileReferenceState::Unselected { .. } => {
+                Ok(ActiveProfileObservation::Unselected)
+            }
+            ActiveProfileReferenceState::Selected(reference)
+                if reference.engine_id == manager.engine_id() =>
+            {
+                let path = manager
+                    .config_dir()
+                    .join(format!("{}.yaml", reference.profile_id.as_str()));
+                Ok(ActiveProfileObservation::SelectedForMihomo {
+                    profile_id: reference.profile_id,
+                    path,
+                })
+            }
+            ActiveProfileReferenceState::Selected(reference) => {
+                Ok(ActiveProfileObservation::SelectedForAnotherEngine {
+                    engine_id: reference.engine_id,
+                })
+            }
+        }
+    }
+
+    pub(super) fn version_manager(&self) -> error::Result<VersionManager> {
+        VersionManager::for_engine(self.home.clone(), MihomoVersionPort::engine_identifier())
     }
 
     /// Resolved configs directory. Derivation goes through
     /// the same shared root and engine namespace used by `ConfigManager`,
     /// without initializing the store before the directory check runs.
     pub(super) async fn configs_dir(&self) -> anyhow::Result<PathBuf> {
-        let settings = load_settings(&self.settings_file).await.unwrap_or_default();
+        let settings = self.read_only_settings().await;
         let root = resolve_configs_dir_in(settings.configs_dir.as_deref(), &self.home)?;
         Ok(engine_config_dir(&root, &mihomo_config::engine_id()))
     }

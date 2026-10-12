@@ -9,6 +9,8 @@ use crate::profile_options_application::ProfileOptionsApplication;
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::profile_document::ProfileDocumentSaved;
 use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
+use infiltrator_ports::runtime_gateway::ManagedRuntime;
+use std::sync::Arc;
 
 #[tokio::test]
 async fn document_and_mixin_saves_refuse_the_users_old_source_before_touching_either_document() {
@@ -17,15 +19,12 @@ async fn document_and_mixin_saves_refuse_the_users_old_source_before_touching_ei
     let document = ProfileDocumentApplication::new(profiles.clone());
     let mixin = ProfileOptionsApplication::new(profiles.clone());
     let observed = document.load(None).await.unwrap();
-    store
-        .save("main", "# external change\nmode: direct\n")
-        .await
-        .unwrap();
-    let newer = profiles.load_workspace("main").await.unwrap();
+    store.replace_document_for_test("main", "# external change\nmode: direct\n");
+    let newer = profiles.load_workspace(&profile_id("main")).await.unwrap();
     let source = observed.workspace_identity;
     let failure = document
         .save(
-            None::<Arc<dyn ManagedRuntime>>,
+            crate::profile_application::ProfileRuntimeAccess::<dyn ManagedRuntime>::Offline,
             &source,
             "mode: global\n",
             ProfileWriteAuthorization::RequireUnlock,
@@ -33,13 +32,23 @@ async fn document_and_mixin_saves_refuse_the_users_old_source_before_touching_ei
         .await
         .unwrap_err();
     assert_eq!(failure.code, ErrorCode::NotReady);
-    assert_eq!(profiles.load_workspace("main").await.unwrap(), newer);
+    assert_eq!(
+        profiles.load_workspace(&profile_id("main")).await.unwrap(),
+        newer
+    );
     let failure = mixin
-        .save_mixin(None::<Arc<dyn ManagedRuntime>>, &source, "mode: global\n")
+        .save_mixin(
+            crate::profile_application::ProfileRuntimeAccess::<dyn ManagedRuntime>::Offline,
+            &source,
+            "mode: global\n",
+        )
         .await
         .unwrap_err();
     assert_eq!(failure.code, ErrorCode::NotReady);
-    assert_eq!(profiles.load_workspace("main").await.unwrap(), newer);
+    assert_eq!(
+        profiles.load_workspace(&profile_id("main")).await.unwrap(),
+        newer
+    );
     assert!(store.sidecars.lock().unwrap().is_empty());
 }
 
@@ -88,7 +97,7 @@ async fn shared_editor_rejects_unit_and_old_terminal_keeps_draft_and_accepts_onl
         .unwrap();
     let committed = document
         .save(
-            None::<Arc<dyn ManagedRuntime>>,
+            crate::profile_application::ProfileRuntimeAccess::<dyn ManagedRuntime>::Offline,
             &source,
             "mode: global\n",
             ProfileWriteAuthorization::RequireUnlock,
@@ -117,10 +126,10 @@ async fn shared_editor_rejects_unit_and_old_terminal_keeps_draft_and_accepts_onl
         ProfileEditOperationPhase::Saved
     ));
     assert!(!session.dirty("mode: global\n"));
-    let writes_before_discard = profiles.load_workspace("main").await.unwrap();
+    let writes_before_discard = profiles.load_workspace(&profile_id("main")).await.unwrap();
     assert_eq!(session.discard().as_deref(), Some("mode: global\n"));
     assert_eq!(
-        profiles.load_workspace("main").await.unwrap(),
+        profiles.load_workspace(&profile_id("main")).await.unwrap(),
         writes_before_discard
     );
 }
@@ -142,7 +151,7 @@ async fn a_new_external_source_cannot_inherit_this_editors_prior_saved_claim() {
         .unwrap();
     let saved = document
         .save(
-            None::<Arc<dyn ManagedRuntime>>,
+            crate::profile_application::ProfileRuntimeAccess::<dyn ManagedRuntime>::Offline,
             &source,
             "mode: global\n",
             ProfileWriteAuthorization::RequireUnlock,
@@ -163,10 +172,7 @@ async fn a_new_external_source_cannot_inherit_this_editors_prior_saved_claim() {
         &session.operation,
         ProfileEditOperationPhase::Saved
     ));
-    store
-        .save("main", "# external editor\nmode: direct\n")
-        .await
-        .unwrap();
+    store.replace_document_for_test("main", "# external editor\nmode: direct\n");
     let newer = document.load(None).await.unwrap();
     assert_eq!(
         session.observe(&newer.workspace_identity, &newer.content, &saved.content),

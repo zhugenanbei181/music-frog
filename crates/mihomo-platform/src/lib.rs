@@ -6,6 +6,7 @@ pub mod crash_reporter;
 pub mod defaults;
 #[cfg(not(target_os = "android"))]
 pub mod desktop;
+pub mod durable_replace;
 pub mod instance_ipc;
 pub mod instance_lock;
 pub mod interface_watcher;

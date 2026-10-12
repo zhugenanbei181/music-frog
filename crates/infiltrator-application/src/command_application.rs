@@ -458,10 +458,10 @@ impl CommandApplication {
         runtime: Arc<dyn ApplicationRuntime>,
     ) -> SubscriptionRefreshApplication {
         let refresh = SubscriptionRefreshApplication::with_default_policy(profile, runtime);
-        // DUAL-07-09: the shipped command path reloads the updated active
-        // profile through the same managed-runtime seam it already holds.
+        // The shipped command path uses the same exact active workspace
+        // transaction as profile editing.
         let refresh = match &self.managed_runtime {
-            Some(managed) => refresh.with_core_reload(Arc::clone(managed)),
+            Some(managed) => refresh.with_managed_runtime(Arc::clone(managed)),
             None => refresh,
         };
         match &self.notifier {

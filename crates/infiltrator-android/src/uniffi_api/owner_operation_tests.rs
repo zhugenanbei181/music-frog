@@ -8,8 +8,13 @@ use super::*;
 use crate::host_support::build_routing_application;
 use crate::uniffi_api::{VpnTunStack, VpnTunStackUpdate};
 use infiltrator_application::vpn_preparation::VpnConfigurationActivationStatus;
+use infiltrator_contract::active_profile_reference::{
+    ActiveProfileReferenceCasOutcome, ActiveProfileReferenceTarget,
+};
+use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_domain::app_routing::AppRoutingMode;
 use infiltrator_domain::app_routing::AppRoutingRule;
+use infiltrator_ports::profile_store::ProfileStore;
 use mihomo_config::manager::ConfigManager;
 use mihomo_platform::TEST_LOCK;
 use mihomo_platform::android_bridge::{
@@ -32,6 +37,30 @@ fn test_home() -> PathBuf {
     let home = temp_dir().join(format!("android-owner-operation-{id}"));
     fs::create_dir_all(&home).expect("create owner operation test home");
     home
+}
+
+async fn select_profile(manager: &ConfigManager<DefaultCredentialStore>, profile: &str) {
+    let expected = ProfileStore::read_active_profile_reference(manager)
+        .await
+        .expect("read selection before test CAS");
+    let target = ActiveProfileReferenceTarget::selected(
+        ConfigManager::engine_id(manager),
+        ProfileId::new(profile).expect("valid test profile ID"),
+    );
+    match ProfileStore::compare_and_set_active_profile_reference(
+        manager,
+        expected,
+        target,
+        infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization::Unowned,
+    )
+        .await
+        .expect("revisioned test selection CAS")
+    {
+        ActiveProfileReferenceCasOutcome::Committed { .. } => {}
+        ActiveProfileReferenceCasOutcome::Stale { expected, observed } => {
+            panic!("test selection unexpectedly stale: {expected:?} -> {observed:?}")
+        }
+    }
 }
 
 #[test]

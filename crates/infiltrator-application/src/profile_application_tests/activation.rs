@@ -1,0 +1,357 @@
+//! Revision-fenced active-profile activation behavior.
+
+use super::*;
+use async_trait::async_trait;
+use infiltrator_contract::active_profile_reference::{
+    ActiveProfileReference, ActiveProfileReferenceState, ActiveProfileReferenceTarget,
+    ActiveProfileReferenceWriteAuthorization,
+};
+use infiltrator_contract::capability::Capability;
+use infiltrator_contract::core_identity::{CoreGeneration, CoreIdentity, CoreInstanceId, EngineId};
+use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_domain::apply::ApplyStrategy;
+use infiltrator_domain::profiles::ProfileMetadata;
+use infiltrator_domain::runtime::{
+    ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider, TrafficData,
+};
+use infiltrator_ports::error::PortError;
+use infiltrator_ports::profile_store::{
+    ActiveProfileWorkspacePublishOutcome, ActiveProfileWorkspacePublishedLease,
+    ActiveProfileWorkspaceRecoveryLease, ActiveProfileWorkspaceRecoveryResolution,
+    ActiveProfileWorkspaceRestoreOutcome, ActiveProfileWorkspaceRestoredLease,
+    ActiveProfileWorkspaceWriteLease,
+};
+use infiltrator_ports::profile_workspace::{ProfileWorkspace, ProfileWorkspaceUpdate};
+use infiltrator_ports::runtime_gateway::{ManagedRuntime, RuntimeGateway, RuntimeStream};
+use std::collections::VecDeque;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
+
+enum ApplyBehavior {
+    Succeed,
+    Fail,
+    SwitchThenFail(String),
+}
+
+struct ActivationRuntime {
+    engine: EngineId,
+    store: Arc<FakeStore>,
+    behaviors: Mutex<VecDeque<ApplyBehavior>>,
+    calls: AtomicUsize,
+    references: Mutex<Vec<ActiveProfileReference>>,
+    lifecycle: Mutex<infiltrator_contract::snapshot::CoreLifecycle>,
+}
+
+impl ActivationRuntime {
+    fn new(store: Arc<FakeStore>, behaviors: impl IntoIterator<Item = ApplyBehavior>) -> Self {
+        let engine = EngineId::new("mihomo").expect("test engine ID");
+        store.bind_owner_for_test(
+            infiltrator_contract::core_identity::CoreIdentity::new(
+                engine.clone(),
+                infiltrator_contract::core_identity::CoreInstanceId::new("activation-test-core")
+                    .expect("test owner instance"),
+                None,
+            ),
+            infiltrator_contract::core_identity::CoreGeneration::new(1),
+        );
+        Self {
+            engine,
+            store,
+            behaviors: Mutex::new(behaviors.into_iter().collect()),
+            calls: AtomicUsize::new(0),
+            references: Mutex::new(Vec::new()),
+            lifecycle: Mutex::new(infiltrator_contract::snapshot::CoreLifecycle::Running),
+        }
+    }
+
+    fn set_lifecycle(&self, lifecycle: infiltrator_contract::snapshot::CoreLifecycle) {
+        *self.lifecycle.lock().expect("runtime lifecycle") = lifecycle;
+    }
+
+    fn unavailable(&self) -> PortError {
+        PortError::unsupported(Capability::Profiles, "unused test runtime operation")
+    }
+}
+
+#[async_trait]
+impl RuntimeGateway for ActivationRuntime {
+    async fn switch_proxy(&self, _: &str, _: &str) -> Result<(), PortError> {
+        Err(self.unavailable())
+    }
+    async fn test_delay(&self, _: &str, _: &str, _: u32) -> Result<u32, PortError> {
+        Err(self.unavailable())
+    }
+    async fn get_proxy_providers(&self) -> Result<Vec<ProxyProvider>, PortError> {
+        Err(self.unavailable())
+    }
+    async fn get_rule_providers(&self) -> Result<Vec<RuleProvider>, PortError> {
+        Err(self.unavailable())
+    }
+    async fn update_proxy_provider(&self, _: &str) -> Result<(), PortError> {
+        Err(self.unavailable())
+    }
+    async fn update_rule_provider(&self, _: &str) -> Result<(), PortError> {
+        Err(self.unavailable())
+    }
+    async fn get_connections(&self) -> Result<ConnectionSnapshot, PortError> {
+        Err(self.unavailable())
+    }
+    async fn get_memory(&self) -> Result<MemoryData, PortError> {
+        Err(self.unavailable())
+    }
+    async fn close_connection(&self, _: &str) -> Result<(), PortError> {
+        Err(self.unavailable())
+    }
+    async fn close_all_connections(&self) -> Result<(), PortError> {
+        Err(self.unavailable())
+    }
+    async fn stream_logs(&self, _: Option<String>) -> Result<RuntimeStream<String>, PortError> {
+        Err(self.unavailable())
+    }
+    async fn stream_traffic(&self) -> Result<RuntimeStream<TrafficData>, PortError> {
+        Err(self.unavailable())
+    }
+    async fn stream_connections(&self) -> Result<RuntimeStream<ConnectionSnapshot>, PortError> {
+        Err(self.unavailable())
+    }
+}
+
+#[async_trait]
+impl ManagedRuntime for ActivationRuntime {
+    fn engine_id(&self) -> Option<EngineId> {
+        Some(self.engine.clone())
+    }
+
+    fn generation(&self) -> u64 {
+        1
+    }
+
+    fn core_lifecycle(&self) -> infiltrator_contract::snapshot::CoreLifecycle {
+        self.lifecycle.lock().expect("runtime lifecycle").clone()
+    }
+
+    fn active_profile_reference_write_authorization(
+        &self,
+    ) -> Result<
+        infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization,
+        PortError,
+    > {
+        Ok(ActiveProfileReferenceWriteAuthorization::BoundOwner {
+            identity: infiltrator_contract::core_identity::CoreIdentity::new(
+                self.engine.clone(),
+                infiltrator_contract::core_identity::CoreInstanceId::new("activation-test-core")
+                    .expect("test owner instance"),
+                None,
+            ),
+            generation: infiltrator_contract::core_identity::CoreGeneration::new(1),
+        })
+    }
+
+    async fn is_running(&self) -> bool {
+        true
+    }
+
+    async fn restart(&self) -> Result<u64, PortError> {
+        Err(self.unavailable())
+    }
+
+    async fn http_proxy_endpoint(&self) -> Result<Option<String>, PortError> {
+        Err(self.unavailable())
+    }
+
+    async fn shutdown(&self) -> Result<(), PortError> {
+        Err(self.unavailable())
+    }
+
+    async fn apply_active_profile_reference(
+        &self,
+        expected: &ActiveProfileReference,
+        _: ApplyStrategy,
+    ) -> Result<u64, PortError> {
+        self.calls.fetch_add(1, Ordering::SeqCst);
+        self.references
+            .lock()
+            .expect("runtime references")
+            .push(expected.clone());
+        if self.store.active_reference() != ActiveProfileReferenceState::Selected(expected.clone())
+        {
+            return Err(PortError::Rejected(Failure::new(
+                ErrorCode::NotReady,
+                "runtime observed a different active profile reference",
+                true,
+            )));
+        }
+        match self
+            .behaviors
+            .lock()
+            .expect("runtime behavior")
+            .pop_front()
+            .unwrap_or(ApplyBehavior::Succeed)
+        {
+            ApplyBehavior::Succeed => Ok(2),
+            ApplyBehavior::Fail => Err(PortError::Failed("target apply failed".to_owned())),
+            ApplyBehavior::SwitchThenFail(profile) => {
+                self.store.set_external_current(&profile)?;
+                Err(PortError::Failed(
+                    "target apply failed after a newer selection".to_owned(),
+                ))
+            }
+        }
+    }
+
+    async fn apply_profile_workspace(
+        &self,
+        expected_reference: &ActiveProfileReference,
+        expected: &infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity,
+        update: &ProfileWorkspaceUpdate,
+        authorization: ActiveProfileReferenceWriteAuthorization,
+        strategy: ApplyStrategy,
+    ) -> Result<ProfileWorkspace, PortError> {
+        let lease = self
+            .store
+            .acquire_active_workspace_write_lease(
+                expected_reference.clone(),
+                expected.clone(),
+                authorization,
+            )
+            .await?;
+        let published = resolve_fake_publish(lease.publish(update.clone()).await).await?;
+        match ManagedRuntime::apply_active_profile_reference(self, expected_reference, strategy)
+            .await
+        {
+            Ok(_) => Ok(published.commit()),
+            Err(apply_error) => {
+                recover_fake_workspace_after_apply_failure(published, apply_error).await
+            }
+        }
+    }
+}
+
+async fn resolve_fake_publish<'a>(
+    outcome: ActiveProfileWorkspacePublishOutcome<'a>,
+) -> Result<Box<dyn ActiveProfileWorkspacePublishedLease + 'a>, PortError> {
+    match outcome {
+        ActiveProfileWorkspacePublishOutcome::Published(published) => Ok(published),
+        ActiveProfileWorkspacePublishOutcome::Unpublished(error) => Err(error),
+        ActiveProfileWorkspacePublishOutcome::Superseded { .. } => Err(PortError::Rejected(
+            Failure::new(ErrorCode::NotReady, "fake publication was superseded", true),
+        )),
+        ActiveProfileWorkspacePublishOutcome::RecoveryRequired(recovery) => {
+            resolve_fake_workspace_recovery(recovery).await
+        }
+    }
+}
+
+async fn resolve_fake_workspace_recovery<'a>(
+    mut recovery: Box<dyn ActiveProfileWorkspaceRecoveryLease + 'a>,
+) -> Result<Box<dyn ActiveProfileWorkspacePublishedLease + 'a>, PortError> {
+    loop {
+        match recovery.resolve().await {
+            ActiveProfileWorkspaceRecoveryResolution::Published(published) => {
+                return Ok(published);
+            }
+            ActiveProfileWorkspaceRecoveryResolution::Restored(restored) => {
+                let _ = restored.finish();
+                return Err(PortError::Rejected(Failure::new(
+                    ErrorCode::NotReady,
+                    "fake publication recovery restored the previous workspace",
+                    true,
+                )));
+            }
+            ActiveProfileWorkspaceRecoveryResolution::Unpublished(error) => return Err(error),
+            ActiveProfileWorkspaceRecoveryResolution::Superseded { .. } => {
+                return Err(PortError::Rejected(Failure::new(
+                    ErrorCode::NotReady,
+                    "fake publication recovery was superseded",
+                    true,
+                )));
+            }
+            ActiveProfileWorkspaceRecoveryResolution::RecoveryRequired(next) => {
+                recovery = next;
+            }
+        }
+    }
+}
+
+async fn recover_fake_workspace_after_apply_failure<'a>(
+    mut published: Box<dyn ActiveProfileWorkspacePublishedLease + 'a>,
+    apply_error: PortError,
+) -> Result<ProfileWorkspace, PortError> {
+    'restore: loop {
+        match published.restore_if_current().await? {
+            ActiveProfileWorkspaceRestoreOutcome::Restored(restored) => {
+                let _ = restored.finish();
+                return Err(apply_error);
+            }
+            ActiveProfileWorkspaceRestoreOutcome::Superseded { .. } => {
+                return Err(PortError::Rejected(Failure::new(
+                    ErrorCode::NotReady,
+                    "fake apply failed after a later workspace edit",
+                    true,
+                )));
+            }
+            ActiveProfileWorkspaceRestoreOutcome::RecoveryRequired(mut recovery) => loop {
+                match recovery.resolve().await {
+                    ActiveProfileWorkspaceRecoveryResolution::Restored(restored) => {
+                        let _ = restored.finish();
+                        return Err(apply_error);
+                    }
+                    ActiveProfileWorkspaceRecoveryResolution::Published(next) => {
+                        published = next;
+                        continue 'restore;
+                    }
+                    ActiveProfileWorkspaceRecoveryResolution::Unpublished(error) => {
+                        return Err(error);
+                    }
+                    ActiveProfileWorkspaceRecoveryResolution::Superseded { .. } => {
+                        return Err(PortError::Rejected(Failure::new(
+                            ErrorCode::NotReady,
+                            "fake apply recovery was superseded",
+                            true,
+                        )));
+                    }
+                    ActiveProfileWorkspaceRecoveryResolution::RecoveryRequired(next) => {
+                        recovery = next;
+                    }
+                }
+            },
+        }
+    }
+}
+
+fn store_with_profiles(current: &str, profiles: &[&str]) -> Arc<FakeStore> {
+    let store = Arc::new(FakeStore::with_profile(current, "mode: rule\n", true));
+    let mut saved = store.profiles.lock().expect("profiles");
+    for profile in profiles {
+        saved
+            .entry((*profile).to_owned())
+            .or_insert_with(|| ("mode: rule\n".to_owned(), ProfileMetadata::default()));
+    }
+    drop(saved);
+    store
+}
+
+fn target(profile: &str) -> ActiveProfileReferenceTarget {
+    ActiveProfileReferenceTarget::selected(
+        EngineId::new("mihomo").expect("test engine ID"),
+        ProfileId::new(profile).expect("test profile ID"),
+    )
+}
+
+fn selected_profile(state: &ActiveProfileReferenceState) -> (&str, u64) {
+    match state {
+        ActiveProfileReferenceState::Selected(reference) => {
+            (reference.profile_id.as_str(), reference.revision.value())
+        }
+        ActiveProfileReferenceState::Unselected { .. } => panic!("expected selected reference"),
+    }
+}
+
+#[path = "activation/profile_content.rs"]
+mod profile_content;
+#[path = "activation/profile_selection.rs"]
+mod profile_selection;
+#[path = "activation/recovery.rs"]
+mod recovery;
+#[path = "activation/subscription.rs"]
+mod subscription;

@@ -55,8 +55,11 @@ fn status_of(report: &DoctorReport, id: &str) -> DoctorStatus {
 }
 
 async fn save_profile(env: &DoctorEnv, content: &str) {
-    let manager = env.config_manager().await.unwrap();
-    manager.save("default", content).await.unwrap();
+    let manager = env.initialized_config_manager().await.unwrap();
+    manager
+        .save_inactive_profile("default", content)
+        .await
+        .unwrap();
     manager.migrate_legacy_mihomo_selection().await.unwrap();
 }
 
@@ -325,7 +328,7 @@ async fn profile_checks_fail_then_config_fix_heals() {
     let report = run_with(&env, Some("config")).await;
     assert_eq!(
         status_of(&report, "config.current_profile"),
-        DoctorStatus::Fail
+        DoctorStatus::Skip
     );
     assert_eq!(
         status_of(&report, "config.current_yaml"),
@@ -355,6 +358,43 @@ async fn profile_checks_fail_then_config_fix_heals() {
 }
 
 #[tokio::test]
+async fn read_only_profile_checks_leave_fresh_root_for_bootstrap() {
+    let (dir, env) = temp_env("read-only-profile");
+    let _guard = test_support::RedirectGuard::acquire(dir.path().to_path_buf()).await;
+    let config_root = dir.path().join("configs");
+    let engine_dir = engine_config_dir(&config_root, &mihomo_config::engine_id());
+    assert!(!config_root.exists());
+
+    let report = run_with(&env, None).await;
+    assert_eq!(status_of(&report, "config.configs_dir"), DoctorStatus::Warn);
+    assert_eq!(
+        status_of(&report, "config.current_profile"),
+        DoctorStatus::Skip
+    );
+    assert_eq!(
+        status_of(&report, "config.current_yaml"),
+        DoctorStatus::Skip
+    );
+    assert_eq!(
+        status_of(&report, "controller.external_controller"),
+        DoctorStatus::Skip
+    );
+    assert!(!engine_dir.exists());
+    assert!(!config_root.exists());
+
+    let bootstrap = crate::bootstrap::ensure_bootstrap_at(dir.path())
+        .await
+        .unwrap();
+    let configs_step = bootstrap
+        .steps
+        .iter()
+        .find(|step| step.id == "configs_dir")
+        .expect("bootstrap reports its configs directory step");
+    assert!(configs_step.executed);
+    assert!(config_root.is_dir());
+}
+
+#[tokio::test]
 async fn current_yaml_rejects_non_mapping_top_level() {
     let (_dir, env) = temp_env("yaml-scalar");
     save_profile(&env, "42\n").await;
@@ -366,17 +406,16 @@ async fn current_yaml_rejects_non_mapping_top_level() {
 }
 
 #[tokio::test]
-async fn current_yaml_skips_when_profile_path_unavailable() {
+async fn current_yaml_skips_when_active_reference_is_unreadable() {
     let (_dir, env) = temp_env("yaml-skip");
-    // Unresolvable configs dir (broken settings file) makes the path
-    // derivation fail, which this check reports as Skip rather than Fail.
-    create_dir_all(env.home()).unwrap();
-    write(env.home().join("config.toml"), "= not toml").unwrap();
+    let config_root = env.home().join("configs");
+    write(&config_root, "operator data").unwrap();
     let report = run_with(&env, Some("config.current_yaml")).await;
     assert_eq!(
         status_of(&report, "config.current_yaml"),
         DoctorStatus::Skip
     );
+    assert_eq!(std::fs::read(&config_root).unwrap(), b"operator data");
 }
 
 #[tokio::test]
@@ -574,7 +613,7 @@ async fn external_controller_check_skips_then_passes_after_fix() {
     for action in &fixed.actions {
         assert_eq!(action.id, "controller.external_controller");
     }
-    let manager = env.config_manager().await.unwrap();
+    let manager = env.initialized_config_manager().await.unwrap();
     assert!(manager.get_external_controller().await.is_ok());
 }
 
@@ -597,7 +636,7 @@ async fn full_report_keeps_check_order_and_exit_contract() {
     assert_eq!(status_of(&report, "config.configs_dir"), DoctorStatus::Warn);
     assert_eq!(
         status_of(&report, "config.current_profile"),
-        DoctorStatus::Fail
+        DoctorStatus::Skip
     );
     assert_eq!(
         status_of(&report, "config.current_yaml"),

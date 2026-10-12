@@ -119,12 +119,21 @@ pub struct Failure {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum FailureReason {
-    YamlSyntax { line: usize, column: usize },
+    YamlSyntax {
+        line: usize,
+        column: usize,
+    },
     MixinYaml,
     ActiveProfileInconsistent,
     QuotaSourceChanged,
     CurrentTimeUnavailable,
     DownloadCanceled,
+    ActiveProfileReferenceStale {
+        expected_revision: u64,
+        observed_revision: u64,
+    },
+    CoreApplyFailure(crate::active_profile_reference::CoreApplyFailureKind),
+    ActiveProfileRecovery(crate::active_profile_reference::ActiveProfileRecoveryOutcome),
 }
 
 impl Failure {
