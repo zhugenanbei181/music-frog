@@ -230,6 +230,28 @@ impl SelectedActiveProfileBackend {
         }
     }
 
+    /// Close a newly constructed but unbound candidate, verify its exact
+    /// terminal snapshot, and release the durable switch reservation.
+    pub async fn discard_application_candidate(
+        self,
+        application: &infiltrator_application::core_application::CoreApplication,
+    ) -> Result<(), PortError> {
+        let before = application.snapshot().lifecycle_snapshot();
+        application.close().await.map_err(PortError::Rejected)?;
+        let terminal = application.snapshot().lifecycle_snapshot();
+        verify_candidate_terminal(&before, &terminal)?;
+        match self.owner_admission {
+            SelectedOwnerAdmission::SelectionLease(selection_lease) => {
+                drop(selection_lease);
+                Ok(())
+            }
+            SelectedOwnerAdmission::SwitchReservation(binding) => binding
+                .discard_unstarted_candidate(&terminal)
+                .await
+                .map(|_| ()),
+        }
+    }
+
     /// Finalize a cross-engine reservation only after the product has built
     /// the candidate CoreApplication. A mismatching candidate is closed and
     /// must produce its exact Stopped/no-session receipt before the reservation

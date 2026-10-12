@@ -2,18 +2,30 @@
 
 use super::*;
 use async_trait::async_trait;
-use infiltrator_composition::active_profile_backend::preflight_active_profile_reference;
+use infiltrator_composition::active_profile_backend::{
+    ActiveProfileSelectionPreflight, preflight_active_profile_reference,
+};
 use infiltrator_contract::active_profile_reference::{
     ActiveProfileReferenceCasOutcome, ActiveProfileReferenceState, ActiveProfileReferenceTarget,
     ActiveProfileReferenceWriteAuthorization,
 };
 use infiltrator_contract::core_capabilities::CoreLifecycleOperation;
-use infiltrator_contract::core_capabilities::{CoreCapabilityMatrix, EngineBinaryTarget};
-use infiltrator_contract::core_identity::CoreVersion;
+use infiltrator_contract::core_capabilities::{
+    CoreCapabilityMatrix, CoreOperation, EngineBinaryTarget,
+};
+use infiltrator_contract::core_identity::{CoreVersion, EngineId};
 use infiltrator_contract::profile_document_identity::ProfileId;
-use infiltrator_ports::core_binary_selection::CoreBinarySelectionSource;
-use infiltrator_ports::core_capability_provider::CoreCapabilityProviderError;
+use infiltrator_contract::snapshot::CoreLifecycle;
+use infiltrator_contract::surface::HostKind;
+use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceStore;
+use infiltrator_ports::core_binary_selection::{CoreBinarySelection, CoreBinarySelectionSource};
+use infiltrator_ports::core_capability_provider::{
+    CoreCapabilityProvider, CoreCapabilityProviderError,
+};
+use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::error::PortError;
+use infiltrator_ports::profile_store::ProfileStore;
+use infiltrator_ports::runtime_gateway::ManagedRuntime;
 use mihomo_config::manager::{ConfigManager, ProfileDocumentExtension};
 use mihomo_platform::defaults::DefaultCredentialStore;
 use reqwest::Url;
@@ -26,7 +38,7 @@ use singbox_adapter::http::{
     SingBoxClashHttpPort, SingBoxClashMethod, SingBoxClashResponse, SingBoxControllerAuthorization,
 };
 use singbox_adapter::profile_document_codec::SingBoxProfileDocumentCodec;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::time::Duration;
@@ -252,8 +264,12 @@ fn selected_version_must_authorize_core_lifecycle_for_the_current_target() {
             CoreOperation::Lifecycle(CoreLifecycleOperation::Stop),
         ],
     ));
-    validate_version_capability(&provider, &verified_selection(), &engine_id)
-        .expect("locked target/version authorizes Core lifecycle");
+    DesktopCoreOwnerRuntime::validate_engine_start_capability(
+        &provider,
+        &verified_selection(),
+        &engine_id,
+    )
+    .expect("locked target/version authorizes Core lifecycle");
 }
 
 struct WrongTargetCapabilityProvider(SingBoxCoreCapabilityProvider);
@@ -283,7 +299,11 @@ fn target_mismatched_capability_matrix_fails_before_runtime_construction() {
         ),
     ));
     assert!(matches!(
-        validate_version_capability(&provider, &verified_selection(), &engine_id),
+        DesktopCoreOwnerRuntime::validate_engine_start_capability(
+            &provider,
+            &verified_selection(),
+            &engine_id
+        ),
         Err(PortError::Rejected(Failure {
             code: ErrorCode::InvalidState,
             ..
@@ -293,7 +313,7 @@ fn target_mismatched_capability_matrix_fails_before_runtime_construction() {
 
 #[test]
 fn surface_advertises_only_the_connected_lifecycle_capability() {
-    let capabilities = singbox_surface_capabilities();
+    let capabilities = crate::core_owner_runtime::desktop_core_lifecycle_capabilities();
     assert!(capabilities.supports(Capability::CoreLifecycle));
     assert!(!capabilities.supports(Capability::Profiles));
     assert!(!capabilities.supports(Capability::RoutingIntent));

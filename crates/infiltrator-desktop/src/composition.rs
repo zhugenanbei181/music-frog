@@ -4,6 +4,8 @@
 //! Tokio-backed application service with a concrete process and controller
 //! adapter. UI crates receive the resulting `CoreApplication` handle.
 
+pub(crate) mod mihomo_backend;
+
 use crate::certificate_authority::DesktopCertificateAuthority;
 use crate::host::DesktopHostCapabilities;
 use crate::log_export::DesktopLogExportPort;
@@ -41,11 +43,10 @@ use infiltrator_application::uwp_loopback_application::UwpLoopbackApplication;
 use infiltrator_application::version_application::VersionApplication;
 use infiltrator_composition::active_profile_backend::{
     ActiveProfileBackendSelector, ActiveProfileSelectionPreflight, PreviousCoreOwner,
-    SelectedActiveProfileBackend, authorize_lifecycle_start, preflight_active_profile_reference,
+    authorize_lifecycle_start, preflight_active_profile_reference,
 };
 use infiltrator_composition::engine_backend_factory::EngineBackendFactoryRegistry;
 use infiltrator_composition::engine_capability_provider_registry::EngineCoreCapabilityProviderRegistry;
-use infiltrator_composition::mihomo_engine_backend_provider::MihomoEngineBackendProvider;
 use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
 use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_capabilities::{
@@ -68,7 +69,6 @@ use infiltrator_ports::core_binary_selection::{
 };
 use infiltrator_ports::core_capability_provider::CoreCapabilityProvider;
 use infiltrator_ports::core_log_level::CoreLogLevelPort;
-use infiltrator_ports::core_process::CoreReadiness;
 use infiltrator_ports::endpoint::EndpointSource;
 use infiltrator_ports::engine_backend_factory::{
     EngineBackendOwnerScopeBindingResult, EngineBackendPorts, EngineBackendProvider,
@@ -82,7 +82,6 @@ use infiltrator_ports::subscription_source::SubscriptionSource;
 use mihomo_api::client::MihomoClient;
 use mihomo_api::core_capability_provider::MihomoCoreCapabilityProvider;
 use mihomo_api::overview::ControllerOverviewReader;
-use mihomo_api::readiness::ControllerReadiness;
 use mihomo_config::manager::ConfigManager;
 use mihomo_platform::defaults::DefaultCredentialStore;
 use mihomo_version::bundled_kernel::packaged_candidates;
@@ -92,6 +91,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
+
+use self::mihomo_backend::DesktopMihomoBackend;
 
 /// Engine-neutral handles returned to the owning desktop session. The
 /// registered Mihomo provider remains the only concrete runtime owner here.
@@ -197,7 +198,7 @@ async fn open_product_backend_with_source(
 /// process/config/runtime bundle. Keep that host-specific boundary here while
 /// resolving it with the same engine identity and provider semantics.
 #[async_trait::async_trait]
-trait DesktopEngineRuntimeProvider: Send + Sync {
+pub(crate) trait DesktopEngineRuntimeProvider: Send + Sync {
     fn engine_id(&self) -> EngineId;
 
     fn binary_selection_policy(
@@ -212,7 +213,7 @@ trait DesktopEngineRuntimeProvider: Send + Sync {
     ) -> anyhow::Result<DesktopRuntimeOutcome>;
 }
 
-enum DesktopRuntimeRequest {
+pub(crate) enum DesktopRuntimeRequest {
     MihomoProduct {
         surface: SurfaceKind,
         config_manager: Arc<ConfigManager<DefaultCredentialStore>>,
@@ -227,11 +228,11 @@ enum DesktopRuntimeRequest {
     },
 }
 
-enum DesktopRuntimeOutcome {
+pub(crate) enum DesktopRuntimeOutcome {
     Product(DesktopProductBackend),
 }
 
-struct DesktopEngineRuntimeFactory {
+pub(crate) struct DesktopEngineRuntimeFactory {
     providers: HashMap<EngineId, Arc<dyn DesktopEngineRuntimeProvider>>,
 }
 
@@ -254,7 +255,7 @@ impl DesktopEngineRuntimeFactory {
         })
     }
 
-    fn provider(
+    pub(crate) fn provider(
         &self,
         engine_id: &EngineId,
     ) -> Result<Arc<dyn DesktopEngineRuntimeProvider>, PortError> {
@@ -270,7 +271,7 @@ impl DesktopEngineRuntimeFactory {
     }
 }
 
-fn desktop_runtime_factory() -> Result<DesktopEngineRuntimeFactory, PortError> {
+pub(crate) fn desktop_runtime_factory() -> Result<DesktopEngineRuntimeFactory, PortError> {
     let mihomo: Arc<dyn DesktopEngineRuntimeProvider> = Arc::new(DesktopMihomoRuntimeProvider);
     let sing_box: Arc<dyn DesktopEngineRuntimeProvider> = Arc::new(DesktopSingBoxRuntimeProvider);
     DesktopEngineRuntimeFactory::new([mihomo, sing_box])
@@ -411,7 +412,7 @@ impl DesktopEngineRuntimeProvider for DesktopSingBoxRuntimeProvider {
     }
 }
 
-async fn select_product_binary(
+pub(crate) async fn select_product_binary(
     factory: &dyn EngineVersionBackendFactory,
     engine_id: &EngineId,
     policy: CoreBinarySelectionPolicy,
@@ -466,73 +467,94 @@ pub(crate) async fn core_application(
     let exports = Arc::new(DesktopLogExportPort::new(profile_store.config_dir()));
     let export_secrets = secret.iter().cloned().collect();
     let client = client.clone();
-    let runtime = infiltrator_composition::tokio_application_runtime()
-        .map_err(|error| anyhow::anyhow!(error))?;
+    let runtime = match infiltrator_composition::tokio_application_runtime() {
+        Ok(runtime) => runtime,
+        Err(error) => {
+            let primary = anyhow::anyhow!(error);
+            return match selection.abort_before_core_application().await {
+                Ok(_) => Err(primary),
+                Err(cleanup) => Err(anyhow::Error::new(PortError::Failed(format!(
+                    "{primary}; aborting the unconstructed Desktop Core candidate failed: {cleanup}"
+                )))),
+            };
+        }
+    };
     let application = CoreApplication::new_with_overview(
         ports.process(),
         ports.readiness(),
         Arc::new(ControllerOverviewReader::new(client.clone())),
         runtime.clone(),
     );
-    match ports.bind_owner_scope_source(Arc::new(application.clone()))? {
-        EngineBackendOwnerScopeBindingResult::NotRequired => {}
-        EngineBackendOwnerScopeBindingResult::Bound => {}
+    let setup: anyhow::Result<()> = async {
+        match ports.bind_owner_scope_source(Arc::new(application.clone()))? {
+            EngineBackendOwnerScopeBindingResult::NotRequired => {}
+            EngineBackendOwnerScopeBindingResult::Bound => {}
+        }
+        let transaction_binding = ports.configuration_transaction_binding();
+        let document_codec = ports.configuration();
+        let transaction_scope = ProfileConfigurationTransactionScope::new(document_codec.scope());
+        let stopped_validator = Arc::new(MihomoBinaryConfigurationCandidateValidator::new(
+            transaction_scope,
+            service.binary_path().to_path_buf(),
+            config_manager.config_dir().to_path_buf(),
+        )?);
+        let transaction = Arc::new(MihomoProfileConfigurationTransactionAdapter::new(
+            document_codec,
+            stopped_validator,
+            Arc::new(application.clone()),
+            config_manager,
+            Arc::new(EndpointConfigReloader::new(endpoints)),
+            apply_guard,
+        )?);
+        transaction_binding.bind(transaction)?;
+        application
+            .install_log_gateway(Arc::new(client.clone()))
+            .map_err(|failure| anyhow::anyhow!(failure.message))?;
+        let outbound_port = ports.operations().outbound()?;
+        application
+            .install_outbound_port(outbound_port.clone())
+            .map_err(|failure| anyhow::anyhow!(failure.message))?;
+        let outbound_application = OutboundApplication::new(outbound_port);
+        speedtest
+            .install_outbound_application(outbound_application.clone())
+            .map_err(|failure| anyhow::anyhow!(failure.message))?;
+        application
+            .install_speedtest_application(speedtest)
+            .map_err(|failure| anyhow::anyhow!(failure.message))?;
+        let commands = desktop_command_application(DesktopCommandServices {
+            binary_path: service.binary_path().to_path_buf(),
+            client: client.clone(),
+            backend_ports: ports,
+            core_capability_provider: Arc::clone(&capability_provider),
+            engines,
+            profile_store,
+            subscription_source,
+        })?;
+        application
+            .install_core_capability_application(commands.core_capability_application())
+            .map_err(|failure| anyhow::anyhow!(failure.message))?;
+        application.install_command_handler(Arc::new(
+            commands
+                .with_logs(application.log_application())
+                .with_outbound(outbound_application)
+                .with_outbound_ui_preferences(application.outbound_ui_preferences_application())
+                .with_log_export(LogExportApplication::new(
+                    application.log_application(),
+                    Some(exports),
+                    export_secrets,
+                )),
+        ));
+        Ok(())
     }
-    let transaction_binding = ports.configuration_transaction_binding();
-    let document_codec = ports.configuration();
-    let transaction_scope = ProfileConfigurationTransactionScope::new(document_codec.scope());
-    let stopped_validator = Arc::new(MihomoBinaryConfigurationCandidateValidator::new(
-        transaction_scope,
-        service.binary_path().to_path_buf(),
-        config_manager.config_dir().to_path_buf(),
-    )?);
-    let transaction = Arc::new(MihomoProfileConfigurationTransactionAdapter::new(
-        document_codec,
-        stopped_validator,
-        Arc::new(application.clone()),
-        config_manager,
-        Arc::new(EndpointConfigReloader::new(endpoints)),
-        apply_guard,
-    )?);
-    transaction_binding.bind(transaction)?;
-    application
-        .install_log_gateway(Arc::new(client.clone()))
-        .map_err(|failure| anyhow::anyhow!(failure.message))?;
-    let outbound_port = ports.operations().outbound()?;
-    application
-        .install_outbound_port(outbound_port.clone())
-        .map_err(|failure| anyhow::anyhow!(failure.message))?;
-    let outbound_application = OutboundApplication::new(outbound_port);
-    speedtest
-        .install_outbound_application(outbound_application.clone())
-        .map_err(|failure| anyhow::anyhow!(failure.message))?;
-    application
-        .install_speedtest_application(speedtest)
-        .map_err(|failure| anyhow::anyhow!(failure.message))?;
-    let commands = desktop_command_application(DesktopCommandServices {
-        binary_path: service.binary_path().to_path_buf(),
-        client: client.clone(),
-        backend_ports: ports,
-        core_capability_provider: Arc::clone(&capability_provider),
-        engines,
-        profile_store,
-        subscription_source,
-    })?;
-    application
-        .install_core_capability_application(commands.core_capability_application())
-        .map_err(|failure| anyhow::anyhow!(failure.message))?;
-    application.install_command_handler(Arc::new(
-        commands
-            .with_logs(application.log_application())
-            .with_outbound(outbound_application)
-            .with_outbound_ui_preferences(application.outbound_ui_preferences_application())
-            .with_log_export(LogExportApplication::new(
-                application.log_application(),
-                Some(exports),
-                export_secrets,
-            )),
-    ));
-    let DesktopBackendSelection::ActiveProfile(selection) = selection;
+    .await;
+    if let Err(primary) = setup {
+        return match selection.discard_application_candidate(&application).await {
+            Ok(()) => Err(primary),
+            Err(cleanup) => Err(anyhow::Error::new(PortError::Failed(format!(
+                "{primary}; discarding the unstarted Desktop Core candidate failed: {cleanup}"
+            )))),
+        };
+    }
     selection
         .install_owner_binding_for_application(&application)
         .await?;
@@ -706,17 +728,6 @@ pub(crate) fn desktop_core_capability_provider(
     Ok(Arc::new(registry))
 }
 
-pub(crate) struct DesktopMihomoBackend {
-    pub ports: EngineBackendPorts,
-    pub client: MihomoClient,
-    pub capability_provider: Arc<dyn CoreCapabilityProvider>,
-    pub selection: DesktopBackendSelection,
-}
-
-pub(crate) enum DesktopBackendSelection {
-    ActiveProfile(SelectedActiveProfileBackend),
-}
-
 pub(crate) async fn desktop_product_backend(
     service: &ServiceManager,
     controller_url: &str,
@@ -725,15 +736,8 @@ pub(crate) async fn desktop_product_backend(
     preflight: ActiveProfileSelectionPreflight,
 ) -> Result<DesktopMihomoBackend, PortError> {
     let capability_provider = preflight.capability_provider();
-    let client = MihomoClient::new(controller_url, secret.clone())
-        .map_err(|error| PortError::Network(error.to_string()))?;
-    let readiness: Arc<dyn CoreReadiness> =
-        Arc::new(ControllerReadiness::new(controller_url.to_owned(), secret));
-    let provider = Arc::new(MihomoEngineBackendProvider::new(
-        service.core_process(),
-        readiness,
-        client.clone(),
-    )?);
+    let (provider, client) =
+        mihomo_backend::desktop_mihomo_engine_provider(service, controller_url, secret)?;
     let factory_provider: Arc<dyn EngineBackendProvider> = provider;
     let factory = Arc::new(EngineBackendFactoryRegistry::new([factory_provider])?);
     let references: Arc<dyn ActiveProfileReferenceStore> = config_manager.clone();
@@ -747,23 +751,7 @@ pub(crate) async fn desktop_product_backend(
     let selected = selector
         .select_backend_from_preflight(preflight, &PreviousCoreOwner::Unowned)
         .await?;
-    if selected.reference.engine_id != MihomoVersionPort::engine_identifier() {
-        return Err(PortError::unsupported(
-            Capability::CoreLifecycle,
-            format!(
-                "desktop Mihomo host cannot bind selected engine {}",
-                selected.reference.engine_id.as_str()
-            ),
-        ));
-    }
-    let ports = selected.backend.clone();
-    let capability_provider = selected.capability_provider();
-    Ok(DesktopMihomoBackend {
-        ports,
-        client,
-        capability_provider,
-        selection: DesktopBackendSelection::ActiveProfile(selected),
-    })
+    mihomo_backend::desktop_mihomo_backend_from_selected(client, selected).await
 }
 
 #[cfg(test)]

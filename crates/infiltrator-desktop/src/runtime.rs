@@ -1,3 +1,4 @@
+use crate::composition::mihomo_backend::DesktopMihomoBackend;
 use crate::composition::{core_application, desktop_product_backend};
 use crate::network_roaming::DesktopNetworkRoamingPort;
 use crate::pac_service::DesktopPacServicePort;
@@ -29,7 +30,9 @@ use infiltrator_application::speedtest_application::SpeedtestApplication;
 use infiltrator_application::stun_probe_application::StunProbeApplication;
 use infiltrator_application::surface_application::SurfacePump;
 use infiltrator_application::system_proxy_application::SystemProxyApplication;
-use infiltrator_composition::active_profile_backend::ActiveProfileSelectionPreflight;
+use infiltrator_composition::active_profile_backend::{
+    ActiveProfileSelectionPreflight, SelectedActiveProfileBackend,
+};
 use infiltrator_contract::active_profile_reference::ActiveProfileReference;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::snapshot::CoreLifecycle;
@@ -117,6 +120,29 @@ pub(crate) struct MihomoRuntime {
     stun_probe: StunProbeApplication,
 }
 
+struct PreparedMihomoRuntime {
+    backend_ports: EngineBackendPorts,
+    client: MihomoClient,
+    core_capability_provider: Arc<dyn CoreCapabilityProvider>,
+    runtime_gateway: Arc<dyn RuntimeGateway>,
+    configuration_transaction: Arc<dyn ProfileConfigurationTransactionPort>,
+    speedtest: SpeedtestApplication,
+    rule_tracer: RuleTracerApplication,
+    rule_list: RuleListApplication,
+    dns_query: DnsQueryApplication,
+    dns_cache: DnsCacheApplication,
+    dns_latency: DnsLatencyApplication,
+    dns_leak: DnsLeakApplication,
+    stun_probe: StunProbeApplication,
+    doctor: DoctorApplication,
+    profiles: ProfileApplication,
+    configuration: ConfigurationApplication,
+    apply_guard: Arc<Mutex<()>>,
+    snapshots: SnapshotApplication,
+    scripts: ScriptApplication,
+    script_exports: ScriptExportApplication,
+}
+
 impl MihomoRuntime {
     /// Initialize the real desktop ports without starting a stopped kernel.
     pub(crate) async fn prepare_offline(
@@ -185,67 +211,81 @@ impl MihomoRuntime {
         )
         .await
         .map_err(|error| anyhow!(error.to_string()))?;
-        let backend_ports = backend.ports.clone();
-        let configuration_transaction = backend_ports.configuration_transaction();
-        let client = backend.client.clone();
-        let core_capability_provider = Arc::clone(&backend.capability_provider);
-        let runtime_gateway: Arc<dyn RuntimeGateway> = Arc::new(backend.client.clone());
-        // One speedtest owner is installed into Core composition. The bounded
-        // history is versioned and persisted.
-        let history_store: Arc<dyn SpeedtestHistoryStore> = Arc::new(speedtest_history_store()?);
-        let speedtest =
-            SpeedtestApplication::new(SettingsApplication::new(settings_store().await?))
-                .with_history_store(history_store);
-        // One live rule tracer engine shared by the host runtime port and the
-        // surface reader, so both surfaces replay the same query state.
-        let rule_tracer = RuleTracerApplication::new();
-        let rule_list = RuleListApplication::default();
-        // One DNS cache application shared by the command handler and the
-        // surface reader, so the honest last flush report reaches the UI.
-        let dns_query = DnsQueryApplication::new(Some(Arc::new(client.clone())));
-        let dns_cache = DnsCacheApplication::new(
-            Some(Arc::new(MihomoControllerFakeIpCacheAdapter::new(
-                client.clone(),
-            ))),
-            Some(Arc::new(DesktopSystemDnsCache::new())),
-        );
-        // DUAL-14-10: the real per-nameserver prober. The desktop host owns
-        // the UDP/DoH network I/O; the shared application only publishes the
-        // measured report.
-        let dns_latency = DnsLatencyApplication::new(Some(Arc::new(HttpDnsLatencyProber::new())));
-        // DUAL-14-08: the real echo adapter plus the real default TXT echo
-        // authorities (two independent public services through the platform
-        // resolver). The application still compares both observations; an
-        // unreachable authority is a typed failure, never a guessed verdict.
-        let dns_leak = DnsLeakApplication::new(
-            Some(Arc::new(HttpDnsLeakEchoProbe::new())),
-            default_echo_sources(),
-        );
-        // DUAL-14-09 (re-scoped): the real UDP STUN adapter and the public
-        // default server. The observation is this host/process's UDP egress
-        // mapping as seen by a STUN server; the application never presents it
-        // as a browser WebRTC result, and a host with no expected egress keeps
-        // the comparison honestly unknown.
-        let stun_probe =
-            StunProbeApplication::new(Some(Arc::new(UdpStunProbe::new())), DEFAULT_STUN_SERVER);
-        let doctor = DoctorApplication::new(Arc::new(doctor()?));
-        let profiles =
-            ProfileApplication::new(cm.clone()).with_document_codec(backend.ports.configuration());
-        let configuration = ConfigurationApplication::from_profile_application(profiles.clone());
-        let apply_guard = Arc::new(Mutex::new(()));
-        let snapshots = SnapshotApplication::new(
-            cm.clone(),
-            Arc::new(FileSnapshotStore::new(cm.config_dir().to_path_buf())),
-        );
-        let scripts = ScriptApplication::new();
-        let script_exports = ScriptExportApplication::new(Some(Arc::new(
-            DesktopScriptExportPort::new(cm.config_dir()),
-        )));
+        Self::assemble_product(
+            selection,
+            cm,
+            config_path,
+            controller_url,
+            service_manager,
+            service_mode,
+            endpoints,
+            endpoint.secret,
+            backend,
+        )
+        .await
+    }
+
+    pub(crate) async fn assemble_product(
+        selection: CoreBinarySelection,
+        cm: Arc<ConfigManager<DefaultCredentialStore>>,
+        config_path: PathBuf,
+        controller_url: String,
+        service_manager: ServiceManager,
+        service_mode: Arc<DesktopServiceMode>,
+        endpoints: Arc<ProfileEndpointSource<DefaultCredentialStore>>,
+        endpoint_secret: Option<String>,
+        backend: DesktopMihomoBackend,
+    ) -> anyhow::Result<Self> {
+        let binary = selection.binary_path.clone();
+        let DesktopMihomoBackend {
+            ports,
+            client: backend_client,
+            capability_provider,
+            selection: selected,
+        } = backend;
+        let prepared = match prepare_mihomo_runtime(
+            &cm,
+            ports.clone(),
+            backend_client.clone(),
+            Arc::clone(&capability_provider),
+        )
+        .await
+        {
+            Ok(prepared) => prepared,
+            Err(error) => return Err(abort_selected_candidate(selected, error).await),
+        };
+        let PreparedMihomoRuntime {
+            backend_ports,
+            client,
+            core_capability_provider,
+            runtime_gateway,
+            configuration_transaction,
+            speedtest,
+            rule_tracer,
+            rule_list,
+            dns_query,
+            dns_cache,
+            dns_latency,
+            dns_leak,
+            stun_probe,
+            doctor,
+            profiles,
+            configuration,
+            apply_guard,
+            snapshots,
+            scripts,
+            script_exports,
+        } = prepared;
         let application = Arc::new(
             core_application(
                 &service_manager,
-                backend,
-                endpoint.secret.clone(),
+                DesktopMihomoBackend {
+                    ports,
+                    client: backend_client,
+                    capability_provider,
+                    selection: selected,
+                },
+                endpoint_secret.clone(),
                 SurfaceEngines {
                     profiles: profiles.clone(),
                     configuration: configuration.clone(),
@@ -291,10 +331,16 @@ impl MihomoRuntime {
         // start a fresh one and let the application own readiness retries.
         if service_manager.is_running().await {
             log::info!("Attaching to running mihomo service");
-            application
-                .adopt_if_running()
-                .await
-                .map_err(|error| anyhow!(error.message))?;
+            if let Err(error) = application.adopt_if_running().await {
+                let primary = anyhow!(error.message);
+                return match application.close().await {
+                    Ok(_) => Err(primary),
+                    Err(close_error) => Err(anyhow::Error::new(PortError::Failed(format!(
+                        "{primary}; closing the Desktop Core candidate after failed adoption also failed: {}",
+                        close_error.message
+                    )))),
+                };
+            }
         }
         let watchdog = infiltrator_composition::spawn_core_watchdog(application.clone());
         let pac_service = Arc::new(DesktopPacServicePort::shared());
@@ -430,6 +476,82 @@ impl MihomoRuntime {
     }
 }
 
+async fn prepare_mihomo_runtime(
+    cm: &Arc<ConfigManager<DefaultCredentialStore>>,
+    backend_ports: EngineBackendPorts,
+    client: MihomoClient,
+    core_capability_provider: Arc<dyn CoreCapabilityProvider>,
+) -> anyhow::Result<PreparedMihomoRuntime> {
+    let configuration_transaction = backend_ports.configuration_transaction();
+    let runtime_gateway: Arc<dyn RuntimeGateway> = Arc::new(client.clone());
+    let history_store: Arc<dyn SpeedtestHistoryStore> = Arc::new(speedtest_history_store()?);
+    let speedtest = SpeedtestApplication::new(SettingsApplication::new(settings_store().await?))
+        .with_history_store(history_store);
+    let rule_tracer = RuleTracerApplication::new();
+    let rule_list = RuleListApplication::default();
+    let dns_query = DnsQueryApplication::new(Some(Arc::new(client.clone())));
+    let dns_cache = DnsCacheApplication::new(
+        Some(Arc::new(MihomoControllerFakeIpCacheAdapter::new(
+            client.clone(),
+        ))),
+        Some(Arc::new(DesktopSystemDnsCache::new())),
+    );
+    let dns_latency = DnsLatencyApplication::new(Some(Arc::new(HttpDnsLatencyProber::new())));
+    let dns_leak = DnsLeakApplication::new(
+        Some(Arc::new(HttpDnsLeakEchoProbe::new())),
+        default_echo_sources(),
+    );
+    let stun_probe =
+        StunProbeApplication::new(Some(Arc::new(UdpStunProbe::new())), DEFAULT_STUN_SERVER);
+    let doctor = DoctorApplication::new(Arc::new(doctor()?));
+    let profiles =
+        ProfileApplication::new(cm.clone()).with_document_codec(backend_ports.configuration());
+    let configuration = ConfigurationApplication::from_profile_application(profiles.clone());
+    let apply_guard = Arc::new(Mutex::new(()));
+    let snapshots = SnapshotApplication::new(
+        cm.clone(),
+        Arc::new(FileSnapshotStore::new(cm.config_dir().to_path_buf())),
+    );
+    let scripts = ScriptApplication::new();
+    let script_exports = ScriptExportApplication::new(Some(Arc::new(
+        DesktopScriptExportPort::new(cm.config_dir()),
+    )));
+    Ok(PreparedMihomoRuntime {
+        backend_ports,
+        client,
+        core_capability_provider,
+        runtime_gateway,
+        configuration_transaction,
+        speedtest,
+        rule_tracer,
+        rule_list,
+        dns_query,
+        dns_cache,
+        dns_latency,
+        dns_leak,
+        stun_probe,
+        doctor,
+        profiles,
+        configuration,
+        apply_guard,
+        snapshots,
+        scripts,
+        script_exports,
+    })
+}
+
+pub(crate) async fn abort_selected_candidate(
+    selected: SelectedActiveProfileBackend,
+    primary: anyhow::Error,
+) -> anyhow::Error {
+    match selected.abort_before_core_application().await {
+        Ok(_) => primary,
+        Err(cleanup) => anyhow::Error::new(PortError::Failed(format!(
+            "{primary}; aborting the unconstructed Core candidate failed: {cleanup}"
+        ))),
+    }
+}
+
 fn proxy_endpoint_from_config(content: &str) -> anyhow::Result<Option<String>> {
     let doc = parse_yaml_doc(content)?;
     let port = get_yaml_u16(&doc, "mixed-port").or_else(|| get_yaml_u16(&doc, "port"));
@@ -440,7 +562,10 @@ fn proxy_endpoint_from_config(content: &str) -> anyhow::Result<Option<String>> {
 
 const GEOIP_MIN_SIZE: u64 = 1024 * 1024;
 
-fn collect_geoip_candidates(binary: &Path, bundled_candidates: &[PathBuf]) -> Vec<PathBuf> {
+pub(crate) fn collect_geoip_candidates(
+    binary: &Path,
+    bundled_candidates: &[PathBuf],
+) -> Vec<PathBuf> {
     let mut dirs = Vec::new();
     if let Some(dir) = binary.parent() {
         dirs.push(dir.to_path_buf());
@@ -461,7 +586,7 @@ fn collect_geoip_candidates(binary: &Path, bundled_candidates: &[PathBuf]) -> Ve
 /// Local-only GeoIP preparation for the first boot. A missing database is a
 /// visible degradation handled by the shared startup snapshot; it is never a
 /// reason to block a valid local profile or to start an HTTP request.
-async fn ensure_geoip_database_offline(
+pub(crate) async fn ensure_geoip_database_offline(
     config_path: &Path,
     geoip_candidates: &[PathBuf],
 ) -> anyhow::Result<()> {
