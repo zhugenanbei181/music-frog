@@ -112,6 +112,11 @@ pub(crate) fn core_version_application(
     })
 }
 
+pub(crate) fn core_version_management_application()
+-> Result<Arc<CoreVersionManagementApplication>, FfiStatus> {
+    with_owner(|owner| Ok(Arc::clone(&owner.application)))
+}
+
 pub(crate) fn core_binary_selection_port(
     engine_id: &EngineId,
 ) -> Result<Arc<dyn CoreBinarySelectionPort>, FfiStatus> {

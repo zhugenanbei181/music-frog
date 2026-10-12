@@ -291,7 +291,9 @@ pub(super) fn validate_owner_operation_reply(
         ));
     }
 
-    if status.code == FfiErrorCode::Ok && !snapshot_is_successful(reply.snapshot.as_ref()) {
+    if status.code == FfiErrorCode::Ok
+        && !snapshot_is_successful(operation, reply.snapshot.as_ref())
+    {
         return Err(FfiStatus::err(
             FfiErrorCode::NotReady,
             "Android owner operation succeeded without a readable data snapshot",
@@ -327,6 +329,9 @@ fn readback_matches_operation(
                 | AndroidOwnerOperation::ProfileSubscriptionSave { .. }
                 | AndroidOwnerOperation::ProfileSubscriptionClear { .. },
             AndroidOwnerOperationReadback::ProfileMutation(_)
+        ) | (
+            AndroidOwnerOperation::CoreVersionManagement { .. },
+            AndroidOwnerOperationReadback::CoreVersionManagement(_)
         ) | (
             AndroidOwnerOperation::DnsSettings | AndroidOwnerOperation::DnsSettingsSave { .. },
             AndroidOwnerOperationReadback::DnsSettings(_)
@@ -372,6 +377,13 @@ fn snapshot_matches_operation(
     if matches!(operation, AndroidOwnerOperation::FakeIpCacheClear) {
         return snapshot.is_none();
     }
+    if matches!(
+        operation,
+        AndroidOwnerOperation::CoreVersionManagement { .. }
+    ) && snapshot.is_none()
+    {
+        return true;
+    }
     matches!(
         (operation, snapshot),
         (
@@ -387,6 +399,12 @@ fn snapshot_matches_operation(
             Some(AndroidOwnerDataSnapshot {
                 domain: AndroidOwnerDataDomain::Profiles,
                 data: AndroidOwnerDataSnapshotData::Profiles(_),
+            })
+        ) | (
+            AndroidOwnerOperation::CoreVersionManagement { .. },
+            Some(AndroidOwnerDataSnapshot {
+                domain: AndroidOwnerDataDomain::CoreVersions,
+                data: AndroidOwnerDataSnapshotData::CoreVersions(_),
             })
         ) | (
             AndroidOwnerOperation::DnsSettings | AndroidOwnerOperation::DnsSettingsSave { .. },
@@ -440,31 +458,41 @@ fn snapshot_matches_operation(
     )
 }
 
-fn snapshot_is_successful(snapshot: Option<&AndroidOwnerDataSnapshot>) -> bool {
-    match snapshot.map(|snapshot| &snapshot.data) {
-        Some(AndroidOwnerDataSnapshotData::Profiles(result)) => {
+fn snapshot_is_successful(
+    operation: &AndroidOwnerOperation,
+    snapshot: Option<&AndroidOwnerDataSnapshot>,
+) -> bool {
+    match (operation, snapshot.map(|snapshot| &snapshot.data)) {
+        (AndroidOwnerOperation::FakeIpCacheClear, None) => true,
+        (
+            AndroidOwnerOperation::CoreVersionManagement { .. },
+            Some(AndroidOwnerDataSnapshotData::CoreVersions(result)),
+        ) => result.status().code == FfiErrorCode::Ok,
+        (_, Some(AndroidOwnerDataSnapshotData::Profiles(result))) => {
             result.status.code == FfiErrorCode::Ok
         }
-        Some(AndroidOwnerDataSnapshotData::DnsSettings(result)) => {
+        (_, Some(AndroidOwnerDataSnapshotData::DnsSettings(result))) => {
             result.status.code == FfiErrorCode::Ok
         }
-        Some(AndroidOwnerDataSnapshotData::TunSettings(result)) => {
+        (_, Some(AndroidOwnerDataSnapshotData::TunSettings(result))) => {
             result.status.code == FfiErrorCode::Ok && result.settings.is_some()
         }
-        Some(AndroidOwnerDataSnapshotData::FakeIpSettings(result)) => {
+        (_, Some(AndroidOwnerDataSnapshotData::FakeIpSettings(result))) => {
             result.status.code == FfiErrorCode::Ok
         }
-        Some(AndroidOwnerDataSnapshotData::Rules(result)) => result.status.code == FfiErrorCode::Ok,
-        Some(AndroidOwnerDataSnapshotData::RuleProviders(result)) => {
+        (_, Some(AndroidOwnerDataSnapshotData::Rules(result))) => {
             result.status.code == FfiErrorCode::Ok
         }
-        Some(AndroidOwnerDataSnapshotData::AppRouting(result)) => {
+        (_, Some(AndroidOwnerDataSnapshotData::RuleProviders(result))) => {
+            result.status.code == FfiErrorCode::Ok
+        }
+        (_, Some(AndroidOwnerDataSnapshotData::AppRouting(result))) => {
             result.status.code == FfiErrorCode::Ok && result.snapshot.is_some()
         }
-        Some(AndroidOwnerDataSnapshotData::WebDavSettings(result)) => {
+        (_, Some(AndroidOwnerDataSnapshotData::WebDavSettings(result))) => {
             result.status.code == FfiErrorCode::Ok && result.settings.is_some()
         }
-        None => true,
+        _ => false,
     }
 }
 
@@ -498,6 +526,16 @@ fn readback_matches_snapshot(
             AndroidOwnerOperationReadback::ProfileMutation(status),
             Some(AndroidOwnerDataSnapshotData::Profiles(_)),
         ) => status.code == FfiErrorCode::Ok,
+        (
+            AndroidOwnerOperation::CoreVersionManagement { .. },
+            AndroidOwnerOperationReadback::CoreVersionManagement(readback),
+            Some(AndroidOwnerDataSnapshotData::CoreVersions(snapshot)),
+        ) => readback == snapshot,
+        (
+            AndroidOwnerOperation::CoreVersionManagement { .. },
+            AndroidOwnerOperationReadback::CoreVersionManagement(readback),
+            None,
+        ) => readback.status().code != FfiErrorCode::Ok,
         (
             AndroidOwnerOperation::DnsSettings | AndroidOwnerOperation::DnsSettingsSave { .. },
             AndroidOwnerOperationReadback::DnsSettings(readback),
@@ -646,6 +684,18 @@ pub(super) async fn execute_operation(
         AndroidOwnerOperation::ProfileSubscriptionClear { name } => {
             let status = profiles::clear_owner_profile_subscription(name).await;
             profile_mutation_readback(status).await
+        }
+        AndroidOwnerOperation::CoreVersionManagement { operation } => {
+            let result = super::version::execute(operation).await;
+            let snapshot =
+                (result.status().code == FfiErrorCode::Ok).then(|| AndroidOwnerDataSnapshot {
+                    domain: AndroidOwnerDataDomain::CoreVersions,
+                    data: AndroidOwnerDataSnapshotData::CoreVersions(result.clone()),
+                });
+            (
+                AndroidOwnerOperationReadback::CoreVersionManagement(result),
+                snapshot,
+            )
         }
         AndroidOwnerOperation::DnsSettings => {
             let result = read_dns_settings_local().await;

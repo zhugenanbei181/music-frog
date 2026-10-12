@@ -45,8 +45,17 @@ use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::sync;
 
+#[path = "owner_operation/version.rs"]
+mod version;
 #[path = "owner_operation/wire.rs"]
 pub mod wire;
+pub use version::{
+    AndroidCoreRelease, AndroidCoreReleaseSummary, AndroidCoreVersionInstallCancellation,
+    AndroidCoreVersionInstallContext, AndroidCoreVersionInstallObservation,
+    AndroidCoreVersionInstallState, AndroidCoreVersionManagementOperation,
+    AndroidCoreVersionManagementReadback, AndroidEngineNeutralReleaseChannel,
+    AndroidInstalledCoreVersion, AndroidVersionDownloadProgress,
+};
 
 static OWNER_OPERATION_SERIALIZER: sync::Mutex<()> = sync::Mutex::const_new(());
 static APP_ROUTING_SERIALIZER: sync::Mutex<()> = sync::Mutex::const_new(());
@@ -296,6 +305,9 @@ pub enum AndroidOwnerOperation {
     ProfileSubscriptionClear {
         name: String,
     },
+    CoreVersionManagement {
+        operation: AndroidCoreVersionManagementOperation,
+    },
     DnsSettings,
     DnsSettingsSave {
         patch: DnsSettingsPatch,
@@ -338,6 +350,7 @@ pub enum AndroidOwnerOperation {
 impl AndroidOwnerOperation {
     pub(super) fn data_mutation(&self) -> AndroidOwnerDataMutation {
         match self {
+            Self::CoreVersionManagement { operation } => operation.data_mutation(),
             Self::ProfilesList
             | Self::ProfileDetail { .. }
             | Self::DnsSettings
@@ -381,6 +394,7 @@ impl AndroidOwnerOperation {
             | Self::ProfileDelete { .. }
             | Self::ProfileSubscriptionSave { .. }
             | Self::ProfileSubscriptionClear { .. } => AndroidOwnerDataDomain::Profiles,
+            Self::CoreVersionManagement { .. } => AndroidOwnerDataDomain::CoreVersions,
             Self::DnsSettings | Self::DnsSettingsSave { .. } => AndroidOwnerDataDomain::DnsSettings,
             Self::TunSettings | Self::TunSettingsSave { .. } => AndroidOwnerDataDomain::TunSettings,
             Self::FakeIpSettings | Self::FakeIpSettingsSave { .. } => {
@@ -405,6 +419,7 @@ impl AndroidOwnerOperation {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, uniffi::Enum)]
 pub enum AndroidOwnerDataDomain {
     Profiles,
+    CoreVersions,
     DnsSettings,
     TunSettings,
     FakeIpSettings,
@@ -444,6 +459,7 @@ pub struct AndroidOwnerDataSnapshot {
 #[serde(deny_unknown_fields)]
 pub enum AndroidOwnerDataSnapshotData {
     Profiles(ProfilesResult),
+    CoreVersions(AndroidCoreVersionManagementReadback),
     DnsSettings(DnsSettingsResult),
     TunSettings(VpnTunSettingsResult),
     FakeIpSettings(FakeIpSettingsResult),
@@ -459,6 +475,7 @@ pub enum AndroidOwnerOperationReadback {
     ProfilesList(ProfilesResult),
     ProfileDetail(ProfileDetailResult),
     ProfileMutation(FfiStatus),
+    CoreVersionManagement(AndroidCoreVersionManagementReadback),
     DnsSettings(DnsSettingsResult),
     TunSettings(VpnTunSettingsResult),
     FakeIpSettings(FakeIpSettingsResult),
@@ -546,6 +563,9 @@ fn owner_revision_transition(
     readback: &AndroidOwnerOperationReadback,
     status: FfiErrorCode,
 ) -> AndroidOwnerRevisionTransition {
+    if let AndroidOwnerOperationReadback::CoreVersionManagement(result) = readback {
+        return result.revision_transition();
+    }
     match mutation {
         AndroidOwnerDataMutation::ReadOnly => AndroidOwnerRevisionTransition::Unchanged,
         AndroidOwnerDataMutation::CommitRegardlessOfOutcome => {
@@ -670,6 +690,7 @@ fn status_from_readback(readback: &AndroidOwnerOperationReadback) -> FfiStatus {
         AndroidOwnerOperationReadback::WebDavSyncNow(result) => result.status.clone(),
         AndroidOwnerOperationReadback::ProfileMutation(status)
         | AndroidOwnerOperationReadback::Rejected(status) => status.clone(),
+        AndroidOwnerOperationReadback::CoreVersionManagement(result) => result.status(),
     }
 }
 
