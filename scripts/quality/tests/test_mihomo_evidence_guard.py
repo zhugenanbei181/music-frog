@@ -22,6 +22,7 @@ PRODUCT = json.loads((ROOT / GUARD.PRODUCT_LOCK).read_text(encoding="utf-8"))
 
 def source_fixture(root: Path, real_process_test: str) -> Path:
     provider = root / GUARD.PROVIDER_SOURCE
+    operation_declaration = root / GUARD.OPERATION_DECLARATION_SOURCE
     smoke = root / GUARD.SMOKE_SOURCE
     integration = root / GUARD.REAL_PROCESS_TEST
     profile_integration = root / GUARD.REAL_PROFILE_TEST
@@ -31,6 +32,7 @@ def source_fixture(root: Path, real_process_test: str) -> Path:
     mihomo_api = root / GUARD.MIHOMO_API_SOURCE
     for path in (
         provider,
+        operation_declaration,
         smoke,
         integration,
         profile_integration,
@@ -44,10 +46,20 @@ def source_fixture(root: Path, real_process_test: str) -> Path:
         'include_str!("../../../packaging/mihomo-evidence-assets.json");\n'
         'const MIHOMO_OPERATION_DECLARATION: &str = include_str!("../adapter-operation-declarations.json");\n'
         "ValidatedAdapterOperationDeclarations::validate(declaration, evidence_lock);\n"
-        "declarations.support(operation);\n"
-        "declarations.has_verified_support_for_scope(operation, version, binary_target, revision);\n"
+        "declarations.engine_decision_for_scope(operation, version, binary_target, revision);\n"
         "declarations.has_registered_target(binary_target, revision);\n"
         "binary_target.host_kind();\n",
+        encoding="utf-8",
+    )
+    operation_declaration.write_text(
+        "pub fn engine_decision_for_scope(\n"
+        "    match self.support(operation) {\n"
+        "        self.has_verified_support_for_target(operation, target, revision);\n"
+        "        self.has_verified_support_for_scope(operation, version, target, revision);\n"
+        "    }\n"
+        "    self.evidence_lock.contains_for_scope(version, target, revision);\n"
+        "    self.evidence_lock.contains_for_target(target, revision);\n"
+        "}\n",
         encoding="utf-8",
     )
     smoke.write_text(
@@ -169,12 +181,12 @@ class MihomoEvidenceGuardTests(unittest.TestCase):
             provider = root / GUARD.PROVIDER_SOURCE
             provider.write_text(
                 provider.read_text(encoding="utf-8").replace(
-                    "declarations.support(operation);", ""
+                    "declarations.engine_decision_for_scope(", ""
                 ),
                 encoding="utf-8",
             )
             self.assertTrue(
-                any("validated typed declaration" in issue
+                any("validated typed declaration's scoped resolver" in issue
                     for issue in GUARD.source_problems(root))
             )
 
@@ -186,6 +198,22 @@ class MihomoEvidenceGuardTests(unittest.TestCase):
             )
             self.assertTrue(
                 any("target/host mismatch" in issue
+                    for issue in GUARD.source_problems(root))
+            )
+
+    def test_typed_declaration_resolver_must_keep_exact_scope_checks(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = source_fixture(Path(directory), "#[ignore]")
+            declaration = root / GUARD.OPERATION_DECLARATION_SOURCE
+            declaration.write_text(
+                declaration.read_text(encoding="utf-8").replace(
+                    "self.has_verified_support_for_scope(operation, version, target, revision);",
+                    "",
+                ),
+                encoding="utf-8",
+            )
+            self.assertTrue(
+                any("has_verified_support_for_scope" in issue
                     for issue in GUARD.source_problems(root))
             )
 

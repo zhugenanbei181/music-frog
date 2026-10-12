@@ -15,6 +15,9 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 EVIDENCE_LOCK = Path("packaging/mihomo-evidence-assets.json")
 PRODUCT_LOCK = Path("packaging/mihomo-assets.json")
 PROVIDER_SOURCE = Path("crates/mihomo-api/src/core_capability_provider.rs")
+OPERATION_DECLARATION_SOURCE = Path(
+    "crates/infiltrator-contract/src/adapter_operation_declaration.rs"
+)
 SMOKE_SOURCE = Path("scripts/core-backend-smoke-mihomo.sh")
 REAL_PROCESS_TEST = Path("crates/mihomo-api/tests/real_process_smoke.rs")
 REAL_PROFILE_TEST = Path("crates/infiltrator-core/tests/real_process_profile_smoke.rs")
@@ -149,6 +152,7 @@ def load_json(path: Path) -> object:
 def source_problems(repo_root: Path) -> list[str]:
     problems: list[str] = []
     provider_path = repo_root / PROVIDER_SOURCE
+    operation_declaration_path = repo_root / OPERATION_DECLARATION_SOURCE
     smoke_path = repo_root / SMOKE_SOURCE
     real_process_test_path = repo_root / REAL_PROCESS_TEST
     real_profile_test_path = repo_root / REAL_PROFILE_TEST
@@ -158,6 +162,10 @@ def source_problems(repo_root: Path) -> list[str]:
     mihomo_api_path = repo_root / MIHOMO_API_SOURCE
     if not provider_path.is_file():
         problems.append(f"{provider_path}: capability provider source is missing")
+    if not operation_declaration_path.is_file():
+        problems.append(
+            f"{operation_declaration_path}: typed operation declaration resolver is missing"
+        )
     if not smoke_path.is_file():
         problems.append(f"{smoke_path}: binary smoke source is missing")
     if not real_process_test_path.is_file():
@@ -176,6 +184,7 @@ def source_problems(repo_root: Path) -> list[str]:
         return problems
 
     provider = provider_path.read_text(encoding="utf-8")
+    operation_declaration = operation_declaration_path.read_text(encoding="utf-8")
     smoke = smoke_path.read_text(encoding="utf-8")
     real_process_test = real_process_test_path.read_text(encoding="utf-8")
     real_profile_test = real_profile_test_path.read_text(encoding="utf-8")
@@ -190,12 +199,24 @@ def source_problems(repo_root: Path) -> list[str]:
     if (
         "MIHOMO_OPERATION_DECLARATION" not in provider
         or "ValidatedAdapterOperationDeclarations::validate" not in provider
-        or "declarations.support(operation)" not in provider
-        or "has_verified_support_for_scope" not in provider
+        or "declarations.engine_decision_for_scope(" not in provider
     ):
         problems.append(
-            f"{provider_path}: capability decisions must use the validated typed declaration and exact version/target/revision evidence"
+            f"{provider_path}: capability decisions must delegate to the validated typed declaration's scoped resolver"
         )
+    for required in (
+        "pub fn engine_decision_for_scope(",
+        "match self.support(operation)",
+        "self.has_verified_support_for_target(",
+        "self.has_verified_support_for_scope(",
+        "self.evidence_lock",
+        "contains_for_scope(",
+        "contains_for_target(",
+    ):
+        if required not in operation_declaration:
+            problems.append(
+                f"{operation_declaration_path}: scoped capability resolution must validate `{required}`"
+            )
     if "has_registered_target" not in provider or "binary_target.host_kind()" not in provider:
         problems.append(
             f"{provider_path}: capabilities must fail closed for target/host mismatch or unregistered target evidence"
