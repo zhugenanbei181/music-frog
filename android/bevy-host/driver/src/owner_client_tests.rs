@@ -1,14 +1,13 @@
 use super::*;
 use infiltrator_contract::android_control::{
-    AndroidCoreLifecycleSnapshot, AndroidProductControlIntent, VpnOwnerCoreReadback,
-    VpnOwnerLifecycle, VpnOwnerReadiness, VpnOwnerResourceFact, VpnOwnerResourceKind,
-    VpnOwnerResourceState, VpnOwnerSnapshot,
+    AndroidProductControlIntent, VpnOwnerCoreReadback, VpnOwnerLifecycle, VpnOwnerReadiness,
+    VpnOwnerResourceFact, VpnOwnerResourceKind, VpnOwnerResourceState, VpnOwnerSnapshot,
 };
 use infiltrator_contract::core_identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId,
 };
 use infiltrator_contract::routing_intent::RoutingIntentSnapshot;
-use infiltrator_contract::snapshot::{CoreLifecycle, CoreSnapshot};
+use infiltrator_contract::snapshot::{CoreLifecycle, CoreLifecycleSnapshot, CoreSnapshot};
 use infiltrator_contract::vpn::{VpnGeneration, VpnOwnerStopReceipt};
 use std::sync::atomic::AtomicBool;
 
@@ -139,7 +138,7 @@ fn vpn_owner_snapshot_at_generation(
         owner_session_id: "bevy-owner-session".to_owned(),
         revision,
         vpn_generation,
-        vpn_state,
+        vpn_state: vpn_state.clone(),
         readiness,
         resources: [
             VpnOwnerResourceKind::PreparedConfiguration,
@@ -265,9 +264,9 @@ fn control_scenario(kind: ControlScenarioKind) -> ControlScenario {
         ),
     };
     let request_scope = before_scope.clone();
-    let before_core = core_lifecycle_readback(&before_scope, before_lifecycle);
+    let before_core = core_lifecycle_readback(&before_scope, before_lifecycle, 10);
     let terminal_scope = after_scope.clone();
-    let after_core = core_lifecycle_readback(&after_scope, after_lifecycle);
+    let after_core = core_lifecycle_readback(&after_scope, after_lifecycle, 11);
     ControlScenario {
         ui_command,
         expected_intent,
@@ -290,29 +289,29 @@ fn control_scenario(kind: ControlScenarioKind) -> ControlScenario {
     }
 }
 
-fn core_lifecycle_readback(scope: &CoreScope, lifecycle: CoreLifecycle) -> VpnOwnerCoreReadback {
-    VpnOwnerCoreReadback::Available(AndroidCoreLifecycleSnapshot {
+fn core_lifecycle_readback(
+    scope: &CoreScope,
+    lifecycle: CoreLifecycle,
+    revision: u64,
+) -> VpnOwnerCoreReadback {
+    VpnOwnerCoreReadback::Available(CoreLifecycleSnapshot {
         identity: Some(scope.identity.clone()),
         lifecycle,
         generation: scope.generation.value(),
         session_token: scope.session_token,
-        revision: scope.generation.value(),
-        failure_message: None,
+        revision,
+        failure: None,
     })
 }
 
 fn core_owner_readback(snapshot: &SurfaceSnapshot) -> VpnOwnerCoreReadback {
-    VpnOwnerCoreReadback::Available(AndroidCoreLifecycleSnapshot {
+    VpnOwnerCoreReadback::Available(CoreLifecycleSnapshot {
         identity: snapshot.core.identity.clone(),
         lifecycle: snapshot.core.lifecycle.clone(),
         generation: snapshot.core.generation,
         session_token: snapshot.core.session_token,
         revision: snapshot.core.revision,
-        failure_message: snapshot
-            .core
-            .failure
-            .as_ref()
-            .map(|failure| failure.message.clone()),
+        failure: snapshot.core.failure.clone(),
     })
 }
 
@@ -620,7 +619,7 @@ fn client_keeps_superseded_cancelled_and_failed_vpn_stops_terminal() {
         *transport
             .stop_receipt
             .lock()
-            .expect("VPN stop receipt lock") = receipt;
+            .expect("VPN stop receipt lock") = receipt.clone();
         let client = AndroidOwnerClient::start_with_policy(transport.clone(), test_policy())
             .expect("start owner worker");
 
@@ -752,13 +751,13 @@ fn client_does_not_send_control_when_initial_vpn_readback_has_a_stale_core_scope
         .owner_snapshots
         .lock()
         .expect("VPN snapshot queue lock") = VecDeque::from([vpn_owner_snapshot(
-        VpnOwnerCoreReadback::Available(AndroidCoreLifecycleSnapshot {
+        VpnOwnerCoreReadback::Available(CoreLifecycleSnapshot {
             identity: Some(foreign_scope.identity.clone()),
             lifecycle: CoreLifecycle::Running,
             generation: foreign_scope.generation.value(),
             session_token: foreign_scope.session_token,
             revision: 1,
-            failure_message: None,
+            failure: None,
         }),
         1,
         VpnOwnerLifecycle::Stopped,
