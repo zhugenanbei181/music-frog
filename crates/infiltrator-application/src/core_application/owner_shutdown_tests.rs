@@ -10,8 +10,10 @@ use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::core_process::CoreProcess;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::vpn_service::{VpnServicePort, VpnStartReceipt};
+use std::collections::VecDeque;
 use std::result::Result as StdResult;
 use std::sync::{Arc, Mutex};
+use tokio::sync::Notify;
 
 #[derive(Clone, Copy)]
 enum StopDisposition {
@@ -22,7 +24,7 @@ enum StopDisposition {
 struct ShutdownProcess {
     state: Mutex<CoreLifecycle>,
     events: Arc<Mutex<Vec<&'static str>>>,
-    stop: StopDisposition,
+    stop_outcomes: Mutex<VecDeque<StopDisposition>>,
 }
 
 #[async_trait::async_trait]
@@ -46,7 +48,13 @@ impl CoreProcess for ShutdownProcess {
 
     async fn stop(&self) -> StdResult<(), PortError> {
         self.events.lock().expect("event lock").push("core.stop");
-        match self.stop {
+        match self
+            .stop_outcomes
+            .lock()
+            .expect("Core stop outcome lock")
+            .pop_front()
+            .unwrap_or(StopDisposition::Confirmed)
+        {
             StopDisposition::Confirmed => {
                 *self.state.lock().expect("process state lock") = CoreLifecycle::Stopped;
                 Ok(())
@@ -68,7 +76,13 @@ impl CoreProcess for ShutdownProcess {
 
 struct ShutdownVpnPort {
     events: Arc<Mutex<Vec<&'static str>>>,
-    stop: StopDisposition,
+    stop_outcomes: Mutex<VecDeque<StopDisposition>>,
+    first_stop_gate: Mutex<ShutdownVpnFirstStopGate>,
+}
+
+enum ShutdownVpnFirstStopGate {
+    Open,
+    SuspendFirst(Arc<Notify>),
 }
 
 #[async_trait::async_trait]
@@ -90,7 +104,21 @@ impl VpnServicePort for ShutdownVpnPort {
 
     async fn stop(&self) -> StdResult<VpnSessionSnapshot, PortError> {
         self.events.lock().expect("event lock").push("vpn.stop");
-        match self.stop {
+        let first_stop_gate = {
+            let mut gate = self.first_stop_gate.lock().expect("VPN stop gate lock");
+            std::mem::replace(&mut *gate, ShutdownVpnFirstStopGate::Open)
+        };
+        if let ShutdownVpnFirstStopGate::SuspendFirst(started) = first_stop_gate {
+            started.notify_one();
+            std::future::pending::<()>().await;
+        }
+        match self
+            .stop_outcomes
+            .lock()
+            .expect("VPN stop outcome lock")
+            .pop_front()
+            .unwrap_or(StopDisposition::Confirmed)
+        {
             StopDisposition::Confirmed => Ok(VpnSessionSnapshot {
                 state: VpnSessionState::Stopped,
                 ..VpnSessionSnapshot::default()
@@ -115,11 +143,25 @@ fn shutdown_application(
     core_stop: StopDisposition,
     events: Arc<Mutex<Vec<&'static str>>>,
 ) -> (CoreApplication, CoreOwnerShutdownApplication) {
+    shutdown_application_with_outcomes(
+        VecDeque::from([vpn_stop]),
+        VecDeque::from([core_stop]),
+        ShutdownVpnFirstStopGate::Open,
+        events,
+    )
+}
+
+fn shutdown_application_with_outcomes(
+    vpn_stops: VecDeque<StopDisposition>,
+    core_stops: VecDeque<StopDisposition>,
+    first_stop_gate: ShutdownVpnFirstStopGate,
+    events: Arc<Mutex<Vec<&'static str>>>,
+) -> (CoreApplication, CoreOwnerShutdownApplication) {
     let core = crate::core_application::CoreApplication::new_with_policy(
         Arc::new(ShutdownProcess {
             state: Mutex::new(CoreLifecycle::Stopped),
             events: Arc::clone(&events),
-            stop: core_stop,
+            stop_outcomes: Mutex::new(core_stops),
         }),
         Arc::new(FakeReadiness {
             endpoint: Ok("http://127.0.0.1:9090".to_owned()),
@@ -133,7 +175,8 @@ fn shutdown_application(
     install_lifecycle_capabilities(&core);
     let vpn = VpnServiceApplication::new(Arc::new(ShutdownVpnPort {
         events,
-        stop: vpn_stop,
+        stop_outcomes: Mutex::new(vpn_stops),
+        first_stop_gate: Mutex::new(first_stop_gate),
     }));
     let shutdown = CoreOwnerShutdownApplication::new(core.clone(), vpn);
     (core, shutdown)
@@ -215,4 +258,81 @@ async fn owner_shutdown_core_failure_keeps_the_terminal_receipt_unavailable() {
         vec!["vpn.stop", "core.stop"]
     );
     assert_ne!(core.snapshot().lifecycle, CoreLifecycle::Stopped);
+}
+
+#[tokio::test]
+async fn owner_shutdown_retries_vpn_failure_before_stopping_core() {
+    let events = Arc::new(Mutex::new(Vec::new()));
+    let (_core, shutdown) = shutdown_application_with_outcomes(
+        VecDeque::from([StopDisposition::Failed, StopDisposition::Confirmed]),
+        VecDeque::from([StopDisposition::Confirmed]),
+        ShutdownVpnFirstStopGate::Open,
+        Arc::clone(&events),
+    );
+
+    assert!(shutdown.close().await.is_err());
+    assert_eq!(*events.lock().expect("event lock"), vec!["vpn.stop"]);
+
+    let receipt = shutdown.close().await.expect("retry close");
+    assert_eq!(receipt.vpn_terminal.state, VpnSessionState::Stopped);
+    assert_eq!(
+        *events.lock().expect("event lock"),
+        vec!["vpn.stop", "vpn.stop", "core.stop"]
+    );
+}
+
+#[tokio::test]
+async fn owner_shutdown_retries_core_failure_after_stopping_vpn() {
+    let events = Arc::new(Mutex::new(Vec::new()));
+    let (core, shutdown) = shutdown_application_with_outcomes(
+        VecDeque::from([StopDisposition::Confirmed, StopDisposition::Confirmed]),
+        VecDeque::from([StopDisposition::Failed, StopDisposition::Confirmed]),
+        ShutdownVpnFirstStopGate::Open,
+        Arc::clone(&events),
+    );
+    CoreLifecyclePort::start(&core).await.unwrap();
+    events.lock().expect("event lock").clear();
+
+    assert!(shutdown.close().await.is_err());
+    assert_eq!(
+        *events.lock().expect("event lock"),
+        vec!["vpn.stop", "core.stop"]
+    );
+
+    let receipt = shutdown.close().await.expect("retry close");
+    assert_eq!(receipt.core_terminal.lifecycle, CoreLifecycle::Stopped);
+    assert_eq!(
+        *events.lock().expect("event lock"),
+        vec!["vpn.stop", "core.stop", "vpn.stop", "core.stop"]
+    );
+}
+
+#[tokio::test]
+async fn canceling_owner_shutdown_during_vpn_stop_never_stops_core_and_can_retry() {
+    let events = Arc::new(Mutex::new(Vec::new()));
+    let started = Arc::new(Notify::new());
+    let (_core, shutdown) = shutdown_application_with_outcomes(
+        VecDeque::from([StopDisposition::Confirmed]),
+        VecDeque::from([StopDisposition::Confirmed]),
+        ShutdownVpnFirstStopGate::SuspendFirst(Arc::clone(&started)),
+        Arc::clone(&events),
+    );
+    let close = tokio::spawn({
+        let shutdown = shutdown.clone();
+        async move { shutdown.close().await }
+    });
+
+    started.notified().await;
+    close.abort();
+    assert!(close.await.unwrap_err().is_cancelled());
+    assert_eq!(*events.lock().expect("event lock"), vec!["vpn.stop"]);
+
+    shutdown
+        .close()
+        .await
+        .expect("retry close after cancellation");
+    assert_eq!(
+        *events.lock().expect("event lock"),
+        vec!["vpn.stop", "vpn.stop", "core.stop"]
+    );
 }
