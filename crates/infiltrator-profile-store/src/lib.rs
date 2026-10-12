@@ -10,6 +10,7 @@ mod document_path;
 pub mod document_store;
 pub mod file_lock;
 pub mod metadata;
+pub mod namespace;
 pub mod profile_catalog;
 pub mod profile_files;
 pub mod store;

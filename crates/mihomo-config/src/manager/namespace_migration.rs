@@ -3,49 +3,34 @@
 
 use super::paths::profile_id;
 use super::{ConfigManager, ProfileNamespaceInitialization};
+use infiltrator_contract::error::ErrorCode;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::secure_store::SecureStore;
-use infiltrator_profile_store::document_store::write_document_bytes_durable;
 use infiltrator_profile_store::metadata::{
     SUBSCRIPTION_SERVICE, legacy_subscription_key, subscription_key,
+};
+#[cfg(test)]
+use infiltrator_profile_store::namespace::profile_state_backup_path as namespace_backup_path;
+use infiltrator_profile_store::namespace::{
+    PROFILE_NAMESPACE_SCHEMA_KEY as NAMESPACE_SCHEMA_KEY,
+    ProfileNamespaceSchema as NamespaceSchema, read_profile_state, write_profile_state_atomically,
 };
 use mihomo_api::error::{MihomoError, Result};
 use std::io::{Error, ErrorKind};
 use std::path::{Path, PathBuf};
 use tokio::fs;
 
-const NAMESPACE_SCHEMA_KEY: &str = "profile_namespace_schema";
-
 fn profile_namespace_fence_error(error: PortError) -> MihomoError {
-    let (kind, message) = match error {
-        PortError::PermissionDenied(message) => (ErrorKind::PermissionDenied, message),
-        PortError::NotFound(message) => (ErrorKind::NotFound, message),
-        PortError::Io(message) => (ErrorKind::Other, message),
-        error => return MihomoError::Config(error.to_string()),
-    };
-    MihomoError::Io(Error::new(kind, message))
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum NamespaceSchema {
-    LegacyShared,
-    EngineScopedV1,
-}
-
-impl NamespaceSchema {
-    fn parse(value: Option<&toml::Value>) -> Result<Self> {
-        match value {
-            None => Ok(Self::LegacyShared),
-            Some(toml::Value::String(value)) if value == "engine_scoped_v1" => {
-                Ok(Self::EngineScopedV1)
-            }
-            Some(toml::Value::String(other)) => Err(MihomoError::Config(format!(
-                "unsupported profile namespace schema `{other}`"
-            ))),
-            Some(_) => Err(MihomoError::Config(
-                "profile namespace schema marker must be a string".into(),
-            )),
+    match error {
+        PortError::Rejected(failure) if failure.code == ErrorCode::Configuration => {
+            MihomoError::Config(failure.message)
         }
+        PortError::PermissionDenied(message) => {
+            MihomoError::Io(Error::new(ErrorKind::PermissionDenied, message))
+        }
+        PortError::NotFound(message) => MihomoError::Io(Error::new(ErrorKind::NotFound, message)),
+        PortError::Io(message) => MihomoError::Io(Error::new(ErrorKind::Other, message)),
+        error => MihomoError::Config(error.to_string()),
     }
 }
 
@@ -54,33 +39,33 @@ impl<S: SecureStore> ConfigManager<S> {
     /// handed the store. The manager's typed policy decides whether a legacy
     /// Mihomo migration is authorized for this instance.
     pub async fn initialize_profile_namespace(&self) -> Result<()> {
-        self.profile_store
-            .initialize_namespace_with(|| async {
-                match self.namespace_initialization {
-                    ProfileNamespaceInitialization::MigrateLegacyMihomo => {
+        match self.namespace_initialization {
+            ProfileNamespaceInitialization::MigrateLegacyMihomo => {
+                self.profile_store
+                    .initialize_namespace_with(|| async {
                         self.initialize_mihomo_profile_namespace_once().await
-                    }
-                    ProfileNamespaceInitialization::EngineScoped => {
-                        self.initialize_engine_scoped_profile_namespace_once().await
-                    }
-                }
-            })
-            .await
+                    })
+                    .await
+            }
+            ProfileNamespaceInitialization::EngineScoped => self
+                .profile_store
+                .initialize_engine_scoped_namespace_with(|| async {
+                    crate::manager::lock_reset_fenced_profile_mutation_for_dir(self.config_dir())
+                        .await
+                })
+                .await
+                .map_err(profile_namespace_fence_error),
+        }
     }
 
     /// Replace profile settings with the minimal engine-scope marker after a
     /// committed profile reset. The caller holds the cross-process profile
     /// write lock; this helper deliberately does not reacquire it.
     pub(crate) async fn reset_profile_namespace_marker_unlocked(&self) -> Result<()> {
-        let mut state = toml::Value::Table(toml::map::Map::new());
-        state
-            .as_table_mut()
-            .ok_or_else(|| MihomoError::Config("profile state table could not be created".into()))?
-            .insert(
-                NAMESPACE_SCHEMA_KEY.into(),
-                toml::Value::String("engine_scoped_v1".into()),
-            );
-        write_toml_atomically(self.settings_file(), &state).await
+        self.profile_store
+            .reset_engine_scoped_namespace_marker_unlocked()
+            .await
+            .map_err(profile_namespace_fence_error)
     }
 
     async fn initialize_mihomo_profile_namespace_once(&self) -> Result<()> {
@@ -89,7 +74,8 @@ impl<S: SecureStore> ConfigManager<S> {
             .map_err(profile_namespace_fence_error)?;
 
         let mut scoped_state = read_toml_table(self.settings_file()).await?;
-        let schema = NamespaceSchema::parse(scoped_state.get(NAMESPACE_SCHEMA_KEY))?;
+        let schema = NamespaceSchema::parse(scoped_state.get(NAMESPACE_SCHEMA_KEY))
+            .map_err(|error| MihomoError::Config(error.to_string()))?;
         match schema {
             NamespaceSchema::EngineScopedV1 => {
                 self.migrate_legacy_profile_files().await?;
@@ -116,41 +102,14 @@ impl<S: SecureStore> ConfigManager<S> {
         merge_profile_state(&mut scoped_state, &mut legacy_state)?;
         self.migrate_legacy_credentials(&mut scoped_state).await?;
 
-        let scoped_table = scoped_state
-            .as_table_mut()
-            .ok_or_else(|| MihomoError::Config("profile state must be a TOML table".into()))?;
-        scoped_table.insert(
-            NAMESPACE_SCHEMA_KEY.into(),
-            toml::Value::String("engine_scoped_v1".into()),
-        );
+        NamespaceSchema::write_engine_scoped_v1(&mut scoped_state)
+            .map_err(profile_namespace_fence_error)?;
         write_toml_atomically(self.settings_file(), &scoped_state).await?;
         if legacy_state != previous_legacy_state {
             write_legacy_settings(&self.legacy_settings_file, &legacy_state).await?;
         }
         self.retire_legacy_sync_index().await?;
         Ok(())
-    }
-
-    async fn initialize_engine_scoped_profile_namespace_once(&self) -> Result<()> {
-        let _guard = crate::manager::lock_reset_fenced_profile_mutation_for_dir(self.config_dir())
-            .await
-            .map_err(profile_namespace_fence_error)?;
-        fs::create_dir_all(self.config_dir()).await?;
-        let mut scoped_state = read_toml_table(self.settings_file()).await?;
-        if matches!(
-            NamespaceSchema::parse(scoped_state.get(NAMESPACE_SCHEMA_KEY))?,
-            NamespaceSchema::EngineScopedV1
-        ) {
-            return Ok(());
-        }
-        scoped_state
-            .as_table_mut()
-            .ok_or_else(|| MihomoError::Config("profile state must be a TOML table".into()))?
-            .insert(
-                NAMESPACE_SCHEMA_KEY.into(),
-                toml::Value::String("engine_scoped_v1".into()),
-            );
-        write_toml_atomically(self.settings_file(), &scoped_state).await
     }
 
     async fn migrate_legacy_profile_files(&self) -> Result<()> {
@@ -298,15 +257,9 @@ impl<S: SecureStore> ConfigManager<S> {
 }
 
 async fn read_toml_table(path: &Path) -> Result<toml::Value> {
-    recover_toml_backup(path).await?;
-    let text = match fs::read_to_string(path).await {
-        Ok(text) => text,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-            return Ok(toml::Value::Table(toml::map::Map::new()));
-        }
-        Err(error) => return Err(error.into()),
-    };
-    toml::from_str(&text).map_err(|error| MihomoError::Config(error.to_string()))
+    read_profile_state(path)
+        .await
+        .map_err(profile_namespace_fence_error)
 }
 
 fn merge_profile_state(scoped: &mut toml::Value, legacy: &mut toml::Value) -> Result<()> {
@@ -402,25 +355,9 @@ async fn write_legacy_settings(path: &Path, state: &toml::Value) -> Result<()> {
 }
 
 async fn write_toml_atomically(path: &Path, state: &toml::Value) -> Result<()> {
-    recover_toml_backup(path).await?;
-    let content =
-        toml::to_string_pretty(state).map_err(|error| MihomoError::Config(error.to_string()))?;
-    write_document_bytes_durable(path, content.as_bytes())
+    write_profile_state_atomically(path, state)
         .await
-        .map_err(|error| MihomoError::Config(error.to_string()))
-}
-
-async fn recover_toml_backup(path: &Path) -> Result<()> {
-    let backup = namespace_backup_path(path);
-    match (fs::try_exists(path).await?, fs::try_exists(&backup).await?) {
-        (false, true) => fs::rename(backup, path).await.map_err(Into::into),
-        (true, true) => fs::remove_file(backup).await.map_err(Into::into),
-        (_, false) => Ok(()),
-    }
-}
-
-fn namespace_backup_path(path: &Path) -> PathBuf {
-    path.with_extension("toml.namespace-backup")
+        .map_err(profile_namespace_fence_error)
 }
 
 async fn move_directory_contents(source: &Path, destination: &Path) -> Result<()> {
