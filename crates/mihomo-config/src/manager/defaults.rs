@@ -15,7 +15,7 @@ impl<S: SecureStore> ConfigManager<S> {
     /// caller holds the product reference lock; take only the engine profile
     /// lock here to preserve root -> profile order without reacquiring root.
     pub(crate) async fn ensure_profile_document(&self, profile: &str) -> Result<()> {
-        let path = self.config_dir.join(format!("{}.yaml", profile));
+        let path = self.config_dir().join(format!("{}.yaml", profile));
         if !path.exists() {
             log::info!("Mihomo profile '{}' not found, creating...", profile);
             let port = find_available_port(9090).ok_or_else(|| {

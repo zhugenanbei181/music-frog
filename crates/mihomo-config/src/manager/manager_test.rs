@@ -77,15 +77,15 @@ mod tests {
         let manager = setup_test_manager(&temp_dir).await;
 
         assert_eq!(
-            manager.config_dir,
+            manager.config_dir(),
             crate::manager::paths::engine_config_dir(
                 &temp_dir.path().join("configs"),
                 &crate::engine_id(),
             )
         );
         assert_eq!(
-            manager.settings_file,
-            manager.config_dir.join("profile-state.toml")
+            manager.settings_file(),
+            manager.config_dir().join("profile-state.toml")
         );
     }
 
@@ -100,7 +100,7 @@ mod tests {
             .await;
 
         assert!(result.is_ok());
-        let profile_path = manager.config_dir.join("test-profile.yaml");
+        let profile_path = manager.config_dir().join("test-profile.yaml");
         assert!(profile_path.exists());
 
         let content = fs::read_to_string(&profile_path).await.unwrap();
@@ -120,8 +120,8 @@ mod tests {
             .await
             .unwrap();
 
-        let path = manager.config_dir.join("current.yaml");
-        let backup = manager.config_dir.join("current.yaml.bak");
+        let path = manager.config_dir().join("current.yaml");
+        let backup = manager.config_dir().join("current.yaml.bak");
         assert_eq!(fs::read_to_string(&path).await.unwrap(), "port: 7891\n");
         assert_eq!(fs::read_to_string(&backup).await.unwrap(), "port: 7890\n");
 
@@ -176,9 +176,12 @@ mod tests {
         manager.migrate_legacy_mihomo_selection().await.unwrap();
         manager.validate_current_profile().await.unwrap();
 
-        fs::write(manager.config_dir.join("default.yaml"), "invalid: yaml: [")
-            .await
-            .unwrap();
+        fs::write(
+            manager.config_dir().join("default.yaml"),
+            "invalid: yaml: [",
+        )
+        .await
+        .unwrap();
         assert!(manager.validate_current_profile().await.is_err());
     }
 
@@ -259,11 +262,11 @@ mod tests {
             .save_inactive_profile("test-profile", "port: 7890")
             .await
             .unwrap();
-        assert!(manager.config_dir.join("test-profile.yaml").exists());
+        assert!(manager.config_dir().join("test-profile.yaml").exists());
 
         let result = manager.delete_profile("test-profile").await;
         assert!(result.is_ok());
-        assert!(!manager.config_dir.join("test-profile.yaml").exists());
+        assert!(!manager.config_dir().join("test-profile.yaml").exists());
     }
 
     #[tokio::test]
@@ -355,7 +358,7 @@ mod tests {
         ));
 
         let path = manager.get_current_path().await.unwrap();
-        assert_eq!(path, manager.config_dir.join("test-profile.yaml"));
+        assert_eq!(path, manager.config_dir().join("test-profile.yaml"));
     }
 
     #[tokio::test]
@@ -367,7 +370,7 @@ mod tests {
         let current = manager.get_current().await.unwrap();
         assert!(
             manager
-                .config_dir
+                .config_dir()
                 .join(format!("{}.yaml", current))
                 .exists()
         );
@@ -480,7 +483,7 @@ external-controller: http://127.0.0.1:9090
         manager.migrate_legacy_mihomo_selection().await.unwrap();
 
         manager.ensure_external_controller().await.unwrap();
-        let first = fs::read_to_string(manager.config_dir.join("default.yaml"))
+        let first = fs::read_to_string(manager.config_dir().join("default.yaml"))
             .await
             .unwrap();
         let first_doc = yaml_rust2::YamlLoader::load_from_str(&first)
@@ -491,7 +494,7 @@ external-controller: http://127.0.0.1:9090
         assert!(first_secret.bytes().all(|byte| byte.is_ascii_hexdigit()));
 
         manager.ensure_external_controller().await.unwrap();
-        let second = fs::read_to_string(manager.config_dir.join("default.yaml"))
+        let second = fs::read_to_string(manager.config_dir().join("default.yaml"))
             .await
             .unwrap();
         let second_doc = yaml_rust2::YamlLoader::load_from_str(&second)

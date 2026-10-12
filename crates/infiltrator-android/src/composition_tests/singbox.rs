@@ -20,7 +20,8 @@ use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::version::{
     VersionActivationRequest, VersionInstallRequest, VersionPort, VersionUninstallRequest,
 };
-use mihomo_config::manager::{ConfigManager, ProfileDocumentExtension};
+use infiltrator_profile_store::store::ProfileDocumentExtension;
+use mihomo_config::manager::ConfigManager;
 use singbox_config::profile_document_codec::SingBoxProfileDocumentCodec;
 use std::sync::Arc;
 

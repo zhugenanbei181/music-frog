@@ -1,8 +1,7 @@
 //! Product-wide active-profile reads and settings-file read/remove plumbing.
 
 use super::ConfigManager;
-use super::paths::sanitized_profile_key;
-use crate::sidecar_store::write_document_bytes_durable;
+use super::paths::profile_id;
 use crate::yaml::validate;
 use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
 use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceStore;
@@ -12,31 +11,19 @@ use infiltrator_ports::secure_store::SecureStore;
 use mihomo_api::error::{MihomoError, Result};
 use std::path::PathBuf;
 use tokio::fs;
-use toml::map::Map;
 
 impl<S: SecureStore> ConfigManager<S> {
     pub(super) async fn read_settings_value(&self) -> Result<toml::Value> {
-        if !self.settings_file.exists() {
-            return Ok(toml::Value::Table(Map::new()));
-        }
-        let content = fs::read_to_string(&self.settings_file).await?;
-        toml::from_str(&content).map_err(|e| MihomoError::Config(format!("Invalid config: {}", e)))
+        self.profile_store
+            .read_settings_value()
+            .await
+            .map_err(|error| MihomoError::Config(error.to_string()))
     }
 
     pub(super) async fn remove_profile_metadata(&self, profile: &str) -> Result<()> {
-        let key = sanitized_profile_key(profile)?;
-        if !self.settings_file.exists() {
-            return Ok(());
-        }
-        let mut settings = self.read_settings_value().await?;
-        if let toml::Value::Table(ref mut root) = settings
-            && let Some(toml::Value::Table(profiles)) = root.get_mut("profiles")
-        {
-            profiles.remove(&key);
-        }
-        let content = toml::to_string(&settings)
-            .map_err(|e| MihomoError::Config(format!("Failed to serialize config: {}", e)))?;
-        write_document_bytes_durable(&self.settings_file, content.as_bytes())
+        let key = profile_id(profile)?;
+        self.profile_store
+            .remove_profile_metadata(key.as_str())
             .await
             .map_err(|error| MihomoError::Config(error.to_string()))?;
         Ok(())
@@ -67,11 +54,11 @@ impl<S: SecureStore> ConfigManager<S> {
     /// Read the legacy per-engine pointer only inside explicit migration and
     /// historical-file browsing code. It does not select a Core provider.
     pub(crate) async fn get_current_unlocked(&self) -> Result<String> {
-        if !self.settings_file.exists() {
+        if !self.settings_file().exists() {
             return Ok("default".to_string());
         }
 
-        let content = fs::read_to_string(&self.settings_file).await?;
+        let content = fs::read_to_string(self.settings_file()).await?;
         let config: toml::Value = toml::from_str(&content)
             .map_err(|e| MihomoError::Config(format!("Invalid config: {}", e)))?;
 
@@ -87,7 +74,7 @@ impl<S: SecureStore> ConfigManager<S> {
         let profile = ProfileStore::get_current(self)
             .await
             .map_err(|error| MihomoError::Config(error.to_string()))?;
-        Ok(self.config_dir.join(format!("{}.yaml", profile)))
+        Ok(self.config_dir().join(format!("{}.yaml", profile)))
     }
 
     /// Validate the product-wide active profile before any Core process is

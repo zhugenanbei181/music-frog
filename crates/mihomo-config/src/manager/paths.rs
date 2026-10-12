@@ -4,12 +4,14 @@
 
 use super::ConfigManager;
 use infiltrator_contract::core_identity::EngineId;
+use infiltrator_contract::profile_document_identity::ProfileId;
+use infiltrator_domain::profiles::validate_profile_name;
+use infiltrator_ports::error::PortError;
 use infiltrator_ports::secure_store::SecureStore;
 use mihomo_api::error::{MihomoError, Result};
 use std::env::{home_dir, var};
-use std::io::ErrorKind;
+use std::io::{self, ErrorKind};
 use std::path::{Path, PathBuf};
-use tokio::fs;
 
 /// 环境变量形式的 configs 目录覆盖，优先级高于 settings 的 `configs_dir`。
 pub const CONFIGS_DIR_ENV: &str = "INFILTRATOR_CONFIGS_DIR";
@@ -87,90 +89,40 @@ fn expand_tilde(path: &str) -> Result<PathBuf> {
 
 impl<S: SecureStore> ConfigManager<S> {
     /// 以规范化的 engine config 目录为根构造 profile document 路径：
-    /// 先校验、再做字符级消毒，最后验证结果仍落在规范基目录内。
+    /// 先验证共享领域 profile 名，再由 engine-neutral owner 解析受限路径。
     pub(super) async fn profile_document_path(&self, profile: &str) -> Result<PathBuf> {
-        let safe = sanitized_profile_key(profile)?;
-        fs::create_dir_all(&self.config_dir).await?;
-        let base = fs::canonicalize(&self.config_dir)
+        let id = profile_id(profile)?;
+        self.profile_store
+            .profile_document_path(&id)
             .await
-            .map_err(|err| MihomoError::Config(format!("config dir unavailable: {err}")))?;
-        let path = base.join(format!("{safe}.{}", self.document_extension().as_str()));
-        if !path.starts_with(&base) {
-            return Err(MihomoError::Config(
-                "profile path escapes config dir".to_string(),
-            ));
-        }
-        Ok(path)
+            .map_err(profile_path_error)
     }
 
     /// 同 [`Self::profile_document_path`]，但要求文件已存在并返回其规范化路径。
     pub async fn existing_profile_document_path(&self, profile: &str) -> Result<PathBuf> {
-        // 目录不存在则任何 profile 都不可能存在，直接走 NotFound 语义。
-        let base = match fs::canonicalize(&self.config_dir).await {
-            Ok(base) => base,
-            Err(error) if error.kind() == ErrorKind::NotFound => {
-                return Err(MihomoError::NotFound(format!(
-                    "Profile '{profile}' not found"
-                )));
-            }
-            Err(error) => return Err(error.into()),
-        };
-        let path = self.profile_document_path(profile).await?;
-        let canonical = fs::canonicalize(&path).await.map_err(|error| {
-            if error.kind() == ErrorKind::NotFound {
-                MihomoError::NotFound(format!("Profile '{profile}' not found"))
-            } else {
-                error.into()
-            }
-        })?;
-        if !canonical.starts_with(&base) {
-            return Err(MihomoError::Config(
-                "profile path escapes config dir".to_string(),
-            ));
+        let id = profile_id(profile)?;
+        self.profile_store
+            .existing_profile_document_path(&id)
+            .await
+            .map_err(profile_path_error)
+    }
+}
+
+pub(crate) fn profile_id(profile: &str) -> Result<ProfileId> {
+    validate_profile_name(profile).map_err(|error| MihomoError::Config(error.to_string()))?;
+    ProfileId::new(profile.to_owned()).map_err(|error| MihomoError::Config(error.to_string()))
+}
+
+fn profile_path_error(error: PortError) -> MihomoError {
+    match error {
+        PortError::Rejected(failure) => MihomoError::Config(failure.message),
+        PortError::NotFound(message) => MihomoError::NotFound(message),
+        PortError::PermissionDenied(message) => {
+            MihomoError::Io(io::Error::new(ErrorKind::PermissionDenied, message))
         }
-        Ok(canonical)
+        PortError::Io(message) => MihomoError::Io(io::Error::other(message)),
+        error => MihomoError::Config(error.to_string()),
     }
-}
-
-/// Profile names end up as filesystem paths (`<config_dir>/<name>.<extension>`) and
-/// as credential/TOML keys, and can arrive from the admin HTTP API. Reject
-/// anything that could escape `config_dir` or break cross-platform file
-/// semantics before it reaches a path join.
-pub fn validate_profile_name(profile: &str) -> Result<()> {
-    let rejected = |reason: &str| {
-        Err(MihomoError::Config(format!(
-            "Invalid profile name: {reason}"
-        )))
-    };
-    if profile.is_empty() {
-        return rejected("name is empty");
-    }
-    if profile.chars().count() > 128 {
-        return rejected("name exceeds 128 characters");
-    }
-    if profile.trim() != profile {
-        return rejected("leading or trailing whitespace");
-    }
-    if profile == "." || profile == ".." || profile.contains("..") {
-        return rejected("relative path segments are not allowed");
-    }
-    if let Some(ch) = profile
-        .chars()
-        .find(|ch| matches!(ch, '/' | '\\' | ':') || ch.is_control())
-    {
-        return rejected(format!("illegal character {ch:?}").as_str());
-    }
-    if profile.ends_with('.') || profile.ends_with(' ') {
-        return rejected("trailing dot or space (Windows filename semantics)");
-    }
-    Ok(())
-}
-
-/// 校验之后再做一次字符级消毒：即使校验被绕过，分隔符也会被替换为下划线。
-/// 对合法名字这是恒等变换（key 与原名一致）。
-pub(crate) fn sanitized_profile_key(profile: &str) -> Result<String> {
-    validate_profile_name(profile)?;
-    Ok(profile.replace(['/', '\\', ':'], "_"))
 }
 
 #[cfg(test)]
@@ -338,16 +290,17 @@ mod tests {
         clear_env();
 
         assert_eq!(
-            manager.config_root, cloud,
+            manager.config_root(),
+            cloud,
             "the configured directory remains the shared root"
         );
         assert_eq!(
-            manager.config_dir,
-            engine_config_dir(&manager.config_root, &crate::engine_id())
+            manager.config_dir(),
+            engine_config_dir(manager.config_root(), &crate::engine_id())
         );
         assert_eq!(
-            manager.settings_file,
-            manager.config_dir.join("profile-state.toml")
+            manager.settings_file(),
+            manager.config_dir().join("profile-state.toml")
         );
         assert_eq!(manager.legacy_settings_file, home.join("config.toml"));
     }
@@ -365,12 +318,12 @@ mod tests {
         assert!(manager.is_ok());
         let manager = manager.unwrap();
         assert_eq!(
-            manager.config_dir,
+            manager.config_dir(),
             engine_config_dir(&temp_dir.path().join("cloud/profiles"), &crate::engine_id())
         );
         assert_eq!(
-            manager.settings_file,
-            manager.config_dir.join("profile-state.toml")
+            manager.settings_file(),
+            manager.config_dir().join("profile-state.toml")
         );
 
         // 空白值等价于未设置。
@@ -381,7 +334,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(
-            manager.config_dir,
+            manager.config_dir(),
             engine_config_dir(&temp_dir.path().join("configs"), &crate::engine_id())
         );
     }

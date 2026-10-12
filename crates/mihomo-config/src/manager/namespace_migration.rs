@@ -1,12 +1,14 @@
 //! One-time Mihomo migration from former shared ProfileId paths. Other engine
 //! stores initialize only their own namespace and never consume legacy files.
 
-use super::paths::sanitized_profile_key;
-use super::subscription_store::{SUBSCRIPTION_SERVICE, legacy_subscription_key, subscription_key};
+use super::paths::profile_id;
 use super::{ConfigManager, ProfileNamespaceInitialization};
-use crate::sidecar_store::write_document_bytes_durable;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::secure_store::SecureStore;
+use infiltrator_profile_store::document_store::write_document_bytes_durable;
+use infiltrator_profile_store::metadata::{
+    SUBSCRIPTION_SERVICE, legacy_subscription_key, subscription_key,
+};
 use mihomo_api::error::{MihomoError, Result};
 use std::io::{Error, ErrorKind};
 use std::path::{Path, PathBuf};
@@ -52,8 +54,8 @@ impl<S: SecureStore> ConfigManager<S> {
     /// handed the store. The manager's typed policy decides whether a legacy
     /// Mihomo migration is authorized for this instance.
     pub async fn initialize_profile_namespace(&self) -> Result<()> {
-        self.profile_namespace_initialized
-            .get_or_try_init(|| async {
+        self.profile_store
+            .initialize_namespace_with(|| async {
                 match self.namespace_initialization {
                     ProfileNamespaceInitialization::MigrateLegacyMihomo => {
                         self.initialize_mihomo_profile_namespace_once().await
@@ -64,7 +66,6 @@ impl<S: SecureStore> ConfigManager<S> {
                 }
             })
             .await
-            .map(|_| ())
     }
 
     /// Replace profile settings with the minimal engine-scope marker after a
@@ -79,15 +80,15 @@ impl<S: SecureStore> ConfigManager<S> {
                 NAMESPACE_SCHEMA_KEY.into(),
                 toml::Value::String("engine_scoped_v1".into()),
             );
-        write_toml_atomically(&self.settings_file, &state).await
+        write_toml_atomically(self.settings_file(), &state).await
     }
 
     async fn initialize_mihomo_profile_namespace_once(&self) -> Result<()> {
-        let _guard = crate::manager::lock_reset_fenced_profile_mutation_for_dir(&self.config_dir)
+        let _guard = crate::manager::lock_reset_fenced_profile_mutation_for_dir(self.config_dir())
             .await
             .map_err(profile_namespace_fence_error)?;
 
-        let mut scoped_state = read_toml_table(&self.settings_file).await?;
+        let mut scoped_state = read_toml_table(self.settings_file()).await?;
         let schema = NamespaceSchema::parse(scoped_state.get(NAMESPACE_SCHEMA_KEY))?;
         match schema {
             NamespaceSchema::EngineScopedV1 => {
@@ -108,7 +109,7 @@ impl<S: SecureStore> ConfigManager<S> {
         if !self.has_legacy_profile_data().await? {
             return Ok(());
         }
-        fs::create_dir_all(&self.config_dir).await?;
+        fs::create_dir_all(self.config_dir()).await?;
         self.migrate_legacy_profile_files().await?;
         let mut legacy_state = read_toml_table(&self.legacy_settings_file).await?;
         let previous_legacy_state = legacy_state.clone();
@@ -122,7 +123,7 @@ impl<S: SecureStore> ConfigManager<S> {
             NAMESPACE_SCHEMA_KEY.into(),
             toml::Value::String("engine_scoped_v1".into()),
         );
-        write_toml_atomically(&self.settings_file, &scoped_state).await?;
+        write_toml_atomically(self.settings_file(), &scoped_state).await?;
         if legacy_state != previous_legacy_state {
             write_legacy_settings(&self.legacy_settings_file, &legacy_state).await?;
         }
@@ -131,11 +132,11 @@ impl<S: SecureStore> ConfigManager<S> {
     }
 
     async fn initialize_engine_scoped_profile_namespace_once(&self) -> Result<()> {
-        let _guard = crate::manager::lock_reset_fenced_profile_mutation_for_dir(&self.config_dir)
+        let _guard = crate::manager::lock_reset_fenced_profile_mutation_for_dir(self.config_dir())
             .await
             .map_err(profile_namespace_fence_error)?;
-        fs::create_dir_all(&self.config_dir).await?;
-        let mut scoped_state = read_toml_table(&self.settings_file).await?;
+        fs::create_dir_all(self.config_dir()).await?;
+        let mut scoped_state = read_toml_table(self.settings_file()).await?;
         if matches!(
             NamespaceSchema::parse(scoped_state.get(NAMESPACE_SCHEMA_KEY))?,
             NamespaceSchema::EngineScopedV1
@@ -149,11 +150,11 @@ impl<S: SecureStore> ConfigManager<S> {
                 NAMESPACE_SCHEMA_KEY.into(),
                 toml::Value::String("engine_scoped_v1".into()),
             );
-        write_toml_atomically(&self.settings_file, &scoped_state).await
+        write_toml_atomically(self.settings_file(), &scoped_state).await
     }
 
     async fn migrate_legacy_profile_files(&self) -> Result<()> {
-        let mut entries = match fs::read_dir(&self.config_root).await {
+        let mut entries = match fs::read_dir(self.config_root()).await {
             Ok(entries) => entries,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
             Err(error) => return Err(error.into()),
@@ -164,18 +165,18 @@ impl<S: SecureStore> ConfigManager<S> {
             let source = entry.path();
             let file_type = entry.file_type().await?;
             if file_type.is_dir() && matches!(name.as_ref(), "options" | "snapshots") {
-                move_directory_contents(&source, &self.config_dir.join(name.as_ref())).await?;
+                move_directory_contents(&source, &self.config_dir().join(name.as_ref())).await?;
             } else if file_type.is_file()
                 && (name.ends_with(".yaml") || name.ends_with(".yaml.bak"))
             {
-                move_file(&source, &self.config_dir.join(name.as_ref())).await?;
+                move_file(&source, &self.config_dir().join(name.as_ref())).await?;
             }
         }
         Ok(())
     }
 
     async fn has_legacy_profile_data(&self) -> Result<bool> {
-        if fs::try_exists(&self.settings_file).await? {
+        if fs::try_exists(self.settings_file()).await? {
             return Ok(true);
         }
 
@@ -194,7 +195,7 @@ impl<S: SecureStore> ConfigManager<S> {
             return Ok(true);
         }
 
-        let mut entries = match fs::read_dir(&self.config_root).await {
+        let mut entries = match fs::read_dir(self.config_root()).await {
             Ok(entries) => entries,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
             Err(error) => return Err(error.into()),
@@ -222,7 +223,7 @@ impl<S: SecureStore> ConfigManager<S> {
     }
 
     fn legacy_sync_index_path(&self) -> PathBuf {
-        self.config_root.join("sync_state.db")
+        self.config_root().join("sync_state.db")
     }
 
     async fn migrate_legacy_credentials(&self, state: &mut toml::Value) -> Result<()> {
@@ -236,8 +237,7 @@ impl<S: SecureStore> ConfigManager<S> {
         };
 
         for (profile, metadata) in profiles.iter_mut() {
-            sanitized_profile_key(profile)
-                .map_err(|error| MihomoError::Config(error.to_string()))?;
+            profile_id(profile).map_err(|error| MihomoError::Config(error.to_string()))?;
             let metadata = metadata.as_table_mut().ok_or_else(|| {
                 MihomoError::Config(format!(
                     "profile namespace migration found invalid metadata for `{profile}`"
@@ -261,13 +261,13 @@ impl<S: SecureStore> ConfigManager<S> {
             let new_key = subscription_key(&engine, profile);
             if old_key != new_key {
                 let mut value = self
-                    .credential_store
+                    .credential_store()
                     .get(SUBSCRIPTION_SERVICE, &new_key)
                     .await
                     .map_err(|error| credential_migration_error(error.to_string()))?;
                 if value.is_none() {
                     value = self
-                        .credential_store
+                        .credential_store()
                         .get(SUBSCRIPTION_SERVICE, &old_key)
                         .await
                         .map_err(|error| credential_migration_error(error.to_string()))?;
@@ -278,14 +278,14 @@ impl<S: SecureStore> ConfigManager<S> {
                             .map(str::to_owned);
                     }
                     if let Some(value) = value.as_deref() {
-                        self.credential_store
+                        self.credential_store()
                             .set(SUBSCRIPTION_SERVICE, &new_key, value)
                             .await
                             .map_err(|error| credential_migration_error(error.to_string()))?;
                     }
                 }
                 if value.is_some() {
-                    self.credential_store
+                    self.credential_store()
                         .delete(SUBSCRIPTION_SERVICE, &old_key)
                         .await
                         .map_err(|error| credential_migration_error(error.to_string()))?;

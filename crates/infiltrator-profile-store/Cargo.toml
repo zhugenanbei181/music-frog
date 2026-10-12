@@ -1,0 +1,23 @@
+[package]
+name = "infiltrator-profile-store"
+version.workspace = true
+edition = "2024"
+publish = false
+description = "Engine-neutral durable profile persistence for MusicFrog Infiltrator."
+
+[dependencies]
+chrono = { workspace = true }
+infiltrator-contract = { path = "../infiltrator-contract" }
+infiltrator-domain = { path = "../infiltrator-domain" }
+infiltrator-platform = { path = "../infiltrator-platform" }
+infiltrator-ports = { path = "../infiltrator-ports" }
+log = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+toml = { workspace = true }
+tokio = { workspace = true }
+
+[dev-dependencies]
+async-trait = { workspace = true }
+tempfile = { workspace = true }

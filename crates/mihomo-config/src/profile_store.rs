@@ -3,7 +3,6 @@
 use crate::manager::ConfigManager;
 use crate::profile::Profile;
 use crate::profile_workspace_store::WorkspaceTarget;
-use crate::sidecar_store::{read_optional, remove_optional, write_document};
 use infiltrator_contract::active_profile_reference::{
     ActiveProfileReference, ActiveProfileReferenceCasOutcome, ActiveProfileReferenceState,
     ActiveProfileReferenceTarget, ActiveProfileReferenceWriteAuthorization,
@@ -18,6 +17,7 @@ use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::{ActiveProfileWorkspaceWriteLease, ProfileStore};
 use infiltrator_ports::profile_workspace::{ProfileWorkspace, ProfileWorkspaceUpdate};
 use infiltrator_ports::secure_store::SecureStore;
+use infiltrator_profile_store::document_store::{read_optional, remove_optional, write_document};
 use std::fmt::Display;
 use std::path;
 use std::path::PathBuf;
@@ -143,7 +143,7 @@ where
         profile: &str,
         metadata: &ProfileMetadata,
     ) -> Result<(), PortError> {
-        let mut concrete = Profile::new(profile.to_string(), PathBuf::new(), false);
+        let mut concrete = Profile::new(profile.to_owned(), PathBuf::new(), false);
         concrete.subscription_url = metadata.subscription_url.clone();
         concrete.auto_update_enabled = metadata.auto_update_enabled;
         concrete.update_interval_hours = metadata.update_interval_hours;

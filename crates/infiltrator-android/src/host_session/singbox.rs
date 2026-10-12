@@ -19,7 +19,8 @@ use infiltrator_ports::core_binary_selection::{
 };
 use infiltrator_ports::core_capability_provider::CoreCapabilityProvider;
 use infiltrator_ports::profile_store::ProfileStore;
-use mihomo_config::manager::{ConfigManager, ProfileDocumentExtension};
+use infiltrator_profile_store::store::ProfileDocumentExtension;
+use mihomo_config::manager::ConfigManager;
 use singbox_api::capability_provider::SingBoxCoreCapabilityProvider;
 use singbox_api::controller_configuration::SingBoxControllerConfiguration;
 use singbox_api::readiness::SingBoxControllerReadiness;

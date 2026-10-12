@@ -1,37 +1,34 @@
 //! Engine-scoped profile CRUD and per-profile metadata persistence.
 
 use super::ConfigManager;
-use super::metadata::{
-    apply_profile_metadata, ensure_table, set_bool, set_optional_datetime, set_optional_i64,
-    set_optional_string, set_optional_u32, set_optional_u64,
-};
-use super::paths::sanitized_profile_key;
-use super::subscription_store::{delete_subscription_url, store_subscription_url};
+use super::paths::profile_id;
 use crate::profile::Profile;
-use crate::sidecar_store::{remove_optional, write_document_bytes_durable};
 use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
-use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_domain::profile_options::options_path;
+use infiltrator_domain::profiles::ProfileMetadata;
 use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceStore;
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::profile_workspace::{
     ProfileWorkspace, ProfileWorkspacePurpose, ProfileWorkspaceUpdate,
 };
 use infiltrator_ports::secure_store::SecureStore;
+use infiltrator_profile_store::document_store::{remove_optional, write_document_bytes_durable};
+use infiltrator_profile_store::metadata::{delete_subscription_url, read_profile_metadata};
+use infiltrator_profile_store::profile_files::profile_document_backup_path;
 use mihomo_api::error::{MihomoError, Result};
-use std::io::ErrorKind;
 use std::path;
 use std::path::PathBuf;
 use tokio::fs;
-use toml::map::Map;
 
 impl<S: SecureStore> ConfigManager<S> {
     pub async fn load(&self, profile: &str) -> Result<String> {
         self.initialize_profile_namespace().await?;
         let _guard = self.lock_profile_writes().await?;
-        let path = self.existing_profile_document_path(profile).await?;
-        let content = fs::read_to_string(&path).await?;
-        Ok(content)
+        let profile = profile_id(profile)?;
+        self.profile_store
+            .read_profile_document(&profile)
+            .await
+            .map_err(|error| MihomoError::Config(error.to_string()))
     }
 
     /// Read the transient pre-save copy, if one exists. Runtime apply flows
@@ -40,15 +37,14 @@ impl<S: SecureStore> ConfigManager<S> {
     pub async fn load_backup(&self, profile: &str) -> Result<Option<String>> {
         self.initialize_profile_namespace().await?;
         let _guard = self.lock_profile_writes().await?;
-        crate::manager::ensure_profile_reset_not_pending_for_dir(&self.config_dir)
+        crate::manager::ensure_profile_reset_not_pending_for_dir(self.config_dir())
             .await
             .map_err(|error| MihomoError::Config(error.to_string()))?;
-        let path = self.profile_document_path(profile).await?;
-        match fs::read_to_string(backup_path(&path)).await {
-            Ok(content) => Ok(Some(content)),
-            Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),
-            Err(error) => Err(error.into()),
-        }
+        let profile = profile_id(profile)?;
+        self.profile_store
+            .read_profile_document_backup(&profile)
+            .await
+            .map_err(|error| MihomoError::Config(error.to_string()))
     }
 
     /// Save a profile only while it is not selected by the product-wide
@@ -60,8 +56,7 @@ impl<S: SecureStore> ConfigManager<S> {
         let selection_lease = ActiveProfileReferenceStore::acquire_selection_lease(self)
             .await
             .map_err(|error| MihomoError::Config(error.to_string()))?;
-        let profile_id = ProfileId::new(profile.to_owned())
-            .map_err(|error| MihomoError::Config(error.to_string()))?;
+        let profile_id = profile_id(profile)?;
         if matches!(
             selection_lease.state(),
             ActiveProfileReferenceState::Selected(reference)
@@ -77,18 +72,11 @@ impl<S: SecureStore> ConfigManager<S> {
     }
 
     pub(crate) async fn save_profile_locked(&self, profile: &str, content: &str) -> Result<()> {
-        self.validate_document_bytes(content.as_bytes())
-            .map_err(|error| MihomoError::Config(error.to_string()))?;
-        let path = self.profile_document_path(profile).await?;
-        if fs::try_exists(&path).await? {
-            let previous = fs::read(&path).await?;
-            atomic_write(&backup_path(&path), &previous).await?;
-        } else {
-            let _ = fs::remove_file(backup_path(&path)).await;
-        }
-        atomic_write(&path, content.as_bytes()).await?;
-
-        Ok(())
+        let profile = profile_id(profile)?;
+        self.profile_store
+            .write_profile_document_locked(&profile, content.as_bytes())
+            .await
+            .map_err(|error| MihomoError::Config(error.to_string()))
     }
 
     /// Publish an engine-derived document update against the complete
@@ -140,8 +128,7 @@ impl<S: SecureStore> ConfigManager<S> {
         let selection_lease = ActiveProfileReferenceStore::acquire_selection_lease(self)
             .await
             .map_err(|error| MihomoError::Config(error.to_string()))?;
-        let profile_id = ProfileId::new(profile.to_owned())
-            .map_err(|error| MihomoError::Config(error.to_string()))?;
+        let profile_id = profile_id(profile)?;
         if matches!(
             selection_lease.state(),
             ActiveProfileReferenceState::Selected(reference)
@@ -154,36 +141,29 @@ impl<S: SecureStore> ConfigManager<S> {
             ));
         }
         let _guard = self.lock_profile_writes().await?;
-        let path = self.profile_document_path(profile).await?;
-        let backup = backup_path(&path);
-        if !fs::try_exists(&backup).await? {
-            return Ok(false);
-        }
-        let previous = fs::read(&backup).await?;
-        self.validate_document_bytes(&previous)
-            .map_err(|error| MihomoError::Config(error.to_string()))?;
-        atomic_write(&path, &previous).await?;
-        Ok(true)
+        self.profile_store
+            .restore_profile_document_backup_locked(&profile_id)
+            .await
+            .map_err(|error| MihomoError::Config(error.to_string()))
     }
 
     /// Remove the transient last-save backup once the new configuration is
     /// known to be live (or when a save did not require a runtime rebuild).
     pub async fn clear_backup(&self, profile: &str) -> Result<()> {
         self.initialize_profile_namespace().await?;
-        let _guard = crate::manager::lock_reset_fenced_profile_mutation_for_dir(&self.config_dir)
+        let _guard = crate::manager::lock_reset_fenced_profile_mutation_for_dir(self.config_dir())
             .await
             .map_err(|error| MihomoError::Config(error.to_string()))?;
-        let path = self.profile_document_path(profile).await?;
-        match fs::remove_file(backup_path(&path)).await {
-            Ok(()) => Ok(()),
-            Err(error) if error.kind() == ErrorKind::NotFound => Ok(()),
-            Err(error) => Err(error.into()),
-        }
+        let profile = profile_id(profile)?;
+        self.profile_store
+            .clear_profile_document_backup(&profile)
+            .await
+            .map_err(|error| MihomoError::Config(error.to_string()))
     }
 
     pub async fn list_profiles(&self) -> Result<Vec<Profile>> {
         self.initialize_profile_namespace().await?;
-        if !self.config_dir.exists() {
+        if !self.config_dir().exists() {
             return Ok(vec![]);
         }
 
@@ -212,7 +192,7 @@ impl<S: SecureStore> ConfigManager<S> {
         let engine = self.engine_id();
         let mut profiles = vec![];
 
-        let mut entries = fs::read_dir(&self.config_dir).await?;
+        let mut entries = fs::read_dir(self.config_dir()).await?;
         while let Some(entry) = entries.next_entry().await? {
             let path = entry.path();
             if path.extension().and_then(|s| s.to_str()) == Some(self.document_extension().as_str())
@@ -227,17 +207,23 @@ impl<S: SecureStore> ConfigManager<S> {
                 if let Some(table) = metadata_table.and_then(|table| table.get(&name))
                     && let Some(profile_table) = table.as_table()
                 {
-                    apply_profile_metadata(
-                        &self.credential_store,
+                    let metadata = read_profile_metadata(
+                        self.credential_store(),
                         &engine,
-                        &mut profile,
+                        &name,
                         profile_table,
                     )
                     .await;
+                    apply_metadata(&mut profile, metadata);
                 }
-                profile.has_backup = fs::try_exists(backup_path(&profile.path))
-                    .await
-                    .unwrap_or(false);
+                profile.has_backup = match profile_id(&name) {
+                    Ok(profile_id) => self
+                        .profile_store
+                        .profile_document_has_backup(&profile_id)
+                        .await
+                        .unwrap_or(false),
+                    Err(_) => false,
+                };
                 profiles.push(profile);
             }
         }
@@ -255,8 +241,7 @@ impl<S: SecureStore> ConfigManager<S> {
         let selection_lease = ActiveProfileReferenceStore::acquire_selection_lease(self)
             .await
             .map_err(|error| MihomoError::Config(error.to_string()))?;
-        let profile_id = ProfileId::new(profile.to_owned())
-            .map_err(|error| MihomoError::Config(error.to_string()))?;
+        let profile_id = profile_id(profile)?;
         if matches!(
             selection_lease.state(),
             ActiveProfileReferenceState::Selected(reference)
@@ -272,8 +257,8 @@ impl<S: SecureStore> ConfigManager<S> {
 
         let previous_document = fs::read(&path).await?;
         fs::remove_file(&path).await?;
-        let profile_key = sanitized_profile_key(profile)?;
-        if let Err(error) = remove_optional(&options_path(self.config_dir(), &profile_key)).await {
+        let profile_key = profile_id.as_str();
+        if let Err(error) = remove_optional(&options_path(self.config_dir(), profile_key)).await {
             if let Err(rollback) = atomic_write(&path, &previous_document).await {
                 return Err(MihomoError::Config(format!(
                     "profile deletion sidecar cleanup failed ({error}); profile restore failed ({rollback})"
@@ -281,15 +266,16 @@ impl<S: SecureStore> ConfigManager<S> {
             }
             return Err(MihomoError::Config(error.to_string()));
         }
-        if let Err(error) = remove_optional(&backup_path(&path)).await {
+        if let Err(error) = remove_optional(&profile_document_backup_path(&path)).await {
             log::warn!("deleted profile backup cleanup failed: {error}");
         }
-        self.apply_observations
-            .write()
-            .expect("apply observations")
-            .remove(profile);
-        if let Err(err) =
-            delete_subscription_url(&self.credential_store, &self.engine_id(), profile).await
+        self.profile_store.remove_apply_transaction(profile);
+        if let Err(err) = delete_subscription_url(
+            self.credential_store(),
+            &self.engine_id(),
+            profile_id.as_str(),
+        )
+        .await
         {
             log::warn!("failed to delete subscription entry: {err}");
         }
@@ -299,14 +285,16 @@ impl<S: SecureStore> ConfigManager<S> {
 
     /// 只删除单个 profile 在 OS 凭证库中的订阅 URL（恢复出厂清理用）。
     /// 与 [`Self::delete_profile`] 不同：不删 YAML 文件、不动 settings
-    /// 元数据。名字先做与存储侧一致的消毒，再拼 engine-scoped subscription key。
+    /// 元数据。profile 名使用共享领域校验后再拼 engine-scoped subscription key。
     pub async fn delete_subscription_credential(&self, profile: &str) -> Result<()> {
         self.initialize_profile_namespace().await?;
-        let _guard = crate::manager::lock_reset_fenced_profile_mutation_for_dir(&self.config_dir)
+        let _guard = crate::manager::lock_reset_fenced_profile_mutation_for_dir(self.config_dir())
             .await
             .map_err(|error| MihomoError::Config(error.to_string()))?;
-        let key = sanitized_profile_key(profile)?;
-        delete_subscription_url(&self.credential_store, &self.engine_id(), &key).await
+        let key = profile_id(profile)?;
+        delete_subscription_url(self.credential_store(), &self.engine_id(), key.as_str())
+            .await
+            .map_err(|error| MihomoError::Config(error.to_string()))
     }
 
     pub async fn get_profile_metadata(&self, profile: &str) -> Result<Profile> {
@@ -318,119 +306,72 @@ impl<S: SecureStore> ConfigManager<S> {
     /// Read profile metadata after namespace initialization. Workspace reads
     /// call this while holding the shared profile write boundary.
     pub(crate) async fn get_profile_metadata_unlocked(&self, profile: &str) -> Result<Profile> {
-        let key = sanitized_profile_key(profile)?;
-        let mut profile_info = Profile::new(profile.to_string(), PathBuf::new(), false);
-        let settings = self.read_settings_value().await?;
-        if let Some(table) = settings
-            .get("profiles")
-            .and_then(|value| value.as_table())
-            .and_then(|table| table.get(&key))
-            .and_then(|value| value.as_table())
-        {
-            apply_profile_metadata(
-                &self.credential_store,
-                &self.engine_id(),
-                &mut profile_info,
-                table,
-            )
-            .await;
-        }
-        Ok(profile_info)
+        let key = profile_id(profile)?;
+        let metadata = self
+            .profile_store
+            .get_profile_metadata(key.as_str())
+            .await
+            .map_err(|error| MihomoError::Config(error.to_string()))?;
+        Ok(profile_from_metadata(profile, metadata))
     }
 
     pub async fn update_profile_metadata(&self, profile: &str, metadata: &Profile) -> Result<()> {
         self.initialize_profile_namespace().await?;
-        let _guard = crate::manager::lock_reset_fenced_profile_mutation_for_dir(&self.config_dir)
+        let _guard = crate::manager::lock_reset_fenced_profile_mutation_for_dir(self.config_dir())
             .await
             .map_err(|error| MihomoError::Config(error.to_string()))?;
-        let key = sanitized_profile_key(profile)?;
-        let mut settings = self.read_settings_value().await?;
-        let root_table = ensure_table(&mut settings)?;
-        let profiles_value = root_table
-            .entry("profiles".to_string())
-            .or_insert_with(|| toml::Value::Table(Map::new()));
-        let profiles_table = ensure_table(profiles_value)?;
-        let profile_value = profiles_table
-            .entry(key.clone())
-            .or_insert_with(|| toml::Value::Table(Map::new()));
-        let profile_table = ensure_table(profile_value)?;
-
-        let mut subscription_key = None;
-        // The subscription URL embeds the account token, so it only stays
-        // in the metadata file as a plaintext fallback when the secure
-        // store is unavailable — otherwise it lives in the keyring alone.
-        let mut subscription_fallback = metadata.subscription_url.clone();
-        if let Some(url) = metadata.subscription_url.as_deref() {
-            match store_subscription_url(&self.credential_store, &self.engine_id(), &key, url).await
-            {
-                Ok(key) => {
-                    subscription_key = Some(key);
-                    subscription_fallback = None;
-                }
-                Err(err) => {
-                    log::warn!("failed to store subscription url securely: {err}");
-                }
-            }
-        } else if let Err(err) =
-            delete_subscription_url(&self.credential_store, &self.engine_id(), &key).await
-        {
-            log::warn!("failed to delete subscription url: {err}");
-        }
-        set_optional_string(profile_table, "subscription_url_key", subscription_key);
-        set_optional_string(profile_table, "subscription_url", subscription_fallback);
-        set_bool(
-            profile_table,
-            "auto_update_enabled",
-            metadata.auto_update_enabled,
-        );
-        set_optional_u32(
-            profile_table,
-            "update_interval_hours",
-            metadata.update_interval_hours,
-        );
-        set_optional_datetime(profile_table, "last_updated", metadata.last_updated);
-        set_optional_datetime(profile_table, "next_update", metadata.next_update);
-        set_optional_u64(profile_table, "traffic_upload", metadata.traffic_upload);
-        set_optional_u64(profile_table, "traffic_download", metadata.traffic_download);
-        set_optional_u64(profile_table, "traffic_total", metadata.traffic_total);
-        set_optional_i64(profile_table, "expire_at", metadata.expire_at);
-        set_optional_string(profile_table, "user_agent", metadata.user_agent.clone());
-        set_optional_string(profile_table, "etag", metadata.etag.clone());
-        set_optional_string(
-            profile_table,
-            "last_modified",
-            metadata.last_modified.clone(),
-        );
-        set_optional_string(
-            profile_table,
-            "cron_expression",
-            metadata.cron_expression.clone(),
-        );
-        set_bool(
-            profile_table,
-            "insecure_skip_verify",
-            metadata.insecure_skip_verify,
-        );
-        set_bool(profile_table, "auto_reload_core", metadata.auto_reload_core);
-
-        let content = toml::to_string(&settings)
-            .map_err(|e| MihomoError::Config(format!("Failed to serialize config: {}", e)))?;
-        if let Some(parent) = self.settings_file.parent() {
-            fs::create_dir_all(parent).await?;
-        }
-        write_document_bytes_durable(&self.settings_file, content.as_bytes())
+        let key = profile_id(profile)?;
+        let metadata = metadata_from_profile(metadata);
+        self.profile_store
+            .update_profile_metadata(key.as_str(), &metadata)
             .await
             .map_err(|error| MihomoError::Config(error.to_string()))?;
         Ok(())
     }
 }
 
-pub(crate) fn backup_path(path: &path::Path) -> PathBuf {
-    let file_name = path
-        .file_name()
-        .and_then(|name| name.to_str())
-        .unwrap_or("profile.document");
-    path.with_file_name(format!("{file_name}.bak"))
+fn apply_metadata(profile: &mut Profile, metadata: ProfileMetadata) {
+    profile.subscription_url = metadata.subscription_url;
+    profile.auto_update_enabled = metadata.auto_update_enabled;
+    profile.update_interval_hours = metadata.update_interval_hours;
+    profile.last_updated = metadata.last_updated;
+    profile.next_update = metadata.next_update;
+    profile.traffic_upload = metadata.traffic_upload;
+    profile.traffic_download = metadata.traffic_download;
+    profile.traffic_total = metadata.traffic_total;
+    profile.expire_at = metadata.expire_at;
+    profile.user_agent = metadata.user_agent;
+    profile.etag = metadata.etag;
+    profile.last_modified = metadata.last_modified;
+    profile.cron_expression = metadata.cron_expression;
+    profile.insecure_skip_verify = metadata.insecure_skip_verify;
+    profile.auto_reload_core = metadata.auto_reload_core;
+}
+
+fn profile_from_metadata(name: &str, metadata: ProfileMetadata) -> Profile {
+    let mut profile = Profile::new(name.to_owned(), PathBuf::new(), false);
+    apply_metadata(&mut profile, metadata);
+    profile
+}
+
+fn metadata_from_profile(profile: &Profile) -> ProfileMetadata {
+    ProfileMetadata {
+        subscription_url: profile.subscription_url.clone(),
+        auto_update_enabled: profile.auto_update_enabled,
+        update_interval_hours: profile.update_interval_hours,
+        last_updated: profile.last_updated,
+        next_update: profile.next_update,
+        traffic_upload: profile.traffic_upload,
+        traffic_download: profile.traffic_download,
+        traffic_total: profile.traffic_total,
+        expire_at: profile.expire_at,
+        user_agent: profile.user_agent.clone(),
+        etag: profile.etag.clone(),
+        last_modified: profile.last_modified.clone(),
+        cron_expression: profile.cron_expression.clone(),
+        insecure_skip_verify: profile.insecure_skip_verify,
+        auto_reload_core: profile.auto_reload_core,
+    }
 }
 
 async fn atomic_write(path: &path::Path, content: &[u8]) -> Result<()> {

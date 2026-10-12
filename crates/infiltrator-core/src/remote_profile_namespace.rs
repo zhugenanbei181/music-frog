@@ -7,8 +7,9 @@
 
 use dav_client::{DavClient, RemoteEntry};
 use infiltrator_contract::core_identity::EngineId;
+use infiltrator_contract::profile_document_identity::ProfileId;
+use infiltrator_domain::profiles::validate_profile_name;
 use infiltrator_ports::error::PortError;
-use mihomo_config::manager::paths::validate_profile_name;
 use std::collections::BTreeMap;
 
 const MARKER_PREFIX: &str = "musicfrog-profile-namespace-v1-";
@@ -230,8 +231,11 @@ fn legacy_profile_name(path: &str) -> Result<Option<String>, PortError> {
     if !matches!(extension, "yaml" | "yml") {
         return Ok(None);
     }
-    validate_profile_name(stem)
-        .map(|()| Some(stem.to_owned()))
+    validate_profile_name(stem).map_err(|error| {
+        PortError::Failed(format!("unsafe legacy profile path `{path}`: {error}"))
+    })?;
+    ProfileId::new(stem.to_owned())
+        .map(|profile| Some(profile.as_str().to_owned()))
         .map_err(|error| PortError::Failed(format!("unsafe legacy profile path `{path}`: {error}")))
 }
 

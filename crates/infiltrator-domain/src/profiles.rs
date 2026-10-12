@@ -72,25 +72,71 @@ pub struct ProfileDetail {
     pub expire_at: Option<i64>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ProfileNameError {
+    Empty,
+    TooLong,
+    EdgeWhitespace,
+    RelativeSegment,
+    IllegalCharacter(char),
+    TrailingWindowsCharacter,
+}
+
+impl std::fmt::Display for ProfileNameError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Empty => formatter.write_str("配置名称不能为空"),
+            Self::TooLong => formatter.write_str("配置名称不能超过 128 个字符"),
+            Self::EdgeWhitespace => formatter.write_str("配置名称首尾不能包含空白"),
+            Self::RelativeSegment => formatter.write_str("配置名称不能包含相对路径片段"),
+            Self::IllegalCharacter(character) => {
+                write!(formatter, "配置名称不能包含特殊字符 {character:?}")
+            }
+            Self::TrailingWindowsCharacter => formatter.write_str("配置名称不能以点或空格结尾"),
+        }
+    }
+}
+
+impl std::error::Error for ProfileNameError {}
+
+/// Validate one portable profile name before using it as a storage key or
+/// filesystem component.
+pub fn validate_profile_name(name: &str) -> Result<(), ProfileNameError> {
+    if name.is_empty() {
+        return Err(ProfileNameError::Empty);
+    }
+    if name.chars().count() > 128 {
+        return Err(ProfileNameError::TooLong);
+    }
+    if name.trim() != name {
+        return Err(ProfileNameError::EdgeWhitespace);
+    }
+    if name == "." || name == ".." || name.contains("..") {
+        return Err(ProfileNameError::RelativeSegment);
+    }
+    if let Some(character) = name.chars().find(|character| {
+        matches!(
+            character,
+            '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|'
+        ) || character.is_control()
+    }) {
+        return Err(ProfileNameError::IllegalCharacter(character));
+    }
+    if name.ends_with('.') || name.ends_with(' ') {
+        return Err(ProfileNameError::TrailingWindowsCharacter);
+    }
+    Ok(())
+}
+
 pub fn sanitize_profile_name(name: &str) -> anyhow::Result<String> {
     let trimmed = name.trim();
-    if trimmed.is_empty() {
-        return Err(anyhow::anyhow!("配置名称不能为空"));
-    }
-    if trimmed
-        .chars()
-        .any(|ch| matches!(ch, '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|'))
-    {
-        return Err(anyhow::anyhow!(
-            "配置名称不能包含特殊字符 / \\\\ : * ? \\\" < > |"
-        ));
-    }
+    validate_profile_name(trimmed)?;
     Ok(trimmed.to_string())
 }
 
 #[cfg(test)]
 mod tests {
-    use super::sanitize_profile_name;
+    use super::{sanitize_profile_name, validate_profile_name};
 
     #[test]
     fn valid_names_are_trimmed() {
@@ -104,5 +150,17 @@ mod tests {
     fn path_like_names_are_rejected() {
         assert!(sanitize_profile_name("invalid/name").is_err());
         assert!(sanitize_profile_name("invalid\\name").is_err());
+    }
+
+    #[test]
+    fn names_are_portable_across_engine_file_stores() {
+        for invalid in ["release..backup", "trailing.", "trailing ", "a?b"] {
+            assert!(validate_profile_name(invalid).is_err(), "{invalid:?}");
+        }
+        assert!(validate_profile_name("regional.v1").is_ok());
+        assert_eq!(
+            sanitize_profile_name("  regional.v1  ").unwrap(),
+            "regional.v1"
+        );
     }
 }

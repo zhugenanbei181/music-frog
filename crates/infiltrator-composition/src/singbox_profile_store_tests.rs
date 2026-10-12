@@ -21,7 +21,8 @@ use infiltrator_ports::profile_configuration_transaction::{
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::profile_workspace::{ProfileWorkspacePurpose, ProfileWorkspaceUpdate};
 use infiltrator_ports::secure_store::SecureStore;
-use mihomo_config::manager::{ConfigManager, ProfileDocumentExtension};
+use infiltrator_profile_store::store::ProfileDocumentExtension;
+use mihomo_config::manager::ConfigManager;
 use singbox_api::controller_configuration::SingBoxControllerConfiguration;
 use singbox_api::http::{
     SingBoxClashHttpPort, SingBoxClashMethod, SingBoxClashResponse, SingBoxControllerAuthorization,

@@ -1,6 +1,6 @@
 //! Protection comes from persisted provider ownership, even when credentials are unavailable.
 use super::ConfigManager;
-use super::paths::sanitized_profile_key;
+use super::paths::profile_id;
 use crate::profile_workspace_store::config_error;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_protection::ProfileWriteProtection;
@@ -14,12 +14,22 @@ impl<S: SecureStore> ConfigManager<S> {
         &self,
         profile: &str,
     ) -> Result<ProfileWriteProtection, PortError> {
-        let key = sanitized_profile_key(profile).map_err(config_error)?;
+        let key = profile_id(profile).map_err(|error| {
+            PortError::Rejected(Failure::new(
+                ErrorCode::InvalidInput,
+                error.to_string(),
+                false,
+            ))
+        })?;
         let settings = self.read_settings_value().await.map_err(config_error)?;
         let Some(profiles) = settings.get("profiles") else {
             return Ok(ProfileWriteProtection::Editable);
         };
-        let Some(metadata) = profiles.as_table().ok_or_else(invalid_metadata)?.get(&key) else {
+        let Some(metadata) = profiles
+            .as_table()
+            .ok_or_else(invalid_metadata)?
+            .get(key.as_str())
+        else {
             return Ok(ProfileWriteProtection::Editable);
         };
         let metadata = metadata.as_table().ok_or_else(invalid_metadata)?;

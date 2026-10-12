@@ -11,7 +11,7 @@ contract + domain + ports ────────┼→ application → composi
 ```
 
 - `contract` 定义跨端意图、结果与快照；`domain` 定义业务规则；`ports` 定义副作用接口；`application` 实现用例；`presentation` 只折叠已观测快照供多表面复用，不拥有事实或副作用。
-- `composition` 注入具体 adapter。共享 OS 能力归 `infiltrator-platform`；engine-neutral profile 持久化当前通过 `infiltrator-ports::ProfileStore` 契约由 `mihomo-config::ConfigManager` 实现，目标迁往 `infiltrator-profile-store`（CORE-017.3）。各 engine 按 controller API、原生配置、进程生命周期、版本资产拆分 adapter crate。准确 owner 与依赖方向见 [Core 后端契约](CORE_BACKENDS.md)。
+- `composition` 注入具体 adapter。共享 OS 能力归 `infiltrator-platform`；engine-neutral profile 持久化当前通过 `infiltrator-ports::ProfileStore` 契约由 `mihomo-config::ConfigManager` 实现，目标迁往 `infiltrator-profile-store`（CORE-018.3）。各 engine 按 controller API、原生配置、进程生命周期、版本资产拆分 adapter crate。准确 owner 与依赖方向见 [Core 后端契约](CORE_BACKENDS.md)。
 - 依赖向外流动。共享层不依赖 runtime、网络、OS 或 UI toolkit；UI 不启动 core、不写 canonical 配置、不创建第二个业务 owner。
 - 有副作用的操作由单一 owner 串行执行并校验 scope/revision/generation；迟到结果不得覆盖新状态。成功须有真实终态或读回。
 - 可观察业务事实只有一个 owner；前端仅保存输入草稿和呈现缓存。

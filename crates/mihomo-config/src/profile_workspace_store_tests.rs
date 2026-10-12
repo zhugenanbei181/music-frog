@@ -2,7 +2,6 @@
 use super::*;
 use crate::manager::ActiveProfileReferenceResetRequest;
 use crate::profile_document_codec::{PROFILE_FORMAT, PROFILE_SCHEMA_VERSION};
-use crate::sidecar_store::{write_document, write_document_bytes};
 use async_trait::async_trait;
 use infiltrator_contract::active_profile_reference::{
     ActiveProfileReferenceCasOutcome, ActiveProfileReferenceState, ActiveProfileReferenceTarget,
@@ -11,7 +10,9 @@ use infiltrator_contract::active_profile_reference::{
 use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::error::Failure;
 use infiltrator_contract::profile_document_identity::{
-    ProfileDocumentIdentity, ProfileDocumentSourceIdentity, ProfileDocumentSourceKind, ProfileId,
+    ProfileDocument, ProfileDocumentIdentity, ProfileDocumentSourceIdentity,
+    ProfileDocumentSourceKind, ProfileFormatId, ProfileId, ProfileSchemaVersion,
+    ProfileSidecarRevision, ProfileSourceId,
 };
 use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
 use infiltrator_domain::profile_options::options_path;
@@ -22,7 +23,10 @@ use infiltrator_ports::profile_store::{
     ActiveProfileWorkspaceWriteLease, ProfileStore,
 };
 use infiltrator_ports::secure_store::SecureStore;
-use sha2::{Digest, Sha256};
+use infiltrator_profile_store::document_store::{write_document, write_document_bytes};
+use infiltrator_profile_store::workspace::{
+    document_revision as revision, publish_document_pair as publish_pair, sha256_hex,
+};
 use std::str;
 use std::sync::Arc;
 use std::time::Duration;
@@ -1067,10 +1071,7 @@ async fn reset_resumes_already_default_cleanup_from_its_durable_intent() {
     let current = store.read_active_profile_reference().await.unwrap();
     assert_eq!(current.revision(), expected.revision().next().unwrap());
 
-    let digest = Sha256::digest(default_content.as_bytes())
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect::<String>();
+    let digest = sha256_hex(default_content.as_bytes());
     let intent = serde_json::json!({
         "schema_version": 1,
         "expected_reference": expected,

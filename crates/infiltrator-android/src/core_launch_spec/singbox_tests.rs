@@ -16,7 +16,8 @@ use infiltrator_ports::core_binary_selection::{
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::secure_store::SecureStore;
-use mihomo_config::manager::{ConfigManager, ProfileDocumentExtension};
+use infiltrator_profile_store::store::ProfileDocumentExtension;
+use mihomo_config::manager::ConfigManager;
 use singbox_config::profile_document_codec::SingBoxProfileDocumentCodec;
 use singbox_process::command::{NativeConfigCheck, SingBoxChildProcess, SingBoxCommandPort};
 use std::path::{Path, PathBuf};
