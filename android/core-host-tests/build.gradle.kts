@@ -30,6 +30,7 @@ kotlin {
                 "com/musicfrog/infiltrator/MihomoCoreConfigurationValidator.kt",
                 "com/musicfrog/infiltrator/CoreProcessController.kt",
                 "com/musicfrog/infiltrator/AndroidOwnerSessionFence.kt",
+                "com/musicfrog/infiltrator/AndroidControlIntentWire.kt",
                 "com/musicfrog/infiltrator/AndroidCoreSnapshotFence.kt",
                 "com/musicfrog/infiltrator/AndroidOwnerDataFence.kt",
                 "com/musicfrog/infiltrator/AndroidVpnSnapshotFence.kt",
@@ -57,6 +58,7 @@ kotlin {
             kotlin.srcDir("../app/src/test/java")
             kotlin.include(
                 "com/musicfrog/infiltrator/AndroidCoreProcessRecordStoreTest.kt",
+                "com/musicfrog/infiltrator/AndroidControlIntentWireTest.kt",
                 "com/musicfrog/infiltrator/AndroidCoreSnapshotFenceTest.kt",
                 "com/musicfrog/infiltrator/AndroidOwnerDataFenceTest.kt",
                 "com/musicfrog/infiltrator/AndroidOwnerSessionFenceTest.kt",

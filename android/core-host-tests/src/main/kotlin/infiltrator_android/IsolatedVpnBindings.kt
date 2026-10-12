@@ -30,6 +30,14 @@ enum class AndroidCoreLifecycle {
     FAILED,
 }
 
+enum class AndroidControlIntent {
+    START_PROXY,
+    STOP_PROXY,
+    RESUME_KERNEL,
+    PAUSE_KERNEL,
+    RESTART_KERNEL,
+}
+
 enum class AndroidOwnerDataDomain {
     PROFILES,
     CORE_VERSIONS,
