@@ -51,7 +51,9 @@ use infiltrator_profile_store::active_reference_owner::{
     ActiveCoreOwnerState, ActiveOwnerSwitchStage, ActiveOwnerToken, ActiveProfileReferenceRecord,
     LegacySelectionMigration, transition_rejected,
 };
-use infiltrator_profile_store::active_reference_owner_coordinator::ActiveProfileOwnerCoordinator;
+use infiltrator_profile_store::active_reference_owner_coordinator::{
+    ActiveProfileOwnerCoordinator, validate_terminal_for_owner,
+};
 use infiltrator_profile_store::document_store::{
     read_optional_bytes, remove_optional, remove_optional_durable, write_document_bytes_durable,
 };
@@ -182,23 +184,6 @@ impl ParsedActiveProfileResetIntentRecord {
             Self::CurrentV2(record) => Some(record),
         }
     }
-}
-
-#[derive(Clone, Copy)]
-enum OwnerRecoveryRecordPosition {
-    Bound,
-    Unowned,
-}
-
-#[derive(Clone, Copy)]
-enum OwnerRecoveryProofPosition {
-    Bound,
-    Terminal { terminal_generation: CoreGeneration },
-}
-
-enum OwnerRecoveryLaunchRequirement {
-    NeverStarted,
-    ManagedChildExited(CoreProcessStartContext),
 }
 
 /// Lock bundle owned by a multi-step active-workspace transaction. Managed
@@ -501,28 +486,6 @@ fn validate_reference_write_authorization(
             "active profile reference write authorization does not match the owner fence",
         )),
     }
-}
-
-fn validate_terminal_for_owner(
-    terminal: &infiltrator_contract::snapshot::CoreLifecycleSnapshot,
-    identity: &CoreIdentity,
-    minimum_generation: CoreGeneration,
-) -> Result<CoreGeneration, PortError> {
-    if !terminal
-        .identity
-        .as_ref()
-        .is_some_and(|terminal_identity| identity.same_instance(terminal_identity))
-        || terminal.generation < minimum_generation.value()
-        || terminal.lifecycle != infiltrator_contract::snapshot::CoreLifecycle::Stopped
-        || terminal.session_token.is_some()
-    {
-        return Err(PortError::Rejected(Failure::new(
-            ErrorCode::NotReady,
-            "active Core owner switch requires matching Stopped readback without a session",
-            true,
-        )));
-    }
-    Ok(CoreGeneration::new(terminal.generation))
 }
 
 fn switching_state(
@@ -2123,218 +2086,9 @@ impl<S: SecureStore> ActiveProfileReferenceStore for ConfigManager<S> {
         &self,
         evidence: ActiveProfileOwnerRecoveryEvidence,
     ) -> Result<ActiveProfileOwnerRecoveryOutcome, PortError> {
-        let (launch_requirement, terminal) = match evidence {
-            ActiveProfileOwnerRecoveryEvidence::NeverStarted { terminal } => {
-                (OwnerRecoveryLaunchRequirement::NeverStarted, terminal)
-            }
-            ActiveProfileOwnerRecoveryEvidence::ManagedChildExited { context, terminal } => (
-                OwnerRecoveryLaunchRequirement::ManagedChildExited(context),
-                terminal,
-            ),
-        };
-        let (config_root, _root_guard) = self.acquire_active_profile_reference_lock().await?;
-        let _owner_state_guard = ActiveProfileReferenceFile::new(config_root.clone())
-            .acquire_owner_state_lock()
-            .await?;
-        let mut record = sync_read_active_profile_record(&config_root)?;
-        let mut proof = sync_read_active_core_owner_proof(&config_root)?;
-        let no_owner_proof = matches!(proof.state, ActiveCoreOwnerProof::Unowned);
-        let already_terminal_without_child_record = matches!(
-            (&launch_requirement, &proof.state),
-            (
-                OwnerRecoveryLaunchRequirement::NeverStarted,
-                ActiveCoreOwnerProof::Terminal { .. }
-            )
-        );
-        if matches!(record.owner, ActiveCoreOwnerState::Unowned)
-            && (no_owner_proof || already_terminal_without_child_record)
-        {
-            if lock_local_owner_registry()?.contains(&config_root) {
-                return Err(transition_rejected(
-                    "an active local owner registration exists without a bound owner record",
-                ));
-            }
-            let owner_probe = ActiveProfileReferenceFile::new(config_root.clone()).try_acquire_owner_lock()?.ok_or_else(|| {
-                transition_rejected(
-                    "an active Core owner holds the fence while its persisted record is unowned",
-                )
-            })?;
-            drop(owner_probe);
-            return Ok(ActiveProfileOwnerRecoveryOutcome::NoRecoveryRequired);
-        }
-        let (identity, bound_generation, token, record_position, proof_position) =
-            match (record.owner.clone(), proof.state.clone()) {
-                (
-                    ActiveCoreOwnerState::Bound {
-                        identity,
-                        generation,
-                        token,
-                    },
-                    ActiveCoreOwnerProof::Bound {
-                        identity: proof_identity,
-                        generation: proof_generation,
-                        token: proof_token,
-                    },
-                ) if identity.same_instance(&proof_identity)
-                    && generation == proof_generation
-                    && token == proof_token =>
-                {
-                    (
-                        identity,
-                        generation,
-                        token,
-                        OwnerRecoveryRecordPosition::Bound,
-                        OwnerRecoveryProofPosition::Bound,
-                    )
-                }
-                (
-                    ActiveCoreOwnerState::Bound {
-                        identity,
-                        generation,
-                        token,
-                    },
-                    ActiveCoreOwnerProof::Terminal {
-                        identity: proof_identity,
-                        bound_generation: proof_bound_generation,
-                        terminal_generation,
-                        token: proof_token,
-                    },
-                ) if identity.same_instance(&proof_identity)
-                    && generation == proof_bound_generation
-                    && token == proof_token =>
-                {
-                    (
-                        identity,
-                        generation,
-                        token,
-                        OwnerRecoveryRecordPosition::Bound,
-                        OwnerRecoveryProofPosition::Terminal {
-                            terminal_generation,
-                        },
-                    )
-                }
-                (
-                    ActiveCoreOwnerState::Unowned,
-                    ActiveCoreOwnerProof::Bound {
-                        identity,
-                        generation,
-                        token,
-                    },
-                ) => (
-                    identity,
-                    generation,
-                    token,
-                    OwnerRecoveryRecordPosition::Unowned,
-                    OwnerRecoveryProofPosition::Bound,
-                ),
-                (
-                    ActiveCoreOwnerState::Unowned,
-                    ActiveCoreOwnerProof::Terminal {
-                        identity,
-                        bound_generation,
-                        terminal_generation,
-                        token,
-                    },
-                ) => (
-                    identity,
-                    bound_generation,
-                    token,
-                    OwnerRecoveryRecordPosition::Unowned,
-                    OwnerRecoveryProofPosition::Terminal {
-                        terminal_generation,
-                    },
-                ),
-                _ => {
-                    return Err(transition_rejected(
-                        "no recoverable bound owner proof is present",
-                    ));
-                }
-            };
-        let terminal_generation =
-            validate_terminal_for_owner(&terminal, &identity, bound_generation)?;
-        match (&launch_requirement, &proof.launch) {
-            (
-                OwnerRecoveryLaunchRequirement::NeverStarted,
-                ActiveCoreOwnerLaunchProof::Unstarted,
-            ) if terminal_generation == CoreGeneration::new(0) => {}
-            (
-                OwnerRecoveryLaunchRequirement::ManagedChildExited(expected),
-                ActiveCoreOwnerLaunchProof::Managed(persisted),
-            ) if expected == persisted => {
-                let (context_identity, context_generation, session_token) = match expected {
-                    CoreProcessStartContext::Managed {
-                        identity,
-                        generation,
-                        session_token,
-                    } => (identity, *generation, *session_token),
-                    CoreProcessStartContext::Standalone { .. } => {
-                        return Err(transition_rejected(
-                            "standalone process context cannot recover an active Core owner",
-                        ));
-                    }
-                };
-                if !context_identity.same_instance(&identity)
-                    || context_generation <= bound_generation
-                    || context_generation != terminal_generation
-                    || !session_token.is_valid()
-                {
-                    return Err(transition_rejected(
-                        "managed child context does not match exact owner terminal evidence",
-                    ));
-                }
-            }
-            _ => {
-                return Err(transition_rejected(
-                    "owner recovery evidence differs from its persisted launch proof",
-                ));
-            }
-        }
-        if matches!(record_position, OwnerRecoveryRecordPosition::Unowned)
-            && matches!(proof_position, OwnerRecoveryProofPosition::Bound)
-            && terminal_generation != CoreGeneration::new(0)
-        {
-            return Err(transition_rejected(
-                "a partially published owner binding can recover only from a never-started terminal snapshot",
-            ));
-        }
-        if let OwnerRecoveryProofPosition::Terminal {
-            terminal_generation: persisted_generation,
-        } = proof_position
-        {
-            if persisted_generation != terminal_generation {
-                return Err(transition_rejected(
-                    "owner terminal snapshot differs from its persisted exact proof",
-                ));
-            }
-        }
-        if local_owner_registration_state(&config_root, &token)?.is_some() {
-            return Err(transition_rejected(
-                "owner is still registered in this process; use its live owner lease",
-            ));
-        }
-        let owner_probe = ActiveProfileReferenceFile::new(config_root.clone())
-            .try_acquire_owner_lock()?
-            .ok_or_else(|| {
-                transition_rejected("owner process still holds the active owner fence")
-            })?;
-        drop(owner_probe);
-
-        if matches!(proof_position, OwnerRecoveryProofPosition::Bound) {
-            proof.state = ActiveCoreOwnerProof::Terminal {
-                identity: identity.clone(),
-                bound_generation,
-                terminal_generation,
-                token: token.clone(),
-            };
-            sync_publish_active_core_owner_proof(&config_root, &proof)?;
-        }
-        if matches!(record_position, OwnerRecoveryRecordPosition::Bound) {
-            record.owner = ActiveCoreOwnerState::Unowned;
-            sync_publish_active_profile_record(&config_root, &record)?;
-        }
-        Ok(ActiveProfileOwnerRecoveryOutcome::Recovered(
-            record.selection,
-        ))
+        ActiveProfileOwnerCoordinator::new(self.config_root().to_path_buf())
+            .recover_bound_owner_after_terminal(evidence)
+            .await
     }
 
     async fn compare_and_set(
