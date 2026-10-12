@@ -28,6 +28,7 @@ use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::profile_workspace::ProfileWorkspace;
 use std::collections::HashMap;
+use std::fmt;
 use std::sync::Arc;
 
 #[cfg(test)]
@@ -49,6 +50,81 @@ pub enum PreviousCoreDisposition {
         identity: CoreIdentity,
         generation: CoreGeneration,
     },
+}
+
+/// A typed owner-switch failure records whether the previous session is still
+/// usable, needs durable reservation recovery, has uncertain termination, or
+/// has closed and requires a new product session.
+#[derive(Debug)]
+pub enum ActiveProfileBackendSwitchError {
+    BeforeReservation(PortError),
+    ReservationPending(PortError),
+    OwnerTerminationUnconfirmed(PortError),
+    OldOwnerClosed(PortError),
+}
+
+impl ActiveProfileBackendSwitchError {
+    pub fn phase(&self) -> ActiveProfileBackendSwitchFailurePhase {
+        match self {
+            Self::BeforeReservation(_) => ActiveProfileBackendSwitchFailurePhase::BeforeReservation,
+            Self::ReservationPending(_) => {
+                ActiveProfileBackendSwitchFailurePhase::ReservationPending
+            }
+            Self::OwnerTerminationUnconfirmed(_) => {
+                ActiveProfileBackendSwitchFailurePhase::OwnerTerminationUnconfirmed
+            }
+            Self::OldOwnerClosed(_) => ActiveProfileBackendSwitchFailurePhase::OldOwnerClosed,
+        }
+    }
+
+    pub fn failure(&self) -> &PortError {
+        match self {
+            Self::BeforeReservation(failure)
+            | Self::ReservationPending(failure)
+            | Self::OwnerTerminationUnconfirmed(failure)
+            | Self::OldOwnerClosed(failure) => failure,
+        }
+    }
+
+    pub fn into_failure(self) -> PortError {
+        match self {
+            Self::BeforeReservation(failure)
+            | Self::ReservationPending(failure)
+            | Self::OwnerTerminationUnconfirmed(failure)
+            | Self::OldOwnerClosed(failure) => failure,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ActiveProfileBackendSwitchFailurePhase {
+    BeforeReservation,
+    ReservationPending,
+    OwnerTerminationUnconfirmed,
+    OldOwnerClosed,
+}
+
+impl fmt::Display for ActiveProfileBackendSwitchError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let failure = match self {
+            Self::BeforeReservation(failure)
+            | Self::ReservationPending(failure)
+            | Self::OwnerTerminationUnconfirmed(failure)
+            | Self::OldOwnerClosed(failure) => failure,
+        };
+        write!(formatter, "{failure}")
+    }
+}
+
+impl std::error::Error for ActiveProfileBackendSwitchError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::BeforeReservation(failure)
+            | Self::ReservationPending(failure)
+            | Self::OwnerTerminationUnconfirmed(failure)
+            | Self::OldOwnerClosed(failure) => Some(failure),
+        }
+    }
 }
 
 /// One validated backend candidate. Its Core process has not been started and

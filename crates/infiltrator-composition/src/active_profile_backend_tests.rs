@@ -1,4 +1,7 @@
-use super::{ActiveProfileBackendSelector, PreviousCoreDisposition, PreviousCoreOwner};
+use super::{
+    ActiveProfileBackendSelector, ActiveProfileBackendSwitchError,
+    ActiveProfileBackendSwitchFailurePhase, PreviousCoreDisposition, PreviousCoreOwner,
+};
 use async_trait::async_trait;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_contract::active_profile_reference::{
@@ -1428,6 +1431,19 @@ async fn load_prepared_profile_document(store: &dyn ProfileStore) -> ProfileDocu
         .document
 }
 
+fn switch_failure(
+    result: Result<super::SelectedActiveProfileBackend, ActiveProfileBackendSwitchError>,
+    expected_phase: ActiveProfileBackendSwitchFailurePhase,
+) -> PortError {
+    match result {
+        Err(error) => {
+            assert_eq!(error.phase(), expected_phase);
+            error.into_failure()
+        }
+        Ok(_) => panic!("owner switch unexpectedly produced a candidate"),
+    }
+}
+
 fn supported_capabilities() -> Arc<dyn CoreCapabilityProvider> {
     Arc::new(FakeCapabilities {
         state: CapabilityFixtureState::Available,
@@ -1504,7 +1520,13 @@ async fn deleted_target_after_preflight_is_revalidated_and_cancelled_before_old_
         )
         .await;
 
-    assert!(matches!(result, Err(PortError::Rejected(_))));
+    assert!(matches!(
+        switch_failure(
+            result,
+            ActiveProfileBackendSwitchFailurePhase::BeforeReservation
+        ),
+        PortError::Rejected(_)
+    ));
     assert_eq!(profile_store.workspace_reads.load(Ordering::SeqCst), 3);
     assert_eq!(owner.terminations.load(Ordering::SeqCst), 0);
     assert_eq!(counts.created.load(Ordering::SeqCst), 0);
@@ -1827,7 +1849,13 @@ async fn provider_prepared_from_another_document_fails_before_old_owner_close() 
         )
         .await;
 
-    assert!(matches!(result, Err(PortError::Rejected(_))));
+    assert!(matches!(
+        switch_failure(
+            result,
+            ActiveProfileBackendSwitchFailurePhase::BeforeReservation
+        ),
+        PortError::Rejected(_)
+    ));
     assert_eq!(owner.terminations.load(Ordering::SeqCst), 0);
     assert_eq!(counts.created.load(Ordering::SeqCst), 0);
     assert_eq!(refs.read().await.unwrap(), reference("mihomo", "main", 1));
@@ -2042,7 +2070,13 @@ async fn foreign_target_document_fails_before_close_or_provider_dispatch() {
         )
         .await;
 
-    assert!(matches!(result, Err(PortError::Rejected(_))));
+    assert!(matches!(
+        switch_failure(
+            result,
+            ActiveProfileBackendSwitchFailurePhase::BeforeReservation
+        ),
+        PortError::Rejected(_)
+    ));
     assert_eq!(owner.terminations.load(Ordering::SeqCst), 0);
     assert_eq!(counts.created.load(Ordering::SeqCst), 0);
     assert_eq!(refs.read().await.unwrap(), reference("mihomo", "main", 1));
@@ -2104,7 +2138,13 @@ async fn missing_provider_or_target_capability_fails_before_close_or_dispatch() 
             )
             .await;
 
-        assert!(matches!(result, Err(PortError::Unsupported { .. })));
+        assert!(matches!(
+            switch_failure(
+                result,
+                ActiveProfileBackendSwitchFailurePhase::BeforeReservation
+            ),
+            PortError::Unsupported { .. }
+        ));
         assert_eq!(owner.terminations.load(Ordering::SeqCst), 0);
         assert_eq!(mihomo_counts.created.load(Ordering::SeqCst), 0);
         if let Some(counts) = sing_box_counts {
@@ -2155,7 +2195,13 @@ async fn stale_revision_at_reservation_fails_before_close_or_provider_dispatch()
         )
         .await;
 
-    assert!(matches!(result, Err(PortError::Rejected(_))));
+    assert!(matches!(
+        switch_failure(
+            result,
+            ActiveProfileBackendSwitchFailurePhase::BeforeReservation
+        ),
+        PortError::Rejected(_)
+    ));
     assert_eq!(owner.terminations.load(Ordering::SeqCst), 0);
     assert_eq!(counts.created.load(Ordering::SeqCst), 0);
     assert_eq!(refs.read().await.unwrap(), reference("mihomo", "main", 1));
@@ -2203,7 +2249,13 @@ async fn terminal_receipt_must_match_exact_preclose_generation_before_cas() {
         )
         .await;
 
-    assert!(matches!(result, Err(PortError::Rejected(_))));
+    assert!(matches!(
+        switch_failure(
+            result,
+            ActiveProfileBackendSwitchFailurePhase::OwnerTerminationUnconfirmed
+        ),
+        PortError::Rejected(_)
+    ));
     assert_eq!(owner.terminations.load(Ordering::SeqCst), 1);
     assert_eq!(counts.created.load(Ordering::SeqCst), 0);
     assert_eq!(refs.read().await.unwrap(), reference("mihomo", "main", 1));
@@ -2251,7 +2303,13 @@ async fn close_failure_keeps_closing_reservation_and_never_dispatches_target() {
         )
         .await;
 
-    assert!(matches!(result, Err(PortError::Failed(_))));
+    assert!(matches!(
+        switch_failure(
+            result,
+            ActiveProfileBackendSwitchFailurePhase::OwnerTerminationUnconfirmed
+        ),
+        PortError::Failed(_)
+    ));
     assert_eq!(owner.terminations.load(Ordering::SeqCst), 1);
     assert_eq!(counts.created.load(Ordering::SeqCst), 0);
     assert_eq!(refs.read().await.unwrap(), reference("mihomo", "main", 1));
@@ -2304,7 +2362,13 @@ async fn failed_new_owner_reservation_has_zero_provider_dispatch() {
         )
         .await;
 
-    assert!(matches!(result, Err(PortError::Rejected(_))));
+    assert!(matches!(
+        switch_failure(
+            result,
+            ActiveProfileBackendSwitchFailurePhase::OldOwnerClosed
+        ),
+        PortError::Rejected(_)
+    ));
     assert_eq!(counts.created.load(Ordering::SeqCst), 0);
     assert_eq!(counts.starts.load(Ordering::SeqCst), 0);
     assert_eq!(
@@ -2356,7 +2420,13 @@ async fn provider_dispatch_failure_explicitly_aborts_only_pre_application_reserv
         )
         .await;
 
-    assert!(matches!(result, Err(PortError::Failed(_))));
+    assert!(matches!(
+        switch_failure(
+            result,
+            ActiveProfileBackendSwitchFailurePhase::OldOwnerClosed
+        ),
+        PortError::Failed(_)
+    ));
     assert_eq!(counts.created.load(Ordering::SeqCst), 1);
     assert_eq!(counts.starts.load(Ordering::SeqCst), 0);
     assert_eq!(
@@ -2409,7 +2479,13 @@ async fn provider_identity_preflight_failure_aborts_before_core_application() {
         )
         .await;
 
-    assert!(matches!(result, Err(PortError::Failed(_))));
+    assert!(matches!(
+        switch_failure(
+            result,
+            ActiveProfileBackendSwitchFailurePhase::OldOwnerClosed
+        ),
+        PortError::Failed(_)
+    ));
     assert_eq!(counts.created.load(Ordering::SeqCst), 1);
     assert_eq!(counts.starts.load(Ordering::SeqCst), 0);
     assert_eq!(

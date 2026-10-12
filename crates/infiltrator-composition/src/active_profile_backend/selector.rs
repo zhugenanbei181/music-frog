@@ -2,6 +2,14 @@ use super::*;
 use infiltrator_contract::capability::Capability;
 use tokio::sync::Mutex;
 
+#[derive(Clone, Copy)]
+enum SwitchExecutionPhase {
+    BeforeReservation,
+    ReservationPending,
+    OwnerTerminationUnconfirmed,
+    OldOwnerClosed,
+}
+
 impl ActiveProfileBackendSelector {
     pub fn new(
         references: Arc<dyn ActiveProfileReferenceStore>,
@@ -117,6 +125,32 @@ impl ActiveProfileBackendSelector {
         target: ActiveProfileReferenceTarget,
         prepared_document: &ProfileDocument,
         previous_owner: &PreviousCoreOwner,
+    ) -> Result<SelectedActiveProfileBackend, ActiveProfileBackendSwitchError> {
+        let mut phase = SwitchExecutionPhase::BeforeReservation;
+        self.switch_backend_transaction(target, prepared_document, previous_owner, &mut phase)
+            .await
+            .map_err(|failure| match phase {
+                SwitchExecutionPhase::BeforeReservation => {
+                    ActiveProfileBackendSwitchError::BeforeReservation(failure)
+                }
+                SwitchExecutionPhase::ReservationPending => {
+                    ActiveProfileBackendSwitchError::ReservationPending(failure)
+                }
+                SwitchExecutionPhase::OwnerTerminationUnconfirmed => {
+                    ActiveProfileBackendSwitchError::OwnerTerminationUnconfirmed(failure)
+                }
+                SwitchExecutionPhase::OldOwnerClosed => {
+                    ActiveProfileBackendSwitchError::OldOwnerClosed(failure)
+                }
+            })
+    }
+
+    async fn switch_backend_transaction(
+        &self,
+        target: ActiveProfileReferenceTarget,
+        prepared_document: &ProfileDocument,
+        previous_owner: &PreviousCoreOwner,
+        phase: &mut SwitchExecutionPhase,
     ) -> Result<SelectedActiveProfileBackend, PortError> {
         let _writer = self.selection_gate.lock().await;
         let (target_engine, target_profile) = match target {
@@ -237,6 +271,7 @@ impl ActiveProfileBackendSelector {
                 binding_generation,
             )
             .await?;
+        *phase = SwitchExecutionPhase::ReservationPending;
         validate_closing_old_switch(
             switch.as_ref(),
             &previous_reference,
@@ -252,6 +287,7 @@ impl ActiveProfileBackendSelector {
         {
             return match switch.cancel_before_old_owner_close().await {
                 Ok(restored_reference) if restored_reference == previous_reference => {
+                    *phase = SwitchExecutionPhase::BeforeReservation;
                     Err(target_error)
                 }
                 Ok(_) => Err(PortError::Rejected(Failure::new(
@@ -265,8 +301,10 @@ impl ActiveProfileBackendSelector {
         // Once the durable marker exists it serializes competing selectors;
         // release even the composition-local gate before waiting for close.
         drop(_writer);
+        *phase = SwitchExecutionPhase::OwnerTerminationUnconfirmed;
         let terminal = owner.terminate_owner().await?;
         verify_stopped_owner(&expected_identity, lifecycle_generation, &terminal)?;
+        *phase = SwitchExecutionPhase::OldOwnerClosed;
 
         let stopped_switch = switch.confirm_old_owner_stopped(&terminal).await?;
         validate_old_stopped_switch(
