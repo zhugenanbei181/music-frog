@@ -16,6 +16,7 @@ use infiltrator_contract::rule_tracer::{
     DecisionChainSnapshot, RuleTraceOutboundResolution, RuleTraceRuntimeMode, RuleTracerSnapshot,
     TracerRuleOverride, TracerRuleOverrideResult, TracerRuleOverrideStatus, TrafficContextSnapshot,
 };
+#[cfg(test)]
 use infiltrator_contract::snapshot::{CoreLifecycle, CoreSnapshot};
 use infiltrator_domain::rules::tracer::decision_chain::build_decision_chain;
 use infiltrator_domain::rules::tracer::named::trace_named_rules;
@@ -71,10 +72,9 @@ enum RuleTraceSessionMode {
 }
 
 #[derive(Clone, Copy)]
-enum RuleTraceSnapshotOwner<'a> {
+enum RuleTraceSnapshotOwner {
     Live { generation: u64, revision: u64 },
     Offline { generation: u64, revision: u64 },
-    ObservedCore(&'a CoreSnapshot),
 }
 
 impl RuleTracerApplication {
@@ -429,17 +429,24 @@ impl RuleTracerApplication {
                 true,
             )),
         };
-        self.simulate_workspace_snapshot(
-            RuleTraceSnapshotOwner::ObservedCore(core),
-            rules,
-            None,
-            &outbound_facts,
-        )
+        let owner = match (&core.lifecycle, core.session_token.as_ref()) {
+            (CoreLifecycle::Running | CoreLifecycle::Ready, Some(_)) => {
+                RuleTraceSnapshotOwner::Live {
+                    generation: core.generation,
+                    revision: core.revision.max(1),
+                }
+            }
+            _ => RuleTraceSnapshotOwner::Offline {
+                generation: core.generation,
+                revision: core.revision.max(1),
+            },
+        };
+        self.simulate_workspace_snapshot(owner, rules, None, &outbound_facts)
     }
 
-    pub(crate) fn simulate_workspace_snapshot(
+    fn simulate_workspace_snapshot(
         &self,
-        owner: RuleTraceSnapshotOwner<'_>,
+        owner: RuleTraceSnapshotOwner,
         rules: &[RuleEntry],
         sub_rules: Option<&BTreeMap<String, Vec<RuleEntry>>>,
         outbound_facts: &RuleTraceOutboundFacts,
@@ -453,15 +460,6 @@ impl RuleTracerApplication {
                 generation,
                 revision,
             } => (generation, revision, RuleTraceRuntimeMode::Offline),
-            RuleTraceSnapshotOwner::ObservedCore(core) => {
-                let mode = match (&core.lifecycle, core.session_token.as_ref()) {
-                    (CoreLifecycle::Running | CoreLifecycle::Ready, Some(_)) => {
-                        RuleTraceRuntimeMode::Live
-                    }
-                    _ => RuleTraceRuntimeMode::Offline,
-                };
-                (core.generation, core.revision.max(1), mode)
-            }
         };
         let query = self.query();
 

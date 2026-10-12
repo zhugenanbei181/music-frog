@@ -69,7 +69,6 @@ use infiltrator_ports::stun_probe::StunEgressProbePort;
 use infiltrator_ports::subscription_import::SubscriptionImportPort;
 use infiltrator_ports::subscription_notification::SubscriptionNotificationPort;
 use infiltrator_ports::subscription_source::SubscriptionSource;
-use std::fmt::Display;
 use std::sync::Arc;
 
 mod composition;
@@ -613,11 +612,6 @@ fn missing(capability: &str) -> Failure {
 
 fn unsupported() -> Failure {
     Failure::unsupported("command has no host port in this composition")
-}
-
-/// Configuration failure for the shared rule-edit path.
-fn rule_failure(error: impl Display) -> Failure {
-    Failure::new(ErrorCode::Configuration, error.to_string(), false)
 }
 
 #[cfg(test)]
