@@ -1,7 +1,8 @@
-//! Profile/config management for the mihomo infiltrator.
+//! Engine-scoped profile persistence with Mihomo configuration operations.
 //!
-//! [`ConfigManager`] owns an engine-scoped config directory and profile-state
-//! file. The implementation is split along business seams:
+//! [`ConfigManager`] owns one codec-bound engine directory, while product
+//! selection and Core owner state use the shared configs-root protocol. The
+//! implementation is split along business seams:
 //!
 //! * `profiles` — profile CRUD and per-profile metadata
 //! * `active` — active-profile selection and settings-file plumbing
@@ -13,6 +14,7 @@
 //! * `metadata` — settings-TOML mapping helpers
 
 use std::path;
+use std::result;
 mod active;
 mod active_profile_reference;
 mod controller;
@@ -26,11 +28,17 @@ mod profile_protection;
 pub(crate) mod profiles;
 mod subscription_store;
 
+use crate::profile_document_codec::MihomoProfileDocumentCodec;
 use crate::profile_write_boundary::shared_boundary;
 use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
 use infiltrator_contract::apply_transaction::ApplyTransactionSnapshot;
 use infiltrator_contract::core_identity::EngineId;
+use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::profile_document::DocumentValidation;
 use infiltrator_ports::error::PortError;
+use infiltrator_ports::profile_document_codec::{
+    ProfileDocumentCodecPort, ProfileDocumentCodecScope,
+};
 use infiltrator_ports::secure_store::SecureStore;
 use mihomo_api::error::{MihomoError, Result};
 use mihomo_platform::instance_lock::{
@@ -38,18 +46,45 @@ use mihomo_platform::instance_lock::{
 };
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
-use std::sync::RwLock;
+use std::sync::{Arc, RwLock};
 use std::time::Duration;
 use tokio::sync::{OnceCell, OwnedMutexGuard};
 
 pub struct ConfigManager<S: SecureStore> {
+    engine_id: EngineId,
     config_root: PathBuf,
     config_dir: PathBuf,
     settings_file: PathBuf,
     legacy_settings_file: PathBuf,
+    document_codec: Arc<dyn ProfileDocumentCodecPort>,
+    document_codec_scope: ProfileDocumentCodecScope,
+    document_extension: ProfileDocumentExtension,
+    namespace_initialization: ProfileNamespaceInitialization,
     credential_store: S,
     profile_namespace_initialized: OnceCell<()>,
     pub(crate) apply_observations: RwLock<BTreeMap<String, ApplyTransactionSnapshot>>,
+}
+
+/// On-disk profile document suffix selected by the engine's storage adapter.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ProfileDocumentExtension {
+    Json,
+    Yaml,
+}
+
+impl ProfileDocumentExtension {
+    pub(crate) const fn as_str(self) -> &'static str {
+        match self {
+            Self::Json => "json",
+            Self::Yaml => "yaml",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ProfileNamespaceInitialization {
+    MigrateLegacyMihomo,
+    EngineScoped,
 }
 
 /// Both the process-local mutex and the stable OS lock are held across a
@@ -131,19 +166,41 @@ async fn profile_write_lock_path(config_dir: &Path) -> Result<PathBuf> {
 
 pub(crate) async fn ensure_profile_reset_not_pending_for_dir(
     config_dir: &Path,
-) -> std::result::Result<(), PortError> {
+) -> result::Result<(), PortError> {
     active_profile_reference::ensure_reset_not_pending_for_dir(config_dir).await
 }
 
 pub(crate) async fn lock_reset_fenced_profile_mutation_for_dir(
     config_dir: &Path,
-) -> std::result::Result<active_profile_reference::ResetFencedProfileMutationGuard, PortError> {
+) -> result::Result<active_profile_reference::ResetFencedProfileMutationGuard, PortError> {
     active_profile_reference::acquire_reset_fenced_profile_mutation_for_dir(config_dir).await
 }
 
 impl<S: SecureStore> ConfigManager<S> {
     pub fn engine_id(&self) -> EngineId {
-        crate::engine_id()
+        self.engine_id.clone()
+    }
+
+    pub(crate) fn document_codec_scope(&self) -> &ProfileDocumentCodecScope {
+        &self.document_codec_scope
+    }
+
+    pub(crate) fn document_extension(&self) -> ProfileDocumentExtension {
+        self.document_extension
+    }
+
+    pub(crate) fn validate_document_bytes(&self, document: &[u8]) -> result::Result<(), PortError> {
+        match self.document_codec.inspect(document)? {
+            DocumentValidation::Valid => Ok(()),
+            DocumentValidation::Invalid { diagnostics } => Err(PortError::Rejected(Failure::new(
+                ErrorCode::Configuration,
+                diagnostics
+                    .first()
+                    .map(|diagnostic| diagnostic.message.clone())
+                    .unwrap_or_else(|| "engine profile codec rejected the document".to_owned()),
+                false,
+            ))),
+        }
     }
 
     pub fn with_home_and_store(home: PathBuf, credential_store: S) -> Result<Self> {
@@ -158,17 +215,78 @@ impl<S: SecureStore> ConfigManager<S> {
         configs_dir: Option<&str>,
         credential_store: S,
     ) -> Result<Self> {
+        Self::build_for_engine(
+            home,
+            configs_dir,
+            credential_store,
+            crate::engine_id(),
+            Arc::new(MihomoProfileDocumentCodec),
+            ProfileDocumentExtension::Yaml,
+            ProfileNamespaceInitialization::MigrateLegacyMihomo,
+        )
+    }
+
+    /// Construct one engine-scoped profile store over the shared on-disk
+    /// profile/reference protocol. The codec authors the engine, format and
+    /// schema identity; this path never migrates legacy Mihomo files.
+    pub fn with_profile_codec_and_store(
+        home: PathBuf,
+        configs_dir: Option<&str>,
+        credential_store: S,
+        document_codec: Arc<dyn ProfileDocumentCodecPort>,
+        document_extension: ProfileDocumentExtension,
+    ) -> Result<Self> {
+        let codec_scope = document_codec.scope();
+        Self::build_for_engine(
+            home,
+            configs_dir,
+            credential_store,
+            codec_scope.engine_id.clone(),
+            document_codec,
+            document_extension,
+            ProfileNamespaceInitialization::EngineScoped,
+        )
+    }
+
+    fn build_for_engine(
+        home: PathBuf,
+        configs_dir: Option<&str>,
+        credential_store: S,
+        engine_id: EngineId,
+        document_codec: Arc<dyn ProfileDocumentCodecPort>,
+        document_extension: ProfileDocumentExtension,
+        namespace_initialization: ProfileNamespaceInitialization,
+    ) -> Result<Self> {
+        if namespace_initialization == ProfileNamespaceInitialization::MigrateLegacyMihomo
+            && engine_id != crate::engine_id()
+        {
+            return Err(MihomoError::Config(
+                "legacy shared profile migration is only valid for Mihomo".to_owned(),
+            ));
+        }
+        let document_codec_scope = document_codec.scope();
+        if document_codec_scope.engine_id != engine_id {
+            return Err(MihomoError::Config(format!(
+                "profile codec for {} cannot initialize store for {}",
+                document_codec_scope.engine_id.as_str(),
+                engine_id.as_str()
+            )));
+        }
         let config_root = paths::resolve_configs_dir_in(configs_dir, &home)?;
-        let engine = crate::engine_id();
-        let config_dir = paths::engine_config_dir(&config_root, &engine);
+        let config_dir = paths::engine_config_dir(&config_root, &engine_id);
         let settings_file = config_dir.join("profile-state.toml");
         let legacy_settings_file = home.join("config.toml");
 
         Ok(Self {
+            engine_id,
             config_root,
             config_dir,
             settings_file,
             legacy_settings_file,
+            document_codec,
+            document_codec_scope,
+            document_extension,
+            namespace_initialization,
             credential_store,
             profile_namespace_initialized: OnceCell::new(),
             apply_observations: RwLock::new(BTreeMap::new()),

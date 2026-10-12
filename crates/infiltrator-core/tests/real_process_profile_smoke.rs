@@ -327,7 +327,7 @@ async fn profile_preflight_apply_readback_and_restore_use_the_live_mihomo_transa
     assert_eq!(
         fs::canonicalize(
             config
-                .existing_profile_yaml_path(profile_name)
+                .existing_profile_document_path(profile_name)
                 .await
                 .expect("active profile path")
         )

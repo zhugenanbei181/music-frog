@@ -812,7 +812,7 @@ async fn core_start_sends_the_active_profile_identity_and_rust_resolved_argument
         owner.session_token().expect("active session token")
     );
     let workspace = store.load_active_workspace().await.unwrap();
-    let config_path = store.existing_profile_yaml_path("main").await.unwrap();
+    let config_path = store.existing_profile_document_path("main").await.unwrap();
     let workdir = PathBuf::from("/android-test-data");
     assert_eq!(spec.configuration_identity.engine_id.as_str(), "mihomo");
     assert_eq!(spec.configuration_identity.profile_id.as_str(), "main");

@@ -208,7 +208,7 @@ async fn apply_confirmed_workspace_inner<S: SecureStore, C: CoreLifecyclePort + 
         return Err(ApplyError::SourceChanged);
     }
     let path = config
-        .existing_profile_yaml_path(profile)
+        .existing_profile_document_path(profile)
         .await
         .map_err(|error| ApplyError::Write(error.to_string()))?;
     let published = match observed_lease.publish(update.clone()).await {

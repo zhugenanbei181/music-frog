@@ -24,4 +24,5 @@ toml = { workspace = true }
 yaml-rust2 = { workspace = true }
 
 [dev-dependencies]
+singbox-adapter = { path = "../singbox-adapter" }
 tempfile = { workspace = true }

@@ -64,7 +64,7 @@ impl<S: SecureStore> CoreLaunchSpecSource for AndroidProfileLaunchSpecProvider<S
 
         let configuration_path = self
             .config
-            .existing_profile_yaml_path(document_identity.profile_id.as_str())
+            .existing_profile_document_path(document_identity.profile_id.as_str())
             .await
             .map_err(config_failure)?;
         let configuration_path = path_argument(&configuration_path)?;
@@ -171,7 +171,7 @@ mod tests {
             .expect("owner resolves launch spec");
         let current_profile = config.get_current().await.expect("active profile");
         let config_path = config
-            .existing_profile_yaml_path(&current_profile)
+            .existing_profile_document_path(&current_profile)
             .await
             .expect("Rust-created default profile exists");
         let workspace = config

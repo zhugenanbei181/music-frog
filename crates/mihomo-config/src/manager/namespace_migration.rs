@@ -1,10 +1,9 @@
-//! One-time migration from the former shared ProfileId paths to the engine
-//! namespace. After this migration every profile read uses only the scoped
-//! paths and namespaced credential keys.
+//! One-time Mihomo migration from former shared ProfileId paths. Other engine
+//! stores initialize only their own namespace and never consume legacy files.
 
-use super::ConfigManager;
 use super::paths::sanitized_profile_key;
 use super::subscription_store::{SUBSCRIPTION_SERVICE, legacy_subscription_key, subscription_key};
+use super::{ConfigManager, ProfileNamespaceInitialization};
 use crate::sidecar_store::write_document_bytes_durable;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::secure_store::SecureStore;
@@ -49,12 +48,21 @@ impl NamespaceSchema {
 }
 
 impl<S: SecureStore> ConfigManager<S> {
-    /// Move legacy profile files, profile metadata and subscription credentials
-    /// into this manager's engine namespace before any production consumer is
-    /// handed the store.
+    /// Initialize this engine namespace before any production consumer is
+    /// handed the store. The manager's typed policy decides whether a legacy
+    /// Mihomo migration is authorized for this instance.
     pub async fn initialize_profile_namespace(&self) -> Result<()> {
         self.profile_namespace_initialized
-            .get_or_try_init(|| async { self.initialize_profile_namespace_once().await })
+            .get_or_try_init(|| async {
+                match self.namespace_initialization {
+                    ProfileNamespaceInitialization::MigrateLegacyMihomo => {
+                        self.initialize_mihomo_profile_namespace_once().await
+                    }
+                    ProfileNamespaceInitialization::EngineScoped => {
+                        self.initialize_engine_scoped_profile_namespace_once().await
+                    }
+                }
+            })
             .await
             .map(|_| ())
     }
@@ -74,7 +82,7 @@ impl<S: SecureStore> ConfigManager<S> {
         write_toml_atomically(&self.settings_file, &state).await
     }
 
-    async fn initialize_profile_namespace_once(&self) -> Result<()> {
+    async fn initialize_mihomo_profile_namespace_once(&self) -> Result<()> {
         let _guard = crate::manager::lock_reset_fenced_profile_mutation_for_dir(&self.config_dir)
             .await
             .map_err(profile_namespace_fence_error)?;
@@ -120,6 +128,28 @@ impl<S: SecureStore> ConfigManager<S> {
         }
         self.retire_legacy_sync_index().await?;
         Ok(())
+    }
+
+    async fn initialize_engine_scoped_profile_namespace_once(&self) -> Result<()> {
+        let _guard = crate::manager::lock_reset_fenced_profile_mutation_for_dir(&self.config_dir)
+            .await
+            .map_err(profile_namespace_fence_error)?;
+        fs::create_dir_all(&self.config_dir).await?;
+        let mut scoped_state = read_toml_table(&self.settings_file).await?;
+        if matches!(
+            NamespaceSchema::parse(scoped_state.get(NAMESPACE_SCHEMA_KEY))?,
+            NamespaceSchema::EngineScopedV1
+        ) {
+            return Ok(());
+        }
+        scoped_state
+            .as_table_mut()
+            .ok_or_else(|| MihomoError::Config("profile state must be a TOML table".into()))?
+            .insert(
+                NAMESPACE_SCHEMA_KEY.into(),
+                toml::Value::String("engine_scoped_v1".into()),
+            );
+        write_toml_atomically(&self.settings_file, &scoped_state).await
     }
 
     async fn migrate_legacy_profile_files(&self) -> Result<()> {

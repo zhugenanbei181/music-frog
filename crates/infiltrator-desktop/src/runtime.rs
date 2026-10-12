@@ -170,7 +170,7 @@ impl MihomoRuntime {
         let content = cm.load(active_profile.as_str()).await?;
         mihomo_config::yaml::validate(&content)?;
         let config_path = cm
-            .existing_profile_yaml_path(active_profile.as_str())
+            .existing_profile_document_path(active_profile.as_str())
             .await?;
         cm.ensure_proxy_ports_for_profile(&active_profile).await?;
         let controller_url = cm

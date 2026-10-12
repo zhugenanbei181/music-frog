@@ -407,7 +407,7 @@ async fn apply_profile_transaction<S: SecureStore>(
         .map_err(config_apply_error)?;
     let current = expected.profile_id.as_str().to_owned();
     let path = config
-        .existing_profile_yaml_path(&current)
+        .existing_profile_document_path(&current)
         .await
         .map_err(config_apply_error)?;
     let observed = fs::read_to_string(&path)

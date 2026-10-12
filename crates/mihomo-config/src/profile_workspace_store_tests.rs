@@ -1,6 +1,7 @@
 //! test-intent: behavior
 use super::*;
 use crate::manager::ActiveProfileReferenceResetRequest;
+use crate::profile_document_codec::{PROFILE_FORMAT, PROFILE_SCHEMA_VERSION};
 use crate::sidecar_store::{write_document, write_document_bytes};
 use async_trait::async_trait;
 use infiltrator_contract::active_profile_reference::{

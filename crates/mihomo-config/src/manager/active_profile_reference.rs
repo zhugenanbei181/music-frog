@@ -2451,6 +2451,12 @@ impl<S: SecureStore> ConfigManager<S> {
     pub async fn migrate_legacy_mihomo_selection(
         &self,
     ) -> Result<ActiveProfileReferenceState, PortError> {
+        if self.engine_id() != crate::engine_id() {
+            return Err(PortError::unsupported(
+                infiltrator_contract::capability::Capability::Profiles,
+                "legacy desktop selection migration is Mihomo-only",
+            ));
+        }
         self.initialize_profile_namespace()
             .await
             .map_err(profile_namespace_initialization_error)?;
@@ -2514,7 +2520,10 @@ impl<S: SecureStore> ConfigManager<S> {
             .map_err(|error| error.to_string())?;
         let profile_id = ProfileId::new(profile_name)
             .map_err(|error| format!("legacy profile ID is invalid: {error}"))?;
-        match self.existing_profile_yaml_path(profile_id.as_str()).await {
+        match self
+            .existing_profile_document_path(profile_id.as_str())
+            .await
+        {
             Ok(_) => {}
             Err(MihomoError::NotFound(_)) if profile_id.as_str() == "default" => {
                 self.ensure_profile_document(profile_id.as_str())
@@ -2683,7 +2692,7 @@ impl<S: SecureStore> ConfigManager<S> {
             engine_id,
             profile_id,
         } = &target
-            && engine_id == &crate::engine_id()
+            && engine_id == &self.engine_id()
         {
             let workspace = ProfileStore::load_workspace(self, profile_id).await?;
             if workspace.document.identity.engine_id != *engine_id
@@ -3700,7 +3709,7 @@ impl<S: SecureStore> ConfigManager<S> {
         expected_workspace: ProfileWorkspaceIdentity,
         update: &ProfileWorkspaceUpdate,
     ) -> Result<ProfileWorkspace, PortError> {
-        if expected_reference.engine_id != crate::engine_id()
+        if expected_reference.engine_id != self.engine_id()
             || expected_workspace.document.engine_id != expected_reference.engine_id
             || expected_workspace.document.profile_id != expected_reference.profile_id
         {
@@ -3717,14 +3726,7 @@ impl<S: SecureStore> ConfigManager<S> {
                 false,
             )));
         }
-        let document = std::str::from_utf8(&update.document_bytes).map_err(|error| {
-            PortError::Rejected(Failure::new(
-                ErrorCode::Configuration,
-                format!("derived profile document is not UTF-8: {error}"),
-                false,
-            ))
-        })?;
-        crate::yaml::validate(document).map_err(crate::profile_workspace_store::config_error)?;
+        self.validate_document_bytes(&update.document_bytes)?;
 
         self.initialize_profile_namespace()
             .await
@@ -3775,7 +3777,7 @@ impl<S: SecureStore> ConfigManager<S> {
         }
 
         let path = self
-            .existing_profile_yaml_path(expected_reference.profile_id.as_str())
+            .existing_profile_document_path(expected_reference.profile_id.as_str())
             .await
             .map_err(crate::profile_workspace_store::config_error)?;
         write_document_bytes_durable(&path, &update.document_bytes).await?;
@@ -3783,7 +3785,9 @@ impl<S: SecureStore> ConfigManager<S> {
             log::warn!("committed derived workspace backup cleanup failed: {error}");
         }
         Ok(crate::profile_workspace_store::workspace_for_update(
-            &observed, update,
+            self.document_codec_scope(),
+            &observed,
+            update,
         ))
     }
 
@@ -3796,7 +3800,7 @@ impl<S: SecureStore> ConfigManager<S> {
         expected_workspace: ProfileWorkspaceIdentity,
         authorization: ActiveProfileReferenceWriteAuthorization,
     ) -> Result<Box<dyn ActiveProfileWorkspaceWriteLease + 'a>, PortError> {
-        if expected_reference.engine_id != crate::engine_id()
+        if expected_reference.engine_id != self.engine_id()
             || expected_workspace.document.profile_id != expected_reference.profile_id
             || expected_workspace.document.engine_id != expected_reference.engine_id
         {
@@ -3866,7 +3870,8 @@ impl<S: SecureStore> ConfigManager<S> {
                 expected,
                 default_document,
             } => {
-                crate::yaml::validate(&default_document).map_err(lock_error)?;
+                self.validate_document_bytes(default_document.as_bytes())
+                    .map_err(lock_error)?;
                 if read_optional_bytes(&self.config_dir.join(ACTIVE_PROFILE_RESET_INTENT_FILE))
                     .await?
                     .is_none()
@@ -3914,7 +3919,7 @@ impl<S: SecureStore> ConfigManager<S> {
                     }
                     ParsedActiveProfileResetIntentRecord::LegacyV1(record) => {
                         let default_path = self
-                            .profile_yaml_path("default")
+                            .profile_document_path("default")
                             .await
                             .map_err(lock_error)?;
                         let backup_path = self
@@ -3958,7 +3963,8 @@ impl<S: SecureStore> ConfigManager<S> {
         config_root: PathBuf,
         _root_guard: ThreadedInstanceLockGuard,
     ) -> Result<ActiveProfileReferenceResetOutcome, PortError> {
-        crate::yaml::validate(default_content).map_err(lock_error)?;
+        self.validate_document_bytes(default_content.as_bytes())
+            .map_err(lock_error)?;
         ensure_no_pending_reset_in_engine_namespaces(
             &config_root,
             ActiveProfileResetMutationAccess::RetryEngine(self.engine_id()),
@@ -3972,7 +3978,7 @@ impl<S: SecureStore> ConfigManager<S> {
         let default_id =
             ProfileId::new("default").map_err(|error| PortError::Failed(error.to_string()))?;
         let current = ActiveProfileReferenceState::Selected(ActiveProfileReference::new(
-            crate::engine_id(),
+            self.engine_id(),
             default_id.clone(),
             revision,
         ));
@@ -3997,7 +4003,7 @@ impl<S: SecureStore> ConfigManager<S> {
 
         let _profile_guard = self.lock_profile_writes().await.map_err(lock_error)?;
         let default_path = self
-            .profile_yaml_path("default")
+            .profile_document_path("default")
             .await
             .map_err(lock_error)?;
         let backup_path = self
@@ -4059,10 +4065,8 @@ impl<S: SecureStore> ConfigManager<S> {
             .map(|stored| stored.default_document.as_slice())
             .unwrap_or_else(|| default_content.as_bytes())
             .to_vec();
-        let reset_default_text = std::str::from_utf8(&reset_default_document).map_err(|error| {
-            PortError::Io(format!("reset default document is not UTF-8: {error}"))
-        })?;
-        crate::yaml::validate(reset_default_text).map_err(lock_error)?;
+        self.validate_document_bytes(&reset_default_document)
+            .map_err(lock_error)?;
         let desired_intent = ActiveProfileResetIntentRecord::new(
             expected.clone(),
             current.clone(),
@@ -4092,7 +4096,7 @@ impl<S: SecureStore> ConfigManager<S> {
                 write_document_bytes_durable(&default_path, &reset_default_document).await?;
             }
             let workspace = self.read_workspace_locked(&default_id).await?;
-            if workspace.document.identity.engine_id != crate::engine_id()
+            if workspace.document.identity.engine_id != self.engine_id()
                 || workspace.document.identity.profile_id != default_id
                 || workspace.document.raw_bytes.as_slice() != reset_default_document.as_slice()
             {
@@ -4224,7 +4228,7 @@ impl<S: SecureStore> ConfigManager<S> {
                 return Err(error);
             }
         };
-        if workspace.document.identity.engine_id != crate::engine_id()
+        if workspace.document.identity.engine_id != self.engine_id()
             || workspace.document.identity.profile_id != default_id
             || workspace.document.raw_bytes.as_slice() != reset_default_document.as_slice()
         {
@@ -4401,7 +4405,11 @@ impl<S: SecureStore> ActiveProfileWorkspaceWriteLease
             observed,
             guards,
         } = *self;
-        let target = crate::profile_workspace_store::workspace_for_update(&observed, &update);
+        let target = crate::profile_workspace_store::workspace_for_update(
+            manager.document_codec_scope(),
+            &observed,
+            &update,
+        );
         let write_result = manager
             .publish_active_workspace_locked(&observed.identity(), &update)
             .await;
@@ -4973,7 +4981,10 @@ mod tests {
             ProfileId::new("default").unwrap(),
             expected.revision().next().unwrap(),
         ));
-        let default_path = initial_manager.profile_yaml_path("default").await.unwrap();
+        let default_path = initial_manager
+            .profile_document_path("default")
+            .await
+            .unwrap();
         let previous_default = tokio::fs::read(&default_path).await.unwrap();
         let persisted_default = b"mode: rule\nmixed-port: 7890\n";
         tokio::fs::write(
@@ -5065,7 +5076,10 @@ mod tests {
             ProfileId::new("default").unwrap(),
             expected.revision().next().unwrap(),
         ));
-        let default_path = initial_manager.profile_yaml_path("default").await.unwrap();
+        let default_path = initial_manager
+            .profile_document_path("default")
+            .await
+            .unwrap();
         let previous_default = tokio::fs::read(&default_path).await.unwrap();
         let recovered_default = b"mode: rule\nmixed-port: 7890\n";
         tokio::fs::write(
@@ -5191,7 +5205,7 @@ mod tests {
             }
         );
         assert_eq!(
-            tokio::fs::read(restarted.profile_yaml_path("default").await.unwrap())
+            tokio::fs::read(restarted.profile_document_path("default").await.unwrap())
                 .await
                 .unwrap()
                 .as_slice(),
@@ -5214,10 +5228,14 @@ mod tests {
             ProfileId::new("default").unwrap(),
             expected.revision().next().unwrap(),
         ));
-        let previous_default =
-            tokio::fs::read(initial_manager.profile_yaml_path("default").await.unwrap())
+        let previous_default = tokio::fs::read(
+            initial_manager
+                .profile_document_path("default")
                 .await
-                .unwrap();
+                .unwrap(),
+        )
+        .await
+        .unwrap();
         let legacy_target_bytes = b"mode: legacy-target\n";
         let intent_value = serde_json::json!({
             "schema_version": LEGACY_ACTIVE_PROFILE_RESET_INTENT_SCHEMA_VERSION,
@@ -5244,7 +5262,7 @@ mod tests {
         );
 
         assert_eq!(
-            tokio::fs::read(restarted.profile_yaml_path("default").await.unwrap())
+            tokio::fs::read(restarted.profile_document_path("default").await.unwrap())
                 .await
                 .unwrap()
                 .as_slice(),

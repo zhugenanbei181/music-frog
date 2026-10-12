@@ -762,7 +762,7 @@ async fn write_profile_file_outside_store_for_test(
     content: &str,
 ) {
     let path = config
-        .existing_profile_yaml_path(profile)
+        .existing_profile_document_path(profile)
         .await
         .expect("test profile path");
     write(path, content)

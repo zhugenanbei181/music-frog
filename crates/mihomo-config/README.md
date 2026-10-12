@@ -2,12 +2,12 @@
 
 > 层级：L3
 
-Mihomo YAML 与 profile adapter：解析、校验、应用观察、配置存储和 Mihomo 专属选项编解码。
+Mihomo YAML codec 与共享 engine-scoped profile storage adapter：解析、校验、应用观察、配置存储和 Mihomo 专属选项编解码。
 
 原始用户文档身份和跨引擎意图由共享 contract/application 定义；本 crate 不解释 UI 状态。Mihomo controller 边界见 [`mihomo-api` 本地文档](../mihomo-api/docs/README.md)。
 
-Profile YAML、options、profile-state、backup、snapshot 和 WebDAV 本地状态位于共享 configs 根下的 `engines/mihomo/`。首次初始化用显式 `engine_scoped_v1` 迁移旧共享路径与 profile-state；订阅凭据 key 也含 `mihomo` namespace。生产组合必须经 `ConfigManager::initialize_profile_namespace` 或对应 ProfileStore 初始化入口后再读写。
+`ConfigManager::with_home_configs_dir_and_store` 是 Mihomo 的 YAML/legacy-migration 组合；通用 `ProfileStore` persistence 可由 `with_profile_codec_and_store` 注入 engine-owned codec 与文件后缀。它复用同一 raw-byte、sidecar、write-lease、owner-fence、revision CAS 与 engine namespace 实现，不解析其他引擎的文档，也不导入旧 Mihomo 路径。Profile data、metadata、backup 和凭据位于共享 configs 根下的 `engines/<engine-id>/`；产品级 active-profile reference 与 Core owner proof 仍落在共享根，由所有 engine store 读写同一 CAS 协议。
 
-产品级 active-profile reference 与 owner fence 使用共享 configs 根下的 kernel OS locks 和 revision CAS。该排他边界只约束使用同一 lock files 并遵守此 store 协议的进程；直接改写持久化文件的程序会绕过门禁。
+Mihomo profile 文档由本 crate 的 YAML codec 验证；其他引擎的格式和 schema 来自注入的 `ProfileDocumentCodecPort`。未注入对应 engine codec 的 store 不得读写该 engine profile。该排他边界只约束使用同一 lock files 并遵守此 store 协议的进程；直接改写持久化文件的程序会绕过门禁。
 
 跨引擎 owner switch 的 `Switching` stage 在进程重启后保持 fail-closed；store 暴露按 stage 重建 lease 与提交 exact terminal snapshot 的 recovery API，不会因进程内 lease 消失而自动清除。Android/Desktop 的进程退出证据接线仍 OPEN；ClosingOld 缺少旧 owner 的 exact Stopped/no-session snapshot 时保持 durable reservation，BindingNew 只接受 generation 为 0 的 Stopped/no-session 候选快照。

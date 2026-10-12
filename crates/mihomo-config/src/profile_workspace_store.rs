@@ -1,10 +1,8 @@
-//! Engine-bound, source-checked persistence for Mihomo profile documents.
+//! Engine-bound, codec-checked source persistence for profile documents.
 use crate::manager::ConfigManager;
 use crate::manager::paths::sanitized_profile_key;
 use crate::manager::profiles::backup_path;
-use crate::profile_document_codec::{PROFILE_FORMAT, PROFILE_SCHEMA_VERSION};
 use crate::sidecar_store::{read_optional_bytes, remove_optional, write_document_bytes_durable};
-use crate::yaml::validate;
 use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
 use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_identity::EngineId;
@@ -20,6 +18,7 @@ use infiltrator_ports::active_profile_reference_store::{
     ActiveProfileReferenceLease, ActiveProfileReferenceStore,
 };
 use infiltrator_ports::error::PortError;
+use infiltrator_ports::profile_document_codec::ProfileDocumentCodecScope;
 use infiltrator_ports::profile_workspace::{
     ProfileWorkspace, ProfileWorkspacePurpose, ProfileWorkspaceUpdate,
 };
@@ -103,7 +102,7 @@ impl<S: SecureStore> ConfigManager<S> {
     ) -> Result<ProfileWorkspace, PortError> {
         let key = sanitized_profile_key(profile.as_str()).map_err(config_error)?;
         let profile_path = self
-            .existing_profile_yaml_path(&key)
+            .existing_profile_document_path(&key)
             .await
             .map_err(config_error)?;
         let document_bytes = fs::read(profile_path)
@@ -114,6 +113,7 @@ impl<S: SecureStore> ConfigManager<S> {
         let protection = self.workspace_protection(&key).await?;
         let source = self.source_identity(profile, protection).await?;
         Ok(workspace_from_bytes(
+            self.document_codec_scope(),
             profile.clone(),
             source,
             protection,
@@ -129,12 +129,13 @@ impl<S: SecureStore> ConfigManager<S> {
         target: WorkspaceTarget,
     ) -> Result<ProfileWorkspace, PortError> {
         // Engine and format checks precede lock-key/path canonicalization and all file reads.
-        ensure_mihomo_identity(expected)?;
+        ensure_manager_identity(self, expected)?;
         validate_document_format(
+            self.document_codec_scope(),
             &expected.document.format_id,
             expected.document.schema_version,
         )?;
-        validate_document_bytes(&update.document_bytes)?;
+        self.validate_document_bytes(&update.document_bytes)?;
         self.publish_workspace(expected, update, target).await
     }
 
@@ -144,9 +145,10 @@ impl<S: SecureStore> ConfigManager<S> {
         previous: &ProfileWorkspace,
     ) -> Result<ProfileWorkspace, PortError> {
         // A foreign expected or recovery document must be rejected before lock/path/IO.
-        ensure_mihomo_identity(expected)?;
-        ensure_mihomo_engine(&previous.document.identity.engine_id)?;
+        ensure_manager_identity(self, expected)?;
+        ensure_manager_engine(&self.engine_id(), &previous.document.identity.engine_id)?;
         validate_document_format(
+            self.document_codec_scope(),
             &previous.document.identity.format_id,
             previous.document.identity.schema_version,
         )?;
@@ -158,7 +160,7 @@ impl<S: SecureStore> ConfigManager<S> {
                 "Recovery document does not belong to the observed profile source",
             ));
         }
-        validate_document_bytes(&previous.document.raw_bytes)?;
+        self.validate_document_bytes(&previous.document.raw_bytes)?;
         self.publish_workspace(
             expected,
             &ProfileWorkspaceUpdate {
@@ -178,9 +180,10 @@ impl<S: SecureStore> ConfigManager<S> {
         expected: &ProfileWorkspaceIdentity,
         previous: &ProfileWorkspace,
     ) -> Result<ProfileWorkspace, PortError> {
-        ensure_mihomo_identity(expected)?;
-        ensure_mihomo_engine(&previous.document.identity.engine_id)?;
+        ensure_manager_identity(self, expected)?;
+        ensure_manager_engine(&self.engine_id(), &previous.document.identity.engine_id)?;
         validate_document_format(
+            self.document_codec_scope(),
             &previous.document.identity.format_id,
             previous.document.identity.schema_version,
         )?;
@@ -192,7 +195,7 @@ impl<S: SecureStore> ConfigManager<S> {
                 "Recovery document does not belong to the observed profile source",
             ));
         }
-        validate_document_bytes(&previous.document.raw_bytes)?;
+        self.validate_document_bytes(&previous.document.raw_bytes)?;
         self.publish_workspace_locked(
             expected,
             &ProfileWorkspaceUpdate {
@@ -235,12 +238,13 @@ impl<S: SecureStore> ConfigManager<S> {
         expected: &ProfileWorkspaceIdentity,
         update: &ProfileWorkspaceUpdate,
     ) -> Result<ProfileWorkspace, PortError> {
-        ensure_mihomo_identity(expected)?;
+        ensure_manager_identity(self, expected)?;
         validate_document_format(
+            self.document_codec_scope(),
             &expected.document.format_id,
             expected.document.schema_version,
         )?;
-        validate_document_bytes(&update.document_bytes)?;
+        self.validate_document_bytes(&update.document_bytes)?;
         self.publish_workspace_locked(
             expected,
             update,
@@ -289,7 +293,7 @@ impl<S: SecureStore> ConfigManager<S> {
         // Pin both paths after the identity fence; the active-profile pointer cannot redirect a
         // prepared write. The exact prior sidecar bytes (including absence) are the rollback state.
         let profile_path = self
-            .existing_profile_yaml_path(profile.as_str())
+            .existing_profile_document_path(profile.as_str())
             .await
             .map_err(config_error)?;
         let sidecar_path = options_path(self.config_dir(), profile.as_str());
@@ -307,6 +311,7 @@ impl<S: SecureStore> ConfigManager<S> {
         }
 
         Ok(workspace_from_bytes(
+            self.document_codec_scope(),
             profile.clone(),
             workspace.document.identity.source,
             workspace.write_protection,
@@ -360,6 +365,7 @@ fn selection_matches_profile(
 }
 
 fn workspace_from_bytes(
+    codec_scope: &ProfileDocumentCodecScope,
     profile_id: ProfileId,
     source: ProfileDocumentSourceIdentity,
     write_protection: ProfileWriteProtection,
@@ -368,11 +374,11 @@ fn workspace_from_bytes(
 ) -> ProfileWorkspace {
     let identity = ProfileDocumentIdentity::new(
         profile_id,
-        crate::engine_id(),
+        codec_scope.engine_id.clone(),
         source,
         revision(&document_bytes),
-        ProfileFormatId::new(PROFILE_FORMAT).expect("static profile format is valid"),
-        ProfileSchemaVersion::new(PROFILE_SCHEMA_VERSION).expect("schema version is positive"),
+        codec_scope.format_id.clone(),
+        codec_scope.schema_version,
     );
     let sidecar_revision = sidecar_revision(sidecar_bytes.as_deref());
     ProfileWorkspace {
@@ -384,10 +390,12 @@ fn workspace_from_bytes(
 }
 
 pub(crate) fn workspace_for_update(
+    codec_scope: &ProfileDocumentCodecScope,
     previous: &ProfileWorkspace,
     update: &ProfileWorkspaceUpdate,
 ) -> ProfileWorkspace {
     workspace_from_bytes(
+        codec_scope,
         previous.document.identity.profile_id.clone(),
         previous.document.identity.source.clone(),
         previous.write_protection.clone(),
@@ -408,14 +416,16 @@ fn validate_workspace_bytes(workspace: &ProfileWorkspace) -> Result<(), PortErro
 }
 
 fn validate_document_format(
+    codec_scope: &ProfileDocumentCodecScope,
     format_id: &ProfileFormatId,
     schema_version: ProfileSchemaVersion,
 ) -> Result<(), PortError> {
-    if format_id.as_str() != PROFILE_FORMAT || schema_version.value() != PROFILE_SCHEMA_VERSION {
+    if format_id != &codec_scope.format_id || schema_version != codec_scope.schema_version {
         return Err(PortError::unsupported(
             Capability::Profiles,
             format!(
-                "Mihomo profile adapter does not support format `{}` schema {}",
+                "profile codec for {} does not support format `{}` schema {}",
+                codec_scope.engine_id.as_str(),
                 format_id.as_str(),
                 schema_version.value()
             ),
@@ -424,40 +434,28 @@ fn validate_document_format(
     Ok(())
 }
 
-fn validate_document_bytes(document: &[u8]) -> Result<(), PortError> {
-    let text = str::from_utf8(document).map_err(|error| {
-        PortError::Rejected(Failure::new(
-            ErrorCode::Configuration,
-            format!("Mihomo YAML profile is not valid UTF-8: {error}"),
-            false,
-        ))
-    })?;
-    validate(text).map_err(|error| {
-        PortError::Rejected(Failure::new(
-            ErrorCode::Configuration,
-            error.to_string(),
-            false,
-        ))
-    })
-}
-
-fn ensure_mihomo_identity(identity: &ProfileWorkspaceIdentity) -> Result<(), PortError> {
-    ensure_mihomo_engine(&identity.document.engine_id)?;
+fn ensure_manager_identity<S: SecureStore>(
+    manager: &ConfigManager<S>,
+    identity: &ProfileWorkspaceIdentity,
+) -> Result<(), PortError> {
+    ensure_manager_engine(&manager.engine_id(), &identity.document.engine_id)?;
     validate_document_format(
+        manager.document_codec_scope(),
         &identity.document.format_id,
         identity.document.schema_version,
     )
 }
 
-fn ensure_mihomo_engine(engine_id: &EngineId) -> Result<(), PortError> {
-    if engine_id == &crate::engine_id() {
+fn ensure_manager_engine(expected: &EngineId, observed: &EngineId) -> Result<(), PortError> {
+    if observed == expected {
         return Ok(());
     }
     Err(PortError::unsupported(
         Capability::Profiles,
         format!(
-            "Mihomo profile store cannot access engine `{}`",
-            engine_id.as_str()
+            "profile store for engine {} cannot access engine {}",
+            expected.as_str(),
+            observed.as_str()
         ),
     ))
 }

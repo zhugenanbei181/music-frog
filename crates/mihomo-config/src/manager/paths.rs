@@ -86,15 +86,15 @@ fn expand_tilde(path: &str) -> Result<PathBuf> {
 }
 
 impl<S: SecureStore> ConfigManager<S> {
-    /// 以规范化的 config 目录为根构造 profile 的 yaml 路径：
+    /// 以规范化的 engine config 目录为根构造 profile document 路径：
     /// 先校验、再做字符级消毒，最后验证结果仍落在规范基目录内。
-    pub(super) async fn profile_yaml_path(&self, profile: &str) -> Result<PathBuf> {
+    pub(super) async fn profile_document_path(&self, profile: &str) -> Result<PathBuf> {
         let safe = sanitized_profile_key(profile)?;
         fs::create_dir_all(&self.config_dir).await?;
         let base = fs::canonicalize(&self.config_dir)
             .await
             .map_err(|err| MihomoError::Config(format!("config dir unavailable: {err}")))?;
-        let path = base.join(format!("{safe}.yaml"));
+        let path = base.join(format!("{safe}.{}", self.document_extension().as_str()));
         if !path.starts_with(&base) {
             return Err(MihomoError::Config(
                 "profile path escapes config dir".to_string(),
@@ -103,8 +103,8 @@ impl<S: SecureStore> ConfigManager<S> {
         Ok(path)
     }
 
-    /// 同 [`Self::profile_yaml_path`]，但要求文件已存在并返回其规范化路径。
-    pub async fn existing_profile_yaml_path(&self, profile: &str) -> Result<PathBuf> {
+    /// 同 [`Self::profile_document_path`]，但要求文件已存在并返回其规范化路径。
+    pub async fn existing_profile_document_path(&self, profile: &str) -> Result<PathBuf> {
         // 目录不存在则任何 profile 都不可能存在，直接走 NotFound 语义。
         let base = match fs::canonicalize(&self.config_dir).await {
             Ok(base) => base,
@@ -115,7 +115,7 @@ impl<S: SecureStore> ConfigManager<S> {
             }
             Err(error) => return Err(error.into()),
         };
-        let path = self.profile_yaml_path(profile).await?;
+        let path = self.profile_document_path(profile).await?;
         let canonical = fs::canonicalize(&path).await.map_err(|error| {
             if error.kind() == ErrorKind::NotFound {
                 MihomoError::NotFound(format!("Profile '{profile}' not found"))
@@ -132,7 +132,7 @@ impl<S: SecureStore> ConfigManager<S> {
     }
 }
 
-/// Profile names end up as filesystem paths (`<config_dir>/<name>.yaml`) and
+/// Profile names end up as filesystem paths (`<config_dir>/<name>.<extension>`) and
 /// as credential/TOML keys, and can arrive from the admin HTTP API. Reject
 /// anything that could escape `config_dir` or break cross-platform file
 /// semantics before it reaches a path join.

@@ -1,4 +1,4 @@
-//! ProfileStore implementation over the concrete ConfigManager.
+//! Engine-scoped ProfileStore implementation over the codec-bound ConfigManager.
 
 use crate::manager::ConfigManager;
 use crate::profile::Profile;
@@ -25,6 +25,10 @@ use std::path::PathBuf;
 #[cfg(test)]
 #[path = "profile_store_test.rs"]
 mod profile_store_test;
+
+#[cfg(test)]
+#[path = "engine_profile_store_tests.rs"]
+mod engine_profile_store_tests;
 
 #[async_trait::async_trait]
 impl<S> ProfileStore for ConfigManager<S>
@@ -119,6 +123,7 @@ where
     }
 
     async fn save_inactive_profile(&self, profile: &str, content: &str) -> Result<(), PortError> {
+        self.validate_document_bytes(content.as_bytes())?;
         ConfigManager::save_inactive_profile(self, profile, content)
             .await
             .map_err(storage_error)

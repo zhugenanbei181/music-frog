@@ -1,5 +1,4 @@
-//! Profile CRUD: load/save/list/delete profile YAML files and read/write
-//! per-profile metadata.
+//! Engine-scoped profile CRUD and per-profile metadata persistence.
 
 use super::ConfigManager;
 use super::metadata::{
@@ -10,7 +9,6 @@ use super::paths::sanitized_profile_key;
 use super::subscription_store::{delete_subscription_url, store_subscription_url};
 use crate::profile::Profile;
 use crate::sidecar_store::{remove_optional, write_document_bytes_durable};
-use crate::yaml;
 use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
 use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_domain::profile_options::options_path;
@@ -24,7 +22,6 @@ use mihomo_api::error::{MihomoError, Result};
 use std::io::ErrorKind;
 use std::path;
 use std::path::PathBuf;
-use std::str::from_utf8;
 use tokio::fs;
 use toml::map::Map;
 
@@ -32,7 +29,7 @@ impl<S: SecureStore> ConfigManager<S> {
     pub async fn load(&self, profile: &str) -> Result<String> {
         self.initialize_profile_namespace().await?;
         let _guard = self.lock_profile_writes().await?;
-        let path = self.existing_profile_yaml_path(profile).await?;
+        let path = self.existing_profile_document_path(profile).await?;
         let content = fs::read_to_string(&path).await?;
         Ok(content)
     }
@@ -46,7 +43,7 @@ impl<S: SecureStore> ConfigManager<S> {
         crate::manager::ensure_profile_reset_not_pending_for_dir(&self.config_dir)
             .await
             .map_err(|error| MihomoError::Config(error.to_string()))?;
-        let path = self.profile_yaml_path(profile).await?;
+        let path = self.profile_document_path(profile).await?;
         match fs::read_to_string(backup_path(&path)).await {
             Ok(content) => Ok(Some(content)),
             Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),
@@ -80,8 +77,9 @@ impl<S: SecureStore> ConfigManager<S> {
     }
 
     pub(crate) async fn save_profile_locked(&self, profile: &str, content: &str) -> Result<()> {
-        yaml::validate(content)?;
-        let path = self.profile_yaml_path(profile).await?;
+        self.validate_document_bytes(content.as_bytes())
+            .map_err(|error| MihomoError::Config(error.to_string()))?;
+        let path = self.profile_document_path(profile).await?;
         if fs::try_exists(&path).await? {
             let previous = fs::read(&path).await?;
             atomic_write(&backup_path(&path), &previous).await?;
@@ -156,15 +154,14 @@ impl<S: SecureStore> ConfigManager<S> {
             ));
         }
         let _guard = self.lock_profile_writes().await?;
-        let path = self.profile_yaml_path(profile).await?;
+        let path = self.profile_document_path(profile).await?;
         let backup = backup_path(&path);
         if !fs::try_exists(&backup).await? {
             return Ok(false);
         }
         let previous = fs::read(&backup).await?;
-        yaml::validate(from_utf8(&previous).map_err(|error| {
-            MihomoError::Config(format!("profile backup is not UTF-8: {error}"))
-        })?)?;
+        self.validate_document_bytes(&previous)
+            .map_err(|error| MihomoError::Config(error.to_string()))?;
         atomic_write(&path, &previous).await?;
         Ok(true)
     }
@@ -176,7 +173,7 @@ impl<S: SecureStore> ConfigManager<S> {
         let _guard = crate::manager::lock_reset_fenced_profile_mutation_for_dir(&self.config_dir)
             .await
             .map_err(|error| MihomoError::Config(error.to_string()))?;
-        let path = self.profile_yaml_path(profile).await?;
+        let path = self.profile_document_path(profile).await?;
         match fs::remove_file(backup_path(&path)).await {
             Ok(()) => Ok(()),
             Err(error) if error.kind() == ErrorKind::NotFound => Ok(()),
@@ -218,7 +215,8 @@ impl<S: SecureStore> ConfigManager<S> {
         let mut entries = fs::read_dir(&self.config_dir).await?;
         while let Some(entry) = entries.next_entry().await? {
             let path = entry.path();
-            if path.extension().and_then(|s| s.to_str()) == Some("yaml") {
+            if path.extension().and_then(|s| s.to_str()) == Some(self.document_extension().as_str())
+            {
                 let name = path
                     .file_stem()
                     .and_then(|s| s.to_str())
@@ -270,7 +268,7 @@ impl<S: SecureStore> ConfigManager<S> {
             ));
         }
         let _guard = self.lock_profile_writes().await?;
-        let path = self.existing_profile_yaml_path(profile).await?;
+        let path = self.existing_profile_document_path(profile).await?;
 
         let previous_document = fs::read(&path).await?;
         fs::remove_file(&path).await?;
@@ -431,7 +429,7 @@ pub(crate) fn backup_path(path: &path::Path) -> PathBuf {
     let file_name = path
         .file_name()
         .and_then(|name| name.to_str())
-        .unwrap_or("profile.yaml");
+        .unwrap_or("profile.document");
     path.with_file_name(format!("{file_name}.bak"))
 }
 
