@@ -18,6 +18,10 @@ PROVIDER_SOURCE = Path("crates/mihomo-api/src/core_capability_provider.rs")
 SMOKE_SOURCE = Path("scripts/core-backend-smoke-mihomo.sh")
 REAL_PROCESS_TEST = Path("crates/mihomo-api/tests/real_process_smoke.rs")
 REAL_PROFILE_TEST = Path("crates/infiltrator-core/tests/real_process_profile_smoke.rs")
+CORE_APPLY_SOURCE = Path("crates/infiltrator-core/src/apply.rs")
+CORE_PROFILE_TRANSACTION_SOURCE = Path("crates/infiltrator-core/src/profile_configuration_transaction.rs")
+MIHOMO_CLIENT_SOURCE = Path("crates/mihomo-api/src/client.rs")
+MIHOMO_API_SOURCE = Path("crates/mihomo-api/src/api.rs")
 REQUIRED_VERSIONS = {"v1.19.18", "v1.19.32"}
 REQUIRED_OPERATIONS = (
     "profile.validate",
@@ -26,6 +30,7 @@ REQUIRED_OPERATIONS = (
     "outbound.select",
     "outbound.probe",
     "logs.set_level",
+    "logs.stream",
     "routing.set_intent",
     "routing.get_intent",
 )
@@ -91,7 +96,7 @@ def validate_documents(evidence: object, product: object) -> list[str]:
                 problems.append(f"{where} has an invalid {digest_key}")
         operations = asset.get("operations")
         if not isinstance(operations, list) or tuple(operations) != REQUIRED_OPERATIONS:
-            problems.append(f"{where} operations do not match the eight verified behaviors")
+            problems.append(f"{where} operations do not match the nine verified behaviors")
 
     if set(assets_by_version) != REQUIRED_VERSIONS:
         problems.append(
@@ -147,6 +152,10 @@ def source_problems(repo_root: Path) -> list[str]:
     smoke_path = repo_root / SMOKE_SOURCE
     real_process_test_path = repo_root / REAL_PROCESS_TEST
     real_profile_test_path = repo_root / REAL_PROFILE_TEST
+    core_apply_path = repo_root / CORE_APPLY_SOURCE
+    core_profile_transaction_path = repo_root / CORE_PROFILE_TRANSACTION_SOURCE
+    mihomo_client_path = repo_root / MIHOMO_CLIENT_SOURCE
+    mihomo_api_path = repo_root / MIHOMO_API_SOURCE
     if not provider_path.is_file():
         problems.append(f"{provider_path}: capability provider source is missing")
     if not smoke_path.is_file():
@@ -155,6 +164,14 @@ def source_problems(repo_root: Path) -> list[str]:
         problems.append(f"{real_process_test_path}: typed adapter smoke test is missing")
     if not real_profile_test_path.is_file():
         problems.append(f"{real_profile_test_path}: real-process Profile transaction test is missing")
+    for source_path in (
+        core_apply_path,
+        core_profile_transaction_path,
+        mihomo_client_path,
+        mihomo_api_path,
+    ):
+        if not source_path.is_file():
+            problems.append(f"{source_path}: live config transaction source is missing")
     if problems:
         return problems
 
@@ -162,6 +179,12 @@ def source_problems(repo_root: Path) -> list[str]:
     smoke = smoke_path.read_text(encoding="utf-8")
     real_process_test = real_process_test_path.read_text(encoding="utf-8")
     real_profile_test = real_profile_test_path.read_text(encoding="utf-8")
+    live_transaction_sources = {
+        core_apply_path: core_apply_path.read_text(encoding="utf-8"),
+        core_profile_transaction_path: core_profile_transaction_path.read_text(encoding="utf-8"),
+        mihomo_client_path: mihomo_client_path.read_text(encoding="utf-8"),
+        mihomo_api_path: mihomo_api_path.read_text(encoding="utf-8"),
+    }
     if 'include_str!("../../../packaging/mihomo-evidence-assets.json")' not in provider:
         problems.append(f"{provider_path}: provider must read the evidence manifest at compile time")
     if (
@@ -212,6 +235,8 @@ def source_problems(repo_root: Path) -> list[str]:
         "MihomoRoutingIntentAdapter",
         "OutboundPort",
         "RoutingIntentPort",
+        "stream_logs_events",
+        "StreamEvent::Connected",
     ):
         if required not in real_process_test:
             problems.append(
@@ -221,6 +246,7 @@ def source_problems(repo_root: Path) -> list[str]:
         "MIHOMO_REAL_CONTROLLER_URL",
         "MIHOMO_REAL_CONTROLLER_SECRET",
         "MIHOMO_REAL_VERSION",
+        "MIHOMO_REAL_CONFIGS_ROOT",
         "MIHOMO_REAL_PROFILE_PATH",
         "EndpointConfigReloader",
         "ProfileEndpointSource",
@@ -230,7 +256,6 @@ def source_problems(repo_root: Path) -> list[str]:
         "ProfileConfigurationTransactionOutcome::Committed",
         "ProfileConfigurationTransactionOutcome::RolledBack",
         "ProfileConfigurationTransactionOutcome::RollbackFailed",
-        "ConfigReloader::preflight_check",
         "ProfileStore::load_active_workspace",
         "get_config",
         "log_level",
@@ -241,6 +266,18 @@ def source_problems(repo_root: Path) -> list[str]:
             problems.append(
                 f"{real_profile_test_path}: real Profile evidence must exercise `{required}`"
             )
+    retired_live_preflight = "preflight" + "_check"
+    retired_force_switch = "reload_config_with_" + "force"
+    retired_force_false = "force=" + "false"
+    for source_path, source in live_transaction_sources.items():
+        if retired_live_preflight in source or retired_force_false in source:
+            problems.append(
+                f"{source_path}: unsupported Mihomo live preflight path remains"
+            )
+        if source_path in (mihomo_client_path, mihomo_api_path) and retired_force_switch in source:
+            problems.append(
+                f"{source_path}: untyped reload force switch remains; expose only documented reload"
+            )
     if "#[ignore" not in real_profile_test:
         problems.append(
             f"{real_profile_test_path}: real-process Profile test must be ignored in ordinary nextest runs"
@@ -249,6 +286,7 @@ def source_problems(repo_root: Path) -> list[str]:
         "MIHOMO_REAL_CONTROLLER_URL",
         "MIHOMO_REAL_CONTROLLER_SECRET",
         "MIHOMO_REAL_VERSION",
+        "MIHOMO_REAL_CONFIGS_ROOT",
         "MIHOMO_REAL_PROFILE_PATH",
         "-p infiltrator-core",
         "--test real_process_profile_smoke",

@@ -548,7 +548,7 @@ fn locked_binary_observations_do_not_override_typed_profile_unsupported() {
     for (version, target, revision, operation_ids) in locked {
         assert_eq!(target, "x86_64-unknown-linux-gnu", "{version}");
         assert_eq!(revision, 1, "{version}");
-        assert_eq!(operation_ids.len(), 8, "{version}");
+        assert_eq!(operation_ids.len(), 9, "{version}");
         for (operation, evidence_id) in [
             (
                 CoreOperation::Profile(ProfileOperation::Validate),

@@ -8,6 +8,7 @@ mod source_races;
 mod workspace;
 
 use super::*;
+use crate::apply_workspace::apply_active_profile_workspace_with_receipt;
 use crate::history::{list_snapshots, read_snapshot};
 use infiltrator_contract::active_profile_reference::{
     ActiveProfileReference, ActiveProfileReferenceCasOutcome, ActiveProfileReferenceState,
@@ -16,7 +17,8 @@ use infiltrator_contract::active_profile_reference::{
 use infiltrator_contract::apply_transaction::ApplyTransactionStage;
 use infiltrator_contract::core_identity::{CoreGeneration, CoreIdentity, CoreInstanceId, EngineId};
 use infiltrator_contract::error::{ErrorCode, FailureReason};
-use infiltrator_contract::profile_document_identity::ProfileId;
+use infiltrator_contract::profile_document_identity::{ProfileId, ProfileWorkspaceIdentity};
+use infiltrator_contract::rule_source::RuleSourceIdentity;
 use infiltrator_contract::session::SessionToken;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_domain::mixin::{MixinConfig, RuleMixin};
@@ -30,7 +32,9 @@ use infiltrator_ports::profile_store::{
     ActiveProfileWorkspacePublishOutcome, ActiveProfileWorkspaceRecoveryLease,
     ActiveProfileWorkspaceRecoveryResolution, ProfileStore,
 };
-use infiltrator_ports::profile_workspace::{ProfileWorkspacePurpose, ProfileWorkspaceUpdate};
+use infiltrator_ports::profile_workspace::{
+    ProfileWorkspace, ProfileWorkspacePurpose, ProfileWorkspaceUpdate,
+};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
@@ -48,10 +52,7 @@ struct MockController {
 
 #[async_trait]
 impl CoreProcess for MockController {
-    async fn start(
-        &self,
-        _context: infiltrator_ports::core_process::CoreProcessStartContext,
-    ) -> result::Result<(), PortError> {
+    async fn start(&self, _context: CoreProcessStartContext) -> result::Result<(), PortError> {
         if self.fail_starts_left.load(Ordering::SeqCst) > 0 {
             self.fail_starts_left.fetch_sub(1, Ordering::SeqCst);
             return Err(PortError::Failed("start rejected".into()));
@@ -244,7 +245,7 @@ struct MockReloader {
 }
 
 #[async_trait]
-impl ConfigReloader for MockReloader {
+impl PreparedConfigReload for MockReloader {
     async fn reload(&self, _path: &Path) -> Result<(), String> {
         self.calls.fetch_add(1, Ordering::SeqCst);
         if self.fail {
@@ -252,6 +253,13 @@ impl ConfigReloader for MockReloader {
         } else {
             Ok(())
         }
+    }
+}
+
+#[async_trait]
+impl ConfigReloader for MockReloader {
+    async fn prepare(&self) -> Result<Box<dyn PreparedConfigReload + '_>, String> {
+        Ok(Box::new(self))
     }
 }
 
@@ -339,10 +347,10 @@ async fn select_profile<S: SecureStore>(config: &ConfigManager<S>, profile: &str
         config,
         expected,
         target,
-        infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization::Unowned,
+        ActiveProfileReferenceWriteAuthorization::Unowned,
     )
-        .await
-        .expect("revisioned test selection CAS")
+    .await
+    .expect("revisioned test selection CAS")
     {
         ActiveProfileReferenceCasOutcome::Committed { .. } => {}
         ActiveProfileReferenceCasOutcome::Stale { expected, observed } => {
@@ -366,9 +374,9 @@ async fn selected_reference<S: SecureStore>(config: &ConfigManager<S>) -> Active
 async fn publish_active_workspace_for_test(
     config: &ConfigManager<MockStore>,
     expected_reference: &ActiveProfileReference,
-    expected_workspace: &infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity,
+    expected_workspace: &ProfileWorkspaceIdentity,
     update: ProfileWorkspaceUpdate,
-) -> infiltrator_ports::profile_workspace::ProfileWorkspace {
+) -> ProfileWorkspace {
     let lease = ProfileStore::acquire_active_workspace_write_lease(
         config,
         expected_reference.clone(),
@@ -399,7 +407,7 @@ async fn publish_active_workspace_for_test(
 
 async fn commit_recovered_workspace_publication<'a>(
     mut recovery: Box<dyn ActiveProfileWorkspaceRecoveryLease + 'a>,
-) -> infiltrator_ports::profile_workspace::ProfileWorkspace {
+) -> ProfileWorkspace {
     loop {
         let state = recovery.state();
         match recovery.resolve().await {
@@ -441,7 +449,7 @@ async fn apply_confirmed_to_selected_reference(
     reloader: &dyn ConfigReloader,
     content: &str,
     params: ApplyParams,
-    expected_rules: &infiltrator_contract::rule_source::RuleSourceIdentity,
+    expected_rules: &RuleSourceIdentity,
 ) -> ApplyResult<ApplyOutcome> {
     let expected_reference = selected_reference(config).await;
     let workspace = ProfileStore::load_workspace(config, &expected_reference.profile_id)
@@ -451,10 +459,8 @@ async fn apply_confirmed_to_selected_reference(
         .document
         .utf8_text()
         .map_err(|error| ApplyError::Validation(error.to_string()))?;
-    if infiltrator_domain::rules::source_identity::identify_rules_document(
-        expected_reference.profile_id.as_str().to_owned(),
-        existing,
-    ) != *expected_rules
+    if identify_rules_document(expected_reference.profile_id.as_str().to_owned(), existing)
+        != *expected_rules
     {
         return Err(ApplyError::SourceChanged);
     }
@@ -492,7 +498,7 @@ async fn apply_workspace_content_for_reference_with_workspace(
     config: &ConfigManager<MockStore>,
     reloader: &dyn ConfigReloader,
     expected: &ActiveProfileReference,
-    workspace: &infiltrator_ports::profile_workspace::ProfileWorkspace,
+    workspace: &ProfileWorkspace,
     content: &str,
     params: ApplyParams,
 ) -> ApplyResult<ApplyOutcome> {
@@ -501,7 +507,7 @@ async fn apply_workspace_content_for_reference_with_workspace(
         document_bytes: content.as_bytes().to_vec(),
         sidecar_bytes: workspace.sidecar_bytes.clone(),
     };
-    let receipt = crate::apply_workspace::apply_active_profile_workspace_with_receipt(
+    let receipt = apply_active_profile_workspace_with_receipt(
         session,
         config,
         reloader,

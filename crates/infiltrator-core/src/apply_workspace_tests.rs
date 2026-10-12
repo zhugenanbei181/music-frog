@@ -5,6 +5,7 @@ use infiltrator_contract::active_profile_reference::{
     ActiveProfileReference, ActiveProfileReferenceState, ActiveProfileReferenceWriteAuthorization,
 };
 use infiltrator_contract::core_identity::EngineId;
+use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use infiltrator_domain::profile_options::{FilterSpec, ProfileOptions};
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::profile_workspace::{ProfileWorkspacePurpose, ProfileWorkspaceUpdate};
@@ -12,6 +13,7 @@ use std::fmt::Debug;
 use std::future::{Future, poll_fn};
 use std::pin::Pin;
 use std::task::Poll;
+use std::time::Duration;
 use tokio::sync::Notify;
 use tokio::time::timeout;
 
@@ -31,7 +33,7 @@ async fn apply_workspace(
     fixture: &Fixture,
     reloader: &dyn ConfigReloader,
     reference: &ActiveProfileReference,
-    expected: &infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity,
+    expected: &ProfileWorkspaceIdentity,
     update: &ProfileWorkspaceUpdate,
     params: ApplyParams,
 ) -> ApplyResult<ProfileWorkspace> {
@@ -251,7 +253,7 @@ struct GatedReloader<'a> {
 }
 
 #[async_trait]
-impl ConfigReloader for GatedReloader<'_> {
+impl PreparedConfigReload for GatedReloader<'_> {
     async fn reload(&self, _: &Path) -> Result<(), String> {
         self.gate.entered.notify_one();
         self.gate.resume.notified().await;
@@ -261,6 +263,137 @@ impl ConfigReloader for GatedReloader<'_> {
         }
     }
 }
+
+#[async_trait]
+impl ConfigReloader for GatedReloader<'_> {
+    async fn prepare(&self) -> Result<Box<dyn PreparedConfigReload + '_>, String> {
+        Ok(Box::new(self))
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum EndpointPreparationObservation {
+    Unchecked,
+    ActiveReferenceReadable,
+    ActiveReferenceLeaseWasAlreadyHeld,
+    ReadFailed,
+}
+
+struct EndpointPreparationProbe<'a> {
+    config: &'a ConfigManager<MockStore>,
+    observation: Mutex<EndpointPreparationObservation>,
+}
+
+impl EndpointPreparationProbe<'_> {
+    fn observation(&self) -> EndpointPreparationObservation {
+        *self
+            .observation
+            .lock()
+            .expect("endpoint preparation observation")
+    }
+}
+
+struct PreparedProbeReload;
+
+#[async_trait]
+impl PreparedConfigReload for PreparedProbeReload {
+    async fn reload(&self, _: &Path) -> Result<(), String> {
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl ConfigReloader for EndpointPreparationProbe<'_> {
+    async fn prepare(&self) -> Result<Box<dyn PreparedConfigReload + '_>, String> {
+        match timeout(
+            Duration::from_secs(1),
+            ProfileStore::read_active_profile_reference(self.config),
+        )
+        .await
+        {
+            Ok(Ok(_)) => {
+                *self
+                    .observation
+                    .lock()
+                    .expect("endpoint preparation observation") =
+                    EndpointPreparationObservation::ActiveReferenceReadable;
+                Ok(Box::new(PreparedProbeReload))
+            }
+            Ok(Err(_)) => {
+                *self
+                    .observation
+                    .lock()
+                    .expect("endpoint preparation observation") =
+                    EndpointPreparationObservation::ReadFailed;
+                Err("active reference could not be read during endpoint preparation".into())
+            }
+            Err(_) => {
+                *self
+                    .observation
+                    .lock()
+                    .expect("endpoint preparation observation") =
+                    EndpointPreparationObservation::ActiveReferenceLeaseWasAlreadyHeld;
+                Err("endpoint preparation ran while the active reference lease was held".into())
+            }
+        }
+    }
+}
+
+#[tokio::test]
+async fn workspace_reload_endpoint_is_prepared_before_active_workspace_lease() {
+    let f = fixture(0, false).await;
+    ready(&f).await;
+    let before = f.config.load_active_workspace().await.unwrap();
+    let reference = selected_reference(&f).await;
+    let reloader = EndpointPreparationProbe {
+        config: &f.config,
+        observation: Mutex::new(EndpointPreparationObservation::Unchecked),
+    };
+
+    let committed = apply_workspace(
+        &f,
+        &reloader,
+        &reference,
+        &before.identity(),
+        &proposal(),
+        params(ApplyStrategy::PreferReload),
+    )
+    .await
+    .expect("workspace apply prepares its controller endpoint before locking the profile");
+
+    assert_eq!(committed.document.utf8_text().unwrap(), NEW);
+    assert_eq!(
+        reloader.observation(),
+        EndpointPreparationObservation::ActiveReferenceReadable
+    );
+}
+
+#[tokio::test]
+async fn selected_profile_reload_endpoint_is_prepared_before_selection_lease() {
+    let f = fixture(0, false).await;
+    ready(&f).await;
+    let reference = selected_reference(&f).await;
+    let reloader = EndpointPreparationProbe {
+        config: &f.config,
+        observation: Mutex::new(EndpointPreparationObservation::Unchecked),
+    };
+
+    apply_active_profile_reference(
+        &f.session,
+        &f.config,
+        &reloader,
+        &reference,
+        params(ApplyStrategy::PreferReload),
+    )
+    .await
+    .expect("active profile apply prepares its endpoint before acquiring selection lease");
+
+    assert_eq!(
+        reloader.observation(),
+        EndpointPreparationObservation::ActiveReferenceReadable
+    );
+}
+
 #[tokio::test]
 async fn competing_option_edit_waits_for_the_apply_lease_and_is_fenced_after_recovery() {
     let f = fixture(0, false).await;

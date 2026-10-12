@@ -258,8 +258,8 @@
         "operation": "stream"
       },
       "support": {
-        "status": "evidence_open",
-        "reason": "The desktop owner composes RuntimeGateway.stream_logs_scoped with the Mihomo client, but no real Mihomo stream run is registered in the evidence lock."
+        "status": "supported",
+        "evidence_id": "logs.stream"
       }
     },
     {

@@ -36,6 +36,7 @@ PRODUCTION_COMPOSED_SUPPORTED = {
         ("outbound", "list"),
         ("outbound", "select"),
         ("outbound", "probe"),
+        ("logs", "stream"),
         ("logs", "set_level"),
         ("proxy_control", "get_routing_intent"),
         ("proxy_control", "set_routing_intent"),
@@ -60,7 +61,6 @@ PRODUCTION_COMPOSED_EVIDENCE_OPEN = {
         ("provider", "list_rule"),
         ("provider", "update_rule"),
         ("connection", "close"),
-        ("logs", "stream"),
         ("geo", "update_databases"),
         ("fake_ip_cache", "flush"),
         ("tun", "configure"),
@@ -391,6 +391,30 @@ def source_problems(repo_root: Path = REPO_ROOT) -> list[str]:
             f"{declaration_path}: {problem}"
             for problem in validate_declaration(engine, declaration, catalog, evidence)
         )
+        if engine == "mihomo" and ("logs", "stream") in PRODUCTION_COMPOSED_SUPPORTED[engine]:
+            scoped_runtime_path = repo_root / "crates/infiltrator-desktop/src/runtime/ports.rs"
+            mihomo_gateway_path = repo_root / "crates/mihomo-api/src/runtime_gateway.rs"
+            try:
+                scoped_runtime = scoped_runtime_path.read_text(encoding="utf-8")
+                mihomo_gateway = mihomo_gateway_path.read_text(encoding="utf-8")
+            except OSError as error:
+                problems.append(f"Mihomo scoped log stream production source is unavailable: {error}")
+            else:
+                for required in (
+                    "impl RuntimeGateway for MihomoRuntime",
+                    "async fn stream_logs_scoped(",
+                    "validate_log_open_scope(&requested_scope, &opening_scope)",
+                    "RuntimeGateway::stream_logs(self, level).await?",
+                    "validate_log_post_open_scope(&requested_scope, &opening_scope, &stream_scope)",
+                ):
+                    if required not in scoped_runtime:
+                        problems.append(
+                            f"{scoped_runtime_path}: supported logs.stream lost `{required}`"
+                        )
+                if ".stream_logs_events(level.as_deref())" not in mihomo_gateway:
+                    problems.append(
+                        f"{mihomo_gateway_path}: supported logs.stream no longer calls the Mihomo log endpoint"
+                    )
     return problems
 
 

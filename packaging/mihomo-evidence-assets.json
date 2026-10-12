@@ -18,6 +18,7 @@
         "outbound.select",
         "outbound.probe",
         "logs.set_level",
+        "logs.stream",
         "routing.set_intent",
         "routing.get_intent"
       ]
@@ -38,6 +39,7 @@
         "outbound.select",
         "outbound.probe",
         "logs.set_level",
+        "logs.stream",
         "routing.set_intent",
         "routing.get_intent"
       ]

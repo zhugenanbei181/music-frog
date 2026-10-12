@@ -149,7 +149,10 @@ PY
 controller_secret="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
 data_dir="$run_dir/data"
 mkdir -m 700 "$data_dir"
-profile_path="$data_dir/profile.yaml"
+configs_root="$data_dir"
+profile_config_dir="$configs_root/engines/mihomo"
+mkdir -m 700 -p "$profile_config_dir"
+profile_path="$profile_config_dir/profile.yaml"
 probe_server_port_file="$run_dir/probe-server-port"
 
 python3 - "$probe_server_port_file" >"$run_dir/probe-server.log" 2>&1 <<'PY' &
@@ -352,13 +355,14 @@ if ! env -u INFILTRATOR_CONFIGS_DIR \
     MIHOMO_REAL_CONTROLLER_URL="$base_url" \
     MIHOMO_REAL_CONTROLLER_SECRET="$controller_secret" \
     MIHOMO_REAL_VERSION="$expected_version" \
+    MIHOMO_REAL_CONFIGS_ROOT="$configs_root" \
     MIHOMO_REAL_PROFILE_PATH="$profile_path" \
     cargo nextest run --offline --locked -p infiltrator-core \
         --test real_process_profile_smoke --run-ignored only; then
     printf '[FAIL] Rust Profile transaction smoke failed for %s\n' "$expected_version" >&2
     exit 1
 fi
-printf '[PASS] Rust Profile transaction preflight/apply/readback/restore drove %s\n' \
+printf '[PASS] Rust Profile transaction apply/readback/restore drove %s\n' \
     "$expected_version"
 
 reload_body="$(python3 - "$profile_path" <<'PY'

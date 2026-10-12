@@ -10,6 +10,7 @@
 //! apply edits through the same workspace transaction so comments, anchors,
 //! aliases, and formatting remain byte-faithful where the domain editor allows.
 
+use crate::apply_workspace::apply_active_profile_workspace_with_receipt;
 use crate::history::{DEFAULT_KEEP, prune_snapshots, save_snapshot};
 use async_trait::async_trait;
 use infiltrator_contract::active_profile_reference::{
@@ -210,17 +211,48 @@ pub type ApplyResult<T> = result::Result<T, ApplyError>;
 /// mock instead of a live controller (QA-002).
 #[async_trait]
 pub trait ConfigReloader: Send + Sync {
-    /// Preflight validation before hot reload (e.g. PUT /configs?force=false).
-    async fn preflight_check(&self, _path: &Path) -> Result<(), String> {
-        Ok(())
-    }
+    /// Resolve all reload dependencies before the transaction acquires its
+    /// active-profile/workspace locks. The returned session is bound to the
+    /// endpoint observed for this transaction and performs no profile lookup.
+    async fn prepare(&self) -> Result<Box<dyn PreparedConfigReload + '_>, String>;
+}
 
-    /// Commit the hot reload to live traffic (e.g. PUT /configs?force=true).
+#[async_trait]
+pub trait PreparedConfigReload: Send + Sync {
+    /// Apply the profile through the backend's native live reload operation.
     async fn reload(&self, path: &Path) -> Result<(), String>;
 }
 
-/// Production reloader: resolve the current endpoint per call (port rotation
-/// safe), build a client, perform preflight check and then `PUT /configs?force=true`.
+#[async_trait]
+impl<T> PreparedConfigReload for &T
+where
+    T: PreparedConfigReload + Sync + ?Sized,
+{
+    async fn reload(&self, path: &Path) -> Result<(), String> {
+        (**self).reload(path).await
+    }
+}
+
+pub(crate) enum PreparedApplyStrategy<'a> {
+    PreferReload(Result<Box<dyn PreparedConfigReload + 'a>, String>),
+    AlwaysRestart,
+}
+
+pub(crate) async fn prepare_apply_strategy<'a>(
+    strategy: ApplyStrategy,
+    reloader: &'a dyn ConfigReloader,
+) -> PreparedApplyStrategy<'a> {
+    match strategy {
+        ApplyStrategy::PreferReload => {
+            PreparedApplyStrategy::PreferReload(reloader.prepare().await)
+        }
+        ApplyStrategy::AlwaysRestart => PreparedApplyStrategy::AlwaysRestart,
+    }
+}
+
+/// Production reloader: resolve the current endpoint before the active
+/// workspace lease, then return a session bound to Mihomo's documented
+/// `PUT /configs?force=true` operation.
 pub struct EndpointConfigReloader {
     endpoints: Arc<dyn EndpointSource>,
 }
@@ -233,7 +265,7 @@ impl EndpointConfigReloader {
 
 #[async_trait]
 impl ConfigReloader for EndpointConfigReloader {
-    async fn preflight_check(&self, path: &Path) -> Result<(), String> {
+    async fn prepare(&self) -> Result<Box<dyn PreparedConfigReload + '_>, String> {
         let endpoint = self
             .endpoints
             .resolve()
@@ -241,28 +273,22 @@ impl ConfigReloader for EndpointConfigReloader {
             .map_err(|err| err.to_string())?;
         let client = MihomoClient::new(&endpoint.url, endpoint.secret)
             .map_err(|err| format!("controller client: {err}"))?;
-        let path = path
-            .to_str()
-            .ok_or_else(|| "config path is not valid UTF-8".to_string())?;
-        client
-            .reload_config_with_force(Some(path), false)
-            .await
-            .map_err(|err| format!("preflight check rejected: {err}"))
+        Ok(Box::new(EndpointPreparedConfigReload { client }))
     }
+}
 
+struct EndpointPreparedConfigReload {
+    client: MihomoClient,
+}
+
+#[async_trait]
+impl PreparedConfigReload for EndpointPreparedConfigReload {
     async fn reload(&self, path: &Path) -> Result<(), String> {
-        let endpoint = self
-            .endpoints
-            .resolve()
-            .await
-            .map_err(|err| err.to_string())?;
-        let client = MihomoClient::new(&endpoint.url, endpoint.secret)
-            .map_err(|err| format!("controller client: {err}"))?;
         let path = path
             .to_str()
             .ok_or_else(|| "config path is not valid UTF-8".to_string())?;
-        client
-            .reload_config_with_force(Some(path), true)
+        self.client
+            .reload_config(Some(path))
             .await
             .map_err(|err| format!("reload rejected: {err}"))
     }
@@ -286,16 +312,14 @@ pub(crate) fn validate_config(content: &str) -> Result<(), String> {
 /// falls back to the restart path without rolling back yet.
 pub(crate) async fn reload_and_check<C: CoreLifecyclePort + ?Sized>(
     session: &C,
-    reloader: &dyn ConfigReloader,
+    reloader: &dyn PreparedConfigReload,
     path: &Path,
     params: &ApplyParams,
 ) -> Result<ApplyOutcome, String> {
-    // Phase 1: Preflight check without disrupting active connections
-    if let Err(error) = reloader.preflight_check(path).await {
-        return Err(format!("config preflight check failed: {error}"));
-    }
-
-    // Phase 2: Live switch with session token lock
+    // Mihomo's documented `/configs` reload uses `force=true`; the engine
+    // validates the published candidate during that operation. The caller
+    // keeps the workspace lease and restores the previous bytes if reload or
+    // readiness fails.
     let session_token = session
         .begin_reload()
         .map_err(|error| format!("core cannot begin hot reload: {error}"))?;
@@ -320,6 +344,30 @@ pub(crate) async fn reload_and_check<C: CoreLifecyclePort + ?Sized>(
         generation,
         session_token,
     })
+}
+
+pub(crate) async fn apply_prepared_strategy<C: CoreLifecyclePort + ?Sized>(
+    session: &C,
+    prepared: &PreparedApplyStrategy<'_>,
+    path: &Path,
+    params: &ApplyParams,
+) -> Result<ApplyOutcome, ApplyError> {
+    match prepared {
+        PreparedApplyStrategy::PreferReload(Ok(reloader)) => {
+            match reload_and_check(session, reloader.as_ref(), path, params).await {
+                Ok(outcome) => Ok(outcome),
+                Err(cause) => {
+                    log::warn!("hot reload failed, restarting: {cause}");
+                    restart_and_check(session, params).await
+                }
+            }
+        }
+        PreparedApplyStrategy::PreferReload(Err(cause)) => {
+            log::warn!("hot reload preparation failed, restarting: {cause}");
+            restart_and_check(session, params).await
+        }
+        PreparedApplyStrategy::AlwaysRestart => restart_and_check(session, params).await,
+    }
 }
 
 pub(crate) async fn restart_and_check<C: CoreLifecyclePort + ?Sized>(
@@ -354,8 +402,12 @@ pub async fn apply_active_profile_reference<S: SecureStore>(
     expected: &ActiveProfileReference,
     params: ApplyParams,
 ) -> ApplyResult<ApplyOutcome> {
+    if expected.engine_id != config.engine_id() {
+        return Err(ApplyError::SourceChanged);
+    }
+    let prepared = prepare_apply_strategy(params.strategy, reloader).await;
     let lease = acquire_exact_selection_lease(config, expected).await?;
-    apply_profile_transaction(session, config, reloader, expected, lease, params).await
+    apply_profile_transaction(session, config, expected, lease, &prepared, params).await
 }
 
 async fn acquire_exact_selection_lease<S: SecureStore>(
@@ -380,9 +432,9 @@ async fn acquire_exact_selection_lease<S: SecureStore>(
 async fn apply_profile_transaction<S: SecureStore>(
     session: &impl CoreLifecyclePort,
     config: &ConfigManager<S>,
-    reloader: &dyn ConfigReloader,
     expected: &ActiveProfileReference,
     _selection_lease: Box<dyn ActiveProfileReferenceLease>,
+    prepared: &PreparedApplyStrategy<'_>,
     params: ApplyParams,
 ) -> ApplyResult<ApplyOutcome> {
     config
@@ -416,21 +468,7 @@ async fn apply_profile_transaction<S: SecureStore>(
     validate_config(&observed).map_err(ApplyError::Validation)?;
     drop(write_guard);
 
-    let outcome: Result<ApplyOutcome, String> = if params.strategy == ApplyStrategy::PreferReload {
-        match reload_and_check(session, reloader, &path, &params).await {
-            Ok(outcome) => Ok(outcome),
-            Err(cause) => {
-                log::warn!(
-                    "hot reload of {} failed, restarting instead: {cause}",
-                    path.display()
-                );
-                restart_and_check(session, &params).await
-            }
-        }
-    } else {
-        restart_and_check(session, &params).await
-    }
-    .map_err(|err| err.to_string());
+    let outcome = apply_prepared_strategy(session, prepared, &path, &params).await;
 
     let cause = match outcome {
         Ok(outcome) => {
@@ -458,7 +496,7 @@ async fn apply_profile_transaction<S: SecureStore>(
             ));
             return Ok(outcome);
         }
-        Err(failure) => failure,
+        Err(failure) => failure.to_string(),
     };
 
     // `status` was checked before the candidate was written. A failed
@@ -566,7 +604,7 @@ async fn apply_workspace_document<S: SecureStore>(
         document_bytes: document.into_bytes(),
         sidecar_bytes: previous.sidecar_bytes.clone(),
     };
-    crate::apply_workspace::apply_active_profile_workspace_with_receipt(
+    apply_active_profile_workspace_with_receipt(
         session,
         config,
         reloader,
@@ -717,5 +755,5 @@ pub async fn apply_active_profile_mixin_fidelity<S: SecureStore>(
 mod apply_test;
 
 #[cfg(test)]
-#[path = "apply_preflight_tests.rs"]
-mod apply_preflight_tests;
+#[path = "apply_reload_tests.rs"]
+mod apply_reload_tests;

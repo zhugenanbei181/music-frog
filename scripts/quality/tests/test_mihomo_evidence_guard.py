@@ -25,7 +25,20 @@ def source_fixture(root: Path, real_process_test: str) -> Path:
     smoke = root / GUARD.SMOKE_SOURCE
     integration = root / GUARD.REAL_PROCESS_TEST
     profile_integration = root / GUARD.REAL_PROFILE_TEST
-    for path in (provider, smoke, integration, profile_integration):
+    core_apply = root / GUARD.CORE_APPLY_SOURCE
+    core_profile_transaction = root / GUARD.CORE_PROFILE_TRANSACTION_SOURCE
+    mihomo_client = root / GUARD.MIHOMO_CLIENT_SOURCE
+    mihomo_api = root / GUARD.MIHOMO_API_SOURCE
+    for path in (
+        provider,
+        smoke,
+        integration,
+        profile_integration,
+        core_apply,
+        core_profile_transaction,
+        mihomo_client,
+        mihomo_api,
+    ):
         path.parent.mkdir(parents=True, exist_ok=True)
     provider.write_text(
         'include_str!("../../../packaging/mihomo-evidence-assets.json");\n'
@@ -42,21 +55,24 @@ def source_fixture(root: Path, real_process_test: str) -> Path:
         "mihomo-evidence-guard.py cargo nextest run --test real_process_smoke "
         "--run-ignored only MIHOMO_REAL_CONTROLLER_URL "
         "MIHOMO_REAL_CONTROLLER_SECRET MIHOMO_REAL_VERSION "
-        "MIHOMO_REAL_PROFILE_PATH -p infiltrator-core "
+        "MIHOMO_REAL_CONFIGS_ROOT MIHOMO_REAL_PROFILE_PATH -p infiltrator-core "
         "--test real_process_profile_smoke --run-ignored only",
         encoding="utf-8",
     )
+    core_apply.write_text("pub trait ConfigReloader { async fn reload(&self); }", encoding="utf-8")
+    core_profile_transaction.write_text("MihomoProfileConfigurationTransactionAdapter", encoding="utf-8")
+    mihomo_client.write_text("pub async fn reload_config(&self)", encoding="utf-8")
+    mihomo_api.write_text("async fn reload_config(&self)", encoding="utf-8")
     integration.write_text(real_process_test, encoding="utf-8")
     profile_integration.write_text(
         "#[ignore = \"explicit profile smoke only\"] "
         "MIHOMO_REAL_CONTROLLER_URL MIHOMO_REAL_CONTROLLER_SECRET "
-        "MIHOMO_REAL_VERSION MIHOMO_REAL_PROFILE_PATH EndpointConfigReloader "
+        "MIHOMO_REAL_VERSION MIHOMO_REAL_CONFIGS_ROOT MIHOMO_REAL_PROFILE_PATH EndpointConfigReloader "
         "ProfileEndpointSource MihomoProfileConfigurationTransactionAdapter "
         "ProfileConfigurationTransactionPort ProfileConfigurationTransactionRequest "
         "ProfileConfigurationTransactionOutcome::Committed "
         "ProfileConfigurationTransactionOutcome::RolledBack "
         "ProfileConfigurationTransactionOutcome::RollbackFailed "
-        "ConfigReloader::preflight_check "
         "ProfileStore::load_active_workspace get_config log_level let restored = "
         "restored_config",
         encoding="utf-8",
@@ -107,7 +123,7 @@ class MihomoEvidenceGuardTests(unittest.TestCase):
         changed = copy.deepcopy(EVIDENCE)
         changed["assets"][0]["operations"].append("connection.list")
         self.assertTrue(
-            any("operations do not match the eight verified behaviors" in issue
+            any("operations do not match the nine verified behaviors" in issue
                 for issue in GUARD.validate_documents(changed, PRODUCT))
         )
 
@@ -145,7 +161,8 @@ class MihomoEvidenceGuardTests(unittest.TestCase):
                 Path(directory),
                 "#[ignore] MihomoOutboundAdapter MihomoRoutingIntentAdapter "
                 "OutboundPort RoutingIntentPort MIHOMO_REAL_CONTROLLER_URL "
-                "MIHOMO_REAL_CONTROLLER_SECRET MIHOMO_REAL_VERSION",
+                "MIHOMO_REAL_CONTROLLER_SECRET MIHOMO_REAL_VERSION "
+                "stream_logs_events StreamEvent::Connected",
             )
             self.assertEqual(GUARD.source_problems(root), [])
 
@@ -177,6 +194,7 @@ class MihomoEvidenceGuardTests(unittest.TestCase):
             #[ignore = \"explicit smoke only\"]
             MihomoOutboundAdapter MihomoRoutingIntentAdapter
             OutboundPort RoutingIntentPort
+            stream_logs_events StreamEvent::Connected
             MIHOMO_REAL_CONTROLLER_URL MIHOMO_REAL_CONTROLLER_SECRET MIHOMO_REAL_VERSION
         """
         with tempfile.TemporaryDirectory() as directory:
@@ -203,6 +221,21 @@ class MihomoEvidenceGuardTests(unittest.TestCase):
                 any("real-process Profile test must be ignored" in issue
                     for issue in GUARD.source_problems(root))
             )
+
+    def test_undocumented_live_preflight_and_untyped_force_switch_are_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = source_fixture(Path(directory), "#[ignore]")
+            client = root / GUARD.MIHOMO_CLIENT_SOURCE
+            client.write_text(
+                client.read_text(encoding="utf-8")
+                + "reload_config_with_"
+                + "force(path, force) force="
+                + "false",
+                encoding="utf-8",
+            )
+            issues = GUARD.source_problems(root)
+        self.assertTrue(any("unsupported Mihomo live preflight" in issue for issue in issues))
+        self.assertTrue(any("untyped reload force switch" in issue for issue in issues))
 
 
 if __name__ == "__main__":

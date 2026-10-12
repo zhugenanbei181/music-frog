@@ -16,7 +16,7 @@ struct ConcurrentEdit<'a> {
     config: &'a ConfigManager<MockStore>,
 }
 #[async_trait]
-impl ConfigReloader for ConcurrentEdit<'_> {
+impl PreparedConfigReload for ConcurrentEdit<'_> {
     async fn reload(&self, _: &Path) -> Result<(), String> {
         write_profile_file_outside_store_for_test(
             self.config,
@@ -25,6 +25,13 @@ impl ConfigReloader for ConcurrentEdit<'_> {
         )
         .await;
         Err("reload rejected after concurrent edit".into())
+    }
+}
+
+#[async_trait]
+impl ConfigReloader for ConcurrentEdit<'_> {
+    async fn prepare(&self) -> Result<Box<dyn PreparedConfigReload + '_>, String> {
+        Ok(Box::new(self))
     }
 }
 

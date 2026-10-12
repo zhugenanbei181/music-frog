@@ -1,7 +1,7 @@
 //! Source-bound profile/options application and conditional exact-byte recovery.
 use crate::apply::{
-    ApplyError, ApplyOutcome, ApplyParams, ApplyResult, ConfigReloader, reload_and_check,
-    restart_and_check, validate_config,
+    ApplyError, ApplyOutcome, ApplyParams, ApplyResult, ConfigReloader, apply_prepared_strategy,
+    prepare_apply_strategy, restart_and_check, validate_config,
 };
 use crate::history::{DEFAULT_KEEP, prune_snapshots, save_snapshot};
 use infiltrator_contract::active_profile_reference::{
@@ -11,7 +11,6 @@ use infiltrator_contract::apply_transaction::ApplyTransactionSnapshot;
 use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use infiltrator_contract::snapshot::CoreLifecycle;
-use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::ProfileStore;
@@ -191,6 +190,7 @@ async fn apply_confirmed_workspace_inner<S: SecureStore, C: CoreLifecyclePort + 
             return Err(ApplyError::NotRunning { status });
         }
     }
+    let prepared = prepare_apply_strategy(params.strategy, reloader).await;
 
     // The store lease checks the full selected reference, owner identity and
     // workspace revision in root -> owner -> profile lock order. It remains
@@ -266,17 +266,7 @@ async fn apply_confirmed_workspace_inner<S: SecureStore, C: CoreLifecyclePort + 
         }
     }
 
-    let outcome = if params.strategy == ApplyStrategy::PreferReload {
-        match reload_and_check(session, reloader, &path, &params).await {
-            Ok(outcome) => Ok(outcome),
-            Err(cause) => {
-                log::warn!("workspace reload failed, restarting: {cause}");
-                restart_and_check(session, &params).await
-            }
-        }
-    } else {
-        restart_and_check(session, &params).await
-    };
+    let outcome = apply_prepared_strategy(session, &prepared, &path, &params).await;
     match outcome {
         Ok(outcome) => {
             if params.snapshot_history {

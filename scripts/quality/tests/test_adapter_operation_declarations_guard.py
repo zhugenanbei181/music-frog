@@ -66,6 +66,23 @@ class AdapterOperationDeclarationGuardTests(unittest.TestCase):
     def test_current_engine_declarations_cover_all_core_operations(self):
         self.assertEqual(GUARD.source_problems(ROOT), [])
 
+    def test_scope_bound_mihomo_logs_stream_has_target_bound_real_evidence(self):
+        spec = GUARD.ENGINE_ADAPTERS["mihomo"]
+        declaration = GUARD.load_json(ROOT / spec["declaration"])
+        evidence = GUARD.load_json(ROOT / spec["evidence"])
+        stream = next(
+            item
+            for item in declaration["operations"]
+            if item["operation"] == {"category": "logs", "operation": "stream"}
+        )
+        self.assertEqual(
+            stream["support"],
+            {"status": "supported", "evidence_id": "logs.stream"},
+        )
+        self.assertTrue(
+            all("logs.stream" in asset["operations"] for asset in evidence["assets"])
+        )
+
     def test_registered_evidence_and_explicit_open_status_are_valid(self):
         self.assertEqual(
             GUARD.validate_declaration(

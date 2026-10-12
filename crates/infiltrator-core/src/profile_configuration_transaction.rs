@@ -3,6 +3,7 @@
 use crate::apply::{ApplyError, ApplyParams, ConfigReloader};
 use crate::apply_workspace::apply_codec_validated_workspace;
 use infiltrator_contract::apply_transaction::ApplyTransactionSnapshot;
+use infiltrator_contract::capability::Capability;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document::DocumentValidation;
 use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
@@ -23,15 +24,19 @@ use infiltrator_ports::profile_store::{
 use infiltrator_ports::profile_workspace::{ProfileWorkspace, ProfileWorkspaceUpdate};
 use infiltrator_ports::secure_store::SecureStore;
 use mihomo_config::manager::ConfigManager;
+use mihomo_config::profile_document_codec::MihomoProfileDocumentCodec;
+use std::fs;
+use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
+use std::process;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
-use tokio::fs::OpenOptions;
+use tokio::fs::{File, OpenOptions, remove_file};
 use tokio::io::AsyncWriteExt;
 use tokio::process::Command;
 use tokio::sync::Mutex;
 
-static PREFLIGHT_CANDIDATE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+static NATIVE_VALIDATION_CANDIDATE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 /// Mihomo's native transaction adapter. Pure codec inspection is injected
 /// independently and is used before any workspace persistence/runtime effect.
@@ -150,7 +155,7 @@ impl<S: SecureStore + 'static> MihomoProfileConfigurationTransactionAdapter<S> {
     ) -> Result<ProfileConfigurationTransactionOutcome, PortError> {
         if !self.scope.supports(&request.expected) {
             return Err(PortError::unsupported(
-                infiltrator_contract::capability::Capability::Profiles,
+                Capability::Profiles,
                 "configuration transaction request has a foreign engine, format, or schema",
             ));
         }
@@ -159,7 +164,7 @@ impl<S: SecureStore + 'static> MihomoProfileConfigurationTransactionAdapter<S> {
             || request.expected_reference.profile_id != request.expected.document.profile_id
         {
             return Err(PortError::unsupported(
-                infiltrator_contract::capability::Capability::Profiles,
+                Capability::Profiles,
                 "configuration transaction reference does not identify the expected workspace",
             ));
         }
@@ -170,7 +175,7 @@ impl<S: SecureStore + 'static> MihomoProfileConfigurationTransactionAdapter<S> {
             .ok_or_else(|| rejected(ErrorCode::NotReady, "active Core identity is unavailable"))?;
         if runtime_engine != self.scope.document.engine_id {
             return Err(PortError::unsupported(
-                infiltrator_contract::capability::Capability::Profiles,
+                Capability::Profiles,
                 "configuration transaction does not belong to the active Core engine",
             ));
         }
@@ -217,14 +222,7 @@ impl<S: SecureStore + 'static> MihomoProfileConfigurationTransactionAdapter<S> {
                     "Core lifecycle transition prevents configuration apply",
                 ));
             }
-            CoreLifecycle::Ready | CoreLifecycle::Running => {
-                native_preflight(
-                    self.reloader.as_ref(),
-                    self.config.config_dir(),
-                    &request.update.document_bytes,
-                )
-                .await?;
-            }
+            CoreLifecycle::Ready | CoreLifecycle::Running => {}
             CoreLifecycle::Stopped | CoreLifecycle::Failed => {
                 self.stopped_validator
                     .validate_candidate(&request.expected, &request.update.document_bytes)
@@ -498,12 +496,11 @@ impl MihomoBinaryConfigurationCandidateValidator {
         binary_path: PathBuf,
         config_dir: PathBuf,
     ) -> Result<Self, PortError> {
-        let native_scope = ProfileConfigurationTransactionScope::new(
-            mihomo_config::profile_document_codec::MihomoProfileDocumentCodec.scope(),
-        );
+        let native_scope =
+            ProfileConfigurationTransactionScope::new(MihomoProfileDocumentCodec.scope());
         if scope != native_scope {
             return Err(PortError::unsupported(
-                infiltrator_contract::capability::Capability::Profiles,
+                Capability::Profiles,
                 "Mihomo native validator cannot validate a foreign engine, format, or schema",
             ));
         }
@@ -528,11 +525,11 @@ impl ProfileConfigurationCandidateValidatorPort for MihomoBinaryConfigurationCan
     ) -> Result<(), PortError> {
         if !self.scope.supports(expected) {
             return Err(PortError::unsupported(
-                infiltrator_contract::capability::Capability::Profiles,
+                Capability::Profiles,
                 "Mihomo native validation request has a foreign engine, format, or schema",
             ));
         }
-        let (candidate, file) = reserve_preflight_candidate(&self.config_dir).await?;
+        let (candidate, file) = reserve_native_validation_candidate(&self.config_dir).await?;
         let path = candidate.0.clone();
         let validation_path = path.clone();
         let binary_path = self.binary_path.clone();
@@ -582,7 +579,7 @@ impl ProfileConfigurationCandidateValidatorPort for MihomoBinaryConfigurationCan
             ))
         }
         .await;
-        let cleanup = tokio::fs::remove_file(&path).await;
+        let cleanup = remove_file(&path).await;
         match (validation, cleanup) {
             (Ok(()), Ok(())) => Ok(()),
             (Err(error), Ok(())) => Err(error),
@@ -601,66 +598,22 @@ impl ProfileConfigurationCandidateValidatorPort for MihomoBinaryConfigurationCan
     }
 }
 
-async fn native_preflight(
-    reloader: &dyn ConfigReloader,
-    config_dir: &Path,
-    raw_bytes: &[u8],
-) -> Result<(), PortError> {
-    let (candidate, file) = reserve_preflight_candidate(config_dir).await?;
-    let path = candidate.0.clone();
-    let validation_path = path.clone();
-    let validation_bytes = raw_bytes.to_vec();
-    let validation = async move {
-        let mut file = file;
-        file.write_all(&validation_bytes)
-            .await
-            .map_err(|error| PortError::Io(error.to_string()))?;
-        file.flush()
-            .await
-            .map_err(|error| PortError::Io(error.to_string()))?;
-        drop(file);
-        reloader
-            .preflight_check(&validation_path)
-            .await
-            .map_err(|error| {
-                PortError::Rejected(Failure::new(ErrorCode::Configuration, error, false))
-            })
-    }
-    .await;
-    let cleanup = tokio::fs::remove_file(&path).await;
-    match (validation, cleanup) {
-        (Ok(()), Ok(())) => Ok(()),
-        (Err(error), Ok(())) => Err(error),
-        (Ok(()), Err(error)) => Err(PortError::Io(format!(
-            "failed to remove Mihomo preflight candidate: {error}"
-        ))),
-        (Err(validation), Err(cleanup)) => Err(PortError::Rejected(Failure::new(
-            ErrorCode::Configuration,
-            format!(
-                "{}; failed to remove Mihomo preflight candidate: {cleanup}",
-                validation
-            ),
-            false,
-        ))),
-    }
-}
+struct NativeValidationCandidate(PathBuf);
 
-struct PreflightCandidate(PathBuf);
-
-impl Drop for PreflightCandidate {
+impl Drop for NativeValidationCandidate {
     fn drop(&mut self) {
-        let _ = std::fs::remove_file(&self.0);
+        let _ = fs::remove_file(&self.0);
     }
 }
 
-async fn reserve_preflight_candidate(
+async fn reserve_native_validation_candidate(
     config_dir: &Path,
-) -> Result<(PreflightCandidate, tokio::fs::File), PortError> {
+) -> Result<(NativeValidationCandidate, File), PortError> {
     for _ in 0..16 {
-        let sequence = PREFLIGHT_CANDIDATE_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+        let sequence = NATIVE_VALIDATION_CANDIDATE_SEQUENCE.fetch_add(1, Ordering::Relaxed);
         let path = config_dir.join(format!(
-            ".mihomo-profile-preflight-{}-{sequence}.yaml",
-            std::process::id()
+            ".mihomo-profile-validation-{}-{sequence}.yaml",
+            process::id()
         ));
         match OpenOptions::new()
             .write(true)
@@ -668,13 +621,13 @@ async fn reserve_preflight_candidate(
             .open(&path)
             .await
         {
-            Ok(file) => return Ok((PreflightCandidate(path), file)),
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Ok(file) => return Ok((NativeValidationCandidate(path), file)),
+            Err(error) if error.kind() == ErrorKind::AlreadyExists => continue,
             Err(error) => return Err(PortError::Io(error.to_string())),
         }
     }
     Err(PortError::Failed(
-        "could not reserve a unique Mihomo preflight candidate".to_owned(),
+        "could not reserve a unique Mihomo native-validation candidate".to_owned(),
     ))
 }
 

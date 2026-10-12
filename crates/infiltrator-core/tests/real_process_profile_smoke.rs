@@ -3,9 +3,9 @@
 //! This test is deliberately ignored in ordinary nextest runs. The smoke
 //! harness starts an exact SHA-locked Mihomo binary and supplies its active
 //! profile path and controller credentials. The smoke drives
-//! `MihomoProfileConfigurationTransactionAdapter` directly, including native
-//! preflight, exact workspace readback, and typed terminal outcomes. It does
-//! not assert the product capability matrix or composition wiring.
+//! `MihomoProfileConfigurationTransactionAdapter` directly, including live
+//! reload, exact workspace readback, and typed terminal outcomes. It does not
+//! assert the product capability matrix or composition wiring.
 
 use async_trait::async_trait;
 use infiltrator_contract::active_profile_reference::{
@@ -42,10 +42,10 @@ use mihomo_config::profile_document_codec::MihomoProfileDocumentCodec;
 use std::collections::HashMap;
 use std::env;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::fs;
-use tokio::sync::Mutex as AsyncMutex;
+use tokio::sync::Mutex;
 use tokio::time::timeout;
 
 struct SmokeSecureStore(Mutex<HashMap<(String, String), String>>);
@@ -62,7 +62,7 @@ impl SecureStore for SmokeSecureStore {
         Ok(self
             .0
             .lock()
-            .expect("secure-store lock")
+            .await
             .get(&(namespace.to_owned(), key.to_owned()))
             .cloned())
     }
@@ -70,7 +70,7 @@ impl SecureStore for SmokeSecureStore {
     async fn set(&self, namespace: &str, key: &str, value: &str) -> Result<(), PortError> {
         self.0
             .lock()
-            .expect("secure-store lock")
+            .await
             .insert((namespace.to_owned(), key.to_owned()), value.to_owned());
         Ok(())
     }
@@ -78,7 +78,7 @@ impl SecureStore for SmokeSecureStore {
     async fn delete(&self, namespace: &str, key: &str) -> Result<(), PortError> {
         self.0
             .lock()
-            .expect("secure-store lock")
+            .await
             .remove(&(namespace.to_owned(), key.to_owned()));
         Ok(())
     }
@@ -207,10 +207,11 @@ fn require_committed(outcome: ProfileConfigurationTransactionOutcome) -> Profile
 
 #[tokio::test]
 #[ignore = "requires the explicit SHA-locked Mihomo real-process smoke"]
-async fn profile_preflight_apply_readback_and_restore_use_the_live_mihomo_transaction() {
+async fn profile_apply_readback_and_restore_use_the_live_mihomo_transaction() {
     let controller_url = required_environment("MIHOMO_REAL_CONTROLLER_URL");
     let controller_secret = required_environment("MIHOMO_REAL_CONTROLLER_SECRET");
     let expected_version = required_environment("MIHOMO_REAL_VERSION");
+    let configs_root = PathBuf::from(required_environment("MIHOMO_REAL_CONFIGS_ROOT"));
     let profile_path = PathBuf::from(required_environment("MIHOMO_REAL_PROFILE_PATH"));
     let (profile_name, config_directory) = profile_name_and_directory(&profile_path);
     let canonical_profile_path = fs::canonicalize(&profile_path)
@@ -218,13 +219,13 @@ async fn profile_preflight_apply_readback_and_restore_use_the_live_mihomo_transa
         .expect("the smoke harness profile exists");
 
     let home = tempfile::tempdir().expect("temporary profile settings directory");
-    let config_directory_string = config_directory
+    let configs_root_string = configs_root
         .to_str()
-        .expect("smoke config directory must be UTF-8");
+        .expect("smoke configs root must be UTF-8");
     let config = Arc::new(
         ConfigManager::with_home_configs_dir_and_store(
             home.path().to_path_buf(),
-            Some(config_directory_string),
+            Some(configs_root_string),
             SmokeSecureStore::default(),
         )
         .expect("construct Mihomo profile store around the isolated smoke profile"),
@@ -250,10 +251,10 @@ async fn profile_preflight_apply_readback_and_restore_use_the_live_mihomo_transa
         config.as_ref(),
         expected,
         target,
-        infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization::Unowned,
+        ActiveProfileReferenceWriteAuthorization::Unowned,
     )
-        .await
-        .expect("revisioned profile selection CAS")
+    .await
+    .expect("revisioned profile selection CAS")
     {
         ActiveProfileReferenceCasOutcome::Committed { .. } => {}
         ActiveProfileReferenceCasOutcome::Stale { expected, observed } => {
@@ -306,7 +307,7 @@ async fn profile_preflight_apply_readback_and_restore_use_the_live_mihomo_transa
         session,
         config.clone(),
         Arc::clone(&reloader),
-        Arc::new(AsyncMutex::new(())),
+        Arc::new(Mutex::new(())),
     )
     .expect("compose the Mihomo codec and transaction owner for the same engine");
 
@@ -335,21 +336,6 @@ async fn profile_preflight_apply_readback_and_restore_use_the_live_mihomo_transa
         .expect("canonical active profile path"),
         canonical_profile_path,
         "the tested workspace must be the file loaded by this Mihomo process"
-    );
-
-    // This calls the production EndpointConfigReloader path, which sends
-    // PUT /configs?force=false. It is not the separate CLI `-t` startup check.
-    ConfigReloader::preflight_check(reloader.as_ref(), &canonical_profile_path)
-        .await
-        .expect("live Mihomo force=false preflight accepts the active profile");
-    let after_preflight = client
-        .get_config()
-        .await
-        .expect("read controller config after non-mutating preflight");
-    assert_eq!(
-        serde_json::to_value(&after_preflight).expect("serialize preflight readback"),
-        serde_json::to_value(&initial_config).expect("serialize initial controller config"),
-        "force=false preflight must not change the running configuration"
     );
 
     let changed_text = replace_one(&before_text, "log-level: info", "log-level: debug");
