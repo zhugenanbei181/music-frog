@@ -21,6 +21,8 @@ python3 scripts/quality/typed-state-guard.py --mode enforce
 python3 scripts/quality/retired-surface-guard.py
 python3 scripts/quality/android-bevy-driver-dependency-guard.py --self-test
 python3 scripts/quality/android-bevy-driver-dependency-guard.py
+python3 scripts/quality/android-owner-client-guard.py --self-test
+python3 scripts/quality/android-owner-client-guard.py
 python3 scripts/quality/android-manifest-contract-guard.py
 python3 scripts/quality/verify-packaging.py
 python3 -m unittest discover -s scripts/packaging_tests -p 'test_*.py'

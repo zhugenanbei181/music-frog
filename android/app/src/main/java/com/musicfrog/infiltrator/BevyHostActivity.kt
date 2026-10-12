@@ -50,13 +50,17 @@ class BevyHostActivity : NativeActivity() {
     /** Read the current owner-authored VPN/Core lifecycle snapshot for command readback. */
     @Keep
     fun readAndroidVpnOwnerSnapshotJson(): String? =
-        MihomoControlClient(this).readVpnOwnerSnapshotJson()
+        ownerIpcClient().readVpnOwnerSnapshotJson()
 
     /** Stop the VPN through the :vpn owner and return its owner-authored terminal receipt. */
     @Keep
     fun stopAndroidVpnServiceCurrent(): String =
-        MihomoControlClient(this).stopVpnService()
+        ownerIpcClient().stopVpnService()
             ?: throw IllegalStateException("VPN owner returned no stop receipt")
+
+    private fun ownerIpcClient(): MihomoControlClient =
+        (applicationContext as? MihomoApplication)?.ownerIpcClient
+            ?: throw IllegalStateException("MihomoApplication must own the Android control client")
 
     /** JNI entry for the Bevy reader; data remains authored by the `:vpn` process. */
     @Keep

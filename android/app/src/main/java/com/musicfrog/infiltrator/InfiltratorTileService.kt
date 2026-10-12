@@ -18,7 +18,10 @@ import kotlinx.coroutines.withContext
 @RequiresApi(Build.VERSION_CODES.N)
 class InfiltratorTileService : TileService() {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
-    private val controlClient by lazy { MihomoControlClient(applicationContext) }
+    private val controlClient by lazy {
+        (applicationContext as? MihomoApplication)?.ownerIpcClient
+            ?: throw IllegalStateException("MihomoApplication must own the Android control client")
+    }
     private var stateJob: Job? = null
 
     override fun onStartListening() {
