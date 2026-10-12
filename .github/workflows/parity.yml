@@ -1,7 +1,6 @@
 name: full surface parity
 
 on:
-  workflow_call:
   workflow_dispatch:
 
 permissions:
@@ -17,6 +16,7 @@ env:
 jobs:
   parity:
     name: All interactions, both peers and viewports
+    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
     runs-on: ubuntu-26.04
     timeout-minutes: 120
     steps:

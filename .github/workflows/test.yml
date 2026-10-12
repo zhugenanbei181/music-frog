@@ -1,18 +1,12 @@
 name: test
 
-# 默认关闭：普通 push（main/日常分支）与普通 PR 不执行任何测试。
-# 版本 tag 由 release.yml 通过 workflow_call 进入同一测试 gate；本文件直接
-# 处理 v* / release/v* 版本分支，以及标题或源分支带版本号的 PR。
+# 仅供 release.yml 的版本 tag 发布流程调用；普通 push、普通 PR 和版本分支
+# 均不会启动 workspace 编译或测试。
 on:
-  # Release invokes this workflow as a reusable, blocking test gate. Keeping
-  # tag execution in release.yml avoids running the same suite twice.
   workflow_call:
-  push:
-    branches:
-      - "v*"
-      - "release/v*"
-  pull_request:
-    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
 
 # 同一引用的新提交自动取消旧运行：过时结果尽早退出，不浪费算力。
 concurrency:
@@ -25,32 +19,10 @@ env:
   CARGO_INCREMENTAL: 0
 
 jobs:
-  version-gate:
-    # 免 checkout 的 10 秒门卫：不带版本号的 PR 在这里即被跳过，不进编译队列。
-    runs-on: ubuntu-26.04
-    timeout-minutes: 5
-    outputs:
-      run: ${{ steps.decide.outputs.run }}
-    steps:
-      - id: decide
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          TITLE: ${{ github.event.pull_request.title }}
-          HEAD_REF: ${{ github.head_ref }}
-        run: |
-          # Version branches are filtered above; release tags arrive through
-          # workflow_call. Only pull requests need the title/source-branch check.
-          if [[ "$EVENT_NAME" == "push" || "$EVENT_NAME" == "workflow_call" ]]; then
-            echo "run=true" >>"$GITHUB_OUTPUT"
-          elif printf '%s' "$TITLE$HEAD_REF" | grep -Eqi 'v[0-9]+(\.[0-9]+)*'; then
-            echo "run=true" >>"$GITHUB_OUTPUT"
-          else
-            echo "run=false" >>"$GITHUB_OUTPUT"
-          fi
-
   test:
-    needs: version-gate
-    if: needs.version-gate.outputs.run == 'true'
+    # Reusable workflows inherit the caller's ref. Fail closed if a future
+    # caller tries to run this expensive suite from a branch.
+    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
     name: nextest (network-isolated, 4 threads)
     # 显式钉最新 LTS（ubuntu-26.04 已 GA），不跟 ubuntu-latest 的静默迁移走。
     runs-on: ubuntu-26.04

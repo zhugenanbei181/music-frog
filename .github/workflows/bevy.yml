@@ -1,47 +1,13 @@
 name: bevy
 
-# Bevy 同权产品 CI gate：结构规则、双端动态证据、Bevy 测试与 lint。
-# 现已纳入主 workspace，不再是独立工作区。
+# Bevy 同权产品 gate：结构规则、双端动态证据、Bevy 测试与 lint。
+# 仅允许手动从版本 tag 运行，避免普通提交启动完整图形栈和编译任务。
 #
 # 结构守卫的唯一注册入口是 scripts/quality/check-structure.sh，
 # 本工作流不复制任何内联守卫步骤：先以 --guards-only 在安装缓存/依赖前
 # 秒级失败，最后由完整脚本再统一执行一遍守卫。
 on:
-  push:
-    branches:
-      - main
-      - "release/**"
-    paths:
-      - ".config/nextest.toml"
-      - ".github/workflows/bevy.yml"
-      - "Cargo.toml"
-      - "Cargo.lock"
-      - "crates/**"
-      - "rust-toolchain.toml"
-      - "scripts/test-bevy.sh"
-      - "scripts/test.sh"
-      - "scripts/check-test-policy.sh"
-      - "scripts/quality/**"
-      - "scripts/parity/**"
-      - "docs/CODE_QUALITY_BASELINE.md"
-      - "crates/infiltrator-contract/docs/UI_PARITY_AUDIT.md"
-      - "crates/infiltrator-bevy-ui/docs/**"
-  pull_request:
-    paths:
-      - ".config/nextest.toml"
-      - ".github/workflows/bevy.yml"
-      - "Cargo.toml"
-      - "Cargo.lock"
-      - "crates/**"
-      - "rust-toolchain.toml"
-      - "scripts/test-bevy.sh"
-      - "scripts/test.sh"
-      - "scripts/check-test-policy.sh"
-      - "scripts/quality/**"
-      - "scripts/parity/**"
-      - "docs/CODE_QUALITY_BASELINE.md"
-      - "crates/infiltrator-contract/docs/UI_PARITY_AUDIT.md"
-      - "crates/infiltrator-bevy-ui/docs/**"
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -58,6 +24,7 @@ env:
 jobs:
   bevy:
     name: Bevy unified surface
+    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
     # 显式钉最新 LTS（ubuntu-26.04 已 GA），不跟 ubuntu-latest 的静默迁移走。
     runs-on: ubuntu-26.04
     timeout-minutes: 45

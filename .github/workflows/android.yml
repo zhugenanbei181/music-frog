@@ -1,8 +1,8 @@
 name: android
 
-# BANDROID-018: the L0/L1 Android Rust gate. It compiles and Clippy-checks every
-# Android-only surface on PRs and pushes so Android breakage fails before a
-# release tag, instead of only inside the tag-only packaging job.
+# BANDROID-018: the L0/L1 Android Rust gate. This expensive emulator workflow is
+# manually dispatched only for a version tag; ordinary pushes and PRs never
+# start Android SDK/NDK setup, Rust cross-compilation, Gradle, or an emulator.
 #
 # Scope: L0 = cargo check (aarch64 + x86_64), L1 = clippy -D warnings on
 # aarch64. It builds all registered APK flavors and runs their JVM and Android
@@ -11,60 +11,7 @@ name: android
 # Note: Gradle's shared cargoBuild creates the Android Rust service library for
 # both ABIs; Bevy and Slint flavor tasks build their native UI libraries too.
 on:
-  workflow_call:
-  push:
-    branches:
-      - main
-      - "release/**"
-    paths:
-      - ".github/workflows/android.yml"
-      - "Cargo.toml"
-      - "Cargo.lock"
-      - "rust-toolchain.toml"
-      - ".cargo/config.toml"
-      - "crates/infiltrator-android/**"
-      - "crates/infiltrator-bevy-ui/**"
-      - "crates/infiltrator-bevy-widgets/**"
-      - "crates/infiltrator-slint/**"
-      - "android/**"
-      - "product-identity.properties"
-      - "scripts/android-build.sh"
-      - "scripts/android-slint-build.sh"
-      - "scripts/android-check.sh"
-      - "scripts/product_identity.py"
-      - "scripts/render-product-template.py"
-      - "scripts/quality/android-product-identity-guard.py"
-      - "scripts/quality/tests/test_android_product_identity_guard.py"
-      - "scripts/quality/tests/test_product_template_render.py"
-      - "scripts/quality/check-structure.sh"
-      - "scripts/android-emulator-tests.sh"
-      - "scripts/build-bevy-apk.sh"
-      - "scripts/verify-bevy-apk.sh"
-  pull_request:
-    paths:
-      - ".github/workflows/android.yml"
-      - "Cargo.toml"
-      - "Cargo.lock"
-      - "rust-toolchain.toml"
-      - ".cargo/config.toml"
-      - "crates/infiltrator-android/**"
-      - "crates/infiltrator-bevy-ui/**"
-      - "crates/infiltrator-bevy-widgets/**"
-      - "crates/infiltrator-slint/**"
-      - "android/**"
-      - "product-identity.properties"
-      - "scripts/android-build.sh"
-      - "scripts/android-slint-build.sh"
-      - "scripts/android-check.sh"
-      - "scripts/product_identity.py"
-      - "scripts/render-product-template.py"
-      - "scripts/quality/android-product-identity-guard.py"
-      - "scripts/quality/tests/test_android_product_identity_guard.py"
-      - "scripts/quality/tests/test_product_template_render.py"
-      - "scripts/quality/check-structure.sh"
-      - "scripts/android-emulator-tests.sh"
-      - "scripts/build-bevy-apk.sh"
-      - "scripts/verify-bevy-apk.sh"
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -82,6 +29,7 @@ env:
 jobs:
   android:
     name: Android Rust compile + Clippy gate
+    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
     # 显式钉最新 LTS（ubuntu-26.04 已 GA），不跟 ubuntu-latest 的静默迁移走。
     runs-on: ubuntu-26.04
     # Compose、Bevy 与 Slint Gradle flavors 共用同一套 Android owner 和工具链。

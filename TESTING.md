@@ -14,7 +14,7 @@
 
 CI 对 macOS 和 iOS 目标暂时不编译、不打包；用户解除暂缓并更新平台矩阵/门禁之前，不得恢复 Apple matrix。
 
-当前 Android PR workflow 执行两 ABI Rust compile/Clippy、所有已登记 Android flavor 的 JVM 与 Android Emulator 插桩测试、APK 身份检查和静态 manifest contract guard。插桩入口是 `bash scripts/android-emulator-tests.sh`：它使用 Gradle Managed Device 建立一次性 API 36 x86_64 AOSP 模拟器、离线运行来宾系统并保存测试结果；不得用普通 `connected*` 命令把这些用例发到真机。脚本对比运行前后的宿主接口地址和 IPv4/IPv6 路由摘要，发现变化即失败，不尝试修改或恢复宿主网络。ARM64 真机证据仍由 Android 阶段验收补齐。
+普通 push、PR 和版本分支不会自动启动编译、模拟器或全量测试。只有 `v*` tag 会进入 `release.yml`，并通过 `workflow_call` 执行 workspace `cargo nextest` gate 后再构建发行产物。Android、Bevy、parity 和真机证据的高成本专用 workflow 只能手动从 `v*` tag 派发；分支引用会在 job 启动 runner 前被跳过。Android release workflow 自身会构建三个 flavor 的 APK；专用 Android gate 额外执行两 ABI Rust compile/Clippy、各 flavor JVM 与 Android Emulator 插桩测试、APK 身份检查和静态 manifest contract guard。插桩入口是 `bash scripts/android-emulator-tests.sh`：它使用 Gradle Managed Device 建立一次性 API 36 x86_64 AOSP 模拟器、离线运行来宾系统并保存测试结果；不得用普通 `connected*` 命令把这些用例发到真机。脚本对比运行前后的宿主接口地址和 IPv4/IPv6 路由摘要，发现变化即失败，不尝试修改或恢复宿主网络。ARM64 真机证据仍由 Android 阶段验收补齐。
 
 ## 普通测试隔离
 

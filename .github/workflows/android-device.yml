@@ -5,9 +5,9 @@ name: android-device
 #
 # This job REQUIRES a SELF-HOSTED runner labelled `android-arm64` with a real
 # ARM64 device attached over adb. It does NOT run on GitHub-hosted runners and
-# MUST NOT be added to the PR gate: it collects VPN traffic, no-loopback, >=8h
-# background, network-switch and power evidence that a hosted runner cannot
-# produce. Trigger it manually via workflow_dispatch (or a deliberate schedule).
+# MUST NOT be added to a push/PR gate: it collects VPN traffic, no-loopback,
+# >=8h background, network-switch and power evidence that a hosted runner cannot
+# produce. Trigger it manually from a version tag; branch refs are skipped.
 #
 # The evidence script itself refuses to claim success without a device and
 # writes STATUS: incomplete whenever a required step was skipped.
@@ -29,6 +29,7 @@ permissions:
 jobs:
   device-evidence:
     name: Android device evidence (BANDROID-023)
+    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
     runs-on: [self-hosted, android-arm64]
     timeout-minutes: 600
     steps:
