@@ -13,6 +13,11 @@ pub trait CoreProcess: Send + Sync {
     }
 
     async fn start(&self) -> Result<(), PortError>;
+    /// Stop the exact configured process instance and confirm its exit before
+    /// returning success. A command acknowledgement or disappearance of a
+    /// tracked PID record is not terminal evidence; identity mismatches and
+    /// stop deadlines fail. With no owned or recorded instance, stop is an
+    /// idempotent no-op.
     async fn stop(&self) -> Result<(), PortError>;
     async fn status(&self) -> Result<CoreLifecycle, PortError>;
     fn controller_endpoint(&self) -> Option<String>;
