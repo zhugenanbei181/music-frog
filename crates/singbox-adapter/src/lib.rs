@@ -13,6 +13,7 @@ pub mod process;
 pub mod profile_configuration_transaction;
 pub mod profile_document_codec;
 pub mod readiness;
+pub mod version;
 
 pub fn engine_id() -> infiltrator_contract::core_identity::EngineId {
     infiltrator_contract::core_identity::EngineId::new("sing-box")

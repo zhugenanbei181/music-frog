@@ -9880,6 +9880,8 @@ name = "singbox-adapter"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "flate2",
+ "futures-util",
  "infiltrator-contract",
  "infiltrator-domain",
  "infiltrator-ports",
@@ -9887,6 +9889,8 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "sha2 0.11.0",
+ "tar",
  "tempfile",
  "tokio",
  "url",
