@@ -1,5 +1,5 @@
 //! Ownership boundary for an independently launched desktop UI product.
-use crate::composition::open_default_product_backend;
+use crate::composition::{DesktopProductBackend, open_default_product_backend};
 use crate::product_switch::switch_default_product_engine;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::surface_application::SurfacePump;
@@ -135,23 +135,40 @@ impl DesktopProductSession {
         &mut self,
         target: ActiveProfileReferenceTarget,
     ) -> Result<(), DesktopProductSwitchFailure> {
-        let previous_state = mem::replace(&mut self.state, DesktopProductSessionState::Switching);
-        let DesktopProductSessionState::Open { host_runtime, pump } = previous_state else {
-            self.state = previous_state;
-            return Err(DesktopProductSwitchFailure::BeforeReservation(
-                Failure::new(
-                    ErrorCode::InvalidState,
-                    "Desktop product session is not open for an engine switch",
-                    false,
-                ),
-            ));
-        };
-
+        let (host_runtime, pump) = self.begin_engine_switch()?;
         let result = self.executor.block_on(switch_default_product_engine(
             Arc::clone(&self.application),
             target,
             self.surface,
         ));
+        self.complete_engine_switch(host_runtime, pump, result)
+    }
+
+    fn begin_engine_switch(
+        &mut self,
+    ) -> Result<(Arc<dyn HostRuntime>, SurfacePump), DesktopProductSwitchFailure> {
+        let previous_state = mem::replace(&mut self.state, DesktopProductSessionState::Switching);
+        match previous_state {
+            DesktopProductSessionState::Open { host_runtime, pump } => Ok((host_runtime, pump)),
+            state => {
+                self.state = state;
+                Err(DesktopProductSwitchFailure::BeforeReservation(
+                    Failure::new(
+                        ErrorCode::InvalidState,
+                        "Desktop product session is not open for an engine switch",
+                        false,
+                    ),
+                ))
+            }
+        }
+    }
+
+    fn complete_engine_switch(
+        &mut self,
+        host_runtime: Arc<dyn HostRuntime>,
+        pump: SurfacePump,
+        result: Result<DesktopProductBackend, DesktopProductSwitchFailure>,
+    ) -> Result<(), DesktopProductSwitchFailure> {
         match result {
             Ok(backend) => {
                 let old_application = mem::replace(&mut self.application, backend.application);
@@ -201,3 +218,7 @@ impl Drop for DesktopProductSession {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "product_tests.rs"]
+mod tests;
