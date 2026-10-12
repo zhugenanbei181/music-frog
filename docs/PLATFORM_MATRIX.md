@@ -20,6 +20,8 @@
 
 2026-10-12 Core 启动 session proof 与 restart recovery checkpoint：`CoreProcess::prepare_start` 用显式 admission enum 管理宿主进程位；`CoreApplication` 在 spawn 前把精确 Managed identity/generation/session 写入 owner proof schema v2，v1 bound proof 显式迁移为不可自动恢复的 `LegacyUnverified`。新 `:vpn` session 已接入 typed recovery application，只有精确退出 child + VPN terminal readback 才恢复 owner 并允许 provider binding；受影响包 nextest 1063/1063（run `90ca9322-927c-4a6d-bf53-f75f36ade83f`），隔离 host JVM 33/33。未做完整 app Kotlin compile、UI/APK 或设备验收；Android service death/rebind、真机 `/proc` 与完整设备行为仍 OPEN。
 
+2026-10-12 engine-scoped ProfileStore checkpoint：`mihomo-config::ConfigManager` 现在可注入 engine-owned document codec，并按 `EngineId` 隔离 ProfileStore/ProfileWorkspace、metadata、credential key 与原始文档扩展；默认 Mihomo 构造保留显式 legacy migration，sing-box 初始化只创建自己的 JSON namespace、不导入 Mihomo 旧文件。两 engine 共用产品级 revisioned active reference 与 owner fence。测试覆盖同名隔离、JSON 与 opaque sidecar 精确读回、stale/foreign 零写入，以及 sing-box active workspace lease 的 engine identity；受影响 Core/Android/desktop-host 包 nextest 825/825、4 skipped（run `36cdeb27-d4ad-4d35-95ac-0ae9cd64a943`），存储包最终复跑 186/186、1 skipped（run `fa92e0a6-af64-496e-a382-2924b2a840b9`）。这只是 store/adapter 源码和 fake/nextest 证据，尚未证明 Desktop 或 Android 组合根注入该 store，也未证明真实进程配置事务；两产品仍只选择 Mihomo。
+
 ## 专项规则
 
 - Android 产品与真机验收见 [Android 文档](../android/docs/README.md)。
