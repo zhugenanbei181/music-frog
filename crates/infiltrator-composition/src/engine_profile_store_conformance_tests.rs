@@ -121,6 +121,10 @@ async fn engine_profile_stores_share_one_active_reference_and_isolate_native_doc
         singbox_document.as_bytes()
     );
     assert!(!singbox.config_dir().join("main.yaml").exists());
+    assert!(matches!(
+        ProfileStore::load_active_workspace(&singbox).await,
+        Err(PortError::Unsupported { .. })
+    ));
 
     let expected = ProfileStore::read_active_profile_reference(&singbox)
         .await
@@ -148,6 +152,14 @@ async fn engine_profile_stores_share_one_active_reference_and_isolate_native_doc
             .expect("sing-box sees its selected profile"),
         "main"
     );
+    assert_eq!(
+        ProfileStore::load_active_workspace(&singbox)
+            .await
+            .expect("sing-box reads its selected workspace")
+            .document
+            .raw_bytes,
+        singbox_document.as_bytes()
+    );
 
     let mihomo = mihomo_store(&home);
     assert_eq!(
@@ -158,6 +170,10 @@ async fn engine_profile_stores_share_one_active_reference_and_isolate_native_doc
     );
     assert!(matches!(
         ProfileStore::get_current(&mihomo).await,
+        Err(PortError::Unsupported { .. })
+    ));
+    assert!(matches!(
+        ProfileStore::load_active_workspace(&mihomo).await,
         Err(PortError::Unsupported { .. })
     ));
     ProfileStore::save_inactive_profile(&mihomo, "main", "mode: rule\n")

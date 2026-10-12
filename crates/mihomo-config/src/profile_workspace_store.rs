@@ -1,7 +1,7 @@
-//! ConfigManager coordinates namespace and lock lifecycle for shared workspace IO.
+//! ConfigManager supplies namespace/reset fences; shared storage owns workspace reads and file policy.
 
 use crate::manager::ConfigManager;
-use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
+#[cfg(test)]
 use infiltrator_contract::capability::Capability;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document_identity::{ProfileId, ProfileWorkspaceIdentity};
@@ -19,40 +19,9 @@ impl<S: SecureStore> ConfigManager<S> {
             .await
             .map_err(config_error)?;
         let lease = ActiveProfileReferenceStore::acquire_selection_lease(self).await?;
-        let reference = match lease.state() {
-            ActiveProfileReferenceState::Unselected { .. } => {
-                return Err(PortError::unsupported(
-                    Capability::Profiles,
-                    "no product-wide active profile is selected",
-                ));
-            }
-            ActiveProfileReferenceState::Selected(reference)
-                if reference.engine_id == self.engine_id() =>
-            {
-                reference
-            }
-            ActiveProfileReferenceState::Selected(reference) => {
-                return Err(PortError::unsupported(
-                    Capability::Profiles,
-                    format!(
-                        "the active profile belongs to engine {} instead of {}",
-                        reference.engine_id.as_str(),
-                        self.engine_id().as_str()
-                    ),
-                ));
-            }
-        };
-        let workspace = self.read_workspace(&reference.profile_id).await?;
-        if workspace.document.identity.engine_id != reference.engine_id
-            || workspace.document.identity.profile_id != reference.profile_id
-        {
-            return Err(PortError::Rejected(Failure::new(
-                ErrorCode::NotReady,
-                "active profile reference does not match the persisted profile document",
-                true,
-            )));
-        }
-        Ok(workspace)
+        self.profile_store
+            .read_active_workspace_under_selection_lease(lease.as_ref())
+            .await
     }
 
     pub(crate) async fn read_workspace(
@@ -62,8 +31,7 @@ impl<S: SecureStore> ConfigManager<S> {
         self.initialize_profile_namespace()
             .await
             .map_err(config_error)?;
-        let _guard = self.lock_profile_writes().await.map_err(config_error)?;
-        self.read_workspace_locked(profile).await
+        self.profile_store.read_profile_workspace(profile).await
     }
 
     pub(crate) async fn read_workspace_locked(

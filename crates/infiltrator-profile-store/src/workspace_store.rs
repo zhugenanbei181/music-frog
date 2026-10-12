@@ -10,11 +10,13 @@ use crate::workspace::{
     validate_workspace_identity, workspace_from_bytes,
 };
 use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
+use infiltrator_contract::capability::Capability;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document_identity::{ProfileId, ProfileWorkspaceIdentity};
 use infiltrator_contract::profile_protection::{ProfileWriteAuthorization, ProfileWriteProtection};
 use infiltrator_domain::profile_options::options_path;
 use infiltrator_domain::profiles::validate_profile_name;
+use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceLease;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_workspace::{
     ProfileWorkspace, ProfileWorkspacePurpose, ProfileWorkspaceUpdate,
@@ -31,6 +33,48 @@ pub enum ProfileWorkspacePublicationTarget<'a> {
 }
 
 impl<S: SecureStore> EngineProfileStore<S> {
+    /// Resolve the product-selected workspace under a retained root selection
+    /// lease, then acquire the engine profile lock in root-to-profile order.
+    pub async fn read_active_workspace_under_selection_lease(
+        &self,
+        selection: &dyn ActiveProfileReferenceLease,
+    ) -> Result<ProfileWorkspace, PortError> {
+        let reference = match selection.state() {
+            ActiveProfileReferenceState::Unselected { .. } => {
+                return Err(PortError::unsupported(
+                    Capability::Profiles,
+                    "no product-wide active profile is selected",
+                ));
+            }
+            ActiveProfileReferenceState::Selected(reference)
+                if reference.engine_id == self.engine_id() =>
+            {
+                reference
+            }
+            ActiveProfileReferenceState::Selected(reference) => {
+                return Err(PortError::unsupported(
+                    Capability::Profiles,
+                    format!(
+                        "the active profile belongs to engine {} instead of {}",
+                        reference.engine_id.as_str(),
+                        self.engine_id().as_str()
+                    ),
+                ));
+            }
+        };
+        let workspace = self.read_profile_workspace(&reference.profile_id).await?;
+        if workspace.document.identity.engine_id != reference.engine_id
+            || workspace.document.identity.profile_id != reference.profile_id
+        {
+            return Err(PortError::Rejected(Failure::new(
+                ErrorCode::NotReady,
+                "active profile reference does not match the persisted profile document",
+                true,
+            )));
+        }
+        Ok(workspace)
+    }
+
     /// Read one coherent document and sidecar while the caller holds the
     /// cross-process profile-write boundary.
     pub async fn read_profile_workspace_locked(
