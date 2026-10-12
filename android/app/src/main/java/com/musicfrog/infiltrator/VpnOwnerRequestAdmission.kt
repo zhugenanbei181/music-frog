@@ -255,6 +255,7 @@ internal class VpnOwnerStartRequestAdmission(private val capacity: Int = 2) {
             is VpnOwnerStartRequestState.CanceledForGeneration ->
                 if (state.generation == generation) VpnOwnerStartDispatchOutcome.Canceled
                 else VpnOwnerStartDispatchOutcome.Unknown
+            VpnOwnerStartRequestState.CanceledBeforeGeneration -> VpnOwnerStartDispatchOutcome.Canceled
             null,
             is VpnOwnerStartRequestState.Queued,
             is VpnOwnerStartRequestState.Executing,
@@ -283,6 +284,7 @@ internal class VpnOwnerStartRequestAdmission(private val capacity: Int = 2) {
             is VpnOwnerStartRequestState.CanceledForGeneration ->
                 if (state.generation == generation) VpnOwnerStartDispatchOutcome.Canceled
                 else VpnOwnerStartDispatchOutcome.Unknown
+            VpnOwnerStartRequestState.CanceledBeforeGeneration -> VpnOwnerStartDispatchOutcome.Canceled
             null,
             is VpnOwnerStartRequestState.Queued,
             is VpnOwnerStartRequestState.Executing,
@@ -310,6 +312,7 @@ internal class VpnOwnerStartRequestAdmission(private val capacity: Int = 2) {
             is VpnOwnerStartRequestState.CanceledForGeneration ->
                 if (state.generation == generation) VpnOwnerStartDispatchOutcome.Canceled
                 else VpnOwnerStartDispatchOutcome.Unknown
+            VpnOwnerStartRequestState.CanceledBeforeGeneration -> VpnOwnerStartDispatchOutcome.Canceled
             null,
             is VpnOwnerStartRequestState.Queued,
             is VpnOwnerStartRequestState.Executing,

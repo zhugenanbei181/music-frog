@@ -59,6 +59,21 @@ class VpnOwnerRequestAdmissionTest {
     }
 
     @Test
+    fun canceledBeforeGenerationRejectsEveryLateServiceDispatchStage() {
+        val requests = VpnOwnerStartRequestAdmission()
+        val key = VpnOwnerRequestKey("client-session", 34L)
+        val deadline = VpnOwnerRequestDeadline.after(1_000L, 5_000L)
+        assertEquals(VpnOwnerStartAdmission.Admitted, requests.admit(key, deadline, 1_000L))
+        assertEquals(VpnOwnerStartCancellation.CanceledBeforeGeneration, requests.cancel(key))
+
+        assertEquals(VpnOwnerStartDispatchOutcome.Canceled, requests.markServiceDispatchPending(key, 17L))
+        assertEquals(VpnOwnerStartDispatchOutcome.Canceled, requests.markServiceDispatchStarted(key, 17L))
+        assertEquals(VpnOwnerStartDispatchOutcome.Canceled, requests.markServiceDispatched(key, 17L))
+        assertEquals(VpnOwnerStartCompletion.SuppressLateReceipt, requests.complete(key))
+        assertEquals(0, requests.retainedRequestCount())
+    }
+
+    @Test
     fun generationBoundCancellationIsIdempotentAndFencesLateStartReceipt() {
         val requests = VpnOwnerStartRequestAdmission()
         val key = VpnOwnerRequestKey("client-session", 32L)

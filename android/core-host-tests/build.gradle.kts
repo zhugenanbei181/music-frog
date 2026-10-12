@@ -32,7 +32,18 @@ kotlin {
                 "com/musicfrog/infiltrator/AndroidOwnerSessionFence.kt",
                 "com/musicfrog/infiltrator/OwnerIpcClientPendingLedger.kt",
                 "com/musicfrog/infiltrator/VpnOwnerSessionGate.kt",
+                "com/musicfrog/infiltrator/VpnCleanupContract.kt",
+                "com/musicfrog/infiltrator/VpnOwnerRequestAdmission.kt",
+                "com/musicfrog/infiltrator/VpnProcessState.kt",
+                "com/musicfrog/infiltrator/VpnRoutingLeaseState.kt",
+                "com/musicfrog/infiltrator/VpnServiceBindingState.kt",
+                "com/musicfrog/infiltrator/VpnServiceBinding.kt",
+                "com/musicfrog/infiltrator/VpnServiceConfiguration.kt",
+                "com/musicfrog/infiltrator/VpnStartOutcomeWire.kt",
+                "com/musicfrog/infiltrator/VpnConfigurationApplyOutcomeWire.kt",
                 "com/musicfrog/infiltrator/VpnServiceStartup.kt",
+                "com/musicfrog/infiltrator/MihomoControlServiceFixture.kt",
+                "infiltrator_android/IsolatedVpnBindings.kt",
             )
         }
         test {
@@ -44,6 +55,11 @@ kotlin {
                 "com/musicfrog/infiltrator/MihomoCoreConfigurationValidatorTest.kt",
                 "com/musicfrog/infiltrator/OwnerIpcClientPendingLedgerTypedStateTest.kt",
                 "com/musicfrog/infiltrator/OwnerIpcClientPendingLedgerTest.kt",
+                "com/musicfrog/infiltrator/VpnCleanupRecoveryTest.kt",
+                "com/musicfrog/infiltrator/VpnOwnerRequestAdmissionTest.kt",
+                "com/musicfrog/infiltrator/VpnOwnerRequestDeadlineTest.kt",
+                "com/musicfrog/infiltrator/VpnProcessStateTest.kt",
+                "com/musicfrog/infiltrator/VpnRoutingLeaseStateTest.kt",
                 "com/musicfrog/infiltrator/VpnOwnerSessionGateTest.kt",
                 "com/musicfrog/infiltrator/VpnServiceStartupTest.kt",
             )
