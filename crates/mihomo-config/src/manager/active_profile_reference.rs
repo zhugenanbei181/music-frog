@@ -36,9 +36,7 @@ use infiltrator_profile_store::active_owner_registry::{
     lock_local_owner_registry, remove_local_owner_registration,
 };
 use infiltrator_profile_store::active_profile_selection_lease::ActiveProfileSelectionLease;
-use infiltrator_profile_store::active_reference_cas::{
-    ActiveProfileReferenceCasReady, ActiveProfileReferenceOwnerFence,
-};
+use infiltrator_profile_store::active_reference_cas::ActiveProfileReferenceTargetEvidence;
 use infiltrator_profile_store::active_reference_file::{
     ActiveProfileReferenceFile, is_durability_uncertain,
 };
@@ -53,7 +51,8 @@ use infiltrator_profile_store::active_reference_owner::{
     LegacySelectionMigration, transition_rejected,
 };
 use infiltrator_profile_store::active_reference_owner_coordinator::{
-    ActiveProfileOwnerCoordinator, validate_terminal_for_owner,
+    ActiveProfileOwnerCoordinator, validate_reference_write_authorization,
+    validate_terminal_for_owner,
 };
 use infiltrator_profile_store::document_store::{
     read_optional_bytes, remove_optional, remove_optional_durable, write_document_bytes_durable,
@@ -430,50 +429,6 @@ fn sync_publish_active_profile_record(
 ) -> Result<(), PortError> {
     ActiveProfileReferenceFile::new(config_root)
         .publish_active_profile_record_sync_reconciled(record)
-}
-
-fn validate_reference_write_authorization(
-    owner_state: &ActiveCoreOwnerState,
-    authorization: &ActiveProfileReferenceWriteAuthorization,
-    config_root: &Path,
-) -> Result<(), PortError> {
-    match (owner_state, authorization) {
-        (ActiveCoreOwnerState::Unowned, ActiveProfileReferenceWriteAuthorization::Unowned) => {
-            Ok(())
-        }
-        (
-            ActiveCoreOwnerState::Bound {
-                identity,
-                generation,
-                token,
-            },
-            ActiveProfileReferenceWriteAuthorization::BoundOwner {
-                identity: authorized_identity,
-                generation: authorized_generation,
-            },
-        ) if identity.same_instance(authorized_identity) && generation == authorized_generation => {
-            if local_registration_matches(
-                config_root,
-                token,
-                &LocalOwnerRegistrationState::Bound {
-                    identity: identity.clone(),
-                    generation: *generation,
-                },
-            )? {
-                Ok(())
-            } else {
-                Err(transition_rejected(
-                    "bound-owner reference writes require this process's exact owner lease",
-                ))
-            }
-        }
-        (ActiveCoreOwnerState::Switching { .. }, _) => Err(transition_rejected(
-            "active profile reference writes are blocked during owner switching",
-        )),
-        _ => Err(transition_rejected(
-            "active profile reference write authorization does not match the owner fence",
-        )),
-    }
 }
 
 fn switching_state(
@@ -1603,46 +1558,34 @@ impl<S: SecureStore> ConfigManager<S> {
             ActiveProfileResetMutationAccess::OrdinaryMutation,
         )
         .await?;
-        let cas_ready =
-            ActiveProfileReferenceCasReady::compare(&record.selection, expected_revision)?;
-        let (owner_state, _owner_state_guard) =
-            ActiveProfileOwnerCoordinator::new(config_root.to_path_buf())
-                .normalize_owner_state_unlocked(record)
-                .await?;
-        validate_reference_write_authorization(&owner_state, &authorization, config_root)?;
-        if let ActiveProfileReferenceTarget::Selected {
-            engine_id,
-            profile_id,
-        } = &target
-            && engine_id == &self.engine_id()
-        {
-            let workspace = ProfileStore::load_workspace(self, profile_id).await?;
-            if workspace.document.identity.engine_id != *engine_id
-                || workspace.document.identity.profile_id != *profile_id
-            {
-                return Err(PortError::Rejected(Failure::new(
-                    ErrorCode::NotReady,
-                    "selected profile document identity differs from the active reference target",
-                    false,
-                )));
-            }
-        }
-        let owner_fence = match &owner_state {
-            ActiveCoreOwnerState::Unowned => ActiveProfileReferenceOwnerFence::Unowned,
-            ActiveCoreOwnerState::Bound {
-                identity,
-                generation,
-                ..
-            } => ActiveProfileReferenceOwnerFence::Bound {
-                identity: identity.clone(),
-                generation: *generation,
-            },
-            ActiveCoreOwnerState::Switching { .. } => ActiveProfileReferenceOwnerFence::Switching,
-        };
-        record.selection = cas_ready.transition(target, owner_fence)?;
-        record.legacy_migration = LegacySelectionMigration::ExplicitSelection;
-        sync_publish_active_profile_record(config_root, record)?;
-        Ok(record.selection.clone())
+        ActiveProfileOwnerCoordinator::new(config_root.to_path_buf())
+            .compare_and_set_reference_unlocked(
+                record,
+                expected_revision,
+                target,
+                authorization,
+                self.engine_id(),
+                |target, local_engine| async move {
+                    match target {
+                        ActiveProfileReferenceTarget::Unselected => {
+                            Ok(ActiveProfileReferenceTargetEvidence::Unselected)
+                        }
+                        ActiveProfileReferenceTarget::Selected {
+                            engine_id,
+                            profile_id,
+                        } if engine_id == local_engine => {
+                            let workspace = ProfileStore::load_workspace(self, &profile_id).await?;
+                            Ok(ActiveProfileReferenceTargetEvidence::LocalWorkspace(
+                                workspace.identity(),
+                            ))
+                        }
+                        ActiveProfileReferenceTarget::Selected { .. } => {
+                            Ok(ActiveProfileReferenceTargetEvidence::OtherEngine)
+                        }
+                    }
+                },
+            )
+            .await
     }
 }
 

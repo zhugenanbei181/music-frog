@@ -6,6 +6,7 @@ use infiltrator_contract::active_profile_reference::{
 };
 use infiltrator_contract::core_identity::{CoreGeneration, CoreIdentity};
 use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use infiltrator_ports::error::PortError;
 
 /// Current owner authorization projection derived while its owner-state lock
@@ -18,6 +19,15 @@ pub enum ActiveProfileReferenceOwnerFence {
         generation: CoreGeneration,
     },
     Switching,
+}
+
+/// Evidence that the target document belongs to this engine-scoped store.
+/// A foreign-engine target is validated by that engine's own store.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ActiveProfileReferenceTargetEvidence {
+    Unselected,
+    OtherEngine,
+    LocalWorkspace(ProfileWorkspaceIdentity),
 }
 
 /// Proof that the current reference matched the caller's expected revision.

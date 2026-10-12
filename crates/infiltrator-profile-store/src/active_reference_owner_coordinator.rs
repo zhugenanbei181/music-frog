@@ -1,19 +1,32 @@
 //! Cross-process Core owner normalization and terminal recovery shared by all engine stores.
 
-use crate::active_owner_registry::{local_owner_registration_state, lock_local_owner_registry};
+use crate::active_owner_registry::{
+    LocalOwnerRegistrationState, local_owner_registration_matches, local_owner_registration_state,
+    lock_local_owner_registry,
+};
+use crate::active_reference_cas::{
+    ActiveProfileReferenceCasReady, ActiveProfileReferenceOwnerFence,
+    ActiveProfileReferenceTargetEvidence,
+};
 use crate::active_reference_file::ActiveProfileReferenceFile;
 use crate::active_reference_owner::{
     ActiveCoreOwnerLaunchProof, ActiveCoreOwnerProof, ActiveCoreOwnerState,
-    ActiveProfileReferenceRecord, transition_rejected,
+    ActiveProfileReferenceRecord, LegacySelectionMigration, transition_rejected,
 };
-use infiltrator_contract::core_identity::{CoreGeneration, CoreIdentity};
+use infiltrator_contract::active_profile_reference::{
+    ActiveProfileReferenceRevision, ActiveProfileReferenceState, ActiveProfileReferenceTarget,
+    ActiveProfileReferenceWriteAuthorization,
+};
+use infiltrator_contract::core_identity::{CoreGeneration, CoreIdentity, EngineId};
 use infiltrator_contract::core_process::CoreProcessStartContext;
+use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::snapshot::{CoreLifecycle, CoreLifecycleSnapshot};
 use infiltrator_platform::instance_lock::ThreadedInstanceLockGuard;
 use infiltrator_ports::active_profile_reference_store::{
     ActiveProfileOwnerRecoveryEvidence, ActiveProfileOwnerRecoveryOutcome,
 };
 use infiltrator_ports::error::PortError;
+use std::future::Future;
 use std::path::PathBuf;
 
 #[derive(Clone, Copy)]
@@ -45,6 +58,48 @@ impl ActiveProfileOwnerCoordinator {
         Self {
             config_root: config_root.into(),
         }
+    }
+
+    /// Compare and publish a revisioned reference while the caller holds the
+    /// product-root lock. The owner-state lock acquired here is retained until
+    /// the durable reference publication completes.
+    pub async fn compare_and_set_reference_unlocked<'a, F, Fut>(
+        &'a self,
+        record: &mut ActiveProfileReferenceRecord,
+        expected_revision: ActiveProfileReferenceRevision,
+        target: ActiveProfileReferenceTarget,
+        authorization: ActiveProfileReferenceWriteAuthorization,
+        local_engine: EngineId,
+        load_target_evidence: F,
+    ) -> Result<ActiveProfileReferenceState, PortError>
+    where
+        F: FnOnce(ActiveProfileReferenceTarget, EngineId) -> Fut + 'a,
+        Fut: Future<Output = Result<ActiveProfileReferenceTargetEvidence, PortError>> + 'a,
+    {
+        let cas_ready =
+            ActiveProfileReferenceCasReady::compare(&record.selection, expected_revision)?;
+        let (owner_state, _owner_state_guard) = self.normalize_owner_state_unlocked(record).await?;
+        validate_reference_write_authorization(&owner_state, &authorization, &self.config_root)?;
+        let target_evidence = load_target_evidence(target.clone(), local_engine.clone()).await?;
+        validate_target_evidence(&target, &local_engine, target_evidence)?;
+
+        let owner_fence = match &owner_state {
+            ActiveCoreOwnerState::Unowned => ActiveProfileReferenceOwnerFence::Unowned,
+            ActiveCoreOwnerState::Bound {
+                identity,
+                generation,
+                ..
+            } => ActiveProfileReferenceOwnerFence::Bound {
+                identity: identity.clone(),
+                generation: *generation,
+            },
+            ActiveCoreOwnerState::Switching { .. } => ActiveProfileReferenceOwnerFence::Switching,
+        };
+        record.selection = cas_ready.transition(target, owner_fence)?;
+        record.legacy_migration = LegacySelectionMigration::ExplicitSelection;
+        ActiveProfileReferenceFile::new(self.config_root.clone())
+            .publish_active_profile_record_sync_reconciled(record)?;
+        Ok(record.selection.clone())
     }
 
     /// Reconcile a persisted owner only after the host has supplied exact
@@ -374,6 +429,84 @@ impl ActiveProfileOwnerCoordinator {
         };
         *record = normalized;
         Ok((owner_state, owner_state_guard))
+    }
+}
+
+pub fn validate_reference_write_authorization(
+    owner_state: &ActiveCoreOwnerState,
+    authorization: &ActiveProfileReferenceWriteAuthorization,
+    config_root: &std::path::Path,
+) -> Result<(), PortError> {
+    match (owner_state, authorization) {
+        (ActiveCoreOwnerState::Unowned, ActiveProfileReferenceWriteAuthorization::Unowned) => {
+            Ok(())
+        }
+        (
+            ActiveCoreOwnerState::Bound {
+                identity,
+                generation,
+                token,
+            },
+            ActiveProfileReferenceWriteAuthorization::BoundOwner {
+                identity: authorized_identity,
+                generation: authorized_generation,
+            },
+        ) if identity.same_instance(authorized_identity) && generation == authorized_generation => {
+            if local_owner_registration_matches(
+                config_root,
+                token,
+                &LocalOwnerRegistrationState::Bound {
+                    identity: identity.clone(),
+                    generation: *generation,
+                },
+            )? {
+                Ok(())
+            } else {
+                Err(transition_rejected(
+                    "bound-owner reference writes require this process's exact owner lease",
+                ))
+            }
+        }
+        (ActiveCoreOwnerState::Switching { .. }, _) => Err(transition_rejected(
+            "active profile reference writes are blocked during owner switching",
+        )),
+        _ => Err(transition_rejected(
+            "active profile reference write authorization does not match the owner fence",
+        )),
+    }
+}
+
+fn validate_target_evidence(
+    target: &ActiveProfileReferenceTarget,
+    local_engine: &EngineId,
+    evidence: ActiveProfileReferenceTargetEvidence,
+) -> Result<(), PortError> {
+    match (target, evidence) {
+        (
+            ActiveProfileReferenceTarget::Unselected,
+            ActiveProfileReferenceTargetEvidence::Unselected,
+        ) => Ok(()),
+        (
+            ActiveProfileReferenceTarget::Selected {
+                engine_id,
+                profile_id,
+            },
+            ActiveProfileReferenceTargetEvidence::LocalWorkspace(identity),
+        ) if engine_id == local_engine
+            && identity.document.engine_id == *engine_id
+            && identity.document.profile_id == *profile_id =>
+        {
+            Ok(())
+        }
+        (
+            ActiveProfileReferenceTarget::Selected { engine_id, .. },
+            ActiveProfileReferenceTargetEvidence::OtherEngine,
+        ) if engine_id != local_engine => Ok(()),
+        _ => Err(PortError::Rejected(Failure::new(
+            ErrorCode::NotReady,
+            "selected profile document identity differs from the active reference target",
+            false,
+        ))),
     }
 }
 
