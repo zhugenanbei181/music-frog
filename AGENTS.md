@@ -14,6 +14,7 @@ Core-first 顺序同样是硬门：先完成所有底层 Core TODO（domain/cont
 
 ## 工作规则
 
+- **分支管理：** 本仓库只在 `main` 开发、提交和推送。开始操作先确认当前分支是 `main`；禁止创建或切换到其它分支、禁止另建 worktree。清理分支前先核对独有提交和未保存改动，任何已有工作都必须先安全归并到 `main`，不得用 reset 或删除分支丢弃。
 - **本地任务台账（gitignored，CI 无这些文件属正常）：** 任务真源是 `TODO.md`（三佛导航、points 台账）与 `todos/` 看板：`CODE_TODO.md` 现在佛、`CODE_TODO_PAST.md` 过去佛、`CODE_TODO_FUTURE.md` 未来佛、`MACHINE_TODO.md` 实机证据。开发会话先按 `TODO.md`「三佛工作流程」的 Agent 执行循环行事：定阶段 → 现在佛按 P0→P1、InProgress→Ready→Planned 选原子条目 → 实现完成同次迁入过去佛（`Integrated`）→ 验证收口通过后办结退出并在台账登记 archived points；三佛之间如何流转按该节流转总表执行，不得在旧描述里另记第二份状态。
 - 文档引用遵守单向层级：L0（本文件）→ L1（根 README、TESTING、第三方声明与文档地图）→ L2（跨 crate/surface 公共契约，含共享 UI contract）→ L3（具体 crate、Android、资源和工具实现细则）→ L4（本地 TODO 叶台账）。只允许同级或向下引用，包含 Markdown 链接及正文中的文档路径；实现细则和叶台账不得回引上位契约，公共入口负责向下导航。门禁按文件范围分配层级，校验头部声明与范围一致，并拒绝未登记 Markdown，不能靠改层级声明绕过反向引用检查。
 - 新功能先查 [owner 表](docs/FUNCTIONAL_MAP.md)，按 [架构边界](docs/ARCHITECTURE.md) 修改；每项事实只留一个权威来源。
