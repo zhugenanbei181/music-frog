@@ -1,6 +1,5 @@
 //! Engine selection for product composition roots.
 
-use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_identity::{CoreInstanceId, EngineId};
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::engine_backend_factory::{
@@ -249,6 +248,7 @@ impl EngineBackendProvider for SingBoxEngineBackendProvider {
 mod tests {
     use super::*;
     use async_trait::async_trait;
+    use infiltrator_contract::capability::Capability;
     use infiltrator_contract::core_identity::{
         CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion,
     };

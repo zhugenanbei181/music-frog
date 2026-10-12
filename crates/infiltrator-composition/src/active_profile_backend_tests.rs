@@ -2364,3 +2364,6 @@ fn registry_registration_probe_does_not_dispatch_a_provider() {
     ));
     assert_eq!(counts.created.load(Ordering::SeqCst), 0);
 }
+
+#[path = "active_profile_backend_tests/abort_candidate.rs"]
+mod abort_candidate;
