@@ -6,6 +6,104 @@ import org.junit.Test
 
 class AndroidVpnSnapshotFenceTest {
     @Test
+    fun vpnProjectionKeepsPermissionStartupAndTerminalStatesDistinct() {
+        val base = snapshot(owner = "owner", revision = 1L, vpnGeneration = 3L)
+        val noResources = VpnOwnerResourceKindWire.entries.map { kind ->
+            VpnOwnerResourceFactWire(kind, VpnOwnerResourceStateWire.Absent)
+        }
+        val awaitingPermission = base.copy(
+            vpnState = VpnOwnerLifecycleWire.PermissionRequired,
+            readiness = VpnOwnerReadinessWire.PermissionRequired,
+            resources = noResources,
+        )
+        assertEquals(VpnOwnerDataPlaneState.PermissionRequired, awaitingPermission.dataPlaneState())
+
+        val starting = base.copy(
+            vpnState = VpnOwnerLifecycleWire.TunnelEstablished,
+            readiness = VpnOwnerReadinessWire.AwaitingDataPlane,
+            resources = noResources,
+        )
+        assertEquals(VpnOwnerDataPlaneState.Starting, starting.dataPlaneState())
+
+        val stopped = base.copy(
+            vpnState = VpnOwnerLifecycleWire.Stopped,
+            readiness = VpnOwnerReadinessWire.Stopped,
+            resources = noResources,
+        )
+        assertEquals(VpnOwnerDataPlaneState.Stopped, stopped.dataPlaneState())
+
+        val revoked = stopped.copy(
+            vpnState = VpnOwnerLifecycleWire.Revoked,
+            readiness = VpnOwnerReadinessWire.Revoked,
+        )
+        assertEquals(VpnOwnerDataPlaneState.Revoked, revoked.dataPlaneState())
+    }
+
+    @Test
+    fun vpnRunningRequiresForegroundAndCurrentWorkerAndTunnelResources() {
+        val base = snapshot(owner = "owner", revision = 1L, vpnGeneration = 3L)
+        val runningResources = VpnOwnerResourceKindWire.entries.map { kind ->
+            val state = when (kind) {
+                VpnOwnerResourceKindWire.Worker,
+                VpnOwnerResourceKindWire.TunnelDescriptor -> VpnOwnerResourceStateWire.Held(3L)
+                VpnOwnerResourceKindWire.PreparedConfiguration,
+                VpnOwnerResourceKindWire.RoutingLease -> VpnOwnerResourceStateWire.Absent
+            }
+            VpnOwnerResourceFactWire(kind, state)
+        }
+        val running = base.copy(resources = runningResources)
+        assertEquals(VpnOwnerDataPlaneState.Running, running.dataPlaneState())
+
+        assertEquals(
+            VpnOwnerDataPlaneState.Failed("VPN Running readback lacks foreground protection"),
+            running.copy(foreground = false).dataPlaneState(),
+        )
+        assertEquals(
+            VpnOwnerDataPlaneState.Failed("VPN Running readback lacks its current worker or tunnel resource"),
+            running.copy(
+                resources = runningResources.filterNot { it.kind == VpnOwnerResourceKindWire.TunnelDescriptor },
+            ).dataPlaneState(),
+        )
+        assertEquals(
+            VpnOwnerDataPlaneState.CleanupPending("descriptor close failed"),
+            running.copy(
+                resources = runningResources.map { fact ->
+                    if (fact.kind == VpnOwnerResourceKindWire.TunnelDescriptor) {
+                        fact.copy(state = VpnOwnerResourceStateWire.CleanupPending(3L, "descriptor close failed"))
+                    } else {
+                        fact
+                    }
+                },
+            ).dataPlaneState(),
+        )
+    }
+
+    @Test
+    fun coreAndVpnLifecycleRemainSeparateFactsInAStoppedOwnerSnapshot() {
+        val base = snapshot(owner = "owner", revision = 1L, vpnGeneration = 3L)
+        val stoppedCore = (base.core as VpnOwnerCoreReadbackWire.Available).snapshot.copy(
+            lifecycle = CoreOwnerLifecycleWire.Stopped,
+            sessionToken = null,
+            revision = 0L,
+        )
+        val noResources = VpnOwnerResourceKindWire.entries.map { kind ->
+            VpnOwnerResourceFactWire(kind, VpnOwnerResourceStateWire.Absent)
+        }
+        val stopped = base.copy(
+            vpnState = VpnOwnerLifecycleWire.Stopped,
+            readiness = VpnOwnerReadinessWire.Stopped,
+            resources = noResources,
+            core = VpnOwnerCoreReadbackWire.Available(stoppedCore),
+        )
+
+        assertEquals(VpnOwnerDataPlaneState.Stopped, stopped.dataPlaneState())
+        assertEquals(
+            CoreOwnerLifecycleWire.Stopped,
+            (stopped.core as VpnOwnerCoreReadbackWire.Available).snapshot.lifecycle,
+        )
+    }
+
+    @Test
     fun olderOwnerRevisionAndRetiredOwnerCannotReplaceSnapshot() {
         val fence = AndroidVpnSnapshotFence()
         val current = snapshot(owner = "owner-b", revision = 12L, vpnGeneration = 8L)

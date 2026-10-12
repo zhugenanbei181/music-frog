@@ -198,12 +198,21 @@ internal class AndroidOwnerSessionFence {
         }
 
         retiredSessions += currentSessionId
-        state = OwnerSessionFenceState.ReadbackRequired(
-            ownerSessionId = responseSessionId,
-            requestId = requestId,
-            terminal = OwnerClientTerminal.OwnerSessionReadbackRequired,
-            progress = readbackProgress(OwnerSessionReadbackProgress.AwaitingCoreAndVpn, evidence),
-        )
+        val progress = readbackProgress(OwnerSessionReadbackProgress.AwaitingCoreAndVpn, evidence)
+        state = when (progress) {
+            OwnerSessionReadbackProgress.AwaitingCoreAndVpn,
+            OwnerSessionReadbackProgress.AwaitingCore,
+            OwnerSessionReadbackProgress.AwaitingVpn -> OwnerSessionFenceState.ReadbackRequired(
+                ownerSessionId = responseSessionId,
+                requestId = requestId,
+                terminal = OwnerClientTerminal.OwnerSessionReadbackRequired,
+                progress = progress,
+            )
+            OwnerSessionReadbackProgress.Complete -> OwnerSessionFenceState.Ready(
+                ownerSessionId = responseSessionId,
+                requestId = requestId,
+            )
+        }
         return OwnerSessionAcceptance.Changed
     }
 

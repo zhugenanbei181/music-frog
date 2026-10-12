@@ -1,10 +1,10 @@
 package infiltrator_android
 
 /** Compile-only shapes for UniFFI types used by the isolated VPN host-state tests. */
-enum class FfiErrorCode {
-    OK,
-    INVALID_STATE,
-    NOT_READY,
+enum class FfiErrorCode(val value: UInt) {
+    OK(0u),
+    INVALID_STATE(1u),
+    NOT_READY(3u),
 }
 
 data class FfiStatus(val code: FfiErrorCode, val message: String?)
@@ -13,6 +13,28 @@ enum class AndroidAppRoutingMode {
     PROXY_ALL,
     PROXY_SELECTED,
     BYPASS_SELECTED,
+}
+
+enum class AndroidCoreLifecycle {
+    STOPPED,
+    STARTING,
+    READY,
+    RUNNING,
+    STOPPING,
+    FAILED,
+}
+
+enum class AndroidOwnerDataDomain {
+    PROFILES,
+    CORE_VERSIONS,
+    DNS_SETTINGS,
+    TUN_SETTINGS,
+    FAKE_IP_SETTINGS,
+    FAKE_IP_CACHE,
+    RULES,
+    RULE_PROVIDERS,
+    APP_ROUTING,
+    WEB_DAV,
 }
 
 enum class AndroidHostReply {

@@ -228,7 +228,7 @@ internal data class CoreOwnerFailureWire(
             require(keys == setOf("code", "message", "retryable") ||
                 keys == setOf("code", "message", "retryable", "reason"))
             val reason = if (json.has("reason")) CoreOwnerFailureReasonWire.parse(json.get("reason")) else null
-            CoreOwnerFailureWire(
+            return CoreOwnerFailureWire(
                 code = CoreOwnerFailureCodeWire.entries.first { it.wireName == json.getString("code") },
                 message = json.getString("message"),
                 retryable = json.getBoolean("retryable"),

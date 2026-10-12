@@ -30,6 +30,11 @@ kotlin {
                 "com/musicfrog/infiltrator/MihomoCoreConfigurationValidator.kt",
                 "com/musicfrog/infiltrator/CoreProcessController.kt",
                 "com/musicfrog/infiltrator/AndroidOwnerSessionFence.kt",
+                "com/musicfrog/infiltrator/AndroidCoreSnapshotFence.kt",
+                "com/musicfrog/infiltrator/AndroidOwnerDataFence.kt",
+                "com/musicfrog/infiltrator/AndroidVpnSnapshotFence.kt",
+                "com/musicfrog/infiltrator/VpnOwnerSnapshotWire.kt",
+                "com/musicfrog/infiltrator/VpnOwnerStopReceiptWire.kt",
                 "com/musicfrog/infiltrator/OwnerIpcClientPendingLedger.kt",
                 "com/musicfrog/infiltrator/VpnOwnerSessionGate.kt",
                 "com/musicfrog/infiltrator/VpnCleanupContract.kt",
@@ -50,6 +55,10 @@ kotlin {
             kotlin.srcDir("../app/src/test/java")
             kotlin.include(
                 "com/musicfrog/infiltrator/AndroidCoreProcessRecordStoreTest.kt",
+                "com/musicfrog/infiltrator/AndroidCoreSnapshotFenceTest.kt",
+                "com/musicfrog/infiltrator/AndroidOwnerDataFenceTest.kt",
+                "com/musicfrog/infiltrator/AndroidOwnerSessionFenceTest.kt",
+                "com/musicfrog/infiltrator/AndroidVpnSnapshotFenceTest.kt",
                 "com/musicfrog/infiltrator/CoreBinaryResolverTest.kt",
                 "com/musicfrog/infiltrator/CoreLaunchSpecWireTest.kt",
                 "com/musicfrog/infiltrator/MihomoCoreConfigurationValidatorTest.kt",
@@ -60,6 +69,7 @@ kotlin {
                 "com/musicfrog/infiltrator/VpnOwnerRequestDeadlineTest.kt",
                 "com/musicfrog/infiltrator/VpnProcessStateTest.kt",
                 "com/musicfrog/infiltrator/VpnRoutingLeaseStateTest.kt",
+                "com/musicfrog/infiltrator/VpnStopOwnerContractTest.kt",
                 "com/musicfrog/infiltrator/VpnOwnerSessionGateTest.kt",
                 "com/musicfrog/infiltrator/VpnServiceStartupTest.kt",
             )
