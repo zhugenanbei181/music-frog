@@ -3,14 +3,13 @@ use crate::network_roaming::DesktopNetworkRoamingPort;
 use crate::pac_service::DesktopPacServicePort;
 use crate::rule_override::DesktopRuleOverridePort;
 use crate::script_export::DesktopScriptExportPort;
-use crate::service::{ServiceManager, ServiceStatus};
+use crate::service::ServiceManager;
 use crate::service_mode::DesktopServiceMode;
 use crate::storage::doctor;
 use crate::storage::{settings_store, speedtest_history_store, subscription_source};
 use crate::surface::{SurfaceEngines, SurfacePumpParams, surface_pump};
 use crate::system_dns_cache::DesktopSystemDnsCache;
 use crate::system_proxy::DesktopSystemProxy;
-use crate::tun_service::{ServiceModeStatus, TunServiceManager};
 use anyhow::anyhow;
 use infiltrator_application::configuration_application::ConfigurationApplication;
 use infiltrator_application::core_application::CoreApplication;
@@ -30,6 +29,7 @@ use infiltrator_application::speedtest_application::SpeedtestApplication;
 use infiltrator_application::stun_probe_application::StunProbeApplication;
 use infiltrator_application::surface_application::SurfacePump;
 use infiltrator_application::system_proxy_application::SystemProxyApplication;
+use infiltrator_composition::active_profile_backend::ActiveProfileSelectionPreflight;
 use infiltrator_contract::active_profile_reference::ActiveProfileReference;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::snapshot::CoreLifecycle;
@@ -37,16 +37,15 @@ use infiltrator_contract::stun_probe::DEFAULT_STUN_SERVER;
 use infiltrator_contract::surface::SurfaceKind;
 use infiltrator_contract::system_proxy::SystemProxyRecoveryStatus;
 use infiltrator_core::apply::{
-    ApplyOutcome, ApplyParams, ApplyResult, EndpointConfigReloader,
-    apply_active_profile_reference as apply_selected_reference_transaction,
+    ApplyOutcome, ApplyParams, ApplyResult, EndpointConfigReloader, apply_active_profile_reference,
 };
 use infiltrator_core::dns_latency_io::HttpDnsLatencyProber;
 use infiltrator_core::dns_leak_io::HttpDnsLeakEchoProbe;
 use infiltrator_core::snapshot_io::FileSnapshotStore;
 use infiltrator_core::stun_io::UdpStunProbe;
 use infiltrator_domain::apply::ApplyStrategy;
-use infiltrator_domain::proxy::ProxyGroup;
 use infiltrator_ports::core_binary_selection::CoreBinarySelection;
+use infiltrator_ports::core_capability_provider::CoreCapabilityProvider;
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::endpoint::EndpointSource;
 use infiltrator_ports::engine_backend_factory::EngineBackendPorts;
@@ -57,13 +56,13 @@ use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use infiltrator_ports::speedtest_history::SpeedtestHistoryStore;
 use mihomo_api::client::MihomoClient;
 use mihomo_api::controller_fake_ip_cache::MihomoControllerFakeIpCacheAdapter;
-use mihomo_api::proxy::manager::ProxyManager;
 use mihomo_api::routing_intent::MihomoRoutingIntentAdapter;
+use mihomo_api::runtime_configuration::RuntimeScopeResolver;
 use mihomo_config::endpoint::ProfileEndpointSource;
 use mihomo_config::manager::ConfigManager;
+use mihomo_config::yaml;
 use mihomo_platform::defaults::DefaultCredentialStore;
 use mihomo_version::engine::engine_id;
-use serde::Serialize;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time;
@@ -85,8 +84,7 @@ pub(crate) struct MihomoRuntime {
     pub binary_path: PathBuf,
     pub controller_url: String,
     client: MihomoClient,
-    core_capability_provider:
-        Arc<dyn infiltrator_ports::core_capability_provider::CoreCapabilityProvider>,
+    core_capability_provider: Arc<dyn CoreCapabilityProvider>,
     runtime_gateway: Arc<dyn RuntimeGateway>,
     backend_ports: EngineBackendPorts,
     service_manager: ServiceManager,
@@ -119,20 +117,12 @@ pub(crate) struct MihomoRuntime {
     stun_probe: StunProbeApplication,
 }
 
-#[derive(Debug, Clone, Serialize)]
-pub struct MihomoSummary {
-    pub profile: String,
-    pub running: bool,
-    pub controller: String,
-    pub groups: Vec<ProxyGroup>,
-}
-
 impl MihomoRuntime {
     /// Initialize the real desktop ports without starting a stopped kernel.
     pub(crate) async fn prepare_offline(
         selection: CoreBinarySelection,
         config_manager: Arc<ConfigManager<DefaultCredentialStore>>,
-        mut preflight: infiltrator_composition::active_profile_backend::ActiveProfileSelectionPreflight,
+        mut preflight: ActiveProfileSelectionPreflight,
     ) -> anyhow::Result<Self> {
         if selection.engine_id != preflight.reference.engine_id
             || selection.engine_id != engine_id()
@@ -168,7 +158,7 @@ impl MihomoRuntime {
             ))));
         }
         let content = cm.load(active_profile.as_str()).await?;
-        mihomo_config::yaml::validate(&content)?;
+        yaml::validate(&content)?;
         let config_path = cm
             .existing_profile_document_path(active_profile.as_str())
             .await?;
@@ -281,23 +271,21 @@ impl MihomoRuntime {
             .await?,
         );
         let scope_application = application.clone();
-        let scope_resolver: mihomo_api::runtime_configuration::RuntimeScopeResolver =
-            Arc::new(move || {
-                let lifecycle = scope_application.snapshot().lifecycle_snapshot();
-                match &lifecycle.lifecycle {
-                    CoreLifecycle::Running | CoreLifecycle::Ready => {
-                        lifecycle.scope().ok_or_else(|| {
-                            PortError::Failed(
-                                "active Core identity is unavailable for configuration access"
-                                    .into(),
-                            )
-                        })
-                    }
-                    _ => Err(PortError::Failed(
-                        "configuration access requires a running Core".to_owned(),
-                    )),
+        let scope_resolver: RuntimeScopeResolver = Arc::new(move || {
+            let lifecycle = scope_application.snapshot().lifecycle_snapshot();
+            match &lifecycle.lifecycle {
+                CoreLifecycle::Running | CoreLifecycle::Ready => {
+                    lifecycle.scope().ok_or_else(|| {
+                        PortError::Failed(
+                            "active Core identity is unavailable for configuration access".into(),
+                        )
+                    })
                 }
-            });
+                _ => Err(PortError::Failed(
+                    "configuration access requires a running Core".to_owned(),
+                )),
+            }
+        });
         client.set_configuration_scope_resolver(scope_resolver);
         // Attach to an already-running instance by proving it answers, or
         // start a fresh one and let the application own readiness retries.
@@ -363,14 +351,6 @@ impl MihomoRuntime {
         self.application.clone()
     }
 
-    pub fn core_binary_path(&self) -> &Path {
-        &self.binary_path
-    }
-
-    pub fn tun_service_status(&self) -> ServiceModeStatus {
-        TunServiceManager::check_status_for(&self.binary_path)
-    }
-
     /// Apply exactly the profile selected by `expected`, keeping its
     /// revisioned reference fenced through the native transaction and any
     /// native rollback.
@@ -382,7 +362,7 @@ impl MihomoRuntime {
         let _guard = self.apply_guard.lock().await;
         let reloader =
             EndpointConfigReloader::new(self.endpoints.clone() as Arc<dyn EndpointSource>);
-        apply_selected_reference_transaction(
+        apply_active_profile_reference(
             self.application.as_ref(),
             self.config_manager.as_ref(),
             &reloader,
@@ -393,10 +373,6 @@ impl MihomoRuntime {
             },
         )
         .await
-    }
-
-    pub fn client(&self) -> MihomoClient {
-        self.client.clone()
     }
 
     /// Compose the complete 11-page surface reader for an inbound UI. The
@@ -436,31 +412,6 @@ impl MihomoRuntime {
             dns_leak: self.dns_leak.clone(),
             stun_probe: self.stun_probe.clone(),
         }
-    }
-
-    pub async fn summary(&self) -> anyhow::Result<MihomoSummary> {
-        let profile = ProfileStore::get_current(self.config_manager.as_ref()).await?;
-        let running = matches!(
-            self.service_manager.status().await?,
-            ServiceStatus::Running(_)
-        );
-
-        let proxy_manager = ProxyManager::new(self.client());
-        let groups = proxy_manager.list_groups().await.unwrap_or_default();
-
-        Ok(MihomoSummary {
-            profile,
-            running,
-            controller: self.controller_url.clone(),
-            groups,
-        })
-    }
-
-    pub async fn switch_proxy(&self, group: &str, proxy: &str) -> anyhow::Result<()> {
-        self.client
-            .switch_proxy(group, proxy)
-            .await
-            .map_err(|err| anyhow!(err.to_string()))
     }
 
     pub async fn shutdown(&self) -> anyhow::Result<()> {

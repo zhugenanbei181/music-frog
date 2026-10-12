@@ -14,7 +14,10 @@ use crate::rule_provider_cache::DesktopRuleProviderCache;
 use crate::runtime::MihomoRuntime;
 use crate::service::ServiceManager;
 use crate::service_mode::DesktopServiceMode;
-use crate::storage::{engine_profile_stores, home_dir, port_conflict, version_factory};
+use crate::singbox_runtime::SingBoxRuntime;
+use crate::storage::{
+    DesktopEngineProfileStores, engine_profile_stores, home_dir, port_conflict, version_factory,
+};
 use crate::subscription_import_port::DesktopSubscriptionImportPort;
 use crate::subscription_notification_port::DesktopSubscriptionNotificationPort;
 use crate::surface::SurfaceEngines;
@@ -119,7 +122,7 @@ pub(crate) async fn open_default_product_backend(
     let references: Arc<dyn ActiveProfileReferenceStore> = config_manager.clone();
     let preflight = preflight_active_profile_reference(
         references,
-        profile_stores,
+        profile_stores.all(),
         Arc::clone(&capability_provider),
     )
     .await?;
@@ -132,6 +135,7 @@ pub(crate) async fn open_default_product_backend(
     open_product_backend_with_source(
         preflight,
         config_manager,
+        profile_stores,
         surface,
         &version_factory,
         BundledBinarySource {
@@ -145,29 +149,46 @@ pub(crate) async fn open_default_product_backend(
 async fn open_product_backend_with_source(
     preflight: ActiveProfileSelectionPreflight,
     config_manager: Arc<ConfigManager<DefaultCredentialStore>>,
+    profile_stores: DesktopEngineProfileStores,
     surface: SurfaceKind,
     version_factory: &dyn EngineVersionBackendFactory,
     bundled_source: BundledBinarySource,
 ) -> anyhow::Result<DesktopProductBackend> {
     let engine_id = preflight.reference.engine_id.clone();
     let provider = desktop_runtime_factory()?.provider(&engine_id)?;
-    let selection = select_product_binary(
-        version_factory,
-        &engine_id,
-        CoreBinarySelectionPolicy::PreferBundled(bundled_source),
-    )
-    .await?;
-    match provider
-        .create(
-            selection,
-            DesktopRuntimeRequest::OpenProduct {
+    let policy = provider.binary_selection_policy(bundled_source);
+    let selection = select_product_binary(version_factory, &engine_id, policy).await?;
+    let request = match engine_id.as_str() {
+        "mihomo" => DesktopRuntimeRequest::MihomoProduct {
+            surface,
+            config_manager,
+            preflight,
+        },
+        "sing-box" => {
+            let config_path = profile_stores
+                .sing_box_manager
+                .existing_profile_document_path(preflight.reference.profile_id.as_str())
+                .await?;
+            let reference_store: Arc<dyn ActiveProfileReferenceStore> = config_manager;
+            DesktopRuntimeRequest::SingBoxProduct {
                 surface,
-                config_manager,
+                reference_store,
+                profile_store: profile_stores.for_engine(&engine_id)?,
+                config_path,
                 preflight,
-            },
-        )
-        .await?
-    {
+            }
+        }
+        _ => {
+            return Err(anyhow::Error::new(PortError::unsupported(
+                Capability::CoreLifecycle,
+                format!(
+                    "no desktop product composition exists for {}",
+                    engine_id.as_str()
+                ),
+            )));
+        }
+    };
+    match provider.create(selection, request).await? {
         DesktopRuntimeOutcome::Product(backend) => Ok(backend),
     }
 }
@@ -179,6 +200,11 @@ async fn open_product_backend_with_source(
 trait DesktopEngineRuntimeProvider: Send + Sync {
     fn engine_id(&self) -> EngineId;
 
+    fn binary_selection_policy(
+        &self,
+        bundled_source: BundledBinarySource,
+    ) -> CoreBinarySelectionPolicy;
+
     async fn create(
         &self,
         selection: CoreBinarySelection,
@@ -187,9 +213,16 @@ trait DesktopEngineRuntimeProvider: Send + Sync {
 }
 
 enum DesktopRuntimeRequest {
-    OpenProduct {
+    MihomoProduct {
         surface: SurfaceKind,
         config_manager: Arc<ConfigManager<DefaultCredentialStore>>,
+        preflight: ActiveProfileSelectionPreflight,
+    },
+    SingBoxProduct {
+        surface: SurfaceKind,
+        reference_store: Arc<dyn ActiveProfileReferenceStore>,
+        profile_store: Arc<dyn ProfileStore>,
+        config_path: PathBuf,
         preflight: ActiveProfileSelectionPreflight,
     },
 }
@@ -238,8 +271,9 @@ impl DesktopEngineRuntimeFactory {
 }
 
 fn desktop_runtime_factory() -> Result<DesktopEngineRuntimeFactory, PortError> {
-    let provider: Arc<dyn DesktopEngineRuntimeProvider> = Arc::new(DesktopMihomoRuntimeProvider);
-    DesktopEngineRuntimeFactory::new([provider])
+    let mihomo: Arc<dyn DesktopEngineRuntimeProvider> = Arc::new(DesktopMihomoRuntimeProvider);
+    let sing_box: Arc<dyn DesktopEngineRuntimeProvider> = Arc::new(DesktopSingBoxRuntimeProvider);
+    DesktopEngineRuntimeFactory::new([mihomo, sing_box])
 }
 
 struct DesktopMihomoRuntimeProvider;
@@ -248,6 +282,13 @@ struct DesktopMihomoRuntimeProvider;
 impl DesktopEngineRuntimeProvider for DesktopMihomoRuntimeProvider {
     fn engine_id(&self) -> EngineId {
         MihomoVersionPort::engine_identifier()
+    }
+
+    fn binary_selection_policy(
+        &self,
+        bundled_source: BundledBinarySource,
+    ) -> CoreBinarySelectionPolicy {
+        CoreBinarySelectionPolicy::PreferBundled(bundled_source)
     }
 
     async fn create(
@@ -266,7 +307,7 @@ impl DesktopEngineRuntimeProvider for DesktopMihomoRuntimeProvider {
         }
 
         match request {
-            DesktopRuntimeRequest::OpenProduct {
+            DesktopRuntimeRequest::MihomoProduct {
                 surface,
                 config_manager,
                 preflight,
@@ -295,6 +336,76 @@ impl DesktopEngineRuntimeProvider for DesktopMihomoRuntimeProvider {
                     host_runtime,
                     surface_pump,
                 }))
+            }
+            DesktopRuntimeRequest::SingBoxProduct { .. } => {
+                Err(anyhow::Error::new(PortError::Failed(
+                    "Mihomo runtime provider received a sing-box product request".to_owned(),
+                )))
+            }
+        }
+    }
+}
+
+struct DesktopSingBoxRuntimeProvider;
+
+#[async_trait::async_trait]
+impl DesktopEngineRuntimeProvider for DesktopSingBoxRuntimeProvider {
+    fn engine_id(&self) -> EngineId {
+        singbox_adapter::engine_id()
+    }
+
+    fn binary_selection_policy(
+        &self,
+        _bundled_source: BundledBinarySource,
+    ) -> CoreBinarySelectionPolicy {
+        CoreBinarySelectionPolicy::ManagedOnly
+    }
+
+    async fn create(
+        &self,
+        selection: CoreBinarySelection,
+        request: DesktopRuntimeRequest,
+    ) -> anyhow::Result<DesktopRuntimeOutcome> {
+        match request {
+            DesktopRuntimeRequest::SingBoxProduct {
+                surface,
+                reference_store,
+                profile_store,
+                config_path,
+                preflight,
+            } => {
+                let runtime = Arc::new(
+                    SingBoxRuntime::prepare(
+                        selection,
+                        reference_store,
+                        profile_store,
+                        config_path,
+                        preflight,
+                    )
+                    .await?,
+                );
+                let application = runtime.application();
+                let product_setup = runtime
+                    .surface_pump(surface, Duration::from_millis(700))
+                    .await;
+                let surface_pump = match product_setup {
+                    Ok(pump) => pump,
+                    Err(error) => {
+                        let _ = application.close().await;
+                        return Err(error);
+                    }
+                };
+                let host_runtime: Arc<dyn HostRuntime> = runtime;
+                Ok(DesktopRuntimeOutcome::Product(DesktopProductBackend {
+                    application,
+                    host_runtime,
+                    surface_pump,
+                }))
+            }
+            DesktopRuntimeRequest::MihomoProduct { .. } => {
+                Err(anyhow::Error::new(PortError::Failed(
+                    "sing-box runtime provider received a Mihomo product request".to_owned(),
+                )))
             }
         }
     }

@@ -219,10 +219,31 @@ pub async fn surface_pump(params: SurfacePumpParams) -> anyhow::Result<SurfacePu
         params.engines,
     )
     .await?;
+    spawn_surface_pump(reader, params.surface, params.sample_interval).await
+}
+
+/// Build a shared surface pump for a product that currently exposes only
+/// engine lifecycle state. Unconnected pages remain explicitly unsupported.
+pub async fn core_surface_pump(
+    core: Arc<CoreApplication>,
+    surface: SurfaceKind,
+    capabilities: CapabilitySnapshot,
+    sample_interval: Duration,
+) -> anyhow::Result<SurfacePump> {
+    let reader = ApplicationSurfaceReader::new(core, surface, HostKind::Desktop)
+        .with_capabilities(capabilities);
+    spawn_surface_pump(reader, surface, sample_interval).await
+}
+
+async fn spawn_surface_pump(
+    reader: ApplicationSurfaceReader,
+    surface: SurfaceKind,
+    sample_interval: Duration,
+) -> anyhow::Result<SurfacePump> {
     let runtime = infiltrator_composition::tokio_application_runtime()
         .map_err(|error| anyhow::anyhow!(error))?;
     let initial = SurfaceSnapshot::unavailable(
-        params.surface,
+        surface,
         HostKind::Desktop,
         Failure::new(
             ErrorCode::NotReady,
@@ -232,7 +253,7 @@ pub async fn surface_pump(params: SurfacePumpParams) -> anyhow::Result<SurfacePu
     );
     Ok(SurfacePump::spawn(
         Arc::new(reader),
-        params.sample_interval,
+        sample_interval,
         runtime,
         initial,
     ))

@@ -106,30 +106,3 @@ async fn offline_geoip_missing_is_non_fatal_and_does_not_write_or_download() {
 
     assert!(!target.exists());
 }
-
-#[test]
-fn test_mihomo_summary_serialization() {
-    let summary = MihomoSummary {
-        profile: "default".to_string(),
-        running: true,
-        controller: "http://127.0.0.1:9090".to_string(),
-        groups: vec![],
-    };
-
-    let serialized = serde_json::to_string(&summary);
-    assert!(serialized.is_ok());
-}
-
-#[test]
-fn test_mihomo_summary_debug() {
-    let summary = MihomoSummary {
-        profile: "default".to_string(),
-        running: true,
-        controller: "http://127.0.0.1:9090".to_string(),
-        groups: vec![],
-    };
-
-    let debug_str = format!("{:?}", summary);
-    assert!(debug_str.contains("default"));
-    assert!(debug_str.contains("default"));
-}

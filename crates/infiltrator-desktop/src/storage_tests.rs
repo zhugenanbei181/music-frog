@@ -17,16 +17,21 @@ async fn product_profile_store_registry_uses_the_resolved_shared_configs_root() 
 
     let stores = engine_profile_stores(home.path().to_path_buf(), Arc::clone(&mihomo))
         .expect("register both engine profile stores");
-    let engines: Vec<_> = stores.iter().map(|store| store.engine_id()).collect();
+    let registered_stores = stores.all();
+    let mut engines: Vec<_> = registered_stores
+        .iter()
+        .map(|store| store.engine_id())
+        .collect();
+    engines.sort_by(|left, right| left.as_str().cmp(right.as_str()));
     assert_eq!(
         engines,
         vec![
             MihomoVersionPort::engine_identifier(),
-            singbox_adapter::engine_id(),
+            singbox_adapter::engine_id()
         ]
     );
 
-    let sing_box = stores
+    let sing_box = registered_stores
         .iter()
         .find(|store| store.engine_id() == singbox_adapter::engine_id())
         .expect("sing-box profile store is registered");

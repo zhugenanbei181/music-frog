@@ -3,6 +3,8 @@
 use crate::port_conflict::DesktopPortConflict;
 use crate::speedtest_history_store::FileSpeedtestHistoryStore;
 use infiltrator_application::version_application::VersionApplication;
+use infiltrator_contract::capability::Capability;
+use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::version::CoreArtifactVerification;
 use infiltrator_core::app_routing_io::FileAppRoutingStore;
 use infiltrator_core::doctor_port::MihomoDoctor;
@@ -45,6 +47,7 @@ use mihomo_config::profile_option_store::{load_options, save_options};
 use mihomo_platform::defaults::DefaultCredentialStore;
 use singbox_adapter::profile_document_codec::SingBoxProfileDocumentCodec;
 use singbox_adapter::version::SingBoxEngineVersionBackendFactory;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock};
 
@@ -56,20 +59,52 @@ pub async fn profile_store() -> anyhow::Result<Arc<dyn ProfileStore>> {
     open().await
 }
 
+pub struct DesktopEngineProfileStores {
+    stores: HashMap<EngineId, Arc<dyn ProfileStore>>,
+    pub sing_box_manager: Arc<ConfigManager<DefaultCredentialStore>>,
+}
+
+impl DesktopEngineProfileStores {
+    pub fn all(&self) -> Vec<Arc<dyn ProfileStore>> {
+        self.stores.values().cloned().collect()
+    }
+
+    pub fn for_engine(&self, engine: &EngineId) -> Result<Arc<dyn ProfileStore>, PortError> {
+        self.stores.get(engine).cloned().ok_or_else(|| {
+            PortError::unsupported(
+                Capability::Profiles,
+                format!(
+                    "no desktop profile store is registered for {}",
+                    engine.as_str()
+                ),
+            )
+        })
+    }
+}
+
 pub fn engine_profile_stores(
     home: PathBuf,
     mihomo: Arc<ConfigManager<DefaultCredentialStore>>,
-) -> anyhow::Result<Vec<Arc<dyn ProfileStore>>> {
-    let sing_box: Arc<dyn ProfileStore> =
-        Arc::new(ConfigManager::with_profile_codec_and_store_at_root(
-            home,
-            mihomo.config_root().to_path_buf(),
-            DefaultCredentialStore::default(),
-            Arc::new(SingBoxProfileDocumentCodec),
-            ProfileDocumentExtension::Json,
-        )?);
-    let mihomo: Arc<dyn ProfileStore> = mihomo;
-    Ok(vec![mihomo, sing_box])
+) -> anyhow::Result<DesktopEngineProfileStores> {
+    let sing_box_manager = Arc::new(ConfigManager::with_profile_codec_and_store_at_root(
+        home,
+        mihomo.config_root().to_path_buf(),
+        DefaultCredentialStore::default(),
+        Arc::new(SingBoxProfileDocumentCodec),
+        ProfileDocumentExtension::Json,
+    )?);
+    let stores: [Arc<dyn ProfileStore>; 2] = [mihomo, sing_box_manager.clone()];
+    let mut by_engine = HashMap::with_capacity(stores.len());
+    for store in stores {
+        let engine = store.engine_id();
+        if by_engine.insert(engine.clone(), store).is_some() {
+            anyhow::bail!("duplicate desktop profile store for {}", engine.as_str());
+        }
+    }
+    Ok(DesktopEngineProfileStores {
+        stores: by_engine,
+        sing_box_manager,
+    })
 }
 
 pub async fn profile_controller_url() -> anyhow::Result<String> {

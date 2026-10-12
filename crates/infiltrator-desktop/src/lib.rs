@@ -30,6 +30,7 @@ pub mod script_export;
 pub mod service;
 pub mod service_mode;
 pub mod shortcut_manager;
+mod singbox_runtime;
 pub mod speedtest_history_store;
 pub mod storage;
 pub mod subscription_import_port;

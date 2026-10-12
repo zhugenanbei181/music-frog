@@ -5,8 +5,11 @@ use infiltrator_contract::core_capabilities::{
     AdapterCapabilityDecision, CoreLifecycleOperation, CoreOperation, EngineCapabilityDecision,
 };
 use infiltrator_contract::core_identity::EngineId;
-use infiltrator_ports::core_binary_selection::CoreBinarySelection;
+use infiltrator_ports::core_binary_selection::{
+    BundledBinarySource, CoreBinarySelection, CoreBinarySelectionPolicy,
+};
 use infiltrator_ports::core_capability_provider::CoreCapabilityProviderError;
+use std::env;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -21,6 +24,13 @@ impl DesktopEngineRuntimeProvider for CountingDesktopRuntimeProvider {
         self.engine_id.clone()
     }
 
+    fn binary_selection_policy(
+        &self,
+        _bundled_source: BundledBinarySource,
+    ) -> CoreBinarySelectionPolicy {
+        CoreBinarySelectionPolicy::ManagedOnly
+    }
+
     async fn create(
         &self,
         _selection: CoreBinarySelection,
@@ -31,6 +41,28 @@ impl DesktopEngineRuntimeProvider for CountingDesktopRuntimeProvider {
             "counting provider must not be called by lookup".to_owned(),
         )))
     }
+}
+
+#[test]
+fn desktop_binary_policy_keeps_sing_box_managed_only_and_mihomo_bundle_aware() {
+    let factory = desktop_runtime_factory().unwrap();
+    let bundle = BundledBinarySource {
+        candidates: Vec::new(),
+        data_directory: env::temp_dir(),
+    };
+    let mihomo = factory
+        .provider(&MihomoVersionPort::engine_identifier())
+        .unwrap();
+    assert!(matches!(
+        mihomo.binary_selection_policy(bundle.clone()),
+        CoreBinarySelectionPolicy::PreferBundled(_)
+    ));
+
+    let sing_box = factory.provider(&singbox_adapter::engine_id()).unwrap();
+    assert_eq!(
+        sing_box.binary_selection_policy(bundle),
+        CoreBinarySelectionPolicy::ManagedOnly
+    );
 }
 
 #[test]

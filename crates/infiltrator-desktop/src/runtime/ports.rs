@@ -14,12 +14,15 @@ use crate::tun_service::{ServiceModeStatus, TunServiceManager};
 use futures_util::StreamExt;
 use futures_util::stream::{BoxStream, unfold};
 use infiltrator_application::core_application::CoreApplication;
-use infiltrator_contract::active_profile_reference::ActiveProfileReference;
+use infiltrator_contract::active_profile_reference::{
+    ActiveProfileReference, ActiveProfileReferenceWriteAuthorization,
+};
 use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_identity::{CoreScope, EngineId};
-use infiltrator_contract::error::{ErrorCode, Failure, FailureReason};
+use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use infiltrator_contract::snapshot::CoreLifecycle;
+use infiltrator_core::apply::failure_from_apply_error;
 use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_domain::runtime::{
     ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider, TrafficData,
@@ -38,7 +41,7 @@ use infiltrator_ports::pac::PacServicePort;
 use infiltrator_ports::privileged_network::PrivilegedNetworkPort;
 use infiltrator_ports::profile_configuration_transaction::{
     ProfileConfigurationCommitEffect, ProfileConfigurationTransactionOutcome,
-    ProfileConfigurationTransactionPort, ProfileConfigurationTransactionRequest,
+    ProfileConfigurationTransactionRequest,
 };
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::profile_workspace::{ProfileWorkspace, ProfileWorkspaceUpdate};
@@ -54,6 +57,7 @@ use infiltrator_ports::stun_probe::StunEgressProbePort;
 use infiltrator_ports::system_dns_cache::SystemDnsCachePort;
 use infiltrator_ports::system_proxy::SystemProxyPort;
 use mihomo_api::client::StreamEvent;
+use mihomo_api::runtime_configuration::{MihomoRuntimeConfigurationAdapter, RuntimeScopeResolver};
 use std::path::PathBuf;
 use std::sync::Arc;
 use sysinfo::{Pid, ProcessesToUpdate, System};
@@ -67,12 +71,9 @@ impl RuntimeGateway for MihomoRuntime {
 
     fn configuration_ports(&self) -> RuntimeConfigurationPorts {
         let application = self.application.clone();
-        let scope_resolver: mihomo_api::runtime_configuration::RuntimeScopeResolver =
+        let scope_resolver: RuntimeScopeResolver =
             Arc::new(move || active_core_scope_for_application(&application));
-        mihomo_api::runtime_configuration::MihomoRuntimeConfigurationAdapter::ports(
-            self.client.clone(),
-            Some(scope_resolver),
-        )
+        MihomoRuntimeConfigurationAdapter::ports(self.client.clone(), Some(scope_resolver))
     }
 
     async fn switch_proxy(&self, group: &str, proxy: &str) -> Result<(), PortError> {
@@ -233,16 +234,13 @@ impl ManagedRuntime for MihomoRuntime {
         CoreLifecyclePort::core_identity(self.application.as_ref()).map(|identity| identity.engine)
     }
 
-    fn core_lifecycle(&self) -> infiltrator_contract::snapshot::CoreLifecycle {
+    fn core_lifecycle(&self) -> CoreLifecycle {
         CoreLifecyclePort::lifecycle(self.application.as_ref())
     }
 
     fn active_profile_reference_write_authorization(
         &self,
-    ) -> Result<
-        infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization,
-        PortError,
-    > {
+    ) -> Result<ActiveProfileReferenceWriteAuthorization, PortError> {
         self.application
             .active_profile_reference_write_authorization()
             .map_err(PortError::Rejected)
@@ -250,10 +248,10 @@ impl ManagedRuntime for MihomoRuntime {
 
     async fn apply_profile_workspace(
         &self,
-        expected_reference: &infiltrator_contract::active_profile_reference::ActiveProfileReference,
+        expected_reference: &ActiveProfileReference,
         expected: &ProfileWorkspaceIdentity,
         update: &ProfileWorkspaceUpdate,
-        authorization: infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization,
+        authorization: ActiveProfileReferenceWriteAuthorization,
         strategy: ApplyStrategy,
     ) -> Result<ProfileWorkspace, PortError> {
         let runtime_engine = self.engine_id().ok_or_else(|| {
@@ -339,9 +337,7 @@ impl ManagedRuntime for MihomoRuntime {
         MihomoRuntime::apply_active_profile_reference(self, expected, strategy)
             .await
             .map(|outcome| outcome.generation)
-            .map_err(|error| {
-                PortError::Rejected(infiltrator_core::apply::failure_from_apply_error(error))
-            })
+            .map_err(|error| PortError::Rejected(failure_from_apply_error(error)))
     }
 }
 
