@@ -35,6 +35,7 @@ use infiltrator_profile_store::active_owner_registry::{
     local_owner_registration_matches as local_registration_matches, local_owner_registration_state,
     lock_local_owner_registry, remove_local_owner_registration,
 };
+use infiltrator_profile_store::active_profile_selection_lease::ActiveProfileSelectionLease;
 use infiltrator_profile_store::active_reference_cas::{
     ActiveProfileReferenceCasReady, ActiveProfileReferenceOwnerFence,
 };
@@ -61,7 +62,6 @@ use infiltrator_profile_store::file_lock::{ProfileWriteGuard, lock_profile_write
 use infiltrator_profile_store::profile_files::profile_document_backup_path;
 use infiltrator_profile_store::workspace::{sha256_hex, workspace_for_update};
 use mihomo_api::error::MihomoError;
-use ring::rand::{SecureRandom, SystemRandom};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
@@ -244,18 +244,6 @@ struct ConfigManagerWorkspaceRecoveryLease<'a, S: SecureStore> {
     purpose: ActiveWorkspaceRecoveryPurpose,
     guards: ActiveWorkspaceWriteGuards,
     last_error: String,
-}
-
-fn next_owner_token() -> Result<ActiveOwnerToken, PortError> {
-    let mut bytes = [0_u8; 16];
-    SystemRandom::new()
-        .fill(&mut bytes)
-        .map_err(|_| PortError::Failed("could not create active owner fence token".into()))?;
-    let value = bytes
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect::<String>();
-    Ok(ActiveOwnerToken(value))
 }
 
 fn lock_error(error: impl std::fmt::Display) -> PortError {
@@ -556,129 +544,6 @@ fn recover_local_switch_registration(
 ) -> Result<LocalSwitchRegistrationRecovery, PortError> {
     let mut registrations = lock_local_owner_registry()?;
     Ok(registrations.recover_switch(config_root, token, transition_id, identity, generation))
-}
-
-struct ConfigManagerSelectionLease {
-    state: ActiveProfileReferenceState,
-    config_root: PathBuf,
-    _guard: ThreadedInstanceLockGuard,
-}
-
-#[async_trait::async_trait]
-impl ActiveProfileReferenceLease for ConfigManagerSelectionLease {
-    fn state(&self) -> &ActiveProfileReferenceState {
-        &self.state
-    }
-
-    async fn into_owner_binding(
-        self: Box<Self>,
-        identity: CoreIdentity,
-        generation: CoreGeneration,
-    ) -> Result<Box<dyn ActiveProfileOwnerLease>, PortError> {
-        let Self {
-            state,
-            _guard: root_guard,
-            config_root,
-        } = *self;
-        let owner_state_guard = ActiveProfileReferenceFile::new(config_root.clone())
-            .acquire_owner_state_lock()
-            .await?;
-        tokio::task::spawn_blocking(move || {
-            let selected_engine = match &state {
-                ActiveProfileReferenceState::Selected(reference) => reference.engine_id.clone(),
-                ActiveProfileReferenceState::Unselected { .. } => {
-                    return Err(PortError::Failed(
-                        "an unselected profile cannot bind a Core owner".into(),
-                    ));
-                }
-            };
-            if selected_engine != identity.engine {
-                return Err(PortError::Failed(format!(
-                    "active profile engine {} does not match owner engine {}",
-                    selected_engine.as_str(),
-                    identity.engine.as_str()
-                )));
-            }
-            let mut record = sync_read_active_profile_record(&config_root)?;
-            if record.selection != state {
-                return Err(PortError::Rejected(Failure::new(
-                    ErrorCode::NotReady,
-                    "active profile changed before owner binding",
-                    true,
-                )));
-            }
-            let _owner_state_guard = owner_state_guard;
-            let owner_guard = ActiveProfileReferenceFile::new(config_root.clone())
-                .try_acquire_owner_lock()?
-                .ok_or_else(|| {
-                    PortError::Rejected(Failure::new(
-                        ErrorCode::NotReady,
-                        "another process holds the active Core owner fence",
-                        true,
-                    ))
-                })?;
-            let mut registrations = lock_local_owner_registry()?;
-            if registrations.contains(&config_root) {
-                return Err(PortError::Rejected(Failure::new(
-                    ErrorCode::NotReady,
-                    "this process already has an active Core owner registration",
-                    true,
-                )));
-            }
-            let mut owner_proof = sync_read_active_core_owner_proof(&config_root)?;
-            match &record.owner {
-                ActiveCoreOwnerState::Unowned => {}
-                ActiveCoreOwnerState::Bound { .. } => {
-                    return Err(transition_rejected(
-                        "a previous Core owner still needs explicit terminal normalization",
-                    ));
-                }
-                ActiveCoreOwnerState::Switching { .. } => {
-                    return Err(transition_rejected(
-                        "an active Core owner switch is in progress",
-                    ));
-                }
-            }
-            match &owner_proof.state {
-                ActiveCoreOwnerProof::Unowned | ActiveCoreOwnerProof::Terminal { .. } => {}
-                ActiveCoreOwnerProof::Bound { .. } | ActiveCoreOwnerProof::Reserved { .. } => {
-                    return Err(transition_rejected(
-                        "an orphaned owner proof requires explicit terminal recovery",
-                    ));
-                }
-            }
-            let token = next_owner_token()?;
-            owner_proof.state = ActiveCoreOwnerProof::Bound {
-                identity: identity.clone(),
-                generation,
-                token: token.clone(),
-            };
-            owner_proof.launch = ActiveCoreOwnerLaunchProof::Unstarted;
-            record.owner = ActiveCoreOwnerState::Bound {
-                identity: identity.clone(),
-                generation,
-                token: token.clone(),
-            };
-            sync_publish_active_core_owner_proof(&config_root, &owner_proof)?;
-            sync_publish_active_profile_record(&config_root, &record)?;
-            registrations.register_bound(
-                config_root.clone(),
-                token.clone(),
-                identity.clone(),
-                generation,
-                owner_guard,
-            )?;
-            drop(root_guard);
-            Ok(Box::new(ActiveCoreOwnerLease::new(
-                identity,
-                generation,
-                token,
-                config_root,
-            )) as Box<dyn ActiveProfileOwnerLease>)
-        })
-        .await
-        .map_err(|error| PortError::Failed(error.to_string()))?
-    }
 }
 
 struct ConfigManagerOwnerSwitchLease {
@@ -1184,7 +1049,7 @@ impl ActiveProfileReferenceChangedLease for ConfigManagerReferenceChangedLease {
                 "this process already has an active Core owner registration",
             ));
         }
-        let token = next_owner_token()?;
+        let token = ActiveOwnerToken::generate()?;
         owner_proof.state = ActiveCoreOwnerProof::Reserved {
             transition_id: transition_id.clone(),
             engine_id: engine_id.clone(),
@@ -1804,11 +1669,11 @@ impl<S: SecureStore> ActiveProfileReferenceStore for ConfigManager<S> {
             ActiveProfileOwnerCoordinator::new(config_root.clone())
                 .normalize_owner_state_unlocked(&mut record)
                 .await?;
-        Ok(Box::new(ConfigManagerSelectionLease {
-            state: record.selection,
+        Ok(Box::new(ActiveProfileSelectionLease::new(
+            record.selection,
             config_root,
-            _guard: guard,
-        }))
+            guard,
+        )))
     }
 
     async fn acquire_provider_selection_lease(
@@ -1844,11 +1709,11 @@ impl<S: SecureStore> ActiveProfileReferenceStore for ConfigManager<S> {
                 true,
             )));
         }
-        Ok(Box::new(ConfigManagerSelectionLease {
-            state: record.selection,
+        Ok(Box::new(ActiveProfileSelectionLease::new(
+            record.selection,
             config_root,
-            _guard: guard,
-        }))
+            guard,
+        )))
     }
 
     async fn recover_bound_owner_after_terminal(
@@ -1986,7 +1851,7 @@ impl<S: SecureStore> ActiveProfileReferenceStore for ConfigManager<S> {
                 true,
             )));
         }
-        let transition_id = next_owner_token()?;
+        let transition_id = ActiveOwnerToken::generate()?;
         let previous_reference = record.selection.clone();
         record.owner = ActiveCoreOwnerState::Switching {
             transition_id: transition_id.clone(),

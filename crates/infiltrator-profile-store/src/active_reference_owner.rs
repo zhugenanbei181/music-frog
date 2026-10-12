@@ -7,6 +7,7 @@ use infiltrator_contract::core_identity::{CoreGeneration, CoreIdentity, EngineId
 use infiltrator_contract::core_process::CoreProcessStartContext;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_ports::error::PortError;
+use ring::rand::{SecureRandom, SystemRandom};
 use serde::{Deserialize, Serialize};
 
 pub const ACTIVE_PROFILE_REFERENCE_SCHEMA_VERSION: u32 = 1;
@@ -21,6 +22,20 @@ pub fn transition_rejected(message: impl Into<String>) -> PortError {
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct ActiveOwnerToken(pub String);
+
+impl ActiveOwnerToken {
+    pub fn generate() -> Result<Self, PortError> {
+        let mut bytes = [0_u8; 16];
+        SystemRandom::new()
+            .fill(&mut bytes)
+            .map_err(|_| PortError::Failed("could not create active owner fence token".into()))?;
+        let value = bytes
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>();
+        Ok(Self(value))
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "state", content = "owner", rename_all = "snake_case")]

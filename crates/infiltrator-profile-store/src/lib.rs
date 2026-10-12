@@ -2,6 +2,7 @@
 
 pub mod active_owner_lease;
 pub mod active_owner_registry;
+pub mod active_profile_selection_lease;
 pub mod active_reference_cas;
 pub mod active_reference_file;
 pub mod active_reference_owner;
