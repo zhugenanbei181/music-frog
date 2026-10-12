@@ -14,7 +14,7 @@ use infiltrator_contract::profile_document_identity::{
     ProfileDocumentSourceKind, ProfileFormatId, ProfileId, ProfileSchemaVersion,
     ProfileSidecarRevision, ProfileSourceId,
 };
-use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
+use infiltrator_contract::profile_protection::{ProfileWriteAuthorization, ProfileWriteProtection};
 use infiltrator_domain::profile_options::options_path;
 use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceStore;
 use infiltrator_ports::profile_store::{
@@ -22,8 +22,11 @@ use infiltrator_ports::profile_store::{
     ActiveProfileWorkspaceRecoveryResolution, ActiveProfileWorkspaceRestoreOutcome,
     ActiveProfileWorkspaceWriteLease, ProfileStore,
 };
+use infiltrator_ports::profile_workspace::ProfileWorkspacePurpose;
 use infiltrator_ports::secure_store::SecureStore;
-use infiltrator_profile_store::document_store::{write_document, write_document_bytes};
+use infiltrator_profile_store::document_store::{
+    read_optional_bytes, write_document, write_document_bytes,
+};
 use infiltrator_profile_store::workspace::{
     document_revision as revision, publish_document_pair as publish_pair, sha256_hex,
 };

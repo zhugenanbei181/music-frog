@@ -2,8 +2,8 @@
 
 > 层级：L3
 
-CORE-018.3 的 owner：实现 engine-neutral `ProfileStore` 持久化，包括 engine namespace、原始 `ProfileDocument` 与 sidecar、workspace lease、revision CAS、active-profile reference 和恢复事务。当前 crate 已接管 engine-scoped `EngineProfileStore` 状态、安全 document path、durable document/backup/sidecar I/O、document validation、workspace identity/revision/publication 算法、共享写锁、profile-state TOML 元数据读写、订阅凭证映射及 active-profile reference JSON 异步/同步 durable read/write/readback。
+CORE-018.3 的 owner：实现 engine-neutral `ProfileStore` 持久化，包括 engine namespace、原始 `ProfileDocument` 与 sidecar、workspace lease、revision CAS、active-profile reference 和恢复事务。当前 crate 已接管 engine-scoped `EngineProfileStore` 状态、安全 document path、durable document/backup/sidecar I/O、document validation、workspace coherent read、source/protection projection、revision compare、document/sidecar 成对发布、共享写锁、profile-state TOML 元数据读写、订阅凭证映射及 active-profile reference JSON 异步/同步 durable read/write/readback。
 
-完整 production `ProfileStore` / `ActiveProfileReferenceStore` coordinator、owner proof validation/transition 编排和工作区事务仍由 `mihomo-config::ConfigManager` 持有；本 crate 已接管 product-root、owner-state 与 owner-admission locks，记录文件读写及 revision compare/next-state policy，两个 engine 的 production coordinator 尚未迁入。迁移目标是由 store 注入匹配自身 `EngineId`、format 与 schema 的 document codec；store 不解析 Mihomo YAML 或 sing-box JSON，原生格式与 native check 由对应 config adapter 持有。
+完整 production `ProfileStore` / `ActiveProfileReferenceStore` coordinator、owner proof validation/transition 编排和工作区 transaction lease 仍由 `mihomo-config::ConfigManager` 协调；本 crate 已接管 product-root、owner-state 与 owner-admission locks，reference 文件读写、revision compare/next-state policy 和 workspace 文件协议。namespace 初始化/旧 Mihomo 路径迁移与跨文件 owner transition 尚未迁入，两个 engine 的 production coordinator 尚未迁入。迁移目标是由 store 注入匹配自身 `EngineId`、format 与 schema 的 document codec；store 不解析 Mihomo YAML 或 sing-box JSON，原生格式与 native check 由对应 config adapter 持有。
 
 可移植 profile 名称由 `infiltrator-domain::profiles` 统一校验，文件路径、sidecar 与远端旧格式迁移共用同一规则；Mihomo 私有的重复校验和消毒入口已退役。

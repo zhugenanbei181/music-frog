@@ -20,7 +20,6 @@ mod defaults;
 mod manager_test;
 mod namespace_migration;
 pub mod paths;
-mod profile_protection;
 pub(crate) mod profiles;
 
 use crate::profile_document_codec::MihomoProfileDocumentCodec;

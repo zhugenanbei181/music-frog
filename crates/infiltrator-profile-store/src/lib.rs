@@ -9,3 +9,4 @@ pub mod metadata;
 pub mod profile_files;
 pub mod store;
 pub mod workspace;
+pub mod workspace_store;

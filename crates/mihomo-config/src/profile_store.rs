@@ -2,7 +2,6 @@
 
 use crate::manager::ConfigManager;
 use crate::profile::Profile;
-use crate::profile_workspace_store::WorkspaceTarget;
 use infiltrator_contract::active_profile_reference::{
     ActiveProfileReference, ActiveProfileReferenceCasOutcome, ActiveProfileReferenceState,
     ActiveProfileReferenceTarget, ActiveProfileReferenceWriteAuthorization,
@@ -206,8 +205,7 @@ where
         expected: &ProfileWorkspaceIdentity,
         update: &ProfileWorkspaceUpdate,
     ) -> Result<ProfileWorkspace, PortError> {
-        self.save_workspace(expected, update, WorkspaceTarget::Inactive)
-            .await
+        self.save_workspace(expected, update).await
     }
 
     async fn restore_inactive_workspace(
