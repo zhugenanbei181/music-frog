@@ -3,8 +3,8 @@
 
 use super::*;
 use crate::support::{app_config_manager, select_test_profile};
+use infiltrator_platform::paths::{clear_home_dir_override, set_home_dir_override};
 use infiltrator_ports::profile_store::ProfileStore;
-use mihomo_platform::paths::{clear_home_dir_override, set_home_dir_override};
 
 #[tokio::test]
 async fn test_flush_fake_ip_route() {

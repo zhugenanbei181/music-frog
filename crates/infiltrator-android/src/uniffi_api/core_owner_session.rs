@@ -9,7 +9,7 @@ use crate::product::{begin_owner_product_session, close_owner_product_session};
 use crate::vpn_service::AndroidVpnServicePort;
 use infiltrator_application::vpn_application::VpnServiceApplication;
 use infiltrator_contract::android_control::AndroidHostProcessRole;
-use mihomo_platform::android_bridge::get_android_bridge;
+use infiltrator_platform::android_bridge::get_android_bridge;
 use std::sync::Arc;
 
 /// Begin or reattach the explicit Rust Core owner session for Android `:vpn`.

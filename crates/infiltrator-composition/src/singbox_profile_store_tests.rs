@@ -6,7 +6,7 @@ use infiltrator_contract::active_profile_reference::{
     ActiveProfileReferenceCasOutcome, ActiveProfileReferenceState, ActiveProfileReferenceTarget,
     ActiveProfileReferenceWriteAuthorization,
 };
-use infiltrator_contract::core_identity::{CoreIdentity, CoreInstanceId};
+use infiltrator_contract::core_identity::{CoreIdentity, CoreInstanceId, EngineId};
 use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_contract::session::SessionToken;
 use infiltrator_contract::snapshot::CoreLifecycle;
@@ -22,12 +22,12 @@ use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::profile_workspace::{ProfileWorkspacePurpose, ProfileWorkspaceUpdate};
 use infiltrator_ports::secure_store::SecureStore;
 use mihomo_config::manager::{ConfigManager, ProfileDocumentExtension};
-use singbox_adapter::command::{NativeConfigCheck, SingBoxChildProcess, SingBoxCommandPort};
-use singbox_adapter::controller_configuration::SingBoxControllerConfiguration;
-use singbox_adapter::http::{
+use singbox_api::controller_configuration::SingBoxControllerConfiguration;
+use singbox_api::http::{
     SingBoxClashHttpPort, SingBoxClashMethod, SingBoxClashResponse, SingBoxControllerAuthorization,
 };
-use singbox_adapter::profile_document_codec::SingBoxProfileDocumentCodec;
+use singbox_config::profile_document_codec::SingBoxProfileDocumentCodec;
+use singbox_process::command::{NativeConfigCheck, SingBoxChildProcess, SingBoxCommandPort};
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
@@ -196,10 +196,7 @@ async fn singbox_profile_store_and_native_transaction_share_engine_and_core_iden
     let before = ProfileStore::load_active_workspace(store.as_ref())
         .await
         .expect("load selected workspace");
-    assert_eq!(
-        before.document.identity.engine_id,
-        singbox_adapter::engine_id()
-    );
+    assert_eq!(before.document.identity.engine_id, EngineId::sing_box());
     assert_eq!(before.document.raw_bytes, initial_document);
 
     let instance_id =
@@ -226,7 +223,7 @@ async fn singbox_profile_store_and_native_transaction_share_engine_and_core_iden
     .expect("compose production sing-box provider");
     let backend = provider.create_backend().expect("create sing-box ports");
     let session: Arc<dyn CoreLifecyclePort> = Arc::new(StoppedCoreSession {
-        identity: CoreIdentity::new(singbox_adapter::engine_id(), instance_id, None),
+        identity: CoreIdentity::new(EngineId::sing_box(), instance_id, None),
     });
     let profile_store: Arc<dyn ProfileStore> = store.clone();
     provider
@@ -270,10 +267,7 @@ async fn singbox_profile_store_and_native_transaction_share_engine_and_core_iden
         }
     };
 
-    assert_eq!(
-        committed.document.identity.engine_id,
-        singbox_adapter::engine_id()
-    );
+    assert_eq!(committed.document.identity.engine_id, EngineId::sing_box());
     assert_eq!(committed.document.raw_bytes, next_document);
     assert_eq!(
         committed.sidecar_bytes.as_deref(),

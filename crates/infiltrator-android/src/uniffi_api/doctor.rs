@@ -254,8 +254,8 @@ fn step_to_record(step: BootstrapStep) -> BootstrapStepRecord {
 mod tests {
     use super::*;
     use crate::ffi::FfiErrorCode;
-    use mihomo_platform::TEST_LOCK;
-    use mihomo_platform::paths::{clear_home_dir_override, set_home_dir_override};
+    use infiltrator_platform::TEST_LOCK;
+    use infiltrator_platform::paths::{clear_home_dir_override, set_home_dir_override};
     #[cfg(test)]
     use std::env::remove_var;
     #[cfg(test)]

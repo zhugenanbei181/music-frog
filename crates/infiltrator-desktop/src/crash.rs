@@ -1,6 +1,6 @@
 //! Desktop crash-report adapter.
 
-use mihomo_platform::crash_reporter::CrashReporter;
+use infiltrator_platform::crash_reporter::CrashReporter;
 use std::fs::write;
 use std::path::Path;
 

@@ -1,0 +1,20 @@
+[package]
+name = "singbox-api"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+async-trait = { workspace = true }
+infiltrator-contract = { path = "../infiltrator-contract" }
+infiltrator-ports = { path = "../infiltrator-ports" }
+reqwest = { workspace = true, default-features = false }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+url = { workspace = true }
+
+[target.'cfg(target_os = "android")'.dependencies]
+reqwest = { workspace = true, default-features = false, features = ["rustls-no-provider"] }
+
+[target.'cfg(not(target_os = "android"))'.dependencies]
+reqwest = { workspace = true, default-features = false, features = ["native-tls"] }

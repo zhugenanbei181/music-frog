@@ -5,7 +5,7 @@ The guard checks two things that are easy to regress during a large migration:
 
 * domain/contract/ports/application do not acquire concrete UI, host, or
   transport dependencies;
-* Bevy UI does not reintroduce direct Mihomo, Reqwest, or Tokio dependencies.
+* UI and engine-neutral layers do not depend on concrete backend adapters.
 
 This is intentionally a small manifest/source guard, not a replacement for
 `cargo tree`: it fails fast before a full build and records the architectural
@@ -23,6 +23,17 @@ import tomllib
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 
+ENGINE_ADAPTER_CRATES = {
+    "mihomo-api",
+    "mihomo-config",
+    "mihomo-process",
+    "mihomo-version",
+    "singbox-api",
+    "singbox-config",
+    "singbox-process",
+    "singbox-version",
+}
+
 FORBIDDEN_DIRECT = {
     "infiltrator-domain": {
         "tokio",
@@ -31,13 +42,14 @@ FORBIDDEN_DIRECT = {
         "iced",
         "mihomo-api",
         "mihomo-config",
-        "mihomo-platform",
+        "infiltrator-platform",
         "mihomo-version",
         "infiltrator-core",
         "infiltrator-application",
         "infiltrator-desktop",
         "infiltrator-android",
         "infiltrator-ios",
+        *ENGINE_ADAPTER_CRATES,
     },
     "infiltrator-contract": {
         "tokio",
@@ -46,13 +58,14 @@ FORBIDDEN_DIRECT = {
         "iced",
         "mihomo-api",
         "mihomo-config",
-        "mihomo-platform",
+        "infiltrator-platform",
         "mihomo-version",
         "infiltrator-core",
         "infiltrator-application",
         "infiltrator-desktop",
         "infiltrator-android",
         "infiltrator-ios",
+        *ENGINE_ADAPTER_CRATES,
     },
     "infiltrator-ports": {
         "tokio",
@@ -61,13 +74,14 @@ FORBIDDEN_DIRECT = {
         "iced",
         "mihomo-api",
         "mihomo-config",
-        "mihomo-platform",
+        "infiltrator-platform",
         "mihomo-version",
         "infiltrator-core",
         "infiltrator-application",
         "infiltrator-desktop",
         "infiltrator-android",
         "infiltrator-ios",
+        *ENGINE_ADAPTER_CRATES,
     },
     "infiltrator-application": {
         "tokio",
@@ -76,28 +90,31 @@ FORBIDDEN_DIRECT = {
         "iced",
         "mihomo-api",
         "mihomo-config",
-        "mihomo-platform",
+        "infiltrator-platform",
         "mihomo-version",
         "infiltrator-core",
         "infiltrator-desktop",
         "infiltrator-android",
         "infiltrator-ios",
+        *ENGINE_ADAPTER_CRATES,
     },
     "infiltrator-bevy-ui": {
         "tokio",
         "reqwest",
         "mihomo-api",
         "mihomo-config",
-        "mihomo-platform",
+        "infiltrator-platform",
         "mihomo-version",
         "infiltrator-core",
+        *ENGINE_ADAPTER_CRATES,
     },
     "infiltrator-iced": {
         "reqwest",
         "mihomo-api",
         "mihomo-config",
-        "mihomo-platform",
+        "infiltrator-platform",
         "infiltrator-core",
+        *ENGINE_ADAPTER_CRATES,
     },
     "infiltrator-bevy-widgets": {
         "tokio",
@@ -105,31 +122,37 @@ FORBIDDEN_DIRECT = {
         "iced",
         "mihomo-api",
         "mihomo-config",
-        "mihomo-platform",
+        "infiltrator-platform",
         "mihomo-version",
         "infiltrator-core",
         "infiltrator-application",
         "infiltrator-desktop",
         "infiltrator-android",
         "infiltrator-ios",
+        *ENGINE_ADAPTER_CRATES,
     },
 }
 
 SOURCE_PATTERNS = {
     "infiltrator-domain": re.compile(
-        r"\b(?:tokio|reqwest|bevy|iced|mihomo_(?:api|config|platform|version))\s*::"
+        r"\b(?:tokio|reqwest|bevy|iced|mihomo_(?:api|config|process|version)|"
+        r"singbox_(?:api|config|process|version)|infiltrator_platform)::"
     ),
     "infiltrator-contract": re.compile(
-        r"\b(?:tokio|reqwest|bevy|iced|mihomo_(?:api|config|platform|version))\s*::"
+        r"\b(?:tokio|reqwest|bevy|iced|mihomo_(?:api|config|process|version)|"
+        r"singbox_(?:api|config|process|version)|infiltrator_platform)::"
     ),
     "infiltrator-ports": re.compile(
-        r"\b(?:tokio|reqwest|bevy|iced|mihomo_(?:api|config|platform|version))\s*::"
+        r"\b(?:tokio|reqwest|bevy|iced|mihomo_(?:api|config|process|version)|"
+        r"singbox_(?:api|config|process|version)|infiltrator_platform)::"
     ),
     "infiltrator-bevy-ui": re.compile(
-        r"\b(?:tokio|reqwest|mihomo_api)::|\bMihomoClient\b"
+        r"\b(?:tokio|reqwest|mihomo_(?:api|config|process|version)|"
+        r"singbox_(?:api|config|process|version)|infiltrator_platform)::|\bMihomoClient\b"
     ),
     "infiltrator-iced": re.compile(
-        r"\b(?:reqwest|mihomo_api|mihomo_config|mihomo_platform|infiltrator_core)::|\bMihomoClient\b"
+        r"\b(?:reqwest|mihomo_(?:api|config|process|version)|"
+        r"singbox_(?:api|config|process|version)|infiltrator_platform|infiltrator_core)::|\bMihomoClient\b"
     ),
 }
 

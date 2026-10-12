@@ -1,6 +1,7 @@
 use crate::settings_io::app_config_manager_for_profile_reset;
 use anyhow::anyhow;
 use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
+use infiltrator_platform::defaults::DefaultCredentialStore;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_reset::ProfileResetPort;
 use infiltrator_ports::profile_store::ProfileStore;
@@ -8,7 +9,6 @@ use mihomo_config::manager::{
     ActiveProfileReferenceResetOutcome, ActiveProfileReferenceResetRequest, ConfigManager,
 };
 use mihomo_config::port::find_available_port;
-use mihomo_platform::defaults::DefaultCredentialStore;
 
 pub struct FileProfileReset;
 

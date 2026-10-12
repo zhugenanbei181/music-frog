@@ -1,12 +1,14 @@
 use super::*;
 use crate::core_launch_spec::AndroidSingBoxProfileLaunchSpecProvider;
+use infiltrator_application::settings_application::SettingsApplication;
+use infiltrator_application::version_application::VersionApplication;
 use infiltrator_contract::core_capabilities::EngineBinaryTarget;
 use infiltrator_contract::profile_document_identity::ProfileDocument;
 use infiltrator_ports::core_binary_selection::CoreBinarySelectionPort;
 use infiltrator_ports::profile_configuration_transaction::ProfileConfigurationTransactionBinding;
-use singbox_adapter::command::TokioSingBoxCommandPort;
-use singbox_adapter::controller_configuration::SingBoxControllerConfiguration;
-use singbox_adapter::profile_document_codec::SingBoxProfileDocumentCodec;
+use singbox_api::controller_configuration::SingBoxControllerConfiguration;
+use singbox_config::profile_document_codec::SingBoxProfileDocumentCodec;
+use singbox_process::command::TokioSingBoxCommandPort;
 use std::path::PathBuf;
 
 /// Assemble the Android :vpn lifecycle owner for one already selected,
@@ -20,18 +22,21 @@ pub(crate) fn core_application_for_singbox<B, S>(
     expected_target: EngineBinaryTarget,
     readiness: Arc<dyn CoreReadiness>,
     capability_provider: Arc<dyn CoreCapabilityProvider>,
+    versions: VersionApplication,
+    settings: SettingsApplication,
 ) -> Result<CoreApplication, PortError>
 where
     B: AndroidBridge + 'static,
     S: SecureStore + 'static,
 {
-    let engine_id = singbox_adapter::engine_id();
+    let engine_id = singbox_api::engine_id();
     if profile_store.engine_id() != engine_id
         || profile_document.identity.engine_id != engine_id
         || binary_selection.engine_id() != engine_id
+        || versions.engine_id() != &engine_id
     {
         return Err(PortError::unsupported(
-            Capability::CoreLifecycle,
+            Capability::CoreVersionInstall,
             "Android sing-box composition received a foreign engine binding",
         ));
     }
@@ -103,6 +108,8 @@ where
         .with_host_capabilities(Arc::new(AndroidBridgeAdapter::new(Arc::clone(&bridge))))
         .with_application_runtime(runtime)
         .with_profile(ProfileApplication::new(store).with_document_codec(codec))
+        .with_versions(versions)
+        .with_settings(settings)
         .with_mtu(mtu)
         .with_vpn(VpnServiceApplication::new(Arc::new(
             AndroidVpnServicePort::shared(),

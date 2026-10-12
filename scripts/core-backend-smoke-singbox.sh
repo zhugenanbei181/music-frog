@@ -96,5 +96,5 @@ printf '[PASS] official sing-box archive and binary version verified: %s\n' "$ex
 
 SINGBOX_REAL_BINARY="$binary_path" \
 SINGBOX_REAL_VERSION="${expected_version#v}" \
-    cargo nextest run --offline --locked -p singbox-adapter \
-        --test real_process_smoke --run-ignored only
+    cargo nextest run --offline --locked -p infiltrator-composition \
+        --test singbox_real_process_smoke --run-ignored only

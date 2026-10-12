@@ -17,6 +17,10 @@ use infiltrator_contract::core_identity::{CoreGeneration, CoreIdentity, EngineId
 use infiltrator_contract::core_process::CoreProcessStartContext;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document_identity::{ProfileId, ProfileWorkspaceIdentity};
+use infiltrator_platform::durable_replace::{DurableReplaceError, replace_durable};
+use infiltrator_platform::instance_lock::{
+    ThreadedInstanceLockGuard, try_acquire_threaded_instance_lock,
+};
 use infiltrator_ports::active_profile_reference_store::{
     ActiveProfileOwnerBindingLease, ActiveProfileOwnerLease, ActiveProfileOwnerRecoveryEvidence,
     ActiveProfileOwnerRecoveryOutcome, ActiveProfileOwnerStoppedSwitchLease,
@@ -35,10 +39,6 @@ use infiltrator_ports::profile_workspace::{
 };
 use infiltrator_ports::secure_store::SecureStore;
 use mihomo_api::error::MihomoError;
-use mihomo_platform::durable_replace::{DurableReplaceError, replace_durable};
-use mihomo_platform::instance_lock::{
-    ThreadedInstanceLockGuard, try_acquire_threaded_instance_lock,
-};
 use ring::rand::{SecureRandom, SystemRandom};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};

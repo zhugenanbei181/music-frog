@@ -2,7 +2,7 @@
 //! test-intent: behavior
 
 use super::*;
-use mihomo_platform::paths::{clear_home_dir_override, set_home_dir_override};
+use infiltrator_platform::paths::{clear_home_dir_override, set_home_dir_override};
 
 #[tokio::test]
 async fn test_switch_nonexistent_profile_returns_error() {

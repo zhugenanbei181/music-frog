@@ -38,14 +38,14 @@ mod tests {
     #[cfg(test)]
     use infiltrator_application::version_application::VersionApplication;
     use infiltrator_domain::settings::{AppSettings, WebDavConfig};
+    use infiltrator_platform::TEST_LOCK;
+    #[cfg(test)]
+    use infiltrator_platform::paths::clear_home_dir_override;
+    #[cfg(test)]
+    use infiltrator_platform::paths::set_home_dir_override;
     use infiltrator_ports::runtime_gateway::RuntimeGateway;
     #[cfg(test)]
     use infiltrator_ports::subscription_source::SubscriptionSource;
-    use mihomo_platform::TEST_LOCK;
-    #[cfg(test)]
-    use mihomo_platform::paths::clear_home_dir_override;
-    #[cfg(test)]
-    use mihomo_platform::paths::set_home_dir_override;
     use std::sync::Arc;
 
     #[derive(Clone)]

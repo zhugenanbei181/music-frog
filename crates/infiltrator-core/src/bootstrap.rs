@@ -7,9 +7,9 @@
 //! had to change anything or was already satisfied.
 
 use crate::settings_io::{app_config_manager_in, load_settings, settings_path};
+use infiltrator_platform::paths::get_home_dir;
 use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceStore;
 use mihomo_config::manager::paths::resolve_configs_dir_in;
-use mihomo_platform::paths::get_home_dir;
 use serde::Serialize;
 use std::path::Path;
 use tokio::fs::{create_dir_all, read_to_string};
@@ -48,7 +48,7 @@ impl BootstrapReport {
     }
 }
 
-/// Bootstrap the real installation (home from `mihomo-platform`).
+/// Bootstrap the real installation (home from `infiltrator-platform`).
 pub async fn ensure_bootstrap() -> anyhow::Result<BootstrapReport> {
     let home = get_home_dir()?;
     ensure_bootstrap_at(&home).await

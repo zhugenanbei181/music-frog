@@ -8,9 +8,9 @@ use infiltrator_contract::system_proxy::{
     SystemProxyDesiredState, SystemProxyObservation, SystemProxyRecoveryReport,
     SystemProxyRecoverySnapshot,
 };
+use infiltrator_platform::paths::get_home_dir;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::system_proxy::SystemProxyPort;
-use mihomo_platform::paths::get_home_dir;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io;
@@ -390,9 +390,9 @@ fn to_observation(state: SystemProxyState) -> SystemProxyObservation {
 mod tests {
     use super::*;
     #[cfg(test)]
-    use mihomo_platform::paths::clear_home_dir_override;
+    use infiltrator_platform::paths::clear_home_dir_override;
     #[cfg(test)]
-    use mihomo_platform::paths::set_home_dir_override;
+    use infiltrator_platform::paths::set_home_dir_override;
 
     #[test]
     fn desktop_proxy_adapter_preserves_os_observation_shape() {
@@ -433,7 +433,7 @@ mod tests {
 
     #[tokio::test]
     async fn recovery_journal_round_trips_and_keeps_original_state() {
-        let _guard = mihomo_platform::TEST_LOCK.lock().await;
+        let _guard = infiltrator_platform::TEST_LOCK.lock().await;
         let home = tempfile::tempdir().expect("temporary home");
         assert!(set_home_dir_override(home.path().to_path_buf()));
         let previous = SystemProxyObservation {

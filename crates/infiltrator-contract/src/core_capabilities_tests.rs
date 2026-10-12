@@ -106,6 +106,8 @@ fn core_operation_catalogue_covers_each_required_backend_area() {
         CoreGarbageCollectionOperation::Trigger
     )));
     assert!(operations.contains(&CoreOperation::Version(VersionOperation::Install)));
+    assert!(operations.contains(&CoreOperation::Version(VersionOperation::Activate)));
+    assert!(operations.contains(&CoreOperation::Version(VersionOperation::Uninstall)));
 }
 
 #[test]
@@ -124,6 +126,8 @@ fn version_management_operations_do_not_require_an_active_core_version() {
     let operations = [
         CoreOperation::Version(VersionOperation::Inspect),
         CoreOperation::Version(VersionOperation::Install),
+        CoreOperation::Version(VersionOperation::Activate),
+        CoreOperation::Version(VersionOperation::Uninstall),
         CoreOperation::Version(VersionOperation::Rollback),
     ];
     let scope = scope(None);
@@ -264,6 +268,18 @@ fn owner_managed_decisions_keep_the_authoritative_owner_in_the_resolution() {
             CoreOperation::Version(VersionOperation::Rollback),
             AdapterOperationOwner::VersionManagement,
         ),
+        (
+            CoreOperation::Version(VersionOperation::Install),
+            AdapterOperationOwner::VersionManagement,
+        ),
+        (
+            CoreOperation::Version(VersionOperation::Activate),
+            AdapterOperationOwner::VersionManagement,
+        ),
+        (
+            CoreOperation::Version(VersionOperation::Uninstall),
+            AdapterOperationOwner::VersionManagement,
+        ),
     ];
 
     for (operation, owner) in operations {
@@ -296,7 +312,7 @@ fn owner_managed_decisions_keep_the_authoritative_owner_in_the_resolution() {
 
 #[test]
 fn owner_managed_authority_cannot_be_assigned_to_engine_operations() {
-    let operation = CoreOperation::Version(VersionOperation::Install);
+    let operation = CoreOperation::Profile(ProfileOperation::Apply);
     let result = CoreCapabilityMatrix::new(
         scope(None),
         vec![entry(
@@ -313,7 +329,7 @@ fn owner_managed_authority_cannot_be_assigned_to_engine_operations() {
         result,
         Err(
             super::CoreCapabilityMatrixError::OwnerManagedOperationNotAllowed(
-                CoreOperation::Version(VersionOperation::Install)
+                CoreOperation::Profile(ProfileOperation::Apply)
             )
         )
     ));

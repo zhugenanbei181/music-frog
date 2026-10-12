@@ -39,7 +39,7 @@ use crate::ffi::FfiBoolResult;
 use crate::ffi::{FfiErrorCode, FfiStatus};
 use crate::host_support::get_runtime;
 use infiltrator_contract::android_control::AndroidHostProcessRole;
-use mihomo_platform::android_bridge::get_android_bridge;
+use infiltrator_platform::android_bridge::get_android_bridge;
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -81,21 +81,38 @@ pub(super) enum OwnerOperationMutationAdmission {
     VpnConfigurationBusy,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum AndroidOwnerDataMutation {
+    ReadOnly,
+    CommitOnSuccess,
+    CommitRegardlessOfOutcome,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum AndroidOwnerRevisionTransition {
+    Unchanged,
+    Advance,
+}
+
 pub(super) fn owner_operation_mutation_admission(
     operation: &AndroidOwnerOperation,
     activation: infiltrator_application::vpn_preparation::VpnConfigurationActivationStatus,
 ) -> OwnerOperationMutationAdmission {
     use infiltrator_application::vpn_preparation::VpnConfigurationActivationStatus;
 
-    match (operation.mutates_data(), activation) {
-        (false, _) => OwnerOperationMutationAdmission::ReadOnly,
-        (true, VpnConfigurationActivationStatus::Available) => {
-            OwnerOperationMutationAdmission::WriteAllowed
-        }
-        (true, VpnConfigurationActivationStatus::BuilderAdmitted)
-        | (true, VpnConfigurationActivationStatus::DataPlaneStarting) => {
-            OwnerOperationMutationAdmission::VpnConfigurationBusy
-        }
+    match (operation.data_mutation(), activation) {
+        (AndroidOwnerDataMutation::ReadOnly, _) => OwnerOperationMutationAdmission::ReadOnly,
+        (
+            AndroidOwnerDataMutation::CommitOnSuccess
+            | AndroidOwnerDataMutation::CommitRegardlessOfOutcome,
+            VpnConfigurationActivationStatus::Available,
+        ) => OwnerOperationMutationAdmission::WriteAllowed,
+        (
+            AndroidOwnerDataMutation::CommitOnSuccess
+            | AndroidOwnerDataMutation::CommitRegardlessOfOutcome,
+            VpnConfigurationActivationStatus::BuilderAdmitted
+            | VpnConfigurationActivationStatus::DataPlaneStarting,
+        ) => OwnerOperationMutationAdmission::VpnConfigurationBusy,
     }
 }
 
@@ -319,41 +336,41 @@ pub enum AndroidOwnerOperation {
 }
 
 impl AndroidOwnerOperation {
-    fn mutates_data(&self) -> bool {
-        !matches!(
-            self,
+    pub(super) fn data_mutation(&self) -> AndroidOwnerDataMutation {
+        match self {
             Self::ProfilesList
-                | Self::ProfileDetail { .. }
-                | Self::DnsSettings
-                | Self::TunSettings
-                | Self::FakeIpSettings
-                | Self::RulesList
-                | Self::RuleProviders
-                | Self::AppRoutingSnapshot
-                | Self::WebDavSettings
-                | Self::WebDavTest { .. }
-                | Self::WebDavSyncNow
-        )
-    }
-
-    fn advances_revision_even_on_failure(&self) -> bool {
-        matches!(
-            self,
+            | Self::ProfileDetail { .. }
+            | Self::DnsSettings
+            | Self::TunSettings
+            | Self::FakeIpSettings
+            | Self::RulesList
+            | Self::RuleProviders
+            | Self::AppRoutingSnapshot
+            | Self::WebDavSettings
+            | Self::WebDavTest { .. }
+            | Self::WebDavSyncNow => AndroidOwnerDataMutation::ReadOnly,
             Self::ProfileCreate { .. }
-                | Self::ProfileSelect { .. }
-                | Self::ProfileUpdate { .. }
-                | Self::ProfileSave { .. }
-                | Self::ProfileDelete { .. }
-                | Self::ProfileSubscriptionSave { .. }
-                | Self::ProfileSubscriptionClear { .. }
-                | Self::WebDavSettingsSave { .. }
-                | Self::TunSettingsSave { .. }
-                | Self::AppRoutingModeSet { .. }
-                | Self::AppRoutingPackagesSet { .. }
-        )
+            | Self::ProfileSelect { .. }
+            | Self::ProfileUpdate { .. }
+            | Self::ProfileSave { .. }
+            | Self::ProfileDelete { .. }
+            | Self::ProfileSubscriptionSave { .. }
+            | Self::ProfileSubscriptionClear { .. }
+            | Self::TunSettingsSave { .. }
+            | Self::WebDavSettingsSave { .. }
+            | Self::AppRoutingModeSet { .. }
+            | Self::AppRoutingPackagesSet { .. } => {
+                AndroidOwnerDataMutation::CommitRegardlessOfOutcome
+            }
+            Self::DnsSettingsSave { .. }
+            | Self::FakeIpSettingsSave { .. }
+            | Self::FakeIpCacheClear
+            | Self::RulesSave { .. }
+            | Self::RuleProvidersSave { .. } => AndroidOwnerDataMutation::CommitOnSuccess,
+        }
     }
 
-    fn data_domain(&self) -> AndroidOwnerDataDomain {
+    pub(super) fn data_domain(&self) -> AndroidOwnerDataDomain {
         match self {
             Self::ProfilesList
             | Self::ProfileCreate { .. }
@@ -524,23 +541,28 @@ fn advance_app_routing_revision() -> Option<u64> {
         .and_then(|revision| revision.checked_add(1))
 }
 
-fn should_advance_revision(
-    mutates_data: bool,
-    advances_on_failure: bool,
+fn owner_revision_transition(
+    mutation: AndroidOwnerDataMutation,
     readback: &AndroidOwnerOperationReadback,
     status: FfiErrorCode,
-) -> bool {
-    if !mutates_data {
-        return false;
-    }
-    if advances_on_failure {
-        return true;
-    }
-    match readback {
-        AndroidOwnerOperationReadback::FakeIpCacheClear(result) => {
-            result.status.code == FfiErrorCode::Ok && result.value
+) -> AndroidOwnerRevisionTransition {
+    match mutation {
+        AndroidOwnerDataMutation::ReadOnly => AndroidOwnerRevisionTransition::Unchanged,
+        AndroidOwnerDataMutation::CommitRegardlessOfOutcome => {
+            AndroidOwnerRevisionTransition::Advance
         }
-        _ => status == FfiErrorCode::Ok,
+        AndroidOwnerDataMutation::CommitOnSuccess => match readback {
+            AndroidOwnerOperationReadback::FakeIpCacheClear(result)
+                if result.status.code == FfiErrorCode::Ok && result.value =>
+            {
+                AndroidOwnerRevisionTransition::Advance
+            }
+            AndroidOwnerOperationReadback::FakeIpCacheClear(_) => {
+                AndroidOwnerRevisionTransition::Unchanged
+            }
+            _ if status == FfiErrorCode::Ok => AndroidOwnerRevisionTransition::Advance,
+            _ => AndroidOwnerRevisionTransition::Unchanged,
+        },
     }
 }
 

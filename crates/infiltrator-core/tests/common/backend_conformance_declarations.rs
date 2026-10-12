@@ -13,7 +13,7 @@ use std::collections::HashSet;
 const MIHOMO_DECLARATION: &str =
     include_str!("../../../mihomo-api/adapter-operation-declarations.json");
 const SING_BOX_DECLARATION: &str =
-    include_str!("../../../singbox-adapter/adapter-operation-declarations.json");
+    include_str!("../../../singbox-api/adapter-operation-declarations.json");
 const MIHOMO_EVIDENCE_LOCK: &str =
     include_str!("../../../../packaging/mihomo-evidence-assets.json");
 const SING_BOX_EVIDENCE_LOCK: &str =
@@ -173,10 +173,28 @@ pub(crate) fn unsupported_engine_operations() -> Vec<DeclaredOperationExpectatio
         },
     ];
     operations.extend(lifecycle_owner_managed_operations());
-    operations.push(DeclaredOperationExpectation {
-        operation: CoreOperation::Version(VersionOperation::Inspect),
-        state,
-    });
+    operations.extend([
+        DeclaredOperationExpectation {
+            operation: CoreOperation::Version(VersionOperation::Inspect),
+            state: OperationDeclarationState::OwnerManaged,
+        },
+        DeclaredOperationExpectation {
+            operation: CoreOperation::Version(VersionOperation::Install),
+            state,
+        },
+        DeclaredOperationExpectation {
+            operation: CoreOperation::Version(VersionOperation::Activate),
+            state,
+        },
+        DeclaredOperationExpectation {
+            operation: CoreOperation::Version(VersionOperation::Uninstall),
+            state,
+        },
+        DeclaredOperationExpectation {
+            operation: CoreOperation::Version(VersionOperation::Rollback),
+            state: OperationDeclarationState::OwnerManaged,
+        },
+    ]);
     operations
 }
 

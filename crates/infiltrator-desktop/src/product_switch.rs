@@ -32,6 +32,7 @@ use infiltrator_contract::profile_document_identity::{ProfileDocument, ProfileId
 use infiltrator_contract::surface::SurfaceKind;
 use infiltrator_core::settings_io::app_config_manager;
 use infiltrator_core::version_port::MihomoVersionPort;
+use infiltrator_platform::defaults::DefaultCredentialStore;
 use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceStore;
 use infiltrator_ports::core_binary_selection::{BundledBinarySource, CoreBinarySelection};
 use infiltrator_ports::engine_backend_factory::{
@@ -44,11 +45,10 @@ use mihomo_api::client::MihomoClient;
 use mihomo_config::endpoint::ProfileEndpointSource;
 use mihomo_config::manager::ConfigManager;
 use mihomo_config::yaml;
-use mihomo_platform::defaults::DefaultCredentialStore;
 use mihomo_version::bundled_kernel::packaged_candidates;
-use singbox_adapter::command::TokioSingBoxCommandPort;
-use singbox_adapter::controller_configuration::SingBoxControllerConfiguration;
-use singbox_adapter::http::ReqwestSingBoxClashHttpPort;
+use singbox_api::controller_configuration::SingBoxControllerConfiguration;
+use singbox_api::http::ReqwestSingBoxClashHttpPort;
+use singbox_process::command::TokioSingBoxCommandPort;
 use std::fmt::Display;
 use std::path::PathBuf;
 use std::sync::Arc;

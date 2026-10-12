@@ -1,5 +1,5 @@
 use crate::*;
-use mihomo_platform::crash_reporter::CrashReporter;
+use infiltrator_platform::crash_reporter::CrashReporter;
 use std::env::var;
 
 #[test]

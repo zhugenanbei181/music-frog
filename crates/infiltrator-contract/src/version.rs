@@ -6,6 +6,7 @@ use serde::de::Error as _;
 use serde::{Deserialize, Serialize};
 use std::error::Error;
 use std::fmt::{self, Display, Formatter};
+use std::num::NonZeroU64;
 
 /// Release channels whose meaning does not vary by core engine.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -228,4 +229,164 @@ pub struct CoreReleaseSummary {
 pub struct VersionDownloadProgress {
     pub downloaded: u64,
     pub total: Option<u64>,
+}
+
+/// Stable identifier for one asynchronous, engine-scoped version install.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct CoreVersionInstallId(NonZeroU64);
+
+impl CoreVersionInstallId {
+    pub fn new(value: u64) -> Result<Self, CoreVersionInstallIdError> {
+        NonZeroU64::new(value)
+            .map(Self)
+            .ok_or(CoreVersionInstallIdError::Zero)
+    }
+
+    pub const fn get(self) -> u64 {
+        self.0.get()
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CoreVersionInstallIdError {
+    Zero,
+}
+
+/// Identity and observation revision owned by one version-install task.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CoreVersionInstallContext {
+    pub install_id: CoreVersionInstallId,
+    pub engine_id: EngineId,
+    pub version: String,
+    pub revision: u64,
+}
+
+/// Mutually exclusive lifecycle of a managed version installation.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CoreVersionInstallState {
+    Running {
+        context: CoreVersionInstallContext,
+        progress: Option<VersionDownloadProgress>,
+    },
+    CancelRequested {
+        context: CoreVersionInstallContext,
+        progress: Option<VersionDownloadProgress>,
+    },
+    Completed {
+        context: CoreVersionInstallContext,
+    },
+    Cancelled {
+        context: CoreVersionInstallContext,
+    },
+    Failed {
+        context: CoreVersionInstallContext,
+        failure: Failure,
+    },
+}
+
+impl CoreVersionInstallState {
+    pub fn context(&self) -> &CoreVersionInstallContext {
+        match self {
+            Self::Running { context, .. }
+            | Self::CancelRequested { context, .. }
+            | Self::Completed { context }
+            | Self::Cancelled { context }
+            | Self::Failed { context, .. } => context,
+        }
+    }
+
+    pub fn is_active(&self) -> bool {
+        matches!(self, Self::Running { .. } | Self::CancelRequested { .. })
+    }
+}
+
+/// Receipt that the owner accepted an install task for execution.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CoreVersionInstallReceipt {
+    pub install_id: CoreVersionInstallId,
+}
+
+/// Terminal outcome of asking the owner to cancel one install task.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CoreVersionInstallCancelOutcome {
+    Requested { install_id: CoreVersionInstallId },
+    AlreadyRequested { install_id: CoreVersionInstallId },
+    AlreadyFinished { install_id: CoreVersionInstallId },
+    NotFound { install_id: CoreVersionInstallId },
+    Unavailable { failure: Failure },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CoreVersionInstallObservation {
+    Found { state: CoreVersionInstallState },
+    NotFound { install_id: CoreVersionInstallId },
+    Unavailable { failure: Failure },
+}
+
+/// Engine-scoped version-management actions accepted by the shared owner.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CoreVersionManagementAction {
+    ListInstalled,
+    ListReleases {
+        limit: u32,
+    },
+    Latest {
+        channel: EngineNeutralReleaseChannel,
+    },
+    Install {
+        version: String,
+    },
+    Activate {
+        version: String,
+    },
+    Uninstall {
+        version: String,
+    },
+    Rollback,
+}
+
+/// A command binds the action to exactly one engine namespace.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CoreVersionManagementRequest {
+    pub engine_id: EngineId,
+    pub action: CoreVersionManagementAction,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CoreVersionManagementResult {
+    InstalledVersions {
+        engine_id: EngineId,
+        versions: Vec<InstalledCoreVersion>,
+    },
+    Releases {
+        engine_id: EngineId,
+        releases: Vec<CoreReleaseSummary>,
+    },
+    Latest {
+        engine_id: EngineId,
+        release: CoreRelease,
+    },
+    InstallAccepted {
+        receipt: CoreVersionInstallReceipt,
+        state: CoreVersionInstallState,
+    },
+    Activated {
+        engine_id: EngineId,
+        version: String,
+    },
+    Uninstalled {
+        engine_id: EngineId,
+        version: String,
+    },
+    RolledBack {
+        engine_id: EngineId,
+        selected_version: String,
+    },
 }

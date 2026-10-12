@@ -31,6 +31,7 @@ pub mod core_owner_shutdown_application;
 #[cfg(test)]
 mod core_product_control_tests;
 pub mod core_status_projection;
+pub mod core_version_management_application;
 pub mod dialer_chain_application;
 pub mod dns_cache_actions;
 pub mod dns_cache_application;

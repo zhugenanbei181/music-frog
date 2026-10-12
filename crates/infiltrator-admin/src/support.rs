@@ -42,11 +42,11 @@ use infiltrator_application::sync_application::SyncApplication;
 use infiltrator_application::version_application::VersionApplication;
 use infiltrator_core::settings_io;
 use infiltrator_domain::settings::AppSettings;
+use infiltrator_platform::defaults::DefaultCredentialStore;
+use infiltrator_platform::paths::get_home_dir;
 use mihomo_config::manager::ConfigManager;
 #[cfg(test)]
 use mihomo_config::profile_document_codec::MihomoProfileDocumentCodec;
-use mihomo_platform::defaults::DefaultCredentialStore;
-use mihomo_platform::paths::get_home_dir;
 
 /// Publish a typed Mihomo active-profile selection for Admin API test fixtures.
 /// Profile documents are intentionally created inactive first, so tests that
@@ -181,7 +181,7 @@ pub(crate) mod test_env {
     #[cfg(test)]
     use std::env::var;
 
-    /// env 是进程级全局状态：调用方必须持有 `mihomo_platform::TEST_LOCK`。
+    /// env 是进程级全局状态：调用方必须持有 `infiltrator_platform::TEST_LOCK`。
     /// 返回被清除前的旧值，供 [`restore_configs_dir_env`] 恢复。
     pub(crate) fn clear_configs_dir_env() -> Option<String> {
         let saved = var(CONFIGS_DIR_ENV).ok();
@@ -206,14 +206,14 @@ mod tests {
     use super::{app_config_manager, app_configs_dir, test_env};
     use infiltrator_core::settings_io;
     use infiltrator_domain::settings::AppSettings;
+    use infiltrator_platform::TEST_LOCK;
+    #[cfg(test)]
+    use infiltrator_platform::paths::clear_home_dir_override;
+    #[cfg(test)]
+    use infiltrator_platform::paths::set_home_dir_override;
     use infiltrator_ports::profile_store::ProfileStore;
     #[cfg(test)]
     use mihomo_config::manager::paths::CONFIGS_DIR_ENV;
-    use mihomo_platform::TEST_LOCK;
-    #[cfg(test)]
-    use mihomo_platform::paths::clear_home_dir_override;
-    #[cfg(test)]
-    use mihomo_platform::paths::set_home_dir_override;
     #[cfg(test)]
     use std::env::var;
     #[cfg(test)]

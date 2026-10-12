@@ -10,7 +10,7 @@ use infiltrator_contract::android_control::{
 };
 use infiltrator_contract::command::{CommandIntent, CommandResult};
 use infiltrator_contract::core_identity::CoreScope;
-use mihomo_platform::android_bridge::get_android_bridge;
+use infiltrator_platform::android_bridge::get_android_bridge;
 
 #[derive(Debug, Clone, uniffi::Record)]
 pub struct IpCheckResult {

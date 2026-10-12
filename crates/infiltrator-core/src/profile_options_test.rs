@@ -13,9 +13,9 @@ use infiltrator_domain::profile_options::{
     options_path, strip_rule_lines,
 };
 use infiltrator_domain::settings::AppSettings;
+use infiltrator_platform::paths::{get_home_dir, set_home_dir_override};
 use mihomo_config::manager::paths::{CONFIGS_DIR_ENV, engine_config_dir};
 use mihomo_config::profile_option_store::{delete_options, load_options, save_options};
-use mihomo_platform::paths::{get_home_dir, set_home_dir_override};
 use serde_yaml_ng::Value;
 use std::env::{remove_var, set_var, temp_dir, var};
 use std::fs::create_dir_all;
@@ -222,7 +222,7 @@ async fn test_delete_options_is_best_effort() {
 
 #[tokio::test]
 async fn test_options_wrapper_follows_configs_dir_redirect() {
-    let _guard = mihomo_platform::TEST_LOCK.lock().await;
+    let _guard = infiltrator_platform::TEST_LOCK.lock().await;
     let original_home = get_home_dir().unwrap();
     let home = temp_config_dir("redirect-home");
     let cloud_dir = home.join("cloud-profiles");

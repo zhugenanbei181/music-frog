@@ -21,7 +21,7 @@ FORBIDDEN_PACKAGES = {
     "infiltrator-android",
     "infiltrator-composition",
     "mihomo-api",
-    "mihomo-platform",
+    "infiltrator-platform",
 }
 FORBIDDEN_UI_FEATURES = {
     "default",

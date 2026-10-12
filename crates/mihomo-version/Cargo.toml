@@ -9,7 +9,7 @@ chrono = { workspace = true }
 flate2 = { workspace = true }
 log = { workspace = true }
 mihomo-api = { path = "../mihomo-api" }
-mihomo-platform = { path = "../mihomo-platform" }
+infiltrator-platform = { path = "../infiltrator-platform" }
 reqwest = { workspace = true, default-features = false, features = ["json", "socks", "stream", "http2"] }
 serde = { workspace = true }
 serde_json = { workspace = true }

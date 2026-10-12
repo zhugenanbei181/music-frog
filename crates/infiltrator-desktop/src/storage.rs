@@ -26,6 +26,7 @@ use infiltrator_core::version_port::MihomoVersionPort;
 use infiltrator_core::{host_io, profile_reset};
 use infiltrator_domain::profile_options::ProfileOptions;
 use infiltrator_domain::snapshots::SnapshotMeta;
+use infiltrator_platform::defaults::DefaultCredentialStore;
 use infiltrator_ports::app_routing_store::AppRoutingStore;
 use infiltrator_ports::doctor::DoctorPort;
 use infiltrator_ports::endpoint::EndpointSource;
@@ -44,9 +45,8 @@ use infiltrator_ports::sync::SyncPort;
 use mihomo_config::endpoint::ProfileEndpointSource;
 use mihomo_config::manager::{ConfigManager, ProfileDocumentExtension};
 use mihomo_config::profile_option_store::{load_options, save_options};
-use mihomo_platform::defaults::DefaultCredentialStore;
-use singbox_adapter::profile_document_codec::SingBoxProfileDocumentCodec;
-use singbox_adapter::version::SingBoxEngineVersionBackendFactory;
+use singbox_config::profile_document_codec::SingBoxProfileDocumentCodec;
+use singbox_version::version::SingBoxEngineVersionBackendFactory;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock};
@@ -171,7 +171,7 @@ fn version_factory_for(home: PathBuf) -> anyhow::Result<EngineVersionBackendFact
     let mut factories = vec![(MihomoVersionPort::engine_identifier(), mihomo_factory)];
     match SingBoxEngineVersionBackendFactory::current(home) {
         Ok(factory) => factories.push((
-            singbox_adapter::engine_id(),
+            singbox_api::engine_id(),
             Arc::new(factory) as Arc<dyn EngineVersionBackendFactory>,
         )),
         Err(PortError::Unsupported { .. }) => {}

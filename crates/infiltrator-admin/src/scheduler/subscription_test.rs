@@ -47,18 +47,18 @@ mod tests {
     use infiltrator_domain::subscription::mask_subscription_url;
     #[cfg(test)]
     use infiltrator_domain::subscription_scheduler_policy::CronSchedule;
+    use infiltrator_platform::TEST_LOCK;
+    use infiltrator_platform::defaults::DefaultCredentialStore;
+    #[cfg(test)]
+    use infiltrator_platform::paths::clear_home_dir_override;
+    #[cfg(test)]
+    use infiltrator_platform::paths::set_home_dir_override;
     use infiltrator_ports::profile_store::ProfileStore;
     use infiltrator_ports::runtime_gateway::RuntimeGateway;
     #[cfg(test)]
     use infiltrator_ports::subscription_source::SubscriptionSource;
     use mihomo_config::manager::ConfigManager;
     use mihomo_config::profile::Profile;
-    use mihomo_platform::TEST_LOCK;
-    use mihomo_platform::defaults::DefaultCredentialStore;
-    #[cfg(test)]
-    use mihomo_platform::paths::clear_home_dir_override;
-    #[cfg(test)]
-    use mihomo_platform::paths::set_home_dir_override;
     #[cfg(test)]
     use std::fs::create_dir_all;
     #[cfg(test)]

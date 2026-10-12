@@ -63,6 +63,7 @@ use infiltrator_core::profile_configuration_transaction::{
 };
 use infiltrator_core::settings_io::app_config_manager;
 use infiltrator_core::version_port::MihomoVersionPort;
+use infiltrator_platform::defaults::DefaultCredentialStore;
 use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceStore;
 use infiltrator_ports::core_binary_selection::{
     BundledBinarySource, CoreBinarySelection, CoreBinarySelectionPolicy, CoreBinarySelectionRequest,
@@ -83,9 +84,8 @@ use mihomo_api::client::MihomoClient;
 use mihomo_api::core_capability_provider::MihomoCoreCapabilityProvider;
 use mihomo_api::overview::ControllerOverviewReader;
 use mihomo_config::manager::ConfigManager;
-use mihomo_platform::defaults::DefaultCredentialStore;
 use mihomo_version::bundled_kernel::packaged_candidates;
-use singbox_adapter::capability_provider::SingBoxCoreCapabilityProvider;
+use singbox_api::capability_provider::SingBoxCoreCapabilityProvider;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -352,7 +352,7 @@ struct DesktopSingBoxRuntimeProvider;
 #[async_trait::async_trait]
 impl DesktopEngineRuntimeProvider for DesktopSingBoxRuntimeProvider {
     fn engine_id(&self) -> EngineId {
-        singbox_adapter::engine_id()
+        singbox_api::engine_id()
     }
 
     fn binary_selection_policy(
@@ -707,7 +707,7 @@ pub(crate) fn desktop_core_capability_provider(
         HostKind::Desktop,
         adapter_operations,
     ));
-    let sing_box_engine_id = singbox_adapter::engine_id();
+    let sing_box_engine_id = singbox_api::engine_id();
     let sing_box: Arc<dyn CoreCapabilityProvider> = Arc::new(SingBoxCoreCapabilityProvider::new(
         HostKind::Desktop,
         [

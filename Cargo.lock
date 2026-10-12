@@ -5913,12 +5913,12 @@ dependencies = [
  "infiltrator-contract",
  "infiltrator-core",
  "infiltrator-domain",
+ "infiltrator-platform",
  "infiltrator-ports",
  "infiltrator-shared",
  "log",
  "mihomo-api",
  "mihomo-config",
- "mihomo-platform",
  "mockito",
  "serde",
  "serde_json",
@@ -5944,6 +5944,7 @@ dependencies = [
  "infiltrator-contract",
  "infiltrator-core",
  "infiltrator-domain",
+ "infiltrator-platform",
  "infiltrator-ports",
  "infiltrator-shared",
  "infiltrator-slint",
@@ -5952,14 +5953,16 @@ dependencies = [
  "log",
  "mihomo-api",
  "mihomo-config",
- "mihomo-platform",
  "reqwest",
  "rustls",
  "serde",
  "serde_json",
  "serde_yaml_ng",
  "sha2 0.11.0",
- "singbox-adapter",
+ "singbox-api",
+ "singbox-config",
+ "singbox-process",
+ "singbox-version",
  "slint",
  "tempfile",
  "thiserror 2.0.21",
@@ -6047,10 +6050,11 @@ dependencies = [
  "infiltrator-core",
  "infiltrator-domain",
  "infiltrator-http",
+ "infiltrator-platform",
  "infiltrator-ports",
  "mihomo-api",
  "mihomo-config",
- "mihomo-platform",
+ "mihomo-process",
  "mihomo-version",
  "serde",
  "serde_json",
@@ -6071,7 +6075,11 @@ dependencies = [
  "log",
  "mihomo-api",
  "mihomo-config",
- "singbox-adapter",
+ "mockito",
+ "serde_json",
+ "singbox-api",
+ "singbox-config",
+ "singbox-process",
  "tempfile",
  "tokio",
  "url",
@@ -6103,11 +6111,12 @@ dependencies = [
  "infiltrator-contract",
  "infiltrator-domain",
  "infiltrator-http",
+ "infiltrator-platform",
  "infiltrator-ports",
  "log",
  "mihomo-api",
  "mihomo-config",
- "mihomo-platform",
+ "mihomo-process",
  "mihomo-version",
  "mockito",
  "regex",
@@ -6116,7 +6125,7 @@ dependencies = [
  "serde_json",
  "serde_yaml_ng",
  "sha2 0.11.0",
- "singbox-adapter",
+ "singbox-api",
  "state-store",
  "sync-engine",
  "sysinfo",
@@ -6142,17 +6151,21 @@ dependencies = [
  "infiltrator-contract",
  "infiltrator-core",
  "infiltrator-domain",
+ "infiltrator-platform",
  "infiltrator-ports",
  "log",
  "mihomo-api",
  "mihomo-config",
- "mihomo-platform",
+ "mihomo-process",
  "mihomo-version",
  "reqwest",
  "serde",
  "serde_json",
  "sha2 0.11.0",
- "singbox-adapter",
+ "singbox-api",
+ "singbox-config",
+ "singbox-process",
+ "singbox-version",
  "sysinfo",
  "tempfile",
  "tokio",
@@ -6215,6 +6228,7 @@ dependencies = [
  "infiltrator-core",
  "infiltrator-desktop",
  "infiltrator-domain",
+ "infiltrator-platform",
  "infiltrator-ports",
  "infiltrator-presentation",
  "infiltrator-shared",
@@ -6222,7 +6236,6 @@ dependencies = [
  "ksni",
  "log",
  "mihomo-config",
- "mihomo-platform",
  "mihomo-version",
  "muda",
  "naga 27.0.3",
@@ -6255,6 +6268,31 @@ dependencies = [
  "infiltrator-ports",
  "mihomo-api",
  "tokio",
+]
+
+[[package]]
+name = "infiltrator-platform"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "dirs",
+ "infiltrator-contract",
+ "infiltrator-ports",
+ "jni 0.22.4",
+ "keyring",
+ "libc",
+ "log",
+ "regex",
+ "serde",
+ "serde_json",
+ "sha2 0.11.0",
+ "signal-hook",
+ "sysinfo",
+ "tempfile",
+ "thiserror 2.0.21",
+ "tokio",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -7174,16 +7212,15 @@ dependencies = [
  "chrono",
  "infiltrator-contract",
  "infiltrator-domain",
+ "infiltrator-platform",
  "infiltrator-ports",
  "log",
  "mihomo-api",
- "mihomo-platform",
  "ring",
  "serde",
  "serde_json",
  "serde_yaml_ng",
  "sha2 0.11.0",
- "singbox-adapter",
  "tempfile",
  "thiserror 2.0.21",
  "tokio",
@@ -7192,30 +7229,19 @@ dependencies = [
 ]
 
 [[package]]
-name = "mihomo-platform"
+name = "mihomo-process"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "async-trait",
- "dirs",
  "infiltrator-contract",
+ "infiltrator-platform",
  "infiltrator-ports",
- "jni 0.22.4",
- "keyring",
  "libc",
  "log",
- "mihomo-api",
- "regex",
- "serde",
- "serde_json",
- "sha2 0.11.0",
- "signal-hook",
  "sysinfo",
  "tempfile",
- "thiserror 2.0.21",
  "tokio",
  "windows-sys 0.61.2",
- "winreg",
 ]
 
 [[package]]
@@ -7227,9 +7253,9 @@ dependencies = [
  "flate2",
  "futures-util",
  "infiltrator-contract",
+ "infiltrator-platform",
  "log",
  "mihomo-api",
- "mihomo-platform",
  "mockito",
  "reqwest",
  "serde",
@@ -9878,16 +9904,52 @@ dependencies = [
 ]
 
 [[package]]
-name = "singbox-adapter"
+name = "singbox-api"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "infiltrator-contract",
+ "infiltrator-ports",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+ "url",
+]
+
+[[package]]
+name = "singbox-config"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "infiltrator-contract",
+ "infiltrator-domain",
+ "infiltrator-ports",
+ "serde_json",
+ "singbox-process",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
+name = "singbox-process"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "infiltrator-contract",
+ "infiltrator-ports",
+ "tokio",
+]
+
+[[package]]
+name = "singbox-version"
 version = "0.1.0"
 dependencies = [
  "async-trait",
  "flate2",
  "futures-util",
  "infiltrator-contract",
- "infiltrator-domain",
  "infiltrator-ports",
- "mockito",
  "reqwest",
  "serde",
  "serde_json",

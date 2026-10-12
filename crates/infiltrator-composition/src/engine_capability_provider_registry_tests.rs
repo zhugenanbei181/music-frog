@@ -2,7 +2,7 @@ use super::*;
 use infiltrator_contract::core_capabilities::{CoreLifecycleOperation, CoreOperation};
 use infiltrator_contract::surface::HostKind;
 use mihomo_api::core_capability_provider::MihomoCoreCapabilityProvider;
-use singbox_adapter::capability_provider::SingBoxCoreCapabilityProvider;
+use singbox_api::capability_provider::SingBoxCoreCapabilityProvider;
 
 fn lifecycle_provider(engine: &str) -> (EngineId, Arc<dyn CoreCapabilityProvider>) {
     let start = CoreOperation::Lifecycle(CoreLifecycleOperation::Start);

@@ -13,7 +13,7 @@ use std::collections::HashSet;
 const MIHOMO_DECLARATION: &str =
     include_str!("../../mihomo-api/adapter-operation-declarations.json");
 const SING_BOX_DECLARATION: &str =
-    include_str!("../../singbox-adapter/adapter-operation-declarations.json");
+    include_str!("../../singbox-api/adapter-operation-declarations.json");
 const MIHOMO_EVIDENCE_LOCK: &str = include_str!("../../../packaging/mihomo-evidence-assets.json");
 const SING_BOX_EVIDENCE_LOCK: &str =
     include_str!("../../../packaging/sing-box-evidence-assets.json");

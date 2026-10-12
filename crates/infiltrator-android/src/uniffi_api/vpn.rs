@@ -39,7 +39,7 @@ use infiltrator_contract::vpn::{
 };
 use infiltrator_domain::tun;
 #[cfg(target_os = "android")]
-use mihomo_platform::android_bridge::get_android_bridge;
+use infiltrator_platform::android_bridge::get_android_bridge;
 #[cfg(target_os = "android")]
 use std::net::IpAddr;
 use std::sync::Arc;

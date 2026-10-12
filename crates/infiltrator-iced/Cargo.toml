@@ -98,7 +98,7 @@ tempfile = { workspace = true }
 axum = { workspace = true }
 iced_runtime = "0.14"
 infiltrator-core = { path = "../infiltrator-core" }
-mihomo-platform = { path = "../mihomo-platform" }
+infiltrator-platform = { path = "../infiltrator-platform" }
 mihomo-version = { path = "../mihomo-version" }
 
 [package.metadata.packager]

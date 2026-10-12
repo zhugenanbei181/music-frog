@@ -79,7 +79,7 @@ use settings::{
 use vpn::build_tun_patch;
 
 use crate::ffi::FfiStatus;
-use mihomo_platform::android_bridge::{clear_android_bridge, get_android_bridge};
+use infiltrator_platform::android_bridge::{clear_android_bridge, get_android_bridge};
 
 #[uniffi::export]
 pub fn ping() -> String {

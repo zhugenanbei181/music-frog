@@ -8,10 +8,10 @@ use infiltrator_contract::network_roaming::{
     NetworkInterfaceKind, NetworkInterfaceSnapshot, NetworkObservation,
     NetworkRoamingRepairRequest, NetworkRoamingRepairResult,
 };
+use infiltrator_platform::interface_watcher;
+use infiltrator_platform::interface_watcher::{InterfaceType, NetworkInterfaceWatcher};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::network_roaming::NetworkRoamingPort;
-use mihomo_platform::interface_watcher;
-use mihomo_platform::interface_watcher::{InterfaceType, NetworkInterfaceWatcher};
 use std::net::IpAddr;
 use std::process::{Command, Output};
 use std::sync::atomic::{AtomicU64, Ordering};

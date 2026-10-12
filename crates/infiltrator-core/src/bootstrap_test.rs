@@ -7,12 +7,12 @@ use crate::settings_io::test_support::RedirectGuard;
 use infiltrator_contract::active_profile_reference::{
     ActiveProfileReferenceState, ActiveProfileReferenceWriteAuthorization,
 };
+use infiltrator_platform::defaults::DefaultCredentialStore;
 use infiltrator_ports::profile_store::{
     ActiveProfileWorkspacePublishOutcome, ActiveProfileWorkspaceRecoveryResolution, ProfileStore,
 };
 use infiltrator_ports::profile_workspace::{ProfileWorkspacePurpose, ProfileWorkspaceUpdate};
 use mihomo_config::manager::ConfigManager;
-use mihomo_platform::defaults::DefaultCredentialStore;
 use tempfile::TempDir;
 use tokio::fs::read_to_string;
 

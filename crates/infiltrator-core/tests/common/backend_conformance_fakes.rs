@@ -796,8 +796,37 @@ pub fn declaration_matrix_keeps_evidence_open_and_unsupported_out_of_verified_su
     );
     assert_eq!(
         expected_support(&sing_box, version_inspect),
+        OperationDeclarationState::OwnerManaged,
+        "version inspection belongs to the shared version-management owner"
+    );
+    assert_eq!(
+        expected_support(&sing_box, CoreOperation::Version(VersionOperation::Install)),
         OperationDeclarationState::Unsupported,
-        "live readiness version observation is not sing-box version-management support"
+        "sing-box installation has not been connected through a product owner"
+    );
+    assert_eq!(
+        expected_support(
+            &sing_box,
+            CoreOperation::Version(VersionOperation::Activate)
+        ),
+        OperationDeclarationState::Unsupported,
+        "sing-box activation has not been connected through a product owner"
+    );
+    assert_eq!(
+        expected_support(
+            &sing_box,
+            CoreOperation::Version(VersionOperation::Uninstall)
+        ),
+        OperationDeclarationState::Unsupported,
+        "sing-box uninstall has not been connected through a product owner"
+    );
+    assert_eq!(
+        expected_support(
+            &sing_box,
+            CoreOperation::Version(VersionOperation::Rollback)
+        ),
+        OperationDeclarationState::OwnerManaged,
+        "sing-box rollback belongs to the shared version-management owner"
     );
     assert!(
         sing_box

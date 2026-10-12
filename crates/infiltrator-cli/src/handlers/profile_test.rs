@@ -2,7 +2,7 @@ use super::{apply_configs_dir_override, profile_json, profile_row};
 use crate::context::Runtime;
 use crate::test_support::EnvGuard;
 use infiltrator_domain::profiles::ProfileInfo;
-use mihomo_platform::paths::{clear_home_dir_override, set_home_dir_override};
+use infiltrator_platform::paths::{clear_home_dir_override, set_home_dir_override};
 
 fn sample_profile(name: &str, active: bool) -> ProfileInfo {
     ProfileInfo {

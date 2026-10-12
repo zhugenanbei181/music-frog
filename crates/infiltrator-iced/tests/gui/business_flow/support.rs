@@ -7,7 +7,7 @@
 //!    the test thread via `block_on`, and its result message is fed back
 //!    through `update()` (异步结果回灌),
 //! 3. every filesystem-touching journey runs inside a [`TempHome`] (global
-//!    `mihomo_platform` home override + mutex) so no test ever touches the
+//!    `infiltrator_platform` home override + mutex) so no test ever touches the
 //!    real user directory; remote interactions either fail fast on a closed
 //!    localhost port or never run at all.
 //!
@@ -25,7 +25,7 @@ use infiltrator_contract::active_profile_reference::{
 use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_domain::profiles::ProfileInfo;
 use infiltrator_ports::profile_store::ProfileStore;
-use mihomo_platform::paths::{clear_home_dir_override, set_home_dir_override};
+use infiltrator_platform::paths::{clear_home_dir_override, set_home_dir_override};
 use std::env::temp_dir;
 use std::fs::{create_dir_all, remove_dir_all};
 use std::future::Future;
@@ -70,7 +70,7 @@ pub fn list_profiles() -> Vec<ProfileInfo> {
 }
 
 /// Serializes every test that flips the global home override, and provides
-/// RAII cleanup. `mihomo_platform::paths::get_home_dir()` (and therefore
+/// RAII cleanup. `infiltrator_platform::paths::get_home_dir()` (and therefore
 /// `crate::configs_dir`, `VersionManager::new`, settings load/save and the
 /// factory-reset paths) resolves to this directory for the journey's
 /// duration.

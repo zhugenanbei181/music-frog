@@ -91,8 +91,9 @@ pub async fn android_dispatch_owner_operation_wire_json(
                 );
             }
 
-            let _owner_operation_guard = match request.operation.mutates_data() {
-                true => match try_owner_data_revision_fence() {
+            let _owner_operation_guard = match request.operation.data_mutation() {
+                AndroidOwnerDataMutation::CommitOnSuccess
+                | AndroidOwnerDataMutation::CommitRegardlessOfOutcome => match try_owner_data_revision_fence() {
                     OwnerDataRevisionFenceAcquire::Acquired(guard) => guard,
                     OwnerDataRevisionFenceAcquire::Busy => {
                         let expected_generation = context.expected_core_generation;
@@ -109,7 +110,7 @@ pub async fn android_dispatch_owner_operation_wire_json(
                         );
                     }
                 },
-                false => owner_data_revision_fence().await,
+                AndroidOwnerDataMutation::ReadOnly => owner_data_revision_fence().await,
             };
             let lifecycle = android_core_lifecycle_status().await;
             let observed_generation = lifecycle.generation;
@@ -145,17 +146,24 @@ pub async fn android_dispatch_owner_operation_wire_json(
                     );
                 }
             }
-            if request.operation.mutates_data() && observed_revision == u64::MAX {
-                return rejected_result(
-                    context,
-                    observed_generation,
-                    observed_revision,
-                    FfiStatus::err(
-                        FfiErrorCode::InvalidState,
-                        "Android owner data revision is exhausted",
-                    ),
-                    AndroidOwnerOperationIpcState::Failed,
-                );
+            match (request.operation.data_mutation(), observed_revision) {
+                (
+                    AndroidOwnerDataMutation::CommitOnSuccess
+                    | AndroidOwnerDataMutation::CommitRegardlessOfOutcome,
+                    u64::MAX,
+                ) => {
+                    return rejected_result(
+                        context,
+                        observed_generation,
+                        observed_revision,
+                        FfiStatus::err(
+                            FfiErrorCode::InvalidState,
+                            "Android owner data revision is exhausted",
+                        ),
+                        AndroidOwnerOperationIpcState::Failed,
+                    );
+                }
+                _ => {}
             }
             if matches!(
                 &request.operation,
@@ -262,26 +270,20 @@ pub(super) fn validate_owner_operation_reply(
     }
 
     let status = status_from_readback(&reply.readback);
-    let advances = should_advance_revision(
-        operation.mutates_data(),
-        operation.advances_revision_even_on_failure(),
-        &reply.readback,
-        status.code,
-    );
-    let expected_revision = if advances {
-        reply
-            .context
-            .expected_data_revision
-            .checked_add(1)
-            .ok_or_else(|| {
-                FfiStatus::err(
-                    FfiErrorCode::InvalidState,
-                    "Android owner data revision is exhausted",
-                )
-            })?
-    } else {
-        reply.context.expected_data_revision
-    };
+    let expected_revision =
+        match owner_revision_transition(operation.data_mutation(), &reply.readback, status.code) {
+            AndroidOwnerRevisionTransition::Advance => reply
+                .context
+                .expected_data_revision
+                .checked_add(1)
+                .ok_or_else(|| {
+                    FfiStatus::err(
+                        FfiErrorCode::InvalidState,
+                        "Android owner data revision is exhausted",
+                    )
+                })?,
+            AndroidOwnerRevisionTransition::Unchanged => reply.context.expected_data_revision,
+        };
     if reply.data_revision != expected_revision {
         return Err(FfiStatus::err(
             FfiErrorCode::NotReady,
@@ -572,8 +574,7 @@ pub(super) async fn execute_operation(
     use crate::uniffi_api::webdav;
 
     let domain = operation.data_domain();
-    let mutates_data = operation.mutates_data();
-    let advances_on_failure = operation.advances_revision_even_on_failure();
+    let mutation = operation.data_mutation();
     let _routing_guard = if domain == AndroidOwnerDataDomain::AppRouting {
         Some(APP_ROUTING_SERIALIZER.lock().await)
     } else {
@@ -845,10 +846,12 @@ pub(super) async fn execute_operation(
         }
     };
     let status = status_from_readback(&readback);
-    let should_advance =
-        should_advance_revision(mutates_data, advances_on_failure, &readback, status.code);
-    if domain == AndroidOwnerDataDomain::AppRouting
-        && mutates_data
+    if matches!(domain, AndroidOwnerDataDomain::AppRouting)
+        && matches!(
+            mutation,
+            AndroidOwnerDataMutation::CommitOnSuccess
+                | AndroidOwnerDataMutation::CommitRegardlessOfOutcome
+        )
         && matches!(
             status.code,
             FfiErrorCode::Ok | FfiErrorCode::Io | FfiErrorCode::Unknown
@@ -856,10 +859,11 @@ pub(super) async fn execute_operation(
     {
         advance_app_routing_revision().unwrap_or_else(app_routing_revision);
     }
-    let data_revision = if should_advance {
-        advance_owner_data_revision().unwrap_or_else(android_owner_data_revision)
-    } else {
-        android_owner_data_revision()
+    let data_revision = match owner_revision_transition(mutation, &readback, status.code) {
+        AndroidOwnerRevisionTransition::Advance => {
+            advance_owner_data_revision().unwrap_or_else(android_owner_data_revision)
+        }
+        AndroidOwnerRevisionTransition::Unchanged => android_owner_data_revision(),
     };
     let reply = AndroidOwnerOperationReply {
         protocol: AndroidOwnerOperationProtocolVersion::V5,

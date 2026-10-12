@@ -27,13 +27,13 @@ async fn product_profile_store_registry_uses_the_resolved_shared_configs_root() 
         engines,
         vec![
             MihomoVersionPort::engine_identifier(),
-            singbox_adapter::engine_id()
+            singbox_api::engine_id()
         ]
     );
 
     let sing_box = registered_stores
         .iter()
-        .find(|store| store.engine_id() == singbox_adapter::engine_id())
+        .find(|store| store.engine_id() == singbox_api::engine_id())
         .expect("sing-box profile store is registered");
     assert!(
         ProfileStore::list_profiles(sing_box.as_ref())
@@ -49,7 +49,7 @@ fn desktop_version_registry_registers_sing_box_only_when_the_current_target_is_l
     let home = TempDir::new().unwrap();
     let expected_target = SingBoxEngineVersionBackendFactory::current(home.path().to_path_buf());
     let registry = version_factory_for(home.path().to_path_buf()).unwrap();
-    let sing_box = singbox_adapter::engine_id();
+    let sing_box = singbox_api::engine_id();
 
     match expected_target {
         Ok(_) => assert!(registry.version_port(&sing_box).is_ok()),

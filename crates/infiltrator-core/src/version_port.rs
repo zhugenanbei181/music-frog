@@ -8,13 +8,13 @@ use infiltrator_contract::version::{
     EngineNeutralReleaseChannel, EngineReleaseChannel, InstalledCoreVersion, ReleaseChannelId,
     VersionDownloadProgress,
 };
+use infiltrator_platform::paths::get_home_dir;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::version::{
     VersionActivationRequest, VersionInstallRequest, VersionPort, VersionRollbackRequest,
     VersionUninstallRequest,
 };
 use mihomo_api::error::MihomoError;
-use mihomo_platform::paths::get_home_dir;
 use mihomo_version::channel::{Channel, fetch_latest, fetch_releases};
 use mihomo_version::download::DownloadProgress;
 use mihomo_version::engine::engine_id;

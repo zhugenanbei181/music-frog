@@ -17,6 +17,7 @@ use infiltrator_contract::core_identity::{CoreVersion, EngineId};
 use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface::HostKind;
+use infiltrator_platform::defaults::DefaultCredentialStore;
 use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceStore;
 use infiltrator_ports::core_binary_selection::{CoreBinarySelection, CoreBinarySelectionSource};
 use infiltrator_ports::core_capability_provider::{
@@ -27,17 +28,16 @@ use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::runtime_gateway::ManagedRuntime;
 use mihomo_config::manager::{ConfigManager, ProfileDocumentExtension};
-use mihomo_platform::defaults::DefaultCredentialStore;
 use reqwest::Url;
-use singbox_adapter::capability_provider::SingBoxCoreCapabilityProvider;
-use singbox_adapter::command::{
-    NativeConfigCheck, SingBoxChildPoll, SingBoxChildProcess, SingBoxCommandPort,
-};
-use singbox_adapter::controller_configuration::SingBoxControllerConfigurationError;
-use singbox_adapter::http::{
+use singbox_api::capability_provider::SingBoxCoreCapabilityProvider;
+use singbox_api::controller_configuration::SingBoxControllerConfigurationError;
+use singbox_api::http::{
     SingBoxClashHttpPort, SingBoxClashMethod, SingBoxClashResponse, SingBoxControllerAuthorization,
 };
-use singbox_adapter::profile_document_codec::SingBoxProfileDocumentCodec;
+use singbox_config::profile_document_codec::SingBoxProfileDocumentCodec;
+use singbox_process::command::{
+    NativeConfigCheck, SingBoxChildPoll, SingBoxChildProcess, SingBoxCommandPort,
+};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};

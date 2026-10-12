@@ -8,7 +8,7 @@ use infiltrator_contract::android_control::{
 };
 use infiltrator_contract::core_identity::CoreCommandRequest;
 use infiltrator_contract::error::{ErrorCode, Failure};
-use mihomo_platform::android_bridge::get_android_bridge;
+use infiltrator_platform::android_bridge::get_android_bridge;
 
 /// Execute a Serde-tagged Rust product command in the `:vpn` owner and return
 /// its typed terminal outcome. The UI process forwards the unchanged payload.
@@ -161,8 +161,8 @@ mod tests {
     use infiltrator_contract::android_control::AndroidProductCommandOutcome;
     use infiltrator_contract::command::{CommandResult, RequestId};
     use infiltrator_contract::core_identity::CoreCommandOutcome;
-    use mihomo_platform::TEST_LOCK;
-    use mihomo_platform::android_bridge::{
+    use infiltrator_platform::TEST_LOCK;
+    use infiltrator_platform::android_bridge::{
         clear_android_bridge, get_android_bridge, set_android_bridge,
     };
 

@@ -3,11 +3,11 @@
 use async_trait::async_trait;
 use infiltrator_contract::capability::Capability;
 use infiltrator_contract::mtu::PhysicalMtuSnapshot;
-use infiltrator_ports::error::PortError;
-use infiltrator_ports::mtu_probe::MtuProbePort;
-use mihomo_platform::interface_watcher::{
+use infiltrator_platform::interface_watcher::{
     GatewayPriorityArbiter, NetworkInterfaceSnapshot, NetworkInterfaceWatcher,
 };
+use infiltrator_ports::error::PortError;
+use infiltrator_ports::mtu_probe::MtuProbePort;
 use std::collections::HashMap;
 use std::process::Command;
 use tokio::task::spawn_blocking;

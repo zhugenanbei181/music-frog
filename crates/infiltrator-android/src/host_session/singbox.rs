@@ -1,40 +1,39 @@
 use super::{SharedCore, SharedCoreEngine, authorize_android_core_start};
 use crate::composition::core_application_for_singbox;
+use crate::core_version_owner::{core_binary_selection_port, core_version_application};
 use crate::ffi::{FfiErrorCode, FfiStatus};
-use crate::host_support::map_mihomo_error;
+use crate::host_support::{build_settings_application, map_mihomo_error, map_port_error};
 use infiltrator_application::android_control_application::AndroidControlApplication;
 use infiltrator_contract::active_profile_reference::ActiveProfileReference;
 use infiltrator_contract::core_capabilities::{
-    CoreLifecycleOperation, CoreOperation, EngineBinaryTarget,
+    CoreLifecycleOperation, CoreOperation, EngineBinaryTarget, VersionOperation,
 };
 use infiltrator_contract::core_identity::CoreGeneration;
 use infiltrator_contract::version::CoreArtifactVerification;
+use infiltrator_platform::defaults::DefaultCredentialStore;
+use infiltrator_platform::paths::get_home_dir;
 use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceLease;
 use infiltrator_ports::core_binary_selection::{
     CoreBinarySelection, CoreBinarySelectionPolicy, CoreBinarySelectionRequest,
     CoreBinarySelectionSource,
 };
 use infiltrator_ports::core_capability_provider::CoreCapabilityProvider;
-use infiltrator_ports::engine_version_backend_factory::EngineVersionBackendFactory;
 use infiltrator_ports::profile_store::ProfileStore;
 use mihomo_config::manager::{ConfigManager, ProfileDocumentExtension};
-use mihomo_platform::defaults::DefaultCredentialStore;
-use mihomo_platform::paths::get_home_dir;
-use singbox_adapter::capability_provider::SingBoxCoreCapabilityProvider;
-use singbox_adapter::controller_configuration::SingBoxControllerConfiguration;
-use singbox_adapter::profile_document_codec::SingBoxProfileDocumentCodec;
-use singbox_adapter::readiness::SingBoxControllerReadiness;
-use singbox_adapter::version::SingBoxEngineVersionBackendFactory;
+use singbox_api::capability_provider::SingBoxCoreCapabilityProvider;
+use singbox_api::controller_configuration::SingBoxControllerConfiguration;
+use singbox_api::readiness::SingBoxControllerReadiness;
+use singbox_config::profile_document_codec::SingBoxProfileDocumentCodec;
 use std::sync::Arc;
 
 pub(super) async fn build_shared_core(
-    bridge: Arc<dyn mihomo_platform::android_bridge::AndroidBridge>,
+    bridge: Arc<dyn infiltrator_platform::android_bridge::AndroidBridge>,
     reference_store: Arc<ConfigManager<DefaultCredentialStore>>,
     reference: ActiveProfileReference,
     selection_lease: Box<dyn ActiveProfileReferenceLease>,
 ) -> Result<Arc<SharedCore>, FfiStatus> {
-    let engine_id = singbox_adapter::engine_id();
-    let home = get_home_dir().map_err(map_mihomo_error)?;
+    let engine_id = singbox_api::engine_id();
+    let home = get_home_dir().map_err(map_port_error)?;
     let config = Arc::new(
         ConfigManager::with_profile_codec_and_store_at_root(
             home.clone(),
@@ -77,20 +76,9 @@ pub(super) async fn build_shared_core(
             "Android host did not provide an app-private Core working directory",
         )
     })?;
-    let version_factory = SingBoxEngineVersionBackendFactory::current(home).map_err(|error| {
-        FfiStatus::err(
-            FfiErrorCode::NotReady,
-            format!("Android sing-box version backend is unavailable: {error}"),
-        )
-    })?;
-    let binary_selection = version_factory
-        .binary_selection_port(&engine_id)
-        .map_err(|error| {
-            FfiStatus::err(
-                FfiErrorCode::NotReady,
-                format!("Android sing-box binary selector is unavailable: {error}"),
-            )
-        })?;
+    let versions = core_version_application(engine_id.clone())?;
+    let settings = build_settings_application().await?;
+    let binary_selection = core_binary_selection_port(&engine_id)?;
     let selected_binary = binary_selection
         .select(CoreBinarySelectionRequest {
             engine_id: engine_id.clone(),
@@ -117,6 +105,8 @@ pub(super) async fn build_shared_core(
                 CoreOperation::Lifecycle(CoreLifecycleOperation::Start),
                 CoreOperation::Lifecycle(CoreLifecycleOperation::Stop),
                 CoreOperation::Lifecycle(CoreLifecycleOperation::Restart),
+                CoreOperation::Version(VersionOperation::Inspect),
+                CoreOperation::Version(VersionOperation::Rollback),
             ],
         ));
     authorize_android_core_start(Arc::clone(&capability_provider), &engine_id)?;
@@ -146,6 +136,8 @@ pub(super) async fn build_shared_core(
         EngineBinaryTarget::current(),
         readiness,
         capability_provider,
+        versions,
+        settings,
     )
     .map_err(|error| {
         FfiStatus::err(

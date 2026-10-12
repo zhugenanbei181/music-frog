@@ -3,27 +3,92 @@ use super::{
     TestBridge, TestCredentialStore, TestLifecycleCapabilityProvider, TestReadiness, config_manager,
 };
 use async_trait::async_trait;
+use infiltrator_application::settings_application::SettingsApplication;
+use infiltrator_application::version_application::VersionApplication;
 use infiltrator_contract::core_capabilities::EngineBinaryTarget;
 use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_contract::snapshot::CoreLifecycle;
+use infiltrator_contract::version::{
+    CoreRelease, CoreReleaseSummary, EngineReleaseChannel, InstalledCoreVersion,
+};
 use infiltrator_ports::core_binary_selection::{
     CoreBinarySelection, CoreBinarySelectionPort, CoreBinarySelectionRequest,
 };
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::ProfileStore;
+use infiltrator_ports::version::{
+    VersionActivationRequest, VersionInstallRequest, VersionPort, VersionUninstallRequest,
+};
 use mihomo_config::manager::{ConfigManager, ProfileDocumentExtension};
-use singbox_adapter::profile_document_codec::SingBoxProfileDocumentCodec;
+use singbox_config::profile_document_codec::SingBoxProfileDocumentCodec;
 use std::sync::Arc;
 
 const PROFILE: &str = r#"{"experimental":{"clash_api":{"external_controller":"127.0.0.1:9090"}},"inbounds":[],"outbounds":[]}"#;
 
 struct UnavailableBinarySelection;
 
+struct TestVersionPort;
+
+#[async_trait]
+impl VersionPort for TestVersionPort {
+    fn engine_id(&self) -> EngineId {
+        singbox_api::engine_id()
+    }
+
+    async fn list_installed(
+        &self,
+        _engine_id: &EngineId,
+    ) -> Result<Vec<InstalledCoreVersion>, PortError> {
+        Ok(Vec::new())
+    }
+
+    async fn latest(&self, _channel: EngineReleaseChannel) -> Result<CoreRelease, PortError> {
+        Err(PortError::unsupported(
+            infiltrator_contract::capability::Capability::CoreVersionInstall,
+            "identity test does not inspect releases",
+        ))
+    }
+
+    async fn list_releases(
+        &self,
+        _engine_id: &EngineId,
+        _limit: usize,
+    ) -> Result<Vec<CoreReleaseSummary>, PortError> {
+        Ok(Vec::new())
+    }
+
+    async fn install(&self, _request: VersionInstallRequest) -> Result<(), PortError> {
+        Err(PortError::unsupported(
+            infiltrator_contract::capability::Capability::CoreVersionInstall,
+            "identity test does not install releases",
+        ))
+    }
+
+    async fn activate(&self, _request: VersionActivationRequest) -> Result<(), PortError> {
+        Err(PortError::unsupported(
+            infiltrator_contract::capability::Capability::CoreVersionInstall,
+            "identity test does not activate releases",
+        ))
+    }
+
+    async fn uninstall(&self, _request: VersionUninstallRequest) -> Result<(), PortError> {
+        Err(PortError::unsupported(
+            infiltrator_contract::capability::Capability::CoreVersionInstall,
+            "identity test does not uninstall releases",
+        ))
+    }
+}
+
+fn version_application() -> VersionApplication {
+    VersionApplication::new(singbox_api::engine_id(), Arc::new(TestVersionPort))
+        .expect("version application is engine-scoped")
+}
+
 #[async_trait]
 impl CoreBinarySelectionPort for UnavailableBinarySelection {
     fn engine_id(&self) -> EngineId {
-        singbox_adapter::engine_id()
+        singbox_api::engine_id()
     }
 
     async fn select(
@@ -72,6 +137,10 @@ async fn singbox_core_composition_keeps_the_engine_codec_and_owner_identity_alig
         EngineBinaryTarget::Aarch64LinuxAndroid,
         Arc::new(TestReadiness),
         Arc::new(TestLifecycleCapabilityProvider),
+        version_application(),
+        SettingsApplication::new(Arc::new(
+            infiltrator_core::settings_store::FileSettingsStore::for_home(home.0.clone()),
+        )),
     )
     .expect("compose lifecycle owner without selecting a test binary");
 
@@ -81,7 +150,7 @@ async fn singbox_core_composition_keeps_the_engine_codec_and_owner_identity_alig
             .identity
             .expect("Core identity")
             .engine,
-        singbox_adapter::engine_id()
+        singbox_api::engine_id()
     );
     assert_eq!(application.snapshot().lifecycle, CoreLifecycle::Stopped);
 }

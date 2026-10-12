@@ -468,3 +468,11 @@ pub mod snapshot_restore_fixture;
 #[cfg(test)]
 #[path = "singbox_profile_store_tests.rs"]
 mod singbox_profile_store_tests;
+
+#[cfg(test)]
+#[path = "engine_profile_store_conformance_tests.rs"]
+mod engine_profile_store_conformance_tests;
+
+#[cfg(test)]
+#[path = "singbox_backend_conformance_tests.rs"]
+mod singbox_backend_conformance_tests;

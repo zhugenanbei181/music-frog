@@ -23,7 +23,7 @@ log = { workspace = true }
 infiltrator-domain = { path = "../infiltrator-domain" }
 infiltrator-ports = { path = "../infiltrator-ports" }
 mihomo-config = { path = "../mihomo-config" }
-mihomo-platform = { path = "../mihomo-platform" }
+infiltrator-platform = { path = "../infiltrator-platform" }
 mihomo-api = { path = "../mihomo-api" }
 mihomo-version = { path = "../mihomo-version" }
 infiltrator-http = { path = "../infiltrator-http" }
@@ -48,5 +48,6 @@ zip = { workspace = true }
 [dev-dependencies]
 mockito = { workspace = true }
 tempfile = { workspace = true }
-singbox-adapter = { path = "../singbox-adapter" }
+singbox-api = { path = "../singbox-api" }
 infiltrator-composition = { path = "../infiltrator-composition" }
+mihomo-process = { path = "../mihomo-process" }

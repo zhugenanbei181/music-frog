@@ -8,7 +8,7 @@ use crate::ffi::{FfiErrorCode, FfiStatus};
 use crate::host_support::{build_routing_application, map_application_failure};
 use infiltrator_contract::android_control::AndroidHostProcessRole;
 use infiltrator_domain::app_routing::{self, AppRoutingConfig, AppRoutingPackageSelection};
-use mihomo_platform::android_bridge::get_android_bridge;
+use infiltrator_platform::android_bridge::get_android_bridge;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, uniffi::Enum)]

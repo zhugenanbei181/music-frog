@@ -58,7 +58,7 @@ fn desktop_binary_policy_keeps_sing_box_managed_only_and_mihomo_bundle_aware() {
         CoreBinarySelectionPolicy::PreferBundled(_)
     ));
 
-    let sing_box = factory.provider(&singbox_adapter::engine_id()).unwrap();
+    let sing_box = factory.provider(&singbox_api::engine_id()).unwrap();
     assert_eq!(
         sing_box.binary_selection_policy(bundle),
         CoreBinarySelectionPolicy::ManagedOnly
@@ -96,7 +96,7 @@ fn desktop_capability_registry_uses_sing_box_lifecycle_owner_and_fails_closed_fo
     let provider =
         desktop_core_capability_provider(DesktopLogStreamAdapter::ManagedRuntimeScopeBound)
             .unwrap();
-    let sing_box = singbox_adapter::engine_id();
+    let sing_box = singbox_api::engine_id();
     let matrix = provider.matrix_for(&sing_box, None).unwrap();
     let start = matrix
         .entries

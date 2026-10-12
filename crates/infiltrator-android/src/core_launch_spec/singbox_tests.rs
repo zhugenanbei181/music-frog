@@ -17,8 +17,8 @@ use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::secure_store::SecureStore;
 use mihomo_config::manager::{ConfigManager, ProfileDocumentExtension};
-use singbox_adapter::command::{NativeConfigCheck, SingBoxChildProcess, SingBoxCommandPort};
-use singbox_adapter::profile_document_codec::SingBoxProfileDocumentCodec;
+use singbox_config::profile_document_codec::SingBoxProfileDocumentCodec;
+use singbox_process::command::{NativeConfigCheck, SingBoxChildProcess, SingBoxCommandPort};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use tempfile::TempDir;
@@ -156,7 +156,7 @@ impl Fixture {
             .await
             .expect("profile path");
 
-        let engine_id = singbox_adapter::engine_id();
+        let engine_id = singbox_api::engine_id();
         let version = CoreVersion::new("v1.14.3").expect("sing-box version");
         let binary_target = EngineBinaryTarget::Aarch64LinuxAndroid;
         let target_triple = "aarch64-linux-android";
@@ -230,7 +230,7 @@ async fn launch_spec_binds_exact_managed_binary_target_profile_and_native_check(
 
     assert_eq!(
         spec.configuration_identity().engine_id,
-        singbox_adapter::engine_id()
+        singbox_api::engine_id()
     );
     assert_eq!(spec.configuration_identity().profile_id.as_str(), "main");
     assert_eq!(

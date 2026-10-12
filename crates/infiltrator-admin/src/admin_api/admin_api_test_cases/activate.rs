@@ -3,7 +3,7 @@
 
 use super::*;
 use axum::body::to_bytes;
-use mihomo_platform::paths::{clear_home_dir_override, set_home_dir_override};
+use infiltrator_platform::paths::{clear_home_dir_override, set_home_dir_override};
 use std::time;
 use tokio::fs::read_to_string;
 use tokio::time::sleep;

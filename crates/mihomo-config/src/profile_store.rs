@@ -26,10 +26,6 @@ use std::path::PathBuf;
 #[path = "profile_store_test.rs"]
 mod profile_store_test;
 
-#[cfg(test)]
-#[path = "engine_profile_store_tests.rs"]
-mod engine_profile_store_tests;
-
 #[async_trait::async_trait]
 impl<S> ProfileStore for ConfigManager<S>
 where

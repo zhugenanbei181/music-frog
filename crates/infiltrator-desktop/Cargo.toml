@@ -16,9 +16,13 @@ infiltrator-ports = { path = "../infiltrator-ports" }
 log = { workspace = true }
 mihomo-api = { path = "../mihomo-api" }
 mihomo-config = { path = "../mihomo-config" }
-mihomo-platform = { path = "../mihomo-platform" }
+infiltrator-platform = { path = "../infiltrator-platform" }
+mihomo-process = { path = "../mihomo-process" }
 mihomo-version = { path = "../mihomo-version" }
-singbox-adapter = { path = "../singbox-adapter" }
+singbox-api = { path = "../singbox-api" }
+singbox-config = { path = "../singbox-config" }
+singbox-process = { path = "../singbox-process" }
+singbox-version = { path = "../singbox-version" }
 reqwest = { workspace = true, default-features = false, features = ["json", "socks", "stream", "http2"] }
 serde = { workspace = true }
 serde_json = { workspace = true }

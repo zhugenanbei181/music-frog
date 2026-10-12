@@ -5,12 +5,12 @@
 //! service helper (TUN route injection, system proxy override, and power/status telemetry).
 
 use infiltrator_contract::snapshot::CoreLifecycle;
+#[cfg(unix)]
+use infiltrator_platform::paths::get_home_dir;
 use infiltrator_ports::core_process::{CoreProcess, CoreProcessStartContext};
 use infiltrator_ports::error::PortError;
 use mihomo_api::error;
-use mihomo_platform::desktop::ProcessCoreController;
-#[cfg(unix)]
-use mihomo_platform::paths::get_home_dir;
+use mihomo_process::desktop::ProcessCoreController;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 #[cfg(unix)]
@@ -85,7 +85,7 @@ impl ServiceManager {
     }
 
     /// 0.30 process port. New application code should consume this trait
-    /// object instead of the legacy `mihomo-platform` controller trait.
+    /// object instead of the legacy `infiltrator-platform` controller trait.
     pub fn core_process(&self) -> Arc<dyn CoreProcess> {
         self.controller.clone()
     }

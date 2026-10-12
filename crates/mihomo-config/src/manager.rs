@@ -35,15 +35,15 @@ use infiltrator_contract::apply_transaction::ApplyTransactionSnapshot;
 use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document::DocumentValidation;
+use infiltrator_platform::instance_lock::{
+    ThreadedInstanceLockGuard, try_acquire_threaded_instance_lock,
+};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_document_codec::{
     ProfileDocumentCodecPort, ProfileDocumentCodecScope,
 };
 use infiltrator_ports::secure_store::SecureStore;
 use mihomo_api::error::{MihomoError, Result};
-use mihomo_platform::instance_lock::{
-    ThreadedInstanceLockGuard, try_acquire_threaded_instance_lock,
-};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
@@ -137,9 +137,8 @@ pub(crate) async fn lock_profile_writes_for_dir(config_dir: &Path) -> Result<Pro
         let attempt_path = lock_path.clone();
         let attempt = spawn_blocking(move || try_acquire_threaded_instance_lock(&attempt_path))
             .await
-            .map_err(|error| {
-                MihomoError::Service(format!("profile write lock worker: {error}"))
-            })??;
+            .map_err(|error| MihomoError::Service(format!("profile write lock worker: {error}")))?
+            .map_err(|error| MihomoError::Service(error.to_string()))?;
         if let Some(guard) = attempt {
             break guard;
         }

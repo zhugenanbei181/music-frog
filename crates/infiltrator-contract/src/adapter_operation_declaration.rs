@@ -593,6 +593,8 @@ fn canonical_evidence_id(operation: CoreOperation) -> &'static str {
         }
         CoreOperation::Version(VersionOperation::Inspect) => "version.inspect",
         CoreOperation::Version(VersionOperation::Install) => "version.install",
+        CoreOperation::Version(VersionOperation::Activate) => "version.activate",
+        CoreOperation::Version(VersionOperation::Uninstall) => "version.uninstall",
         CoreOperation::Version(VersionOperation::Rollback) => "version.rollback",
     }
 }

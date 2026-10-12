@@ -3,7 +3,7 @@ use crate::context::Runtime;
 use crate::handlers::telemetry;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_ports::core_process::{CoreProcess, CoreProcessStartContext};
-use mihomo_platform::desktop::ProcessCoreController;
+use mihomo_process::desktop::ProcessCoreController;
 use std::time;
 use tokio::time::sleep;
 

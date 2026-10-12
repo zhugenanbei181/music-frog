@@ -48,7 +48,7 @@ def find_violations(rel_path: str, text: str) -> list[str]:
         line_no = clean[:match.start()].count("\n") + 1
         problems.append(f"{rel_path}:{line_no}: inline long path `{match.group()}` is banned; use the defining module")
     forwarding = re.compile(r"\bpub(?:\s*\([^()]*\))?\s+type\s+\w+\s*=\s*\(*\s*(?:::)?[A-Za-z_]\w*(?:\s*::\s*\w+)*\s*\)*\s*;")
-    selector = rel_path.replace("\\", "/") in {"crates/infiltrator-http/src/lib.rs", "crates/mihomo-platform/src/defaults.rs"}
+    selector = rel_path.replace("\\", "/") in {"crates/infiltrator-http/src/lib.rs", "crates/infiltrator-platform/src/defaults.rs"}
     if not selector:
         primitives = {"u8", "u16", "u32", "u64", "u128", "usize", "i8", "i16", "i32", "i64", "i128", "isize", "f32", "f64", "bool", "str"}
         for match in forwarding.finditer(clean):

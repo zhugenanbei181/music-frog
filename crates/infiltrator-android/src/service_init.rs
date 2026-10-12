@@ -13,7 +13,7 @@
 //! home override is never treated as shared state.
 
 use crate::tls::ensure_rustls_provider;
-use mihomo_platform::paths::set_home_dir_override;
+use infiltrator_platform::paths::set_home_dir_override;
 use std::path::PathBuf;
 
 /// Directories the Android host hands to the native process.
@@ -87,8 +87,8 @@ pub fn init_android_process(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mihomo_platform::TEST_LOCK;
-    use mihomo_platform::paths::{clear_home_dir_override, get_home_dir};
+    use infiltrator_platform::TEST_LOCK;
+    use infiltrator_platform::paths::{clear_home_dir_override, get_home_dir};
     use std::env::temp_dir;
     use std::time::{SystemTime, UNIX_EPOCH};
 

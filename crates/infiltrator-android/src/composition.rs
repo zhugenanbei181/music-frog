@@ -33,6 +33,7 @@ use infiltrator_core::version_port::MihomoVersionPort;
 use infiltrator_domain::runtime::{
     ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider, TrafficData,
 };
+use infiltrator_platform::android_bridge::AndroidBridge;
 use infiltrator_ports::core_capability_provider::CoreCapabilityProvider;
 use infiltrator_ports::core_log_level::CoreLogLevelPort;
 use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
@@ -58,7 +59,6 @@ use mihomo_api::readiness::ControllerReadiness;
 use mihomo_api::runtime_configuration::RuntimeScopeResolver;
 use mihomo_config::endpoint::ProfileEndpointSource;
 use mihomo_config::manager::ConfigManager;
-use mihomo_platform::android_bridge::AndroidBridge;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 

@@ -13,16 +13,16 @@ use infiltrator_ports::profile_configuration_transaction::{
     ProfileConfigurationTransactionBinding, ProfileConfigurationTransactionScope,
 };
 use infiltrator_ports::profile_store::ProfileStore;
-use singbox_adapter::clash_api::SingBoxClashApiClient;
-use singbox_adapter::clash_runtime::{SingBoxOutboundAdapter, SingBoxRoutingIntentAdapter};
-use singbox_adapter::command::{SingBoxCommandPort, TokioSingBoxCommandPort};
-use singbox_adapter::config::SingBoxProfileConfigurationAdapter;
-use singbox_adapter::controller_configuration::SingBoxControllerConfiguration;
-use singbox_adapter::http::{ReqwestSingBoxClashHttpPort, SingBoxClashHttpPort};
-use singbox_adapter::process::{SingBoxCoreOperationGate, SingBoxProcess};
-use singbox_adapter::profile_configuration_transaction::SingBoxProfileConfigurationTransactionAdapter;
-use singbox_adapter::profile_document_codec::SingBoxProfileDocumentCodec;
-use singbox_adapter::readiness::SingBoxControllerReadiness;
+use singbox_api::clash_api::SingBoxClashApiClient;
+use singbox_api::clash_runtime::{SingBoxOutboundAdapter, SingBoxRoutingIntentAdapter};
+use singbox_api::controller_configuration::SingBoxControllerConfiguration;
+use singbox_api::http::{ReqwestSingBoxClashHttpPort, SingBoxClashHttpPort};
+use singbox_api::readiness::SingBoxControllerReadiness;
+use singbox_config::config::SingBoxProfileConfigurationAdapter;
+use singbox_config::profile_configuration_transaction::SingBoxProfileConfigurationTransactionAdapter;
+use singbox_config::profile_document_codec::SingBoxProfileDocumentCodec;
+use singbox_process::command::{SingBoxCommandPort, TokioSingBoxCommandPort};
+use singbox_process::process::{SingBoxCoreOperationGate, SingBoxProcess};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -123,14 +123,14 @@ impl SingBoxEngineBackendProvider {
         command: Arc<dyn SingBoxCommandPort>,
         http: Arc<dyn SingBoxClashHttpPort>,
     ) -> Result<Self, PortError> {
-        let engine_id = singbox_adapter::engine_id();
+        let engine_id = EngineId::sing_box();
         let operation_gate = Arc::new(SingBoxCoreOperationGate::new());
         let process: Arc<dyn infiltrator_ports::core_process::CoreProcess> =
             Arc::new(SingBoxProcess::new_with_operation_gate(
                 binary_path.clone(),
                 config_path.clone(),
                 instance_id,
-                controller.clone(),
+                controller.address(),
                 Arc::clone(&command),
                 Arc::clone(&operation_gate),
             )?);
@@ -247,10 +247,10 @@ mod tests {
     };
     use infiltrator_contract::routing_intent::RoutingIntent;
     use infiltrator_ports::outbound::OutboundScopeSource;
-    use singbox_adapter::command::{NativeConfigCheck, SingBoxChildProcess, SingBoxCommandPort};
-    use singbox_adapter::http::{
+    use singbox_api::http::{
         SingBoxClashMethod, SingBoxClashResponse, SingBoxControllerAuthorization,
     };
+    use singbox_process::command::{NativeConfigCheck, SingBoxChildProcess, SingBoxCommandPort};
     use std::path::Path;
     use std::sync::Mutex as StdMutex;
     use std::sync::atomic::{AtomicUsize, Ordering};
@@ -432,7 +432,7 @@ mod tests {
         );
         let provider_for_factory: Arc<dyn EngineBackendProvider> = provider.clone();
         let registry = EngineBackendFactoryRegistry::new([provider_for_factory]).unwrap();
-        let engine = singbox_adapter::engine_id();
+        let engine = EngineId::sing_box();
         let backend = registry.backend_ports(&engine).unwrap();
         let scope = CoreScope {
             identity: CoreIdentity::new(

@@ -10,6 +10,11 @@ use infiltrator_contract::mtu::PhysicalMtuSnapshot;
 use infiltrator_contract::offline_startup::OfflineStartupSnapshot;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface::HostKind;
+use infiltrator_platform::android_bridge::AndroidBridge;
+#[cfg(test)]
+use infiltrator_platform::android_bridge::AndroidBridgeResult as Result;
+#[cfg(test)]
+use infiltrator_platform::android_bridge::{CoreProcessStartReceipt, CoreProcessStopReceipt};
 use infiltrator_ports::android_core_process_recovery::AndroidCoreProcessRecoveryPort;
 use infiltrator_ports::capability_provider::CapabilityProvider;
 use infiltrator_ports::core_process::{
@@ -20,12 +25,6 @@ use infiltrator_ports::error::PortError;
 use infiltrator_ports::mtu_probe::MtuProbePort;
 use infiltrator_ports::offline_startup::OfflineStartupPort;
 use infiltrator_ports::secure_store::SecureStore;
-use mihomo_api::error::MihomoError;
-#[cfg(test)]
-use mihomo_api::error::Result;
-use mihomo_platform::android_bridge::AndroidBridge;
-#[cfg(test)]
-use mihomo_platform::android_bridge::{CoreProcessStartReceipt, CoreProcessStopReceipt};
 use std::path::PathBuf;
 use std::result;
 use std::sync::Arc;
@@ -113,30 +112,14 @@ where
     B: AndroidBridge,
 {
     async fn observe(&self) -> result::Result<AndroidCoreProcessObservation, PortError> {
-        self.bridge
-            .core_process_observation()
-            .await
-            .map_err(map_port_error)
+        self.bridge.core_process_observation().await
     }
 
     async fn consume_exited(
         &self,
         context: &CoreProcessStartContext,
     ) -> result::Result<AndroidCoreProcessRecoveryReceipt, PortError> {
-        self.bridge
-            .core_process_recovery_completed(context)
-            .await
-            .map_err(map_port_error)
-    }
-}
-
-fn map_port_error(error: MihomoError) -> PortError {
-    match error {
-        MihomoError::Io(error) => PortError::Io(error.to_string()),
-        MihomoError::Http(error) => PortError::Network(error.to_string()),
-        MihomoError::WebSocket(error) => PortError::Network(error.to_string()),
-        MihomoError::NotFound(message) => PortError::NotFound(message),
-        other => PortError::Failed(other.to_string()),
+        self.bridge.core_process_recovery_completed(context).await
     }
 }
 
@@ -161,12 +144,7 @@ where
             .core_identity()
             .ok_or_else(|| PortError::Failed("Android Core identity is unavailable".to_owned()))?;
         validate_android_start_context(context, &expected_identity)?;
-        match self
-            .bridge
-            .core_process_observation()
-            .await
-            .map_err(map_port_error)?
-        {
+        match self.bridge.core_process_observation().await? {
             AndroidCoreProcessObservation::NeverStarted => {
                 Ok(CoreProcessStartAdmission::LaunchNewProcess)
             }
@@ -199,26 +177,16 @@ where
         }
         self.bridge
             .core_start(&launch_spec, &context)
-            .await
-            .map_err(map_port_error)?
+            .await?
             .into_port_result()
     }
 
     async fn stop(&self) -> result::Result<(), PortError> {
-        self.bridge
-            .core_stop()
-            .await
-            .map_err(map_port_error)?
-            .into_port_result()
+        self.bridge.core_stop().await?.into_port_result()
     }
 
     async fn status(&self) -> result::Result<CoreLifecycle, PortError> {
-        match self
-            .bridge
-            .core_process_observation()
-            .await
-            .map_err(map_port_error)?
-        {
+        match self.bridge.core_process_observation().await? {
             AndroidCoreProcessObservation::NeverStarted
             | AndroidCoreProcessObservation::Exited { .. } => Ok(CoreLifecycle::Stopped),
             AndroidCoreProcessObservation::Running { .. } => Ok(CoreLifecycle::Running),
@@ -263,24 +231,15 @@ where
     B: AndroidBridge,
 {
     async fn get(&self, namespace: &str, key: &str) -> result::Result<Option<String>, PortError> {
-        self.bridge
-            .credential_get(namespace, key)
-            .await
-            .map_err(map_port_error)
+        self.bridge.credential_get(namespace, key).await
     }
 
     async fn set(&self, namespace: &str, key: &str, value: &str) -> result::Result<(), PortError> {
-        self.bridge
-            .credential_set(namespace, key, value)
-            .await
-            .map_err(map_port_error)
+        self.bridge.credential_set(namespace, key, value).await
     }
 
     async fn delete(&self, namespace: &str, key: &str) -> result::Result<(), PortError> {
-        self.bridge
-            .credential_delete(namespace, key)
-            .await
-            .map_err(map_port_error)
+        self.bridge.credential_delete(namespace, key).await
     }
 }
 

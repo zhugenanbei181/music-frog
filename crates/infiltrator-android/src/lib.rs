@@ -1,6 +1,7 @@
 pub mod composition;
 mod configuration_candidate_validator;
 mod core_launch_spec;
+mod core_version_owner;
 pub mod domain_snapshot;
 pub mod ffi;
 mod host_session;
@@ -30,7 +31,7 @@ pub use ffi::{
     FfiBoolResult, FfiErrorCode, FfiFailureLocalization, FfiFailureLocalizationKey, FfiStatus,
     FfiStringResult,
 };
-pub use mihomo_platform::android_bridge::{
+pub use infiltrator_platform::android_bridge::{
     AndroidBridge, CoreProcessStartReceipt, CoreProcessStopReceipt, clear_android_bridge,
     get_android_bridge, set_android_bridge,
 };

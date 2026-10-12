@@ -19,19 +19,19 @@ use infiltrator_contract::vpn::{
     PreparedVpnConfiguration, VpnConfiguration, VpnConfigurationApplyOutcome, VpnOwnerStopReceipt,
     VpnStartOutcome, VpnStopTarget,
 };
+use infiltrator_platform::android_bridge::{
+    AndroidBridge, AndroidBridgeResult as Result, AndroidCoreConfigurationValidationOutcome,
+    AndroidCoreConfigurationValidationReply, AndroidCoreConfigurationValidationRequest,
+    CoreProcessStartReceipt, CoreProcessStopReceipt, set_android_bridge,
+};
 use infiltrator_ports::core_process::CoreProcessStartContext;
+use infiltrator_ports::error::PortError;
 use jni::errors::LogErrorAndDefault;
 use jni::objects::{Global, JObject, JString, JValue, Reference as _};
 use jni::signature::RuntimeMethodSignature;
 use jni::strings::JNIString;
 use jni::sys::{jboolean, jfloat, jint, jlong, jstring};
 use jni::{Env, EnvUnowned, JavaVM, errors};
-use mihomo_api::error::{MihomoError, Result};
-use mihomo_platform::android_bridge::{
-    AndroidBridge, AndroidCoreConfigurationValidationOutcome,
-    AndroidCoreConfigurationValidationReply, AndroidCoreConfigurationValidationRequest,
-    CoreProcessStartReceipt, CoreProcessStopReceipt, set_android_bridge,
-};
 use std::path::PathBuf;
 use std::result;
 use std::sync::Arc;
@@ -210,7 +210,7 @@ impl JniBridge {
         if ok {
             Ok(())
         } else {
-            Err(MihomoError::Service(format!(
+            Err(PortError::Failed(format!(
                 "android bridge method {method} returned false"
             )))
         }
@@ -236,13 +236,13 @@ impl AndroidBridge for JniBridge {
             start_context: context,
         };
         let start_request_json = serde_json::to_string(&request).map_err(|error| {
-            MihomoError::Service(format!(
+            PortError::Failed(format!(
                 "Android Core start request could not be serialized: {error}"
             ))
         })?;
         let code = self.call_int_with_string("coreStart", &start_request_json)?;
         CoreProcessStartReceipt::from_wire_code(code).ok_or_else(|| {
-            MihomoError::Service(format!(
+            PortError::Failed(format!(
                 "android bridge returned unknown core start receipt code {code}"
             ))
         })
@@ -251,7 +251,7 @@ impl AndroidBridge for JniBridge {
     async fn core_stop(&self) -> Result<CoreProcessStopReceipt> {
         let code = self.call_int("coreStop", SIG_NOARGS_INT, &[])?;
         CoreProcessStopReceipt::from_wire_code(code).ok_or_else(|| {
-            MihomoError::Service(format!(
+            PortError::Failed(format!(
                 "android bridge returned unknown core stop receipt code {code}"
             ))
         })
@@ -261,12 +261,10 @@ impl AndroidBridge for JniBridge {
         let json = self
             .call_string("coreProcessObservationJson", SIG_NOARGS_STRING, &[])?
             .ok_or_else(|| {
-                MihomoError::Service(
-                    "android bridge returned no Core process observation".to_owned(),
-                )
+                PortError::Failed("android bridge returned no Core process observation".to_owned())
             })?;
         serde_json::from_str(&json).map_err(|error| {
-            MihomoError::Service(format!(
+            PortError::Failed(format!(
                 "android bridge returned an invalid Core process observation: {error}"
             ))
         })
@@ -277,13 +275,13 @@ impl AndroidBridge for JniBridge {
         context: &CoreProcessStartContext,
     ) -> Result<AndroidCoreProcessRecoveryReceipt> {
         let context_json = serde_json::to_string(context).map_err(|error| {
-            MihomoError::Service(format!(
+            PortError::Failed(format!(
                 "Android Core recovery context could not be serialized: {error}"
             ))
         })?;
         let code = self.call_int_with_string("coreProcessExitRecovered", &context_json)?;
         AndroidCoreProcessRecoveryReceipt::from_wire_code(code).ok_or_else(|| {
-            MihomoError::Service(format!(
+            PortError::Failed(format!(
                 "android bridge returned unknown Core recovery receipt code {code}"
             ))
         })
@@ -294,20 +292,20 @@ impl AndroidBridge for JniBridge {
         request: &AndroidCoreConfigurationValidationRequest,
     ) -> Result<AndroidCoreConfigurationValidationOutcome> {
         let request_json = serde_json::to_string(request).map_err(|error| {
-            MihomoError::Service(format!(
+            PortError::Failed(format!(
                 "Android Core configuration validation request could not be serialized: {error}"
             ))
         })?;
         let encoded = self
             .call_string_with_single_arg("coreValidateConfiguration", &request_json)?
             .ok_or_else(|| {
-                MihomoError::Service(
+                PortError::Failed(
                     "Android Core configuration validation returned no receipt".to_owned(),
                 )
             })?;
         match serde_json::from_str::<AndroidCoreConfigurationValidationReply>(&encoded).map_err(
             |error| {
-                MihomoError::Service(format!(
+                PortError::Failed(format!(
                     "Android Core configuration validation returned an invalid receipt: {error}"
                 ))
             },
@@ -316,12 +314,12 @@ impl AndroidBridge for JniBridge {
                 request: receipt_request,
                 outcome,
             } if &receipt_request == request => Ok(outcome),
-            AndroidCoreConfigurationValidationReply::Receipt { .. } => Err(MihomoError::Service(
+            AndroidCoreConfigurationValidationReply::Receipt { .. } => Err(PortError::Failed(
                 "Android Core configuration validation receipt did not match its request"
                     .to_owned(),
             )),
             AndroidCoreConfigurationValidationReply::InvalidRequest { reason } => {
-                Err(MihomoError::Service(format!(
+                Err(PortError::Failed(format!(
                     "Android Core configuration validation rejected its request: {reason}"
                 )))
             }
@@ -332,10 +330,10 @@ impl AndroidBridge for JniBridge {
         let encoded = self
             .call_string("coreLifecycleSnapshot", SIG_NOARGS_STRING, &[])?
             .ok_or_else(|| {
-                MihomoError::Service("Android core lifecycle IPC returned no snapshot".to_owned())
+                PortError::Failed("Android core lifecycle IPC returned no snapshot".to_owned())
             })?;
         serde_json::from_str(&encoded).map_err(|error| {
-            MihomoError::Service(format!(
+            PortError::Failed(format!(
                 "Android core lifecycle IPC returned an invalid snapshot: {error}"
             ))
         })
@@ -344,7 +342,7 @@ impl AndroidBridge for JniBridge {
     async fn execute_product_command_json(&self, command_json: &str) -> Result<String> {
         self.call_string_with_single_arg("executeProductCommandJson", command_json)?
             .ok_or_else(|| {
-                MihomoError::Service(
+                PortError::Failed(
                     "Android product command IPC returned no terminal result".to_owned(),
                 )
             })
@@ -352,15 +350,13 @@ impl AndroidBridge for JniBridge {
 
     async fn surface_snapshot_json(&self) -> Result<String> {
         self.call_string("surfaceSnapshotJson", SIG_NOARGS_STRING, &[])?
-            .ok_or_else(|| {
-                MihomoError::Service("Android surface IPC returned no snapshot".to_owned())
-            })
+            .ok_or_else(|| PortError::Failed("Android surface IPC returned no snapshot".to_owned()))
     }
 
     async fn execute_owner_operation_json(&self, operation_json: &str) -> Result<String> {
         self.call_string_with_single_arg("executeOwnerOperationJson", operation_json)?
             .ok_or_else(|| {
-                MihomoError::Service("Android owner operation IPC returned no result".to_owned())
+                PortError::Failed("Android owner operation IPC returned no result".to_owned())
             })
     }
 
@@ -399,7 +395,7 @@ impl AndroidBridge for JniBridge {
     async fn vpn_start(&self) -> Result<VpnStartOutcome> {
         let code = self.call_int("vpnStartOutcome", SIG_NOARGS_INT, &[])?;
         VpnStartOutcome::from_wire_code(code).ok_or_else(|| {
-            MihomoError::Service(format!(
+            PortError::Failed(format!(
                 "android bridge returned unknown VPN start outcome code {code}"
             ))
         })
@@ -409,7 +405,7 @@ impl AndroidBridge for JniBridge {
         match self.call_int("vpnAuthorizationState", SIG_NOARGS_INT, &[])? {
             0 => Ok(VpnAuthorizationState::Granted),
             1 => Ok(VpnAuthorizationState::Required),
-            code => Err(MihomoError::Service(format!(
+            code => Err(PortError::Failed(format!(
                 "android bridge returned unknown VPN authorization code {code}"
             ))),
         }
@@ -424,7 +420,7 @@ impl AndroidBridge for JniBridge {
             .session_token
             .filter(|token| token.is_valid())
             .ok_or_else(|| {
-                MihomoError::Service("prepared VPN Core session is unavailable".to_owned())
+                PortError::Failed("prepared VPN Core session is unavailable".to_owned())
             })?;
         let wire = PreparedVpnConfigurationWire {
             preparation_id: prepared.preparation_id.value(),
@@ -445,11 +441,11 @@ impl AndroidBridge for JniBridge {
             configuration: &prepared.configuration,
         };
         let config_json = serde_json::to_string(&wire).map_err(|error| {
-            MihomoError::Service(format!("serialize prepared VPN configuration: {error}"))
+            PortError::Failed(format!("serialize prepared VPN configuration: {error}"))
         })?;
         let code = self.call_int_with_string("vpnApplyConfiguration", &config_json)?;
         VpnConfigurationApplyOutcome::from_wire_code(code).ok_or_else(|| {
-            MihomoError::Service(format!(
+            PortError::Failed(format!(
                 "android bridge returned unknown VPN configuration outcome code {code}"
             ))
         })
@@ -458,21 +454,21 @@ impl AndroidBridge for JniBridge {
     async fn vpn_stop(&self, target: VpnStopTarget) -> Result<VpnOwnerStopReceipt> {
         let generation = target.generation_wire_value();
         if matches!(target, VpnStopTarget::Generation(_)) && generation == 0 {
-            return Err(MihomoError::Service(
+            return Err(PortError::Failed(
                 "VPN stop generation must be non-zero".to_owned(),
             ));
         }
         let generation = i64::try_from(generation).map_err(|_| {
-            MihomoError::Service("VPN stop generation exceeds Android Long range".to_owned())
+            PortError::Failed("VPN stop generation exceeds Android Long range".to_owned())
         })?;
         let args = [JValue::Int(target.wire_code()), JValue::Long(generation)];
         let encoded = self
             .call_string("vpnStopResultJson", SIG_INT_LONG_STRING, &args)?
             .ok_or_else(|| {
-                MihomoError::Service("Android VPN stop IPC returned no owner readback".to_owned())
+                PortError::Failed("Android VPN stop IPC returned no owner readback".to_owned())
             })?;
         serde_json::from_str(&encoded).map_err(|error| {
-            MihomoError::Service(format!(
+            PortError::Failed(format!(
                 "Android VPN stop IPC returned an invalid owner readback: {error}"
             ))
         })
@@ -482,10 +478,10 @@ impl AndroidBridge for JniBridge {
         let encoded = self
             .call_string("vpnOwnerSnapshotJson", SIG_NOARGS_STRING, &[])?
             .ok_or_else(|| {
-                MihomoError::Service("Android VPN owner IPC returned no snapshot".to_owned())
+                PortError::Failed("Android VPN owner IPC returned no snapshot".to_owned())
             })?;
         serde_json::from_str(&encoded).map_err(|error| {
-            MihomoError::Service(format!(
+            PortError::Failed(format!(
                 "Android VPN owner IPC returned an invalid snapshot: {error}"
             ))
         })
@@ -743,11 +739,11 @@ fn read_java_string(
 
 pub(crate) fn parse_method_signature(method: &str, sig: &str) -> Result<RuntimeMethodSignature> {
     RuntimeMethodSignature::from_str(sig)
-        .map_err(|err| MihomoError::Service(format!("jni signature for {method} failed: {err}")))
+        .map_err(|err| PortError::Failed(format!("jni signature for {method} failed: {err}")))
 }
 
-pub(crate) fn map_jni_error(context: &str, err: errors::Error) -> MihomoError {
-    MihomoError::Service(format!("jni {context} failed: {err}"))
+pub(crate) fn map_jni_error(context: &str, err: errors::Error) -> PortError {
+    PortError::Failed(format!("jni {context} failed: {err}"))
 }
 
 #[cfg(test)]
@@ -763,6 +759,7 @@ mod start_request_tests {
     use infiltrator_contract::profile_document_identity::{ProfileDocumentRevision, ProfileId};
     use infiltrator_contract::session::SessionToken;
     use infiltrator_ports::core_process::CoreProcessStartContext;
+    use infiltrator_ports::error::PortError;
     use std::path::PathBuf;
 
     #[test]

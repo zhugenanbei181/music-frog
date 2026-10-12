@@ -15,9 +15,13 @@ infiltrator-ports = { path = "../infiltrator-ports" }
 log = { workspace = true }
 mihomo-api = { path = "../mihomo-api" }
 mihomo-config = { path = "../mihomo-config" }
-singbox-adapter = { path = "../singbox-adapter" }
+singbox-api = { path = "../singbox-api" }
+singbox-config = { path = "../singbox-config" }
+singbox-process = { path = "../singbox-process" }
 tokio = { workspace = true }
 
 [dev-dependencies]
+mockito = { workspace = true }
+serde_json = { workspace = true }
 tempfile = { workspace = true }
 url = { workspace = true }

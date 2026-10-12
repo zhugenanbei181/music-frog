@@ -5,7 +5,7 @@
 
 use crate::system_proxy::DesktopSystemProxy;
 use crate::tun_service::TunServiceManager;
-use mihomo_platform::crash_reporter::{CleanExitHook, TerminationHandler};
+use infiltrator_platform::crash_reporter::{CleanExitHook, TerminationHandler};
 
 pub fn install() -> anyhow::Result<TerminationHandler> {
     CleanExitHook::register_proxy_restore(|| {

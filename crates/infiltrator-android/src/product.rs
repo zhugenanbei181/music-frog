@@ -35,6 +35,7 @@ use infiltrator_contract::vpn::{
     PreparedVpnConfiguration, VpnConfigurationApplyOutcome, VpnOwnerStopReceipt, VpnStartOutcome,
     VpnStopTarget, VpnSurfaceObservation,
 };
+use infiltrator_platform::android_bridge::{AndroidBridge, get_android_bridge};
 use infiltrator_ports::capability_provider::CapabilityProvider;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::runtime_gateway::RuntimeGateway;
@@ -42,7 +43,6 @@ use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use infiltrator_ports::secure_store::SecureStore;
 use mihomo_api::client::MihomoClient;
 use mihomo_api::routing_intent::MihomoRoutingIntentAdapter;
-use mihomo_platform::android_bridge::{AndroidBridge, get_android_bridge};
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 use tokio::sync::Mutex;
@@ -362,13 +362,13 @@ mod tests {
         VpnOwnerCoreReadback, VpnOwnerLifecycle, VpnOwnerReadiness, VpnOwnerSnapshot,
     };
     use infiltrator_contract::snapshot::CoreLifecycle;
+    use infiltrator_platform::android_bridge::{
+        AndroidBridgeResult as Result, CoreProcessStartReceipt, CoreProcessStopReceipt,
+        clear_android_bridge,
+    };
     use infiltrator_ports::error::PortError;
     use infiltrator_ports::secure_store::SecureStore;
-    use mihomo_api::error::Result;
     use mihomo_config::manager::ConfigManager;
-    use mihomo_platform::android_bridge::{
-        CoreProcessStartReceipt, CoreProcessStopReceipt, clear_android_bridge,
-    };
     use std::env;
     use std::fs;
     use std::path::PathBuf;

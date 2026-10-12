@@ -425,6 +425,26 @@
     {
       "operation": {
         "category": "version",
+        "operation": "activate"
+      },
+      "support": {
+        "status": "unsupported",
+        "reason": "The shared VersionApplication supports activation, but no current Mihomo product composition exposes this operation through its typed owner boundary."
+      }
+    },
+    {
+      "operation": {
+        "category": "version",
+        "operation": "uninstall"
+      },
+      "support": {
+        "status": "unsupported",
+        "reason": "The shared VersionApplication supports uninstall, but no current Mihomo product composition exposes this operation through its typed owner boundary."
+      }
+    },
+    {
+      "operation": {
+        "category": "version",
         "operation": "rollback"
       },
       "support": {

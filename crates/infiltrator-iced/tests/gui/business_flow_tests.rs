@@ -1,7 +1,7 @@
 //! Headless business-journey tests: drive the real `AppState::update()`
 //! state machine through multi-step, cross-domain user stories, including
 //! the async-result legs (异步结果回灌) and real filesystem outcomes inside
-//! a per-journey temp HOME (global `mihomo_platform` override, mutex-
+//! a per-journey temp HOME (global `infiltrator_platform` override, mutex-
 //! serialized). No window, no compositor, no tray, no network, no real user
 //! directory — red lines.
 //!

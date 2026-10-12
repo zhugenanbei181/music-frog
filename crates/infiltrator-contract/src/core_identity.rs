@@ -67,6 +67,14 @@ impl Error for CoreIdentityError {}
 pub struct EngineId(String);
 
 impl EngineId {
+    pub fn mihomo() -> Self {
+        Self::new("mihomo").expect("Mihomo engine ID is valid")
+    }
+
+    pub fn sing_box() -> Self {
+        Self::new("sing-box").expect("sing-box engine ID is valid")
+    }
+
     pub fn new(value: impl Into<String>) -> Result<Self, CoreIdentityError> {
         let value = value.into();
         if value.is_empty() {

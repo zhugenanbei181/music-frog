@@ -39,6 +39,9 @@ use infiltrator_contract::vpn::{
     VpnStopTarget,
 };
 use infiltrator_core::version_port::MihomoVersionPort;
+use infiltrator_platform::android_bridge::{
+    AndroidBridge, AndroidBridgeResult, CoreProcessStartReceipt, CoreProcessStopReceipt,
+};
 use infiltrator_ports::core_capability_provider::{
     CoreCapabilityProvider, CoreCapabilityProviderError,
 };
@@ -49,11 +52,7 @@ use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use infiltrator_ports::secure_store::SecureStore;
-use mihomo_api::error;
 use mihomo_config::manager::ConfigManager;
-use mihomo_platform::android_bridge::{
-    AndroidBridge, CoreProcessStartReceipt, CoreProcessStopReceipt,
-};
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -183,7 +182,7 @@ impl AndroidBridge for TestBridge {
         &self,
         launch_spec: &CoreLaunchSpec,
         context: &infiltrator_ports::core_process::CoreProcessStartContext,
-    ) -> error::Result<CoreProcessStartReceipt> {
+    ) -> AndroidBridgeResult<CoreProcessStartReceipt> {
         self.launch_specs
             .lock()
             .expect("test launch spec lock")
@@ -205,13 +204,13 @@ impl AndroidBridge for TestBridge {
         Ok(CoreProcessStartReceipt::Started)
     }
 
-    async fn core_stop(&self) -> error::Result<CoreProcessStopReceipt> {
+    async fn core_stop(&self) -> AndroidBridgeResult<CoreProcessStopReceipt> {
         *self.observation.lock().expect("test observation lock") =
             AndroidCoreProcessObservation::NeverStarted;
         Ok(CoreProcessStopReceipt::StoppedGracefully)
     }
 
-    async fn core_process_observation(&self) -> error::Result<AndroidCoreProcessObservation> {
+    async fn core_process_observation(&self) -> AndroidBridgeResult<AndroidCoreProcessObservation> {
         Ok(self
             .observation
             .lock()
@@ -219,15 +218,24 @@ impl AndroidBridge for TestBridge {
             .clone())
     }
 
-    async fn credential_get(&self, _service: &str, _key: &str) -> error::Result<Option<String>> {
+    async fn credential_get(
+        &self,
+        _service: &str,
+        _key: &str,
+    ) -> AndroidBridgeResult<Option<String>> {
         Ok(None)
     }
 
-    async fn credential_set(&self, _service: &str, _key: &str, _value: &str) -> error::Result<()> {
+    async fn credential_set(
+        &self,
+        _service: &str,
+        _key: &str,
+        _value: &str,
+    ) -> AndroidBridgeResult<()> {
         Ok(())
     }
 
-    async fn credential_delete(&self, _service: &str, _key: &str) -> error::Result<()> {
+    async fn credential_delete(&self, _service: &str, _key: &str) -> AndroidBridgeResult<()> {
         Ok(())
     }
 
@@ -240,18 +248,18 @@ impl AndroidBridge for TestBridge {
         None
     }
 
-    async fn vpn_start(&self) -> error::Result<VpnStartOutcome> {
+    async fn vpn_start(&self) -> AndroidBridgeResult<VpnStartOutcome> {
         Ok(VpnStartOutcome::PermissionRequired)
     }
 
     async fn vpn_apply_configuration(
         &self,
         _prepared: &PreparedVpnConfiguration,
-    ) -> error::Result<VpnConfigurationApplyOutcome> {
+    ) -> AndroidBridgeResult<VpnConfigurationApplyOutcome> {
         Ok(VpnConfigurationApplyOutcome::Rejected)
     }
 
-    async fn vpn_stop(&self, _target: VpnStopTarget) -> error::Result<VpnOwnerStopReceipt> {
+    async fn vpn_stop(&self, _target: VpnStopTarget) -> AndroidBridgeResult<VpnOwnerStopReceipt> {
         Ok(VpnOwnerStopReceipt::OwnerUnavailable {
             failure: infiltrator_contract::error::Failure::new(
                 ErrorCode::NotReady,
@@ -261,7 +269,7 @@ impl AndroidBridge for TestBridge {
         })
     }
 
-    async fn vpn_owner_snapshot(&self) -> error::Result<VpnOwnerSnapshot> {
+    async fn vpn_owner_snapshot(&self) -> AndroidBridgeResult<VpnOwnerSnapshot> {
         Ok(VpnOwnerSnapshot {
             owner_session_id: "owner-session".to_owned(),
             revision: 1,

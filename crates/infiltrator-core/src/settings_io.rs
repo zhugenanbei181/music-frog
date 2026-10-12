@@ -3,10 +3,10 @@ use infiltrator_contract::runtime_settings::{
     DEFAULT_RUNTIME_PROBE_TIMEOUT_MS, DEFAULT_RUNTIME_PROBE_URL, RuntimeProbeSettings,
 };
 use infiltrator_domain::settings::{AppSettings, CURRENT_SETTINGS_SCHEMA_VERSION};
+use infiltrator_platform::defaults::DefaultCredentialStore;
+use infiltrator_platform::paths::get_home_dir;
 use infiltrator_ports::secure_store::SecureStore;
 use mihomo_config::manager::ConfigManager;
-use mihomo_platform::defaults::DefaultCredentialStore;
-use mihomo_platform::paths::get_home_dir;
 use std::path::{Path, PathBuf};
 use tokio::fs::{create_dir_all, read_to_string, write};
 
@@ -427,9 +427,9 @@ async fn app_config_manager_in_with_policy(
 #[cfg(test)]
 pub(crate) mod test_support {
     #[cfg(test)]
-    use mihomo_config::manager::paths::CONFIGS_DIR_ENV;
+    use infiltrator_platform::paths::{get_home_dir, set_home_dir_override};
     #[cfg(test)]
-    use mihomo_platform::paths::{get_home_dir, set_home_dir_override};
+    use mihomo_config::manager::paths::CONFIGS_DIR_ENV;
     #[cfg(test)]
     use std::env::remove_var;
     #[cfg(test)]
@@ -452,7 +452,7 @@ pub(crate) mod test_support {
     impl RedirectGuard {
         /// 接管全局状态并把 home override 指到 `home`。
         pub(crate) async fn acquire(home: PathBuf) -> Self {
-            let _lock = mihomo_platform::TEST_LOCK.lock().await;
+            let _lock = infiltrator_platform::TEST_LOCK.lock().await;
             let env_key = CONFIGS_DIR_ENV;
             let prev_env = var(env_key).ok();
             unsafe { remove_var(env_key) };

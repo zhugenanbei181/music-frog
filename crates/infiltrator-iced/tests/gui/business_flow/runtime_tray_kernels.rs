@@ -27,7 +27,7 @@ use infiltrator_contract::routing_intent::{
 use infiltrator_contract::version::{CoreRollbackSnapshot, InstalledCoreVersion};
 use infiltrator_core::version_port::MihomoVersionPort;
 use infiltrator_domain::runtime::TrafficData;
-use mihomo_platform::paths::get_home_dir;
+use infiltrator_platform::paths::get_home_dir;
 use mihomo_version::manager::VersionManager;
 #[cfg(unix)]
 use std::fs::Permissions;

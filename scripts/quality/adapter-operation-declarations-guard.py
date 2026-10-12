@@ -21,9 +21,9 @@ ENGINE_ADAPTERS = {
         "evidence": Path("packaging/mihomo-evidence-assets.json"),
     },
     "sing-box": {
-        "package": "singbox-adapter",
+        "package": "singbox-api",
         "declaration": Path(
-            "crates/singbox-adapter/adapter-operation-declarations.json"
+            "crates/singbox-api/adapter-operation-declarations.json"
         ),
         "evidence": Path("packaging/sing-box-evidence-assets.json"),
     },

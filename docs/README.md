@@ -27,7 +27,11 @@
 - 双端共享 UI 契约：[infiltrator-contract/docs/README.md](../crates/infiltrator-contract/docs/README.md)。
 - 跨表面纯呈现投影：[infiltrator-presentation/README.md](../crates/infiltrator-presentation/README.md)。
 - Android：[android/docs/README.md](../android/docs/README.md)。
-- Mihomo API：[mihomo-api/docs/README.md](../crates/mihomo-api/docs/README.md)。
+- Mihomo adapters：[mihomo-api/docs/README.md](../crates/mihomo-api/docs/README.md)、[mihomo-config](../crates/mihomo-config/README.md)、[mihomo-process](../crates/mihomo-process/README.md)、[mihomo-version](../crates/mihomo-version/README.md)。
+- Mihomo YAML sync：[mihomo-dav-sync](../crates/mihomo-dav-sync/README.md)。
+- Mihomo process adapter：[mihomo-process/README.md](../crates/mihomo-process/README.md)。
+- sing-box adapters：[singbox-api](../crates/singbox-api/README.md)、[singbox-config](../crates/singbox-config/README.md)、[singbox-process](../crates/singbox-process/README.md)、[singbox-version](../crates/singbox-version/README.md)。
+- Shared Core infrastructure：[ProfileStore port](../crates/infiltrator-ports/src/profile_store.rs)、[profile-store extraction target](../crates/infiltrator-profile-store/README.md)、[platform adapters](../crates/infiltrator-platform/README.md)。
 - Desktop：[infiltrator-desktop/docs/README.md](../crates/infiltrator-desktop/docs/README.md)。
 
 测试命令见根目录 [TESTING.md](../TESTING.md)。`docs/archive/` 是 Git 忽略的本机历史目录，不是规则来源。

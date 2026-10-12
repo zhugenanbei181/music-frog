@@ -30,6 +30,8 @@ use infiltrator_core::apply::{
 };
 use infiltrator_core::apply_workspace::apply_active_profile_workspace;
 use infiltrator_domain::apply::ApplyStrategy;
+use infiltrator_platform::android_bridge::{AndroidBridge, get_android_bridge};
+use infiltrator_platform::defaults::DefaultCredentialStore;
 use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceStore;
 use infiltrator_ports::core_capability_provider::CoreCapabilityProvider;
 use infiltrator_ports::endpoint::EndpointSource;
@@ -39,8 +41,6 @@ use infiltrator_ports::profile_workspace::{ProfileWorkspace, ProfileWorkspaceUpd
 use infiltrator_ports::runtime_gateway::ActiveProfileReferenceApplier;
 use mihomo_config::endpoint::ProfileEndpointSource;
 use mihomo_config::manager::ConfigManager;
-use mihomo_platform::android_bridge::{AndroidBridge, get_android_bridge};
-use mihomo_platform::defaults::DefaultCredentialStore;
 use std::sync::{Arc, OnceLock};
 use tokio::sync::Mutex;
 
@@ -50,7 +50,7 @@ use crate::composition::{
 };
 use crate::core_launch_spec::AndroidProfileReadiness;
 use crate::ffi::{FfiErrorCode, FfiStatus};
-use crate::host_support::{build_config_manager, map_mihomo_error};
+use crate::host_support::{build_config_manager, map_mihomo_error, map_port_error};
 
 #[path = "host_session/singbox.rs"]
 mod singbox;
@@ -224,7 +224,7 @@ pub(crate) async fn recover_android_owner_before_binding(
     let observation = bridge
         .core_process_observation()
         .await
-        .map_err(map_mihomo_error)?;
+        .map_err(map_port_error)?;
     let identity = match &observation {
         AndroidCoreProcessObservation::Running { owned }
         | AndroidCoreProcessObservation::Exited { owned, .. } => match &owned.context {

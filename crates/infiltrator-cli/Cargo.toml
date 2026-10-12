@@ -20,7 +20,8 @@ infiltrator-domain = { path = "../infiltrator-domain" }
 infiltrator-http = { path = "../infiltrator-http" }
 mihomo-api = { path = "../mihomo-api" }
 mihomo-config = { path = "../mihomo-config" }
-mihomo-platform = { path = "../mihomo-platform" }
+infiltrator-platform = { path = "../infiltrator-platform" }
+mihomo-process = { path = "../mihomo-process" }
 mihomo-version = { path = "../mihomo-version" }
 serde = { workspace = true }
 serde_json = { workspace = true }

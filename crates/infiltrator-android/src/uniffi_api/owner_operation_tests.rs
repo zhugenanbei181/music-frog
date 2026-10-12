@@ -14,14 +14,14 @@ use infiltrator_contract::active_profile_reference::{
 use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_domain::app_routing::AppRoutingMode;
 use infiltrator_domain::app_routing::AppRoutingRule;
-use infiltrator_ports::profile_store::ProfileStore;
-use mihomo_config::manager::ConfigManager;
-use mihomo_platform::TEST_LOCK;
-use mihomo_platform::android_bridge::{
+use infiltrator_platform::TEST_LOCK;
+use infiltrator_platform::android_bridge::{
     AndroidBridge, clear_android_bridge, get_android_bridge, set_android_bridge,
 };
-use mihomo_platform::defaults::DefaultCredentialStore;
-use mihomo_platform::paths::{clear_home_dir_override, set_home_dir_override};
+use infiltrator_platform::defaults::DefaultCredentialStore;
+use infiltrator_platform::paths::{clear_home_dir_override, set_home_dir_override};
+use infiltrator_ports::profile_store::ProfileStore;
+use mihomo_config::manager::ConfigManager;
 use std::collections::BTreeMap;
 use std::env::temp_dir;
 use std::fs;
@@ -430,22 +430,33 @@ fn owner_operation_json_is_a_versioned_exhaustive_rust_enum() {
 
 #[test]
 fn read_operations_do_not_advance_the_persisted_data_revision() {
-    assert!(!AndroidOwnerOperation::ProfilesList.mutates_data());
-    assert!(
-        !AndroidOwnerOperation::ProfileDetail {
-            name: "main".to_owned()
-        }
-        .mutates_data()
+    assert_eq!(
+        AndroidOwnerOperation::ProfilesList.data_mutation(),
+        AndroidOwnerDataMutation::ReadOnly
     );
     assert!(
+        AndroidOwnerOperation::ProfileDetail {
+            name: "main".to_owned()
+        }
+        .data_mutation()
+            == AndroidOwnerDataMutation::ReadOnly
+    );
+    assert_eq!(
         AndroidOwnerOperation::ProfileSelect {
             name: "main".to_owned()
         }
-        .mutates_data()
+        .data_mutation(),
+        AndroidOwnerDataMutation::CommitRegardlessOfOutcome
     );
-    assert!(!AndroidOwnerOperation::DnsSettings.mutates_data());
-    assert!(!AndroidOwnerOperation::WebDavSettings.mutates_data());
-    assert!(matches!(
+    assert_eq!(
+        AndroidOwnerOperation::DnsSettings.data_mutation(),
+        AndroidOwnerDataMutation::ReadOnly
+    );
+    assert_eq!(
+        AndroidOwnerOperation::WebDavSettings.data_mutation(),
+        AndroidOwnerDataMutation::ReadOnly
+    );
+    assert_eq!(
         AndroidOwnerOperation::WebDavTest {
             settings: WebDavSettings {
                 enabled: false,
@@ -456,10 +467,13 @@ fn read_operations_do_not_advance_the_persisted_data_revision() {
                 sync_on_startup: false,
             }
         }
-        .mutates_data(),
-        false
-    ));
-    assert!(!AndroidOwnerOperation::WebDavSyncNow.mutates_data());
+        .data_mutation(),
+        AndroidOwnerDataMutation::ReadOnly
+    );
+    assert_eq!(
+        AndroidOwnerOperation::WebDavSyncNow.data_mutation(),
+        AndroidOwnerDataMutation::ReadOnly
+    );
     let webdav_save = AndroidOwnerOperation::WebDavSettingsSave {
         settings: WebDavSettings {
             enabled: false,
@@ -470,22 +484,32 @@ fn read_operations_do_not_advance_the_persisted_data_revision() {
             sync_on_startup: false,
         },
     };
-    assert!(webdav_save.mutates_data());
-    assert!(webdav_save.advances_revision_even_on_failure());
+    assert_eq!(
+        webdav_save.data_mutation(),
+        AndroidOwnerDataMutation::CommitRegardlessOfOutcome
+    );
     assert_eq!(webdav_save.data_domain(), AndroidOwnerDataDomain::WebDav);
     let failed_webdav_write = FfiStatus::err(FfiErrorCode::InvalidInput, "invalid WebDAV settings");
-    assert!(should_advance_revision(
-        webdav_save.mutates_data(),
-        webdav_save.advances_revision_even_on_failure(),
-        &AndroidOwnerOperationReadback::WebDavSettings(WebDavSettingsResult {
-            status: failed_webdav_write.clone(),
-            settings: None,
-        }),
-        failed_webdav_write.code,
-    ));
-    assert!(!AndroidOwnerOperation::RulesList.mutates_data());
-    assert!(!AndroidOwnerOperation::RuleProviders.mutates_data());
-    assert!(
+    assert_eq!(
+        owner_revision_transition(
+            webdav_save.data_mutation(),
+            &AndroidOwnerOperationReadback::WebDavSettings(WebDavSettingsResult {
+                status: failed_webdav_write.clone(),
+                settings: None,
+            }),
+            failed_webdav_write.code,
+        ),
+        AndroidOwnerRevisionTransition::Advance
+    );
+    assert_eq!(
+        AndroidOwnerOperation::RulesList.data_mutation(),
+        AndroidOwnerDataMutation::ReadOnly
+    );
+    assert_eq!(
+        AndroidOwnerOperation::RuleProviders.data_mutation(),
+        AndroidOwnerDataMutation::ReadOnly
+    );
+    assert_eq!(
         AndroidOwnerOperation::DnsSettingsSave {
             patch: settings::DnsSettingsPatch {
                 enable: Some(false),
@@ -497,7 +521,8 @@ fn read_operations_do_not_advance_the_persisted_data_revision() {
                 fallback_filter: None,
             },
         }
-        .mutates_data()
+        .data_mutation(),
+        AndroidOwnerDataMutation::CommitOnSuccess
     );
 }
 
@@ -512,42 +537,50 @@ fn rules_requests_are_fenced_by_core_generation_and_profile_data_revision() {
 #[test]
 fn failed_dns_or_fake_ip_mutations_leave_the_data_revision_unchanged() {
     let failure = FfiStatus::err(FfiErrorCode::InvalidInput, "invalid patch");
-    assert!(!should_advance_revision(
-        true,
-        false,
-        &AndroidOwnerOperationReadback::DnsSettings(settings::DnsSettingsResult {
-            status: failure.clone(),
-            settings: None,
-        }),
-        failure.code,
-    ));
-    assert!(!should_advance_revision(
-        true,
-        false,
-        &AndroidOwnerOperationReadback::FakeIpSettings(settings::FakeIpSettingsResult {
-            status: failure.clone(),
-            settings: None,
-        },),
-        failure.code,
-    ));
-    assert!(!should_advance_revision(
-        true,
-        false,
-        &AndroidOwnerOperationReadback::FakeIpCacheClear(FfiBoolResult {
-            status: FfiStatus::ok(),
-            value: false,
-        }),
-        FfiErrorCode::Ok,
-    ));
-    assert!(should_advance_revision(
-        true,
-        false,
-        &AndroidOwnerOperationReadback::FakeIpCacheClear(FfiBoolResult {
-            status: FfiStatus::ok(),
-            value: true,
-        }),
-        FfiErrorCode::Ok,
-    ));
+    assert_eq!(
+        owner_revision_transition(
+            AndroidOwnerDataMutation::CommitOnSuccess,
+            &AndroidOwnerOperationReadback::DnsSettings(settings::DnsSettingsResult {
+                status: failure.clone(),
+                settings: None,
+            }),
+            failure.code,
+        ),
+        AndroidOwnerRevisionTransition::Unchanged
+    );
+    assert_eq!(
+        owner_revision_transition(
+            AndroidOwnerDataMutation::CommitOnSuccess,
+            &AndroidOwnerOperationReadback::FakeIpSettings(settings::FakeIpSettingsResult {
+                status: failure.clone(),
+                settings: None,
+            },),
+            failure.code,
+        ),
+        AndroidOwnerRevisionTransition::Unchanged
+    );
+    assert_eq!(
+        owner_revision_transition(
+            AndroidOwnerDataMutation::CommitOnSuccess,
+            &AndroidOwnerOperationReadback::FakeIpCacheClear(FfiBoolResult {
+                status: FfiStatus::ok(),
+                value: false,
+            }),
+            FfiErrorCode::Ok,
+        ),
+        AndroidOwnerRevisionTransition::Unchanged
+    );
+    assert_eq!(
+        owner_revision_transition(
+            AndroidOwnerDataMutation::CommitOnSuccess,
+            &AndroidOwnerOperationReadback::FakeIpCacheClear(FfiBoolResult {
+                status: FfiStatus::ok(),
+                value: true,
+            }),
+            FfiErrorCode::Ok,
+        ),
+        AndroidOwnerRevisionTransition::Advance
+    );
 }
 
 #[path = "owner_operation_tests/dispatch.rs"]

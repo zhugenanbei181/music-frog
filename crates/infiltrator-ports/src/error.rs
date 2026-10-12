@@ -29,6 +29,12 @@ impl PortError {
     }
 }
 
+impl From<std::io::Error> for PortError {
+    fn from(error: std::io::Error) -> Self {
+        Self::Io(error.to_string())
+    }
+}
+
 impl PortError {
     pub fn error_code(&self) -> ErrorCode {
         match self {

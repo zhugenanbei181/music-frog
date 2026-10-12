@@ -17,9 +17,9 @@ use crate::version_port::MihomoVersionPort;
 use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
 use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::profile_document_identity::ProfileId;
+use infiltrator_platform::defaults::DefaultCredentialStore;
 use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceStore;
 use mihomo_api::error;
-use mihomo_platform::defaults::DefaultCredentialStore;
 mod checks;
 #[cfg(test)]
 #[path = "doctor_test.rs"]
@@ -27,9 +27,9 @@ mod doctor_test;
 mod fixes;
 mod pidfile;
 
+use infiltrator_platform::paths::get_home_dir;
 use mihomo_config::manager::ConfigManager;
 use mihomo_config::manager::paths::{engine_config_dir, resolve_configs_dir_in};
-use mihomo_platform::paths::get_home_dir;
 use mihomo_version::manager::VersionManager;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -242,7 +242,7 @@ pub(super) enum ActiveProfileObservation {
 }
 
 impl DoctorEnv {
-    /// Env pointing at the real installation (home from `mihomo-platform`).
+    /// Env pointing at the real installation (home from `infiltrator-platform`).
     pub fn detect() -> anyhow::Result<Self> {
         let home = get_home_dir()?;
         Ok(Self::with_home(home))

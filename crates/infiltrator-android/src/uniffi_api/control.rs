@@ -15,7 +15,7 @@ use infiltrator_contract::command::CommandResult;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::vpn::VpnStopTarget;
-use mihomo_platform::android_bridge::{AndroidBridge, get_android_bridge};
+use infiltrator_platform::android_bridge::{AndroidBridge, get_android_bridge};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, uniffi::Enum)]
 pub enum AndroidControlIntent {
@@ -450,9 +450,9 @@ mod tests {
         PreparedVpnConfiguration, VpnConfigurationApplyOutcome, VpnOwnerStopReceipt,
         VpnStartOutcome, VpnStopTarget,
     };
-    use mihomo_api::error::Result;
-    use mihomo_platform::android_bridge::{
-        AndroidBridge, CoreProcessStartReceipt, CoreProcessStopReceipt,
+    use infiltrator_platform::android_bridge::{
+        AndroidBridge, AndroidBridgeResult as Result, CoreProcessStartReceipt,
+        CoreProcessStopReceipt,
     };
     use std::path::PathBuf;
     use std::sync::Mutex;

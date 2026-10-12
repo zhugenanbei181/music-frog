@@ -30,6 +30,8 @@ use infiltrator_contract::version::{
 };
 use infiltrator_core::settings_io::{WEBDAV_CREDENTIAL_SERVICE, WEBDAV_PASSWORD_KEY};
 use infiltrator_domain::settings::AppSettings;
+use infiltrator_platform::TEST_LOCK;
+use infiltrator_platform::defaults::DefaultCredentialStore;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::outbound::OutboundScopeSource;
 use infiltrator_ports::runtime_gateway::RuntimeGateway;
@@ -39,8 +41,6 @@ use infiltrator_ports::version::{
 };
 use mihomo_api::client::MihomoClient;
 use mihomo_api::outbound::MihomoOutboundAdapter;
-use mihomo_platform::TEST_LOCK;
-use mihomo_platform::defaults::DefaultCredentialStore;
 use std::collections::HashMap;
 #[cfg(unix)]
 use std::fs::Permissions;

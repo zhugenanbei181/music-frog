@@ -9,13 +9,13 @@ use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document_identity::{
     ProfileDocumentRevision, ProfileWorkspaceIdentity,
 };
+use infiltrator_platform::android_bridge::{
+    AndroidBridge, AndroidCoreConfigurationValidationOutcome,
+    AndroidCoreConfigurationValidationRequest,
+};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_configuration_transaction::{
     ProfileConfigurationCandidateValidatorPort, ProfileConfigurationTransactionScope,
-};
-use mihomo_platform::android_bridge::{
-    AndroidBridge, AndroidCoreConfigurationValidationOutcome,
-    AndroidCoreConfigurationValidationRequest,
 };
 use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};

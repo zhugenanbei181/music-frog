@@ -26,9 +26,9 @@ use infiltrator_contract::vpn::{
 use infiltrator_contract::vpn::{
     VpnConfigurationApplyOutcome, VpnOwnerStopReceipt, VpnStartOutcome, VpnStopTarget,
 };
+use infiltrator_platform::android_bridge::{AndroidBridge, get_android_bridge};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::vpn_service::{VpnServicePort, VpnStartReceipt};
-use mihomo_platform::android_bridge::{AndroidBridge, get_android_bridge};
 use std::sync::Arc;
 #[cfg(target_os = "android")]
 use std::thread::Builder;

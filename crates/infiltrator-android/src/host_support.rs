@@ -20,12 +20,13 @@ use infiltrator_core::settings_io;
 use infiltrator_core::settings_store::for_current_home;
 use infiltrator_core::subscription_io::HttpSubscriptionSource;
 use infiltrator_core::sync_port::FileWebDavSync;
+use infiltrator_platform::defaults::DefaultCredentialStore;
+use infiltrator_platform::paths::get_home_dir;
+use infiltrator_ports::error::PortError;
 use infiltrator_ports::subscription_source::SubscriptionSource;
 use mihomo_api::error::MihomoError;
 use mihomo_config::manager::ConfigManager;
 use mihomo_config::profile_document_codec::MihomoProfileDocumentCodec;
-use mihomo_platform::defaults::DefaultCredentialStore;
-use mihomo_platform::paths::get_home_dir;
 use std::sync::{Arc, OnceLock};
 use tokio::runtime::Runtime;
 pub(super) fn get_runtime() -> &'static Runtime {
@@ -127,7 +128,7 @@ pub(super) fn build_routing_application() -> Result<RoutingApplication, FfiStatu
 /// with no override anywhere this uses `<home>/configs`.
 pub(crate) async fn build_config_manager()
 -> Result<ConfigManager<DefaultCredentialStore>, FfiStatus> {
-    let home = get_home_dir().map_err(map_mihomo_error)?;
+    let home = get_home_dir().map_err(map_port_error)?;
     let override_dir = configs_dir_override().await;
     ConfigManager::with_home_configs_dir_and_store(
         home,
@@ -142,7 +143,7 @@ pub(super) fn network_application() -> NetworkApplication {
 }
 
 pub(super) async fn build_sync_application() -> Result<SyncApplication, FfiStatus> {
-    let home = get_home_dir().map_err(map_mihomo_error)?;
+    let home = get_home_dir().map_err(map_port_error)?;
     let sync = FileWebDavSync::new(home, DefaultCredentialStore::default());
     Ok(SyncApplication::new(Arc::new(sync)))
 }
@@ -205,6 +206,10 @@ pub(crate) fn map_mihomo_error(err: MihomoError) -> FfiStatus {
     map_mihomo_error_ref(&err)
 }
 
+pub(crate) fn map_port_error(error: PortError) -> FfiStatus {
+    map_application_failure(Failure::from(error))
+}
+
 fn map_mihomo_error_ref(err: &MihomoError) -> FfiStatus {
     match err {
         MihomoError::Http(_) => FfiStatus::err(FfiErrorCode::Network, err.to_string()),
@@ -253,8 +258,8 @@ mod tests {
     use super::*;
     use infiltrator_core::settings_io::save_settings;
     use infiltrator_domain::settings::AppSettings;
-    use mihomo_platform::TEST_LOCK;
-    use mihomo_platform::paths::{clear_home_dir_override, set_home_dir_override};
+    use infiltrator_platform::TEST_LOCK;
+    use infiltrator_platform::paths::{clear_home_dir_override, set_home_dir_override};
     #[cfg(test)]
     use std::env::remove_var;
     #[cfg(test)]

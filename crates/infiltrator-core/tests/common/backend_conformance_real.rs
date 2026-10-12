@@ -25,6 +25,7 @@ use infiltrator_core::apply::EndpointConfigReloader;
 use infiltrator_core::profile_configuration_transaction::{
     MihomoBinaryConfigurationCandidateValidator, MihomoProfileConfigurationTransactionAdapter,
 };
+use infiltrator_platform::paths::{clear_home_dir_override, set_home_dir_override};
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
 use infiltrator_ports::engine_backend_factory::{EngineBackendFactory, EngineBackendProvider};
@@ -39,9 +40,8 @@ use mihomo_api::client::MihomoClient;
 use mihomo_api::readiness::ControllerReadiness;
 use mihomo_config::endpoint::ProfileEndpointSource;
 use mihomo_config::manager::ConfigManager;
-use mihomo_platform::desktop::ProcessCoreController;
-use mihomo_platform::paths::{clear_home_dir_override, set_home_dir_override};
-use singbox_adapter::controller_configuration::SingBoxControllerConfiguration;
+use mihomo_process::desktop::ProcessCoreController;
+use singbox_api::controller_configuration::SingBoxControllerConfiguration;
 use std::collections::HashMap;
 use std::env;
 use std::net::{SocketAddr, TcpListener};
@@ -467,7 +467,7 @@ rules:
         .map_err(|error| format!("resolve production Mihomo routing port: {error}"))?;
     let transaction = backend.configuration_transaction();
 
-    let _home_guard = mihomo_platform::TEST_LOCK.lock().await;
+    let _home_guard = infiltrator_platform::TEST_LOCK.lock().await;
     if !set_home_dir_override(temp.path().to_path_buf()) {
         probe_proxy.task.abort();
         return Err("could not install isolated Mihomo home override".to_owned());

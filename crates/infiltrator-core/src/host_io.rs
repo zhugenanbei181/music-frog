@@ -3,8 +3,8 @@
 use crate::settings_io;
 use crate::settings_io::settings_path;
 use infiltrator_domain::settings::AppSettings;
-use mihomo_platform::defaults::DefaultCredentialStore;
-use mihomo_platform::paths::get_home_dir;
+use infiltrator_platform::defaults::DefaultCredentialStore;
+use infiltrator_platform::paths::get_home_dir;
 use std::path::PathBuf;
 
 pub fn home_dir() -> anyhow::Result<PathBuf> {

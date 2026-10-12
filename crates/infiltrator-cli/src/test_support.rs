@@ -1,7 +1,7 @@
 //! Shared helpers for offline handler tests. Only compiled under `cfg(test)`.
 
+use infiltrator_platform::TEST_LOCK;
 use mihomo_config::manager::paths::CONFIGS_DIR_ENV;
-use mihomo_platform::TEST_LOCK;
 use std::env::{remove_var, set_var, var};
 use tokio::sync::MutexGuard;
 

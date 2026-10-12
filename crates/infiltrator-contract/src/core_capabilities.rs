@@ -43,6 +43,8 @@ impl CoreOperation {
         match self {
             Self::Version(VersionOperation::Inspect)
             | Self::Version(VersionOperation::Install)
+            | Self::Version(VersionOperation::Activate)
+            | Self::Version(VersionOperation::Uninstall)
             | Self::Version(VersionOperation::Rollback)
             | Self::Lifecycle(CoreLifecycleOperation::Start)
             | Self::Lifecycle(CoreLifecycleOperation::Stop)
@@ -71,9 +73,7 @@ impl CoreOperation {
     pub const fn owner_managed_owner(self) -> Option<AdapterOperationOwner> {
         match self {
             Self::Lifecycle(_) => Some(AdapterOperationOwner::CoreLifecycle),
-            Self::Version(VersionOperation::Inspect | VersionOperation::Rollback) => {
-                Some(AdapterOperationOwner::VersionManagement)
-            }
+            Self::Version(_) => Some(AdapterOperationOwner::VersionManagement),
             _ => None,
         }
     }
@@ -122,6 +122,8 @@ pub const CORE_OPERATIONS: &[CoreOperation] = &[
     CoreOperation::CoreGarbageCollection(CoreGarbageCollectionOperation::Trigger),
     CoreOperation::Version(VersionOperation::Inspect),
     CoreOperation::Version(VersionOperation::Install),
+    CoreOperation::Version(VersionOperation::Activate),
+    CoreOperation::Version(VersionOperation::Uninstall),
     CoreOperation::Version(VersionOperation::Rollback),
 ];
 
@@ -240,6 +242,8 @@ pub enum CoreGarbageCollectionOperation {
 pub enum VersionOperation {
     Inspect,
     Install,
+    Activate,
+    Uninstall,
     Rollback,
 }
 

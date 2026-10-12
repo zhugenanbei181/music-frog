@@ -23,10 +23,10 @@ use infiltrator_ports::engine_backend_factory::{
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::outbound::OutboundScopeSource;
 use infiltrator_ports::profile_store::ProfileStore;
-use singbox_adapter::command::{SingBoxCommandPort, TokioSingBoxCommandPort};
-use singbox_adapter::controller_configuration::SingBoxControllerConfiguration;
-use singbox_adapter::engine_id;
-use singbox_adapter::http::{ReqwestSingBoxClashHttpPort, SingBoxClashHttpPort};
+use singbox_api::controller_configuration::SingBoxControllerConfiguration;
+use singbox_api::engine_id;
+use singbox_api::http::{ReqwestSingBoxClashHttpPort, SingBoxClashHttpPort};
+use singbox_process::command::{SingBoxCommandPort, TokioSingBoxCommandPort};
 use std::path::PathBuf;
 use std::process;
 use std::sync::Arc;

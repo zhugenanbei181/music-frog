@@ -4,9 +4,9 @@
 use super::*;
 use crate::support::select_test_profile;
 use axum::body::to_bytes;
+use infiltrator_platform::paths::{clear_home_dir_override, set_home_dir_override};
 use infiltrator_ports::profile_store::ProfileStore;
 use mihomo_config::manager::ConfigManager;
-use mihomo_platform::paths::{clear_home_dir_override, set_home_dir_override};
 use std::time;
 use tokio::time::sleep;
 
