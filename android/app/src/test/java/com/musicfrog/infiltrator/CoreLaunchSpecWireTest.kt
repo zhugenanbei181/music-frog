@@ -18,10 +18,7 @@ class CoreLaunchSpecWireTest {
                         CoreLaunchConfigurationIdentityWire("mihomo", "primary", "sha256:abc123"),
                         CoreLaunchBinaryWire.MihomoBundled,
                         "/data/app/files",
-                        listOf(
-                            "-d",
-                            "/data/app/files",
-                            "-f",
+                        CoreLaunchArgumentsWire.Mihomo(
                             "/data/app/files/configs/engines/mihomo/primary.yaml",
                         ),
                     ),
@@ -63,17 +60,27 @@ class CoreLaunchSpecWireTest {
     @Test
     fun decodesManagedSingBoxBinaryAndRequiresItToMatchTheOwnerEngine() {
         val request = validRequest()
-            .replace("\"MihomoBundled\"", "{\"SingBoxManaged\":{\"version\":\"1.14.3\",\"target\":\"arm64_v8a\"}}")
+            .replace("\"MihomoBundled\"", "{\"SingBoxManaged\":{\"version\":\"v1.14.3\",\"target\":\"arm64_v8a\"}}")
+            .replace(
+                "\"Mihomo\":{\"configuration_path\":\"/data/app/files/configs/engines/mihomo/primary.yaml\"}",
+                "\"SingBox\":{\"configuration_path\":\"/data/app/files/configs/engines/sing-box/primary.json\"}",
+            )
             .replace("\"engine_id\":\"mihomo\"", "\"engine_id\":\"sing-box\"")
             .replace("\"engine\":\"mihomo\"", "\"engine\":\"sing-box\"")
         val decoded = CoreStartRequestWire.decode(request) as CoreStartRequestDecode.Accepted
 
         assertEquals(
             CoreLaunchBinaryWire.SingBoxManaged(
-                "1.14.3",
+                "v1.14.3",
                 AndroidCoreBinaryTargetWire.Arm64V8a,
             ),
             decoded.request.launchSpec.binary,
+        )
+        assertEquals(
+            CoreLaunchArgumentsWire.SingBox(
+                "/data/app/files/configs/engines/sing-box/primary.json",
+            ),
+            decoded.request.launchSpec.launchArguments,
         )
         assertEquals("aarch64-linux-android", AndroidCoreBinaryTargetWire.Arm64V8a.targetTriple)
 
@@ -82,15 +89,27 @@ class CoreLaunchSpecWireTest {
     }
 
     @Test
-    fun rejectsRelativeWorkingDirectoryAndEmptyLaunchArguments() {
+    fun rejectsRelativeWorkingDirectoryAndInvalidTypedLaunchArguments() {
         val relativeWorkingDirectory = validRequest().replace("/data/app/files", "files")
-        val emptyArguments = validRequest().replace(
-            "[\"-d\",\"/data/app/files\",\"-f\",\"/data/app/files/configs/engines/mihomo/primary.yaml\"]",
-            "[]",
+        val emptyConfigurationPath = validRequest().replace(
+            "/data/app/files/configs/engines/mihomo/primary.yaml",
+            " ",
         )
-        val nonStringArgument = validRequest().replace("\"-d\"", "7")
+        val wrongEngineArguments = validRequest().replace(
+            "\"Mihomo\":{\"configuration_path\":",
+            "\"SingBox\":{\"configuration_path\":",
+        )
+        val unknownArgumentsField = validRequest().replace(
+            "\"configuration_path\":\"/data/app/files/configs/engines/mihomo/primary.yaml\"",
+            "\"configuration_path\":\"/data/app/files/configs/engines/mihomo/primary.yaml\",\"legacy\":true",
+        )
 
-        listOf(relativeWorkingDirectory, emptyArguments, nonStringArgument).forEach { json ->
+        listOf(
+            relativeWorkingDirectory,
+            emptyConfigurationPath,
+            wrongEngineArguments,
+            unknownArgumentsField,
+        ).forEach { json ->
             assertTrue(CoreStartRequestWire.decode(json) is CoreStartRequestDecode.Rejected)
         }
     }
@@ -98,7 +117,7 @@ class CoreLaunchSpecWireTest {
     @Test
     fun spawnCommandUsesTheRustSelectedWorkingDirectoryAndArgumentVector() {
         val accepted = CoreStartRequestWire.decode(validRequest()) as CoreStartRequestDecode.Accepted
-        val command = MihomoSpawnCommand.from(File("/native/libmihomo.so"), accepted.request.launchSpec)
+        val command = CoreProcessSpawnCommand.from(File("/native/libmihomo.so"), accepted.request.launchSpec)
         val builder = command.processBuilder()
 
         assertEquals(
@@ -115,5 +134,5 @@ class CoreLaunchSpecWireTest {
     }
 
     private fun validRequest(): String =
-        """{"launch_spec":{"configuration_identity":{"engine_id":"mihomo","profile_id":"primary","document_revision":"sha256:abc123"},"binary":"MihomoBundled","working_directory":"/data/app/files","launch_arguments":["-d","/data/app/files","-f","/data/app/files/configs/engines/mihomo/primary.yaml"]},"start_context":{"Managed":{"identity":{"engine":"mihomo","instance":"android-active","version":null},"generation":7,"session_token":42}}}"""
+        """{"launch_spec":{"configuration_identity":{"engine_id":"mihomo","profile_id":"primary","document_revision":"sha256:abc123"},"binary":"MihomoBundled","working_directory":"/data/app/files","launch_arguments":{"Mihomo":{"configuration_path":"/data/app/files/configs/engines/mihomo/primary.yaml"}}},"start_context":{"Managed":{"identity":{"engine":"mihomo","instance":"android-active","version":null},"generation":7,"session_token":42}}}"""
 }

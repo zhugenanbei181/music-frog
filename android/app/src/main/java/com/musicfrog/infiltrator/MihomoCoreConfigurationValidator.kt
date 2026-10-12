@@ -8,7 +8,7 @@ import java.util.concurrent.TimeUnit
 internal class MihomoCoreConfigurationValidator(
     private val nativeLibraryDirectory: File,
     private val filesDirectory: File,
-    private val processStarter: MihomoProcessStarter,
+    private val processStarter: CoreProcessStarter,
     private val elapsedRealtimeMillis: () -> Long,
 ) {
     private sealed interface ValidationWorkerState {
@@ -370,7 +370,7 @@ internal enum class CoreValidationWorkerReadiness {
 
 internal class CoreConfigurationValidationHost(
     private val processRole: () -> AndroidProcessRole,
-    private val controller: MihomoProcessController,
+    private val controller: CoreProcessController,
 ) {
     fun validate(requestJson: String): CoreConfigurationValidationReplyWire {
         val request = when (val decoded = CoreConfigurationValidationRequestWire.decode(requestJson)) {

@@ -47,10 +47,10 @@ class AndroidCoreProcessRecordStoreTest {
 
         assertEquals(StoredAndroidCoreProcessRecord.Corrupt, store.read())
         var spawns = 0
-        val controller = MihomoProcessController(
+        val controller = CoreProcessController(
             nativeLibraryDirectory = File(directory, "native"),
             filesDirectory = directory,
-            processStarter = MihomoProcessStarter {
+            processStarter = CoreProcessStarter {
                 spawns += 1
                 FakeProcess()
             },
@@ -135,10 +135,10 @@ class AndroidCoreProcessRecordStoreTest {
         }
         val files = File(root, "files").apply { mkdirs() }
         var spawns = 0
-        val controller = MihomoProcessController(
+        val controller = CoreProcessController(
             nativeLibraryDirectory = native,
             filesDirectory = files,
-            processStarter = MihomoProcessStarter {
+            processStarter = CoreProcessStarter {
                 spawns += 1
                 FakeProcess()
             },
@@ -170,10 +170,10 @@ class AndroidCoreProcessRecordStoreTest {
         val store = AndroidCoreProcessRecordStore(files)
         val context = managedContext()
         val child = FakeProcess()
-        val controller = MihomoProcessController(
+        val controller = CoreProcessController(
             nativeLibraryDirectory = native,
             filesDirectory = files,
-            processStarter = MihomoProcessStarter {
+            processStarter = CoreProcessStarter {
                 assertEquals(
                     StoredAndroidCoreProcessRecord.LaunchReserved(context),
                     store.read(),
@@ -205,7 +205,7 @@ class AndroidCoreProcessRecordStoreTest {
         )
         assertEquals(AndroidCoreProcessRecordMutationOutcome.Committed, store.writeOwned(owned))
 
-        val controller = MihomoProcessController(
+        val controller = CoreProcessController(
             nativeLibraryDirectory = File(root, "native"),
             filesDirectory = files,
             recordStore = store,
@@ -240,7 +240,7 @@ class AndroidCoreProcessRecordStoreTest {
             AndroidChildProcessIdentityWire(321L, BigInteger("987654")),
         )
         assertEquals(AndroidCoreProcessRecordMutationOutcome.Committed, store.writeOwned(owned))
-        val controller = MihomoProcessController(
+        val controller = CoreProcessController(
             nativeLibraryDirectory = File(root, "native"),
             filesDirectory = files,
             recordStore = store,
@@ -275,7 +275,7 @@ class AndroidCoreProcessRecordStoreTest {
             AndroidChildProcessIdentityWire(321L, BigInteger("987654")),
         )
         assertEquals(AndroidCoreProcessRecordMutationOutcome.Committed, store.writeOwned(owned))
-        val controller = MihomoProcessController(
+        val controller = CoreProcessController(
             nativeLibraryDirectory = File(root, "native"),
             filesDirectory = files,
             recordStore = store,
@@ -299,10 +299,10 @@ class AndroidCoreProcessRecordStoreTest {
         )
         assertEquals(AndroidCoreProcessRecordMutationOutcome.Committed, store.writeOwned(owned))
         var spawns = 0
-        val controller = MihomoProcessController(
+        val controller = CoreProcessController(
             nativeLibraryDirectory = File(root, "native"),
             filesDirectory = files,
-            processStarter = MihomoProcessStarter {
+            processStarter = CoreProcessStarter {
                 spawns += 1
                 FakeProcess()
             },
@@ -349,7 +349,7 @@ class AndroidCoreProcessRecordStoreTest {
                 observations[observationIndex++]
         }
         var signalCalls = 0
-        val controller = MihomoProcessController(
+        val controller = CoreProcessController(
             nativeLibraryDirectory = File(root, "native"),
             filesDirectory = files,
             elapsedRealtimeMillis = { 0L },
@@ -394,7 +394,7 @@ class AndroidCoreProcessRecordStoreTest {
         CoreLaunchConfigurationIdentityWire("mihomo", "primary", "sha256:abc"),
         CoreLaunchBinaryWire.MihomoBundled,
         files.absolutePath,
-        listOf("-d", files.absolutePath),
+        CoreLaunchArgumentsWire.Mihomo(File(files, "config.yaml").absolutePath),
     )
 
     private fun procStat(state: String, startTimeTicks: String): String {

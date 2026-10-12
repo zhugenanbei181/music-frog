@@ -1,8 +1,8 @@
 use crate::runtime::CoreLaunchSpecSource;
 use async_trait::async_trait;
 use infiltrator_contract::android_control::{
-    CoreLaunchBinary, CoreLaunchConfigurationIdentity, CoreLaunchParameters, CoreLaunchSpec,
-    CoreLaunchWorkingDirectory,
+    CoreLaunchArguments, CoreLaunchBinary, CoreLaunchConfigurationIdentity, CoreLaunchPath,
+    CoreLaunchSpec, CoreLaunchWorkingDirectory,
 };
 use infiltrator_contract::core_identity::CoreVersion;
 use infiltrator_ports::core_process::CoreReadiness;
@@ -42,7 +42,6 @@ impl<S: SecureStore> CoreLaunchSpecSource for AndroidMihomoProfileLaunchSpecProv
         }
         let working_directory = CoreLaunchWorkingDirectory::new(self.working_directory.clone())
             .map_err(config_failure)?;
-        let working_directory_argument = path_argument(working_directory.as_path())?;
 
         self.config
             .migrate_legacy_mihomo_selection()
@@ -72,14 +71,10 @@ impl<S: SecureStore> CoreLaunchSpecSource for AndroidMihomoProfileLaunchSpecProv
             .existing_profile_document_path(document_identity.profile_id.as_str())
             .await
             .map_err(config_failure)?;
-        let configuration_path = path_argument(&configuration_path)?;
-        let launch_parameters = CoreLaunchParameters::new(vec![
-            "-d".to_owned(),
-            working_directory_argument,
-            "-f".to_owned(),
-            configuration_path,
-        ])
-        .map_err(config_failure)?;
+        let launch_arguments = CoreLaunchArguments::Mihomo {
+            configuration_path: CoreLaunchPath::new(path_argument(&configuration_path)?)
+                .map_err(config_failure)?,
+        };
         CoreLaunchSpec::new(
             CoreLaunchConfigurationIdentity {
                 engine_id,
@@ -88,7 +83,7 @@ impl<S: SecureStore> CoreLaunchSpecSource for AndroidMihomoProfileLaunchSpecProv
             },
             CoreLaunchBinary::MihomoBundled,
             working_directory.as_path().to_path_buf(),
-            launch_parameters.as_slice().to_vec(),
+            launch_arguments,
         )
         .map_err(config_failure)
     }
@@ -199,13 +194,8 @@ mod tests {
         );
         assert_eq!(spec.working_directory().as_path(), working_directory);
         assert_eq!(
-            spec.launch_parameters().as_slice(),
-            &[
-                "-d".to_owned(),
-                working_directory.to_string_lossy().into_owned(),
-                "-f".to_owned(),
-                config_path.to_string_lossy().into_owned()
-            ],
+            spec.launch_arguments().configuration_path().as_str(),
+            config_path.to_string_lossy()
         );
         let generated_config = fs::read_to_string(&config_path)
             .expect("Rust owner writes the selected default profile");

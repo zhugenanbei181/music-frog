@@ -37,7 +37,7 @@ class MihomoApplication : Application() {
 
     internal val ownerIpcClient: MihomoControlClient by ownerIpcClientDelegate
 
-    internal var processHost: MihomoHost? = null
+    internal var coreHost: CoreHost? = null
         private set
 
     internal fun prepareVpnOwnerSession(sessionId: String) {
@@ -142,8 +142,8 @@ class MihomoApplication : Application() {
             Log.w("MihomoApp", "native init failed: $initCode")
             return
         }
-        val host = MihomoHost(applicationContext)
-        processHost = host
+        val host = CoreHost(applicationContext)
+        coreHost = host
         val registerCode = RustBridge.registerBridge(host)
         if (registerCode != 0) {
             Log.w("MihomoApp", "process bridge registration failed: $registerCode")

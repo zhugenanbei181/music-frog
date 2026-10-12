@@ -822,13 +822,8 @@ async fn core_start_sends_the_active_profile_identity_and_rust_resolved_argument
     );
     assert_eq!(spec.working_directory().as_path(), workdir);
     assert_eq!(
-        spec.launch_parameters().as_slice(),
-        &[
-            "-d".to_owned(),
-            workdir.to_string_lossy().into_owned(),
-            "-f".to_owned(),
-            config_path.to_string_lossy().into_owned()
-        ],
+        spec.launch_arguments().configuration_path().as_str(),
+        config_path.to_string_lossy()
     );
 }
 

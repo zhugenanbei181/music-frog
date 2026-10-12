@@ -13,7 +13,7 @@ internal data class CoreLaunchSpecWire(
     val configurationIdentity: CoreLaunchConfigurationIdentityWire,
     val binary: CoreLaunchBinaryWire,
     val workingDirectory: String,
-    val launchArguments: List<String>,
+    val launchArguments: CoreLaunchArgumentsWire,
 ) {
     companion object {
         internal fun decodeLaunchSpec(raw: String): CoreLaunchSpecDecode = runCatching {
@@ -39,22 +39,45 @@ internal data class CoreLaunchSpecWire(
             val workingDirectory = json.requiredString("working_directory").also {
                 require(it.isNotBlank() && java.io.File(it).isAbsolute)
             }
-            val argumentsJson = json.getJSONArray("launch_arguments")
-            val arguments = buildList(argumentsJson.length()) {
-                for (index in 0 until argumentsJson.length()) {
-                    add(
-                        (argumentsJson.get(index) as? String)
-                            ?.also { require(it.isNotBlank() && '\u0000' !in it) }
-                            ?: error("launch argument at index $index must be a string"),
-                    )
-                }
+            val launchArguments = CoreLaunchArgumentsWire.decode(json.get("launch_arguments"))
+            require(launchArguments.engineId.wireValue == configurationIdentity.engineId) {
+                "Core launch arguments do not match their engine identity"
             }
-            require(arguments.isNotEmpty())
             CoreLaunchSpecDecode.Accepted(
-                CoreLaunchSpecWire(configurationIdentity, binary, workingDirectory, arguments),
+                CoreLaunchSpecWire(configurationIdentity, binary, workingDirectory, launchArguments),
             )
         }.getOrElse { error ->
             CoreLaunchSpecDecode.Rejected(error.message ?: "invalid Core launch spec")
+        }
+    }
+}
+
+internal sealed interface CoreLaunchArgumentsWire {
+    val engineId: CoreEngineIdWire
+    val configurationPath: String
+
+    data class Mihomo(override val configurationPath: String) : CoreLaunchArgumentsWire {
+        override val engineId: CoreEngineIdWire = CoreEngineIdWire.Mihomo
+    }
+
+    data class SingBox(override val configurationPath: String) : CoreLaunchArgumentsWire {
+        override val engineId: CoreEngineIdWire = CoreEngineIdWire.SingBox
+    }
+
+    companion object {
+        fun decode(value: Any): CoreLaunchArgumentsWire {
+            require(value is JSONObject) { "Core launch arguments must be a typed object" }
+            require(value.length() == 1) { "Core launch arguments require exactly one engine variant" }
+            val variant = value.keys().next()
+            val fields = value.getJSONObject(variant)
+            require(fields.keys().asSequence().toSet() == setOf("configuration_path"))
+            val path = fields.requiredString("configuration_path")
+            require(path.isNotBlank() && '\u0000' !in path && java.io.File(path).isAbsolute)
+            return when (variant) {
+                "Mihomo" -> Mihomo(path)
+                "SingBox" -> SingBox(path)
+                else -> error("unsupported Core launch argument variant")
+            }
         }
     }
 }

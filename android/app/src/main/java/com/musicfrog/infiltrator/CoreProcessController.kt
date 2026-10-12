@@ -59,7 +59,7 @@ internal enum class CoreProcessStopReceipt(val wireCode: Int) {
     }
 }
 
-internal data class MihomoSpawnCommand(
+internal data class CoreProcessSpawnCommand(
     val arguments: List<String>,
     val workingDirectory: File,
 ) {
@@ -68,21 +68,36 @@ internal data class MihomoSpawnCommand(
         .redirectErrorStream(true)
 
     companion object {
-        fun from(binary: File, spec: CoreLaunchSpecWire): MihomoSpawnCommand = MihomoSpawnCommand(
-            arguments = listOf(binary.absolutePath) + spec.launchArguments,
-            workingDirectory = File(spec.workingDirectory),
-        )
+        fun from(binary: File, spec: CoreLaunchSpecWire): CoreProcessSpawnCommand {
+            val engineArguments = when (val launch = spec.launchArguments) {
+                is CoreLaunchArgumentsWire.Mihomo -> listOf(
+                    "-d",
+                    spec.workingDirectory,
+                    "-f",
+                    launch.configurationPath,
+                )
+                is CoreLaunchArgumentsWire.SingBox -> listOf(
+                    "run",
+                    "-c",
+                    launch.configurationPath,
+                )
+            }
+            return CoreProcessSpawnCommand(
+                arguments = listOf(binary.absolutePath) + engineArguments,
+                workingDirectory = File(spec.workingDirectory),
+            )
+        }
     }
 }
 
-internal fun interface MihomoProcessStarter {
+internal fun interface CoreProcessStarter {
     fun start(builder: ProcessBuilder): Process
 }
 
-internal class MihomoProcessController(
+internal class CoreProcessController(
     private val nativeLibraryDirectory: File,
     private val filesDirectory: File,
-    private val processStarter: MihomoProcessStarter = MihomoProcessStarter { it.start() },
+    private val processStarter: CoreProcessStarter = CoreProcessStarter { it.start() },
     private val elapsedRealtimeMillis: () -> Long = { SystemClock.elapsedRealtime() },
     private val recordStore: AndroidCoreProcessRecordStore = AndroidCoreProcessRecordStore(filesDirectory),
     private val childInspector: AndroidChildProcessInspector = ProcAndroidChildProcessInspector(),
@@ -129,12 +144,6 @@ internal class MihomoProcessController(
         ) : ProcessState
     }
 
-    private sealed interface CoreBinaryResolution {
-        data class Available(val file: File) : CoreBinaryResolution
-
-        data object Missing : CoreBinaryResolution
-    }
-
     private enum class ProcessWaitOutcome {
         Exited,
         TimedOut,
@@ -162,6 +171,7 @@ internal class MihomoProcessController(
 
     @Volatile
     private var processState: ProcessState = restoreProcessState()
+    private val binaryResolver = AndroidCoreBinaryResolver(nativeLibraryDirectory, filesDirectory)
     private val configurationValidator = MihomoCoreConfigurationValidator(
         nativeLibraryDirectory = nativeLibraryDirectory,
         filesDirectory = filesDirectory,
@@ -175,37 +185,42 @@ internal class MihomoProcessController(
         context: CoreProcessStartContextWire,
     ): CoreProcessStartReceipt {
         if (spec.configurationIdentity.engineId != context.identity.engine ||
-            spec.configurationIdentity.engineId != spec.binary.engineId.wireValue
+            spec.configurationIdentity.engineId != spec.binary.engineId.wireValue ||
+            spec.configurationIdentity.engineId != spec.launchArguments.engineId.wireValue
         ) {
             return CoreProcessStartReceipt.LaunchSpecRejected
         }
-        return when (spec.binary) {
-            CoreLaunchBinaryWire.MihomoBundled -> startMihomo(spec, context)
-            is CoreLaunchBinaryWire.SingBoxManaged -> CoreProcessStartReceipt.LaunchSpecRejected
+        return when (configurationValidator.coreStartReadiness()) {
+            CoreValidationWorkerReadiness.CleanupPending -> CoreProcessStartReceipt.SpawnFailed
+            CoreValidationWorkerReadiness.Ready -> startWithBinary(spec, context)
         }
     }
 
-    private fun startMihomo(
+    private fun startWithBinary(
         spec: CoreLaunchSpecWire,
         context: CoreProcessStartContextWire,
-    ): CoreProcessStartReceipt = when (configurationValidator.coreStartReadiness()) {
-        CoreValidationWorkerReadiness.CleanupPending -> CoreProcessStartReceipt.SpawnFailed
-        CoreValidationWorkerReadiness.Ready -> when (val state = reconcileProcessState()) {
-            is ProcessState.RunningWithHandle -> if (state.owned.context == context) {
-                CoreProcessStartReceipt.AlreadyRunning
-            } else {
-                CoreProcessStartReceipt.OwnerContextMismatch
+    ): CoreProcessStartReceipt = when (val state = reconcileProcessState()) {
+        is ProcessState.RunningWithHandle -> if (state.owned.context == context) {
+            CoreProcessStartReceipt.AlreadyRunning
+        } else {
+            CoreProcessStartReceipt.OwnerContextMismatch
+        }
+        is ProcessState.RunningByIdentity -> if (state.owned.context == context) {
+            CoreProcessStartReceipt.AlreadyRunning
+        } else {
+            CoreProcessStartReceipt.OwnerContextMismatch
+        }
+        is ProcessState.Exited -> CoreProcessStartReceipt.PreviousChildExitPending
+        is ProcessState.Unavailable -> CoreProcessStartReceipt.OwnershipRecordUnavailable
+        ProcessState.NeverStarted -> when (val binary = binaryResolver.resolve(spec.binary)) {
+            CoreBinaryResolution.Missing -> CoreProcessStartReceipt.BinaryUnavailable
+            is CoreBinaryResolution.Rejected -> {
+                Log.w(TAG_PROCESS, "Core launch binary was rejected: ${binary.reason}")
+                CoreProcessStartReceipt.LaunchSpecRejected
             }
-            is ProcessState.RunningByIdentity -> if (state.owned.context == context) {
-                CoreProcessStartReceipt.AlreadyRunning
-            } else {
-                CoreProcessStartReceipt.OwnerContextMismatch
-            }
-            is ProcessState.Exited -> CoreProcessStartReceipt.PreviousChildExitPending
-            is ProcessState.Unavailable -> CoreProcessStartReceipt.OwnershipRecordUnavailable
-            ProcessState.NeverStarted -> when (val binary = resolveBinary()) {
-                CoreBinaryResolution.Missing -> CoreProcessStartReceipt.BinaryUnavailable
-                is CoreBinaryResolution.Available -> spawn(binary.file, spec, context)
+            is CoreBinaryResolution.Available -> when (spec.binary) {
+                CoreLaunchBinaryWire.MihomoBundled -> spawn(binary.file, spec, context)
+                is CoreLaunchBinaryWire.SingBoxManaged -> spawn(binary.file, spec, context)
             }
         }
     }
@@ -242,7 +257,7 @@ internal class MihomoProcessController(
             }
         }
         val child = try {
-        val command = MihomoSpawnCommand.from(binary, spec)
+        val command = CoreProcessSpawnCommand.from(binary, spec)
             processStarter.start(command.processBuilder())
         } catch (error: IOException) {
             Log.w(TAG_PROCESS, "Core spawn failed: ${error.message}")
@@ -558,15 +573,6 @@ internal class MihomoProcessController(
         }
     }
 
-    private fun resolveBinary(): CoreBinaryResolution {
-        // Android 10+ requires executable binaries in nativeLibraryDir.
-        val binary = File(nativeLibraryDirectory, BINARY_NAME)
-        return if (binary.exists()) CoreBinaryResolution.Available(binary) else {
-            Log.w(TAG_PROCESS, "Mihomo binary is missing at ${binary.absolutePath}")
-            CoreBinaryResolution.Missing
-        }
-    }
-
     private fun waitForExit(current: Process, timeoutSeconds: Long): ProcessWaitOutcome =
         when (current.waitFor(timeoutSeconds, TimeUnit.SECONDS)) {
             true -> ProcessWaitOutcome.Exited
@@ -574,9 +580,8 @@ internal class MihomoProcessController(
         }
 
     private companion object {
-        const val BINARY_NAME = "libmihomo.so"
-        const val TAG_PROCESS = "MihomoProcess"
-        const val TAG_CORE = "MihomoCore"
+        const val TAG_PROCESS = "CoreProcess"
+        const val TAG_CORE = "CoreProcessOutput"
         const val STOP_GRACE_SECONDS = 3L
         const val FORCE_STOP_GRACE_SECONDS = 2L
         const val POLL_INTERVAL_MILLIS = 50L

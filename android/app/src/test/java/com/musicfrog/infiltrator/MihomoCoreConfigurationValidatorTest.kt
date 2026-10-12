@@ -47,7 +47,7 @@ class MihomoCoreConfigurationValidatorTest {
     }
 
     @Test
-    fun mihomoControllerRejectsManagedSingBoxBeforeAnyProcessSideEffect() = withFiles { files ->
+    fun coreControllerRejectsMissingManagedSingBoxBeforeAnyProcessSideEffect() = withFiles { files ->
         var starts = 0
         val controller = files.controller {
             starts += 1
@@ -60,9 +60,10 @@ class MihomoCoreConfigurationValidatorTest {
                 "sha256:singbox",
             ),
             binary = CoreLaunchBinaryWire.SingBoxManaged(
-                "1.14.3",
+                "v1.14.3",
                 AndroidCoreBinaryTargetWire.Arm64V8a,
             ),
+            launchArguments = CoreLaunchArgumentsWire.SingBox(files.candidate.absolutePath),
         )
         val context = CoreProcessStartContextWire(
             CoreIdentityWire("sing-box", "android-active", null),
@@ -70,8 +71,47 @@ class MihomoCoreConfigurationValidatorTest {
             BigInteger("42"),
         )
 
-        assertEquals(CoreProcessStartReceipt.LaunchSpecRejected, controller.start(spec, context))
+        assertEquals(CoreProcessStartReceipt.BinaryUnavailable, controller.start(spec, context))
         assertEquals(0, starts)
+    }
+
+    @Test
+    fun singBoxManagedBinarySpawnsWithTypedArgumentsAndOwnerContext() = withFiles { files ->
+        val binary = files.installSingBoxBinary()
+        val configuration = File(files.filesDirectory, "configs/engines/sing-box/primary.json")
+            .apply {
+                parentFile?.mkdirs()
+                writeText("""{"inbounds":[],"outbounds":[]}""")
+            }
+        val commands = mutableListOf<List<String>>()
+        val controller = files.controller { builder ->
+            commands += builder.command()
+            FakeProcess(FakeProcessBehavior.Running)
+        }
+        val spec = CoreLaunchSpecWire(
+            configurationIdentity = CoreLaunchConfigurationIdentityWire(
+                "sing-box",
+                "primary",
+                digest(configuration).removePrefix("sha256:"),
+            ),
+            binary = CoreLaunchBinaryWire.SingBoxManaged(
+                "v1.14.3",
+                AndroidCoreBinaryTargetWire.Arm64V8a,
+            ),
+            workingDirectory = files.filesDirectory.absolutePath,
+            launchArguments = CoreLaunchArgumentsWire.SingBox(configuration.absolutePath),
+        )
+        val context = CoreProcessStartContextWire(
+            CoreIdentityWire("sing-box", "android-active", null),
+            BigInteger("7"),
+            BigInteger("42"),
+        )
+
+        assertEquals(CoreProcessStartReceipt.Started, controller.start(spec, context))
+        assertEquals(
+            listOf(listOf(binary.absolutePath, "run", "-c", configuration.absolutePath)),
+            commands,
+        )
     }
 
     @Test
@@ -348,7 +388,7 @@ class MihomoCoreConfigurationValidatorTest {
             workingDirectory = filesDirectory.absolutePath,
         )
 
-        fun validator(starter: MihomoProcessStarter): MihomoCoreConfigurationValidator =
+        fun validator(starter: CoreProcessStarter): MihomoCoreConfigurationValidator =
             MihomoCoreConfigurationValidator(
                 nativeLibraryDirectory = nativeDirectory,
                 filesDirectory = filesDirectory,
@@ -356,8 +396,8 @@ class MihomoCoreConfigurationValidatorTest {
                 elapsedRealtimeMillis = { 100L },
             )
 
-        fun controller(starter: MihomoProcessStarter): MihomoProcessController =
-            MihomoProcessController(
+        fun controller(starter: CoreProcessStarter): CoreProcessController =
+            CoreProcessController(
                 nativeLibraryDirectory = nativeDirectory,
                 filesDirectory = filesDirectory,
                 processStarter = starter,
@@ -370,13 +410,35 @@ class MihomoCoreConfigurationValidatorTest {
             configurationIdentity = identity(),
             binary = CoreLaunchBinaryWire.MihomoBundled,
             workingDirectory = filesDirectory.absolutePath,
-            launchArguments = listOf(
-                "-d",
-                filesDirectory.absolutePath,
-                "-f",
-                candidate.absolutePath,
-            ),
+            launchArguments = CoreLaunchArgumentsWire.Mihomo(candidate.absolutePath),
         )
+
+        fun installSingBoxBinary(): File {
+            val target = "aarch64-linux-android"
+            val version = "v1.14.3"
+            val versionDirectory = File(
+                filesDirectory,
+                "engines/sing-box/targets/$target/versions/$version",
+            ).apply { mkdirs() }
+            val binary = File(versionDirectory, "sing-box").apply {
+                writeBytes(byteArrayOf(0x7f, 0x45, 0x4c, 0x46))
+                setExecutable(true)
+            }
+            val binaryDigest = digest(binary).removePrefix("sha256:")
+            File(versionDirectory, "install.json").writeText(
+                JSONObject()
+                    .put("schema_version", 1)
+                    .put("engine_id", "sing-box")
+                    .put("version", version)
+                    .put("target", target)
+                    .put("adapter_revision", 1)
+                    .put("archive", "sing-box-android.tar.gz")
+                    .put("archive_sha256", "a".repeat(64))
+                    .put("binary_sha256", binaryDigest)
+                    .toString(),
+            )
+            return binary
+        }
 
         fun identity(documentRevision: String = digest(candidate).removePrefix("sha256:")) =
             CoreLaunchConfigurationIdentityWire(

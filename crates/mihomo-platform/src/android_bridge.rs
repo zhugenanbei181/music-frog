@@ -547,7 +547,7 @@ fn android_bridge_state() -> &'static RwLock<Option<Arc<dyn AndroidBridge>>> {
 mod tests {
     use super::*;
     use infiltrator_contract::android_control::{
-        CoreLaunchBinary, CoreLaunchConfigurationIdentity,
+        CoreLaunchArguments, CoreLaunchBinary, CoreLaunchConfigurationIdentity, CoreLaunchPath,
     };
     use infiltrator_contract::core_identity::EngineId;
     use infiltrator_contract::profile_document_identity::{ProfileDocumentRevision, ProfileId};
@@ -562,7 +562,10 @@ mod tests {
             },
             CoreLaunchBinary::MihomoBundled,
             PathBuf::from("/data"),
-            vec!["-d".to_owned(), "/data".to_owned()],
+            CoreLaunchArguments::Mihomo {
+                configuration_path: CoreLaunchPath::new("/data/config.yaml".to_owned())
+                    .expect("absolute config path"),
+            },
         )
         .expect("valid test launch spec")
     }

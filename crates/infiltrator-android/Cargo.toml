@@ -30,6 +30,7 @@ log = { workspace = true }
 mihomo-api = { path = "../mihomo-api" }
 mihomo-config = { path = "../mihomo-config" }
 mihomo-platform = { path = "../mihomo-platform" }
+singbox-adapter = { path = "../singbox-adapter" }
 infiltrator-core = { path = "../infiltrator-core" }
 reqwest = { workspace = true, default-features = false, features = ["json", "socks", "stream", "http2"] }
 serde = { workspace = true }

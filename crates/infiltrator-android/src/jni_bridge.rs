@@ -754,7 +754,8 @@ pub(crate) fn map_jni_error(context: &str, err: errors::Error) -> MihomoError {
 mod start_request_tests {
     use super::CoreStartRequestWire;
     use infiltrator_contract::android_control::{
-        CoreLaunchBinary, CoreLaunchConfigurationIdentity, CoreLaunchSpec,
+        CoreLaunchArguments, CoreLaunchBinary, CoreLaunchConfigurationIdentity, CoreLaunchPath,
+        CoreLaunchSpec,
     };
     use infiltrator_contract::core_identity::{
         CoreGeneration, CoreIdentity, CoreInstanceId, EngineId,
@@ -775,7 +776,10 @@ mod start_request_tests {
             },
             CoreLaunchBinary::MihomoBundled,
             PathBuf::from("/data/app/files"),
-            vec!["-d".to_owned(), "/data/app/files".to_owned()],
+            CoreLaunchArguments::Mihomo {
+                configuration_path: CoreLaunchPath::new("/data/app/files/config.yaml".to_owned())
+                    .expect("absolute config path"),
+            },
         )
         .expect("launch spec");
         let context = CoreProcessStartContext::managed(
@@ -803,7 +807,11 @@ mod start_request_tests {
                     },
                     "binary": "MihomoBundled",
                     "working_directory": "/data/app/files",
-                    "launch_arguments": ["-d", "/data/app/files"]
+                    "launch_arguments": {
+                        "Mihomo": {
+                            "configuration_path": "/data/app/files/config.yaml"
+                        }
+                    }
                 },
                 "start_context": {
                     "Managed": {

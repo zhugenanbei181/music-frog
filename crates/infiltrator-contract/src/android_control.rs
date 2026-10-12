@@ -6,8 +6,8 @@
 
 mod core_launch;
 pub use self::core_launch::{
-    AndroidCoreBinaryTarget, CoreLaunchBinary, CoreLaunchConfigurationIdentity,
-    CoreLaunchParameters, CoreLaunchSpec, CoreLaunchSpecValidationError,
+    AndroidCoreBinaryTarget, CoreLaunchArguments, CoreLaunchBinary,
+    CoreLaunchConfigurationIdentity, CoreLaunchPath, CoreLaunchSpec, CoreLaunchSpecValidationError,
     CoreLaunchWorkingDirectory,
 };
 

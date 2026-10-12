@@ -6,10 +6,10 @@ import java.io.File
 import java.io.IOException
 import infiltrator_android.AndroidHostReply
 
-private const val TAG = "MihomoHost"
+private const val TAG = "CoreHost"
 
-class MihomoHost(private val context: Context) : BridgeHost {
-    private val processController = MihomoProcessController(context)
+class CoreHost(private val context: Context) : BridgeHost {
+    private val processController = CoreProcessController(context)
     private val credentialStore = AndroidCredentialStore(context)
     private val processRole = AndroidProcessRole.current(context)
     private val controlClient = (context.applicationContext as? MihomoApplication)?.ownerIpcClient
@@ -41,7 +41,7 @@ class MihomoHost(private val context: Context) : BridgeHost {
         }
         when (request.launchSpec.binary) {
             CoreLaunchBinaryWire.MihomoBundled -> ensureCoreAssets()
-            is CoreLaunchBinaryWire.SingBoxManaged -> return CoreProcessStartReceipt.LaunchSpecRejected
+            is CoreLaunchBinaryWire.SingBoxManaged -> Unit
         }
         return processController.start(request.launchSpec, request.context)
     }

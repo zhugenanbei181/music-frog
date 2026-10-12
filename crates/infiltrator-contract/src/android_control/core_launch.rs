@@ -61,7 +61,7 @@ pub struct CoreLaunchSpec {
     binary: CoreLaunchBinary,
     working_directory: CoreLaunchWorkingDirectory,
     #[serde(rename = "launch_arguments")]
-    launch_parameters: CoreLaunchParameters,
+    launch_arguments: CoreLaunchArguments,
 }
 
 #[derive(Deserialize)]
@@ -71,7 +71,7 @@ struct CoreLaunchSpecWire {
     binary: CoreLaunchBinary,
     working_directory: CoreLaunchWorkingDirectory,
     #[serde(rename = "launch_arguments")]
-    launch_parameters: CoreLaunchParameters,
+    launch_arguments: CoreLaunchArguments,
 }
 
 impl<'de> Deserialize<'de> for CoreLaunchSpec {
@@ -84,7 +84,7 @@ impl<'de> Deserialize<'de> for CoreLaunchSpec {
             wire.configuration_identity,
             wire.binary,
             wire.working_directory.0,
-            wire.launch_parameters.0,
+            wire.launch_arguments,
         )
         .map_err(de::Error::custom)
     }
@@ -95,7 +95,7 @@ impl CoreLaunchSpec {
         configuration_identity: CoreLaunchConfigurationIdentity,
         binary: CoreLaunchBinary,
         working_directory: PathBuf,
-        launch_parameters: Vec<String>,
+        launch_arguments: CoreLaunchArguments,
     ) -> Result<Self, CoreLaunchSpecValidationError> {
         let binary_matches_engine = matches!(
             (&binary, configuration_identity.engine_id.as_str()),
@@ -105,11 +105,24 @@ impl CoreLaunchSpec {
         if !binary_matches_engine {
             return Err(CoreLaunchSpecValidationError::BinaryEngineMismatch);
         }
+        let arguments_match_engine = matches!(
+            (&binary, &launch_arguments),
+            (
+                CoreLaunchBinary::MihomoBundled,
+                CoreLaunchArguments::Mihomo { .. }
+            ) | (
+                CoreLaunchBinary::SingBoxManaged { .. },
+                CoreLaunchArguments::SingBox { .. }
+            )
+        );
+        if !arguments_match_engine {
+            return Err(CoreLaunchSpecValidationError::ArgumentsEngineMismatch);
+        }
         Ok(Self {
             configuration_identity,
             binary,
             working_directory: CoreLaunchWorkingDirectory::new(working_directory)?,
-            launch_parameters: CoreLaunchParameters::new(launch_parameters)?,
+            launch_arguments,
         })
     }
 
@@ -125,8 +138,8 @@ impl CoreLaunchSpec {
         &self.working_directory
     }
 
-    pub fn launch_parameters(&self) -> &CoreLaunchParameters {
-        &self.launch_parameters
+    pub fn launch_arguments(&self) -> &CoreLaunchArguments {
+        &self.launch_arguments
     }
 }
 
@@ -158,50 +171,67 @@ impl<'de> Deserialize<'de> for CoreLaunchWorkingDirectory {
     }
 }
 
-/// Process arguments authored by the Rust owner and passed as distinct argv
-/// elements, preserving spaces without shell parsing.
+/// Absolute engine configuration path carried as one typed launch argument.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(transparent)]
-pub struct CoreLaunchParameters(Vec<String>);
+pub struct CoreLaunchPath(String);
 
-impl CoreLaunchParameters {
-    pub fn new(values: Vec<String>) -> Result<Self, CoreLaunchSpecValidationError> {
-        if values.is_empty() {
-            return Err(CoreLaunchSpecValidationError::EmptyLaunchParameters);
+impl CoreLaunchPath {
+    pub fn new(path: impl Into<String>) -> Result<Self, CoreLaunchSpecValidationError> {
+        let path = path.into();
+        if path.trim().is_empty() {
+            return Err(CoreLaunchSpecValidationError::EmptyConfigurationPath);
         }
-        for (index, value) in values.iter().enumerate() {
-            if value.trim().is_empty() {
-                return Err(CoreLaunchSpecValidationError::EmptyLaunchParameter { index });
-            }
-            if value.contains('\0') {
-                return Err(CoreLaunchSpecValidationError::NullByteInLaunchParameter { index });
-            }
+        if path.contains('\0') {
+            return Err(CoreLaunchSpecValidationError::NullByteInConfigurationPath);
         }
-        Ok(Self(values))
+        if !Path::new(&path).is_absolute() {
+            return Err(CoreLaunchSpecValidationError::RelativeConfigurationPath);
+        }
+        Ok(Self(path))
     }
 
-    pub fn as_slice(&self) -> &[String] {
+    pub fn as_str(&self) -> &str {
         &self.0
     }
 }
 
-impl<'de> Deserialize<'de> for CoreLaunchParameters {
+impl<'de> Deserialize<'de> for CoreLaunchPath {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
-        let values = Vec::<String>::deserialize(deserializer)?;
-        Self::new(values).map_err(de::Error::custom)
+        let path = String::deserialize(deserializer)?;
+        Self::new(path).map_err(de::Error::custom)
+    }
+}
+
+/// Engine-specific command intent translated to argv only by the Android host.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub enum CoreLaunchArguments {
+    Mihomo { configuration_path: CoreLaunchPath },
+    SingBox { configuration_path: CoreLaunchPath },
+}
+
+impl CoreLaunchArguments {
+    pub fn configuration_path(&self) -> &CoreLaunchPath {
+        match self {
+            Self::Mihomo { configuration_path } | Self::SingBox { configuration_path } => {
+                configuration_path
+            }
+        }
     }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CoreLaunchSpecValidationError {
     BinaryEngineMismatch,
+    ArgumentsEngineMismatch,
     RelativeWorkingDirectory,
-    EmptyLaunchParameters,
-    EmptyLaunchParameter { index: usize },
-    NullByteInLaunchParameter { index: usize },
+    RelativeConfigurationPath,
+    EmptyConfigurationPath,
+    NullByteInConfigurationPath,
 }
 
 impl fmt::Display for CoreLaunchSpecValidationError {
@@ -210,20 +240,20 @@ impl fmt::Display for CoreLaunchSpecValidationError {
             Self::BinaryEngineMismatch => {
                 formatter.write_str("Core launch binary does not match its engine identity")
             }
+            Self::ArgumentsEngineMismatch => {
+                formatter.write_str("Core launch arguments do not match their engine binary")
+            }
             Self::RelativeWorkingDirectory => {
                 formatter.write_str("Core launch working directory must be absolute")
             }
-            Self::EmptyLaunchParameters => {
-                formatter.write_str("Core launch parameters must not be empty")
+            Self::RelativeConfigurationPath => {
+                formatter.write_str("Core launch configuration path must be absolute")
             }
-            Self::EmptyLaunchParameter { index } => {
-                write!(formatter, "Core launch parameter {index} must not be blank")
+            Self::EmptyConfigurationPath => {
+                formatter.write_str("Core launch configuration path must not be blank")
             }
-            Self::NullByteInLaunchParameter { index } => {
-                write!(
-                    formatter,
-                    "Core launch parameter {index} contains a null byte"
-                )
+            Self::NullByteInConfigurationPath => {
+                formatter.write_str("Core launch configuration path contains a null byte")
             }
         }
     }
@@ -234,8 +264,9 @@ impl error::Error for CoreLaunchSpecValidationError {}
 #[cfg(test)]
 mod core_launch_spec_tests {
     use super::{
-        AndroidCoreBinaryTarget, CoreLaunchBinary, CoreLaunchConfigurationIdentity,
-        CoreLaunchParameters, CoreLaunchSpec, CoreLaunchSpecValidationError,
+        AndroidCoreBinaryTarget, CoreLaunchArguments, CoreLaunchBinary,
+        CoreLaunchConfigurationIdentity, CoreLaunchPath, CoreLaunchSpec,
+        CoreLaunchSpecValidationError,
     };
     use crate::core_identity::{CoreVersion, EngineId};
     use crate::profile_document_identity::{ProfileDocumentRevision, ProfileId};
@@ -269,17 +300,17 @@ mod core_launch_spec_tests {
     }
 
     #[test]
-    fn mihomo_launch_spec_round_trips_typed_identity_and_arguments() {
+    fn mihomo_launch_spec_round_trips_typed_identity_and_configuration_path() {
         let spec = CoreLaunchSpec::new(
             identity(),
             CoreLaunchBinary::MihomoBundled,
             PathBuf::from("/data/app/files"),
-            vec![
-                "-d".to_owned(),
-                "/data/app/files".to_owned(),
-                "-f".to_owned(),
-                "/data/app/files/configs/engines/mihomo/primary.yaml".to_owned(),
-            ],
+            CoreLaunchArguments::Mihomo {
+                configuration_path: CoreLaunchPath::new(
+                    "/data/app/files/configs/engines/mihomo/primary.yaml".to_owned(),
+                )
+                .expect("absolute Mihomo profile path"),
+            },
         )
         .expect("launch spec inputs are valid");
 
@@ -289,12 +320,18 @@ mod core_launch_spec_tests {
         assert_eq!(value["configuration_identity"]["profile_id"], "primary");
         assert_eq!(value["binary"], "MihomoBundled");
         assert_eq!(value["working_directory"], "/data/app/files");
-        assert_eq!(value["launch_arguments"][0], "-d");
+        assert_eq!(
+            value["launch_arguments"]["Mihomo"]["configuration_path"],
+            "/data/app/files/configs/engines/mihomo/primary.yaml"
+        );
         assert_eq!(
             spec.working_directory().as_path(),
             Path::new("/data/app/files")
         );
-        assert_eq!(spec.launch_parameters().as_slice()[0], "-d");
+        assert_eq!(
+            spec.launch_arguments().configuration_path().as_str(),
+            "/data/app/files/configs/engines/mihomo/primary.yaml"
+        );
         assert_eq!(
             serde_json::from_str::<CoreLaunchSpec>(&encoded).expect("deserialize launch spec"),
             spec,
@@ -311,54 +348,82 @@ mod core_launch_spec_tests {
                     .expect("configuration revision"),
             },
             CoreLaunchBinary::SingBoxManaged {
-                version: CoreVersion::new("1.14.3").expect("sing-box version"),
+                version: CoreVersion::new("v1.14.3").expect("sing-box version"),
                 target: AndroidCoreBinaryTarget::Arm64V8a,
             },
             PathBuf::from("/data/app/files"),
-            vec!["run".to_owned(), "-c".to_owned(), "profile.json".to_owned()],
+            CoreLaunchArguments::SingBox {
+                configuration_path: CoreLaunchPath::new(
+                    "/data/app/files/configs/engines/sing-box/primary.json".to_owned(),
+                )
+                .expect("absolute sing-box profile path"),
+            },
         )
         .expect("matching managed sing-box launch spec");
 
         let encoded = serde_json::to_value(spec).expect("serialize launch spec");
-        assert_eq!(encoded["binary"]["SingBoxManaged"]["version"], "1.14.3");
+        assert_eq!(encoded["binary"]["SingBoxManaged"]["version"], "v1.14.3");
         assert_eq!(encoded["binary"]["SingBoxManaged"]["target"], "arm64_v8a");
+        assert_eq!(
+            encoded["launch_arguments"]["SingBox"]["configuration_path"],
+            "/data/app/files/configs/engines/sing-box/primary.json"
+        );
     }
 
     #[test]
-    fn core_launch_spec_rejects_invalid_paths_and_parameters_before_wire_use() {
+    fn core_launch_spec_rejects_invalid_paths_and_engine_argument_mismatch() {
         assert_eq!(
             CoreLaunchSpec::new(
                 identity(),
                 CoreLaunchBinary::MihomoBundled,
                 PathBuf::from("relative"),
-                vec!["-f".to_owned()],
+                CoreLaunchArguments::Mihomo {
+                    configuration_path: CoreLaunchPath::new("/data/config.yaml".to_owned())
+                        .expect("absolute Mihomo profile path"),
+                },
             )
             .expect_err("relative working directory is rejected"),
             CoreLaunchSpecValidationError::RelativeWorkingDirectory,
         );
         assert_eq!(
-            CoreLaunchParameters::new(Vec::new()).expect_err("empty argument vector is rejected"),
-            CoreLaunchSpecValidationError::EmptyLaunchParameters,
+            CoreLaunchPath::new(" ".to_owned()).expect_err("blank config path is rejected"),
+            CoreLaunchSpecValidationError::EmptyConfigurationPath,
         );
         assert_eq!(
-            CoreLaunchParameters::new(vec!["-f".to_owned(), "  ".to_owned()])
-                .expect_err("blank argument is rejected"),
-            CoreLaunchSpecValidationError::EmptyLaunchParameter { index: 1 },
+            CoreLaunchPath::new("relative/profile.json".to_owned())
+                .expect_err("relative config path is rejected"),
+            CoreLaunchSpecValidationError::RelativeConfigurationPath,
         );
         assert_eq!(
-            CoreLaunchParameters::new(vec!["bad\0argument".to_owned()])
+            CoreLaunchPath::new("/data/bad\0profile.json".to_owned())
                 .expect_err("NUL cannot be passed to a process"),
-            CoreLaunchSpecValidationError::NullByteInLaunchParameter { index: 0 },
+            CoreLaunchSpecValidationError::NullByteInConfigurationPath,
+        );
+        assert_eq!(
+            CoreLaunchSpec::new(
+                identity(),
+                CoreLaunchBinary::MihomoBundled,
+                PathBuf::from("/data"),
+                CoreLaunchArguments::SingBox {
+                    configuration_path: CoreLaunchPath::new("/data/profile.json".to_owned())
+                        .expect("absolute sing-box profile path"),
+                },
+            )
+            .expect_err("Mihomo binary must use Mihomo launch arguments"),
+            CoreLaunchSpecValidationError::ArgumentsEngineMismatch,
         );
         assert_eq!(
             CoreLaunchSpec::new(
                 identity(),
                 CoreLaunchBinary::SingBoxManaged {
-                    version: CoreVersion::new("1.14.3").expect("sing-box version"),
+                    version: CoreVersion::new("v1.14.3").expect("sing-box version"),
                     target: AndroidCoreBinaryTarget::Arm64V8a,
                 },
                 PathBuf::from("/data"),
-                vec!["run".to_owned()],
+                CoreLaunchArguments::SingBox {
+                    configuration_path: CoreLaunchPath::new("/data/profile.json".to_owned())
+                        .expect("absolute sing-box profile path"),
+                },
             )
             .expect_err("sing-box binary cannot be paired with a Mihomo profile"),
             CoreLaunchSpecValidationError::BinaryEngineMismatch,
@@ -375,7 +440,9 @@ mod core_launch_spec_tests {
             },
             "binary": "MihomoBundled",
             "working_directory": "relative",
-            "launch_arguments": ["-f", "profile.yaml"]
+            "launch_arguments": {
+                "Mihomo": {"configuration_path": "/data/profile.yaml"}
+            }
         }"#;
         assert!(serde_json::from_str::<CoreLaunchSpec>(relative_directory).is_err());
 
@@ -387,7 +454,9 @@ mod core_launch_spec_tests {
             },
             "binary": "MihomoBundled",
             "working_directory": "/data/app/files",
-            "launch_arguments": ["-f", " "]
+            "launch_arguments": {
+                "Mihomo": {"configuration_path": " "}
+            }
         }"#;
         assert!(serde_json::from_str::<CoreLaunchSpec>(blank_argument).is_err());
 
@@ -397,9 +466,11 @@ mod core_launch_spec_tests {
                 "profile_id": "primary",
                 "document_revision": "sha256:abc123"
             },
-            "binary": {"SingBoxManaged": {"version": "1.14.3", "target": "arm64_v8a"}},
+            "binary": {"SingBoxManaged": {"version": "v1.14.3", "target": "arm64_v8a"}},
             "working_directory": "/data/app/files",
-            "launch_arguments": ["run", "-c", "profile.json"]
+            "launch_arguments": {
+                "SingBox": {"configuration_path": "/data/profile.json"}
+            }
         }"#;
         assert!(serde_json::from_str::<CoreLaunchSpec>(mismatched_binary).is_err());
 
@@ -411,13 +482,15 @@ mod core_launch_spec_tests {
             },
             "binary": {
                 "SingBoxManaged": {
-                    "version": "1.14.3",
+                    "version": "v1.14.3",
                     "target": "arm64_v8a",
                     "channel": "stable"
                 }
             },
             "working_directory": "/data/app/files",
-            "launch_arguments": ["run", "-c", "profile.json"]
+            "launch_arguments": {
+                "SingBox": {"configuration_path": "/data/profile.json"}
+            }
         }"#;
         assert!(serde_json::from_str::<CoreLaunchSpec>(unknown_binary_field).is_err());
     }
