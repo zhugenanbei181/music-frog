@@ -164,6 +164,13 @@ impl ActiveProfileOwnerLease for MemoryOwnerLease {
         self.generation
     }
 
+    async fn record_start_context(
+        &self,
+        _context: &infiltrator_contract::core_process::CoreProcessStartContext,
+    ) -> Result<(), PortError> {
+        Ok(())
+    }
+
     async fn release_after_terminal(
         &self,
         terminal: &CoreLifecycleSnapshot,

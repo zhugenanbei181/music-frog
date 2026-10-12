@@ -81,7 +81,7 @@ struct StateMirror {
 
 enum ActiveProfileOwnerBindingState {
     Unbound,
-    Bound(Box<dyn ActiveProfileOwnerLease>),
+    Bound(Arc<dyn ActiveProfileOwnerLease>),
     Releasing,
     Released,
 }
@@ -221,7 +221,7 @@ impl CoreApplication {
             .expect("active profile owner binding lock");
         match &*state {
             ActiveProfileOwnerBindingState::Unbound => {
-                *state = ActiveProfileOwnerBindingState::Bound(binding);
+                *state = ActiveProfileOwnerBindingState::Bound(Arc::from(binding));
                 Ok(())
             }
             ActiveProfileOwnerBindingState::Bound(_) => Err(Failure::new(
@@ -711,23 +711,51 @@ impl CoreApplication {
             generation: CoreGeneration::new(self.generation()),
             session_token,
         };
-        if let Err(error) = self.inner.process.cleanup_orphaned().await {
-            let message = error.to_string();
-            self.apply_domain_event(core_state::CoreEvent::StartFailed {
-                session_token,
-                error: message,
-            });
-            return Err(Failure::from(error));
+        let admission = match self.inner.process.prepare_start(&start_context).await {
+            Ok(admission) => admission,
+            Err(error) => {
+                let failure = Failure::from(error);
+                self.apply_domain_event(core_state::CoreEvent::StartFailed {
+                    session_token,
+                    error: failure.message.clone(),
+                });
+                return Err(failure);
+            }
+        };
+        let owner_binding = {
+            let state = self
+                .inner
+                .active_profile_owner_binding
+                .lock()
+                .expect("active profile owner binding lock");
+            match &*state {
+                ActiveProfileOwnerBindingState::Bound(binding) => Some(Arc::clone(binding)),
+                ActiveProfileOwnerBindingState::Unbound
+                | ActiveProfileOwnerBindingState::Releasing
+                | ActiveProfileOwnerBindingState::Released => None,
+            }
+        };
+        if let Some(binding) = owner_binding {
+            if let Err(error) = binding.record_start_context(&start_context).await {
+                let failure = Failure::from(error);
+                self.apply_domain_event(core_state::CoreEvent::StartFailed {
+                    session_token,
+                    error: failure.message.clone(),
+                });
+                return Err(failure);
+            }
         }
-        if let Err(error) = self.inner.process.start(start_context).await {
-            let message = error.to_string();
-            self.apply_domain_event(core_state::CoreEvent::StartFailed {
-                session_token,
-                error: message.clone(),
-            });
-            return Err(Failure::from(error));
+        if admission == infiltrator_ports::core_process::CoreProcessStartAdmission::LaunchNewProcess
+        {
+            if let Err(error) = self.inner.process.start(start_context).await {
+                let message = error.to_string();
+                self.apply_domain_event(core_state::CoreEvent::StartFailed {
+                    session_token,
+                    error: message,
+                });
+                return Err(Failure::from(error));
+            }
         }
-
         match self
             .wait_for_readiness(session_token, self.inner.readiness_policy.timeout)
             .await

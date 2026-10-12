@@ -24,14 +24,17 @@ impl Drop for CommandScope<'_> {
 
 struct OwnerBindingReleaseGuard<'a> {
     state: &'a std::sync::Mutex<super::ActiveProfileOwnerBindingState>,
-    binding:
-        Option<Box<dyn infiltrator_ports::active_profile_reference_store::ActiveProfileOwnerLease>>,
+    binding: Option<
+        std::sync::Arc<
+            dyn infiltrator_ports::active_profile_reference_store::ActiveProfileOwnerLease,
+        >,
+    >,
 }
 
 impl<'a> OwnerBindingReleaseGuard<'a> {
     fn new(
         state: &'a std::sync::Mutex<super::ActiveProfileOwnerBindingState>,
-        binding: Box<
+        binding: std::sync::Arc<
             dyn infiltrator_ports::active_profile_reference_store::ActiveProfileOwnerLease,
         >,
     ) -> Self {

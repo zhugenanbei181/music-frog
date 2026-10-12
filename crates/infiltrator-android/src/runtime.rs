@@ -9,7 +9,9 @@ use infiltrator_contract::offline_startup::OfflineStartupSnapshot;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface::HostKind;
 use infiltrator_ports::capability_provider::CapabilityProvider;
-use infiltrator_ports::core_process::{CoreProcess, CoreProcessStartContext};
+use infiltrator_ports::core_process::{
+    CoreProcess, CoreProcessStartAdmission, CoreProcessStartContext,
+};
 use infiltrator_ports::data_dir::DataDirProvider;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::mtu_probe::MtuProbePort;
@@ -119,57 +121,45 @@ where
         ))
     }
 
-    async fn start(
+    async fn prepare_start(
         &self,
-        context: infiltrator_ports::core_process::CoreProcessStartContext,
-    ) -> result::Result<(), PortError> {
+        context: &CoreProcessStartContext,
+    ) -> result::Result<CoreProcessStartAdmission, PortError> {
         let expected_identity = self
             .core_identity()
             .ok_or_else(|| PortError::Failed("Android Core identity is unavailable".to_owned()))?;
-        match &context {
-            CoreProcessStartContext::Managed {
-                identity,
-                generation,
-                session_token,
-            } if identity.same_instance(&expected_identity)
-                && generation.value() > 0
-                && session_token.is_valid() => {}
-            CoreProcessStartContext::Managed { .. } => {
-                return Err(PortError::Failed(
-                    "Core start context targets a different Android process".to_owned(),
-                ));
-            }
-            CoreProcessStartContext::Standalone { .. } => {
-                return Err(PortError::Failed(
-                    "Android Core start requires a managed owner session".to_owned(),
-                ));
-            }
-        }
+        validate_android_start_context(context, &expected_identity)?;
         match self
             .bridge
             .core_process_observation()
             .await
             .map_err(map_port_error)?
         {
-            AndroidCoreProcessObservation::NeverStarted => {}
-            AndroidCoreProcessObservation::Running { owned } if owned.context == context => {
-                return Ok(());
+            AndroidCoreProcessObservation::NeverStarted => {
+                Ok(CoreProcessStartAdmission::LaunchNewProcess)
             }
-            AndroidCoreProcessObservation::Running { .. } => {
-                return Err(PortError::Failed(
-                    "Android Mihomo child belongs to a different Core session".to_owned(),
-                ));
+            AndroidCoreProcessObservation::Running { owned } if owned.context == *context => {
+                Ok(CoreProcessStartAdmission::ReuseExactOwnedProcess)
             }
-            AndroidCoreProcessObservation::Exited { .. } => {
-                return Err(PortError::Failed(
-                    "Android Mihomo child exit awaits owner recovery".to_owned(),
-                ));
-            }
-            AndroidCoreProcessObservation::Unavailable { reason } => {
-                return Err(PortError::Failed(format!(
-                    "Android Core process observation is unavailable: {reason:?}"
-                )));
-            }
+            AndroidCoreProcessObservation::Running { .. } => Err(PortError::Failed(
+                "Android Mihomo child belongs to a different Core session".to_owned(),
+            )),
+            AndroidCoreProcessObservation::Exited { .. } => Err(PortError::Failed(
+                "Android Mihomo child exit awaits owner recovery".to_owned(),
+            )),
+            AndroidCoreProcessObservation::Unavailable { reason } => Err(PortError::Failed(
+                format!("Android Core process observation is unavailable: {reason:?}"),
+            )),
+        }
+    }
+
+    async fn start(
+        &self,
+        context: infiltrator_ports::core_process::CoreProcessStartContext,
+    ) -> result::Result<(), PortError> {
+        match self.prepare_start(&context).await? {
+            CoreProcessStartAdmission::LaunchNewProcess => {}
+            CoreProcessStartAdmission::ReuseExactOwnedProcess => return Ok(()),
         }
         let launch_spec = self.launch_spec_source.resolve().await?;
         self.bridge
@@ -205,6 +195,30 @@ where
 
     fn controller_endpoint(&self) -> Option<String> {
         None
+    }
+}
+
+fn validate_android_start_context(
+    context: &CoreProcessStartContext,
+    expected_identity: &CoreIdentity,
+) -> result::Result<(), PortError> {
+    match context {
+        CoreProcessStartContext::Managed {
+            identity,
+            generation,
+            session_token,
+        } if identity.same_instance(expected_identity)
+            && generation.value() > 0
+            && session_token.is_valid() =>
+        {
+            Ok(())
+        }
+        CoreProcessStartContext::Managed { .. } => Err(PortError::Failed(
+            "Core start context targets a different Android process".to_owned(),
+        )),
+        CoreProcessStartContext::Standalone { .. } => Err(PortError::Failed(
+            "Android Core start requires a managed owner session".to_owned(),
+        )),
     }
 }
 
@@ -357,7 +371,7 @@ mod tests {
     #[cfg(test)]
     use infiltrator_application::offline_startup_application::OfflineStartupApplication;
     use infiltrator_contract::android_control::{
-        AndroidChildProcessIdentity, AndroidCoreLifecycleSnapshot, AndroidCoreProcessObservation,
+        AndroidChildProcessIdentity, AndroidCoreProcessExitEvidence, AndroidCoreProcessObservation,
         AndroidCoreProcessUnavailableReason, AndroidOwnedCoreProcess,
         CoreLaunchConfigurationIdentity, CoreLaunchSpec, VpnOwnerCoreReadback, VpnOwnerLifecycle,
         VpnOwnerReadiness, VpnOwnerSnapshot,
@@ -383,7 +397,7 @@ mod tests {
         VpnStartOutcome, VpnStopTarget,
     };
     use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
-    use infiltrator_ports::core_process::CoreReadiness;
+    use infiltrator_ports::core_process::{CoreProcessStartAdmission, CoreReadiness};
     use mihomo_api::core_capability_provider::MihomoCoreCapabilityProvider;
     use std::collections::HashMap;
     use std::sync::Mutex;
@@ -394,9 +408,16 @@ mod tests {
     struct TestBridge {
         running: Arc<Mutex<bool>>,
         start_contexts: Arc<Mutex<Vec<CoreProcessStartContext>>>,
+        process_observation: Arc<Mutex<TestProcessObservation>>,
         store: Arc<Mutex<HashMap<(String, String), String>>>,
         data_dir: Option<PathBuf>,
         cache_dir: Option<PathBuf>,
+    }
+
+    #[derive(Clone)]
+    enum TestProcessObservation {
+        Automatic,
+        Fixed(AndroidCoreProcessObservation),
     }
 
     impl TestBridge {
@@ -404,10 +425,18 @@ mod tests {
             Self {
                 running: Arc::new(Mutex::new(false)),
                 start_contexts: Arc::new(Mutex::new(Vec::new())),
+                process_observation: Arc::new(Mutex::new(TestProcessObservation::Automatic)),
                 store: Arc::new(Mutex::new(HashMap::new())),
                 data_dir: Some(PathBuf::from("data")),
                 cache_dir: Some(PathBuf::from("cache")),
             }
+        }
+
+        fn set_process_observation(&self, observation: AndroidCoreProcessObservation) {
+            *self
+                .process_observation
+                .lock()
+                .expect("process observation lock") = TestProcessObservation::Fixed(observation);
         }
     }
 
@@ -436,6 +465,15 @@ mod tests {
         }
 
         async fn core_process_observation(&self) -> Result<AndroidCoreProcessObservation> {
+            match self
+                .process_observation
+                .lock()
+                .expect("process observation lock")
+                .clone()
+            {
+                TestProcessObservation::Fixed(observation) => return Ok(observation),
+                TestProcessObservation::Automatic => {}
+            }
             let running = self.running.lock().map(|guard| *guard).unwrap_or(false);
             if !running {
                 return Ok(AndroidCoreProcessObservation::NeverStarted);
@@ -582,6 +620,10 @@ mod tests {
             CoreGeneration::new(1),
             SessionToken::new(1),
         );
+        assert_eq!(
+            adapter.prepare_start(&start_context).await.unwrap(),
+            CoreProcessStartAdmission::LaunchNewProcess
+        );
         adapter
             .start(start_context.clone())
             .await
@@ -592,7 +634,11 @@ mod tests {
                 .lock()
                 .expect("start context lock")
                 .as_slice(),
-            [start_context],
+            [start_context.clone()],
+        );
+        assert_eq!(
+            adapter.prepare_start(&start_context).await.unwrap(),
+            CoreProcessStartAdmission::ReuseExactOwnedProcess
         );
         assert!(matches!(
             CoreProcess::status(&adapter).await.unwrap(),
@@ -603,6 +649,56 @@ mod tests {
             CoreProcess::status(&adapter).await.unwrap(),
             CoreLifecycle::Stopped
         ));
+    }
+
+    #[tokio::test]
+    async fn android_start_admission_rejects_foreign_exited_and_unavailable_child_proofs() {
+        let bridge = TestBridge::new();
+        let adapter =
+            AndroidCoreProcessAdapter::new(bridge.clone(), Arc::new(TestLaunchSpecSource));
+        let identity = adapter.core_identity().expect("Android Core identity");
+        let requested = CoreProcessStartContext::managed(
+            identity.clone(),
+            CoreGeneration::new(1),
+            SessionToken::new(17),
+        );
+        let foreign = CoreProcessStartContext::managed(
+            identity,
+            CoreGeneration::new(2),
+            SessionToken::new(18),
+        );
+        let owned = AndroidOwnedCoreProcess {
+            context: foreign.clone(),
+            child: AndroidChildProcessIdentity {
+                pid: 321,
+                start_time_ticks: 987_654,
+            },
+        };
+
+        bridge.set_process_observation(AndroidCoreProcessObservation::Running { owned });
+        assert!(adapter.prepare_start(&requested).await.is_err());
+        bridge.set_process_observation(AndroidCoreProcessObservation::Exited {
+            owned: AndroidOwnedCoreProcess {
+                context: requested.clone(),
+                child: AndroidChildProcessIdentity {
+                    pid: 321,
+                    start_time_ticks: 987_654,
+                },
+            },
+            evidence: AndroidCoreProcessExitEvidence::ProcessHandleExited,
+        });
+        assert!(adapter.prepare_start(&requested).await.is_err());
+        bridge.set_process_observation(AndroidCoreProcessObservation::Unavailable {
+            reason: AndroidCoreProcessUnavailableReason::ProcessInspectionUnavailable,
+        });
+        assert!(adapter.prepare_start(&requested).await.is_err());
+        assert!(
+            bridge
+                .start_contexts
+                .lock()
+                .expect("start context lock")
+                .is_empty()
+        );
     }
 
     #[tokio::test]

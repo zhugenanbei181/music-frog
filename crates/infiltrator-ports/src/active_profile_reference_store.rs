@@ -7,6 +7,7 @@ use infiltrator_contract::active_profile_reference::{
     ActiveProfileReferenceWriteAuthorization,
 };
 use infiltrator_contract::core_identity::{CoreGeneration, CoreIdentity, EngineId};
+use infiltrator_contract::core_process::CoreProcessStartContext;
 use infiltrator_contract::snapshot::CoreLifecycleSnapshot;
 
 /// Durable owner-switch progress. Each variant is a legal transaction stage;
@@ -76,6 +77,21 @@ pub enum ActiveProfileOwnerSwitchRecovery {
     },
 }
 
+/// Disjoint terminal evidence accepted when reconciling a persisted Core
+/// owner after its process-local registration has disappeared. Android's
+/// `ManagedChildExited` case is constructed only after exact child identity
+/// inspection and terminal VPN readback.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ActiveProfileOwnerRecoveryEvidence {
+    NeverStarted {
+        terminal: CoreLifecycleSnapshot,
+    },
+    ManagedChildExited {
+        context: CoreProcessStartContext,
+        terminal: CoreLifecycleSnapshot,
+    },
+}
+
 /// Revision-fenced persistence for the unique profile reference that selects
 /// which engine provider may own the product's Core.
 #[async_trait]
@@ -101,13 +117,14 @@ pub trait ActiveProfileReferenceStore: Send + Sync {
         &self,
     ) -> Result<Box<dyn ActiveProfileReferenceLease>, PortError>;
 
-    /// Recover a finalized owner whose process lock is gone only after an
-    /// exact Stopped/no-session lifecycle snapshot proves that owner terminal.
-    /// This is also the explicit repair path for a partially published owner
-    /// bind; absence of the OS lock alone is never terminal evidence.
+    /// Recover a finalized owner only with a disjoint terminal proof: an exact
+    /// never-started snapshot, or the exact persisted managed context plus its
+    /// process-exit terminal snapshot. Android callers must also establish VPN
+    /// terminal readback before constructing `ManagedChildExited`. Absence of
+    /// the OS lock alone is never terminal evidence.
     async fn recover_bound_owner_after_terminal(
         &self,
-        _terminal: &CoreLifecycleSnapshot,
+        _evidence: ActiveProfileOwnerRecoveryEvidence,
     ) -> Result<ActiveProfileReferenceState, PortError> {
         Err(PortError::unsupported(
             infiltrator_contract::capability::Capability::Profiles,
@@ -204,6 +221,19 @@ pub trait ActiveProfileOwnerLease: Send + Sync {
     /// its stable engine+instance projection, not its version evidence.
     fn identity(&self) -> &CoreIdentity;
     fn generation(&self) -> CoreGeneration;
+
+    /// Persist the exact managed process session before the host may spawn it.
+    /// A terminal recovery must match this context; owners without durable
+    /// session proof fail closed.
+    async fn record_start_context(
+        &self,
+        _context: &CoreProcessStartContext,
+    ) -> Result<(), PortError> {
+        Err(PortError::unsupported(
+            infiltrator_contract::capability::Capability::Profiles,
+            "active Core owner session proof persistence is unavailable for this store",
+        ))
+    }
 
     /// Release owner admission only after the CoreApplication has observed
     /// the same engine+instance in `Stopped` with no session token. The bound

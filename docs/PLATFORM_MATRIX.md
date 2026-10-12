@@ -18,6 +18,8 @@
 
 2026-10-12 Android Core child identity checkpoint：Rust typed process observation 与 Android Kotlin 持久 reservation/owned-child record 已接线；`:core-host-tests:test` 直接编译 app 中的 host 源文件、隔离 UI 源集，21 项 JVM 测试通过。该证据覆盖 fake process、owner context、PID start ticks、typed signal、损坏/歧义 fail-closed；不证明真机 `/proc` 可读、`:vpn` 重启恢复、signal/exit 或 APK 链接行为。Compose 全 flavor Gradle、Android instrumentation 与设备验收仍 OPEN。
 
+2026-10-12 Core 启动 session proof checkpoint：`CoreProcess::prepare_start` 用显式 admission enum 管理宿主进程位；`CoreApplication` 在 spawn 前把精确 Managed identity/generation/session 写入 owner proof schema v2，v1 bound proof 显式迁移为不可自动恢复的 `LegacyUnverified`。受影响 Core/Android/desktop-host 包 nextest 1074/1074（run `733d69b2-dd1b-4edc-b31e-05fb25661b1c`）。该验证不构建 UI；Android owner restart recovery 尚未接入生产 startup，APK/Gradle、`:vpn` service death/rebind 和真机证据仍 OPEN。
+
 ## 专项规则
 
 - Android 产品与真机验收见 [Android 文档](../android/docs/README.md)。

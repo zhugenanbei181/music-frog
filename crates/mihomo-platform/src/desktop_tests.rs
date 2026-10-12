@@ -229,7 +229,7 @@ async fn stop_confirms_an_owned_process_that_exited_before_close() {
 /// executable. This is the non-Linux fallback for the kernel death signal.
 #[cfg(target_os = "linux")]
 #[tokio::test]
-async fn cleanup_orphaned_reclaims_a_live_expected_process() {
+async fn start_admission_reclaims_a_live_expected_process() {
     let dir = tempfile::tempdir().expect("tempdir");
     let (mut child, binary) = spawn_test_sleep().await;
     let pid = child.0.id();
@@ -243,7 +243,8 @@ async fn cleanup_orphaned_reclaims_a_live_expected_process() {
         dir.path().join("config.yaml"),
         pid_file.clone(),
     );
-    let reclaimed = CoreProcess::cleanup_orphaned(&controller)
+    let reclaimed = controller
+        .reconcile_stale_pid_record()
         .await
         .unwrap_or_else(|error| {
             panic!(
@@ -251,14 +252,17 @@ async fn cleanup_orphaned_reclaims_a_live_expected_process() {
                 read_link(format!("/proc/{pid}/exe"))
             )
         });
-    assert_eq!(reclaimed, Some(pid));
+    assert_eq!(
+        reclaimed,
+        super::PidRecordReconciliation::StoppedOrphan { pid }
+    );
     let _ = child.0.wait();
     assert!(!pid_file.exists());
     assert!(!process::is_process_alive(pid));
 }
 
 #[tokio::test]
-async fn cleanup_orphaned_removes_a_dead_pid_record() {
+async fn start_admission_removes_a_dead_pid_record() {
     let dir = tempfile::tempdir().expect("tempdir");
     let pid_file = dir.path().join("mihomo.pid");
     process::write_pid_file(&pid_file, u32::MAX)
@@ -270,16 +274,17 @@ async fn cleanup_orphaned_removes_a_dead_pid_record() {
         pid_file.clone(),
     );
     assert_eq!(
-        CoreProcess::cleanup_orphaned(&controller)
+        controller
+            .reconcile_stale_pid_record()
             .await
-            .expect("cleanup stale pid"),
-        Some(u32::MAX)
+            .expect("reconcile stale pid"),
+        super::PidRecordReconciliation::RemovedDeadRecord { pid: u32::MAX }
     );
     assert!(!pid_file.exists());
 }
 
 #[tokio::test]
-async fn cleanup_orphaned_refuses_an_unrelated_live_process() {
+async fn start_admission_refuses_an_unrelated_live_process() {
     let dir = tempfile::tempdir().expect("tempdir");
     let (mut child, _) = spawn_test_sleep().await;
     let pid = child.0.id();
@@ -298,7 +303,8 @@ async fn cleanup_orphaned_refuses_an_unrelated_live_process() {
     assert!(stop_error.to_string().contains("unrelated process"));
     assert!(process::is_process_alive(pid));
 
-    let error = CoreProcess::cleanup_orphaned(&controller)
+    let error = controller
+        .reconcile_stale_pid_record()
         .await
         .expect_err("unrelated process must be refused");
     assert!(error.to_string().contains("unrelated process"));

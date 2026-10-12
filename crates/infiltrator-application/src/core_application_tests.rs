@@ -25,7 +25,7 @@ use infiltrator_ports::core_capability_provider::{
     CoreCapabilityProvider, CoreCapabilityProviderError,
 };
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
-use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
+use infiltrator_ports::core_process::{CoreProcess, CoreProcessStartAdmission, CoreReadiness};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::outbound::OutboundScopeSource;
 use std::sync::Mutex;
@@ -186,13 +186,13 @@ impl CoreProcess for ReadinessRollbackProcess {
     }
 }
 
-struct CleanupTrackingProcess {
+struct StartAdmissionTrackingProcess {
     running: AtomicBool,
-    cleanup_called: AtomicBool,
+    prepare_called: AtomicBool,
 }
 
 #[async_trait::async_trait]
-impl CoreProcess for CleanupTrackingProcess {
+impl CoreProcess for StartAdmissionTrackingProcess {
     fn core_identity(&self) -> Option<CoreIdentity> {
         Some(CoreIdentity::new(
             EngineId::new("mihomo").ok()?,
@@ -206,8 +206,8 @@ impl CoreProcess for CleanupTrackingProcess {
         _context: infiltrator_ports::core_process::CoreProcessStartContext,
     ) -> Result<(), PortError> {
         assert!(
-            self.cleanup_called.load(Ordering::SeqCst),
-            "application must reconcile orphan state before starting"
+            self.prepare_called.load(Ordering::SeqCst),
+            "application must prepare Core start before launching"
         );
         self.running.store(true, Ordering::SeqCst);
         Ok(())
@@ -230,9 +230,12 @@ impl CoreProcess for CleanupTrackingProcess {
         Some("http://127.0.0.1:9090".to_string())
     }
 
-    async fn cleanup_orphaned(&self) -> Result<Option<u32>, PortError> {
-        self.cleanup_called.store(true, Ordering::SeqCst);
-        Ok(Some(4242))
+    async fn prepare_start(
+        &self,
+        _context: &infiltrator_contract::core_process::CoreProcessStartContext,
+    ) -> Result<CoreProcessStartAdmission, PortError> {
+        self.prepare_called.store(true, Ordering::SeqCst);
+        Ok(CoreProcessStartAdmission::LaunchNewProcess)
     }
 }
 

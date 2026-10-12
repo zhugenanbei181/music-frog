@@ -149,6 +149,13 @@ impl infiltrator_ports::active_profile_reference_store::ActiveProfileOwnerLease
         self.generation
     }
 
+    async fn record_start_context(
+        &self,
+        _context: &infiltrator_contract::core_process::CoreProcessStartContext,
+    ) -> Result<(), infiltrator_ports::error::PortError> {
+        Ok(())
+    }
+
     async fn release_after_terminal(
         &self,
         terminal: &infiltrator_contract::snapshot::CoreLifecycleSnapshot,
@@ -182,6 +189,13 @@ impl infiltrator_ports::active_profile_reference_store::ActiveProfileOwnerLease
 
     fn generation(&self) -> infiltrator_contract::core_identity::CoreGeneration {
         self.generation
+    }
+
+    async fn record_start_context(
+        &self,
+        _context: &infiltrator_contract::core_process::CoreProcessStartContext,
+    ) -> Result<(), infiltrator_ports::error::PortError> {
+        Ok(())
     }
 
     async fn release_after_terminal(
@@ -834,10 +848,10 @@ async fn stale_session_tokens_are_rejected_after_stop_and_restart() {
 }
 
 #[tokio::test]
-async fn start_reconciles_orphan_state_before_spawning_a_new_session() {
-    let process = Arc::new(CleanupTrackingProcess {
+async fn start_uses_typed_host_admission_before_spawning_a_new_session() {
+    let process = Arc::new(StartAdmissionTrackingProcess {
         running: AtomicBool::new(false),
-        cleanup_called: AtomicBool::new(false),
+        prepare_called: AtomicBool::new(false),
     });
     let app = CoreApplication::new_with_policy(
         process.clone(),
@@ -854,7 +868,7 @@ async fn start_reconciles_orphan_state_before_spawning_a_new_session() {
 
     let result = test_execute_result_at_current_scope(&app, CommandIntent::StartCore).await;
     assert!(matches!(result, CommandResult::Completed { .. }));
-    assert!(process.cleanup_called.load(Ordering::SeqCst));
+    assert!(process.prepare_called.load(Ordering::SeqCst));
     assert_eq!(app.snapshot().generation, 1);
     assert!(app.snapshot().session_token.is_some());
 }

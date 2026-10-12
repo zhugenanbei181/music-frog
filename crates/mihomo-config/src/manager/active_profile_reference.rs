@@ -14,11 +14,13 @@ use infiltrator_contract::active_profile_reference::{
     ActiveProfileReferenceTarget, ActiveProfileReferenceWriteAuthorization,
 };
 use infiltrator_contract::core_identity::{CoreGeneration, CoreIdentity, EngineId};
+use infiltrator_contract::core_process::CoreProcessStartContext;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document_identity::{ProfileId, ProfileWorkspaceIdentity};
 use infiltrator_ports::active_profile_reference_store::{
-    ActiveProfileOwnerBindingLease, ActiveProfileOwnerLease, ActiveProfileOwnerStoppedSwitchLease,
-    ActiveProfileOwnerSwitchLease, ActiveProfileOwnerSwitchRecovery, ActiveProfileOwnerSwitchState,
+    ActiveProfileOwnerBindingLease, ActiveProfileOwnerLease, ActiveProfileOwnerRecoveryEvidence,
+    ActiveProfileOwnerStoppedSwitchLease, ActiveProfileOwnerSwitchLease,
+    ActiveProfileOwnerSwitchRecovery, ActiveProfileOwnerSwitchState,
     ActiveProfileReferenceChangedLease, ActiveProfileReferenceLease, ActiveProfileReferenceStore,
 };
 use infiltrator_ports::error::PortError;
@@ -48,7 +50,8 @@ use std::sync::{Mutex as StdMutex, OnceLock};
 use std::time::Duration;
 
 const ACTIVE_PROFILE_REFERENCE_SCHEMA_VERSION: u32 = 1;
-const ACTIVE_CORE_OWNER_PROOF_SCHEMA_VERSION: u32 = 1;
+const ACTIVE_CORE_OWNER_PROOF_SCHEMA_VERSION: u32 = 2;
+const LEGACY_ACTIVE_CORE_OWNER_PROOF_SCHEMA_VERSION: u32 = 1;
 const ACTIVE_PROFILE_RESET_INTENT_SCHEMA_VERSION: u32 = 2;
 const LEGACY_ACTIVE_PROFILE_RESET_INTENT_SCHEMA_VERSION: u32 = 1;
 const ACTIVE_PROFILE_REFERENCE_FILE: &str = "active-profile-reference.json";
@@ -140,6 +143,22 @@ enum ActiveCoreOwnerProof {
     },
 }
 
+/// Durable evidence for the last managed Core process session associated with
+/// an owner proof. Legacy records are explicit and cannot authorize recovery.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "state", content = "context", rename_all = "snake_case")]
+enum ActiveCoreOwnerLaunchProof {
+    Unstarted,
+    Managed(CoreProcessStartContext),
+    LegacyUnverified,
+}
+
+impl Default for ActiveCoreOwnerLaunchProof {
+    fn default() -> Self {
+        Self::Unstarted
+    }
+}
+
 impl Default for ActiveCoreOwnerProof {
     fn default() -> Self {
         Self::Unowned
@@ -151,6 +170,12 @@ impl Default for ActiveCoreOwnerProof {
 struct ActiveCoreOwnerProofRecord {
     schema_version: u32,
     state: ActiveCoreOwnerProof,
+    launch: ActiveCoreOwnerLaunchProof,
+}
+
+#[derive(Deserialize)]
+struct ActiveCoreOwnerProofSchemaHeader {
+    schema_version: u32,
 }
 
 impl ActiveCoreOwnerProofRecord {
@@ -158,6 +183,7 @@ impl ActiveCoreOwnerProofRecord {
         Self {
             schema_version: ACTIVE_CORE_OWNER_PROOF_SCHEMA_VERSION,
             state: ActiveCoreOwnerProof::Unowned,
+            launch: ActiveCoreOwnerLaunchProof::Unstarted,
         }
     }
 
@@ -172,6 +198,98 @@ impl ActiveCoreOwnerProofRecord {
             ));
         }
         Ok(())
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct LegacyActiveCoreOwnerProofRecordV1 {
+    schema_version: u32,
+    state: LegacyActiveCoreOwnerProofV1,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+#[serde(tag = "state", content = "owner", rename_all = "snake_case")]
+enum LegacyActiveCoreOwnerProofV1 {
+    Unowned,
+    Bound {
+        identity: CoreIdentity,
+        generation: CoreGeneration,
+        token: ActiveOwnerToken,
+    },
+    Terminal {
+        identity: CoreIdentity,
+        bound_generation: CoreGeneration,
+        terminal_generation: CoreGeneration,
+        token: ActiveOwnerToken,
+    },
+    Reserved {
+        transition_id: ActiveOwnerToken,
+        engine_id: EngineId,
+        token: ActiveOwnerToken,
+    },
+}
+
+impl LegacyActiveCoreOwnerProofRecordV1 {
+    fn migrate(self) -> Result<ActiveCoreOwnerProofRecord, PortError> {
+        if self.schema_version != LEGACY_ACTIVE_CORE_OWNER_PROOF_SCHEMA_VERSION {
+            return Err(PortError::unsupported(
+                infiltrator_contract::capability::Capability::Profiles,
+                format!(
+                    "active Core owner schema {} is unsupported",
+                    self.schema_version
+                ),
+            ));
+        }
+        let (state, launch) = match self.state {
+            LegacyActiveCoreOwnerProofV1::Unowned => (
+                ActiveCoreOwnerProof::Unowned,
+                ActiveCoreOwnerLaunchProof::Unstarted,
+            ),
+            LegacyActiveCoreOwnerProofV1::Bound {
+                identity,
+                generation,
+                token,
+            } => (
+                ActiveCoreOwnerProof::Bound {
+                    identity,
+                    generation,
+                    token,
+                },
+                ActiveCoreOwnerLaunchProof::LegacyUnverified,
+            ),
+            LegacyActiveCoreOwnerProofV1::Terminal {
+                identity,
+                bound_generation,
+                terminal_generation,
+                token,
+            } => (
+                ActiveCoreOwnerProof::Terminal {
+                    identity,
+                    bound_generation,
+                    terminal_generation,
+                    token,
+                },
+                ActiveCoreOwnerLaunchProof::LegacyUnverified,
+            ),
+            LegacyActiveCoreOwnerProofV1::Reserved {
+                transition_id,
+                engine_id,
+                token,
+            } => (
+                ActiveCoreOwnerProof::Reserved {
+                    transition_id,
+                    engine_id,
+                    token,
+                },
+                ActiveCoreOwnerLaunchProof::Unstarted,
+            ),
+        };
+        Ok(ActiveCoreOwnerProofRecord {
+            schema_version: ACTIVE_CORE_OWNER_PROOF_SCHEMA_VERSION,
+            state,
+            launch,
+        })
     }
 }
 
@@ -315,6 +433,11 @@ enum OwnerRecoveryRecordPosition {
 enum OwnerRecoveryProofPosition {
     Bound,
     Terminal { terminal_generation: CoreGeneration },
+}
+
+enum OwnerRecoveryLaunchRequirement {
+    NeverStarted,
+    ManagedChildExited(CoreProcessStartContext),
 }
 
 struct LocalOwnerRegistration {
@@ -632,8 +755,30 @@ fn sync_read_active_core_owner_proof(
         }
         Err(error) => return Err(lock_error(error)),
     };
-    let record: ActiveCoreOwnerProofRecord = serde_json::from_str(&text)
+    let header: ActiveCoreOwnerProofSchemaHeader = serde_json::from_str(&text)
         .map_err(|error| PortError::Io(format!("invalid active Core owner proof: {error}")))?;
+    let record = match header.schema_version {
+        LEGACY_ACTIVE_CORE_OWNER_PROOF_SCHEMA_VERSION => {
+            let legacy: LegacyActiveCoreOwnerProofRecordV1 =
+                serde_json::from_str(&text).map_err(|error| {
+                    PortError::Io(format!("invalid legacy active Core owner proof: {error}"))
+                })?;
+            legacy.migrate()?
+        }
+        ACTIVE_CORE_OWNER_PROOF_SCHEMA_VERSION => {
+            let record: ActiveCoreOwnerProofRecord =
+                serde_json::from_str(&text).map_err(|error| {
+                    PortError::Io(format!("invalid active Core owner proof: {error}"))
+                })?;
+            record
+        }
+        version => {
+            return Err(PortError::unsupported(
+                infiltrator_contract::capability::Capability::Profiles,
+                format!("active Core owner schema {version} is unsupported"),
+            ));
+        }
+    };
     record.validate()?;
     Ok(record)
 }
@@ -1086,6 +1231,98 @@ impl ActiveProfileOwnerLease for ConfigManagerActiveCoreOwnerLease {
         self.generation
     }
 
+    async fn record_start_context(
+        &self,
+        context: &CoreProcessStartContext,
+    ) -> Result<(), PortError> {
+        let identity = self.identity.clone();
+        let generation = self.generation;
+        let token = self.token.clone();
+        let context = context.clone();
+        let config_root = self.config_root.clone();
+        let owner_state_guard = acquire_owner_state_lock_async(config_root.clone()).await?;
+        tokio::task::spawn_blocking(move || {
+            let _owner_state_guard = owner_state_guard;
+            let (context_identity, context_generation, session_token) = match &context {
+                CoreProcessStartContext::Managed {
+                    identity,
+                    generation,
+                    session_token,
+                } => (identity, *generation, *session_token),
+                CoreProcessStartContext::Standalone { .. } => {
+                    return Err(transition_rejected(
+                        "active Core owner proof only accepts managed start contexts",
+                    ));
+                }
+            };
+            if !context_identity.same_instance(&identity)
+                || context_generation <= generation
+                || !session_token.is_valid()
+            {
+                return Err(transition_rejected(
+                    "managed start context does not advance the bound Core owner session",
+                ));
+            }
+            if !local_registration_matches(
+                &config_root,
+                &token,
+                &LocalOwnerRegistrationState::Bound {
+                    identity: identity.clone(),
+                    generation,
+                },
+            )? {
+                return Err(transition_rejected(
+                    "managed start context owner is no longer bound in this process",
+                ));
+            }
+            let mut proof = sync_read_active_core_owner_proof(&config_root)?;
+            match &proof.state {
+                ActiveCoreOwnerProof::Bound {
+                    identity: proof_identity,
+                    generation: proof_generation,
+                    token: proof_token,
+                } if proof_identity.same_instance(&identity)
+                    && *proof_generation == generation
+                    && *proof_token == token => {}
+                _ => {
+                    return Err(transition_rejected(
+                        "managed start context does not match the persisted Core owner proof",
+                    ));
+                }
+            }
+            match &proof.launch {
+                ActiveCoreOwnerLaunchProof::Unstarted => {}
+                ActiveCoreOwnerLaunchProof::Managed(previous) if previous == &context => {
+                    return Ok(());
+                }
+                ActiveCoreOwnerLaunchProof::Managed(previous) => {
+                    let previous_generation = match previous {
+                        CoreProcessStartContext::Managed { generation, .. } => *generation,
+                        CoreProcessStartContext::Standalone { .. } => {
+                            return Err(transition_rejected(
+                                "persisted owner launch proof contains a standalone context",
+                            ));
+                        }
+                    };
+                    if context_generation <= previous_generation {
+                        return Err(transition_rejected(
+                            "managed start context does not advance the persisted session",
+                        ));
+                    }
+                }
+                ActiveCoreOwnerLaunchProof::LegacyUnverified => {
+                    return Err(transition_rejected(
+                        "legacy Core owner proof has no exact session and cannot launch",
+                    ));
+                }
+            }
+            proof.launch = ActiveCoreOwnerLaunchProof::Managed(context);
+            sync_publish_active_core_owner_proof(&config_root, &proof)
+        })
+        .await
+        .map_err(|error| PortError::Failed(error.to_string()))?
+    }
+
     async fn release_after_terminal(
         &self,
         terminal: &infiltrator_contract::snapshot::CoreLifecycleSnapshot,
@@ -1249,6 +1486,7 @@ impl ActiveProfileReferenceLease for ConfigManagerSelectionLease {
                 generation,
                 token: token.clone(),
             };
+            owner_proof.launch = ActiveCoreOwnerLaunchProof::Unstarted;
             record.owner = ActiveCoreOwnerState::Bound {
                 identity: identity.clone(),
                 generation,
@@ -2048,6 +2286,7 @@ impl ActiveProfileOwnerBindingLease for ConfigManagerOwnerBindingLease {
             generation,
             token: token.clone(),
         };
+        owner_proof.launch = ActiveCoreOwnerLaunchProof::Unstarted;
         sync_publish_active_core_owner_proof(&config_root, &owner_proof)?;
         record.owner = ActiveCoreOwnerState::Bound {
             identity: identity.clone(),
@@ -2579,8 +2818,17 @@ impl<S: SecureStore> ActiveProfileReferenceStore for ConfigManager<S> {
 
     async fn recover_bound_owner_after_terminal(
         &self,
-        terminal: &infiltrator_contract::snapshot::CoreLifecycleSnapshot,
+        evidence: ActiveProfileOwnerRecoveryEvidence,
     ) -> Result<ActiveProfileReferenceState, PortError> {
+        let (launch_requirement, terminal) = match evidence {
+            ActiveProfileOwnerRecoveryEvidence::NeverStarted { terminal } => {
+                (OwnerRecoveryLaunchRequirement::NeverStarted, terminal)
+            }
+            ActiveProfileOwnerRecoveryEvidence::ManagedChildExited { context, terminal } => (
+                OwnerRecoveryLaunchRequirement::ManagedChildExited(context),
+                terminal,
+            ),
+        };
         let (config_root, _root_guard) = self.acquire_active_profile_reference_lock().await?;
         let _owner_state_guard = acquire_owner_state_lock_async(config_root.clone()).await?;
         let mut record = sync_read_active_profile_record(&config_root)?;
@@ -2674,7 +2922,44 @@ impl<S: SecureStore> ActiveProfileReferenceStore for ConfigManager<S> {
                 }
             };
         let terminal_generation =
-            validate_terminal_for_owner(terminal, &identity, bound_generation)?;
+            validate_terminal_for_owner(&terminal, &identity, bound_generation)?;
+        match (&launch_requirement, &proof.launch) {
+            (
+                OwnerRecoveryLaunchRequirement::NeverStarted,
+                ActiveCoreOwnerLaunchProof::Unstarted,
+            ) if terminal_generation == CoreGeneration::new(0) => {}
+            (
+                OwnerRecoveryLaunchRequirement::ManagedChildExited(expected),
+                ActiveCoreOwnerLaunchProof::Managed(persisted),
+            ) if expected == persisted => {
+                let (context_identity, context_generation, session_token) = match expected {
+                    CoreProcessStartContext::Managed {
+                        identity,
+                        generation,
+                        session_token,
+                    } => (identity, *generation, *session_token),
+                    CoreProcessStartContext::Standalone { .. } => {
+                        return Err(transition_rejected(
+                            "standalone process context cannot recover an active Core owner",
+                        ));
+                    }
+                };
+                if !context_identity.same_instance(&identity)
+                    || context_generation <= bound_generation
+                    || context_generation != terminal_generation
+                    || !session_token.is_valid()
+                {
+                    return Err(transition_rejected(
+                        "managed child context does not match exact owner terminal evidence",
+                    ));
+                }
+            }
+            _ => {
+                return Err(transition_rejected(
+                    "owner recovery evidence differs from its persisted launch proof",
+                ));
+            }
+        }
         if matches!(record_position, OwnerRecoveryRecordPosition::Unowned)
             && matches!(proof_position, OwnerRecoveryProofPosition::Bound)
             && terminal_generation != CoreGeneration::new(0)
@@ -4430,6 +4715,7 @@ async fn restore_reset_default(
 mod tests {
     use super::*;
     use infiltrator_contract::core_identity::CoreVersion;
+    use infiltrator_contract::session::SessionToken;
     use std::process::{Child, Command};
     use std::sync::Arc;
     use std::time::Duration;
@@ -4490,6 +4776,84 @@ mod tests {
         );
 
         assert!(matches!(result, Err(PortError::Failed(_))));
+    }
+
+    #[test]
+    fn v1_bound_owner_proof_migrates_as_legacy_unverified() {
+        let directory = TempDir::new().unwrap();
+        let proof_path = directory.path().join(ACTIVE_CORE_OWNER_STATE_FILE);
+        let legacy_identity = identity("mihomo", "legacy-owner");
+        let legacy = serde_json::json!({
+            "schema_version": LEGACY_ACTIVE_CORE_OWNER_PROOF_SCHEMA_VERSION,
+            "state": {
+                "state": "bound",
+                "owner": {
+                    "identity": legacy_identity,
+                    "generation": 1,
+                    "token": "legacy-token"
+                }
+            }
+        });
+        std::fs::write(&proof_path, serde_json::to_vec(&legacy).unwrap()).unwrap();
+
+        let migrated = sync_read_active_core_owner_proof(directory.path()).unwrap();
+
+        assert_eq!(
+            migrated.schema_version,
+            ACTIVE_CORE_OWNER_PROOF_SCHEMA_VERSION
+        );
+        assert!(matches!(migrated.state, ActiveCoreOwnerProof::Bound { .. }));
+        assert_eq!(
+            migrated.launch,
+            ActiveCoreOwnerLaunchProof::LegacyUnverified
+        );
+    }
+
+    #[tokio::test]
+    async fn managed_start_context_is_persisted_and_advances_by_generation() {
+        let directory = TempDir::new().unwrap();
+        let manager = manager(&directory);
+        manager.migrate_legacy_mihomo_selection().await.unwrap();
+        let owner_identity = identity(crate::engine_id().as_str(), "managed-session-owner");
+        let owner = manager
+            .acquire_provider_selection_lease()
+            .await
+            .unwrap()
+            .into_owner_binding(owner_identity.clone(), CoreGeneration::new(1))
+            .await
+            .unwrap();
+        let first = CoreProcessStartContext::managed(
+            owner_identity.clone(),
+            CoreGeneration::new(2),
+            SessionToken::new(42),
+        );
+        owner.record_start_context(&first).await.unwrap();
+
+        let second_same_generation = CoreProcessStartContext::managed(
+            owner_identity.clone(),
+            CoreGeneration::new(2),
+            SessionToken::new(43),
+        );
+        assert!(
+            owner
+                .record_start_context(&second_same_generation)
+                .await
+                .is_err()
+        );
+        let next = CoreProcessStartContext::managed(
+            owner_identity,
+            CoreGeneration::new(3),
+            SessionToken::new(43),
+        );
+        owner.record_start_context(&next).await.unwrap();
+
+        let restarted_store = manager_at(directory.path());
+        assert_eq!(
+            sync_read_active_core_owner_proof(&restarted_store.config_root)
+                .unwrap()
+                .launch,
+            ActiveCoreOwnerLaunchProof::Managed(next)
+        );
     }
 
     fn manager(directory: &TempDir) -> ConfigManager<TestStore> {
@@ -5163,16 +5527,22 @@ mod tests {
             .into_owner_binding(bound_identity.clone(), CoreGeneration::new(1))
             .await
             .unwrap();
+        let session_context = CoreProcessStartContext::managed(
+            bound_identity.clone(),
+            CoreGeneration::new(2),
+            SessionToken::new(52),
+        );
+        owner.record_start_context(&session_context).await.unwrap();
 
         let mut ready_identity = bound_identity.clone();
         ready_identity.version = Some(CoreVersion::new("1.19.12").unwrap());
-        let ready_terminal = stopped_snapshot(ready_identity.clone(), 1);
+        let ready_terminal = stopped_snapshot(ready_identity.clone(), 2);
         owner.release_after_terminal(&ready_terminal).await.unwrap();
 
         // A later observation can refresh capability evidence again while
         // the persisted owner proof remains bound to the same engine instance.
         ready_identity.version = Some(CoreVersion::new("1.19.13").unwrap());
-        let refreshed_terminal = stopped_snapshot(ready_identity, 1);
+        let refreshed_terminal = stopped_snapshot(ready_identity, 2);
         owner
             .release_after_terminal(&refreshed_terminal)
             .await
@@ -5181,7 +5551,12 @@ mod tests {
 
         assert_eq!(
             manager
-                .recover_bound_owner_after_terminal(&refreshed_terminal)
+                .recover_bound_owner_after_terminal(
+                    ActiveProfileOwnerRecoveryEvidence::ManagedChildExited {
+                        context: session_context,
+                        terminal: refreshed_terminal,
+                    },
+                )
                 .await
                 .unwrap(),
             selected
@@ -5535,6 +5910,11 @@ mod tests {
         wait_for_marker(&ready).await;
         let manager = manager_at(directory.path());
         let foreign_engine = EngineId::new("engine-after-crash").unwrap();
+        let owner_context = CoreProcessStartContext::managed(
+            identity("engine-live", "live-owner"),
+            CoreGeneration::new(2),
+            SessionToken::new(42),
+        );
         assert!(matches!(
             manager
                 .compare_and_set(
@@ -5552,6 +5932,17 @@ mod tests {
             manager.acquire_provider_selection_lease().await,
             Err(PortError::Rejected(_))
         ));
+        assert!(
+            manager
+                .recover_bound_owner_after_terminal(
+                    ActiveProfileOwnerRecoveryEvidence::ManagedChildExited {
+                        context: owner_context.clone(),
+                        terminal: stopped_snapshot(identity("engine-live", "live-owner"), 2),
+                    },
+                )
+                .await
+                .is_err()
+        );
         std::fs::write(&release, "exit").unwrap();
         assert!(wait_child(child).await.success());
 
@@ -5571,19 +5962,47 @@ mod tests {
                 .await,
             Err(PortError::Rejected(_))
         ));
+        let wrong_session = CoreProcessStartContext::managed(
+            identity("engine-live", "live-owner"),
+            CoreGeneration::new(2),
+            SessionToken::new(43),
+        );
         assert!(
             manager
-                .recover_bound_owner_after_terminal(&stopped_snapshot(
-                    identity("engine-live", "different-owner"),
-                    1,
-                ))
+                .recover_bound_owner_after_terminal(
+                    ActiveProfileOwnerRecoveryEvidence::ManagedChildExited {
+                        context: wrong_session,
+                        terminal: stopped_snapshot(identity("engine-live", "live-owner"), 2),
+                    },
+                )
                 .await
                 .is_err()
         );
-        let owner_terminal = stopped_snapshot(identity("engine-live", "live-owner"), 1);
+        let wrong_generation = CoreProcessStartContext::managed(
+            identity("engine-live", "live-owner"),
+            CoreGeneration::new(3),
+            SessionToken::new(42),
+        );
+        assert!(
+            manager
+                .recover_bound_owner_after_terminal(
+                    ActiveProfileOwnerRecoveryEvidence::ManagedChildExited {
+                        context: wrong_generation,
+                        terminal: stopped_snapshot(identity("engine-live", "live-owner"), 3),
+                    },
+                )
+                .await
+                .is_err()
+        );
+        let owner_terminal = stopped_snapshot(identity("engine-live", "live-owner"), 2);
         assert_eq!(
             manager
-                .recover_bound_owner_after_terminal(&owner_terminal)
+                .recover_bound_owner_after_terminal(
+                    ActiveProfileOwnerRecoveryEvidence::ManagedChildExited {
+                        context: owner_context,
+                        terminal: owner_terminal,
+                    },
+                )
                 .await
                 .unwrap()
                 .revision()
@@ -5635,6 +6054,12 @@ mod tests {
             )
             .await
             .unwrap();
+        let owner_context = CoreProcessStartContext::managed(
+            identity(engine.as_str(), "live-owner"),
+            CoreGeneration::new(2),
+            SessionToken::new(42),
+        );
+        owner.record_start_context(&owner_context).await.unwrap();
         assert_eq!(selected.revision().value(), 1);
         std::fs::write(ready, "owner-bound").unwrap();
         wait_for_marker(Path::new(&release)).await;

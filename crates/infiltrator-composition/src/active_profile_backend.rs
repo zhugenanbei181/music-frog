@@ -90,6 +90,13 @@ impl ActiveProfileOwnerLease for SharedOwnerLease {
         self.inner.generation()
     }
 
+    async fn record_start_context(
+        &self,
+        context: &infiltrator_contract::core_process::CoreProcessStartContext,
+    ) -> Result<(), PortError> {
+        self.inner.record_start_context(context).await
+    }
+
     async fn release_after_terminal(
         &self,
         terminal: &CoreLifecycleSnapshot,

@@ -4,6 +4,13 @@ use infiltrator_contract::core_identity::{CoreIdentity, CoreVersion};
 pub use infiltrator_contract::core_process::CoreProcessStartContext;
 use infiltrator_contract::snapshot::CoreLifecycle;
 
+/// Admission observed before a managed launch is persisted and dispatched.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CoreProcessStartAdmission {
+    LaunchNewProcess,
+    ReuseExactOwnedProcess,
+}
+
 /// Controls an engine execution host without exposing process handles.
 #[async_trait]
 pub trait CoreProcess: Send + Sync {
@@ -11,6 +18,16 @@ pub trait CoreProcess: Send + Sync {
     /// scoped core commands instead of guessing which backend owns the process.
     fn core_identity(&self) -> Option<CoreIdentity> {
         None
+    }
+
+    /// Observe the host process slot before the application persists its
+    /// managed session proof. Android overrides this to refuse stale or
+    /// ambiguous children before a new session can replace their proof.
+    async fn prepare_start(
+        &self,
+        _context: &CoreProcessStartContext,
+    ) -> Result<CoreProcessStartAdmission, PortError> {
+        Ok(CoreProcessStartAdmission::LaunchNewProcess)
     }
 
     async fn start(&self, context: CoreProcessStartContext) -> Result<(), PortError>;
@@ -22,12 +39,6 @@ pub trait CoreProcess: Send + Sync {
     async fn stop(&self) -> Result<(), PortError>;
     async fn status(&self) -> Result<CoreLifecycle, PortError>;
     fn controller_endpoint(&self) -> Option<String>;
-
-    /// Reconcile a process record left by a previous host instance. A host
-    /// without a process table (Android/iOS bridge) may safely return `None`.
-    async fn cleanup_orphaned(&self) -> Result<Option<u32>, PortError> {
-        Ok(None)
-    }
 
     async fn pid(&self) -> Option<u32> {
         None

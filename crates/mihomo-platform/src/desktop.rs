@@ -2,7 +2,9 @@ use crate::paths::get_home_dir;
 use async_trait::async_trait;
 use infiltrator_contract::core_identity::{CoreIdentity, CoreInstanceId, EngineId};
 use infiltrator_contract::snapshot::CoreLifecycle;
-use infiltrator_ports::core_process::CoreProcess;
+use infiltrator_ports::core_process::{
+    CoreProcess, CoreProcessStartAdmission, CoreProcessStartContext,
+};
 use infiltrator_ports::data_dir::DataDirProvider;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::secure_store::SecureStore;
@@ -42,6 +44,13 @@ enum PidRecordObservation {
 enum ProcessExitObservation {
     Exited,
     TimedOut,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum PidRecordReconciliation {
+    NoStaleRecord,
+    RemovedDeadRecord { pid: u32 },
+    StoppedOrphan { pid: u32 },
 }
 
 async fn wait_for_process_exit(pid: u32) -> ProcessExitObservation {
@@ -193,6 +202,48 @@ impl ProcessCoreController {
             ))),
         }
     }
+
+    async fn reconcile_stale_pid_record(
+        &self,
+    ) -> result::Result<PidRecordReconciliation, PortError> {
+        let pid = match process::read_pid_file(&self.pid_file).await {
+            Ok(pid) => pid,
+            Err(MihomoError::NotFound(_)) => {
+                return Ok(PidRecordReconciliation::NoStaleRecord);
+            }
+            Err(error) => return Err(map_port_error(error)),
+        };
+        let owned_pid = *self
+            .owned_pid
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        if owned_pid == Some(pid) {
+            return Ok(PidRecordReconciliation::NoStaleRecord);
+        }
+
+        if process::is_process_alive(pid) {
+            if !process::process_matches_binary(pid, &self.binary_path) {
+                return Err(PortError::Failed(format!(
+                    "refusing to stop unrelated process {pid} recorded in mihomo.pid"
+                )));
+            }
+            process::kill_process(pid).map_err(map_port_error)?;
+            log::warn!("reclaimed orphaned mihomo process {pid}");
+            if wait_for_process_exit(pid).await == ProcessExitObservation::TimedOut {
+                return Err(PortError::Failed(format!(
+                    "orphaned mihomo process {pid} did not exit after cleanup"
+                )));
+            }
+            self.remove_pid_file_for(pid)
+                .await
+                .map_err(map_port_error)?;
+            return Ok(PidRecordReconciliation::StoppedOrphan { pid });
+        }
+        self.remove_pid_file_for(pid)
+            .await
+            .map_err(map_port_error)?;
+        Ok(PidRecordReconciliation::RemovedDeadRecord { pid })
+    }
 }
 
 fn map_port_error(error: MihomoError) -> PortError {
@@ -216,10 +267,10 @@ impl CoreProcess for ProcessCoreController {
         ))
     }
 
-    async fn start(
+    async fn prepare_start(
         &self,
-        context: infiltrator_ports::core_process::CoreProcessStartContext,
-    ) -> result::Result<(), PortError> {
+        context: &CoreProcessStartContext,
+    ) -> result::Result<CoreProcessStartAdmission, PortError> {
         let identity = self
             .core_identity()
             .ok_or_else(|| PortError::Failed("desktop Core identity is unavailable".into()))?;
@@ -228,7 +279,7 @@ impl CoreProcess for ProcessCoreController {
                 "Core start context targets a different desktop process".into(),
             ));
         }
-        self.cleanup_orphaned().await?;
+        self.reconcile_stale_pid_record().await?;
         if self
             .read_running_pid()
             .await
@@ -236,6 +287,14 @@ impl CoreProcess for ProcessCoreController {
             .is_some()
         {
             return Err(PortError::Failed("Service is already running".to_string()));
+        }
+        Ok(CoreProcessStartAdmission::LaunchNewProcess)
+    }
+
+    async fn start(&self, context: CoreProcessStartContext) -> result::Result<(), PortError> {
+        match self.prepare_start(&context).await? {
+            CoreProcessStartAdmission::LaunchNewProcess => {}
+            CoreProcessStartAdmission::ReuseExactOwnedProcess => return Ok(()),
         }
 
         let spawned = process::spawn_daemon(&self.binary_path, &self.config_path)
@@ -299,7 +358,7 @@ impl CoreProcess for ProcessCoreController {
                 if owned == Some(pid) {
                     self.stop_owned_process(pid).await
                 } else {
-                    self.cleanup_orphaned().await.map(|_| ())
+                    self.reconcile_stale_pid_record().await.map(|_| ())
                 }
             }
         }
@@ -320,40 +379,6 @@ impl CoreProcess for ProcessCoreController {
 
     fn controller_endpoint(&self) -> Option<String> {
         None
-    }
-
-    async fn cleanup_orphaned(&self) -> result::Result<Option<u32>, PortError> {
-        let pid = match process::read_pid_file(&self.pid_file).await {
-            Ok(pid) => pid,
-            Err(MihomoError::NotFound(_)) => return Ok(None),
-            Err(error) => return Err(map_port_error(error)),
-        };
-        let owned_pid = *self
-            .owned_pid
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner);
-        if owned_pid == Some(pid) {
-            return Ok(None);
-        }
-
-        if process::is_process_alive(pid) {
-            if !process::process_matches_binary(pid, &self.binary_path) {
-                return Err(PortError::Failed(format!(
-                    "refusing to kill unrelated process {pid} recorded in mihomo.pid"
-                )));
-            }
-            process::kill_process(pid).map_err(map_port_error)?;
-            log::warn!("reclaimed orphaned mihomo process {pid}");
-            if wait_for_process_exit(pid).await == ProcessExitObservation::TimedOut {
-                return Err(PortError::Failed(format!(
-                    "orphaned mihomo process {pid} did not exit after cleanup"
-                )));
-            }
-        }
-        self.remove_pid_file_for(pid)
-            .await
-            .map_err(map_port_error)?;
-        Ok(Some(pid))
     }
 
     async fn pid(&self) -> Option<u32> {
