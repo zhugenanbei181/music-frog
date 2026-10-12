@@ -7,6 +7,12 @@ enum class FfiErrorCode(val value: UInt) {
     NOT_READY(3u),
 }
 
+enum class VpnAuthorizationResult {
+    GRANTED,
+    DENIED,
+    REVOKED,
+}
+
 data class FfiStatus(val code: FfiErrorCode, val message: String?)
 
 enum class AndroidAppRoutingMode {

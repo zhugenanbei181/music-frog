@@ -35,6 +35,7 @@ kotlin {
                 "com/musicfrog/infiltrator/AndroidVpnSnapshotFence.kt",
                 "com/musicfrog/infiltrator/VpnOwnerSnapshotWire.kt",
                 "com/musicfrog/infiltrator/VpnOwnerStopReceiptWire.kt",
+                "com/musicfrog/infiltrator/AndroidVpnAuthorizationFlow.kt",
                 "com/musicfrog/infiltrator/OwnerIpcClientPendingLedger.kt",
                 "com/musicfrog/infiltrator/VpnOwnerSessionGate.kt",
                 "com/musicfrog/infiltrator/VpnCleanupContract.kt",
@@ -48,6 +49,7 @@ kotlin {
                 "com/musicfrog/infiltrator/VpnConfigurationApplyOutcomeWire.kt",
                 "com/musicfrog/infiltrator/VpnServiceStartup.kt",
                 "com/musicfrog/infiltrator/MihomoControlServiceFixture.kt",
+                "com/musicfrog/infiltrator/IsolatedAuthorizationBindings.kt",
                 "infiltrator_android/IsolatedVpnBindings.kt",
             )
         }
@@ -59,6 +61,7 @@ kotlin {
                 "com/musicfrog/infiltrator/AndroidOwnerDataFenceTest.kt",
                 "com/musicfrog/infiltrator/AndroidOwnerSessionFenceTest.kt",
                 "com/musicfrog/infiltrator/AndroidVpnSnapshotFenceTest.kt",
+                "com/musicfrog/infiltrator/AndroidVpnAuthorizationFlowTest.kt",
                 "com/musicfrog/infiltrator/CoreBinaryResolverTest.kt",
                 "com/musicfrog/infiltrator/CoreLaunchSpecWireTest.kt",
                 "com/musicfrog/infiltrator/MihomoCoreConfigurationValidatorTest.kt",
