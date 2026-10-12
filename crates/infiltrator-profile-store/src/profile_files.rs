@@ -1,10 +1,12 @@
 //! Engine-owned profile document reads, backups, and validated publication.
 
 use crate::document_store::{remove_optional, write_document_bytes_durable};
+use crate::metadata::delete_subscription_url;
 use crate::store::EngineProfileStore;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document::DocumentValidation;
 use infiltrator_contract::profile_document_identity::ProfileId;
+use infiltrator_domain::profile_options::options_path;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::secure_store::SecureStore;
 use std::io::ErrorKind;
@@ -103,6 +105,42 @@ impl<S: SecureStore> EngineProfileStore<S> {
         fs::try_exists(profile_document_backup_path(&path))
             .await
             .map_err(|error| PortError::Io(error.to_string()))
+    }
+
+    /// Remove one inactive profile's document and engine-owned sidecars while
+    /// the caller holds the product selection fence and engine write lock.
+    /// If sidecar removal fails, restore the original document before
+    /// returning the error.
+    pub async fn delete_profile_locked(&self, profile: &ProfileId) -> Result<(), PortError> {
+        let path = self.existing_profile_document_path(profile).await?;
+        let previous_document = fs::read(&path)
+            .await
+            .map_err(|error| PortError::Io(error.to_string()))?;
+        fs::remove_file(&path)
+            .await
+            .map_err(|error| PortError::Io(error.to_string()))?;
+
+        let sidecar_path = options_path(self.config_dir(), profile.as_str());
+        if let Err(error) = remove_optional(&sidecar_path).await {
+            if let Err(rollback) = write_document_bytes_durable(&path, &previous_document).await {
+                return Err(PortError::Io(format!(
+                    "profile deletion sidecar cleanup failed ({error}); profile restore failed ({rollback})"
+                )));
+            }
+            return Err(error);
+        }
+
+        if let Err(error) = remove_optional(&profile_document_backup_path(&path)).await {
+            log::warn!("deleted profile backup cleanup failed: {error}");
+        }
+        self.remove_apply_transaction(profile.as_str());
+        if let Err(error) =
+            delete_subscription_url(self.credential_store(), &self.engine_id(), profile.as_str())
+                .await
+        {
+            log::warn!("failed to delete subscription entry: {error}");
+        }
+        self.remove_profile_metadata(profile.as_str()).await
     }
 }
 

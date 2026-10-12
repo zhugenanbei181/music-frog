@@ -5,7 +5,6 @@ use super::paths::profile_id;
 use crate::profile::Profile;
 use crate::profile_workspace_store::config_error;
 use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
-use infiltrator_domain::profile_options::options_path;
 use infiltrator_domain::profiles::{ProfileInfo, ProfileMetadata};
 use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceStore;
 use infiltrator_ports::error::PortError;
@@ -14,13 +13,9 @@ use infiltrator_ports::profile_workspace::{
     ProfileWorkspace, ProfileWorkspacePurpose, ProfileWorkspaceUpdate,
 };
 use infiltrator_ports::secure_store::SecureStore;
-use infiltrator_profile_store::document_store::{remove_optional, write_document_bytes_durable};
 use infiltrator_profile_store::metadata::delete_subscription_url;
-use infiltrator_profile_store::profile_files::profile_document_backup_path;
 use mihomo_api::error::{MihomoError, Result};
-use std::path;
 use std::path::PathBuf;
-use tokio::fs;
 
 impl<S: SecureStore> ConfigManager<S> {
     pub async fn load(&self, profile: &str) -> Result<String> {
@@ -212,34 +207,10 @@ impl<S: SecureStore> ConfigManager<S> {
             ));
         }
         let _guard = self.lock_profile_writes().await?;
-        let path = self.existing_profile_document_path(profile).await?;
-
-        let previous_document = fs::read(&path).await?;
-        fs::remove_file(&path).await?;
-        let profile_key = profile_id.as_str();
-        if let Err(error) = remove_optional(&options_path(self.config_dir(), profile_key)).await {
-            if let Err(rollback) = atomic_write(&path, &previous_document).await {
-                return Err(MihomoError::Config(format!(
-                    "profile deletion sidecar cleanup failed ({error}); profile restore failed ({rollback})"
-                )));
-            }
-            return Err(MihomoError::Config(error.to_string()));
-        }
-        if let Err(error) = remove_optional(&profile_document_backup_path(&path)).await {
-            log::warn!("deleted profile backup cleanup failed: {error}");
-        }
-        self.profile_store.remove_apply_transaction(profile);
-        if let Err(err) = delete_subscription_url(
-            self.credential_store(),
-            &self.engine_id(),
-            profile_id.as_str(),
-        )
-        .await
-        {
-            log::warn!("failed to delete subscription entry: {err}");
-        }
-        self.remove_profile_metadata(profile).await?;
-        Ok(())
+        self.profile_store
+            .delete_profile_locked(&profile_id)
+            .await
+            .map_err(|error| MihomoError::Config(error.to_string()))
     }
 
     /// 只删除单个 profile 在 OS 凭证库中的订阅 URL（恢复出厂清理用）。
@@ -357,10 +328,4 @@ fn metadata_from_profile(profile: &Profile) -> ProfileMetadata {
         insecure_skip_verify: profile.insecure_skip_verify,
         auto_reload_core: profile.auto_reload_core,
     }
-}
-
-async fn atomic_write(path: &path::Path, content: &[u8]) -> Result<()> {
-    write_document_bytes_durable(path, content)
-        .await
-        .map_err(|error| MihomoError::Config(error.to_string()))
 }

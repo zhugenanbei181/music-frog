@@ -1,7 +1,6 @@
 //! Product-wide active-profile reads and settings-file read/remove plumbing.
 
 use super::ConfigManager;
-use super::paths::profile_id;
 use crate::yaml::validate;
 use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
 use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceStore;
@@ -13,15 +12,6 @@ use std::path::PathBuf;
 use tokio::fs;
 
 impl<S: SecureStore> ConfigManager<S> {
-    pub(super) async fn remove_profile_metadata(&self, profile: &str) -> Result<()> {
-        let key = profile_id(profile)?;
-        self.profile_store
-            .remove_profile_metadata(key.as_str())
-            .await
-            .map_err(|error| MihomoError::Config(error.to_string()))?;
-        Ok(())
-    }
-
     pub async fn get_current(&self) -> Result<String> {
         self.initialize_profile_namespace().await?;
         let lease = ActiveProfileReferenceStore::acquire_selection_lease(self)
