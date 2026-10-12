@@ -46,7 +46,7 @@ use infiltrator_domain::{
     runtime::{ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider, TrafficData},
     settings::AppSettings,
 };
-use infiltrator_ports::host_runtime::{HostRuntime, TunServiceStatus};
+use infiltrator_ports::host_runtime::TunServiceStatus;
 use infiltrator_ports::profile_document_codec::ProfileMixinToggleId;
 use std::{path::PathBuf, sync::Arc, time::Instant};
 pub mod mtu_probe;
@@ -581,7 +581,7 @@ pub enum Message {
     ShowWindow,
     UpdateRuntimeAutoRefresh(bool),
     RuntimePanelSettingsSaved(Result<(), error::InfiltratorError>),
-    RuntimeRebuildFinished(Result<Arc<dyn HostRuntime>, error::InfiltratorError>),
+    RuntimeRebuildFinished(Result<(), error::InfiltratorError>),
     ClearRebuildFlow,
     TogglePerfPanel,
     ToggleTheme,

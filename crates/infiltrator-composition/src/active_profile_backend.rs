@@ -12,11 +12,11 @@ use infiltrator_contract::core_capabilities::{
 };
 use infiltrator_contract::core_identity::{CoreGeneration, CoreIdentity, EngineId};
 use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::profile_document_identity::ProfileDocument;
+use infiltrator_contract::profile_document_identity::{ProfileDocument, ProfileId};
 use infiltrator_contract::snapshot::{CoreLifecycle, CoreLifecycleSnapshot};
 use infiltrator_ports::active_profile_reference_store::{
     ActiveProfileOwnerBindingLease, ActiveProfileOwnerLease, ActiveProfileOwnerStoppedSwitchLease,
-    ActiveProfileOwnerSwitchLease, ActiveProfileOwnerSwitchState,
+    ActiveProfileOwnerSwitchLease, ActiveProfileOwnerSwitchRecovery, ActiveProfileOwnerSwitchState,
     ActiveProfileReferenceChangedLease, ActiveProfileReferenceLease, ActiveProfileReferenceStore,
 };
 use infiltrator_ports::core_capability_provider::CoreCapabilityProvider;

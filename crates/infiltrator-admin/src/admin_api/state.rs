@@ -9,6 +9,7 @@ use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::profile_reset_application::ProfileResetApplication;
 use infiltrator_application::sync_application::SyncApplication;
 use infiltrator_application::version_application::VersionApplication;
+use infiltrator_contract::active_profile_reference::ActiveProfileReferenceTarget;
 use infiltrator_contract::core_identity::CoreScope;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::outbound::probe::ProbeOutboundBatchRequest;
@@ -26,6 +27,16 @@ use std::env::var;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CoreOwnerAction {
+    StartCore,
+    StopCore,
+    RestartCore,
+    SelectProfile(ActiveProfileReferenceTarget),
+    RecomposeSelectedProfile,
+    RetryOwnerSwitch,
+}
 
 #[async_trait::async_trait]
 pub trait AdminApiContext: Clone + Send + Sync + 'static {
@@ -72,17 +83,8 @@ pub trait AdminApiContext: Clone + Send + Sync + 'static {
         ))
     }
 
-    async fn rebuild_runtime(&self) -> anyhow::Result<()>;
+    async fn apply_core_owner_action(&self, action: CoreOwnerAction) -> anyhow::Result<()>;
     async fn profile_controller_url(&self) -> anyhow::Result<Option<String>>;
-    /// Restart the running core so config-level changes take effect, keeping
-    /// the same runtime object. Defaults to a full [`Self::rebuild_runtime`];
-    /// hosts owning a live `infiltrator_application::CoreApplication` override
-    /// this with an application restart (generation bump + readiness), which
-    /// skips the re-bootstrap entirely. Core *version* switches must keep
-    /// using [`Self::rebuild_runtime`] since the binary path changes.
-    async fn restart_core(&self) -> anyhow::Result<()> {
-        self.rebuild_runtime().await
-    }
     async fn set_use_bundled_core(&self, enabled: bool);
     async fn refresh_core_version_info(&self);
     async fn notify_subscription_update(
@@ -99,7 +101,6 @@ pub trait AdminApiContext: Clone + Send + Sync + 'static {
     async fn save_app_settings(&self, settings: AppSettings) -> anyhow::Result<()>;
     async fn runtime_running(&self) -> bool;
     async fn runtime_controller_url(&self) -> Option<String>;
-    async fn stop_runtime(&self) -> anyhow::Result<()>;
     async fn runtime_gateway(&self) -> anyhow::Result<Arc<dyn RuntimeGateway>>;
     async fn system_proxy_enabled(&self) -> bool;
     async fn set_system_proxy_enabled(&self, enabled: bool) -> anyhow::Result<()>;

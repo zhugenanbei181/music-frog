@@ -37,7 +37,7 @@ async fn test_save_invalid_yaml_returns_400() {
 }
 
 #[tokio::test]
-async fn test_save_rules_route_schedules_rebuild() {
+async fn test_save_rules_route_schedules_typed_owner_restart() {
     let _guard = TEST_LOCK.lock().await;
     let temp_dir = tempfile::tempdir().unwrap();
     set_home_dir_override(temp_dir.path().to_path_buf());
@@ -56,7 +56,7 @@ async fn test_save_rules_route_schedules_rebuild() {
     .unwrap();
     select_test_profile(&manager, "default").await;
 
-    let app = setup_app();
+    let (app, actions) = super::setup_app_with_owner_actions();
     let payload = serde_json::json!({
         "rules": [
             {
@@ -99,5 +99,9 @@ async fn test_save_rules_route_schedules_rebuild() {
     assert_eq!(status_json["in_progress"], false);
     assert_eq!(status_json["last_error"], serde_json::Value::Null);
     assert_eq!(status_json["last_reason"], "rules-update");
+    assert_eq!(
+        *actions.lock().unwrap_or_else(|error| error.into_inner()),
+        vec![crate::admin_api::state::CoreOwnerAction::RestartCore],
+    );
     clear_home_dir_override();
 }

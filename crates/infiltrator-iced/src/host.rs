@@ -63,20 +63,6 @@ pub mod editor {
     }
 }
 
-pub mod boot {
-    use infiltrator_desktop::boot::{self, DesktopBinaryPreference};
-    use infiltrator_ports::host_runtime::HostRuntime;
-    use std::path::PathBuf;
-    use std::sync::Arc;
-
-    pub async fn bootstrap_host_runtime_from_current_home(
-        preference: DesktopBinaryPreference,
-        bundled_candidates: &[PathBuf],
-    ) -> anyhow::Result<(Arc<dyn HostRuntime>, bool)> {
-        boot::bootstrap_host_runtime_from_current_home(preference, bundled_candidates).await
-    }
-}
-
 /// DUAL-07-05: executor-neutral delay seam the shared subscription refresh
 /// uses for exponential backoff. The Iced worker already runs on Tokio, so the
 /// composition root's runtime is reused instead of Iced importing an executor

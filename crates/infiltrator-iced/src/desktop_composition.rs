@@ -16,7 +16,7 @@ use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::surface::SurfaceKind;
 use infiltrator_desktop::crash::write_sanitized_report;
 use infiltrator_desktop::exit_cleanup::{install, run_now};
-use infiltrator_desktop::product::DesktopProductSession;
+use infiltrator_desktop::product::{DesktopProductSession, DesktopProductSessionHandle};
 use infiltrator_desktop::storage::home_dir;
 use single_instance::SingleInstance;
 use std::backtrace::Backtrace;
@@ -82,7 +82,7 @@ fn run_production(surface_bridge: Option<SurfaceBridge>) -> iced::Result {
 
     let (session, composition_failure) = if surface_bridge.is_none() {
         match DesktopProductSession::open(SurfaceKind::IcedDesktop) {
-            Ok(session) => (Some(session), None),
+            Ok(session) => (Some(session.into_shared()), None),
             Err(error) => (
                 None,
                 Some(Failure::new(ErrorCode::NotReady, error.to_string(), true)),
@@ -91,28 +91,21 @@ fn run_production(surface_bridge: Option<SurfaceBridge>) -> iced::Result {
     } else {
         (None, None)
     };
+    let initial_binding = session.as_ref().and_then(|session| session.binding().ok());
     let surface_bridge = surface_bridge.or_else(|| {
-        session
+        initial_binding
             .as_ref()
-            .map(|session| SurfaceBridge::from_pump(session.surface_pump()))
+            .map(|binding| SurfaceBridge::from_pump(binding.surface_pump.clone()))
     });
-    let core_application = session.as_ref().map(DesktopProductSession::application);
-    let host_runtime = session.as_ref().map(DesktopProductSession::host_runtime);
+    let product_session: Option<DesktopProductSessionHandle> = session.clone();
     let initializer = move || {
         let (mut state, task) = AppState::new();
-        if let Some(application) = core_application.clone() {
-            let snapshot = application.snapshot();
-            state.runtime.core_lifecycle = snapshot.lifecycle_snapshot();
-            state.attach_product_application(application.as_ref().clone());
-        }
-        if core_application.is_some()
-            && let Some(bridge) = surface_bridge.as_ref()
-            && let Some(snapshot) = bridge.current_snapshot()
-        {
-            state.apply_shared_surface_snapshot(snapshot.clone());
-        }
-        if let Some(host) = host_runtime.clone() {
-            state.sync_runtime_slot(Some(host));
+        if let Some(product_session) = product_session.clone() {
+            if let Err(failure) = state.attach_desktop_product_session(product_session) {
+                state.runtime.host_composition_failure = Some(failure.clone());
+                state.runtime.lifecycle_failure = Some(failure.clone());
+                state.shell.error_msg = Some(failure.message);
+            }
         }
         state.runtime.host_composition_failure = composition_failure.clone();
         if let Some(failure) = composition_failure.clone() {

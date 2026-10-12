@@ -185,35 +185,59 @@ impl AdminApiContext for IcedAdminContext {
         save_webdav_password(password).await
     }
 
-    async fn rebuild_runtime(&self) -> anyhow::Result<()> {
-        // The legacy bootstrap is currently typed Unsupported. Probe it
-        // before taking down the live owner, so a rejected rebuild leaves the
-        // active Core session available.
-        let (rebuilt, _rotated) =
-            bootstrap_host_runtime_from_current_home(DesktopBinaryPreference::PreferBundled, &[])
-                .await?;
-        if let Some(runtime) = self.shared.take_runtime() {
-            let _ = ManagedRuntime::shutdown(runtime.as_ref()).await;
-        }
-        self.shared.set_runtime(Some(rebuilt.clone()));
-        self.shared
-            .send(AdminHostCommand::RuntimeResynced(Ok(rebuilt)));
-        Ok(())
-    }
-
-    /// Application-level restart: same core process manager, new generation,
-    /// and a readiness wait — no shutdown/bootstrap cycle. Falls back to a
-    /// full rebuild when no live runtime exists.
-    async fn restart_core(&self) -> anyhow::Result<()> {
-        let Some(runtime) = self.shared.runtime() else {
-            return self.rebuild_runtime().await;
+    async fn apply_core_owner_action(&self, action: CoreOwnerAction) -> anyhow::Result<()> {
+        let session = self
+            .shared
+            .product_session()
+            .ok_or_else(|| anyhow!("desktop Core owner session is unavailable"))?;
+        let desktop_action = match action.clone() {
+            CoreOwnerAction::StartCore => DesktopProductSessionAction::StartCore,
+            CoreOwnerAction::StopCore => DesktopProductSessionAction::StopCore,
+            CoreOwnerAction::RestartCore => DesktopProductSessionAction::RestartCore,
+            CoreOwnerAction::SelectProfile(target) => {
+                DesktopProductSessionAction::SelectProfile(target)
+            }
+            CoreOwnerAction::RecomposeSelectedProfile => {
+                DesktopProductSessionAction::RecomposeSelectedProfile
+            }
+            CoreOwnerAction::RetryOwnerSwitch => DesktopProductSessionAction::RetryOwnerSwitch,
         };
-        ManagedRuntime::restart(runtime.as_ref())
-            .await
-            .map_err(|e| anyhow!(e.to_string()))?;
-        self.shared
-            .send(AdminHostCommand::RuntimeResynced(Ok(runtime)));
-        Ok(())
+        let result = tokio::task::spawn_blocking(move || session.apply(desktop_action)).await;
+        let binding = match result {
+            Ok(Ok(binding)) => binding,
+            Ok(Err(error)) => {
+                self.shared.send(AdminHostCommand::ProductSessionChanged);
+                return Err(anyhow!(error.to_string()));
+            }
+            Err(error) => {
+                self.shared.send(AdminHostCommand::ProductSessionChanged);
+                return Err(anyhow!("desktop Core owner action worker failed: {error}"));
+            }
+        };
+        let proxy_cleanup = match action {
+            CoreOwnerAction::StopCore
+                if read_system_proxy_state()
+                    .map(|state| state.enabled)
+                    .unwrap_or(false) =>
+            {
+                let proxy_port = binding
+                    .host_runtime
+                    .system_proxy_port()
+                    .unwrap_or_else(system_proxy_port);
+                SystemProxyApplication::new(proxy_port)
+                    .set_enabled(false, None, None)
+                    .await
+                    .map_err(|failure| anyhow!(failure.message))
+            }
+            CoreOwnerAction::StartCore
+            | CoreOwnerAction::StopCore
+            | CoreOwnerAction::RestartCore
+            | CoreOwnerAction::SelectProfile(_)
+            | CoreOwnerAction::RecomposeSelectedProfile
+            | CoreOwnerAction::RetryOwnerSwitch => Ok(()),
+        };
+        self.shared.send(AdminHostCommand::ProductSessionChanged);
+        proxy_cleanup
     }
 
     async fn set_use_bundled_core(&self, enabled: bool) {
@@ -326,28 +350,6 @@ impl AdminApiContext for IcedAdminContext {
         self.shared
             .runtime()
             .map(|runtime| runtime.controller_url())
-    }
-
-    async fn stop_runtime(&self) -> anyhow::Result<()> {
-        let runtime = self.shared.take_runtime();
-        let proxy_port = runtime
-            .as_ref()
-            .and_then(|runtime| runtime.system_proxy_port())
-            .unwrap_or_else(system_proxy_port);
-        if let Some(runtime) = runtime {
-            let _ = ManagedRuntime::shutdown(runtime.as_ref()).await;
-        }
-        if read_system_proxy_state()
-            .map(|state| state.enabled)
-            .unwrap_or(false)
-        {
-            SystemProxyApplication::new(proxy_port)
-                .set_enabled(false, None, None)
-                .await
-                .map_err(|failure| anyhow!(failure.message))?;
-        }
-        self.shared.send(AdminHostCommand::RuntimeStopped);
-        Ok(())
     }
 
     async fn runtime_gateway(&self) -> anyhow::Result<Arc<dyn RuntimeGateway>> {

@@ -38,7 +38,7 @@ Iced 桌面宿主从已有 `MihomoRuntime` 暴露其 CoreApplication 所安装�
 
 | `action` | 直接字段 | 行为 |
 | --- | --- | --- |
-| `switch_profile` | `profile` | 选择 Profile 并安排 Core 重启 |
+| `switch_profile` | `profile` | 安排宿主唯一 Core owner 应用 typed profile target；同引擎走 scoped profile command，跨引擎走 owner replacement |
 | `start_core` | — | 启动 Core |
 | `stop_core` | — | 停止 Core |
 | `update_all` | — | 更新全部订阅 |

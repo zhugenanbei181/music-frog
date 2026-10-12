@@ -581,6 +581,7 @@ impl AppState {
             surface: Default::default(),
             surface_bridge: None,
             commands: None,
+            product_session: None,
             command_scope: Default::default(),
             exit_cleanup: None,
         };

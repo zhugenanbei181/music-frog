@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use super::super::run_sync_tick;
-    use crate::admin_api::state::AdminApiContext;
+    use crate::admin_api::state::{AdminApiContext, CoreOwnerAction};
     #[cfg(test)]
     use crate::support::cache_application;
     #[cfg(test)]
@@ -104,7 +104,7 @@ mod tests {
             _message: Option<String>,
         ) {
         }
-        async fn rebuild_runtime(&self) -> anyhow::Result<()> {
+        async fn apply_core_owner_action(&self, _action: CoreOwnerAction) -> anyhow::Result<()> {
             Ok(())
         }
         async fn set_use_bundled_core(&self, _enabled: bool) {}
@@ -130,9 +130,6 @@ mod tests {
         }
         async fn runtime_controller_url(&self) -> Option<String> {
             None
-        }
-        async fn stop_runtime(&self) -> anyhow::Result<()> {
-            Ok(())
         }
         async fn runtime_gateway(&self) -> anyhow::Result<Arc<dyn RuntimeGateway>> {
             Err(anyhow!("runtime client is not available in sync tests"))

@@ -1,9 +1,9 @@
 //! Profile / subscription management endpoints (`/admin/api/profiles*`).
 
-use super::{schedule_core_restart, schedule_rebuild};
+use super::schedule_core_owner_action;
 use crate::admin_api::events::{AdminEvent, EVENT_PROFILES_CHANGED};
 use crate::admin_api::models::*;
-use crate::admin_api::state::{AdminApiContext, AdminApiState, RebuildStatus};
+use crate::admin_api::state::{AdminApiContext, AdminApiState, CoreOwnerAction, RebuildStatus};
 use crate::scheduler::subscription::update_all_subscriptions;
 use crate::scheduler::{cancel_all_profile_jobs, cancel_profile_update_job, sync_profile_job};
 use anyhow::anyhow;
@@ -121,15 +121,25 @@ pub async fn save_profile_http<C: AdminApiContext>(
     let activate = payload.activate.unwrap_or(false);
     let mut rebuild_scheduled = false;
     if activate {
-        application
-            .select_profile(&name)
+        let target = application
+            .active_reference_target_for(&name)
             .await
             .map_err(|failure| ApiError::bad_request(failure.message))?;
-        schedule_rebuild(&state.ctx, &state.rebuild_status, "save-activate");
+        schedule_core_owner_action(
+            &state.ctx,
+            &state.rebuild_status,
+            CoreOwnerAction::SelectProfile(target),
+            "save-activate",
+        );
         rebuild_scheduled = true;
         controller_url = state.ctx.profile_controller_url().await.ok().flatten();
     } else if application.current_profile().await.ok().as_deref() == Some(&name) {
-        schedule_rebuild(&state.ctx, &state.rebuild_status, "save-current");
+        schedule_core_owner_action(
+            &state.ctx,
+            &state.rebuild_status,
+            CoreOwnerAction::RestartCore,
+            "save-current",
+        );
         rebuild_scheduled = true;
         controller_url = state.ctx.profile_controller_url().await.ok().flatten();
     }
@@ -176,7 +186,12 @@ pub async fn clear_profiles_http<C: AdminApiContext>(
     cancel_all_profile_jobs();
     let mut info = profile;
     info.controller_url = state.ctx.profile_controller_url().await.ok().flatten();
-    schedule_rebuild(&state.ctx, &state.rebuild_status, "profiles-clear");
+    schedule_core_owner_action(
+        &state.ctx,
+        &state.rebuild_status,
+        CoreOwnerAction::RecomposeSelectedProfile,
+        "profiles-clear",
+    );
     state
         .events
         .publish(AdminEvent::new(EVENT_PROFILES_CHANGED));
@@ -372,7 +387,12 @@ pub async fn update_profile_now_http<C: AdminApiContext>(
     let rebuild_scheduled =
         application.current_profile().await.ok().as_deref() == Some(&profile_name);
     if rebuild_scheduled {
-        schedule_rebuild(&state.ctx, &state.rebuild_status, "subscription-update-now");
+        schedule_core_owner_action(
+            &state.ctx,
+            &state.rebuild_status,
+            CoreOwnerAction::RestartCore,
+            "subscription-update-now",
+        );
     }
     let profile = application
         .load_profile_info(&profile_name)
@@ -412,12 +432,19 @@ async fn switch_profile_internal<C: AdminApiContext>(
     let profile_name = sanitize_profile_name(name)?;
     let application = ctx.profile_application().await?;
     let profile = application
-        .select_profile(&profile_name)
+        .load_profile_info(&profile_name)
         .await
         .map_err(|failure| anyhow!(failure.message))?;
-    // Config-level change only: the running core just needs a restart, not
-    // a full runtime re-bootstrap (which stays reserved for version swaps).
-    schedule_core_restart(ctx, rebuild_status, "switch-profile");
+    let target = application
+        .active_reference_target_for(&profile_name)
+        .await
+        .map_err(|failure| anyhow!(failure.message))?;
+    schedule_core_owner_action(
+        ctx,
+        rebuild_status,
+        CoreOwnerAction::SelectProfile(target),
+        "switch-profile",
+    );
     Ok(profile)
 }
 
@@ -448,11 +475,16 @@ async fn import_profile_from_url_internal<C: AdminApiContext>(
 
     let mut rebuild_scheduled = false;
     if activate {
-        application
-            .select_profile(&profile_name)
+        let target = application
+            .active_reference_target_for(&profile_name)
             .await
             .map_err(|failure| anyhow!(failure.message))?;
-        schedule_rebuild(ctx, rebuild_status, "import-activate");
+        schedule_core_owner_action(
+            ctx,
+            rebuild_status,
+            CoreOwnerAction::SelectProfile(target),
+            "import-activate",
+        );
         rebuild_scheduled = true;
     }
 

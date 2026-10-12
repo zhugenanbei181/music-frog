@@ -29,6 +29,7 @@ use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document_identity::{ProfileDocument, ProfileId};
+use infiltrator_contract::snapshot::CoreLifecycleSnapshot;
 use infiltrator_contract::surface::SurfaceKind;
 use infiltrator_core::settings_io::app_config_manager;
 use infiltrator_core::version_port::MihomoVersionPort;
@@ -76,11 +77,52 @@ enum PreparedDesktopEngine {
     },
 }
 
+struct PreparedDesktopSwitch {
+    target: ActiveProfileReferenceTarget,
+    prepared: PreparedDesktopEngine,
+    prepared_document: ProfileDocument,
+    selector: ActiveProfileBackendSelector,
+}
+
 pub(crate) async fn switch_default_product_engine(
     previous_application: Arc<CoreApplication>,
     target: ActiveProfileReferenceTarget,
     surface: SurfaceKind,
 ) -> Result<DesktopProductBackend, DesktopProductSwitchFailure> {
+    let prepared = prepare_desktop_switch(target).await?;
+    let selected = prepared
+        .selector
+        .replace_owner_for_profile(
+            prepared.target.clone(),
+            &prepared.prepared_document,
+            &PreviousCoreOwner::Owned(previous_application),
+        )
+        .await
+        .map_err(map_switch_error)?;
+    compose_desktop_switch(prepared.prepared, selected, surface).await
+}
+
+pub(crate) async fn retry_default_product_engine(
+    target: ActiveProfileReferenceTarget,
+    old_owner_terminal: &CoreLifecycleSnapshot,
+    surface: SurfaceKind,
+) -> Result<DesktopProductBackend, DesktopProductSwitchFailure> {
+    let prepared = prepare_desktop_switch(target).await?;
+    let selected = prepared
+        .selector
+        .resume_owner_switch_for_profile(
+            prepared.target.clone(),
+            &prepared.prepared_document,
+            old_owner_terminal,
+        )
+        .await
+        .map_err(old_owner_closed)?;
+    compose_desktop_switch(prepared.prepared, selected, surface).await
+}
+
+async fn prepare_desktop_switch(
+    target: ActiveProfileReferenceTarget,
+) -> Result<PreparedDesktopSwitch, DesktopProductSwitchFailure> {
     let (engine_id, profile_id) = selected_target(target.clone())?;
     let config_manager = Arc::new(app_config_manager().await.map_err(before_reservation)?);
     let home = home_dir().map_err(before_reservation)?;
@@ -189,15 +231,19 @@ pub(crate) async fn switch_default_product_engine(
         engine_factory,
         capability_provider,
     );
-    let selected = selector
-        .replace_owner_for_profile(
-            target,
-            &prepared_document,
-            &PreviousCoreOwner::Owned(previous_application),
-        )
-        .await
-        .map_err(map_switch_error)?;
+    Ok(PreparedDesktopSwitch {
+        target,
+        prepared,
+        prepared_document,
+        selector,
+    })
+}
 
+async fn compose_desktop_switch(
+    prepared: PreparedDesktopEngine,
+    selected: SelectedActiveProfileBackend,
+    surface: SurfaceKind,
+) -> Result<DesktopProductBackend, DesktopProductSwitchFailure> {
     match prepared {
         PreparedDesktopEngine::Mihomo {
             selection,

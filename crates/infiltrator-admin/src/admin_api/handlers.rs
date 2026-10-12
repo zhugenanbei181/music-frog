@@ -17,7 +17,7 @@
 //! routing names and handler names are owned by the public API contract.
 
 use crate::admin_api::models::ApiError;
-use crate::admin_api::state::{AdminApiContext, RebuildStatus};
+use crate::admin_api::state::{AdminApiContext, CoreOwnerAction, RebuildStatus};
 use axum::body::Body;
 use axum::http::Request;
 use axum::middleware::Next;
@@ -91,46 +91,23 @@ pub async fn log_admin_request(req: Request<Body>, next: Next) -> Response {
     response
 }
 
-fn schedule_rebuild<C: AdminApiContext>(
+fn schedule_core_owner_action<C: AdminApiContext>(
     ctx: &C,
     rebuild_status: &Arc<RebuildStatus>,
+    action: CoreOwnerAction,
     reason: &str,
 ) {
     let ctx = ctx.clone();
     let reason = reason.to_string();
     let rebuild_status = Arc::clone(rebuild_status);
-    info!("schedule runtime rebuild: {reason}");
+    info!("schedule Core owner action {action:?}: {reason}");
     rebuild_status.mark_start(&reason);
     tokio::spawn(async move {
-        if let Err(err) = ctx.rebuild_runtime().await {
-            warn!("runtime rebuild failed ({reason}): {err}");
+        if let Err(err) = ctx.apply_core_owner_action(action.clone()).await {
+            warn!("Core owner action {action:?} failed ({reason}): {err}");
             rebuild_status.mark_error(err.to_string());
         } else {
-            info!("runtime rebuild completed ({reason})");
-            rebuild_status.mark_success();
-        }
-    });
-}
-
-/// Config-level rebuild: same status bookkeeping as [`schedule_rebuild`],
-/// but asks the host for a session-level core restart instead of a full
-/// runtime re-bootstrap.
-fn schedule_core_restart<C: AdminApiContext>(
-    ctx: &C,
-    rebuild_status: &Arc<RebuildStatus>,
-    reason: &str,
-) {
-    let ctx = ctx.clone();
-    let reason = reason.to_string();
-    let rebuild_status = Arc::clone(rebuild_status);
-    info!("schedule core restart: {reason}");
-    rebuild_status.mark_start(&reason);
-    tokio::spawn(async move {
-        if let Err(err) = ctx.restart_core().await {
-            warn!("core restart failed ({reason}): {err}");
-            rebuild_status.mark_error(err.to_string());
-        } else {
-            info!("core restart completed ({reason})");
+            info!("Core owner action {action:?} completed ({reason})");
             rebuild_status.mark_success();
         }
     });

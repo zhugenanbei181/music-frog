@@ -1,5 +1,7 @@
 use crate::admin_api::models::{ImportProfilePayload, SaveProfilePayload, SwitchProfilePayload};
-use crate::admin_api::state::{AdminApiContext, AdminApiState, AdminOutboundOwner};
+use crate::admin_api::state::{
+    AdminApiContext, AdminApiState, AdminOutboundOwner, CoreOwnerAction,
+};
 use crate::admin_api::*;
 use crate::support::{
     app_config_manager, cache_application, configuration_application, doctor_application,
@@ -69,7 +71,7 @@ fn plant_runnable_fake_binary(home: &path::Path, version: &str) {
 
 #[derive(Clone)]
 struct MockContext {
-    rebuild_count: Arc<Mutex<usize>>,
+    core_owner_actions: Arc<Mutex<Vec<CoreOwnerAction>>>,
     runtime_url: Option<String>,
     settings: Arc<Mutex<AppSettings>>,
     /// 内存版 WebDAV 密码库（替代真实 OS keyring，测试零外部依赖）。
@@ -152,9 +154,11 @@ impl AdminApiContext for MockContext {
             .ok())
     }
 
-    async fn rebuild_runtime(&self) -> anyhow::Result<()> {
-        let mut count = self.rebuild_count.lock().unwrap_or_else(|e| e.into_inner());
-        *count += 1;
+    async fn apply_core_owner_action(&self, action: CoreOwnerAction) -> anyhow::Result<()> {
+        self.core_owner_actions
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .push(action);
         Ok(())
     }
     async fn set_use_bundled_core(&self, _enabled: bool) {}
@@ -199,9 +203,6 @@ impl AdminApiContext for MockContext {
     }
     async fn runtime_controller_url(&self) -> Option<String> {
         self.runtime_url.clone()
-    }
-    async fn stop_runtime(&self) -> anyhow::Result<()> {
-        Ok(())
     }
     async fn runtime_gateway(&self) -> anyhow::Result<Arc<dyn RuntimeGateway>> {
         let runtime_url = self
@@ -288,7 +289,7 @@ fn setup_app_with_runtime_and_secrets(
     runtime_url: Option<String>,
 ) -> (axum::Router, SharedSecrets) {
     let ctx = MockContext {
-        rebuild_count: Arc::new(Mutex::new(0)),
+        core_owner_actions: Arc::new(Mutex::new(Vec::new())),
         runtime_url,
         settings: Arc::new(Mutex::new(AppSettings::default())),
         secrets: Arc::new(Mutex::new(HashMap::new())),
@@ -300,9 +301,23 @@ fn setup_app_with_runtime_and_secrets(
     (router(state), secrets)
 }
 
+fn setup_app_with_owner_actions() -> (axum::Router, Arc<Mutex<Vec<CoreOwnerAction>>>) {
+    let actions = Arc::new(Mutex::new(Vec::new()));
+    let ctx = MockContext {
+        core_owner_actions: Arc::clone(&actions),
+        runtime_url: None,
+        settings: Arc::new(Mutex::new(AppSettings::default())),
+        secrets: Arc::new(Mutex::new(HashMap::new())),
+        version: None,
+    };
+    let bus = events::AdminEventBus::new();
+    let state = AdminApiState::new(ctx, bus);
+    (router(state), actions)
+}
+
 fn setup_app_with_auth(token: Option<String>) -> axum::Router {
     let ctx = MockContext {
-        rebuild_count: Arc::new(Mutex::new(0)),
+        core_owner_actions: Arc::new(Mutex::new(Vec::new())),
         runtime_url: None,
         settings: Arc::new(Mutex::new(AppSettings::default())),
         secrets: Arc::new(Mutex::new(HashMap::new())),
@@ -379,7 +394,7 @@ impl VersionPort for StaticVersionPort {
 
 fn setup_app_with_static_version(home: &path::Path) -> axum::Router {
     let ctx = MockContext {
-        rebuild_count: Arc::new(Mutex::new(0)),
+        core_owner_actions: Arc::new(Mutex::new(Vec::new())),
         runtime_url: None,
         settings: Arc::new(Mutex::new(AppSettings::default())),
         secrets: Arc::new(Mutex::new(HashMap::new())),

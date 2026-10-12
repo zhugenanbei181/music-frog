@@ -136,7 +136,8 @@ impl DesktopRuleOverridePort {
 #[async_trait]
 impl RuleOverridePort for DesktopRuleOverridePort {
     async fn load_rule_workspace(&self) -> Result<RuleWorkspace, PortError> {
-        let workspace = self.config.load_active_workspace().await?;
+        let workspace =
+            ProfileStore::load_active_workspace(self.config.engine_profile_store()).await?;
         self.profiles
             .read_profile_rule_workspace(&workspace)
             .map_err(PortError::Rejected)
@@ -165,7 +166,8 @@ impl RuleOverridePort for DesktopRuleOverridePort {
                 true,
             )));
         }
-        let workspace = self.config.load_active_workspace().await?;
+        let workspace =
+            ProfileStore::load_active_workspace(self.config.engine_profile_store()).await?;
         if workspace.identity() != owner.workspace {
             return Err(PortError::Rejected(Failure::new(
                 ErrorCode::NotReady,
@@ -184,7 +186,8 @@ impl RuleOverridePort for DesktopRuleOverridePort {
         entries: &[RuleEntry],
     ) -> Result<(), PortError> {
         let guard = self.apply_guard.lock().await;
-        let workspace = self.config.load_active_workspace().await?;
+        let workspace =
+            ProfileStore::load_active_workspace(self.config.engine_profile_store()).await?;
         let identity = workspace.identity();
         let profile = identity.document.profile_id.as_str().to_owned();
         let observed = self
@@ -225,7 +228,8 @@ impl RuleOverridePort for DesktopRuleOverridePort {
         replacement: &str,
     ) -> Result<(), PortError> {
         let guard = self.apply_guard.lock().await;
-        let workspace = self.config.load_active_workspace().await?;
+        let workspace =
+            ProfileStore::load_active_workspace(self.config.engine_profile_store()).await?;
         let identity = workspace.identity();
         let profile = identity.document.profile_id.as_str().to_owned();
         let observed = self

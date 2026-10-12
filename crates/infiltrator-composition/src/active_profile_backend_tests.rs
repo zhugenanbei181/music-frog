@@ -32,7 +32,7 @@ use infiltrator_contract::surface::HostKind;
 use infiltrator_domain::profiles::{ProfileInfo, ProfileMetadata};
 use infiltrator_ports::active_profile_reference_store::{
     ActiveProfileOwnerBindingLease, ActiveProfileOwnerLease, ActiveProfileOwnerStoppedSwitchLease,
-    ActiveProfileOwnerSwitchLease, ActiveProfileOwnerSwitchState,
+    ActiveProfileOwnerSwitchLease, ActiveProfileOwnerSwitchRecovery, ActiveProfileOwnerSwitchState,
     ActiveProfileReferenceChangedLease, ActiveProfileReferenceLease, ActiveProfileReferenceStore,
 };
 use infiltrator_ports::application_runtime::{
@@ -71,6 +71,16 @@ struct MemoryReferenceStore {
     delete_target_before_reservation: Option<Arc<AtomicBool>>,
     stale_next_begin: AtomicBool,
     fail_next_reservation: Arc<AtomicBool>,
+    recovery_fixture: Mutex<MemoryOwnerSwitchRecoveryFixture>,
+}
+
+#[derive(Clone)]
+enum MemoryOwnerSwitchRecoveryFixture {
+    DurableJournal,
+    CandidateTerminalEvidenceRequired {
+        selection: ActiveProfileReferenceState,
+        engine_id: EngineId,
+    },
 }
 
 struct MemoryReferenceLease {
@@ -629,6 +639,7 @@ impl MemoryReferenceStore {
             delete_target_before_reservation: None,
             stale_next_begin: AtomicBool::new(false),
             fail_next_reservation: Arc::new(AtomicBool::new(false)),
+            recovery_fixture: Mutex::new(MemoryOwnerSwitchRecoveryFixture::DurableJournal),
         }
     }
 
@@ -671,6 +682,90 @@ fn record(events: &Option<Arc<Mutex<Vec<String>>>>, event: &str) {
 impl ActiveProfileReferenceStore for MemoryReferenceStore {
     async fn read(&self) -> Result<ActiveProfileReferenceState, PortError> {
         Ok(self.state.lock().await.clone())
+    }
+
+    async fn recover_owner_switch(&self) -> Result<ActiveProfileOwnerSwitchRecovery, PortError> {
+        let fixture = self
+            .recovery_fixture
+            .lock()
+            .expect("recovery fixture")
+            .clone();
+        if let MemoryOwnerSwitchRecoveryFixture::CandidateTerminalEvidenceRequired {
+            selection,
+            engine_id,
+        } = fixture
+        {
+            return Ok(
+                ActiveProfileOwnerSwitchRecovery::CandidateTerminalEvidenceRequired {
+                    selection,
+                    engine_id,
+                },
+            );
+        }
+        let state = self.transition.lock().expect("switch state").clone();
+        match state {
+            None => Ok(ActiveProfileOwnerSwitchRecovery::NoPendingSwitch),
+            Some(state) => match &state {
+                ActiveProfileOwnerSwitchState::ClosingOld {
+                    previous_reference,
+                    owner_identity,
+                    owner_generation,
+                } => Ok(ActiveProfileOwnerSwitchRecovery::ResumeClosingOld(
+                    Box::new(MemoryOwnerSwitchLease {
+                        state: state.clone(),
+                        previous_reference: previous_reference.clone(),
+                        identity: owner_identity.clone(),
+                        generation: *owner_generation,
+                        bound_owner_generation: *owner_generation,
+                        root_state: Arc::clone(&self.state),
+                        owner: Arc::clone(&self.owner),
+                        transition: Arc::clone(&self.transition),
+                        events: self.events.clone(),
+                        fail_next_reservation: Arc::clone(&self.fail_next_reservation),
+                    }),
+                )),
+                ActiveProfileOwnerSwitchState::OldStopped {
+                    previous_reference, ..
+                } => Ok(ActiveProfileOwnerSwitchRecovery::ResumeOldStopped(
+                    Box::new(MemoryOwnerStoppedSwitchLease {
+                        state: state.clone(),
+                        previous_reference: previous_reference.clone(),
+                        root_state: Arc::clone(&self.state),
+                        owner: Arc::clone(&self.owner),
+                        transition: Arc::clone(&self.transition),
+                        events: self.events.clone(),
+                        fail_next_reservation: Arc::clone(&self.fail_next_reservation),
+                    }),
+                )),
+                ActiveProfileOwnerSwitchState::ReferenceChanged { selection, .. } => {
+                    Ok(ActiveProfileOwnerSwitchRecovery::ResumeReferenceChanged(
+                        Box::new(MemoryReferenceChangedLease {
+                            state: state.clone(),
+                            selection: selection.clone(),
+                            root_state: Arc::clone(&self.state),
+                            owner: Arc::clone(&self.owner),
+                            transition: Arc::clone(&self.transition),
+                            fail_next_reservation: Arc::clone(&self.fail_next_reservation),
+                            events: self.events.clone(),
+                        }),
+                    ))
+                }
+                ActiveProfileOwnerSwitchState::BindingNew {
+                    selection,
+                    engine_id,
+                } => Ok(ActiveProfileOwnerSwitchRecovery::ResumeBindingNew(
+                    Box::new(MemoryOwnerBindingLease {
+                        state: state.clone(),
+                        engine_id: engine_id.clone(),
+                        selection: selection.clone(),
+                        owner: Arc::clone(&self.owner),
+                        transition: Arc::clone(&self.transition),
+                        root_state: Arc::clone(&self.state),
+                        events: self.events.clone(),
+                    }),
+                )),
+            },
+        }
     }
 
     async fn acquire_selection_lease(
@@ -1459,6 +1554,264 @@ fn terminal_owner_snapshot(before: &CoreLifecycleSnapshot) -> CoreLifecycleSnaps
         revision: before.revision + 1,
         failure: None,
     }
+}
+
+#[tokio::test]
+async fn retry_after_owner_close_selects_the_typed_target_when_no_switch_journal_remains() {
+    let refs = Arc::new(MemoryReferenceStore::new(reference("mihomo", "main", 4)));
+    let store: Arc<dyn ProfileStore> =
+        Arc::new(FakeProfileStore::new("sing-box", "sing-box", "primary"));
+    let prepared = load_prepared_profile_document(store.as_ref()).await;
+    let events = Arc::new(Mutex::new(Vec::new()));
+    let (provider, counts) = FakeProvider::new("sing-box", "recovered-instance", events);
+    let selector = selector(
+        Arc::clone(&refs),
+        vec![store],
+        vec![Arc::new(provider)],
+        supported_capabilities(),
+    );
+    let target = ActiveProfileReferenceTarget::selected(
+        engine_id_value("sing-box"),
+        ProfileId::new("primary").unwrap(),
+    );
+    let previous = running_owner_snapshot("mihomo", "closed-old-instance", 5);
+    let terminal = terminal_owner_snapshot(&previous);
+
+    let selected = selector
+        .resume_owner_switch_for_profile(target.clone(), &prepared, &terminal)
+        .await
+        .expect("closed prior owner retries through unowned target selection");
+
+    assert_eq!(
+        selected.reference,
+        ActiveProfileReference::new(
+            engine_id_value("sing-box"),
+            ProfileId::new("primary").unwrap(),
+            ActiveProfileReferenceRevision::new(5),
+        )
+    );
+    assert_eq!(
+        selected.previous_owner,
+        PreviousCoreDisposition::NoPriorOwner
+    );
+    assert_eq!(counts.created.load(Ordering::SeqCst), 1);
+    drop(selected);
+
+    let selected = selector
+        .resume_owner_switch_for_profile(
+            ActiveProfileReferenceTarget::selected(
+                engine_id_value("sing-box"),
+                ProfileId::new("primary").unwrap(),
+            ),
+            &prepared,
+            &terminal,
+        )
+        .await
+        .expect("retry a durable BindingNew reservation");
+    assert_eq!(counts.created.load(Ordering::SeqCst), 2);
+    let committed = selected
+        .abort_before_core_application()
+        .await
+        .expect("release recovered startup candidate");
+    assert!(matches!(
+        committed,
+        ActiveProfileReferenceState::Selected(reference)
+            if reference.engine_id == engine_id_value("sing-box")
+                && reference.profile_id == ProfileId::new("primary").unwrap()
+    ));
+}
+
+#[tokio::test]
+async fn retry_resumes_closing_old_and_binding_new_owner_journal_stages() {
+    let events = Arc::new(Mutex::new(Vec::new()));
+    let refs = Arc::new(MemoryReferenceStore::with_events(
+        reference("mihomo", "main", 4),
+        Arc::clone(&events),
+    ));
+    let store: Arc<dyn ProfileStore> =
+        Arc::new(FakeProfileStore::new("sing-box", "sing-box", "primary"));
+    let prepared = load_prepared_profile_document(store.as_ref()).await;
+    let (provider, counts) = FakeProvider::new(
+        "sing-box",
+        "recovered-journal-instance",
+        Arc::clone(&events),
+    );
+    let selector = selector(
+        Arc::clone(&refs),
+        vec![store],
+        vec![Arc::new(provider)],
+        supported_capabilities(),
+    );
+    let before = running_owner_snapshot("mihomo", "old-journal-owner", 5);
+    let expected_terminal = terminal_owner_snapshot(&before);
+    let owner = bound_fake_owner(
+        Arc::clone(&refs),
+        before.clone(),
+        Ok(expected_terminal),
+        Arc::clone(&events),
+    )
+    .await;
+    let identity = before.identity.clone().expect("old owner identity");
+    let switch_lease = refs
+        .begin_owner_switch(
+            ActiveProfileReferenceRevision::new(4),
+            identity,
+            CoreGeneration::new(0),
+        )
+        .await
+        .unwrap();
+    let terminal = owner.terminate_owner().await.unwrap();
+    drop(switch_lease);
+
+    let selected = selector
+        .resume_owner_switch_for_profile(
+            ActiveProfileReferenceTarget::selected(
+                engine_id_value("sing-box"),
+                ProfileId::new("primary").unwrap(),
+            ),
+            &prepared,
+            &terminal,
+        )
+        .await
+        .expect("recover the persisted ClosingOld phase and resume");
+
+    assert_eq!(
+        selected.reference,
+        ActiveProfileReference::new(
+            engine_id_value("sing-box"),
+            ProfileId::new("primary").unwrap(),
+            ActiveProfileReferenceRevision::new(5),
+        )
+    );
+    assert_eq!(
+        selected.previous_owner,
+        PreviousCoreDisposition::Stopped {
+            identity: before.identity.unwrap(),
+            generation: CoreGeneration::new(terminal.generation),
+        }
+    );
+    assert_eq!(counts.created.load(Ordering::SeqCst), 1);
+    selected
+        .abort_before_core_application()
+        .await
+        .expect("release recovered candidate before Core actor construction");
+    assert_eq!(*refs.transition.lock().expect("switch transition"), None);
+}
+
+#[tokio::test]
+async fn retry_resumes_a_reference_changed_owner_journal_with_the_committed_selection() {
+    let previous = reference("mihomo", "main", 4);
+    let selection = reference("sing-box", "primary", 5);
+    let old_identity = CoreIdentity::new(
+        engine_id_value("mihomo"),
+        CoreInstanceId::new("old-reference-changed-owner").unwrap(),
+        None,
+    );
+    let refs = Arc::new(MemoryReferenceStore::new(selection.clone()));
+    *refs.transition.lock().expect("switch transition") =
+        Some(ActiveProfileOwnerSwitchState::ReferenceChanged {
+            previous_reference: previous,
+            selection: selection.clone(),
+            owner_identity: old_identity.clone(),
+            terminal_generation: CoreGeneration::new(5),
+        });
+    let store: Arc<dyn ProfileStore> =
+        Arc::new(FakeProfileStore::new("sing-box", "sing-box", "primary"));
+    let prepared = load_prepared_profile_document(store.as_ref()).await;
+    let (provider, counts) = FakeProvider::new(
+        "sing-box",
+        "reference-changed-retry-instance",
+        Arc::new(Mutex::new(Vec::new())),
+    );
+    let selector = selector(
+        Arc::clone(&refs),
+        vec![store],
+        vec![Arc::new(provider)],
+        supported_capabilities(),
+    );
+    let target = ActiveProfileReferenceTarget::selected(
+        engine_id_value("sing-box"),
+        ProfileId::new("primary").unwrap(),
+    );
+    let terminal = CoreLifecycleSnapshot {
+        identity: Some(old_identity.clone()),
+        lifecycle: CoreLifecycle::Stopped,
+        generation: 5,
+        session_token: None,
+        revision: 6,
+        failure: None,
+    };
+
+    let selected = selector
+        .resume_owner_switch_for_profile(target, &prepared, &terminal)
+        .await
+        .expect("resume the committed target and reserve its owner");
+
+    assert_eq!(
+        selected.previous_owner,
+        PreviousCoreDisposition::Stopped {
+            identity: old_identity,
+            generation: CoreGeneration::new(5),
+        }
+    );
+    assert_eq!(counts.created.load(Ordering::SeqCst), 1);
+    selected
+        .abort_before_core_application()
+        .await
+        .expect("release recovered candidate before actor construction");
+}
+
+#[tokio::test]
+async fn retry_rejects_a_binding_new_candidate_without_exact_terminal_evidence() {
+    let selection = reference("sing-box", "primary", 5);
+    let refs = Arc::new(MemoryReferenceStore::new(selection.clone()));
+    *refs.recovery_fixture.lock().expect("recovery fixture") =
+        MemoryOwnerSwitchRecoveryFixture::CandidateTerminalEvidenceRequired {
+            selection: selection.clone(),
+            engine_id: engine_id_value("sing-box"),
+        };
+    let store: Arc<dyn ProfileStore> =
+        Arc::new(FakeProfileStore::new("sing-box", "sing-box", "primary"));
+    let prepared = load_prepared_profile_document(store.as_ref()).await;
+    let (provider, counts) = FakeProvider::new(
+        "sing-box",
+        "candidate-evidence-instance",
+        Arc::new(Mutex::new(Vec::new())),
+    );
+    let selector = selector(
+        Arc::clone(&refs),
+        vec![store],
+        vec![Arc::new(provider)],
+        supported_capabilities(),
+    );
+    let target = ActiveProfileReferenceTarget::selected(
+        engine_id_value("sing-box"),
+        ProfileId::new("primary").unwrap(),
+    );
+    let terminal = CoreLifecycleSnapshot {
+        identity: Some(CoreIdentity::new(
+            engine_id_value("mihomo"),
+            CoreInstanceId::new("old-candidate-owner").unwrap(),
+            None,
+        )),
+        lifecycle: CoreLifecycle::Stopped,
+        generation: 5,
+        session_token: None,
+        revision: 6,
+        failure: None,
+    };
+
+    let failure = match selector
+        .resume_owner_switch_for_profile(target, &prepared, &terminal)
+        .await
+    {
+        Err(failure) => failure,
+        Ok(_) => panic!("candidate recovery must require its own terminal evidence"),
+    };
+
+    assert!(matches!(failure, PortError::Rejected(_)));
+    assert_eq!(refs.read().await.unwrap(), selection);
+    assert_eq!(counts.created.load(Ordering::SeqCst), 0);
 }
 
 fn running_owner_snapshot(engine: &str, instance: &str, generation: u64) -> CoreLifecycleSnapshot {

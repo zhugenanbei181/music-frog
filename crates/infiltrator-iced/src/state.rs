@@ -27,8 +27,7 @@ use infiltrator_application::system_toggle_application::SystemToggleApplication;
 use infiltrator_contract::command_catalogue::{CommandCatalogue, ProfileChoice};
 use infiltrator_contract::core_identity::CoreScope;
 use infiltrator_contract::dns_form::DnsWorkbenchForm;
-use infiltrator_contract::error::ErrorCode;
-use infiltrator_contract::error::Failure;
+use infiltrator_contract::error::{ErrorCode, Failure, InfiltratorError};
 use infiltrator_contract::logs::LogStreamState;
 use infiltrator_contract::mini_hud::{MiniHudReadModel, MiniHudWaveformStrip};
 use infiltrator_contract::outbound::identity::SnapshotRevision;
@@ -48,10 +47,12 @@ use infiltrator_contract::outbound::{
 use infiltrator_contract::pac::PacServiceState;
 use infiltrator_contract::profile_protection::ProfileWriteProtection;
 use infiltrator_contract::runtime_control::RuntimeControlStatus;
+use infiltrator_contract::snapshot::{CoreLifecycle, CoreLifecycleSnapshot};
 use infiltrator_contract::surface_snapshot::{
     PageData, PageStatus, SurfaceOrigin, SurfaceSnapshot,
 };
 use infiltrator_contract::system_proxy::SystemProxyStatus;
+use infiltrator_desktop::product::DesktopProductSessionHandle;
 use infiltrator_domain::runtime::{MemoryData, TrafficData};
 use infiltrator_shared::fuzzy_search::pinyin_fuzzy_match;
 use infiltrator_shared::locales::{Lang, Localizer};
@@ -90,6 +91,8 @@ pub struct AppState {
     pub surface_bridge: Option<SurfaceBridge>,
     /// Host-injected neutral command facade; embedded/headless hosts need no desktop runtime.
     pub commands: Option<CoreApplication>,
+    /// The one desktop product owner session shared by Iced update and admin adapters.
+    pub(crate) product_session: Option<DesktopProductSessionHandle>,
     pub(crate) command_scope: ObservedCoreScope,
     /// Host-provided process-exit cleanup callback. The UI knows only this
     /// zero-argument seam; OS signal and proxy/TUN details stay in the host.
@@ -161,10 +164,53 @@ impl AppState {
     /// Hosts and integration harnesses use the same entry point as desktop composition.
     pub fn attach_product_application(&mut self, application: CoreApplication) {
         self.commands = Some(application);
-        self.shell
-            .admin_shared
-            .set_application(self.commands.clone());
         self.enable_product_command_ingress();
+    }
+
+    pub(crate) fn attach_desktop_product_session(
+        &mut self,
+        session: DesktopProductSessionHandle,
+    ) -> Result<(), Failure> {
+        self.product_session = Some(session.clone());
+        self.shell.admin_shared.set_product_session(session.clone());
+        self.refresh_desktop_product_session()
+    }
+
+    pub(crate) fn refresh_desktop_product_session(&mut self) -> Result<(), Failure> {
+        let session = self.product_session.clone().ok_or_else(|| {
+            Failure::new(
+                ErrorCode::NotReady,
+                "Desktop product session is unavailable",
+                true,
+            )
+        })?;
+        let binding = match session.binding() {
+            Ok(binding) => binding,
+            Err(error) => {
+                let failure = Failure::new(ErrorCode::NotReady, error.to_string(), true);
+                self.commands = None;
+                self.command_scope = ObservedCoreScope::Unavailable;
+                self.runtime.core_lifecycle = CoreLifecycleSnapshot {
+                    lifecycle: CoreLifecycle::Failed,
+                    failure: Some(failure.clone()),
+                    ..CoreLifecycleSnapshot::default()
+                };
+                self.runtime.status =
+                    RuntimeStatus::Error(InfiltratorError::Config(failure.message.clone()));
+                self.sync_runtime_slot(None);
+                return Err(failure);
+            }
+        };
+        self.attach_product_application(binding.application.as_ref().clone());
+        self.runtime.core_lifecycle = binding.lifecycle;
+        self.runtime.status = RuntimeStatus::from_core_snapshot(&binding.application.snapshot());
+        self.sync_runtime_slot(Some(binding.host_runtime));
+        let bridge = SurfaceBridge::from_pump(binding.surface_pump);
+        if let Some(snapshot) = bridge.current_snapshot() {
+            self.apply_shared_surface_snapshot(snapshot);
+        }
+        self.attach_surface_bridge(bridge);
+        Ok(())
     }
 
     pub(crate) fn rebind_product_commands_to_scope(&mut self, scope: Option<CoreScope>) {

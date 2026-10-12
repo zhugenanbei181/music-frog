@@ -1,10 +1,10 @@
 //! Mihomo kernel (core binary) version management endpoints
 //! (`/admin/api/core/*`).
 
-use super::schedule_rebuild;
+use super::schedule_core_owner_action;
 use crate::admin_api::events::{AdminEvent, EVENT_CORE_CHANGED};
 use crate::admin_api::models::*;
-use crate::admin_api::state::{AdminApiContext, AdminApiState};
+use crate::admin_api::state::{AdminApiContext, AdminApiState, CoreOwnerAction};
 use axum::http::StatusCode;
 use axum::{Json, extract};
 use infiltrator_application::version_application::{QuietVersionProgress, VersionApplication};
@@ -103,7 +103,12 @@ pub async fn update_stable_core_http<C: AdminApiContext>(
         .activate(&version)
         .await
         .map_err(|failure| ApiError::bad_request(failure.message))?;
-    schedule_rebuild(&state.ctx, &state.rebuild_status, "core-update-stable");
+    schedule_core_owner_action(
+        &state.ctx,
+        &state.rebuild_status,
+        CoreOwnerAction::RecomposeSelectedProfile,
+        "core-update-stable",
+    );
     state.ctx.refresh_core_version_info().await;
     state.events.publish(AdminEvent::new(EVENT_CORE_CHANGED));
 
@@ -133,7 +138,12 @@ pub async fn activate_core_version_http<C: AdminApiContext>(
         .activate(version)
         .await
         .map_err(|failure| ApiError::bad_request(failure.message))?;
-    schedule_rebuild(&state.ctx, &state.rebuild_status, "core-activate");
+    schedule_core_owner_action(
+        &state.ctx,
+        &state.rebuild_status,
+        CoreOwnerAction::RecomposeSelectedProfile,
+        "core-activate",
+    );
     state.ctx.refresh_core_version_info().await;
     state.events.publish(AdminEvent::new(EVENT_CORE_CHANGED));
     Ok(StatusCode::NO_CONTENT)

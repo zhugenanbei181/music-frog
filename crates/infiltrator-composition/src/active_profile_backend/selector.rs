@@ -150,6 +150,185 @@ impl ActiveProfileBackendSelector {
         })
     }
 
+    /// Continue a durable owner switch after its previous product session has
+    /// closed. The caller supplies the exact terminal snapshot produced by
+    /// that close; an ambiguous live candidate remains fail-closed.
+    pub async fn resume_owner_switch_for_profile(
+        &self,
+        target: ActiveProfileReferenceTarget,
+        prepared_document: &ProfileDocument,
+        old_owner_terminal: &CoreLifecycleSnapshot,
+    ) -> Result<SelectedActiveProfileBackend, PortError> {
+        let authorized = self
+            .preflight_recovery_target(&target, prepared_document)
+            .await?;
+        match self.references.recover_owner_switch().await? {
+            ActiveProfileOwnerSwitchRecovery::NoPendingSwitch => {
+                self.select_recovery_target_unowned(target).await
+            }
+            ActiveProfileOwnerSwitchRecovery::ResumeClosingOld(lease) => {
+                let stopped = lease.confirm_old_owner_stopped(old_owner_terminal).await?;
+                self.resume_from_old_stopped(target, authorized, stopped)
+                    .await
+            }
+            ActiveProfileOwnerSwitchRecovery::ResumeOldStopped(lease) => {
+                self.resume_from_old_stopped(target, authorized, lease)
+                    .await
+            }
+            ActiveProfileOwnerSwitchRecovery::OwnerTerminalEvidenceRequired { .. } => {
+                let stopped = self
+                    .references
+                    .recover_old_owner_after_terminal(old_owner_terminal)
+                    .await?;
+                self.resume_from_old_stopped(target, authorized, stopped)
+                    .await
+            }
+            ActiveProfileOwnerSwitchRecovery::ResumeReferenceChanged(lease) => {
+                let previous_owner = previous_owner_from_reference_changed(lease.state())?;
+                self.resume_from_reference_changed(target, authorized, lease, previous_owner)
+                    .await
+            }
+            ActiveProfileOwnerSwitchRecovery::ResumeBindingNew(lease) => {
+                self.resume_from_binding_new(
+                    target,
+                    authorized,
+                    lease,
+                    PreviousCoreDisposition::NoPriorOwner,
+                )
+                .await
+            }
+            ActiveProfileOwnerSwitchRecovery::OwnerStillLive { .. } => Err(recovery_required(
+                "the previous Core owner is still live after session close",
+            )),
+            ActiveProfileOwnerSwitchRecovery::CandidateStillLive { .. } => Err(recovery_required(
+                "the replacement Core candidate is still live after session close",
+            )),
+            ActiveProfileOwnerSwitchRecovery::CandidateTerminalEvidenceRequired { .. } => {
+                Err(recovery_required(
+                    "the replacement Core candidate needs exact terminal evidence before retry",
+                ))
+            }
+        }
+    }
+
+    async fn preflight_recovery_target(
+        &self,
+        target: &ActiveProfileReferenceTarget,
+        prepared_document: &ProfileDocument,
+    ) -> Result<AuthorizedProfile, PortError> {
+        let (engine_id, profile_id) = selected_recovery_target(target)?;
+        let observed = self.references.read().await?;
+        let reference = ActiveProfileReference::new(engine_id, profile_id, observed.revision());
+        let referenced = self.resolve_profile_reference(reference).await?;
+        let validated = self.load_and_validate_document(referenced).await?;
+        if &validated.workspace.document != prepared_document {
+            return Err(PortError::Rejected(Failure::new(
+                ErrorCode::NotReady,
+                "profile document changed before owner-switch recovery",
+                true,
+            )));
+        }
+        self.authorize_target(validated).await
+    }
+
+    async fn select_recovery_target_unowned(
+        &self,
+        target: ActiveProfileReferenceTarget,
+    ) -> Result<SelectedActiveProfileBackend, PortError> {
+        let current = self.references.read().await?;
+        if !reference_matches_target(&current, &target) {
+            let published = self
+                .references
+                .compare_and_set(
+                    current.revision(),
+                    target.clone(),
+                    ActiveProfileReferenceWriteAuthorization::Unowned,
+                )
+                .await?;
+            if !reference_matches_target(&published, &target) {
+                return Err(PortError::Rejected(Failure::new(
+                    ErrorCode::NotReady,
+                    "unowned recovery selection did not read back the requested profile",
+                    true,
+                )));
+            }
+        }
+        self.select_backend(&PreviousCoreOwner::Unowned).await
+    }
+
+    async fn resume_from_old_stopped(
+        &self,
+        target: ActiveProfileReferenceTarget,
+        authorized: AuthorizedProfile,
+        lease: Box<dyn ActiveProfileOwnerStoppedSwitchLease>,
+    ) -> Result<SelectedActiveProfileBackend, PortError> {
+        let previous_owner = previous_owner_from_old_stopped(lease.state())?;
+        let changed = lease.compare_and_set_target(target.clone()).await?;
+        self.resume_from_reference_changed(target, authorized, changed, previous_owner)
+            .await
+    }
+
+    async fn resume_from_reference_changed(
+        &self,
+        target: ActiveProfileReferenceTarget,
+        authorized: AuthorizedProfile,
+        lease: Box<dyn ActiveProfileReferenceChangedLease>,
+        previous_owner: PreviousCoreDisposition,
+    ) -> Result<SelectedActiveProfileBackend, PortError> {
+        validate_recovery_selection(lease.state(), &target)?;
+        let (engine_id, _) = selected_recovery_target(&target)?;
+        let binding = lease.reserve_new_owner(engine_id).await?;
+        self.resume_from_binding_new(target, authorized, binding, previous_owner)
+            .await
+    }
+
+    async fn resume_from_binding_new(
+        &self,
+        target: ActiveProfileReferenceTarget,
+        authorized: AuthorizedProfile,
+        binding: Box<dyn ActiveProfileOwnerBindingLease>,
+        previous_owner: PreviousCoreDisposition,
+    ) -> Result<SelectedActiveProfileBackend, PortError> {
+        validate_recovery_selection(binding.state(), &target)?;
+        let reference = selected_reference_from_switch_state(binding.state())?;
+        let backend = match self.factory.backend_ports(&reference.engine_id) {
+            Ok(backend) => backend,
+            Err(error) => {
+                binding.abort_before_core_application().await?;
+                return Err(error);
+            }
+        };
+        let core_identity = match backend.process().core_identity() {
+            Some(identity) => identity,
+            None => {
+                binding.abort_before_core_application().await?;
+                return Err(PortError::Failed(
+                    "recovered backend has no Core identity".to_owned(),
+                ));
+            }
+        };
+        if core_identity.engine != reference.engine_id
+            || backend.engine_id() != &reference.engine_id
+        {
+            binding.abort_before_core_application().await?;
+            return Err(PortError::Failed(format!(
+                "recovered profile engine {} does not match backend identity {}",
+                reference.engine_id.as_str(),
+                core_identity.engine.as_str()
+            )));
+        }
+        Ok(SelectedActiveProfileBackend {
+            reference,
+            document: authorized.document,
+            backend,
+            core_identity,
+            initial_generation: CoreGeneration::new(0),
+            previous_owner,
+            owner_admission: SelectedOwnerAdmission::SwitchReservation(binding),
+            capability_provider: Arc::clone(&self.capabilities),
+        })
+    }
+
     async fn replace_owner_for_profile_transaction(
         &self,
         target: ActiveProfileReferenceTarget,
@@ -522,6 +701,132 @@ impl ActiveProfileBackendSelector {
             capability_provider,
         })
     }
+}
+
+fn selected_recovery_target(
+    target: &ActiveProfileReferenceTarget,
+) -> Result<(EngineId, ProfileId), PortError> {
+    match target {
+        ActiveProfileReferenceTarget::Selected {
+            engine_id,
+            profile_id,
+        } => Ok((engine_id.clone(), profile_id.clone())),
+        ActiveProfileReferenceTarget::Unselected => Err(PortError::unsupported(
+            Capability::Profiles,
+            "desktop owner recovery requires a selected profile target",
+        )),
+    }
+}
+
+fn reference_matches_target(
+    state: &ActiveProfileReferenceState,
+    target: &ActiveProfileReferenceTarget,
+) -> bool {
+    match (state, target) {
+        (
+            ActiveProfileReferenceState::Selected(reference),
+            ActiveProfileReferenceTarget::Selected {
+                engine_id,
+                profile_id,
+            },
+        ) => &reference.engine_id == engine_id && &reference.profile_id == profile_id,
+        _ => false,
+    }
+}
+
+fn selected_reference_from_switch_state(
+    state: &ActiveProfileOwnerSwitchState,
+) -> Result<infiltrator_contract::active_profile_reference::ActiveProfileReference, PortError> {
+    let selection = match state {
+        ActiveProfileOwnerSwitchState::ReferenceChanged { selection, .. }
+        | ActiveProfileOwnerSwitchState::BindingNew { selection, .. } => selection,
+        ActiveProfileOwnerSwitchState::ClosingOld { .. }
+        | ActiveProfileOwnerSwitchState::OldStopped { .. } => {
+            return Err(PortError::Rejected(Failure::new(
+                ErrorCode::InvalidState,
+                "owner switch has not published its replacement profile",
+                true,
+            )));
+        }
+    };
+    match selection {
+        ActiveProfileReferenceState::Selected(reference) => Ok(reference.clone()),
+        ActiveProfileReferenceState::Unselected { .. } => Err(PortError::Rejected(Failure::new(
+            ErrorCode::InvalidState,
+            "owner switch replacement reference is unselected",
+            true,
+        ))),
+    }
+}
+
+fn validate_recovery_selection(
+    state: &ActiveProfileOwnerSwitchState,
+    target: &ActiveProfileReferenceTarget,
+) -> Result<(), PortError> {
+    let reference = selected_reference_from_switch_state(state)?;
+    let (engine_id, profile_id) = selected_recovery_target(target)?;
+    if reference.engine_id != engine_id || reference.profile_id != profile_id {
+        return Err(PortError::Rejected(Failure::new(
+            ErrorCode::NotReady,
+            "durable owner switch target differs from the retry request",
+            false,
+        )));
+    }
+    match state {
+        ActiveProfileOwnerSwitchState::BindingNew {
+            engine_id: reserved_engine,
+            ..
+        } if reserved_engine != &engine_id => Err(PortError::Rejected(Failure::new(
+            ErrorCode::NotReady,
+            "durable owner reservation is for another engine",
+            false,
+        ))),
+        _ => Ok(()),
+    }
+}
+
+fn previous_owner_from_old_stopped(
+    state: &ActiveProfileOwnerSwitchState,
+) -> Result<PreviousCoreDisposition, PortError> {
+    match state {
+        ActiveProfileOwnerSwitchState::OldStopped {
+            owner_identity,
+            terminal_generation,
+            ..
+        } => Ok(PreviousCoreDisposition::Stopped {
+            identity: owner_identity.clone(),
+            generation: *terminal_generation,
+        }),
+        _ => Err(PortError::Rejected(Failure::new(
+            ErrorCode::InvalidState,
+            "owner-switch recovery did not produce an OldStopped lease",
+            true,
+        ))),
+    }
+}
+
+fn previous_owner_from_reference_changed(
+    state: &ActiveProfileOwnerSwitchState,
+) -> Result<PreviousCoreDisposition, PortError> {
+    match state {
+        ActiveProfileOwnerSwitchState::ReferenceChanged {
+            owner_identity,
+            terminal_generation,
+            ..
+        } => Ok(PreviousCoreDisposition::Stopped {
+            identity: owner_identity.clone(),
+            generation: *terminal_generation,
+        }),
+        _ => Err(PortError::Rejected(Failure::new(
+            ErrorCode::InvalidState,
+            "owner-switch recovery did not produce a ReferenceChanged lease",
+            true,
+        ))),
+    }
+}
+
+fn recovery_required(message: &str) -> PortError {
+    PortError::Rejected(Failure::new(ErrorCode::NotReady, message, true))
 }
 
 fn validate_preflight_lease(preflight: &ActiveProfileSelectionPreflight) -> Result<(), PortError> {

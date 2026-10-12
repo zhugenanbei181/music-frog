@@ -32,7 +32,7 @@ use iced::futures::channel::oneshot;
 use iced::futures::stream::BoxStream;
 use iced::{Subscription, Task, stream};
 use infiltrator_admin::admin_api::events::{AdminEvent, AdminEventBus, EVENT_SETTINGS_CHANGED};
-use infiltrator_admin::admin_api::state::{AdminApiContext, AdminOutboundOwner};
+use infiltrator_admin::admin_api::state::{AdminApiContext, AdminOutboundOwner, CoreOwnerAction};
 use infiltrator_admin::servers::{AdminServerHandle, start_admin_server};
 use infiltrator_application::cache_application::CacheApplication;
 use infiltrator_application::configuration_application::ConfigurationApplication;
@@ -53,10 +53,8 @@ use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::routing_intent::{
     RoutingIntent, RoutingIntentSnapshot, RoutingIntentStatus,
 };
-use infiltrator_desktop::boot::{
-    DesktopBinaryPreference, bootstrap_host_runtime_from_current_home,
-};
 use infiltrator_desktop::editor::open_profile_in_editor;
+use infiltrator_desktop::product::{DesktopProductSessionAction, DesktopProductSessionHandle};
 use infiltrator_desktop::storage::{
     doctor, fake_ip_cache, profile_controller_url, profile_reset, profile_store, public_ip_probe,
     save_webdav_password, settings_store, subscription_source, sync, webdav_password,
@@ -129,10 +127,8 @@ pub fn plan_admin_server_action(
 /// is not `Debug` and only its presence matters in logs.
 #[derive(Clone)]
 pub enum AdminHostCommand {
-    /// A context-driven `rebuild_runtime` finished; resync the UI runtime.
-    RuntimeResynced(Result<Arc<dyn HostRuntime>, String>),
-    /// A context-driven `stop_runtime` finished; clear the UI runtime.
-    RuntimeStopped,
+    /// A Core owner action finished; reread all handles from the one product session.
+    ProductSessionChanged,
     /// Surface a toast (e.g. subscription update notifications).
     Toast(String, ToastStatus),
     /// Surface an OS system notification (0.20): the scheduler can fire while
@@ -155,11 +151,7 @@ pub enum AdminHostCommand {
 impl Debug for AdminHostCommand {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            Self::RuntimeResynced(result) => f
-                .debug_tuple("RuntimeResynced")
-                .field(&result.is_ok())
-                .finish(),
-            Self::RuntimeStopped => f.write_str("RuntimeStopped"),
+            Self::ProductSessionChanged => f.write_str("ProductSessionChanged"),
             Self::Toast(content, status) => {
                 f.debug_tuple("Toast").field(content).field(status).finish()
             }
@@ -190,9 +182,13 @@ pub struct AdminSharedRuntime {
     inner: Arc<SharedInner>,
 }
 
+enum AdminProductSessionState {
+    Unavailable,
+    Bound(DesktopProductSessionHandle),
+}
+
 struct SharedInner {
-    runtime: Mutex<Option<Arc<dyn HostRuntime>>>,
-    application: Mutex<Option<CoreApplication>>,
+    product_session: Mutex<AdminProductSessionState>,
     commands: mpsc::Sender<AdminHostCommand>,
     events: AdminEventBus,
 }
@@ -201,8 +197,7 @@ impl AdminSharedRuntime {
     pub fn new(events: AdminEventBus, commands: mpsc::Sender<AdminHostCommand>) -> Self {
         Self {
             inner: Arc::new(SharedInner {
-                runtime: Mutex::new(None),
-                application: Mutex::new(None),
+                product_session: Mutex::new(AdminProductSessionState::Unavailable),
                 commands,
                 events,
             }),
@@ -213,44 +208,39 @@ impl AdminSharedRuntime {
         self.inner.events.clone()
     }
 
-    pub fn set_runtime(&self, runtime: Option<Arc<dyn HostRuntime>>) {
+    pub fn set_product_session(&self, session: DesktopProductSessionHandle) {
         *self
             .inner
-            .runtime
+            .product_session
             .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner()) = runtime;
+            .unwrap_or_else(|poisoned| poisoned.into_inner()) =
+            AdminProductSessionState::Bound(session);
     }
 
-    pub fn set_application(&self, application: Option<CoreApplication>) {
-        *self
+    fn product_session(&self) -> Option<DesktopProductSessionHandle> {
+        match &*self
             .inner
-            .application
+            .product_session
             .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner()) = application;
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+        {
+            AdminProductSessionState::Unavailable => None,
+            AdminProductSessionState::Bound(session) => Some(session.clone()),
+        }
     }
 
     fn application(&self) -> Option<CoreApplication> {
-        self.inner
-            .application
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .clone()
-    }
-
-    pub fn take_runtime(&self) -> Option<Arc<dyn HostRuntime>> {
-        self.inner
-            .runtime
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .take()
+        self.product_session()?
+            .binding()
+            .ok()
+            .map(|binding| binding.application.as_ref().clone())
     }
 
     pub fn runtime(&self) -> Option<Arc<dyn HostRuntime>> {
-        self.inner
-            .runtime
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .clone()
+        self.product_session()?
+            .binding()
+            .ok()
+            .map(|binding| binding.host_runtime)
     }
 
     fn send(&self, command: AdminHostCommand) {
@@ -576,12 +566,6 @@ impl AppState {
                 .and_then(|runtime| runtime.rule_provider_cache_port());
         }
         self.runtime.runtime = runtime;
-        self.shell
-            .admin_shared
-            .set_runtime(self.runtime.runtime.clone());
-        self.shell
-            .admin_shared
-            .set_application(self.commands.clone());
     }
 
     /// Take the runtime for shutdown/teardown, clearing the shared snapshot.
@@ -593,7 +577,6 @@ impl AppState {
         self.runtime.system_proxy_pending = false;
         self.runtime.tun_service_status = None;
         self.runtime.is_installing_tun_service = false;
-        self.shell.admin_shared.set_runtime(None);
         taken
     }
 
@@ -631,10 +614,9 @@ impl AppState {
     /// the update loop.
     pub fn handle_admin_host_command(&mut self, command: AdminHostCommand) -> Task<Message> {
         match command {
-            AdminHostCommand::RuntimeResynced(result) => match result {
-                Ok(runtime) => {
-                    self.runtime.status = RuntimeStatus::Running;
-                    self.sync_runtime_slot(Some(runtime));
+            AdminHostCommand::ProductSessionChanged => match self.refresh_desktop_product_session()
+            {
+                Ok(()) => {
                     self.refresh_tray();
                     Task::batch(vec![
                         Task::done(Message::FetchRuntimeConfig),
@@ -642,18 +624,15 @@ impl AppState {
                         Task::done(Message::RefreshRuntimeNow),
                     ])
                 }
-                Err(e) => {
-                    self.runtime.status = RuntimeStatus::Error(InfiltratorError::Config(e.clone()));
-                    self.set_error(InfiltratorError::Config(e.clone()));
-                    // 0.20: a failed resync can happen with the window hidden
-                    // (admin WebUI trigger); mirror it as a system notification.
-                    self.system_notify("notify_kernel_error", &e, NotifyUrgency::Critical)
+                Err(failure) => {
+                    self.set_error(&failure);
+                    self.system_notify(
+                        "notify_kernel_error",
+                        &failure.message,
+                        NotifyUrgency::Critical,
+                    )
                 }
             },
-            AdminHostCommand::RuntimeStopped => {
-                self.sync_runtime_slot(None);
-                Task::done(Message::CoreStopped)
-            }
             AdminHostCommand::Toast(content, status) => {
                 Task::done(Message::ShowToast(content, status))
             }

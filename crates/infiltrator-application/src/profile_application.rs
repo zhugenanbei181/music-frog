@@ -266,6 +266,22 @@ impl ProfileApplication {
             })
     }
 
+    /// Resolve a profile selection without publishing it. A live product owner
+    /// must apply this target through its scoped Core command or owner-switch
+    /// transaction; offline `select_profile` is reserved for unowned flows.
+    pub async fn active_reference_target_for(
+        &self,
+        name: &str,
+    ) -> Result<ActiveProfileReferenceTarget, Failure> {
+        let profile = self.load_profile_info(name).await?;
+        let profile_id = ProfileId::new(profile.name)
+            .map_err(|error| Failure::new(ErrorCode::InvalidInput, error.to_string(), false))?;
+        Ok(ActiveProfileReferenceTarget::selected(
+            self.store.engine_id(),
+            profile_id,
+        ))
+    }
+
     pub async fn load_profile_detail(&self, name: &str) -> Result<ProfileDetail, Failure> {
         let profile = self.load_profile_info(name).await?;
         let content = self
@@ -290,6 +306,8 @@ impl ProfileApplication {
         })
     }
 
+    /// Persist an offline profile selection when no live Core owner is bound.
+    /// Live hosts must resolve a target and submit it through the bound owner.
     pub async fn select_profile(&self, name: &str) -> Result<ProfileInfo, Failure> {
         let name = valid_name(name)?;
         let profile_id = ProfileId::new(name.clone())

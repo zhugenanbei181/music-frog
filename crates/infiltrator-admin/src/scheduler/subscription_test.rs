@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use crate::admin_api::state::AdminApiContext;
+    use crate::admin_api::state::{AdminApiContext, CoreOwnerAction};
     use crate::scheduler::subscription::{
         SubscriptionUpdateSummary, run_profile_subscription_tick, schedule_next_attempt,
         update_all_subscriptions,
@@ -66,7 +66,6 @@ mod tests {
     #[cfg(test)]
     use std::fs::write;
     #[cfg(test)]
-    use std::path;
     #[cfg(test)]
     use std::path::PathBuf;
     use std::sync::{Arc, Mutex};
@@ -139,7 +138,7 @@ mod tests {
                 .push((profile, success, message));
         }
 
-        async fn rebuild_runtime(&self) -> anyhow::Result<()> {
+        async fn apply_core_owner_action(&self, _action: CoreOwnerAction) -> anyhow::Result<()> {
             Ok(())
         }
 
@@ -166,9 +165,6 @@ mod tests {
         }
         async fn runtime_controller_url(&self) -> Option<String> {
             None
-        }
-        async fn stop_runtime(&self) -> anyhow::Result<()> {
-            Ok(())
         }
         async fn runtime_gateway(&self) -> anyhow::Result<Arc<dyn RuntimeGateway>> {
             Err(anyhow!(

@@ -3,16 +3,13 @@
 //! DNS, Fake-IP, TUN).
 
 use crate::configs_dir::config_manager;
-use crate::host::boot::bootstrap_host_runtime_from_current_home;
 use crate::notify::NotifyUrgency;
 use crate::state::AppState;
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use crate::types::runtime::{RebuildFlowState, RuntimeStatus};
 use iced::Task;
-use infiltrator_contract::error::from_backend;
-use infiltrator_desktop::boot::DesktopBinaryPreference;
-use infiltrator_ports::runtime_gateway::ManagedRuntime;
+use infiltrator_desktop::product::DesktopProductSessionAction;
 use tokio::time;
 use tokio::time::sleep;
 
@@ -70,7 +67,18 @@ impl AppState {
 
     pub(crate) fn trigger_runtime_rebuild(&mut self) -> Task<Message> {
         let label = self.active_rebuild_label();
-        let Some(runtime) = self.runtime.runtime.clone() else {
+        let Some(session) = self.product_session.clone() else {
+            if self.runtime.runtime.is_some() {
+                let error = InfiltratorError::Config(
+                    "runtime rebuild requires the bound DesktopProductSession".to_owned(),
+                );
+                self.runtime.status = RuntimeStatus::Error(error.clone());
+                self.runtime.rebuild_flow = RebuildFlowState::Failed {
+                    label,
+                    error: error.to_string(),
+                };
+                return Task::done(Message::RuntimeRebuildFinished(Err(error)));
+            }
             return self.finish_without_rebuild(label);
         };
 
@@ -81,23 +89,17 @@ impl AppState {
 
         Task::perform(
             async move {
-                // The legacy Host bootstrap is currently typed Unsupported.
-                // Probe it before tearing down the live owner so a rejected
-                // rebuild leaves the running Core session intact.
-                let (replacement, _rotated) = bootstrap_host_runtime_from_current_home(
-                    DesktopBinaryPreference::PreferBundled,
-                    &[],
-                )
-                .await?;
-                let manager = config_manager().await?;
-                let profile = manager.get_current().await.map_err(from_backend)?;
-                // This path cannot succeed until it is replaced with an
-                // owner-aware session rebuild transaction. Keeping the old
-                // runtime until the typed preflight succeeds avoids stopping
-                // the sole Core owner on Unsupported.
-                let _ = ManagedRuntime::shutdown(runtime.as_ref()).await;
-                manager.clear_backup(&profile).await.map_err(from_backend)?;
-                Ok(replacement)
+                tokio::task::spawn_blocking(move || {
+                    session.apply(DesktopProductSessionAction::RecomposeSelectedProfile)
+                })
+                .await
+                .map_err(|error| {
+                    InfiltratorError::Internal(format!(
+                        "desktop Core owner action worker failed: {error}"
+                    ))
+                })?
+                .map(|_| ())
+                .map_err(|error| InfiltratorError::Config(error.to_string()))
             },
             Message::RuntimeRebuildFinished,
         )
@@ -110,9 +112,20 @@ impl AppState {
             Message::RuntimeRebuildFinished(result) => {
                 let label = self.active_rebuild_label();
                 match result {
-                    Ok(runtime) => {
-                        self.sync_runtime_slot(Some(runtime));
-                        self.runtime.status = RuntimeStatus::Running;
+                    Ok(()) => {
+                        if let Err(failure) = self.refresh_desktop_product_session() {
+                            let error = InfiltratorError::Config(failure.to_string());
+                            self.runtime.status = RuntimeStatus::Error(error.clone());
+                            self.set_error(&error);
+                            self.runtime.rebuild_flow = RebuildFlowState::Failed {
+                                label,
+                                error: error.to_string(),
+                            };
+                            return Task::done(Message::ShowToast(
+                                format!("Rebuild failed: {error}"),
+                                ToastStatus::Error,
+                            ));
+                        }
                         self.runtime.runtime_poll_tick = 0;
                         self.runtime.runtime_prev_upload_total = None;
                         self.runtime.runtime_prev_download_total = None;
@@ -137,6 +150,7 @@ impl AppState {
                         ])
                     }
                     Err(e) => {
+                        let _ = self.refresh_desktop_product_session();
                         self.runtime.status = RuntimeStatus::Error(e.clone());
                         self.set_error(&e);
                         self.runtime.rebuild_flow = RebuildFlowState::Failed {

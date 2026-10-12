@@ -1,5 +1,4 @@
 pub mod admin_client;
-pub mod boot;
 pub mod bundled_kernel;
 pub mod certificate_authority;
 pub mod clipboard_helper;

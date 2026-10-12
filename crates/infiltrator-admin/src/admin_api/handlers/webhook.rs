@@ -6,11 +6,11 @@ use crate::admin_api::events::{
     EVENT_SETTINGS_CHANGED,
 };
 use crate::admin_api::handlers::profiles::ensure_valid_profile_name;
-use crate::admin_api::handlers::schedule_core_restart;
+use crate::admin_api::handlers::schedule_core_owner_action;
 use crate::admin_api::models::{
     ApiError, ProfilesUpdateAllResponse, WebhookAction, WebhookPayload, WebhookResponse,
 };
-use crate::admin_api::state::{AdminApiContext, AdminApiState};
+use crate::admin_api::state::{AdminApiContext, AdminApiState, CoreOwnerAction};
 use crate::scheduler::subscription::update_all_subscriptions;
 use axum::{Json, extract};
 use infiltrator_contract::routing_intent::RoutingIntentSnapshot;
@@ -33,11 +33,16 @@ pub async fn handle_webhook_http<C: AdminApiContext>(
                 .profile_application()
                 .await
                 .map_err(|error| ApiError::internal(error.to_string()))?;
-            application
-                .select_profile(&name)
+            let target = application
+                .active_reference_target_for(&name)
                 .await
                 .map_err(|failure| ApiError::bad_request(failure.message))?;
-            schedule_core_restart(&state.ctx, &state.rebuild_status, "webhook-switch-profile");
+            schedule_core_owner_action(
+                &state.ctx,
+                &state.rebuild_status,
+                CoreOwnerAction::SelectProfile(target),
+                "webhook-switch-profile",
+            );
             state
                 .events
                 .publish(AdminEvent::new(EVENT_PROFILES_CHANGED));
@@ -51,7 +56,7 @@ pub async fn handle_webhook_http<C: AdminApiContext>(
         WebhookAction::StartCore => {
             state
                 .ctx
-                .rebuild_runtime()
+                .apply_core_owner_action(CoreOwnerAction::StartCore)
                 .await
                 .map_err(|error| ApiError::internal(error.to_string()))?;
             state.events.publish(AdminEvent::new(EVENT_RUNTIME_CHANGED));
@@ -65,7 +70,7 @@ pub async fn handle_webhook_http<C: AdminApiContext>(
         WebhookAction::StopCore => {
             state
                 .ctx
-                .stop_runtime()
+                .apply_core_owner_action(CoreOwnerAction::StopCore)
                 .await
                 .map_err(|error| ApiError::internal(error.to_string()))?;
             state.events.publish(AdminEvent::new(EVENT_RUNTIME_CHANGED));

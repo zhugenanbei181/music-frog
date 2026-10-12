@@ -1,4 +1,4 @@
-use crate::admin_api::state::AdminApiContext;
+use crate::admin_api::state::{AdminApiContext, CoreOwnerAction};
 use anyhow::anyhow;
 use chrono::Utc;
 use infiltrator_application::profile_application::ProfileApplication;
@@ -85,7 +85,11 @@ pub(super) async fn run_profile_subscription_tick<C: AdminApiContext>(
         .await
     {
         Ok(needs_rebuild) => {
-            if needs_rebuild && let Err(err) = ctx.rebuild_runtime().await {
+            if needs_rebuild
+                && let Err(err) = ctx
+                    .apply_core_owner_action(CoreOwnerAction::RestartCore)
+                    .await
+            {
                 warn!(
                     "subscription rebuild failed: profile={} err={}",
                     profile.name,
@@ -259,7 +263,11 @@ pub async fn update_all_subscriptions<C: AdminApiContext>(
         }
     }
 
-    if rebuild_needed && let Err(err) = ctx.rebuild_runtime().await {
+    if rebuild_needed
+        && let Err(err) = ctx
+            .apply_core_owner_action(CoreOwnerAction::RestartCore)
+            .await
+    {
         warn!(
             "subscription batch rebuild failed: {}",
             redact_line(&format!("{err:#}"), &[])

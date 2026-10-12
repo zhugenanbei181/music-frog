@@ -39,7 +39,7 @@ impl MihomoRuntime {
             backend_ports: self.backend_ports.clone(),
             core_capability_provider: Arc::clone(&self.core_capability_provider),
             engines: self.surface_engines(),
-            profile_store: self.config_manager.clone(),
+            profile_store: self.config_manager.shared_engine_profile_store(),
             subscription_source: Arc::new(subscription_source()),
         })?
         .with_logs(self.application.log_application())

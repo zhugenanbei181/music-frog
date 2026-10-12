@@ -3,13 +3,13 @@
 //! (`/admin/api/dns`, `/admin/api/fake-ip`, `/admin/api/*-providers`,
 //! `/admin/api/sniffer`, `/admin/api/rules`, `/admin/api/tun`).
 
-use super::schedule_rebuild;
+use super::schedule_core_owner_action;
 use crate::admin_api::events::{
     AdminEvent, EVENT_DNS_CHANGED, EVENT_FAKE_IP_CHANGED, EVENT_PROXY_PROVIDERS_CHANGED,
     EVENT_RULE_PROVIDERS_CHANGED, EVENT_RULES_CHANGED, EVENT_SNIFFER_CHANGED, EVENT_TUN_CHANGED,
 };
 use crate::admin_api::models::*;
-use crate::admin_api::state::{AdminApiContext, AdminApiState};
+use crate::admin_api::state::{AdminApiContext, AdminApiState, CoreOwnerAction};
 use axum::{Json, extract};
 use infiltrator_domain::rules::{RuleProvidersPayload, RulesPayload};
 use infiltrator_domain::{dns, fake_ip, proxy_providers, sniffer, tun};
@@ -40,7 +40,12 @@ pub async fn save_dns_config_http<C: AdminApiContext>(
         .save_dns_config(payload)
         .await
         .map_err(|failure| ApiError::bad_request(failure.message))?;
-    schedule_rebuild(&state.ctx, &state.rebuild_status, "dns-update");
+    schedule_core_owner_action(
+        &state.ctx,
+        &state.rebuild_status,
+        CoreOwnerAction::RestartCore,
+        "dns-update",
+    );
     state.events.publish(AdminEvent::new(EVENT_DNS_CHANGED));
     Ok(Json(config))
 }
@@ -71,7 +76,12 @@ pub async fn save_fake_ip_config_http<C: AdminApiContext>(
         .save_fake_ip_config(payload)
         .await
         .map_err(|failure| ApiError::bad_request(failure.message))?;
-    schedule_rebuild(&state.ctx, &state.rebuild_status, "fake-ip-update");
+    schedule_core_owner_action(
+        &state.ctx,
+        &state.rebuild_status,
+        CoreOwnerAction::RestartCore,
+        "fake-ip-update",
+    );
     state.events.publish(AdminEvent::new(EVENT_FAKE_IP_CHANGED));
     Ok(Json(config))
 }
@@ -116,7 +126,12 @@ pub async fn save_rule_providers_http<C: AdminApiContext>(
         .save_rule_providers(payload.providers)
         .await
         .map_err(|failure| ApiError::bad_request(failure.message))?;
-    schedule_rebuild(&state.ctx, &state.rebuild_status, "rule-providers-update");
+    schedule_core_owner_action(
+        &state.ctx,
+        &state.rebuild_status,
+        CoreOwnerAction::RestartCore,
+        "rule-providers-update",
+    );
     state
         .events
         .publish(AdminEvent::new(EVENT_RULE_PROVIDERS_CHANGED));
@@ -149,7 +164,12 @@ pub async fn save_proxy_providers_http<C: AdminApiContext>(
         .save_proxy_providers(payload.providers)
         .await
         .map_err(|failure| ApiError::bad_request(failure.message))?;
-    schedule_rebuild(&state.ctx, &state.rebuild_status, "proxy-providers-update");
+    schedule_core_owner_action(
+        &state.ctx,
+        &state.rebuild_status,
+        CoreOwnerAction::RestartCore,
+        "proxy-providers-update",
+    );
     state
         .events
         .publish(AdminEvent::new(EVENT_PROXY_PROVIDERS_CHANGED));
@@ -182,7 +202,12 @@ pub async fn save_sniffer_config_http<C: AdminApiContext>(
         .save_typed_sniffer_config(payload)
         .await
         .map_err(|failure| ApiError::bad_request(failure.message))?;
-    schedule_rebuild(&state.ctx, &state.rebuild_status, "sniffer-update");
+    schedule_core_owner_action(
+        &state.ctx,
+        &state.rebuild_status,
+        CoreOwnerAction::RestartCore,
+        "sniffer-update",
+    );
     state.events.publish(AdminEvent::new(EVENT_SNIFFER_CHANGED));
     Ok(Json(config))
 }
@@ -213,7 +238,12 @@ pub async fn save_rules_http<C: AdminApiContext>(
         .save_rules(payload.rules)
         .await
         .map_err(|failure| ApiError::bad_request(failure.message))?;
-    schedule_rebuild(&state.ctx, &state.rebuild_status, "rules-update");
+    schedule_core_owner_action(
+        &state.ctx,
+        &state.rebuild_status,
+        CoreOwnerAction::RestartCore,
+        "rules-update",
+    );
     state.events.publish(AdminEvent::new(EVENT_RULES_CHANGED));
     Ok(Json(RulesPayload { rules: rules_list }))
 }
@@ -244,7 +274,12 @@ pub async fn save_tun_config_http<C: AdminApiContext>(
         .save_tun_config(payload)
         .await
         .map_err(|failure| ApiError::bad_request(failure.message))?;
-    schedule_rebuild(&state.ctx, &state.rebuild_status, "tun-update");
+    schedule_core_owner_action(
+        &state.ctx,
+        &state.rebuild_status,
+        CoreOwnerAction::RestartCore,
+        "tun-update",
+    );
     state.events.publish(AdminEvent::new(EVENT_TUN_CHANGED));
     Ok(Json(config))
 }

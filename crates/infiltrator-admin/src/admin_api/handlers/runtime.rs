@@ -3,7 +3,7 @@
 
 use crate::admin_api::events::{AdminEvent, EVENT_RUNTIME_CHANGED};
 use crate::admin_api::models::*;
-use crate::admin_api::state::{AdminApiContext, AdminApiState};
+use crate::admin_api::state::{AdminApiContext, AdminApiState, CoreOwnerAction};
 use axum::http::StatusCode;
 use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::{Json, extract};
@@ -27,7 +27,7 @@ pub async fn start_runtime_http<C: AdminApiContext>(
 ) -> Result<Json<RuntimeStatusResponse>, ApiError> {
     state
         .ctx
-        .rebuild_runtime()
+        .apply_core_owner_action(CoreOwnerAction::StartCore)
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
     state.events.publish(AdminEvent::new(EVENT_RUNTIME_CHANGED));
@@ -40,7 +40,7 @@ pub async fn stop_runtime_http<C: AdminApiContext>(
 ) -> Result<Json<RuntimeStatusResponse>, ApiError> {
     state
         .ctx
-        .stop_runtime()
+        .apply_core_owner_action(CoreOwnerAction::StopCore)
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
     state.events.publish(AdminEvent::new(EVENT_RUNTIME_CHANGED));

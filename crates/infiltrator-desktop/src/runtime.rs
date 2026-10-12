@@ -304,7 +304,7 @@ impl MihomoRuntime {
                     stun_probe: stun_probe.clone(),
                 },
                 speedtest.clone(),
-                cm.clone(),
+                cm.shared_engine_profile_store(),
                 Arc::new(subscription_source()),
                 cm.clone(),
                 endpoints.clone() as Arc<dyn EndpointSource>,
@@ -511,7 +511,7 @@ async fn prepare_mihomo_runtime(
     let configuration = ConfigurationApplication::from_profile_application(profiles.clone());
     let apply_guard = Arc::new(Mutex::new(()));
     let snapshots = SnapshotApplication::new(
-        cm.clone(),
+        cm.shared_engine_profile_store(),
         Arc::new(FileSnapshotStore::new(cm.config_dir().to_path_buf())),
     );
     let scripts = ScriptApplication::new();
