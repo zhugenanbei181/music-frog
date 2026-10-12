@@ -18,7 +18,17 @@ def write_workflows(root: Path, *, android_events: str = "  workflow_dispatch:\n
     workflows = root / ".github/workflows"
     workflows.mkdir(parents=True)
     (workflows / "release.yml").write_text(
-        'on:\n  push:\n    tags:\n      - "v*"\njobs:\n  build:\n', encoding="utf-8"
+        'on:\n  push:\n    tags:\n      - "v*"\njobs:\n'
+        '  validate-release-ref:\n'
+        '    steps:\n'
+        '      - run: python3 scripts/quality/android-product-identity-guard.py --release-tag "$GITHUB_REF_NAME"\n'
+        '  test-gate:\n'
+        '    needs: [validate-release-ref]\n'
+        '    uses: ./.github/workflows/test.yml\n'
+        '  build-desktop:\n'
+        '    needs: [test-gate]\n'
+        '  build-android:\n'
+        '    needs: [test-gate]\n', encoding="utf-8"
     )
     (workflows / "test.yml").write_text(
         "on:\n  workflow_call:\njobs:\n  test:\n"
@@ -57,6 +67,20 @@ class CiTriggerRules(unittest.TestCase):
             )
             problems = GUARD.source_problems(root)
         self.assertTrue(any("release.yml push trigger" in problem for problem in problems))
+
+    def test_release_test_gate_must_wait_for_exact_tag_validation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            write_workflows(root)
+            release = root / ".github/workflows/release.yml"
+            release.write_text(
+                release.read_text(encoding="utf-8").replace(
+                    "needs: [validate-release-ref]", "needs: [some-other-job]"
+                ),
+                encoding="utf-8",
+            )
+            problems = GUARD.source_problems(root)
+        self.assertTrue(any("test-gate must wait" in problem for problem in problems))
 
     def test_each_job_must_be_tag_gated(self):
         with tempfile.TemporaryDirectory() as directory:

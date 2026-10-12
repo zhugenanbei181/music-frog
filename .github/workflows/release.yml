@@ -18,10 +18,25 @@ env:
   RUST_BACKTRACE: 1
 
 jobs:
+  # Reject a v* tag that does not match the product registry before starting
+  # the expensive workspace test gate or any platform build matrix.
+  validate-release-ref:
+    name: Validate release tag
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Verify release version and product identity
+        shell: bash
+        run: python3 scripts/quality/android-product-identity-guard.py --release-tag "$GITHUB_REF_NAME"
+
   # The release tag must pass the exact workspace test suite before any
   # platform build starts. This reusable call prevents a failing test run
   # from racing ahead of publication and avoids a second tag-triggered run.
   test-gate:
+    needs: [validate-release-ref]
     name: Release test gate
     uses: ./.github/workflows/test.yml
     secrets: inherit

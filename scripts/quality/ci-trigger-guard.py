@@ -89,6 +89,25 @@ def source_problems(root: Path = ROOT) -> list[str]:
                 ).group("body")
                 if "tags:" not in push_body or '"v*"' not in push_body or "branches:" in push_body:
                     problems.append(".github/workflows/release.yml push trigger must match v* tags only")
+            jobs = job_blocks(text)
+            preflight = jobs.get("validate-release-ref", [])
+            test_gate = jobs.get("test-gate", [])
+            if not preflight or not any(
+                "android-product-identity-guard.py --release-tag \"$GITHUB_REF_NAME\"" in line
+                for line in preflight
+            ):
+                problems.append(
+                    ".github/workflows/release.yml must validate the exact product version tag before tests"
+                )
+            if not any("needs: [validate-release-ref]" in line for line in test_gate):
+                problems.append(
+                    ".github/workflows/release.yml test-gate must wait for release tag validation"
+                )
+            for build_job in ("build-desktop", "build-android"):
+                if not any("needs: [test-gate]" in line for line in jobs.get(build_job, [])):
+                    problems.append(
+                        f".github/workflows/release.yml {build_job} must wait for the validated test gate"
+                    )
         else:
             jobs = job_blocks(text)
             if not jobs:
