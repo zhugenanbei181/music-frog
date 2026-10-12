@@ -7,6 +7,7 @@ import java.io.InputStream
 import java.io.OutputStream
 import java.math.BigInteger
 import java.nio.file.Files
+import java.security.MessageDigest
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -390,12 +391,20 @@ class AndroidCoreProcessRecordStoreTest {
         BigInteger("42"),
     )
 
-    private fun launchSpec(files: File) = CoreLaunchSpecWire(
-        CoreLaunchConfigurationIdentityWire("mihomo", "primary", "sha256:abc"),
-        CoreLaunchBinaryWire.MihomoBundled,
-        files.absolutePath,
-        CoreLaunchArgumentsWire.Mihomo(File(files, "config.yaml").absolutePath),
-    )
+    private fun launchSpec(files: File): CoreLaunchSpecWire {
+        val configuration = File(files, "config.yaml").apply {
+            writeText("mixed-port: 7890\nmode: rule\n")
+        }
+        val revision = MessageDigest.getInstance("SHA-256")
+            .digest(configuration.readBytes())
+            .joinToString("") { byte -> "%02x".format(byte.toInt() and 0xff) }
+        return CoreLaunchSpecWire(
+            CoreLaunchConfigurationIdentityWire("mihomo", "primary", revision),
+            CoreLaunchBinaryWire.MihomoBundled,
+            files.absolutePath,
+            CoreLaunchArgumentsWire.Mihomo(configuration.absolutePath),
+        )
+    }
 
     private fun procStat(state: String, startTimeTicks: String): String {
         val fields = listOf(state) + (4..21).map { "0" } + startTimeTicks

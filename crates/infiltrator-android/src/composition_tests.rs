@@ -69,6 +69,9 @@ use tokio::time::timeout;
 const INITIAL_DOCUMENT: &str = "mode: rule\n";
 const SAVED_DOCUMENT: &str = "mode: direct\n";
 
+#[path = "composition_tests/singbox.rs"]
+mod singbox;
+
 struct TestCredentialStore;
 
 #[async_trait]

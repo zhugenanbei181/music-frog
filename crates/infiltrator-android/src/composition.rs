@@ -62,6 +62,11 @@ use mihomo_platform::android_bridge::AndroidBridge;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
+#[path = "composition/singbox.rs"]
+mod singbox;
+
+pub(crate) use singbox::core_application_for_singbox;
+
 /// Explicit dependencies owned by the Android `:vpn` composition.
 ///
 /// The profile store is supplied by `SharedCore`; this type deliberately does
@@ -216,7 +221,7 @@ impl<S: SecureStore + 'static> AndroidMihomoBackendProvider<S> {
             Err(PortError::unsupported(
                 Capability::CoreLifecycle,
                 format!(
-                    "Android currently registers only the Mihomo Core backend; {} is unsupported",
+                    "Android Mihomo backend provider cannot serve engine {}",
                     engine_id.as_str()
                 ),
             ))

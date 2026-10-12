@@ -14,12 +14,15 @@ use infiltrator_contract::active_profile_reference::{
     ActiveProfileReference, ActiveProfileReferenceState,
 };
 use infiltrator_contract::adapter_operation_declaration::AdapterOperationOwner;
-use infiltrator_contract::android_control::AndroidHostProcessRole;
+use infiltrator_contract::android_control::{
+    AndroidCoreProcessObservation, AndroidHostProcessRole,
+};
 use infiltrator_contract::core_capabilities::{
     CapabilityAccess, CoreCapabilityKey, CoreCapabilityStatus, CoreLifecycleOperation,
     CoreOperation, EngineCapabilityDecision,
 };
-use infiltrator_contract::core_identity::CoreGeneration;
+use infiltrator_contract::core_identity::{CoreGeneration, CoreIdentity, CoreInstanceId};
+use infiltrator_contract::core_process::CoreProcessStartContext;
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use infiltrator_core::apply::{
@@ -49,6 +52,9 @@ use crate::core_launch_spec::AndroidProfileReadiness;
 use crate::ffi::{FfiErrorCode, FfiStatus};
 use crate::host_support::{build_config_manager, map_mihomo_error};
 
+#[path = "host_session/singbox.rs"]
+mod singbox;
+
 /// Shared frontend wiring for the mihomo core: the application service plus
 /// the [`ConfigManager`] endpoint source it resolves against. Lazily
 /// constructed on first use; the controller resolves the Android bridge
@@ -57,9 +63,14 @@ use crate::host_support::{build_config_manager, map_mihomo_error};
 pub(crate) struct SharedCore {
     pub(crate) application: CoreApplication,
     pub(crate) control: AndroidControlApplication,
-    pub(crate) endpoints: Arc<dyn EndpointSource>,
+    pub(crate) engine: SharedCoreEngine,
     config: Arc<ConfigManager<DefaultCredentialStore>>,
     pub(crate) _watchdog: infiltrator_composition::CoreWatchdogHandle,
+}
+
+pub(crate) enum SharedCoreEngine {
+    Mihomo { endpoints: Arc<dyn EndpointSource> },
+    SingBox,
 }
 
 enum SharedCoreOwnerState {
@@ -210,13 +221,44 @@ pub(crate) async fn recover_android_owner_before_binding(
     vpn: VpnServiceApplication,
 ) -> Result<(), FfiStatus> {
     let config = Arc::new(build_config_manager().await?);
-    let identity = infiltrator_contract::core_identity::CoreIdentity::new(
-        config.engine_id(),
-        infiltrator_contract::core_identity::CoreInstanceId::new("android-active")
-            .map_err(|error| FfiStatus::err(FfiErrorCode::Unknown, error.to_string()))?,
-        None,
-    );
-    let process = Arc::new(AndroidBridgeAdapter::new(bridge));
+    let observation = bridge
+        .core_process_observation()
+        .await
+        .map_err(map_mihomo_error)?;
+    let identity = match &observation {
+        AndroidCoreProcessObservation::Running { owned }
+        | AndroidCoreProcessObservation::Exited { owned, .. } => match &owned.context {
+            CoreProcessStartContext::Managed { identity, .. } => identity.clone(),
+            CoreProcessStartContext::Standalone { .. } => {
+                return Err(FfiStatus::err(
+                    FfiErrorCode::NotReady,
+                    "Android Core recovery cannot bind a standalone child",
+                ));
+            }
+        },
+        AndroidCoreProcessObservation::NeverStarted
+        | AndroidCoreProcessObservation::Unavailable { .. } => {
+            let state = ProfileStore::read_active_profile_reference(config.as_ref())
+                .await
+                .map_err(|error| {
+                    FfiStatus::err(
+                        FfiErrorCode::NotReady,
+                        format!("Android active profile reference is unavailable: {error}"),
+                    )
+                })?;
+            let engine_id = match state {
+                ActiveProfileReferenceState::Selected(reference) => reference.engine_id,
+                ActiveProfileReferenceState::Unselected { .. } => config.engine_id(),
+            };
+            CoreIdentity::new(
+                engine_id,
+                CoreInstanceId::new("android-active")
+                    .map_err(|error| FfiStatus::err(FfiErrorCode::Unknown, error.to_string()))?,
+                None,
+            )
+        }
+    };
+    let process = Arc::new(AndroidBridgeAdapter::new(Arc::clone(&bridge)));
     let owner_store: Arc<dyn ActiveProfileReferenceStore> = config.clone();
     AndroidCoreOwnerRecoveryApplication::new(process, owner_store, vpn, identity)
         .recover()
@@ -274,11 +316,6 @@ pub(crate) async fn close_shared_core_owner(vpn: VpnServiceApplication) -> Resul
 
 async fn build_shared_core(bridge: Arc<dyn AndroidBridge>) -> Result<Arc<SharedCore>, FfiStatus> {
     let config = Arc::new(build_config_manager().await?);
-    let mihomo_engine_id = config.engine_id();
-    authorize_android_core_start(
-        android_core_lifecycle_capability_provider(),
-        &mihomo_engine_id,
-    )?;
     config
         .migrate_legacy_mihomo_selection()
         .await
@@ -288,7 +325,6 @@ async fn build_shared_core(bridge: Arc<dyn AndroidBridge>) -> Result<Arc<SharedC
                 format!("Android legacy Mihomo selection migration failed: {error}"),
             )
         })?;
-    let endpoints = Arc::new(ProfileEndpointSource::new(Arc::clone(&config)));
     let selection_lease =
         ActiveProfileReferenceStore::acquire_provider_selection_lease(config.as_ref())
             .await
@@ -307,15 +343,35 @@ async fn build_shared_core(bridge: Arc<dyn AndroidBridge>) -> Result<Arc<SharedC
         }
         ActiveProfileReferenceState::Selected(reference) => reference.clone(),
     };
+    match reference.engine_id.as_str() {
+        "mihomo" => build_mihomo_shared_core(bridge, config, reference, selection_lease).await,
+        "sing-box" => singbox::build_shared_core(bridge, config, reference, selection_lease).await,
+        engine => Err(FfiStatus::err(
+            FfiErrorCode::NotReady,
+            format!("Android has no registered Core backend for engine `{engine}`"),
+        )),
+    }
+}
+
+async fn build_mihomo_shared_core(
+    bridge: Arc<dyn AndroidBridge>,
+    config: Arc<ConfigManager<DefaultCredentialStore>>,
+    reference: ActiveProfileReference,
+    selection_lease: Box<
+        dyn infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceLease,
+    >,
+) -> Result<Arc<SharedCore>, FfiStatus> {
     if reference.engine_id != config.engine_id() {
         return Err(FfiStatus::err(
             FfiErrorCode::NotReady,
-            format!(
-                "Android Mihomo owner cannot bind active engine {}",
-                reference.engine_id.as_str()
-            ),
+            "Android Mihomo owner received a foreign active profile reference",
         ));
     }
+    authorize_android_core_start(
+        android_core_lifecycle_capability_provider(),
+        &reference.engine_id,
+    )?;
+    let endpoints = Arc::new(ProfileEndpointSource::new(Arc::clone(&config)));
     let workspace = ProfileStore::load_workspace(config.as_ref(), &reference.profile_id)
         .await
         .map_err(|error| {
@@ -409,7 +465,9 @@ async fn build_shared_core(bridge: Arc<dyn AndroidBridge>) -> Result<Arc<SharedC
     Ok(Arc::new(SharedCore {
         application,
         control,
-        endpoints: endpoints as Arc<dyn EndpointSource>,
+        engine: SharedCoreEngine::Mihomo {
+            endpoints: endpoints as Arc<dyn EndpointSource>,
+        },
         config,
         _watchdog: watchdog,
     }))
@@ -483,11 +541,19 @@ impl ActiveProfileReferenceApplier for AndroidCoreProfileApplier {
         expected: &ActiveProfileReference,
         strategy: ApplyStrategy,
     ) -> Result<u64, PortError> {
+        let endpoints = match &self.core.engine {
+            SharedCoreEngine::Mihomo { endpoints } => Arc::clone(endpoints),
+            SharedCoreEngine::SingBox => {
+                return Err(PortError::unsupported(
+                    infiltrator_contract::capability::Capability::Profiles,
+                    "Android sing-box active-profile runtime apply is not connected",
+                ));
+            }
+        };
         let core = Arc::clone(&self.core);
         let expected = expected.clone();
         tokio::spawn(async move {
-            let reloader =
-                EndpointConfigReloader::new(core.endpoints.clone() as Arc<dyn EndpointSource>);
+            let reloader = EndpointConfigReloader::new(endpoints);
             let outcome = apply_active_profile_reference(
                 &core.application,
                 &core.config,
@@ -518,13 +584,21 @@ impl ActiveProfileReferenceApplier for AndroidCoreProfileApplier {
         authorization: ActiveProfileReferenceWriteAuthorization,
         strategy: ApplyStrategy,
     ) -> Result<ProfileWorkspace, PortError> {
+        let endpoints = match &self.core.engine {
+            SharedCoreEngine::Mihomo { endpoints } => Arc::clone(endpoints),
+            SharedCoreEngine::SingBox => {
+                return Err(PortError::unsupported(
+                    infiltrator_contract::capability::Capability::Profiles,
+                    "Android sing-box active workspace apply is not connected",
+                ));
+            }
+        };
         let core = Arc::clone(&self.core);
         let expected_reference = expected_reference.clone();
         let expected_workspace = expected_workspace.clone();
         let update = update.clone();
         tokio::spawn(async move {
-            let reloader =
-                EndpointConfigReloader::new(core.endpoints.clone() as Arc<dyn EndpointSource>);
+            let reloader = EndpointConfigReloader::new(endpoints);
             apply_active_profile_workspace(
                 &core.application,
                 &core.config,
@@ -564,6 +638,12 @@ pub(crate) async fn apply_selected_profile_reference_status(
         Ok(core) => core,
         Err(status) => return status,
     };
+    if matches!(&core.engine, SharedCoreEngine::SingBox) {
+        return FfiStatus::err(
+            FfiErrorCode::NotSupported,
+            "Android sing-box active-profile runtime apply is not connected",
+        );
+    }
     if let Err(failure) = core.application.adopt_if_running().await {
         return FfiStatus::from(InfiltratorError::Backend(failure.message));
     }
@@ -604,6 +684,12 @@ pub(crate) async fn activate_profile_status(profile: &str) -> FfiStatus {
         Ok(core) => core,
         Err(status) => return status,
     };
+    if matches!(&core.engine, SharedCoreEngine::SingBox) {
+        return FfiStatus::err(
+            FfiErrorCode::NotSupported,
+            "Android sing-box profile activation is not connected",
+        );
+    }
     if let Err(failure) = core.application.adopt_if_running().await {
         return FfiStatus::from(InfiltratorError::Backend(failure.message));
     }

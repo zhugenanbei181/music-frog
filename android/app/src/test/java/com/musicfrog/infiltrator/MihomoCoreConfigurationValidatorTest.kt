@@ -22,6 +22,24 @@ class MihomoCoreConfigurationValidatorTest {
     }
 
     @Test
+    fun launchRejectsConfigurationChangedAfterRustPreflightBeforeAnyProcessSideEffect() =
+        withFiles { files ->
+            var starts = 0
+            val controller = files.controller {
+                starts += 1
+                FakeProcess(FakeProcessBehavior.Running)
+            }
+            val spec = files.launchSpec()
+            files.candidate.writeText("mixed-port: 7891\nmode: global\n")
+
+            assertEquals(
+                CoreProcessStartReceipt.LaunchSpecRejected,
+                controller.start(spec, startContext()),
+            )
+            assertEquals(0, starts)
+        }
+
+    @Test
     fun runningChildIsAdoptedOnlyByTheSameTypedOwnerContext() = withFiles { files ->
         val child = FakeProcess(FakeProcessBehavior.Running)
         var starts = 0
@@ -57,7 +75,7 @@ class MihomoCoreConfigurationValidatorTest {
             configurationIdentity = CoreLaunchConfigurationIdentityWire(
                 "sing-box",
                 "primary",
-                "sha256:singbox",
+                digest(files.candidate).removePrefix("sha256:"),
             ),
             binary = CoreLaunchBinaryWire.SingBoxManaged(
                 "v1.14.3",

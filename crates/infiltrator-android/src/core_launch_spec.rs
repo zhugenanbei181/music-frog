@@ -17,6 +17,10 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+mod singbox;
+
+pub(crate) use singbox::AndroidSingBoxProfileLaunchSpecProvider;
+
 pub(crate) struct AndroidMihomoProfileLaunchSpecProvider<S: SecureStore> {
     config: Arc<ConfigManager<S>>,
     working_directory: PathBuf,

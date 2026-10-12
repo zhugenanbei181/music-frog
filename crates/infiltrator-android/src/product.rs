@@ -12,7 +12,7 @@ use crate::composition::offline_startup_application;
 #[cfg(test)]
 use crate::composition::{AndroidCoreComposition, core_application};
 use crate::ffi::FfiStatus;
-use crate::host_session::{close_shared_core_owner, shared_core};
+use crate::host_session::{SharedCoreEngine, close_shared_core_owner, shared_core};
 use crate::host_support::get_runtime;
 use crate::runtime::AndroidBridgeAdapter;
 use crate::vpn_service::AndroidVpnServicePort;
@@ -92,6 +92,14 @@ pub struct AndroidProductComposition {
     pump: SurfacePump,
 }
 
+enum AndroidProductController {
+    Mihomo {
+        endpoint: String,
+        secret: Option<String>,
+    },
+    SingBoxLifecycleOnly,
+}
+
 impl AndroidProductComposition {
     /// Open using the bridge registered in the current process.
     ///
@@ -106,9 +114,17 @@ impl AndroidProductComposition {
                     .unwrap_or_else(|| "shared Android application unavailable".to_owned()),
             )
         })?;
+        let controller = match &shared.engine {
+            SharedCoreEngine::Mihomo { .. } => AndroidProductController::Mihomo {
+                endpoint: config.controller_url,
+                secret: config.controller_secret,
+            },
+            SharedCoreEngine::SingBox => AndroidProductController::SingBoxLifecycleOnly,
+        };
         Self::open_with_application(
             bridge,
-            config,
+            controller,
+            config.sample_interval,
             Arc::new(shared.application.clone()),
             shared.control.clone(),
         )
@@ -125,20 +141,23 @@ impl AndroidProductComposition {
                     .unwrap_or_else(|| "shared Android application unavailable".to_owned()),
             )
         })?;
-        let endpoint = shared
-            .endpoints
-            .resolve()
-            .await
-            .map_err(|error| AndroidProductError::RuntimeUnavailable(error.to_string()))?;
-        let controller_url = endpoint.url;
-        let controller_secret = endpoint.secret;
+        let controller = match &shared.engine {
+            SharedCoreEngine::Mihomo { endpoints } => {
+                let endpoint = endpoints
+                    .resolve()
+                    .await
+                    .map_err(|error| AndroidProductError::RuntimeUnavailable(error.to_string()))?;
+                AndroidProductController::Mihomo {
+                    endpoint: endpoint.url,
+                    secret: endpoint.secret,
+                }
+            }
+            SharedCoreEngine::SingBox => AndroidProductController::SingBoxLifecycleOnly,
+        };
         Self::open_with_application(
             bridge,
-            AndroidProductConfig {
-                controller_url,
-                controller_secret,
-                sample_interval: Duration::from_millis(700),
-            },
+            controller,
+            Duration::from_millis(700),
             Arc::new(shared.application.clone()),
             shared.control.clone(),
         )
@@ -165,12 +184,22 @@ impl AndroidProductComposition {
             .map_err(AndroidProductError::RuntimeUnavailable)?,
         );
         let control = AndroidControlApplication::new(application.as_ref().clone());
-        Self::open_with_application(bridge, config, application, control)
+        Self::open_with_application(
+            bridge,
+            AndroidProductController::Mihomo {
+                endpoint: config.controller_url,
+                secret: config.controller_secret,
+            },
+            config.sample_interval,
+            application,
+            control,
+        )
     }
 
     fn open_with_application(
         bridge: Arc<dyn AndroidBridge>,
-        config: AndroidProductConfig,
+        controller: AndroidProductController,
+        sample_interval: Duration,
         application: Arc<CoreApplication>,
         control: AndroidControlApplication,
     ) -> Result<Self, AndroidProductError> {
@@ -191,33 +220,39 @@ impl AndroidProductComposition {
         if let Some(outbound) = outbound {
             reader = reader.with_outbound(outbound);
         }
-        let scope_application = application.clone();
-        let scope_resolver: mihomo_api::runtime_configuration::RuntimeScopeResolver =
-            Arc::new(move || {
-                let lifecycle = scope_application.snapshot().lifecycle_snapshot();
-                match &lifecycle.lifecycle {
-                    CoreLifecycle::Running | CoreLifecycle::Ready => {
-                        lifecycle.scope().ok_or_else(|| {
-                            PortError::Failed(
-                                "active Core identity is unavailable for configuration access"
-                                    .into(),
-                            )
-                        })
-                    }
-                    _ => Err(PortError::Failed(
-                        "configuration access requires a running Core".to_owned(),
-                    )),
+        match controller {
+            AndroidProductController::Mihomo { endpoint, secret } => {
+                let scope_application = application.clone();
+                let scope_resolver: mihomo_api::runtime_configuration::RuntimeScopeResolver =
+                    Arc::new(move || {
+                        let lifecycle = scope_application.snapshot().lifecycle_snapshot();
+                        match &lifecycle.lifecycle {
+                            CoreLifecycle::Running | CoreLifecycle::Ready => {
+                                lifecycle.scope().ok_or_else(|| {
+                                    PortError::Failed(
+                                        "active Core identity is unavailable for configuration access"
+                                            .into(),
+                                    )
+                                })
+                            }
+                            _ => Err(PortError::Failed(
+                                "configuration access requires a running Core".to_owned(),
+                            )),
+                        }
+                    });
+                if let Ok(client) = MihomoClient::new(&endpoint, secret)
+                    .map(|client| client.with_configuration_scope_resolver(scope_resolver))
+                {
+                    let routing_intent_port =
+                        Arc::new(MihomoRoutingIntentAdapter::new(client.clone()));
+                    let gateway: Arc<dyn RuntimeGateway> = Arc::new(client);
+                    reader = reader
+                        .with_routing_intent_port(routing_intent_port)
+                        .with_gateway(gateway.clone())
+                        .with_resources(ResourceApplication::new(gateway));
                 }
-            });
-        let client = MihomoClient::new(&config.controller_url, config.controller_secret)
-            .map(|client| client.with_configuration_scope_resolver(scope_resolver));
-        if let Ok(client) = client {
-            let routing_intent_port = Arc::new(MihomoRoutingIntentAdapter::new(client.clone()));
-            let gateway: Arc<dyn RuntimeGateway> = Arc::new(client);
-            reader = reader
-                .with_routing_intent_port(routing_intent_port)
-                .with_gateway(gateway.clone())
-                .with_resources(ResourceApplication::new(gateway));
+            }
+            AndroidProductController::SingBoxLifecycleOnly => {}
         }
         let runtime = infiltrator_composition::tokio_application_runtime()
             .map_err(AndroidProductError::RuntimeUnavailable)?;
@@ -230,7 +265,7 @@ impl AndroidProductComposition {
                 true,
             ),
         );
-        let pump = SurfacePump::spawn(Arc::new(reader), config.sample_interval, runtime, initial);
+        let pump = SurfacePump::spawn(Arc::new(reader), sample_interval, runtime, initial);
         Ok(Self {
             application,
             control,

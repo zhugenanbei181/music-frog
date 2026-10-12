@@ -7,6 +7,7 @@ import android.os.SystemClock
 import android.util.Log
 import java.io.File
 import java.io.IOException
+import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
 
 internal enum class CoreProcessStartReceipt(val wireCode: Int) {
@@ -169,6 +170,11 @@ internal class CoreProcessController(
         Interrupted,
     }
 
+    private enum class LaunchConfigurationVerification {
+        MatchesRevision,
+        Rejected,
+    }
+
     @Volatile
     private var processState: ProcessState = restoreProcessState()
     private val binaryResolver = AndroidCoreBinaryResolver(nativeLibraryDirectory, filesDirectory)
@@ -212,17 +218,56 @@ internal class CoreProcessController(
         }
         is ProcessState.Exited -> CoreProcessStartReceipt.PreviousChildExitPending
         is ProcessState.Unavailable -> CoreProcessStartReceipt.OwnershipRecordUnavailable
-        ProcessState.NeverStarted -> when (val binary = binaryResolver.resolve(spec.binary)) {
-            CoreBinaryResolution.Missing -> CoreProcessStartReceipt.BinaryUnavailable
-            is CoreBinaryResolution.Rejected -> {
-                Log.w(TAG_PROCESS, "Core launch binary was rejected: ${binary.reason}")
+        ProcessState.NeverStarted -> when (verifyConfigurationRevision(spec)) {
+            LaunchConfigurationVerification.Rejected -> {
                 CoreProcessStartReceipt.LaunchSpecRejected
             }
-            is CoreBinaryResolution.Available -> when (spec.binary) {
-                CoreLaunchBinaryWire.MihomoBundled -> spawn(binary.file, spec, context)
-                is CoreLaunchBinaryWire.SingBoxManaged -> spawn(binary.file, spec, context)
+            LaunchConfigurationVerification.MatchesRevision ->
+                when (val binary = binaryResolver.resolve(spec.binary)) {
+                    CoreBinaryResolution.Missing -> CoreProcessStartReceipt.BinaryUnavailable
+                    is CoreBinaryResolution.Rejected -> {
+                        Log.w(TAG_PROCESS, "Core launch binary was rejected: ${binary.reason}")
+                        CoreProcessStartReceipt.LaunchSpecRejected
+                    }
+                    is CoreBinaryResolution.Available -> when (spec.binary) {
+                        CoreLaunchBinaryWire.MihomoBundled -> spawn(binary.file, spec, context)
+                        is CoreLaunchBinaryWire.SingBoxManaged -> spawn(binary.file, spec, context)
+                    }
+                }
+            }
+    }
+
+    private fun verifyConfigurationRevision(
+        spec: CoreLaunchSpecWire,
+    ): LaunchConfigurationVerification {
+        val expectedDigest = spec.configurationIdentity.documentRevision
+        if (!expectedDigest.isSha256Digest()) return LaunchConfigurationVerification.Rejected
+        val configuration = File(spec.launchArguments.configurationPath)
+        return try {
+            if (!configuration.isFile || configuration.sha256() != expectedDigest) {
+                LaunchConfigurationVerification.Rejected
+            } else {
+                LaunchConfigurationVerification.MatchesRevision
+            }
+        } catch (_: Exception) {
+            LaunchConfigurationVerification.Rejected
+        }
+    }
+
+    private fun String.isSha256Digest(): Boolean =
+        length == SHA256_HEX_LENGTH && all { it in '0'..'9' || it in 'a'..'f' }
+
+    private fun File.sha256(): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        inputStream().buffered().use { stream ->
+            val buffer = ByteArray(DIGEST_BUFFER_BYTES)
+            while (true) {
+                val count = stream.read(buffer)
+                if (count < 0) break
+                digest.update(buffer, 0, count)
             }
         }
+        return digest.digest().joinToString("") { byte -> "%02x".format(byte.toInt() and 0xff) }
     }
 
     @Synchronized
@@ -585,5 +630,7 @@ internal class CoreProcessController(
         const val STOP_GRACE_SECONDS = 3L
         const val FORCE_STOP_GRACE_SECONDS = 2L
         const val POLL_INTERVAL_MILLIS = 50L
+        const val SHA256_HEX_LENGTH = 64
+        const val DIGEST_BUFFER_BYTES = 64 * 1024
     }
 }
