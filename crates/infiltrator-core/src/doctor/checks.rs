@@ -6,6 +6,7 @@ use super::{ActiveProfileObservation, DoctorCheckResult, DoctorEnv, DoctorStatus
 use crate::settings_io::parse_settings_toml;
 use mihomo_api::client::MihomoClient;
 use mihomo_api::error::MihomoError;
+use mihomo_version::manager::DefaultBinaryObservation;
 #[cfg(unix)]
 use std::fs::metadata;
 use std::io::ErrorKind;
@@ -248,27 +249,48 @@ pub(super) async fn check_binary_available(env: &DoctorEnv) -> DoctorCheckResult
         Ok(manager) => manager,
         Err(err) => return manager_fail("version.binary_available", "version", err),
     };
-    let default = match manager.get_default().await {
-        Ok(default) => default,
-        Err(err) => {
+    let (version, path) = match manager.observe_default_binary().await {
+        Ok(DefaultBinaryObservation::NoConfiguration) => {
             return fail(
                 "version.binary_available",
                 "version",
-                format!("No usable default version: {err}"),
+                "No core version configuration found".to_string(),
                 None,
                 Some("Install a core version and set it as default.".into()),
             );
         }
-    };
-    let path = match manager.get_binary_path(None).await {
-        Ok(path) => path,
+        Ok(DefaultBinaryObservation::NoDefaultVersion) => {
+            return fail(
+                "version.binary_available",
+                "version",
+                "No default core version is configured".to_string(),
+                None,
+                Some("Install a core version and set it as default.".into()),
+            );
+        }
+        Ok(DefaultBinaryObservation::BinaryUnavailable {
+            version,
+            expected_path,
+        }) => {
+            return fail(
+                "version.binary_available",
+                "version",
+                format!(
+                    "Binary for default version '{version}' unavailable: {}",
+                    expected_path.display()
+                ),
+                None,
+                Some("Reinstall the default version to restore its binary.".into()),
+            );
+        }
+        Ok(DefaultBinaryObservation::BinaryFound { version, path }) => (version, path),
         Err(err) => {
             return fail(
                 "version.binary_available",
                 "version",
-                format!("Binary for default version '{default}' unavailable: {err}"),
+                format!("Cannot inspect default core version: {err}"),
                 None,
-                Some("Reinstall the default version to restore its binary.".into()),
+                None,
             );
         }
     };
@@ -284,7 +306,7 @@ pub(super) async fn check_binary_available(env: &DoctorEnv) -> DoctorCheckResult
     pass(
         "version.binary_available",
         "version",
-        format!("Default core binary for version '{default}' is available"),
+        format!("Default core binary for version '{version}' is available"),
         Some(path.display().to_string()),
         None,
     )
@@ -594,12 +616,12 @@ async fn read_external_controller_url(path: &Path) -> Result<String, ControllerE
 #[cfg(unix)]
 fn is_executable(path: &Path) -> bool {
     use std::os::unix::fs::PermissionsExt;
-    metadata(path).is_ok_and(|meta| meta.permissions().mode() & 0o111 != 0)
+    metadata(path).is_ok_and(|meta| meta.is_file() && meta.permissions().mode() & 0o111 != 0)
 }
 
 #[cfg(not(unix))]
 fn is_executable(path: &Path) -> bool {
-    path.is_file()
+    metadata(path).is_ok_and(|meta| meta.is_file())
 }
 
 fn manager_fail(id: &str, category: &str, err: MihomoError) -> DoctorCheckResult {

@@ -36,6 +36,20 @@ const ALL_IDS: &[&str] = &[
     "controller.api_reachable",
 ];
 
+#[derive(Debug, PartialEq, Eq)]
+enum FileSnapshot {
+    Missing,
+    Present(Vec<u8>),
+}
+
+fn snapshot_file(path: &Path) -> std::io::Result<FileSnapshot> {
+    match std::fs::read(path) {
+        Ok(content) => Ok(FileSnapshot::Present(content)),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(FileSnapshot::Missing),
+        Err(error) => Err(error),
+    }
+}
+
 fn temp_env(tag: &str) -> (TempDir, DoctorEnv) {
     let dir = tempfile::Builder::new()
         .prefix(&format!("doctor-{tag}-"))
@@ -395,6 +409,54 @@ async fn read_only_profile_checks_leave_fresh_root_for_bootstrap() {
 }
 
 #[tokio::test]
+async fn full_doctor_run_preserves_existing_profile_and_version_state() {
+    let (dir, env) = temp_env("read-only-existing");
+    let _guard = test_support::RedirectGuard::acquire(dir.path().to_path_buf()).await;
+    save_profile(
+        &env,
+        "mixed-port: 7890\nexternal-controller: 127.0.0.1:9090\n",
+    )
+    .await;
+    install_fake_core(&env, "v1.0", true);
+
+    let manager = env.initialized_config_manager().await.unwrap();
+    let profile_path = manager.get_current_path().await.unwrap();
+    let profile_state_path = manager.config_dir().join("profile-state.toml");
+    let active_reference_path = manager.config_root().join("active-profile-reference.json");
+    let version_selection_path = env.home().join("engines/mihomo/config.toml");
+    let paths = [
+        profile_path,
+        profile_state_path,
+        active_reference_path,
+        version_selection_path,
+    ];
+    let before: Vec<FileSnapshot> = paths
+        .iter()
+        .map(|path| snapshot_file(path).unwrap())
+        .collect();
+
+    let report = run_with(&env, None).await;
+
+    assert_eq!(
+        status_of(&report, "config.current_profile"),
+        DoctorStatus::Pass
+    );
+    assert_eq!(
+        status_of(&report, "config.current_yaml"),
+        DoctorStatus::Pass
+    );
+    assert_eq!(
+        status_of(&report, "version.binary_available"),
+        DoctorStatus::Pass
+    );
+    let after: Vec<FileSnapshot> = paths
+        .iter()
+        .map(|path| snapshot_file(path).unwrap())
+        .collect();
+    assert_eq!(after, before);
+}
+
+#[tokio::test]
 async fn current_yaml_rejects_non_mapping_top_level() {
     let (_dir, env) = temp_env("yaml-scalar");
     save_profile(&env, "42\n").await;
@@ -426,6 +488,7 @@ async fn binary_available_requires_executable_default_core() {
         status_of(&report, "version.binary_available"),
         DoctorStatus::Fail
     );
+    assert!(!env.home().join("engines").exists());
 
     install_fake_core(&env, "v1.0", true);
     let report = run_with(&env, Some("version.binary_available")).await;
@@ -445,6 +508,67 @@ async fn binary_available_requires_executable_default_core() {
             DoctorStatus::Fail
         );
     }
+}
+
+#[tokio::test]
+async fn binary_available_observes_legacy_default_without_migrating_it() {
+    let (_dir, env) = temp_env("binary-legacy");
+    let binary_name = if cfg!(windows) {
+        "mihomo.exe"
+    } else {
+        "mihomo"
+    };
+    let legacy_binary = env.home().join("versions/v1.0").join(binary_name);
+    create_dir_all(legacy_binary.parent().unwrap()).unwrap();
+    write(&legacy_binary, "legacy binary").unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        set_permissions(&legacy_binary, Permissions::from_mode(0o755)).unwrap();
+    }
+    let legacy_config = env.home().join("config.toml");
+    let legacy_contents = "[default]\nversion = \"v1.0\"\nversion_history = []\n";
+    write(&legacy_config, legacy_contents).unwrap();
+
+    let report = run_with(&env, Some("version.binary_available")).await;
+
+    assert_eq!(
+        status_of(&report, "version.binary_available"),
+        DoctorStatus::Pass
+    );
+    assert!(!env.home().join("engines").exists());
+    assert!(legacy_binary.exists());
+    assert_eq!(
+        std::fs::read_to_string(legacy_config).unwrap(),
+        legacy_contents
+    );
+}
+
+#[tokio::test]
+async fn binary_available_rejects_a_directory_named_like_the_binary() {
+    let (_dir, env) = temp_env("binary-directory");
+    let binary_name = if cfg!(windows) {
+        "mihomo.exe"
+    } else {
+        "mihomo"
+    };
+    let binary = env
+        .home()
+        .join("engines/mihomo/versions/v1.0")
+        .join(binary_name);
+    create_dir_all(&binary).unwrap();
+    write(
+        env.home().join("engines/mihomo/config.toml"),
+        "[default]\nversion = \"v1.0\"\n",
+    )
+    .unwrap();
+
+    let report = run_with(&env, Some("version.binary_available")).await;
+
+    assert_eq!(
+        status_of(&report, "version.binary_available"),
+        DoctorStatus::Fail
+    );
 }
 
 #[tokio::test]
@@ -619,7 +743,7 @@ async fn external_controller_check_skips_then_passes_after_fix() {
 
 #[tokio::test]
 async fn full_report_keeps_check_order_and_exit_contract() {
-    let (_dir, env) = temp_env("full");
+    let (dir, env) = temp_env("full");
     let report = run_with(&env, None).await;
     let ids: Vec<&str> = report
         .checks
@@ -656,6 +780,7 @@ async fn full_report_keeps_check_order_and_exit_contract() {
         status_of(&report, "controller.api_reachable"),
         DoctorStatus::Skip
     );
+    assert!(!dir.path().join("engines").exists());
     assert!(report.has_failures());
     assert_eq!(exit_code(&report), 1);
 

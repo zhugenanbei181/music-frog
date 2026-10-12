@@ -95,6 +95,52 @@ fn test_version_manager_new() {
 }
 
 #[tokio::test]
+async fn observing_default_binary_on_a_fresh_home_does_not_create_namespace() {
+    let temp_dir = TempDir::new().unwrap();
+    let manager = setup_test_manager(&temp_dir);
+
+    assert_eq!(
+        manager.observe_default_binary().await.unwrap(),
+        DefaultBinaryObservation::NoConfiguration
+    );
+    assert!(!temp_dir.path().join("engines").exists());
+    assert!(!temp_dir.path().join("versions").exists());
+}
+
+#[tokio::test]
+async fn observing_legacy_default_binary_does_not_migrate_legacy_state() {
+    let temp_dir = TempDir::new().unwrap();
+    let manager = setup_test_manager(&temp_dir);
+    let binary_name = if cfg!(windows) {
+        "mihomo.exe"
+    } else {
+        "mihomo"
+    };
+    let legacy_binary = temp_dir.path().join("versions/v1.19.12").join(binary_name);
+    fs::create_dir_all(legacy_binary.parent().unwrap())
+        .await
+        .unwrap();
+    fs::write(&legacy_binary, "legacy binary").await.unwrap();
+    let legacy_config = temp_dir.path().join("config.toml");
+    let legacy_contents = "[default]\nversion = \"v1.19.12\"\nversion_history = []\n";
+    fs::write(&legacy_config, legacy_contents).await.unwrap();
+
+    assert_eq!(
+        manager.observe_default_binary().await.unwrap(),
+        DefaultBinaryObservation::BinaryFound {
+            version: "v1.19.12".to_string(),
+            path: legacy_binary.clone(),
+        }
+    );
+    assert!(!temp_dir.path().join("engines").exists());
+    assert!(legacy_binary.exists());
+    assert_eq!(
+        fs::read_to_string(legacy_config).await.unwrap(),
+        legacy_contents
+    );
+}
+
+#[tokio::test]
 async fn first_access_migrates_legacy_versions_and_journal_to_mihomo_scope() {
     let temp_dir = TempDir::new().unwrap();
     let legacy_version = temp_dir.path().join("versions/v1.19.12");

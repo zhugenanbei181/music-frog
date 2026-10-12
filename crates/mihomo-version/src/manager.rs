@@ -30,6 +30,24 @@ pub struct VersionRollbackInfo {
     pub history: Vec<String>,
 }
 
+/// Read-only observation of the configured default core binary.
+///
+/// Unlike product operations such as [`VersionManager::get_default`], this
+/// result never creates the engine namespace or migrates legacy version data.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DefaultBinaryObservation {
+    NoConfiguration,
+    NoDefaultVersion,
+    BinaryUnavailable {
+        version: String,
+        expected_path: PathBuf,
+    },
+    BinaryFound {
+        version: String,
+        path: PathBuf,
+    },
+}
+
 pub struct VersionManager {
     engine_id: EngineId,
     install_dir: PathBuf,
@@ -263,6 +281,53 @@ impl VersionManager {
             .ok_or_else(|| MihomoError::Config("No default version in config".to_string()))
     }
 
+    /// Observe the configured default binary without creating or migrating
+    /// any part of the version namespace. Engine-scoped state wins; legacy
+    /// state is observed in place only when no engine-scoped config exists.
+    pub async fn observe_default_binary(&self) -> Result<DefaultBinaryObservation> {
+        let config_path = if fs::try_exists(&self.config_file).await? {
+            &self.config_file
+        } else if fs::try_exists(&self.legacy_config_file).await? {
+            &self.legacy_config_file
+        } else {
+            return Ok(DefaultBinaryObservation::NoConfiguration);
+        };
+
+        let content = fs::read_to_string(config_path).await?;
+        let config = toml::from_str(&content)
+            .map_err(|error| MihomoError::Config(format!("Invalid config: {error}")))?;
+        let Some(version) = default_version_from_config(&config) else {
+            return Ok(DefaultBinaryObservation::NoDefaultVersion);
+        };
+        validate_version_label(&version)?;
+
+        let binary_name = if cfg!(windows) {
+            "mihomo.exe"
+        } else {
+            "mihomo"
+        };
+        let scoped_path = self.install_dir.join(&version).join(binary_name);
+        if is_regular_file(&scoped_path).await? {
+            return Ok(DefaultBinaryObservation::BinaryFound {
+                version,
+                path: scoped_path,
+            });
+        }
+
+        let legacy_path = self.legacy_install_dir.join(&version).join(binary_name);
+        if is_regular_file(&legacy_path).await? {
+            return Ok(DefaultBinaryObservation::BinaryFound {
+                version,
+                path: legacy_path,
+            });
+        }
+
+        Ok(DefaultBinaryObservation::BinaryUnavailable {
+            version,
+            expected_path: scoped_path,
+        })
+    }
+
     /// Return the locally recorded default-version history without touching
     /// the network. Missing or deleted historical binaries are skipped when
     /// choosing `target`, while the bounded history remains visible for
@@ -455,6 +520,14 @@ fn version_history_from_config(config: &toml::Value) -> Vec<String> {
         .map(str::to_owned)
         .take(MAX_VERSION_HISTORY)
         .collect()
+}
+
+async fn is_regular_file(candidate: &path::Path) -> Result<bool> {
+    match fs::metadata(candidate).await {
+        Ok(metadata) => Ok(metadata.is_file()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(error.into()),
+    }
 }
 
 fn record_version_transition(history: &mut Vec<String>, previous: Option<&str>, selected: &str) {
