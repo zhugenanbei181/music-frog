@@ -6077,6 +6077,7 @@ dependencies = [
  "log",
  "mihomo-api",
  "mihomo-config",
+ "mihomo-process",
  "mockito",
  "serde_json",
  "singbox-api",

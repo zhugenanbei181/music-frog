@@ -139,4 +139,12 @@ SINGBOX_REAL_VERSION="${singbox_version#v}" \
     cargo nextest run --offline --locked -p infiltrator-core \
         --test backend_conformance --run-ignored only
 
-printf '[PASS] both real-process conformance tests and typed unsupported cases completed\n'
+printf '[INFO] running the production durable Mihomo/sing-box owner-switch smoke\n'
+MIHOMO_REAL_BINARY="$mihomo_binary_path" \
+MIHOMO_REAL_VERSION="$mihomo_version" \
+SINGBOX_REAL_BINARY="$singbox_binary_path" \
+SINGBOX_REAL_VERSION="${singbox_version#v}" \
+    cargo nextest run --offline --locked -p infiltrator-composition \
+        --test desktop_owner_switch_real_process_smoke --run-ignored only
+
+printf '[PASS] real-process conformance and durable Mihomo/sing-box owner-switch smoke completed\n'
