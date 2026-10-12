@@ -1,7 +1,12 @@
 use super::*;
+use infiltrator_contract::adapter_operation_declaration::AdapterOperationOwner;
 use infiltrator_contract::capability::Capability;
+use infiltrator_contract::core_capabilities::{
+    AdapterCapabilityDecision, CoreLifecycleOperation, CoreOperation, EngineCapabilityDecision,
+};
 use infiltrator_contract::core_identity::EngineId;
 use infiltrator_ports::core_binary_selection::CoreBinarySelection;
+use infiltrator_ports::core_capability_provider::CoreCapabilityProviderError;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -52,4 +57,31 @@ fn desktop_runtime_factory_rejects_unknown_engine_before_provider_creation() {
         }
     ));
     assert_eq!(calls.load(Ordering::SeqCst), 0);
+}
+
+#[test]
+fn desktop_capability_registry_uses_sing_box_lifecycle_owner_and_fails_closed_for_unknown_engine() {
+    let provider =
+        desktop_core_capability_provider(DesktopLogStreamAdapter::ManagedRuntimeScopeBound)
+            .unwrap();
+    let sing_box = singbox_adapter::engine_id();
+    let matrix = provider.matrix_for(&sing_box, None).unwrap();
+    let start = matrix
+        .entries
+        .iter()
+        .find(|entry| entry.operation == CoreOperation::Lifecycle(CoreLifecycleOperation::Start))
+        .unwrap();
+    assert_eq!(
+        start.engine,
+        EngineCapabilityDecision::OwnerManaged {
+            owner: AdapterOperationOwner::CoreLifecycle,
+        }
+    );
+    assert_eq!(start.adapter, AdapterCapabilityDecision::Supported);
+
+    let unknown = EngineId::new("future-engine").unwrap();
+    assert!(matches!(
+        provider.matrix_for(&unknown, None),
+        Err(CoreCapabilityProviderError::EngineUnavailable { .. })
+    ));
 }

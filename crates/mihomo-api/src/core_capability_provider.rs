@@ -1,13 +1,12 @@
 //! Mihomo's engine-scoped capability declarations.
 
 use infiltrator_contract::adapter_operation_declaration::{
-    AdapterOperationDeclarationFile, AdapterOperationSupport, OperationEvidenceAsset,
-    OperationEvidenceId, OperationEvidenceLock, ValidatedAdapterOperationDeclarations,
+    AdapterOperationDeclarationFile, OperationEvidenceLock, ValidatedAdapterOperationDeclarations,
 };
 use infiltrator_contract::core_capabilities::{
     AdapterCapabilityDecision, AdapterRevision, CoreCapabilityEntry, CoreCapabilityMatrix,
     CoreCapabilityScope, CoreOperation, CoreVersionRequirement, EngineBinaryTarget,
-    EngineCapabilityDecision, HostCapabilityDecision,
+    HostCapabilityDecision,
 };
 use infiltrator_contract::core_identity::{CoreVersion, EngineId};
 use infiltrator_contract::surface::HostKind;
@@ -47,63 +46,8 @@ fn load_operation_declarations() -> Result<ValidatedAdapterOperationDeclarations
     let declaration: AdapterOperationDeclarationFile =
         serde_json::from_str(MIHOMO_OPERATION_DECLARATION)
             .map_err(|error| format!("declaration JSON: {error}"))?;
-    let manifest: serde_json::Value = serde_json::from_str(MIHOMO_EVIDENCE_MANIFEST)
-        .map_err(|error| format!("evidence manifest JSON: {error}"))?;
-    if manifest
-        .get("schema_version")
-        .and_then(serde_json::Value::as_u64)
-        != Some(2)
-    {
-        return Err("evidence manifest must use target-scoped schema version 2".to_owned());
-    }
-    if manifest.get("engine").and_then(serde_json::Value::as_str) != Some("mihomo") {
-        return Err("evidence manifest engine must be mihomo".to_owned());
-    }
-    let assets = manifest
-        .get("assets")
-        .and_then(serde_json::Value::as_array)
-        .ok_or_else(|| "evidence manifest has no assets array".to_owned())?;
-    let evidence_assets = assets
-        .iter()
-        .map(|asset| {
-            let version = asset
-                .get("version")
-                .and_then(serde_json::Value::as_str)
-                .ok_or_else(|| "evidence asset has no pinned version".to_owned())?;
-            let operations = asset
-                .get("operations")
-                .and_then(serde_json::Value::as_array)
-                .ok_or_else(|| format!("evidence asset {version} has no operations array"))?
-                .iter()
-                .map(|operation| {
-                    let value = operation.as_str().ok_or_else(|| {
-                        format!("evidence asset {version} has a non-string operation")
-                    })?;
-                    OperationEvidenceId::new(value.to_owned()).map_err(|error| error.to_string())
-                })
-                .collect::<Result<HashSet<_>, String>>()?;
-            let target_name = asset
-                .get("binary_target")
-                .and_then(serde_json::Value::as_str)
-                .ok_or_else(|| format!("evidence asset {version} has no binary target"))?;
-            let target = EngineBinaryTarget::from_target_triple(target_name).ok_or_else(|| {
-                format!("evidence asset {version} has unknown target {target_name}")
-            })?;
-            let adapter_revision = asset
-                .get("adapter_revision")
-                .and_then(serde_json::Value::as_u64)
-                .ok_or_else(|| format!("evidence asset {version} has no adapter revision"))?;
-            Ok(OperationEvidenceAsset {
-                version: CoreVersion::new(version.to_owned()).map_err(|error| error.to_string())?,
-                target,
-                adapter_revision: AdapterRevision::new(adapter_revision),
-                operations,
-            })
-        })
-        .collect::<Result<Vec<_>, String>>()?;
-    let engine = EngineId::new("mihomo").map_err(|error| error.to_string())?;
     let evidence_lock =
-        OperationEvidenceLock::new(engine, evidence_assets).map_err(|error| error.to_string())?;
+        OperationEvidenceLock::from_manifest_json(MIHOMO_EVIDENCE_MANIFEST, "mihomo")?;
     ValidatedAdapterOperationDeclarations::validate(declaration, "mihomo", &evidence_lock)
         .map_err(|error| error.to_string())
 }
@@ -191,12 +135,11 @@ impl CoreCapabilityProvider for MihomoCoreCapabilityProvider {
             .map(|operation| {
                 CoreCapabilityEntry::new(
                     operation,
-                    engine_decision(
+                    declarations.engine_decision_for_scope(
                         operation,
                         core_version,
                         self.binary_target,
                         self.adapter_revision,
-                        declarations,
                     ),
                     host_decision(
                         self.host,
@@ -214,84 +157,6 @@ impl CoreCapabilityProvider for MihomoCoreCapabilityProvider {
                 reason: error.to_string(),
             }
         })
-    }
-}
-
-fn engine_decision(
-    operation: CoreOperation,
-    active_version: Option<&CoreVersion>,
-    binary_target: EngineBinaryTarget,
-    adapter_revision: AdapterRevision,
-    declarations: &ValidatedAdapterOperationDeclarations,
-) -> EngineCapabilityDecision {
-    match declarations.support(operation) {
-        AdapterOperationSupport::Unsupported { reason } => EngineCapabilityDecision::Unsupported {
-            reason: reason.clone(),
-        },
-        AdapterOperationSupport::OwnerManaged { owner } => {
-            EngineCapabilityDecision::OwnerManaged { owner: *owner }
-        }
-        AdapterOperationSupport::EvidenceOpen { reason } => {
-            let scope = active_version.map_or_else(
-                || {
-                    format!(
-                        "target {binary_target:?} at adapter revision {}",
-                        adapter_revision.value()
-                    )
-                },
-                |version| {
-                    format!(
-                        "exact version `{}` / target {binary_target:?} / adapter revision {}",
-                        version.raw(),
-                        adapter_revision.value()
-                    )
-                },
-            );
-            EngineCapabilityDecision::VersionUnavailable {
-                reason: format!("Mihomo operation evidence remains open for {scope}: {reason}"),
-            }
-        }
-        AdapterOperationSupport::Supported { .. } => match operation.version_requirement() {
-            CoreVersionRequirement::IndependentOfActiveVersion => {
-                if declarations.has_verified_support_for_target(
-                    operation,
-                    binary_target,
-                    adapter_revision,
-                ) {
-                    EngineCapabilityDecision::Supported
-                } else {
-                    EngineCapabilityDecision::VersionUnavailable {
-                        reason: format!(
-                            "no Mihomo operation evidence is registered for {operation:?} at target {binary_target:?} and adapter revision {}",
-                            adapter_revision.value()
-                        ),
-                    }
-                }
-            }
-            CoreVersionRequirement::RequiresActiveVersion => {
-                let Some(active_version) = active_version else {
-                    return EngineCapabilityDecision::VersionUnavailable {
-                        reason: "active core version is unavailable".to_string(),
-                    };
-                };
-
-                if declarations.has_verified_support_for_scope(
-                    operation,
-                    active_version,
-                    binary_target,
-                    adapter_revision,
-                ) {
-                    EngineCapabilityDecision::Supported
-                } else {
-                    EngineCapabilityDecision::VersionUnavailable {
-                        reason: format!(
-                            "no Mihomo behavior evidence is registered for {operation:?} at exact version `{}`",
-                            active_version.raw()
-                        ),
-                    }
-                }
-            }
-        },
     }
 }
 

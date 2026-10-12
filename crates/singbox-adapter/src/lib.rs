@@ -4,6 +4,9 @@
 //! boundaries. Application ownership, scope fencing, and VPN state remain
 //! outside this crate.
 
+use infiltrator_contract::core_identity::EngineId;
+
+pub mod capability_provider;
 pub mod clash_api;
 pub mod clash_runtime;
 pub mod command;
@@ -15,9 +18,8 @@ pub mod profile_document_codec;
 pub mod readiness;
 pub mod version;
 
-pub fn engine_id() -> infiltrator_contract::core_identity::EngineId {
-    infiltrator_contract::core_identity::EngineId::new("sing-box")
-        .expect("sing-box engine identifier is valid")
+pub fn engine_id() -> EngineId {
+    EngineId::new("sing-box").expect("sing-box engine identifier is valid")
 }
 
 #[cfg(test)]

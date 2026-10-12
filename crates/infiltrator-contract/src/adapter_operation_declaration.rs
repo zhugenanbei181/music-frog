@@ -4,7 +4,10 @@
 //! only type that can answer whether an operation has verified evidence, and
 //! it can do so only after checking completeness and the engine evidence lock.
 
-use crate::core_capabilities::{AdapterRevision, CoreOperation, EngineBinaryTarget};
+use crate::core_capabilities::{
+    AdapterRevision, CoreOperation, CoreVersionRequirement, EngineBinaryTarget,
+    EngineCapabilityDecision,
+};
 use crate::core_identity::{CoreVersion, EngineId};
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
@@ -97,6 +100,73 @@ pub struct OperationEvidenceAsset {
 }
 
 impl OperationEvidenceLock {
+    /// Parse the shared target-scoped evidence manifest used by engine
+    /// adapters. Keeping this mapping in the contract prevents each provider
+    /// from reinterpreting version, target, operation, and revision fields.
+    pub fn from_manifest_json(source: &str, expected_engine: &str) -> Result<Self, String> {
+        let manifest: serde_json::Value = serde_json::from_str(source)
+            .map_err(|error| format!("evidence manifest JSON: {error}"))?;
+        if manifest
+            .get("schema_version")
+            .and_then(serde_json::Value::as_u64)
+            != Some(2)
+        {
+            return Err("evidence manifest must use target-scoped schema version 2".to_owned());
+        }
+        if manifest.get("engine").and_then(serde_json::Value::as_str) != Some(expected_engine) {
+            return Err(format!(
+                "evidence manifest engine must be {expected_engine}"
+            ));
+        }
+        let assets = manifest
+            .get("assets")
+            .and_then(serde_json::Value::as_array)
+            .ok_or_else(|| "evidence manifest has no assets array".to_owned())?;
+        let evidence_assets = assets
+            .iter()
+            .map(|asset| {
+                let version = asset
+                    .get("version")
+                    .and_then(serde_json::Value::as_str)
+                    .ok_or_else(|| "evidence asset has no pinned version".to_owned())?;
+                let operations = asset
+                    .get("operations")
+                    .and_then(serde_json::Value::as_array)
+                    .ok_or_else(|| format!("evidence asset {version} has no operations array"))?
+                    .iter()
+                    .map(|operation| {
+                        let value = operation.as_str().ok_or_else(|| {
+                            format!("evidence asset {version} has a non-string operation")
+                        })?;
+                        OperationEvidenceId::new(value.to_owned())
+                            .map_err(|error| error.to_string())
+                    })
+                    .collect::<Result<HashSet<_>, String>>()?;
+                let target_name = asset
+                    .get("binary_target")
+                    .and_then(serde_json::Value::as_str)
+                    .ok_or_else(|| format!("evidence asset {version} has no binary target"))?;
+                let target =
+                    EngineBinaryTarget::from_target_triple(target_name).ok_or_else(|| {
+                        format!("evidence asset {version} has unknown target {target_name}")
+                    })?;
+                let adapter_revision = asset
+                    .get("adapter_revision")
+                    .and_then(serde_json::Value::as_u64)
+                    .ok_or_else(|| format!("evidence asset {version} has no adapter revision"))?;
+                Ok(OperationEvidenceAsset {
+                    version: CoreVersion::new(version.to_owned())
+                        .map_err(|error| error.to_string())?,
+                    target,
+                    adapter_revision: AdapterRevision::new(adapter_revision),
+                    operations,
+                })
+            })
+            .collect::<Result<Vec<_>, String>>()?;
+        let engine = EngineId::new(expected_engine).map_err(|error| error.to_string())?;
+        Self::new(engine, evidence_assets).map_err(|error| error.to_string())
+    }
+
     pub fn new(
         engine: EngineId,
         assets: impl IntoIterator<Item = OperationEvidenceAsset>,
@@ -269,6 +339,88 @@ impl ValidatedAdapterOperationDeclarations {
         self.operations
             .get(&operation)
             .expect("validated declaration covers every CoreOperation")
+    }
+
+    /// Resolve engine support from the same operation declaration and
+    /// target/version evidence lock for every product host. Host integration
+    /// and concrete adapter wiring remain separate capability dimensions.
+    pub fn engine_decision_for_scope(
+        &self,
+        operation: CoreOperation,
+        active_version: Option<&CoreVersion>,
+        binary_target: EngineBinaryTarget,
+        adapter_revision: AdapterRevision,
+    ) -> EngineCapabilityDecision {
+        match self.support(operation) {
+            AdapterOperationSupport::Unsupported { reason } => {
+                EngineCapabilityDecision::Unsupported {
+                    reason: reason.clone(),
+                }
+            }
+            AdapterOperationSupport::OwnerManaged { owner } => {
+                EngineCapabilityDecision::OwnerManaged { owner: *owner }
+            }
+            AdapterOperationSupport::EvidenceOpen { reason } => {
+                let scope = active_version.map_or_else(
+                    || {
+                        format!(
+                            "target {binary_target:?} at adapter revision {}",
+                            adapter_revision.value()
+                        )
+                    },
+                    |version| {
+                        format!(
+                            "exact version `{}` / target {binary_target:?} / adapter revision {}",
+                            version.raw(),
+                            adapter_revision.value()
+                        )
+                    },
+                );
+                EngineCapabilityDecision::VersionUnavailable {
+                    reason: format!("operation evidence remains open for {scope}: {reason}"),
+                }
+            }
+            AdapterOperationSupport::Supported { .. } => match operation.version_requirement() {
+                CoreVersionRequirement::IndependentOfActiveVersion => {
+                    if self.has_verified_support_for_target(
+                        operation,
+                        binary_target,
+                        adapter_revision,
+                    ) {
+                        EngineCapabilityDecision::Supported
+                    } else {
+                        EngineCapabilityDecision::VersionUnavailable {
+                            reason: format!(
+                                "no operation evidence is registered for {operation:?} at target {binary_target:?} and adapter revision {}",
+                                adapter_revision.value()
+                            ),
+                        }
+                    }
+                }
+                CoreVersionRequirement::RequiresActiveVersion => {
+                    let Some(active_version) = active_version else {
+                        return EngineCapabilityDecision::VersionUnavailable {
+                            reason: "active core version is unavailable".to_owned(),
+                        };
+                    };
+                    if self.has_verified_support_for_scope(
+                        operation,
+                        active_version,
+                        binary_target,
+                        adapter_revision,
+                    ) {
+                        EngineCapabilityDecision::Supported
+                    } else {
+                        EngineCapabilityDecision::VersionUnavailable {
+                            reason: format!(
+                                "no behavior evidence is registered for {operation:?} at exact version `{}`",
+                                active_version.raw()
+                            ),
+                        }
+                    }
+                }
+            },
+        }
     }
 
     /// Returns evidence only for an operation that passed declaration and lock validation.

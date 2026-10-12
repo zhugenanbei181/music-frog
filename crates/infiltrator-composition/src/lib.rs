@@ -461,6 +461,7 @@ where
 
 pub mod active_profile_backend;
 pub mod engine_backend_factory;
+pub mod engine_capability_provider_registry;
 pub mod mihomo_engine_backend_provider;
 pub mod snapshot_restore_fixture;
 

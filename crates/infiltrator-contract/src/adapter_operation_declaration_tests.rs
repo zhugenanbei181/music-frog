@@ -5,7 +5,7 @@ use super::adapter_operation_declaration::{
 };
 use super::core_capabilities::{
     AdapterRevision, CoreLifecycleOperation, CoreOperation, DnsOperation, EngineBinaryTarget,
-    OutboundOperation,
+    EngineCapabilityDecision, OutboundOperation,
 };
 use super::core_identity::{CoreVersion, EngineId};
 use std::collections::HashSet;
@@ -19,53 +19,8 @@ const SING_BOX_EVIDENCE_LOCK: &str =
     include_str!("../../../packaging/sing-box-evidence-assets.json");
 
 fn lock_from_manifest(engine_name: &str, source: &str) -> OperationEvidenceLock {
-    let manifest: serde_json::Value =
-        serde_json::from_str(source).expect("evidence manifest is valid JSON");
-    let assets = manifest["assets"]
-        .as_array()
-        .expect("evidence manifest has an asset array");
-    assert!(!assets.is_empty(), "evidence lock has at least one asset");
-    if let Some(locked_engine) = manifest["engine"].as_str() {
-        assert_eq!(locked_engine, engine_name, "evidence lock engine matches");
-    }
-    let engine = EngineId::new(engine_name.to_owned()).expect("evidence engine ID is valid");
-    let release_version = manifest["release"]["version"].as_str();
-    let evidence_assets = assets.iter().map(|asset| {
-        let version = asset["version"]
-            .as_str()
-            .or(release_version)
-            .expect("each evidence asset belongs to a pinned version");
-        let registered = asset["operations"]
-            .as_array()
-            .map(|operations| {
-                operations
-                    .iter()
-                    .map(|operation| {
-                        let evidence_id = operation
-                            .as_str()
-                            .expect("operation evidence IDs are strings");
-                        OperationEvidenceId::new(evidence_id.to_owned())
-                            .expect("evidence IDs are non-empty")
-                    })
-                    .collect::<HashSet<_>>()
-            })
-            .unwrap_or_default();
-        let binary_target = asset["binary_target"]
-            .as_str()
-            .expect("each asset has a binary target");
-        let target = EngineBinaryTarget::from_target_triple(binary_target)
-            .expect("each asset target is registered in the typed target enum");
-        let adapter_revision = asset["adapter_revision"]
-            .as_u64()
-            .expect("each asset has an adapter revision");
-        OperationEvidenceAsset {
-            version: CoreVersion::new(version.to_owned()).expect("asset version is non-empty"),
-            target,
-            adapter_revision: AdapterRevision::new(adapter_revision),
-            operations: registered,
-        }
-    });
-    OperationEvidenceLock::new(engine, evidence_assets).expect("evidence lock has a pinned version")
+    OperationEvidenceLock::from_manifest_json(source, engine_name)
+        .expect("target-scoped evidence manifest is valid")
 }
 
 fn parse_declaration(source: &str) -> AdapterOperationDeclarationFile {
@@ -129,7 +84,7 @@ fn supported_operations_require_matching_ids_registered_in_each_engine_lock() {
         .iter()
         .filter(|operation| validated.verified_supported_evidence(**operation).is_some())
         .count();
-    assert_eq!(supported, 6);
+    assert_eq!(supported, 7);
 
     let sing_box = validate_source(SING_BOX_DECLARATION, "sing-box", SING_BOX_EVIDENCE_LOCK);
     assert!(
@@ -237,6 +192,55 @@ fn supported_evidence_is_bound_to_exact_version_target_and_adapter_revision() {
     ] {
         assert!(!validated.has_verified_support_for_scope(operation, &version, target, revision,));
     }
+}
+
+#[test]
+fn engine_decision_is_shared_for_owner_managed_supported_and_unsupported_operations() {
+    let sing_box = validate_source(SING_BOX_DECLARATION, "sing-box", SING_BOX_EVIDENCE_LOCK);
+    let start = CoreOperation::Lifecycle(CoreLifecycleOperation::Start);
+    assert_eq!(
+        sing_box.engine_decision_for_scope(
+            start,
+            None,
+            EngineBinaryTarget::X86_64UnknownLinuxGnu,
+            AdapterRevision::new(1),
+        ),
+        EngineCapabilityDecision::OwnerManaged {
+            owner: AdapterOperationOwner::CoreLifecycle,
+        }
+    );
+
+    let outbound_list = CoreOperation::Outbound(OutboundOperation::List);
+    assert!(matches!(
+        sing_box.engine_decision_for_scope(
+            outbound_list,
+            None,
+            EngineBinaryTarget::X86_64UnknownLinuxGnu,
+            AdapterRevision::new(1),
+        ),
+        EngineCapabilityDecision::Unsupported { .. }
+    ));
+
+    let mihomo = validate_source(MIHOMO_DECLARATION, "mihomo", MIHOMO_EVIDENCE_LOCK);
+    let version = CoreVersion::new("v1.19.32").expect("valid version");
+    assert_eq!(
+        mihomo.engine_decision_for_scope(
+            outbound_list,
+            Some(&version),
+            EngineBinaryTarget::X86_64UnknownLinuxGnu,
+            AdapterRevision::new(1),
+        ),
+        EngineCapabilityDecision::Supported
+    );
+    assert!(matches!(
+        mihomo.engine_decision_for_scope(
+            outbound_list,
+            None,
+            EngineBinaryTarget::X86_64UnknownLinuxGnu,
+            AdapterRevision::new(1),
+        ),
+        EngineCapabilityDecision::VersionUnavailable { .. }
+    ));
 }
 
 #[test]

@@ -1,5 +1,5 @@
 use super::{
-    MIHOMO_OPERATION_DECLARATION, MihomoCoreCapabilityProvider, engine_decision, evidence_manifest,
+    MIHOMO_OPERATION_DECLARATION, MihomoCoreCapabilityProvider, evidence_manifest,
     is_canonical_mihomo_version, operation_declarations,
 };
 use infiltrator_contract::adapter_operation_declaration::{
@@ -496,12 +496,11 @@ fn active_version_independent_engine_operations_still_require_exact_target_evide
     });
 
     assert_eq!(
-        engine_decision(
+        declarations.engine_decision_for_scope(
             operation,
             None,
             EngineBinaryTarget::X86_64UnknownLinuxGnu,
             AdapterRevision::new(1),
-            &declarations,
         ),
         EngineCapabilityDecision::Supported
     );
@@ -516,7 +515,7 @@ fn active_version_independent_engine_operations_still_require_exact_target_evide
         ),
     ] {
         assert!(matches!(
-            engine_decision(operation, None, target, revision, &declarations),
+            declarations.engine_decision_for_scope(operation, None, target, revision),
             EngineCapabilityDecision::VersionUnavailable { .. }
         ));
     }
@@ -530,12 +529,11 @@ fn evidence_open_is_never_available_for_a_version_independent_operation() {
     });
 
     assert!(matches!(
-        engine_decision(
+        declarations.engine_decision_for_scope(
             operation,
             None,
             EngineBinaryTarget::X86_64UnknownLinuxGnu,
             AdapterRevision::new(1),
-            &declarations,
         ),
         EngineCapabilityDecision::VersionUnavailable { .. }
     ));

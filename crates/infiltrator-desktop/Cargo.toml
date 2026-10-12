@@ -18,6 +18,7 @@ mihomo-api = { path = "../mihomo-api" }
 mihomo-config = { path = "../mihomo-config" }
 mihomo-platform = { path = "../mihomo-platform" }
 mihomo-version = { path = "../mihomo-version" }
+singbox-adapter = { path = "../singbox-adapter" }
 reqwest = { workspace = true, default-features = false, features = ["json", "socks", "stream", "http2"] }
 serde = { workspace = true }
 serde_json = { workspace = true }

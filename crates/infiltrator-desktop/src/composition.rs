@@ -31,15 +31,17 @@ use infiltrator_application::outbound_application::OutboundApplication;
 use infiltrator_application::pac_application::PacApplication;
 use infiltrator_application::port_conflict_application::PortConflictApplication;
 use infiltrator_application::service_mode_application::ServiceModeApplication;
+use infiltrator_application::speedtest_application::SpeedtestApplication;
 use infiltrator_application::surface_application::SurfacePump;
 use infiltrator_application::system_proxy_application::SystemProxyApplication;
 use infiltrator_application::uwp_loopback_application::UwpLoopbackApplication;
 use infiltrator_application::version_application::VersionApplication;
 use infiltrator_composition::active_profile_backend::{
-    ActiveProfileSelectionPreflight, PreviousCoreOwner, SelectedActiveProfileBackend,
-    authorize_lifecycle_start, preflight_active_profile_reference,
+    ActiveProfileBackendSelector, ActiveProfileSelectionPreflight, PreviousCoreOwner,
+    SelectedActiveProfileBackend, authorize_lifecycle_start, preflight_active_profile_reference,
 };
 use infiltrator_composition::engine_backend_factory::EngineBackendFactoryRegistry;
+use infiltrator_composition::engine_capability_provider_registry::EngineCoreCapabilityProviderRegistry;
 use infiltrator_composition::mihomo_engine_backend_provider::MihomoEngineBackendProvider;
 use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_capabilities::{
@@ -62,6 +64,7 @@ use infiltrator_ports::core_binary_selection::{
 };
 use infiltrator_ports::core_capability_provider::CoreCapabilityProvider;
 use infiltrator_ports::core_log_level::CoreLogLevelPort;
+use infiltrator_ports::core_process::CoreReadiness;
 use infiltrator_ports::endpoint::EndpointSource;
 use infiltrator_ports::engine_backend_factory::{
     EngineBackendOwnerScopeBindingResult, EngineBackendPorts, EngineBackendProvider,
@@ -75,9 +78,11 @@ use infiltrator_ports::subscription_source::SubscriptionSource;
 use mihomo_api::client::MihomoClient;
 use mihomo_api::core_capability_provider::MihomoCoreCapabilityProvider;
 use mihomo_api::overview::ControllerOverviewReader;
+use mihomo_api::readiness::ControllerReadiness;
 use mihomo_config::manager::ConfigManager;
 use mihomo_platform::defaults::DefaultCredentialStore;
 use mihomo_version::bundled_kernel::packaged_candidates;
+use singbox_adapter::capability_provider::SingBoxCoreCapabilityProvider;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -97,7 +102,7 @@ pub(crate) async fn open_default_product_backend(
 ) -> anyhow::Result<DesktopProductBackend> {
     let config_manager = Arc::new(app_config_manager().await?);
     let capability_provider =
-        desktop_core_capability_provider(DesktopLogStreamAdapter::ManagedRuntimeScopeBound);
+        desktop_core_capability_provider(DesktopLogStreamAdapter::ManagedRuntimeScopeBound)?;
     let mihomo_engine_id = MihomoVersionPort::engine_identifier();
     desktop_runtime_factory()?.provider(&mihomo_engine_id)?;
     authorize_lifecycle_start(&capability_provider, &mihomo_engine_id)?;
@@ -329,7 +334,7 @@ pub(crate) async fn core_application(
     backend: DesktopMihomoBackend,
     secret: Option<String>,
     engines: SurfaceEngines,
-    speedtest: infiltrator_application::speedtest_application::SpeedtestApplication,
+    speedtest: SpeedtestApplication,
     profile_store: Arc<dyn ProfileStore>,
     subscription_source: Arc<dyn SubscriptionSource>,
     config_manager: Arc<ConfigManager<DefaultCredentialStore>>,
@@ -530,7 +535,7 @@ pub fn desktop_command_application(
 
 pub(crate) fn desktop_core_capability_provider(
     log_stream: DesktopLogStreamAdapter,
-) -> Arc<dyn CoreCapabilityProvider> {
+) -> Result<Arc<dyn CoreCapabilityProvider>, PortError> {
     let mut adapter_operations = vec![
         CoreOperation::Profile(ProfileOperation::ApplyFeature),
         CoreOperation::Dns(DnsOperation::ApplyConfiguration),
@@ -565,10 +570,24 @@ pub(crate) fn desktop_core_capability_provider(
             adapter_operations.push(CoreOperation::Logs(LogsOperation::Stream));
         }
     }
-    Arc::new(MihomoCoreCapabilityProvider::new(
+    let mihomo_engine_id = MihomoVersionPort::engine_identifier();
+    let mihomo: Arc<dyn CoreCapabilityProvider> = Arc::new(MihomoCoreCapabilityProvider::new(
         HostKind::Desktop,
         adapter_operations,
-    ))
+    ));
+    let sing_box_engine_id = singbox_adapter::engine_id();
+    let sing_box: Arc<dyn CoreCapabilityProvider> = Arc::new(SingBoxCoreCapabilityProvider::new(
+        HostKind::Desktop,
+        [
+            CoreOperation::Lifecycle(CoreLifecycleOperation::Start),
+            CoreOperation::Lifecycle(CoreLifecycleOperation::Stop),
+        ],
+    ));
+    let registry = EngineCoreCapabilityProviderRegistry::new([
+        (mihomo_engine_id, mihomo),
+        (sing_box_engine_id, sing_box),
+    ])?;
+    Ok(Arc::new(registry))
 }
 
 pub(crate) struct DesktopMihomoBackend {
@@ -592,9 +611,8 @@ pub(crate) async fn desktop_product_backend(
     let capability_provider = preflight.capability_provider();
     let client = MihomoClient::new(controller_url, secret.clone())
         .map_err(|error| PortError::Network(error.to_string()))?;
-    let readiness: Arc<dyn infiltrator_ports::core_process::CoreReadiness> = Arc::new(
-        mihomo_api::readiness::ControllerReadiness::new(controller_url.to_owned(), secret),
-    );
+    let readiness: Arc<dyn CoreReadiness> =
+        Arc::new(ControllerReadiness::new(controller_url.to_owned(), secret));
     let provider = Arc::new(MihomoEngineBackendProvider::new(
         service.core_process(),
         readiness,
@@ -604,13 +622,12 @@ pub(crate) async fn desktop_product_backend(
     let factory = Arc::new(EngineBackendFactoryRegistry::new([factory_provider])?);
     let references: Arc<dyn ActiveProfileReferenceStore> = config_manager.clone();
     let profiles: Arc<dyn ProfileStore> = config_manager;
-    let selector =
-        infiltrator_composition::active_profile_backend::ActiveProfileBackendSelector::new(
-            references,
-            [profiles],
-            factory,
-            Arc::clone(&capability_provider),
-        );
+    let selector = ActiveProfileBackendSelector::new(
+        references,
+        [profiles],
+        factory,
+        Arc::clone(&capability_provider),
+    );
     let selected = selector
         .select_backend_from_preflight(preflight, &PreviousCoreOwner::Unowned)
         .await?;

@@ -6151,6 +6151,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.11.0",
+ "singbox-adapter",
  "sysinfo",
  "tempfile",
  "tokio",
