@@ -13,13 +13,6 @@ use std::path::PathBuf;
 use tokio::fs;
 
 impl<S: SecureStore> ConfigManager<S> {
-    pub(super) async fn read_settings_value(&self) -> Result<toml::Value> {
-        self.profile_store
-            .read_settings_value()
-            .await
-            .map_err(|error| MihomoError::Config(error.to_string()))
-    }
-
     pub(super) async fn remove_profile_metadata(&self, profile: &str) -> Result<()> {
         let key = profile_id(profile)?;
         self.profile_store

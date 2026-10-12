@@ -3,17 +3,19 @@
 use super::ConfigManager;
 use super::paths::profile_id;
 use crate::profile::Profile;
+use crate::profile_workspace_store::config_error;
 use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
 use infiltrator_domain::profile_options::options_path;
-use infiltrator_domain::profiles::ProfileMetadata;
+use infiltrator_domain::profiles::{ProfileInfo, ProfileMetadata};
 use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceStore;
+use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::profile_workspace::{
     ProfileWorkspace, ProfileWorkspacePurpose, ProfileWorkspaceUpdate,
 };
 use infiltrator_ports::secure_store::SecureStore;
 use infiltrator_profile_store::document_store::{remove_optional, write_document_bytes_durable};
-use infiltrator_profile_store::metadata::{delete_subscription_url, read_profile_metadata};
+use infiltrator_profile_store::metadata::delete_subscription_url;
 use infiltrator_profile_store::profile_files::profile_document_backup_path;
 use mihomo_api::error::{MihomoError, Result};
 use std::path;
@@ -161,8 +163,12 @@ impl<S: SecureStore> ConfigManager<S> {
             .map_err(|error| MihomoError::Config(error.to_string()))
     }
 
-    pub async fn list_profiles(&self) -> Result<Vec<Profile>> {
-        self.initialize_profile_namespace().await?;
+    pub(crate) async fn list_profile_info(
+        &self,
+    ) -> std::result::Result<Vec<ProfileInfo>, PortError> {
+        self.initialize_profile_namespace()
+            .await
+            .map_err(config_error)?;
         if !self.config_dir().exists() {
             return Ok(vec![]);
         }
@@ -171,65 +177,18 @@ impl<S: SecureStore> ConfigManager<S> {
         // engine+profile reference. Keep its read lease while projecting the
         // list so a concurrent selection cannot make this view point at a
         // different document halfway through enumeration.
-        let selection_lease = ActiveProfileReferenceStore::acquire_selection_lease(self)
+        let selection_lease = ActiveProfileReferenceStore::acquire_selection_lease(self).await?;
+        let _profile_guard = self.lock_profile_writes().await.map_err(config_error)?;
+        self.profile_store
+            .list_profile_info_locked(selection_lease.state())
             .await
-            .map_err(|error| MihomoError::Config(error.to_string()))?;
-        let _profile_guard = self.lock_profile_writes().await?;
-        let active_profile = match selection_lease.state() {
-            ActiveProfileReferenceState::Unselected { .. } => None,
-            ActiveProfileReferenceState::Selected(reference)
-                if reference.engine_id == self.engine_id() =>
-            {
-                Some(reference.profile_id.as_str().to_owned())
-            }
-            ActiveProfileReferenceState::Selected(_) => None,
-        };
-        let settings = self.read_settings_value().await.ok();
-        let metadata_table = settings
-            .as_ref()
-            .and_then(|value| value.get("profiles"))
-            .and_then(|value| value.as_table());
-        let engine = self.engine_id();
-        let mut profiles = vec![];
+    }
 
-        let mut entries = fs::read_dir(self.config_dir()).await?;
-        while let Some(entry) = entries.next_entry().await? {
-            let path = entry.path();
-            if path.extension().and_then(|s| s.to_str()) == Some(self.document_extension().as_str())
-            {
-                let name = path
-                    .file_stem()
-                    .and_then(|s| s.to_str())
-                    .unwrap_or("")
-                    .to_string();
-                let active = active_profile.as_ref() == Some(&name);
-                let mut profile = Profile::new(name.clone(), path, active);
-                if let Some(table) = metadata_table.and_then(|table| table.get(&name))
-                    && let Some(profile_table) = table.as_table()
-                {
-                    let metadata = read_profile_metadata(
-                        self.credential_store(),
-                        &engine,
-                        &name,
-                        profile_table,
-                    )
-                    .await;
-                    apply_metadata(&mut profile, metadata);
-                }
-                profile.has_backup = match profile_id(&name) {
-                    Ok(profile_id) => self
-                        .profile_store
-                        .profile_document_has_backup(&profile_id)
-                        .await
-                        .unwrap_or(false),
-                    Err(_) => false,
-                };
-                profiles.push(profile);
-            }
-        }
-
-        profiles.sort_by(|a, b| a.name.cmp(&b.name));
-        Ok(profiles)
+    pub async fn list_profiles(&self) -> Result<Vec<Profile>> {
+        self.list_profile_info()
+            .await
+            .map(|profiles| profiles.into_iter().map(profile_from_info).collect())
+            .map_err(|error| MihomoError::Config(error.to_string()))
     }
 
     pub async fn delete_profile(&self, profile: &str) -> Result<()> {
@@ -346,6 +305,32 @@ fn apply_metadata(profile: &mut Profile, metadata: ProfileMetadata) {
     profile.cron_expression = metadata.cron_expression;
     profile.insecure_skip_verify = metadata.insecure_skip_verify;
     profile.auto_reload_core = metadata.auto_reload_core;
+}
+
+fn profile_from_info(info: ProfileInfo) -> Profile {
+    let mut profile = Profile::new(info.name, PathBuf::from(info.path), info.active);
+    apply_metadata(
+        &mut profile,
+        ProfileMetadata {
+            subscription_url: info.subscription_url,
+            auto_update_enabled: info.auto_update_enabled,
+            update_interval_hours: info.update_interval_hours,
+            last_updated: info.last_updated,
+            next_update: info.next_update,
+            traffic_upload: info.traffic_upload,
+            traffic_download: info.traffic_download,
+            traffic_total: info.traffic_total,
+            expire_at: info.expire_at,
+            user_agent: info.user_agent,
+            etag: info.etag,
+            last_modified: info.last_modified,
+            cron_expression: info.cron_expression,
+            insecure_skip_verify: info.insecure_skip_verify,
+            auto_reload_core: info.auto_reload_core,
+        },
+    );
+    profile.has_backup = info.has_backup;
+    profile
 }
 
 fn profile_from_metadata(name: &str, metadata: ProfileMetadata) -> Profile {

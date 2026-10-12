@@ -16,9 +16,7 @@ use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::{ActiveProfileWorkspaceWriteLease, ProfileStore};
 use infiltrator_ports::profile_workspace::{ProfileWorkspace, ProfileWorkspaceUpdate};
 use infiltrator_ports::secure_store::SecureStore;
-use infiltrator_profile_store::document_store::{read_optional, remove_optional, write_document};
 use std::fmt::Display;
-use std::path;
 use std::path::PathBuf;
 
 #[cfg(test)]
@@ -43,10 +41,7 @@ where
     }
 
     async fn list_profiles(&self) -> Result<Vec<ProfileInfo>, PortError> {
-        ConfigManager::list_profiles(self)
-            .await
-            .map(|profiles| profiles.into_iter().map(profile_info).collect())
-            .map_err(storage_error)
+        ConfigManager::list_profile_info(self).await
     }
 
     async fn get_current(&self) -> Result<String, PortError> {
@@ -225,11 +220,7 @@ where
     async fn load_aggregation_templates(&self) -> Result<Vec<AggregationTemplate>, PortError> {
         ensure_namespace(self).await?;
         let _guard = self.lock_profile_writes().await.map_err(storage_error)?;
-        let path = aggregation_templates_path(ConfigManager::config_dir(self));
-        let Some(text) = read_optional(&path).await? else {
-            return Ok(Vec::new());
-        };
-        serde_yaml_ng::from_str(&text).map_err(storage_error)
+        self.profile_store.load_aggregation_templates_locked().await
     }
 
     async fn save_aggregation_templates(
@@ -241,12 +232,9 @@ where
             ConfigManager::config_dir(self),
         )
         .await?;
-        let path = aggregation_templates_path(ConfigManager::config_dir(self));
-        if templates.is_empty() {
-            return remove_optional(&path).await;
-        }
-        let text = serde_yaml_ng::to_string(templates).map_err(storage_error)?;
-        write_document(&path, &text).await
+        self.profile_store
+            .save_aggregation_templates_locked(templates)
+            .await
     }
 
     async fn clear_backup(&self, profile: &str) -> Result<(), PortError> {
@@ -267,32 +255,6 @@ async fn ensure_namespace<S: SecureStore>(manager: &ConfigManager<S>) -> Result<
         .initialize_profile_namespace()
         .await
         .map_err(storage_error)
-}
-
-fn profile_info(profile: Profile) -> ProfileInfo {
-    ProfileInfo {
-        name: profile.name,
-        active: profile.active,
-        path: profile.path.to_string_lossy().to_string(),
-        controller_url: None,
-        controller_changed: None,
-        subscription_url: profile.subscription_url,
-        auto_update_enabled: profile.auto_update_enabled,
-        update_interval_hours: profile.update_interval_hours,
-        last_updated: profile.last_updated,
-        next_update: profile.next_update,
-        traffic_upload: profile.traffic_upload,
-        traffic_download: profile.traffic_download,
-        traffic_total: profile.traffic_total,
-        expire_at: profile.expire_at,
-        user_agent: profile.user_agent.clone(),
-        etag: profile.etag.clone(),
-        last_modified: profile.last_modified.clone(),
-        cron_expression: profile.cron_expression.clone(),
-        insecure_skip_verify: profile.insecure_skip_verify,
-        auto_reload_core: profile.auto_reload_core,
-        has_backup: profile.has_backup,
-    }
 }
 
 fn profile_metadata(profile: Profile) -> ProfileMetadata {
@@ -317,12 +279,4 @@ fn profile_metadata(profile: Profile) -> ProfileMetadata {
 
 fn storage_error<E: Display>(error: E) -> PortError {
     PortError::Io(error.to_string())
-}
-
-/// DUAL-08-13: aggregation-template library sidecar. The leading dot keeps it
-/// out of the profile-name space (`options/<profile>.yaml`).
-fn aggregation_templates_path(config_dir: &path::Path) -> PathBuf {
-    config_dir
-        .join("options")
-        .join(".aggregation-templates.yaml")
 }

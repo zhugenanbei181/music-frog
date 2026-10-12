@@ -101,10 +101,6 @@ impl<S: SecureStore> ConfigManager<S> {
         self.profile_store.document_codec_scope()
     }
 
-    pub(crate) fn document_extension(&self) -> ProfileDocumentExtension {
-        self.profile_store.document_extension()
-    }
-
     pub(crate) fn validate_document_bytes(&self, document: &[u8]) -> result::Result<(), PortError> {
         self.profile_store.validate_document_bytes(document)
     }
