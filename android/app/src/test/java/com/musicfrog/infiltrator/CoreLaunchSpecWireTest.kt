@@ -8,7 +8,7 @@ import org.junit.Test
 
 class CoreLaunchSpecWireTest {
     @Test
-    fun decodesRustOwnerConfigurationIdentityWorkingDirectoryAndArguments() {
+    fun decodesRustOwnerConfigurationIdentityBinaryWorkingDirectoryAndArguments() {
         val decoded = CoreStartRequestWire.decode(validRequest())
 
         assertEquals(
@@ -16,6 +16,7 @@ class CoreLaunchSpecWireTest {
                 CoreStartRequestWire(
                     CoreLaunchSpecWire(
                         CoreLaunchConfigurationIdentityWire("mihomo", "primary", "sha256:abc123"),
+                        CoreLaunchBinaryWire.MihomoBundled,
                         "/data/app/files",
                         listOf(
                             "-d",
@@ -36,12 +37,16 @@ class CoreLaunchSpecWireTest {
     }
 
     @Test
-    fun rejectsUnsupportedEngineMissingIdentityAndUnknownConfigurationFields() {
-        val unsupportedEngine = validRequest().replace("mihomo", "sing-box")
-        val missingIdentity = validRequest().replace("\"profile_id\": \"primary\",", "")
-        val unknownField = validRequest().replace("\"profile_id\": \"primary\",", "\"profile_id\": \"primary\",\n    \"legacy_config_name\": \"default.yaml\",")
+    fun rejectsUnsupportedOrMismatchedEngineMissingIdentityAndUnknownFields() {
+        val unsupportedEngine = validRequest().replace("mihomo", "unknown-engine")
+        val mismatchedBinaryEngine = validRequest().replace("mihomo", "sing-box")
+        val missingIdentity = validRequest().replace("\"profile_id\":\"primary\",", "")
+        val unknownField = validRequest().replace(
+            "\"profile_id\":\"primary\",",
+            "\"profile_id\":\"primary\",\"legacy_config_name\":\"default.yaml\",",
+        )
 
-        listOf(unsupportedEngine, missingIdentity, unknownField).forEach { json ->
+        listOf(unsupportedEngine, mismatchedBinaryEngine, missingIdentity, unknownField).forEach { json ->
             assertTrue(CoreStartRequestWire.decode(json) is CoreStartRequestDecode.Rejected)
         }
 
@@ -56,10 +61,31 @@ class CoreLaunchSpecWireTest {
     }
 
     @Test
+    fun decodesManagedSingBoxBinaryAndRequiresItToMatchTheOwnerEngine() {
+        val request = validRequest()
+            .replace("\"MihomoBundled\"", "{\"SingBoxManaged\":{\"version\":\"1.14.3\",\"target\":\"arm64_v8a\"}}")
+            .replace("\"engine_id\":\"mihomo\"", "\"engine_id\":\"sing-box\"")
+            .replace("\"engine\":\"mihomo\"", "\"engine\":\"sing-box\"")
+        val decoded = CoreStartRequestWire.decode(request) as CoreStartRequestDecode.Accepted
+
+        assertEquals(
+            CoreLaunchBinaryWire.SingBoxManaged(
+                "1.14.3",
+                AndroidCoreBinaryTargetWire.Arm64V8a,
+            ),
+            decoded.request.launchSpec.binary,
+        )
+        assertEquals("aarch64-linux-android", AndroidCoreBinaryTargetWire.Arm64V8a.targetTriple)
+
+        val mismatchedOwner = request.replace("\"engine\":\"sing-box\"", "\"engine\":\"mihomo\"")
+        assertTrue(CoreStartRequestWire.decode(mismatchedOwner) is CoreStartRequestDecode.Rejected)
+    }
+
+    @Test
     fun rejectsRelativeWorkingDirectoryAndEmptyLaunchArguments() {
         val relativeWorkingDirectory = validRequest().replace("/data/app/files", "files")
         val emptyArguments = validRequest().replace(
-            "[\"-d\", \"/data/app/files\", \"-f\", \"/data/app/files/configs/engines/mihomo/primary.yaml\"]",
+            "[\"-d\",\"/data/app/files\",\"-f\",\"/data/app/files/configs/engines/mihomo/primary.yaml\"]",
             "[]",
         )
         val nonStringArgument = validRequest().replace("\"-d\"", "7")
@@ -89,5 +115,5 @@ class CoreLaunchSpecWireTest {
     }
 
     private fun validRequest(): String =
-        """{"launch_spec":{"configuration_identity":{"engine_id":"mihomo","profile_id":"primary","document_revision":"sha256:abc123"},"working_directory":"/data/app/files","launch_arguments":["-d","/data/app/files","-f","/data/app/files/configs/engines/mihomo/primary.yaml"]},"start_context":{"Managed":{"identity":{"engine":"mihomo","instance":"android-active","version":null},"generation":7,"session_token":42}}}"""
+        """{"launch_spec":{"configuration_identity":{"engine_id":"mihomo","profile_id":"primary","document_revision":"sha256:abc123"},"binary":"MihomoBundled","working_directory":"/data/app/files","launch_arguments":["-d","/data/app/files","-f","/data/app/files/configs/engines/mihomo/primary.yaml"]},"start_context":{"Managed":{"identity":{"engine":"mihomo","instance":"android-active","version":null},"generation":7,"session_token":42}}}"""
 }

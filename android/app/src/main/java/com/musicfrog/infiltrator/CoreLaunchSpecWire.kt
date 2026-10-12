@@ -11,6 +11,7 @@ internal data class CoreLaunchConfigurationIdentityWire(
 
 internal data class CoreLaunchSpecWire(
     val configurationIdentity: CoreLaunchConfigurationIdentityWire,
+    val binary: CoreLaunchBinaryWire,
     val workingDirectory: String,
     val launchArguments: List<String>,
 ) {
@@ -18,19 +19,23 @@ internal data class CoreLaunchSpecWire(
         internal fun decodeLaunchSpec(raw: String): CoreLaunchSpecDecode = runCatching {
             val json = JSONObject(raw)
             require(json.keys().asSequence().toSet() == setOf(
-                "configuration_identity", "working_directory", "launch_arguments",
+                "configuration_identity", "binary", "working_directory", "launch_arguments",
             ))
             val identity = json.getJSONObject("configuration_identity")
             require(identity.keys().asSequence().toSet() == setOf(
                 "engine_id", "profile_id", "document_revision",
             ))
             val configurationIdentity = CoreLaunchConfigurationIdentityWire(
-                engineId = identity.requiredString("engine_id").also { require(it == "mihomo") },
+                engineId = identity.requiredString("engine_id").also { CoreEngineIdWire.decode(it) },
                 profileId = identity.requiredString("profile_id").also { require(it.isNotBlank()) },
                 documentRevision = identity.requiredString("document_revision").also {
                     require(it.isNotBlank())
                 },
             )
+            val binary = CoreLaunchBinaryWire.decode(json.get("binary"))
+            require(binary.engineId.wireValue == configurationIdentity.engineId) {
+                "Core launch binary does not match its engine identity"
+            }
             val workingDirectory = json.requiredString("working_directory").also {
                 require(it.isNotBlank() && java.io.File(it).isAbsolute)
             }
@@ -39,15 +44,72 @@ internal data class CoreLaunchSpecWire(
                 for (index in 0 until argumentsJson.length()) {
                     add(
                         (argumentsJson.get(index) as? String)
-                            ?.also { require(it.isNotBlank()) }
+                            ?.also { require(it.isNotBlank() && '\u0000' !in it) }
                             ?: error("launch argument at index $index must be a string"),
                     )
                 }
             }
             require(arguments.isNotEmpty())
-            CoreLaunchSpecDecode.Accepted(CoreLaunchSpecWire(configurationIdentity, workingDirectory, arguments))
+            CoreLaunchSpecDecode.Accepted(
+                CoreLaunchSpecWire(configurationIdentity, binary, workingDirectory, arguments),
+            )
         }.getOrElse { error ->
             CoreLaunchSpecDecode.Rejected(error.message ?: "invalid Core launch spec")
+        }
+    }
+}
+
+internal enum class CoreEngineIdWire(val wireValue: String) {
+    Mihomo("mihomo"),
+    SingBox("sing-box");
+
+    companion object {
+        fun decode(value: String): CoreEngineIdWire = entries.firstOrNull { it.wireValue == value }
+            ?: error("unsupported Core engine identity")
+    }
+}
+
+internal enum class AndroidCoreBinaryTargetWire(val wireValue: String, val targetTriple: String) {
+    Arm64V8a("arm64_v8a", "aarch64-linux-android"),
+    X86_64("x86_64", "x86_64-linux-android");
+
+    companion object {
+        fun decode(value: String): AndroidCoreBinaryTargetWire = entries.firstOrNull {
+            it.wireValue == value
+        } ?: error("unsupported Android Core binary target")
+    }
+}
+
+internal sealed interface CoreLaunchBinaryWire {
+    val engineId: CoreEngineIdWire
+
+    data object MihomoBundled : CoreLaunchBinaryWire {
+        override val engineId: CoreEngineIdWire = CoreEngineIdWire.Mihomo
+    }
+
+    data class SingBoxManaged(
+        val version: String,
+        val target: AndroidCoreBinaryTargetWire,
+    ) : CoreLaunchBinaryWire {
+        override val engineId: CoreEngineIdWire = CoreEngineIdWire.SingBox
+    }
+
+    companion object {
+        fun decode(value: Any): CoreLaunchBinaryWire = when (value) {
+            is String -> when (value) {
+                "MihomoBundled" -> MihomoBundled
+                else -> error("unsupported Core launch binary")
+            }
+            is JSONObject -> {
+                require(value.keys().asSequence().toSet() == setOf("SingBoxManaged"))
+                val managed = value.getJSONObject("SingBoxManaged")
+                require(managed.keys().asSequence().toSet() == setOf("version", "target"))
+                SingBoxManaged(
+                    version = managed.requiredString("version").also { require(it.isNotBlank()) },
+                    target = AndroidCoreBinaryTargetWire.decode(managed.requiredString("target")),
+                )
+            }
+            else -> error("Core launch binary has an invalid wire representation")
         }
     }
 }
@@ -80,7 +142,7 @@ internal data class CoreProcessStartContextWire(
             val identityJson = context.getJSONObject("identity")
             require(identityJson.keys().asSequence().toSet() == setOf("engine", "instance", "version"))
             val identity = CoreIdentityWire(
-                engine = identityJson.requiredString("engine").also { require(it == "mihomo") },
+                engine = identityJson.requiredString("engine").also { CoreEngineIdWire.decode(it) },
                 instance = identityJson.requiredString("instance").also {
                     require(it == "android-active")
                 },
@@ -126,6 +188,9 @@ internal data class CoreStartRequestWire(
             val startContext = when (decodedStartContext) {
                 is CoreProcessStartContextDecode.Accepted -> decodedStartContext.context
                 is CoreProcessStartContextDecode.Rejected -> error(decodedStartContext.reason)
+            }
+            require(launchSpec.configurationIdentity.engineId == startContext.identity.engine) {
+                "Core launch specification and owner context belong to different engines"
             }
             CoreStartRequestDecode.Accepted(
                 CoreStartRequestWire(

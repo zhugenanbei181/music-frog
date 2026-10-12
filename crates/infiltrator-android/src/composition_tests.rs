@@ -814,15 +814,15 @@ async fn core_start_sends_the_active_profile_identity_and_rust_resolved_argument
     let workspace = store.load_active_workspace().await.unwrap();
     let config_path = store.existing_profile_document_path("main").await.unwrap();
     let workdir = PathBuf::from("/android-test-data");
-    assert_eq!(spec.configuration_identity.engine_id.as_str(), "mihomo");
-    assert_eq!(spec.configuration_identity.profile_id.as_str(), "main");
+    assert_eq!(spec.configuration_identity().engine_id.as_str(), "mihomo");
+    assert_eq!(spec.configuration_identity().profile_id.as_str(), "main");
     assert_eq!(
-        spec.configuration_identity.document_revision,
+        spec.configuration_identity().document_revision,
         workspace.document.identity.revision
     );
-    assert_eq!(spec.working_directory.as_path(), workdir);
+    assert_eq!(spec.working_directory().as_path(), workdir);
     assert_eq!(
-        spec.launch_parameters.as_slice(),
+        spec.launch_parameters().as_slice(),
         &[
             "-d".to_owned(),
             workdir.to_string_lossy().into_owned(),

@@ -191,7 +191,7 @@ where
             CoreProcessStartAdmission::ReuseExactOwnedProcess => return Ok(()),
         }
         let launch_spec = self.launch_spec_source.resolve().await?;
-        if launch_spec.configuration_identity.engine_id != self.engine_id {
+        if launch_spec.configuration_identity().engine_id != self.engine_id {
             return Err(PortError::Failed(
                 "Android Core launch specification engine differs from the active owner identity"
                     .to_owned(),

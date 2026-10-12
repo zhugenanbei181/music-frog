@@ -47,6 +47,34 @@ class MihomoCoreConfigurationValidatorTest {
     }
 
     @Test
+    fun mihomoControllerRejectsManagedSingBoxBeforeAnyProcessSideEffect() = withFiles { files ->
+        var starts = 0
+        val controller = files.controller {
+            starts += 1
+            FakeProcess(FakeProcessBehavior.Exit(0))
+        }
+        val spec = files.launchSpec().copy(
+            configurationIdentity = CoreLaunchConfigurationIdentityWire(
+                "sing-box",
+                "primary",
+                "sha256:singbox",
+            ),
+            binary = CoreLaunchBinaryWire.SingBoxManaged(
+                "1.14.3",
+                AndroidCoreBinaryTargetWire.Arm64V8a,
+            ),
+        )
+        val context = CoreProcessStartContextWire(
+            CoreIdentityWire("sing-box", "android-active", null),
+            BigInteger("7"),
+            BigInteger("42"),
+        )
+
+        assertEquals(CoreProcessStartReceipt.LaunchSpecRejected, controller.start(spec, context))
+        assertEquals(0, starts)
+    }
+
+    @Test
     fun validationRunsSameAbiBinaryWithOnlyCheckArgumentsAndDoesNotWriteCandidate() = withFiles { files ->
         val contentBefore = files.candidate.readBytes()
         val child = FakeProcess(FakeProcessBehavior.Exit(0))
@@ -340,6 +368,7 @@ class MihomoCoreConfigurationValidatorTest {
 
         fun launchSpec(): CoreLaunchSpecWire = CoreLaunchSpecWire(
             configurationIdentity = identity(),
+            binary = CoreLaunchBinaryWire.MihomoBundled,
             workingDirectory = filesDirectory.absolutePath,
             launchArguments = listOf(
                 "-d",

@@ -37,6 +37,7 @@ kotlin {
             kotlin.srcDir("../app/src/test/java")
             kotlin.include(
                 "com/musicfrog/infiltrator/AndroidCoreProcessRecordStoreTest.kt",
+                "com/musicfrog/infiltrator/CoreLaunchSpecWireTest.kt",
                 "com/musicfrog/infiltrator/MihomoCoreConfigurationValidatorTest.kt",
                 "com/musicfrog/infiltrator/OwnerIpcClientPendingLedgerTypedStateTest.kt",
                 "com/musicfrog/infiltrator/OwnerIpcClientPendingLedgerTest.kt",

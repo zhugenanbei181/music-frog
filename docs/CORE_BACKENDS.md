@@ -2,7 +2,7 @@
 
 > 层级：L2
 
-Mihomo 与 sing-box 均已有 production backend provider。Desktop `DesktopProductSession` 按持久化 active-profile reference 选择 engine-keyed provider：Mihomo 使用 `PreferBundled`，sing-box 只接受已管理且有匹配验证证据的二进制。`DesktopProductSession::switch_engine_profile` 已接入共享 durable owner-switch transaction；Mihomo 重新组合完整 Desktop runtime，sing-box 保持 Core lifecycle-only。session handoff 对各 typed failure phase 的 fake 行为已有 nextest 覆盖；候选运行时组装失败注入和真实双引擎进程切换仍未验收，不能标记为完成。Android `:vpn` 仍只接通 Mihomo。引擎 adapter 的存在不代表全部操作可用：能力仍按 operation 与证据 fail closed。新增 adapter 必须实现此中性契约并完成真实二进制验收。资产与平台状态见 [PLATFORM_MATRIX.md](PLATFORM_MATRIX.md)。
+Mihomo 与 sing-box 均已有 production backend provider。Desktop `DesktopProductSession` 按持久化 active-profile reference 选择 engine-keyed provider：Mihomo 使用 `PreferBundled`，sing-box 只接受已管理且有匹配验证证据的二进制。`DesktopProductSession::switch_engine_profile` 已接入共享 durable owner-switch transaction；Mihomo 重新组合完整 Desktop runtime，sing-box 保持 Core lifecycle-only。session handoff 对各 typed failure phase 的 fake 行为已有 nextest 覆盖；候选运行时组装失败注入和真实双引擎进程切换仍未验收，不能标记为完成。Android `:vpn` 的 `CoreLaunchSpec` 已把 `MihomoBundled` 或带版本/ABI 的 `SingBoxManaged` 与 profile engine 身份绑定；Rust 与 Kotlin 校验二进制、engine 和 owner context 一致。当前生产 composition 仍只注册 Mihomo，Android host 在任何资产部署或 spawn 前拒绝 `SingBoxManaged`；Android sing-box 版本、配置、进程 adapter 与 provider dispatch 尚未接入，因此不宣称双引擎可用。引擎 adapter 的存在不代表全部操作可用：能力仍按 operation 与证据 fail closed。新增 adapter 必须实现此中性契约并完成真实二进制验收。资产与平台状态见 [PLATFORM_MATRIX.md](PLATFORM_MATRIX.md)。
 
 - Profile 绑定 `EngineId`；命令、回执与快照绑定 `CoreScope`，身份或代次不符时拒绝更新。
 - 能力按 operation、engine/version、host、binary target 和 adapter revision 查询；需要活动版本的引擎操作必须匹配精确版本/目标/revision 证据，无活动版本的引擎操作仍须匹配目标/revision 的操作证据。缺少能力、证据或 owner-composed port 时 fail closed；进程运行不代表代理/VPN 已生效。

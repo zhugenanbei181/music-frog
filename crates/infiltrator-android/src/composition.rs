@@ -4,7 +4,7 @@ use crate::configuration_candidate_validator::{
     AndroidBridgeConfigurationValidationClient, AndroidCoreConfigurationValidationClient,
     AndroidProfileConfigurationCandidateValidator,
 };
-use crate::core_launch_spec::AndroidProfileLaunchSpecProvider;
+use crate::core_launch_spec::AndroidMihomoProfileLaunchSpecProvider;
 use crate::native_host::clipboard::AndroidClipboardPort;
 use crate::runtime::{AndroidBridgeAdapter, AndroidCoreProcessAdapter};
 use crate::vpn_service::AndroidVpnServicePort;
@@ -233,7 +233,7 @@ impl<S: SecureStore + 'static> EngineBackendProvider for AndroidMihomoBackendPro
         let working_directory = self.bridge.data_dir().ok_or_else(|| {
             PortError::Failed("Android Core launch working directory is unavailable".to_owned())
         })?;
-        let launch_spec_source = Arc::new(AndroidProfileLaunchSpecProvider::new(
+        let launch_spec_source = Arc::new(AndroidMihomoProfileLaunchSpecProvider::new(
             Arc::clone(&self.profile_store),
             working_directory,
         ));

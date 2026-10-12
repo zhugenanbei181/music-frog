@@ -1,7 +1,7 @@
 use crate::runtime::CoreLaunchSpecSource;
 use async_trait::async_trait;
 use infiltrator_contract::android_control::{
-    CoreLaunchConfigurationIdentity, CoreLaunchParameters, CoreLaunchSpec,
+    CoreLaunchBinary, CoreLaunchConfigurationIdentity, CoreLaunchParameters, CoreLaunchSpec,
     CoreLaunchWorkingDirectory,
 };
 use infiltrator_contract::core_identity::CoreVersion;
@@ -17,12 +17,12 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-pub(crate) struct AndroidProfileLaunchSpecProvider<S: SecureStore> {
+pub(crate) struct AndroidMihomoProfileLaunchSpecProvider<S: SecureStore> {
     config: Arc<ConfigManager<S>>,
     working_directory: PathBuf,
 }
 
-impl<S: SecureStore> AndroidProfileLaunchSpecProvider<S> {
+impl<S: SecureStore> AndroidMihomoProfileLaunchSpecProvider<S> {
     pub(crate) fn new(config: Arc<ConfigManager<S>>, working_directory: PathBuf) -> Self {
         Self {
             config,
@@ -32,8 +32,14 @@ impl<S: SecureStore> AndroidProfileLaunchSpecProvider<S> {
 }
 
 #[async_trait]
-impl<S: SecureStore> CoreLaunchSpecSource for AndroidProfileLaunchSpecProvider<S> {
+impl<S: SecureStore> CoreLaunchSpecSource for AndroidMihomoProfileLaunchSpecProvider<S> {
     async fn resolve(&self) -> Result<CoreLaunchSpec, PortError> {
+        let engine_id = self.config.engine_id();
+        if engine_id.as_str() != "mihomo" {
+            return Err(PortError::Failed(
+                "Mihomo launch provider received a non-Mihomo profile store".to_owned(),
+            ));
+        }
         let working_directory = CoreLaunchWorkingDirectory::new(self.working_directory.clone())
             .map_err(config_failure)?;
         let working_directory_argument = path_argument(working_directory.as_path())?;
@@ -53,7 +59,6 @@ impl<S: SecureStore> CoreLaunchSpecSource for AndroidProfileLaunchSpecProvider<S
 
         let workspace = self.config.load_active_workspace().await?;
         let document_identity = workspace.document.identity;
-        let engine_id = self.config.engine_id();
         if document_identity.engine_id != engine_id {
             return Err(PortError::Failed(format!(
                 "Android Core launch profile belongs to engine `{}` instead of `{}`",
@@ -75,15 +80,17 @@ impl<S: SecureStore> CoreLaunchSpecSource for AndroidProfileLaunchSpecProvider<S
             configuration_path,
         ])
         .map_err(config_failure)?;
-        Ok(CoreLaunchSpec {
-            configuration_identity: CoreLaunchConfigurationIdentity {
+        CoreLaunchSpec::new(
+            CoreLaunchConfigurationIdentity {
                 engine_id,
                 profile_id: document_identity.profile_id,
                 document_revision: document_identity.revision,
             },
-            working_directory,
-            launch_parameters,
-        })
+            CoreLaunchBinary::MihomoBundled,
+            working_directory.as_path().to_path_buf(),
+            launch_parameters.as_slice().to_vec(),
+        )
+        .map_err(config_failure)
     }
 }
 
@@ -162,8 +169,10 @@ mod tests {
                 .expect("test config manager is created"),
         );
         let working_directory = home.join("android data");
-        let provider =
-            AndroidProfileLaunchSpecProvider::new(Arc::clone(&config), working_directory.clone());
+        let provider = AndroidMihomoProfileLaunchSpecProvider::new(
+            Arc::clone(&config),
+            working_directory.clone(),
+        );
 
         let spec = provider
             .resolve()
@@ -179,18 +188,18 @@ mod tests {
             .await
             .expect("active workspace readback");
 
-        assert_eq!(spec.configuration_identity.engine_id, config.engine_id());
+        assert_eq!(spec.configuration_identity().engine_id, config.engine_id());
         assert_eq!(
-            spec.configuration_identity.profile_id.as_str(),
+            spec.configuration_identity().profile_id.as_str(),
             current_profile
         );
         assert_eq!(
-            spec.configuration_identity.document_revision,
+            spec.configuration_identity().document_revision,
             workspace.document.identity.revision
         );
-        assert_eq!(spec.working_directory.as_path(), working_directory);
+        assert_eq!(spec.working_directory().as_path(), working_directory);
         assert_eq!(
-            spec.launch_parameters.as_slice(),
+            spec.launch_parameters().as_slice(),
             &[
                 "-d".to_owned(),
                 working_directory.to_string_lossy().into_owned(),
@@ -217,7 +226,7 @@ mod tests {
             ConfigManager::with_home_and_store(home.clone(), TestCredentialStore)
                 .expect("test config manager is created"),
         );
-        let provider = AndroidProfileLaunchSpecProvider::new(
+        let provider = AndroidMihomoProfileLaunchSpecProvider::new(
             Arc::clone(&config),
             PathBuf::from("relative-owner-directory"),
         );

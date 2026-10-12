@@ -753,7 +753,9 @@ pub(crate) fn map_jni_error(context: &str, err: errors::Error) -> MihomoError {
 #[cfg(test)]
 mod start_request_tests {
     use super::CoreStartRequestWire;
-    use infiltrator_contract::android_control::{CoreLaunchConfigurationIdentity, CoreLaunchSpec};
+    use infiltrator_contract::android_control::{
+        CoreLaunchBinary, CoreLaunchConfigurationIdentity, CoreLaunchSpec,
+    };
     use infiltrator_contract::core_identity::{
         CoreGeneration, CoreIdentity, CoreInstanceId, EngineId,
     };
@@ -763,7 +765,7 @@ mod start_request_tests {
     use std::path::PathBuf;
 
     #[test]
-    fn core_start_wire_carries_the_rust_selected_profile_and_managed_owner_context() {
+    fn core_start_wire_carries_typed_binary_profile_and_managed_owner_context() {
         let launch_spec = CoreLaunchSpec::new(
             CoreLaunchConfigurationIdentity {
                 engine_id: EngineId::new("mihomo").expect("engine ID"),
@@ -771,6 +773,7 @@ mod start_request_tests {
                 document_revision: ProfileDocumentRevision::new("sha256:abc")
                     .expect("document revision"),
             },
+            CoreLaunchBinary::MihomoBundled,
             PathBuf::from("/data/app/files"),
             vec!["-d".to_owned(), "/data/app/files".to_owned()],
         )
@@ -798,6 +801,7 @@ mod start_request_tests {
                         "profile_id": "primary",
                         "document_revision": "sha256:abc"
                     },
+                    "binary": "MihomoBundled",
                     "working_directory": "/data/app/files",
                     "launch_arguments": ["-d", "/data/app/files"]
                 },

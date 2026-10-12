@@ -9,8 +9,9 @@ use infiltrator_application::mtu_application::MtuApplication;
 use infiltrator_application::offline_startup_application::OfflineStartupApplication;
 use infiltrator_contract::android_control::{
     AndroidChildProcessIdentity, AndroidCoreProcessExitEvidence, AndroidCoreProcessObservation,
-    AndroidCoreProcessUnavailableReason, AndroidOwnedCoreProcess, CoreLaunchConfigurationIdentity,
-    CoreLaunchSpec, VpnOwnerCoreReadback, VpnOwnerLifecycle, VpnOwnerReadiness, VpnOwnerSnapshot,
+    AndroidCoreProcessUnavailableReason, AndroidOwnedCoreProcess, CoreLaunchBinary,
+    CoreLaunchConfigurationIdentity, CoreLaunchSpec, VpnOwnerCoreReadback, VpnOwnerLifecycle,
+    VpnOwnerReadiness, VpnOwnerSnapshot,
 };
 use infiltrator_contract::command::{CommandIntent, CommandResult};
 use infiltrator_contract::core_capabilities::{
@@ -243,6 +244,7 @@ impl CoreLaunchSpecSource for TestLaunchSpecSource {
                 document_revision: ProfileDocumentRevision::new("sha256:runtime-test")
                     .expect("document revision"),
             },
+            CoreLaunchBinary::MihomoBundled,
             PathBuf::from("/data"),
             vec!["-d".to_owned(), "/data".to_owned()],
         )

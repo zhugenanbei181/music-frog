@@ -39,7 +39,10 @@ class MihomoHost(private val context: Context) : BridgeHost {
                 return CoreProcessStartReceipt.LaunchSpecRejected
             }
         }
-        ensureCoreAssets()
+        when (request.launchSpec.binary) {
+            CoreLaunchBinaryWire.MihomoBundled -> ensureCoreAssets()
+            is CoreLaunchBinaryWire.SingBoxManaged -> return CoreProcessStartReceipt.LaunchSpecRejected
+        }
         return processController.start(request.launchSpec, request.context)
     }
 

@@ -392,6 +392,7 @@ class AndroidCoreProcessRecordStoreTest {
 
     private fun launchSpec(files: File) = CoreLaunchSpecWire(
         CoreLaunchConfigurationIdentityWire("mihomo", "primary", "sha256:abc"),
+        CoreLaunchBinaryWire.MihomoBundled,
         files.absolutePath,
         listOf("-d", files.absolutePath),
     )

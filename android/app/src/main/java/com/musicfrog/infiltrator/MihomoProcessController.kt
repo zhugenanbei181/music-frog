@@ -173,28 +173,42 @@ internal class MihomoProcessController(
     fun start(
         spec: CoreLaunchSpecWire,
         context: CoreProcessStartContextWire,
-    ): CoreProcessStartReceipt =
-        when (configurationValidator.coreStartReadiness()) {
-            CoreValidationWorkerReadiness.CleanupPending -> CoreProcessStartReceipt.SpawnFailed
-            CoreValidationWorkerReadiness.Ready -> when (val state = reconcileProcessState()) {
-                is ProcessState.RunningWithHandle -> if (state.owned.context == context) {
-                    CoreProcessStartReceipt.AlreadyRunning
-                } else {
-                    CoreProcessStartReceipt.OwnerContextMismatch
-                }
-                is ProcessState.RunningByIdentity -> if (state.owned.context == context) {
-                    CoreProcessStartReceipt.AlreadyRunning
-                } else {
-                    CoreProcessStartReceipt.OwnerContextMismatch
-                }
-                is ProcessState.Exited -> CoreProcessStartReceipt.PreviousChildExitPending
-                is ProcessState.Unavailable -> CoreProcessStartReceipt.OwnershipRecordUnavailable
-                ProcessState.NeverStarted -> when (val binary = resolveBinary()) {
-                    CoreBinaryResolution.Missing -> CoreProcessStartReceipt.BinaryUnavailable
-                    is CoreBinaryResolution.Available -> spawn(binary.file, spec, context)
-                }
+    ): CoreProcessStartReceipt {
+        if (spec.configurationIdentity.engineId != context.identity.engine ||
+            spec.configurationIdentity.engineId != spec.binary.engineId.wireValue
+        ) {
+            return CoreProcessStartReceipt.LaunchSpecRejected
+        }
+        return when (spec.binary) {
+            CoreLaunchBinaryWire.MihomoBundled -> startMihomo(spec, context)
+            is CoreLaunchBinaryWire.SingBoxManaged -> CoreProcessStartReceipt.LaunchSpecRejected
+        }
+    }
+
+    private fun startMihomo(
+        spec: CoreLaunchSpecWire,
+        context: CoreProcessStartContextWire,
+    ): CoreProcessStartReceipt = when (configurationValidator.coreStartReadiness()) {
+        CoreValidationWorkerReadiness.CleanupPending -> CoreProcessStartReceipt.SpawnFailed
+        CoreValidationWorkerReadiness.Ready -> when (val state = reconcileProcessState()) {
+            is ProcessState.RunningWithHandle -> if (state.owned.context == context) {
+                CoreProcessStartReceipt.AlreadyRunning
+            } else {
+                CoreProcessStartReceipt.OwnerContextMismatch
+            }
+            is ProcessState.RunningByIdentity -> if (state.owned.context == context) {
+                CoreProcessStartReceipt.AlreadyRunning
+            } else {
+                CoreProcessStartReceipt.OwnerContextMismatch
+            }
+            is ProcessState.Exited -> CoreProcessStartReceipt.PreviousChildExitPending
+            is ProcessState.Unavailable -> CoreProcessStartReceipt.OwnershipRecordUnavailable
+            ProcessState.NeverStarted -> when (val binary = resolveBinary()) {
+                CoreBinaryResolution.Missing -> CoreProcessStartReceipt.BinaryUnavailable
+                is CoreBinaryResolution.Available -> spawn(binary.file, spec, context)
             }
         }
+    }
 
     @Synchronized
     fun validateConfiguration(

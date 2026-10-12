@@ -546,7 +546,9 @@ fn android_bridge_state() -> &'static RwLock<Option<Arc<dyn AndroidBridge>>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use infiltrator_contract::android_control::CoreLaunchConfigurationIdentity;
+    use infiltrator_contract::android_control::{
+        CoreLaunchBinary, CoreLaunchConfigurationIdentity,
+    };
     use infiltrator_contract::core_identity::EngineId;
     use infiltrator_contract::profile_document_identity::{ProfileDocumentRevision, ProfileId};
 
@@ -558,6 +560,7 @@ mod tests {
                 document_revision: ProfileDocumentRevision::new("sha256:test")
                     .expect("document revision"),
             },
+            CoreLaunchBinary::MihomoBundled,
             PathBuf::from("/data"),
             vec!["-d".to_owned(), "/data".to_owned()],
         )
