@@ -2,7 +2,6 @@
 
 use super::ConfigManager;
 use crate::yaml::validate;
-use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
 use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceStore;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::ProfileStore;
@@ -17,21 +16,9 @@ impl<S: SecureStore> ConfigManager<S> {
         let lease = ActiveProfileReferenceStore::acquire_selection_lease(self)
             .await
             .map_err(active_reference_error)?;
-        match lease.state() {
-            ActiveProfileReferenceState::Unselected { .. } => Err(MihomoError::Config(
-                "no product-wide active profile is selected".to_owned(),
-            )),
-            ActiveProfileReferenceState::Selected(reference)
-                if reference.engine_id == self.engine_id() =>
-            {
-                Ok(reference.profile_id.as_str().to_owned())
-            }
-            ActiveProfileReferenceState::Selected(reference) => Err(MihomoError::Config(format!(
-                "active profile belongs to engine {} instead of {}",
-                reference.engine_id.as_str(),
-                self.engine_id().as_str()
-            ))),
-        }
+        self.profile_store
+            .get_current_under_selection_lease(lease.as_ref())
+            .map_err(active_reference_error)
     }
 
     /// Read the legacy per-engine pointer only inside explicit migration and

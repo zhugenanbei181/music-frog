@@ -7,14 +7,46 @@ use crate::active_reference_owner::{
     ActiveCoreOwnerLaunchProof, ActiveCoreOwnerProof, ActiveCoreOwnerState, ActiveOwnerToken,
     ActiveProfileReferenceRecord, transition_rejected,
 };
+use crate::store::EngineProfileStore;
 use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
+use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_identity::{CoreGeneration, CoreIdentity};
 use infiltrator_platform::instance_lock::ThreadedInstanceLockGuard;
 use infiltrator_ports::active_profile_reference_store::{
     ActiveProfileOwnerLease, ActiveProfileReferenceLease,
 };
 use infiltrator_ports::error::PortError;
+use infiltrator_ports::secure_store::SecureStore;
 use std::path::PathBuf;
+
+impl<S: SecureStore> EngineProfileStore<S> {
+    /// Project the selected profile for this engine while the caller retains
+    /// the product-wide selection fence.
+    pub fn get_current_under_selection_lease(
+        &self,
+        selection: &dyn ActiveProfileReferenceLease,
+    ) -> Result<String, PortError> {
+        match selection.state() {
+            ActiveProfileReferenceState::Unselected { .. } => Err(PortError::unsupported(
+                Capability::Profiles,
+                "no product-wide active profile is selected",
+            )),
+            ActiveProfileReferenceState::Selected(reference)
+                if reference.engine_id == self.engine_id() =>
+            {
+                Ok(reference.profile_id.as_str().to_owned())
+            }
+            ActiveProfileReferenceState::Selected(reference) => Err(PortError::unsupported(
+                Capability::Profiles,
+                format!(
+                    "the active profile belongs to engine {} instead of {}",
+                    reference.engine_id.as_str(),
+                    self.engine_id().as_str()
+                ),
+            )),
+        }
+    }
+}
 
 pub struct ActiveProfileSelectionLease {
     state: ActiveProfileReferenceState,

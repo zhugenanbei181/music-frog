@@ -46,25 +46,8 @@ where
 
     async fn get_current(&self) -> Result<String, PortError> {
         let lease = ActiveProfileReferenceStore::acquire_selection_lease(self).await?;
-        match lease.state() {
-            ActiveProfileReferenceState::Unselected { .. } => Err(PortError::unsupported(
-                infiltrator_contract::capability::Capability::Profiles,
-                "no product-wide active profile is selected",
-            )),
-            ActiveProfileReferenceState::Selected(reference)
-                if reference.engine_id == ConfigManager::engine_id(self) =>
-            {
-                Ok(reference.profile_id.as_str().to_owned())
-            }
-            ActiveProfileReferenceState::Selected(reference) => Err(PortError::unsupported(
-                infiltrator_contract::capability::Capability::Profiles,
-                format!(
-                    "the active profile belongs to engine {} instead of {}",
-                    reference.engine_id.as_str(),
-                    ConfigManager::engine_id(self).as_str()
-                ),
-            )),
-        }
+        self.profile_store
+            .get_current_under_selection_lease(lease.as_ref())
     }
 
     async fn read_active_profile_reference(

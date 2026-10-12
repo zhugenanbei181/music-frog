@@ -125,6 +125,10 @@ async fn engine_profile_stores_share_one_active_reference_and_isolate_native_doc
         ProfileStore::load_active_workspace(&singbox).await,
         Err(PortError::Unsupported { .. })
     ));
+    assert!(matches!(
+        ProfileStore::get_current(&singbox).await,
+        Err(PortError::Unsupported { .. })
+    ));
 
     let expected = ProfileStore::read_active_profile_reference(&singbox)
         .await
