@@ -196,19 +196,8 @@ impl<S: SecureStore> ConfigManager<S> {
             .await
             .map_err(|error| MihomoError::Config(error.to_string()))?;
         let profile_id = profile_id(profile)?;
-        if matches!(
-            selection_lease.state(),
-            ActiveProfileReferenceState::Selected(reference)
-                if reference.engine_id == self.engine_id()
-                    && reference.profile_id == profile_id
-        ) {
-            return Err(MihomoError::Config(
-                "Cannot delete the active profile".to_string(),
-            ));
-        }
-        let _guard = self.lock_profile_writes().await?;
         self.profile_store
-            .delete_profile_locked(&profile_id)
+            .delete_profile_under_selection_lease(&profile_id, selection_lease.as_ref())
             .await
             .map_err(|error| MihomoError::Config(error.to_string()))
     }

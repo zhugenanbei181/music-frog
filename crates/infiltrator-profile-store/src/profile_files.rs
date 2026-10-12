@@ -1,12 +1,15 @@
 //! Engine-owned profile document reads, backups, and validated publication.
 
 use crate::document_store::{remove_optional, write_document_bytes_durable};
+use crate::file_lock::lock_profile_writes_for_dir;
 use crate::metadata::delete_subscription_url;
 use crate::store::EngineProfileStore;
+use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document::DocumentValidation;
 use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_domain::profile_options::options_path;
+use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceLease;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::secure_store::SecureStore;
 use std::io::ErrorKind;
@@ -107,11 +110,35 @@ impl<S: SecureStore> EngineProfileStore<S> {
             .map_err(|error| PortError::Io(error.to_string()))
     }
 
+    /// Delete one inactive profile while the caller retains the exact
+    /// product-wide selection lease. The engine write lock is acquired only
+    /// after that root fence, preserving the shared root-to-profile lock order.
+    pub async fn delete_profile_under_selection_lease(
+        &self,
+        profile: &ProfileId,
+        selection: &dyn ActiveProfileReferenceLease,
+    ) -> Result<(), PortError> {
+        if matches!(
+            selection.state(),
+            ActiveProfileReferenceState::Selected(reference)
+                if reference.engine_id == self.engine_id()
+                    && reference.profile_id == *profile
+        ) {
+            return Err(PortError::Rejected(Failure::new(
+                ErrorCode::NotReady,
+                "Cannot delete the active profile",
+                false,
+            )));
+        }
+        let _profile_guard = lock_profile_writes_for_dir(self.config_dir()).await?;
+        self.delete_profile_locked(profile).await
+    }
+
     /// Remove one inactive profile's document and engine-owned sidecars while
     /// the caller holds the product selection fence and engine write lock.
     /// If sidecar removal fails, restore the original document before
     /// returning the error.
-    pub async fn delete_profile_locked(&self, profile: &ProfileId) -> Result<(), PortError> {
+    async fn delete_profile_locked(&self, profile: &ProfileId) -> Result<(), PortError> {
         let path = self.existing_profile_document_path(profile).await?;
         let previous_document = fs::read(&path)
             .await
