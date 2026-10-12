@@ -5,6 +5,7 @@ use infiltrator_contract::active_profile_reference::{
 };
 use infiltrator_contract::core_identity::{CoreGeneration, CoreIdentity, EngineId};
 use infiltrator_contract::core_process::CoreProcessStartContext;
+use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_ports::error::PortError;
 use serde::{Deserialize, Serialize};
 
@@ -12,6 +13,10 @@ pub const ACTIVE_PROFILE_REFERENCE_SCHEMA_VERSION: u32 = 1;
 pub const ACTIVE_CORE_OWNER_PROOF_SCHEMA_VERSION: u32 = 2;
 pub const LEGACY_ACTIVE_CORE_OWNER_PROOF_SCHEMA_VERSION: u32 = 1;
 pub const ACTIVE_CORE_OWNER_STATE_FILE: &str = "active-core-owner.json";
+
+pub fn transition_rejected(message: impl Into<String>) -> PortError {
+    PortError::Rejected(Failure::new(ErrorCode::NotReady, message.into(), true))
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(transparent)]

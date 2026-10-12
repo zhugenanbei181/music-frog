@@ -3,6 +3,7 @@
 pub mod active_reference_cas;
 pub mod active_reference_file;
 pub mod active_reference_owner;
+pub mod active_reference_owner_coordinator;
 pub mod aggregation_templates;
 mod document_path;
 pub mod document_store;

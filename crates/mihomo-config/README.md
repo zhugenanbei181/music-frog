@@ -2,7 +2,7 @@
 
 > 层级：L3
 
-Mihomo YAML codec 与配置 adapter：解析、校验、应用观察和 Mihomo 专属选项编解码。共享契约是 `infiltrator-ports::ProfileStore`；engine-scoped document/sidecar/workspace 文件协议、source-bound compare/publish、profile catalog、aggregation-template sidecar 和 typed active-reference/owner-proof record I/O 已迁入 `infiltrator-profile-store`。`ConfigManager` 仍协调 namespace 初始化、selection/owner/profile 锁顺序、workspace transaction lease 与 active-reference owner transition，并暂时实现共享 `ProfileStore` port；CORE-018.3 尚未收口。
+Mihomo YAML codec 与配置 adapter：解析、校验、应用观察和 Mihomo 专属选项编解码。共享契约是 `infiltrator-ports::ProfileStore`；engine-scoped document/sidecar/workspace 文件协议、source-bound compare/publish、profile catalog、aggregation-template sidecar、typed active-reference/owner-proof record 与 owner normalization 已迁入 `infiltrator-profile-store`。`ConfigManager` 仍协调 namespace 初始化、selection/owner/profile 锁顺序、workspace transaction lease 与 active-reference CAS/owner transitions，并暂时实现共享 `ProfileStore` port；CORE-018.3 尚未收口。
 
 原始用户文档身份和跨引擎意图由共享 contract/application 定义；本 crate 不解释 UI 状态。Mihomo controller 边界见 [`mihomo-api` 本地文档](../mihomo-api/docs/README.md)。
 

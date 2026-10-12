@@ -44,8 +44,9 @@ use infiltrator_profile_store::active_reference_owner::{
 use infiltrator_profile_store::active_reference_owner::{
     ActiveCoreOwnerLaunchProof, ActiveCoreOwnerProof, ActiveCoreOwnerProofRecord,
     ActiveCoreOwnerState, ActiveOwnerSwitchStage, ActiveOwnerToken, ActiveProfileReferenceRecord,
-    LegacySelectionMigration,
+    LegacySelectionMigration, transition_rejected,
 };
+use infiltrator_profile_store::active_reference_owner_coordinator::ActiveProfileOwnerCoordinator;
 use infiltrator_profile_store::document_store::{
     read_optional_bytes, remove_optional, remove_optional_durable, write_document_bytes_durable,
 };
@@ -487,10 +488,6 @@ fn sync_publish_active_profile_record(
 ) -> Result<(), PortError> {
     ActiveProfileReferenceFile::new(config_root)
         .publish_active_profile_record_sync_reconciled(record)
-}
-
-fn transition_rejected(message: impl Into<String>) -> PortError {
-    PortError::Rejected(Failure::new(ErrorCode::NotReady, message.into(), true))
 }
 
 fn validate_reference_write_authorization(
@@ -2035,9 +2032,10 @@ impl<S: SecureStore> ConfigManager<S> {
         )
         .await?;
         let mut record = self.read_active_profile_record_unlocked().await?;
-        let (owner_state, owner_state_guard) = self
-            .normalize_owner_state_unlocked(&mut record, _config_root.as_path())
-            .await?;
+        let (owner_state, owner_state_guard) =
+            ActiveProfileOwnerCoordinator::new(_config_root.clone())
+                .normalize_owner_state_unlocked(&mut record)
+                .await?;
         if !matches!(owner_state, ActiveCoreOwnerState::Unowned) {
             return Err(transition_rejected(
                 "legacy active-profile migration cannot run while a Core owner is bound",
@@ -2122,119 +2120,6 @@ impl<S: SecureStore> ConfigManager<S> {
         Ok((engine_id, profile_id))
     }
 
-    async fn normalize_owner_state_unlocked(
-        &self,
-        record: &mut ActiveProfileReferenceRecord,
-        config_root: &Path,
-    ) -> Result<(ActiveCoreOwnerState, ThreadedInstanceLockGuard), PortError> {
-        if matches!(&record.owner, ActiveCoreOwnerState::Switching { .. }) {
-            return Err(transition_rejected(
-                "an active Core owner switch is in progress",
-            ));
-        }
-        // Fixed multi-lock order: root reference lock is already held by the
-        // caller, then acquire owner-state. Terminal release takes only the
-        // latter and never waits for the root lock. Polling is cancellation
-        // safe; no detached worker may later normalize a record after its
-        // caller has released the root fence.
-        let owner_state_guard = ActiveProfileReferenceFile::new(config_root.to_path_buf())
-            .acquire_owner_state_lock()
-            .await?;
-        let mut normalized = record.clone();
-        let owner_proof = sync_read_active_core_owner_proof(config_root)?;
-        let owner_probe =
-            ActiveProfileReferenceFile::new(config_root.to_path_buf()).try_acquire_owner_lock()?;
-        let owner_state = match (normalized.owner.clone(), owner_probe) {
-            (ActiveCoreOwnerState::Unowned, Some(probe)) => {
-                drop(probe);
-                match &owner_proof.state {
-                    ActiveCoreOwnerProof::Unowned | ActiveCoreOwnerProof::Terminal { .. } => {
-                        ActiveCoreOwnerState::Unowned
-                    }
-                    ActiveCoreOwnerProof::Bound { .. } | ActiveCoreOwnerProof::Reserved { .. } => {
-                        return Err(transition_rejected(
-                            "unowned active reference has an orphaned live-owner proof; explicit terminal recovery is required",
-                        ));
-                    }
-                }
-            }
-            (ActiveCoreOwnerState::Unowned, None) => {
-                return Err(transition_rejected(
-                    "active Core owner lock is held without a persisted owner binding",
-                ));
-            }
-            (
-                ActiveCoreOwnerState::Bound {
-                    identity,
-                    generation,
-                    token,
-                },
-                None,
-            ) => match &owner_proof.state {
-                ActiveCoreOwnerProof::Bound {
-                    identity: proof_identity,
-                    generation: proof_generation,
-                    token: proof_token,
-                } if proof_identity.same_instance(&identity)
-                    && proof_generation == &generation
-                    && proof_token == &token =>
-                {
-                    normalized.owner.clone()
-                }
-                _ => {
-                    return Err(transition_rejected(
-                        "active Core owner lock and persisted owner binding disagree",
-                    ));
-                }
-            },
-            (ActiveCoreOwnerState::Bound { .. }, Some(probe)) => {
-                drop(probe);
-                match &owner_proof.state {
-                    ActiveCoreOwnerProof::Terminal {
-                        identity: proof_identity,
-                        bound_generation: proof_bound_generation,
-                        terminal_generation,
-                        token: proof_token,
-                    } if matches!(
-                        &normalized.owner,
-                        ActiveCoreOwnerState::Bound {
-                            identity,
-                            generation,
-                            token,
-                        } if proof_identity.same_instance(identity)
-                            && proof_bound_generation == generation
-                            && proof_token == token
-                            && terminal_generation >= generation
-                    ) =>
-                    {
-                        normalized.owner = ActiveCoreOwnerState::Unowned;
-                        sync_publish_active_profile_record(config_root, &normalized)?;
-                        ActiveCoreOwnerState::Unowned
-                    }
-                    ActiveCoreOwnerProof::Bound { .. } => {
-                        return Err(transition_rejected(
-                            "active Core owner exited without exact terminal proof; explicit platform recovery is required",
-                        ));
-                    }
-                    ActiveCoreOwnerProof::Unowned
-                    | ActiveCoreOwnerProof::Terminal { .. }
-                    | ActiveCoreOwnerProof::Reserved { .. } => {
-                        return Err(transition_rejected(
-                            "active Core owner record and terminal proof disagree",
-                        ));
-                    }
-                }
-            }
-            (ActiveCoreOwnerState::Switching { .. }, _) => {
-                return Err(transition_rejected(
-                    "an active Core owner switch is in progress",
-                ));
-            }
-        };
-        *record = normalized;
-        Ok((owner_state, owner_state_guard))
-    }
-
     async fn compare_and_set_record_unlocked(
         &self,
         record: &mut ActiveProfileReferenceRecord,
@@ -2250,9 +2135,10 @@ impl<S: SecureStore> ConfigManager<S> {
         .await?;
         let cas_ready =
             ActiveProfileReferenceCasReady::compare(&record.selection, expected_revision)?;
-        let (owner_state, _owner_state_guard) = self
-            .normalize_owner_state_unlocked(record, config_root)
-            .await?;
+        let (owner_state, _owner_state_guard) =
+            ActiveProfileOwnerCoordinator::new(config_root.to_path_buf())
+                .normalize_owner_state_unlocked(record)
+                .await?;
         validate_reference_write_authorization(&owner_state, &authorization, config_root)?;
         if let ActiveProfileReferenceTarget::Selected {
             engine_id,
@@ -2309,9 +2195,10 @@ impl<S: SecureStore> ActiveProfileReferenceStore for ConfigManager<S> {
         )
         .await?;
         let mut record = self.read_active_profile_record_unlocked().await?;
-        let (_owner_state, _owner_state_guard) = self
-            .normalize_owner_state_unlocked(&mut record, &config_root)
-            .await?;
+        let (_owner_state, _owner_state_guard) =
+            ActiveProfileOwnerCoordinator::new(config_root.clone())
+                .normalize_owner_state_unlocked(&mut record)
+                .await?;
         Ok(Box::new(ConfigManagerSelectionLease {
             state: record.selection,
             config_root,
@@ -2332,9 +2219,10 @@ impl<S: SecureStore> ActiveProfileReferenceStore for ConfigManager<S> {
         )
         .await?;
         let mut record = self.read_active_profile_record_unlocked().await?;
-        let (owner_state, _owner_state_guard) = self
-            .normalize_owner_state_unlocked(&mut record, &config_root)
-            .await?;
+        let (owner_state, _owner_state_guard) =
+            ActiveProfileOwnerCoordinator::new(config_root.clone())
+                .normalize_owner_state_unlocked(&mut record)
+                .await?;
         if let ActiveCoreOwnerState::Bound {
             identity,
             generation,
@@ -3307,9 +3195,10 @@ impl<S: SecureStore> ConfigManager<S> {
                 true,
             )));
         }
-        let (owner_state, _owner_state_guard) = self
-            .normalize_owner_state_unlocked(&mut record, &config_root)
-            .await?;
+        let (owner_state, _owner_state_guard) =
+            ActiveProfileOwnerCoordinator::new(config_root.clone())
+                .normalize_owner_state_unlocked(&mut record)
+                .await?;
         validate_reference_write_authorization(
             &owner_state,
             &ActiveProfileReferenceWriteAuthorization::Unowned,
@@ -3389,9 +3278,10 @@ impl<S: SecureStore> ConfigManager<S> {
                 true,
             )));
         }
-        let (owner_state, owner_state_guard) = self
-            .normalize_owner_state_unlocked(&mut record, &config_root)
-            .await?;
+        let (owner_state, owner_state_guard) =
+            ActiveProfileOwnerCoordinator::new(config_root.clone())
+                .normalize_owner_state_unlocked(&mut record)
+                .await?;
         validate_reference_write_authorization(&owner_state, &authorization, &config_root)?;
         let profile_guard = lock_profile_writes_for_dir(self.config_dir())
             .await
@@ -3553,9 +3443,10 @@ impl<S: SecureStore> ConfigManager<S> {
                 observed: record.selection,
             });
         };
-        let (owner_state, _owner_state_guard) = self
-            .normalize_owner_state_unlocked(&mut record, &config_root)
-            .await?;
+        let (owner_state, _owner_state_guard) =
+            ActiveProfileOwnerCoordinator::new(config_root.clone())
+                .normalize_owner_state_unlocked(&mut record)
+                .await?;
         validate_reference_write_authorization(
             &owner_state,
             &ActiveProfileReferenceWriteAuthorization::Unowned,
