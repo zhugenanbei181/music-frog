@@ -209,6 +209,25 @@ class MihomoCoreConfigurationValidatorTest {
     }
 
     @Test
+    fun deadlineIncludesTimeSpentStartingTheNativeValidator() = withFiles { files ->
+        var now = 100L
+        val child = FakeProcess(FakeProcessBehavior.Exit(0))
+        val validator = files.validator(
+            starter = {
+                now += 501L
+                child
+            },
+            elapsedRealtimeMillis = { now },
+        )
+
+        assertEquals(
+            CoreConfigurationValidationOutcomeWire.TimedOut,
+            validator.validate(files.request(timeoutMillis = 500L)),
+        )
+        assertFalse(child.isAlive)
+    }
+
+    @Test
     fun unreapedValidationChildKeepsNewValidationAndCoreStartFenced() = withFiles { files ->
         val unreapedChild = FakeProcess(FakeProcessBehavior.NeverReaps)
         var starts = 0
@@ -407,11 +426,17 @@ class MihomoCoreConfigurationValidatorTest {
         )
 
         fun validator(starter: CoreProcessStarter): MihomoCoreConfigurationValidator =
+            validator(starter) { 100L }
+
+        fun validator(
+            starter: CoreProcessStarter,
+            elapsedRealtimeMillis: () -> Long,
+        ): MihomoCoreConfigurationValidator =
             MihomoCoreConfigurationValidator(
                 nativeLibraryDirectory = nativeDirectory,
                 filesDirectory = filesDirectory,
                 processStarter = starter,
-                elapsedRealtimeMillis = { 100L },
+                elapsedRealtimeMillis = elapsedRealtimeMillis,
             )
 
         fun controller(starter: CoreProcessStarter): CoreProcessController =

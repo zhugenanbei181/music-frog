@@ -117,7 +117,12 @@ internal class MihomoCoreConfigurationValidator(
             .directory(paths.workingDirectory)
             .redirectErrorStream(true)
         return when (
-            val child = executeChild(processBuilder, request, paths.candidate, remaining)
+            val child = executeChild(
+                processBuilder,
+                request,
+                paths.candidate,
+                deadlineElapsedRealtimeMillis,
+            )
         ) {
             is ChildExecutionOutcome.Exited -> when {
                 !child.digestMatches -> CoreConfigurationValidationOutcomeWire.CandidateDigestMismatch
@@ -210,7 +215,7 @@ internal class MihomoCoreConfigurationValidator(
         builder: ProcessBuilder,
         request: CoreConfigurationValidationRequestWire,
         candidate: File,
-        timeoutMillis: Long,
+        deadlineElapsedRealtimeMillis: Long,
     ): ChildExecutionOutcome {
         val child = try {
             processStarter.start(builder)
@@ -229,7 +234,15 @@ internal class MihomoCoreConfigurationValidator(
         }
 
         val execution = try {
-            when (waitForExit(child, timeoutMillis)) {
+            // Process creation consumes the owner's absolute validation budget.
+            val remainingMillis = deadlineElapsedRealtimeMillis - elapsedRealtimeMillis()
+            if (remainingMillis <= 0L) {
+                when (terminateAndReap(child)) {
+                    ProcessCleanupOutcome.Reaped -> ChildExecutionOutcome.TimedOut
+                    ProcessCleanupOutcome.StillRunning ->
+                        ChildExecutionOutcome.TimeoutCleanupFailed(child)
+                }
+            } else when (waitForExit(child, remainingMillis)) {
                 ProcessWaitOutcome.Exited -> {
                     val exitCode = try {
                         child.exitValue()
@@ -240,11 +253,13 @@ internal class MihomoCoreConfigurationValidator(
                                 ChildExecutionOutcome.ProcessCleanupFailed(child)
                         }
                     }
-                    ChildExecutionOutcome.Exited(
-                        exitCode = exitCode,
-                        digestMatches = runCatching { digest(candidate) == request.candidateDigest.encoded() }
-                            .getOrDefault(false),
-                    )
+                    val digestMatches = runCatching {
+                        digest(candidate) == request.candidateDigest.encoded()
+                    }.getOrDefault(false)
+                    when (elapsedRealtimeMillis() >= deadlineElapsedRealtimeMillis) {
+                        true -> ChildExecutionOutcome.TimedOut
+                        false -> ChildExecutionOutcome.Exited(exitCode, digestMatches)
+                    }
                 }
                 ProcessWaitOutcome.TimedOut -> when (terminateAndReap(child)) {
                     ProcessCleanupOutcome.Reaped -> ChildExecutionOutcome.TimedOut
@@ -274,7 +289,7 @@ internal class MihomoCoreConfigurationValidator(
     private fun startOutputDrain(child: Process): Thread = Thread({
         child.inputStream.use { input ->
             val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-            while (input.read(buffer) >= 0) Unit
+            while (input.read(buffer) >= 0) {}
         }
     }, "mihomo-config-validation-output").apply {
         isDaemon = true
