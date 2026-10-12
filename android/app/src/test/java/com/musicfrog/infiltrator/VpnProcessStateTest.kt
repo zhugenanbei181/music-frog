@@ -123,6 +123,23 @@ class VpnProcessStateTest {
     }
 
     @Test
+    fun proxyAllExcludesTheVpnOwnerPackageFromItsOwnTunnel() {
+        assertEquals(
+            VpnPackageRoutingPlan.Ready(
+                listOf(VpnPackageRule.Disallow("com.musicfrog.infiltrator")),
+            ),
+            buildVpnPackageRoutingPlan(
+                VpnRoutingConfiguration.Ready(
+                    AndroidAppRoutingMode.PROXY_ALL,
+                    emptySet(),
+                    routingRevision = 8uL,
+                ),
+                "com.musicfrog.infiltrator",
+            ),
+        )
+    }
+
+    @Test
     fun appRoutingReadFailureIsNotConvertedToProxyAll() {
         assertEquals(
             VpnPackageRoutingPlan.Failed("routing store unavailable"),

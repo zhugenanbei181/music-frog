@@ -60,6 +60,7 @@ class ManifestDeclarationsTest {
         val required = listOf(
             "android.permission.INTERNET",
             "android.permission.ACCESS_NETWORK_STATE",
+            "android.permission.WAKE_LOCK",
             "android.permission.FOREGROUND_SERVICE",
             "android.permission.POST_NOTIFICATIONS",
             "android.permission.RECEIVE_BOOT_COMPLETED",

@@ -11,6 +11,7 @@ import android.net.VpnService
 import android.os.Handler
 import android.os.Looper
 import android.os.ParcelFileDescriptor
+import android.os.PowerManager
 import android.os.SystemClock
 import android.util.Log
 import androidx.core.app.NotificationCompat
@@ -77,9 +78,14 @@ class MihomoVpnService : VpnService() {
     private val serviceAdmission = VpnServiceExecutorAdmission()
     private val queuedStartTasks = ConcurrentHashMap<Long, StartTransactionTask>()
     private var notificationActionMode = VpnServiceNotificationActionMode.UserManaged
+    private var lifecycleWakeLock = VpnLifecycleWakeLock(
+        UnavailableVpnWakeLockHandle,
+        VpnLifecycleWakeLock.MAX_LEASE_DURATION_MILLIS,
+    )
 
     override fun onCreate() {
         super.onCreate()
+        lifecycleWakeLock = createLifecycleWakeLock()
         vpnExecutor = ThreadPoolExecutor(
             1,
             1,
@@ -437,6 +443,55 @@ class MihomoVpnService : VpnService() {
         return START_NOT_STICKY
     }
 
+    private fun createLifecycleWakeLock(): VpnLifecycleWakeLock {
+        val handle = try {
+            getSystemService(PowerManager::class.java)
+                ?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "$packageName:VpnLifecycle")
+                ?.apply { setReferenceCounted(false) }
+                ?.let(::AndroidVpnWakeLockHandle)
+                ?: UnavailableVpnWakeLockHandle
+        } catch (error: RuntimeException) {
+            Log.w(TAG, "Android partial WakeLock is unavailable: ${error.message}")
+            UnavailableVpnWakeLockHandle
+        }
+        return VpnLifecycleWakeLock(handle, VpnLifecycleWakeLock.MAX_LEASE_DURATION_MILLIS)
+    }
+
+    private fun logLifecycleWakeLockAcquire(generation: Long, outcome: VpnWakeLockAcquire) {
+        when (outcome) {
+            is VpnWakeLockAcquire.Acquired,
+            is VpnWakeLockAcquire.Joined -> Unit
+            is VpnWakeLockAcquire.Busy -> Log.w(
+                TAG,
+                "VPN generation $generation shares a bounded WakeLock held by generation ${outcome.heldGeneration}",
+            )
+            is VpnWakeLockAcquire.Unavailable -> Log.w(
+                TAG,
+                "VPN lifecycle continues without a WakeLock: ${outcome.reason}",
+            )
+            is VpnWakeLockAcquire.CleanupPending -> Log.e(
+                TAG,
+                "VPN WakeLock release remains pending; the platform timeout is the fallback: ${outcome.reason}",
+            )
+        }
+    }
+
+    private fun logLifecycleWakeLockRelease(generation: Long, outcome: VpnWakeLockRelease) {
+        when (outcome) {
+            VpnWakeLockRelease.Released,
+            VpnWakeLockRelease.AlreadyReleased,
+            VpnWakeLockRelease.Expired -> Unit
+            VpnWakeLockRelease.StaleGeneration -> Log.w(
+                TAG,
+                "Ignoring stale WakeLock release for VPN generation $generation",
+            )
+            is VpnWakeLockRelease.CleanupPending -> Log.e(
+                TAG,
+                "VPN WakeLock release remains pending until its bounded timeout: ${outcome.reason}",
+            )
+        }
+    }
+
     private fun submitStartTransaction(
         generation: Long,
         startId: Int,
@@ -488,7 +543,14 @@ class MihomoVpnService : VpnService() {
             if (serviceAdmission.beginStart(generation) != VpnServiceTaskAdmission.Accepted) return
             queuedStartTasks.remove(generation)
             try {
-                runStartTransaction(generation, startId, deadline)
+                lifecycleWakeLock.withLease(
+                    generation = generation,
+                    elapsedRealtimeNow = { SystemClock.elapsedRealtime() },
+                    onAcquire = { outcome -> logLifecycleWakeLockAcquire(generation, outcome) },
+                    onRelease = { outcome -> logLifecycleWakeLockRelease(generation, outcome) },
+                ) {
+                    runStartTransaction(generation, startId, deadline)
+                }
             } finally {
                 serviceAdmission.finishStart(generation)
                 serviceAdmission.finishDestroy()
@@ -857,7 +919,14 @@ class MihomoVpnService : VpnService() {
         override fun run() {
             if (serviceAdmission.beginCleanup(request) != VpnServiceTaskAdmission.Accepted) return
             try {
-                finishCleanup(request, stopId)
+                lifecycleWakeLock.withLease(
+                    generation = request.generation,
+                    elapsedRealtimeNow = { SystemClock.elapsedRealtime() },
+                    onAcquire = { outcome -> logLifecycleWakeLockAcquire(request.generation, outcome) },
+                    onRelease = { outcome -> logLifecycleWakeLockRelease(request.generation, outcome) },
+                ) {
+                    finishCleanup(request, stopId)
+                }
             } finally {
                 serviceAdmission.finishCleanup(request)
                 serviceAdmission.finishDestroy()

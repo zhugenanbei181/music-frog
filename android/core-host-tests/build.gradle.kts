@@ -50,6 +50,8 @@ kotlin {
                 "com/musicfrog/infiltrator/VpnStartOutcomeWire.kt",
                 "com/musicfrog/infiltrator/VpnConfigurationApplyOutcomeWire.kt",
                 "com/musicfrog/infiltrator/VpnServiceStartup.kt",
+                "com/musicfrog/infiltrator/VpnLifecycleWakeLock.kt",
+                "com/musicfrog/infiltrator/AndroidVpnWakeLockHandle.kt",
                 "com/musicfrog/infiltrator/MihomoControlServiceFixture.kt",
                 "com/musicfrog/infiltrator/IsolatedAuthorizationBindings.kt",
                 "infiltrator_android/IsolatedVpnBindings.kt",
@@ -80,6 +82,7 @@ kotlin {
                 "com/musicfrog/infiltrator/VpnStopOwnerContractTest.kt",
                 "com/musicfrog/infiltrator/VpnOwnerSessionGateTest.kt",
                 "com/musicfrog/infiltrator/VpnServiceStartupTest.kt",
+                "com/musicfrog/infiltrator/VpnLifecycleWakeLockTest.kt",
             )
         }
     }
