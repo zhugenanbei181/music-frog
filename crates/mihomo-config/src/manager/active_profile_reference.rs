@@ -36,9 +36,18 @@ use infiltrator_profile_store::active_reference_cas::{
 use infiltrator_profile_store::active_reference_file::{
     ActiveProfileReferenceFile, is_durability_uncertain,
 };
+#[cfg(test)]
+use infiltrator_profile_store::active_reference_owner::{
+    ACTIVE_CORE_OWNER_PROOF_SCHEMA_VERSION, ACTIVE_CORE_OWNER_STATE_FILE,
+    LEGACY_ACTIVE_CORE_OWNER_PROOF_SCHEMA_VERSION,
+};
+use infiltrator_profile_store::active_reference_owner::{
+    ActiveCoreOwnerLaunchProof, ActiveCoreOwnerProof, ActiveCoreOwnerProofRecord,
+    ActiveCoreOwnerState, ActiveOwnerSwitchStage, ActiveOwnerToken, ActiveProfileReferenceRecord,
+    LegacySelectionMigration,
+};
 use infiltrator_profile_store::document_store::{
     read_optional_bytes, remove_optional, remove_optional_durable, write_document_bytes_durable,
-    write_document_bytes_durable_sync,
 };
 use infiltrator_profile_store::file_lock::{ProfileWriteGuard, lock_profile_writes_for_dir};
 use infiltrator_profile_store::profile_files::profile_document_backup_path;
@@ -47,16 +56,11 @@ use mihomo_api::error::MihomoError;
 use ring::rand::{SecureRandom, SystemRandom};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex as StdMutex, OnceLock};
 
-const ACTIVE_PROFILE_REFERENCE_SCHEMA_VERSION: u32 = 1;
-const ACTIVE_CORE_OWNER_PROOF_SCHEMA_VERSION: u32 = 2;
-const LEGACY_ACTIVE_CORE_OWNER_PROOF_SCHEMA_VERSION: u32 = 1;
 const ACTIVE_PROFILE_RESET_INTENT_SCHEMA_VERSION: u32 = 2;
 const LEGACY_ACTIVE_PROFILE_RESET_INTENT_SCHEMA_VERSION: u32 = 1;
-const ACTIVE_CORE_OWNER_STATE_FILE: &str = "active-core-owner.json";
 const ACTIVE_PROFILE_RESET_DEFAULT_BACKUP_FILE: &str = ".active-profile-reset-default.previous";
 const ACTIVE_PROFILE_RESET_DEFAULT_ABSENT_FILE: &str = ".active-profile-reset-default.was-absent";
 const ACTIVE_PROFILE_RESET_INTENT_FILE: &str = ".active-profile-reset-intent.json";
@@ -67,224 +71,6 @@ const PROFILE_RESET_PENDING_MUTATION_MESSAGE: &str =
 // -> owner admission lock. Terminal owner release takes only owner-state and
 // local-registration locks, never the root lock; no path acquires root after
 // owner-state. These kernel locks fence only processes using this protocol.
-
-#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(transparent)]
-struct ActiveOwnerToken(String);
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "state", content = "owner", rename_all = "snake_case")]
-enum ActiveCoreOwnerState {
-    Unowned,
-    Bound {
-        identity: CoreIdentity,
-        generation: CoreGeneration,
-        token: ActiveOwnerToken,
-    },
-    Switching {
-        transition_id: ActiveOwnerToken,
-        previous_reference: ActiveProfileReferenceState,
-        owner_identity: CoreIdentity,
-        owner_generation: CoreGeneration,
-        owner_token: ActiveOwnerToken,
-        stage: ActiveOwnerSwitchStage,
-    },
-}
-
-impl Default for ActiveCoreOwnerState {
-    fn default() -> Self {
-        Self::Unowned
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "stage", content = "details", rename_all = "snake_case")]
-enum ActiveOwnerSwitchStage {
-    ClosingOld,
-    OldStopped {
-        terminal_generation: CoreGeneration,
-    },
-    ReferenceChanged {
-        terminal_generation: CoreGeneration,
-    },
-    BindingNew {
-        terminal_generation: CoreGeneration,
-        engine_id: EngineId,
-        token: ActiveOwnerToken,
-    },
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "state", content = "owner", rename_all = "snake_case")]
-enum ActiveCoreOwnerProof {
-    Unowned,
-    Bound {
-        identity: CoreIdentity,
-        generation: CoreGeneration,
-        token: ActiveOwnerToken,
-    },
-    Terminal {
-        identity: CoreIdentity,
-        bound_generation: CoreGeneration,
-        terminal_generation: CoreGeneration,
-        token: ActiveOwnerToken,
-    },
-    Reserved {
-        transition_id: ActiveOwnerToken,
-        engine_id: EngineId,
-        token: ActiveOwnerToken,
-    },
-}
-
-/// Durable evidence for the last managed Core process session associated with
-/// an owner proof. Legacy records are explicit and cannot authorize recovery.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "state", content = "context", rename_all = "snake_case")]
-enum ActiveCoreOwnerLaunchProof {
-    Unstarted,
-    Managed(CoreProcessStartContext),
-    LegacyUnverified,
-}
-
-impl Default for ActiveCoreOwnerLaunchProof {
-    fn default() -> Self {
-        Self::Unstarted
-    }
-}
-
-impl Default for ActiveCoreOwnerProof {
-    fn default() -> Self {
-        Self::Unowned
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct ActiveCoreOwnerProofRecord {
-    schema_version: u32,
-    state: ActiveCoreOwnerProof,
-    launch: ActiveCoreOwnerLaunchProof,
-}
-
-#[derive(Deserialize)]
-struct ActiveCoreOwnerProofSchemaHeader {
-    schema_version: u32,
-}
-
-impl ActiveCoreOwnerProofRecord {
-    fn unowned() -> Self {
-        Self {
-            schema_version: ACTIVE_CORE_OWNER_PROOF_SCHEMA_VERSION,
-            state: ActiveCoreOwnerProof::Unowned,
-            launch: ActiveCoreOwnerLaunchProof::Unstarted,
-        }
-    }
-
-    fn validate(&self) -> Result<(), PortError> {
-        if self.schema_version != ACTIVE_CORE_OWNER_PROOF_SCHEMA_VERSION {
-            return Err(PortError::unsupported(
-                infiltrator_contract::capability::Capability::Profiles,
-                format!(
-                    "active Core owner schema {} is unsupported",
-                    self.schema_version
-                ),
-            ));
-        }
-        Ok(())
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct LegacyActiveCoreOwnerProofRecordV1 {
-    schema_version: u32,
-    state: LegacyActiveCoreOwnerProofV1,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
-#[serde(tag = "state", content = "owner", rename_all = "snake_case")]
-enum LegacyActiveCoreOwnerProofV1 {
-    Unowned,
-    Bound {
-        identity: CoreIdentity,
-        generation: CoreGeneration,
-        token: ActiveOwnerToken,
-    },
-    Terminal {
-        identity: CoreIdentity,
-        bound_generation: CoreGeneration,
-        terminal_generation: CoreGeneration,
-        token: ActiveOwnerToken,
-    },
-    Reserved {
-        transition_id: ActiveOwnerToken,
-        engine_id: EngineId,
-        token: ActiveOwnerToken,
-    },
-}
-
-impl LegacyActiveCoreOwnerProofRecordV1 {
-    fn migrate(self) -> Result<ActiveCoreOwnerProofRecord, PortError> {
-        if self.schema_version != LEGACY_ACTIVE_CORE_OWNER_PROOF_SCHEMA_VERSION {
-            return Err(PortError::unsupported(
-                infiltrator_contract::capability::Capability::Profiles,
-                format!(
-                    "active Core owner schema {} is unsupported",
-                    self.schema_version
-                ),
-            ));
-        }
-        let (state, launch) = match self.state {
-            LegacyActiveCoreOwnerProofV1::Unowned => (
-                ActiveCoreOwnerProof::Unowned,
-                ActiveCoreOwnerLaunchProof::Unstarted,
-            ),
-            LegacyActiveCoreOwnerProofV1::Bound {
-                identity,
-                generation,
-                token,
-            } => (
-                ActiveCoreOwnerProof::Bound {
-                    identity,
-                    generation,
-                    token,
-                },
-                ActiveCoreOwnerLaunchProof::LegacyUnverified,
-            ),
-            LegacyActiveCoreOwnerProofV1::Terminal {
-                identity,
-                bound_generation,
-                terminal_generation,
-                token,
-            } => (
-                ActiveCoreOwnerProof::Terminal {
-                    identity,
-                    bound_generation,
-                    terminal_generation,
-                    token,
-                },
-                ActiveCoreOwnerLaunchProof::LegacyUnverified,
-            ),
-            LegacyActiveCoreOwnerProofV1::Reserved {
-                transition_id,
-                engine_id,
-                token,
-            } => (
-                ActiveCoreOwnerProof::Reserved {
-                    transition_id,
-                    engine_id,
-                    token,
-                },
-                ActiveCoreOwnerLaunchProof::Unstarted,
-            ),
-        };
-        Ok(ActiveCoreOwnerProofRecord {
-            schema_version: ACTIVE_CORE_OWNER_PROOF_SCHEMA_VERSION,
-            state,
-            launch,
-        })
-    }
-}
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -677,71 +463,29 @@ pub(crate) async fn acquire_reset_fenced_profile_mutation_for_dir(
 fn sync_read_active_profile_record(
     config_root: &Path,
 ) -> Result<ActiveProfileReferenceRecord, PortError> {
-    let Some(record) =
-        ActiveProfileReferenceFile::new(config_root).read_sync::<ActiveProfileReferenceRecord>()?
-    else {
-        return Ok(ActiveProfileReferenceRecord::pending_legacy_migration());
-    };
-    record.validate()?;
-    Ok(record)
+    Ok(ActiveProfileReferenceFile::new(config_root)
+        .read_active_profile_record_sync()?
+        .unwrap_or_else(ActiveProfileReferenceRecord::pending_legacy_migration))
 }
 
 fn sync_read_active_core_owner_proof(
     config_root: &Path,
 ) -> Result<ActiveCoreOwnerProofRecord, PortError> {
-    let path = config_root.join(ACTIVE_CORE_OWNER_STATE_FILE);
-    let text = match fs::read_to_string(path) {
-        Ok(text) => text,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-            return Ok(ActiveCoreOwnerProofRecord::unowned());
-        }
-        Err(error) => return Err(lock_error(error)),
-    };
-    let header: ActiveCoreOwnerProofSchemaHeader = serde_json::from_str(&text)
-        .map_err(|error| PortError::Io(format!("invalid active Core owner proof: {error}")))?;
-    let record = match header.schema_version {
-        LEGACY_ACTIVE_CORE_OWNER_PROOF_SCHEMA_VERSION => {
-            let legacy: LegacyActiveCoreOwnerProofRecordV1 =
-                serde_json::from_str(&text).map_err(|error| {
-                    PortError::Io(format!("invalid legacy active Core owner proof: {error}"))
-                })?;
-            legacy.migrate()?
-        }
-        ACTIVE_CORE_OWNER_PROOF_SCHEMA_VERSION => {
-            let record: ActiveCoreOwnerProofRecord =
-                serde_json::from_str(&text).map_err(|error| {
-                    PortError::Io(format!("invalid active Core owner proof: {error}"))
-                })?;
-            record
-        }
-        version => {
-            return Err(PortError::unsupported(
-                infiltrator_contract::capability::Capability::Profiles,
-                format!("active Core owner schema {version} is unsupported"),
-            ));
-        }
-    };
-    record.validate()?;
-    Ok(record)
-}
-
-fn sync_write_document(config_root: &Path, file_name: &str, text: &[u8]) -> Result<(), PortError> {
-    write_document_bytes_durable_sync(&config_root.join(file_name), text)
+    ActiveProfileReferenceFile::new(config_root).read_owner_proof_sync()
 }
 
 fn sync_write_active_profile_record(
     config_root: &Path,
     record: &ActiveProfileReferenceRecord,
 ) -> Result<(), PortError> {
-    ActiveProfileReferenceFile::new(config_root).write_sync(record)
+    ActiveProfileReferenceFile::new(config_root).write_active_profile_record_sync(record)
 }
 
 fn sync_write_active_core_owner_proof(
     config_root: &Path,
     record: &ActiveCoreOwnerProofRecord,
 ) -> Result<(), PortError> {
-    let text = serde_json::to_vec_pretty(record).map_err(|error| lock_error(error))?;
-    sync_write_document(config_root, ACTIVE_CORE_OWNER_STATE_FILE, &text)
+    ActiveProfileReferenceFile::new(config_root).write_owner_proof_sync(record)
 }
 
 fn sync_publish_active_core_owner_proof(
@@ -1248,51 +992,6 @@ impl ActiveProfileOwnerLease for ConfigManagerActiveCoreOwnerLease {
         })
         .await
         .map_err(|error| PortError::Failed(error.to_string()))?
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "state", content = "reason", rename_all = "snake_case")]
-enum LegacySelectionMigration {
-    PendingDesktopMihomoV0,
-    MigratedDesktopMihomoV0,
-    RejectedDesktopMihomoV0,
-    ExplicitSelection,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct ActiveProfileReferenceRecord {
-    schema_version: u32,
-    selection: ActiveProfileReferenceState,
-    legacy_migration: LegacySelectionMigration,
-    #[serde(default)]
-    owner: ActiveCoreOwnerState,
-}
-
-impl ActiveProfileReferenceRecord {
-    fn pending_legacy_migration() -> Self {
-        Self {
-            schema_version: ACTIVE_PROFILE_REFERENCE_SCHEMA_VERSION,
-            selection: ActiveProfileReferenceState::Unselected {
-                revision: ActiveProfileReferenceRevision::new(0),
-            },
-            legacy_migration: LegacySelectionMigration::PendingDesktopMihomoV0,
-            owner: ActiveCoreOwnerState::Unowned,
-        }
-    }
-
-    fn validate(&self) -> Result<(), PortError> {
-        if self.schema_version != ACTIVE_PROFILE_REFERENCE_SCHEMA_VERSION {
-            return Err(PortError::unsupported(
-                infiltrator_contract::capability::Capability::Profiles,
-                format!(
-                    "active-profile reference schema {} is unsupported",
-                    self.schema_version
-                ),
-            ));
-        }
-        Ok(())
     }
 }
 
@@ -2351,12 +2050,11 @@ impl<S: SecureStore> ConfigManager<S> {
     ) -> Result<ActiveProfileReferenceRecord, PortError> {
         let Some(record) = self
             .active_profile_reference_file()
-            .read::<ActiveProfileReferenceRecord>()
+            .read_active_profile_record()
             .await?
         else {
             return Ok(ActiveProfileReferenceRecord::pending_legacy_migration());
         };
-        record.validate()?;
         Ok(record)
     }
 
@@ -2364,9 +2062,9 @@ impl<S: SecureStore> ConfigManager<S> {
         &self,
         record: &ActiveProfileReferenceRecord,
     ) -> Result<ActiveProfileReferenceState, PortError> {
-        let observed = self.active_profile_reference_file().publish(record).await?;
-        observed.validate()?;
-        Ok(observed.selection)
+        self.active_profile_reference_file()
+            .publish_active_profile_record(record)
+            .await
     }
 
     /// Explicitly migrate the legacy Mihomo provider choice once. The current

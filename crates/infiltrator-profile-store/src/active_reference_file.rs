@@ -1,9 +1,14 @@
 //! Durable storage for the product-wide active-profile reference record.
 
+use crate::active_reference_owner::{
+    ACTIVE_CORE_OWNER_STATE_FILE, ActiveCoreOwnerProofRecord, ActiveProfileReferenceRecord,
+    parse_active_core_owner_proof_record,
+};
 use crate::document_store::{
     RECORD_DURABILITY_UNCERTAIN_PREFIX, read_optional, write_document_bytes_durable,
     write_document_bytes_durable_sync,
 };
+use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
 use infiltrator_platform::instance_lock::{
     ThreadedInstanceLockGuard, try_acquire_threaded_instance_lock,
 };
@@ -59,6 +64,77 @@ impl ActiveProfileReferenceFile {
     pub fn try_acquire_owner_lock(&self) -> Result<Option<ThreadedInstanceLockGuard>, PortError> {
         try_acquire_threaded_instance_lock(&self.config_root.join(ACTIVE_CORE_OWNER_LOCK_FILE))
             .map_err(|error| PortError::Io(error.to_string()))
+    }
+
+    pub async fn read_active_profile_record(
+        &self,
+    ) -> Result<Option<ActiveProfileReferenceRecord>, PortError> {
+        let record: Option<ActiveProfileReferenceRecord> = self.read().await?;
+        record
+            .map(|record| record.validate().map(|()| record))
+            .transpose()
+    }
+
+    pub fn read_active_profile_record_sync(
+        &self,
+    ) -> Result<Option<ActiveProfileReferenceRecord>, PortError> {
+        let record: Option<ActiveProfileReferenceRecord> = self.read_sync()?;
+        record
+            .map(|record| record.validate().map(|()| record))
+            .transpose()
+    }
+
+    pub fn write_active_profile_record_sync(
+        &self,
+        record: &ActiveProfileReferenceRecord,
+    ) -> Result<(), PortError> {
+        record.validate()?;
+        self.write_sync(record)
+    }
+
+    pub async fn publish_active_profile_record(
+        &self,
+        record: &ActiveProfileReferenceRecord,
+    ) -> Result<ActiveProfileReferenceState, PortError> {
+        record.validate()?;
+        let observed = self.publish(record).await?;
+        observed.validate()?;
+        Ok(observed.selection)
+    }
+
+    pub fn publish_active_profile_record_sync(
+        &self,
+        record: &ActiveProfileReferenceRecord,
+    ) -> Result<ActiveProfileReferenceState, PortError> {
+        record.validate()?;
+        let observed = self.publish_sync(record)?;
+        observed.validate()?;
+        Ok(observed.selection)
+    }
+
+    pub fn read_owner_proof_sync(&self) -> Result<ActiveCoreOwnerProofRecord, PortError> {
+        let path = self.config_root.join(ACTIVE_CORE_OWNER_STATE_FILE);
+        let text = match std::fs::read_to_string(path) {
+            Ok(text) => text,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                return Ok(ActiveCoreOwnerProofRecord::unowned());
+            }
+            Err(error) => return Err(PortError::Io(error.to_string())),
+        };
+        parse_active_core_owner_proof_record(&text)
+    }
+
+    pub fn write_owner_proof_sync(
+        &self,
+        record: &ActiveCoreOwnerProofRecord,
+    ) -> Result<(), PortError> {
+        record.validate()?;
+        let text =
+            serde_json::to_vec_pretty(record).map_err(|error| PortError::Io(error.to_string()))?;
+        write_document_bytes_durable_sync(
+            &self.config_root.join(ACTIVE_CORE_OWNER_STATE_FILE),
+            &text,
+        )
     }
 
     pub async fn read<T: DeserializeOwned>(&self) -> Result<Option<T>, PortError> {
