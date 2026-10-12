@@ -60,6 +60,10 @@ impl ActiveProfileOwnerCoordinator {
         }
     }
 
+    pub(crate) fn config_root(&self) -> &std::path::Path {
+        &self.config_root
+    }
+
     /// Compare and publish a revisioned reference while the caller holds the
     /// product-root lock. The owner-state lock acquired here is retained until
     /// the durable reference publication completes.
