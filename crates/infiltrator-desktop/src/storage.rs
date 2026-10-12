@@ -6,7 +6,9 @@ use infiltrator_application::version_application::VersionApplication;
 use infiltrator_contract::version::CoreArtifactVerification;
 use infiltrator_core::app_routing_io::FileAppRoutingStore;
 use infiltrator_core::doctor_port::MihomoDoctor;
-use infiltrator_core::engine_version_backend_factory::MihomoEngineVersionBackendFactory;
+use infiltrator_core::engine_version_backend_factory::{
+    EngineVersionBackendFactoryRegistry, MihomoEngineVersionBackendFactory,
+};
 use infiltrator_core::factory_reset::execute;
 use infiltrator_core::fake_ip_cache_io::FileFakeIpCache;
 use infiltrator_core::history::{list_snapshots, read_snapshot};
@@ -25,6 +27,7 @@ use infiltrator_domain::snapshots::SnapshotMeta;
 use infiltrator_ports::app_routing_store::AppRoutingStore;
 use infiltrator_ports::doctor::DoctorPort;
 use infiltrator_ports::endpoint::EndpointSource;
+use infiltrator_ports::engine_version_backend_factory::EngineVersionBackendFactory;
 use infiltrator_ports::fake_ip_cache::FakeIpCachePort;
 use infiltrator_ports::port_conflict::PortConflictPort;
 use infiltrator_ports::profile_reset::ProfileResetPort;
@@ -97,13 +100,18 @@ pub fn port_conflict() -> anyhow::Result<impl PortConflictPort> {
 
 static DESKTOP_CORE_VERIFICATION: OnceLock<Arc<Mutex<CoreArtifactVerification>>> = OnceLock::new();
 
-pub fn version_factory() -> anyhow::Result<MihomoEngineVersionBackendFactory> {
+pub fn version_factory() -> anyhow::Result<EngineVersionBackendFactoryRegistry> {
     let handle = DESKTOP_CORE_VERIFICATION
         .get_or_init(|| Arc::new(Mutex::new(CoreArtifactVerification::Unknown)));
-    Ok(MihomoEngineVersionBackendFactory::with_shared_verification(
-        home_dir()?,
-        Arc::clone(handle),
-    ))
+    let mihomo_factory: Arc<dyn EngineVersionBackendFactory> =
+        Arc::new(MihomoEngineVersionBackendFactory::with_shared_verification(
+            home_dir()?,
+            Arc::clone(handle),
+        ));
+    Ok(EngineVersionBackendFactoryRegistry::new([(
+        MihomoVersionPort::engine_identifier(),
+        mihomo_factory,
+    )])?)
 }
 
 pub fn version_application() -> anyhow::Result<VersionApplication> {
