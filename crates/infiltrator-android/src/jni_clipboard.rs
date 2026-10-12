@@ -22,7 +22,6 @@ use jni::objects::JString;
 use jni::objects::JValue;
 use jni::objects::Reference as _;
 use jni::strings::JNIString;
-use mihomo_api::error::MihomoError;
 
 const SIG_NOARGS_STRING: &str = "()Ljava/lang/String;";
 const SIG_STRING_INT: &str = "(Ljava/lang/String;)I";
@@ -39,7 +38,7 @@ impl JniClipboardChannel {
         Self { vm, host }
     }
 
-    fn read(&self) -> Result<Option<String>, MihomoError> {
+    fn read(&self) -> Result<Option<String>, PortError> {
         let name = JNIString::new("readClipboard");
         let signature = parse_method_signature("readClipboard", SIG_NOARGS_STRING)?;
         let signature = signature.method_signature();
@@ -56,7 +55,7 @@ impl JniClipboardChannel {
             .map_err(|err| map_jni_error("readClipboard", err))
     }
 
-    fn write(&self, text: &str) -> Result<NativeClipboardWriteReceipt, MihomoError> {
+    fn write(&self, text: &str) -> Result<NativeClipboardWriteReceipt, PortError> {
         let name = JNIString::new("writeClipboard");
         let signature = parse_method_signature("writeClipboard", SIG_STRING_INT)?;
         let signature = signature.method_signature();
@@ -70,7 +69,7 @@ impl JniClipboardChannel {
             })
             .map_err(|err| map_jni_error("writeClipboard", err))?;
         NativeClipboardWriteReceipt::from_wire_code(code).ok_or_else(|| {
-            MihomoError::Service(format!(
+            PortError::Failed(format!(
                 "Android host returned unknown clipboard write receipt code {code}"
             ))
         })
@@ -80,23 +79,21 @@ impl JniClipboardChannel {
 impl NativeClipboardChannel for JniClipboardChannel {
     fn read_clipboard(&self) -> Result<Option<String>, PortError> {
         self.read()
-            .map_err(|err| PortError::Failed(err.to_string()))
     }
 
     fn write_clipboard(&self, text: &str) -> Result<(), PortError> {
-        match self.write(text) {
-            Ok(NativeClipboardWriteReceipt::Written) => Ok(()),
-            Ok(NativeClipboardWriteReceipt::Unavailable) => Err(PortError::unsupported(
+        match self.write(text)? {
+            NativeClipboardWriteReceipt::Written => Ok(()),
+            NativeClipboardWriteReceipt::Unavailable => Err(PortError::unsupported(
                 Capability::Profiles,
                 "no Android clipboard manager is available",
             )),
-            Ok(NativeClipboardWriteReceipt::PermissionDenied) => Err(PortError::PermissionDenied(
+            NativeClipboardWriteReceipt::PermissionDenied => Err(PortError::PermissionDenied(
                 "Android denied the clipboard write".to_string(),
             )),
-            Ok(NativeClipboardWriteReceipt::Failed) => Err(PortError::Failed(
+            NativeClipboardWriteReceipt::Failed => Err(PortError::Failed(
                 "Android clipboard write failed".to_string(),
             )),
-            Err(err) => Err(PortError::Failed(err.to_string())),
         }
     }
 }
