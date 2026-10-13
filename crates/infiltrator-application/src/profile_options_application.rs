@@ -16,12 +16,12 @@ use infiltrator_contract::profile_document_identity::{
 use infiltrator_contract::profile_options::ProfileOptionsSnapshot;
 use infiltrator_contract::subscription_filter_result::SubscriptionFilterApplied;
 use infiltrator_contract::subscription_import::SubscriptionFilterDraft;
+use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceApplier;
 use infiltrator_ports::profile_document_codec::ProfileMixinStudioProjection;
 use infiltrator_ports::profile_document_codec::ProfileMixinToggleId;
 use infiltrator_ports::profile_workspace::{
     ProfileWorkspace, ProfileWorkspacePurpose, ProfileWorkspaceUpdate,
 };
-use infiltrator_ports::runtime_gateway::ActiveProfileReferenceApplier;
 
 /// Resolve the sidecar profile: an explicit name, or the active profile.
 async fn resolve_profile(

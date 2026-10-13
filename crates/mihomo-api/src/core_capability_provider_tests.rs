@@ -11,8 +11,9 @@ use infiltrator_contract::core_capabilities::{
     AdapterCapabilityDecision, AdapterRevision, ConnectionOperation, CoreCapabilityKey,
     CoreCapabilityStatus, CoreGarbageCollectionOperation, CoreLifecycleOperation, CoreOperation,
     CoreVersionRequirement, DnsOperation, EngineBinaryTarget, EngineCapabilityDecision,
-    FakeIpCacheOperation, GeoOperation, OutboundOperation, ProfileOperation, ProviderOperation,
-    RulesOperation, SubscriptionOperation, TunOperation, VersionOperation,
+    FakeIpCacheOperation, GeoOperation, LogsOperation, OutboundOperation, ProfileOperation,
+    ProviderOperation, ProxyControlOperation, RulesOperation, SubscriptionOperation, TunOperation,
+    VersionOperation,
 };
 use infiltrator_contract::core_identity::{CoreVersion, EngineId};
 use infiltrator_contract::surface::HostKind;
@@ -246,7 +247,7 @@ fn only_manifest_verified_operations_are_supported_at_exact_locked_versions() {
     }
 }
 
-fn assert_versioned_evidence_is_authorized_only_for_its_exact_mihomo_scope(
+fn assert_evidence_open_operation_stays_closed_with_historical_locked_evidence(
     operation: CoreOperation,
     operation_name: &str,
 ) {
@@ -263,10 +264,12 @@ fn assert_versioned_evidence_is_authorized_only_for_its_exact_mihomo_scope(
             .matrix_for(&engine_id, Some(&version))
             .expect("Mihomo capability matrix");
         let resolution = matrix.resolve(CoreCapabilityKey::new(matrix.scope.clone(), operation));
-        assert_eq!(
-            resolution.engine,
-            Some(EngineCapabilityDecision::Supported),
-            "{operation_name} at {raw_version}"
+        assert!(
+            matches!(
+                resolution.engine,
+                Some(EngineCapabilityDecision::VersionUnavailable { .. })
+            ),
+            "{operation_name} has only evidence-open status at {raw_version}"
         );
         assert_eq!(
             resolution.adapter,
@@ -274,8 +277,11 @@ fn assert_versioned_evidence_is_authorized_only_for_its_exact_mihomo_scope(
             "{operation_name} at {raw_version}"
         );
         assert!(
-            matches!(resolution.status, CoreCapabilityStatus::Available { .. }),
-            "{operation_name} at {raw_version}"
+            matches!(
+                resolution.status,
+                CoreCapabilityStatus::VersionUnavailable { .. }
+            ),
+            "{operation_name} must remain closed until production composition is audited at {raw_version}"
         );
     }
 
@@ -332,64 +338,64 @@ fn assert_versioned_evidence_is_authorized_only_for_its_exact_mihomo_scope(
 }
 
 #[test]
-fn real_dns_query_evidence_authorizes_only_the_exact_locked_mihomo_scope() {
-    assert_versioned_evidence_is_authorized_only_for_its_exact_mihomo_scope(
+fn historical_dns_query_evidence_does_not_authorize_the_production_operation() {
+    assert_evidence_open_operation_stays_closed_with_historical_locked_evidence(
         CoreOperation::Dns(DnsOperation::Query),
         "DNS query",
     );
 }
 
 #[test]
-fn real_dns_apply_configuration_evidence_authorizes_only_the_exact_locked_mihomo_scope() {
-    assert_versioned_evidence_is_authorized_only_for_its_exact_mihomo_scope(
+fn historical_dns_apply_evidence_does_not_authorize_the_production_operation() {
+    assert_evidence_open_operation_stays_closed_with_historical_locked_evidence(
         CoreOperation::Dns(DnsOperation::ApplyConfiguration),
         "DNS configuration apply",
     );
 }
 
 #[test]
-fn real_rules_apply_evidence_authorizes_only_the_exact_locked_mihomo_scope() {
-    assert_versioned_evidence_is_authorized_only_for_its_exact_mihomo_scope(
+fn historical_rules_apply_evidence_does_not_authorize_the_production_operation() {
+    assert_evidence_open_operation_stays_closed_with_historical_locked_evidence(
         CoreOperation::Rules(RulesOperation::Apply),
         "Rules.Apply",
     );
 }
 
 #[test]
-fn real_connection_close_evidence_authorizes_only_the_exact_locked_mihomo_scope() {
-    assert_versioned_evidence_is_authorized_only_for_its_exact_mihomo_scope(
+fn historical_connection_close_evidence_does_not_authorize_the_production_operation() {
+    assert_evidence_open_operation_stays_closed_with_historical_locked_evidence(
         CoreOperation::Connection(ConnectionOperation::Close),
         "Connection.Close",
     );
 }
 
 #[test]
-fn real_fake_ip_flush_evidence_authorizes_only_the_exact_locked_mihomo_scope() {
-    assert_versioned_evidence_is_authorized_only_for_its_exact_mihomo_scope(
+fn historical_fake_ip_flush_evidence_does_not_authorize_the_production_operation() {
+    assert_evidence_open_operation_stays_closed_with_historical_locked_evidence(
         CoreOperation::FakeIpCache(FakeIpCacheOperation::Flush),
         "FakeIpCache.Flush",
     );
 }
 
 #[test]
-fn real_rule_provider_list_evidence_authorizes_only_the_exact_locked_mihomo_scope() {
-    assert_versioned_evidence_is_authorized_only_for_its_exact_mihomo_scope(
+fn historical_rule_provider_list_evidence_does_not_authorize_the_production_operation() {
+    assert_evidence_open_operation_stays_closed_with_historical_locked_evidence(
         CoreOperation::Provider(ProviderOperation::ListRule),
         "Provider.ListRule",
     );
 }
 
 #[test]
-fn real_rule_provider_update_evidence_authorizes_only_the_exact_locked_mihomo_scope() {
-    assert_versioned_evidence_is_authorized_only_for_its_exact_mihomo_scope(
+fn historical_rule_provider_update_evidence_does_not_authorize_the_production_operation() {
+    assert_evidence_open_operation_stays_closed_with_historical_locked_evidence(
         CoreOperation::Provider(ProviderOperation::UpdateRule),
         "Provider.UpdateRule",
     );
 }
 
 #[test]
-fn real_core_garbage_collection_evidence_authorizes_only_the_exact_locked_mihomo_scope() {
-    assert_versioned_evidence_is_authorized_only_for_its_exact_mihomo_scope(
+fn historical_core_garbage_collection_evidence_does_not_authorize_the_production_operation() {
+    assert_evidence_open_operation_stays_closed_with_historical_locked_evidence(
         CoreOperation::CoreGarbageCollection(CoreGarbageCollectionOperation::Trigger),
         "CoreGarbageCollection.Trigger",
     );
@@ -564,11 +570,12 @@ fn mismatched_host_target_and_adapter_revision_fail_closed() {
 }
 
 #[test]
-fn capability_matrix_keeps_unverified_operations_closed_and_verified_dns_available() {
+fn capability_matrix_keeps_only_composition_audited_operations_available() {
     #[derive(Clone, Copy)]
     enum ExpectedStatus {
         Available,
         Unsupported,
+        VersionUnavailable,
     }
 
     let provider = MihomoCoreCapabilityProvider::new_for_target(
@@ -583,6 +590,34 @@ fn capability_matrix_keeps_unverified_operations_closed_and_verified_dns_availab
         .expect("Mihomo capability matrix");
     let cases = [
         (
+            CoreOperation::Outbound(OutboundOperation::List),
+            ExpectedStatus::Available,
+        ),
+        (
+            CoreOperation::Outbound(OutboundOperation::Select),
+            ExpectedStatus::Available,
+        ),
+        (
+            CoreOperation::Outbound(OutboundOperation::Probe),
+            ExpectedStatus::Available,
+        ),
+        (
+            CoreOperation::Logs(LogsOperation::Stream),
+            ExpectedStatus::Available,
+        ),
+        (
+            CoreOperation::Logs(LogsOperation::SetLevel),
+            ExpectedStatus::Available,
+        ),
+        (
+            CoreOperation::ProxyControl(ProxyControlOperation::GetRoutingIntent),
+            ExpectedStatus::Available,
+        ),
+        (
+            CoreOperation::ProxyControl(ProxyControlOperation::SetRoutingIntent),
+            ExpectedStatus::Available,
+        ),
+        (
             CoreOperation::Profile(ProfileOperation::Validate),
             ExpectedStatus::Unsupported,
         ),
@@ -592,59 +627,59 @@ fn capability_matrix_keeps_unverified_operations_closed_and_verified_dns_availab
         ),
         (
             CoreOperation::Profile(ProfileOperation::ApplyFeature),
-            ExpectedStatus::Available,
+            ExpectedStatus::VersionUnavailable,
         ),
         (
             CoreOperation::Dns(DnsOperation::Query),
-            ExpectedStatus::Available,
+            ExpectedStatus::VersionUnavailable,
         ),
         (
             CoreOperation::Dns(DnsOperation::ApplyConfiguration),
-            ExpectedStatus::Available,
+            ExpectedStatus::VersionUnavailable,
         ),
         (
             CoreOperation::Rules(RulesOperation::Trace),
-            ExpectedStatus::Available,
+            ExpectedStatus::VersionUnavailable,
         ),
         (
             CoreOperation::Rules(RulesOperation::Apply),
-            ExpectedStatus::Available,
+            ExpectedStatus::VersionUnavailable,
         ),
         (
             CoreOperation::Subscription(SubscriptionOperation::Refresh),
-            ExpectedStatus::Available,
+            ExpectedStatus::VersionUnavailable,
         ),
         (
             CoreOperation::Subscription(SubscriptionOperation::Import),
-            ExpectedStatus::Available,
+            ExpectedStatus::VersionUnavailable,
         ),
         (
             CoreOperation::Subscription(SubscriptionOperation::Update),
-            ExpectedStatus::Available,
+            ExpectedStatus::VersionUnavailable,
         ),
         (
             CoreOperation::Geo(GeoOperation::UpdateDatabases),
-            ExpectedStatus::Available,
+            ExpectedStatus::VersionUnavailable,
         ),
         (
             CoreOperation::Connection(ConnectionOperation::Close),
-            ExpectedStatus::Available,
+            ExpectedStatus::VersionUnavailable,
         ),
         (
             CoreOperation::Provider(ProviderOperation::ListRule),
-            ExpectedStatus::Available,
+            ExpectedStatus::VersionUnavailable,
         ),
         (
             CoreOperation::Provider(ProviderOperation::UpdateRule),
-            ExpectedStatus::Available,
+            ExpectedStatus::VersionUnavailable,
         ),
         (
             CoreOperation::CoreGarbageCollection(CoreGarbageCollectionOperation::Trigger),
-            ExpectedStatus::Available,
+            ExpectedStatus::VersionUnavailable,
         ),
         (
             CoreOperation::FakeIpCache(FakeIpCacheOperation::Flush),
-            ExpectedStatus::Available,
+            ExpectedStatus::VersionUnavailable,
         ),
         (
             CoreOperation::Connection(ConnectionOperation::List),
@@ -652,7 +687,7 @@ fn capability_matrix_keeps_unverified_operations_closed_and_verified_dns_availab
         ),
         (
             CoreOperation::Tun(TunOperation::Configure),
-            ExpectedStatus::Available,
+            ExpectedStatus::VersionUnavailable,
         ),
         (
             CoreOperation::Version(VersionOperation::Install),
@@ -669,6 +704,13 @@ fn capability_matrix_keeps_unverified_operations_closed_and_verified_dns_availab
             ),
             ExpectedStatus::Unsupported => assert!(
                 matches!(resolution.status, CoreCapabilityStatus::Unsupported { .. }),
+                "{operation:?}"
+            ),
+            ExpectedStatus::VersionUnavailable => assert!(
+                matches!(
+                    resolution.status,
+                    CoreCapabilityStatus::VersionUnavailable { .. }
+                ),
                 "{operation:?}"
             ),
         }
@@ -727,7 +769,7 @@ fn evidence_open_is_never_available_for_a_version_independent_operation() {
 }
 
 #[test]
-fn locked_binary_observations_do_not_override_typed_profile_unsupported() {
+fn locked_historical_observations_do_not_promote_evidence_open_operations() {
     let declarations = operation_declarations().expect("validated Mihomo declarations");
     let locked = locked_versions_and_operations();
     for (version, target, revision, operation_ids) in locked {
@@ -741,7 +783,7 @@ fn locked_binary_observations_do_not_override_typed_profile_unsupported() {
                 .iter()
                 .any(|registered| registered == "tun.configure")
         );
-        assert!(declarations.has_verified_support_for_scope(
+        assert!(!declarations.has_verified_support_for_scope(
             tun_operation,
             &core_version,
             EngineBinaryTarget::X86_64UnknownLinuxGnu,
@@ -753,7 +795,7 @@ fn locked_binary_observations_do_not_override_typed_profile_unsupported() {
                 .iter()
                 .any(|registered| registered == "rules.trace")
         );
-        assert!(declarations.has_verified_support_for_scope(
+        assert!(!declarations.has_verified_support_for_scope(
             rule_trace_operation,
             &core_version,
             EngineBinaryTarget::X86_64UnknownLinuxGnu,
@@ -765,7 +807,7 @@ fn locked_binary_observations_do_not_override_typed_profile_unsupported() {
                 .iter()
                 .any(|registered| registered == "profile.apply_feature")
         );
-        assert!(declarations.has_verified_support_for_scope(
+        assert!(!declarations.has_verified_support_for_scope(
             profile_feature_operation,
             &core_version,
             EngineBinaryTarget::X86_64UnknownLinuxGnu,
@@ -791,7 +833,7 @@ fn locked_binary_observations_do_not_override_typed_profile_unsupported() {
                     .any(|registered| registered == evidence_id),
                 "{version} must register {evidence_id}"
             );
-            assert!(declarations.has_verified_support_for_scope(
+            assert!(!declarations.has_verified_support_for_scope(
                 operation,
                 &core_version,
                 EngineBinaryTarget::X86_64UnknownLinuxGnu,
@@ -804,7 +846,7 @@ fn locked_binary_observations_do_not_override_typed_profile_unsupported() {
                 .any(|registered| registered == "geo.update_databases"),
             "{version} must register geo.update_databases"
         );
-        assert!(declarations.has_verified_support_for_scope(
+        assert!(!declarations.has_verified_support_for_scope(
             CoreOperation::Geo(GeoOperation::UpdateDatabases),
             &core_version,
             EngineBinaryTarget::X86_64UnknownLinuxGnu,

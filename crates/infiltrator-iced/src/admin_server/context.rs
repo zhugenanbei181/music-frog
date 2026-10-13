@@ -365,6 +365,21 @@ impl AdminApiContext for IcedAdminContext {
         Ok(runtime)
     }
 
+    async fn resource_application(&self) -> anyhow::Result<ResourceApplication> {
+        let core_not_running = self.localized_message("core_not_running").await;
+        let runtime = self
+            .shared
+            .runtime()
+            .ok_or_else(|| anyhow!(core_not_running))?;
+        let scope_source = runtime
+            .core_scope_source()
+            .ok_or_else(|| anyhow!("typed Core scope source is not composed"))?;
+        Ok(ResourceApplication::new(
+            scope_source,
+            runtime.resource_port(),
+        ))
+    }
+
     async fn outbound_owner(&self) -> anyhow::Result<AdminOutboundOwner> {
         let core_not_running = self.localized_message("core_not_running").await;
         let runtime = self
@@ -375,7 +390,7 @@ impl AdminApiContext for IcedAdminContext {
             .outbound_port()
             .ok_or_else(|| anyhow!("typed outbound owner is not composed"))?;
         let scope_source = runtime
-            .outbound_scope_source()
+            .core_scope_source()
             .ok_or_else(|| anyhow!("typed Core scope source is not composed"))?;
         Ok(AdminOutboundOwner::new(port, scope_source))
     }

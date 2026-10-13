@@ -19,6 +19,7 @@ use infiltrator_contract::core_identity::{CoreScope, EngineId};
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_domain::runtime::{ProxyProvider, RuleProvider};
+use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceApplier;
 use infiltrator_ports::core_binary_selection::CoreBinarySelection;
 use infiltrator_ports::core_capability_provider::CoreCapabilityProvider;
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
@@ -26,7 +27,7 @@ use infiltrator_ports::error::PortError;
 use infiltrator_ports::host_runtime::{HostRuntime, TunServiceStatus};
 use infiltrator_ports::profile_configuration_transaction::ProfileConfigurationTransactionPort;
 use infiltrator_ports::runtime_configuration::RuntimeConfigurationPorts;
-use infiltrator_ports::runtime_gateway::{ActiveProfileReferenceApplier, RuntimeGateway};
+use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use infiltrator_ports::runtime_http_proxy_endpoint::{
     RuntimeHttpProxyEndpoint, RuntimeHttpProxyEndpointPort,
 };

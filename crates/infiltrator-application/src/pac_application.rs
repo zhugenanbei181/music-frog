@@ -53,8 +53,12 @@ impl PacApplication {
     }
 
     pub async fn apply(&self, request: PacRequest) -> Result<PacSnapshot, Failure> {
-        let configuration = crate::runtime_configuration_application::
-            RuntimeConfigurationApplication::from_current_gateway(self.gateway.as_ref())?;
+        let scope = self.gateway.current_core_scope().map_err(Failure::from)?;
+        let configuration =
+            crate::runtime_configuration_application::RuntimeConfigurationApplication::new(
+                scope,
+                self.gateway.configuration_ports(),
+            );
         self.apply_with_configuration(configuration, request).await
     }
 
@@ -64,9 +68,9 @@ impl PacApplication {
         request: PacRequest,
     ) -> Result<PacSnapshot, Failure> {
         let configuration =
-            crate::runtime_configuration_application::RuntimeConfigurationApplication::from_gateway(
+            crate::runtime_configuration_application::RuntimeConfigurationApplication::new(
                 scope,
-                self.gateway.as_ref(),
+                self.gateway.configuration_ports(),
             );
         self.apply_with_configuration(configuration, request).await
     }

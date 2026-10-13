@@ -8,6 +8,7 @@ use infiltrator_contract::profile_configuration::ProfileConfigurationRequest;
 use infiltrator_contract::provider_cache::KernelEtagSupportSnapshot;
 use infiltrator_contract::rules_workspace::{RulesJsonDocumentSnapshot, RulesJsonSection};
 use infiltrator_domain::{dns, fake_ip, proxy_providers, rules, sniffer, tun};
+use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceApplier;
 use infiltrator_ports::profile_document_codec::{
     ProfileConfigurationQuery, ProfileConfigurationReadout, ProfileConfigurationUpdate,
 };
@@ -15,7 +16,6 @@ use infiltrator_ports::profile_document_codec::{
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::profile_workspace::{ProfileWorkspacePurpose, ProfileWorkspaceUpdate};
 use infiltrator_ports::rule_tracer::RuleWorkspace;
-use infiltrator_ports::runtime_gateway::ActiveProfileReferenceApplier;
 #[cfg(test)]
 use std::sync::Arc;
 

@@ -25,7 +25,7 @@ use bevy::text::TextColor;
 use bevy::ui::widget::Text;
 use bevy::window::{PrimaryWindow, Window};
 use infiltrator_application::command_application::CommandApplication;
-use infiltrator_application::core_application::{CoreApplication, CoreScopeObservation};
+use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::log_capture_fixtures::{
     LOG_QUERY, LogCaptureProcess, append_follow_records, populate_logs,
 };
@@ -40,6 +40,7 @@ use infiltrator_contract::parity::FeatureId;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::SurfaceOrigin;
 use infiltrator_ports::application_runtime::ApplicationRuntime;
+use infiltrator_ports::core_scope::CoreScopeObservation;
 use infiltrator_ports::surface::SurfaceReader;
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::Duration;

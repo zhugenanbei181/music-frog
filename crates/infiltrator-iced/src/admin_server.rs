@@ -41,6 +41,7 @@ use infiltrator_application::doctor_application::DoctorApplication;
 use infiltrator_application::network_application::NetworkApplication;
 use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::profile_reset_application::ProfileResetApplication;
+use infiltrator_application::resource_application::ResourceApplication;
 use infiltrator_application::settings_application::SettingsApplication;
 use infiltrator_application::sync_application::SyncApplication;
 use infiltrator_application::system_proxy_application::SystemProxyApplication;

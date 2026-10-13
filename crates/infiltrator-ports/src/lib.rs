@@ -3,6 +3,7 @@
 //! Traits here describe capabilities, not implementations. They deliberately
 //! contain no Tokio channels, task handles, HTTP response types, or UI types.
 
+pub mod active_profile_reference_applier;
 pub mod active_profile_reference_store;
 pub mod android_core_process_recovery;
 pub mod app_routing_store;
@@ -16,6 +17,7 @@ pub mod core_capability_provider;
 pub mod core_lifecycle;
 pub mod core_log_level;
 pub mod core_process;
+pub mod core_scope;
 pub mod core_watchdog;
 pub mod data_dir;
 pub mod data_store;

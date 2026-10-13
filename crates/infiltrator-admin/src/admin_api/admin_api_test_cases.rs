@@ -16,6 +16,7 @@ use infiltrator_application::configuration_application::ConfigurationApplication
 use infiltrator_application::doctor_application::DoctorApplication;
 use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::profile_reset_application::ProfileResetApplication;
+use infiltrator_application::resource_application::ResourceApplication;
 use infiltrator_application::sync_application::SyncApplication;
 use infiltrator_application::version_application::VersionApplication;
 use infiltrator_contract::core_identity::{
@@ -34,8 +35,8 @@ use infiltrator_core::settings_io::{WEBDAV_CREDENTIAL_SERVICE, WEBDAV_PASSWORD_K
 use infiltrator_domain::settings::AppSettings;
 use infiltrator_platform::TEST_LOCK;
 use infiltrator_platform::defaults::DefaultCredentialStore;
+use infiltrator_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
 use infiltrator_ports::error::PortError;
-use infiltrator_ports::outbound::OutboundScopeSource;
 use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use infiltrator_ports::subscription_source::SubscriptionSource;
 use infiltrator_ports::version::{
@@ -81,13 +82,13 @@ struct MockContext {
 }
 
 #[derive(Clone)]
-struct TestOutboundScopeSource {
+struct TestCoreScopeSource {
     scope: CoreScope,
 }
 
-impl OutboundScopeSource for TestOutboundScopeSource {
-    fn current_scope(&self) -> Option<CoreScope> {
-        Some(self.scope.clone())
+impl CoreScopeSource for TestCoreScopeSource {
+    fn scope_observation(&self) -> CoreScopeObservation {
+        CoreScopeObservation::Observed(self.scope.clone())
     }
 }
 
@@ -217,13 +218,22 @@ impl AdminApiContext for MockContext {
             .with_configuration_scope_resolver(scope_resolver);
         Ok(Arc::new(client))
     }
+    async fn resource_application(&self) -> anyhow::Result<ResourceApplication> {
+        let gateway = self.runtime_gateway().await?;
+        Ok(ResourceApplication::new(
+            Arc::new(TestCoreScopeSource {
+                scope: test_outbound_scope(),
+            }),
+            gateway.resource_port(),
+        ))
+    }
     async fn outbound_owner(&self) -> anyhow::Result<AdminOutboundOwner> {
         let runtime_url = self
             .runtime_url
             .as_deref()
             .ok_or_else(|| anyhow!("runtime url is not configured"))?;
         let client = MihomoClient::new(runtime_url, None).map_err(|e| anyhow!(e.to_string()))?;
-        let scope_source: Arc<dyn OutboundScopeSource> = Arc::new(TestOutboundScopeSource {
+        let scope_source: Arc<dyn CoreScopeSource> = Arc::new(TestCoreScopeSource {
             scope: test_outbound_scope(),
         });
         let port = Arc::new(MihomoOutboundAdapter::new(

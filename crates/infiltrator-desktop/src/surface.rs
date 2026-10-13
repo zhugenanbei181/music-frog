@@ -145,7 +145,7 @@ pub async fn application_surface_reader(
         VersionApplication::from_factory(MihomoVersionPort::engine_identifier(), &version_factory)?;
     let endpoint_source = Arc::new(endpoint_source().await?);
     let port_conflicts = PortConflictApplication::new(Arc::new(port_conflict()?));
-    let resources = ResourceApplication::new(gateway.clone(), gateway.resource_port());
+    let resources = ResourceApplication::new(core.clone(), gateway.resource_port());
     let config_path = app_config_manager().await?.get_current_path().await?;
     let offline_startup =
         OfflineStartupApplication::new(Arc::new(offline_startup_port(&config_path, &binary_path)));

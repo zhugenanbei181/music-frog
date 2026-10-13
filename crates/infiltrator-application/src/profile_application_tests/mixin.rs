@@ -4,7 +4,7 @@
 use super::*;
 use crate::profile_application::ProfileRuntimeAccess;
 use crate::profile_options_application::ProfileOptionsApplication;
-use infiltrator_ports::runtime_gateway::ActiveProfileReferenceApplier;
+use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceApplier;
 use std::sync::Arc;
 
 /// The Mixin commit strips the outgoing mixin's injected rule lines, so
@@ -55,7 +55,7 @@ async fn mixin_save_is_idempotent_and_keeps_handwritten_comments() {
 
 #[tokio::test]
 async fn failed_workspace_pair_commit_keeps_exact_document_and_sidecar_bytes() {
-    use infiltrator_ports::runtime_gateway::ActiveProfileReferenceApplier;
+    use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceApplier;
 
     let content = "# retained document bytes\r\nmode: rule\r\n";
     let sidecar = b"# retained sidecar bytes\r\nfilter:\r\n  include-keywords: [HK]\r\n";

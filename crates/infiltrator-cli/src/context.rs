@@ -21,9 +21,10 @@ use infiltrator_core::version_port::MihomoVersionPort;
 use infiltrator_domain::settings::AppSettings;
 use infiltrator_platform::defaults::DefaultCredentialStore;
 use infiltrator_platform::paths::get_home_dir;
+use infiltrator_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
 use infiltrator_ports::endpoint::EndpointSource as _;
 use infiltrator_ports::error::PortError;
-use infiltrator_ports::outbound::{OutboundPort, OutboundScopeSource};
+use infiltrator_ports::outbound::OutboundPort;
 use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use infiltrator_ports::subscription_source::SubscriptionSource;
 use mihomo_api::client::MihomoClient;
@@ -168,7 +169,7 @@ impl Runtime {
             .snapshot()
             .scope()
             .ok_or_else(|| anyhow::anyhow!("the active core did not publish a scope"))?;
-        let scope_source: Arc<dyn OutboundScopeSource> = Arc::new(owner);
+        let scope_source: Arc<dyn CoreScopeSource> = Arc::new(owner);
         let outbound_port: Arc<dyn OutboundPort> =
             Arc::new(MihomoOutboundAdapter::new(client, scope_source));
         let capabilities =
@@ -191,6 +192,14 @@ impl Runtime {
     /// assembled here with a scope resolver backed by the per-invocation Core
     /// owner; handlers only receive runtime-neutral application facades.
     pub async fn runtime_gateway(&self) -> anyhow::Result<Arc<dyn RuntimeGateway>> {
+        self.runtime_scope_and_gateway()
+            .await
+            .map(|(_, gateway)| gateway)
+    }
+
+    async fn runtime_scope_and_gateway(
+        &self,
+    ) -> anyhow::Result<(Arc<dyn CoreScopeSource>, Arc<dyn RuntimeGateway>)> {
         let endpoint_source = ProfileEndpointSource::new(Arc::new(self.config_manager()?));
         let endpoint = endpoint_source.resolve().await?;
         let owner = CoreApplication::new(
@@ -208,22 +217,24 @@ impl Runtime {
         {
             anyhow::bail!("runtime observations require a ready, running core");
         }
-        let scope_source: Arc<dyn OutboundScopeSource> = Arc::new(owner);
+        let scope_source: Arc<dyn CoreScopeSource> = Arc::new(owner);
         let resolver_source = Arc::clone(&scope_source);
-        let scope_resolver: RuntimeScopeResolver = Arc::new(move || {
-            resolver_source.current_scope().ok_or_else(|| {
-                PortError::Failed("the active Core did not publish a scope".to_owned())
-            })
-        });
+        let scope_resolver: RuntimeScopeResolver =
+            Arc::new(move || match resolver_source.scope_observation() {
+                CoreScopeObservation::Observed(scope) => Ok(scope),
+                CoreScopeObservation::Unavailable => Err(PortError::Failed(
+                    "the active Core did not publish a scope".to_owned(),
+                )),
+            });
         let client = MihomoClient::new(&endpoint.url, endpoint.secret)?
             .with_configuration_scope_resolver(scope_resolver);
-        Ok(Arc::new(client))
+        Ok((scope_source, Arc::new(client)))
     }
 
     pub async fn resource_application(&self) -> anyhow::Result<ResourceApplication> {
-        let gateway = self.runtime_gateway().await?;
+        let (scope_source, gateway) = self.runtime_scope_and_gateway().await?;
         Ok(ResourceApplication::new(
-            gateway.clone(),
+            scope_source,
             gateway.resource_port(),
         ))
     }

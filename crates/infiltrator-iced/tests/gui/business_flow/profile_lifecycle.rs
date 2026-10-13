@@ -32,9 +32,9 @@ use infiltrator_domain::config::validate_yaml;
 use infiltrator_domain::profile_options::{FilterSpec, ProfileOptions};
 use infiltrator_domain::profiles::sanitize_profile_name;
 use infiltrator_domain::subscription::CheckedSubscriptionUrl;
+use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceApplier;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::ProfileStore;
-use infiltrator_ports::runtime_gateway::ActiveProfileReferenceApplier;
 use infiltrator_ports::subscription_source::{
     ConditionalDocumentResult, ConditionalFetchHeaders, SubscriptionDocument, SubscriptionSource,
 };

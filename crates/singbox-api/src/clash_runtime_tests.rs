@@ -20,10 +20,9 @@ use infiltrator_contract::outbound::inventory::{
 use infiltrator_contract::routing_intent::{
     EngineDefinedRoutingIntent, RoutingIntent, RoutingIntentExtensionId,
 };
+use infiltrator_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
 use infiltrator_ports::error::PortError;
-use infiltrator_ports::outbound::{
-    OutboundPort, OutboundProbeRequest, OutboundScopeSource, ProbeTarget,
-};
+use infiltrator_ports::outbound::{OutboundPort, OutboundProbeRequest, ProbeTarget};
 use infiltrator_ports::routing_intent::RoutingIntentPort;
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
@@ -99,16 +98,16 @@ impl SingBoxClashHttpPort for ScriptedHttpPort {
 }
 
 #[derive(Clone)]
-struct FixedScope(Arc<Mutex<Option<CoreScope>>>);
+struct FixedScope(Arc<Mutex<CoreScopeObservation>>);
 
 impl FixedScope {
     fn new(scope: CoreScope) -> Self {
-        Self(Arc::new(Mutex::new(Some(scope))))
+        Self(Arc::new(Mutex::new(CoreScopeObservation::Observed(scope))))
     }
 }
 
-impl OutboundScopeSource for FixedScope {
-    fn current_scope(&self) -> Option<CoreScope> {
+impl CoreScopeSource for FixedScope {
+    fn scope_observation(&self) -> CoreScopeObservation {
         self.0.lock().unwrap().clone()
     }
 }

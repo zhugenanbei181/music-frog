@@ -25,12 +25,12 @@ use infiltrator_contract::protocol_fidelity::{
 };
 use infiltrator_contract::protocol_trust::{CaTrustReport, TlsTrustParams};
 use infiltrator_domain::profile_converter::{ProfileConverter, ProxyNodeItem};
+use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceApplier;
 use infiltrator_ports::certificate_authority::CertificateAuthorityPort;
 use infiltrator_ports::profile_document_codec::{
     ProfileConfigurationReadout, ProfileConfigurationUpdate,
 };
 use infiltrator_ports::profile_workspace::{ProfileWorkspacePurpose, ProfileWorkspaceUpdate};
-use infiltrator_ports::runtime_gateway::ActiveProfileReferenceApplier;
 use std::sync::{Arc, Mutex, OnceLock};
 
 #[cfg(test)]

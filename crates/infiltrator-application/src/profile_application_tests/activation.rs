@@ -12,6 +12,7 @@ use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_domain::profiles::ProfileMetadata;
 use infiltrator_domain::runtime::{ProxyProvider, RuleProvider};
+use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceApplier;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::{
     ActiveProfileWorkspacePublishOutcome, ActiveProfileWorkspacePublishedLease,
@@ -19,7 +20,7 @@ use infiltrator_ports::profile_store::{
     ActiveProfileWorkspaceRestoreOutcome,
 };
 use infiltrator_ports::profile_workspace::{ProfileWorkspace, ProfileWorkspaceUpdate};
-use infiltrator_ports::runtime_gateway::{ActiveProfileReferenceApplier, RuntimeGateway};
+use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};

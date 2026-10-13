@@ -2,8 +2,9 @@
 
 use crate::core_process::CoreProcess;
 use crate::core_process::CoreReadiness;
+use crate::core_scope::{CoreScopeObservation, CoreScopeSource};
 use crate::error::PortError;
-use crate::outbound::{OutboundPort, OutboundScopeSource};
+use crate::outbound::OutboundPort;
 #[cfg(test)]
 use crate::profile_configuration_transaction::ProfileConfigurationTransactionScope;
 use crate::profile_configuration_transaction::{
@@ -32,7 +33,7 @@ enum OwnerScopeSourceState {
     },
     Bound {
         process_identity: CoreIdentity,
-        source: Arc<dyn OutboundScopeSource>,
+        source: Arc<dyn CoreScopeSource>,
     },
 }
 
@@ -54,7 +55,7 @@ impl EngineBackendOwnerScopeBinding {
         &self.engine_id
     }
 
-    pub fn bind(&self, source: Arc<dyn OutboundScopeSource>) -> Result<(), PortError> {
+    pub fn bind(&self, source: Arc<dyn CoreScopeSource>) -> Result<(), PortError> {
         let process_identity = {
             let state = self.state.lock().map_err(|_| {
                 PortError::Failed("engine backend owner scope lock is poisoned".to_owned())
@@ -75,19 +76,21 @@ impl EngineBackendOwnerScopeBinding {
                 }
             }
         };
-        match source.current_scope() {
-            Some(scope) => match owner_scope_identity(&process_identity, &scope) {
-                OwnerScopeIdentityState::MatchingInstance => {}
-                OwnerScopeIdentityState::DifferentInstance => {
-                    return Err(PortError::Failed(format!(
-                        "{} backend operation scope was bound to instance {} instead of {}",
-                        self.engine_id.as_str(),
-                        scope.identity.instance.as_str(),
-                        process_identity.instance.as_str()
-                    )));
+        match source.scope_observation() {
+            CoreScopeObservation::Observed(scope) => {
+                match owner_scope_identity(&process_identity, &scope) {
+                    OwnerScopeIdentityState::MatchingInstance => {}
+                    OwnerScopeIdentityState::DifferentInstance => {
+                        return Err(PortError::Failed(format!(
+                            "{} backend operation scope was bound to instance {} instead of {}",
+                            self.engine_id.as_str(),
+                            scope.identity.instance.as_str(),
+                            process_identity.instance.as_str()
+                        )));
+                    }
                 }
-            },
-            None => {}
+            }
+            CoreScopeObservation::Unavailable => {}
         }
         let mut state = self.state.lock().map_err(|_| {
             PortError::Failed("engine backend owner scope lock is poisoned".to_owned())
@@ -138,20 +141,31 @@ impl EngineBackendOwnerScopeBinding {
     }
 }
 
-impl OutboundScopeSource for EngineBackendOwnerScopeBinding {
-    fn current_scope(&self) -> Option<CoreScope> {
-        let state = self.state.lock().ok()?;
+impl CoreScopeSource for EngineBackendOwnerScopeBinding {
+    fn scope_observation(&self) -> CoreScopeObservation {
+        let state = match self.state.lock() {
+            Ok(state) => state,
+            Err(_) => return CoreScopeObservation::Unavailable,
+        };
         match &*state {
-            OwnerScopeSourceState::Unbound | OwnerScopeSourceState::AwaitingSource { .. } => None,
+            OwnerScopeSourceState::Unbound | OwnerScopeSourceState::AwaitingSource { .. } => {
+                CoreScopeObservation::Unavailable
+            }
             OwnerScopeSourceState::Bound {
                 process_identity,
                 source,
-            } => match source.current_scope() {
-                Some(scope) => match owner_scope_identity(process_identity, &scope) {
-                    OwnerScopeIdentityState::MatchingInstance => Some(scope),
-                    OwnerScopeIdentityState::DifferentInstance => None,
-                },
-                None => None,
+            } => match source.scope_observation() {
+                CoreScopeObservation::Observed(scope) => {
+                    match owner_scope_identity(process_identity, &scope) {
+                        OwnerScopeIdentityState::MatchingInstance => {
+                            CoreScopeObservation::Observed(scope)
+                        }
+                        OwnerScopeIdentityState::DifferentInstance => {
+                            CoreScopeObservation::Unavailable
+                        }
+                    }
+                }
+                CoreScopeObservation::Unavailable => CoreScopeObservation::Unavailable,
             },
         }
     }
@@ -357,9 +371,9 @@ impl EngineBackendPorts {
         self.operations.clone()
     }
 
-    pub fn bind_owner_scope_source(
+    pub fn bind_owner_core_scope(
         &self,
-        source: Arc<dyn OutboundScopeSource>,
+        source: Arc<dyn CoreScopeSource>,
     ) -> Result<EngineBackendOwnerScopeBindingResult, PortError> {
         match &self.operations {
             EngineOperationPorts::Unsupported { .. } => {
@@ -407,6 +421,7 @@ pub const ENGINE_BACKEND_CAPABILITY: Capability = Capability::CoreLifecycle;
 mod tests {
     use super::*;
     use crate::core_process::CoreReadiness;
+    use crate::core_scope::CoreScopeObservation;
     use crate::profile_document_codec::ProfileDocumentCodecScope;
     use async_trait::async_trait;
     use infiltrator_contract::core_identity::{CoreGeneration, CoreIdentity, CoreInstanceId};
@@ -479,9 +494,12 @@ mod tests {
         }
     }
 
-    impl OutboundScopeSource for MutableScopeSource {
-        fn current_scope(&self) -> Option<CoreScope> {
-            self.0.lock().ok().map(|scope| scope.clone())
+    impl CoreScopeSource for MutableScopeSource {
+        fn scope_observation(&self) -> CoreScopeObservation {
+            match self.0.lock() {
+                Ok(scope) => CoreScopeObservation::Observed(scope.clone()),
+                Err(_) => CoreScopeObservation::Unavailable,
+            }
         }
     }
 
@@ -522,10 +540,16 @@ mod tests {
         binding
             .bind(source.clone())
             .expect("matching process instance binds");
-        assert_eq!(binding.current_scope(), Some(process_scope));
+        assert_eq!(
+            binding.scope_observation(),
+            CoreScopeObservation::Observed(process_scope)
+        );
 
         source.set(foreign_scope);
-        assert_eq!(binding.current_scope(), None);
+        assert_eq!(
+            binding.scope_observation(),
+            CoreScopeObservation::Unavailable
+        );
     }
 
     fn fake_ports(
@@ -588,7 +612,7 @@ mod tests {
         ));
         assert_eq!(
             ports
-                .bind_owner_scope_source(Arc::new(UnboundScopeSource))
+                .bind_owner_core_scope(Arc::new(UnboundScopeSource))
                 .unwrap(),
             EngineBackendOwnerScopeBindingResult::NotRequired
         );
@@ -598,9 +622,9 @@ mod tests {
 
     struct UnboundScopeSource;
 
-    impl OutboundScopeSource for UnboundScopeSource {
-        fn current_scope(&self) -> Option<CoreScope> {
-            None
+    impl CoreScopeSource for UnboundScopeSource {
+        fn scope_observation(&self) -> CoreScopeObservation {
+            CoreScopeObservation::Unavailable
         }
     }
 

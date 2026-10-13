@@ -226,7 +226,7 @@ where
         overview,
         runtime.clone(),
     );
-    match backend.bind_owner_scope_source(Arc::new(application.clone()))? {
+    match backend.bind_owner_core_scope(Arc::new(application.clone()))? {
         EngineBackendOwnerScopeBindingResult::NotRequired
         | EngineBackendOwnerScopeBindingResult::Bound => {}
     }

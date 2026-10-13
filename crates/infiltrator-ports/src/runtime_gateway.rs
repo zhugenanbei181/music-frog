@@ -2,20 +2,12 @@
 
 use crate::connection::{ConnectionPort, UnsupportedConnectionPort};
 use crate::error::PortError;
-use crate::profile_workspace::{ProfileWorkspace, ProfileWorkspaceUpdate};
 use crate::resources::{CoreResourcePort, UnsupportedCoreResourcePort};
 use crate::runtime_configuration::RuntimeConfigurationPorts;
 use crate::runtime_stream::{RuntimeStreamPort, UnsupportedRuntimeStreamPort};
 use async_trait::async_trait;
-use infiltrator_contract::active_profile_reference::{
-    ActiveProfileReference, ActiveProfileReferenceWriteAuthorization,
-};
 use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_identity::CoreScope;
-use infiltrator_contract::core_identity::EngineId;
-use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
-use infiltrator_contract::snapshot::CoreLifecycle;
-use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_domain::runtime::{ProxyProvider, RuleProvider};
 
 /// The controller-facing part of a running core host.
@@ -78,55 +70,5 @@ pub trait RuntimeGateway: Send + Sync {
 
     fn resource_port(&self) -> std::sync::Arc<dyn CoreResourcePort> {
         std::sync::Arc::new(UnsupportedCoreResourcePort)
-    }
-}
-
-/// Narrow application port for applying one exact, revision-fenced active
-/// profile reference. A provider-specific owner can implement this without
-/// implementing the broader controller and lifecycle surface in
-/// [`RuntimeGateway`].
-#[async_trait]
-pub trait ActiveProfileReferenceApplier: Send + Sync {
-    fn engine_id(&self) -> Option<EngineId>;
-
-    fn core_lifecycle(&self) -> CoreLifecycle;
-
-    fn write_authorization(&self) -> Result<ActiveProfileReferenceWriteAuthorization, PortError>;
-
-    async fn apply_active_profile_reference(
-        &self,
-        expected: &ActiveProfileReference,
-        strategy: ApplyStrategy,
-    ) -> Result<u64, PortError> {
-        let _ = (expected, strategy);
-        Err(PortError::unsupported(
-            Capability::Profiles,
-            "revision-bound active-profile apply is unavailable",
-        ))
-    }
-
-    /// Apply a selected profile update against both the captured reference
-    /// revision and the full opening-time workspace identity. Implementations
-    /// keep the selected-reference and workspace lease through native
-    /// readback and any conditional rollback.
-    async fn apply_active_profile_workspace(
-        &self,
-        expected_reference: &ActiveProfileReference,
-        expected_workspace: &ProfileWorkspaceIdentity,
-        update: &ProfileWorkspaceUpdate,
-        authorization: ActiveProfileReferenceWriteAuthorization,
-        strategy: ApplyStrategy,
-    ) -> Result<ProfileWorkspace, PortError> {
-        let _ = (
-            expected_reference,
-            expected_workspace,
-            update,
-            authorization,
-            strategy,
-        );
-        Err(PortError::unsupported(
-            Capability::Profiles,
-            "revision- and workspace-bound active-profile apply is unavailable",
-        ))
     }
 }

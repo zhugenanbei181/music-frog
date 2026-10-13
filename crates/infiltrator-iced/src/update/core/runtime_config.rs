@@ -136,7 +136,7 @@ impl AppState {
         let gateway: Arc<dyn RuntimeGateway> = rt.clone();
         Task::perform(
             async move {
-                RuntimeConfigurationApplication::from_gateway(scope, gateway.as_ref())
+                RuntimeConfigurationApplication::new(scope, gateway.configuration_ports())
                     .set_tun_enabled(enabled)
                     .await
                     .map(|_| ())
@@ -213,9 +213,12 @@ impl AppState {
                     let gateway: Arc<dyn RuntimeGateway> = rt;
                     Task::perform(
                         async move {
-                            RuntimeConfigurationApplication::from_gateway(scope, gateway.as_ref())
-                                .observe_readout()
-                                .await
+                            RuntimeConfigurationApplication::new(
+                                scope,
+                                gateway.configuration_ports(),
+                            )
+                            .observe_readout()
+                            .await
                         },
                         move |result| Message::RuntimeConfigFetched(result, generation),
                     )
@@ -332,7 +335,7 @@ impl AppState {
                 let gateway: Arc<dyn RuntimeGateway> = rt;
                 Task::perform(
                     async move {
-                        RuntimeConfigurationApplication::from_gateway(scope, gateway.as_ref())
+                        RuntimeConfigurationApplication::new(scope, gateway.configuration_ports())
                             .set_ipv6_routing(enabled)
                             .await
                             .map(|_| ())
@@ -552,7 +555,7 @@ impl AppState {
                 let gateway: Arc<dyn RuntimeGateway> = rt.clone();
                 Task::perform(
                     async move {
-                        RuntimeConfigurationApplication::from_gateway(scope, gateway.as_ref())
+                        RuntimeConfigurationApplication::new(scope, gateway.configuration_ports())
                             .set_tun_stack(parsed)
                             .await
                             .map(|_| ())
@@ -584,7 +587,7 @@ impl AppState {
                 let gateway: Arc<dyn RuntimeGateway> = rt.clone();
                 Task::perform(
                     async move {
-                        RuntimeConfigurationApplication::from_gateway(scope, gateway.as_ref())
+                        RuntimeConfigurationApplication::new(scope, gateway.configuration_ports())
                             .set_tun_auto_route(enabled)
                             .await
                             .map(|_| ())
@@ -616,7 +619,7 @@ impl AppState {
                 let gateway: Arc<dyn RuntimeGateway> = rt.clone();
                 Task::perform(
                     async move {
-                        RuntimeConfigurationApplication::from_gateway(scope, gateway.as_ref())
+                        RuntimeConfigurationApplication::new(scope, gateway.configuration_ports())
                             .set_tun_strict_route(enabled)
                             .await
                             .map(|_| ())
@@ -643,7 +646,7 @@ impl AppState {
                 let gateway: Arc<dyn RuntimeGateway> = rt;
                 Task::perform(
                     async move {
-                        RuntimeConfigurationApplication::from_gateway(scope, gateway.as_ref())
+                        RuntimeConfigurationApplication::new(scope, gateway.configuration_ports())
                             .set_sniffer_enabled(enabled)
                             .await
                             .map(|_| ())

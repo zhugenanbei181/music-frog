@@ -13,8 +13,9 @@ use infiltrator_contract::routing_intent::{
 };
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_ports::core_process::{CoreProcess, CoreProcessStartContext, CoreReadiness};
+use infiltrator_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
 use infiltrator_ports::error::PortError;
-use infiltrator_ports::outbound::{OutboundPort, OutboundScopeSource};
+use infiltrator_ports::outbound::OutboundPort;
 use infiltrator_ports::profile_document_codec::ProfileDocumentCodecPort;
 use infiltrator_ports::routing_intent::RoutingIntentPort;
 use singbox_api::clash_api::SingBoxClashApiClient;
@@ -37,9 +38,9 @@ fn required_environment(name: &str) -> String {
 
 struct FixedScope(CoreScope);
 
-impl OutboundScopeSource for FixedScope {
-    fn current_scope(&self) -> Option<CoreScope> {
-        Some(self.0.clone())
+impl CoreScopeSource for FixedScope {
+    fn scope_observation(&self) -> CoreScopeObservation {
+        CoreScopeObservation::Observed(self.0.clone())
     }
 }
 

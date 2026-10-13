@@ -5,7 +5,7 @@ use crate::core_application::{
 use crate::core_capability_test_support::core_scope;
 
 #[tokio::test]
-async fn outbound_scope_source_only_exposes_a_ready_or_running_owner_scope() {
+async fn core_scope_source_only_exposes_a_ready_or_running_owner_scope() {
     let app = application(
         FakeProcess {
             running: AtomicBool::new(false),
@@ -14,15 +14,24 @@ async fn outbound_scope_source_only_exposes_a_ready_or_running_owner_scope() {
         },
         Ok("http://127.0.0.1:9090".to_string()),
     );
-    assert!(OutboundScopeSource::current_scope(&app).is_none());
+    assert_eq!(
+        CoreScopeSource::scope_observation(&app),
+        CoreScopeObservation::Unavailable
+    );
 
     let started = test_execute_result_at_current_scope(&app, CommandIntent::StartCore).await;
     assert!(matches!(started, CommandResult::Completed { .. }));
-    assert!(OutboundScopeSource::current_scope(&app).is_some());
+    assert!(matches!(
+        CoreScopeSource::scope_observation(&app),
+        CoreScopeObservation::Observed(_)
+    ));
 
     let stopped = test_execute_result_at_current_scope(&app, CommandIntent::StopCore).await;
     assert!(matches!(stopped, CommandResult::Completed { .. }));
-    assert!(OutboundScopeSource::current_scope(&app).is_none());
+    assert_eq!(
+        CoreScopeSource::scope_observation(&app),
+        CoreScopeObservation::Unavailable
+    );
 }
 
 #[tokio::test]

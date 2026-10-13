@@ -1,17 +1,19 @@
 //! Host-owned runtime handle exposed to inbound surfaces.
 
+use crate::active_profile_reference_applier::ActiveProfileReferenceApplier;
 use crate::certificate_authority::CertificateAuthorityPort;
 use crate::core_lifecycle::CoreLifecyclePort;
+use crate::core_scope::CoreScopeSource;
 use crate::dns_latency::DnsLatencyProbePort;
 use crate::dns_leak::DnsLeakProbePort;
 use crate::mini_hud_window::MiniHudWindowPort;
 use crate::mtu_probe::MtuProbePort;
 use crate::network_roaming::NetworkRoamingPort;
-use crate::outbound::{OutboundPort, OutboundScopeSource};
+use crate::outbound::OutboundPort;
 use crate::pac::PacServicePort;
 use crate::privileged_network::PrivilegedNetworkPort;
 use crate::rule_provider_cache::RuleProviderCachePort;
-use crate::runtime_gateway::{ActiveProfileReferenceApplier, RuntimeGateway};
+use crate::runtime_gateway::RuntimeGateway;
 use crate::runtime_http_proxy_endpoint::RuntimeHttpProxyEndpointPort;
 use crate::script_export::ScriptExportPort;
 use crate::service_mode::ServiceModePort;
@@ -134,7 +136,7 @@ pub trait HostRuntime:
     fn outbound_port(&self) -> Option<Arc<dyn OutboundPort>> {
         None
     }
-    fn outbound_scope_source(&self) -> Option<Arc<dyn OutboundScopeSource>> {
+    fn core_scope_source(&self) -> Option<Arc<dyn CoreScopeSource>> {
         None
     }
 }

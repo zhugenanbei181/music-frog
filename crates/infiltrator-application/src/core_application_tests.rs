@@ -26,8 +26,8 @@ use infiltrator_ports::core_capability_provider::{
 };
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::core_process::{CoreProcess, CoreProcessStartAdmission, CoreReadiness};
+use infiltrator_ports::core_scope::CoreScopeSource;
 use infiltrator_ports::error::PortError;
-use infiltrator_ports::outbound::OutboundScopeSource;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicUsize};
 use std::{thread, time};

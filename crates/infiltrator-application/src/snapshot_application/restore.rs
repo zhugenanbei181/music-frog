@@ -11,10 +11,10 @@ use infiltrator_contract::snapshot_restore::{
 use infiltrator_domain::config::validate_yaml;
 use infiltrator_domain::myers_diff::compute_diff;
 use infiltrator_domain::profile_source::hash_document_bytes;
+use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceApplier;
 use infiltrator_ports::profile_workspace::{
     ProfileWorkspace, ProfileWorkspacePurpose, ProfileWorkspaceUpdate,
 };
-use infiltrator_ports::runtime_gateway::ActiveProfileReferenceApplier;
 use std::path::Path;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};

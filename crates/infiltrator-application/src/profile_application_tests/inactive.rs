@@ -10,7 +10,7 @@ async fn inactive_save_clears_the_transient_backup() {
     application
         .save_profile_content(
             ProfileRuntimeAccess::<
-                dyn infiltrator_ports::runtime_gateway::ActiveProfileReferenceApplier,
+                dyn infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceApplier,
             >::Offline,
             "main".to_string(),
             "mode: direct\n".to_string(),

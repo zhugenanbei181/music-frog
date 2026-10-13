@@ -6,8 +6,8 @@ use super::adapter_operation_declaration::{
 use super::core_capabilities::{
     AdapterRevision, CoreGarbageCollectionOperation, CoreLifecycleOperation, CoreOperation,
     DnsOperation, EngineBinaryTarget, EngineCapabilityDecision, FakeIpCacheOperation, GeoOperation,
-    OutboundOperation, ProfileOperation, ProviderOperation, RulesOperation, SubscriptionOperation,
-    TunOperation,
+    LogsOperation, OutboundOperation, ProfileOperation, ProviderOperation, ProxyControlOperation,
+    RulesOperation, SubscriptionOperation, TunOperation,
 };
 use super::core_identity::{CoreVersion, EngineId};
 use std::collections::HashSet;
@@ -73,7 +73,7 @@ fn both_engine_declarations_match_the_complete_unique_core_operation_catalogue()
 }
 
 #[test]
-fn supported_operations_require_matching_ids_registered_in_each_engine_lock() {
+fn only_explicitly_supported_operations_resolve_to_verified_support() {
     let mihomo_lock = lock_from_manifest("mihomo", MIHOMO_EVIDENCE_LOCK);
     let mihomo_file = parse_declaration(MIHOMO_DECLARATION);
     let validated = ValidatedAdapterOperationDeclarations::validate(
@@ -85,83 +85,43 @@ fn supported_operations_require_matching_ids_registered_in_each_engine_lock() {
     let supported = CoreOperation::all()
         .iter()
         .filter(|operation| validated.verified_supported_evidence(**operation).is_some())
-        .count();
-    assert_eq!(supported, 22);
-    assert!(
-        validated
-            .verified_supported_evidence(CoreOperation::Dns(DnsOperation::Query))
-            .is_some()
-    );
-    assert!(
-        validated
-            .verified_supported_evidence(CoreOperation::Dns(DnsOperation::ApplyConfiguration))
-            .is_some()
-    );
-    assert!(
-        validated
-            .verified_supported_evidence(CoreOperation::Rules(RulesOperation::Apply))
-            .is_some()
-    );
-    assert!(
-        validated
-            .verified_supported_evidence(CoreOperation::Tun(TunOperation::Configure))
-            .is_some()
-    );
-    assert!(
-        validated
-            .verified_supported_evidence(CoreOperation::Rules(RulesOperation::Trace))
-            .is_some()
-    );
+        .copied()
+        .collect::<HashSet<_>>();
+    let expected_supported = [
+        CoreOperation::Outbound(OutboundOperation::List),
+        CoreOperation::Outbound(OutboundOperation::Select),
+        CoreOperation::Outbound(OutboundOperation::Probe),
+        CoreOperation::Logs(LogsOperation::Stream),
+        CoreOperation::Logs(LogsOperation::SetLevel),
+        CoreOperation::ProxyControl(ProxyControlOperation::GetRoutingIntent),
+        CoreOperation::ProxyControl(ProxyControlOperation::SetRoutingIntent),
+    ]
+    .into_iter()
+    .collect::<HashSet<_>>();
+    assert_eq!(supported, expected_supported);
+
     for operation in [
-        SubscriptionOperation::Refresh,
-        SubscriptionOperation::Import,
-        SubscriptionOperation::Update,
+        CoreOperation::Profile(ProfileOperation::ApplyFeature),
+        CoreOperation::Dns(DnsOperation::Query),
+        CoreOperation::Dns(DnsOperation::ApplyConfiguration),
+        CoreOperation::Rules(RulesOperation::Trace),
+        CoreOperation::Rules(RulesOperation::Apply),
+        CoreOperation::Subscription(SubscriptionOperation::Refresh),
+        CoreOperation::Subscription(SubscriptionOperation::Import),
+        CoreOperation::Subscription(SubscriptionOperation::Update),
+        CoreOperation::Provider(ProviderOperation::ListRule),
+        CoreOperation::Provider(ProviderOperation::UpdateRule),
+        CoreOperation::Connection(super::core_capabilities::ConnectionOperation::Close),
+        CoreOperation::Geo(GeoOperation::UpdateDatabases),
+        CoreOperation::FakeIpCache(FakeIpCacheOperation::Flush),
+        CoreOperation::Tun(TunOperation::Configure),
+        CoreOperation::CoreGarbageCollection(CoreGarbageCollectionOperation::Trigger),
     ] {
         assert!(
-            validated
-                .verified_supported_evidence(CoreOperation::Subscription(operation))
-                .is_some()
+            validated.verified_supported_evidence(operation).is_none(),
+            "{operation:?} is evidence-open and needs a production owner audit"
         );
     }
-    assert!(
-        validated
-            .verified_supported_evidence(CoreOperation::Geo(GeoOperation::UpdateDatabases))
-            .is_some()
-    );
-    assert!(
-        validated
-            .verified_supported_evidence(CoreOperation::Profile(ProfileOperation::ApplyFeature))
-            .is_some()
-    );
-    assert!(
-        validated
-            .verified_supported_evidence(CoreOperation::Connection(
-                super::core_capabilities::ConnectionOperation::Close
-            ))
-            .is_some()
-    );
-    assert!(
-        validated
-            .verified_supported_evidence(CoreOperation::FakeIpCache(FakeIpCacheOperation::Flush))
-            .is_some()
-    );
-    assert!(
-        validated
-            .verified_supported_evidence(CoreOperation::Provider(ProviderOperation::ListRule))
-            .is_some()
-    );
-    assert!(
-        validated
-            .verified_supported_evidence(CoreOperation::Provider(ProviderOperation::UpdateRule))
-            .is_some()
-    );
-    assert!(
-        validated
-            .verified_supported_evidence(CoreOperation::CoreGarbageCollection(
-                CoreGarbageCollectionOperation::Trigger
-            ))
-            .is_some()
-    );
 
     let sing_box = validate_source(SING_BOX_DECLARATION, "sing-box", SING_BOX_EVIDENCE_LOCK);
     assert!(
@@ -349,9 +309,9 @@ fn evidence_lock_rejects_unregistered_targets_and_zero_adapter_revisions() {
 
 #[test]
 fn evidence_open_and_unsupported_never_resolve_to_verified_support() {
-    for (engine, declaration, evidence_lock) in [
-        ("mihomo", MIHOMO_DECLARATION, MIHOMO_EVIDENCE_LOCK),
-        ("sing-box", SING_BOX_DECLARATION, SING_BOX_EVIDENCE_LOCK),
+    for (engine, declaration, evidence_lock, expected_evidence_open_count) in [
+        ("mihomo", MIHOMO_DECLARATION, MIHOMO_EVIDENCE_LOCK, 15),
+        ("sing-box", SING_BOX_DECLARATION, SING_BOX_EVIDENCE_LOCK, 0),
     ] {
         let validated = validate_source(declaration, engine, evidence_lock);
         let mut evidence_open_count = 0;
@@ -379,8 +339,8 @@ fn evidence_open_and_unsupported_never_resolve_to_verified_support() {
         }
 
         assert_eq!(
-            evidence_open_count, 0,
-            "{engine} has no unresolved operation evidence declaration"
+            evidence_open_count, expected_evidence_open_count,
+            "{engine} evidence-open count must match the production audit"
         );
         assert!(unsupported_count > 0, "{engine} exercises Unsupported");
         assert!(owner_managed_count > 0, "{engine} exercises OwnerManaged");

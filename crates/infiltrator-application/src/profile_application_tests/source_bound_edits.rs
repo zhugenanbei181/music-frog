@@ -10,7 +10,7 @@ use crate::profile_options_application::ProfileOptionsApplication;
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::profile_document::ProfileDocumentSaved;
 use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
-use infiltrator_ports::runtime_gateway::ActiveProfileReferenceApplier;
+use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceApplier;
 use std::sync::Arc;
 
 #[tokio::test]

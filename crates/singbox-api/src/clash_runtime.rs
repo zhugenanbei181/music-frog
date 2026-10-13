@@ -16,8 +16,9 @@ use infiltrator_contract::outbound::inventory::{
 use infiltrator_contract::routing_intent::{
     EngineDefinedRoutingIntent, RoutingIntent, RoutingIntentExtensionId,
 };
+use infiltrator_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
 use infiltrator_ports::error::PortError;
-use infiltrator_ports::outbound::{OutboundPort, OutboundProbeRequest, OutboundScopeSource};
+use infiltrator_ports::outbound::{OutboundPort, OutboundProbeRequest};
 use infiltrator_ports::routing_intent::RoutingIntentPort;
 use serde::Deserialize;
 use std::collections::BTreeMap;
@@ -30,12 +31,12 @@ use tokio::sync::Mutex;
 /// verified against a real enabled `clash_mode` configuration.
 pub struct SingBoxRoutingIntentAdapter {
     api: SingBoxClashApiClient,
-    scope_source: Arc<dyn OutboundScopeSource>,
+    scope_source: Arc<dyn CoreScopeSource>,
     version_provider: SingBoxCoreVersionProvider,
 }
 
 impl SingBoxRoutingIntentAdapter {
-    pub fn new(api: SingBoxClashApiClient, scope_source: Arc<dyn OutboundScopeSource>) -> Self {
+    pub fn new(api: SingBoxClashApiClient, scope_source: Arc<dyn CoreScopeSource>) -> Self {
         Self {
             version_provider: SingBoxCoreVersionProvider::new(api.clone()),
             api,
@@ -116,13 +117,13 @@ fn routing_intent_from_mode(config: &ClashConfigResponse) -> Result<RoutingInten
 /// scope/version around HTTP calls, and accepts a write only after readback.
 pub struct SingBoxOutboundAdapter {
     api: SingBoxClashApiClient,
-    scope_source: Arc<dyn OutboundScopeSource>,
+    scope_source: Arc<dyn CoreScopeSource>,
     version_provider: SingBoxCoreVersionProvider,
     observation: Mutex<OutboundObservationState>,
 }
 
 impl SingBoxOutboundAdapter {
-    pub fn new(api: SingBoxClashApiClient, scope_source: Arc<dyn OutboundScopeSource>) -> Self {
+    pub fn new(api: SingBoxClashApiClient, scope_source: Arc<dyn CoreScopeSource>) -> Self {
         Self {
             version_provider: SingBoxCoreVersionProvider::new(api.clone()),
             api,
@@ -548,7 +549,7 @@ fn verify_id_engine(scope: &CoreScope, id: &OutboundId) -> Result<(), PortError>
 }
 
 fn verify_owner_scope(
-    scope_source: &dyn OutboundScopeSource,
+    scope_source: &dyn CoreScopeSource,
     requested: &CoreScope,
 ) -> Result<(), PortError> {
     if requested.identity.engine != engine_id() {
@@ -563,13 +564,13 @@ fn verify_owner_scope(
             "sing-box Clash API operations require an observed core version in CoreScope",
         ));
     }
-    match scope_source.current_scope() {
-        Some(current) if &current == requested => Ok(()),
-        Some(_) => Err(rejected(
+    match scope_source.scope_observation() {
+        CoreScopeObservation::Observed(current) if &current == requested => Ok(()),
+        CoreScopeObservation::Observed(_) => Err(rejected(
             ErrorCode::InvalidState,
             "active CoreScope changed during sing-box Clash API operation",
         )),
-        None => Err(rejected(
+        CoreScopeObservation::Unavailable => Err(rejected(
             ErrorCode::NotReady,
             "no active CoreScope is available for sing-box Clash API operation",
         )),
@@ -578,7 +579,7 @@ fn verify_owner_scope(
 
 async fn verify_live_scope(
     version_provider: &SingBoxCoreVersionProvider,
-    scope_source: &dyn OutboundScopeSource,
+    scope_source: &dyn CoreScopeSource,
     requested: &CoreScope,
 ) -> Result<(), PortError> {
     verify_owner_scope(scope_source, requested)?;

@@ -19,13 +19,13 @@ use infiltrator_contract::subscription_import::{
 };
 use infiltrator_domain::profiles::{ProfileInfo, ProfileMetadata};
 use infiltrator_domain::subscription::CheckedSubscriptionUrl;
+use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceApplier;
 use infiltrator_ports::application_runtime::{
     ApplicationFuture, ApplicationRuntime, ApplicationSleep,
 };
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::profile_workspace::{ProfileWorkspace, ProfileWorkspaceUpdate};
-use infiltrator_ports::runtime_gateway::ActiveProfileReferenceApplier;
 use infiltrator_ports::subscription_source::{
     ConditionalDocumentResult, ConditionalFetchHeaders, SubscriptionDocument,
 };

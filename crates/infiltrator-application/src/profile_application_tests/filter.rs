@@ -10,7 +10,7 @@ use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::subscription_import::SubscriptionFilterDraft;
 use infiltrator_domain::profile_options::{FilterSpec, ProfileOptions};
-use infiltrator_ports::runtime_gateway::ActiveProfileReferenceApplier;
+use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceApplier;
 use std::sync::Arc;
 
 /// The scoped Mihomo codec rejects malformed drafts before a write, then

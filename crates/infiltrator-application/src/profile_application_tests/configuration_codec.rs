@@ -19,12 +19,13 @@ use infiltrator_contract::protocol_trust::TlsTrustParams;
 use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_domain::runtime::{ProxyProvider, RuleProvider};
 use infiltrator_domain::tun::TunConfigPatch;
+use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceApplier;
 use infiltrator_ports::profile_document_codec::{
     ProfileConfigurationMutation, ProfileConfigurationQuery, ProfileConfigurationReadout,
     ProfileProtocolNodeMutationReadback, ProfileRuleWorkspaceUpdate,
 };
 use infiltrator_ports::profile_workspace::{ProfileWorkspace, ProfileWorkspaceUpdate};
-use infiltrator_ports::runtime_gateway::{ActiveProfileReferenceApplier, RuntimeGateway};
+use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::atomic::AtomicUsize;

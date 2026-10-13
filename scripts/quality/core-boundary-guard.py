@@ -200,6 +200,20 @@ def strip_comments(text: str) -> str:
     return re.sub(r"//[^\n]*", "", text)
 
 
+def strip_test_attributes(text: str) -> str:
+    """Remove test-runner attributes before checking production imports.
+
+    A `#[tokio::test]` attribute expands only in test builds; treating the
+    attribute path itself as a production Tokio dependency is a false positive.
+    Runtime calls such as `tokio::spawn` remain visible to the boundary check.
+    """
+    return re.sub(
+        r"#\s*\[\s*tokio\s*::\s*test(?:\s*\([^]]*\))?\s*\]",
+        "",
+        text,
+    )
+
+
 def check_profile_ports_sources(
     workspace_source: str,
     store_source: str,
@@ -271,7 +285,9 @@ def check(repo_root: pathlib.Path) -> list[str]:
             continue
         source_root = manifest.parent / "src"
         for source in sorted(source_root.rglob("*.rs")):
-            clean = strip_comments(source.read_text(encoding="utf-8"))
+            clean = strip_test_attributes(
+                strip_comments(source.read_text(encoding="utf-8"))
+            )
             if pattern.search(clean):
                 problems.append(
                     f"{source}: concrete runtime/transport import violates the 0.30 boundary"
@@ -304,6 +320,12 @@ def self_test() -> int:
     )
     assert SOURCE_PATTERNS["infiltrator-bevy-ui"].search(
         "use mihomo_api::client::MihomoClient;"
+    )
+    assert not SOURCE_PATTERNS["infiltrator-ports"].search(
+        strip_test_attributes("#[tokio::test(start_paused = true)] async fn test() {}")
+    )
+    assert SOURCE_PATTERNS["infiltrator-ports"].search(
+        strip_test_attributes("use tokio::runtime::Builder;")
     )
     assert SOURCE_PATTERNS["infiltrator-iced"].search(
         "use infiltrator_core::settings_io;"

@@ -247,7 +247,7 @@ impl AndroidProductComposition {
                         Arc::new(MihomoRoutingIntentAdapter::new(client.clone()));
                     let gateway: Arc<dyn RuntimeGateway> = Arc::new(client);
                     let resources =
-                        ResourceApplication::new(gateway.clone(), gateway.resource_port());
+                        ResourceApplication::new(application.clone(), gateway.resource_port());
                     reader = reader
                         .with_routing_intent_port(routing_intent_port)
                         .with_gateway(gateway.clone())

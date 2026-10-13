@@ -9,7 +9,6 @@ use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::{Json, extract};
 use futures_util::StreamExt;
 use infiltrator_application::connection_application::ConnectionApplication;
-use infiltrator_application::resource_application::ResourceApplication;
 use infiltrator_application::runtime_query_application::RuntimeQueryApplication;
 use infiltrator_contract::resources::CoreResourceSnapshot;
 use infiltrator_contract::routing_intent::RoutingIntentSnapshot;
@@ -179,12 +178,12 @@ pub async fn get_runtime_traffic_http<C: AdminApiContext>(
 pub async fn get_runtime_memory_http<C: AdminApiContext>(
     extract::State(state): extract::State<AdminApiState<C>>,
 ) -> Result<Json<CoreResourceSnapshot>, ApiError> {
-    let gateway = state
+    let application = state
         .ctx
-        .runtime_gateway()
+        .resource_application()
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
-    let snapshot = ResourceApplication::new(gateway.clone(), gateway.resource_port())
+    let snapshot = application
         .observe()
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;

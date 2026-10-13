@@ -24,9 +24,11 @@ use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_core::apply::failure_from_apply_error;
 use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_domain::runtime::{ProxyProvider, RuleProvider};
+use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceApplier;
 use infiltrator_ports::certificate_authority::CertificateAuthorityPort;
 use infiltrator_ports::connection::ConnectionPort;
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
+use infiltrator_ports::core_scope::CoreScopeSource;
 use infiltrator_ports::dns_latency::DnsLatencyProbePort;
 use infiltrator_ports::dns_leak::DnsLeakProbePort;
 use infiltrator_ports::error::PortError;
@@ -34,7 +36,7 @@ use infiltrator_ports::host_runtime::{HostRuntime, TunServiceStatus};
 use infiltrator_ports::mini_hud_window::MiniHudWindowPort;
 use infiltrator_ports::mtu_probe::MtuProbePort;
 use infiltrator_ports::network_roaming::NetworkRoamingPort;
-use infiltrator_ports::outbound::{OutboundPort, OutboundScopeSource};
+use infiltrator_ports::outbound::OutboundPort;
 use infiltrator_ports::pac::PacServicePort;
 use infiltrator_ports::privileged_network::PrivilegedNetworkPort;
 use infiltrator_ports::profile_configuration_transaction::{
@@ -46,7 +48,7 @@ use infiltrator_ports::profile_workspace::{ProfileWorkspace, ProfileWorkspaceUpd
 use infiltrator_ports::resources::{CoreResourcePort, CpuResourceObserver};
 use infiltrator_ports::rule_provider_cache::RuleProviderCachePort;
 use infiltrator_ports::runtime_configuration::RuntimeConfigurationPorts;
-use infiltrator_ports::runtime_gateway::{ActiveProfileReferenceApplier, RuntimeGateway};
+use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use infiltrator_ports::runtime_http_proxy_endpoint::{
     RuntimeHttpProxyEndpoint, RuntimeHttpProxyEndpointPort,
 };
@@ -374,7 +376,7 @@ impl HostRuntime for MihomoRuntime {
         self.application.outbound_port()
     }
 
-    fn outbound_scope_source(&self) -> Option<Arc<dyn OutboundScopeSource>> {
+    fn core_scope_source(&self) -> Option<Arc<dyn CoreScopeSource>> {
         Some(Arc::new(self.application.as_ref().clone()))
     }
 

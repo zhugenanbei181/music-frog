@@ -1,8 +1,8 @@
-use infiltrator_application::core_application::CoreScopeObservation;
 use infiltrator_application::surface_application::SurfacePump;
 use infiltrator_bevy_ui::projection::{OverviewProjection, OverviewSource, SourceKind};
 use infiltrator_bevy_ui::surface::{SurfaceSource, overview_projection};
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
+use infiltrator_ports::core_scope::CoreScopeObservation;
 use std::sync::{Arc, RwLock};
 
 #[derive(Clone)]

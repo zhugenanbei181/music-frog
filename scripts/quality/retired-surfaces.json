@@ -1214,6 +1214,85 @@
       "source_roots": [
         "crates/infiltrator-application/src"
       ]
+    },
+    {
+      "id": "core-outbound-scope-source",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "OutboundScopeSource",
+      "rationale": "Active Core scope ownership is shared across runtime capabilities and now uses CoreScopeSource with explicit Unavailable or Observed state.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-application/src/core_application/ownership_tests.rs",
+        "crates/mihomo-api/src/outbound_tests.rs",
+        "crates/singbox-api/src/clash_runtime_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-ports/src",
+        "crates/infiltrator-application/src",
+        "crates/mihomo-api/src",
+        "crates/singbox-api/src"
+      ]
+    },
+    {
+      "id": "core-outbound-scope-binding-method",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "bind_owner_scope_source",
+      "rationale": "Backend ownership now binds the engine-neutral CoreScopeSource through bind_owner_core_scope.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-core/tests/common/backend_conformance_real.rs",
+        "crates/infiltrator-composition/tests/desktop_owner_switch_real_process_smoke.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-ports/src",
+        "crates/infiltrator-composition/src"
+      ]
+    },
+    {
+      "id": "core-host-outbound-scope-accessor",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "outbound_scope_source",
+      "rationale": "HostRuntime exposes the generic core_scope_source accessor for scope shared by all runtime operations.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-application/src/core_application/ownership_tests.rs",
+        "crates/infiltrator-desktop/src/product_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-ports/src",
+        "crates/infiltrator-desktop/src",
+        "crates/infiltrator-iced/src"
+      ]
+    },
+    {
+      "id": "runtime-configuration-from-gateway",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "from_gateway",
+      "rationale": "RuntimeConfigurationApplication now receives its scoped RuntimeConfigurationPorts directly through new.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-application/src/runtime_configuration_application_tests.rs",
+        "crates/infiltrator-composition/tests/mihomo_tun_configuration_real_process_smoke.rs",
+        "crates/infiltrator-composition/tests/mihomo_profile_feature_real_process_smoke.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src",
+        "crates/infiltrator-iced/src",
+        "crates/infiltrator-composition/tests"
+      ]
+    },
+    {
+      "id": "runtime-configuration-from-current-gateway",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "from_current_gateway",
+      "rationale": "Callers now resolve scope explicitly and pass RuntimeConfigurationPorts to the application constructor.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-application/src/runtime_configuration_application_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
     }
   ]
 }

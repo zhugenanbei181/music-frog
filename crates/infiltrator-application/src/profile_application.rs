@@ -34,12 +34,12 @@ use infiltrator_domain::subscription::{CheckedSubscriptionUrl, SubscriptionUserI
 use infiltrator_domain::subscription_scheduler_policy::{
     CronSchedule, FormatDetector, QuotaWarningPolicy, SubscriptionSchedule,
 };
+use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceApplier;
 use infiltrator_ports::profile_document_codec::ProfileDocumentCodecPort;
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::profile_workspace::{
     ProfileWorkspace, ProfileWorkspacePurpose, ProfileWorkspaceUpdate,
 };
-use infiltrator_ports::runtime_gateway::ActiveProfileReferenceApplier;
 use infiltrator_ports::subscription_source::{
     ConditionalDocumentResult, ConditionalFetchHeaders, SubscriptionDocument, SubscriptionSource,
 };

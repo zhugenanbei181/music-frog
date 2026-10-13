@@ -128,6 +128,7 @@ pub mod runtime_control_projection;
 pub mod runtime_probe_settings;
 pub mod runtime_probe_settings_editor;
 pub mod runtime_query_application;
+mod runtime_scope;
 pub mod runtime_status_application;
 pub mod runtime_stream_application;
 pub mod script_application;

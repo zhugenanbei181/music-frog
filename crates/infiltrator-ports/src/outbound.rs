@@ -87,11 +87,6 @@ impl OutboundProbeRequest {
     }
 }
 
-/// Supplies the active core identity from the single Core owner.
-pub trait OutboundScopeSource: Send + Sync {
-    fn current_scope(&self) -> Option<CoreScope>;
-}
-
 /// Reads and changes outbound state for one observed core activation.
 ///
 /// Adapters must compare `expected_revision` before selecting or probing and

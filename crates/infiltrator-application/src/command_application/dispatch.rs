@@ -20,8 +20,8 @@ use infiltrator_contract::pac::PacRequest;
 use infiltrator_contract::privileged_network::PrivilegedNetworkRequest;
 use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
 use infiltrator_contract::rule_edit::RuleDraft;
+use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceApplier;
 use infiltrator_ports::runtime_configuration::ObservedValue;
-use infiltrator_ports::runtime_gateway::ActiveProfileReferenceApplier;
 use std::sync::Arc;
 
 impl CommandApplication {
@@ -44,9 +44,9 @@ impl CommandApplication {
             )
         })?;
         let gateway = self.runtime()?;
-        Ok(RuntimeConfigurationApplication::from_gateway(
+        Ok(RuntimeConfigurationApplication::new(
             scope.clone(),
-            gateway.as_ref(),
+            gateway.configuration_ports(),
         ))
     }
 

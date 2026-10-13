@@ -6,7 +6,7 @@ use bevy::ecs::prelude::*;
 #[cfg(feature = "capture-tools")]
 use infiltrator_application::command_capability::validate_terminal_scope;
 #[cfg(feature = "capture-tools")]
-use infiltrator_application::core_application::{CoreApplication, CoreScopeObservation};
+use infiltrator_application::core_application::CoreApplication;
 #[cfg(feature = "capture-tools")]
 use infiltrator_contract::command::CommandResult;
 use infiltrator_contract::command::RequestId;
@@ -17,6 +17,8 @@ use infiltrator_contract::core_identity::{CoreCommandOutcome, CoreCommandRequest
 #[cfg(feature = "capture-tools")]
 use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::error::Failure;
+#[cfg(feature = "capture-tools")]
+use infiltrator_ports::core_scope::CoreScopeObservation;
 #[cfg(feature = "capture-tools")]
 use infiltrator_ports::profile_document_codec::ProfileMixinToggleId;
 #[cfg(feature = "capture-tools")]
@@ -113,20 +115,23 @@ impl UiCommandSink for ApplicationCommandSink {
         let _ = self.submit_tracked(command);
     }
     fn submit_tracked(&self, command: UiCommand) -> Option<RequestId> {
-        let Some(scope) = observed_scope(&self.observed_scope) else {
-            let outcome = self.application.reject_missing_scope(command.to_intent()?);
-            let request_id = result_request_id(&outcome.result);
-            self.pending
-                .lock()
-                .expect("command correlation lock")
-                .insert(
-                    request_id,
-                    PendingCommand {
-                        command,
-                        reply: PendingReply::Immediate(outcome),
-                    },
-                );
-            return Some(request_id);
+        let scope = match observed_scope(&self.observed_scope) {
+            CoreScopeObservation::Observed(scope) => scope,
+            CoreScopeObservation::Unavailable => {
+                let outcome = self.application.reject_missing_scope(command.to_intent()?);
+                let request_id = result_request_id(&outcome.result);
+                self.pending
+                    .lock()
+                    .expect("command correlation lock")
+                    .insert(
+                        request_id,
+                        PendingCommand {
+                            command,
+                            reply: PendingReply::Immediate(outcome),
+                        },
+                    );
+                return Some(request_id);
+            }
         };
 
         if let Some(intent) = command.to_intent() {
@@ -248,11 +253,8 @@ impl UiCommandSink for ApplicationCommandSink {
 }
 
 #[cfg(feature = "capture-tools")]
-fn observed_scope(observed: &Arc<RwLock<CoreScopeObservation>>) -> Option<CoreScope> {
-    match observed.read().expect("observed Core scope lock").clone() {
-        CoreScopeObservation::Observed(scope) => Some(scope),
-        CoreScopeObservation::Unavailable => None,
-    }
+fn observed_scope(observed: &Arc<RwLock<CoreScopeObservation>>) -> CoreScopeObservation {
+    observed.read().expect("observed Core scope lock").clone()
 }
 
 #[cfg(feature = "capture-tools")]

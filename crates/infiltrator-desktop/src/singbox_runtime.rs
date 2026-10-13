@@ -17,11 +17,11 @@ use infiltrator_contract::version::CoreArtifactVerification;
 use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceStore;
 use infiltrator_ports::core_binary_selection::{CoreBinarySelection, CoreBinarySelectionSource};
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
+use infiltrator_ports::core_scope::CoreScopeSource;
 use infiltrator_ports::engine_backend_factory::{
     EngineBackendFactory, EngineBackendPorts, EngineBackendProvider,
 };
 use infiltrator_ports::error::PortError;
-use infiltrator_ports::outbound::OutboundScopeSource;
 use infiltrator_ports::profile_store::ProfileStore;
 use singbox_api::controller_configuration::SingBoxControllerConfiguration;
 use singbox_api::engine_id;
@@ -201,7 +201,7 @@ fn bind_core(
     backend: &EngineBackendPorts,
     profile_store: Arc<dyn ProfileStore>,
 ) -> Result<(), PortError> {
-    let owner_scope: Arc<dyn OutboundScopeSource> = Arc::new(application.clone());
+    let owner_scope: Arc<dyn CoreScopeSource> = Arc::new(application.clone());
     provider.bind_core_owner_scope(backend, owner_scope)?;
     let lifecycle: Arc<dyn CoreLifecyclePort> = Arc::new(application.clone());
     provider.bind_profile_configuration_transaction(backend, profile_store, lifecycle)

@@ -112,7 +112,7 @@ impl AppState {
         let gateway: Arc<dyn RuntimeGateway> = runtime;
         Task::perform(
             async move {
-                RuntimeConfigurationApplication::from_gateway(scope, gateway.as_ref())
+                RuntimeConfigurationApplication::new(scope, gateway.configuration_ports())
                     .set_lan_sharing(desired.allow_lan, desired.mixed_port, &desired.bind_address)
                     .await
                     .map_err(|failure| InfiltratorError::Config(failure.message))
@@ -160,7 +160,7 @@ impl AppState {
         let gateway: Arc<dyn RuntimeGateway> = runtime;
         Task::perform(
             async move {
-                RuntimeConfigurationApplication::from_gateway(scope, gateway.as_ref())
+                RuntimeConfigurationApplication::new(scope, gateway.configuration_ports())
                     .set_lan_security(
                         &allowed_ips,
                         &disallowed_ips,

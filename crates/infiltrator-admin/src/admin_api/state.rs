@@ -7,6 +7,7 @@ use infiltrator_application::network_application::NetworkApplication;
 use infiltrator_application::outbound_application::OutboundApplication;
 use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::profile_reset_application::ProfileResetApplication;
+use infiltrator_application::resource_application::ResourceApplication;
 use infiltrator_application::sync_application::SyncApplication;
 use infiltrator_application::version_application::VersionApplication;
 use infiltrator_contract::active_profile_reference::ActiveProfileReferenceTarget;
@@ -20,7 +21,8 @@ use infiltrator_contract::outbound::{
 };
 use infiltrator_contract::routing_intent::{RoutingIntent, RoutingIntentSnapshot};
 use infiltrator_domain::settings::AppSettings;
-use infiltrator_ports::outbound::{OutboundPort, OutboundScopeSource};
+use infiltrator_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
+use infiltrator_ports::outbound::OutboundPort;
 use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use infiltrator_ports::subscription_source::SubscriptionSource;
 use std::env::var;
@@ -102,6 +104,7 @@ pub trait AdminApiContext: Clone + Send + Sync + 'static {
     async fn runtime_running(&self) -> bool;
     async fn runtime_controller_url(&self) -> Option<String>;
     async fn runtime_gateway(&self) -> anyhow::Result<Arc<dyn RuntimeGateway>>;
+    async fn resource_application(&self) -> anyhow::Result<ResourceApplication>;
     async fn system_proxy_enabled(&self) -> bool;
     async fn set_system_proxy_enabled(&self, enabled: bool) -> anyhow::Result<()>;
     async fn autostart_enabled(&self) -> bool;
@@ -124,11 +127,11 @@ pub trait AdminApiContext: Clone + Send + Sync + 'static {
 #[derive(Clone)]
 pub struct AdminOutboundOwner {
     application: OutboundApplication,
-    scope_source: Arc<dyn OutboundScopeSource>,
+    scope_source: Arc<dyn CoreScopeSource>,
 }
 
 impl AdminOutboundOwner {
-    pub fn new(port: Arc<dyn OutboundPort>, scope_source: Arc<dyn OutboundScopeSource>) -> Self {
+    pub fn new(port: Arc<dyn OutboundPort>, scope_source: Arc<dyn CoreScopeSource>) -> Self {
         Self {
             application: OutboundApplication::new(port),
             scope_source,
@@ -183,24 +186,26 @@ impl AdminOutboundOwner {
     }
 
     fn active_scope(&self) -> Result<CoreScope, Failure> {
-        self.scope_source.current_scope().ok_or_else(|| {
-            Failure::new(
+        match self.scope_source.scope_observation() {
+            CoreScopeObservation::Observed(scope) => Ok(scope),
+            CoreScopeObservation::Unavailable => Err(Failure::new(
                 ErrorCode::NotReady,
                 "no active Core scope is available for Admin outbound operations",
                 true,
-            )
-        })
+            )),
+        }
     }
 
     fn verify_active_scope(&self, expected: &CoreScope) -> Result<(), Failure> {
-        if self.scope_source.current_scope().as_ref() == Some(expected) {
-            Ok(())
-        } else {
-            Err(Failure::new(
-                ErrorCode::InvalidState,
-                "Admin outbound operation belongs to a retired Core scope",
-                false,
-            ))
+        match self.scope_source.scope_observation() {
+            CoreScopeObservation::Observed(current) if &current == expected => Ok(()),
+            CoreScopeObservation::Observed(_) | CoreScopeObservation::Unavailable => {
+                Err(Failure::new(
+                    ErrorCode::InvalidState,
+                    "Admin outbound operation belongs to a retired Core scope",
+                    false,
+                ))
+            }
         }
     }
 }

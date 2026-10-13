@@ -483,7 +483,7 @@ pub(crate) async fn core_application(
         runtime.clone(),
     );
     let setup: anyhow::Result<()> = async {
-        match ports.bind_owner_scope_source(Arc::new(application.clone()))? {
+        match ports.bind_owner_core_scope(Arc::new(application.clone()))? {
             EngineBackendOwnerScopeBindingResult::NotRequired => {}
             EngineBackendOwnerScopeBindingResult::Bound => {}
         }

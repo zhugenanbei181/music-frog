@@ -134,6 +134,14 @@ mod tests {
         async fn runtime_gateway(&self) -> anyhow::Result<Arc<dyn RuntimeGateway>> {
             Err(anyhow!("runtime client is not available in sync tests"))
         }
+        async fn resource_application(
+            &self,
+        ) -> anyhow::Result<infiltrator_application::resource_application::ResourceApplication>
+        {
+            Err(anyhow!(
+                "resource application is not available in sync tests"
+            ))
+        }
         async fn system_proxy_enabled(&self) -> bool {
             false
         }

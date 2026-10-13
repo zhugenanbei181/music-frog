@@ -18,7 +18,7 @@ use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_domain::config::validate_yaml;
 use infiltrator_domain::profile_converter::ProfileConverter;
 use infiltrator_domain::profiles::sanitize_profile_name;
-use infiltrator_ports::runtime_gateway::ActiveProfileReferenceApplier;
+use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceApplier;
 use infiltrator_shared::locales::{Lang, Localizer};
 use std::path;
 use tokio::task::spawn_blocking;

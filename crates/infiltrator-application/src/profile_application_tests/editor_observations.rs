@@ -129,7 +129,7 @@ async fn mixin_save_commits_a_coherent_workspace_preserves_filter_and_repeated_a
  {
     use infiltrator_domain::mixin::{MixinConfig, RuleMixin};
     use infiltrator_domain::profile_options::{FilterSpec, ProfileOptions};
-    use infiltrator_ports::runtime_gateway::ActiveProfileReferenceApplier;
+    use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceApplier;
     let content =
         "# retained header\nmode: rule\nrules:\n  - DOMAIN,old.example,DIRECT\n  - MATCH,DIRECT\n";
     let store = Arc::new(FakeStore::with_profile("main", content, true));
@@ -195,7 +195,7 @@ async fn mixin_save_commits_a_coherent_workspace_preserves_filter_and_repeated_a
 
 #[tokio::test]
 async fn failed_mixin_workspace_read_preserves_both_files_and_the_prior_product_observation() {
-    use infiltrator_ports::runtime_gateway::ActiveProfileReferenceApplier;
+    use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceApplier;
     let store = Arc::new(FakeStore::with_profile("main", "mode: rule\n", true));
     let profiles = profiles_with_mihomo_codec(store.clone());
     let application = ProfileOptionsApplication::new(profiles.clone());

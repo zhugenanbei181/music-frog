@@ -5,7 +5,7 @@ use super::*;
 use crate::profile_application::ProfileRuntimeAccess;
 use crate::profile_document_application::ProfileDocumentApplication;
 use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
-use infiltrator_ports::runtime_gateway::ActiveProfileReferenceApplier;
+use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceApplier;
 use std::sync::Arc;
 
 #[tokio::test]

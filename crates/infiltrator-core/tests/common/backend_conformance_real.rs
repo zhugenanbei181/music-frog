@@ -28,9 +28,10 @@ use infiltrator_core::profile_configuration_transaction::{
 use infiltrator_platform::paths::{clear_home_dir_override, set_home_dir_override};
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
+use infiltrator_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
 use infiltrator_ports::engine_backend_factory::{EngineBackendFactory, EngineBackendProvider};
 use infiltrator_ports::error::PortError;
-use infiltrator_ports::outbound::{OutboundProbeRequest, OutboundScopeSource, ProbeTarget};
+use infiltrator_ports::outbound::{OutboundProbeRequest, ProbeTarget};
 use infiltrator_ports::profile_configuration_transaction::{
     ProfileConfigurationCandidateValidatorPort, ProfileConfigurationTransactionScope,
 };
@@ -95,9 +96,9 @@ impl SecureStore for SmokeSecureStore {
 
 struct FixedScope(CoreScope);
 
-impl OutboundScopeSource for FixedScope {
-    fn current_scope(&self) -> Option<CoreScope> {
-        Some(self.0.clone())
+impl CoreScopeSource for FixedScope {
+    fn scope_observation(&self) -> CoreScopeObservation {
+        CoreScopeObservation::Observed(self.0.clone())
     }
 }
 
@@ -427,9 +428,9 @@ rules:
         "desktop-active",
         case.expected_version.clone(),
     );
-    let scope_source: Arc<dyn OutboundScopeSource> = Arc::new(FixedScope(scope));
+    let scope_source: Arc<dyn CoreScopeSource> = Arc::new(FixedScope(scope));
     backend
-        .bind_owner_scope_source(scope_source)
+        .bind_owner_core_scope(scope_source)
         .map_err(|error| format!("bind Mihomo production Core scope: {error}"))?;
     let transaction_owner = Arc::new(ConformanceLifecycleSession::for_process(
         process.as_ref(),
@@ -624,7 +625,7 @@ pub async fn locked_real_sing_box_runs_the_shared_core_conformance_suite() -> Re
         "sing-box-conformance",
         case.expected_version.clone(),
     );
-    let scope_source: Arc<dyn OutboundScopeSource> = Arc::new(FixedScope(scope));
+    let scope_source: Arc<dyn CoreScopeSource> = Arc::new(FixedScope(scope));
     provider
         .bind_core_owner_scope(&backend, scope_source)
         .map_err(|error| format!("bind production sing-box Core scope: {error}"))?;

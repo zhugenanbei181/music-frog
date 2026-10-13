@@ -33,13 +33,13 @@ use infiltrator_contract::outbound::{
 };
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface::HostKind;
+use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceApplier;
 use infiltrator_ports::capability_provider::CapabilityProvider;
 use infiltrator_ports::core_capability_provider::{
     CoreCapabilityProvider, CoreCapabilityProviderError,
 };
 use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
 use infiltrator_ports::error::PortError;
-use infiltrator_ports::runtime_gateway::ActiveProfileReferenceApplier;
 use mem::take;
 use std::mem;
 use std::sync::{Arc, Mutex};

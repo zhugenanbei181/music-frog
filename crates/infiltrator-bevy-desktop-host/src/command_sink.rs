@@ -1,12 +1,13 @@
 use crate::surface::observed_scope;
 use infiltrator_application::command_capability::validate_terminal_scope;
-use infiltrator_application::core_application::{CoreApplication, CoreScopeObservation};
+use infiltrator_application::core_application::CoreApplication;
 use infiltrator_bevy_ui::command::{UiCommand, UiCommandSink};
 use infiltrator_bevy_ui::command_events::CommandExecutedEvent;
 use infiltrator_contract::command::{CommandResult, RequestId};
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::core_identity::{CoreCommandOutcome, CoreCommandRequest};
 use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_ports::core_scope::CoreScopeObservation;
 use infiltrator_ports::profile_document_codec::ProfileMixinToggleId;
 use std::collections::HashMap;
 use std::sync::mpsc::{Receiver, TryRecvError};

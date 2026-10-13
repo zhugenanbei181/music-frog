@@ -31,9 +31,7 @@ use bevy::ui::widget::Text;
 use bevy::ui_widgets::Activate;
 use bevy::window::{PrimaryWindow, Window};
 use infiltrator_application::command_application::CommandApplication;
-use infiltrator_application::core_application::{
-    CoreApplication, CoreScopeObservation, ScopedCoreCommandClient,
-};
+use infiltrator_application::core_application::{CoreApplication, ScopedCoreCommandClient};
 use infiltrator_application::filter_capture_store::{
     FILTER_POLICY, FILTER_PROFILE, FilterCaptureStore,
 };
@@ -48,6 +46,7 @@ use infiltrator_contract::parity::FeatureId;
 use infiltrator_contract::subscription_filter_form::FilterField;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::SurfaceOrigin;
+use infiltrator_ports::core_scope::CoreScopeObservation;
 use infiltrator_ports::surface::SurfaceReader;
 use std::sync::{Arc, Mutex, RwLock, atomic::Ordering};
 

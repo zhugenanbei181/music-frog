@@ -24,10 +24,9 @@ use infiltrator_contract::outbound::{
     },
 };
 use infiltrator_domain::proxy::{Proxy, ProxyHistory};
+use infiltrator_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
 use infiltrator_ports::error::PortError;
-use infiltrator_ports::outbound::{
-    OutboundPort, OutboundProbeRequest, OutboundScopeSource, ProbeTarget,
-};
+use infiltrator_ports::outbound::{OutboundPort, OutboundProbeRequest, ProbeTarget};
 use std::collections::{BTreeSet, HashMap};
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -39,12 +38,12 @@ use tokio::sync::Mutex;
 /// that bypass it and write directly to the controller remain outside the fence.
 pub struct MihomoOutboundAdapter {
     api: Arc<dyn MihomoApi>,
-    scope_source: Arc<dyn OutboundScopeSource>,
+    scope_source: Arc<dyn CoreScopeSource>,
     observation: Mutex<OutboundObservationState>,
 }
 
 impl MihomoOutboundAdapter {
-    pub fn new(api: Arc<dyn MihomoApi>, scope_source: Arc<dyn OutboundScopeSource>) -> Self {
+    pub fn new(api: Arc<dyn MihomoApi>, scope_source: Arc<dyn CoreScopeSource>) -> Self {
         Self {
             api,
             scope_source,
@@ -53,15 +52,15 @@ impl MihomoOutboundAdapter {
     }
 
     fn verify_scope(&self, requested: &CoreScope) -> Result<(), PortError> {
-        match self.scope_source.current_scope() {
-            Some(current) if &current == requested => {}
-            Some(_) => {
+        match self.scope_source.scope_observation() {
+            CoreScopeObservation::Observed(current) if &current == requested => {}
+            CoreScopeObservation::Observed(_) => {
                 return Err(rejected(
                     ErrorCode::InvalidState,
                     "active core scope changed",
                 ));
             }
-            None => {
+            CoreScopeObservation::Unavailable => {
                 return Err(rejected(
                     ErrorCode::NotReady,
                     "no active core scope is available",

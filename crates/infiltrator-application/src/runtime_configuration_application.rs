@@ -16,7 +16,6 @@ use infiltrator_ports::runtime_configuration::{
     ObservedValue, ProxyPortsConfiguration, RuntimeConfigurationPorts, SnifferConfiguration,
     SnifferConfigurationUpdate, TunConfiguration, TunConfigurationUpdate,
 };
-use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use std::net::IpAddr;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -40,15 +39,6 @@ pub struct RuntimeConfigurationApplication {
 impl RuntimeConfigurationApplication {
     pub fn new(scope: CoreScope, ports: RuntimeConfigurationPorts) -> Self {
         Self { scope, ports }
-    }
-
-    pub fn from_gateway(scope: CoreScope, gateway: &dyn RuntimeGateway) -> Self {
-        Self::new(scope, gateway.configuration_ports())
-    }
-
-    pub fn from_current_gateway(gateway: &dyn RuntimeGateway) -> Result<Self, Failure> {
-        let scope = gateway.current_core_scope().map_err(Failure::from)?;
-        Ok(Self::from_gateway(scope, gateway))
     }
 
     pub fn scope(&self) -> &CoreScope {

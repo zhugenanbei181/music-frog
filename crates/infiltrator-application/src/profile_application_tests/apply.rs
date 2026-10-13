@@ -5,7 +5,7 @@ use super::*;
 use crate::profile_application::ProfileRuntimeAccess;
 use crate::profile_options_application::ProfileOptionsApplication;
 use infiltrator_contract::subscription_import::SubscriptionFilterDraft;
-use infiltrator_ports::runtime_gateway::ActiveProfileReferenceApplier;
+use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceApplier;
 
 /// A neutral filter draft is transformed by the selected codec and the
 /// resulting opaque document/sidecar pair is committed as one workspace.

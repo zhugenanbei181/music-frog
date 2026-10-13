@@ -171,6 +171,14 @@ mod tests {
                 "runtime client is not available in subscription tests"
             ))
         }
+        async fn resource_application(
+            &self,
+        ) -> anyhow::Result<infiltrator_application::resource_application::ResourceApplication>
+        {
+            Err(anyhow!(
+                "resource application is not available in subscription tests"
+            ))
+        }
         async fn system_proxy_enabled(&self) -> bool {
             false
         }

@@ -24,7 +24,7 @@ use infiltrator_domain::filter::{ContentDedupStrategy, DeduplicationStrategy, No
 use infiltrator_domain::profile_aggregator::{AggregationPlan, ProfileAggregator};
 use infiltrator_domain::profile_converter::{AggregationOptions, SourceSubscription};
 use infiltrator_domain::profiles::sanitize_profile_name;
-use infiltrator_ports::runtime_gateway::ActiveProfileReferenceApplier;
+use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceApplier;
 use std::sync::{Mutex, OnceLock};
 
 #[cfg(test)]

@@ -13,13 +13,13 @@ use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::subscription_quota::QuotaProfileIdentity;
 use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_domain::profile_source::hash_document_bytes;
+use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceApplier;
 use infiltrator_ports::profile_store::{
     ActiveProfileWorkspacePublishOutcome, ActiveProfileWorkspacePublishedLease,
     ActiveProfileWorkspaceRecoveryLease, ActiveProfileWorkspaceRecoveryResolution,
     ActiveProfileWorkspaceRestoreOutcome,
 };
 use infiltrator_ports::profile_workspace::{ProfileWorkspace, ProfileWorkspaceUpdate};
-use infiltrator_ports::runtime_gateway::ActiveProfileReferenceApplier;
 
 enum WorkspaceReferenceTarget<'a> {
     Selected(&'a ActiveProfileReference),

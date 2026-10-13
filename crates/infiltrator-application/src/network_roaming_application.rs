@@ -119,14 +119,22 @@ impl NetworkRoamingApplication {
 
         let tun_configuration = match &self.gateway {
             Some(gateway) => {
-                match crate::runtime_configuration_application::
-                    RuntimeConfigurationApplication::from_current_gateway(gateway.as_ref())
-                {
-                    Ok(configuration) => match configuration.observe_tun().await {
+                let scope = gateway.current_core_scope();
+                match scope {
+                    Ok(scope) => match crate::runtime_configuration_application::
+                        RuntimeConfigurationApplication::new(
+                            scope,
+                            gateway.configuration_ports(),
+                        )
+                        .observe_tun()
+                        .await
+                    {
                         Ok(observed) => TunConfigurationObservation::Reported(observed.value),
                         Err(failure) => TunConfigurationObservation::Failed(failure),
                     },
-                    Err(failure) => TunConfigurationObservation::Failed(failure),
+                    Err(error) => {
+                        TunConfigurationObservation::Failed(Failure::from(error))
+                    }
                 }
             }
             None => TunConfigurationObservation::NotComposed,

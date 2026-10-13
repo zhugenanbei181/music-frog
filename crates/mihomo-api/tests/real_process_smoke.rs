@@ -17,10 +17,9 @@ use infiltrator_ports::controller_fake_ip_cache::{
     ControllerFakeIpCacheFlushRequest, ControllerFakeIpCacheFlushState, ControllerFakeIpCachePort,
 };
 use infiltrator_ports::core_log_level::CoreLogLevelPort;
+use infiltrator_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
 use infiltrator_ports::dns_query::DnsQueryPort;
-use infiltrator_ports::outbound::{
-    OutboundPort, OutboundProbeRequest, OutboundScopeSource, ProbeTarget,
-};
+use infiltrator_ports::outbound::{OutboundPort, OutboundProbeRequest, ProbeTarget};
 use infiltrator_ports::resources::{CoreResourcePort, GarbageCollectionOutcome};
 use infiltrator_ports::routing_intent::RoutingIntentPort;
 use infiltrator_ports::runtime_gateway::RuntimeGateway;
@@ -38,9 +37,9 @@ use std::time::Duration;
 
 struct FixedScope(CoreScope);
 
-impl OutboundScopeSource for FixedScope {
-    fn current_scope(&self) -> Option<CoreScope> {
-        Some(self.0.clone())
+impl CoreScopeSource for FixedScope {
+    fn scope_observation(&self) -> CoreScopeObservation {
+        CoreScopeObservation::Observed(self.0.clone())
     }
 }
 

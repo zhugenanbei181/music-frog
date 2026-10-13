@@ -29,8 +29,8 @@ use infiltrator_contract::subscription_import::{
 };
 use infiltrator_domain::profiles::sanitize_profile_name;
 use infiltrator_domain::subscription_scheduler_policy::RetryBackoffPolicy;
+use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceApplier;
 use infiltrator_ports::application_runtime::ApplicationRuntime;
-use infiltrator_ports::runtime_gateway::ActiveProfileReferenceApplier;
 use infiltrator_ports::subscription_notification::{
     SubscriptionNotification, SubscriptionNotificationKind, SubscriptionNotificationPort,
 };

@@ -180,7 +180,7 @@ async fn compose_owner(
             .install_core_capabilities(&application)
             .map_err(|error| error.to_string())?;
         backend
-            .bind_owner_scope_source(Arc::new(application.as_ref().clone()))
+            .bind_owner_core_scope(Arc::new(application.as_ref().clone()))
             .map_err(|error| error.to_string())?;
         if backend.engine_id() == &EngineId::sing_box() {
             sing_box_provider

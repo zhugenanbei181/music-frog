@@ -5,10 +5,10 @@ use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::resources::{
     CORE_MEMORY_SOFT_LIMIT_BYTES, CoreGcStatus, CoreResourceSnapshot, ResourceAvailability,
 };
+use infiltrator_ports::core_scope::CoreScopeSource;
 use infiltrator_ports::resources::{
     CoreResourcePort, GarbageCollectionOutcome, ScopedResourceObservation,
 };
-use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -16,7 +16,7 @@ const GC_COOLDOWN: Duration = Duration::from_secs(30);
 
 #[derive(Clone)]
 pub struct ResourceApplication {
-    gateway: Arc<dyn RuntimeGateway>,
+    scope_source: Arc<dyn CoreScopeSource>,
     resource_port: Arc<dyn CoreResourcePort>,
     state: Arc<Mutex<ResourceState>>,
 }
@@ -34,9 +34,12 @@ enum ResourceState {
 }
 
 impl ResourceApplication {
-    pub fn new(gateway: Arc<dyn RuntimeGateway>, resource_port: Arc<dyn CoreResourcePort>) -> Self {
+    pub fn new(
+        scope_source: Arc<dyn CoreScopeSource>,
+        resource_port: Arc<dyn CoreResourcePort>,
+    ) -> Self {
         Self {
-            gateway,
+            scope_source,
             resource_port,
             state: Arc::new(Mutex::new(ResourceState::Ready)),
         }
@@ -101,7 +104,7 @@ impl ResourceApplication {
     }
 
     async fn observe_scoped(&self) -> Result<(CoreScope, ScopedResourceObservation), Failure> {
-        let scope = self.gateway.current_core_scope().map_err(Failure::from)?;
+        let scope = crate::runtime_scope::active_scope(self.scope_source.as_ref())?;
         let observation = self
             .resource_port
             .observe(scope.clone())
@@ -170,7 +173,7 @@ impl ResourceApplication {
     }
 
     fn ensure_current_scope(&self, requested: &CoreScope) -> Result<(), Failure> {
-        let current = self.gateway.current_core_scope().map_err(Failure::from)?;
+        let current = crate::runtime_scope::active_scope(self.scope_source.as_ref())?;
         ensure_scope(requested, &current)
     }
 }

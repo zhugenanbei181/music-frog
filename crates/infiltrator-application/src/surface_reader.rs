@@ -311,7 +311,7 @@ impl SurfaceReader for ApplicationSurfaceReader {
 
         let runtime_config = match (&self.gateway, core.scope()) {
             (Some(gateway), Some(scope)) => Some(
-                RuntimeConfigurationApplication::from_gateway(scope, gateway.as_ref())
+                RuntimeConfigurationApplication::new(scope, gateway.configuration_ports())
                     .observe_readout()
                     .await,
             ),

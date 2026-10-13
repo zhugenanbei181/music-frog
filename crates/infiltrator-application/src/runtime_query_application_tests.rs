@@ -10,6 +10,7 @@ use infiltrator_contract::resources::{
 };
 use infiltrator_domain::runtime::{ProxyProvider, RuleProvider};
 use infiltrator_ports::core_log_level::CoreLogLevelPort;
+use infiltrator_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::resources::{
     CoreResourcePort, GarbageCollectionOutcome, ScopedGarbageCollection, ScopedResourceObservation,
@@ -26,6 +27,7 @@ struct TestGateway {
 
 struct TestResourcePort {
     scope: Mutex<CoreScope>,
+    observe_calls: AtomicUsize,
     memory: ResourceAvailability<u64>,
     cpu: ResourceAvailability<f32>,
     gc_outcome: GarbageCollectionOutcome,
@@ -68,9 +70,16 @@ impl RuntimeGateway for TestGateway {
     }
 }
 
+impl CoreScopeSource for TestGateway {
+    fn scope_observation(&self) -> CoreScopeObservation {
+        CoreScopeObservation::Observed(self.scope.clone())
+    }
+}
+
 #[async_trait]
 impl CoreResourcePort for TestResourcePort {
     async fn observe(&self, _scope: CoreScope) -> Result<ScopedResourceObservation, PortError> {
+        self.observe_calls.fetch_add(1, Ordering::SeqCst);
         Ok(ScopedResourceObservation {
             scope: self.scope.lock().expect("resource scope lock").clone(),
             memory_bytes: self.memory.clone(),
@@ -130,11 +139,20 @@ fn resource_port(
 ) -> Arc<TestResourcePort> {
     Arc::new(TestResourcePort {
         scope: Mutex::new(scope),
+        observe_calls: AtomicUsize::new(0),
         memory,
         cpu: ResourceAvailability::Unsupported,
         gc_outcome: outcome,
         gc_calls: AtomicUsize::new(0),
     })
+}
+
+struct UnavailableCoreScope;
+
+impl CoreScopeSource for UnavailableCoreScope {
+    fn scope_observation(&self) -> CoreScopeObservation {
+        CoreScopeObservation::Unavailable
+    }
 }
 
 #[tokio::test]
@@ -310,4 +328,25 @@ async fn unsupported_gc_is_never_reported_as_collection() {
         }
     ));
     assert_eq!(resources.gc_calls.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn unavailable_owner_scope_rejects_resource_reads_before_adapter_access() {
+    let resources = resource_port(
+        test_scope(1),
+        ResourceAvailability::Available(1),
+        GarbageCollectionOutcome::Unsupported,
+    );
+    let scope_source: Arc<dyn CoreScopeSource> = Arc::new(UnavailableCoreScope);
+    let failure = ResourceApplication::new(scope_source, resources.clone())
+        .observe()
+        .await
+        .expect_err("resource observation needs an active Core owner scope");
+
+    assert_eq!(
+        failure.code,
+        infiltrator_contract::error::ErrorCode::NotReady
+    );
+    assert_eq!(resources.observe_calls.load(Ordering::SeqCst), 0);
+    assert_eq!(resources.gc_calls.load(Ordering::SeqCst), 0);
 }

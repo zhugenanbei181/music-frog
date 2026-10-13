@@ -2,13 +2,13 @@
 
 use infiltrator_contract::core_identity::{CoreInstanceId, EngineId};
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
+use infiltrator_ports::core_scope::CoreScopeSource;
 use infiltrator_ports::engine_backend_factory::{
     ENGINE_BACKEND_CAPABILITY, EngineBackendFactory, EngineBackendOwnerScopeBinding,
     EngineBackendOwnerScopeBindingResult, EngineBackendPorts, EngineBackendProvider,
     EngineBackendProviderAvailability, EngineOperationPorts,
 };
 use infiltrator_ports::error::PortError;
-use infiltrator_ports::outbound::OutboundScopeSource;
 use infiltrator_ports::profile_configuration_transaction::{
     ProfileConfigurationTransactionBinding, ProfileConfigurationTransactionScope,
 };
@@ -207,10 +207,10 @@ impl SingBoxEngineBackendProvider {
     pub fn bind_core_owner_scope(
         &self,
         ports: &EngineBackendPorts,
-        source: Arc<dyn OutboundScopeSource>,
+        source: Arc<dyn CoreScopeSource>,
     ) -> Result<EngineBackendOwnerScopeBindingResult, PortError> {
         self.verify_bundle(ports)?;
-        ports.bind_owner_scope_source(source)
+        ports.bind_owner_core_scope(source)
     }
 
     fn verify_bundle(&self, ports: &EngineBackendPorts) -> Result<(), PortError> {
@@ -246,7 +246,7 @@ mod tests {
         CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion,
     };
     use infiltrator_contract::routing_intent::RoutingIntent;
-    use infiltrator_ports::outbound::OutboundScopeSource;
+    use infiltrator_ports::core_scope::CoreScopeObservation;
     use singbox_api::http::{
         SingBoxClashMethod, SingBoxClashResponse, SingBoxControllerAuthorization,
     };
@@ -334,9 +334,12 @@ mod tests {
         }
     }
 
-    impl OutboundScopeSource for MutableScope {
-        fn current_scope(&self) -> Option<CoreScope> {
-            self.0.lock().ok().map(|scope| scope.clone())
+    impl CoreScopeSource for MutableScope {
+        fn scope_observation(&self) -> CoreScopeObservation {
+            match self.0.lock() {
+                Ok(scope) => CoreScopeObservation::Observed(scope.clone()),
+                Err(_) => CoreScopeObservation::Unavailable,
+            }
         }
     }
 

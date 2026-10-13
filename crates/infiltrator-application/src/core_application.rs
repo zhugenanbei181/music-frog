@@ -28,9 +28,9 @@ use infiltrator_ports::active_profile_reference_store::ActiveProfileOwnerLease;
 use infiltrator_ports::application_runtime::ApplicationRuntime;
 use infiltrator_ports::core_lifecycle::{CoreLifecyclePort, CoreOwnerTerminationPort};
 use infiltrator_ports::core_process::{CoreProcess, CoreProcessStartContext, CoreReadiness};
+use infiltrator_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::outbound::OutboundPort;
-use infiltrator_ports::outbound::OutboundScopeSource;
 use infiltrator_ports::overview::OverviewReader;
 use infiltrator_ports::profile_document_codec::ProfileDocumentSnippetOutcome;
 use infiltrator_ports::profile_document_codec::ProfileMixinStudioProjection;
@@ -130,14 +130,6 @@ pub(super) enum DispatchedMessage {
     },
 }
 
-/// Explicit state of a surface's observed Core scope. A missing scope is a
-/// first-class fail-closed state, not a flag paired with a guessed identity.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum CoreScopeObservation {
-    Unavailable,
-    Observed(CoreScope),
-}
-
 /// The single application owner of Core lifecycle operations.
 ///
 /// `CoreApplication` serializes side-effecting commands, drives the pure
@@ -149,15 +141,18 @@ pub struct CoreApplication {
     inner: Arc<Inner>,
 }
 
-impl OutboundScopeSource for CoreApplication {
-    fn current_scope(&self) -> Option<CoreScope> {
+impl CoreScopeSource for CoreApplication {
+    fn scope_observation(&self) -> CoreScopeObservation {
         let snapshot = self.snapshot();
         match &snapshot.lifecycle {
-            CoreLifecycle::Ready | CoreLifecycle::Running => snapshot.scope(),
+            CoreLifecycle::Ready | CoreLifecycle::Running => match snapshot.scope() {
+                Some(scope) => CoreScopeObservation::Observed(scope),
+                None => CoreScopeObservation::Unavailable,
+            },
             CoreLifecycle::Stopped
             | CoreLifecycle::Starting
             | CoreLifecycle::Stopping
-            | CoreLifecycle::Failed => None,
+            | CoreLifecycle::Failed => CoreScopeObservation::Unavailable,
         }
     }
 }

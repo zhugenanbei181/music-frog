@@ -19,10 +19,9 @@ use infiltrator_contract::outbound::{
     },
 };
 use infiltrator_domain::proxy::Proxy;
+use infiltrator_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
 use infiltrator_ports::error::PortError;
-use infiltrator_ports::outbound::{
-    OutboundPort, OutboundProbeRequest, OutboundScopeSource, ProbeTarget,
-};
+use infiltrator_ports::outbound::{OutboundPort, OutboundProbeRequest, ProbeTarget};
 use mockito::{Matcher, Server};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -30,10 +29,10 @@ use std::time::Duration;
 use tokio::net::TcpListener;
 use tokio::time::sleep;
 
-struct FixedScope(Option<CoreScope>);
+struct FixedScope(CoreScopeObservation);
 
-impl OutboundScopeSource for FixedScope {
-    fn current_scope(&self) -> Option<CoreScope> {
+impl CoreScopeSource for FixedScope {
+    fn scope_observation(&self) -> CoreScopeObservation {
         self.0.clone()
     }
 }
@@ -56,12 +55,18 @@ fn outbound_id(value: &str) -> OutboundId {
 
 fn adapter(server_url: &str, scope: CoreScope) -> MihomoOutboundAdapter {
     let client = Arc::new(MihomoClient::new(server_url, None).expect("Mihomo client"));
-    MihomoOutboundAdapter::new(client, Arc::new(FixedScope(Some(scope))))
+    MihomoOutboundAdapter::new(
+        client,
+        Arc::new(FixedScope(CoreScopeObservation::Observed(scope))),
+    )
 }
 
 fn adapter_without_scope(server_url: &str) -> MihomoOutboundAdapter {
     let client = Arc::new(MihomoClient::new(server_url, None).expect("Mihomo client"));
-    MihomoOutboundAdapter::new(client, Arc::new(FixedScope(None)))
+    MihomoOutboundAdapter::new(
+        client,
+        Arc::new(FixedScope(CoreScopeObservation::Unavailable)),
+    )
 }
 
 fn probe_request(timeout_ms: u64) -> OutboundProbeRequest {

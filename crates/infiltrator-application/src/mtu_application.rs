@@ -69,7 +69,7 @@ impl MtuApplication {
         let tun_mtu = snapshot.tun_mtu;
         let snapshot = match (snapshot.state.clone(), tun_mtu) {
             (MtuProbeState::Ready, Some(tun_mtu)) => {
-                match RuntimeConfigurationApplication::from_gateway(scope, gateway.as_ref())
+                match RuntimeConfigurationApplication::new(scope, gateway.configuration_ports())
                     .set_tun_mtu(tun_mtu)
                     .await
                 {
