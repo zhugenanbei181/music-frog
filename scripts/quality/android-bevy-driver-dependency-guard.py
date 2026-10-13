@@ -32,8 +32,6 @@ FORBIDDEN_UI_FEATURES = {
 }
 FORBIDDEN_DRIVER_SYMBOLS = {
     "run_demo",
-    "run_with_mode",
-    "LaunchMode",
     "DemoOverviewSource",
     "DemoSurfaceSource",
     "DemoCommandSink",
@@ -224,7 +222,7 @@ def self_test() -> int:
         print("runtime-neutral application allow case self-test failed", file=sys.stderr)
         return 1
     if default_feature_problems(
-        {"default": ["desktop-host", "ui-application-projections"]}
+        {"default": ["ui-application-projections"]}
     ):
         print("capture-free UI default feature self-test failed", file=sys.stderr)
         return 1
@@ -244,7 +242,6 @@ def self_test() -> int:
     capture_source = """
     fn android_main() {
         infiltrator_bevy_ui::run_demo();
-        infiltrator_bevy_ui::launch::run_with_mode(LaunchMode::Demo);
     }
     """
     if not driver_source_problems(capture_source):

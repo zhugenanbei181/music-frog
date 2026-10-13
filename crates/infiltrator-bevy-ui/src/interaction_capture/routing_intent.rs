@@ -3,7 +3,7 @@ use super::geometry::CaptureGeometry;
 use super::{InteractionCapture, ObservedInteraction, selected};
 use crate::app::RoutingIntentActionState;
 use crate::command::CommandSinkHandle;
-use crate::launch::UnavailableCommandSink;
+use crate::command_execution::UnavailableCommandSink;
 use crate::pages::overview_cards::OverviewRoutingIntentSegmentPill;
 use crate::route::{ActiveRoute, Route};
 use crate::shell_routing_intent_issue::{

@@ -5,8 +5,6 @@
 //! structs remain Bevy-local render projections; these conversion functions
 //! are the explicit adapter between the two worlds.
 
-#[cfg(feature = "desktop-host")]
-use crate::lifecycle::UiObservationGate;
 use crate::pages::app_routing::AppRoutingProjection;
 use crate::pages::connections::ConnectionsProjection;
 use crate::pages::dns::DnsProjection;
@@ -33,10 +31,6 @@ use bevy::feathers::theme::ThemeTextColor;
 use bevy::scene::{Scene, bsn};
 use bevy::ui::UiRect;
 use bevy::ui::prelude::{BackgroundColor, FlexDirection, Node, Overflow, percent, px};
-#[cfg(feature = "desktop-host")]
-use infiltrator_application::core_application::CoreScopeObservation;
-#[cfg(feature = "desktop-host")]
-use infiltrator_application::surface_application::{SurfacePump, SurfacePumpBridge};
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::LocalizedText;
 use infiltrator_bevy_widgets::palette::UiPalette;
@@ -49,8 +43,6 @@ use infiltrator_contract::snapshot::CoreLifecycleSnapshot;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot;
 use std::sync::Arc;
-#[cfg(feature = "desktop-host")]
-use std::sync::RwLock;
 use std::time::{Duration, Instant};
 
 #[path = "host_insets.rs"]
@@ -184,91 +176,6 @@ impl OverviewSource for SurfaceOverviewAdapter {
     }
 }
 
-/// A full source backed by the application-owned surface pump.
-#[cfg(feature = "desktop-host")]
-#[derive(Clone)]
-pub struct ApplicationSurfaceSource {
-    pump: SurfacePump,
-    observed_scope: Arc<RwLock<CoreScopeObservation>>,
-}
-
-#[cfg(feature = "desktop-host")]
-impl ApplicationSurfaceSource {
-    pub fn from_pump(pump: SurfacePump) -> Self {
-        Self {
-            pump,
-            observed_scope: Arc::new(RwLock::new(CoreScopeObservation::Unavailable)),
-        }
-    }
-
-    pub fn scope_observation(&self) -> Arc<RwLock<CoreScopeObservation>> {
-        Arc::clone(&self.observed_scope)
-    }
-
-    pub fn pump(&self) -> &SurfacePump {
-        &self.pump
-    }
-}
-
-#[cfg(feature = "desktop-host")]
-impl OverviewSource for ApplicationSurfaceSource {
-    fn current(&self) -> OverviewProjection {
-        surface_projection::overview_projection(&self.pump.current())
-    }
-
-    fn kind(&self) -> SourceKind {
-        SourceKind::LiveCore
-    }
-}
-
-#[cfg(feature = "desktop-host")]
-impl SurfaceSource for ApplicationSurfaceSource {
-    fn surface_snapshot(&self) -> surface_snapshot::SurfaceSnapshot {
-        self.pump.current()
-    }
-
-    fn observe_snapshot(&self, snapshot: &surface_snapshot::SurfaceSnapshot) {
-        let observation = snapshot
-            .core
-            .scope()
-            .map(CoreScopeObservation::Observed)
-            .unwrap_or(CoreScopeObservation::Unavailable);
-        *self
-            .observed_scope
-            .write()
-            .expect("surface Core scope lock") = observation;
-    }
-}
-
-/// Pump-to-Bevy bridge. The source owns the worker; this plugin only drains
-/// bounded snapshots on the Bevy update schedule and emits one coalesced
-/// contract event for the page projection layer.
-#[cfg(feature = "desktop-host")]
-pub struct SurfaceDrainPlugin {
-    bridge: SurfacePumpBridge,
-}
-
-#[cfg(feature = "desktop-host")]
-impl SurfaceDrainPlugin {
-    pub fn new(source: &ApplicationSurfaceSource) -> Self {
-        Self {
-            bridge: source.pump().bridge(),
-        }
-    }
-}
-
-#[cfg(feature = "desktop-host")]
-#[derive(Resource, Clone)]
-struct SurfaceBridge(pub SurfacePumpBridge);
-
-#[cfg(feature = "desktop-host")]
-impl Plugin for SurfaceDrainPlugin {
-    fn build(&self, app: &mut app::App) {
-        app.insert_resource(SurfaceBridge(self.bridge.clone()));
-        app.add_systems(Update, drain_surface);
-    }
-}
-
 /// Periodically read a cheap, cached host surface source into Bevy's normal
 /// owner-authored snapshot projection path.
 pub struct SurfaceSourceRefreshPlugin {
@@ -351,30 +258,6 @@ pub(crate) fn on_surface_restore_requested(
 ) {
     if let Some(source) = source {
         read_back_surface_snapshot(source.0.as_ref(), &mut commands);
-    }
-}
-
-#[cfg(feature = "desktop-host")]
-fn drain_surface(
-    bridge: Res<SurfaceBridge>,
-    gate: Option<Res<UiObservationGate>>,
-    mut commands: Commands,
-) {
-    // A destroyed surface stops UI observation: queued frames are not replayed
-    // while the host reports no surface; restore reads a full snapshot instead.
-    if gate.is_some_and(|gate| !gate.permits_observation()) {
-        return;
-    }
-    if let Some(snapshot) = bridge
-        .0
-        .drain_events()
-        .into_iter()
-        .map(|event| match event {
-            surface_snapshot::SurfaceEvent::SnapshotUpdated(snapshot) => snapshot,
-        })
-        .next_back()
-    {
-        commands.trigger(SurfaceSnapshotUpdated(snapshot));
     }
 }
 

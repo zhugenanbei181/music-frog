@@ -48,5 +48,10 @@ fn android_main(app: android_activity::AndroidApp) {
     }
     let source: Arc<dyn SurfaceSource> = client.clone();
     let sink: Arc<dyn UiCommandSink> = client;
-    infiltrator_bevy_ui::run_with_host_surface_and_command_sink(source, sink, insets_receiver);
+    infiltrator_bevy_ui::run_with_host_surface_and_command_sink(
+        source,
+        sink,
+        insets_receiver,
+        std::time::Duration::from_millis(500),
+    );
 }

@@ -14,6 +14,7 @@ contract + domain + ports ────────┼→ application → composi
 - `composition` 注入具体 adapter。共享 OS 能力归 `infiltrator-platform`；engine-neutral profile 文件、workspace、catalog、owner record、active-reference CAS 与 `ProfileStore` port 由 `infiltrator-profile-store::EngineProfileStore` 实现。`mihomo-config::ConfigManager` 只保留 Mihomo YAML、legacy migration 与 engine facade，不实现共享 persistence port。各 engine 按 controller API、原生配置、进程生命周期、版本资产拆分 adapter crate。准确 owner 与依赖方向见 [Core 后端契约](CORE_BACKENDS.md)。
 - Core 生命周期、活动 profile 写入、controller 操作、proxy endpoint 观察和公网探测路由分别由窄 port 表达；一个宽泛 runtime trait 不承担多个 owner 的组合职责。
 - 依赖向外流动。共享层不依赖 runtime、网络、OS 或 UI toolkit；UI 不启动 core、不写 canonical 配置、不创建第二个业务 owner。
+- Bevy desktop 的 `DesktopProductSession` 组合、Core surface pump、命令 adapter 和进程入口由 `infiltrator-bevy-desktop-host` 持有；`infiltrator-bevy-ui` 只消费注入的 typed surface、command sink 与宿主能力。
 - 有副作用的操作由单一 owner 串行执行并校验 scope/revision/generation；迟到结果不得覆盖新状态。成功须有真实终态或读回。
 - 可观察业务事实只有一个 owner；前端仅保存输入草稿和呈现缓存。
 - 跨表面的纯 copy、状态展示折叠和快照到视图模型映射由 `infiltrator-presentation` 复用。迁移期间仍留在 application 的纯展示模块必须逐项登记并搬迁，不得在 Iced/Bevy 各自复制。

@@ -211,7 +211,7 @@
       "text": "run_with_application_and_surface",
       "rationale": "The erased Bevy host-composition entry had no production consumer and was replaced by injected host-owned SurfaceSource and UiCommandSink composition.",
       "replacement_behavior_tests": [
-        "crates/infiltrator-bevy-ui/tests/headless/product_launch_tests.rs"
+        "crates/infiltrator-bevy-desktop-host/tests/product_entry_tests.rs"
       ]
     },
     {

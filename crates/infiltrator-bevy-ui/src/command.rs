@@ -51,11 +51,14 @@ use infiltrator_contract::subscription_import::{
 };
 use infiltrator_contract::tun::TunStack;
 use infiltrator_ports::profile_document_codec::ProfileDocumentSnippetOutcome;
+#[cfg(any(test, feature = "capture-tools"))]
 use infiltrator_ports::profile_document_codec::{
     ProfileMixinCascade, ProfileMixinCascadeStage, ProfileMixinCascadeStageId, ProfileMixinColumn,
     ProfileMixinColumnRole, ProfileMixinComposition, ProfileMixinPreflight,
-    ProfileMixinStageDeclaration, ProfileMixinStudioProjection, ProfileMixinToggle,
-    ProfileMixinToggleId, ProfileMixinToggleProjection,
+    ProfileMixinStageDeclaration, ProfileMixinToggle, ProfileMixinToggleProjection,
+};
+use infiltrator_ports::profile_document_codec::{
+    ProfileMixinStudioProjection, ProfileMixinToggleId,
 };
 #[cfg(any(feature = "capture-tools", test))]
 use std::collections::VecDeque;

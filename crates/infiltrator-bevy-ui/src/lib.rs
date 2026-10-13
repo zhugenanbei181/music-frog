@@ -1,10 +1,10 @@
-//! MusicFrog Infiltrator — independent Bevy UI product.
+//! MusicFrog Infiltrator — independent Bevy UI surface.
 //!
-//! The ECS desktop/mobile peer of the Iced product (charter:
-//! crates/infiltrator-bevy-ui/docs/BEVY_UI_FRONTEND.md). This module hosts the windowed launcher
-//! composition only: `DefaultPlugins` is singleton infrastructure and stays
-//! out of [`app::ShellPlugin`] so headless tests exercise the real shell
-//! without a window.
+//! This crate owns the ECS UI and accepts host-owned surface, command, and
+//! system-capability adapters. Product composition and process entrypoints
+//! live in platform host crates. `DefaultPlugins` stays out of
+//! [`app::ShellPlugin`] so headless tests exercise the real shell without a
+//! window.
 //!
 //! Slice layout: [`app`] is the window chrome (and the shell's theme +
 //! routing-intent affordances), [`route`] the bounded subtree router over
@@ -39,7 +39,6 @@ pub mod ime;
 mod ime_native;
 #[cfg(feature = "capture-tools")]
 pub mod interaction_capture;
-pub mod launch;
 pub mod lifecycle;
 pub mod localization;
 pub mod localized_widgets;
@@ -62,23 +61,16 @@ pub mod toast;
 pub mod tray_status;
 
 use crate::command::UiCommandSink;
-#[cfg(feature = "desktop-host")]
-use crate::command_execution::ApplicationCommandSink;
+use crate::command_execution::UnavailableCommandSink;
 use crate::pages::connections_clipboard::ClipboardHost;
 use crate::surface::host_insets::WindowInsetsInputReceiver;
 use bevy::DefaultPlugins;
 use bevy::app::{App, PluginGroup};
 use bevy::window::{ExitCondition, Window, WindowPlugin, WindowResolution};
-#[cfg(feature = "desktop-host")]
-use infiltrator_application::core_application::CoreApplication;
 use infiltrator_contract::error::Failure;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use std::sync::Arc;
-
-/// Launch the native product; capture and demo launch modes are feature isolated.
-pub fn run() {
-    launch::run();
-}
+use std::time::Duration;
 
 /// Explicit isolated composition for screenshots and UI development.
 #[cfg(feature = "capture-tools")]
@@ -94,26 +86,9 @@ pub fn run_demo() {
 pub fn run_unavailable(surface: SurfaceKind, host: HostKind, failure: Failure) {
     let source = surface::UnavailableSurfaceSource::new(surface, host, failure.clone());
     run_with_command_sink_and_composition(
-        Arc::new(launch::UnavailableCommandSink::new(failure)),
+        Arc::new(UnavailableCommandSink::new(failure)),
         SurfaceComposition::Source(Arc::new(source)),
     );
-}
-
-/// Launch with a concrete application surface pump and install its bounded
-/// frame drain from a desktop composition root. Android hosts inject their
-/// owner-backed source and typed command sink through
-/// `run_with_host_surface_and_command_sink`.
-#[cfg(feature = "desktop-host")]
-pub fn run_with_application_surface_pump(
-    application: Arc<CoreApplication>,
-    source: surface::ApplicationSurfaceSource,
-) {
-    let drain = surface::SurfaceDrainPlugin::new(&source);
-    let sink = Arc::new(ApplicationCommandSink::new_for_surface(
-        application,
-        source.scope_observation(),
-    ));
-    run_with_command_sink_and_composition(sink, SurfaceComposition::DesktopPump { source, drain });
 }
 
 /// Commands without a page reader show explicit unavailable data. Fixture hosts use `run_demo`.
@@ -133,8 +108,16 @@ pub fn run_with_host_surface_and_command_sink(
     source: Arc<dyn surface::SurfaceSource>,
     sink: Arc<dyn UiCommandSink>,
     insets: WindowInsetsInputReceiver,
+    refresh_interval: Duration,
 ) {
-    run_with_command_sink_and_composition(sink, SurfaceComposition::Host { source, insets });
+    run_with_command_sink_and_composition(
+        sink,
+        SurfaceComposition::Host {
+            source,
+            insets,
+            refresh_interval,
+        },
+    );
 }
 
 enum SurfaceComposition {
@@ -142,11 +125,7 @@ enum SurfaceComposition {
     Host {
         source: Arc<dyn surface::SurfaceSource>,
         insets: WindowInsetsInputReceiver,
-    },
-    #[cfg(feature = "desktop-host")]
-    DesktopPump {
-        source: surface::ApplicationSurfaceSource,
-        drain: surface::SurfaceDrainPlugin,
+        refresh_interval: Duration,
     },
     #[cfg(feature = "capture-tools")]
     Demo,
@@ -174,8 +153,6 @@ impl SurfaceComposition {
         match self {
             Self::Demo => CaptureReadiness::Immediate,
             Self::Source(_) | Self::Host { .. } => CaptureReadiness::FirstSnapshot,
-            #[cfg(feature = "desktop-host")]
-            Self::DesktopPump { .. } => CaptureReadiness::FirstSnapshot,
             #[cfg(feature = "capture-controller")]
             Self::Controller(_) => CaptureReadiness::FirstSnapshot,
         }
@@ -185,8 +162,6 @@ impl SurfaceComposition {
         match self {
             Self::Demo => InteractionCaptureSource::DemoFixture,
             Self::Source(_) | Self::Host { .. } => InteractionCaptureSource::ExternalSurface,
-            #[cfg(feature = "desktop-host")]
-            Self::DesktopPump { .. } => InteractionCaptureSource::ExternalSurface,
             #[cfg(feature = "capture-controller")]
             Self::Controller(_) => InteractionCaptureSource::ExternalSurface,
         }
@@ -259,15 +234,14 @@ fn run_with_command_sink_and_composition(
         SurfaceComposition::Source(source) => {
             app.add_plugins(route::PagesPlugin::new_surface_arc(source));
         }
-        SurfaceComposition::Host { source, insets } => {
+        SurfaceComposition::Host {
+            source,
+            insets,
+            refresh_interval,
+        } => {
             app.insert_resource(insets);
             app.add_plugins(route::PagesPlugin::new_surface_arc(source));
-            app.add_plugins(surface::SurfaceSourceRefreshPlugin::default());
-        }
-        #[cfg(feature = "desktop-host")]
-        SurfaceComposition::DesktopPump { source, drain } => {
-            app.add_plugins(route::PagesPlugin::new_surface_arc(Arc::new(source)));
-            app.add_plugins(drain);
+            app.add_plugins(surface::SurfaceSourceRefreshPlugin::new(refresh_interval));
         }
         #[cfg(feature = "capture-tools")]
         SurfaceComposition::Demo => {

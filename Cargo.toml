@@ -24,6 +24,7 @@ members = [
   "crates/infiltrator-http",
   "crates/infiltrator-admin",
   "crates/infiltrator-desktop",
+  "crates/infiltrator-bevy-desktop-host",
   "crates/infiltrator-android",
   "crates/infiltrator-ios",
   "crates/infiltrator-shared",

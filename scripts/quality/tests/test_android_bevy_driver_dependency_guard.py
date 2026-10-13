@@ -46,7 +46,7 @@ class AndroidBevyDriverDependencyGuardTests(unittest.TestCase):
     def test_capture_features_are_rejected_from_product_defaults(self) -> None:
         self.assertEqual(
             guard.default_feature_problems(
-                {"default": ["desktop-host", "ui-application-projections"]}
+                {"default": ["ui-application-projections"]}
             ),
             [],
         )

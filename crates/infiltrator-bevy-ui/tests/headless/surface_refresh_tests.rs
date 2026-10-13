@@ -4,8 +4,6 @@ use bevy::app::App;
 use bevy::ecs::observer::On;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::ResMut;
-use infiltrator_bevy_ui::command::{UiCommand, UiCommandSink};
-use infiltrator_bevy_ui::launch::{LaunchMode, UnavailableCommandSink, missing_host_failure};
 use infiltrator_bevy_ui::projection::{OverviewProjection, OverviewSource, SourceKind};
 use infiltrator_bevy_ui::route::SurfaceSourceHandle;
 use infiltrator_bevy_ui::surface::{
@@ -83,14 +81,6 @@ fn observe_surface_update(
 }
 
 #[test]
-fn demo_mode_requires_explicit_opt_in() {
-    for flag in [None, Some(""), Some("0"), Some("true"), Some("invalid")] {
-        assert_eq!(LaunchMode::from_demo_flag(flag), LaunchMode::Product);
-    }
-    assert_eq!(LaunchMode::from_demo_flag(Some("1")), LaunchMode::Demo);
-}
-
-#[test]
 fn periodic_host_surface_refresh_emits_only_newer_owner_snapshots() {
     let initial = SurfaceSnapshot::unavailable(
         SurfaceKind::BevyAndroid,
@@ -146,38 +136,7 @@ fn periodic_host_surface_refresh_does_not_let_a_foreign_scope_block_the_current_
 }
 
 #[test]
-fn mobile_product_without_a_host_is_not_ready_not_a_silent_demo() {
-    // BANDROID-004: an unattached host must surface a typed terminal state,
-    // never an implicitly interactive demo over no VPN/kernel.
-    let failure = missing_host_failure();
-    assert_eq!(failure.code, ErrorCode::NotReady);
-    assert!(failure.retryable);
-}
-
-#[test]
-fn unattached_product_routing_intent_is_unavailable_not_demo_success() {
-    use infiltrator_contract::routing_intent::RoutingIntent;
-
-    let failure = missing_host_failure();
-    let sink = UnavailableCommandSink::new(failure.clone());
-    let request = sink
-        .submit_tracked(UiCommand::SetRoutingIntent(RoutingIntent::BypassProxy))
-        .expect("unavailable product sink returns terminal feedback");
-    let result = sink
-        .drain_results()
-        .pop()
-        .expect("terminal result is queued");
-
-    assert_eq!(result.request_id, request);
-    assert_eq!(
-        result.result,
-        Err(failure),
-        "a hostless product never receives demo routing-intent readback"
-    );
-}
-
-#[test]
-fn failed_host_projects_failure_on_every_page_and_rejects_each_operation_once() {
+fn unavailable_surface_projects_failure_on_every_page() {
     let failure = Failure::new(ErrorCode::Storage, "profile directory is read only", true);
     let source =
         UnavailableSurfaceSource::new(SurfaceKind::BevyDesktop, HostKind::Desktop, failure.clone());
@@ -191,17 +150,4 @@ fn failed_host_projects_failure_on_every_page_and_rejects_each_operation_once() 
             }
         );
     }
-    let sink = UnavailableCommandSink::new(failure.clone());
-    let first = sink.submit_tracked(UiCommand::StartCore).unwrap();
-    let second = sink.submit_tracked(UiCommand::CloseAllConnections).unwrap();
-    assert_ne!(first, second);
-    let results = sink.drain_results();
-    assert_eq!(results.len(), 2);
-    assert_eq!(results[0].request_id, first);
-    assert_eq!(results[1].request_id, second);
-    for result in results {
-        assert!(result.result.is_err());
-        assert_eq!(result.result.as_ref().err(), Some(&failure));
-    }
-    assert!(sink.drain_results().is_empty());
 }

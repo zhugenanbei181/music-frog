@@ -287,15 +287,13 @@ cat > "$DRIVER/src/lib.rs" <<'EOF'
 //!
 //! bevy's own mobile example shape: export `android_main` (android-activity
 //! native-activity contract), hand the `AndroidApp` to
-//! `bevy_android::ANDROID_APP`, then explicitly select `LaunchMode::Demo`.
+//! `bevy_android::ANDROID_APP`, then explicitly enter the isolated capture UI.
 #[unsafe(no_mangle)]
 fn android_main(app: android_activity::AndroidApp) {
     bevy_android::ANDROID_APP
         .set(app)
         .expect("ANDROID_APP must only be set once, by android_main");
-    infiltrator_bevy_ui::launch::run_with_mode(
-        infiltrator_bevy_ui::launch::LaunchMode::Demo,
-    );
+    infiltrator_bevy_ui::run_demo();
 }
 EOF
 

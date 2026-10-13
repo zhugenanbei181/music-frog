@@ -10,7 +10,7 @@ description = "Bevy UI frontend shell for MusicFrog Infiltrator: a peer desktop+
 # DUAL-10-01: forward the real-ECMAScript engine to the shared application. It
 # is on by default, matching the application's default configuration, so the
 # Bevy surface is built and tested against Boa unless defaults are disabled.
-default = ["script-engine-boa", "desktop-host", "ui-application-projections"]
+default = ["script-engine-boa", "ui-application-projections"]
 script-engine-boa = ["dep:infiltrator-application", "infiltrator-application/script-engine-boa"]
 # The existing page layer still consumes runtime-neutral presentation helpers
 # from infiltrator-application. This feature is deliberately distinct from the
@@ -27,8 +27,6 @@ capture-tools = [
 ]
 # Explicit opt-in for the legacy controller-only live Overview capture adapter.
 capture-controller = ["capture-tools"]
-# Desktop product composition stays out of the Android NativeActivity driver.
-desktop-host = ["dep:infiltrator-desktop", "dep:infiltrator-application"]
 # Linux release: statically vendor OpenSSL so the artifact carries no libssl
 # soname dependency and can be produced against the pinned old glibc via
 # cargo-zigbuild (same contract as infiltrator-iced's identically named
@@ -172,6 +170,3 @@ icon = "@drawable/ic_app_icon"
 
 [target.'cfg(any(target_os = "windows", target_os = "macos"))'.dependencies]
 bevy = { workspace = true, features = ["system_clipboard"] }
-
-[target.'cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))'.dependencies]
-infiltrator-desktop = { path = "../infiltrator-desktop", optional = true }

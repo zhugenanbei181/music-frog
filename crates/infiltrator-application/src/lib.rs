@@ -62,6 +62,7 @@ pub mod doctor_application;
 pub mod doctor_capture_fixtures;
 pub mod doctor_projection;
 pub mod failure_projection;
+#[cfg(any(test, feature = "capture-fixtures"))]
 pub mod filter_capture_store;
 pub mod language_choice;
 pub mod language_choice_fixtures;

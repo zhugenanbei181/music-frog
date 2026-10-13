@@ -10,7 +10,7 @@
 | Core 生命周期与运行控制 | `infiltrator-application` | `infiltrator-composition` 按 engine 组合 `mihomo-api/config/process/version` 或 `singbox-api/config/process/version`；跨引擎规则见 [CORE_BACKENDS.md](CORE_BACKENDS.md) |
 | 配置、Profile、订阅与同步 | `infiltrator-application`、`infiltrator-domain` | `infiltrator-ports::ProfileStore` 是共享契约，由 `infiltrator-profile-store::EngineProfileStore` 直接实现并拥有 engine-scoped 文件、reset、active-reference、workspace、catalog 与 sidecar；`mihomo-config`/`singbox-config` 持有各自原生格式，`mihomo-dav-sync` 持有 Mihomo YAML sync |
 | 主机能力与系统副作用 | `infiltrator-ports` | `infiltrator-platform` 提供共享 OS/host adapter；各 engine 的进程由独立 process adapter 持有；状态见 [PLATFORM_MATRIX.md](PLATFORM_MATRIX.md) |
-| Iced / Bevy / Slint 产品界面 | `infiltrator-iced`、`infiltrator-bevy-ui`、`infiltrator-slint` | 只提交共享意图并显示结果；表面契约见 [UI_PARITY_AUDIT.md](../crates/infiltrator-contract/docs/UI_PARITY_AUDIT.md) |
+| Iced / Bevy / Slint 产品界面 | `infiltrator-iced`、`infiltrator-bevy-ui`、`infiltrator-slint` | 只提交共享意图并显示结果；Bevy desktop composition 由 `infiltrator-bevy-desktop-host` 持有；表面契约见 [UI_PARITY_AUDIT.md](../crates/infiltrator-contract/docs/UI_PARITY_AUDIT.md) |
 | Admin REST ingress | `infiltrator-admin` | 仅做 HTTP v1 wire 映射；代理库存、选择与探测通过宿主注入的 typed outbound owner 和真实 `CoreScope` 进入 `OutboundApplication`，不创建第二份 Core/session |
 | Android 产品与进程宿主 | `infiltrator-application`、`infiltrator-android` | Kotlin/Compose、Bevy driver 和 Slint NativeActivity 通过既有 Android owner 接线；产品约束见 [Android 文档](../android/docs/README.md) |
 | 跨表面文案与视觉资源 | `infiltrator-shared` | 本地化 lookup 与 gettext catalog、SVG/PNG/ICO/字体的语义 ID 和许可证来源由一个无 UI owner 管理，surface 只适配 renderer，契约见 [跨表面资源](SHARED_UI_RESOURCES.md) |

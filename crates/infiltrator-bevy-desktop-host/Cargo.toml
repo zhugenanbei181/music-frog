@@ -1,0 +1,23 @@
+[package]
+name = "infiltrator-bevy-desktop-host"
+version.workspace = true
+edition = "2024"
+publish = false
+description = "Desktop product composition and executable host for the Bevy UI surface."
+
+[features]
+default = []
+capture-tools = ["infiltrator-bevy-ui/capture-tools"]
+capture-controller = ["capture-tools", "infiltrator-bevy-ui/capture-controller"]
+static-openssl = ["infiltrator-bevy-ui/static-openssl"]
+
+[dependencies]
+infiltrator-application = { path = "../infiltrator-application" }
+infiltrator-bevy-ui = { path = "../infiltrator-bevy-ui", default-features = false, features = ["ui-application-projections"] }
+infiltrator-contract = { path = "../infiltrator-contract" }
+infiltrator-desktop = { path = "../infiltrator-desktop" }
+infiltrator-ports = { path = "../infiltrator-ports" }
+
+[[bin]]
+name = "infiltrator-bevy-ui"
+path = "src/main.rs"

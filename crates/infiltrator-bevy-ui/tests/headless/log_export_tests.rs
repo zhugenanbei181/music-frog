@@ -39,7 +39,6 @@ use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::log_export::{LogExportArtifact, LogExportReceipt};
 use infiltrator_contract::logs::LogSession;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
-use infiltrator_desktop::log_export::DesktopLogExportPort;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::log_export::LogExportPort;
 use infiltrator_ports::runtime_stream::RuntimeStreamEvent;
@@ -55,10 +54,37 @@ use std::time::{Duration, Instant};
 use tempfile::tempdir;
 use tokio::runtime::Builder;
 
+#[derive(Clone)]
+struct TestLogExportPort {
+    directory: std::path::PathBuf,
+}
+
+impl TestLogExportPort {
+    fn new(directory: &Path) -> Self {
+        Self {
+            directory: directory.join("exports"),
+        }
+    }
+}
+
+#[async_trait]
+impl LogExportPort for TestLogExportPort {
+    async fn save(&self, artifact: LogExportArtifact) -> Result<LogExportReceipt, PortError> {
+        fs::create_dir_all(&self.directory).map_err(|error| PortError::Io(error.to_string()))?;
+        let path = self.directory.join("logs-test.log");
+        fs::write(&path, &artifact.content).map_err(|error| PortError::Io(error.to_string()))?;
+        Ok(LogExportReceipt {
+            summary: artifact.summary,
+            path: path.to_string_lossy().into_owned(),
+            bytes_written: artifact.content.len(),
+        })
+    }
+}
+
 #[test]
 fn native_missing_host_is_explicit_unsupported_and_cancel_remains_effect_free() {
     let directory = tempdir().unwrap();
-    let (mut app, core) = setup(Arc::new(DesktopLogExportPort::new(directory.path())));
+    let (mut app, core) = setup(Arc::new(TestLogExportPort::new(directory.path())));
     core.install_command_handler(Arc::new(
         CommandApplication::new().with_logs(core.log_application()),
     ));
@@ -186,7 +212,7 @@ fn open(app: &mut App) {
 fn native_modal_cancel_and_confirm_freeze_all_records_and_show_only_an_actual_redacted_file_receipt()
  {
     let directory = tempdir().unwrap();
-    let (mut app, core) = setup(Arc::new(DesktopLogExportPort::new(directory.path())));
+    let (mut app, core) = setup(Arc::new(TestLogExportPort::new(directory.path())));
     let field = app
         .world_mut()
         .query::<(Entity, &NativeTextField)>()
@@ -276,7 +302,7 @@ fn native_modal_cancel_and_confirm_freeze_all_records_and_show_only_an_actual_re
     run(core.close()).unwrap();
 }
 struct ControlledWriter {
-    inner: DesktopLogExportPort,
+    inner: TestLogExportPort,
     denied: AtomicBool,
     pause: AtomicBool,
     entered: Sender<()>,
@@ -300,13 +326,12 @@ impl LogExportPort for ControlledWriter {
     }
 }
 #[test]
-fn native_failure_retry_pending_cancel_and_old_controller_source_keep_actual_host_effects_correlated()
- {
+fn native_failure_retry_pending_cancel_and_test_port_effects_remain_correlated() {
     let directory = tempdir().unwrap();
     let (entered, arrival) = channel();
     let (release, permit) = channel();
     let writer = Arc::new(ControlledWriter {
-        inner: DesktopLogExportPort::new(directory.path()),
+        inner: TestLogExportPort::new(directory.path()),
         denied: AtomicBool::new(true),
         pause: AtomicBool::new(false),
         entered,

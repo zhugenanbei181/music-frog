@@ -55,7 +55,7 @@ APP_ID="infiltrator-bevy-ui"
 # version, so the title is the stable observed identifier and the spawned
 # PID stays the authoritative binding either way.
 APP_TITLE="MusicFrog Infiltrator — Bevy"
-CRATE_DIR="$REPO/crates/infiltrator-bevy-ui"
+CRATE_DIR="$REPO/crates/infiltrator-bevy-desktop-host"
 APP="${CARGO_TARGET_DIR:-$REPO/target}/debug/infiltrator-bevy-ui"
 ASSET_ROOT="$REPO/crates/infiltrator-bevy-widgets"
 MATRIX_SRC="${INFILTRATOR_CAPTURE_MATRIX:-$REPO/scripts/capture_bevy_scenarios.tsv}"
@@ -252,10 +252,11 @@ SOURCE_FINGERPRINT="$(python3 scripts/parity/visual_receipts.py --fingerprint)"
 BUILD_FEATURE_ARGS=()
 CAPTURE_FEATURES="${INFILTRATOR_BEVY_FEATURES:-capture-tools}"
 BUILD_FEATURE_ARGS=(--features "$CAPTURE_FEATURES")
-printf 'build: cargo build --quiet (workspace package: infiltrator-bevy-ui; features: %s)\n' \
+printf 'build: cargo build --quiet (workspace package: infiltrator-bevy-desktop-host; features: %s)\n' \
   "$CAPTURE_FEATURES"
 timeout --kill-after=10s 20m cargo build --quiet \
-  --manifest-path "$CRATE_DIR/Cargo.toml" "${BUILD_FEATURE_ARGS[@]}"
+  --manifest-path "$CRATE_DIR/Cargo.toml" --bin infiltrator-bevy-ui \
+  "${BUILD_FEATURE_ARGS[@]}"
 [ -x "$APP" ] || fail_hard "bevy binary was not produced: $APP"
 APP="$(python3 scripts/parity/product_build.py --surface bevy --binary "$APP" --output "$RUN_DIR/product-build.json")"
 ASSET_ROOT="$(dirname "$APP")/runtime"
@@ -510,22 +511,22 @@ capture_one() {
       XDG_RUNTIME_DIR="$RUNTIME_DIR" WAYLAND_DISPLAY="$NIRI_SOCK" DISPLAY= \
         LIBGL_ALWAYS_SOFTWARE=1 WGPU_BACKEND="$wgpu_backend" \
         BEVY_ASSET_ROOT="$ASSET_ROOT" \
-        INFILTRATOR_DEMO=1 INFILTRATOR_BEVY_PAGE="$page" \
+        INFILTRATOR_BEVY_PAGE="$page" \
       INFILTRATOR_SCENARIO="$interaction" \
         INFILTRATOR_BEVY_SKIN="$skin" \
         INFILTRATOR_BEVY_WINDOW_SIZE="$window_size" \
         INFILTRATOR_CAPTURE_MARKER="$marker" \
-        setsid "$APP" >"$log" 2>&1 &
+        setsid "$APP" --capture >"$log" 2>&1 &
     else
       XDG_RUNTIME_DIR="$RUNTIME_DIR" WAYLAND_DISPLAY="$NIRI_SOCK" DISPLAY= \
         LIBGL_ALWAYS_SOFTWARE=1 \
         BEVY_ASSET_ROOT="$ASSET_ROOT" \
-        INFILTRATOR_DEMO=1 INFILTRATOR_BEVY_PAGE="$page" \
+        INFILTRATOR_BEVY_PAGE="$page" \
       INFILTRATOR_SCENARIO="$interaction" \
         INFILTRATOR_BEVY_SKIN="$skin" \
         INFILTRATOR_BEVY_WINDOW_SIZE="$window_size" \
         INFILTRATOR_CAPTURE_MARKER="$marker" \
-        setsid "$APP" >"$log" 2>&1 &
+        setsid "$APP" --capture >"$log" 2>&1 &
     fi
     APP_PID=$!
     APP_PGID="$(process_group "$APP_PID")"

@@ -81,8 +81,8 @@ mod configuration_codec;
 #[path = "headless/protocol_form_tests.rs"]
 mod protocol_form_tests;
 
-#[path = "headless/product_launch_tests.rs"]
-mod product_launch_tests;
+#[path = "headless/surface_refresh_tests.rs"]
+mod surface_refresh_tests;
 
 #[path = "headless/localization_tests.rs"]
 mod localization_tests;
