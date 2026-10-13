@@ -178,8 +178,8 @@
         "operation": "list_rule"
       },
       "support": {
-        "status": "evidence_open",
-        "reason": "UnpackRuleProvider is composed with the Mihomo RuntimeGateway and rule-provider payload adapter, but no real Mihomo run for this operation is registered in the evidence lock."
+        "status": "supported",
+        "evidence_id": "provider.list_rule"
       }
     },
     {
@@ -188,8 +188,8 @@
         "operation": "update_rule"
       },
       "support": {
-        "status": "evidence_open",
-        "reason": "RefreshRuleProviders is composed with RuntimeGateway.update_rule_provider, but no real Mihomo run for this operation is registered in the evidence lock."
+        "status": "supported",
+        "evidence_id": "provider.update_rule"
       }
     },
     {

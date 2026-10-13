@@ -8,7 +8,8 @@ mod tests {
     #[cfg(test)]
     use crate::types::ConnectionsResponse;
     use crate::types::{
-        ConfigResponse, Connection, ConnectionSnapshot, MemoryData, Rule, TrafficData, Version,
+        ConfigResponse, Connection, ConnectionSnapshot, MemoryData, Rule, RuleProvider,
+        RuleProviderList, TrafficData, Version,
     };
 
     // ──────────────────────────────────────────────
@@ -109,6 +110,55 @@ mod tests {
                 "Mihomo config.mode {mode} should deserialize"
             );
         }
+    }
+
+    #[test]
+    fn rule_provider_wire_uses_camel_case_count_and_keeps_absent_payload_explicitly_empty() {
+        let live_list = serde_json::json!({
+            "providers": {
+                "CORE-SMOKE-RULE": {
+                    "behavior": "Domain",
+                    "format": "TextRule",
+                    "name": "CORE-SMOKE-RULE",
+                    "ruleCount": 1,
+                    "type": "Rule",
+                    "vehicleType": "HTTP",
+                    "updatedAt": "2026-10-13T00:00:00Z"
+                }
+            }
+        });
+        let parsed: RuleProviderList =
+            serde_json::from_value(live_list).expect("live rule-provider list wire");
+        let provider = parsed
+            .providers
+            .get("CORE-SMOKE-RULE")
+            .expect("provider is present");
+        assert_eq!(provider.rule_count, 1);
+        assert!(provider.payload.is_empty());
+
+        let null_payload: RuleProvider = serde_json::from_value(serde_json::json!({
+            "behavior": "Domain",
+            "name": "downloaded",
+            "ruleCount": 2,
+            "type": "Rule",
+            "vehicleType": "HTTP",
+            "updatedAt": "2026-10-13T00:00:00Z",
+            "payload": null
+        }))
+        .expect("null downloaded payload is not an inline rule list");
+        assert!(null_payload.payload.is_empty());
+
+        let inline_payload: RuleProvider = serde_json::from_value(serde_json::json!({
+            "behavior": "Domain",
+            "name": "inline",
+            "ruleCount": 1,
+            "type": "Rule",
+            "vehicleType": "Inline",
+            "updatedAt": "2026-10-13T00:00:00Z",
+            "payload": ["inline.test"]
+        }))
+        .expect("inline payload is preserved");
+        assert_eq!(inline_payload.payload, ["inline.test"]);
     }
 
     // ──────────────────────────────────────────────

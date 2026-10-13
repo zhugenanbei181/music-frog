@@ -218,14 +218,16 @@ pub struct RuleProvider {
     #[serde(rename = "type")]
     pub provider_type: String,
     pub behavior: String,
+    #[serde(rename = "vehicleType")]
     pub vehicle_type: String,
     #[serde(rename = "updatedAt")]
     pub updated_at: String,
+    #[serde(rename = "ruleCount")]
     pub rule_count: u32,
     /// DUAL-11-06: mihomo publishes the rule payload only for `type: inline`
-    /// providers (`payload,omitempty`); every downloaded provider leaves this
-    /// empty and the client must not substitute anything for it.
-    #[serde(default)]
+    /// providers; downloaded providers omit it, and some controller builds
+    /// encode the absent value as `null`. The client must not invent payloads.
+    #[serde(default, deserialize_with = "deserialize_null_as_empty_vec")]
     pub payload: Vec<String>,
 }
 

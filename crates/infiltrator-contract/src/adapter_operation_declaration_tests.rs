@@ -5,7 +5,7 @@ use super::adapter_operation_declaration::{
 };
 use super::core_capabilities::{
     AdapterRevision, CoreLifecycleOperation, CoreOperation, DnsOperation, EngineBinaryTarget,
-    EngineCapabilityDecision, FakeIpCacheOperation, OutboundOperation,
+    EngineCapabilityDecision, FakeIpCacheOperation, OutboundOperation, ProviderOperation,
 };
 use super::core_identity::{CoreVersion, EngineId};
 use std::collections::HashSet;
@@ -84,7 +84,7 @@ fn supported_operations_require_matching_ids_registered_in_each_engine_lock() {
         .iter()
         .filter(|operation| validated.verified_supported_evidence(**operation).is_some())
         .count();
-    assert_eq!(supported, 10);
+    assert_eq!(supported, 12);
     assert!(
         validated
             .verified_supported_evidence(CoreOperation::Dns(DnsOperation::Query))
@@ -100,6 +100,16 @@ fn supported_operations_require_matching_ids_registered_in_each_engine_lock() {
     assert!(
         validated
             .verified_supported_evidence(CoreOperation::FakeIpCache(FakeIpCacheOperation::Flush))
+            .is_some()
+    );
+    assert!(
+        validated
+            .verified_supported_evidence(CoreOperation::Provider(ProviderOperation::ListRule))
+            .is_some()
+    );
+    assert!(
+        validated
+            .verified_supported_evidence(CoreOperation::Provider(ProviderOperation::UpdateRule))
             .is_some()
     );
 

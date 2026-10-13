@@ -40,8 +40,8 @@ fn required_environment(name: &str) -> String {
 
 #[tokio::test]
 #[ignore = "requires the explicit SHA-locked Mihomo real-process smoke"]
-async fn typed_core_dns_connection_close_log_level_outbound_and_routing_ports_drive_the_live_mihomo_controller()
- {
+async fn typed_core_dns_fakeip_rule_provider_connection_close_and_runtime_ports_drive_live_mihomo()
+{
     let controller_url = required_environment("MIHOMO_REAL_CONTROLLER_URL");
     let controller_secret = required_environment("MIHOMO_REAL_CONTROLLER_SECRET");
     let expected_version = required_environment("MIHOMO_REAL_VERSION");
@@ -164,6 +164,57 @@ async fn typed_core_dns_connection_close_log_level_outbound_and_routing_ports_dr
         fake_ip_receipt.state,
         ControllerFakeIpCacheFlushState::Flushed
     );
+
+    let rule_provider_name = "CORE-SMOKE-RULE";
+    let update_signal_path = required_environment("MIHOMO_REAL_RULE_PROVIDER_UPDATE_SIGNAL");
+    let initial_rule_provider = tokio::time::timeout(Duration::from_secs(5), async {
+        loop {
+            let providers = RuntimeGateway::get_rule_providers(&client)
+                .await
+                .expect("typed rule-provider list remains available");
+            if let Some(provider) = providers
+                .into_iter()
+                .find(|provider| provider.name == rule_provider_name)
+                && provider.rule_count == 1
+            {
+                break provider;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+    })
+    .await
+    .expect("live rule provider starts with one fixture rule");
+    assert_eq!(initial_rule_provider.rule_count, 1);
+    assert_eq!(
+        RuntimeGateway::rule_provider_payload(&client, rule_provider_name)
+            .await
+            .expect("HTTP providers do not publish inline payloads"),
+        None
+    );
+    std::fs::write(&update_signal_path, b"update")
+        .expect("enable the second local fixture payload");
+    RuntimeGateway::update_rule_provider(&client, rule_provider_name)
+        .await
+        .expect("typed rule-provider update reaches the live Mihomo controller");
+    let updated_rule_provider = tokio::time::timeout(Duration::from_secs(5), async {
+        loop {
+            let providers = RuntimeGateway::get_rule_providers(&client)
+                .await
+                .expect("typed rule-provider readback remains available");
+            if let Some(provider) = providers
+                .into_iter()
+                .find(|provider| provider.name == rule_provider_name)
+                && provider.rule_count == 2
+            {
+                break provider;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+    })
+    .await
+    .expect("rule-provider update readback reports both fixture rules");
+    assert_eq!(updated_rule_provider.rule_count, 2);
+
     let outbound = MihomoOutboundAdapter::new(
         Arc::new(client.clone()),
         Arc::new(FixedScope(scope.clone())),

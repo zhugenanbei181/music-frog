@@ -162,6 +162,7 @@ PY
 controller_secret="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
 data_dir="$run_dir/data"
 mkdir -m 700 "$data_dir"
+mkdir -m 700 "$data_dir/providers"
 configs_root="$data_dir"
 profile_config_dir="$configs_root/engines/mihomo"
 mkdir -m 700 -p "$profile_config_dir"
@@ -170,8 +171,10 @@ probe_server_port_file="$run_dir/probe-server-port"
 dns_server_port_file="$run_dir/dns-server-port"
 active_proxy_ready_file="$run_dir/active-proxy-ready"
 active_proxy_closed_file="$run_dir/active-proxy-closed"
+rule_provider_update_signal_file="$run_dir/rule-provider-update-enabled"
 
-python3 - "$probe_server_port_file" "$dns_server_port_file" "$active_proxy_ready_file" "$active_proxy_closed_file" >"$run_dir/probe-server.log" 2>&1 <<'PY' &
+python3 - "$probe_server_port_file" "$dns_server_port_file" "$active_proxy_ready_file" "$active_proxy_closed_file" "$rule_provider_update_signal_file" >"$run_dir/probe-server.log" 2>&1 <<'PY' &
+import os
 import socket
 import socketserver
 import struct
@@ -184,6 +187,7 @@ port_file = sys.argv[1]
 dns_port_file = sys.argv[2]
 active_proxy_ready_file = sys.argv[3]
 active_proxy_closed_file = sys.argv[4]
+rule_provider_update_signal_file = sys.argv[5]
 
 class ProbeDnsHandler(socketserver.BaseRequestHandler):
     def handle(self):
@@ -223,6 +227,23 @@ with open(dns_port_file, "w", encoding="utf-8") as destination:
 threading.Thread(target=dns_server.serve_forever, daemon=True).start()
 
 class ProbeProxyHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path != "/rules":
+            self.send_error(404)
+            return
+        payload = (
+            b"alpha.test\nbeta.test\n"
+            if os.path.exists(rule_provider_update_signal_file)
+            else b"alpha.test\n"
+        )
+        self.send_response(200)
+        self.send_header("Content-Type", "text/plain; charset=utf-8")
+        self.send_header("Content-Length", str(len(payload)))
+        self.send_header("Connection", "close")
+        self.end_headers()
+        self.wfile.write(payload)
+        self.wfile.flush()
+
     def do_CONNECT(self):
         self.send_response(200, "Connection Established")
         self.end_headers()
@@ -327,7 +348,16 @@ proxy-groups:
       - DIRECT
       - CORE-SMOKE-HTTP
       - REJECT
+rule-providers:
+  CORE-SMOKE-RULE:
+    type: http
+    behavior: domain
+    format: text
+    url: http://127.0.0.1:$probe_server_port/rules
+    path: ./providers/core-smoke-rules.txt
+    interval: 3600
 rules:
+  - RULE-SET,CORE-SMOKE-RULE,DIRECT
   - DOMAIN,core-smoke-active.test,CORE-SMOKE-HTTP
   - MATCH,DIRECT
 EOF
@@ -556,17 +586,44 @@ then
 fi
 printf '[PASS] live /connections reports the active core-smoke-active.test fixture\n'
 
+if ! api_request GET /providers/rules; then
+    printf '[FAIL] /providers/rules returned HTTP %s\n' "$api_status" >&2
+    printf '%s\n' "$api_body" >&2
+    probe_diagnostics
+    exit 1
+fi
+provider_snapshot_body="$api_body"
+if ! python3 - "$response_file" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as source:
+    payload = json.load(source)
+provider = payload.get("providers", {}).get("CORE-SMOKE-RULE")
+if not isinstance(provider, dict) or provider.get("ruleCount") != 1:
+    raise SystemExit("live rule-provider list has no one-rule fixture")
+PY
+then
+    printf '[FAIL] /providers/rules did not return the initial fixture state\n' >&2
+    printf '%s\n' "$provider_snapshot_body" >&2
+    probe_diagnostics
+    exit 1
+fi
+printf '[PASS] live /providers/rules reports CORE-SMOKE-RULE with ruleCount=1\n'
+
 printf '[INFO] running ignored Rust adapter smoke against %s\n' "$expected_version"
 if ! MIHOMO_REAL_CONTROLLER_URL="$base_url" \
     MIHOMO_REAL_CONTROLLER_SECRET="$controller_secret" \
     MIHOMO_REAL_VERSION="$expected_version" \
+    MIHOMO_REAL_RULE_PROVIDER_UPDATE_SIGNAL="$rule_provider_update_signal_file" \
     cargo nextest run --offline --locked -p mihomo-api \
         --test real_process_smoke --run-ignored only; then
     printf '[FAIL] Rust typed adapter smoke failed for %s\n' "$expected_version" >&2
+    printf '%s\n' '--- live /providers/rules before typed adapter read ---' "$provider_snapshot_body" >&2
     probe_diagnostics
     exit 1
 fi
-printf '[PASS] Rust typed DNS query, scoped Fake-IP flush, Connection.Close, log stream, log-level, outbound, and routing adapters drove %s\n' \
+printf '[PASS] Rust typed DNS query, scoped Fake-IP flush, rule-provider list/update, Connection.Close, log stream, log-level, outbound, and routing adapters drove %s\n' \
     "$expected_version"
 
 for _ in $(seq 1 50); do
@@ -806,7 +863,7 @@ PY
 }
 printf '[PASS] /connections read: %s; counters observed\n' "$connection_summary"
 
-printf '[NOT COVERED] Logs.Read/Clear, TUN/VPN, DNS cache contents, Fake-IP cache readback, rules trace/apply, providers, Connection.List, non-Linux hosts\n'
+printf '[NOT COVERED] Logs.Read/Clear, TUN/VPN, DNS cache contents, Fake-IP cache readback, rules trace/apply, proxy providers/healthcheck, Connection.List, non-Linux hosts\n'
 
 if ! cleanup_active_processes; then
     exit 1
