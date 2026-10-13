@@ -8,7 +8,7 @@ use super::{InteractionCapture, ObservedInteraction, selected};
 use crate::command::CommandSinkHandle;
 use crate::pages::proxies::ProxiesScrollArea;
 use crate::pages::proxies::{NodeNameText, ProxyNodeButton};
-use crate::pages::proxies_search::{ProxySearchInput, ProxySearchState};
+use crate::pages::proxies_search::{ProxySearchInput, ProxySearchPhase, ProxySearchState};
 use crate::route::{ActiveRoute, Route};
 use crate::surface::{LatestSurfaceSnapshot, SurfaceSnapshotUpdated};
 use bevy::app::App;
@@ -127,7 +127,8 @@ pub fn activate(
         }
         2 => {
             let preference_snapshot = preferences.snapshot();
-            if preference_snapshot.search_query != SEARCH_QUERY || controls.search.pending.is_some()
+            if preference_snapshot.search_query != SEARCH_QUERY
+                || matches!(&controls.search.phase, ProxySearchPhase::Pending { .. })
             {
                 return;
             }

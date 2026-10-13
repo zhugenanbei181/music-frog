@@ -10,7 +10,6 @@ use infiltrator_application::filter_capture_store::{
     FILTER_POLICY, FILTER_PROFILE, FilterCaptureStore,
 };
 use infiltrator_application::language_choice_fixtures::LanguageCaptureProcess;
-use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::surface_reader::ApplicationSurfaceReader;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::command::CommandIntent;
@@ -29,7 +28,7 @@ pub(super) fn activate(state: &mut AppState) -> Task<Message> {
         Arc::new(LanguageCaptureProcess),
         tokio_application_runtime().expect("isolated filter runtime"),
     );
-    let profiles = ProfileApplication::new(store);
+    let profiles = crate::configuration::profiles_for_mihomo(store);
     core.install_command_handler(Arc::new(
         CommandApplication::new().with_profile(profiles.clone()),
     ));

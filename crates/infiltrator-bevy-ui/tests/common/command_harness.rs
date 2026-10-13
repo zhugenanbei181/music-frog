@@ -7,6 +7,7 @@ use infiltrator_application::core_capability_application::CoreCapabilityApplicat
 use infiltrator_bevy_ui::command::UiCommand;
 use infiltrator_bevy_ui::command::UiCommandSink;
 use infiltrator_bevy_ui::command_events::CommandExecutedEvent;
+use infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization;
 use infiltrator_contract::capability::{
     Availability, Capability, CapabilitySnapshot, CapabilityStatus,
 };
@@ -18,7 +19,9 @@ use infiltrator_contract::core_capabilities::{
     CoreCapabilityScope, CoreOperation, DnsOperation, EngineCapabilityDecision,
     FakeIpCacheOperation, HostCapabilityDecision,
 };
-use infiltrator_contract::core_identity::{CoreIdentity, CoreInstanceId, CoreVersion, EngineId};
+use infiltrator_contract::core_identity::{
+    CoreGeneration, CoreIdentity, CoreInstanceId, CoreVersion, EngineId,
+};
 use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::error::Failure;
 use infiltrator_contract::outbound::{
@@ -36,6 +39,7 @@ use infiltrator_ports::core_capability_provider::{
 };
 use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
 use infiltrator_ports::error::PortError;
+use infiltrator_ports::runtime_gateway::ActiveProfileReferenceApplier;
 use mem::take;
 use std::mem;
 use std::sync::{Arc, Mutex};
@@ -226,6 +230,32 @@ impl CoreReadiness for HostlessProcess {
 }
 
 pub struct IdentifiedHostlessProcess;
+
+/// A stopped, identified Core owner for behavior tests that persist an active
+/// profile without claiming a runtime reload.
+pub struct StoppedTestCoreProfileOwner;
+
+#[async_trait::async_trait]
+impl ActiveProfileReferenceApplier for StoppedTestCoreProfileOwner {
+    fn engine_id(&self) -> Option<EngineId> {
+        EngineId::new("mihomo").ok()
+    }
+
+    fn core_lifecycle(&self) -> CoreLifecycle {
+        CoreLifecycle::Stopped
+    }
+
+    fn write_authorization(&self) -> Result<ActiveProfileReferenceWriteAuthorization, PortError> {
+        Ok(ActiveProfileReferenceWriteAuthorization::BoundOwner {
+            identity: CoreIdentity::new(
+                EngineId::new("mihomo").expect("test engine"),
+                CoreInstanceId::new("test-core").expect("test owner instance"),
+                Some(CoreVersion::new("1.19.12").expect("test core version")),
+            ),
+            generation: CoreGeneration::new(1),
+        })
+    }
+}
 
 #[async_trait::async_trait]
 impl CoreProcess for IdentifiedHostlessProcess {

@@ -66,7 +66,6 @@ fn test_locales_table_key_parity() {
         "settings_admin_open",
         "settings_uac_unsupported",
         "tray_factory_reset",
-        "notify_rebuild_failed",
         "traffic_expires",
         "rules_title",
         "rules_etag_support_label",

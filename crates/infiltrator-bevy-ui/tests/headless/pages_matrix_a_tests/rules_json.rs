@@ -61,8 +61,20 @@ fn test_rules_json_partition_edits_and_submits_shared_intent() {
     }
 
     // Typed keystrokes reach the buffer and mark it dirty.
+    let last_row = app
+        .world()
+        .resource::<RulesJsonState>()
+        .buffer()
+        .line_count()
+        .saturating_sub(1);
+    for _ in 0..last_row {
+        app.world_mut()
+            .write_message(keyboard_press(Key::ArrowDown, None));
+        app.update();
+    }
     app.world_mut()
         .write_message(keyboard_press(Key::End, None));
+    app.update();
     app.world_mut()
         .write_message(keyboard_press(Key::Character(" ".into()), Some(" ")));
     app.update();

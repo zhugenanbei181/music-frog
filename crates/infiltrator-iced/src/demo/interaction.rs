@@ -180,7 +180,7 @@ pub(super) fn activate(state: &mut AppState, feature: FeatureId) {
     }
 }
 
-pub(super) fn ready(state: &AppState, feature: FeatureId) -> bool {
+pub(crate) fn ready(state: &AppState, feature: FeatureId) -> bool {
     if state.shell.capture_region_bounds.is_none() {
         return false;
     }

@@ -21,9 +21,9 @@
 use crate::host::desktop::{read_system_proxy_state, system_proxy_port};
 use crate::notify::NotifyUrgency;
 use crate::state::AppState;
+use crate::state::runtime::TunServiceInstallState;
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
-use crate::types::runtime::RuntimeStatus;
 use crate::version_application::application;
 use anyhow::anyhow;
 use iced::advanced::subscription::{EventStream, Hasher, Recipe, from_recipe};
@@ -578,7 +578,7 @@ impl AppState {
         self.runtime.pending_runtime_patch = None;
         self.runtime.system_proxy_pending = false;
         self.runtime.tun_service_status = None;
-        self.runtime.is_installing_tun_service = false;
+        self.runtime.tun_service_install_state = TunServiceInstallState::Idle;
         taken
     }
 

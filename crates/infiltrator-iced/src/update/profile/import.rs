@@ -2,6 +2,7 @@
 //! import (file picker, metadata fields, activation).
 
 use crate::configs_dir::config_manager;
+use crate::configuration::profiles_for_mihomo;
 use crate::host::storage::{subscription_import_port, subscription_source};
 use crate::state::AppState;
 use crate::types::app::ToastStatus;
@@ -9,7 +10,7 @@ use crate::types::message::Message;
 use crate::update::core::profile_apply::activate_profile;
 use iced::Task;
 use infiltrator_application::profile_application::{
-    ProfileActivationOutcome, ProfileApplication, ProfileRuntimeAccess,
+    ProfileActivationOutcome, ProfileRuntimeAccess,
 };
 use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
 use infiltrator_contract::error::InfiltratorError;
@@ -62,7 +63,7 @@ impl AppState {
                         let profile_name = sanitize_profile_name(&name)
                             .map_err(|e| InfiltratorError::Config(e.to_string()))?;
                         let cm = config_manager().await?;
-                        let profiles = ProfileApplication::new(cm.clone());
+                        let profiles = profiles_for_mihomo(cm.clone());
                         let active_reference = profiles
                             .active_profile_reference()
                             .await
@@ -263,7 +264,7 @@ impl AppState {
                             .map_err(|e| InfiltratorError::Config(e.to_string()))?;
 
                         let cm = config_manager().await?;
-                        let profiles = ProfileApplication::new(cm.clone());
+                        let profiles = profiles_for_mihomo(cm.clone());
                         let expected = profiles
                             .active_profile_reference()
                             .await

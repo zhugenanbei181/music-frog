@@ -148,7 +148,7 @@ impl AppState {
         self.runtime.system_proxy = snapshot.system_proxy.clone();
         self.runtime.system_proxy_recovery = snapshot.system_proxy_recovery.clone();
         self.runtime.network_roaming = snapshot.network_roaming.clone();
-        self.runtime.vpn = snapshot.vpn.clone();
+        self.runtime.vpn_observation = snapshot.vpn.clone();
         self.runtime.privileged_network = snapshot.privileged_network.clone();
         self.runtime.traffic_waveform = snapshot.traffic_waveform.clone();
         self.runtime.traffic_scale = snapshot.traffic_scale.clone();

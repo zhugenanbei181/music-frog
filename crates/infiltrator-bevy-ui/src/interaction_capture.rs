@@ -90,10 +90,13 @@ pub fn selected(
 pub(crate) fn mihomo_configuration_application(
     store: Arc<dyn ProfileStore>,
 ) -> ConfigurationApplication {
-    let profiles = ProfileApplication::new(store).with_document_codec(Arc::new(
+    ConfigurationApplication::from_profile_application(mihomo_profiles(store))
+}
+
+pub(crate) fn mihomo_profiles(store: Arc<dyn ProfileStore>) -> ProfileApplication {
+    ProfileApplication::new(store).with_document_codec(Arc::new(
         mihomo_config::profile_document_codec::MihomoProfileDocumentCodec,
-    ));
-    ConfigurationApplication::from_profile_application(profiles)
+    ))
 }
 
 pub(crate) fn mihomo_rule_trace_fixture()

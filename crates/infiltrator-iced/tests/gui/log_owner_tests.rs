@@ -20,7 +20,7 @@ use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
 use infiltrator_ports::error::PortError;
-use infiltrator_ports::runtime_gateway::RuntimeStreamEvent;
+use infiltrator_ports::runtime_stream::RuntimeStreamEvent;
 use std::sync::Arc;
 use tokio::runtime::Builder;
 

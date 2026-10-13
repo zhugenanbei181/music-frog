@@ -7,8 +7,9 @@
 //! next domain in the chain:
 //! lifecycle → settings → monitoring → doctor → proxies → runtime_config →
 //! rules → json_editors → mrs → advanced → dns_config → dns_leak →
-//! stun → tun_config → rebuild → kernels (fallback).
+//! stun → tun_config → configuration_save → kernels (fallback).
 mod advanced;
+mod configuration_save;
 mod dns_cache;
 mod dns_config;
 mod dns_hosts;
@@ -24,7 +25,6 @@ mod monitoring;
 mod mrs;
 pub(crate) mod profile_apply;
 mod proxies;
-mod rebuild;
 mod routing_intent;
 mod rule_list;
 mod rules;

@@ -229,8 +229,8 @@ done
 
 # ------------------------------------------------------------------- build --
 SOURCE_FINGERPRINT="$(python3 scripts/parity/visual_receipts.py --fingerprint)"
-printf 'build: cargo build --quiet -p infiltrator-iced\n'
-timeout --kill-after=10s 20m cargo build --quiet -p infiltrator-iced
+printf 'build: cargo build --quiet -p infiltrator-iced --features capture-tools\n'
+timeout --kill-after=10s 20m cargo build --quiet -p infiltrator-iced --features capture-tools
 [ -x "$APP" ] || fail_hard "iced binary was not produced: $APP"
 APP="$(python3 scripts/parity/product_build.py --surface iced --binary "$APP" --output "$RUN_DIR/product-build.json")"
 BINARY_SHA256="$(sha256sum "$APP" | cut -d' ' -f1)"

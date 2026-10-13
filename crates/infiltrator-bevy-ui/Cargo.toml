@@ -22,6 +22,7 @@ ui-application-projections = ["dep:infiltrator-application"]
 capture-tools = [
     "dep:infiltrator-composition",
     "dep:infiltrator-application",
+    "infiltrator-application/capture-fixtures",
     "dep:mihomo-config",
 ]
 # Explicit opt-in for the legacy controller-only live Overview capture adapter.
@@ -66,6 +67,7 @@ serde_json = { workspace = true }
 openssl = { version = "0.10", optional = true }
 
 [dev-dependencies]
+infiltrator-application = { path = "../infiltrator-application", features = ["capture-fixtures"] }
 tempfile = { workspace = true }
 mockito = { workspace = true }
 async-trait = { workspace = true }

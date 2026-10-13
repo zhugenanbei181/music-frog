@@ -3,6 +3,7 @@
 
 use super::*;
 use crate::native_input::click_entity;
+use bevy::ecs::component::Component;
 use bevy::ecs::query::With;
 use bevy::ui_widgets::ButtonPlugin;
 use infiltrator_bevy_ui::pages::overview::OverviewProjectionUpdated;
@@ -115,7 +116,7 @@ fn overview_progress_metrics_and_timeout_archive_follow_the_shared_snapshot() {
         .trigger(OverviewProjectionUpdated(projection.clone()));
     app.update();
     let metrics = marked_text::<OverviewSpeedtestMetricsText>(&mut app);
-    assert!(metrics.contains("Jitter"), "metrics={metrics}");
+    assert!(metrics.contains("抖动"), "metrics={metrics}");
     assert!(
         !metrics.contains("Mbps"),
         "speedtest no longer claims bandwidth"
@@ -129,14 +130,12 @@ fn overview_progress_metrics_and_timeout_archive_follow_the_shared_snapshot() {
         .commands()
         .trigger(OverviewProjectionUpdated(projection));
     app.update();
-    assert_eq!(
-        app.world()
-            .query::<&OverviewSpeedtestButton>()
-            .single(app.world())
-            .unwrap()
-            .phase,
-        SpeedtestButtonPhase::Running
-    );
+    let phase = {
+        let world = app.world_mut();
+        let mut buttons = world.query::<&OverviewSpeedtestButton>();
+        buttons.single(world).unwrap().phase
+    };
+    assert_eq!(phase, SpeedtestButtonPhase::Running);
     let caption = marked_text::<OverviewSpeedtestText>(&mut app);
     assert!(caption.contains("2") && caption.contains("3"));
 }

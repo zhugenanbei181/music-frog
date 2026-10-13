@@ -1,4 +1,5 @@
 use super::*;
+use infiltrator_bevy_ui::pages::proxy_group_order::GroupOrderDialogState;
 use infiltrator_bevy_ui::pages::proxy_inspection::{ProxyInspectionPhase, ProxyInspectionState};
 
 #[test]
@@ -52,7 +53,10 @@ fn test_proxies_node_detail_drawer_and_group_reorder() {
         sink.submitted().is_empty(),
         "order editing must not submit any command before Apply"
     );
-    assert!(app.world().resource::<GroupOrderState>().open);
+    assert_eq!(
+        app.world().resource::<GroupOrderState>().dialog,
+        GroupOrderDialogState::Editing
+    );
     assert_ne!(
         app.world().resource::<GroupOrderState>().editor.draft,
         app.world().resource::<GroupOrderState>().editor.baseline
@@ -85,7 +89,10 @@ fn test_proxies_node_detail_drawer_and_group_reorder() {
         .commands()
         .trigger(Activate { entity: cancel });
     app.update();
-    assert!(!app.world().resource::<GroupOrderState>().open);
+    assert_eq!(
+        app.world().resource::<GroupOrderState>().dialog,
+        GroupOrderDialogState::Closed
+    );
     assert!(
         sink.submitted().is_empty(),
         "cancel retains the original shared order"

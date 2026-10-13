@@ -72,7 +72,13 @@ fn demo_fixture_inventory_covers_all_pages() {
     // traffic / memory / connections / logs
     assert_eq!(state.diag.traffic_history.len(), 60);
     assert!(state.diag.traffic.is_some());
-    assert!(state.diag.memory.is_some());
+    assert!(matches!(
+        &state.runtime.core_resources,
+        infiltrator_contract::resources::CoreResourceSnapshot::Observed {
+            memory: infiltrator_contract::resources::ResourceAvailability::Available(_),
+            ..
+        }
+    ));
     assert_eq!(state.runtime.traffic_topology.nodes.len(), 5);
     assert_eq!(state.runtime.traffic_topology.links.len(), 4);
     assert!(state.runtime.traffic_topology.is_flowing());

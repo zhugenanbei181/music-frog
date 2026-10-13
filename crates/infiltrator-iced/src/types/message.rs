@@ -48,7 +48,7 @@ use infiltrator_domain::{
 };
 use infiltrator_ports::host_runtime::TunServiceStatus;
 use infiltrator_ports::profile_document_codec::ProfileMixinToggleId;
-use std::{path::PathBuf, sync::Arc, time::Instant};
+use std::{path::PathBuf, time::Instant};
 pub mod mtu_probe;
 use mtu_probe::MtuProbeCompletion;
 
@@ -579,8 +579,7 @@ pub enum Message {
     ShowWindow,
     UpdateRuntimeAutoRefresh(bool),
     RuntimePanelSettingsSaved(Result<(), error::InfiltratorError>),
-    RuntimeRebuildFinished(Result<(), error::InfiltratorError>),
-    ClearRebuildFlow,
+    ClearConfigurationSaveState,
     TogglePerfPanel,
     ToggleTheme,
     SetTheme(String),

@@ -34,7 +34,6 @@ use bevy::window::{PrimaryWindow, Window};
 use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::language_choice_fixtures::LanguageCaptureProcess;
-use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::rule_trace_fixtures::RuleTraceStore;
 use infiltrator_application::rule_tracer_application::RuleTracerApplication;
 use infiltrator_application::surface_reader::ApplicationSurfaceReader;
@@ -70,7 +69,7 @@ pub fn install(app: &mut App) {
     let reader = Arc::new(
         ApplicationSurfaceReader::new(core, SurfaceKind::BevyDesktop, HostKind::Desktop)
             .with_rule_tracer(owner.clone())
-            .with_profiles(ProfileApplication::new(store.clone()))
+            .with_profiles(super::mihomo_profiles(store.clone()))
             .with_configuration(super::mihomo_configuration_application(store.clone())),
     );
     app.insert_resource(CommandSinkHandle(Arc::new(CaptureCommandSink::new(

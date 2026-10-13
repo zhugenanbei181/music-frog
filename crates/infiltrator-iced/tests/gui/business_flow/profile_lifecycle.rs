@@ -15,7 +15,6 @@ use crate::types::message::Message;
 use crate::types::options::EditorPane;
 use crate::update::core::profile_apply::activate_profile;
 use crate::update::profile::subscription::subscription_update_toast;
-use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::profile_application::{
     ProfileActivationOutcome, ProfileRuntimeAccess,
 };
@@ -35,15 +34,14 @@ use infiltrator_domain::profiles::sanitize_profile_name;
 use infiltrator_domain::subscription::CheckedSubscriptionUrl;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::ProfileStore;
+use infiltrator_ports::runtime_gateway::ActiveProfileReferenceApplier;
 use infiltrator_ports::subscription_source::{
     ConditionalDocumentResult, ConditionalFetchHeaders, SubscriptionDocument, SubscriptionSource,
 };
 use infiltrator_shared::locales::Lang;
-use mihomo_config::profile_document_codec::MihomoProfileDocumentCodec;
 use mihomo_config::profile_option_store::{delete_options, save_options};
 use std::fs::write;
 use std::path::PathBuf;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time;
 use tokio::fs::read_to_string;
@@ -119,7 +117,7 @@ fn import_then_activate_then_restart_kernel_chain_round_trips_real_files() {
     let name = sanitize_profile_name("Bad Sub").unwrap();
     let remote = block_on(async {
         let store = config_manager().await.unwrap();
-        let application = ProfileApplication::new(store);
+        let application = crate::configuration::profiles_for_mihomo(store);
         let source = HttpSubscriptionSource::with_default_clients();
         application
             .import_subscription(&source, &name, "http://127.0.0.1:1/sub")
@@ -177,8 +175,9 @@ fn import_then_activate_then_restart_kernel_chain_round_trips_real_files() {
     let units = feed(&mut state, Message::LocalProfileImported(Ok(Some(stored))));
     assert!(!state.profile.is_importing_local);
     assert!(state.profile.local_import_path.is_empty(), "form cleared");
-    // An activation that selected a profile without a runtime chains StartCore.
-    assert!(units >= 3, "LoadProfiles + toast + StartCore chained");
+    // Selecting without a runtime completes import; starting the Core remains
+    // an explicit lifecycle action.
+    assert_eq!(units, 2, "LoadProfiles + success toast");
 
     // ---- explicit activation of another profile ----
     feed(&mut state, Message::ProfilesLoaded(Ok(list_profiles())));
@@ -198,7 +197,10 @@ fn import_then_activate_then_restart_kernel_chain_round_trips_real_files() {
         &mut state,
         Message::ProfileActivationFinished(Ok(activation)),
     );
-    assert!(units >= 2, "activation without runtime chains StartCore");
+    assert_eq!(
+        units, 1,
+        "offline activation refreshes the profile list only"
+    );
 
     // The current pointer really moved on disk.
     let current = block_on(async { config_manager().await.unwrap().get_current().await.unwrap() });
@@ -295,8 +297,10 @@ fn subscription_settings_save_gates_persists_and_reloads_profiles() {
         "LoadProfiles回流 reflects the store"
     );
     assert!(
-        home.join("config.toml").exists(),
-        "metadata store is the temp home"
+        home.profile_config_dir()
+            .join("profile-state.toml")
+            .exists(),
+        "metadata belongs to the engine-scoped profile store"
     );
 }
 
@@ -416,7 +420,7 @@ fn delete_profile_removes_yaml_and_options_sidecar_from_disk() {
     // A stored, non-empty options sidecar exists for the doomed profile
     // (empty options would be treated as "no sidecar" by save_options).
     block_on(save_options(
-        &home.configs(),
+        &home.profile_config_dir(),
         "Doomed",
         &ProfileOptions {
             mixin: Default::default(),
@@ -427,7 +431,11 @@ fn delete_profile_removes_yaml_and_options_sidecar_from_disk() {
         },
     ))
     .unwrap();
-    assert!(home.configs().join("options/Doomed.yaml").exists());
+    assert!(
+        home.profile_config_dir()
+            .join("options/Doomed.yaml")
+            .exists()
+    );
 
     let mut state = fresh_state();
     let listed = list_profiles();
@@ -447,10 +455,15 @@ fn delete_profile_removes_yaml_and_options_sidecar_from_disk() {
 
     let units = feed(&mut state, Message::ProfileDeleted(Ok(())));
     assert_eq!(units, 2, "LoadProfiles + toast legs");
-    assert!(!home.configs().join("Doomed.yaml").exists());
-    assert!(!home.configs().join("options/Doomed.yaml").exists());
+    assert!(!home.profile_config_dir().join("Doomed.yaml").exists());
     assert!(
-        home.configs().join("Keeper.yaml").exists(),
+        !home
+            .profile_config_dir()
+            .join("options/Doomed.yaml")
+            .exists()
+    );
+    assert!(
+        home.profile_config_dir().join("Keeper.yaml").exists(),
         "sibling untouched"
     );
 }
@@ -659,7 +672,7 @@ fn subscription_refresh_retries_and_single_flights_through_shared_application() 
             .await
             .unwrap();
 
-        let application = ProfileApplication::new(manager);
+        let application = crate::configuration::profiles_for_mihomo(manager);
         let refresh = SubscriptionRefreshApplication::new(
             application,
             application_runtime(),
@@ -705,7 +718,7 @@ fn subscription_filter_panel_rides_the_shared_pipeline() {
     );
     let mut state = fresh_state();
 
-    state.editor.editor_path = Some(home.configs().join("Paid.yaml"));
+    state.editor.editor_path = Some(home.profile_config_dir().join("Paid.yaml"));
     feed(&mut state, Message::LoadProfileFilter);
 
     // The view model loads the stored draft; editing replaces it.
@@ -737,10 +750,9 @@ fn subscription_filter_panel_rides_the_shared_pipeline() {
     let draft = state.editor.filter_editor.draft.clone();
     block_on(async {
         let manager = config_manager().await.unwrap();
-        let profiles = ProfileApplication::new(manager.clone())
-            .with_document_codec(Arc::new(MihomoProfileDocumentCodec));
+        let profiles = crate::configuration::profiles_for_mihomo(manager.clone());
         let application = ProfileOptionsApplication::new(profiles.clone());
-        let runtime = ProfileRuntimeAccess::Offline;
+        let runtime = ProfileRuntimeAccess::<dyn ActiveProfileReferenceApplier>::Offline;
         let report = application
             .save_filter(
                 runtime,
@@ -869,7 +881,7 @@ fn subscription_policy_and_auto_reload_are_shared_application_wired() {
     // Opt out for real so the editor state is the honest persisted one.
     block_on(async {
         let manager = config_manager().await.unwrap();
-        ProfileApplication::new(manager)
+        crate::configuration::profiles_for_mihomo(manager)
             .update_subscription_auto_reload("Paid", false)
             .await
             .expect("shared application persists the opt-out");
@@ -923,7 +935,7 @@ fn subscription_policy_and_auto_reload_are_shared_application_wired() {
     // in the config.toml store the editor reloads.
     block_on(async {
         let manager = config_manager().await.unwrap();
-        let application = ProfileApplication::new(manager.clone());
+        let application = crate::configuration::profiles_for_mihomo(manager.clone());
         application
             .update_subscription_schedule(
                 "Paid",

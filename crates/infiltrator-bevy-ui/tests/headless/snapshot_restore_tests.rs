@@ -29,7 +29,9 @@ fn setup() -> (App, SnapshotRestoreFixture) {
     let fixture = SnapshotRestoreFixture::new();
     let (core, _) = recording_application();
     core.install_command_handler(Arc::new(
-        CommandApplication::new().with_snapshots(fixture.application.clone()),
+        CommandApplication::new()
+            .with_profile(fixture.profile_application())
+            .with_snapshots(fixture.application.clone()),
     ));
     let mut app = App::new();
     headless_plugins(&mut app);

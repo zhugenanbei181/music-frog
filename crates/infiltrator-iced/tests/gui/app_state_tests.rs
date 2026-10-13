@@ -12,7 +12,8 @@ use crate::types::dns::DnsTab;
 use crate::types::message::Message;
 use crate::types::profile_edit::ProfileEditReply;
 use crate::types::runtime::{
-    IpProbeResult, RebuildFlowState, RuntimePatchSnapshot, RuntimeStreamKind, RuntimeStreamState,
+    ConfigurationSaveState, IpProbeResult, RuntimePatchSnapshot, RuntimeStreamKind,
+    RuntimeStreamState,
 };
 use iced::widget::text_editor;
 use infiltrator_application::rule_list_fixtures::list_document;
@@ -436,7 +437,7 @@ fn core_lifecycle_controls_require_an_attached_owner() {
 }
 
 #[test]
-fn test_rebuild_flow_state_transitions() {
+fn test_configuration_save_state_transitions() {
     let (mut state, _) = AppState::new();
     state.editor.rule_list.draft = vec![RuleEntry {
         rule: "MATCH,DIRECT".into(),
@@ -445,20 +446,23 @@ fn test_rebuild_flow_state_transitions() {
 
     let _ = state.update(Message::SaveDns);
     assert!(matches!(
-        state.runtime.rebuild_flow,
-        RebuildFlowState::Saving { .. }
+        state.runtime.configuration_save_state,
+        ConfigurationSaveState::Saving { .. }
     ));
 
-    let _ = state.update(Message::RuntimeRebuildFinished(Err(
-        InfiltratorError::Backend("boom".into()),
-    )));
+    let _ = state.update(Message::DnsSaved(Err(InfiltratorError::Backend(
+        "boom".into(),
+    ))));
     assert!(matches!(
-        state.runtime.rebuild_flow,
-        RebuildFlowState::Failed { .. }
+        state.runtime.configuration_save_state,
+        ConfigurationSaveState::Failed { .. }
     ));
 
-    let _ = state.update(Message::ClearRebuildFlow);
-    assert!(matches!(state.runtime.rebuild_flow, RebuildFlowState::Idle));
+    let _ = state.update(Message::ClearConfigurationSaveState);
+    assert!(matches!(
+        state.runtime.configuration_save_state,
+        ConfigurationSaveState::Idle
+    ));
 }
 
 #[test]

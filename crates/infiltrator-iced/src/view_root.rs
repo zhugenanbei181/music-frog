@@ -1,5 +1,5 @@
 //! View root for the iced desktop client: sidebar + main view routing,
-//! notification toasts, operation errors, rebuild status HUD and modal dialogs.
+//! notification toasts, operation errors, configuration-save status HUD and modal dialogs.
 
 use crate::view::component_forms::style_ghost;
 use crate::view::svg_icons::{Icon, icon_themed};
@@ -39,7 +39,7 @@ use crate::state::AppState;
 use crate::state::runtime::ProbeSettingsDialogState;
 use crate::types::app::{Route, ToastStatus};
 use crate::types::message::Message;
-use crate::types::runtime::RebuildFlowState;
+use crate::types::runtime::ConfigurationSaveState;
 use crate::view;
 use crate::view::theme::{HAIRLINE, R_CHIP, R_CONTROL};
 use iced::advanced::widget::Id;
@@ -242,33 +242,30 @@ impl AppState {
             );
         }
 
-        if !matches!(self.runtime.rebuild_flow, RebuildFlowState::Idle) {
+        if !matches!(
+            self.runtime.configuration_save_state,
+            ConfigurationSaveState::Idle
+        ) {
             let (icon, title, detail, color): (Icon, &str, &str, fn(&Theme) -> Color) =
-                match &self.runtime.rebuild_flow {
-                    RebuildFlowState::Saving { label } => (
+                match &self.runtime.configuration_save_state {
+                    ConfigurationSaveState::Saving { label } => (
                         Icon::RefreshCw,
                         "Saving configuration",
                         label.as_str(),
                         |theme: &Theme| tokens(theme).accent,
                     ),
-                    RebuildFlowState::Rebuilding { label } => (
-                        Icon::Activity,
-                        "Rebuilding runtime",
-                        label.as_str(),
-                        |theme: &Theme| tokens(theme).warning,
-                    ),
-                    RebuildFlowState::Done { label } => (
+                    ConfigurationSaveState::Done { label } => (
                         Icon::ListChecks,
                         "Completed",
                         label.as_str(),
                         |theme: &Theme| tokens(theme).success,
                     ),
-                    RebuildFlowState::Failed { label, .. } => {
+                    ConfigurationSaveState::Failed { label, .. } => {
                         (Icon::Shield, "Failed", label.as_str(), |theme: &Theme| {
                             tokens(theme).danger
                         })
                     }
-                    RebuildFlowState::Idle => (Icon::Activity, "", "", |theme: &Theme| {
+                    ConfigurationSaveState::Idle => (Icon::Activity, "", "", |theme: &Theme| {
                         tokens(theme).overlay_text
                     }),
                 };

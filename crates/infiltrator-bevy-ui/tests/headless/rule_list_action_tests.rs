@@ -11,7 +11,6 @@ use bevy::input::keyboard::{Key, KeyCode, KeyboardInput};
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::ButtonPlugin;
 use bevy::window::{Ime, PrimaryWindow, Window};
-use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::rule_list_application::RuleListApplication;
 use infiltrator_application::rule_trace_fixtures::{RuleTraceStore, TRACE_DOCUMENT};
 use infiltrator_application::surface_reader::ApplicationSurfaceReader;
@@ -134,7 +133,7 @@ pub(crate) fn setup() -> (App, ApplicationSurfaceReader, Arc<RuleTraceStore>) {
     let core = Arc::new(core);
     let reader =
         ApplicationSurfaceReader::new(core.clone(), SurfaceKind::BevyDesktop, HostKind::Desktop)
-            .with_profiles(ProfileApplication::new(store.clone()))
+            .with_profiles(crate::support::mihomo_profiles(store.clone()))
             .with_configuration(crate::configuration_codec::mihomo_configuration(
                 store.clone(),
             ));

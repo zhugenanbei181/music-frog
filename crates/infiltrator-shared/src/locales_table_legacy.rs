@@ -155,7 +155,6 @@ pub(super) fn translate_zh_cn_legacy(key: &str) -> Cow<'static, str> {
         "notify_sync_finished" => "WebDAV 同步完成".into(),
         "notify_sync_failed" => "WebDAV 同步失败".into(),
         "notify_kernel_error" => "内核错误".into(),
-        "notify_rebuild_failed" => "配置重建失败".into(),
 
         // --- 0.20 boot retry + port rotation / script mode gate ---
         "toast_port_rotated" => "控制接口端口被占用，已切换到".into(),

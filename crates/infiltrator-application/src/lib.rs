@@ -39,7 +39,7 @@ pub mod dns_cache_fixtures;
 pub mod dns_cache_projection;
 pub mod dns_health_projection;
 pub mod dns_hosts_editor;
-#[cfg(test)]
+#[cfg(any(test, feature = "capture-fixtures"))]
 pub mod dns_hosts_fixtures;
 pub mod dns_hosts_projection;
 pub mod dns_latency_application;
@@ -89,7 +89,7 @@ pub mod profile_editor_projection;
 pub mod profile_metadata_projection;
 pub mod profile_options_application;
 pub mod profile_reset_application;
-#[cfg(test)]
+#[cfg(any(test, feature = "capture-fixtures"))]
 mod profile_workspace_test_support;
 pub mod protocol_codec_application;
 pub mod protocol_codec_matrix_application;
@@ -110,13 +110,13 @@ pub mod rule_condition_projection;
 pub mod rule_form_binding;
 pub mod rule_list_application;
 pub mod rule_list_editor;
-#[cfg(test)]
+#[cfg(any(test, feature = "capture-fixtures"))]
 pub mod rule_list_fixtures;
 pub mod rule_list_projection;
 pub mod rule_provider_application;
 pub mod rule_row_projection;
 pub mod rule_trace_actions;
-#[cfg(test)]
+#[cfg(any(test, feature = "capture-fixtures"))]
 pub mod rule_trace_fixtures;
 pub mod rule_trace_projection;
 pub mod rule_tracer_application;
@@ -152,7 +152,7 @@ pub mod stun_probe_application;
 pub mod stun_projection;
 pub mod subscription_filter_copy;
 pub mod subscription_filter_editor;
-#[cfg(test)]
+#[cfg(any(test, feature = "capture-fixtures"))]
 pub mod subscription_filter_fixture;
 pub mod subscription_import_application;
 pub mod subscription_quota_application;

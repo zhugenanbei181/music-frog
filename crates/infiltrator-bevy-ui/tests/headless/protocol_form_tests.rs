@@ -10,7 +10,6 @@ use bevy::ui_widgets::{Activate, Button};
 use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::dns_hosts_fixtures::HostsCaptureStore;
-use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::protocol_codec_application::clear_studio;
 use infiltrator_bevy_ui::app::ShellPlugin;
 use infiltrator_bevy_ui::command::{
@@ -75,7 +74,10 @@ fn production_profile_application(store: Arc<HostsCaptureStore>) -> CoreApplicat
     let (application, _) = identified_recording_application();
     application.install_command_handler(Arc::new(
         test_command_application([CoreOperation::Profile(ProfileOperation::Apply)])
-            .with_profile(ProfileApplication::new(store)),
+            .with_profile(crate::support::mihomo_profiles(store))
+            .with_profile_reference_applier(Arc::new(
+                crate::command_harness::StoppedTestCoreProfileOwner,
+            )),
     ));
     application
 }
@@ -350,7 +352,7 @@ fn production_command_failure_keeps_native_form_and_draft_open() {
         form.studio.last_error.as_deref(),
         Some("Allow profile writes, then retry the Hosts operation.")
     );
-    assert_eq!(store.writes.load(Ordering::SeqCst), 1);
+    assert_eq!(store.writes.load(Ordering::SeqCst), 0);
     assert!(!store.content().contains("failed-node"));
 }
 

@@ -9,17 +9,17 @@ use crate::types::app::ToastStatus;
 use crate::types::dns::{AdvancedEditMode, FakeIpFormDraft};
 use crate::types::editor::EditorLazyState;
 use crate::types::message::Message;
-use crate::types::runtime::RebuildFlowState;
+use crate::types::runtime::ConfigurationSaveState;
 use iced::Task;
 use iced::widget::text_editor::Content;
-use infiltrator_application::configuration_application::dns_patch_from_settings;
 use infiltrator_application::dns_latency_application::NO_PROBER_REASON;
 use infiltrator_application::dns_workbench_application::form_from_config;
+use infiltrator_contract::dns::DnsSettingsPatch;
 use infiltrator_contract::dns::parse_server_list;
 use infiltrator_contract::dns_form::DnsFormIssue;
 use infiltrator_contract::dns_latency::{DnsLatencyProbeRequest, DnsProbeTarget};
 use infiltrator_contract::error::{ErrorCode, Failure, InfiltratorError};
-use infiltrator_domain::dns::{DnsConfig, DnsConfigPatch, apply_dns_patch_to_yaml};
+use infiltrator_domain::dns::DnsConfig;
 use infiltrator_domain::fake_ip::{FakeIpConfig, FakeIpConfigPatch, apply_fake_ip_patch_to_yaml};
 use std::time::Instant;
 use tokio::time;
@@ -62,8 +62,8 @@ impl AppState {
         };
     }
 
-    pub(crate) fn dns_patch_from_form(&self) -> Result<DnsConfigPatch, InfiltratorError> {
-        Ok(dns_patch_from_settings(self.editor.dns_form.patch()))
+    pub(crate) fn dns_patch_from_form(&self) -> Result<DnsSettingsPatch, InfiltratorError> {
+        Ok(self.editor.dns_form.patch())
     }
 
     pub(crate) fn dns_form_issue(&self) -> Option<DnsFormIssue> {
@@ -454,7 +454,7 @@ impl AppState {
             }
             Message::SaveDns => {
                 self.editor.is_saving_dns = true;
-                self.begin_save_phase("DNS");
+                self.begin_configuration_save("DNS");
                 let patch = if self.editor.dns_mode == AdvancedEditMode::Form {
                     match self.dns_form_issue() {
                         Some(issue) => {
@@ -466,7 +466,7 @@ impl AppState {
                     self.ensure_dns_editor_loaded();
                     let text = self.editor.dns_json_content.text();
                     self.editor.dns_json_cache = text.clone();
-                    serde_json::from_str::<DnsConfigPatch>(&text)
+                    serde_json::from_str::<DnsSettingsPatch>(&text)
                         .map_err(|e| InfiltratorError::Config(format!("Invalid DNS JSON: {}", e)))
                 };
                 let patch = match patch {
@@ -475,7 +475,7 @@ impl AppState {
                         self.editor.is_saving_dns = false;
                         let mapped = Self::map_advanced_error_message(&error);
                         self.editor.advanced_validation.dns = Some(mapped.clone());
-                        self.runtime.rebuild_flow = RebuildFlowState::Failed {
+                        self.runtime.configuration_save_state = ConfigurationSaveState::Failed {
                             label: "DNS".to_string(),
                             error: mapped.clone(),
                         };
@@ -486,14 +486,21 @@ impl AppState {
                                 async {
                                     sleep(time::Duration::from_secs(4)).await;
                                 },
-                                |_| Message::ClearRebuildFlow,
+                                |_| Message::ClearConfigurationSaveState,
                             ),
                         ]);
                     }
                 };
-                save_task(
-                    super::profile_apply::runtime_access(self.runtime.runtime.clone()),
-                    move |content| apply_dns_patch_to_yaml(content, patch),
+                let runtime = super::profile_apply::runtime_access(self.runtime.runtime.clone());
+                Task::perform(
+                    async move {
+                        let configuration = application().await?;
+                        configuration
+                            .apply_dns_settings_with_access(runtime, patch)
+                            .await
+                            .map(|_| ())
+                            .map_err(|failure| InfiltratorError::Config(failure.message))
+                    },
                     Message::DnsSaved,
                 )
             }
@@ -506,13 +513,13 @@ impl AppState {
                         self.editor.advanced_validation.dns = None;
                         Task::batch(vec![
                             Task::done(Message::RefreshDnsOnly),
-                            self.finish_without_rebuild("DNS".to_string()),
+                            self.finish_configuration_save("DNS".to_string()),
                         ])
                     }
                     Err(e) => {
                         let mapped = Self::map_advanced_error_message(&e);
                         self.editor.advanced_validation.dns = Some(mapped.clone());
-                        self.runtime.rebuild_flow = RebuildFlowState::Failed {
+                        self.runtime.configuration_save_state = ConfigurationSaveState::Failed {
                             label: "DNS".to_string(),
                             error: mapped.clone(),
                         };
@@ -523,7 +530,7 @@ impl AppState {
                                 async {
                                     sleep(time::Duration::from_secs(4)).await;
                                 },
-                                |_| Message::ClearRebuildFlow,
+                                |_| Message::ClearConfigurationSaveState,
                             ),
                         ])
                     }
@@ -531,7 +538,7 @@ impl AppState {
             }
             Message::SaveFakeIpConfig => {
                 self.editor.is_saving_fake_ip = true;
-                self.begin_save_phase("Fake-IP");
+                self.begin_configuration_save("Fake-IP");
                 let patch = if self.editor.fake_ip_mode == AdvancedEditMode::Form {
                     self.fake_ip_patch_from_form()
                 } else {
@@ -548,7 +555,7 @@ impl AppState {
                         self.editor.is_saving_fake_ip = false;
                         let mapped = Self::map_advanced_error_message(&error);
                         self.editor.advanced_validation.fake_ip = Some(mapped.clone());
-                        self.runtime.rebuild_flow = RebuildFlowState::Failed {
+                        self.runtime.configuration_save_state = ConfigurationSaveState::Failed {
                             label: "Fake-IP".to_string(),
                             error: mapped.clone(),
                         };
@@ -559,7 +566,7 @@ impl AppState {
                                 async {
                                     sleep(time::Duration::from_secs(4)).await;
                                 },
-                                |_| Message::ClearRebuildFlow,
+                                |_| Message::ClearConfigurationSaveState,
                             ),
                         ]);
                     }
@@ -579,13 +586,13 @@ impl AppState {
                         self.editor.advanced_validation.fake_ip = None;
                         Task::batch(vec![
                             Task::done(Message::RefreshFakeIpOnly),
-                            self.finish_without_rebuild("Fake-IP".to_string()),
+                            self.finish_configuration_save("Fake-IP".to_string()),
                         ])
                     }
                     Err(e) => {
                         let mapped = Self::map_advanced_error_message(&e);
                         self.editor.advanced_validation.fake_ip = Some(mapped.clone());
-                        self.runtime.rebuild_flow = RebuildFlowState::Failed {
+                        self.runtime.configuration_save_state = ConfigurationSaveState::Failed {
                             label: "Fake-IP".to_string(),
                             error: mapped.clone(),
                         };
@@ -596,7 +603,7 @@ impl AppState {
                                 async {
                                     sleep(time::Duration::from_secs(4)).await;
                                 },
-                                |_| Message::ClearRebuildFlow,
+                                |_| Message::ClearConfigurationSaveState,
                             ),
                         ])
                     }

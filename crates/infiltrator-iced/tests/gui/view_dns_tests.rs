@@ -9,30 +9,50 @@ use infiltrator_contract::dns_form::{DnsFallbackPolicyDraft, DnsWorkbenchForm};
 use infiltrator_contract::error::{ErrorCode, Failure};
 
 #[test]
-fn test_rebuild_status_badge_kinds() {
+fn test_configuration_save_status_badge_states() {
     let lang_zh = Lang("zh-CN");
     let lang_en = Lang("en-US");
-    let _ = rebuild_status_badge(&lang_zh, &RebuildFlowState::Idle, "DNS", false, true);
-    let _ = rebuild_status_badge(&lang_en, &RebuildFlowState::Idle, "DNS", false, true);
-    let _ = rebuild_status_badge(&lang_zh, &RebuildFlowState::Idle, "DNS", true, false);
-    let saving = RebuildFlowState::Saving {
+    let _ = configuration_save_status_badge(
+        &lang_zh,
+        &ConfigurationSaveState::Idle,
+        "DNS",
+        false,
+        true,
+    );
+    let _ = configuration_save_status_badge(
+        &lang_en,
+        &ConfigurationSaveState::Idle,
+        "DNS",
+        false,
+        true,
+    );
+    let _ = configuration_save_status_badge(
+        &lang_zh,
+        &ConfigurationSaveState::Idle,
+        "DNS",
+        true,
+        false,
+    );
+    let saving = ConfigurationSaveState::Saving {
         label: "DNS".into(),
     };
-    let _ = rebuild_status_badge(&lang_zh, &saving, "DNS", false, false);
-    let rebuilding = RebuildFlowState::Rebuilding {
+    let _ = configuration_save_status_badge(&lang_zh, &saving, "DNS", false, false);
+    let done = ConfigurationSaveState::Done {
         label: "DNS".into(),
     };
-    let _ = rebuild_status_badge(&lang_zh, &rebuilding, "DNS", false, false);
-    let done = RebuildFlowState::Done {
-        label: "DNS".into(),
-    };
-    let _ = rebuild_status_badge(&lang_zh, &done, "DNS", false, false);
-    let failed = RebuildFlowState::Failed {
+    let _ = configuration_save_status_badge(&lang_zh, &done, "DNS", false, false);
+    let failed = ConfigurationSaveState::Failed {
         label: "DNS".into(),
         error: "error".into(),
     };
-    let _ = rebuild_status_badge(&lang_zh, &failed, "DNS", false, false);
-    let _ = rebuild_status_badge(&lang_zh, &RebuildFlowState::Idle, "DNS", false, false);
+    let _ = configuration_save_status_badge(&lang_zh, &failed, "DNS", false, false);
+    let _ = configuration_save_status_badge(
+        &lang_zh,
+        &ConfigurationSaveState::Idle,
+        "DNS",
+        false,
+        false,
+    );
 }
 
 #[test]
@@ -218,11 +238,11 @@ fn test_dns_form_patch_uses_the_shared_workbench_mapping() {
         fake_ip_range: String::new(),
         ..DnsWorkbenchForm::default()
     };
-    let domain_patch = state
+    let settings_patch = state
         .dns_patch_from_form()
         .expect("shared workbench patch mapping");
     assert_eq!(
-        domain_patch.nameserver.as_deref(),
+        settings_patch.nameserver.as_deref(),
         Some(
             &[
                 "https://dns.google/dns-query".to_owned(),
@@ -231,14 +251,14 @@ fn test_dns_form_patch_uses_the_shared_workbench_mapping() {
         )
     );
     assert_eq!(
-        domain_patch.fallback.as_deref(),
+        settings_patch.fallback.as_deref(),
         Some(&["8.8.8.8".to_owned()][..])
     );
-    let filter = domain_patch
-        .fallback_filter_partial
-        .expect("fallback filter partial merge");
-    assert_eq!(filter.geoip, Some(true));
-    assert_eq!(filter.geoip_code.as_deref(), Some("CN"));
-    assert!(domain_patch.clear_fake_ip_range);
+    let filter = settings_patch
+        .fallback_policy
+        .expect("fallback filter policy");
+    assert!(filter.geoip);
+    assert_eq!(filter.geoip_code, "CN");
+    assert!(settings_patch.clear_fake_ip_range);
     assert!(state.dns_form_issue().is_none());
 }

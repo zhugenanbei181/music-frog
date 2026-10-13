@@ -216,21 +216,31 @@ pub fn sync_fields(
     wrappers: Query<(&Children, Has<ProbeUrlField>), ProbeFieldWrappers>,
     mut fields: Query<(&mut TextField, &mut TextFieldFocused)>,
 ) {
+    let mut synchronized_fields = 0;
+    let mut deferred_projection = false;
     for (children, url) in &wrappers {
         for child in children {
             let Ok((mut field, mut focus)) = fields.get_mut(*child) else {
                 continue;
             };
-            let value = state.editor.draft().map_or("", |draft| {
+            synchronized_fields += 1;
+            let value = state.editor.draft().map_or_else(String::new, |draft| {
                 if url {
-                    draft.url.as_str()
+                    draft.url.clone()
                 } else {
-                    draft.timeout_ms.as_str()
+                    draft.timeout_ms.clone()
                 }
             });
+            let disabled = state.dialog != ProbeSettingsDialogState::Editing
+                || state.editor.is_pending()
+                || state.editor.applied().is_none();
+            if field.0.is_disabled() && !disabled {
+                field.0.set_disabled(false);
+            }
             if state.sync_fields {
                 if field.0.text() != value {
-                    field.0.apply(TextFieldInput::SetText(value.to_owned()));
+                    field.0.apply(TextFieldInput::SetText(value.clone()));
+                    deferred_projection |= field.0.text() != value;
                 }
             } else if state.dialog == ProbeSettingsDialogState::Editing
                 && !state.editor.is_pending()
@@ -244,9 +254,7 @@ pub fn sync_fields(
                     state.editor.edit_timeout(value);
                 }
             }
-            let disabled = state.dialog != ProbeSettingsDialogState::Editing
-                || state.editor.is_pending()
-                || state.editor.applied().is_none();
+            deferred_projection |= state.sync_fields && field.0.text() != value;
             if field.0.is_disabled() != disabled {
                 field.0.set_disabled(disabled);
             }
@@ -255,7 +263,12 @@ pub fn sync_fields(
             }
         }
     }
-    state.sync_fields = false;
+    // Route scenes can mount after the Core snapshot arrives. Keep the
+    // projection dirty until both controlled fields exist, so the first
+    // frame that mounts them receives the observed values.
+    if synchronized_fields >= 2 && !deferred_projection {
+        state.sync_fields = false;
+    }
 }
 
 pub fn sync_editor(

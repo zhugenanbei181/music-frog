@@ -3,7 +3,7 @@ use crate::types::dns::{AdvancedEditMode, DnsTab};
 use crate::types::dns_query::QueryAction;
 use crate::types::editor::EditorLazyState;
 use crate::types::message::Message;
-use crate::types::runtime::RebuildFlowState;
+use crate::types::runtime::ConfigurationSaveState;
 use crate::view::component_card::card;
 use crate::view::component_forms::{
     banner_alert, editor_frame_surface, form_field_label, form_input_style, form_pick_style,
@@ -51,9 +51,9 @@ fn save_button(
     }
 }
 
-fn rebuild_status_badge(
+fn configuration_save_status_badge(
     lang: &Lang<'_>,
-    state: &RebuildFlowState,
+    state: &ConfigurationSaveState,
     label: &str,
     dirty: bool,
     loading: bool,
@@ -70,17 +70,13 @@ fn rebuild_status_badge(
         )
     } else {
         match state {
-            RebuildFlowState::Saving { label: c } if c == label => {
+            ConfigurationSaveState::Saving { label: c } if c == label => {
                 (lang.tr("dns_status_saving").to_string(), BadgeKind::Accent)
             }
-            RebuildFlowState::Rebuilding { label: c } if c == label => (
-                lang.tr("dns_status_rebuilding").to_string(),
-                BadgeKind::Warning,
-            ),
-            RebuildFlowState::Done { label: c } if c == label => {
+            ConfigurationSaveState::Done { label: c } if c == label => {
                 (lang.tr("dns_status_done").to_string(), BadgeKind::Success)
             }
-            RebuildFlowState::Failed { label: c, .. } if c == label => {
+            ConfigurationSaveState::Failed { label: c, .. } if c == label => {
                 (lang.tr("dns_status_failed").to_string(), BadgeKind::Danger)
             }
             _ => (lang.tr("dns_status_saved").to_string(), BadgeKind::Success),
@@ -160,9 +156,9 @@ pub(crate) fn append_item_to_list(raw: &str, item: &str) -> String {
 
 fn dns_form_panel<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a, Message> {
     let dirty = state.editor.dns_form_dirty || state.editor.dns_json_dirty;
-    let status = rebuild_status_badge(
+    let status = configuration_save_status_badge(
         lang,
-        &state.runtime.rebuild_flow,
+        &state.runtime.configuration_save_state,
         "DNS",
         dirty,
         !state.editor.advanced_configs_loaded_once,
@@ -209,9 +205,9 @@ fn dns_form_panel<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a, Messa
 
 fn fake_ip_form_panel<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a, Message> {
     let dirty = state.editor.fake_ip_form_dirty || state.editor.fake_ip_json_dirty;
-    let status = rebuild_status_badge(
+    let status = configuration_save_status_badge(
         lang,
-        &state.runtime.rebuild_flow,
+        &state.runtime.configuration_save_state,
         "Fake-IP",
         dirty,
         !state.editor.advanced_configs_loaded_once,
@@ -300,9 +296,9 @@ fn fake_ip_form_panel<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a, M
 
 fn tun_form_panel<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a, Message> {
     let dirty = state.editor.tun_form_dirty || state.editor.tun_json_dirty;
-    let status = rebuild_status_badge(
+    let status = configuration_save_status_badge(
         lang,
-        &state.runtime.rebuild_flow,
+        &state.runtime.configuration_save_state,
         "TUN",
         dirty,
         !state.editor.advanced_configs_loaded_once,
@@ -403,7 +399,7 @@ fn advanced_json_panel<'a>(
     title: &str,
     dirty: bool,
     is_saving: bool,
-    rebuild_label: &str,
+    config_label: &str,
     loaded_once: bool,
     editor_state: EditorLazyState,
     content: &'a text_editor::Content,
@@ -413,13 +409,14 @@ fn advanced_json_panel<'a>(
     on_save: Message,
     validation_error: Option<&'a String>,
     extra_action: Option<Element<'a, Message>>,
-    flow_state: &RebuildFlowState,
+    flow_state: &ConfigurationSaveState,
     lang: &Lang<'a>,
 ) -> Element<'a, Message> {
     if editor_state == EditorLazyState::Unloaded {
-        return lazy_editor_placeholder(format!("{} Raw JSON", rebuild_label), on_ensure_loaded);
+        return lazy_editor_placeholder(format!("{} Raw JSON", config_label), on_ensure_loaded);
     }
-    let status = rebuild_status_badge(lang, flow_state, rebuild_label, dirty, !loaded_once);
+    let status =
+        configuration_save_status_badge(lang, flow_state, config_label, dirty, !loaded_once);
     let mut header_items = row![status, Space::new().width(theme::SP_SM)];
     if let Some(extra) = extra_action {
         header_items = header_items
@@ -466,7 +463,7 @@ fn dns_json_panel<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a, Messa
         Message::SaveDns,
         state.editor.advanced_validation.dns.as_ref(),
         None,
-        &state.runtime.rebuild_flow,
+        &state.runtime.configuration_save_state,
         lang,
     )
 }
@@ -490,7 +487,7 @@ fn fake_ip_json_panel<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a, M
         Message::SaveFakeIpConfig,
         state.editor.advanced_validation.fake_ip.as_ref(),
         Some(flush_btn),
-        &state.runtime.rebuild_flow,
+        &state.runtime.configuration_save_state,
         lang,
     )
 }
@@ -512,7 +509,7 @@ fn tun_json_panel<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a, Messa
         Message::SaveTunConfig,
         state.editor.advanced_validation.tun.as_ref(),
         None,
-        &state.runtime.rebuild_flow,
+        &state.runtime.configuration_save_state,
         lang,
     )
 }

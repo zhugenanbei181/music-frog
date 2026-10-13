@@ -20,7 +20,7 @@ use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::logs::LogSession;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
-use infiltrator_ports::runtime_gateway::RuntimeStreamEvent;
+use infiltrator_ports::runtime_stream::RuntimeStreamEvent;
 use infiltrator_ports::surface::SurfaceReader;
 use std::sync::Arc;
 use tokio::runtime::Builder;

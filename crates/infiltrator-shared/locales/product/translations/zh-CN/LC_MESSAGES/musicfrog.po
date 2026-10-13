@@ -1216,6 +1216,12 @@ msgstr "未选择配置"
 msgid "未运行"
 msgstr "未运行"
 
+msgid "日志流不支持"
+msgstr "日志流不支持"
+
+msgid "日志流已取消"
+msgstr "日志流已取消"
+
 msgid "HarmonyOS Sans SC is used; © 2021 Huawei Device Co., Ltd."
 msgstr "本软件使用 HarmonyOS Sans SC，版权 © 2021 Huawei Device Co., Ltd."
 

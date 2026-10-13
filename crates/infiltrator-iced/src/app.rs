@@ -1,5 +1,6 @@
 use crate::admin_server::{ADMIN_DEFAULT_PORT, AdminServerManager, AdminSharedRuntime};
 use crate::configs_dir::config_manager;
+use crate::configuration::profiles_for_mihomo;
 use crate::host::desktop::{read_system_proxy_state, system_proxy_port};
 use crate::mini_hud_window::install_host_handle;
 use crate::notify::startup_probe_task;
@@ -9,7 +10,10 @@ use crate::state::diagnostics::DiagnosticsState;
 use crate::state::editor::ConfigEditorState;
 use crate::state::profiles::ProfileState;
 use crate::state::proxy_probe;
-use crate::state::runtime::{ProbeSettingsDialogState, ProxyGroupOrderDialogState, RuntimeState};
+use crate::state::runtime::{
+    CustomNodeSaveState, ProbeSettingsDialogState, ProxyGroupOrderDialogState, RuntimeState,
+    TunServiceInstallState,
+};
 use crate::state::shell::ShellState;
 use crate::types::app::{RouteHistory, Transition};
 use crate::types::dns::AdvancedValidationState;
@@ -42,7 +46,7 @@ use infiltrator_contract::system_toggle::SystemToggleSnapshot;
 use infiltrator_contract::theme::ThemePreference;
 use infiltrator_contract::toast::ToastGate;
 use infiltrator_contract::version::CoreVersionSnapshot;
-use infiltrator_contract::vpn::VpnSessionSnapshot;
+use infiltrator_contract::vpn::{VpnSessionSnapshot, VpnSurfaceObservation};
 use infiltrator_domain::connection_activity::{
     ConnectionActivityTracker, DEFAULT_IDLE_TIMEOUT_SECS,
 };
@@ -66,9 +70,8 @@ use crate::types::app::Route;
 use crate::types::dns::{AdvancedEditMode, DnsTab, FakeIpFormDraft, TunFormDraft};
 use crate::types::editor::EditorLazyState;
 use crate::types::message::Message;
-use crate::types::runtime::{RebuildFlowState, RuntimeStatus};
+use crate::types::runtime::{ConfigurationSaveState, RuntimeStatus};
 use iced::Task;
-use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_contract::rules_workspace::{RulesJsonSection, RulesTab};
 use std::sync::{Arc, Mutex};
@@ -128,6 +131,7 @@ impl AppState {
                     0,
                     "Android VpnService is a mobile-host capability",
                 ),
+                vpn_observation: VpnSurfaceObservation::NotApplicable,
                 system_toggles: SystemToggleSnapshot::from_legacy(system_proxy_enabled, None, 0),
                 privileged_network: PrivilegedNetworkSnapshot::unsupported(
                     0,
@@ -156,7 +160,7 @@ impl AppState {
                 runtime_control: Default::default(),
                 tun_enabled: None,
                 tun_service_status: None,
-                is_installing_tun_service: false,
+                tun_service_install_state: TunServiceInstallState::Idle,
                 system_proxy_enabled,
                 system_proxy_pending: false,
                 autostart_enabled: autostart::is_autostart_enabled(crate::AUTOSTART_REG_NAME),
@@ -182,7 +186,7 @@ impl AppState {
                 offline_startup: Default::default(),
                 core_download: Default::default(),
                 core_update_check: Default::default(),
-                rebuild_flow: RebuildFlowState::Idle,
+                configuration_save_state: ConfigurationSaveState::Idle,
                 runtime_probe_settings_editor: Default::default(),
                 probe_settings_dialog: ProbeSettingsDialogState::Closed,
                 runtime_probe_url_draft: String::new(),
@@ -234,7 +238,7 @@ impl AppState {
                 custom_node_uri_input: String::new(),
                 custom_node_studio: Default::default(),
                 custom_node_inputs: Default::default(),
-                custom_node_saving: false,
+                custom_node_save_state: CustomNodeSaveState::Idle,
                 network_roaming: Default::default(),
                 pac_manager: Default::default(),
                 lan_sharing: Default::default(),
@@ -458,7 +462,6 @@ impl AppState {
             diag: DiagnosticsState {
                 traffic: None,
                 traffic_history: VecDeque::new(),
-                memory: None,
                 public_ip: None,
                 public_ip_provider: None,
                 public_ip_checked_at: None,
@@ -648,7 +651,7 @@ impl AppState {
                 Task::perform(
                     async {
                         let store = config_manager().await?;
-                        ProfileApplication::new(store)
+                        profiles_for_mihomo(store)
                             .list_profiles()
                             .await
                             .map_err(|failure| InfiltratorError::Config(failure.message))

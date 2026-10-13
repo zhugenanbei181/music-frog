@@ -319,7 +319,7 @@ impl ProfileEditorState {
                 let inserted_line = &self.buffer.lines[self.buffer.cursor_row];
                 self.buffer.cursor_col =
                     byte_offset_of_column(inserted_line, insertion.cursor_column);
-                self.record_profile_inspection(insertion.validation);
+                self.record_profile_inspection(DocumentInspection::Inspected(insertion.validation));
                 self.notice = None;
                 self.after_edit();
                 Ok(())

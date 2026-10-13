@@ -402,13 +402,10 @@ pub(super) fn project_logs(window: &AppWindow, snapshot: &SurfaceSnapshot) {
                 .collect::<Vec<_>>()
         })
         .unwrap_or_default();
-    let stream_status = match snapshot.pages.logs.data.as_ref().map(|page| &page.stream) {
-        Some(LogStreamState::Live) => lang.tr("已连接").into_owned(),
-        Some(LogStreamState::Reconnecting(_)) => lang.tr("正在重连").into_owned(),
-        Some(LogStreamState::Connecting) => lang.tr("正在连接").into_owned(),
-        Some(LogStreamState::Failed(_)) => lang.tr("读取失败").into_owned(),
-        Some(LogStreamState::Idle) | None => lang.tr("未运行").into_owned(),
-    };
+    let stream_status = log_stream_status(
+        snapshot.pages.logs.data.as_ref().map(|page| &page.stream),
+        &lang,
+    );
     let owner_level = snapshot
         .pages
         .logs
@@ -422,6 +419,18 @@ pub(super) fn project_logs(window: &AppWindow, snapshot: &SurfaceSnapshot) {
     window.set_log_stream_status(stream_status.into());
 }
 
+fn log_stream_status(stream: Option<&LogStreamState>, lang: &Lang<'_>) -> String {
+    match stream {
+        Some(LogStreamState::Live) => lang.tr("已连接").into_owned(),
+        Some(LogStreamState::Reconnecting(_)) => lang.tr("正在重连").into_owned(),
+        Some(LogStreamState::Connecting) => lang.tr("正在连接").into_owned(),
+        Some(LogStreamState::Failed(_)) => lang.tr("读取失败").into_owned(),
+        Some(LogStreamState::Unsupported(_)) => lang.tr("日志流不支持").into_owned(),
+        Some(LogStreamState::Cancelled) => lang.tr("日志流已取消").into_owned(),
+        Some(LogStreamState::Idle) | None => lang.tr("未运行").into_owned(),
+    }
+}
+
 fn log_level_key(value: &str) -> &str {
     match value.to_ascii_lowercase().as_str() {
         "dbg" | "debug" => "debug",
@@ -429,6 +438,36 @@ fn log_level_key(value: &str) -> &str {
         "warn" | "warning" | "wrn" => "warning",
         "err" | "error" | "fatal" => "error",
         _ => value,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::log_stream_status;
+    use infiltrator_contract::error::Failure;
+    use infiltrator_contract::logs::LogStreamState;
+    use infiltrator_shared::locales::Lang;
+
+    #[test]
+    fn unsupported_and_cancelled_log_streams_project_localized_terminal_copy() {
+        let unsupported = LogStreamState::Unsupported(Failure::unsupported("not available"));
+        assert_eq!(
+            log_stream_status(Some(&unsupported), &Lang("zh-CN")),
+            "日志流不支持"
+        );
+        assert_eq!(
+            log_stream_status(Some(&unsupported), &Lang("en-US")),
+            "Log stream is unsupported"
+        );
+
+        assert_eq!(
+            log_stream_status(Some(&LogStreamState::Cancelled), &Lang("zh-CN")),
+            "日志流已取消"
+        );
+        assert_eq!(
+            log_stream_status(Some(&LogStreamState::Cancelled), &Lang("en-US")),
+            "Log stream was cancelled"
+        );
     }
 }
 

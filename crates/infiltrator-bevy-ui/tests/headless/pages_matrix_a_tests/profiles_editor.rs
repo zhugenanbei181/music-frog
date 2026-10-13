@@ -5,6 +5,7 @@ use super::*;
 use crate::native_input::{click_entity, type_text};
 use bevy::ui::prelude::BackgroundColor;
 use bevy::ui_widgets::ButtonPlugin;
+use infiltrator_application::profile_edit_session::ProfileEditOperationPhase;
 use infiltrator_bevy_ui::command_events::CommandExecutedEvent;
 use infiltrator_bevy_ui::pages::profiles_editor_transactions::EditorDiscardButton;
 use infiltrator_contract::command_output::CommandOutput;
@@ -550,17 +551,15 @@ fn test_profiles_editor_mixin_pane_uses_the_shared_sidecar_use_case() {
         )),
     });
     app.update();
-    assert_eq!(
-        app.world()
+    assert!(matches!(
+        &app.world()
             .resource::<ProfileEditorOptionsState>()
             .mixin
             .session
-            .failure
-            .as_ref()
-            .unwrap()
-            .code,
-        ErrorCode::Permission
-    );
+            .operation,
+        ProfileEditOperationPhase::Failed(failure)
+            if failure.code == ErrorCode::Permission
+    ));
     // The keyboard seam routes to the Mixin buffer, not the profile document.
     let focus = marker_entity::<MixinEditorFocusButton>(&mut app);
     app.world_mut()
@@ -572,13 +571,16 @@ fn test_profiles_editor_mixin_pane_uses_the_shared_sidecar_use_case() {
         .resource::<ProfileEditorState>()
         .buffer
         .full_text();
-    sink.queue_mixin_preflight(Err(Failure::new(
+    sink.queue_mixin_studio(Err(Failure::new(
         ErrorCode::InvalidInput,
         "Mixin overlay is not valid YAML: expected a mapping",
         false,
     )));
     app.world_mut()
         .write_message(keyboard_press(Key::Character("x".into()), Some("x")));
+    app.update();
+    // The studio projection is rebuilt from the edited generation on the
+    // following frame, then publishes its typed preflight result.
     app.update();
     {
         let options = app.world().resource::<ProfileEditorOptionsState>();

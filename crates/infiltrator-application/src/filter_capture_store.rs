@@ -1,5 +1,8 @@
 //! Isolated complete profile/options transactions for native tests and captures.
 use async_trait::async_trait;
+use infiltrator_contract::active_profile_reference::{
+    ActiveProfileReference, ActiveProfileReferenceRevision, ActiveProfileReferenceState,
+};
 use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::error::{ErrorCode, Failure};
@@ -12,11 +15,15 @@ use infiltrator_contract::profile_protection::ProfileWriteProtection;
 use infiltrator_domain::profile_source::hash_bytes;
 use infiltrator_domain::profiles::{ProfileInfo, ProfileMetadata};
 use infiltrator_ports::error::PortError;
-use infiltrator_ports::profile_store::ProfileStore;
+use infiltrator_ports::profile_store::{
+    ActiveProfileWorkspacePublishOutcome, ActiveProfileWorkspacePublishedLease,
+    ActiveProfileWorkspaceRestoreOutcome, ActiveProfileWorkspaceRestoredLease,
+    ActiveProfileWorkspaceWriteLease, ProfileStore,
+};
 use infiltrator_ports::profile_workspace::{ProfileWorkspace, ProfileWorkspaceUpdate};
 use std::path::PathBuf;
-use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
 
 pub const FILTER_PROFILE: &str = "filter-source";
 pub const FILTER_DOCUMENT: &str = "mixed-port: 7890\nmode: rule\nproxies:\n  - {name: HK-public, type: ss, server: 1.1.1.1, port: 443, cipher: aes-128-gcm, password: fixture}\n  - {name: HK-private, type: ss, server: 192.168.1.1, port: 443, cipher: aes-128-gcm, password: fixture}\n  - {name: US-public, type: ss, server: 8.8.8.8, port: 80, cipher: aes-128-gcm, password: fixture}\n";
@@ -24,9 +31,31 @@ pub const FILTER_POLICY: &str = "{drop-private-ip: true, remove-emojis: true, so
 
 pub struct FilterCaptureStore {
     workspace: Mutex<ProfileWorkspace>,
+    active_reference: Mutex<ActiveProfileReferenceState>,
+    workspace_write_gate: Arc<tokio::sync::Mutex<()>>,
     pub deny_write: AtomicBool,
     pub deny_read: AtomicBool,
     pub writes: AtomicUsize,
+}
+
+struct FilterWorkspaceWriteLease<'a> {
+    store: &'a FilterCaptureStore,
+    expected_reference: ActiveProfileReference,
+    observed: ProfileWorkspace,
+    _guard: tokio::sync::OwnedMutexGuard<()>,
+}
+
+struct FilterWorkspacePublishedLease<'a> {
+    store: &'a FilterCaptureStore,
+    expected_reference: ActiveProfileReference,
+    previous: ProfileWorkspace,
+    published: ProfileWorkspace,
+    _guard: tokio::sync::OwnedMutexGuard<()>,
+}
+
+struct FilterWorkspaceRestoredLease {
+    workspace: ProfileWorkspace,
+    _guard: tokio::sync::OwnedMutexGuard<()>,
 }
 fn workspace(
     content: String,
@@ -78,6 +107,14 @@ impl Default for FilterCaptureStore {
                 )
                 .expect("explicit filter fixture"),
             ),
+            active_reference: Mutex::new(ActiveProfileReferenceState::Selected(
+                ActiveProfileReference::new(
+                    EngineId::new("mihomo").expect("test engine ID"),
+                    ProfileId::new(FILTER_PROFILE).expect("test profile ID"),
+                    ActiveProfileReferenceRevision::default(),
+                ),
+            )),
+            workspace_write_gate: Arc::new(tokio::sync::Mutex::new(())),
             deny_write: AtomicBool::new(false),
             deny_read: AtomicBool::new(false),
             writes: AtomicUsize::new(0),
@@ -97,6 +134,130 @@ impl FilterCaptureStore {
         } else {
             Err(PortError::NotFound(profile.into()))
         }
+    }
+
+    fn commit_workspace(
+        &self,
+        expected: &ProfileWorkspaceIdentity,
+        update: &ProfileWorkspaceUpdate,
+    ) -> Result<ProfileWorkspace, PortError> {
+        let mut current = self.workspace.lock().expect("isolated filter store");
+        if current.identity() != *expected {
+            return Err(PortError::Rejected(Failure::new(
+                ErrorCode::NotReady,
+                "The profile or options changed",
+                true,
+            )));
+        }
+        if self.deny_write.load(Ordering::SeqCst) {
+            return Err(PortError::Rejected(Failure::new(
+                ErrorCode::Permission,
+                "Allow profile write access, then retry",
+                true,
+            )));
+        }
+        let mut committed =
+            workspace_from_raw_bytes(update.document_bytes.clone(), update.sidecar_bytes.clone())?;
+        committed.write_protection = ProfileWriteProtection::Editable;
+        committed.document.identity.profile_id = expected.document.profile_id.clone();
+        *current = committed.clone();
+        self.writes.fetch_add(1, Ordering::SeqCst);
+        Ok(committed)
+    }
+}
+
+#[async_trait]
+impl ActiveProfileWorkspaceWriteLease for FilterWorkspaceWriteLease<'_> {
+    fn observed_workspace(&self) -> &ProfileWorkspace {
+        &self.observed
+    }
+
+    async fn publish(
+        self: Box<Self>,
+        update: ProfileWorkspaceUpdate,
+    ) -> ActiveProfileWorkspacePublishOutcome<'async_trait> {
+        match self.store.read_active_profile_reference().await {
+            Ok(ActiveProfileReferenceState::Selected(reference))
+                if reference == self.expected_reference => {}
+            Ok(_) => {
+                return ActiveProfileWorkspacePublishOutcome::Unpublished(PortError::Rejected(
+                    Failure::new(ErrorCode::NotReady, "active reference changed", true),
+                ));
+            }
+            Err(error) => return ActiveProfileWorkspacePublishOutcome::Unpublished(error),
+        }
+        let published = match self
+            .store
+            .commit_workspace(&self.observed.identity(), &update)
+        {
+            Ok(workspace) => workspace,
+            Err(error) => return ActiveProfileWorkspacePublishOutcome::Unpublished(error),
+        };
+        ActiveProfileWorkspacePublishOutcome::Published(Box::new(FilterWorkspacePublishedLease {
+            store: self.store,
+            expected_reference: self.expected_reference.clone(),
+            previous: self.observed.clone(),
+            published,
+            _guard: self._guard,
+        }))
+    }
+}
+
+#[async_trait]
+impl ActiveProfileWorkspacePublishedLease for FilterWorkspacePublishedLease<'_> {
+    fn previous_workspace(&self) -> &ProfileWorkspace {
+        &self.previous
+    }
+
+    fn published_workspace(&self) -> &ProfileWorkspace {
+        &self.published
+    }
+
+    fn commit(self: Box<Self>) -> ProfileWorkspace {
+        self.published.clone()
+    }
+
+    async fn restore_if_current(
+        self: Box<Self>,
+    ) -> Result<ActiveProfileWorkspaceRestoreOutcome<'async_trait>, PortError> {
+        if self.store.read_active_profile_reference().await?
+            != ActiveProfileReferenceState::Selected(self.expected_reference.clone())
+        {
+            return Ok(ActiveProfileWorkspaceRestoreOutcome::Superseded {
+                observed: self.store.observed().identity(),
+            });
+        }
+        let actual = self.store.observed();
+        if actual.identity() != self.published.identity() {
+            return Ok(ActiveProfileWorkspaceRestoreOutcome::Superseded {
+                observed: actual.identity(),
+            });
+        }
+        let restored = self.store.commit_workspace(
+            &self.published.identity(),
+            &ProfileWorkspaceUpdate {
+                purpose: infiltrator_ports::profile_workspace::ProfileWorkspacePurpose::Derived,
+                document_bytes: self.previous.document.raw_bytes.clone(),
+                sidecar_bytes: self.previous.sidecar_bytes.clone(),
+            },
+        )?;
+        Ok(ActiveProfileWorkspaceRestoreOutcome::Restored(Box::new(
+            FilterWorkspaceRestoredLease {
+                workspace: restored,
+                _guard: self._guard,
+            },
+        )))
+    }
+}
+
+#[async_trait]
+impl ActiveProfileWorkspaceRestoredLease for FilterWorkspaceRestoredLease {
+    fn restored_workspace(&self) -> &ProfileWorkspace {
+        &self.workspace
+    }
+
+    fn finish(self: Box<Self>) -> ProfileWorkspace {
+        self.workspace.clone()
     }
 }
 fn outside() -> PortError {
@@ -160,33 +321,63 @@ impl ProfileStore for FilterCaptureStore {
     async fn load_active_workspace(&self) -> Result<ProfileWorkspace, PortError> {
         Ok(self.observed())
     }
+    async fn read_active_profile_reference(
+        &self,
+    ) -> Result<ActiveProfileReferenceState, PortError> {
+        Ok(self
+            .active_reference
+            .lock()
+            .expect("isolated active reference")
+            .clone())
+    }
+    async fn acquire_active_workspace_write_lease(
+        &self,
+        expected_reference: ActiveProfileReference,
+        expected_workspace: ProfileWorkspaceIdentity,
+        authorization: infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization,
+    ) -> Result<Box<dyn ActiveProfileWorkspaceWriteLease + '_>, PortError> {
+        let guard = Arc::clone(&self.workspace_write_gate).lock_owned().await;
+        if authorization
+            != infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization::Unowned
+        {
+            return Err(PortError::Rejected(Failure::new(
+                ErrorCode::NotReady,
+                "isolated filter fixture has no bound Core owner",
+                true,
+            )));
+        }
+        if self.read_active_profile_reference().await?
+            != ActiveProfileReferenceState::Selected(expected_reference.clone())
+            || expected_workspace.document.engine_id != expected_reference.engine_id
+            || expected_workspace.document.profile_id != expected_reference.profile_id
+        {
+            return Err(PortError::Rejected(Failure::new(
+                ErrorCode::NotReady,
+                "active reference changed",
+                true,
+            )));
+        }
+        let observed = self.load_active_workspace().await?;
+        if observed.identity() != expected_workspace {
+            return Err(PortError::Rejected(Failure::new(
+                ErrorCode::NotReady,
+                "profile document changed",
+                true,
+            )));
+        }
+        Ok(Box::new(FilterWorkspaceWriteLease {
+            store: self,
+            expected_reference,
+            observed,
+            _guard: guard,
+        }))
+    }
     async fn compare_and_save_inactive_workspace(
         &self,
         expected: &ProfileWorkspaceIdentity,
         update: &ProfileWorkspaceUpdate,
     ) -> Result<ProfileWorkspace, PortError> {
-        let mut current = self.workspace.lock().expect("isolated filter store");
-        if current.identity() != *expected {
-            return Err(PortError::Rejected(Failure::new(
-                ErrorCode::NotReady,
-                "The profile or options changed",
-                true,
-            )));
-        }
-        if self.deny_write.load(Ordering::SeqCst) {
-            return Err(PortError::Rejected(Failure::new(
-                ErrorCode::Permission,
-                "Allow profile write access, then retry",
-                true,
-            )));
-        }
-        let mut committed =
-            workspace_from_raw_bytes(update.document_bytes.clone(), update.sidecar_bytes.clone())?;
-        committed.write_protection = ProfileWriteProtection::Editable;
-        committed.document.identity.profile_id = expected.document.profile_id.clone();
-        *current = committed.clone();
-        self.writes.fetch_add(1, Ordering::SeqCst);
-        Ok(committed)
+        self.commit_workspace(expected, update)
     }
     async fn clear_backup(&self, profile: &str) -> Result<(), PortError> {
         Self::check_profile(profile)

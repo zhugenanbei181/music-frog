@@ -1,5 +1,6 @@
 //! Native TEA protocol editor consuming the shared field and fact projections.
 use crate::state::AppState;
+use crate::state::runtime::CustomNodeSaveState;
 use crate::types::message::Message;
 use crate::view::component_forms::{form_input_style, style_accent, style_ghost};
 use crate::view::components::toggle_switch;
@@ -36,7 +37,8 @@ pub fn custom_node_modal(state: &AppState) -> Element<'_, Message> {
         button(text(lang.tr("btn_save").into_owned()))
             .style(style_accent)
             .on_press_maybe(
-                (!state.runtime.custom_node_saving).then_some(Message::SaveCustomNodeForm)
+                (state.runtime.custom_node_save_state == CustomNodeSaveState::Idle)
+                    .then_some(Message::SaveCustomNodeForm)
             ),
     ]
     .spacing(8)
@@ -57,7 +59,7 @@ pub fn custom_node_modal(state: &AppState) -> Element<'_, Message> {
             color: Some(tokens(t).warning),
         }));
     }
-    if state.runtime.custom_node_saving {
+    if state.runtime.custom_node_save_state == CustomNodeSaveState::Saving {
         body = body.push(text(lang.tr("protocol_form_saving").into_owned()).size(12));
     }
     if let Some(draft) = &studio.draft {

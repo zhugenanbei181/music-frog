@@ -8,6 +8,7 @@ use bevy::ecs::{component::Component, entity::Entity, hierarchy::Children};
 use bevy::ui::InteractionDisabled;
 use bevy::ui_widgets::Activate;
 use infiltrator_application::command_application::CommandApplication;
+use infiltrator_application::doctor_actions::DoctorActionPhase;
 use infiltrator_application::doctor_application::DoctorApplication;
 use infiltrator_application::surface_reader::ApplicationSurfaceReader;
 use infiltrator_bevy_ui::app::ShellPlugin;
@@ -67,18 +68,23 @@ fn click(app: &mut App, entity: Entity) {
 }
 fn settle(app: &mut App) {
     let deadline = Instant::now() + Duration::from_secs(5);
-    while app
-        .world()
-        .resource::<DoctorActions>()
-        .state
-        .pending
-        .is_some()
-    {
+    while matches!(
+        &app.world().resource::<DoctorActions>().state.phase,
+        DoctorActionPhase::Pending(_)
+    ) {
         assert!(Instant::now() < deadline, "actual command terminal result");
         app.update();
         yield_now();
     }
     app.update();
+}
+fn pending_token(app: &App) -> u64 {
+    match &app.world().resource::<DoctorActions>().state.phase {
+        DoctorActionPhase::Pending(pending) => pending.token,
+        DoctorActionPhase::Idle | DoctorActionPhase::Failed { .. } => {
+            panic!("doctor action must have a correlated pending token")
+        }
+    }
 }
 fn publish(app: &mut App, reader: &ApplicationSurfaceReader) {
     let snapshot = Builder::new_current_thread()
@@ -138,42 +144,21 @@ fn native_doctor_controls_execute_real_failure_retry_repair_bootstrap_and_reject
     port.deny.store(true, Ordering::SeqCst);
     app.world_mut().commands().trigger(Activate { entity: run });
     app.world_mut().flush();
-    let token = app
-        .world()
-        .resource::<DoctorActions>()
-        .state
-        .pending
-        .as_ref()
-        .unwrap()
-        .token;
+    let token = pending_token(&app);
     app.world_mut().commands().trigger(CommandExecutedEvent {
         command: UiCommand::RunDoctorDiagnostics,
         request_id: RequestId(u64::MAX),
         result: Ok(CommandOutput::Unit),
     });
     app.world_mut().flush();
-    assert_eq!(
-        app.world()
-            .resource::<DoctorActions>()
-            .state
-            .pending
-            .as_ref()
-            .unwrap()
-            .token,
-        token
-    );
+    assert_eq!(pending_token(&app), token);
     settle(&mut app);
     publish(&mut app, &reader);
-    assert_eq!(
-        app.world()
-            .resource::<DoctorActions>()
-            .state
-            .failure
-            .as_ref()
-            .unwrap()
-            .code,
-        ErrorCode::Permission
-    );
+    assert!(matches!(
+        &app.world().resource::<DoctorActions>().state.phase,
+        DoctorActionPhase::Failed { failure, .. }
+            if failure.code == ErrorCode::Permission
+    ));
     assert!(app.world().get::<ButtonDisabled>(repair).unwrap().0);
     app.update();
     assert!(app.world().get::<InteractionDisabled>(repair).is_some());

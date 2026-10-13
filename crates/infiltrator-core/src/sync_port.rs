@@ -330,9 +330,17 @@ impl<S: SecureStore> FileWebDavSync<S> {
         &self,
         configs_dir: Option<&str>,
     ) -> Result<ConfigManager<DefaultCredentialStore>, PortError> {
+        let engine = mihomo_config::engine_id();
+        let config_root = configs_dir
+            .map(|path| {
+                SyncConfigDirectory::classify(PathBuf::from(path), &engine)
+                    .map(SyncConfigDirectory::config_root)
+            })
+            .transpose()?;
+        let config_root = config_root.map(|path| path.to_string_lossy().into_owned());
         let manager = ConfigManager::with_home_configs_dir_and_store(
             self.home.clone(),
-            configs_dir,
+            config_root.as_deref(),
             DefaultCredentialStore::default(),
         )
         .map_err(|error| PortError::Io(error.to_string()))?;
@@ -359,27 +367,56 @@ impl<S: SecureStore> FileWebDavSync<S> {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum SyncConfigDirectory {
+    ConfigRoot(PathBuf),
+    EngineScoped(PathBuf),
+}
+
+impl SyncConfigDirectory {
+    fn classify(path: PathBuf, engine: &EngineId) -> Result<Self, PortError> {
+        let file_name = path.file_name().and_then(|name| name.to_str());
+        let parent_name = path
+            .parent()
+            .and_then(Path::file_name)
+            .and_then(|name| name.to_str());
+        match (parent_name, file_name) {
+            (Some("engines"), Some(namespace)) if namespace == engine.as_str() => {
+                Ok(Self::EngineScoped(path))
+            }
+            (Some("engines"), Some(namespace)) => Err(PortError::PermissionDenied(format!(
+                "profile namespace `{namespace}` does not match `{}`",
+                engine.as_str()
+            ))),
+            _ => Ok(Self::ConfigRoot(path)),
+        }
+    }
+
+    fn config_root(self) -> PathBuf {
+        match self {
+            Self::ConfigRoot(path) => path,
+            Self::EngineScoped(path) => path
+                .parent()
+                .and_then(Path::parent)
+                .map(Path::to_path_buf)
+                .expect("engine-scoped directory has an engines parent and config root"),
+        }
+    }
+
+    fn engine_directory(self, engine: &EngineId) -> PathBuf {
+        match self {
+            Self::ConfigRoot(path) => engine_config_dir(&path, engine),
+            Self::EngineScoped(path) => path,
+        }
+    }
+}
+
 fn scoped_conflict_root(
     configs_root_or_scoped: &Path,
     engine: &infiltrator_contract::core_identity::EngineId,
 ) -> Result<PathBuf, PortError> {
-    let engine_name = engine.as_str();
-    let file_name = configs_root_or_scoped
-        .file_name()
-        .and_then(|name| name.to_str());
-    let parent_name = configs_root_or_scoped
-        .parent()
-        .and_then(Path::file_name)
-        .and_then(|name| name.to_str());
-    match (parent_name, file_name) {
-        (Some("engines"), Some(namespace)) if namespace == engine_name => {
-            Ok(configs_root_or_scoped.to_path_buf())
-        }
-        (Some("engines"), Some(namespace)) => Err(PortError::PermissionDenied(format!(
-            "snapshot/profile namespace `{namespace}` does not match `{engine_name}`"
-        ))),
-        _ => Ok(engine_config_dir(configs_root_or_scoped, engine)),
-    }
+    SyncConfigDirectory::classify(configs_root_or_scoped.to_path_buf(), engine)
+        .map(|directory| directory.engine_directory(engine))
 }
 
 fn sync_state_path(config_root: &Path, engine: &EngineId) -> PathBuf {

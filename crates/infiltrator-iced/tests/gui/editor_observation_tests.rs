@@ -10,7 +10,6 @@ use futures_util::StreamExt;
 use iced::Task;
 use iced_runtime::{Action, task::into_stream};
 use infiltrator_application::filter_capture_store::{FILTER_PROFILE, FilterCaptureStore};
-use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::surface_reader::ApplicationSurfaceReader;
 use infiltrator_contract::core_capabilities::{CoreOperation, ProfileOperation};
 use infiltrator_contract::error::{ErrorCode, Failure};
@@ -42,7 +41,7 @@ fn terminal(task: Task<Message>) -> Message {
 fn tea_read_failure_retains_actual_document_keeps_typed_error_and_recovers_without_an_invented_save()
  {
     let store = Arc::new(FilterCaptureStore::default());
-    let profiles = ProfileApplication::new(store.clone());
+    let profiles = crate::configuration::profiles_for_mihomo(store.clone());
     let core = identified_core_application();
     core.install_command_handler(Arc::new(
         core_test_command_application([CoreOperation::Profile(ProfileOperation::Apply)])

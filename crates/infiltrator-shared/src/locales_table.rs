@@ -534,7 +534,6 @@ fn translate_zh_cn_primary(key: &str) -> Cow<'static, str> {
         "dns_status_loading" => "加载中".into(),
         "dns_status_modified" => "已修改".into(),
         "dns_status_saving" => "保存中".into(),
-        "dns_status_rebuilding" => "重建中".into(),
         "dns_status_done" => "完成".into(),
         "dns_status_failed" => "失败".into(),
         "dns_status_saved" => "已保存".into(),

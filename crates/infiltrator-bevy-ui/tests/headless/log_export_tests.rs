@@ -42,7 +42,7 @@ use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_desktop::log_export::DesktopLogExportPort;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::log_export::LogExportPort;
-use infiltrator_ports::runtime_gateway::RuntimeStreamEvent;
+use infiltrator_ports::runtime_stream::RuntimeStreamEvent;
 use infiltrator_ports::surface::SurfaceReader;
 use std::fs;
 use std::path::Path;

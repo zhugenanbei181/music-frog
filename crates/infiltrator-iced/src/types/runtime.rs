@@ -1,5 +1,5 @@
 //! Runtime-domain types: core lifecycle status, the live runtime config
-//! snapshot and the profile-rebuild flow state.
+//! snapshot and configuration-save status.
 
 use infiltrator_contract::connection::ConnectionStreamPhase;
 use infiltrator_contract::error::InfiltratorError;
@@ -97,13 +97,10 @@ pub struct RuntimePatchSnapshot {
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]
-pub enum RebuildFlowState {
+pub enum ConfigurationSaveState {
     #[default]
     Idle,
     Saving {
-        label: String,
-    },
-    Rebuilding {
         label: String,
     },
     Done {

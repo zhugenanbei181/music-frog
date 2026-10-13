@@ -8,11 +8,12 @@
 //! the surface state machine around it.
 
 use crate::configs_dir::config_manager;
+use crate::configuration::profiles_for_mihomo;
 use crate::state::AppState;
+use crate::state::runtime::CustomNodeSaveState;
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use iced::Task;
-use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::protocol_codec_application::{
     ProtocolCodecApplication, publish_studio,
 };
@@ -24,13 +25,12 @@ use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
 use infiltrator_contract::protocol_fidelity::ProtocolDraft;
 use infiltrator_contract::protocol_trust::CaTrustReport;
 use infiltrator_ports::certificate_authority::CertificateAuthorityPort;
-use mihomo_config::profile_document_codec::MihomoProfileDocumentCodec;
 use std::sync::Arc;
 
 /// DUAL-05-09/10: load the active profile and run the shared dialer analyzer.
 async fn scan_dialer_chains() -> Result<DialerChainReport, InfiltratorError> {
     let store = config_manager().await?;
-    let application = ProfileApplication::new(store);
+    let application = profiles_for_mihomo(store);
     let (_profile, content) = application
         .current_content()
         .await
@@ -75,7 +75,7 @@ impl AppState {
         }
         match message {
             Message::OpenCustomNodeModal => {
-                if self.runtime.custom_node_saving {
+                if self.runtime.custom_node_save_state == CustomNodeSaveState::Saving {
                     return Task::none();
                 }
                 // DUAL-05: the modal is a projection of the shared studio, so
@@ -197,7 +197,7 @@ impl AppState {
                 Task::none()
             }
             Message::SaveCustomNodeForm => {
-                if self.runtime.custom_node_saving
+                if self.runtime.custom_node_save_state == CustomNodeSaveState::Saving
                     || !self.runtime.custom_node_inputs.errors.is_empty()
                 {
                     return Task::none();
@@ -224,7 +224,7 @@ impl AppState {
                     self.runtime.custom_node_studio = next;
                     return Task::done(Message::ShowToast(issues, ToastStatus::Error));
                 }
-                self.runtime.custom_node_saving = true;
+                self.runtime.custom_node_save_state = CustomNodeSaveState::Saving;
                 if let Some(application) = self.command_ingress() {
                     return Task::perform(
                         async move {
@@ -252,8 +252,7 @@ impl AppState {
                             )
                         })?;
                         let store = config_manager().await?;
-                        let profiles = ProfileApplication::new(store)
-                            .with_document_codec(Arc::new(MihomoProfileDocumentCodec));
+                        let profiles = profiles_for_mihomo(store);
                         let commit = ProtocolCodecApplication::save_draft_to_active_profile(
                             &profiles,
                             runtime,
@@ -269,10 +268,10 @@ impl AppState {
                 )
             }
             Message::CustomNodeSaved(result) => {
-                if !self.runtime.custom_node_saving {
+                if self.runtime.custom_node_save_state != CustomNodeSaveState::Saving {
                     return Task::none();
                 }
-                self.runtime.custom_node_saving = false;
+                self.runtime.custom_node_save_state = CustomNodeSaveState::Idle;
                 match result {
                     Ok(_) => {
                         self.runtime.custom_node_modal_open = false;

@@ -7,7 +7,7 @@ use crate::state::proxy_probe::{OutboundProbeActionAvailability, OutboundProbeBa
 use crate::state::proxy_search::ProxySearchState;
 use crate::types::app::{LanSecurityConfig, LanSharingConfig, PacManagerConfig};
 use crate::types::dns::TunStackConfig;
-use crate::types::runtime::{RebuildFlowState, RuntimePatchSnapshot, RuntimeStatus};
+use crate::types::runtime::{ConfigurationSaveState, RuntimePatchSnapshot, RuntimeStatus};
 use infiltrator_application::protocol_form::ProtocolInputs;
 use infiltrator_application::proxy_group_order_editor::ProxyGroupOrderEditor;
 use infiltrator_application::routing_intent_actions::RoutingIntentActions;
@@ -50,7 +50,7 @@ use infiltrator_contract::traffic_waveform::TrafficWaveformSnapshot;
 use infiltrator_contract::version::{
     CoreArtifactVerification, CoreVersionSnapshot, InstalledCoreVersion,
 };
-use infiltrator_contract::vpn::VpnSessionSnapshot;
+use infiltrator_contract::vpn::{VpnSessionSnapshot, VpnSurfaceObservation};
 use infiltrator_ports::host_runtime::{HostRuntime, TunServiceStatus};
 use infiltrator_ports::privileged_network::PrivilegedNetworkPort;
 use infiltrator_ports::rule_provider_cache::RuleProviderCachePort;
@@ -59,6 +59,20 @@ use std::collections::{BTreeMap, HashSet};
 use std::sync::Arc;
 use std::time::Instant;
 use zhuge_ui_core::text::SearchTextRun;
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum TunServiceInstallState {
+    #[default]
+    Idle,
+    Installing,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum CustomNodeSaveState {
+    #[default]
+    Idle,
+    Saving,
+}
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum ProbeSettingsDialogState {
@@ -89,6 +103,8 @@ pub struct RuntimeState {
     pub mtu: MtuNegotiationSnapshot,
     pub ipv6_routing: Ipv6RoutingSnapshot,
     pub vpn: VpnSessionSnapshot,
+    /// Owner-authored VPN observation from the canonical cross-surface read model.
+    pub vpn_observation: VpnSurfaceObservation,
     /// Shared control state used by sidebar and settings quick toggles.
     pub system_toggles: SystemToggleSnapshot,
     pub privileged_network: PrivilegedNetworkSnapshot,
@@ -162,7 +178,7 @@ pub struct RuntimeState {
     pub runtime_control: RuntimeControlSnapshot,
     pub tun_enabled: Option<bool>,
     pub tun_service_status: Option<TunServiceStatus>,
-    pub is_installing_tun_service: bool,
+    pub tun_service_install_state: TunServiceInstallState,
     pub system_proxy_enabled: bool,
     pub system_proxy_pending: bool,
     pub autostart_enabled: bool,
@@ -189,7 +205,7 @@ pub struct RuntimeState {
     pub offline_startup: OfflineStartupSnapshot,
     pub core_download: CoreDownloadState,
     pub core_update_check: CoreUpdateCheckState,
-    pub rebuild_flow: RebuildFlowState,
+    pub configuration_save_state: ConfigurationSaveState,
     pub group_order_editor: ProxyGroupOrderEditor,
     pub group_order_dialog: ProxyGroupOrderDialogState,
     pub custom_node_modal_open: bool,
@@ -200,7 +216,7 @@ pub struct RuntimeState {
     /// fact source.
     pub custom_node_studio: ProtocolStudioSnapshot,
     pub custom_node_inputs: ProtocolInputs,
-    pub custom_node_saving: bool,
+    pub custom_node_save_state: CustomNodeSaveState,
     pub network_roaming: NetworkRoamingSnapshot,
     pub pac_manager: PacManagerConfig,
     pub lan_sharing: LanSharingConfig,

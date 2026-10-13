@@ -456,5 +456,5 @@ impl AppState {
 }
 
 #[cfg(test)]
-#[path = "../../tests/gui/capture_geometry_tests.rs"]
+#[path = "../tests/gui/capture_geometry_tests.rs"]
 mod tests;

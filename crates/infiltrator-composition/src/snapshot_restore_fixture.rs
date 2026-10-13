@@ -1,6 +1,10 @@
 //! Isolated memory adapters for both peers' native restoration tests and pixel captures.
 use async_trait::async_trait;
+use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::snapshot_application::SnapshotApplication;
+use infiltrator_contract::active_profile_reference::{
+    ActiveProfileReferenceRevision, ActiveProfileReferenceState,
+};
 use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::error::{ErrorCode, Failure};
@@ -35,6 +39,7 @@ struct MemoryState {
 #[derive(Clone)]
 pub struct SnapshotRestoreFixture {
     state: Arc<Mutex<MemoryState>>,
+    profile_store: Arc<MemoryProfile>,
     pub application: SnapshotApplication,
     pub target: SnapshotRestoreTarget,
 }
@@ -51,8 +56,9 @@ impl SnapshotRestoreFixture {
         }));
         let store = Arc::new(MemoryProfile(state.clone()));
         Self {
-            application: SnapshotApplication::new(store, Arc::new(MemorySnapshot)),
+            application: SnapshotApplication::new(store.clone(), Arc::new(MemorySnapshot)),
             state,
+            profile_store: store,
             target: SnapshotRestoreTarget {
                 profile: "main".into(),
                 snapshot_id: SNAPSHOT.into(),
@@ -61,6 +67,9 @@ impl SnapshotRestoreFixture {
     }
     pub fn writes(&self) -> usize {
         self.state.lock().unwrap().writes
+    }
+    pub fn profile_application(&self) -> ProfileApplication {
+        ProfileApplication::new(self.profile_store.clone())
     }
     pub fn content(&self) -> String {
         self.state.lock().unwrap().content.clone()
@@ -136,6 +145,13 @@ impl ProfileStore for MemoryProfile {
     }
     async fn get_current(&self) -> Result<String, PortError> {
         Ok("main".into())
+    }
+    async fn read_active_profile_reference(
+        &self,
+    ) -> Result<ActiveProfileReferenceState, PortError> {
+        Ok(ActiveProfileReferenceState::Unselected {
+            revision: ActiveProfileReferenceRevision::new(0),
+        })
     }
     async fn load(&self, profile: &str) -> Result<String, PortError> {
         scoped(profile)?;

@@ -6,11 +6,13 @@ use infiltrator_contract::profile_document_identity::{
     ProfileSchemaVersion, ProfileSidecarRevision, ProfileSourceId,
 };
 use infiltrator_contract::profile_protection::ProfileWriteProtection;
+#[cfg(test)]
 use infiltrator_domain::profile_options::ProfileOptions;
 use infiltrator_domain::profile_source::hash_bytes;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_workspace::ProfileWorkspace;
 
+#[cfg(test)]
 pub(super) fn workspace_with_origin(
     profile: &str,
     document_bytes: &[u8],

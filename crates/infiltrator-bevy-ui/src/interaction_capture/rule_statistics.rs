@@ -58,10 +58,11 @@ pub fn install(app: &mut App) {
         .with_configuration(super::mihomo_configuration_application(store.clone()));
     let observed = Arc::new(Mutex::new(None));
     let result = observed.clone();
+    let trace_store = store.clone();
     tokio_application_runtime()
         .expect("isolated statistics read")
         .block_on(Box::pin(async move {
-            let workspace = store
+            let workspace = trace_store
                 .load_rule_workspace()
                 .await
                 .expect("capture profile workspace")

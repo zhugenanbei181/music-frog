@@ -1,6 +1,6 @@
 //! Engine-scoped profile enumeration and neutral catalog projection.
 
-use crate::metadata::read_profile_metadata;
+use crate::metadata::{default_profile_metadata, read_profile_metadata};
 use crate::store::EngineProfileStore;
 use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
 use infiltrator_contract::profile_document_identity::ProfileId;
@@ -54,28 +54,30 @@ impl<S: SecureStore> EngineProfileStore<S> {
                 path: path.to_string_lossy().to_string(),
                 ..ProfileInfo::default()
             };
-            if let Some(table) = metadata_table
+            let metadata = match metadata_table
                 .and_then(|table| table.get(&name))
                 .and_then(toml::Value::as_table)
             {
-                let metadata =
-                    read_profile_metadata(self.credential_store(), &engine, &name, table).await;
-                info.subscription_url = metadata.subscription_url;
-                info.auto_update_enabled = metadata.auto_update_enabled;
-                info.update_interval_hours = metadata.update_interval_hours;
-                info.last_updated = metadata.last_updated;
-                info.next_update = metadata.next_update;
-                info.traffic_upload = metadata.traffic_upload;
-                info.traffic_download = metadata.traffic_download;
-                info.traffic_total = metadata.traffic_total;
-                info.expire_at = metadata.expire_at;
-                info.user_agent = metadata.user_agent;
-                info.etag = metadata.etag;
-                info.last_modified = metadata.last_modified;
-                info.cron_expression = metadata.cron_expression;
-                info.insecure_skip_verify = metadata.insecure_skip_verify;
-                info.auto_reload_core = metadata.auto_reload_core;
-            }
+                Some(table) => {
+                    read_profile_metadata(self.credential_store(), &engine, &name, table).await
+                }
+                None => default_profile_metadata(),
+            };
+            info.subscription_url = metadata.subscription_url;
+            info.auto_update_enabled = metadata.auto_update_enabled;
+            info.update_interval_hours = metadata.update_interval_hours;
+            info.last_updated = metadata.last_updated;
+            info.next_update = metadata.next_update;
+            info.traffic_upload = metadata.traffic_upload;
+            info.traffic_download = metadata.traffic_download;
+            info.traffic_total = metadata.traffic_total;
+            info.expire_at = metadata.expire_at;
+            info.user_agent = metadata.user_agent;
+            info.etag = metadata.etag;
+            info.last_modified = metadata.last_modified;
+            info.cron_expression = metadata.cron_expression;
+            info.insecure_skip_verify = metadata.insecure_skip_verify;
+            info.auto_reload_core = metadata.auto_reload_core;
             info.has_backup = if validate_profile_name(&name).is_ok() {
                 match ProfileId::new(name) {
                     Ok(profile_id) => self

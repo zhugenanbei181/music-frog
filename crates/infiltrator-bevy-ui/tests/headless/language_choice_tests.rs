@@ -131,7 +131,7 @@ fn real_language_buttons_retry_failed_save_and_refresh_keeps_entities_draft_sele
     let phase = &app.world().resource::<LanguageChoiceResource>().model.phase;
     assert_eq!(
         match phase {
-            LanguageChoicePhase::Failed { failure, .. } => failure.code,
+            LanguageChoicePhase::Failed { failure, .. } => failure.code.clone(),
             LanguageChoicePhase::Ready
             | LanguageChoicePhase::Pending(_)
             | LanguageChoicePhase::Rejected(_)

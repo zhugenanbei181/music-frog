@@ -7,6 +7,7 @@ use infiltrator_contract::profile_document_identity::{
     ProfileDocumentSourceKind, ProfileFormatId, ProfileId, ProfileSchemaVersion,
     ProfileSidecarRevision, ProfileSourceId, ProfileWorkspaceIdentity,
 };
+use infiltrator_ports::profile_document_codec::ProfileDocumentCodecPort;
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::rule_tracer::RuleWorkspace;
 use std::sync::Arc;

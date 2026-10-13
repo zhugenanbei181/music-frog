@@ -25,6 +25,8 @@ native-tray-backend = []
 # pinned old glibc via cargo-zigbuild; see the release.yml Linux build leg.
 static-openssl = ["dep:openssl", "openssl/vendored"]
 script-engine-boa = ["infiltrator-application/script-engine-boa"]
+# Screenshot/demo fixture path; disabled in shipped product defaults.
+capture-tools = ["infiltrator-application/capture-fixtures"]
 
 [dependencies]
 zhuge-ui-tokens.workspace = true
@@ -94,12 +96,18 @@ openssl = { version = "0.10", optional = true }
 #   stream so journey tests drive the REAL worker chains end to end instead
 #   of re-running task bodies by hand. Same 0.14 tree as the `iced` dep.
 [dev-dependencies]
+infiltrator-application = { path = "../infiltrator-application", features = ["capture-fixtures"] }
 tempfile = { workspace = true }
 axum = { workspace = true }
 iced_runtime = "0.14"
 infiltrator-core = { path = "../infiltrator-core" }
 infiltrator-platform = { path = "../infiltrator-platform" }
 mihomo-version = { path = "../mihomo-version" }
+
+[[test]]
+name = "headless"
+path = "tests/headless.rs"
+required-features = ["capture-tools"]
 
 [package.metadata.packager]
 product-name = "MusicFrog Infiltrator"

@@ -12,7 +12,7 @@ use crate::test_mounts::command_harness::{
 };
 use crate::types::app::{ConfirmAction, ToastStatus};
 use crate::types::message::Message;
-use crate::types::runtime::{RebuildFlowState, RuntimeStatus};
+use crate::types::runtime::{ConfigurationSaveState, RuntimeStatus};
 use futures_util::StreamExt;
 use iced::Task;
 use iced_runtime::Action;
@@ -90,7 +90,7 @@ fn factory_reset_wipes_temp_home_and_boots_back_into_defaults() {
     home.seed_profile("default", "mixed-port: 7890\nmode: rule\n");
     home.seed_profile("Custom", "mixed-port: 7891\nmode: global\n");
     assert!(home.join("settings.toml").exists());
-    assert!(home.configs().join("Custom.yaml").exists());
+    assert!(home.profile_config_dir().join("Custom.yaml").exists());
 
     let mut state = fresh_state();
     state.shell.lang = "zh-CN".into();
@@ -123,11 +123,11 @@ fn factory_reset_wipes_temp_home_and_boots_back_into_defaults() {
     assert!(!home.join("settings.toml").exists(), "AppSettings wiped");
     assert!(!home.join("logs/app-2026-08-31.log").exists(), "logs wiped");
     assert!(
-        !home.configs().join("Custom.yaml").exists(),
+        !home.profile_config_dir().join("Custom.yaml").exists(),
         "custom profile wiped"
     );
     assert!(
-        home.configs().join("default.yaml").exists(),
+        home.profile_config_dir().join("default.yaml").exists(),
         "default profile reseeded"
     );
 
@@ -139,7 +139,10 @@ fn factory_reset_wipes_temp_home_and_boots_back_into_defaults() {
         state.profile.profiles.is_empty(),
         "fresh state, catalog empty"
     );
-    assert!(matches!(state.runtime.rebuild_flow, RebuildFlowState::Idle));
+    assert!(matches!(
+        state.runtime.configuration_save_state,
+        ConfigurationSaveState::Idle
+    ));
     assert!(units >= 4, "LoadProfiles + LoadKernels + settings + toast");
 
     // The post-reset LoadProfiles would list the reseeded default only.

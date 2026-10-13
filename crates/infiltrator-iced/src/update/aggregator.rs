@@ -8,12 +8,13 @@
 //! profiles are never touched.
 
 use crate::configs_dir::config_manager;
+use crate::configuration::profiles_for_mihomo;
 use crate::state::AppState;
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use iced::Task;
 use infiltrator_application::profile_aggregation_application::ProfileAggregationApplication;
-use infiltrator_application::profile_application::{ProfileApplication, ProfileRuntimeAccess};
+use infiltrator_application::profile_application::ProfileRuntimeAccess;
 use infiltrator_contract::aggregator::{
     AggregatedProfileOutcome, AggregationActivationOutcome, AggregationCustomGroup,
     AggregationDraft, AggregationRenameRule,
@@ -60,7 +61,7 @@ impl AppState {
     }
 
     fn aggregator_application(store: Arc<dyn ProfileStore>) -> ProfileAggregationApplication {
-        ProfileAggregationApplication::new(ProfileApplication::new(store))
+        ProfileAggregationApplication::new(profiles_for_mihomo(store))
     }
 
     pub(super) fn update_aggregator(&mut self, message: Message) -> Task<Message> {

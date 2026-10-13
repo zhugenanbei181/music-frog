@@ -224,7 +224,7 @@ impl RulesJsonState {
 
     /// Build the save command for the active section, if the buffer can be
     /// submitted.
-    pub fn submit_command(&self) -> Result<UiCommand, RulesJsonSubmissionFailure> {
+    fn submit_command(&self) -> Result<UiCommand, RulesJsonSubmissionFailure> {
         let json = self.buffer().full_text();
         if json.trim().is_empty() {
             return Err(RulesJsonSubmissionFailure::Empty);

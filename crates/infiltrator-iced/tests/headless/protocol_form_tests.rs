@@ -75,7 +75,10 @@ fn protocol_form_uses_typed_fields_and_retains_invalid_input_and_save_failure() 
     ));
     let task = state.update(Message::SaveCustomNodeForm);
     assert_eq!(task.units(), 1);
-    assert!(state.runtime.custom_node_saving);
+    assert_eq!(
+        state.runtime.custom_node_save_state,
+        infiltrator_iced::state::runtime::CustomNodeSaveState::Saving
+    );
     assert_eq!(state.update(Message::SaveCustomNodeForm).units(), 0);
     let runtime = Builder::new_current_thread().enable_all().build().unwrap();
     runtime.block_on(async {
@@ -92,7 +95,10 @@ fn protocol_form_uses_typed_fields_and_retains_invalid_input_and_save_failure() 
     );
     // A terminal persistence failure must leave the actual editor and its fields available.
     assert!(state.runtime.custom_node_modal_open);
-    assert!(!state.runtime.custom_node_saving);
+    assert_eq!(
+        state.runtime.custom_node_save_state,
+        infiltrator_iced::state::runtime::CustomNodeSaveState::Idle
+    );
     assert!(
         state
             .runtime

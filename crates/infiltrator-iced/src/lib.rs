@@ -13,9 +13,12 @@ use infiltrator_application::surface_application::SurfacePump;
 pub mod accessibility;
 pub mod admin_server;
 pub mod app;
+mod capture_frame;
+mod capture_geometry;
 mod command_ingress;
 pub mod configs_dir;
 pub mod configuration;
+#[cfg(any(feature = "capture-tools", test))]
 pub mod demo;
 pub mod desktop_composition;
 pub mod gesture;

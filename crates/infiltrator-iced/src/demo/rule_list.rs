@@ -6,7 +6,6 @@ use iced::Task;
 use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::language_choice_fixtures::LanguageCaptureProcess;
-use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::rule_list_application::RuleListApplication;
 use infiltrator_application::surface_reader::ApplicationSurfaceReader;
 use infiltrator_composition::tokio_application_runtime;
@@ -32,7 +31,7 @@ pub(super) fn activate(state: &mut AppState) -> Task<Message> {
         SurfaceKind::IcedDesktop,
         HostKind::Desktop,
     )
-    .with_profiles(ProfileApplication::new(store.clone()))
+    .with_profiles(crate::configuration::profiles_for_mihomo(store.clone()))
     .with_configuration(crate::configuration::for_mihomo_store(store));
     attach_capture_owner(state, core);
     let revision = state.surface.revision() + 1;

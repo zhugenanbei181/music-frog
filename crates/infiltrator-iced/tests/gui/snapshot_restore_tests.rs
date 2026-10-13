@@ -18,7 +18,9 @@ fn setup() -> (AppState, SnapshotRestoreFixture) {
     let fixture = SnapshotRestoreFixture::new();
     let (core, _) = recording_application();
     core.install_command_handler(Arc::new(
-        CommandApplication::new().with_snapshots(fixture.application.clone()),
+        CommandApplication::new()
+            .with_profile(fixture.profile_application())
+            .with_snapshots(fixture.application.clone()),
     ));
     let (mut state, _) = AppState::new();
     attach_product_application_with_accepted_owner_snapshot(&mut state, core);

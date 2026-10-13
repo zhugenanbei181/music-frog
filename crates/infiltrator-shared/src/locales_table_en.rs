@@ -537,7 +537,6 @@ fn translate_en_primary(key: &str) -> Cow<'static, str> {
         "dns_status_loading" => "Loading".into(),
         "dns_status_modified" => "Modified".into(),
         "dns_status_saving" => "Saving".into(),
-        "dns_status_rebuilding" => "Rebuilding".into(),
         "dns_status_done" => "Done".into(),
         "dns_status_failed" => "Failed".into(),
         "dns_status_saved" => "Saved".into(),

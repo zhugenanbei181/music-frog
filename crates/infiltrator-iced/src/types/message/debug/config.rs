@@ -399,11 +399,7 @@ pub(super) fn fmt(m: &Message, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result
         Message::RuntimePanelSettingsSaved(Err(e)) => {
             write!(f, "RuntimePanelSettingsSaved(Err({:?}))", e)
         }
-        Message::RuntimeRebuildFinished(Ok(_)) => write!(f, "RuntimeRebuildFinished(Ok)"),
-        Message::RuntimeRebuildFinished(Err(e)) => {
-            write!(f, "RuntimeRebuildFinished(Err({:?}))", e)
-        }
-        Message::ClearRebuildFlow => write!(f, "ClearRebuildFlow"),
+        Message::ClearConfigurationSaveState => write!(f, "ClearConfigurationSaveState"),
         Message::TogglePerfPanel => write!(f, "TogglePerfPanel"),
         Message::ToggleTheme => write!(f, "ToggleTheme"),
         Message::SetTheme(t) => write!(f, "SetTheme({t})"),

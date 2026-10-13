@@ -159,6 +159,7 @@ pub fn profile_editor_scene(
         loaded_content: document.map(|document| document.content.clone()),
         diagnostic: None,
         document_inspection: document.map(|document| document.inspection.clone()),
+        mixin_preflight: Default::default(),
         validation_source: ProfileValidationSource::Snapshot,
         notice: None,
         format_note: None,

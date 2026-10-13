@@ -1,7 +1,7 @@
 //! Shell owner.
 
 use crate::admin_server::{AdminServerManager, AdminSharedRuntime, SharedAdminCommandReceiver};
-use crate::demo::frame::CaptureFrameGate;
+use crate::capture_frame::CaptureFrameGate;
 use crate::tray::SharedTrayEventReceiver;
 use crate::tray::spec::TrayController;
 use crate::types::app::{

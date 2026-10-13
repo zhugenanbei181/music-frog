@@ -19,7 +19,7 @@ use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::dns::DnsSettingsPatch;
 use infiltrator_contract::dns_cache::DnsCacheOperationId;
 use infiltrator_contract::dns_query::{DnsQueryOperationId, DnsQueryRequest};
-use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::error::Failure;
 use infiltrator_contract::lan::LanCredentials;
 use infiltrator_contract::language::LanguagePreference;
 use infiltrator_contract::log_export::LogExportIdentity;

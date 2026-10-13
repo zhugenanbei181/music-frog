@@ -12,7 +12,6 @@ use bevy::ui::widget::Text;
 use bevy::ui_widgets::ButtonPlugin;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::filter_capture_store::{FILTER_PROFILE, FilterCaptureStore};
-use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::surface_reader::ApplicationSurfaceReader;
 use infiltrator_bevy_ui::app::ShellPlugin;
 use infiltrator_bevy_ui::pages::profiles_editor::{
@@ -25,7 +24,6 @@ use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::command::CommandIntent;
-use infiltrator_contract::core_capabilities::CoreOperation;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::PageStatus;
@@ -50,7 +48,7 @@ fn publish(app: &mut App, reader: &ApplicationSurfaceReader) {
 fn native_editor_keeps_its_observed_document_on_permission_failure_disables_save_and_replays_locale_until_actual_recovery()
  {
     let store = Arc::new(FilterCaptureStore::default());
-    let profiles = ProfileApplication::new(store.clone());
+    let profiles = crate::support::mihomo_profiles(store.clone());
     let core = Arc::new(CoreApplication::new(
         Arc::new(IdentifiedHostlessProcess),
         Arc::new(HostlessProcess),

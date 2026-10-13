@@ -11,7 +11,6 @@ use crate::types::rule_trace::RuleTraceAction;
 use futures_util::StreamExt;
 use iced::Task;
 use iced_runtime::{Action, task::into_stream};
-use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::rule_list_application::RuleListApplication;
 use infiltrator_application::rule_trace_fixtures::{
     NAMED_TRACE_DOCUMENT, RuleTraceStore, TRACE_DOCUMENT,
@@ -30,7 +29,8 @@ pub(crate) fn setup() -> (AppState, ApplicationSurfaceReader, Arc<RuleTraceStore
     let store = infiltrator_iced::configuration::mihomo_rule_trace_fixture();
     let owner = RuleTracerApplication::new();
     owner.set_override_port(store.clone());
-    let configuration = infiltrator_iced::configuration::for_mihomo_store(store.clone());
+    let profiles = infiltrator_iced::configuration::profiles_for_mihomo(store.clone());
+    let configuration = infiltrator_iced::configuration::for_mihomo_profiles(profiles.clone());
     let (application, _) = recording_application();
     application.install_command_handler(Arc::new(
         core_test_command_application([
@@ -38,7 +38,9 @@ pub(crate) fn setup() -> (AppState, ApplicationSurfaceReader, Arc<RuleTraceStore
             CoreOperation::Rules(RulesOperation::Apply),
         ])
         .with_rule_tracer(owner.clone())
-        .with_rule_list(RuleListApplication::new(store.clone())),
+        .with_rule_list(RuleListApplication::new(store.clone()))
+        .with_profile(profiles.clone())
+        .with_configuration(configuration.clone()),
     ));
     let reader = ApplicationSurfaceReader::new(
         Arc::new(application.clone()),
@@ -46,7 +48,7 @@ pub(crate) fn setup() -> (AppState, ApplicationSurfaceReader, Arc<RuleTraceStore
         HostKind::Desktop,
     )
     .with_rule_tracer(owner)
-    .with_profiles(ProfileApplication::new(store.clone()))
+    .with_profiles(profiles)
     .with_configuration(configuration);
     let (mut state, _) = AppState::new();
     state.attach_product_application(application);

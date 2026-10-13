@@ -48,13 +48,17 @@ fn setup() -> (App, ApplicationSurfaceReader, Arc<RuleTraceStore>) {
     let store = crate::configuration_codec::mihomo_rule_trace_fixture();
     let owner = RuleTracerApplication::new();
     owner.set_override_port(store.clone());
+    let profiles = crate::support::mihomo_profiles(store.clone());
+    let configuration = infiltrator_application::configuration_application::ConfigurationApplication::from_profile_application(profiles.clone());
     let (application, _) = identified_recording_application();
     application.install_command_handler(Arc::new(
         test_command_application([
             CoreOperation::Rules(RulesOperation::Trace),
             CoreOperation::Rules(RulesOperation::Apply),
         ])
-        .with_rule_tracer(owner.clone()),
+        .with_rule_tracer(owner.clone())
+        .with_profile(profiles.clone())
+        .with_configuration(configuration.clone()),
     ));
     let application = Arc::new(application);
     let reader = ApplicationSurfaceReader::new(
@@ -63,9 +67,8 @@ fn setup() -> (App, ApplicationSurfaceReader, Arc<RuleTraceStore>) {
         HostKind::Desktop,
     )
     .with_rule_tracer(owner)
-    .with_configuration(crate::configuration_codec::mihomo_configuration(
-        store.clone(),
-    ));
+    .with_profiles(profiles)
+    .with_configuration(configuration);
     let mut app = App::new();
     headless_plugins(&mut app);
     app.add_plugins((

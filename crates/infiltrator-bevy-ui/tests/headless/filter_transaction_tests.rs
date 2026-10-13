@@ -15,7 +15,6 @@ use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::filter_capture_store::{
     FILTER_POLICY, FILTER_PROFILE, FilterCaptureStore,
 };
-use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::surface_reader::ApplicationSurfaceReader;
 use infiltrator_bevy_ui::app::ShellPlugin;
 use infiltrator_bevy_ui::pages::profiles_editor_filter::{EditorFilterDiscard, EditorFilterText};
@@ -95,7 +94,7 @@ fn setup() -> (App, ApplicationSurfaceReader, Arc<FilterCaptureStore>) {
         Arc::new(HostlessProcess),
         tokio_application_runtime().unwrap(),
     ));
-    let profiles = ProfileApplication::new(store.clone());
+    let profiles = crate::support::mihomo_profiles(store.clone());
     core.install_command_handler(Arc::new(
         test_command_application([CoreOperation::Profile(ProfileOperation::ApplyFeature)])
             .with_profile(profiles.clone()),
@@ -171,7 +170,12 @@ fn native_filter_transaction_reads_actual_policy_cancels_then_denies_retries_and
     click_entity(&mut app, save);
     wait_terminal(&mut app);
     let editor = &app.world().resource::<ProfileEditorOptionsState>().filter;
-    assert_eq!(editor.failure.as_ref().unwrap().code, ErrorCode::Permission);
+    assert_eq!(
+        editor.failure.as_ref().unwrap().code,
+        ErrorCode::Permission,
+        "filter transaction failure: {:?}",
+        editor.failure
+    );
     assert_eq!(editor.draft.include, "HK");
     assert_eq!(editor.draft.advanced_policy.as_deref(), Some(FILTER_POLICY));
     assert_eq!(store.observed(), original);

@@ -6,7 +6,6 @@
 //! test-intent: behavior
 use crate::test_mounts::command_harness::{
     attach_product_application_with_accepted_owner_snapshot, core_test_command_application,
-    recording_application,
 };
 use crate::test_mounts::identified_core_application::identified_core_application;
 use crate::test_mounts::profile_edit_fixture;
@@ -26,7 +25,6 @@ use futures_util::StreamExt;
 use iced::Task;
 use iced::widget::text_editor::{Action, Edit};
 use iced_runtime::task::into_stream;
-use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::profile_options_application::ProfileOptionsApplication;
 use infiltrator_application::script_export_application::ScriptExportApplication;
 use infiltrator_contract::core_capabilities::{CoreOperation, ProfileOperation};
@@ -35,7 +33,6 @@ use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_contract::subscription_filter_form::FilterObservation;
 use infiltrator_desktop::script_export::DesktopScriptExportPort;
 use infiltrator_ports::profile_document_codec::{ProfileMixinComposition, ProfileMixinToggleId};
-use mihomo_config::profile_document_codec::MihomoProfileDocumentCodec;
 use std::fs::read_to_string;
 use std::sync::Arc;
 
@@ -56,12 +53,11 @@ fn filter_terminal(task: Task<Message>) -> Message {
 fn mixin_three_pane_journey_rejects_bad_yaml_then_persists_sidecar_and_merge() {
     let home = TempHome::acquire("mixin-panes");
     home.seed_profile("alpha", SAMPLE_PROFILE_YAML);
-    let profile_path = home.configs().join("alpha.yaml");
+    let profile_path = home.profile_config_dir().join("alpha.yaml");
     let mut state = fresh_state();
 
     let store = block_on(config_manager()).unwrap();
-    let profiles = ProfileApplication::new(store.clone())
-        .with_document_codec(Arc::new(MihomoProfileDocumentCodec));
+    let profiles = crate::configuration::profiles_for_mihomo(store.clone());
     let commands = identified_core_application();
     commands.install_command_handler(Arc::new(
         core_test_command_application([
@@ -69,7 +65,7 @@ fn mixin_three_pane_journey_rejects_bad_yaml_then_persists_sidecar_and_merge() {
             CoreOperation::Profile(ProfileOperation::ApplyFeature),
             CoreOperation::Profile(ProfileOperation::Validate),
         ])
-        .with_profile(profiles),
+        .with_profile(profiles.clone()),
     ));
     attach_product_application_with_accepted_owner_snapshot(&mut state, commands);
     // Native TEA load and save tasks execute the actual application and store boundary.
@@ -112,7 +108,10 @@ fn mixin_three_pane_journey_rejects_bad_yaml_then_persists_sidecar_and_merge() {
             .contains("Mixin")
     );
     assert!(
-        !home.configs().join("options/alpha.yaml").exists(),
+        !home
+            .profile_config_dir()
+            .join("options/alpha.yaml")
+            .exists(),
         "rejected draft never writes a sidecar"
     );
     feed(&mut state, Message::MixinEditorAction(Action::SelectAll));
@@ -148,7 +147,7 @@ fn mixin_three_pane_journey_rejects_bad_yaml_then_persists_sidecar_and_merge() {
     assert!(state.editor.editor_content.text().contains("mode: global"));
 
     // Disk truth: the merged document AND the sidecar round-trip.
-    let on_disk = read_to_string(home.configs().join("alpha.yaml")).unwrap();
+    let on_disk = read_to_string(home.profile_config_dir().join("alpha.yaml")).unwrap();
     assert!(
         on_disk.contains("mode: global"),
         "mixin merged into profile: {on_disk}"
@@ -168,7 +167,7 @@ fn mixin_three_pane_journey_rejects_bad_yaml_then_persists_sidecar_and_merge() {
 fn filter_pane_journey_persists_sidecar_and_filters_proxies_on_disk() {
     let home = TempHome::acquire("filter-panes");
     home.seed_profile("alpha", SAMPLE_PROFILE_YAML);
-    let profile_path = home.configs().join("alpha.yaml");
+    let profile_path = home.profile_config_dir().join("alpha.yaml");
     let mut state = fresh_state();
     let commands = identified_core_application();
     commands.install_command_handler(Arc::new(
@@ -177,10 +176,9 @@ fn filter_pane_journey_persists_sidecar_and_filters_proxies_on_disk() {
             CoreOperation::Profile(ProfileOperation::ApplyFeature),
             CoreOperation::Profile(ProfileOperation::Validate),
         ])
-        .with_profile(
-            ProfileApplication::new(block_on(config_manager()).unwrap())
-                .with_document_codec(Arc::new(MihomoProfileDocumentCodec)),
-        ),
+        .with_profile(crate::configuration::profiles_for_mihomo(
+            block_on(config_manager()).unwrap(),
+        )),
     ));
     attach_product_application_with_accepted_owner_snapshot(&mut state, commands);
 
@@ -272,7 +270,7 @@ fn filter_pane_journey_persists_sidecar_and_filters_proxies_on_disk() {
     assert!(state.editor.filter_editor.pending.is_none());
 
     // Disk truth: the pipeline changes proxies, preserves the sidecar and can reopen.
-    let on_disk = read_to_string(home.configs().join("alpha.yaml")).unwrap();
+    let on_disk = read_to_string(home.profile_config_dir().join("alpha.yaml")).unwrap();
     let kept_names: Vec<String> = serde_yaml_ng::from_str::<serde_yaml_ng::Value>(&on_disk)
         .unwrap()
         .get("proxies")
@@ -294,10 +292,9 @@ fn filter_pane_journey_persists_sidecar_and_filters_proxies_on_disk() {
         "whitelist applied: {kept_names:?}"
     );
     let reopened = block_on(async {
-        ProfileOptionsApplication::new(
-            ProfileApplication::new(config_manager().await.unwrap())
-                .with_document_codec(Arc::new(MihomoProfileDocumentCodec)),
-        )
+        ProfileOptionsApplication::new(crate::configuration::profiles_for_mihomo(
+            config_manager().await.unwrap(),
+        ))
         .load(Some("alpha"))
         .await
         .unwrap()
@@ -313,7 +310,7 @@ fn filter_pane_journey_persists_sidecar_and_filters_proxies_on_disk() {
     feed(&mut state, Message::LoadProfileFilter);
     let token = state.editor.filter_load.as_ref().unwrap().0;
     let snapshot = reopened;
-    assert_eq!(snapshot.filter, reopened);
+    assert_eq!(snapshot.filter.include, "HK");
     feed(
         &mut state,
         Message::ProfileFilterLoaded {
@@ -349,11 +346,10 @@ fn filter_save_without_an_open_profile_is_an_inert_noop() {
 fn mixin_studio_toggles_preflight_and_cascade_ride_the_shared_module() {
     let home = TempHome::acquire("mixin-studio");
     home.seed_profile("alpha", SAMPLE_PROFILE_YAML);
-    let profile_path = home.configs().join("alpha.yaml");
+    let profile_path = home.profile_config_dir().join("alpha.yaml");
     let mut state = fresh_state();
     let manager = block_on(config_manager()).unwrap();
-    let profiles =
-        ProfileApplication::new(manager).with_document_codec(Arc::new(MihomoProfileDocumentCodec));
+    let profiles = crate::configuration::profiles_for_mihomo(manager);
     let core = identified_core_application();
     core.install_command_handler(Arc::new(CommandApplication::new().with_profile(profiles)));
     attach_product_application_with_accepted_owner_snapshot(&mut state, core);
@@ -439,7 +435,10 @@ fn mixin_studio_toggles_preflight_and_cascade_ride_the_shared_module() {
         infiltrator_application::profile_edit_session::ProfileEditOperationPhase::Pending(_)
     ));
     assert!(
-        !home.configs().join("options/alpha.yaml").exists(),
+        !home
+            .profile_config_dir()
+            .join("options/alpha.yaml")
+            .exists(),
         "blocked overlay must not write a sidecar"
     );
     // DUAL-10-09: a blocked overlay empties the composed column with the real
@@ -471,7 +470,7 @@ fn mixin_export_writes_a_real_yaml_file_and_reports_the_host_outcome() {
 
     let home = TempHome::acquire("mixin-export");
     home.seed_profile("alpha", SAMPLE_PROFILE_YAML);
-    let profile_path = home.configs().join("alpha.yaml");
+    let profile_path = home.profile_config_dir().join("alpha.yaml");
     let mut state = fresh_state();
     let reply =
         profile_edit_fixture::document(&mut state, profile_path, SAMPLE_PROFILE_YAML.into());
@@ -480,11 +479,11 @@ fn mixin_export_writes_a_real_yaml_file_and_reports_the_host_outcome() {
     let reply = profile_edit_fixture::options(&mut state, "ipv6: true\n".into());
     feed(&mut state, reply);
 
-    let exports =
-        ScriptExportApplication::new(Some(Arc::new(DesktopScriptExportPort::new(home.configs()))));
+    let exports = ScriptExportApplication::new(Some(Arc::new(DesktopScriptExportPort::new(
+        home.profile_config_dir(),
+    ))));
     let store = block_on(config_manager()).unwrap();
-    let profiles =
-        ProfileApplication::new(store).with_document_codec(Arc::new(MihomoProfileDocumentCodec));
+    let profiles = crate::configuration::profiles_for_mihomo(store);
     let commands = identified_core_application();
     commands.install_command_handler(Arc::new(
         core_test_command_application([])
@@ -498,13 +497,16 @@ fn mixin_export_writes_a_real_yaml_file_and_reports_the_host_outcome() {
     assert_eq!(task.units(), 1, "review task is armed");
     complete(&mut state, task);
     assert!(
-        !home.configs().join("exports/alpha.mixin.yaml").exists(),
+        !home
+            .profile_config_dir()
+            .join("exports/alpha.mixin.yaml")
+            .exists(),
         "review does not write"
     );
     let task = state.update(Message::Script(ScriptAction::ConfirmExport));
     complete(&mut state, task);
     let snapshot = exports.snapshot().expect("actual export result");
-    let exported_path = home.configs().join("exports/alpha.mixin.yaml");
+    let exported_path = home.profile_config_dir().join("exports/alpha.mixin.yaml");
     assert!(
         exported_path.exists(),
         "the host wrote a real overlay export at {exported_path:?}"

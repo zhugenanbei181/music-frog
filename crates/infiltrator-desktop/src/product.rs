@@ -25,6 +25,7 @@ pub enum DesktopProductSessionAvailability {
     Open,
     Switching,
     RecoveryRequired,
+    CloseUnconfirmed,
     Closed,
 }
 
@@ -94,6 +95,13 @@ pub struct DesktopProductSessionHandle {
 }
 
 impl DesktopProductSessionHandle {
+    /// Read the owner's explicit lifecycle availability without exposing its internals.
+    pub fn availability(
+        &self,
+    ) -> Result<DesktopProductSessionAvailability, DesktopProductSessionActionFailure> {
+        Ok(self.lock()?.availability())
+    }
+
     pub fn binding(
         &self,
     ) -> Result<DesktopProductSessionBinding, DesktopProductSessionActionFailure> {
@@ -121,6 +129,13 @@ impl DesktopProductSessionHandle {
         }
         session
             .binding()
+            .map_err(DesktopProductSessionActionFailure::SessionUnavailable)
+    }
+
+    /// Close the shared Core owner before the host event loop exits.
+    pub fn close(&self) -> Result<(), DesktopProductSessionActionFailure> {
+        self.lock()?
+            .close()
             .map_err(DesktopProductSessionActionFailure::SessionUnavailable)
     }
 
@@ -197,6 +212,11 @@ enum DesktopProductSessionState {
         target: ActiveProfileReferenceTarget,
         failure: DesktopProductSwitchFailure,
         resume: CoreRecompositionResume,
+    },
+    CloseUnconfirmed {
+        host_runtime: Arc<dyn HostRuntime>,
+        pump: SurfacePump,
+        failure: Failure,
     },
     Closed,
 }
@@ -277,6 +297,9 @@ impl DesktopProductSession {
                     true,
                 ));
             }
+            DesktopProductSessionState::CloseUnconfirmed { failure, .. } => {
+                return Err(failure.clone());
+            }
             DesktopProductSessionState::Closed => {
                 return Err(Failure::new(
                     ErrorCode::NotReady,
@@ -291,6 +314,45 @@ impl DesktopProductSession {
             surface_pump: pump,
             lifecycle: self.application.snapshot().lifecycle_snapshot(),
         })
+    }
+
+    fn close(&mut self) -> Result<(), Failure> {
+        let previous_state = mem::replace(&mut self.state, DesktopProductSessionState::Closed);
+        let (host_runtime, pump) = match previous_state {
+            DesktopProductSessionState::Open { host_runtime, pump }
+            | DesktopProductSessionState::CloseUnconfirmed {
+                host_runtime, pump, ..
+            }
+            | DesktopProductSessionState::RecoveryRequired {
+                host_runtime, pump, ..
+            } => (host_runtime, pump),
+            DesktopProductSessionState::Closed => return Ok(()),
+            DesktopProductSessionState::Switching => {
+                self.state = DesktopProductSessionState::Switching;
+                return Err(Failure::new(
+                    ErrorCode::InvalidState,
+                    "Desktop product session cannot close during an owner switch",
+                    false,
+                ));
+            }
+        };
+
+        match self.executor.block_on(self.application.close()) {
+            Ok(()) => {
+                drop(pump);
+                drop(host_runtime);
+                self.state = DesktopProductSessionState::Closed;
+                Ok(())
+            }
+            Err(failure) => {
+                self.state = DesktopProductSessionState::CloseUnconfirmed {
+                    host_runtime,
+                    pump,
+                    failure: failure.clone(),
+                };
+                Err(failure)
+            }
+        }
     }
 
     fn apply(
@@ -513,6 +575,7 @@ impl DesktopProductSession {
             DesktopProductSessionAvailability::Open => {}
             DesktopProductSessionAvailability::Switching
             | DesktopProductSessionAvailability::RecoveryRequired
+            | DesktopProductSessionAvailability::CloseUnconfirmed
             | DesktopProductSessionAvailability::Closed => {
                 return Err(DesktopProductSessionActionFailure::SessionUnavailable(
                     Failure::new(
@@ -541,6 +604,9 @@ impl DesktopProductSession {
             DesktopProductSessionState::RecoveryRequired { .. } => {
                 panic!("desktop product session requires owner recovery")
             }
+            DesktopProductSessionState::CloseUnconfirmed { .. } => {
+                panic!("desktop product session close is unconfirmed")
+            }
             DesktopProductSessionState::Closed => panic!("desktop product session is closed"),
         }
     }
@@ -552,6 +618,9 @@ impl DesktopProductSession {
             }
             DesktopProductSessionState::RecoveryRequired { .. } => {
                 panic!("desktop product session requires owner recovery")
+            }
+            DesktopProductSessionState::CloseUnconfirmed { .. } => {
+                panic!("desktop product session close is unconfirmed")
             }
             DesktopProductSessionState::Closed => panic!("desktop product session is closed"),
         }
@@ -565,6 +634,9 @@ impl DesktopProductSession {
             DesktopProductSessionState::RecoveryRequired { .. } => {
                 panic!("desktop product session requires owner recovery")
             }
+            DesktopProductSessionState::CloseUnconfirmed { .. } => {
+                panic!("desktop product session close is unconfirmed")
+            }
             DesktopProductSessionState::Closed => panic!("desktop product session is closed"),
         }
     }
@@ -575,6 +647,9 @@ impl DesktopProductSession {
             DesktopProductSessionState::Switching => DesktopProductSessionAvailability::Switching,
             DesktopProductSessionState::RecoveryRequired { .. } => {
                 DesktopProductSessionAvailability::RecoveryRequired
+            }
+            DesktopProductSessionState::CloseUnconfirmed { .. } => {
+                DesktopProductSessionAvailability::CloseUnconfirmed
             }
             DesktopProductSessionState::Closed => DesktopProductSessionAvailability::Closed,
         }
@@ -672,6 +747,9 @@ impl Drop for DesktopProductSession {
         match state {
             DesktopProductSessionState::Open { host_runtime, pump }
             | DesktopProductSessionState::RecoveryRequired {
+                host_runtime, pump, ..
+            }
+            | DesktopProductSessionState::CloseUnconfirmed {
                 host_runtime, pump, ..
             } => {
                 drop(pump);

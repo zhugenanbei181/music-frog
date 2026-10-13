@@ -296,7 +296,7 @@ impl<S: SecureStore> EngineProfileStore<S> {
     }
 }
 
-fn default_profile_metadata() -> ProfileMetadata {
+pub(crate) fn default_profile_metadata() -> ProfileMetadata {
     ProfileMetadata {
         auto_reload_core: true,
         ..ProfileMetadata::default()

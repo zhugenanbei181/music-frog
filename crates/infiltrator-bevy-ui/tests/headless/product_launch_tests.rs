@@ -185,8 +185,8 @@ fn failed_host_projects_failure_on_every_page_and_rejects_each_operation_once() 
     assert_eq!(snapshot.origin, SurfaceOrigin::Live);
     for page in PageId::ALL {
         assert_eq!(
-            snapshot.pages.status(page),
-            &PageStatus::Unavailable {
+            snapshot.page_status(page),
+            PageStatus::Unavailable {
                 failure: failure.clone()
             }
         );

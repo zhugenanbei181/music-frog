@@ -10,8 +10,8 @@ fn test_tun_form_invalid_mtu_blocks_save() {
     let _ = state.update(Message::SaveTunConfig);
     assert!(!state.editor.is_saving_tun);
     assert!(matches!(
-        state.runtime.rebuild_flow,
-        RebuildFlowState::Failed { .. }
+        state.runtime.configuration_save_state,
+        ConfigurationSaveState::Failed { .. }
     ));
     assert!(
         state

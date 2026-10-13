@@ -145,6 +145,7 @@ fn snapshot_from_overview_fixture(
     };
     let mut snapshot = surface_snapshot::SurfaceSnapshot {
         shell_readout: Default::default(),
+        runtime_status: Default::default(),
         runtime_control,
         probe_settings: Default::default(),
         language_settings: Default::default(),
@@ -280,6 +281,7 @@ pub(super) fn demo_snapshot() -> surface_snapshot::SurfaceSnapshot {
     });
     let mut snapshot = surface_snapshot::SurfaceSnapshot {
         shell_readout: Default::default(),
+        runtime_status: Default::default(),
         runtime_control: RuntimeControlSnapshot {
             status: RuntimeControlStatus::Ready,
             tun_enabled: Some(false),

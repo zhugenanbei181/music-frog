@@ -5,8 +5,8 @@
 //! `view`, `update`, and shared surface model modules remain inbound UI code;
 //! they are not the place to decide how a desktop host is bootstrapped.
 
-use crate::demo;
-use crate::demo::DemoEnv;
+#[cfg(feature = "capture-tools")]
+use crate::demo::{self, DemoEnv};
 use crate::state::AppState;
 use crate::surface::SurfaceBridge;
 use crate::window_chrome::{MIN_WINDOW_SIZE, window_settings};
@@ -29,9 +29,12 @@ use std::sync::Arc;
 
 /// Run the desktop product composition.
 pub fn run() -> iced::Result {
-    let demo_env = DemoEnv::from_environment();
-    if demo_env.enabled {
-        return demo::run(demo_env);
+    #[cfg(feature = "capture-tools")]
+    {
+        let demo_env = DemoEnv::from_environment();
+        if demo_env.enabled {
+            return demo::run(demo_env);
+        }
     }
 
     run_production(None)

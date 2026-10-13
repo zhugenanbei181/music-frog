@@ -12,6 +12,7 @@ use bevy::image::Image;
 use bevy::scene::ScenePlugin;
 use bevy::ui::widget::Text;
 use infiltrator_application::core_application::{CoreApplication, CoreScopeObservation};
+use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_bevy_ui::app::ContentSlot;
 use infiltrator_bevy_ui::command::CommandPumpPlugin;
 use infiltrator_bevy_ui::command_execution::ApplicationCommandSink;
@@ -25,8 +26,11 @@ use infiltrator_contract::core_capabilities::{
     OutboundOperation,
 };
 use infiltrator_contract::core_identity::CoreCommandRequest;
+use infiltrator_contract::runtime_settings::{RuntimeProbeSettings, RuntimeProbeSettingsState};
 use infiltrator_contract::surface::HostKind;
 use infiltrator_contract::surface_snapshot::{PageData, SurfaceSnapshot};
+use infiltrator_ports::profile_store::ProfileStore;
+use mihomo_config::profile_document_codec::MihomoProfileDocumentCodec;
 use std::sync::{Arc, RwLock};
 
 pub fn headless_plugins(app: &mut App) {
@@ -163,4 +167,12 @@ pub fn allow_outbound_probe(snapshot: &mut SurfaceSnapshot) {
             },
         }],
     });
+    snapshot.probe_settings = RuntimeProbeSettingsState::Available {
+        settings: RuntimeProbeSettings::default(),
+    };
+}
+
+/// Headless Bevy tests select the same engine codec as the product host.
+pub fn mihomo_profiles(store: Arc<dyn ProfileStore>) -> ProfileApplication {
+    ProfileApplication::new(store).with_document_codec(Arc::new(MihomoProfileDocumentCodec))
 }

@@ -157,7 +157,7 @@ fn actual_hosts_modal_edit_cancel_migration_failure_retry_and_reader_fences_pres
             .legacy_entries
             .is_empty()
     );
-    assert_eq!(store.writes.load(Ordering::SeqCst), 2);
+    assert_eq!(store.writes.load(Ordering::SeqCst), 1);
     let row = state.editor.dns_hosts_editor.rows[0].id;
     let _ = state.update(Message::EditDnsHostRow(row));
     let _ = state.update(Message::UpdateDnsHostsAddress("7.7.7.7".into()));

@@ -38,7 +38,6 @@ use infiltrator_application::filter_capture_store::{
     FILTER_POLICY, FILTER_PROFILE, FilterCaptureStore,
 };
 use infiltrator_application::language_choice_fixtures::LanguageCaptureProcess;
-use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::surface_reader::ApplicationSurfaceReader;
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::text_input::TextField;
@@ -69,11 +68,11 @@ pub fn install(app: &mut App) {
         tokio_application_runtime().expect("isolated filter runtime"),
     ));
     core.install_command_handler(Arc::new(
-        CommandApplication::new().with_profile(ProfileApplication::new(store.clone())),
+        CommandApplication::new().with_profile(super::mihomo_profiles(store.clone())),
     ));
     let reader = Arc::new(
         ApplicationSurfaceReader::new(core.clone(), SurfaceKind::BevyDesktop, HostKind::Desktop)
-            .with_profiles(ProfileApplication::new(store.clone())),
+            .with_profiles(super::mihomo_profiles(store.clone())),
     );
     let scope = core.snapshot().scope().expect("identified capture owner");
     app.insert_resource(CommandSinkHandle(Arc::new(

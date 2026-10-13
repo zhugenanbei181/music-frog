@@ -96,6 +96,12 @@ async fn profile_catalog_projects_activity_only_for_the_selected_engine() {
 
     assert_eq!(mihomo_profiles.len(), 1);
     assert!(mihomo_profiles[0].active);
+    let metadata = mihomo.get_profile_metadata("main").await.unwrap();
+    assert!(metadata.auto_reload_core);
+    assert_eq!(
+        mihomo_profiles[0].auto_reload_core,
+        metadata.auto_reload_core
+    );
     assert_eq!(sing_box_profiles.len(), 1);
     assert!(!sing_box_profiles[0].active);
     assert_ne!(mihomo_profiles[0].path, sing_box_profiles[0].path);

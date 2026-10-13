@@ -29,7 +29,7 @@ impl IcedAdminContext {
 impl AdminApiContext for IcedAdminContext {
     async fn profile_application(&self) -> anyhow::Result<ProfileApplication> {
         let store = profile_store().await?;
-        Ok(ProfileApplication::new(store))
+        Ok(crate::configuration::profiles_for_mihomo(store))
     }
 
     async fn configuration_application(&self) -> anyhow::Result<ConfigurationApplication> {
@@ -228,6 +228,7 @@ impl AdminApiContext for IcedAdminContext {
                     .set_enabled(false, None, None)
                     .await
                     .map_err(|failure| anyhow!(failure.message))
+                    .map(|_| ())
             }
             CoreOwnerAction::StartCore
             | CoreOwnerAction::StopCore

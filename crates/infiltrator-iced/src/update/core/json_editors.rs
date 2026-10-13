@@ -4,7 +4,7 @@ use crate::state::AppState;
 use crate::types::app::ToastStatus;
 use crate::types::editor::EditorLazyState;
 use crate::types::message::Message;
-use crate::types::runtime::RebuildFlowState;
+use crate::types::runtime::ConfigurationSaveState;
 use iced::Task;
 use iced::widget::text_editor::Content;
 use infiltrator_contract::command::CommandIntent;
@@ -83,7 +83,7 @@ impl AppState {
                 self.ensure_rule_providers_editor_loaded();
                 let text = self.editor.rule_providers_json_content.text();
                 self.editor.is_saving_rule_providers_json = true;
-                self.begin_save_phase("Rule Providers");
+                self.begin_configuration_save("Rule Providers");
                 self.save_rules_configuration(
                     RulesJsonSection::RuleProviders,
                     text,
@@ -97,11 +97,11 @@ impl AppState {
                         self.editor.rule_providers_json_dirty = false;
                         Task::batch(vec![
                             Task::done(Message::LoadRules),
-                            self.finish_without_rebuild("Rule Providers".to_string()),
+                            self.finish_configuration_save("Rule Providers".to_string()),
                         ])
                     }
                     Err(e) => {
-                        self.runtime.rebuild_flow = RebuildFlowState::Failed {
+                        self.runtime.configuration_save_state = ConfigurationSaveState::Failed {
                             label: "Rule Providers".to_string(),
                             error: e.to_string(),
                         };
@@ -112,7 +112,7 @@ impl AppState {
                                 async {
                                     sleep(time::Duration::from_secs(4)).await;
                                 },
-                                |_| Message::ClearRebuildFlow,
+                                |_| Message::ClearConfigurationSaveState,
                             ),
                         ])
                     }
@@ -128,7 +128,7 @@ impl AppState {
                 self.ensure_proxy_providers_editor_loaded();
                 let text = self.editor.proxy_providers_json_content.text();
                 self.editor.is_saving_proxy_providers_json = true;
-                self.begin_save_phase("Proxy Providers");
+                self.begin_configuration_save("Proxy Providers");
                 self.save_rules_configuration(
                     RulesJsonSection::ProxyProviders,
                     text,
@@ -142,11 +142,11 @@ impl AppState {
                         self.editor.proxy_providers_json_dirty = false;
                         Task::batch(vec![
                             Task::done(Message::LoadRules),
-                            self.finish_without_rebuild("Proxy Providers".to_string()),
+                            self.finish_configuration_save("Proxy Providers".to_string()),
                         ])
                     }
                     Err(e) => {
-                        self.runtime.rebuild_flow = RebuildFlowState::Failed {
+                        self.runtime.configuration_save_state = ConfigurationSaveState::Failed {
                             label: "Proxy Providers".to_string(),
                             error: e.to_string(),
                         };
@@ -157,7 +157,7 @@ impl AppState {
                                 async {
                                     sleep(time::Duration::from_secs(4)).await;
                                 },
-                                |_| Message::ClearRebuildFlow,
+                                |_| Message::ClearConfigurationSaveState,
                             ),
                         ])
                     }
@@ -173,7 +173,7 @@ impl AppState {
                 self.ensure_sniffer_editor_loaded();
                 let text = self.editor.sniffer_json_content.text();
                 self.editor.is_saving_sniffer_json = true;
-                self.begin_save_phase("Sniffer");
+                self.begin_configuration_save("Sniffer");
                 self.save_rules_configuration(
                     RulesJsonSection::Sniffer,
                     text,
@@ -187,11 +187,11 @@ impl AppState {
                         self.editor.sniffer_json_dirty = false;
                         Task::batch(vec![
                             Task::done(Message::LoadRules),
-                            self.finish_without_rebuild("Sniffer".to_string()),
+                            self.finish_configuration_save("Sniffer".to_string()),
                         ])
                     }
                     Err(e) => {
-                        self.runtime.rebuild_flow = RebuildFlowState::Failed {
+                        self.runtime.configuration_save_state = ConfigurationSaveState::Failed {
                             label: "Sniffer".to_string(),
                             error: e.to_string(),
                         };
@@ -202,7 +202,7 @@ impl AppState {
                                 async {
                                     sleep(time::Duration::from_secs(4)).await;
                                 },
-                                |_| Message::ClearRebuildFlow,
+                                |_| Message::ClearConfigurationSaveState,
                             ),
                         ])
                     }

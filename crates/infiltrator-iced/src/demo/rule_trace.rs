@@ -10,7 +10,6 @@ use iced::widget::scrollable::RelativeOffset;
 use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::language_choice_fixtures::LanguageCaptureProcess;
-use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::rule_tracer_application::RuleTracerApplication;
 use infiltrator_application::surface_reader::ApplicationSurfaceReader;
 use infiltrator_composition::tokio_application_runtime;
@@ -41,7 +40,7 @@ pub(super) fn activate(state: &mut AppState) -> Task<Message> {
             HostKind::Desktop,
         )
         .with_rule_tracer(owner)
-        .with_profiles(ProfileApplication::new(port.clone()))
+        .with_profiles(crate::configuration::profiles_for_mihomo(port.clone()))
         .with_configuration(crate::configuration::for_mihomo_store(port.clone())),
     );
     attach_capture_owner(state, core);

@@ -18,14 +18,13 @@ use crate::state::AppState;
 use crate::tray::spec::{TrayController, TraySpec};
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
-use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_contract::active_profile_reference::{
     ActiveProfileReferenceCasOutcome, ActiveProfileReferenceTarget,
 };
 use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_domain::profiles::ProfileInfo;
-use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_platform::paths::{clear_home_dir_override, set_home_dir_override};
+use infiltrator_ports::profile_store::ProfileStore;
 use std::env::temp_dir;
 use std::fs::{create_dir_all, remove_dir_all};
 use std::future::Future;
@@ -62,7 +61,7 @@ pub fn fresh_state() -> AppState {
 pub fn list_profiles() -> Vec<ProfileInfo> {
     block_on(async {
         let store = config_manager().await.unwrap();
-        ProfileApplication::new(store)
+        crate::configuration::profiles_for_mihomo(store)
             .list_profiles()
             .await
             .unwrap()
@@ -78,6 +77,7 @@ static HOME_LOCK: Mutex<()> = Mutex::new(());
 
 pub struct TempHome {
     dir: PathBuf,
+    profile_config_dir: PathBuf,
     _lock: MutexGuard<'static, ()>,
 }
 
@@ -98,11 +98,23 @@ impl TempHome {
             set_home_dir_override(dir.clone()),
             "home override must install while HOME_LOCK is held"
         );
-        Self { dir, _lock: lock }
+        let profile_config_dir = block_on(config_manager())
+            .expect("Mihomo profile store is available for this temporary home")
+            .config_dir();
+        Self {
+            dir,
+            profile_config_dir,
+            _lock: lock,
+        }
     }
 
     pub fn configs(&self) -> PathBuf {
         self.dir.join("configs")
+    }
+
+    /// Resolved Mihomo namespace returned by the shared profile-store port.
+    pub fn profile_config_dir(&self) -> PathBuf {
+        self.profile_config_dir.clone()
     }
 
     /// Save one inactive profile through the typed store and select it by CAS.

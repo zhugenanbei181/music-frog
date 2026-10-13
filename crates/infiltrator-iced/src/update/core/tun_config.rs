@@ -8,7 +8,7 @@ use crate::types::app::ToastStatus;
 use crate::types::dns::{AdvancedEditMode, TunFormDraft};
 use crate::types::editor::EditorLazyState;
 use crate::types::message::Message;
-use crate::types::runtime::RebuildFlowState;
+use crate::types::runtime::ConfigurationSaveState;
 use iced::Task;
 use iced::widget::text_editor::Content;
 use infiltrator_contract::error::InfiltratorError;
@@ -197,7 +197,7 @@ impl AppState {
             }
             Message::SaveTunConfig => {
                 self.editor.is_saving_tun = true;
-                self.begin_save_phase("TUN");
+                self.begin_configuration_save("TUN");
                 let patch = if self.editor.tun_mode == AdvancedEditMode::Form {
                     self.tun_patch_from_form()
                 } else {
@@ -213,7 +213,7 @@ impl AppState {
                         self.editor.is_saving_tun = false;
                         let mapped = Self::map_advanced_error_message(&error);
                         self.editor.advanced_validation.tun = Some(mapped.clone());
-                        self.runtime.rebuild_flow = RebuildFlowState::Failed {
+                        self.runtime.configuration_save_state = ConfigurationSaveState::Failed {
                             label: "TUN".to_string(),
                             error: mapped.clone(),
                         };
@@ -224,7 +224,7 @@ impl AppState {
                                 async {
                                     sleep(time::Duration::from_secs(4)).await;
                                 },
-                                |_| Message::ClearRebuildFlow,
+                                |_| Message::ClearConfigurationSaveState,
                             ),
                         ]);
                     }
@@ -245,13 +245,13 @@ impl AppState {
                         self.editor.advanced_validation.tun = None;
                         Task::batch(vec![
                             Task::done(Message::RefreshTunOnly),
-                            self.finish_without_rebuild("TUN".to_string()),
+                            self.finish_configuration_save("TUN".to_string()),
                         ])
                     }
                     Err(e) => {
                         let mapped = Self::map_advanced_error_message(&e);
                         self.editor.advanced_validation.tun = Some(mapped.clone());
-                        self.runtime.rebuild_flow = RebuildFlowState::Failed {
+                        self.runtime.configuration_save_state = ConfigurationSaveState::Failed {
                             label: "TUN".to_string(),
                             error: mapped.clone(),
                         };
@@ -262,13 +262,13 @@ impl AppState {
                                 async {
                                     sleep(time::Duration::from_secs(4)).await;
                                 },
-                                |_| Message::ClearRebuildFlow,
+                                |_| Message::ClearConfigurationSaveState,
                             ),
                         ])
                     }
                 }
             }
-            other => self.update_core_rebuild(other),
+            other => self.update_core_configuration_save(other),
         }
     }
 }

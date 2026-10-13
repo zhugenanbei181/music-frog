@@ -33,6 +33,7 @@ use infiltrator_bevy_ui::surface::{
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::chart::ChartPlate;
 use infiltrator_bevy_widgets::chart::bezier::ScaleMode;
+use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_contract::command::RequestId;
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::core_capabilities::{
@@ -63,6 +64,7 @@ use infiltrator_contract::outbound::{
     },
     probe::ProbeOutboundRequest,
 };
+use infiltrator_contract::runtime_settings::{RuntimeProbeSettings, RuntimeProbeSettingsState};
 use infiltrator_contract::surface::HostKind;
 use infiltrator_contract::surface_snapshot::{PageData, SurfaceSnapshot};
 use infiltrator_contract::theme::{ThemePreference, ThemeSkin};
@@ -301,6 +303,9 @@ fn typed_snapshot() -> SurfaceSnapshot {
     .unwrap();
     snapshot.core_capability_snapshot =
         PageData::ready(CoreCapabilitySnapshot::from_matrix(&capability_matrix));
+    snapshot.probe_settings = RuntimeProbeSettingsState::Available {
+        settings: RuntimeProbeSettings::default(),
+    };
     snapshot
 }
 
@@ -421,6 +426,10 @@ fn field_text(app: &mut App, field: ProxyDetailField) -> String {
 #[test]
 fn native_inspection_replays_typed_metadata_and_history_and_close_never_selects_an_outbound() {
     let (mut app, sink) = setup();
+    app.world_mut()
+        .resource_mut::<UiLocale>()
+        .apply_preference("en-US");
+    app.update();
     open(&mut app);
     let selected = app.world().resource::<ProxyInspectionState>();
     let selected = selected_outbound(selected).cloned().unwrap();

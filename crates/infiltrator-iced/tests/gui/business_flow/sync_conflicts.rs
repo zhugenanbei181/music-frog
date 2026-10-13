@@ -1,6 +1,6 @@
 //! Journeys 6/7/15 — WebDAV sync-conflict surface: the key-level diff merge
 //! against real local/remote YAML files, conflict resolve/dismiss lifecycle,
-//! and the mixed profile-switch → rebuild → refetch journey.
+//! and the mixed profile-sync → configuration-save → refetch journey.
 //!
 //! Journey 7 is a FULL NETWORK leg: a minimal axum WebDAV stub bound to
 //! `127.0.0.1:0` (zero external network; the stub implements exactly the
@@ -20,7 +20,7 @@ use crate::state::AppState;
 use crate::types::app::{SyncConflict, SyncSummary, ToastStatus};
 use crate::types::message::Message;
 use crate::types::options::SyncDiffBundle;
-use crate::types::runtime::{RebuildFlowState, RuntimeStatus};
+use crate::types::runtime::ConfigurationSaveState;
 use crate::update::core::profile_apply::save_profile_content;
 use axum::body::to_bytes;
 use axum::extract::{Request, State};
@@ -134,7 +134,7 @@ fn runtime_config_readout(
 // Minimal WebDAV stub (journey 7)
 // ---------------------------------------------------------------------------
 
-/// In-memory WebDAV collection: URL path ("/alpha.yaml") -> body.
+/// In-memory WebDAV collection: engine-scoped URL path -> body.
 type StubFiles = Arc<Mutex<BTreeMap<String, String>>>;
 
 /// PROPFIND multistatus in exactly the shape `dav_client::xml_parser`
@@ -373,7 +373,7 @@ fn sync_diff_journey_merges_key_picks_into_the_local_file() {
     assert!(units >= 2, "LoadProfiles + success-toast legs");
 
     // Disk truth: mode came from remote, tun was adopted, log-level removed.
-    let merged = fs::read_to_string(home.configs().join("alpha.yaml")).unwrap();
+    let merged = fs::read_to_string(home.profile_config_dir().join("alpha.yaml")).unwrap();
     assert!(
         merged.contains("mode: global"),
         "remote mode adopted: {merged}"
@@ -434,20 +434,32 @@ fn sync_conflict_network_leg_upload_download_resolve_and_dismiss() {
         // 服务器状态断言：两个 profile 都在桩上。
         {
             let files = stub.files.lock().unwrap();
-            assert_eq!(files.len(), 2, "stub holds exactly the two profiles");
-            assert!(
-                files
-                    .get("/alpha.yaml")
-                    .is_some_and(|body| body.contains("mode: rule")),
-                "alpha uploaded verbatim: {:?}",
-                files.get("/alpha.yaml")
+            let profiles = files
+                .keys()
+                .filter(|path| {
+                    path.strip_prefix("/mihomo/")
+                        .is_some_and(|name| name.ends_with(".yaml") && !name.contains('/'))
+                })
+                .count();
+            assert_eq!(
+                profiles,
+                2,
+                "engine namespace holds both profiles; all entries: {:?}",
+                files.keys().collect::<Vec<_>>()
             );
             assert!(
                 files
-                    .get("/beta.yaml")
+                    .get("/mihomo/alpha.yaml")
+                    .is_some_and(|body| body.contains("mode: rule")),
+                "alpha uploaded verbatim: {:?}",
+                files.get("/mihomo/alpha.yaml")
+            );
+            assert!(
+                files
+                    .get("/mihomo/beta.yaml")
                     .is_some_and(|body| body.contains("MATCH,PROXY")),
                 "beta uploaded verbatim: {:?}",
-                files.get("/beta.yaml")
+                files.get("/mihomo/beta.yaml")
             );
         }
 
@@ -455,7 +467,7 @@ fn sync_conflict_network_leg_upload_download_resolve_and_dismiss() {
         stub.files
             .lock()
             .unwrap()
-            .insert("/alpha.yaml".to_string(), REMOTE_YAML.to_string());
+            .insert("/mihomo/alpha.yaml".to_string(), REMOTE_YAML.to_string());
 
         // ---- 下载腿：真实 SyncDownload worker 发现内容冲突 --------------
         let download_task = state.update(Message::SyncDownload);
@@ -480,7 +492,11 @@ fn sync_conflict_network_leg_upload_download_resolve_and_dismiss() {
         assert_eq!(state.profile.sync_conflicts.len(), 1);
         assert_eq!(state.profile.sync_conflicts[0].profile, "alpha");
         let conflict_path = state.profile.sync_conflicts[0].remote_path.clone();
-        assert!(conflict_path.parent() == Some(&home.configs()));
+        assert_eq!(
+            conflict_path.parent(),
+            Some(home.profile_config_dir().as_path()),
+            "conflict path must stay under the selected engine store: {conflict_path:?}"
+        );
         assert_eq!(
             fs::read_to_string(&conflict_path).unwrap(),
             REMOTE_YAML,
@@ -515,7 +531,7 @@ fn sync_conflict_network_leg_upload_download_resolve_and_dismiss() {
         assert!(state.profile.sync_conflicts.is_empty());
         assert!(units >= 2, "LoadProfiles + success-toast legs");
         assert!(
-            fs::read_to_string(home.configs().join("alpha.yaml"))
+            fs::read_to_string(home.profile_config_dir().join("alpha.yaml"))
                 .unwrap()
                 .contains("mode: global"),
             "resolve adopted the remote content"
@@ -526,7 +542,7 @@ fn sync_conflict_network_leg_upload_download_resolve_and_dismiss() {
         stub.files
             .lock()
             .unwrap()
-            .insert("/alpha.yaml".to_string(), CONFLICT2_YAML.to_string());
+            .insert("/mihomo/alpha.yaml".to_string(), CONFLICT2_YAML.to_string());
         let dismissal_task = state.update(Message::SyncDownload);
         let _ = timeout(
             time::Duration::from_secs(30),
@@ -550,12 +566,11 @@ fn sync_conflict_network_leg_upload_download_resolve_and_dismiss() {
     });
 }
 
-/// Journey 15 — 混合旅程：SyncFinished（active profile 变更）→ 无内核时清
-/// 备份不重建；Rebuilding 中途失败的 RebuildFlow 状态机；FetchRuntimeConfig
-/// 回灌刷新 routing_intent 并推送托盘。
+/// Journey 15 — SyncFinished preserves conflict data; typed configuration
+/// save failure updates the notice, then runtime readback refreshes the tray.
 #[test]
-fn mixed_profile_switch_rebuild_flow_and_runtime_refetch_chain() {
-    let home = TempHome::acquire("mixed-rebuild");
+fn mixed_profile_sync_failure_and_runtime_refetch_chain() {
+    let home = TempHome::acquire("mixed-configuration-save");
     home.seed_profile("alpha", LOCAL_YAML);
     let mut state = fresh_state();
     state.shell.lang = "zh-CN".into();
@@ -574,33 +589,38 @@ fn mixed_profile_switch_rebuild_flow_and_runtime_refetch_chain() {
         }],
     };
     let units = feed(&mut state, Message::SyncFinished(Ok(summary)));
-    // No active rebuild path is involved; the conflict still queues for review.
+    // No Core lifecycle action is involved; the conflict still queues for review.
     assert_eq!(state.profile.sync_conflicts.len(), 1);
     assert_eq!(units, 2, "LoadProfiles + toast");
-    assert!(matches!(state.runtime.rebuild_flow, RebuildFlowState::Idle));
+    assert!(matches!(
+        state.runtime.configuration_save_state,
+        ConfigurationSaveState::Idle
+    ));
 
-    // With a live core this is where trigger_runtime_rebuild() puts the
-    // state; drive the rebuild state machine through its failure leg.
-    state.runtime.rebuild_flow = RebuildFlowState::Rebuilding {
-        label: "配置".into(),
+    // Drive the current typed DNS application result through its failure leg.
+    state.runtime.configuration_save_state = ConfigurationSaveState::Saving {
+        label: "DNS".into(),
     };
-    state.runtime.status = RuntimeStatus::Running;
+    state.editor.is_saving_dns = true;
     let units = feed(
         &mut state,
-        Message::RuntimeRebuildFinished(Err(InfiltratorError::Backend("内核启动失败".into()))),
+        Message::DnsSaved(Err(InfiltratorError::Backend("DNS 应用失败".into()))),
     );
     assert!(matches!(
-        state.runtime.rebuild_flow,
-        RebuildFlowState::Failed { .. }
+        state.runtime.configuration_save_state,
+        ConfigurationSaveState::Failed { .. }
     ));
-    assert!(matches!(state.runtime.status, RuntimeStatus::Error(_)));
     assert!(state.shell.error_msg.is_some());
+    assert!(!state.editor.is_saving_dns);
     assert!(units >= 1);
 
     // The banner reset clears the flow.
-    let units = feed(&mut state, Message::ClearRebuildFlow);
+    let units = feed(&mut state, Message::ClearConfigurationSaveState);
     assert_eq!(units, 0);
-    assert!(matches!(state.runtime.rebuild_flow, RebuildFlowState::Idle));
+    assert!(matches!(
+        state.runtime.configuration_save_state,
+        ConfigurationSaveState::Idle
+    ));
 
     // FetchRuntimeConfig 链: with no runtime the fetch is an inert no-op;
     // the fetched config 回灌 still refreshes every runtime domain + tray.
@@ -633,7 +653,7 @@ fn mixed_profile_switch_rebuild_flow_and_runtime_refetch_chain() {
         "runtime config refresh pushes a tray spec update"
     );
 
-    // A stale generation is dropped (guard against rebuild races).
+    // A stale generation is dropped after a Core identity change.
     let units = feed(
         &mut state,
         Message::RuntimeConfigFetched(

@@ -1217,6 +1217,12 @@ msgstr "No profile selected"
 msgid "未运行"
 msgstr "Not running"
 
+msgid "日志流不支持"
+msgstr "Log stream is unsupported"
+
+msgid "日志流已取消"
+msgstr "Log stream was cancelled"
+
 msgid "HarmonyOS Sans SC is used; © 2021 Huawei Device Co., Ltd."
 msgstr "HarmonyOS Sans SC is used; © 2021 Huawei Device Co., Ltd."
 

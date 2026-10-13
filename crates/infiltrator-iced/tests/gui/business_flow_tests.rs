@@ -12,7 +12,7 @@
 //! - `options_editors`    — Editor mixin three-pane journey and the Filter
 //!   pane journey, with sidecar-on-disk assertions.
 //! - `sync_conflicts`     — key-level diff merge, conflict resolve/dismiss,
-//!   mixed switch→rebuild→refetch journey.
+//!   mixed profile sync→configuration save→refetch journey.
 //! - `runtime_tray_kernels` — lifecycle degradation, typed routing choices,
 //!   kernel management + throttled tray refresh, tray event chains.
 //! - `settings_lifecycle` — notification task surface, factory reset,

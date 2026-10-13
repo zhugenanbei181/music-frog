@@ -4,9 +4,12 @@ use crate::test_mounts::command_harness::{
 };
 use crate::test_mounts::profile_edit_fixture;
 use iced::widget::text_editor::{Action, Cursor, Motion, Position};
+use infiltrator_application::command_application::CommandApplication;
+use infiltrator_application::dns_hosts_fixtures::HostsCaptureStore;
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_contract::snapshot_history::SnapshotHistorySnapshot;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 #[test]
 fn test_format_short_sha() {
@@ -266,6 +269,16 @@ fn snapshot_history_state_follows_the_shared_prune_view_and_renders_it() {
 #[test]
 fn editor_live_preflight_reports_the_shared_diagnostic_line() {
     let (mut state, _) = AppState::new();
+    let profiles =
+        crate::configuration::profiles_for_mihomo(Arc::new(HostsCaptureStore::default()));
+    let configuration = crate::configuration::for_mihomo_profiles(profiles.clone());
+    let (core, _) = recording_application();
+    core.install_command_handler(Arc::new(
+        CommandApplication::new()
+            .with_profile(profiles)
+            .with_configuration(configuration),
+    ));
+    attach_product_application_with_accepted_owner_snapshot(&mut state, core);
     seed_document(&mut state, "mode: [\n");
     let _ = state.update(Message::EditorAction(text_editor::Action::Edit(
         text_editor::Edit::Paste("x".to_string().into()),

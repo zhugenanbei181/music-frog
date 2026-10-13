@@ -332,7 +332,7 @@ fn native_hosts_keyboard_pointer_migration_failure_retry_cancel_and_empty_restor
     assert!(editor.failure.is_none());
     assert_eq!(editor.applied.as_ref().unwrap().entries.len(), 3);
     assert!(editor.applied.as_ref().unwrap().legacy_entries.is_empty());
-    assert_eq!(store.writes.load(Ordering::SeqCst), 2);
+    assert_eq!(store.writes.load(Ordering::SeqCst), 1);
     assert!(store.content().contains("future-setting: preserve-me"));
     let ids: Vec<_> = editor.rows.iter().map(|row| row.id).collect();
     for id in ids {
@@ -522,8 +522,7 @@ fn native_hosts_ime_locale_reader_fences_invalid_rows_and_navigation_keep_the_dr
         .enable_all()
         .build()
         .unwrap()
-        .block_on(select_profile(store.as_ref(), "other"))
-        .unwrap();
+        .block_on(select_profile(store.as_ref(), "other"));
     publish(&mut app, &reader);
     assert_eq!(
         app.world().resource::<DnsHostsEditorState>().editor.rows,

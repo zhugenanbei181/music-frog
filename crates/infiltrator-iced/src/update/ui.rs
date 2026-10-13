@@ -26,8 +26,8 @@ use std::env::{args, current_exe};
 #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
 use std::io;
 use std::path::Path;
+use std::process;
 use std::time::Instant;
-use std::{process, time};
 use tokio::fs::create_dir_all;
 use tokio::task::spawn_blocking;
 use tokio::time::timeout;
@@ -359,11 +359,29 @@ impl AppState {
                 if let Some(cleanup) = &self.exit_cleanup {
                     cleanup();
                 }
+                let session = self.product_session.take();
                 let rt = self.take_app_runtime();
                 Task::perform(
                     async move {
+                        if let Some(session) = session {
+                            let close = tokio::task::spawn_blocking(move || session.close());
+                            match timeout(std::time::Duration::from_secs(2), close).await {
+                                Ok(Ok(Ok(()))) => {}
+                                Ok(Ok(Err(failure))) => {
+                                    log::error!(
+                                        "desktop Core owner close was not confirmed: {failure}"
+                                    );
+                                }
+                                Ok(Err(error)) => {
+                                    log::error!("desktop Core owner close worker failed: {error}");
+                                }
+                                Err(_) => {
+                                    log::error!("desktop Core owner close timed out");
+                                }
+                            }
+                        }
                         if let Some(r) = rt {
-                            let _ = timeout(time::Duration::from_secs(2), r.shutdown()).await;
+                            drop(r);
                         }
                     },
                     |_| Message::CoreStopped,

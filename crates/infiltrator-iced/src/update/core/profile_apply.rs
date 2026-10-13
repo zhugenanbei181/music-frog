@@ -7,10 +7,11 @@
 //! apply/reload/readiness/rollback contract.
 
 use crate::configs_dir::config_manager;
+use crate::configuration::profiles_for_mihomo;
 use crate::types::message::Message;
 use iced::Task;
 use infiltrator_application::profile_application::{
-    ProfileActivationOutcome, ProfileApplication, ProfileRuntimeAccess,
+    ProfileActivationOutcome, ProfileRuntimeAccess,
 };
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_domain::apply::ApplyStrategy;
@@ -69,7 +70,7 @@ where
     F: FnOnce(&str) -> anyhow::Result<String> + Send + 'static,
 {
     let store = config_manager().await?;
-    let application = ProfileApplication::new(store);
+    let application = profiles_for_mihomo(store);
     application
         .save_current_profile_content(runtime, strategy, transform)
         .await
@@ -87,7 +88,7 @@ pub(crate) async fn save_profile_content(
     strategy: ApplyStrategy,
 ) -> Result<(), InfiltratorError> {
     let store = config_manager().await?;
-    ProfileApplication::new(store)
+    profiles_for_mihomo(store)
         .save_profile_content(runtime, profile, content, strategy)
         .await
         .map(|_| ())
@@ -102,7 +103,7 @@ pub(crate) async fn activate_profile(
     profile: &str,
 ) -> Result<ProfileActivationOutcome, InfiltratorError> {
     let store = config_manager().await?;
-    ProfileApplication::new(store)
+    profiles_for_mihomo(store)
         .activate_profile(runtime, profile)
         .await
         .map_err(|failure| InfiltratorError::Backend(failure.message))

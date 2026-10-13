@@ -232,11 +232,25 @@ fn pending_native_fields_are_disabled_and_wrong_command_or_request_cannot_finish
         .probe_settings = RuntimeProbeSettingsState::Available {
         settings: RuntimeProbeSettings::default(),
     };
+    app.update();
     let open = entity::<OpenProbeSettings>(&mut app);
     activate(&mut app, open);
     app.update();
+    let url = field::<ProbeUrlField>(&mut app);
+    assert_eq!(
+        app.world().get::<TextField>(url).unwrap().0.text(),
+        RuntimeProbeSettings::default().url()
+    );
     let timeout = field::<ProbeTimeoutField>(&mut app);
     edit(&mut app, timeout, "60000");
+    assert!(
+        app.world()
+            .resource::<ProbeSettingsState>()
+            .editor
+            .can_apply(),
+        "probe editor is not ready to submit: {:?}",
+        app.world().resource::<ProbeSettingsState>().editor
+    );
     let apply = entity::<ApplyProbeSettings>(&mut app);
     activate(&mut app, apply);
     app.update();

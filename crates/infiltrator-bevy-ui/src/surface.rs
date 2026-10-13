@@ -17,6 +17,8 @@ use crate::pages::proxies::ProxiesProjection;
 use crate::pages::rules::RulesProjection;
 use crate::pages::settings::settings_core::SettingsProjection;
 use crate::pages::sync::SyncProjection;
+#[cfg(feature = "capture-tools")]
+use crate::projection::OverviewOrigin;
 use crate::projection::{OverviewProjection, OverviewSource, SourceKind};
 use crate::route::SurfaceSourceHandle;
 use bevy::app;

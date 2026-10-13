@@ -677,6 +677,27 @@ fn typed_lifecycle_actions_keep_the_bound_core_owner_and_update_its_snapshot() {
 }
 
 #[test]
+fn explicit_close_stops_the_bound_owner_and_is_idempotent() {
+    let session = session().into_shared();
+    let binding = session.binding().expect("open session binding");
+    session
+        .apply(DesktopProductSessionAction::StartCore)
+        .expect("start the bound Core owner");
+
+    session.close().expect("close the bound Core owner");
+
+    assert_eq!(
+        session.availability().expect("closed session state"),
+        DesktopProductSessionAvailability::Closed
+    );
+    assert_eq!(
+        binding.application.snapshot().lifecycle,
+        CoreLifecycle::Stopped
+    );
+    session.close().expect("closed session close is idempotent");
+}
+
+#[test]
 fn same_engine_profile_selection_uses_the_bound_scoped_core_command() {
     let (application, handler) = application_with_handler();
     let session = session_for(Arc::clone(&application)).into_shared();

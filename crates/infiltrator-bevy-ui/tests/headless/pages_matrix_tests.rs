@@ -50,7 +50,9 @@ use infiltrator_bevy_ui::route::{PageRoot, PagesPlugin, Route, RouteChanged};
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_contract::connection::{ConnectionRateObservation, ConnectionStreamPhase};
 use infiltrator_contract::controller::{ControllerAuthSnapshot, ControllerAuthStatus};
-use infiltrator_contract::core_identity::EngineId;
+use infiltrator_contract::core_identity::{
+    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
+};
 use infiltrator_contract::dns::{
     DnsCoreSwitches, DnsEnhancedMode, DnsFakeIpFilterMode, FakeIpMappingPool,
 };
@@ -498,8 +500,17 @@ fn settings_page_in_place_update() {
                 can_release: true,
             }],
         },
-        core_resources: CoreResourceSnapshot {
-            memory_bytes: ResourceAvailability::Available(400 * 1024 * 1024),
+        core_resources: CoreResourceSnapshot::Observed {
+            scope: CoreScope {
+                identity: CoreIdentity::new(
+                    EngineId::new("mihomo").unwrap(),
+                    CoreInstanceId::new("bevy-settings-matrix").unwrap(),
+                    Some(CoreVersion::new("test").unwrap()),
+                ),
+                generation: CoreGeneration::new(1),
+                session_token: None,
+            },
+            memory: ResourceAvailability::Available(400 * 1024 * 1024),
             cpu_percent: ResourceAvailability::Available(12.5),
             memory_soft_limit_bytes: 512 * 1024 * 1024,
             gc: CoreGcStatus::NotNeeded,

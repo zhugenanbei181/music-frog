@@ -2,6 +2,7 @@
 
 use super::integration::secondary_text;
 use crate::state::AppState;
+use crate::state::runtime::TunServiceInstallState;
 use crate::types::message::Message;
 use crate::view::component_card::card;
 use crate::view::component_forms::{
@@ -107,7 +108,8 @@ pub(super) fn tun_card<'a>(
                 Space::new().width(theme::SP_MD),
                 badge(
                     tun_status_text,
-                    if state.runtime.is_installing_tun_service {
+                    if state.runtime.tun_service_install_state == TunServiceInstallState::Installing
+                    {
                         BadgeKind::Warning
                     } else {
                         tun_status_kind
@@ -117,13 +119,14 @@ pub(super) fn tun_card<'a>(
                 icon_button(Icon::RefreshCw, 14.0, Message::RefreshTunServiceStatus),
                 Space::new().width(theme::SP_SM),
                 text_btn(
-                    if state.runtime.is_installing_tun_service {
+                    if state.runtime.tun_service_install_state == TunServiceInstallState::Installing
+                    {
                         lang.tr("settings_tun_preparing").to_string()
                     } else {
                         lang.tr("settings_tun_prepare_btn").to_string()
                     },
                     style_ghost,
-                    (!state.runtime.is_installing_tun_service)
+                    (state.runtime.tun_service_install_state == TunServiceInstallState::Idle)
                         .then_some(Message::InstallTunService)
                 ),
             ]

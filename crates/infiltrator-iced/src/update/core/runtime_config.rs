@@ -3,6 +3,7 @@
 
 use crate::port_conflict_application::application;
 use crate::state::AppState;
+use crate::state::runtime::TunServiceInstallState;
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use crate::types::runtime::RuntimePatchSnapshot;
@@ -163,7 +164,7 @@ impl AppState {
         let binary = runtime.core_binary_path();
         self.runtime.tun_service_status = Some(status);
         self.runtime.service_mode = legacy_service_snapshot(status);
-        self.runtime.is_installing_tun_service = true;
+        self.runtime.tun_service_install_state = TunServiceInstallState::Installing;
         if let Some(service_mode) = runtime.service_mode_port() {
             return Task::perform(
                 async move {
@@ -441,7 +442,7 @@ impl AppState {
                 Task::none()
             }
             Message::TunServiceInstalled(result) => {
-                self.runtime.is_installing_tun_service = false;
+                self.runtime.tun_service_install_state = TunServiceInstallState::Idle;
                 match result {
                     Ok(()) => {
                         self.runtime.tun_service_status = self
@@ -458,7 +459,7 @@ impl AppState {
                 }
             }
             Message::ServiceModePrepared(result) => {
-                self.runtime.is_installing_tun_service = false;
+                self.runtime.tun_service_install_state = TunServiceInstallState::Idle;
                 match result {
                     Ok(snapshot) => {
                         self.runtime.service_mode = snapshot;

@@ -136,7 +136,7 @@ fn native_probe_failure_retry_and_unsupported_stay_on_the_surface_with_real_fact
     publish(&mut app, &reader);
     assert_eq!(
         match &app.world().resource::<LeakActions>().state.phase {
-            DnsLeakActionPhase::Failed { failure } => failure.code,
+            DnsLeakActionPhase::Failed { failure } => failure.code.clone(),
             DnsLeakActionPhase::Idle | DnsLeakActionPhase::Pending { .. } => {
                 panic!("permission result must be retained as failure")
             }
@@ -192,7 +192,7 @@ fn native_probe_failure_retry_and_unsupported_stay_on_the_surface_with_real_fact
     settle(&mut app);
     assert_eq!(
         match &app.world().resource::<LeakActions>().state.phase {
-            DnsLeakActionPhase::Failed { failure } => failure.code,
+            DnsLeakActionPhase::Failed { failure } => failure.code.clone(),
             DnsLeakActionPhase::Idle | DnsLeakActionPhase::Pending { .. } => {
                 panic!("unsupported result must be retained as failure")
             }

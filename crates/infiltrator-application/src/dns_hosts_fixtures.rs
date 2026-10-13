@@ -3,6 +3,7 @@ use async_trait::async_trait;
 use infiltrator_contract::active_profile_reference::{
     ActiveProfileReference, ActiveProfileReferenceCasOutcome, ActiveProfileReferenceRevision,
     ActiveProfileReferenceState, ActiveProfileReferenceTarget,
+    ActiveProfileReferenceWriteAuthorization,
 };
 use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::error::{ErrorCode, Failure};
@@ -360,14 +361,17 @@ impl ProfileStore for HostsCaptureStore {
         authorization: infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization,
     ) -> Result<Box<dyn ActiveProfileWorkspaceWriteLease + '_>, PortError> {
         let guard = Arc::clone(&self.workspace_write_gate).lock_owned().await;
-        if authorization
-            != infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization::Unowned
-        {
-            return Err(PortError::Rejected(Failure::new(
-                ErrorCode::NotReady,
-                "isolated Hosts fixture has no bound Core owner",
-                true,
-            )));
+        match authorization {
+            ActiveProfileReferenceWriteAuthorization::Unowned => {}
+            ActiveProfileReferenceWriteAuthorization::BoundOwner { identity, .. }
+                if identity.engine == expected_reference.engine_id => {}
+            ActiveProfileReferenceWriteAuthorization::BoundOwner { .. } => {
+                return Err(PortError::Rejected(Failure::new(
+                    ErrorCode::NotReady,
+                    "isolated Hosts fixture owner belongs to another engine",
+                    true,
+                )));
+            }
         }
         if self.read_active_profile_reference().await?
             != ActiveProfileReferenceState::Selected(expected_reference.clone())

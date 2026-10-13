@@ -157,7 +157,6 @@ pub(super) fn translate_en_legacy(key: &str) -> Cow<'static, str> {
         "notify_sync_finished" => "WebDAV sync finished".into(),
         "notify_sync_failed" => "WebDAV sync failed".into(),
         "notify_kernel_error" => "Kernel error".into(),
-        "notify_rebuild_failed" => "Config rebuild failed".into(),
 
         // --- 0.20 boot retry + port rotation / script mode gate ---
         "toast_port_rotated" => "Controller port busy, switched to".into(),

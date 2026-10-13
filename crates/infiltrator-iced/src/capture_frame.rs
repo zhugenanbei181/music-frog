@@ -1,10 +1,12 @@
 //! Capture readiness follows native redraws and GPU readback, never a view construction.
-use super::interaction;
+#[cfg(any(feature = "capture-tools", test))]
+use crate::demo::interaction;
 use crate::state::AppState;
 use crate::types::message::Message;
 use iced::window::Screenshot;
 use iced::{Rectangle, Task, window};
 use image::{ImageFormat, RgbaImage};
+#[cfg(any(feature = "capture-tools", test))]
 use std::sync::atomic::Ordering;
 
 #[derive(Default)]
@@ -17,16 +19,18 @@ pub struct CaptureFrameGate {
 }
 
 impl CaptureFrameGate {
+    #[cfg(any(feature = "capture-tools", test))]
     pub(crate) fn is_ready(&self) -> bool {
         self.ready
     }
 }
 
 #[cfg(test)]
-#[path = "../../tests/gui/capture_frame_tests.rs"]
+#[path = "../tests/gui/capture_frame_tests.rs"]
 mod tests;
 
 impl AppState {
+    #[cfg(any(feature = "capture-tools", test))]
     fn capture_state_ready(&self) -> bool {
         self.shell.demo
             && self.shell.capture_marker.is_some()
@@ -35,6 +39,11 @@ impl AppState {
                 .shell
                 .capture_scenario
                 .is_none_or(|feature| interaction::ready(self, feature))
+    }
+
+    #[cfg(not(any(feature = "capture-tools", test)))]
+    fn capture_state_ready(&self) -> bool {
+        false
     }
 
     pub(crate) fn capture_frame_task(&mut self) -> Task<Message> {
@@ -114,6 +123,7 @@ impl AppState {
             return;
         }
         self.shell.capture_frame.ready = true;
+        #[cfg(any(feature = "capture-tools", test))]
         self.write_capture_marker();
     }
 }

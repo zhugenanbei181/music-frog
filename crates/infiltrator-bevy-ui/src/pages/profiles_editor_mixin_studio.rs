@@ -44,6 +44,15 @@ pub struct MixinToggleButton {
     pub id: ProfileMixinToggleId,
 }
 
+impl Default for MixinToggleButton {
+    fn default() -> Self {
+        // `bsn!` patches the explicit toggle ID into this template value.
+        Self {
+            id: ProfileMixinToggleId::Ipv6,
+        }
+    }
+}
+
 /// Container whose children are the shared-studio rows (rebuilt on change).
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct MixinStudioBody;
@@ -134,7 +143,7 @@ pub fn mixin_studio_scene(
                             BackgroundColor({ background })
                             Button
                             EditorMutationControl
-                            MixinToggleButton { id: toggle.id }
+                            MixinToggleButton { id: { toggle.id } }
                             Children [
                                 label TextRole(Role::Caption)
                             ]

@@ -2,6 +2,7 @@
 //! scheduled (tick) updates, plus the subscription-editor sync helper.
 
 use crate::configs_dir::config_manager;
+use crate::configuration::profiles_for_mihomo;
 use crate::host::runtime::{application_runtime, subscription_notifier};
 use crate::host::storage::subscription_source;
 use crate::notify::NotifyUrgency;
@@ -10,7 +11,6 @@ use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use chrono::Utc;
 use iced::Task;
-use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::subscription_refresh_application::SubscriptionRefreshApplication;
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_contract::subscription_import::{
@@ -216,7 +216,7 @@ impl AppState {
                 Task::perform(
                     async move {
                         let cm = config_manager().await?;
-                        let application = ProfileApplication::new(cm);
+                        let application = profiles_for_mihomo(cm);
 
                         // DUAL-07-14: the schedule draft and the reload
                         // preference are validated and persisted by the shared
@@ -271,7 +271,7 @@ impl AppState {
                 Task::perform(
                     async move {
                         let cm = config_manager().await?;
-                        let application = ProfileApplication::new(cm);
+                        let application = profiles_for_mihomo(cm);
                         let source = subscription_source();
                         // DUAL-07-05/06: retry with exponential backoff through
                         // the injected runtime, guarded by the shared
@@ -332,7 +332,7 @@ impl AppState {
                 Task::perform(
                     async move {
                         let manager = config_manager().await?;
-                        let application = ProfileApplication::new(manager);
+                        let application = profiles_for_mihomo(manager);
                         let profiles = application
                             .list_profiles()
                             .await
@@ -441,7 +441,7 @@ impl AppState {
                 Task::perform(
                     async move {
                         let manager = config_manager().await?;
-                        let application = ProfileApplication::new(manager);
+                        let application = profiles_for_mihomo(manager);
                         let source = subscription_source();
                         // DUAL-07-05/06: the batch shares the retry/backoff and
                         // single-flight orchestration with the single-profile
@@ -501,7 +501,7 @@ impl AppState {
                 Task::perform(
                     async move {
                         let cm = config_manager().await?;
-                        let application = ProfileApplication::new(cm);
+                        let application = profiles_for_mihomo(cm);
                         application
                             .restore_inactive_profile_backup(&profile_name)
                             .await
@@ -552,7 +552,7 @@ impl AppState {
                 Task::perform(
                     async move {
                         let cm = config_manager().await?;
-                        let application = ProfileApplication::new(cm);
+                        let application = profiles_for_mihomo(cm);
                         let mut metadata = application
                             .load_metadata(&name)
                             .await

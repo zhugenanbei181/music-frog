@@ -10,7 +10,7 @@ use crate::types::dns::{AdvancedConfigsBundle, AdvancedEditMode, DnsTab};
 use crate::types::editor::EditorLazyState;
 use crate::types::message::Message;
 use crate::types::rules::RuleBadgeKind;
-use crate::types::runtime::RebuildFlowState;
+use crate::types::runtime::ConfigurationSaveState;
 use crate::view::components::BadgeKind;
 use crate::view::rules::{display_rule_type, semantic_badge_kind};
 use infiltrator_domain::rules::RuleEntry;

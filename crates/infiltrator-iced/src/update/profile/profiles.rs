@@ -2,6 +2,7 @@
 //! activation and deletion.
 
 use crate::configs_dir::config_manager;
+use crate::configuration::profiles_for_mihomo;
 use crate::host::storage::reset_profiles_to_default;
 use crate::state::AppState;
 use crate::types::app::ToastStatus;
@@ -10,7 +11,6 @@ use crate::types::runtime::RuntimeStatus;
 use crate::update::core::profile_apply::activate_profile;
 use iced::Task;
 use infiltrator_application::profile_application::ProfileActivationOutcome;
-use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_shared::locales::{Lang, Localizer};
 
@@ -22,7 +22,7 @@ impl AppState {
                 Task::perform(
                     async {
                         let store = config_manager().await?;
-                        ProfileApplication::new(store)
+                        profiles_for_mihomo(store)
                             .list_profiles()
                             .await
                             .map_err(|failure| InfiltratorError::Config(failure.message))
@@ -183,7 +183,7 @@ impl AppState {
             Message::DeleteProfile(name) => Task::perform(
                 async move {
                     let store = config_manager().await?;
-                    ProfileApplication::new(store)
+                    profiles_for_mihomo(store)
                         .delete_profile(&name)
                         .await
                         .map_err(|failure| InfiltratorError::Config(failure.message))
