@@ -9,6 +9,7 @@ use crate::profile_edit_session::{
 use crate::profile_options_application::ProfileOptionsApplication;
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::profile_document::ProfileDocumentSaved;
+use infiltrator_contract::profile_editor_read::ProfileEditStatusFact;
 use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
 use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceApplier;
 use std::sync::Arc;
@@ -88,6 +89,13 @@ async fn shared_editor_rejects_unit_and_old_terminal_keeps_draft_and_accepts_onl
         },
         ErrorCode::InvalidState
     );
+    match session.status_fact("mode: global\n") {
+        ProfileEditStatusFact::SaveFailed(failure) => {
+            assert_eq!(failure.code, ErrorCode::InvalidState);
+            assert!(!failure.message.is_empty());
+        }
+        other => panic!("expected raw save failure facts, got {other:?}"),
+    }
     assert_eq!(store.load("main").await.unwrap(), observed.content);
     assert!(session.dirty("mode: global\n"));
     let retry = session

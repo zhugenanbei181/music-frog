@@ -31,6 +31,7 @@ log = { workspace = true }
 mihomo-api = { path = "../mihomo-api" }
 mihomo-config = { path = "../mihomo-config" }
 infiltrator-platform = { path = "../infiltrator-platform" }
+infiltrator-presentation = { path = "../infiltrator-presentation" }
 singbox-api = { path = "../singbox-api" }
 singbox-config = { path = "../singbox-config" }
 singbox-process = { path = "../singbox-process" }

@@ -1622,6 +1622,59 @@
       "source_roots": [
         "crates/infiltrator-application/src"
       ]
+    },
+    {
+      "id": "application-failure-projection-module",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "failure_projection",
+      "rationale": "Failure localization and display copy moved to infiltrator-presentation; application retains raw contract Failure facts.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/failure_projection_tests.rs",
+        "crates/infiltrator-presentation/src/profile_edit_status_projection_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "application-profile-metadata-projection-module",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "profile_metadata_projection",
+      "rationale": "Profile metadata and traffic display moved to infiltrator-presentation; application keeps observed profile facts.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/profile_metadata_projection_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "application-subscription-quota-projection-module",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "subscription_quota_projection",
+      "rationale": "Quota formatting, grade, and display status moved to infiltrator-presentation; application keeps SubscriptionQuotaSnapshot facts.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/subscription_quota_projection_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "application-subscription-status-projection-module",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "subscription_status_projection",
+      "rationale": "Subscription schedule, filter, backup, and reload copy moved to infiltrator-presentation.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/subscription_status_projection_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
     }
   ]
 }

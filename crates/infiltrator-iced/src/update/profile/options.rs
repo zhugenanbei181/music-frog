@@ -15,7 +15,6 @@ use crate::types::profile_edit::{ProfileEditReply, ProfileOptionsReadReply};
 use crate::update::profile::editor::ViewportSync;
 use iced::Task;
 use iced::widget::text_editor;
-use infiltrator_application::failure_projection::failure_message;
 use infiltrator_application::profile_edit_session::{
     ProfileEditFinish, ProfileEditObservation, ProfileEditOperationPhase,
 };
@@ -25,6 +24,7 @@ use infiltrator_contract::error::InfiltratorError;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::subscription_filter_form::{FilterField, FilterObservation};
 use infiltrator_contract::subscription_import::SubscriptionFilterDedup;
+use infiltrator_presentation::failure_projection::failure_message;
 
 impl AppState {
     pub(super) fn update_options(&mut self, message: Message) -> Task<Message> {

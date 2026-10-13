@@ -1,12 +1,12 @@
 //! Shared source and terminal-result state for the two native YAML editors.
-use crate::failure_projection::failure_message;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
-use infiltrator_contract::profile_editor_read::{ProfileEditorReadSnapshot, ProfileReadStatus};
+use infiltrator_contract::profile_editor_read::{
+    ProfileEditStatusFact, ProfileEditorReadSnapshot, ProfileReadStatus,
+};
 use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
-use infiltrator_shared::i18n_interpolator::localize;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct Baseline {
@@ -330,58 +330,40 @@ impl ProfileEditSession {
         ProfileEditFinish::Applied
     }
 
-    pub fn status(&self, draft: &str, locale: &str) -> String {
+    pub fn status_fact(&self, draft: &str) -> ProfileEditStatusFact {
         match &self.operation {
-            ProfileEditOperationPhase::Pending(_) => {
-                return localize(locale, "editor_save_pending", &[]);
-            }
+            ProfileEditOperationPhase::Pending(_) => return ProfileEditStatusFact::SavePending,
             ProfileEditOperationPhase::Failed(failure) => {
-                return localize(
-                    locale,
-                    "editor_save_failed",
-                    &[("reason", failure_message(failure, locale))],
-                );
+                return ProfileEditStatusFact::SaveFailed(failure.clone());
             }
             ProfileEditOperationPhase::Ready | ProfileEditOperationPhase::Saved => {}
         }
         match &self.read_status {
             ProfileReadStatus::Failed(failure) => {
-                return localize(
-                    locale,
-                    "editor_read_failed",
-                    &[("reason", failure_message(failure, locale))],
-                );
+                return ProfileEditStatusFact::ReadFailed(failure.clone());
             }
-            ProfileReadStatus::Loading => {
-                return localize(locale, "editor_read_loading", &[]);
-            }
+            ProfileReadStatus::Loading => return ProfileEditStatusFact::ReadLoading,
             ProfileReadStatus::Unobserved | ProfileReadStatus::Ready => {}
         }
         match &self.verification {
             ProfileEditVerification::Failed(failure) => {
-                return localize(
-                    locale,
-                    "editor_source_verification_failed",
-                    &[("reason", failure_message(failure, locale))],
-                );
+                return ProfileEditStatusFact::VerificationFailed(failure.clone());
             }
-            ProfileEditVerification::Stale => {
-                return localize(locale, "editor_save_source_changed", &[]);
-            }
+            ProfileEditVerification::Stale => return ProfileEditStatusFact::SourceChanged,
             ProfileEditVerification::Unchecked | ProfileEditVerification::Current => {}
         }
         if self.stale() {
-            return localize(locale, "editor_save_source_changed", &[]);
+            return ProfileEditStatusFact::SourceChanged;
         }
         if self.baseline.is_none() {
-            return localize(locale, "editor_save_unobserved", &[]);
+            return ProfileEditStatusFact::SourceUnobserved;
         }
         if self.dirty(draft) {
-            return localize(locale, "editor_unsaved", &[]);
+            return ProfileEditStatusFact::UnsavedChanges;
         }
         if matches!(&self.operation, ProfileEditOperationPhase::Saved) {
-            return localize(locale, "editor_save_committed", &[]);
+            return ProfileEditStatusFact::Saved;
         }
-        String::new()
+        ProfileEditStatusFact::Ready
     }
 }

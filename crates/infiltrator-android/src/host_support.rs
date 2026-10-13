@@ -5,7 +5,6 @@ use crate::ffi::{FfiErrorCode, FfiFailureLocalization, FfiFailureLocalizationKey
 use infiltrator_application::cache_application::CacheApplication;
 use infiltrator_application::configuration_application::ConfigurationApplication;
 use infiltrator_application::doctor_application::DoctorApplication;
-use infiltrator_application::failure_projection::{FailureLocalizationKey, project_failure};
 use infiltrator_application::network_application::NetworkApplication;
 use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::routing_application::RoutingApplication;
@@ -24,6 +23,7 @@ use infiltrator_platform::defaults::DefaultCredentialStore;
 use infiltrator_platform::paths::get_home_dir;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::subscription_source::SubscriptionSource;
+use infiltrator_presentation::failure_projection::{FailureLocalizationKey, project_failure};
 use mihomo_api::error::MihomoError;
 use mihomo_config::manager::ConfigManager;
 use mihomo_config::profile_document_codec::MihomoProfileDocumentCodec;

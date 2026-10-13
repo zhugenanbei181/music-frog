@@ -30,7 +30,6 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
-use infiltrator_application::subscription_status_projection::{reload_status, schedule_status};
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
@@ -44,6 +43,7 @@ use infiltrator_bevy_widgets::text_input::native::NativeTextField;
 use infiltrator_bevy_widgets::text_input::state::TextFieldInput;
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::subscription_import::SubscriptionScheduleDraft;
+use infiltrator_presentation::subscription_status_projection::{reload_status, schedule_status};
 
 /// Marker for the subscription URL text field parent.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]

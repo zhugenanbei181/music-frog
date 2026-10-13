@@ -5946,6 +5946,7 @@ dependencies = [
  "infiltrator-domain",
  "infiltrator-platform",
  "infiltrator-ports",
+ "infiltrator-presentation",
  "infiltrator-profile-store",
  "infiltrator-shared",
  "infiltrator-slint",

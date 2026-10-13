@@ -19,8 +19,8 @@ use crate::pages::profiles_editor_copy::replay_profile_protection;
 use crate::pages::profiles_filter_dedup::FilterDedupPlugin;
 use crate::pages::profiles_snapshot_copy;
 use crate::pages::profiles_subscription_copy::sync_status_copy;
-use infiltrator_application::profile_metadata_projection;
 use infiltrator_bevy_widgets::localization::UiLocale;
+use infiltrator_presentation::profile_metadata_projection;
 
 use crate::pages::profiles::cards::{header_card_scene, profile_card_scene};
 use crate::pages::profiles_aggregator::sync_aggregation_preview;

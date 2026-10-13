@@ -5,6 +5,7 @@ use crate::profile_document_application::ProfileDocumentApplication;
 use crate::profile_edit_session::{ProfileEditReadTarget, ProfileEditSession};
 use crate::profile_editor_observations::EditorFacet;
 use crate::profile_options_application::ProfileOptionsApplication;
+use infiltrator_contract::profile_editor_read::ProfileEditStatusFact;
 use infiltrator_contract::profile_editor_read::ProfileReadStatus;
 
 #[tokio::test]
@@ -51,11 +52,10 @@ async fn failed_document_read_retains_both_facts_and_a_successful_options_read_c
     options_session.observe(&document.workspace_identity, &document.content, "");
     options_session.observe_read_status(&recovered_options.read, ProfileEditReadTarget::Options);
     assert!(options_session.can_save());
-    assert!(
-        session
-            .status(&document.content, "en-US")
-            .starts_with("Editor read failed:")
-    );
+    assert!(matches!(
+        session.status_fact(&document.content),
+        ProfileEditStatusFact::ReadFailed(_)
+    ));
     documents.load(None).await.unwrap();
     session.observe_read_status(
         &profiles.verified_editor_snapshot().await.read,
@@ -86,10 +86,9 @@ async fn an_external_write_without_a_reload_is_verified_stale_and_does_not_repla
     session.observe_read_status(&snapshot.read, ProfileEditReadTarget::Document);
     assert!(!session.can_save());
     assert!(session.dirty("mode: global\n"));
-    assert!(
-        session
-            .status("mode: global\n", "zh-CN")
-            .contains("配置或选项已变化")
+    assert_eq!(
+        session.status_fact("mode: global\n"),
+        ProfileEditStatusFact::SourceChanged
     );
 }
 

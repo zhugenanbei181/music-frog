@@ -7,9 +7,9 @@ use crate::pages::overview_restamp::{
 use bevy::ecs::system::{Query, Res};
 use bevy::text::TextColor;
 use bevy::ui::widget::Text;
-use infiltrator_application::subscription_quota_projection::project_quota;
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_presentation::subscription_quota_projection::project_quota;
 pub fn replay(
     last: Res<LastOverviewProjection>,
     locale: Res<UiLocale>,

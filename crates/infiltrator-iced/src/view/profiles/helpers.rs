@@ -7,9 +7,9 @@ use crate::view::theme::{FONT_MEDIUM, MONO, tokens};
 use chrono::{DateTime, Local, Utc};
 use iced::widget::{Space, button, column, progress_bar, row, text};
 use iced::{Alignment, Border, Element, Length, Theme, border};
-use infiltrator_application::profile_metadata_projection::{UsageGrade, traffic, traffic_caption};
 use infiltrator_desktop::clipboard_helper::ClipboardHelper;
 use infiltrator_domain::profiles::ProfileInfo;
+use infiltrator_presentation::profile_metadata_projection::{UsageGrade, traffic, traffic_caption};
 use infiltrator_shared::i18n_interpolator::interpolate;
 use infiltrator_shared::locales::{Lang, Localizer};
 #[cfg(target_os = "linux")]

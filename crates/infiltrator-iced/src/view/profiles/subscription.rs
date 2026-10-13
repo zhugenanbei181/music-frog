@@ -14,7 +14,9 @@ use crate::view::theme;
 use crate::view::theme::{FONT_MEDIUM, MONO, tokens};
 use iced::widget::{Space, column, pick_list, row, text, text_input};
 use iced::{Alignment, Element, Length, Theme};
-use infiltrator_application::subscription_status_projection::{backup_status, conditional_request};
+use infiltrator_presentation::subscription_status_projection::{
+    backup_status, conditional_request,
+};
 use infiltrator_shared::locales::{Lang, Localizer};
 
 pub(super) fn subscription_section<'a>(state: &'a AppState) -> Element<'a, Message> {

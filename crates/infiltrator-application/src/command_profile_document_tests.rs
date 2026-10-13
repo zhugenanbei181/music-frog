@@ -3,7 +3,6 @@
 use super::*;
 use crate::command_application::handler::ValidatedCoreCommandScope;
 use crate::core_capability_test_support::{core_scope, with_test_capabilities};
-use crate::failure_projection::failure_message;
 use crate::profile_document_application::ProfileDocumentApplication;
 use crate::profile_document_codec_test_support::TestProfileDocumentCodec;
 use infiltrator_contract::profile_document::{
@@ -82,7 +81,7 @@ async fn load_and_save_profile_document_round_trips_through_the_shared_guard() {
         error.reason.is_none(),
         "generic document failure: {error:?}"
     );
-    assert!(failure_message(&error, "en-US").contains("line"));
+    assert!(error.message.to_ascii_lowercase().contains("line"));
     assert_eq!(
         store.workspace_reads.load(Ordering::SeqCst),
         reads_before_invalid,

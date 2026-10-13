@@ -155,10 +155,10 @@ fn test_advancement_w4_4_log_regex_and_redacted_export() {
 
 #[test]
 fn test_advancement_w4_5_subscription_quota_and_cron_matrix() {
-    use infiltrator_application::subscription_quota_projection::project_quota;
     use infiltrator_contract::subscription_quota::{
         SubscriptionQuotaSnapshot, SubscriptionQuotaStatus,
     };
+    use infiltrator_presentation::subscription_quota_projection::project_quota;
     let (mut state, _) = AppState::new();
     assert_eq!(
         state.runtime.subscription_quota.status,

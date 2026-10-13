@@ -5,6 +5,24 @@ use crate::profile_document_identity::ProfileWorkspaceIdentity;
 use crate::profile_options::ProfileOptionsSnapshot;
 use serde::{Deserialize, Serialize};
 
+/// Raw editor-session feedback supplied to a presentation surface.
+///
+/// The application chooses one terminal/observed fact with an explicit
+/// variant; presentation owns the localized copy for that fact.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ProfileEditStatusFact {
+    SavePending,
+    SaveFailed(Failure),
+    ReadFailed(Failure),
+    ReadLoading,
+    VerificationFailed(Failure),
+    SourceChanged,
+    SourceUnobserved,
+    UnsavedChanges,
+    Saved,
+    Ready,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ProfileReadStatus {
     #[default]

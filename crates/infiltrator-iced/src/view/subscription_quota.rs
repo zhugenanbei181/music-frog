@@ -2,7 +2,7 @@
 
 use crate::state::AppState;
 use crate::types::message::Message;
-use infiltrator_application::subscription_quota_projection::{QuotaGrade, project_quota};
+use infiltrator_presentation::subscription_quota_projection::{QuotaGrade, project_quota};
 
 use crate::view::component_card::card;
 use crate::view::components::{BadgeKind, badge};

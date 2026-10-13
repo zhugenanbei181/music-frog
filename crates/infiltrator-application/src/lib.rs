@@ -51,7 +51,6 @@ pub mod dns_workbench_application;
 pub mod doctor_actions;
 pub mod doctor_application;
 pub mod doctor_capture_fixtures;
-pub mod failure_projection;
 #[cfg(any(test, feature = "capture-fixtures"))]
 pub mod filter_capture_store;
 pub mod geo_database_application;
@@ -75,7 +74,6 @@ pub mod profile_application;
 pub mod profile_document_application;
 #[cfg(test)]
 pub(crate) mod profile_document_codec_test_support;
-pub mod profile_metadata_projection;
 pub mod profile_options_application;
 pub mod profile_reset_application;
 #[cfg(any(test, feature = "capture-fixtures"))]
@@ -215,8 +213,6 @@ mod script_service_tests;
 
 pub mod snapshot_presentation;
 
-pub mod subscription_quota_projection;
-
 mod profile_editor_observations;
 
 pub mod profile_edit_session;
@@ -238,4 +234,3 @@ pub mod latency_projection;
 pub mod rule_condition_projection;
 pub mod rule_row_projection;
 pub mod stun_projection;
-pub mod subscription_status_projection;

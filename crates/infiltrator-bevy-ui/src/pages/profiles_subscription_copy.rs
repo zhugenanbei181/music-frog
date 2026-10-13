@@ -4,11 +4,11 @@ use crate::pages::profiles_import::selected_profile;
 use bevy::ecs::component::Component;
 use bevy::ecs::observer::On;
 use bevy::ecs::system::Query;
-use infiltrator_application::subscription_status_projection::{
+use infiltrator_bevy_widgets::localization::LocalizedText;
+use infiltrator_presentation::subscription_status_projection::{
     SubscriptionCopyProjection, backup_status, conditional_request, observed_filter_status,
     schedule_status,
 };
-use infiltrator_bevy_widgets::localization::LocalizedText;
 
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum SubscriptionStatusKind {

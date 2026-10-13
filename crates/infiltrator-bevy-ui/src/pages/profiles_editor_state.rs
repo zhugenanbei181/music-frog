@@ -26,6 +26,7 @@ use infiltrator_contract::yaml_snippets::{
 use infiltrator_domain::yaml_edit::format::{FormatSkipReason, format_yaml};
 use infiltrator_ports::profile_document_codec::ProfileDocumentSnippetOutcome;
 use infiltrator_ports::profile_document_codec::ProfileMixinPreflight;
+use infiltrator_presentation::profile_edit_status_projection;
 use infiltrator_presentation::profile_editor_projection::{self, EditorStatus};
 
 /// Maximum number of lines rendered per frame (no virtual scroll; see the
@@ -362,14 +363,15 @@ pub(crate) fn status_line(
         },
         locale,
     );
-    [
-        status,
-        state.session.status(&state.buffer.full_text(), locale),
-    ]
-    .into_iter()
-    .filter(|part| !part.is_empty())
-    .collect::<Vec<_>>()
-    .join(" · ")
+    let session_status = profile_edit_status_projection::status(
+        &state.session.status_fact(&state.buffer.full_text()),
+        locale,
+    );
+    [status, session_status]
+        .into_iter()
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>()
+        .join(" · ")
 }
 pub(crate) fn diagnostic_line(
     state: &ProfileEditorState,
