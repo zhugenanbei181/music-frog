@@ -462,7 +462,7 @@ where
                 )
                 .with_core_log_level_port(Arc::new(client.clone())),
             )
-            .with_runtime(gateway)
+            .with_runtime_configuration_ports(gateway.configuration_ports())
             .with_application_runtime(runtime)
             .with_mtu(MtuApplication::new(host)),
     ));

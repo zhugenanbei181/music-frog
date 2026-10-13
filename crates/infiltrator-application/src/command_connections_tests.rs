@@ -14,10 +14,10 @@ impl CoreScopeSource for UnavailableCoreScope {
 }
 
 #[tokio::test]
-async fn close_all_uses_the_actual_runtime_port_and_preserves_typed_failure_for_retry() {
-    let gateway = Arc::new(RecordingConnectionGateway::default());
+async fn close_all_uses_injected_connection_port_and_preserves_typed_failure_for_retry() {
+    let connection_port = Arc::new(RecordingConnectionPort::default());
     let connections =
-        ConnectionApplication::new(Arc::new(UnavailableCoreScope), gateway.connection_port());
+        ConnectionApplication::new(Arc::new(UnavailableCoreScope), connection_port.clone());
     let app = with_test_capabilities(CommandApplication::new().with_connections(connections));
     app.handle_scoped(
         ValidatedCoreCommandScope::from_core_application(Some(core_scope())),
@@ -25,8 +25,8 @@ async fn close_all_uses_the_actual_runtime_port_and_preserves_typed_failure_for_
     )
     .await
     .unwrap();
-    assert_eq!(gateway.close_all_calls.load(Ordering::SeqCst), 1);
-    gateway.deny_close_all.store(true, Ordering::SeqCst);
+    assert_eq!(connection_port.close_all_calls.load(Ordering::SeqCst), 1);
+    connection_port.deny_close_all.store(true, Ordering::SeqCst);
     let failure = app
         .handle_scoped(
             ValidatedCoreCommandScope::from_core_application(Some(core_scope())),
@@ -40,15 +40,17 @@ async fn close_all_uses_the_actual_runtime_port_and_preserves_typed_failure_for_
             "grant connection control permission".into()
         ))
     );
-    assert_eq!(gateway.close_all_calls.load(Ordering::SeqCst), 2);
-    gateway.deny_close_all.store(false, Ordering::SeqCst);
+    assert_eq!(connection_port.close_all_calls.load(Ordering::SeqCst), 2);
+    connection_port
+        .deny_close_all
+        .store(false, Ordering::SeqCst);
     app.handle_scoped(
         ValidatedCoreCommandScope::from_core_application(Some(core_scope())),
         CommandIntent::CloseAllConnections,
     )
     .await
     .unwrap();
-    assert_eq!(gateway.close_all_calls.load(Ordering::SeqCst), 3);
+    assert_eq!(connection_port.close_all_calls.load(Ordering::SeqCst), 3);
     let failure = with_test_capabilities(CommandApplication::new())
         .handle_scoped(
             ValidatedCoreCommandScope::from_core_application(Some(core_scope())),
@@ -57,5 +59,5 @@ async fn close_all_uses_the_actual_runtime_port_and_preserves_typed_failure_for_
         .await
         .unwrap_err();
     assert_eq!(failure.code, ErrorCode::NotReady);
-    assert_eq!(gateway.close_all_calls.load(Ordering::SeqCst), 3);
+    assert_eq!(connection_port.close_all_calls.load(Ordering::SeqCst), 3);
 }

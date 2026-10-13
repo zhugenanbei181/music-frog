@@ -575,7 +575,7 @@ fn core_application_from_backend<S: SecureStore + 'static>(
                 .install_log_stream_port(gateway.runtime_stream_port())
                 .map_err(|failure| PortError::Failed(failure.message))?;
             handler = handler
-                .with_runtime(gateway)
+                .with_runtime_configuration_ports(gateway.configuration_ports())
                 .with_logs(application.log_application());
         }
         AndroidControllerAdapters::Unavailable { .. } => {}

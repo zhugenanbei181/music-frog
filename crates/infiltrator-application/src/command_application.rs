@@ -67,7 +67,7 @@ use infiltrator_ports::certificate_authority::CertificateAuthorityPort;
 use infiltrator_ports::dns_leak::DnsLeakProbePort;
 use infiltrator_ports::routing_intent::RoutingIntentPort;
 use infiltrator_ports::rule_provider_cache::RuleProviderCachePort;
-use infiltrator_ports::runtime_gateway::RuntimeGateway;
+use infiltrator_ports::runtime_configuration::RuntimeConfigurationPorts;
 use infiltrator_ports::stun_probe::StunEgressProbePort;
 use infiltrator_ports::subscription_import::SubscriptionImportPort;
 use infiltrator_ports::subscription_notification::SubscriptionNotificationPort;
@@ -95,7 +95,7 @@ pub struct CommandApplication {
     logs: Option<LogApplication>,
     log_export: Option<LogExportApplication>,
     profile: Option<ProfileApplication>,
-    runtime: Option<Arc<dyn RuntimeGateway>>,
+    runtime_configuration_ports: Option<RuntimeConfigurationPorts>,
     connections: Option<ConnectionApplication>,
     runtime_queries: Option<RuntimeQueryApplication>,
     profile_reference_applier: Option<Arc<dyn ActiveProfileReferenceApplier>>,
@@ -464,10 +464,10 @@ impl CommandApplication {
             .ok_or_else(|| missing("configuration application"))
     }
 
-    fn runtime(&self) -> Result<Arc<dyn RuntimeGateway>, Failure> {
-        self.runtime
+    fn runtime_configuration_ports(&self) -> Result<RuntimeConfigurationPorts, Failure> {
+        self.runtime_configuration_ports
             .clone()
-            .ok_or_else(|| missing("runtime gateway"))
+            .ok_or_else(|| missing("runtime configuration ports"))
     }
 
     fn connections(&self) -> Result<ConnectionApplication, Failure> {

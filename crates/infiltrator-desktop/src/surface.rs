@@ -171,7 +171,8 @@ pub async fn application_surface_reader(
 
     let mut reader = ApplicationSurfaceReader::new(core, surface, HostKind::Desktop)
         .with_capabilities(desktop_capabilities())
-        .with_gateway(gateway)
+        .with_connection_port(gateway.connection_port())
+        .with_runtime_configuration_ports(gateway.configuration_ports())
         .with_routing_intent_port(routing_intent_port)
         .with_resources(resources)
         .with_offline_startup(offline_startup)

@@ -46,7 +46,6 @@ use infiltrator_ports::profile_workspace::{
 use infiltrator_ports::rule_provider_cache::{
     ProviderCacheEntry, ProviderFileFact, RuleProviderCachePort,
 };
-use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use std::path::PathBuf;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -395,25 +394,9 @@ impl ProfileStore for FakeStore {
 const THREE_RULES: &str =
     "rules:\n  - DOMAIN,a.com,DIRECT\n  - DOMAIN,b.com,PROXY\n  - MATCH,DIRECT\n";
 
-/// Runtime fixture records the operations under test; unrelated port methods
-/// supply only the minimal isolated observations needed by those use cases.
+/// Connection fixture records the operations under test.
 #[derive(Default)]
-pub(super) struct RecordingConnectionGateway {
-    close_all_calls: Arc<AtomicUsize>,
-    deny_close_all: Arc<AtomicBool>,
-}
-
-#[async_trait]
-impl RuntimeGateway for RecordingConnectionGateway {
-    fn connection_port(&self) -> Arc<dyn ConnectionPort> {
-        Arc::new(RecordingConnectionPort {
-            close_all_calls: self.close_all_calls.clone(),
-            deny_close_all: self.deny_close_all.clone(),
-        })
-    }
-}
-
-struct RecordingConnectionPort {
+pub(super) struct RecordingConnectionPort {
     close_all_calls: Arc<AtomicUsize>,
     deny_close_all: Arc<AtomicBool>,
 }

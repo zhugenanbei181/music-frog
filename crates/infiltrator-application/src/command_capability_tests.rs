@@ -7,6 +7,7 @@ use crate::command_application::handler::{CommandHandler, ValidatedCoreCommandSc
 use crate::core_capability_application::{
     CoreCapabilityApplication, CoreCapabilityRequirement, CoreCommandEffect,
 };
+use crate::core_capability_test_support::{core_scope, with_test_capabilities};
 use crate::profile_application::ProfileApplication;
 use async_trait::async_trait;
 use infiltrator_contract::capability::Capability;
@@ -35,6 +36,7 @@ use infiltrator_ports::core_capability_provider::{
 };
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::ProfileStore;
+use infiltrator_ports::runtime_configuration::RuntimeConfigurationPorts;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -548,4 +550,30 @@ async fn unsupported_profile_validate_and_apply_are_rejected_before_store_dispat
             "denied profile operations must stop before the ProfileStore"
         );
     }
+}
+
+#[tokio::test]
+async fn tun_command_uses_explicit_configuration_ports_and_requires_validated_scope() {
+    let application = with_test_capabilities(
+        CommandApplication::new()
+            .with_runtime_configuration_ports(RuntimeConfigurationPorts::unsupported()),
+    );
+
+    let no_scope = application
+        .handle_scoped(
+            ValidatedCoreCommandScope::from_core_application(None),
+            CommandIntent::ToggleTun { enabled: true },
+        )
+        .await
+        .expect_err("configuration command must require an owner-validated scope");
+    assert_eq!(no_scope.code, ErrorCode::NotReady);
+
+    let unsupported = application
+        .handle_scoped(
+            ValidatedCoreCommandScope::from_core_application(Some(core_scope())),
+            CommandIntent::ToggleTun { enabled: true },
+        )
+        .await
+        .expect_err("unsupported typed configuration port must fail closed");
+    assert_eq!(unsupported.code, ErrorCode::Unsupported);
 }

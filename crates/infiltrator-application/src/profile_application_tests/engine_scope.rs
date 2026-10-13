@@ -13,7 +13,6 @@ use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceApplier;
 use infiltrator_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
 use infiltrator_ports::profile_workspace::{ProfileWorkspacePurpose, ProfileWorkspaceUpdate};
-use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use infiltrator_ports::runtime_stream::UnsupportedRuntimeStreamPort;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -47,9 +46,6 @@ impl CoreScopeSource for NoCallRuntime {
         CoreScopeObservation::Observed(crate::core_capability_test_support::core_scope())
     }
 }
-
-#[async_trait]
-impl RuntimeGateway for NoCallRuntime {}
 
 #[async_trait]
 impl ActiveProfileReferenceApplier for NoCallRuntime {

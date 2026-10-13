@@ -88,7 +88,7 @@ use infiltrator_ports::endpoint::EndpointSource;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::routing_intent::RoutingIntentPort;
 use infiltrator_ports::rule_provider_cache::RuleProviderCachePort;
-use infiltrator_ports::runtime_gateway::RuntimeGateway;
+use infiltrator_ports::runtime_configuration::RuntimeConfigurationPorts;
 use infiltrator_ports::surface::SurfaceReader;
 use outbound_observation::{
     SurfaceReadScope, authorize_outbound_inventory, gate_outbound_observation,
@@ -123,7 +123,7 @@ pub struct ApplicationSurfaceReader {
     shell_readout: ShellReadoutApplication,
     runtime_control: RuntimeControlApplication,
     core: Arc<CoreApplication>,
-    gateway: Option<Arc<dyn RuntimeGateway>>,
+    runtime_configuration_ports: Option<RuntimeConfigurationPorts>,
     connection_port: Option<Arc<dyn ConnectionPort>>,
     routing_intent_port: Option<Arc<dyn RoutingIntentPort>>,
     profiles: Option<ProfileApplication>,
@@ -311,9 +311,9 @@ impl SurfaceReader for ApplicationSurfaceReader {
                 core_version: core.core_version.clone(),
             });
 
-        let runtime_config = match (&self.gateway, core.scope()) {
-            (Some(gateway), Some(scope)) => Some(
-                RuntimeConfigurationApplication::new(scope, gateway.configuration_ports())
+        let runtime_config = match (&self.runtime_configuration_ports, core.scope()) {
+            (Some(ports), Some(scope)) => Some(
+                RuntimeConfigurationApplication::new(scope, ports.clone())
                     .observe_readout()
                     .await,
             ),

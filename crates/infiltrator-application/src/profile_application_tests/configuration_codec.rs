@@ -24,7 +24,6 @@ use infiltrator_ports::profile_document_codec::{
     ProfileProtocolNodeMutationReadback, ProfileRuleWorkspaceUpdate,
 };
 use infiltrator_ports::profile_workspace::{ProfileWorkspace, ProfileWorkspaceUpdate};
-use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::atomic::AtomicUsize;
@@ -34,9 +33,6 @@ struct WorkspaceApplyRuntime {
     calls: AtomicUsize,
     update: Mutex<Option<ProfileWorkspaceUpdate>>,
 }
-
-#[async_trait]
-impl RuntimeGateway for WorkspaceApplyRuntime {}
 
 #[async_trait]
 impl ActiveProfileReferenceApplier for WorkspaceApplyRuntime {

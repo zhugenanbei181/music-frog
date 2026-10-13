@@ -670,7 +670,7 @@ pub fn desktop_command_application(
         .with_host_capabilities(Arc::new(DesktopHostCapabilities))
         .with_scripts(scripts, script_exports)
         .with_doctor(doctor)
-        .with_runtime(gateway)
+        .with_runtime_configuration_ports(gateway.configuration_ports())
         .with_application_runtime(runtime)
         .with_profile(profiles)
         .with_configuration(configuration)

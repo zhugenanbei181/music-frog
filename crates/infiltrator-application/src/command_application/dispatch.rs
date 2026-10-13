@@ -42,10 +42,9 @@ impl CommandApplication {
                 false,
             )
         })?;
-        let gateway = self.runtime()?;
         Ok(RuntimeConfigurationApplication::new(
             scope.clone(),
-            gateway.configuration_ports(),
+            self.runtime_configuration_ports()?,
         ))
     }
 
@@ -392,7 +391,7 @@ impl CommandApplication {
                 .await
                 .map(|_| ()),
             CommandIntent::ProbeTunMtu => {
-                let configuration_ports = self.runtime()?.configuration_ports();
+                let configuration_ports = self.runtime_configuration_ports()?;
                 let scope = scope.ok_or_else(|| {
                     Failure::new(
                         ErrorCode::NotReady,

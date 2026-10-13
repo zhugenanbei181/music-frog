@@ -9,11 +9,12 @@ use super::{
     OutboundUiPreferencesApplication, PacApplication, PortConflictApplication,
     PrivilegedNetworkApplication, ProfileApplication, RoutingApplication, RoutingIntentPort,
     RuleListApplication, RuleProviderApplication, RuleProviderCachePort,
-    RuleProviderRuntimeApplication, RuleTracerApplication, RuntimeGateway, RuntimeQueryApplication,
+    RuleProviderRuntimeApplication, RuleTracerApplication, RuntimeQueryApplication,
     ServiceModeApplication, SettingsApplication, SnapshotApplication, StunProbeApplication,
     SubscriptionImportPort, SubscriptionNotificationPort, SubscriptionSource, SyncApplication,
     SystemProxyApplication, UwpLoopbackApplication, VersionApplication, VpnServiceApplication,
 };
+use infiltrator_ports::runtime_configuration::RuntimeConfigurationPorts;
 use std::sync::Arc;
 
 impl CommandApplication {
@@ -49,8 +50,8 @@ impl CommandApplication {
         self
     }
 
-    pub fn with_runtime(mut self, runtime: Arc<dyn RuntimeGateway>) -> Self {
-        self.runtime = Some(runtime);
+    pub fn with_runtime_configuration_ports(mut self, ports: RuntimeConfigurationPorts) -> Self {
+        self.runtime_configuration_ports = Some(ports);
         self
     }
 

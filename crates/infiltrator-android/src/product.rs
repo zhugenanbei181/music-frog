@@ -257,7 +257,8 @@ impl AndroidProductComposition {
                         ResourceApplication::new(application.clone(), gateway.resource_port());
                     reader = reader
                         .with_routing_intent_port(routing_intent_port)
-                        .with_gateway(gateway.clone())
+                        .with_connection_port(gateway.connection_port())
+                        .with_runtime_configuration_ports(gateway.configuration_ports())
                         .with_resources(resources);
                 }
             }

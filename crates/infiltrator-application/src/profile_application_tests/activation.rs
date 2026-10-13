@@ -18,7 +18,6 @@ use infiltrator_ports::profile_store::{
     ActiveProfileWorkspaceRestoreOutcome,
 };
 use infiltrator_ports::profile_workspace::{ProfileWorkspace, ProfileWorkspaceUpdate};
-use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
@@ -64,9 +63,6 @@ impl ActivationRuntime {
         *self.lifecycle.lock().expect("runtime lifecycle") = lifecycle;
     }
 }
-
-#[async_trait]
-impl RuntimeGateway for ActivationRuntime {}
 
 #[async_trait]
 impl ActiveProfileReferenceApplier for ActivationRuntime {

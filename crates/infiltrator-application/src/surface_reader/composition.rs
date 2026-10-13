@@ -9,7 +9,7 @@ impl ApplicationSurfaceReader {
             shell_readout: ShellReadoutApplication::default(),
             runtime_control: RuntimeControlApplication::default(),
             core,
-            gateway: None,
+            runtime_configuration_ports: None,
             connection_port: None,
             routing_intent_port: None,
             profiles: None,
@@ -69,9 +69,13 @@ impl ApplicationSurfaceReader {
         self
     }
 
-    pub fn with_gateway(mut self, gateway: Arc<dyn RuntimeGateway>) -> Self {
-        self.connection_port = Some(gateway.connection_port());
-        self.gateway = Some(gateway);
+    pub fn with_connection_port(mut self, port: Arc<dyn ConnectionPort>) -> Self {
+        self.connection_port = Some(port);
+        self
+    }
+
+    pub fn with_runtime_configuration_ports(mut self, ports: RuntimeConfigurationPorts) -> Self {
+        self.runtime_configuration_ports = Some(ports);
         self
     }
 
