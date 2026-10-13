@@ -30,12 +30,14 @@ use infiltrator_application::configuration_application::ConfigurationApplication
 use infiltrator_application::connection_application::ConnectionApplication;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::core_capability_application::CoreCapabilityApplication;
+use infiltrator_application::geo_database_application::GeoDatabaseApplication;
 use infiltrator_application::log_export_application::LogExportApplication;
 use infiltrator_application::mtu_application::MtuApplication;
 use infiltrator_application::network_roaming_application::NetworkRoamingApplication;
 use infiltrator_application::outbound_application::OutboundApplication;
 use infiltrator_application::pac_application::PacApplication;
 use infiltrator_application::port_conflict_application::PortConflictApplication;
+use infiltrator_application::rule_provider_runtime_application::RuleProviderRuntimeApplication;
 use infiltrator_application::runtime_query_application::RuntimeQueryApplication;
 use infiltrator_application::service_mode_application::ServiceModeApplication;
 use infiltrator_application::speedtest_application::SpeedtestApplication;
@@ -516,6 +518,12 @@ pub(crate) async fn core_application(
         application
             .install_outbound_port(outbound_port.clone())
             .map_err(|failure| anyhow::anyhow!(failure.message))?;
+        application
+            .install_rule_provider_port(ports.operations().rule_provider())
+            .map_err(|failure| anyhow::anyhow!(failure.message))?;
+        application
+            .install_geo_database_port(ports.operations().geo_database())
+            .map_err(|failure| anyhow::anyhow!(failure.message))?;
         let outbound_application = OutboundApplication::new(outbound_port);
         speedtest
             .install_outbound_application(outbound_application.clone())
@@ -638,6 +646,14 @@ pub fn desktop_command_application(
     // (`-d <config dir>`), so the command handler purges exactly that folder.
     let rule_provider_cache = Arc::new(DesktopRuleProviderCache::new(profile_store.config_dir()));
     let core_capabilities = CoreCapabilityApplication::new(core_capability_provider);
+    let rule_provider_runtime = RuleProviderRuntimeApplication::new(
+        backend_ports.operations().rule_provider(),
+        core_capabilities.clone(),
+    );
+    let geo_database = GeoDatabaseApplication::new(
+        backend_ports.operations().geo_database(),
+        core_capabilities.clone(),
+    );
     let core_log_level_port: Arc<dyn CoreLogLevelPort> = Arc::new(client.clone());
     let connections =
         ConnectionApplication::new(core_scope_source.clone(), gateway.connection_port());
@@ -646,6 +662,8 @@ pub fn desktop_command_application(
             .with_core_log_level_port(core_log_level_port);
     Ok(CommandApplication::new()
         .with_core_capabilities(core_capabilities)
+        .with_rule_provider_runtime(rule_provider_runtime)
+        .with_geo_database(geo_database)
         .with_routing_intent_port(backend_ports.operations().routing_intent()?)
         .with_connections(connections)
         .with_runtime_queries(runtime_queries)

@@ -13,16 +13,16 @@ use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use iced::Task;
 use infiltrator_application::rule_provider_application::{
-    ProviderUnpackPlan, RuleProviderApplication,
+    ProviderUnpackPlan, RuleProviderApplication, RuleProviderRuntimeAccess,
 };
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_contract::provider_cache::ProviderCachePurge;
+use infiltrator_contract::rule_provider_runtime::RuleProviderPayload;
 use infiltrator_domain::rules::edit::DEFAULT_RULE_TARGET;
 use infiltrator_domain::rules::provider_store::{
     RuleProviderDeclaration, deconstruct_provider_payload, parse_rule_provider_declarations,
 };
 use infiltrator_domain::rules::{RuleProviders, diff_rule_provider_contents};
-use infiltrator_ports::runtime_gateway::RuntimeGateway;
 
 impl AppState {
     /// DUAL-11-06/07: the single entry point for every provider maintenance
@@ -83,17 +83,13 @@ impl AppState {
             );
         };
         let cache = self.runtime.rule_provider_cache_port.clone();
-        let gateway = self.runtime.runtime.clone();
+        let runtime_access = self.rule_provider_runtime_access();
         let target = DEFAULT_RULE_TARGET.to_owned();
         Task::perform(
             async move {
                 let application = RuleProviderApplication::new(cache);
-                let view: Option<&dyn RuntimeGateway> = match gateway.as_ref() {
-                    Some(runtime) => Some(runtime.as_ref() as &dyn RuntimeGateway),
-                    None => None,
-                };
                 application
-                    .deconstruct(&declaration, &target, view)
+                    .deconstruct(&declaration, &target, runtime_access)
                     .await
                     .map_err(|failure| InfiltratorError::Config(failure.message))
             },
@@ -194,7 +190,7 @@ impl AppState {
         };
         self.editor.is_loading_rule_provider_diff = true;
         let cache = self.runtime.rule_provider_cache_port.clone();
-        let gateway = self.runtime.runtime.clone();
+        let runtime_access = self.rule_provider_runtime_access();
         Task::perform(
             async move {
                 let local = match cache.as_ref() {
@@ -217,12 +213,33 @@ impl AppState {
                     },
                     None => Vec::new(),
                 };
-                let remote = match gateway.as_ref() {
-                    Some(runtime) => runtime
-                        .rule_provider_payload(&declaration.name)
-                        .await
-                        .map_err(|error| InfiltratorError::Internal(error.to_string()))?,
-                    None => None,
+                let remote = match runtime_access {
+                    RuleProviderRuntimeAccess::Scoped { application, scope } => {
+                        match application.payload_by_name(&scope, &declaration.name).await {
+                            Ok(snapshot) => match snapshot.payload() {
+                                RuleProviderPayload::Published(payload) if !payload.is_empty() => {
+                                    Some(payload.clone())
+                                }
+                                RuleProviderPayload::Published(_)
+                                | RuleProviderPayload::NotPublished => None,
+                            },
+                            Err(failure)
+                                if failure.code
+                                    == infiltrator_contract::error::ErrorCode::Unsupported =>
+                            {
+                                None
+                            }
+                            Err(failure) => {
+                                return Err(InfiltratorError::Internal(failure.message));
+                            }
+                        }
+                    }
+                    RuleProviderRuntimeAccess::ScopeUnavailable => {
+                        return Err(InfiltratorError::Config(
+                            "rule-provider controller query has no validated Core scope".to_owned(),
+                        ));
+                    }
+                    RuleProviderRuntimeAccess::Unavailable => None,
                 };
                 let Some(remote) = remote else {
                     return Err(InfiltratorError::Config(format!(
@@ -248,6 +265,22 @@ impl AppState {
         self.declared_rule_providers()
             .into_iter()
             .find(|declaration| declaration.name == name)
+    }
+
+    fn rule_provider_runtime_access(&self) -> RuleProviderRuntimeAccess {
+        let Some(ingress) = self.command_ingress() else {
+            return RuleProviderRuntimeAccess::Unavailable;
+        };
+        match (
+            ingress.rule_provider_runtime_application(),
+            ingress.observed_scope(),
+        ) {
+            (Some(application), Some(scope)) => {
+                RuleProviderRuntimeAccess::Scoped { application, scope }
+            }
+            (Some(_), None) => RuleProviderRuntimeAccess::ScopeUnavailable,
+            (None, _) => RuleProviderRuntimeAccess::Unavailable,
+        }
     }
 
     fn declared_rule_providers(&self) -> Vec<RuleProviderDeclaration> {

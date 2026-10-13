@@ -150,7 +150,9 @@ def source_fixture(root: Path, real_process_test: str) -> Path:
         encoding="utf-8",
     )
     geo_update_integration.write_text(
-        "#[ignore] client.upgrade_geo() MIHOMO_REAL_GEO_FIXTURE_ORIGIN "
+        "#[ignore] MihomoGeoDatabaseAdapter MihomoGeoDatabaseAdapter::new( "
+        "GeoDatabasePort::trigger(&adapter, scope.clone()) GeoDatabaseTriggerState::Accepted "
+        "MIHOMO_REAL_GEO_FIXTURE_ORIGIN "
         "profile_source.contains(\"geo-auto-update: false\") every configured geox URL "
         "profile_source.contains(\"IP-CIDR,127.0.0.0/8,DIRECT,no-resolve\") "
         "profile_source.contains(\"MATCH,REJECT\")",
@@ -363,6 +365,38 @@ class MihomoEvidenceGuardTests(unittest.TestCase):
             self.assertTrue(
                 any("real-process Profile test must be ignored" in issue
                     for issue in GUARD.source_problems(root))
+            )
+
+    def test_geo_smoke_must_exercise_scope_bound_trigger_adapter(self):
+        typed_test = """
+            #[ignore = \"explicit smoke only\"]
+            MihomoOutboundAdapter MihomoRoutingIntentAdapter
+            OutboundPort RoutingIntentPort
+            runtime_stream_port() .logs(connection_scope.clone(), None)
+            RuntimeStreamEvent::Connected
+            MihomoRuntimeResourcePort .observe(connection_scope.clone())
+            .collect_garbage(connection_scope.clone(), before_bytes)
+            GarbageCollectionOutcome::Collected after_bytes
+            DnsSettingsPatch
+            MIHOMO_REAL_CONTROLLER_URL MIHOMO_REAL_CONTROLLER_SECRET MIHOMO_REAL_VERSION
+        """
+        with tempfile.TemporaryDirectory() as directory:
+            root = source_fixture(Path(directory), typed_test)
+            self.assertEqual(GUARD.source_problems(root), [])
+
+            geo_update = root / GUARD.REAL_GEO_UPDATE_TEST
+            geo_update.write_text(
+                geo_update.read_text(encoding="utf-8").replace(
+                    "GeoDatabasePort::trigger(&adapter, scope.clone())",
+                    "client.upgrade_geo()",
+                ),
+                encoding="utf-8",
+            )
+            self.assertTrue(
+                any(
+                    "scope-bound adapter, not the client endpoint" in issue
+                    for issue in GUARD.source_problems(root)
+                )
             )
 
     def test_undocumented_live_preflight_and_untyped_force_switch_are_rejected(self):

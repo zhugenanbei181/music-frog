@@ -6,8 +6,8 @@ use crate::view::rules::providers::{
     format_provider_behavior, format_rule_provider_format, providers_view, rule_provider_row,
     total_external_rules,
 };
+use infiltrator_contract::rule_provider_snapshot::RuleProviderSnapshot;
 use infiltrator_domain::rules::{RuleProviderDiff, apply_rules_to_yaml, load_rules_from_yaml};
-use infiltrator_domain::runtime::RuleProvider;
 use infiltrator_shared::locales::Lang;
 
 #[test]
@@ -59,29 +59,41 @@ fn test_rule_provider_diff_and_unpack_flow() {
 
     // Verify rule provider row formatting (Domain, IPCIDR, Classical), badges, format chips, and rendering
     let lang = Lang("en");
-    let domain_provider = RuleProvider {
+    let domain_provider = RuleProviderSnapshot {
         name: "GoogleRules".into(),
         provider_type: "http".into(),
         behavior: "domain".into(),
         vehicle_type: "HTTP".into(),
         updated_at: "2026-09-02 06:00:00".into(),
         rule_count: 1420,
+        controller: None,
+        source_url: None,
+        refresh_interval_secs: None,
+        cache_fingerprint: None,
     };
-    let ipcidr_provider = RuleProvider {
+    let ipcidr_provider = RuleProviderSnapshot {
         name: "geoip-cn.mrs".into(),
         provider_type: "mrs".into(),
         behavior: "ipcidr".into(),
         vehicle_type: "File".into(),
         updated_at: "2026-09-01 12:00:00".into(),
         rule_count: 850,
+        controller: None,
+        source_url: None,
+        refresh_interval_secs: None,
+        cache_fingerprint: None,
     };
-    let classical_provider = RuleProvider {
+    let classical_provider = RuleProviderSnapshot {
         name: "custom-ads.yaml".into(),
         provider_type: "yaml".into(),
         behavior: "classical".into(),
         vehicle_type: "HTTP".into(),
         updated_at: "2026-08-30 18:30:00".into(),
         rule_count: 572,
+        controller: None,
+        source_url: None,
+        refresh_interval_secs: None,
+        cache_fingerprint: None,
     };
 
     assert_eq!(

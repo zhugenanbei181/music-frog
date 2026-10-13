@@ -1,12 +1,11 @@
 use super::providers::{
-    format_provider_behavior, format_rule_provider_format, proxy_provider_row, rule_provider_row,
-    total_external_rules,
+    format_provider_behavior, format_rule_provider_format, rule_provider_row, total_external_rules,
 };
 use super::*;
 use infiltrator_application::rule_provider_projection::{
     etag_support_line, provider_fingerprint_line, provider_lifecycle_line,
 };
-use infiltrator_domain::runtime::{ProxyProvider, RuleProvider};
+use infiltrator_contract::rule_provider_snapshot::RuleProviderSnapshot;
 use infiltrator_shared::locales::Lang;
 
 #[test]
@@ -72,23 +71,19 @@ fn test_display_rule_type_formatting() {
 }
 
 #[test]
-fn test_proxy_and_rule_provider_row_render() {
+fn test_rule_provider_row_render() {
     let lang = Lang("en");
-    let proxy_p = ProxyProvider {
-        name: "DefaultProxies".into(),
-        provider_type: "http".into(),
-        vehicle_type: "HTTP".into(),
-        updated_at: "2026-09-02 12:00:00".into(),
-    };
-    let _proxy_element = proxy_provider_row(&proxy_p, &lang);
-
-    let rule_p = RuleProvider {
+    let rule_p = RuleProviderSnapshot {
         name: "RejectAds".into(),
         provider_type: "http".into(),
         behavior: "domain".into(),
         vehicle_type: "HTTP".into(),
         updated_at: "2026-09-02 12:00:00".into(),
         rule_count: 179,
+        controller: None,
+        source_url: None,
+        refresh_interval_secs: None,
+        cache_fingerprint: None,
     };
     let _rule_element = rule_provider_row(
         &rule_p,

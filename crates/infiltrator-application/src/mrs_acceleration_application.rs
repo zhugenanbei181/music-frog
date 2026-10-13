@@ -3,15 +3,15 @@
 use infiltrator_contract::mrs_acceleration::{
     MrsAccelerationSnapshot, MrsBehaviorKind, MrsCompressionKind, MrsItemSnapshot,
 };
+use infiltrator_contract::rule_provider_runtime::RuleProviderFact;
 use infiltrator_contract::snapshot::{CoreLifecycle, CoreSnapshot};
 use infiltrator_domain::mrs::{Behavior, CompressionType, validate_mrs_bytes};
-use infiltrator_domain::runtime::RuleProvider;
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct MrsAccelerationApplication;
 
-fn is_mrs_provider(p: &RuleProvider) -> bool {
-    p.name.ends_with(".mrs")
+fn is_mrs_provider(p: &RuleProviderFact) -> bool {
+    p.id.name().ends_with(".mrs")
         || p.vehicle_type.eq_ignore_ascii_case("mrs")
         || p.provider_type.eq_ignore_ascii_case("mrs")
 }
@@ -109,7 +109,7 @@ impl MrsAccelerationApplication {
     pub fn project(
         &self,
         core: &CoreSnapshot,
-        runtime_providers: Option<&[RuleProvider]>,
+        runtime_providers: Option<&[RuleProviderFact]>,
     ) -> MrsAccelerationSnapshot {
         let revision = core.revision.max(1);
 
@@ -128,11 +128,11 @@ impl MrsAccelerationApplication {
             return MrsAccelerationSnapshot::unsupported(
                 core.generation,
                 revision,
-                "内核未配置规则集提供者网关",
+                "Core rule-provider observation is unavailable",
             );
         };
 
-        let mrs_providers: Vec<&RuleProvider> =
+        let mrs_providers: Vec<&RuleProviderFact> =
             providers.iter().filter(|p| is_mrs_provider(p)).collect();
 
         if mrs_providers.is_empty() {
@@ -147,7 +147,7 @@ impl MrsAccelerationApplication {
                 let desc = format!("{} 条目 · 二进制规则集 · 元数据待校验", rule_count);
 
                 MrsItemSnapshot {
-                    name: p.name.clone(),
+                    name: p.id.name().to_owned(),
                     behavior,
                     format_version: 0,
                     compression: MrsCompressionKind::Unknown,
@@ -177,7 +177,27 @@ impl MrsAccelerationApplication {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use infiltrator_contract::core_identity::EngineId;
     use infiltrator_contract::mrs_acceleration::MrsAccelerationStatus;
+    use infiltrator_contract::rule_provider_runtime::RuleProviderId;
+
+    fn provider(
+        name: &str,
+        provider_type: &str,
+        behavior: &str,
+        vehicle_type: &str,
+        updated_at: &str,
+        rule_count: u32,
+    ) -> RuleProviderFact {
+        RuleProviderFact {
+            id: RuleProviderId::new(EngineId::mihomo(), name).expect("provider ID"),
+            provider_type: provider_type.to_owned(),
+            behavior: behavior.to_owned(),
+            vehicle_type: vehicle_type.to_owned(),
+            updated_at: updated_at.to_owned(),
+            rule_count,
+        }
+    }
 
     fn running_core() -> CoreSnapshot {
         CoreSnapshot {
@@ -200,22 +220,22 @@ mod tests {
     #[test]
     fn projects_ready_mrs_acceleration_from_providers() {
         let providers = vec![
-            RuleProvider {
-                name: "geosite-cn.mrs".to_owned(),
-                provider_type: "mrs".to_owned(),
-                behavior: "domain".to_owned(),
-                vehicle_type: "File".to_owned(),
-                updated_at: "2026-09-06 12:00".to_owned(),
-                rule_count: 28500,
-            },
-            RuleProvider {
-                name: "geoip-cn.mrs".to_owned(),
-                provider_type: "mrs".to_owned(),
-                behavior: "ipcidr".to_owned(),
-                vehicle_type: "File".to_owned(),
-                updated_at: "2026-09-05 18:00".to_owned(),
-                rule_count: 14200,
-            },
+            provider(
+                "geosite-cn.mrs",
+                "mrs",
+                "domain",
+                "File",
+                "2026-09-06 12:00",
+                28500,
+            ),
+            provider(
+                "geoip-cn.mrs",
+                "mrs",
+                "ipcidr",
+                "File",
+                "2026-09-05 18:00",
+                14200,
+            ),
         ];
 
         let app = MrsAccelerationApplication::new();
@@ -238,14 +258,14 @@ mod tests {
 
     #[test]
     fn ignores_non_mrs_providers_and_reports_empty_when_no_mrs() {
-        let providers = vec![RuleProvider {
-            name: "geosite-cn".to_owned(),
-            provider_type: "http".to_owned(),
-            behavior: "domain".to_owned(),
-            vehicle_type: "HTTP".to_owned(),
-            updated_at: "2026-09-06 12:00".to_owned(),
-            rule_count: 28500,
-        }];
+        let providers = vec![provider(
+            "geosite-cn",
+            "http",
+            "domain",
+            "HTTP",
+            "2026-09-06 12:00",
+            28500,
+        )];
 
         let app = MrsAccelerationApplication::new();
         let snapshot = app.project(&running_core(), Some(&providers));

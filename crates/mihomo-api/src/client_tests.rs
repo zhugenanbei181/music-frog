@@ -336,6 +336,22 @@ async fn test_provider_healthcheck() {
     assert!(result.is_ok());
 }
 
+#[tokio::test]
+async fn test_rule_provider_update_encodes_the_name_as_one_path_segment() {
+    let mut server = Server::new_async().await;
+    let mock = server
+        .mock("PUT", "/providers/rules/Rule%20Set%20%231%3F")
+        .with_status(204)
+        .create_async()
+        .await;
+
+    let client = MihomoClient::new(&server.url(), None).unwrap();
+    let result = client.update_rule_provider("Rule Set #1?").await;
+
+    mock.assert_async().await;
+    assert!(result.is_ok());
+}
+
 #[test]
 fn test_provider_name_is_percent_encoded_as_path_segment() {
     let client = MihomoClient::new("http://127.0.0.1:9090", None).unwrap();

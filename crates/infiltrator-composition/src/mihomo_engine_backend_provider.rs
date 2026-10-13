@@ -2,7 +2,8 @@
 
 use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
 use infiltrator_ports::engine_backend_factory::{
-    EngineBackendOwnerScopeBinding, EngineBackendPorts, EngineBackendProvider, EngineOperationPorts,
+    EngineBackendOwnerScopeBinding, EngineBackendPorts, EngineBackendProvider, EngineOperationPort,
+    EngineOperationPorts,
 };
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::outbound::OutboundPort;
@@ -12,8 +13,10 @@ use infiltrator_ports::profile_configuration_transaction::{
 use infiltrator_ports::profile_document_codec::ProfileDocumentCodecPort;
 use infiltrator_ports::routing_intent::RoutingIntentPort;
 use mihomo_api::client::MihomoClient;
+use mihomo_api::geo_database::MihomoGeoDatabaseAdapter;
 use mihomo_api::outbound::MihomoOutboundAdapter;
 use mihomo_api::routing_intent::MihomoRoutingIntentAdapter;
+use mihomo_api::rule_provider::MihomoRuleProviderAdapter;
 use mihomo_config::profile_document_codec::MihomoProfileDocumentCodec;
 use std::sync::Arc;
 
@@ -99,7 +102,21 @@ impl EngineBackendProvider for MihomoEngineBackendProvider {
                 ));
                 let routing: Arc<dyn RoutingIntentPort> =
                     Arc::new(MihomoRoutingIntentAdapter::new(client.clone()));
-                EngineOperationPorts::available(outbound, routing, owner_scope)
+                let rule_provider = Arc::new(MihomoRuleProviderAdapter::new(
+                    Arc::new(client.clone()),
+                    owner_scope.clone(),
+                ));
+                let geo_database = Arc::new(MihomoGeoDatabaseAdapter::new(
+                    Arc::new(client.clone()),
+                    owner_scope.clone(),
+                ));
+                EngineOperationPorts::available(
+                    outbound,
+                    routing,
+                    EngineOperationPort::available(rule_provider),
+                    EngineOperationPort::available(geo_database),
+                    owner_scope,
+                )
             }
             MihomoControllerState::Unavailable(reason) => EngineOperationPorts::unsupported(
                 format!("Mihomo typed engine operations are unavailable: {reason}"),

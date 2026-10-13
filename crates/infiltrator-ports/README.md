@@ -6,10 +6,12 @@
 
 Trait 表达能力，不绑定具体 adapter、Tokio channel、HTTP response 或 UI 类型。实现由 composition 和 host adapter 注入。
 
-Core 生命周期使用 `CoreLifecyclePort`；活动 profile 的 revision-fenced 应用由独立的 `ActiveProfileReferenceApplier` 承担；owner scope 通过 `CoreScopeSource` 以 `Unavailable` / `Observed(CoreScope)` 显式表达；HTTP proxy endpoint 使用 `RuntimeHttpProxyEndpointPort` 与 `Configured` / `NotConfigured` 状态。现有 `RuntimeGateway` 仍保留 scope/configuration 与 controller 访问，是待迁出的旧组合入口；新增能力放入各自窄 owner port。公网探测路由以 `PublicIpProbeRoute` 明确区分直连和 HTTP proxy。
+Core 生命周期使用 `CoreLifecyclePort`；活动 profile 的 revision-fenced 应用由独立的 `ActiveProfileReferenceApplier` 承担；owner scope 通过 `CoreScopeSource` 以 `Unavailable` / `Observed(CoreScope)` 显式表达；HTTP proxy endpoint 使用 `RuntimeHttpProxyEndpointPort` 与 `Configured` / `NotConfigured` 状态。`RuntimeGateway` 仍是待迁出的旧组合入口；provider 和 Geo 新操作必须用各自的窄 owner port。公网探测路由以 `PublicIpProbeRoute` 明确区分直连和 HTTP proxy。
 
 运行态路由意图使用专用 `RoutingIntentPort`，其成功结果必须是 adapter 写后读回的实际意图。
 
 运行中 Core 的 Fake-IP 清理使用独立 `ControllerFakeIpCachePort`，请求和回执绑定已验证的 `CoreScope` 与操作 ID；宿主本地缓存端口不能代替 controller 操作。
 
 Core 资源通过 `CoreResourcePort` 按 `CoreScope` 读取；支持状态是 typed outcome，GC 的 `Collected` 回执必须带同 owner 的真实 post-GC memory readback。
+
+Rule provider 的 inventory/payload/refresh 使用 `RuleProviderPort`，并以 engine-scoped ID、`CoreScope` 和 inventory revision 拒绝 foreign/stale 操作。Geo 数据库触发使用 `GeoDatabasePort`，只报告 controller 接受了异步请求。

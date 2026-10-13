@@ -28,6 +28,7 @@ impl AppState {
         let product_outbound = self.is_product_command_ingress();
         let demo_outbound = self.shell.demo && snapshot.origin == SurfaceOrigin::Demo;
         if changed_scope {
+            self.editor.rule_providers.clear();
             self.runtime.proxy_groups.clear();
             self.runtime.proxy_name_runs.clear();
             self.runtime.filtered_groups.clear();
@@ -117,6 +118,13 @@ impl AppState {
                 };
         }
 
+        self.editor.rule_providers = snapshot
+            .pages
+            .rules
+            .data
+            .as_ref()
+            .map(|page| page.providers.clone())
+            .unwrap_or_default();
         self.observe_rule_list_page(&snapshot.pages.rules);
         self.observe_probe_settings(&snapshot.probe_settings);
         self.observe_language_settings(&snapshot.language_settings);
@@ -211,37 +219,6 @@ impl AppState {
             // DUAL-11-03 / 11-04: the MRS acceleration read model and the
             // declared provider source URLs are shared facts, never UI-local.
             self.editor.mrs_acceleration = rules_page.mrs_acceleration.clone();
-            self.editor.rule_provider_source_urls = rules_page
-                .providers
-                .iter()
-                .filter_map(|provider| {
-                    provider
-                        .source_url
-                        .as_ref()
-                        .map(|url| (provider.name.clone(), url.clone()))
-                })
-                .collect();
-            self.editor.rule_provider_intervals = rules_page
-                .providers
-                .iter()
-                .filter_map(|provider| {
-                    provider
-                        .refresh_interval_secs
-                        .map(|secs| (provider.name.clone(), secs))
-                })
-                .collect();
-            // DUAL-11-05: the local cache fingerprints the shared reader
-            // observed; the provider row renders them verbatim.
-            self.editor.rule_provider_fingerprints = rules_page
-                .providers
-                .iter()
-                .filter_map(|provider| {
-                    provider
-                        .cache_fingerprint
-                        .as_ref()
-                        .map(|observation| (provider.name.clone(), observation.clone()))
-                })
-                .collect();
             // DUAL-11-08: the publish cap and the omitted count are shared
             // facts; the editor keeps its full profile list and says so.
             self.editor.rule_publish_limit = rules_page.rule_publish_limit;

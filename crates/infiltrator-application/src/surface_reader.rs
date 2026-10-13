@@ -37,6 +37,7 @@ use crate::resource_application::ResourceApplication;
 use crate::routing_application::RoutingApplication;
 use crate::routing_intent_application::RoutingIntentApplication;
 use crate::rule_provider_application::RuleProviderApplication;
+use crate::rule_provider_runtime_application::RuleProviderRuntimeApplication;
 use crate::rule_tracer_application::RuleTracerApplication;
 use crate::runtime_configuration_application::RuntimeConfigurationApplication;
 use crate::runtime_control_projection::RuntimeControlApplication;
@@ -165,6 +166,7 @@ pub struct ApplicationSurfaceReader {
     outbound: Option<OutboundApplication>,
     outbound_ui_preferences: Option<OutboundUiPreferencesApplication>,
     rule_provider: RuleProviderApplication,
+    rule_provider_runtime: Option<RuleProviderRuntimeApplication>,
     /// DUAL-13-10/12: the shared per-connection instantaneous-rate window.
     /// Kept across reads (and cloned readers) so successive snapshots diff.
     connection_rates: ConnectionRateApplication,
@@ -391,9 +393,16 @@ impl SurfaceReader for ApplicationSurfaceReader {
             current_after.as_ref(),
             profile_result.as_ref(),
         );
-        let runtime_rule_providers = match &self.gateway {
-            Some(gateway) => Some(gateway.get_rule_providers().await),
-            None => None,
+        let runtime_rule_providers = match (&self.rule_provider_runtime, core.scope()) {
+            (Some(application), Some(scope)) => Some(application.inventory(&scope).await),
+            (Some(_), None) => Some(Err(core.failure.clone().unwrap_or_else(|| {
+                Failure::new(
+                    ErrorCode::NotReady,
+                    "active Core scope is unavailable for rule-provider reads",
+                    true,
+                )
+            }))),
+            (None, _) => None,
         };
 
         let hydrated_settings = match &self.settings {
@@ -573,8 +582,8 @@ impl SurfaceReader for ApplicationSurfaceReader {
             "Mihomo connection port",
         );
 
-        let mrs_acceleration_snapshot = if let Some(Ok(provs)) = &runtime_rule_providers {
-            MrsAccelerationApplication::new().project(&core, Some(provs.as_slice()))
+        let mrs_acceleration_snapshot = if let Some(Ok(inventory)) = &runtime_rule_providers {
+            MrsAccelerationApplication::new().project(&core, Some(inventory.providers()))
         } else {
             MrsAccelerationSnapshot::empty(core.generation, revision)
         };

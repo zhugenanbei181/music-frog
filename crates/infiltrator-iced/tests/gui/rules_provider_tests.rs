@@ -109,7 +109,11 @@ async fn unpack_reads_the_host_cache_through_the_injected_port() {
     // the async result then lands in `finish_rule_provider_unpack`.
     let declaration = state.declared_rule_provider("cn").expect("declaration");
     let plan = RuleProviderApplication::new(state.runtime.rule_provider_cache_port.clone())
-        .deconstruct(&declaration, "PROXY", None)
+        .deconstruct(
+            &declaration,
+            "PROXY",
+            infiltrator_application::rule_provider_application::RuleProviderRuntimeAccess::Unavailable,
+        )
         .await
         .expect("plan");
     assert_eq!(plan.origin, ProviderContentOrigin::KernelCacheFile);

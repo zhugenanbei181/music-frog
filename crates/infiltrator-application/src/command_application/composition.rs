@@ -4,11 +4,12 @@ use super::{
     ActiveProfileReferenceApplier, ApplicationRuntime, CapabilityProvider,
     CertificateAuthorityPort, CommandApplication, ConfigurationApplication, ConnectionApplication,
     CoreCapabilityApplication, DnsCacheApplication, DnsLatencyApplication, DnsLeakApplication,
-    DnsQueryApplication, DoctorApplication, LogApplication, LogExportApplication, MtuApplication,
-    NetworkRoamingApplication, OutboundApplication, OutboundUiPreferencesApplication,
-    PacApplication, PortConflictApplication, PrivilegedNetworkApplication, ProfileApplication,
-    RoutingApplication, RoutingIntentPort, RuleListApplication, RuleProviderApplication,
-    RuleProviderCachePort, RuleTracerApplication, RuntimeGateway, RuntimeQueryApplication,
+    DnsQueryApplication, DoctorApplication, GeoDatabaseApplication, LogApplication,
+    LogExportApplication, MtuApplication, NetworkRoamingApplication, OutboundApplication,
+    OutboundUiPreferencesApplication, PacApplication, PortConflictApplication,
+    PrivilegedNetworkApplication, ProfileApplication, RoutingApplication, RoutingIntentPort,
+    RuleListApplication, RuleProviderApplication, RuleProviderCachePort,
+    RuleProviderRuntimeApplication, RuleTracerApplication, RuntimeGateway, RuntimeQueryApplication,
     ServiceModeApplication, SettingsApplication, SnapshotApplication, StunProbeApplication,
     SubscriptionImportPort, SubscriptionNotificationPort, SubscriptionSource, SyncApplication,
     SystemProxyApplication, UwpLoopbackApplication, VersionApplication, VpnServiceApplication,
@@ -257,6 +258,19 @@ impl CommandApplication {
     /// a cleanup.
     pub fn with_rule_provider_cache(mut self, cache: Arc<dyn RuleProviderCachePort>) -> Self {
         self.rule_provider = Some(RuleProviderApplication::new(Some(cache)));
+        self
+    }
+
+    pub fn with_rule_provider_runtime(
+        mut self,
+        application: RuleProviderRuntimeApplication,
+    ) -> Self {
+        self.rule_provider_runtime = Some(application);
+        self
+    }
+
+    pub fn with_geo_database(mut self, application: GeoDatabaseApplication) -> Self {
+        self.geo_database = Some(application);
         self
     }
 

@@ -1,4 +1,4 @@
-//! Providers tab: proxy/rule provider rows, lifecycle facts and the lazy
+//! Providers tab: rule-provider rows, lifecycle facts and the lazy
 //! JSON editor cards.
 
 use super::rules_list::save_action;
@@ -23,8 +23,8 @@ use infiltrator_application::rule_provider_projection::{
     etag_support_line, provider_fingerprint_line, provider_lifecycle_line,
 };
 use infiltrator_contract::provider_cache::ProviderCacheFingerprint;
+use infiltrator_contract::rule_provider_snapshot::RuleProviderSnapshot;
 use infiltrator_contract::rules_workspace::RulesJsonSection;
-use infiltrator_domain::runtime::{ProxyProvider, RuleProvider};
 use infiltrator_shared::locales::{Lang, Localizer};
 
 fn editor_lazy_placeholder<'a>(title: String, on_press: Message) -> Element<'a, Message> {
@@ -116,66 +116,6 @@ fn provider_icon_chip<'a>(icon: Icon, size: f32) -> Element<'a, Message> {
     .into()
 }
 
-pub(super) fn proxy_provider_row<'a>(
-    provider: &ProxyProvider,
-    lang: &Lang<'_>,
-) -> Element<'a, Message> {
-    let update_btn = button(
-        row![
-            svg_icons::icon_themed(Icon::RefreshCw, 12.0, |t: &Theme| tokens(t).text_secondary),
-            Space::new().width(4.0),
-            text(lang.tr("btn_update").to_string())
-                .size(11)
-                .font(FONT_MEDIUM),
-        ]
-        .align_y(Alignment::Center),
-    )
-    .padding([4, 10])
-    .style(style_ghost)
-    .on_press(Message::UpdateProxyProvider(provider.name.clone()));
-
-    let updated_text = if provider.updated_at.is_empty() {
-        "—".to_string()
-    } else {
-        format!("Updated: {}", provider.updated_at)
-    };
-    let vehicle = if provider.vehicle_type.is_empty() {
-        "HTTP"
-    } else {
-        &provider.vehicle_type
-    };
-
-    container(
-        row![
-            provider_icon_chip(Icon::Server, 16.0),
-            Space::new().width(theme::SP_MD),
-            column![
-                text(provider.name.clone())
-                    .size(13)
-                    .font(FONT_SEMIBOLD)
-                    .style(|t: &Theme| text::Style {
-                        color: Some(tokens(t).text_primary)
-                    }),
-                text(updated_text)
-                    .size(11)
-                    .font(MONO)
-                    .style(|t: &Theme| text::Style {
-                        color: Some(tokens(t).text_secondary)
-                    }),
-            ]
-            .width(Length::Fill),
-            chip(vehicle),
-            Space::new().width(theme::SP_SM),
-            update_btn,
-        ]
-        .align_y(Alignment::Center),
-    )
-    .padding([theme::SP_SM, SP_MD])
-    .width(Length::Fill)
-    .style(row_card_surface)
-    .into()
-}
-
 /// Format the behavior badge text for rule providers (`Domain`, `IPCIDR`, `Classical`).
 pub fn format_provider_behavior(behavior: &str) -> &'static str {
     match behavior.to_ascii_lowercase().as_str() {
@@ -187,7 +127,7 @@ pub fn format_provider_behavior(behavior: &str) -> &'static str {
 }
 
 /// Sniff or normalize rule provider payload format (e.g. `MRS`, `YAML`, `TEXT`, `FILE`, `HTTP`).
-pub fn format_rule_provider_format(provider: &RuleProvider) -> &'static str {
+pub fn format_rule_provider_format(provider: &RuleProviderSnapshot) -> &'static str {
     let lower_name = provider.name.to_ascii_lowercase();
     let lower_type = provider.provider_type.to_ascii_lowercase();
     let lower_vehicle = provider.vehicle_type.to_ascii_lowercase();
@@ -209,12 +149,12 @@ pub fn format_rule_provider_format(provider: &RuleProvider) -> &'static str {
 }
 
 /// Compute total external rules loaded across all active rule providers.
-pub fn total_external_rules(rule_providers: &[RuleProvider]) -> u32 {
+pub fn total_external_rules(rule_providers: &[RuleProviderSnapshot]) -> usize {
     rule_providers.iter().map(|rp| rp.rule_count).sum()
 }
 
 pub fn rule_provider_row<'a>(
-    provider: &RuleProvider,
+    provider: &RuleProviderSnapshot,
     source_url: Option<&str>,
     refresh_interval_secs: Option<u64>,
     fingerprint: Option<&ProviderCacheFingerprint>,
@@ -263,11 +203,14 @@ pub fn rule_provider_row<'a>(
         .style(style_ghost)
         .on_press(Message::UnpackRuleProvider(provider.name.clone())),
         Space::new().width(theme::SP_XS),
-        icon_button(
-            Icon::RefreshCw,
-            13.0,
-            Message::UpdateRuleProvider(provider.name.clone())
-        ),
+        match provider.controller.clone() {
+            Some(reference) => icon_button(
+                Icon::RefreshCw,
+                13.0,
+                Message::UpdateRuleProvider(reference),
+            ),
+            None => Space::new().into(),
+        },
     ]
     .align_y(Alignment::Center);
 
@@ -323,8 +266,6 @@ pub fn providers_view<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
         "Providers",
         Some(
             row![
-                chip(format!("Proxy: {}", state.editor.proxy_providers.len())),
-                Space::new().width(theme::SP_XS),
                 chip(format!("Rule: {}", state.editor.rule_providers.len())),
                 Space::new().width(theme::SP_XS),
                 chip(format!("External Rules: {total_ext_rules}")),
@@ -359,19 +300,6 @@ pub fn providers_view<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
 
     content = content.push(provider_unpack_card(state, lang));
     if state.editor.rules_providers_expanded {
-        let mut proxy_list = column![].spacing(theme::SP_SM);
-        if state.editor.proxy_providers.is_empty() {
-            proxy_list = proxy_list.push(empty_state(
-                Icon::Server,
-                lang.tr("rules_no_providers").as_ref(),
-                "",
-            ));
-        } else {
-            for provider in &state.editor.proxy_providers {
-                proxy_list = proxy_list.push(proxy_provider_row(provider, lang));
-            }
-        }
-
         let mut rule_list = column![].spacing(theme::SP_SM);
         if state.editor.rule_providers.is_empty() {
             rule_list = rule_list.push(empty_state(
@@ -381,22 +309,11 @@ pub fn providers_view<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
             ));
         } else {
             for provider in &state.editor.rule_providers {
-                let source_url = state
-                    .editor
-                    .rule_provider_source_urls
-                    .get(&provider.name)
-                    .map(String::as_str);
-                let refresh_interval_secs = state
-                    .editor
-                    .rule_provider_intervals
-                    .get(&provider.name)
-                    .copied();
-                let fingerprint = state.editor.rule_provider_fingerprints.get(&provider.name);
                 rule_list = rule_list.push(rule_provider_row(
                     provider,
-                    source_url,
-                    refresh_interval_secs,
-                    fingerprint,
+                    provider.source_url.as_deref(),
+                    provider.refresh_interval_secs,
+                    provider.cache_fingerprint.as_ref(),
                     lang,
                 ));
             }
@@ -481,17 +398,7 @@ pub fn providers_view<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
         );
 
         content = content
-            .push(
-                column![
-                    card(
-                        Some(lang.tr("rules_proxy_providers").to_string()),
-                        proxy_list
-                    ),
-                    Space::new().height(theme::SP_MD),
-                    rule_card,
-                ]
-                .spacing(theme::SP_MD),
-            )
+            .push(rule_card)
             .push(Space::new().height(theme::SP_MD))
             .push(geo_card);
 

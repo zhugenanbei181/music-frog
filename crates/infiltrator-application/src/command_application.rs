@@ -17,6 +17,7 @@ use crate::dns_leak_application::{DnsLeakApplication, NO_ECHO_PORT_REASON};
 use crate::dns_query_application::DnsQueryApplication;
 use crate::dns_workbench_application::dns_servers;
 use crate::doctor_application::DoctorApplication;
+use crate::geo_database_application::GeoDatabaseApplication;
 use crate::log_application::LogApplication;
 use crate::log_export_application::LogExportApplication;
 use crate::mtu_application::MtuApplication;
@@ -31,7 +32,8 @@ use crate::profile_document_application::ProfileDocumentApplication;
 use crate::profile_options_application::ProfileOptionsApplication;
 use crate::routing_application::RoutingApplication;
 use crate::rule_list_application::RuleListApplication;
-use crate::rule_provider_application::RuleProviderApplication;
+use crate::rule_provider_application::{RuleProviderApplication, RuleProviderRuntimeAccess};
+use crate::rule_provider_runtime_application::RuleProviderRuntimeApplication;
 use crate::rule_tracer_application::RuleTracerApplication;
 use crate::runtime_query_application::RuntimeQueryApplication;
 use crate::script_application::ScriptApplication;
@@ -49,7 +51,7 @@ use crate::version_application::VersionApplication;
 use crate::vpn_application::VpnServiceApplication;
 use infiltrator_contract::capability::{Availability, Capability};
 use infiltrator_contract::command::CommandIntent;
-use infiltrator_contract::core_identity::EngineId;
+use infiltrator_contract::core_identity::{CoreScope, EngineId};
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::language::LanguagePreference;
 use infiltrator_contract::mtu::MtuProbeState;
@@ -137,6 +139,8 @@ pub struct CommandApplication {
     /// drives.
     stun_probe: Option<StunProbeApplication>,
     rule_provider: Option<RuleProviderApplication>,
+    rule_provider_runtime: Option<RuleProviderRuntimeApplication>,
+    geo_database: Option<GeoDatabaseApplication>,
 }
 
 impl CommandApplication {
@@ -221,7 +225,11 @@ impl CommandApplication {
     /// DUAL-11-06: read the active profile's declaration for `provider_name`,
     /// resolve its real rules through the shared unpack service and prepend
     /// them to the persisted rule list.
-    async fn unpack_rule_provider(&self, provider_name: &str) -> Result<(), Failure> {
+    async fn unpack_rule_provider(
+        &self,
+        scope: Option<&CoreScope>,
+        provider_name: &str,
+    ) -> Result<(), Failure> {
         let name = provider_name.trim();
         if name.is_empty() {
             return Err(Failure::new(
@@ -241,13 +249,24 @@ impl CommandApplication {
                     false,
                 )
             })?;
+        let scope = scope.ok_or_else(|| {
+            Failure::new(
+                ErrorCode::NotReady,
+                "rule-provider unpack has no validated Core scope",
+                true,
+            )
+        })?;
+        let runtime = self
+            .rule_provider_runtime
+            .as_ref()
+            .map(|application| RuleProviderRuntimeAccess::Scoped {
+                application: application.clone(),
+                scope: scope.clone(),
+            })
+            .unwrap_or(RuleProviderRuntimeAccess::Unavailable);
         let plan = self
             .rule_provider_service()
-            .deconstruct(
-                &declaration,
-                edit::DEFAULT_RULE_TARGET,
-                self.runtime.as_deref(),
-            )
+            .deconstruct(&declaration, edit::DEFAULT_RULE_TARGET, runtime)
             .await?;
         self.edit_rules(move |rules| edit::prepend_rules(rules, plan.entries) > 0)
             .await
@@ -274,6 +293,18 @@ impl CommandApplication {
                 false,
             )
         })
+    }
+
+    fn rule_provider_runtime(&self) -> Result<RuleProviderRuntimeApplication, Failure> {
+        self.rule_provider_runtime.clone().ok_or_else(|| {
+            Failure::unsupported("rule-provider runtime application is not composed")
+        })
+    }
+
+    fn geo_database(&self) -> Result<GeoDatabaseApplication, Failure> {
+        self.geo_database
+            .clone()
+            .ok_or_else(|| Failure::unsupported("Geo database application is not composed"))
     }
 
     /// DUAL-11-09/10/11/12: apply a rule-list mutation to the active profile

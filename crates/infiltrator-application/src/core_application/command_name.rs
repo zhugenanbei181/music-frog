@@ -57,6 +57,7 @@ pub(super) fn command_name(intent: &CommandIntent) -> &'static str {
         CommandIntent::ResolveCertificateAuthority { .. } => "resolve_certificate_authority",
         CommandIntent::DeleteProfile { .. } => "delete_profile",
         CommandIntent::RefreshRuleProviders => "refresh_rule_providers",
+        CommandIntent::RefreshRuleProvider { .. } => "refresh_rule_provider",
         CommandIntent::CloseConnection { .. } => "close_connection",
         CommandIntent::CloseAllConnections => "close_all_connections",
         CommandIntent::ClearLogs => "clear_logs",

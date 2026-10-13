@@ -8,9 +8,11 @@
 use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::core_capability_application::CoreCapabilityApplication;
+use infiltrator_application::geo_database_application::GeoDatabaseApplication;
 use infiltrator_application::mtu_application::MtuApplication;
 use infiltrator_application::offline_startup_application::OfflineStartupApplication;
 use infiltrator_application::overview::{OverviewConfig, OverviewPump, UnavailableOverviewReader};
+use infiltrator_application::rule_provider_runtime_application::RuleProviderRuntimeApplication;
 use infiltrator_contract::core_capabilities::{
     ConnectionOperation, CoreLifecycleOperation, CoreOperation, GeoOperation, LogsOperation,
     OutboundOperation, ProviderOperation, ProxyControlOperation,
@@ -27,9 +29,11 @@ use infiltrator_ports::overview::OverviewReader;
 use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use mihomo_api::client::MihomoClient;
 use mihomo_api::core_capability_provider::MihomoCoreCapabilityProvider;
+use mihomo_api::geo_database::MihomoGeoDatabaseAdapter;
 use mihomo_api::overview::ControllerOverviewReader;
 use mihomo_api::readiness::ControllerReadiness;
 use mihomo_api::routing_intent::MihomoRoutingIntentAdapter;
+use mihomo_api::rule_provider::MihomoRuleProviderAdapter;
 use std::num::NonZeroU64;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -412,12 +416,36 @@ where
                 CoreOperation::ProxyControl(ProxyControlOperation::GetRoutingIntent),
             ],
         )));
+    let scope_source: Arc<dyn infiltrator_ports::core_scope::CoreScopeSource> =
+        Arc::new(application.clone());
+    let provider_port: Arc<dyn infiltrator_ports::rule_provider_runtime::RuleProviderPort> =
+        Arc::new(MihomoRuleProviderAdapter::new(
+            Arc::new(client.clone()),
+            scope_source.clone(),
+        ));
+    let geo_port: Arc<dyn infiltrator_ports::geo_database::GeoDatabasePort> = Arc::new(
+        MihomoGeoDatabaseAdapter::new(Arc::new(client.clone()), scope_source),
+    );
+    application
+        .install_rule_provider_port(provider_port.clone())
+        .map_err(|failure| failure.message)?;
+    application
+        .install_geo_database_port(geo_port.clone())
+        .map_err(|failure| failure.message)?;
     application
         .install_core_capability_application(core_capabilities.clone())
         .map_err(|failure| failure.message)?;
     application.install_command_handler(Arc::new(
         CommandApplication::new()
-            .with_core_capabilities(core_capabilities)
+            .with_core_capabilities(core_capabilities.clone())
+            .with_rule_provider_runtime(RuleProviderRuntimeApplication::new(
+                provider_port,
+                core_capabilities.clone(),
+            ))
+            .with_geo_database(GeoDatabaseApplication::new(
+                geo_port,
+                core_capabilities.clone(),
+            ))
             .with_host_capabilities(host.clone())
             .with_logs(application.log_application())
             .with_routing_intent_port(Arc::new(MihomoRoutingIntentAdapter::new(client.clone())))

@@ -191,9 +191,12 @@ fn matrix_11_03_mrs_binary_pipeline() {
 fn matrix_11_04_rule_provider_source_url_projection() {
     let provider = RuleProviderSnapshot {
         name: "geoip-cn".to_owned(),
+        provider_type: "http".to_owned(),
         rule_count: 850,
         behavior: "ipcidr".to_owned(),
+        vehicle_type: "HTTP".to_owned(),
         updated_at: "2026-09-01".to_owned(),
+        controller: None,
         source_url: Some("https://example.com/cn.mrs".to_owned()),
         refresh_interval_secs: Some(86_400),
         cache_fingerprint: None,
@@ -215,9 +218,12 @@ fn matrix_11_05_provider_refresh_intent_and_declared_interval() {
     assert_eq!(intent.kind(), CommandKind::Profile);
     let declared = RuleProviderSnapshot {
         name: "ads".to_owned(),
+        provider_type: "http".to_owned(),
         rule_count: 12,
         behavior: "domain".to_owned(),
+        vehicle_type: "HTTP".to_owned(),
         updated_at: "2026-09-01".to_owned(),
+        controller: None,
         source_url: None,
         refresh_interval_secs: Some(3600),
         cache_fingerprint: None,
@@ -246,9 +252,12 @@ fn matrix_11_05_provider_refresh_intent_and_declared_interval() {
     );
     let observed = RuleProviderSnapshot {
         name: "ads".to_owned(),
+        provider_type: "http".to_owned(),
         rule_count: 12,
         behavior: "domain".to_owned(),
+        vehicle_type: "HTTP".to_owned(),
         updated_at: "2026-09-01".to_owned(),
+        controller: None,
         source_url: Some("https://example.com/ads.mrs".to_owned()),
         refresh_interval_secs: Some(3600),
         cache_fingerprint: Some(ProviderCacheFingerprint {

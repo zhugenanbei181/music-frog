@@ -28,6 +28,7 @@ use infiltrator_application::rule_statistics_workbench::StatisticsAction;
 use infiltrator_application::runtime_configuration_application::RuntimeConfigurationReadout;
 use infiltrator_contract::command::CoreLogLevel;
 use infiltrator_contract::outbound::{identity, inventory, preferences, probe};
+use infiltrator_contract::rule_provider_snapshot::RuleProviderControllerReference;
 use infiltrator_contract::{
     aggregator, command_catalogue, command_output, core_control, core_identity, dialer_chain, dns,
     dns_latency, dns_leak, doctor, error, ime, lan, mini_hud, network_roaming, overview_layout,
@@ -43,7 +44,7 @@ use infiltrator_domain::{
     connection_view::ConnectionGroupingMode,
     profiles::ProfileInfo,
     rules::RuleProviderDiff,
-    runtime::{ConnectionSnapshot, ProxyProvider, RuleProvider, TrafficData},
+    runtime::{ConnectionSnapshot, TrafficData},
     settings::AppSettings,
 };
 use infiltrator_ports::host_runtime::TunServiceStatus;
@@ -306,10 +307,7 @@ pub enum Message {
     EnsureProxyProvidersEditorLoaded,
     EnsureSnifferEditorLoaded,
     ActivateRulesHeavyView,
-    LoadProviders,
-    ProvidersLoaded(Result<(Vec<ProxyProvider>, Vec<RuleProvider>), error::InfiltratorError>),
-    UpdateProxyProvider(String),
-    UpdateRuleProvider(String),
+    UpdateRuleProvider(RuleProviderControllerReference),
     FilterRules(String),
     UpdateRulesTracerInput(String),
     UpdateTracerSourceIp(String),

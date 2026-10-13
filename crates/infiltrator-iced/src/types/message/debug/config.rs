@@ -32,16 +32,12 @@ pub(super) fn fmt(m: &Message, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result
         }
         Message::EnsureSnifferEditorLoaded => write!(f, "EnsureSnifferEditorLoaded"),
         Message::ActivateRulesHeavyView => write!(f, "ActivateRulesHeavyView"),
-        Message::LoadProviders => write!(f, "LoadProviders"),
-        Message::ProvidersLoaded(Ok((p, r))) => write!(
+        Message::UpdateRuleProvider(reference) => write!(
             f,
-            "ProvidersLoaded(Ok({} proxies, {} rules))",
-            p.len(),
-            r.len()
+            "UpdateRuleProvider({}:{})",
+            reference.id.name(),
+            reference.inventory_revision.value()
         ),
-        Message::ProvidersLoaded(Err(e)) => write!(f, "ProvidersLoaded(Err({:?}))", e),
-        Message::UpdateProxyProvider(p) => write!(f, "UpdateProxyProvider({})", p),
-        Message::UpdateRuleProvider(p) => write!(f, "UpdateRuleProvider({})", p),
         Message::FilterRules(s) => write!(f, "FilterRules({})", s),
         Message::UpdateRulesTracerInput(s) => write!(f, "UpdateRulesTracerInput({s})"),
         Message::UpdateTracerSourceIp(s) => write!(f, "UpdateTracerSourceIp({s})"),

@@ -5,11 +5,27 @@
 //! accepted response from the running Mihomo process. The asynchronous
 //! database fetch and installation are deliberately outside this evidence.
 
+use infiltrator_contract::core_identity::{
+    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
+};
+use infiltrator_contract::geo_database::GeoDatabaseTriggerState;
+use infiltrator_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
+use infiltrator_ports::geo_database::GeoDatabasePort;
 use mihomo_api::client::MihomoClient;
+use mihomo_api::geo_database::MihomoGeoDatabaseAdapter;
 use std::env;
 use std::path::PathBuf;
+use std::sync::Arc;
 use tokio::fs;
 use url::Url;
+
+struct FixedScope(CoreScope);
+
+impl CoreScopeSource for FixedScope {
+    fn scope_observation(&self) -> CoreScopeObservation {
+        CoreScopeObservation::Observed(self.0.clone())
+    }
+}
 
 fn required_environment(name: &str) -> String {
     env::var(name).unwrap_or_else(|_| panic!("{name} must be set by the explicit Mihomo smoke"))
@@ -54,8 +70,20 @@ async fn geo_update_trigger_is_accepted_under_loopback_only_geox_configuration()
         .expect("read the running Mihomo version");
     assert_eq!(observed_version.version, expected_version);
 
-    client
-        .upgrade_geo()
+    let scope = CoreScope {
+        identity: CoreIdentity::new(
+            EngineId::mihomo(),
+            CoreInstanceId::new("geo-real-process-smoke").expect("Core instance ID"),
+            Some(CoreVersion::new(expected_version).expect("Mihomo version")),
+        ),
+        generation: CoreGeneration::new(1),
+        session_token: None,
+    };
+    let adapter =
+        MihomoGeoDatabaseAdapter::new(Arc::new(client), Arc::new(FixedScope(scope.clone())));
+    let receipt = GeoDatabasePort::trigger(&adapter, scope.clone())
         .await
         .expect("the running Mihomo controller accepts POST /upgrade/geo");
+    assert_eq!(receipt.scope, scope);
+    assert_eq!(receipt.state, GeoDatabaseTriggerState::Accepted);
 }

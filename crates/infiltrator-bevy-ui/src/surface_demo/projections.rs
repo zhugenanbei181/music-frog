@@ -52,9 +52,12 @@ impl From<RulesProjection> for surface_snapshot::RulesPageSnapshot {
                 .into_iter()
                 .map(|provider| RuleProviderSnapshot {
                     name: provider.name,
+                    provider_type: provider.provider_type,
                     rule_count: provider.rule_count,
                     behavior: provider.behavior,
+                    vehicle_type: provider.vehicle_type,
                     updated_at: provider.updated_at,
+                    controller: None,
                     source_url: provider.source_url,
                     refresh_interval_secs: provider.refresh_interval_secs,
                     cache_fingerprint: provider.cache_fingerprint,

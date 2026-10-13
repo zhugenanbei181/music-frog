@@ -64,6 +64,7 @@ pub mod doctor_projection;
 pub mod failure_projection;
 #[cfg(any(test, feature = "capture-fixtures"))]
 pub mod filter_capture_store;
+pub mod geo_database_application;
 pub mod language_choice;
 pub mod language_choice_fixtures;
 pub mod latency_projection;
@@ -115,6 +116,7 @@ pub mod rule_list_editor;
 pub mod rule_list_fixtures;
 pub mod rule_list_projection;
 pub mod rule_provider_application;
+pub mod rule_provider_runtime_application;
 pub mod rule_row_projection;
 pub mod rule_trace_actions;
 #[cfg(any(test, feature = "capture-fixtures"))]

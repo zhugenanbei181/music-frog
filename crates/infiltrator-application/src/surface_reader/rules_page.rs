@@ -11,11 +11,13 @@ use crate::rule_provider_application::RuleProviderApplication;
 use crate::rule_tracer_application::RuleTracerApplication;
 use infiltrator_contract::mrs_acceleration::MrsAccelerationSnapshot;
 use infiltrator_contract::provider_cache::RuleProviderCacheSnapshot;
-use infiltrator_contract::rule_provider_snapshot::RuleProviderSnapshot;
+use infiltrator_contract::rule_provider_runtime::RuleProviderInventorySnapshot;
+use infiltrator_contract::rule_provider_snapshot::{
+    RuleProviderControllerReference, RuleProviderSnapshot,
+};
 use infiltrator_domain::rules::analyzer::{ShadowedRuleWarning, find_shadowed_rules};
 use infiltrator_domain::rules::provider_store::RuleProviderDeclaration;
 use infiltrator_domain::rules::view::{RULE_PUBLISH_LIMIT, published_rule_count};
-use infiltrator_domain::runtime::RuleProvider;
 use std::collections::HashMap;
 
 /// Inputs the live rule tracer replays against: the shared engine plus the
@@ -27,7 +29,7 @@ pub(super) struct RulesTracerReplay<'a> {
 pub(super) async fn build_rules_page(
     configuration: Option<&ConfigurationApplication>,
     rule_provider: &RuleProviderApplication,
-    runtime_providers: Option<Result<Vec<RuleProvider>, PortError>>,
+    runtime_providers: Option<Result<RuleProviderInventorySnapshot, Failure>>,
     tracer_replay: RulesTracerReplay<'_>,
     mrs_acceleration: MrsAccelerationSnapshot,
     provider_cache: RuleProviderCacheSnapshot,
@@ -57,10 +59,11 @@ pub(super) async fn build_rules_page(
     // from the shared engine so both surfaces observe the same simulation.
     let tracer = tracer_replay.application.replay(&workspace.source);
     let providers = match runtime_providers {
-        Some(Ok(providers)) => {
-            let mut snapshots = Vec::with_capacity(providers.len());
-            for provider in providers {
-                let declaration = configured_providers.get(&provider.name);
+        Some(Ok(inventory)) => {
+            let mut snapshots = Vec::with_capacity(inventory.providers().len());
+            for provider in inventory.providers() {
+                let name = provider.id.name();
+                let declaration = configured_providers.get(name);
                 let source_url = declaration
                     .and_then(|value| value.get("url"))
                     .and_then(|url| url.as_str())
@@ -77,16 +80,22 @@ pub(super) async fn build_rules_page(
                 // an HTTP validator result, which the kernel never exposes.
                 let cache_fingerprint = match declaration {
                     Some(value) => {
-                        let resolved = RuleProviderDeclaration::from_value(&provider.name, value);
+                        let resolved = RuleProviderDeclaration::from_value(name, value);
                         rule_provider.observe_fingerprint(&resolved).await
                     }
                     None => None,
                 };
                 snapshots.push(RuleProviderSnapshot {
-                    name: provider.name,
+                    name: name.to_owned(),
+                    provider_type: provider.provider_type.clone(),
                     rule_count: provider.rule_count as usize,
-                    behavior: provider.behavior,
-                    updated_at: provider.updated_at,
+                    behavior: provider.behavior.clone(),
+                    vehicle_type: provider.vehicle_type.clone(),
+                    updated_at: provider.updated_at.clone(),
+                    controller: Some(RuleProviderControllerReference {
+                        id: provider.id.clone(),
+                        inventory_revision: inventory.revision(),
+                    }),
                     source_url,
                     refresh_interval_secs,
                     cache_fingerprint,
@@ -94,13 +103,7 @@ pub(super) async fn build_rules_page(
             }
             snapshots
         }
-        Some(Err(error)) => {
-            return surface_snapshot::PageData::failed(Failure::new(
-                ErrorCode::Network,
-                error.to_string(),
-                true,
-            ));
-        }
+        Some(Err(error)) => return surface_snapshot::PageData::failed(error),
         None => Vec::new(),
     };
 

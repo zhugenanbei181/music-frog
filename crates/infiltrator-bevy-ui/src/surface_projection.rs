@@ -474,8 +474,10 @@ pub(super) fn rules_projection(snapshot: &surface_snapshot::SurfaceSnapshot) -> 
                 .iter()
                 .map(|provider| RuleProviderItem {
                     name: provider.name.clone(),
+                    provider_type: provider.provider_type.clone(),
                     rule_count: provider.rule_count,
                     behavior: provider.behavior.clone(),
+                    vehicle_type: provider.vehicle_type.clone(),
                     updated_at: provider.updated_at.clone(),
                     source_url: provider.source_url.clone(),
                     refresh_interval_secs: provider.refresh_interval_secs,

@@ -7,7 +7,6 @@ use crate::resource_port::MihomoRuntimeResourcePort;
 use crate::runtime_stream::MihomoRuntimeStreamPort;
 use async_trait::async_trait;
 use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_domain::runtime::{ProxyProvider, RuleProvider};
 use infiltrator_ports::connection::ConnectionPort;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::resources::CoreResourcePort;
@@ -34,38 +33,6 @@ impl RuntimeGateway for MihomoClient {
             self.clone(),
             self.configuration_scope_resolver(),
         )
-    }
-
-    async fn get_proxy_providers(&self) -> Result<Vec<ProxyProvider>, PortError> {
-        MihomoClient::get_proxy_providers(self)
-            .await
-            .map(|providers| providers.into_values().map(Into::into).collect())
-            .map_err(network_error)
-    }
-
-    async fn get_rule_providers(&self) -> Result<Vec<RuleProvider>, PortError> {
-        MihomoClient::get_rule_providers(self)
-            .await
-            .map(|providers| providers.into_values().map(Into::into).collect())
-            .map_err(network_error)
-    }
-
-    async fn update_proxy_provider(&self, name: &str) -> Result<(), PortError> {
-        MihomoClient::update_proxy_provider(self, name)
-            .await
-            .map_err(network_error)
-    }
-
-    async fn update_rule_provider(&self, name: &str) -> Result<(), PortError> {
-        MihomoClient::update_rule_provider(self, name)
-            .await
-            .map_err(network_error)
-    }
-
-    async fn rule_provider_payload(&self, name: &str) -> Result<Option<Vec<String>>, PortError> {
-        MihomoClient::get_rule_provider_payload(self, name)
-            .await
-            .map_err(network_error)
     }
 
     fn connection_port(&self) -> std::sync::Arc<dyn ConnectionPort> {

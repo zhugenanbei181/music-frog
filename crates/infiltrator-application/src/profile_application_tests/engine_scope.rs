@@ -10,7 +10,6 @@ use infiltrator_contract::profile_document_identity::{ProfileFormatId, ProfileSc
 use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
 use infiltrator_contract::subscription_import::SubscriptionFilterDraft;
 use infiltrator_domain::apply::ApplyStrategy;
-use infiltrator_domain::runtime::{ProxyProvider, RuleProvider};
 use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceApplier;
 use infiltrator_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
 use infiltrator_ports::profile_workspace::{ProfileWorkspacePurpose, ProfileWorkspaceUpdate};
@@ -50,20 +49,7 @@ impl CoreScopeSource for NoCallRuntime {
 }
 
 #[async_trait]
-impl RuntimeGateway for NoCallRuntime {
-    async fn get_proxy_providers(&self) -> Result<Vec<ProxyProvider>, PortError> {
-        self.unexpected()
-    }
-    async fn get_rule_providers(&self) -> Result<Vec<RuleProvider>, PortError> {
-        self.unexpected()
-    }
-    async fn update_proxy_provider(&self, _: &str) -> Result<(), PortError> {
-        self.unexpected()
-    }
-    async fn update_rule_provider(&self, _: &str) -> Result<(), PortError> {
-        self.unexpected()
-    }
-}
+impl RuntimeGateway for NoCallRuntime {}
 
 #[async_trait]
 impl ActiveProfileReferenceApplier for NoCallRuntime {

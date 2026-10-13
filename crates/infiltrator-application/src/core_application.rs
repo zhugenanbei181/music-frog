@@ -5,6 +5,7 @@ use crate::core_capability_application::CoreCapabilityApplication;
 use crate::log_application::LogApplication;
 use crate::log_stream::LogPump;
 use crate::outbound_application::preferences::OutboundUiPreferencesApplication;
+use crate::rule_provider_runtime_application::RuleProviderRuntimeApplication;
 use crate::speedtest_application::{
     SpeedtestApplication, SpeedtestCompletionAdmission, SpeedtestTaskOutcome,
 };
@@ -30,11 +31,13 @@ use infiltrator_ports::core_lifecycle::{CoreLifecyclePort, CoreOwnerTerminationP
 use infiltrator_ports::core_process::{CoreProcess, CoreProcessStartContext, CoreReadiness};
 use infiltrator_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
 use infiltrator_ports::error::PortError;
+use infiltrator_ports::geo_database::GeoDatabasePort;
 use infiltrator_ports::outbound::OutboundPort;
 use infiltrator_ports::overview::OverviewReader;
 use infiltrator_ports::profile_document_codec::ProfileDocumentSnippetOutcome;
 use infiltrator_ports::profile_document_codec::ProfileMixinStudioProjection;
 use infiltrator_ports::profile_document_codec::ProfileMixinToggleId;
+use infiltrator_ports::rule_provider_runtime::RuleProviderPort;
 use infiltrator_ports::runtime_stream::RuntimeStreamPort;
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -57,6 +60,27 @@ const DISPATCH_CAPACITY: usize = 256;
 const DEFAULT_READINESS_TIMEOUT: time::Duration = time::Duration::from_secs(15);
 const DEFAULT_READINESS_POLL_INTERVAL: time::Duration = time::Duration::from_millis(250);
 static NEXT_SESSION_NAMESPACE: AtomicU64 = AtomicU64::new(1);
+
+fn install_owner_port<T: ?Sized>(
+    closed: &AtomicBool,
+    slot: &RwLock<Option<Arc<T>>>,
+    port: Arc<T>,
+    label: &str,
+) -> Result<(), Failure> {
+    let mut slot = slot.write().expect("owner port lock");
+    if closed.load(Ordering::Acquire) {
+        return Err(closed_failure());
+    }
+    if slot.is_some() {
+        return Err(Failure::new(
+            ErrorCode::InvalidState,
+            format!("{label} is already installed for this Core owner"),
+            false,
+        ));
+    }
+    *slot = Some(port);
+    Ok(())
+}
 
 /// Readiness retry policy expressed entirely in standard-library values.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -97,6 +121,8 @@ struct Inner {
     runtime: Arc<dyn ApplicationRuntime>,
     command_handler: RwLock<Option<Arc<dyn CommandHandler>>>,
     outbound_port: RwLock<Option<Arc<dyn OutboundPort>>>,
+    rule_provider_port: RwLock<Option<Arc<dyn RuleProviderPort>>>,
+    geo_database_port: RwLock<Option<Arc<dyn GeoDatabasePort>>>,
     outbound_ui_preferences: OutboundUiPreferencesApplication,
     speedtest: RwLock<Option<SpeedtestApplication>>,
     core_capabilities: RwLock<CoreCapabilityApplication>,
@@ -321,6 +347,8 @@ impl CoreApplication {
             runtime: Arc::clone(&runtime),
             command_handler: RwLock::new(None),
             outbound_port: RwLock::new(None),
+            rule_provider_port: RwLock::new(None),
+            geo_database_port: RwLock::new(None),
             outbound_ui_preferences: OutboundUiPreferencesApplication::default(),
             speedtest: RwLock::new(None),
             core_capabilities: RwLock::new(CoreCapabilityApplication::without_provider()),
@@ -541,6 +569,55 @@ impl CoreApplication {
             .outbound_port
             .read()
             .expect("outbound port lock")
+            .clone()
+    }
+
+    /// Register the single rule-provider adapter shared by application
+    /// commands and surface reads, so both use one revision fence.
+    pub fn install_rule_provider_port(
+        &self,
+        port: Arc<dyn RuleProviderPort>,
+    ) -> Result<(), Failure> {
+        install_owner_port(
+            &self.inner.closed,
+            &self.inner.rule_provider_port,
+            port,
+            "rule-provider port",
+        )
+    }
+
+    pub fn rule_provider_port(&self) -> Option<Arc<dyn RuleProviderPort>> {
+        self.inner
+            .rule_provider_port
+            .read()
+            .expect("rule-provider port lock")
+            .clone()
+    }
+
+    /// Build the owner-scoped rule-provider use-case over the same adapter
+    /// instance installed for command dispatch and surface reads.
+    pub fn rule_provider_runtime_application(&self) -> Option<RuleProviderRuntimeApplication> {
+        Some(RuleProviderRuntimeApplication::new(
+            self.rule_provider_port()?,
+            self.core_capability_application(),
+        ))
+    }
+
+    /// Register the single Geo trigger adapter for this Core owner.
+    pub fn install_geo_database_port(&self, port: Arc<dyn GeoDatabasePort>) -> Result<(), Failure> {
+        install_owner_port(
+            &self.inner.closed,
+            &self.inner.geo_database_port,
+            port,
+            "Geo database port",
+        )
+    }
+
+    pub fn geo_database_port(&self) -> Option<Arc<dyn GeoDatabasePort>> {
+        self.inner
+            .geo_database_port
+            .read()
+            .expect("Geo database port lock")
             .clone()
     }
 

@@ -21,6 +21,7 @@ use crate::protocol_trust::TlsTrustParams;
 use crate::routing_intent::RoutingIntent;
 use crate::rule_document::RuleListCommit;
 use crate::rule_edit::RuleMoveDirection;
+use crate::rule_provider_snapshot::RuleProviderControllerReference;
 use crate::rule_source::RuleSourceIdentity;
 use crate::rule_trace_run::{RuleTraceOperationId, RuleTraceRequest};
 use crate::rule_tracer::TracerRuleOverride;
@@ -230,6 +231,11 @@ pub enum CommandIntent {
         template_name: String,
     },
     RefreshRuleProviders,
+    /// Refresh one provider using the exact controller identity and
+    /// inventory revision exposed by the accepted rules-page observation.
+    RefreshRuleProvider {
+        reference: RuleProviderControllerReference,
+    },
     SimulateRuleTrace {
         operation: RuleTraceOperationId,
         request: RuleTraceRequest,
@@ -276,9 +282,8 @@ pub enum CommandIntent {
     ApplyGameRoutingPresets {
         target: String,
     },
-    /// DUAL-11-14: trigger the kernel's GeoIP/GeoSite database upgrade
-    /// (`POST /upgrade/geo`) through the shared runtime gateway, so both
-    /// surfaces expose the same entry point.
+    /// Trigger the kernel's GeoIP/GeoSite database upgrade through the
+    /// scope-bound GeoDatabasePort. Acceptance is asynchronous, not completion.
     UpgradeGeoDatabases,
     /// Apply a typed profile section only to the engine/format/schema/revision
     /// from which the editor buffer was read.
@@ -563,6 +568,7 @@ impl CommandIntent {
             | Self::ResolveCertificateAuthority { .. }
             | Self::UpdateCustomNodeDraftField { .. }
             | Self::RefreshRuleProviders
+            | Self::RefreshRuleProvider { .. }
             | Self::UnpackRuleProvider { .. }
             | Self::PurgeRuleProviderCache => CommandKind::Profile,
             Self::ToggleRuleEnabled { .. }

@@ -199,21 +199,6 @@ pub struct ConnectionsResponse {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
-pub struct ProxyProvider {
-    pub name: String,
-    #[serde(rename = "type")]
-    pub provider_type: String,
-    pub vehicle_type: String,
-    #[serde(rename = "updatedAt")]
-    pub updated_at: String,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
-pub struct ProxyProviderList {
-    pub providers: HashMap<String, ProxyProvider>,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct RuleProvider {
     pub name: String,
     #[serde(rename = "type")]
@@ -315,30 +300,6 @@ impl From<ConnectionsResponse> for runtime::ConnectionSnapshot {
             download_total: value.download_total,
             upload_total: value.upload_total,
             connections: value.connections.into_iter().map(Into::into).collect(),
-        }
-    }
-}
-
-impl From<ProxyProvider> for runtime::ProxyProvider {
-    fn from(value: ProxyProvider) -> Self {
-        Self {
-            name: value.name,
-            provider_type: value.provider_type,
-            vehicle_type: value.vehicle_type,
-            updated_at: value.updated_at,
-        }
-    }
-}
-
-impl From<RuleProvider> for runtime::RuleProvider {
-    fn from(value: RuleProvider) -> Self {
-        Self {
-            name: value.name,
-            provider_type: value.provider_type,
-            behavior: value.behavior,
-            vehicle_type: value.vehicle_type,
-            updated_at: value.updated_at,
-            rule_count: value.rule_count,
         }
     }
 }

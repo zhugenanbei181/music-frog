@@ -205,16 +205,7 @@ impl MihomoClient {
         Ok(())
     }
 
-    pub async fn get_proxy_providers(&self) -> Result<HashMap<String, ProxyProvider>> {
-        let url = self.build_url("/providers/proxies")?;
-        let req = self.client.get(url);
-        let req = self.add_auth(req);
-        let resp = req.send().await?.error_for_status()?;
-        let list: ProxyProviderList = resp.json().await?;
-        Ok(list.providers)
-    }
-
-    pub async fn get_rule_providers(&self) -> Result<HashMap<String, RuleProvider>> {
+    pub(crate) async fn get_rule_providers(&self) -> Result<HashMap<String, RuleProvider>> {
         let url = self.build_url("/providers/rules")?;
         let req = self.client.get(url);
         let req = self.add_auth(req);
@@ -230,7 +221,10 @@ impl MihomoClient {
     /// `payload,omitempty` and never fill it), and `/providers/rules/{name}`
     /// is `PUT`-only. `Ok(None)` therefore means the kernel genuinely does not
     /// publish this provider's rules; the caller must not invent them.
-    pub async fn get_rule_provider_payload(&self, name: &str) -> Result<Option<Vec<String>>> {
+    pub(crate) async fn get_rule_provider_payload(
+        &self,
+        name: &str,
+    ) -> Result<Option<Vec<String>>> {
         let url = self.build_url("/providers/rules")?;
         let req = self.client.get(url);
         let req = self.add_auth(req);
@@ -243,16 +237,8 @@ impl MihomoClient {
             .filter(|payload| !payload.is_empty()))
     }
 
-    pub async fn update_proxy_provider(&self, name: &str) -> Result<()> {
-        let url = self.build_url(&format!("/providers/proxies/{}", name))?;
-        let req = self.client.put(url);
-        let req = self.add_auth(req);
-        req.send().await?.error_for_status()?;
-        Ok(())
-    }
-
-    pub async fn update_rule_provider(&self, name: &str) -> Result<()> {
-        let url = self.build_url(&format!("/providers/rules/{}", name))?;
+    pub(crate) async fn update_rule_provider(&self, name: &str) -> Result<()> {
+        let url = self.build_url_with_segments(&["providers", "rules", name])?;
         let req = self.client.put(url);
         let req = self.add_auth(req);
         req.send().await?.error_for_status()?;
@@ -347,7 +333,7 @@ impl MihomoClient {
     /// already installed. Following the fire-and-forget style of the other
     /// command methods here, any success response is treated as `Ok(())`
     /// without inspecting the body.
-    pub async fn upgrade_geo(&self) -> Result<()> {
+    pub(crate) async fn upgrade_geo(&self) -> Result<()> {
         let url = self.build_url("/upgrade/geo")?;
         let req = self.client.post(url);
         let req = self.add_auth(req);

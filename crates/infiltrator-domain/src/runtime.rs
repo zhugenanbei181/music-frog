@@ -83,31 +83,6 @@ pub struct ConnectionsResponse {
     pub connections: Vec<Connection>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
-pub struct ProxyProvider {
-    pub name: String,
-    #[serde(rename = "type")]
-    pub provider_type: String,
-    #[serde(rename = "vehicleType")]
-    pub vehicle_type: String,
-    #[serde(rename = "updatedAt")]
-    pub updated_at: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
-pub struct RuleProvider {
-    pub name: String,
-    #[serde(rename = "type")]
-    pub provider_type: String,
-    pub behavior: String,
-    #[serde(rename = "vehicleType")]
-    pub vehicle_type: String,
-    #[serde(rename = "updatedAt")]
-    pub updated_at: String,
-    #[serde(rename = "ruleCount")]
-    pub rule_count: u32,
-}
-
 fn deserialize_null_as_empty_vec<'de, D, T>(deserializer: D) -> Result<Vec<T>, D::Error>
 where
     D: serde::Deserializer<'de>,

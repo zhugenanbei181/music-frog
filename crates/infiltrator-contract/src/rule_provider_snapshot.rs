@@ -1,13 +1,29 @@
 //! Applied rule-provider facts shared by all native products.
 use crate::provider_cache::ProviderCacheFingerprint;
+use crate::rule_provider_runtime::{RuleProviderId, RuleProviderRevision};
 use serde::{Deserialize, Serialize};
+
+/// Revision token needed to submit a refresh for this exact provider row.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RuleProviderControllerReference {
+    pub id: RuleProviderId,
+    pub inventory_revision: RuleProviderRevision,
+}
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct RuleProviderSnapshot {
     pub name: String,
+    #[serde(default)]
+    pub provider_type: String,
     pub rule_count: usize,
     pub behavior: String,
+    #[serde(default)]
+    pub vehicle_type: String,
     pub updated_at: String,
+    /// Owner-fenced controller identity and inventory revision. `None` is
+    /// reserved for a projection without a live controller observation.
+    #[serde(default)]
+    pub controller: Option<RuleProviderControllerReference>,
     /// DUAL-11-04: the `rule-providers` source URL declared in the active
     /// profile, when the provider is config-backed (runtime-only providers
     /// honestly report `None` instead of a fabricated address).

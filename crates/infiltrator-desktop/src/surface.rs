@@ -31,6 +31,7 @@ use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::resource_application::ResourceApplication;
 use infiltrator_application::routing_application::RoutingApplication;
 use infiltrator_application::rule_list_application::RuleListApplication;
+use infiltrator_application::rule_provider_runtime_application::RuleProviderRuntimeApplication;
 use infiltrator_application::rule_tracer_application::RuleTracerApplication;
 use infiltrator_application::script_application::ScriptApplication;
 use infiltrator_application::script_export_application::ScriptExportApplication;
@@ -164,6 +165,9 @@ pub async fn application_surface_reader(
     // the desktop command handler purges.
     let rule_provider_cache = Arc::new(DesktopRuleProviderCache::new(config_dir.clone()));
     let outbound = core.outbound_port().map(OutboundApplication::new);
+    let rule_provider_runtime = core
+        .rule_provider_port()
+        .map(|port| RuleProviderRuntimeApplication::new(port, core.core_capability_application()));
 
     let mut reader = ApplicationSurfaceReader::new(core, surface, HostKind::Desktop)
         .with_capabilities(desktop_capabilities())
@@ -196,6 +200,9 @@ pub async fn application_surface_reader(
         .with_port_conflicts(port_conflicts);
     if let Some(outbound) = outbound {
         reader = reader.with_outbound(outbound);
+    }
+    if let Some(rule_provider_runtime) = rule_provider_runtime {
+        reader = reader.with_rule_provider_runtime(rule_provider_runtime);
     }
     Ok(reader)
 }

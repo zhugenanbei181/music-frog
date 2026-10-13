@@ -344,7 +344,10 @@ def source_problems(repo_root: Path) -> list[str]:
             f"{real_geo_update_test_path}: real-process test must be ignored in ordinary nextest runs"
         )
     for required in (
-        ".upgrade_geo()",
+        "MihomoGeoDatabaseAdapter",
+        "MihomoGeoDatabaseAdapter::new(",
+        "GeoDatabasePort::trigger(&adapter, scope.clone())",
+        "GeoDatabaseTriggerState::Accepted",
         "MIHOMO_REAL_GEO_FIXTURE_ORIGIN",
         "profile_source.contains(\"geo-auto-update: false\")",
         "every configured geox URL",
@@ -355,6 +358,10 @@ def source_problems(repo_root: Path) -> list[str]:
             problems.append(
                 f"{real_geo_update_test_path}: Geo trigger smoke must include `{required}`"
             )
+    if ".upgrade_geo()" in real_geo_update_test:
+        problems.append(
+            f"{real_geo_update_test_path}: Geo smoke must exercise the scope-bound adapter, not the client endpoint"
+        )
     for required in (
         "-p infiltrator-composition",
         "--test mihomo_tun_configuration_real_process_smoke",

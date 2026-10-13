@@ -5,18 +5,19 @@
 //! cache. Both surfaces call into this module, so neither can fabricate a
 //! provider payload or claim a cleanup that never happened.
 
+use crate::rule_provider_runtime_application::RuleProviderRuntimeApplication;
+use infiltrator_contract::core_identity::CoreScope;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::provider_cache::{
     ProviderCacheFingerprint, ProviderCachePurge, ProviderContentOrigin, ProviderFileFingerprint,
     RuleProviderCacheSnapshot,
 };
+use infiltrator_contract::rule_provider_runtime::RuleProviderPayload;
 use infiltrator_domain::rules::RuleEntry;
 use infiltrator_domain::rules::provider_store::{
     RuleProviderDeclaration, deconstruct_provider_payload, unpack_provider_rules_with_behavior,
 };
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::rule_provider_cache::RuleProviderCachePort;
-use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
@@ -28,6 +29,18 @@ pub struct ProviderUnpackPlan {
     pub entries: Vec<RuleEntry>,
     pub considered: usize,
     pub skipped: usize,
+}
+
+/// Explicit access state for resolving a provider payload from the active
+/// controller after inline and local-cache sources have been checked.
+#[derive(Clone)]
+pub enum RuleProviderRuntimeAccess {
+    Unavailable,
+    ScopeUnavailable,
+    Scoped {
+        application: RuleProviderRuntimeApplication,
+        scope: CoreScope,
+    },
 }
 
 impl ProviderUnpackPlan {
@@ -59,20 +72,13 @@ impl RuleProviderApplication {
         self.cache.is_some()
     }
 
-    /// Resolve one provider's real rules.
-    ///
-    /// Source order, all of them observable facts:
-    /// 1. the profile's `payload:` (inline providers keep their rules there),
-    /// 2. the declaration's local file / the kernel's downloaded cache file,
-    /// 3. the running controller's published payload.
-    ///
-    /// When none of the three produces rules the failure is typed and names
-    /// every source that was tried — no surface gets a fabricated sample.
+    /// Resolve one provider's real rules from inline, local-cache or scoped
+    /// controller observations. No unscoped controller fallback exists.
     pub async fn deconstruct(
         &self,
         declaration: &RuleProviderDeclaration,
         target: &str,
-        gateway: Option<&dyn RuntimeGateway>,
+        runtime: RuleProviderRuntimeAccess,
     ) -> Result<ProviderUnpackPlan, Failure> {
         let name = declaration.name.as_str();
         if !declaration.payload.is_empty() {
@@ -110,21 +116,37 @@ impl RuleProviderApplication {
                 Err(error) => local_failure = Some(error.to_string()),
             }
         }
-        if let Some(gateway) = gateway {
-            match gateway.rule_provider_payload(name).await {
-                Ok(Some(payload)) if !payload.is_empty() => {
-                    return deconstruct_lines(
-                        declaration,
-                        &payload,
-                        target,
-                        ProviderContentOrigin::ControllerPayload,
-                    );
+        match runtime {
+            RuleProviderRuntimeAccess::Scoped { application, scope } => {
+                match application.payload_by_name(&scope, name).await {
+                    Ok(snapshot) => match snapshot.payload() {
+                        RuleProviderPayload::Published(payload) if !payload.is_empty() => {
+                            return deconstruct_lines(
+                                declaration,
+                                payload,
+                                target,
+                                ProviderContentOrigin::ControllerPayload,
+                            );
+                        }
+                        RuleProviderPayload::Published(_) | RuleProviderPayload::NotPublished => {}
+                    },
+                    Err(failure)
+                        if failure.code == ErrorCode::Unsupported
+                            || failure.code == ErrorCode::NotReady =>
+                    {
+                        local_failure.get_or_insert(failure.message);
+                    }
+                    Err(failure) => return Err(failure),
                 }
-                Ok(_) => {}
-                Err(PortError::Unsupported { reason, .. }) => {
-                    local_failure.get_or_insert(reason);
-                }
-                Err(error) => return Err(Failure::from(error)),
+            }
+            RuleProviderRuntimeAccess::ScopeUnavailable => {
+                local_failure.get_or_insert(
+                    "rule-provider controller query has no validated Core scope".to_owned(),
+                );
+            }
+            RuleProviderRuntimeAccess::Unavailable => {
+                local_failure
+                    .get_or_insert("rule-provider controller port is not composed".to_owned());
             }
         }
         let mut tried = vec!["profile inline payload"];
@@ -245,6 +267,7 @@ mod tests {
     use super::*;
     use async_trait::async_trait;
     use infiltrator_contract::provider_cache::RuleProviderCacheSnapshot;
+    use infiltrator_ports::error::PortError;
     use infiltrator_ports::rule_provider_cache::{ProviderCacheEntry, ProviderFileFact};
     use serde_json::json;
     use std::path::PathBuf;
@@ -329,7 +352,7 @@ mod tests {
             "payload": ["ads.com", "tracker.net"]
         }));
         let plan = application
-            .deconstruct(&decl, "REJECT", None)
+            .deconstruct(&decl, "REJECT", RuleProviderRuntimeAccess::Unavailable)
             .await
             .expect("plan");
         assert_eq!(plan.origin, ProviderContentOrigin::InlinePayload);
@@ -356,7 +379,7 @@ mod tests {
             "url": "https://example.com/ads.txt"
         }));
         let plan = application
-            .deconstruct(&decl, "PROXY", None)
+            .deconstruct(&decl, "PROXY", RuleProviderRuntimeAccess::Unavailable)
             .await
             .expect("plan");
         assert_eq!(plan.origin, ProviderContentOrigin::KernelCacheFile);
@@ -374,7 +397,7 @@ mod tests {
             "url": "https://example.com/ads.txt"
         }));
         let failure = application
-            .deconstruct(&decl, "PROXY", None)
+            .deconstruct(&decl, "PROXY", RuleProviderRuntimeAccess::Unavailable)
             .await
             .expect_err("no source");
         assert_eq!(failure.code, ErrorCode::Unsupported);

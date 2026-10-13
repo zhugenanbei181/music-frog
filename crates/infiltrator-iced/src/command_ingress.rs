@@ -3,6 +3,7 @@
 //! intents alike.
 
 use infiltrator_application::core_application::{CoreApplication, ScopedCoreCommandClient};
+use infiltrator_application::rule_provider_runtime_application::RuleProviderRuntimeApplication;
 use infiltrator_contract::command::{CommandIntent, CommandResult};
 use infiltrator_contract::core_identity::{CoreCommandOutcome, CoreScope};
 use infiltrator_contract::error::Failure;
@@ -46,6 +47,12 @@ impl CoreCommandIngress {
             ObservedCoreScope::Bound(client) => Some(client.observed_scope().clone()),
             ObservedCoreScope::Unavailable => None,
         }
+    }
+
+    pub(crate) fn rule_provider_runtime_application(
+        &self,
+    ) -> Option<RuleProviderRuntimeApplication> {
+        self.application.rule_provider_runtime_application()
     }
 
     pub(crate) fn inspect_profile_buffer(

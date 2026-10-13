@@ -29,7 +29,7 @@ use infiltrator_domain::profiles::{ProfileInfo, ProfileMetadata};
 use infiltrator_domain::rules::edit::build_custom_rule;
 use infiltrator_domain::rules::provider_store::RuleProviderDeclaration;
 use infiltrator_domain::rules::{game_routing_presets, load_rules_from_yaml};
-use infiltrator_domain::runtime::{ConnectionSnapshot, ProxyProvider, RuleProvider};
+use infiltrator_domain::runtime::ConnectionSnapshot;
 use infiltrator_ports::connection::{
     ConnectionControlReceipt, ConnectionControlRequest, ConnectionControlTarget,
     ConnectionObservationSnapshot, ConnectionPort,
@@ -398,46 +398,18 @@ const THREE_RULES: &str =
 /// Runtime fixture records the operations under test; unrelated port methods
 /// supply only the minimal isolated observations needed by those use cases.
 #[derive(Default)]
-pub(super) struct RecordingGeoGateway {
-    geo_upgrades: AtomicUsize,
+pub(super) struct RecordingConnectionGateway {
     close_all_calls: Arc<AtomicUsize>,
     deny_close_all: Arc<AtomicBool>,
 }
 
-impl RecordingGeoGateway {
-    pub(super) fn geo_upgrades(&self) -> usize {
-        self.geo_upgrades.load(Ordering::SeqCst)
-    }
-}
-
 #[async_trait]
-impl RuntimeGateway for RecordingGeoGateway {
+impl RuntimeGateway for RecordingConnectionGateway {
     fn connection_port(&self) -> Arc<dyn ConnectionPort> {
         Arc::new(RecordingConnectionPort {
             close_all_calls: self.close_all_calls.clone(),
             deny_close_all: self.deny_close_all.clone(),
         })
-    }
-
-    async fn get_proxy_providers(&self) -> Result<Vec<ProxyProvider>, PortError> {
-        Ok(Vec::new())
-    }
-
-    async fn get_rule_providers(&self) -> Result<Vec<RuleProvider>, PortError> {
-        Ok(Vec::new())
-    }
-
-    async fn update_proxy_provider(&self, _name: &str) -> Result<(), PortError> {
-        Ok(())
-    }
-
-    async fn update_rule_provider(&self, _name: &str) -> Result<(), PortError> {
-        Ok(())
-    }
-
-    async fn upgrade_geo(&self) -> Result<(), PortError> {
-        self.geo_upgrades.fetch_add(1, Ordering::SeqCst);
-        Ok(())
     }
 }
 

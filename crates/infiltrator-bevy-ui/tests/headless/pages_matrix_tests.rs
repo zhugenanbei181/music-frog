@@ -283,8 +283,10 @@ fn rules_page_in_place_update() {
         default_action: "REJECT".to_owned(),
         providers: vec![RuleProviderItem {
             name: "custom-mrs".to_owned(),
+            provider_type: "mrs".to_owned(),
             rule_count: 5000,
             behavior: "domain".to_owned(),
+            vehicle_type: "File".to_owned(),
             updated_at: "2026-09-02 12:00".to_owned(),
             source_url: None,
             refresh_interval_secs: Some(86_400),

@@ -1369,6 +1369,78 @@
         "crates/infiltrator-desktop/src",
         "crates/infiltrator-android/src"
       ]
+    },
+    {
+      "id": "mihomo-proxy-provider-wire-dto",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "ProxyProvider",
+      "rationale": "The unverified runtime proxy-provider DTO was removed; rule-provider controller state now uses scope- and revision-bound snapshots, while profile declarations remain configuration data.",
+      "replacement_behavior_tests": [
+        "crates/mihomo-api/tests/real_process_smoke.rs",
+        "crates/infiltrator-application/src/command_application_tests/rule_edit_cases.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-domain/src",
+        "crates/mihomo-api/src",
+        "crates/infiltrator-iced/src"
+      ]
+    },
+    {
+      "id": "mihomo-proxy-provider-list-wire-dto",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "ProxyProviderList",
+      "rationale": "The unverified runtime proxy-provider list wire DTO was removed with its unsupported runtime surface.",
+      "replacement_behavior_tests": [
+        "crates/mihomo-api/tests/real_process_smoke.rs",
+        "crates/infiltrator-application/src/command_application_tests/rule_edit_cases.rs"
+      ],
+      "source_roots": [
+        "crates/mihomo-api/src"
+      ]
+    },
+    {
+      "id": "mihomo-client-proxy-provider-list",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "get_proxy_providers",
+      "rationale": "The unscoped proxy-provider list endpoint was removed; observed runtime provider data now flows only through the typed rule-provider port.",
+      "replacement_behavior_tests": [
+        "crates/mihomo-api/tests/real_process_smoke.rs",
+        "crates/infiltrator-application/src/command_application_tests/rule_edit_cases.rs"
+      ],
+      "source_roots": [
+        "crates/mihomo-api/src"
+      ]
+    },
+    {
+      "id": "mihomo-client-proxy-provider-update",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "update_proxy_provider",
+      "rationale": "The unverified name-only proxy-provider update endpoint was removed; supported rule-provider refresh now carries owner and inventory revision.",
+      "replacement_behavior_tests": [
+        "crates/mihomo-api/tests/real_process_smoke.rs",
+        "crates/infiltrator-application/src/command_application_tests/rule_edit_cases.rs"
+      ],
+      "source_roots": [
+        "crates/mihomo-api/src"
+      ]
+    },
+    {
+      "id": "iced-proxy-provider-update-message",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "UpdateProxyProvider",
+      "rationale": "The unsupported product update message was removed with its proxy-provider row; rule-provider actions carry the observed typed controller reference.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-iced/tests/gui/view_rules_tests.rs",
+        "crates/infiltrator-application/src/command_application_tests/rule_edit_cases.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-iced/src"
+      ]
     }
   ]
 }

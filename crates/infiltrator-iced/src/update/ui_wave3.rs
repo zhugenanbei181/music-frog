@@ -6,6 +6,7 @@ use crate::state::AppState;
 use crate::types::app::{ToastStatus, UwpAppItem, UwpLoopbackState};
 use crate::types::message::Message;
 use iced::Task;
+use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::error::{Failure, InfiltratorError};
 use infiltrator_contract::uwp::{UwpLoopbackAvailability, UwpLoopbackSnapshot};
 use infiltrator_domain::backup::{BackupBundle, export_encrypted_bundle};
@@ -230,9 +231,7 @@ impl AppState {
                 Task::none()
             }
             Message::TriggerGeoDataUpdate => {
-                // Drive the real core trigger (`POST /upgrade/geo`) through
-                // the runtime gateway; no fabricated success results.
-                let Some(rt) = self.runtime.runtime.clone() else {
+                let Some(application) = self.command_ingress() else {
                     let lang = Lang(&self.shell.lang);
                     return Task::done(Message::ShowToast(
                         lang.tr("geodata_unsupported_host").to_string(),
@@ -242,8 +241,11 @@ impl AppState {
                 self.editor.geodata_status.is_updating = true;
                 Task::perform(
                     async move {
-                        rt.upgrade_geo().await.map_err(|error| error.to_string())?;
-                        Ok::<_, String>(())
+                        application
+                            .execute(CommandIntent::UpgradeGeoDatabases)
+                            .await
+                            .into_unit()
+                            .map_err(|failure| failure.message)
                     },
                     Message::GeoDataUpdateResult,
                 )

@@ -6,12 +6,10 @@ use infiltrator_contract::active_profile_reference::{
     ActiveProfileReference, ActiveProfileReferenceState, ActiveProfileReferenceTarget,
     ActiveProfileReferenceWriteAuthorization,
 };
-use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_domain::profiles::ProfileMetadata;
-use infiltrator_domain::runtime::{ProxyProvider, RuleProvider};
 use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceApplier;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::{
@@ -65,27 +63,10 @@ impl ActivationRuntime {
     fn set_lifecycle(&self, lifecycle: infiltrator_contract::snapshot::CoreLifecycle) {
         *self.lifecycle.lock().expect("runtime lifecycle") = lifecycle;
     }
-
-    fn unavailable(&self) -> PortError {
-        PortError::unsupported(Capability::Profiles, "unused test runtime operation")
-    }
 }
 
 #[async_trait]
-impl RuntimeGateway for ActivationRuntime {
-    async fn get_proxy_providers(&self) -> Result<Vec<ProxyProvider>, PortError> {
-        Err(self.unavailable())
-    }
-    async fn get_rule_providers(&self) -> Result<Vec<RuleProvider>, PortError> {
-        Err(self.unavailable())
-    }
-    async fn update_proxy_provider(&self, _: &str) -> Result<(), PortError> {
-        Err(self.unavailable())
-    }
-    async fn update_rule_provider(&self, _: &str) -> Result<(), PortError> {
-        Err(self.unavailable())
-    }
-}
+impl RuntimeGateway for ActivationRuntime {}
 
 #[async_trait]
 impl ActiveProfileReferenceApplier for ActivationRuntime {

@@ -46,6 +46,7 @@ impl ApplicationSurfaceReader {
             outbound: None,
             outbound_ui_preferences,
             rule_provider: RuleProviderApplication::default(),
+            rule_provider_runtime: None,
             connection_rates: ConnectionRateApplication::new(),
             version_cache: Arc::new(Mutex::new(None)),
             capabilities: CapabilitySnapshot::new(host, 0, Vec::new()),
@@ -89,6 +90,14 @@ impl ApplicationSurfaceReader {
         application: OutboundUiPreferencesApplication,
     ) -> Self {
         self.outbound_ui_preferences = Some(application);
+        self
+    }
+
+    pub fn with_rule_provider_runtime(
+        mut self,
+        application: RuleProviderRuntimeApplication,
+    ) -> Self {
+        self.rule_provider_runtime = Some(application);
         self
     }
 

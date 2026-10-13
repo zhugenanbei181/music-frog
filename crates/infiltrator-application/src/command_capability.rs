@@ -86,6 +86,7 @@ pub fn terminal_scope_policy(intent: &CommandIntent) -> CoreTerminalScopePolicy 
         | CommandIntent::SaveAggregationTemplate { .. }
         | CommandIntent::DeleteAggregationTemplate { .. }
         | CommandIntent::RefreshRuleProviders
+        | CommandIntent::RefreshRuleProvider { .. }
         | CommandIntent::SimulateRuleTrace { .. }
         | CommandIntent::ApplyTracerRuleOverride { .. }
         | CommandIntent::ResetRuleHitCounters { .. }
@@ -300,10 +301,12 @@ pub fn classify_command(intent: &CommandIntent) -> CommandCapabilityRoute {
         CommandIntent::SaveSubscriptionFilter { .. } => CoreBackend(
             CoreCapabilityRequirement::new(Profile(ProfileOperation::ApplyFeature), Write),
         ),
-        CommandIntent::RefreshRuleProviders => CoreBackend(CoreCapabilityRequirement::new(
-            Provider(ProviderOperation::UpdateRule),
-            Write,
-        )),
+        CommandIntent::RefreshRuleProviders | CommandIntent::RefreshRuleProvider { .. } => {
+            CoreBackend(CoreCapabilityRequirement::new(
+                Provider(ProviderOperation::UpdateRule),
+                Write,
+            ))
+        }
         CommandIntent::SimulateRuleTrace { .. } => CoreBackend(CoreCapabilityRequirement::new(
             Rules(RulesOperation::Trace),
             Read,

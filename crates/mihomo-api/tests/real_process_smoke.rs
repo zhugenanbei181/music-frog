@@ -10,6 +10,7 @@ use infiltrator_contract::outbound::inventory::{
     OutboundInventoryState, OutboundProbeState, OutboundSelectionState,
 };
 use infiltrator_contract::routing_intent::RoutingIntent;
+use infiltrator_contract::rule_provider_runtime::{RuleProviderId, RuleProviderPayload};
 use infiltrator_ports::connection::{
     ConnectionControlRequest, ConnectionControlTarget, ConnectionPort,
 };
@@ -22,6 +23,7 @@ use infiltrator_ports::dns_query::DnsQueryPort;
 use infiltrator_ports::outbound::{OutboundPort, OutboundProbeRequest, ProbeTarget};
 use infiltrator_ports::resources::{CoreResourcePort, GarbageCollectionOutcome};
 use infiltrator_ports::routing_intent::RoutingIntentPort;
+use infiltrator_ports::rule_provider_runtime::RuleProviderPort;
 use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use infiltrator_ports::runtime_stream::RuntimeStreamEvent;
 use mihomo_api::client::MihomoClient;
@@ -30,6 +32,7 @@ use mihomo_api::controller_fake_ip_cache::MihomoControllerFakeIpCacheAdapter;
 use mihomo_api::outbound::MihomoOutboundAdapter;
 use mihomo_api::resource_port::MihomoRuntimeResourcePort;
 use mihomo_api::routing_intent::MihomoRoutingIntentAdapter;
+use mihomo_api::rule_provider::MihomoRuleProviderAdapter;
 use mihomo_api::runtime_configuration::RuntimeScopeResolver;
 use std::env;
 use std::sync::Arc;
@@ -241,54 +244,80 @@ async fn typed_core_dns_fakeip_rule_provider_connection_close_and_runtime_ports_
     );
 
     let rule_provider_name = "CORE-SMOKE-RULE";
+    let rule_provider_id = RuleProviderId::new(EngineId::mihomo(), rule_provider_name)
+        .expect("valid controller rule-provider ID");
+    let rule_providers = MihomoRuleProviderAdapter::new(
+        Arc::new(client.clone()),
+        Arc::new(FixedScope(scope.clone())),
+    );
     let update_signal_path = required_environment("MIHOMO_REAL_RULE_PROVIDER_UPDATE_SIGNAL");
-    let initial_rule_provider = tokio::time::timeout(Duration::from_secs(5), async {
+    let initial_inventory = tokio::time::timeout(Duration::from_secs(5), async {
         loop {
-            let providers = RuntimeGateway::get_rule_providers(&client)
+            let inventory = RuleProviderPort::inventory(&rule_providers, scope.clone())
                 .await
                 .expect("typed rule-provider list remains available");
-            if let Some(provider) = providers
-                .into_iter()
-                .find(|provider| provider.name == rule_provider_name)
+            if let Some(provider) = inventory.provider(&rule_provider_id)
                 && provider.rule_count == 1
             {
-                break provider;
+                break inventory;
             }
             tokio::time::sleep(Duration::from_millis(50)).await;
         }
     })
     .await
     .expect("live rule provider starts with one fixture rule");
-    assert_eq!(initial_rule_provider.rule_count, 1);
     assert_eq!(
-        RuntimeGateway::rule_provider_payload(&client, rule_provider_name)
-            .await
-            .expect("HTTP providers do not publish inline payloads"),
-        None
+        initial_inventory
+            .provider(&rule_provider_id)
+            .expect("typed provider fact")
+            .rule_count,
+        1
+    );
+    assert_eq!(
+        RuleProviderPort::payload(
+            &rule_providers,
+            scope.clone(),
+            initial_inventory.revision(),
+            rule_provider_id.clone(),
+        )
+        .await
+        .expect("HTTP providers do not publish inline payloads"),
+        infiltrator_contract::rule_provider_runtime::RuleProviderPayloadSnapshot::new(
+            scope.clone(),
+            initial_inventory.revision(),
+            rule_provider_id.clone(),
+            RuleProviderPayload::NotPublished,
+        )
+        .expect("valid not-published payload snapshot")
     );
     std::fs::write(&update_signal_path, b"update")
         .expect("enable the second local fixture payload");
-    RuntimeGateway::update_rule_provider(&client, rule_provider_name)
-        .await
-        .expect("typed rule-provider update reaches the live Mihomo controller");
+    let receipt = RuleProviderPort::refresh(
+        &rule_providers,
+        scope.clone(),
+        initial_inventory.revision(),
+        rule_provider_id.clone(),
+    )
+    .await
+    .expect("typed rule-provider update reaches the live Mihomo controller");
+    assert_eq!(receipt.scope(), &scope);
+    assert_eq!(receipt.provider_id(), &rule_provider_id);
     let updated_rule_provider = tokio::time::timeout(Duration::from_secs(5), async {
         loop {
-            let providers = RuntimeGateway::get_rule_providers(&client)
+            let inventory = RuleProviderPort::inventory(&rule_providers, scope.clone())
                 .await
                 .expect("typed rule-provider readback remains available");
-            if let Some(provider) = providers
-                .into_iter()
-                .find(|provider| provider.name == rule_provider_name)
+            if let Some(provider) = inventory.provider(&rule_provider_id)
                 && provider.rule_count == 2
             {
-                break provider;
+                break provider.rule_count;
             }
             tokio::time::sleep(Duration::from_millis(50)).await;
         }
     })
     .await
     .expect("rule-provider update readback reports both fixture rules");
-    assert_eq!(updated_rule_provider.rule_count, 2);
+    assert_eq!(updated_rule_provider, 2);
 
     let outbound = MihomoOutboundAdapter::new(
         Arc::new(client.clone()),

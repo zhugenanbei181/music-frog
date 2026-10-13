@@ -69,8 +69,10 @@ impl RulesProjection {
             providers: vec![
                 RuleProviderItem {
                     name: "geosite-geolocation-!cn".to_owned(),
+                    provider_type: "mrs".to_owned(),
                     rule_count: 1420,
                     behavior: "domain".to_owned(),
+                    vehicle_type: "File".to_owned(),
                     updated_at: "2026-09-02 06:00".to_owned(),
                     source_url: Some(
                         "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/geolocation-!cn.mrs"
@@ -81,8 +83,10 @@ impl RulesProjection {
                 },
                 RuleProviderItem {
                     name: "geoip-cn".to_owned(),
+                    provider_type: "mrs".to_owned(),
                     rule_count: 850,
                     behavior: "ipcidr".to_owned(),
+                    vehicle_type: "File".to_owned(),
                     updated_at: "2026-09-01 12:00".to_owned(),
                     source_url: Some(
                         "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geoip/cn.mrs"
@@ -93,8 +97,10 @@ impl RulesProjection {
                 },
                 RuleProviderItem {
                     name: "custom-reject-ads".to_owned(),
+                    provider_type: "classical".to_owned(),
                     rule_count: 572,
                     behavior: "classical".to_owned(),
+                    vehicle_type: "HTTP".to_owned(),
                     updated_at: "2026-08-30 18:30".to_owned(),
                     source_url: None,
                     refresh_interval_secs: None,

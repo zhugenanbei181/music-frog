@@ -20,6 +20,7 @@ use infiltrator_application::android_control_application::AndroidControlApplicat
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::outbound_application::OutboundApplication;
 use infiltrator_application::resource_application::ResourceApplication;
+use infiltrator_application::rule_provider_runtime_application::RuleProviderRuntimeApplication;
 use infiltrator_application::surface_application::SurfacePump;
 use infiltrator_application::surface_application::SurfacePumpBridge;
 use infiltrator_application::surface_reader::ApplicationSurfaceReader;
@@ -204,6 +205,9 @@ impl AndroidProductComposition {
         control: AndroidControlApplication,
     ) -> Result<Self, AndroidProductError> {
         let outbound = application.outbound_port().map(OutboundApplication::new);
+        let rule_provider_runtime = application.rule_provider_port().map(|port| {
+            RuleProviderRuntimeApplication::new(port, application.core_capability_application())
+        });
         let capabilities =
             CapabilityProvider::capabilities(&AndroidBridgeAdapter::new(bridge.clone()));
         let mut reader = ApplicationSurfaceReader::new(
@@ -219,6 +223,9 @@ impl AndroidProductComposition {
         )));
         if let Some(outbound) = outbound {
             reader = reader.with_outbound(outbound);
+        }
+        if let Some(rule_provider_runtime) = rule_provider_runtime {
+            reader = reader.with_rule_provider_runtime(rule_provider_runtime);
         }
         match controller {
             AndroidProductController::Mihomo { endpoint, secret } => {

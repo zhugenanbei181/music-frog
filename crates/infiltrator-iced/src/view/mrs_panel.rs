@@ -18,7 +18,7 @@ use iced::{Alignment, Border, Color, Element, Length, Theme, border};
 use infiltrator_application::rule_mrs_projection::{
     mrs_acceleration_item_label, mrs_acceleration_status_line,
 };
-use infiltrator_domain::runtime::RuleProvider;
+use infiltrator_contract::rule_provider_snapshot::RuleProviderSnapshot;
 use infiltrator_shared::locales::{Lang, Localizer};
 use std::collections::HashMap;
 
@@ -44,7 +44,7 @@ pub fn format_vehicle_behavior(vehicle: Option<&str>, behavior: &str) -> String 
 }
 
 /// Format rule count badge label (e.g. `179 rules`).
-pub fn format_rule_count(count: u32) -> String {
+pub fn format_rule_count(count: impl std::fmt::Display) -> String {
     format!("{count} rules")
 }
 
@@ -60,7 +60,7 @@ fn meta_text(value: String) -> text::Text<'static> {
 fn detail_row<'a>(
     lang: &Lang<'a>,
     detail: &MrsProviderDetail,
-    rule_provider: Option<&RuleProvider>,
+    rule_provider: Option<&RuleProviderSnapshot>,
 ) -> Element<'a, Message> {
     let vehicle_type = rule_provider.map(|rp| rp.vehicle_type.as_str());
     let behavior_raw = if !detail.behavior.is_empty() {
@@ -143,7 +143,15 @@ fn detail_row<'a>(
     )
     .padding([4, 10])
     .style(style_ghost)
-    .on_press(Message::UpdateRuleProvider(detail.name.clone()));
+    .on_press_maybe(
+        state
+            .editor
+            .rule_providers
+            .iter()
+            .find(|provider| provider.name == detail.name)
+            .and_then(|provider| provider.controller.clone())
+            .map(Message::UpdateRuleProvider),
+    );
 
     let actions =
         row![unpack_btn, Space::new().width(theme::SP_XS), update_btn].align_y(Alignment::Center);
@@ -184,7 +192,7 @@ fn detail_row<'a>(
 }
 
 /// Rendered inside the providers tab, below the provider lists. Scan results
-/// refresh whenever the live provider list reloads (`ProvidersLoaded`).
+/// refresh whenever the accepted shared rules-page observation changes.
 pub fn mrs_card(state: &AppState) -> Option<Element<'_, Message>> {
     if state.editor.mrs_details.is_empty() && !state.editor.is_scanning_mrs {
         return None;
@@ -200,7 +208,7 @@ pub fn mrs_card(state: &AppState) -> Option<Element<'_, Message>> {
                 }),
         );
     }
-    let rp_map: HashMap<&str, &RuleProvider> = state
+    let rp_map: HashMap<&str, &RuleProviderSnapshot> = state
         .editor
         .rule_providers
         .iter()

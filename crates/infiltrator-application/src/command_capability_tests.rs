@@ -410,6 +410,20 @@ async fn every_core_command_family_fails_closed_without_scope_and_provider() {
             CoreCommandEffect::Write,
         ),
         (
+            CommandIntent::RefreshRuleProvider {
+                reference: infiltrator_contract::rule_provider_snapshot::RuleProviderControllerReference {
+                    id: infiltrator_contract::rule_provider_runtime::RuleProviderId::new(
+                        EngineId::mihomo(),
+                        "ads",
+                    )
+                    .expect("typed provider ID"),
+                    inventory_revision: infiltrator_contract::rule_provider_runtime::RuleProviderRevision::initial(),
+                },
+            },
+            CoreOperation::Provider(ProviderOperation::UpdateRule),
+            CoreCommandEffect::Write,
+        ),
+        (
             CommandIntent::ReadOutboundInventory,
             CoreOperation::Outbound(OutboundOperation::List),
             CoreCommandEffect::Read,

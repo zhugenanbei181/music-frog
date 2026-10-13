@@ -4,6 +4,7 @@ use crate::core_process::CoreProcess;
 use crate::core_process::CoreReadiness;
 use crate::core_scope::{CoreScopeObservation, CoreScopeSource};
 use crate::error::PortError;
+use crate::geo_database::{GeoDatabasePort, UnsupportedGeoDatabasePort};
 use crate::outbound::OutboundPort;
 #[cfg(test)]
 use crate::profile_configuration_transaction::ProfileConfigurationTransactionScope;
@@ -12,6 +13,7 @@ use crate::profile_configuration_transaction::{
 };
 use crate::profile_document_codec::ProfileDocumentCodecPort;
 use crate::routing_intent::RoutingIntentPort;
+use crate::rule_provider_runtime::{RuleProviderPort, UnsupportedRuleProviderPort};
 use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_identity::{CoreIdentity, CoreScope, EngineId};
 use std::fmt::{self, Debug, Formatter};
@@ -194,8 +196,29 @@ pub enum EngineBackendOwnerScopeBindingResult {
 }
 
 /// Typed runtime operations that are actually composed for one engine.
-/// `Unsupported` has no adapter to dispatch; `Available` carries the only
-/// scoped outbound and routing owners for this backend bundle.
+/// `Unsupported` has no adapter to dispatch; `Available` carries the scoped
+/// outbound, routing, provider and Geo operation owners for this backend.
+#[derive(Clone)]
+pub enum EngineOperationPort<T> {
+    Unsupported { reason: String },
+    Available(T),
+}
+
+impl<T> EngineOperationPort<T> {
+    pub fn unsupported(reason: impl Into<String>) -> Self {
+        Self::Unsupported {
+            reason: reason.into(),
+        }
+    }
+
+    pub fn available(port: T) -> Self {
+        Self::Available(port)
+    }
+}
+
+pub type RuleProviderOperationPort = EngineOperationPort<Arc<dyn RuleProviderPort>>;
+pub type GeoDatabaseOperationPort = EngineOperationPort<Arc<dyn GeoDatabasePort>>;
+
 #[derive(Clone)]
 pub enum EngineOperationPorts {
     Unsupported {
@@ -204,6 +227,8 @@ pub enum EngineOperationPorts {
     Available {
         outbound: Arc<dyn OutboundPort>,
         routing_intent: Arc<dyn RoutingIntentPort>,
+        rule_provider: RuleProviderOperationPort,
+        geo_database: GeoDatabaseOperationPort,
         owner_scope: Arc<EngineBackendOwnerScopeBinding>,
     },
 }
@@ -218,11 +243,15 @@ impl EngineOperationPorts {
     pub fn available(
         outbound: Arc<dyn OutboundPort>,
         routing_intent: Arc<dyn RoutingIntentPort>,
+        rule_provider: RuleProviderOperationPort,
+        geo_database: GeoDatabaseOperationPort,
         owner_scope: Arc<EngineBackendOwnerScopeBinding>,
     ) -> Self {
         Self::Available {
             outbound,
             routing_intent,
+            rule_provider,
+            geo_database,
             owner_scope,
         }
     }
@@ -244,6 +273,38 @@ impl EngineOperationPorts {
                 reason.clone(),
             )),
             Self::Available { routing_intent, .. } => Ok(Arc::clone(routing_intent)),
+        }
+    }
+
+    pub fn rule_provider(&self) -> Arc<dyn RuleProviderPort> {
+        match self {
+            Self::Unsupported { reason } => {
+                Arc::new(UnsupportedRuleProviderPort::new(reason.clone()))
+            }
+            Self::Available {
+                rule_provider: EngineOperationPort::Unsupported { reason },
+                ..
+            } => Arc::new(UnsupportedRuleProviderPort::new(reason.clone())),
+            Self::Available {
+                rule_provider: EngineOperationPort::Available(port),
+                ..
+            } => Arc::clone(port),
+        }
+    }
+
+    pub fn geo_database(&self) -> Arc<dyn GeoDatabasePort> {
+        match self {
+            Self::Unsupported { reason } => {
+                Arc::new(UnsupportedGeoDatabasePort::new(reason.clone()))
+            }
+            Self::Available {
+                geo_database: EngineOperationPort::Unsupported { reason },
+                ..
+            } => Arc::new(UnsupportedGeoDatabasePort::new(reason.clone())),
+            Self::Available {
+                geo_database: EngineOperationPort::Available(port),
+                ..
+            } => Arc::clone(port),
         }
     }
 }

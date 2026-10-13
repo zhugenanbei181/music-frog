@@ -12,11 +12,13 @@ use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::connection_application::ConnectionApplication;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::core_capability_application::CoreCapabilityApplication;
+use infiltrator_application::geo_database_application::GeoDatabaseApplication;
 use infiltrator_application::mtu_application::MtuApplication;
 use infiltrator_application::offline_startup_application::OfflineStartupApplication;
 use infiltrator_application::outbound_application::OutboundApplication;
 use infiltrator_application::overview::UnavailableOverviewReader;
 use infiltrator_application::profile_application::ProfileApplication;
+use infiltrator_application::rule_provider_runtime_application::RuleProviderRuntimeApplication;
 use infiltrator_application::runtime_query_application::RuntimeQueryApplication;
 use infiltrator_application::vpn_application::VpnServiceApplication;
 use infiltrator_composition::engine_backend_factory::EngineBackendFactoryRegistry;
@@ -32,7 +34,6 @@ use infiltrator_contract::surface::HostKind;
 use infiltrator_core::apply::EndpointConfigReloader;
 use infiltrator_core::profile_configuration_transaction::MihomoProfileConfigurationTransactionAdapter;
 use infiltrator_core::version_port::MihomoVersionPort;
-use infiltrator_domain::runtime::{ProxyProvider, RuleProvider};
 use infiltrator_platform::android_bridge::AndroidBridge;
 use infiltrator_ports::core_capability_provider::CoreCapabilityProvider;
 use infiltrator_ports::core_log_level::CoreLogLevelPort;
@@ -101,9 +102,7 @@ impl AndroidControllerAdapters {
     fn runtime_gateway(&self) -> Arc<dyn RuntimeGateway> {
         match self {
             Self::Available { client } => Arc::new(client.clone()),
-            Self::Unavailable { failure } => Arc::new(UnavailableAndroidRuntimeGateway {
-                failure: failure.clone(),
-            }),
+            Self::Unavailable { .. } => Arc::new(UnavailableAndroidRuntimeGateway),
         }
     }
 
@@ -281,34 +280,10 @@ pub(crate) fn android_mihomo_backend_provider<S: SecureStore + 'static>(
     )?))
 }
 
-struct UnavailableAndroidRuntimeGateway {
-    failure: PortError,
-}
-
-impl UnavailableAndroidRuntimeGateway {
-    fn failure(&self) -> PortError {
-        self.failure.clone()
-    }
-}
+struct UnavailableAndroidRuntimeGateway;
 
 #[async_trait::async_trait]
-impl RuntimeGateway for UnavailableAndroidRuntimeGateway {
-    async fn get_proxy_providers(&self) -> Result<Vec<ProxyProvider>, PortError> {
-        Err(self.failure())
-    }
-
-    async fn get_rule_providers(&self) -> Result<Vec<RuleProvider>, PortError> {
-        Err(self.failure())
-    }
-
-    async fn update_proxy_provider(&self, _name: &str) -> Result<(), PortError> {
-        Err(self.failure())
-    }
-
-    async fn update_rule_provider(&self, _name: &str) -> Result<(), PortError> {
-        Err(self.failure())
-    }
-}
+impl RuntimeGateway for UnavailableAndroidRuntimeGateway {}
 
 impl<S: SecureStore + 'static> AndroidCoreComposition<S> {
     pub fn new(profile_store: Arc<ConfigManager<S>>) -> Self {
@@ -497,6 +472,13 @@ fn core_application_from_backend<S: SecureStore + 'static>(
         EngineBackendOwnerScopeBindingResult::NotRequired => {}
         EngineBackendOwnerScopeBindingResult::Bound => {}
     }
+    let backend_operations = backend.operations();
+    application
+        .install_rule_provider_port(backend_operations.rule_provider())
+        .map_err(|failure| PortError::Failed(failure.message))?;
+    application
+        .install_geo_database_port(backend_operations.geo_database())
+        .map_err(|failure| PortError::Failed(failure.message))?;
     let transaction_binding = backend.configuration_transaction_binding();
     let document_codec = backend.configuration();
     let transaction_scope = ProfileConfigurationTransactionScope::new(document_codec.scope());
@@ -544,8 +526,22 @@ fn core_application_from_backend<S: SecureStore + 'static>(
     application
         .install_core_capability_application(core_capabilities.clone())
         .map_err(|failure| PortError::Failed(failure.message))?;
+    let rule_provider_runtime = RuleProviderRuntimeApplication::new(
+        application.rule_provider_port().ok_or_else(|| {
+            PortError::Failed("Android Core owner has no installed rule-provider port".to_owned())
+        })?,
+        core_capabilities.clone(),
+    );
+    let geo_database = GeoDatabaseApplication::new(
+        application.geo_database_port().ok_or_else(|| {
+            PortError::Failed("Android Core owner has no installed Geo database port".to_owned())
+        })?,
+        core_capabilities.clone(),
+    );
     let mut handler = CommandApplication::new()
         .with_core_capabilities(core_capabilities)
+        .with_rule_provider_runtime(rule_provider_runtime)
+        .with_geo_database(geo_database)
         .with_host_capabilities(Arc::new(AndroidBridgeAdapter::new(bridge.clone())))
         .with_application_runtime(runtime)
         .with_profile(composition.profile_application(backend.configuration()))
@@ -557,7 +553,7 @@ fn core_application_from_backend<S: SecureStore + 'static>(
     match controller_adapters {
         AndroidControllerAdapters::Available { client } => {
             let core_log_level_port: Arc<dyn CoreLogLevelPort> = Arc::new(client.clone());
-            let operations = backend.operations();
+            let operations = backend_operations;
             let gateway = controller_adapters.runtime_gateway();
             let scope_source: Arc<dyn infiltrator_ports::core_scope::CoreScopeSource> =
                 Arc::new(application.clone());

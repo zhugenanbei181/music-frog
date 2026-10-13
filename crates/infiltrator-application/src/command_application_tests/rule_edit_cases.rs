@@ -1,7 +1,93 @@
 //! Behavior cases for rule, subscription, profile, and provider commands.
 
 use super::*;
+use crate::core_capability_test_support::capability_application;
+use crate::geo_database_application::GeoDatabaseApplication;
+use crate::rule_provider_runtime_application::RuleProviderRuntimeApplication;
+use infiltrator_contract::geo_database::GeoDatabaseTriggerReceipt;
 use infiltrator_contract::profile_document_identity::ProfileDocumentIdentity;
+use infiltrator_contract::rule_provider_runtime::{
+    RuleProviderFact, RuleProviderId, RuleProviderInventorySnapshot, RuleProviderPayloadSnapshot,
+    RuleProviderRefreshReceipt, RuleProviderRevision,
+};
+use infiltrator_ports::geo_database::GeoDatabasePort;
+use infiltrator_ports::rule_provider_runtime::RuleProviderPort;
+
+#[derive(Default)]
+struct RecordingGeoPort(std::sync::atomic::AtomicUsize);
+
+#[async_trait::async_trait]
+impl GeoDatabasePort for RecordingGeoPort {
+    async fn trigger(
+        &self,
+        scope: infiltrator_contract::core_identity::CoreScope,
+    ) -> Result<GeoDatabaseTriggerReceipt, PortError> {
+        self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        Ok(GeoDatabaseTriggerReceipt::accepted(scope))
+    }
+}
+
+#[derive(Default)]
+struct RecordingRuleProviderPort(
+    std::sync::Mutex<
+        Option<(
+            infiltrator_contract::core_identity::CoreScope,
+            RuleProviderRevision,
+            RuleProviderId,
+        )>,
+    >,
+);
+
+#[async_trait::async_trait]
+impl RuleProviderPort for RecordingRuleProviderPort {
+    async fn inventory(
+        &self,
+        _scope: infiltrator_contract::core_identity::CoreScope,
+    ) -> Result<RuleProviderInventorySnapshot, PortError> {
+        Err(PortError::unsupported(
+            infiltrator_contract::capability::Capability::RoutingIntent,
+            "single-provider command must not query inventory",
+        ))
+    }
+
+    async fn refresh(
+        &self,
+        scope: infiltrator_contract::core_identity::CoreScope,
+        revision: RuleProviderRevision,
+        id: RuleProviderId,
+    ) -> Result<RuleProviderRefreshReceipt, PortError> {
+        *self.0.lock().expect("provider command recording lock") =
+            Some((scope.clone(), revision, id.clone()));
+        let fact = RuleProviderFact {
+            id: id.clone(),
+            provider_type: "http".to_owned(),
+            behavior: "domain".to_owned(),
+            vehicle_type: "HTTP".to_owned(),
+            updated_at: "accepted".to_owned(),
+            rule_count: 1,
+        };
+        let inventory = RuleProviderInventorySnapshot::new(
+            scope.clone(),
+            revision.next().expect("test revision advances"),
+            vec![fact],
+        )
+        .expect("test inventory is valid");
+        RuleProviderRefreshReceipt::accepted(scope, revision, inventory, id)
+            .map_err(|error| PortError::Failed(error.to_string()))
+    }
+
+    async fn payload(
+        &self,
+        _scope: infiltrator_contract::core_identity::CoreScope,
+        _revision: RuleProviderRevision,
+        _id: RuleProviderId,
+    ) -> Result<RuleProviderPayloadSnapshot, PortError> {
+        Err(PortError::unsupported(
+            infiltrator_contract::capability::Capability::RoutingIntent,
+            "single-provider command does not read payload",
+        ))
+    }
+}
 
 #[tokio::test]
 async fn toggle_and_move_apply_shared_reductions_and_persist() {
@@ -458,10 +544,10 @@ async fn active_document_identity(store: &Arc<FakeStore>) -> ProfileDocumentIden
         .identity
 }
 
-/// DUAL-11-14: the Geo database upgrade is the shared runtime-gateway call;
-/// without a gateway the intent is a typed unsupported, never a fake success.
+/// Geo trigger dispatch uses the owner-scoped port; without it the intent is
+/// a typed unsupported, never a fake success.
 #[tokio::test]
-async fn upgrade_geo_databases_requires_the_runtime_gateway() {
+async fn upgrade_geo_databases_requires_the_scoped_port() {
     let store = Arc::new(FakeStore::with_profile(THREE_RULES));
     let hostless = application(&store);
     let failure = hostless
@@ -470,19 +556,56 @@ async fn upgrade_geo_databases_requires_the_runtime_gateway() {
             CommandIntent::UpgradeGeoDatabases,
         )
         .await
-        .expect_err("no runtime gateway");
-    assert!(failure.message.contains("runtime gateway"), "{failure:?}");
+        .expect_err("no scoped Geo database application");
+    assert!(
+        failure.message.contains("Geo database application"),
+        "{failure:?}"
+    );
 
-    let gateway = Arc::new(RecordingGeoGateway::default());
-    let with_gateway = application(&store).with_runtime(gateway.clone());
-    with_gateway
+    let port = Arc::new(RecordingGeoPort::default());
+    let with_port = application(&store).with_geo_database(GeoDatabaseApplication::new(
+        port.clone(),
+        capability_application(),
+    ));
+    with_port
         .handle_scoped(
             ValidatedCoreCommandScope::from_core_application(Some(core_scope())),
             CommandIntent::UpgradeGeoDatabases,
         )
         .await
         .expect("geo upgrade");
-    assert_eq!(gateway.geo_upgrades(), 1);
+    assert_eq!(port.0.load(std::sync::atomic::Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn refresh_rule_provider_dispatches_snapshot_reference_to_scoped_port() {
+    let store = Arc::new(FakeStore::with_profile(THREE_RULES));
+    let scope = core_scope();
+    let reference = infiltrator_contract::rule_provider_snapshot::RuleProviderControllerReference {
+        id: RuleProviderId::new(scope.identity.engine.clone(), "ads").unwrap(),
+        inventory_revision: RuleProviderRevision::new(7).unwrap(),
+    };
+    let port = Arc::new(RecordingRuleProviderPort::default());
+    let application = application(&store).with_rule_provider_runtime(
+        RuleProviderRuntimeApplication::new(port.clone(), capability_application()),
+    );
+
+    application
+        .handle_scoped(
+            ValidatedCoreCommandScope::from_core_application(Some(scope.clone())),
+            CommandIntent::RefreshRuleProvider { reference },
+        )
+        .await
+        .expect("typed provider refresh");
+
+    assert_eq!(
+        *port.0.lock().expect("provider command recording lock"),
+        Some((
+            scope,
+            RuleProviderRevision::new(7).unwrap(),
+            RuleProviderId::new(core_scope().identity.engine, "ads").unwrap(),
+        )),
+    );
 }
 
 /// DUAL-11-07: the purge command only reports what the injected host port

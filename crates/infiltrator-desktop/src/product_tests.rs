@@ -33,7 +33,6 @@ use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
-use infiltrator_domain::runtime::{ProxyProvider, RuleProvider};
 use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceApplier;
 use infiltrator_ports::core_capability_provider::{
     CoreCapabilityProvider, CoreCapabilityProviderError,
@@ -199,31 +198,8 @@ struct TestHostRuntime {
     application: Arc<CoreApplication>,
 }
 
-fn unsupported<T>(capability: Capability) -> Result<T, PortError> {
-    Err(PortError::unsupported(
-        capability,
-        "test host runtime does not implement controller operations",
-    ))
-}
-
 #[async_trait]
-impl RuntimeGateway for TestHostRuntime {
-    async fn get_proxy_providers(&self) -> Result<Vec<ProxyProvider>, PortError> {
-        unsupported(Capability::RoutingIntent)
-    }
-
-    async fn get_rule_providers(&self) -> Result<Vec<RuleProvider>, PortError> {
-        unsupported(Capability::RoutingIntent)
-    }
-
-    async fn update_proxy_provider(&self, _name: &str) -> Result<(), PortError> {
-        unsupported(Capability::RoutingIntent)
-    }
-
-    async fn update_rule_provider(&self, _name: &str) -> Result<(), PortError> {
-        unsupported(Capability::RoutingIntent)
-    }
-}
+impl RuntimeGateway for TestHostRuntime {}
 
 #[async_trait]
 impl ActiveProfileReferenceApplier for TestHostRuntime {

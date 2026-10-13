@@ -44,6 +44,7 @@ use infiltrator_contract::network_roaming::{
 use infiltrator_contract::parity::FeatureId;
 use infiltrator_contract::responsive_viewport::ResponsiveViewportSnapshot;
 use infiltrator_contract::routing_intent::{RoutingIntent, RoutingIntentSnapshot};
+use infiltrator_contract::rule_provider_snapshot::RuleProviderSnapshot;
 use infiltrator_contract::rules_workspace::RulesTab;
 use infiltrator_contract::runtime_settings::{RuntimeProbeSettings, RuntimeProbeSettingsState};
 use infiltrator_contract::subscription_quota::SubscriptionQuotaSnapshot;
@@ -53,7 +54,7 @@ use infiltrator_contract::version::InstalledCoreVersion;
 use infiltrator_domain::filter_policy_form::filter_spec_to_draft;
 use infiltrator_domain::mrs::{Behavior, MrsMetadata};
 use infiltrator_domain::profile_options::{FilterDedup, FilterSpec, RenameSpec};
-use infiltrator_domain::runtime::{ProxyProvider, RuleProvider, TrafficData};
+use infiltrator_domain::runtime::TrafficData;
 use infiltrator_domain::traffic_scale::compute;
 use std::path::PathBuf;
 use std::time;
@@ -154,29 +155,31 @@ impl AppState {
         state.rebuild_rules_render_cache();
         state.apply_rules_filter();
         state.editor.rule_providers = vec![
-            RuleProvider {
+            RuleProviderSnapshot {
                 name: "reject".to_string(),
                 provider_type: "classical".to_string(),
                 behavior: "domain".to_string(),
                 vehicle_type: "HTTP".to_string(),
                 updated_at: "2026-08-29T12:00:00.000000+08:00".to_string(),
                 rule_count: 52_345,
+                controller: None,
+                source_url: None,
+                refresh_interval_secs: None,
+                cache_fingerprint: None,
             },
-            RuleProvider {
+            RuleProviderSnapshot {
                 name: "cn-cidr".to_string(),
                 provider_type: "classical".to_string(),
                 behavior: "ipcidr".to_string(),
                 vehicle_type: "HTTP".to_string(),
                 updated_at: "2026-08-29T12:00:00.000000+08:00".to_string(),
                 rule_count: 9_412,
+                controller: None,
+                source_url: None,
+                refresh_interval_secs: None,
+                cache_fingerprint: None,
             },
         ];
-        state.editor.proxy_providers = vec![ProxyProvider {
-            name: "机场订阅".to_string(),
-            provider_type: "proxy".to_string(),
-            vehicle_type: "HTTP".to_string(),
-            updated_at: "2026-08-29T13:45:00.000000+08:00".to_string(),
-        }];
         state.editor.rule_providers_json_cache = rule_providers_json_fixture();
         state.editor.proxy_providers_json_cache = proxy_providers_json_fixture();
         state.editor.sniffer_json_cache = sniffer_json_fixture();

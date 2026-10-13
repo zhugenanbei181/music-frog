@@ -28,18 +28,15 @@ use infiltrator_contract::mrs_acceleration::MrsAccelerationSnapshot;
 use infiltrator_contract::profile_document::ProfileDocumentSnapshot;
 use infiltrator_contract::profile_document_identity::ProfileDocumentIdentity;
 use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
-use infiltrator_contract::provider_cache::{
-    KernelEtagSupportSnapshot, ProviderCacheFingerprint, RuleProviderCacheSnapshot,
-};
+use infiltrator_contract::provider_cache::{KernelEtagSupportSnapshot, RuleProviderCacheSnapshot};
 use infiltrator_contract::rule_edit::LogicalDraft;
+use infiltrator_contract::rule_provider_snapshot::RuleProviderSnapshot;
 use infiltrator_contract::rule_tracer::DecisionChainSnapshot;
 use infiltrator_contract::rules_workspace::{RulesJsonSection, RulesTab};
 use infiltrator_contract::snapshot_history::SnapshotHistorySnapshot;
 use infiltrator_contract::stun_probe::StunProbeReport;
 use infiltrator_contract::yaml_ast_diff::YamlAstDiffSnapshot;
 use infiltrator_domain::rules::RuleProviderDiff;
-use infiltrator_domain::runtime::{ProxyProvider, RuleProvider};
-use std::collections::HashMap;
 use std::path::PathBuf;
 
 /// 配置编辑器域:Rules / Providers / Sniffer / DNS / Fake-IP / TUN 的 JSON 与
@@ -87,16 +84,6 @@ pub struct ConfigEditorState {
     pub rules_render_cache: Vec<RuleRenderItem>,
     pub rules_filtered_indices: Vec<usize>,
     pub rules_heavy_ready: bool,
-    /// DUAL-11-04: provider source URLs declared in the active profile, keyed
-    /// by provider name and projected from the shared surface read model.
-    pub rule_provider_source_urls: HashMap<String, String>,
-    /// DUAL-11-05: declared automatic-refresh intervals (seconds) keyed by
-    /// provider name. The kernel owns the schedule and the conditional cache.
-    pub rule_provider_intervals: HashMap<String, u64>,
-    /// DUAL-11-05: the client's local cache-file fingerprint observations keyed
-    /// by provider name. These are local file reads compared with the previous
-    /// observation, never HTTP `ETag`/`304` results.
-    pub rule_provider_fingerprints: HashMap<String, ProviderCacheFingerprint>,
     /// DUAL-11-08: publish cap of the shared rules read model (0 = uncapped)
     /// and the rules it dropped, when the published view is truncated. The
     /// editor list itself is loaded in full from the profile.
@@ -162,9 +149,7 @@ pub struct ConfigEditorState {
     pub new_rule_payload: String,
     pub new_rule_target: String,
     pub is_adding_rule: bool,
-    pub proxy_providers: Vec<ProxyProvider>,
-    pub rule_providers: Vec<RuleProvider>,
-    pub is_loading_providers: bool,
+    pub rule_providers: Vec<RuleProviderSnapshot>,
     pub script_sandbox: ScriptWorkbench,
     pub snapshot_restore: SnapshotRestoreWorkbench,
     pub script_code_content: text_editor::Content,

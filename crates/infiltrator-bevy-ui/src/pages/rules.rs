@@ -135,8 +135,10 @@ pub struct RuleItem {
 #[derive(Clone, Debug, PartialEq)]
 pub struct RuleProviderItem {
     pub name: String,
+    pub provider_type: String,
     pub rule_count: usize,
     pub behavior: String,
+    pub vehicle_type: String,
     pub updated_at: String,
     /// DUAL-11-04: source URL declared in the active profile, when known.
     pub source_url: Option<String>,

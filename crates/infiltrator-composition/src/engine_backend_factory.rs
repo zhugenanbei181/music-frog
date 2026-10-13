@@ -6,7 +6,7 @@ use infiltrator_ports::core_scope::CoreScopeSource;
 use infiltrator_ports::engine_backend_factory::{
     ENGINE_BACKEND_CAPABILITY, EngineBackendFactory, EngineBackendOwnerScopeBinding,
     EngineBackendOwnerScopeBindingResult, EngineBackendPorts, EngineBackendProvider,
-    EngineBackendProviderAvailability, EngineOperationPorts,
+    EngineBackendProviderAvailability, EngineOperationPort, EngineOperationPorts,
 };
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_configuration_transaction::{
@@ -153,7 +153,17 @@ impl SingBoxEngineBackendProvider {
         );
         let routing_intent: Arc<dyn infiltrator_ports::routing_intent::RoutingIntentPort> =
             Arc::new(SingBoxRoutingIntentAdapter::new(api, owner_scope.clone()));
-        let operations = EngineOperationPorts::available(outbound, routing_intent, owner_scope);
+        let operations = EngineOperationPorts::available(
+            outbound,
+            routing_intent,
+            EngineOperationPort::unsupported(
+                "sing-box rule-provider operations have no verified adapter evidence",
+            ),
+            EngineOperationPort::unsupported(
+                "sing-box Geo database trigger has no verified adapter evidence",
+            ),
+            owner_scope,
+        );
         let ports = EngineBackendPorts::new(
             engine_id,
             process,
@@ -479,6 +489,14 @@ mod tests {
             provider.bind_core_owner_scope(&backend, owner_source.clone()),
             Err(PortError::Failed(_))
         ));
+
+        let rule_providers = backend.operations().rule_provider();
+        let error = rule_providers.inventory(scope.clone()).await.unwrap_err();
+        assert!(matches!(error, PortError::Rejected(_)));
+        let geo = backend.operations().geo_database();
+        let error = geo.trigger(scope.clone()).await.unwrap_err();
+        assert!(matches!(error, PortError::Rejected(_)));
+        assert_eq!(requests.load(Ordering::SeqCst), 0);
 
         let routing = backend.operations().routing_intent().unwrap();
         let error = routing

@@ -23,7 +23,6 @@ use infiltrator_contract::resources::ResourceAvailability;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_core::apply::failure_from_apply_error;
 use infiltrator_domain::apply::ApplyStrategy;
-use infiltrator_domain::runtime::{ProxyProvider, RuleProvider};
 use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceApplier;
 use infiltrator_ports::certificate_authority::CertificateAuthorityPort;
 use infiltrator_ports::connection::ConnectionPort;
@@ -76,43 +75,6 @@ impl RuntimeGateway for MihomoRuntime {
         let scope_resolver: RuntimeScopeResolver =
             Arc::new(move || active_core_scope_for_application(&application));
         MihomoRuntimeConfigurationAdapter::ports(self.client.clone(), Some(scope_resolver))
-    }
-
-    async fn get_proxy_providers(&self) -> Result<Vec<ProxyProvider>, PortError> {
-        self.client
-            .get_proxy_providers()
-            .await
-            .map(|providers| providers.into_values().map(Into::into).collect())
-            .map_err(|error| PortError::Network(error.to_string()))
-    }
-
-    async fn get_rule_providers(&self) -> Result<Vec<RuleProvider>, PortError> {
-        self.client
-            .get_rule_providers()
-            .await
-            .map(|providers| providers.into_values().map(Into::into).collect())
-            .map_err(|error| PortError::Network(error.to_string()))
-    }
-
-    async fn update_proxy_provider(&self, name: &str) -> Result<(), PortError> {
-        self.client
-            .update_proxy_provider(name)
-            .await
-            .map_err(|error| PortError::Network(error.to_string()))
-    }
-
-    async fn update_rule_provider(&self, name: &str) -> Result<(), PortError> {
-        self.client
-            .update_rule_provider(name)
-            .await
-            .map_err(|error| PortError::Network(error.to_string()))
-    }
-
-    async fn upgrade_geo(&self) -> Result<(), PortError> {
-        self.client
-            .upgrade_geo()
-            .await
-            .map_err(|error| PortError::Network(error.to_string()))
     }
 
     fn connection_port(&self) -> Arc<dyn ConnectionPort> {

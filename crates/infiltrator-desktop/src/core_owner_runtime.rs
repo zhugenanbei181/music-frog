@@ -18,7 +18,6 @@ use infiltrator_contract::core_capabilities::{
 use infiltrator_contract::core_identity::{CoreScope, EngineId};
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
-use infiltrator_domain::runtime::{ProxyProvider, RuleProvider};
 use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceApplier;
 use infiltrator_ports::core_binary_selection::CoreBinarySelection;
 use infiltrator_ports::core_capability_provider::CoreCapabilityProvider;
@@ -166,34 +165,6 @@ impl RuntimeGateway for DesktopCoreOwnerRuntime {
 
     fn configuration_ports(&self) -> RuntimeConfigurationPorts {
         RuntimeConfigurationPorts::unsupported()
-    }
-
-    async fn get_proxy_providers(&self) -> Result<Vec<ProxyProvider>, PortError> {
-        unsupported(
-            Capability::RoutingIntent,
-            "desktop Core-only handoff does not expose proxy-provider listing",
-        )
-    }
-
-    async fn get_rule_providers(&self) -> Result<Vec<RuleProvider>, PortError> {
-        unsupported(
-            Capability::RoutingIntent,
-            "desktop Core-only handoff does not expose rule-provider listing",
-        )
-    }
-
-    async fn update_proxy_provider(&self, _name: &str) -> Result<(), PortError> {
-        unsupported(
-            Capability::RoutingIntent,
-            "desktop Core-only handoff does not expose proxy-provider updates",
-        )
-    }
-
-    async fn update_rule_provider(&self, _name: &str) -> Result<(), PortError> {
-        unsupported(
-            Capability::RoutingIntent,
-            "desktop Core-only handoff does not expose rule-provider updates",
-        )
     }
 }
 

@@ -32,9 +32,12 @@ fn test_rules_provider_interval_and_publish_truncation_project_from_snapshot() {
         default_action: "DIRECT".to_owned(),
         providers: vec![RuleProviderSnapshot {
             name: "ads".to_owned(),
+            provider_type: "http".to_owned(),
             rule_count: 120,
             behavior: "domain".to_owned(),
+            vehicle_type: "HTTP".to_owned(),
             updated_at: "2026-09-01".to_owned(),
+            controller: None,
             source_url: Some("https://example.com/ads.mrs".to_owned()),
             refresh_interval_secs: Some(86_400),
             cache_fingerprint: Some(ProviderCacheFingerprint {
@@ -64,17 +67,16 @@ fn test_rules_provider_interval_and_publish_truncation_project_from_snapshot() {
     });
     assert!(state.apply_shared_surface_snapshot(snapshot));
 
-    // DUAL-11-05: the declared interval reaches the surface, keyed by provider.
+    // DUAL-11-05: the declared interval remains on the typed provider snapshot.
     assert_eq!(
-        state.editor.rule_provider_intervals.get("ads").copied(),
+        state.editor.rule_providers[0].refresh_interval_secs,
         Some(86_400)
     );
     // DUAL-11-05: the local cache fingerprint observation (a real file read,
     // compared with the previous observation) reaches the surface too.
-    let observed = state
-        .editor
-        .rule_provider_fingerprints
-        .get("ads")
+    let observed = state.editor.rule_providers[0]
+        .cache_fingerprint
+        .as_ref()
         .expect("fingerprint observation");
     assert_eq!(observed.change_token(), "changed");
     assert_eq!(observed.current.size_bytes, 4_096);

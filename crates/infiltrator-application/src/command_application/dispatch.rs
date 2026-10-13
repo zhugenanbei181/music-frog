@@ -266,15 +266,30 @@ impl CommandApplication {
                     .await
             }
             CommandIntent::RefreshRuleProviders => {
-                let runtime = self.runtime()?;
-                let providers = runtime.get_rule_providers().await.map_err(Failure::from)?;
-                for provider in providers {
-                    runtime
-                        .update_rule_provider(&provider.name)
-                        .await
-                        .map_err(Failure::from)?;
-                }
-                Ok(())
+                let scope = scope.ok_or_else(|| {
+                    Failure::new(
+                        ErrorCode::NotReady,
+                        "rule-provider refresh has no validated Core scope",
+                        true,
+                    )
+                })?;
+                self.rule_provider_runtime()?
+                    .refresh_all(scope)
+                    .await
+                    .map(|_| ())
+            }
+            CommandIntent::RefreshRuleProvider { reference } => {
+                let scope = scope.ok_or_else(|| {
+                    Failure::new(
+                        ErrorCode::NotReady,
+                        "rule-provider refresh has no validated Core scope",
+                        true,
+                    )
+                })?;
+                self.rule_provider_runtime()?
+                    .refresh(scope, reference.inventory_revision, reference.id)
+                    .await
+                    .map(|_| ())
             }
             CommandIntent::CloseConnection { id } => {
                 let scope = scope.cloned().ok_or_else(|| {
@@ -597,11 +612,16 @@ impl CommandApplication {
             }
             // DUAL-11-14: the kernel owns the database upgrade; the shared
             // gateway call is the only real trigger (`POST /upgrade/geo`).
-            CommandIntent::UpgradeGeoDatabases => self
-                .runtime()?
-                .upgrade_geo()
-                .await
-                .map_err(|error| Failure::new(ErrorCode::Network, error.to_string(), true)),
+            CommandIntent::UpgradeGeoDatabases => {
+                let scope = scope.ok_or_else(|| {
+                    Failure::new(
+                        ErrorCode::NotReady,
+                        "Geo database trigger has no validated Core scope",
+                        true,
+                    )
+                })?;
+                self.geo_database()?.trigger(scope).await.map(|_| ())
+            }
             CommandIntent::ApplyProfileConfiguration { request } => self
                 .configuration()?
                 .apply_profile_configuration_request(*request)
@@ -610,7 +630,7 @@ impl CommandApplication {
             // DUAL-11-06: import a provider's real rules through the same
             // read/modify/write seam the other rule edits use.
             CommandIntent::UnpackRuleProvider { provider_name } => {
-                self.unpack_rule_provider(&provider_name).await
+                self.unpack_rule_provider(scope, &provider_name).await
             }
             // DUAL-11-07: delete only the kernel's cached provider files.
             CommandIntent::PurgeRuleProviderCache => self.purge_rule_provider_cache().await,

@@ -518,9 +518,7 @@ impl AppState {
                 ))
             }
             Message::UpdateGeoDatabases => {
-                // Drive the real core trigger (`POST /upgrade/geo`) through
-                // the runtime gateway; no fabricated sleep-then-success.
-                let Some(rt) = self.runtime.runtime.clone() else {
+                let Some(application) = self.command_ingress() else {
                     return Task::done(Message::ShowToast(
                         "Geo database update is not available on this host".to_string(),
                         ToastStatus::Error,
@@ -529,9 +527,11 @@ impl AppState {
                 self.editor.is_updating_geo_databases = true;
                 Task::perform(
                     async move {
-                        rt.upgrade_geo()
+                        application
+                            .execute(CommandIntent::UpgradeGeoDatabases)
                             .await
-                            .map_err(|error| InfiltratorError::Internal(error.to_string()))
+                            .into_unit()
+                            .map_err(|failure| InfiltratorError::Internal(failure.message))
                     },
                     Message::GeoDatabasesUpdated,
                 )
@@ -539,8 +539,8 @@ impl AppState {
             Message::GeoDatabasesUpdated(result) => {
                 self.editor.is_updating_geo_databases = false;
                 match result {
-                    Ok(_) => Task::done(Message::ShowToast(
-                        "GeoIP & GeoSite databases updated successfully".to_string(),
+                    Ok(()) => Task::done(Message::ShowToast(
+                        "GeoIP & GeoSite database update request accepted; completion is asynchronous".to_string(),
                         ToastStatus::Success,
                     )),
                     Err(e) => {
@@ -551,45 +551,23 @@ impl AppState {
             }
             Message::SaveRules => self.commit_rule_list(),
             Message::RuleList(action) => self.update_rule_list(action),
-            Message::ProvidersLoaded(result) => {
-                self.editor.is_loading_providers = false;
-                match result {
-                    Ok((proxies, rules)) => {
-                        self.editor.proxy_providers = proxies;
-                        self.editor.rule_providers = rules;
-                    }
-                    Err(e) => self.set_error(&e),
-                }
-                // The live provider list feeds the MRS metadata scan names.
-                Task::done(Message::ScanMrsProviders)
-            }
-            Message::UpdateProxyProvider(name) => {
-                if let Some(rt) = self.runtime.runtime.clone() {
-                    Task::perform(
-                        async move {
-                            rt.update_proxy_provider(&name)
-                                .await
-                                .map_err(|error| InfiltratorError::Internal(error.to_string()))
-                        },
-                        Message::OperationResult,
-                    )
-                } else {
-                    Task::none()
-                }
-            }
-            Message::UpdateRuleProvider(name) => {
-                if let Some(rt) = self.runtime.runtime.clone() {
-                    Task::perform(
-                        async move {
-                            rt.update_rule_provider(&name)
-                                .await
-                                .map_err(|error| InfiltratorError::Internal(error.to_string()))
-                        },
-                        Message::OperationResult,
-                    )
-                } else {
-                    Task::none()
-                }
+            Message::UpdateRuleProvider(reference) => {
+                let Some(application) = self.command_ingress() else {
+                    return Task::done(Message::ShowToast(
+                        "Rule-provider control is not available on this host".to_owned(),
+                        ToastStatus::Error,
+                    ));
+                };
+                Task::perform(
+                    async move {
+                        application
+                            .execute(CommandIntent::RefreshRuleProvider { reference })
+                            .await
+                            .into_unit()
+                            .map_err(|failure| InfiltratorError::Internal(failure.message))
+                    },
+                    Message::OperationResult,
+                )
             }
             Message::InspectRuleProviderDiff(_)
             | Message::RuleProviderDiffLoaded(_)

@@ -6,6 +6,7 @@ pub mod core_capability_provider;
 mod core_log_level;
 mod core_log_level_port;
 pub mod error;
+pub mod geo_database;
 pub mod outbound;
 pub mod overview;
 #[cfg(test)]
@@ -13,6 +14,7 @@ mod proxy;
 pub mod readiness;
 pub mod resource_port;
 pub mod routing_intent;
+pub mod rule_provider;
 pub mod runtime_configuration;
 mod runtime_gateway;
 pub mod runtime_proxy;
