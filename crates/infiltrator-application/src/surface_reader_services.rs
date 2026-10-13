@@ -1,8 +1,10 @@
 //! Host-service state reads kept outside the large surface assembler.
 
 use super::ApplicationSurfaceReader;
+use infiltrator_contract::android_control::VpnAuthorizationState;
 use infiltrator_contract::capability::{Availability, Capability};
 use infiltrator_contract::controller::{ControllerAuthSnapshot, ControllerAuthStatus};
+use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::mtu::MtuNegotiationSnapshot;
 use infiltrator_contract::network_roaming::NetworkRoamingSnapshot;
 use infiltrator_contract::offline_startup::OfflineStartupSnapshot;
@@ -10,7 +12,9 @@ use infiltrator_contract::pac::PacSnapshot;
 use infiltrator_contract::port_conflict::PortConflictSnapshot;
 use infiltrator_contract::privileged_network::PrivilegedNetworkSnapshot;
 use infiltrator_contract::resources::CoreResourceSnapshot;
+use infiltrator_contract::runtime_status::VpnAuthorizationObservation;
 use infiltrator_contract::service_mode::ServiceModeSnapshot;
+use infiltrator_contract::surface::HostKind;
 use infiltrator_contract::system_proxy::{SystemProxyRecoverySnapshot, SystemProxySnapshot};
 use infiltrator_contract::uwp::UwpLoopbackSnapshot;
 use infiltrator_contract::vpn::VpnSurfaceObservation;
@@ -121,6 +125,41 @@ impl ApplicationSurfaceReader {
                     VpnSurfaceObservation::Unsupported { reason }
                 }
                 _ => VpnSurfaceObservation::NotApplicable,
+            },
+        }
+    }
+
+    pub(super) async fn read_vpn_authorization(&self) -> VpnAuthorizationObservation {
+        if self.capabilities.host != HostKind::Android {
+            return VpnAuthorizationObservation::NotApplicable;
+        }
+        match &self.vpn {
+            Some(application) => match application.authorization_state().await {
+                Ok(VpnAuthorizationState::Granted) => VpnAuthorizationObservation::Granted,
+                Ok(VpnAuthorizationState::Required) => VpnAuthorizationObservation::Required,
+                Err(failure) if failure.code == ErrorCode::Unsupported => {
+                    VpnAuthorizationObservation::Unsupported {
+                        reason: failure.message,
+                    }
+                }
+                Err(failure) => VpnAuthorizationObservation::Unavailable { failure },
+            },
+            None => match self.capabilities.availability(Capability::VpnService) {
+                Availability::Unsupported { reason } => {
+                    VpnAuthorizationObservation::Unsupported { reason }
+                }
+                Availability::Unavailable { reason } => VpnAuthorizationObservation::Unavailable {
+                    failure: Failure::new(ErrorCode::NotReady, reason, true),
+                },
+                Availability::Supported | Availability::Experimental => {
+                    VpnAuthorizationObservation::Unavailable {
+                        failure: Failure::new(
+                            ErrorCode::NotReady,
+                            "Android VPN authorization port is not composed",
+                            true,
+                        ),
+                    }
+                }
             },
         }
     }

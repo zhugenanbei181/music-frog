@@ -6111,6 +6111,7 @@ dependencies = [
  "chrono",
  "dav-client",
  "flate2",
+ "infiltrator-application",
  "infiltrator-composition",
  "infiltrator-contract",
  "infiltrator-domain",

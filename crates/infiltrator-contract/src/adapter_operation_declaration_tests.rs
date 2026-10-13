@@ -5,8 +5,9 @@ use super::adapter_operation_declaration::{
 };
 use super::core_capabilities::{
     AdapterRevision, CoreGarbageCollectionOperation, CoreLifecycleOperation, CoreOperation,
-    DnsOperation, EngineBinaryTarget, EngineCapabilityDecision, FakeIpCacheOperation,
-    OutboundOperation, ProfileOperation, ProviderOperation, RulesOperation, TunOperation,
+    DnsOperation, EngineBinaryTarget, EngineCapabilityDecision, FakeIpCacheOperation, GeoOperation,
+    OutboundOperation, ProfileOperation, ProviderOperation, RulesOperation, SubscriptionOperation,
+    TunOperation,
 };
 use super::core_identity::{CoreVersion, EngineId};
 use std::collections::HashSet;
@@ -85,7 +86,7 @@ fn supported_operations_require_matching_ids_registered_in_each_engine_lock() {
         .iter()
         .filter(|operation| validated.verified_supported_evidence(**operation).is_some())
         .count();
-    assert_eq!(supported, 18);
+    assert_eq!(supported, 22);
     assert!(
         validated
             .verified_supported_evidence(CoreOperation::Dns(DnsOperation::Query))
@@ -109,6 +110,22 @@ fn supported_operations_require_matching_ids_registered_in_each_engine_lock() {
     assert!(
         validated
             .verified_supported_evidence(CoreOperation::Rules(RulesOperation::Trace))
+            .is_some()
+    );
+    for operation in [
+        SubscriptionOperation::Refresh,
+        SubscriptionOperation::Import,
+        SubscriptionOperation::Update,
+    ] {
+        assert!(
+            validated
+                .verified_supported_evidence(CoreOperation::Subscription(operation))
+                .is_some()
+        );
+    }
+    assert!(
+        validated
+            .verified_supported_evidence(CoreOperation::Geo(GeoOperation::UpdateDatabases))
             .is_some()
     );
     assert!(
@@ -361,11 +378,10 @@ fn evidence_open_and_unsupported_never_resolve_to_verified_support() {
             }
         }
 
-        if engine == "mihomo" {
-            assert!(evidence_open_count > 0, "Mihomo exercises EvidenceOpen");
-        } else {
-            assert_eq!(evidence_open_count, 0, "sing-box claims no open evidence");
-        }
+        assert_eq!(
+            evidence_open_count, 0,
+            "{engine} has no unresolved operation evidence declaration"
+        );
         assert!(unsupported_count > 0, "{engine} exercises Unsupported");
         assert!(owner_managed_count > 0, "{engine} exercises OwnerManaged");
     }

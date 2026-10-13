@@ -41,6 +41,7 @@ use crate::rule_tracer_application::RuleTracerApplication;
 use crate::runtime_configuration_application::RuntimeConfigurationApplication;
 use crate::runtime_control_projection::RuntimeControlApplication;
 use crate::runtime_probe_settings::project_settings;
+use crate::runtime_status_application::project_runtime_status;
 use crate::script_application::ScriptApplication;
 use crate::script_export_application::ScriptExportApplication;
 use crate::service_mode_application::ServiceModeApplication;
@@ -220,6 +221,7 @@ impl SurfaceReader for ApplicationSurfaceReader {
         let pac = self.read_pac().await;
         let network_roaming = self.read_network_roaming().await;
         let vpn = self.read_vpn().await;
+        let vpn_authorization = self.read_vpn_authorization().await;
         let privileged_network = self.read_privileged_network().await;
         let speedtest = self.core.speedtest_snapshot();
         let outbound_observation = match (&self.outbound, core.scope()) {
@@ -334,6 +336,15 @@ impl SurfaceReader for ApplicationSurfaceReader {
             runtime_config.as_ref(),
             outbound_observation.as_ref(),
             runtime_connections.as_ref(),
+        );
+        let runtime_status = project_runtime_status(
+            self.capabilities.host,
+            surface_snapshot::SurfaceOrigin::Live,
+            &core,
+            telemetry.as_ref(),
+            &vpn_authorization,
+            &vpn,
+            &traffic_topology,
         );
         let active_exit_snapshot = self
             .active_exit
@@ -617,6 +628,7 @@ impl SurfaceReader for ApplicationSurfaceReader {
         let mut snapshot = surface_snapshot::SurfaceSnapshot {
             profile_editor,
             runtime_control,
+            runtime_status,
             shell_readout: Default::default(),
             probe_settings: project_settings(hydrated_settings.as_ref()),
             language_settings: project_language(hydrated_settings.as_ref()),

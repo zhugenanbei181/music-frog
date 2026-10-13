@@ -59,6 +59,7 @@ use crate::rule_tracer::RuleTracerSnapshot;
 use crate::rules_workspace::RulesJsonDocumentSnapshot;
 use crate::runtime_control::RuntimeControlSnapshot;
 use crate::runtime_settings::RuntimeProbeSettingsState;
+use crate::runtime_status::RuntimeStatusSnapshot;
 use crate::script_export::ScriptExportSnapshot;
 use crate::script_sandbox::ScriptSandboxSnapshot;
 use crate::service_mode::ServiceModeSnapshot;
@@ -663,6 +664,10 @@ pub fn unobserved_hosts() -> PageData<DnsHostsProfile> {
 pub struct SurfaceSnapshot {
     #[serde(default)]
     pub runtime_control: RuntimeControlSnapshot,
+    /// Derived cross-surface status axes. Consumers render this projection
+    /// instead of inferring product health from one Core/VPN boolean.
+    #[serde(default)]
+    pub runtime_status: RuntimeStatusSnapshot,
     #[serde(default)]
     pub shell_readout: ShellReadoutSnapshot,
     #[serde(default)]
@@ -879,6 +884,7 @@ impl SurfaceSnapshot {
         Self {
             shell_readout: Default::default(),
             runtime_control: Default::default(),
+            runtime_status: RuntimeStatusSnapshot::default(),
             probe_settings: Default::default(),
             language_settings: Default::default(),
             dns_leak: Default::default(),

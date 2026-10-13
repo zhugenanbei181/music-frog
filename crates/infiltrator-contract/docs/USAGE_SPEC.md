@@ -4,6 +4,8 @@
 
 Iced 与 Bevy 两端共用 Rust Core 和业务语义，桌面导航与布局各自实现；Slint 正接入同一 contract、快照与 owner，目前先提供 Core 概览和运行控制入口，具体范围见 [Slint 表面说明](../../infiltrator-slint/docs/SURFACE.md)。Android 的系统能力和交付状态见 [Android 文档](../../../android/docs/README.md)。
 
+`SurfaceSnapshot.runtime_status` 是跨表面共享的 typed 状态投影。它分开报告控制 service、Core、Controller API、VPN 授权、TUN data plane 与代理流量证据；未知、未连接和未观察到流量都不折叠成 `false` 或“运行中”。Controller API 只有同一 Core session 的真实读取成功才是 Connected。活动连接尚不能关联 typed outbound 时必须显示为 route unattributed，不得据此宣称代理已生效。
+
 ## 日常操作
 
 - 在概览页按需启动或停止 Mihomo。操作失败时按界面显示的原因处理并重试；进程启动不代表代理已生效。

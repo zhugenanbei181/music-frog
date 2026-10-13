@@ -118,8 +118,8 @@
         "operation": "refresh"
       },
       "support": {
-        "status": "evidence_open",
-        "reason": "UpdateAllSubscriptions uses SubscriptionRefreshApplication with the production SubscriptionSource, but no real Mihomo run for this operation is registered in the evidence lock."
+        "status": "supported",
+        "evidence_id": "subscription.refresh"
       }
     },
     {
@@ -128,8 +128,8 @@
         "operation": "import"
       },
       "support": {
-        "status": "evidence_open",
-        "reason": "ImportSubscription is composed with ProfileApplication and the host SubscriptionImportPort, but no real Mihomo run for this operation is registered in the evidence lock."
+        "status": "supported",
+        "evidence_id": "subscription.import"
       }
     },
     {
@@ -138,8 +138,8 @@
         "operation": "update"
       },
       "support": {
-        "status": "evidence_open",
-        "reason": "UpdateProfile is composed with ProfileApplication and SubscriptionSource, but no real Mihomo run for this operation is registered in the evidence lock."
+        "status": "supported",
+        "evidence_id": "subscription.update"
       }
     },
     {
@@ -278,8 +278,8 @@
         "operation": "update_databases"
       },
       "support": {
-        "status": "evidence_open",
-        "reason": "UpgradeGeoDatabases is composed with RuntimeGateway.upgrade_geo and MihomoClient, but no real Mihomo run for this operation is registered in the evidence lock."
+        "status": "supported",
+        "evidence_id": "geo.update_databases"
       }
     },
     {

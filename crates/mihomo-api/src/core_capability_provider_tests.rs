@@ -11,8 +11,8 @@ use infiltrator_contract::core_capabilities::{
     AdapterCapabilityDecision, AdapterRevision, ConnectionOperation, CoreCapabilityKey,
     CoreCapabilityStatus, CoreGarbageCollectionOperation, CoreLifecycleOperation, CoreOperation,
     CoreVersionRequirement, DnsOperation, EngineBinaryTarget, EngineCapabilityDecision,
-    FakeIpCacheOperation, OutboundOperation, ProfileOperation, ProviderOperation, RulesOperation,
-    SubscriptionOperation, TunOperation, VersionOperation,
+    FakeIpCacheOperation, GeoOperation, OutboundOperation, ProfileOperation, ProviderOperation,
+    RulesOperation, SubscriptionOperation, TunOperation, VersionOperation,
 };
 use infiltrator_contract::core_identity::{CoreVersion, EngineId};
 use infiltrator_contract::surface::HostKind;
@@ -568,7 +568,6 @@ fn capability_matrix_keeps_unverified_operations_closed_and_verified_dns_availab
     #[derive(Clone, Copy)]
     enum ExpectedStatus {
         Available,
-        VersionUnavailable,
         Unsupported,
     }
 
@@ -613,7 +612,19 @@ fn capability_matrix_keeps_unverified_operations_closed_and_verified_dns_availab
         ),
         (
             CoreOperation::Subscription(SubscriptionOperation::Refresh),
-            ExpectedStatus::VersionUnavailable,
+            ExpectedStatus::Available,
+        ),
+        (
+            CoreOperation::Subscription(SubscriptionOperation::Import),
+            ExpectedStatus::Available,
+        ),
+        (
+            CoreOperation::Subscription(SubscriptionOperation::Update),
+            ExpectedStatus::Available,
+        ),
+        (
+            CoreOperation::Geo(GeoOperation::UpdateDatabases),
+            ExpectedStatus::Available,
         ),
         (
             CoreOperation::Connection(ConnectionOperation::Close),
@@ -654,13 +665,6 @@ fn capability_matrix_keeps_unverified_operations_closed_and_verified_dns_availab
         match expected {
             ExpectedStatus::Available => assert!(
                 matches!(resolution.status, CoreCapabilityStatus::Available { .. }),
-                "{operation:?}"
-            ),
-            ExpectedStatus::VersionUnavailable => assert!(
-                matches!(
-                    resolution.status,
-                    CoreCapabilityStatus::VersionUnavailable { .. }
-                ),
                 "{operation:?}"
             ),
             ExpectedStatus::Unsupported => assert!(
@@ -729,7 +733,7 @@ fn locked_binary_observations_do_not_override_typed_profile_unsupported() {
     for (version, target, revision, operation_ids) in locked {
         assert_eq!(target, "x86_64-unknown-linux-gnu", "{version}");
         assert_eq!(revision, 2, "{version}");
-        assert_eq!(operation_ids.len(), 20, "{version}");
+        assert_eq!(operation_ids.len(), 24, "{version}");
         let core_version = CoreVersion::new(version.clone()).expect("locked version");
         let tun_operation = CoreOperation::Tun(TunOperation::Configure);
         assert!(
@@ -763,6 +767,45 @@ fn locked_binary_observations_do_not_override_typed_profile_unsupported() {
         );
         assert!(declarations.has_verified_support_for_scope(
             profile_feature_operation,
+            &core_version,
+            EngineBinaryTarget::X86_64UnknownLinuxGnu,
+            AdapterRevision::new(revision),
+        ));
+        for (operation, evidence_id) in [
+            (
+                CoreOperation::Subscription(SubscriptionOperation::Import),
+                "subscription.import",
+            ),
+            (
+                CoreOperation::Subscription(SubscriptionOperation::Update),
+                "subscription.update",
+            ),
+            (
+                CoreOperation::Subscription(SubscriptionOperation::Refresh),
+                "subscription.refresh",
+            ),
+        ] {
+            assert!(
+                operation_ids
+                    .iter()
+                    .any(|registered| registered == evidence_id),
+                "{version} must register {evidence_id}"
+            );
+            assert!(declarations.has_verified_support_for_scope(
+                operation,
+                &core_version,
+                EngineBinaryTarget::X86_64UnknownLinuxGnu,
+                AdapterRevision::new(revision),
+            ));
+        }
+        assert!(
+            operation_ids
+                .iter()
+                .any(|registered| registered == "geo.update_databases"),
+            "{version} must register geo.update_databases"
+        );
+        assert!(declarations.has_verified_support_for_scope(
+            CoreOperation::Geo(GeoOperation::UpdateDatabases),
             &core_version,
             EngineBinaryTarget::X86_64UnknownLinuxGnu,
             AdapterRevision::new(revision),

@@ -53,6 +53,32 @@ fn typed_outbound_details_and_preferences_are_required_surface_fields() {
 }
 
 #[test]
+fn surface_snapshot_without_runtime_status_defaults_to_unknown_axes() {
+    let snapshot = SurfaceSnapshot::unavailable(
+        SurfaceKind::AndroidCompose,
+        HostKind::Android,
+        Failure::new(ErrorCode::NotReady, "owner not observed", true),
+    );
+    let mut value = serde_json::to_value(snapshot).expect("surface snapshot serializes");
+    value
+        .as_object_mut()
+        .expect("surface snapshot object")
+        .remove("runtime_status");
+
+    let decoded: SurfaceSnapshot =
+        serde_json::from_value(value).expect("legacy snapshot remains readable");
+    assert_eq!(decoded.runtime_status, RuntimeStatusSnapshot::default());
+    assert_eq!(
+        decoded.runtime_status.core_process,
+        crate::runtime_status::CoreProcessObservation::Unknown
+    );
+    assert_eq!(
+        decoded.runtime_status.proxy_effectiveness,
+        crate::runtime_status::ProxyEffectivenessObservation::Unknown
+    );
+}
+
+#[test]
 fn proxy_page_status_is_derived_from_typed_inventory_state() {
     let mut snapshot = SurfaceSnapshot::unavailable(
         SurfaceKind::BevyDesktop,

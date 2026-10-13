@@ -6,8 +6,8 @@ use crate::core_application::tests::install_lifecycle_capabilities;
 use crate::core_capability_application::CoreCapabilityApplication;
 use async_trait::async_trait;
 use infiltrator_contract::android_control::{
-    VpnOwnerCoreReadback, VpnOwnerLifecycle, VpnOwnerReadiness, VpnOwnerResourceFact,
-    VpnOwnerResourceKind, VpnOwnerResourceState, VpnOwnerSnapshot,
+    VpnAuthorizationState, VpnOwnerCoreReadback, VpnOwnerLifecycle, VpnOwnerReadiness,
+    VpnOwnerResourceFact, VpnOwnerResourceKind, VpnOwnerResourceState, VpnOwnerSnapshot,
 };
 use infiltrator_contract::command::{CommandIntent, CommandResult};
 use infiltrator_contract::controller::ControllerAuthStatus;
@@ -274,6 +274,10 @@ struct TestVpn;
 
 #[async_trait]
 impl VpnServicePort for TestVpn {
+    async fn authorization_state(&self) -> Result<VpnAuthorizationState, PortError> {
+        Ok(VpnAuthorizationState::Granted)
+    }
+
     async fn owner_observation(&self) -> VpnSurfaceObservation {
         VpnSurfaceObservation::AndroidOwner(VpnOwnerSnapshot {
             owner_session_id: "test-vpn-owner".to_owned(),
@@ -602,6 +606,43 @@ async fn surface_reader_publishes_and_caches_all_core_channel_results() {
             .channels
             .iter()
             .all(|channel| matches!(channel.status, CoreChannelStatus::Ready { .. }))
+    );
+}
+
+#[tokio::test]
+async fn surface_reader_publishes_android_authorization_separately_from_runtime_readiness() {
+    let core = Arc::new(CoreApplication::new(
+        Arc::new(TestProcess),
+        Arc::new(TestReadiness),
+        Arc::new(TestRuntime),
+    ));
+    let reader =
+        ApplicationSurfaceReader::new(core, SurfaceKind::AndroidCompose, HostKind::Android)
+            .with_vpn(VpnServiceApplication::new(Arc::new(TestVpn)));
+
+    let snapshot = reader.read().await.expect("Android surface read");
+
+    assert_eq!(
+        snapshot.runtime_status.vpn_authorization,
+        infiltrator_contract::runtime_status::VpnAuthorizationObservation::Granted
+    );
+    assert!(matches!(
+        snapshot.runtime_status.control_service,
+        infiltrator_contract::runtime_status::ControlServiceObservation::Available { .. }
+    ));
+    assert_eq!(
+        snapshot.runtime_status.core_process,
+        infiltrator_contract::runtime_status::CoreProcessObservation::Unselected
+    );
+    assert!(matches!(
+        snapshot.runtime_status.tun_data_plane,
+        infiltrator_contract::runtime_status::TunDataPlaneObservation::Inconsistent { .. }
+    ));
+    assert_eq!(
+        snapshot.runtime_status.proxy_effectiveness,
+        infiltrator_contract::runtime_status::ProxyEffectivenessObservation::NotReady {
+            blocker: infiltrator_contract::runtime_status::ProxyReadinessBlocker::CoreNotRunning,
+        }
     );
 }
 

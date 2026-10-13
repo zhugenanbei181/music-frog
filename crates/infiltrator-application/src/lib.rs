@@ -127,6 +127,7 @@ pub mod runtime_control_projection;
 pub mod runtime_probe_settings;
 pub mod runtime_probe_settings_editor;
 pub mod runtime_query_application;
+pub mod runtime_status_application;
 pub mod script_application;
 pub mod script_console_projection;
 #[cfg(feature = "script-engine-boa")]

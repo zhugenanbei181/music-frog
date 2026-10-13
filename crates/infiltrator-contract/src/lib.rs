@@ -101,6 +101,7 @@ pub mod rule_trace_run;
 pub mod rule_tracer;
 pub mod rules_workspace;
 pub mod runtime_control;
+pub mod runtime_status;
 pub mod script_export;
 pub mod script_export_review;
 pub mod script_run;

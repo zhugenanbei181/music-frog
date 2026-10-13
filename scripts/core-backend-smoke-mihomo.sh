@@ -353,6 +353,13 @@ allow-lan: false
 mode: rule
 log-level: debug
 ipv6: false
+geo-auto-update: false
+geodata-mode: true
+geox-url:
+  geoip: "http://127.0.0.1:$probe_server_port/geoip.dat"
+  geosite: "http://127.0.0.1:$probe_server_port/geosite.dat"
+  mmdb: "http://127.0.0.1:$probe_server_port/geoip.metadb"
+  asn: "http://127.0.0.1:$probe_server_port/asn.mmdb"
 external-controller: 127.0.0.1:$controller_port
 secret: "$controller_secret"
 dns:
@@ -387,7 +394,8 @@ rule-providers:
 rules:
   - DOMAIN,core-smoke-active.test,CORE-SMOKE-HTTP
   - RULE-SET,CORE-SMOKE-RULE,DIRECT
-  - MATCH,DIRECT
+  - IP-CIDR,127.0.0.0/8,DIRECT,no-resolve
+  - MATCH,REJECT
 EOF
 
 if ! "$binary_path" -t -d "$data_dir" -f "$profile_path" \
@@ -654,6 +662,21 @@ fi
 printf '[PASS] Rust typed DNS query, scoped Fake-IP flush, rule-provider list/update, Connection.Close, GC trigger, log stream, log-level, outbound, and routing adapters drove %s\n' \
     "$expected_version"
 
+printf '[INFO] running ignored Rust Geo update trigger smoke against %s\n' "$expected_version"
+if ! MIHOMO_REAL_CONTROLLER_URL="$base_url" \
+    MIHOMO_REAL_CONTROLLER_SECRET="$controller_secret" \
+    MIHOMO_REAL_VERSION="$expected_version" \
+    MIHOMO_REAL_PROFILE_PATH="$profile_path" \
+    MIHOMO_REAL_GEO_FIXTURE_ORIGIN="http://127.0.0.1:$probe_server_port" \
+    cargo nextest run --offline --locked -p mihomo-api \
+        --test mihomo_geo_update_real_process_smoke --run-ignored only; then
+    printf '[FAIL] Rust Geo update trigger smoke failed for %s\n' "$expected_version" >&2
+    probe_diagnostics
+    exit 1
+fi
+printf '[PASS] Geo update trigger was accepted with loopback geox URLs and a REJECT-default Mihomo profile for %s\n' \
+    "$expected_version"
+
 printf '[INFO] running ignored Rust TUN configuration application smoke against %s\n' "$expected_version"
 if ! MIHOMO_REAL_CONTROLLER_URL="$base_url" \
     MIHOMO_REAL_CONTROLLER_SECRET="$controller_secret" \
@@ -750,6 +773,19 @@ PY
     exit 1
 fi
 printf '[PASS] Rust Profile, DNS and Rules transaction apply/readback/restore drove %s\n' \
+    "$expected_version"
+
+printf '[INFO] running ignored Rust subscription application smoke against %s\n' "$expected_version"
+if ! env -u INFILTRATOR_CONFIGS_DIR \
+    MIHOMO_REAL_VERSION="$expected_version" \
+    MIHOMO_REAL_BINARY="$binary_path" \
+    MIHOMO_REAL_CONFIGS_ROOT="$configs_root" \
+    cargo nextest run --offline --locked -p infiltrator-core \
+        --test mihomo_subscription_real_process_smoke --run-ignored only; then
+    printf '[FAIL] Rust subscription application smoke failed for %s\n' "$expected_version" >&2
+    exit 1
+fi
+printf '[PASS] loopback subscription Import/UpdateProfile/UpdateAllSubscriptions and native profile checks passed for %s\n' \
     "$expected_version"
 
 reload_body="$(python3 - "$profile_path" <<'PY'

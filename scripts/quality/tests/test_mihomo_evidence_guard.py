@@ -29,6 +29,8 @@ def source_fixture(root: Path, real_process_test: str) -> Path:
     tun_integration = root / GUARD.REAL_TUN_CONFIG_TEST
     rule_trace_integration = root / GUARD.REAL_RULE_TRACE_TEST
     profile_feature_integration = root / GUARD.REAL_PROFILE_FEATURE_TEST
+    subscription_integration = root / GUARD.REAL_SUBSCRIPTION_TEST
+    geo_update_integration = root / GUARD.REAL_GEO_UPDATE_TEST
     core_apply = root / GUARD.CORE_APPLY_SOURCE
     core_profile_transaction = root / GUARD.CORE_PROFILE_TRANSACTION_SOURCE
     mihomo_client = root / GUARD.MIHOMO_CLIENT_SOURCE
@@ -42,6 +44,8 @@ def source_fixture(root: Path, real_process_test: str) -> Path:
         tun_integration,
         rule_trace_integration,
         profile_feature_integration,
+        subscription_integration,
+        geo_update_integration,
         core_apply,
         core_profile_transaction,
         mihomo_client,
@@ -81,6 +85,13 @@ def source_fixture(root: Path, real_process_test: str) -> Path:
         "Profile.ApplyFeature IPv6 write/readback/restore kept the host TUN disabled "
         "--test mihomo_rule_trace_real_process_smoke "
         "read-only Rule.Trace resolved the live profile rule against Mihomo outbound evidence "
+        "--test mihomo_subscription_real_process_smoke "
+        "loopback subscription Import/UpdateProfile/UpdateAllSubscriptions and native profile checks "
+        "--test mihomo_geo_update_real_process_smoke "
+        "MIHOMO_REAL_GEO_FIXTURE_ORIGIN "
+        "Geo update trigger was accepted with loopback geox URLs and a REJECT-default Mihomo profile "
+        "geo-auto-update: false geosite: \"http://127.0.0.1:$probe_server_port/geosite.dat\" "
+        "IP-CIDR,127.0.0.0/8,DIRECT,no-resolve MATCH,REJECT "
         "ipv6: false "
         "tun:\n  enable: false\n  stack: system "
         "rules:\n  - DOMAIN,core-smoke-active.test,CORE-SMOKE-HTTP\n  - RULE-SET,CORE-SMOKE-RULE,DIRECT "
@@ -129,6 +140,20 @@ def source_fixture(root: Path, real_process_test: str) -> Path:
         "#[ignore = \\\"explicit Profile.ApplyFeature real-process smoke only\\\"] "
         "RuntimeConfigurationApplication set_ipv6_routing(true) "
         "set_ipv6_routing(false) ObservedValue::Reported(false) get_version()",
+        encoding="utf-8",
+    )
+    subscription_integration.write_text(
+        "#[ignore] HttpSubscriptionSource::new .no_proxy() SubscriptionImportApplication "
+        ".refresh_profile(&source, PROFILE_NAME) .refresh_all(&source, 1) "
+        "SubscriptionUpdateOutcome::Updated MihomoProfileDocumentCodec "
+        "native_check_candidate Matcher::Missing subscription-v2",
+        encoding="utf-8",
+    )
+    geo_update_integration.write_text(
+        "#[ignore] client.upgrade_geo() MIHOMO_REAL_GEO_FIXTURE_ORIGIN "
+        "profile_source.contains(\"geo-auto-update: false\") every configured geox URL "
+        "profile_source.contains(\"IP-CIDR,127.0.0.0/8,DIRECT,no-resolve\") "
+        "profile_source.contains(\"MATCH,REJECT\")",
         encoding="utf-8",
     )
     return root
@@ -199,21 +224,21 @@ class MihomoEvidenceGuardTests(unittest.TestCase):
         changed = copy.deepcopy(EVIDENCE)
         changed["assets"][0]["operations"].append("connection.list")
         self.assertTrue(
-            any("operations do not match the twenty verified behaviors" in issue
+            any("operations do not match the twenty-four verified behaviors" in issue
                 for issue in GUARD.validate_documents(changed, PRODUCT))
         )
 
         missing_tun_evidence = copy.deepcopy(EVIDENCE)
         missing_tun_evidence["assets"][0]["operations"].remove("tun.configure")
         self.assertTrue(
-            any("operations do not match the twenty verified behaviors" in issue
+            any("operations do not match the twenty-four verified behaviors" in issue
                 for issue in GUARD.validate_documents(missing_tun_evidence, PRODUCT))
         )
 
         missing_rule_trace = copy.deepcopy(EVIDENCE)
         missing_rule_trace["assets"][0]["operations"].remove("rules.trace")
         self.assertTrue(
-            any("operations do not match the twenty verified behaviors" in issue
+            any("operations do not match the twenty-four verified behaviors" in issue
                 for issue in GUARD.validate_documents(missing_rule_trace, PRODUCT))
         )
 

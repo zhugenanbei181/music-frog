@@ -30,6 +30,12 @@ REAL_RULE_TRACE_TEST = Path(
 REAL_PROFILE_FEATURE_TEST = Path(
     "crates/infiltrator-composition/tests/mihomo_profile_feature_real_process_smoke.rs"
 )
+REAL_SUBSCRIPTION_TEST = Path(
+    "crates/infiltrator-core/tests/mihomo_subscription_real_process_smoke.rs"
+)
+REAL_GEO_UPDATE_TEST = Path(
+    "crates/mihomo-api/tests/mihomo_geo_update_real_process_smoke.rs"
+)
 CORE_APPLY_SOURCE = Path("crates/infiltrator-core/src/apply.rs")
 CORE_PROFILE_TRANSACTION_SOURCE = Path("crates/infiltrator-core/src/profile_configuration_transaction.rs")
 MIHOMO_CLIENT_SOURCE = Path("crates/mihomo-api/src/client.rs")
@@ -43,6 +49,9 @@ REQUIRED_OPERATIONS = (
     "dns.query",
     "rules.apply",
     "rules.trace",
+    "subscription.refresh",
+    "subscription.import",
+    "subscription.update",
     "connection.close",
     "fake_ip_cache.flush",
     "provider.list_rule",
@@ -53,6 +62,7 @@ REQUIRED_OPERATIONS = (
     "outbound.probe",
     "logs.set_level",
     "logs.stream",
+    "geo.update_databases",
     "routing.set_intent",
     "routing.get_intent",
     "tun.configure",
@@ -119,7 +129,7 @@ def validate_documents(evidence: object, product: object) -> list[str]:
                 problems.append(f"{where} has an invalid {digest_key}")
         operations = asset.get("operations")
         if not isinstance(operations, list) or tuple(operations) != REQUIRED_OPERATIONS:
-            problems.append(f"{where} operations do not match the twenty verified behaviors")
+            problems.append(f"{where} operations do not match the twenty-four verified behaviors")
 
     if set(assets_by_version) != REQUIRED_VERSIONS:
         problems.append(
@@ -179,6 +189,8 @@ def source_problems(repo_root: Path) -> list[str]:
     real_tun_config_test_path = repo_root / REAL_TUN_CONFIG_TEST
     real_rule_trace_test_path = repo_root / REAL_RULE_TRACE_TEST
     real_profile_feature_test_path = repo_root / REAL_PROFILE_FEATURE_TEST
+    real_subscription_test_path = repo_root / REAL_SUBSCRIPTION_TEST
+    real_geo_update_test_path = repo_root / REAL_GEO_UPDATE_TEST
     core_apply_path = repo_root / CORE_APPLY_SOURCE
     core_profile_transaction_path = repo_root / CORE_PROFILE_TRANSACTION_SOURCE
     mihomo_client_path = repo_root / MIHOMO_CLIENT_SOURCE
@@ -201,6 +213,10 @@ def source_problems(repo_root: Path) -> list[str]:
         problems.append(f"{real_rule_trace_test_path}: real-process Rule.Trace test is missing")
     if not real_profile_feature_test_path.is_file():
         problems.append(f"{real_profile_feature_test_path}: real-process Profile.ApplyFeature test is missing")
+    if not real_subscription_test_path.is_file():
+        problems.append(f"{real_subscription_test_path}: real-process subscription application test is missing")
+    if not real_geo_update_test_path.is_file():
+        problems.append(f"{real_geo_update_test_path}: real-process Geo update trigger test is missing")
     for source_path in (
         core_apply_path,
         core_profile_transaction_path,
@@ -220,6 +236,8 @@ def source_problems(repo_root: Path) -> list[str]:
     real_tun_config_test = real_tun_config_test_path.read_text(encoding="utf-8")
     real_rule_trace_test = real_rule_trace_test_path.read_text(encoding="utf-8")
     real_profile_feature_test = real_profile_feature_test_path.read_text(encoding="utf-8")
+    real_subscription_test = real_subscription_test_path.read_text(encoding="utf-8")
+    real_geo_update_test = real_geo_update_test_path.read_text(encoding="utf-8")
     live_transaction_sources = {
         core_apply_path: core_apply_path.read_text(encoding="utf-8"),
         core_profile_transaction_path: core_profile_transaction_path.read_text(encoding="utf-8"),
@@ -278,6 +296,65 @@ def source_problems(repo_root: Path) -> list[str]:
         problems.append(
             f"{smoke_path}: real-process Profile smoke must exercise typed DNS and Rules apply/readback/restore"
         )
+    for required in (
+        "--test mihomo_subscription_real_process_smoke",
+        "loopback subscription Import/UpdateProfile/UpdateAllSubscriptions and native profile checks",
+        "MIHOMO_REAL_BINARY",
+        "MIHOMO_REAL_CONFIGS_ROOT",
+    ):
+        if required not in smoke:
+            problems.append(
+                f"{smoke_path}: real-process subscription smoke must include `{required}`"
+            )
+    if "#[ignore" not in real_subscription_test:
+        problems.append(
+            f"{real_subscription_test_path}: real-process test must be ignored in ordinary nextest runs"
+        )
+    for required in (
+        "HttpSubscriptionSource::new",
+        ".no_proxy()",
+        "SubscriptionImportApplication",
+        ".refresh_profile(&source, PROFILE_NAME)",
+        ".refresh_all(&source, 1)",
+        "SubscriptionUpdateOutcome::Updated",
+        "MihomoProfileDocumentCodec",
+        "native_check_candidate",
+        "Matcher::Missing",
+        "subscription-v2",
+    ):
+        if required not in real_subscription_test:
+            problems.append(
+                f"{real_subscription_test_path}: subscription smoke must include `{required}`"
+            )
+    for required in (
+        "--test mihomo_geo_update_real_process_smoke",
+        "MIHOMO_REAL_GEO_FIXTURE_ORIGIN",
+        "Geo update trigger was accepted with loopback geox URLs and a REJECT-default Mihomo profile",
+        "geo-auto-update: false",
+        'geosite: "http://127.0.0.1:$probe_server_port/geosite.dat"',
+        "IP-CIDR,127.0.0.0/8,DIRECT,no-resolve",
+        "MATCH,REJECT",
+    ):
+        if required not in smoke:
+            problems.append(
+                f"{smoke_path}: Geo update smoke must include `{required}`"
+            )
+    if "#[ignore" not in real_geo_update_test:
+        problems.append(
+            f"{real_geo_update_test_path}: real-process test must be ignored in ordinary nextest runs"
+        )
+    for required in (
+        ".upgrade_geo()",
+        "MIHOMO_REAL_GEO_FIXTURE_ORIGIN",
+        "profile_source.contains(\"geo-auto-update: false\")",
+        "every configured geox URL",
+        "profile_source.contains(\"IP-CIDR,127.0.0.0/8,DIRECT,no-resolve\")",
+        "profile_source.contains(\"MATCH,REJECT\")",
+    ):
+        if required not in real_geo_update_test:
+            problems.append(
+                f"{real_geo_update_test_path}: Geo trigger smoke must include `{required}`"
+            )
     for required in (
         "-p infiltrator-composition",
         "--test mihomo_tun_configuration_real_process_smoke",
