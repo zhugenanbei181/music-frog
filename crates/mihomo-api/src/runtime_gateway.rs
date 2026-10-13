@@ -4,6 +4,7 @@ use crate::client::{MihomoClient, StreamEvent};
 use crate::error::MihomoError;
 use async_trait::async_trait;
 use futures_util::stream::unfold;
+use infiltrator_contract::capability::Capability;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_domain::runtime::{
     ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider, TrafficData,
@@ -93,7 +94,18 @@ impl RuntimeGateway for MihomoClient {
     }
 
     async fn trigger_gc(&self) -> Result<(), PortError> {
-        MihomoClient::trigger_gc(self).await.map_err(network_error)
+        match MihomoClient::trigger_gc(self).await {
+            Ok(()) => Ok(()),
+            Err(MihomoError::Http(error))
+                if error.status().is_some_and(|status| status.as_u16() == 404) =>
+            {
+                Err(PortError::unsupported(
+                    Capability::CoreLifecycle,
+                    "Mihomo exposes /debug/gc only when log-level is debug at process startup",
+                ))
+            }
+            Err(error) => Err(network_error(error)),
+        }
     }
 
     async fn close_connection(&self, id: &str) -> Result<(), PortError> {

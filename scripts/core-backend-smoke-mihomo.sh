@@ -324,7 +324,7 @@ tproxy-port: 0
 mixed-port: 0
 allow-lan: false
 mode: rule
-log-level: info
+log-level: debug
 ipv6: false
 external-controller: 127.0.0.1:$controller_port
 secret: "$controller_secret"
@@ -623,7 +623,7 @@ if ! MIHOMO_REAL_CONTROLLER_URL="$base_url" \
     probe_diagnostics
     exit 1
 fi
-printf '[PASS] Rust typed DNS query, scoped Fake-IP flush, rule-provider list/update, Connection.Close, log stream, log-level, outbound, and routing adapters drove %s\n' \
+printf '[PASS] Rust typed DNS query, scoped Fake-IP flush, rule-provider list/update, Connection.Close, GC trigger, log stream, log-level, outbound, and routing adapters drove %s\n' \
     "$expected_version"
 
 for _ in $(seq 1 50); do
@@ -688,14 +688,14 @@ import sys
 
 with open(sys.argv[1], encoding="utf-8") as source:
     payload = json.load(source)
-if payload.get("mode") != "rule" or payload.get("log-level") != "info":
+if payload.get("mode") != "rule" or payload.get("log-level") != "debug":
     raise SystemExit("mode/log-level readback did not match the applied profile")
 PY
 then
     printf '[FAIL] profile readback did not match the applied profile\n' >&2
     exit 1
 fi
-printf '[PASS] profile reload and /configs readback: mode=rule log-level=info\n'
+printf '[PASS] profile reload and /configs readback: mode=rule log-level=debug\n'
 
 if ! api_request GET /proxies; then
     printf '[FAIL] /proxies returned HTTP %s\n' "$api_status" >&2
@@ -778,7 +778,7 @@ PY
 printf '[PASS] outbound probe: CORE-SMOKE-HTTP returned %s ms through a local HTTP proxy\n' \
     "$probe_delay_ms"
 
-if ! api_request PATCH /configs '{"log-level":"debug"}'; then
+if ! api_request PATCH /configs '{"log-level":"error"}'; then
     printf '[FAIL] log-level write returned HTTP %s\n' "$api_status" >&2
     printf '%s\n' "$api_body" >&2
     exit 1
@@ -794,14 +794,14 @@ import sys
 
 with open(sys.argv[1], encoding="utf-8") as source:
     payload = json.load(source)
-if payload.get("log-level") != "debug":
-    raise SystemExit(f"log-level readback is {payload.get('log-level')!r}, expected debug")
+if payload.get("log-level") != "error":
+    raise SystemExit(f"log-level readback is {payload.get('log-level')!r}, expected error")
 PY
 then
-    printf '[FAIL] log-level readback did not report debug\n' >&2
+    printf '[FAIL] log-level readback did not report error\n' >&2
     exit 1
 fi
-printf '[PASS] log-level write/readback: debug\n'
+printf '[PASS] log-level write/readback: error (debug endpoint remains enabled from process startup)\n'
 
 for mode in global direct rule; do
     if ! api_request PATCH /configs "{\"mode\":\"$mode\"}"; then
@@ -863,7 +863,7 @@ PY
 }
 printf '[PASS] /connections read: %s; counters observed\n' "$connection_summary"
 
-printf '[NOT COVERED] Logs.Read/Clear, TUN/VPN, DNS cache contents, Fake-IP cache readback, rules trace/apply, proxy providers/healthcheck, Connection.List, non-Linux hosts\n'
+printf '[NOT COVERED] Logs.Read/Clear, TUN/VPN, DNS cache contents, Fake-IP cache readback, GC memory effect readback, rules trace/apply, proxy providers/healthcheck, Connection.List, non-Linux hosts\n'
 
 if ! cleanup_active_processes; then
     exit 1

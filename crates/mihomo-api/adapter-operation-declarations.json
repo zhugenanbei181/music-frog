@@ -398,8 +398,8 @@
         "operation": "trigger"
       },
       "support": {
-        "status": "evidence_open",
-        "reason": "The desktop resource owner composes ResourceApplication with RuntimeGateway.trigger_gc, but no real Mihomo run for this operation is registered in the evidence lock."
+        "status": "supported",
+        "evidence_id": "core_garbage_collection.trigger"
       }
     },
     {

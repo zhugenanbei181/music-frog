@@ -9,10 +9,10 @@ use infiltrator_contract::adapter_operation_declaration::{
 };
 use infiltrator_contract::core_capabilities::{
     AdapterCapabilityDecision, AdapterRevision, ConnectionOperation, CoreCapabilityKey,
-    CoreCapabilityStatus, CoreLifecycleOperation, CoreOperation, CoreVersionRequirement,
-    DnsOperation, EngineBinaryTarget, EngineCapabilityDecision, FakeIpCacheOperation,
-    OutboundOperation, ProfileOperation, ProviderOperation, RulesOperation, SubscriptionOperation,
-    TunOperation, VersionOperation,
+    CoreCapabilityStatus, CoreGarbageCollectionOperation, CoreLifecycleOperation, CoreOperation,
+    CoreVersionRequirement, DnsOperation, EngineBinaryTarget, EngineCapabilityDecision,
+    FakeIpCacheOperation, OutboundOperation, ProfileOperation, ProviderOperation, RulesOperation,
+    SubscriptionOperation, TunOperation, VersionOperation,
 };
 use infiltrator_contract::core_identity::{CoreVersion, EngineId};
 use infiltrator_contract::surface::HostKind;
@@ -372,6 +372,14 @@ fn real_rule_provider_update_evidence_authorizes_only_the_exact_locked_mihomo_sc
 }
 
 #[test]
+fn real_core_garbage_collection_evidence_authorizes_only_the_exact_locked_mihomo_scope() {
+    assert_versioned_evidence_is_authorized_only_for_its_exact_mihomo_scope(
+        CoreOperation::CoreGarbageCollection(CoreGarbageCollectionOperation::Trigger),
+        "CoreGarbageCollection.Trigger",
+    );
+}
+
+#[test]
 fn explicit_unsupported_declaration_cannot_become_available_from_composition_wiring() {
     let provider = MihomoCoreCapabilityProvider::new_for_target(
         HostKind::Desktop,
@@ -592,6 +600,10 @@ fn capability_matrix_keeps_unverified_operations_closed_and_verified_dns_availab
             ExpectedStatus::Available,
         ),
         (
+            CoreOperation::CoreGarbageCollection(CoreGarbageCollectionOperation::Trigger),
+            ExpectedStatus::Available,
+        ),
+        (
             CoreOperation::FakeIpCache(FakeIpCacheOperation::Flush),
             ExpectedStatus::Available,
         ),
@@ -689,7 +701,7 @@ fn locked_binary_observations_do_not_override_typed_profile_unsupported() {
     for (version, target, revision, operation_ids) in locked {
         assert_eq!(target, "x86_64-unknown-linux-gnu", "{version}");
         assert_eq!(revision, 1, "{version}");
-        assert_eq!(operation_ids.len(), 14, "{version}");
+        assert_eq!(operation_ids.len(), 15, "{version}");
         for (operation, evidence_id) in [
             (
                 CoreOperation::Profile(ProfileOperation::Validate),

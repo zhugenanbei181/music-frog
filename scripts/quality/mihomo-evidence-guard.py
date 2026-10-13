@@ -34,6 +34,7 @@ REQUIRED_OPERATIONS = (
     "fake_ip_cache.flush",
     "provider.list_rule",
     "provider.update_rule",
+    "core_garbage_collection.trigger",
     "outbound.list",
     "outbound.select",
     "outbound.probe",
@@ -104,7 +105,7 @@ def validate_documents(evidence: object, product: object) -> list[str]:
                 problems.append(f"{where} has an invalid {digest_key}")
         operations = asset.get("operations")
         if not isinstance(operations, list) or tuple(operations) != REQUIRED_OPERATIONS:
-            problems.append(f"{where} operations do not match the fourteen verified behaviors")
+            problems.append(f"{where} operations do not match the fifteen verified behaviors")
 
     if set(assets_by_version) != REQUIRED_VERSIONS:
         problems.append(
@@ -238,6 +239,10 @@ def source_problems(repo_root: Path) -> list[str]:
     for required in ("archive_sha256", "binary_sha256", "curl", "gzip"):
         if required not in smoke:
             problems.append(f"{smoke_path}: smoke must verify locked {required} data")
+    if "log-level: debug" not in smoke:
+        problems.append(
+            f"{smoke_path}: CoreGarbageCollection.Trigger evidence must start Mihomo with log-level debug"
+        )
     if "mihomo-evidence-guard.py" not in smoke:
         problems.append(f"{smoke_path}: smoke must run the dedicated evidence guard")
     for required in ("cargo nextest run", "--test real_process_smoke", "--run-ignored only"):
@@ -263,6 +268,8 @@ def source_problems(repo_root: Path) -> list[str]:
         "RoutingIntentPort",
         "stream_logs_events",
         "StreamEvent::Connected",
+        "CoreGarbageCollection.Trigger",
+        "only when log-level is debug at process startup",
     ):
         if required not in real_process_test:
             problems.append(

@@ -324,7 +324,7 @@ async fn profile_apply_readback_and_restore_use_the_live_mihomo_transaction() {
         .await
         .expect("read initial controller config");
     assert_eq!(initial_config.mode, "rule");
-    assert_eq!(initial_config.log_level, "info");
+    assert_eq!(initial_config.log_level, "debug");
     assert_eq!(
         fs::canonicalize(
             config
@@ -338,7 +338,7 @@ async fn profile_apply_readback_and_restore_use_the_live_mihomo_transaction() {
         "the tested workspace must be the file loaded by this Mihomo process"
     );
 
-    let changed_text = replace_one(&before_text, "log-level: info", "log-level: debug");
+    let changed_text = replace_one(&before_text, "log-level: debug", "log-level: error");
     let changed_bytes = changed_text.as_bytes().to_vec();
     let expected_reference =
         match ProfileStore::read_active_profile_reference(config.engine_profile_store())
@@ -375,7 +375,7 @@ async fn profile_apply_readback_and_restore_use_the_live_mihomo_transaction() {
         .await
         .expect("read controller config after the Rust profile transaction");
     assert_eq!(applied_config.mode, "rule");
-    assert_eq!(applied_config.log_level, "debug");
+    assert_eq!(applied_config.log_level, "error");
 
     let restored = transaction
         .transact(ProfileConfigurationTransactionRequest {
@@ -401,5 +401,5 @@ async fn profile_apply_readback_and_restore_use_the_live_mihomo_transaction() {
         .await
         .expect("read controller config after fixture restore");
     assert_eq!(restored_config.mode, "rule");
-    assert_eq!(restored_config.log_level, "info");
+    assert_eq!(restored_config.log_level, "debug");
 }

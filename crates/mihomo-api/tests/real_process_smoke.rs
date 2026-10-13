@@ -141,6 +141,19 @@ async fn typed_core_dns_fakeip_rule_provider_connection_close_and_runtime_ports_
         prior_log_level
     );
 
+    assert_eq!(
+        client
+            .get_config()
+            .await
+            .expect("read startup-enabled Mihomo debug endpoint state")
+            .log_level,
+        "debug",
+        "the smoke process starts in debug mode because Mihomo mounts /debug only when log-level is debug at process startup"
+    );
+    RuntimeGateway::trigger_gc(&client)
+        .await
+        .expect("typed Mihomo CoreGarbageCollection.Trigger is accepted");
+
     let scope = CoreScope {
         identity: CoreIdentity::new(
             EngineId::new("mihomo").expect("Mihomo engine ID"),

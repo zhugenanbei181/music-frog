@@ -65,7 +65,7 @@ def source_fixture(root: Path, real_process_test: str) -> Path:
     smoke.write_text(
         "mihomo-evidence-assets.json archive_sha256 binary_sha256 curl gzip "
         "mihomo-evidence-guard.py cargo nextest run --test real_process_smoke "
-        "--run-ignored only MIHOMO_REAL_CONTROLLER_URL "
+        "--run-ignored only log-level: debug MIHOMO_REAL_CONTROLLER_URL "
         "MIHOMO_REAL_CONTROLLER_SECRET MIHOMO_REAL_VERSION "
         "MIHOMO_REAL_CONFIGS_ROOT MIHOMO_REAL_PROFILE_PATH -p infiltrator-core "
         "--test real_process_profile_smoke --run-ignored only",
@@ -96,6 +96,28 @@ class MihomoEvidenceGuardTests(unittest.TestCase):
     def test_current_manifest_matches_product_asset_and_provider_wiring(self):
         self.assertEqual(GUARD.validate_documents(EVIDENCE, PRODUCT), [])
         self.assertEqual(GUARD.source_problems(ROOT), [])
+
+    def test_gc_evidence_requires_the_startup_debug_precondition(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = source_fixture(
+                Path(directory),
+                "#[ignore] MihomoOutboundAdapter MihomoRoutingIntentAdapter "
+                "OutboundPort RoutingIntentPort MIHOMO_REAL_CONTROLLER_URL "
+                "MIHOMO_REAL_CONTROLLER_SECRET MIHOMO_REAL_VERSION "
+                "stream_logs_events StreamEvent::Connected "
+                "CoreGarbageCollection.Trigger only when log-level is debug at process startup",
+            )
+            smoke = root / GUARD.SMOKE_SOURCE
+            smoke.write_text(
+                smoke.read_text(encoding="utf-8").replace("log-level: debug", "log-level: info"),
+                encoding="utf-8",
+            )
+            self.assertTrue(
+                any(
+                    "must start Mihomo with log-level debug" in issue
+                    for issue in GUARD.source_problems(root)
+                )
+            )
 
     def test_non_locked_version_and_prerelease_fail_closed(self):
         self.assertTrue(GUARD.is_canonical_release_version("v1.19.33"))
@@ -135,7 +157,7 @@ class MihomoEvidenceGuardTests(unittest.TestCase):
         changed = copy.deepcopy(EVIDENCE)
         changed["assets"][0]["operations"].append("connection.list")
         self.assertTrue(
-            any("operations do not match the fourteen verified behaviors" in issue
+            any("operations do not match the fifteen verified behaviors" in issue
                 for issue in GUARD.validate_documents(changed, PRODUCT))
         )
 
@@ -174,7 +196,8 @@ class MihomoEvidenceGuardTests(unittest.TestCase):
                 "#[ignore] MihomoOutboundAdapter MihomoRoutingIntentAdapter "
                 "OutboundPort RoutingIntentPort MIHOMO_REAL_CONTROLLER_URL "
                 "MIHOMO_REAL_CONTROLLER_SECRET MIHOMO_REAL_VERSION "
-                "stream_logs_events StreamEvent::Connected",
+                "stream_logs_events StreamEvent::Connected "
+                "CoreGarbageCollection.Trigger only when log-level is debug at process startup",
             )
             self.assertEqual(GUARD.source_problems(root), [])
 
@@ -223,6 +246,7 @@ class MihomoEvidenceGuardTests(unittest.TestCase):
             MihomoOutboundAdapter MihomoRoutingIntentAdapter
             OutboundPort RoutingIntentPort
             stream_logs_events StreamEvent::Connected
+            CoreGarbageCollection.Trigger only when log-level is debug at process startup
             MIHOMO_REAL_CONTROLLER_URL MIHOMO_REAL_CONTROLLER_SECRET MIHOMO_REAL_VERSION
         """
         with tempfile.TemporaryDirectory() as directory:

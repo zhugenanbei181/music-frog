@@ -3,6 +3,8 @@
 //! budget.
 
 use super::MihomoClient;
+use infiltrator_ports::error::PortError;
+use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use mockito::Server;
 use serde_json::json;
 
@@ -66,5 +68,21 @@ async fn test_trigger_gc_uses_authenticated_debug_endpoint() {
         .await;
     let client = MihomoClient::new(&server.url(), Some("generated-by-host".to_owned())).unwrap();
     client.trigger_gc().await.unwrap();
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn gc_endpoint_missing_without_startup_debug_is_typed_unsupported() {
+    let mut server = Server::new_async().await;
+    let mock = server
+        .mock("PUT", "/debug/gc")
+        .with_status(404)
+        .create_async()
+        .await;
+    let client = MihomoClient::new(&server.url(), Some("generated-by-host".to_owned())).unwrap();
+
+    let result = RuntimeGateway::trigger_gc(&client).await;
+
+    assert!(matches!(result, Err(PortError::Unsupported { .. })));
     mock.assert_async().await;
 }
