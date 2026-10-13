@@ -38,6 +38,7 @@ python3 "$evidence_guard"
 
 process_id=""
 probe_server_pid=""
+connection_client_pid=""
 run_dir=""
 
 stop_process() {
@@ -68,6 +69,9 @@ stop_process() {
 
 cleanup_active_processes() {
     local stopped=true
+    if ! stop_process 'active Mihomo connection fixture client' "$connection_client_pid"; then
+        stopped=false
+    fi
     if ! stop_process 'loopback probe server' "$probe_server_pid"; then
         stopped=false
     fi
@@ -75,6 +79,7 @@ cleanup_active_processes() {
         stopped=false
     fi
     if [[ "$stopped" == true ]]; then
+        connection_client_pid=""
         probe_server_pid=""
         process_id=""
         return 0
@@ -86,7 +91,7 @@ cleanup() {
     local exit_status=$?
     local had_active_process=false
     trap - EXIT INT TERM
-    if [[ -n "$probe_server_pid" || -n "$process_id" ]]; then
+    if [[ -n "$connection_client_pid" || -n "$probe_server_pid" || -n "$process_id" ]]; then
         had_active_process=true
     fi
     if ! cleanup_active_processes; then
@@ -146,6 +151,14 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
     print(listener.getsockname()[1])
 PY
 )"
+socks_port="$(python3 - <<'PY'
+import socket
+
+with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
+    listener.bind(("127.0.0.1", 0))
+    print(listener.getsockname()[1])
+PY
+)"
 controller_secret="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
 data_dir="$run_dir/data"
 mkdir -m 700 "$data_dir"
@@ -155,8 +168,10 @@ mkdir -m 700 -p "$profile_config_dir"
 profile_path="$profile_config_dir/profile.yaml"
 probe_server_port_file="$run_dir/probe-server-port"
 dns_server_port_file="$run_dir/dns-server-port"
+active_proxy_ready_file="$run_dir/active-proxy-ready"
+active_proxy_closed_file="$run_dir/active-proxy-closed"
 
-python3 - "$probe_server_port_file" "$dns_server_port_file" >"$run_dir/probe-server.log" 2>&1 <<'PY' &
+python3 - "$probe_server_port_file" "$dns_server_port_file" "$active_proxy_ready_file" "$active_proxy_closed_file" >"$run_dir/probe-server.log" 2>&1 <<'PY' &
 import socket
 import socketserver
 import struct
@@ -167,6 +182,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 port_file = sys.argv[1]
 dns_port_file = sys.argv[2]
+active_proxy_ready_file = sys.argv[3]
+active_proxy_closed_file = sys.argv[4]
 
 class ProbeDnsHandler(socketserver.BaseRequestHandler):
     def handle(self):
@@ -189,7 +206,10 @@ class ProbeDnsHandler(socketserver.BaseRequestHandler):
         qtype, qclass = struct.unpack_from(">HH", packet, offset)
         question_end = offset + 4
         question = packet[12:question_end]
-        if ".".join(labels).casefold() != "core-smoke.test" or qtype != 1 or qclass != 1:
+        if ".".join(labels).casefold() not in {
+            "core-smoke.test",
+            "core-smoke-active.test",
+        } or qtype != 1 or qclass != 1:
             return
         request_flags = struct.unpack_from(">H", packet, 2)[0]
         response_flags = 0x8000 | (request_flags & 0x0100) | 0x0080
@@ -209,6 +229,16 @@ class ProbeProxyHandler(BaseHTTPRequestHandler):
         self.wfile.flush()
         request_line = self.rfile.readline()
         if not request_line:
+            return
+        if request_line == b"GET /hold HTTP/1.1\r\n":
+            while self.rfile.readline() not in (b"\r\n", b"\n", b""):
+                pass
+            with open(active_proxy_ready_file, "w", encoding="utf-8") as destination:
+                destination.write("ready")
+            while self.rfile.read(4096):
+                pass
+            with open(active_proxy_closed_file, "w", encoding="utf-8") as destination:
+                destination.write("closed")
             return
         if request_line != b"HEAD /health HTTP/1.1\r\n":
             self.connection.sendall(
@@ -267,7 +297,7 @@ fi
 
 cat >"$profile_path" <<EOF
 port: 0
-socks-port: 0
+socks-port: $socks_port
 redir-port: 0
 tproxy-port: 0
 mixed-port: 0
@@ -298,6 +328,7 @@ proxy-groups:
       - CORE-SMOKE-HTTP
       - REJECT
 rules:
+  - DOMAIN,core-smoke-active.test,CORE-SMOKE-HTTP
   - MATCH,DIRECT
 EOF
 
@@ -421,6 +452,110 @@ then
 fi
 printf '[PASS] live /dns/query endpoint: A core-smoke.test -> 192.0.2.42\n'
 
+connection_client_ready_file="$run_dir/connection-client-ready"
+connection_client_done_file="$run_dir/connection-client-done"
+python3 - "$socks_port" "$connection_client_ready_file" "$connection_client_done_file" >"$run_dir/connection-client.log" 2>&1 <<'PY' &
+import socket
+import struct
+import sys
+
+proxy_port = int(sys.argv[1])
+ready_file = sys.argv[2]
+done_file = sys.argv[3]
+host = b"core-smoke-active.test"
+connection = socket.create_connection(("127.0.0.1", proxy_port), timeout=5)
+try:
+    connection.settimeout(5)
+    connection.sendall(b"\x05\x01\x00")
+    if connection.recv(2) != b"\x05\x00":
+        raise RuntimeError("Mihomo SOCKS5 listener did not accept no-auth mode")
+    connection.sendall(
+        b"\x05\x01\x00\x03" + bytes([len(host)]) + host + struct.pack(">H", 80)
+    )
+    response = connection.recv(4)
+    if len(response) != 4 or response[:2] != b"\x05\x00":
+        raise RuntimeError(f"Mihomo SOCKS5 CONNECT failed: {response!r}")
+    address_type = response[3]
+    address_length = {1: 4, 4: 16}.get(address_type)
+    if address_type == 3:
+        address_length = connection.recv(1)[0]
+    if address_length is None:
+        raise RuntimeError(f"Mihomo SOCKS5 returned invalid address type {address_type}")
+    remaining = address_length + 2
+    while remaining:
+        chunk = connection.recv(remaining)
+        if not chunk:
+            raise RuntimeError("Mihomo SOCKS5 reply ended early")
+        remaining -= len(chunk)
+    connection.sendall(
+        b"GET /hold HTTP/1.1\r\n"
+        b"Host: core-smoke-active.test\r\n"
+        b"Connection: keep-alive\r\n\r\n"
+    )
+    with open(ready_file, "w", encoding="utf-8") as destination:
+        destination.write("request sent")
+    connection.settimeout(30)
+    while connection.recv(4096):
+        pass
+except ConnectionResetError:
+    pass
+finally:
+    connection.close()
+    with open(done_file, "w", encoding="utf-8") as destination:
+        destination.write("done")
+PY
+connection_client_pid=$!
+active_connection_ready=false
+for _ in $(seq 1 50); do
+    if [[ -s "$active_proxy_ready_file" ]]; then
+        active_connection_ready=true
+        break
+    fi
+    if ! kill -0 "$connection_client_pid" 2>/dev/null; then
+        cat "$run_dir/connection-client.log" >&2
+        printf '[FAIL] active connection fixture client exited before Mihomo observed it\n' >&2
+        probe_diagnostics
+        exit 1
+    fi
+    sleep 0.1
+done
+if [[ "$active_connection_ready" != true ]]; then
+    printf '[FAIL] local HTTP proxy did not observe the active connection fixture\n' >&2
+    cat "$run_dir/connection-client.log" >&2
+    probe_diagnostics
+    exit 1
+fi
+if ! api_request GET /connections; then
+    printf '[FAIL] /connections could not read the active fixture connection (HTTP %s)\n' \
+        "$api_status" >&2
+    printf '%s\n' "$api_body" >&2
+    probe_diagnostics
+    exit 1
+fi
+if ! python3 - "$response_file" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as source:
+    payload = json.load(source)
+connections = payload.get("connections")
+if not isinstance(connections, list):
+    raise SystemExit("/connections did not report the live list as an array")
+if not any(
+    item.get("metadata", {}).get("host") == "core-smoke-active.test"
+    and isinstance(item.get("id"), str)
+    and item["id"]
+    for item in connections
+):
+    raise SystemExit("/connections did not report the active fixture connection")
+PY
+then
+    printf '[FAIL] /connections did not report the active fixture connection\n' >&2
+    probe_diagnostics
+    exit 1
+fi
+printf '[PASS] live /connections reports the active core-smoke-active.test fixture\n'
+
 printf '[INFO] running ignored Rust adapter smoke against %s\n' "$expected_version"
 if ! MIHOMO_REAL_CONTROLLER_URL="$base_url" \
     MIHOMO_REAL_CONTROLLER_SECRET="$controller_secret" \
@@ -431,8 +566,32 @@ if ! MIHOMO_REAL_CONTROLLER_URL="$base_url" \
     probe_diagnostics
     exit 1
 fi
-printf '[PASS] Rust typed DNS query, log stream, log-level, outbound, and routing adapters drove %s\n' \
+printf '[PASS] Rust typed DNS query, Connection.Close, log stream, log-level, outbound, and routing adapters drove %s\n' \
     "$expected_version"
+
+for _ in $(seq 1 50); do
+    if [[ -s "$connection_client_done_file" ]]; then
+        break
+    fi
+    sleep 0.1
+done
+if [[ ! -s "$connection_client_done_file" ]]; then
+    printf '[FAIL] active fixture client remained open after typed Connection.Close\n' >&2
+    probe_diagnostics
+    exit 1
+fi
+wait "$connection_client_pid" || {
+    printf '[FAIL] active fixture client failed while observing Connection.Close\n' >&2
+    cat "$run_dir/connection-client.log" >&2
+    exit 1
+}
+connection_client_pid=""
+if [[ ! -s "$active_proxy_closed_file" ]]; then
+    printf '[FAIL] local HTTP proxy did not observe Mihomo closing the active connection\n' >&2
+    probe_diagnostics
+    exit 1
+fi
+printf '[PASS] typed Connection.Close ended the live SOCKS→Mihomo→HTTP fixture\n'
 
 printf '[INFO] running ignored Rust Profile transaction smoke against %s\n' "$expected_version"
 if ! env -u INFILTRATOR_CONFIGS_DIR \
@@ -647,7 +806,7 @@ PY
 }
 printf '[PASS] /connections read: %s; counters observed\n' "$connection_summary"
 
-printf '[NOT COVERED] Logs.Read/Clear, TUN/VPN, DNS cache, rules trace/apply, providers, connection close, non-Linux hosts\n'
+printf '[NOT COVERED] Logs.Read/Clear, TUN/VPN, DNS cache, rules trace/apply, providers, Connection.List, non-Linux hosts\n'
 
 if ! cleanup_active_processes; then
     exit 1

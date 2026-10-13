@@ -13,6 +13,7 @@ use infiltrator_ports::outbound::{
     OutboundPort, OutboundProbeRequest, OutboundScopeSource, ProbeTarget,
 };
 use infiltrator_ports::routing_intent::RoutingIntentPort;
+use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use mihomo_api::client::{MihomoClient, StreamEvent};
 use mihomo_api::outbound::MihomoOutboundAdapter;
 use mihomo_api::routing_intent::MihomoRoutingIntentAdapter;
@@ -34,7 +35,8 @@ fn required_environment(name: &str) -> String {
 
 #[tokio::test]
 #[ignore = "requires the explicit SHA-locked Mihomo real-process smoke"]
-async fn typed_core_dns_log_level_outbound_and_routing_ports_drive_the_live_mihomo_controller() {
+async fn typed_core_dns_connection_close_log_level_outbound_and_routing_ports_drive_the_live_mihomo_controller()
+ {
     let controller_url = required_environment("MIHOMO_REAL_CONTROLLER_URL");
     let controller_secret = required_environment("MIHOMO_REAL_CONTROLLER_SECRET");
     let expected_version = required_environment("MIHOMO_REAL_VERSION");
@@ -57,6 +59,36 @@ async fn typed_core_dns_log_level_outbound_and_routing_ports_drive_the_live_miho
     assert!(dns_response.answers.iter().any(|answer| {
         answer.record_type == DnsRecordType::A.number() && answer.data == "192.0.2.42"
     }));
+
+    let active_connections = RuntimeGateway::get_connections(&client)
+        .await
+        .expect("typed Mihomo connection snapshot");
+    let active_connection = active_connections
+        .connections
+        .iter()
+        .find(|connection| connection.metadata.host == "core-smoke-active.test")
+        .expect("the smoke fixture holds one live connection through Mihomo");
+    let active_connection_id = active_connection.id.clone();
+    RuntimeGateway::close_connection(&client, &active_connection_id)
+        .await
+        .expect("typed Connection.Close reaches the live Mihomo controller");
+    tokio::time::timeout(Duration::from_secs(5), async {
+        loop {
+            let snapshot = RuntimeGateway::get_connections(&client)
+                .await
+                .expect("typed connection readback remains available");
+            if !snapshot
+                .connections
+                .iter()
+                .any(|connection| connection.id == active_connection_id)
+            {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+    })
+    .await
+    .expect("Mihomo removes the exact connection after Connection.Close");
 
     let mut log_events = client
         .stream_logs_events(None)

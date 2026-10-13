@@ -30,6 +30,7 @@ REQUIRED_OPERATIONS = (
     "profile.validate",
     "profile.apply",
     "dns.query",
+    "connection.close",
     "outbound.list",
     "outbound.select",
     "outbound.probe",
@@ -100,7 +101,7 @@ def validate_documents(evidence: object, product: object) -> list[str]:
                 problems.append(f"{where} has an invalid {digest_key}")
         operations = asset.get("operations")
         if not isinstance(operations, list) or tuple(operations) != REQUIRED_OPERATIONS:
-            problems.append(f"{where} operations do not match the ten verified behaviors")
+            problems.append(f"{where} operations do not match the eleven verified behaviors")
 
     if set(assets_by_version) != REQUIRED_VERSIONS:
         problems.append(

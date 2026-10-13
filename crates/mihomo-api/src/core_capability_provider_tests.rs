@@ -328,6 +328,78 @@ fn real_dns_query_evidence_authorizes_only_the_exact_locked_mihomo_scope() {
 }
 
 #[test]
+fn real_connection_close_evidence_authorizes_only_the_exact_locked_mihomo_scope() {
+    let operation = CoreOperation::Connection(ConnectionOperation::Close);
+    let provider = MihomoCoreCapabilityProvider::new_for_target(
+        HostKind::Desktop,
+        EngineBinaryTarget::X86_64UnknownLinuxGnu,
+        [operation],
+    );
+    let engine_id = EngineId::new("mihomo").expect("valid engine ID");
+
+    for raw_version in ["v1.19.18", "v1.19.32"] {
+        let version = CoreVersion::new(raw_version).expect("locked Mihomo version");
+        let matrix = provider
+            .matrix_for(&engine_id, Some(&version))
+            .expect("Mihomo connection-close capability matrix");
+        let resolution = matrix.resolve(CoreCapabilityKey::new(matrix.scope.clone(), operation));
+        assert_eq!(resolution.engine, Some(EngineCapabilityDecision::Supported));
+        assert_eq!(
+            resolution.adapter,
+            Some(AdapterCapabilityDecision::Supported)
+        );
+        assert!(matches!(
+            resolution.status,
+            CoreCapabilityStatus::Available { .. }
+        ));
+    }
+
+    let unregistered_version = CoreVersion::new("v1.19.33").expect("unregistered version");
+    let matrix = provider
+        .matrix_for(&engine_id, Some(&unregistered_version))
+        .expect("unregistered version remains representable");
+    let resolution = matrix.resolve(CoreCapabilityKey::new(matrix.scope.clone(), operation));
+    assert!(matches!(
+        resolution.engine,
+        Some(EngineCapabilityDecision::VersionUnavailable { .. })
+    ));
+    assert!(!matches!(
+        resolution.status,
+        CoreCapabilityStatus::Available { .. }
+    ));
+
+    for (host, target, revision) in [
+        (
+            HostKind::Android,
+            EngineBinaryTarget::Aarch64LinuxAndroid,
+            AdapterRevision::new(1),
+        ),
+        (
+            HostKind::Desktop,
+            EngineBinaryTarget::X86_64UnknownLinuxGnu,
+            AdapterRevision::new(2),
+        ),
+        (
+            HostKind::Desktop,
+            EngineBinaryTarget::Aarch64UnknownLinuxGnu,
+            AdapterRevision::new(1),
+        ),
+    ] {
+        let scoped_provider =
+            MihomoCoreCapabilityProvider::new_with_scope(host, target, revision, [operation]);
+        let version = CoreVersion::new("v1.19.32").expect("locked version");
+        let matrix = scoped_provider
+            .matrix_for(&engine_id, Some(&version))
+            .expect("mismatched scope remains representable");
+        let resolution = matrix.resolve(CoreCapabilityKey::new(matrix.scope.clone(), operation));
+        assert!(matches!(
+            resolution.status,
+            CoreCapabilityStatus::HostUnavailable { .. }
+        ));
+    }
+}
+
+#[test]
 fn explicit_unsupported_declaration_cannot_become_available_from_composition_wiring() {
     let provider = MihomoCoreCapabilityProvider::new_for_target(
         HostKind::Desktop,
@@ -537,7 +609,7 @@ fn capability_matrix_keeps_unverified_operations_closed_and_verified_dns_availab
         ),
         (
             CoreOperation::Connection(ConnectionOperation::Close),
-            ExpectedStatus::VersionUnavailable,
+            ExpectedStatus::Available,
         ),
         (
             CoreOperation::Connection(ConnectionOperation::List),
@@ -633,7 +705,7 @@ fn locked_binary_observations_do_not_override_typed_profile_unsupported() {
     for (version, target, revision, operation_ids) in locked {
         assert_eq!(target, "x86_64-unknown-linux-gnu", "{version}");
         assert_eq!(revision, 1, "{version}");
-        assert_eq!(operation_ids.len(), 10, "{version}");
+        assert_eq!(operation_ids.len(), 11, "{version}");
         for (operation, evidence_id) in [
             (
                 CoreOperation::Profile(ProfileOperation::Validate),

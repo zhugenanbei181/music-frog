@@ -135,7 +135,7 @@ class MihomoEvidenceGuardTests(unittest.TestCase):
         changed = copy.deepcopy(EVIDENCE)
         changed["assets"][0]["operations"].append("connection.list")
         self.assertTrue(
-            any("operations do not match the ten verified behaviors" in issue
+            any("operations do not match the eleven verified behaviors" in issue
                 for issue in GUARD.validate_documents(changed, PRODUCT))
         )
 

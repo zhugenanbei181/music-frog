@@ -84,10 +84,17 @@ fn supported_operations_require_matching_ids_registered_in_each_engine_lock() {
         .iter()
         .filter(|operation| validated.verified_supported_evidence(**operation).is_some())
         .count();
-    assert_eq!(supported, 8);
+    assert_eq!(supported, 9);
     assert!(
         validated
             .verified_supported_evidence(CoreOperation::Dns(DnsOperation::Query))
+            .is_some()
+    );
+    assert!(
+        validated
+            .verified_supported_evidence(CoreOperation::Connection(
+                super::core_capabilities::ConnectionOperation::Close
+            ))
             .is_some()
     );
 

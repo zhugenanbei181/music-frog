@@ -238,8 +238,8 @@
         "operation": "close"
       },
       "support": {
-        "status": "evidence_open",
-        "reason": "CloseConnection and CloseAllConnections use the production Mihomo RuntimeGateway, but no real Mihomo run for this operation is registered in the evidence lock."
+        "status": "supported",
+        "evidence_id": "connection.close"
       }
     },
     {
