@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Require one Application-owned Android owner IPC client instance."""
+"""Require one Application-owned Android IPC client and canonical snapshot route."""
 
 from __future__ import annotations
 
@@ -19,6 +19,41 @@ SHARED_CLIENT_CONSUMERS = (
 )
 CLIENT_CONSTRUCTOR = re.compile(r"\bMihomoControlClient\s*\(")
 CLIENT_CLASS = re.compile(r"\bclass\s+MihomoControlClient\s*\(")
+SNAPSHOT_ROUTE_REQUIREMENTS = {
+    "android/app/src/main/java/com/musicfrog/infiltrator/ui/common/OwnerSurfaceSnapshotReader.kt": (
+        "androidSurfaceSnapshotJson()",
+    ),
+    "android/app/src/main/java/com/musicfrog/infiltrator/BevyHostActivity.kt": (
+        "runBlocking { androidSurfaceSnapshotJson() }",
+    ),
+    "android/app/src/main/java/com/musicfrog/infiltrator/CoreHost.kt": (
+        "controlClient.readSurfaceSnapshotJson(deadline)",
+    ),
+    "android/app/src/main/java/com/musicfrog/infiltrator/MihomoControlClient.kt": (
+        "OwnerIpcPayload.SurfaceSnapshotReadback",
+        "OwnerResponsePayload.SurfaceSnapshot",
+    ),
+    "android/app/src/main/java/com/musicfrog/infiltrator/MihomoControlService.kt": (
+        "AndroidHostRequest.READ_SURFACE_SNAPSHOT",
+        "androidSurfaceSnapshotJson()",
+    ),
+    "crates/infiltrator-android/src/uniffi_api/product.rs": (
+        "AndroidHostProcessRole::CoreOwner => owner_surface_snapshot_json().await",
+        "AndroidHostProcessRole::UiClient => bridge",
+        ".surface_snapshot_json()",
+        "AndroidHostProcessRole::Unsupported",
+    ),
+    "crates/infiltrator-android/src/slint_host.rs": (
+        "crate::android_surface_snapshot_json()",
+    ),
+    "android/bevy-host/driver/src/android_jni.rs": (
+        '"readAndroidSurfaceSnapshotJson"',
+    ),
+    "android/bevy-host/driver/src/owner_client.rs": (
+        "serde_json::from_str::<SurfaceSnapshot>(raw)",
+        "snapshot.core.scope().is_none()",
+    ),
+}
 
 
 def code_without_comments(source: str) -> str:
@@ -48,6 +83,17 @@ def source_problems_from_sources(sources: dict[str, str]) -> list[str]:
         code = code_without_comments(sources.get(consumer, ""))
         if "ownerIpcClient" not in code:
             problems.append(f"{consumer}: must reuse the Application-owned ownerIpcClient")
+    problems.extend(snapshot_route_problems_from_sources(sources))
+    return problems
+
+
+def snapshot_route_problems_from_sources(sources: dict[str, str]) -> list[str]:
+    problems: list[str] = []
+    for path, required_fragments in SNAPSHOT_ROUTE_REQUIREMENTS.items():
+        code = code_without_comments(sources.get(path, ""))
+        for fragment in required_fragments:
+            if fragment not in code:
+                problems.append(f"{path}: canonical owner SurfaceSnapshot route is missing `{fragment}`")
     return problems
 
 
@@ -62,6 +108,14 @@ def source_problems(repo_root: Path = ROOT) -> list[str]:
             sources[relative] = path.read_text(encoding="utf-8")
         except OSError as error:
             return [f"{path}: could not read Kotlin source: {error}"]
+    for relative in SNAPSHOT_ROUTE_REQUIREMENTS:
+        if relative in sources:
+            continue
+        path = repo_root / relative
+        try:
+            sources[relative] = path.read_text(encoding="utf-8")
+        except OSError as error:
+            return [f"{path}: could not read owner snapshot route: {error}"]
     return source_problems_from_sources(sources)
 
 
@@ -77,6 +131,9 @@ def self_test() -> bool:
         "android/app/src/main/java/com/musicfrog/infiltrator/MihomoControlClient.kt":
             "internal class MihomoControlClient(context: Context) {}",
     }
+    for path, fragments in SNAPSHOT_ROUTE_REQUIREMENTS.items():
+        prior = valid.get(path, "")
+        valid[path] = prior + "\n" + "\n".join(fragments)
     if source_problems_from_sources(valid):
         return False
 
@@ -95,6 +152,18 @@ def self_test() -> bool:
     missing_consumer[SHARED_CLIENT_CONSUMERS[1]] = "MihomoControlClient(context).readSnapshot()"
     if not any(SHARED_CLIENT_CONSUMERS[1] in issue
                for issue in source_problems_from_sources(missing_consumer)):
+        return False
+
+    missing_snapshot_route = {
+        path: "\n".join(fragments)
+        for path, fragments in SNAPSHOT_ROUTE_REQUIREMENTS.items()
+    }
+    path = "android/app/src/main/java/com/musicfrog/infiltrator/BevyHostActivity.kt"
+    missing_snapshot_route[path] = ""
+    if not any(
+        "BevyHostActivity.kt" in issue and "canonical owner SurfaceSnapshot route" in issue
+        for issue in snapshot_route_problems_from_sources(missing_snapshot_route)
+    ):
         return False
     return True
 

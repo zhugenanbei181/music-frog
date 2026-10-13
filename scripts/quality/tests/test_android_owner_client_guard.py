@@ -55,6 +55,31 @@ class AndroidOwnerClientGuardTests(unittest.TestCase):
             )
         )
 
+    def test_guard_rejects_surface_reader_that_bypasses_owner_snapshot_ffi(self) -> None:
+        sources = {
+            guard.OWNER_SOURCE: (
+                "internal val ownerIpcClient: MihomoControlClient by ownerIpcClientDelegate\n"
+                "MihomoControlClient(applicationContext)"
+            ),
+            guard.SHARED_CLIENT_CONSUMERS[0]: "application.ownerIpcClient",
+            guard.SHARED_CLIENT_CONSUMERS[1]: "application.ownerIpcClient",
+            guard.SHARED_CLIENT_CONSUMERS[2]: "application.ownerIpcClient",
+            "MihomoControlClient.kt": "class MihomoControlClient(context: Context) {}",
+        }
+        for path, fragments in guard.SNAPSHOT_ROUTE_REQUIREMENTS.items():
+            sources[path] = "\n".join(fragments)
+        sources["android/app/src/main/java/com/musicfrog/infiltrator/ui/common/OwnerSurfaceSnapshotReader.kt"] = (
+            "localLifecycleRegistry.readSnapshot()"
+        )
+
+        self.assertTrue(
+            any(
+                "OwnerSurfaceSnapshotReader.kt" in problem
+                and "canonical owner SurfaceSnapshot route" in problem
+                for problem in guard.source_problems_from_sources(sources)
+            )
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

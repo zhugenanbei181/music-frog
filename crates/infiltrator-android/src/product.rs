@@ -366,7 +366,7 @@ mod tests {
     use infiltrator_contract::snapshot::CoreLifecycle;
     use infiltrator_platform::android_bridge::{
         AndroidBridgeResult as Result, CoreProcessStartReceipt, CoreProcessStopReceipt,
-        clear_android_bridge,
+        clear_android_bridge, get_android_bridge, set_android_bridge,
     };
     use infiltrator_ports::error::PortError;
     use infiltrator_ports::secure_store::SecureStore;
@@ -376,7 +376,8 @@ mod tests {
     use std::path::PathBuf;
     use std::process;
     use std::result;
-    use std::sync::Mutex;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::{Arc, Mutex};
     use std::thread::yield_now;
     use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
@@ -414,6 +415,25 @@ mod tests {
         }
     }
 
+    struct AndroidBridgeRestore(Option<Arc<dyn AndroidBridge>>);
+
+    impl AndroidBridgeRestore {
+        fn capture_and_clear() -> Self {
+            let previous = get_android_bridge();
+            clear_android_bridge();
+            Self(previous)
+        }
+    }
+
+    impl Drop for AndroidBridgeRestore {
+        fn drop(&mut self) {
+            clear_android_bridge();
+            if let Some(previous) = self.0.take() {
+                set_android_bridge(previous);
+            }
+        }
+    }
+
     fn composition_input() -> (TestHome, AndroidCoreComposition<TestCredentialStore>) {
         let stamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -434,14 +454,23 @@ mod tests {
 
     struct TestBridge {
         observation: Mutex<AndroidCoreProcessObservation>,
-        core_owner: bool,
+        role: AndroidHostProcessRole,
+        surface_snapshot_reply: TestSurfaceSnapshotReply,
+        surface_snapshot_reads: AtomicUsize,
+    }
+
+    enum TestSurfaceSnapshotReply {
+        Available(String),
+        Unavailable,
     }
 
     impl TestBridge {
         fn new() -> Self {
             Self {
                 observation: Mutex::new(AndroidCoreProcessObservation::NeverStarted),
-                core_owner: true,
+                role: AndroidHostProcessRole::CoreOwner,
+                surface_snapshot_reply: TestSurfaceSnapshotReply::Unavailable,
+                surface_snapshot_reads: AtomicUsize::new(0),
             }
         }
 
@@ -450,7 +479,20 @@ mod tests {
                 observation: Mutex::new(AndroidCoreProcessObservation::Unavailable {
                     reason: AndroidCoreProcessUnavailableReason::ProcessInspectionUnavailable,
                 }),
-                core_owner: false,
+                role: AndroidHostProcessRole::UiClient,
+                surface_snapshot_reply: TestSurfaceSnapshotReply::Unavailable,
+                surface_snapshot_reads: AtomicUsize::new(0),
+            }
+        }
+
+        fn client_with_surface_snapshot(snapshot: String) -> Self {
+            Self {
+                observation: Mutex::new(AndroidCoreProcessObservation::Unavailable {
+                    reason: AndroidCoreProcessUnavailableReason::ProcessInspectionUnavailable,
+                }),
+                role: AndroidHostProcessRole::UiClient,
+                surface_snapshot_reply: TestSurfaceSnapshotReply::Available(snapshot),
+                surface_snapshot_reads: AtomicUsize::new(0),
             }
         }
     }
@@ -458,11 +500,7 @@ mod tests {
     #[async_trait]
     impl AndroidBridge for TestBridge {
         fn process_role(&self) -> AndroidHostProcessRole {
-            if self.core_owner {
-                AndroidHostProcessRole::CoreOwner
-            } else {
-                AndroidHostProcessRole::UiClient
-            }
+            self.role
         }
 
         async fn core_start(
@@ -563,6 +601,16 @@ mod tests {
                 ),
             })
         }
+
+        async fn surface_snapshot_json(&self) -> Result<String> {
+            self.surface_snapshot_reads.fetch_add(1, Ordering::SeqCst);
+            match &self.surface_snapshot_reply {
+                TestSurfaceSnapshotReply::Available(snapshot) => Ok(snapshot.clone()),
+                TestSurfaceSnapshotReply::Unavailable => Err(PortError::Failed(
+                    "fake owner surface snapshot is unavailable".to_owned(),
+                )),
+            }
+        }
     }
 
     fn config() -> AndroidProductConfig {
@@ -602,14 +650,52 @@ mod tests {
         assert!(Arc::strong_count(&composition.application()) >= 1);
     }
 
-    #[test]
-    fn missing_bridge_is_a_typed_open_failure() {
-        clear_android_bridge();
+    #[tokio::test]
+    async fn missing_bridge_is_a_typed_open_failure() {
+        let _test_guard = infiltrator_platform::TEST_LOCK.lock().await;
+        let _bridge_restore = AndroidBridgeRestore::capture_and_clear();
         let error = match AndroidProductComposition::open(config()) {
             Ok(_) => panic!("open must fail without a registered bridge"),
             Err(error) => error,
         };
         assert!(matches!(error, AndroidProductError::BridgeUnavailable));
+    }
+
+    #[tokio::test]
+    async fn ui_client_surface_snapshot_returns_the_owner_json_unchanged() {
+        let _test_guard = infiltrator_platform::TEST_LOCK.lock().await;
+        let _bridge_restore = AndroidBridgeRestore::capture_and_clear();
+        let mut snapshot = SurfaceSnapshot::unavailable(
+            SurfaceKind::BevyAndroid,
+            HostKind::Android,
+            Failure::new(ErrorCode::NotReady, "owner is starting", true),
+        );
+        snapshot.revision = 17;
+        let expected_json = serde_json::to_string(&snapshot).expect("owner snapshot JSON");
+        let bridge = Arc::new(TestBridge::client_with_surface_snapshot(
+            expected_json.clone(),
+        ));
+        set_android_bridge(bridge.clone());
+
+        let result = crate::android_surface_snapshot_json().await;
+
+        assert_eq!(result.status.code, crate::ffi::FfiErrorCode::Ok);
+        assert_eq!(result.value.as_deref(), Some(expected_json.as_str()));
+        assert_eq!(bridge.surface_snapshot_reads.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn ui_client_surface_snapshot_failure_remains_a_typed_unavailable_result() {
+        let _test_guard = infiltrator_platform::TEST_LOCK.lock().await;
+        let _bridge_restore = AndroidBridgeRestore::capture_and_clear();
+        let bridge = Arc::new(TestBridge::client_process());
+        set_android_bridge(bridge.clone());
+
+        let result = crate::android_surface_snapshot_json().await;
+
+        assert_eq!(result.status.code, crate::ffi::FfiErrorCode::NotReady);
+        assert!(result.value.is_none());
+        assert_eq!(bridge.surface_snapshot_reads.load(Ordering::SeqCst), 1);
     }
 
     #[test]
