@@ -23,7 +23,6 @@ use bevy::ui::prelude::{
     AlignItems, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, Val, percent,
 };
 use bevy::ui::widget::Text;
-use infiltrator_application::dns_leak_projection::{LeakTone, project_leak};
 use infiltrator_bevy_widgets::button::ButtonVariant;
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
@@ -33,6 +32,7 @@ use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::dns_leak::DnsLeakReport;
+use infiltrator_presentation::dns_leak_projection::{LeakTone, project_leak};
 
 #[derive(Component, Clone, Default)]
 pub struct LeakCard;

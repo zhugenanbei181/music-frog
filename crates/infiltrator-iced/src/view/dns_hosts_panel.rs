@@ -15,10 +15,10 @@ use iced::{Alignment, Element, Length, Theme};
 use infiltrator_application::dns_health_projection::project_dns_health;
 use infiltrator_application::dns_hosts_projection::{feedback, summary};
 use infiltrator_application::dns_latency_projection::{DnsLatencyRow, project_dns_latency};
-use infiltrator_application::dns_mapping_projection::project_mappings;
 use infiltrator_application::dns_observation_projection::DnsObservationTone;
 use infiltrator_contract::dns_latency::DnsLatencyReport;
 use infiltrator_contract::dns_self_heal::DnsSelfHealSnapshot;
+use infiltrator_presentation::dns_mapping_projection::project_mappings;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 /// DUAL-14-10: the localized per-server result line of the last real probe.

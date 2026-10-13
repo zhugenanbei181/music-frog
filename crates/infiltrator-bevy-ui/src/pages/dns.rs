@@ -45,7 +45,6 @@ use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button, ScrollArea};
 use infiltrator_application::dns_health_projection::project_dns_health;
 use infiltrator_application::dns_latency_projection::{project_dns_latency, server_tags_text};
-use infiltrator_application::dns_leak_projection::project_leak;
 use infiltrator_application::dns_status_projection::{
     filter_key, flush_summary, heading, mode_key,
 };
@@ -73,6 +72,7 @@ use infiltrator_contract::dns_leak::DnsLeakReport;
 use infiltrator_contract::dns_self_heal::DnsSelfHealSnapshot;
 use infiltrator_contract::stun_probe::StunProbeReport;
 use infiltrator_contract::surface_snapshot::DnsPageSnapshot;
+use infiltrator_presentation::dns_leak_projection::project_leak;
 use infiltrator_shared::i18n_interpolator::localize;
 use infiltrator_shared::locales::{Lang, Localizer};
 

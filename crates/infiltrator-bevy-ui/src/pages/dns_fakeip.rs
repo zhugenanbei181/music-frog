@@ -17,7 +17,6 @@ use bevy::ui::prelude::{
     AlignItems, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, Val, percent,
 };
 use bevy::ui::widget::Text;
-use infiltrator_application::dns_mapping_projection::project_mappings;
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
@@ -27,6 +26,7 @@ use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::text_input::TextField;
 use infiltrator_bevy_widgets::text_input::native::NativeTextField;
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_presentation::dns_mapping_projection::project_mappings;
 
 /// Marker on the Fake-IP search field's parent node.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]

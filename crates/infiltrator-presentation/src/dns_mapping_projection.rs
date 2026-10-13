@@ -73,3 +73,7 @@ pub fn project_mappings(pool: &FakeIpMappingPool, query: &str, code: &str) -> Dn
         empty,
     }
 }
+
+#[cfg(test)]
+#[path = "dns_mapping_projection_test.rs"]
+mod tests;

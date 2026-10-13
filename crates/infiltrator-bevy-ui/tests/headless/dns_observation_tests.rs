@@ -14,7 +14,6 @@ use bevy::text::TextColor;
 use bevy::ui::widget::Text;
 use infiltrator_application::dns_health_projection::project_dns_health;
 use infiltrator_application::dns_latency_projection::project_dns_latency;
-use infiltrator_application::dns_mapping_projection::project_mappings;
 use infiltrator_application::stun_projection::project_stun;
 use infiltrator_bevy_ui::app::ShellPlugin;
 use infiltrator_bevy_ui::pages::dns::{DnsLine, DnsLineKind, DnsProjection, DnsProjectionUpdated};
@@ -33,6 +32,7 @@ use infiltrator_contract::dns_self_heal::{
     DnsSelfHealCheck, DnsSelfHealKind, DnsSelfHealSnapshot, DnsSelfHealState,
 };
 use infiltrator_contract::surface_snapshot::DnsPageSnapshot;
+use infiltrator_presentation::dns_mapping_projection::project_mappings;
 
 fn setup() -> (App, DnsProjection) {
     let mut app = App::new();

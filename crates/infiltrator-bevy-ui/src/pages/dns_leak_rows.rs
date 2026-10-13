@@ -10,12 +10,12 @@ use bevy::scene::{CommandsSceneExt, Scene, bsn};
 use bevy::text::TextColor;
 use bevy::ui::widget::Text;
 use bevy::ui::{Display, FlexDirection, Node, percent};
-use infiltrator_application::dns_leak_projection::{LeakDisplay, LeakRow, project_leak};
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_presentation::dns_leak_projection::{LeakDisplay, LeakRow, project_leak};
 use std::collections::HashMap;
 
 #[derive(Component, Clone, Default)]
