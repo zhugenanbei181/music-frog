@@ -65,7 +65,6 @@ use infiltrator_desktop::storage::{
 };
 use infiltrator_domain::settings::{AdminServerConfig, AppSettings};
 use infiltrator_ports::host_runtime::HostRuntime;
-use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use infiltrator_ports::runtime_http_proxy_endpoint::RuntimeHttpProxyEndpoint;
 use infiltrator_ports::subscription_source::SubscriptionSource;
 use infiltrator_shared::autostart::{is_autostart_enabled, set_autostart_enabled};

@@ -1,7 +1,7 @@
 //! Exact v1.19.18 controller response decoding at the outbound boundary.
 use crate::client::MihomoClient;
 use crate::error::MihomoError;
-use crate::runtime_gateway::network_error;
+use crate::network_error::network_error;
 use infiltrator_contract::dns_query::{DnsQueryRequest, DnsQueryResponse, DnsQuestion, DnsRecord};
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_ports::dns_query::DnsQueryPort;

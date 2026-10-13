@@ -356,15 +356,6 @@ impl AdminApiContext for IcedAdminContext {
             .map(|runtime| runtime.controller_url())
     }
 
-    async fn runtime_gateway(&self) -> anyhow::Result<Arc<dyn RuntimeGateway>> {
-        let core_not_running = self.localized_message("core_not_running").await;
-        let runtime = self
-            .shared
-            .runtime()
-            .ok_or_else(|| anyhow!(core_not_running))?;
-        Ok(runtime)
-    }
-
     async fn connection_application(&self) -> anyhow::Result<ConnectionApplication> {
         let core_not_running = self.localized_message("core_not_running").await;
         let runtime = self

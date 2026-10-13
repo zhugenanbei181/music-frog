@@ -2,6 +2,7 @@
 
 use crate::active_profile_reference_applier::ActiveProfileReferenceApplier;
 use crate::certificate_authority::CertificateAuthorityPort;
+use crate::connection::ConnectionPort;
 use crate::core_lifecycle::CoreLifecyclePort;
 use crate::core_scope::CoreScopeSource;
 use crate::dns_latency::DnsLatencyProbePort;
@@ -12,9 +13,11 @@ use crate::network_roaming::NetworkRoamingPort;
 use crate::outbound::OutboundPort;
 use crate::pac::PacServicePort;
 use crate::privileged_network::PrivilegedNetworkPort;
+use crate::resources::CoreResourcePort;
 use crate::rule_provider_cache::RuleProviderCachePort;
-use crate::runtime_gateway::RuntimeGateway;
+use crate::runtime_configuration::RuntimeConfigurationPorts;
 use crate::runtime_http_proxy_endpoint::RuntimeHttpProxyEndpointPort;
+use crate::runtime_stream::RuntimeStreamPort;
 use crate::script_export::ScriptExportPort;
 use crate::service_mode::ServiceModePort;
 use crate::stun_probe::StunEgressProbePort;
@@ -39,9 +42,7 @@ pub enum TunServiceStatus {
 /// Concrete process managers, controller clients and platform service types
 /// stay behind the host adapter. `lifecycle_port` is provided for composition
 /// code that needs a typed restart without exposing the application object.
-pub trait HostRuntime:
-    RuntimeGateway + ActiveProfileReferenceApplier + RuntimeHttpProxyEndpointPort
-{
+pub trait HostRuntime: ActiveProfileReferenceApplier + RuntimeHttpProxyEndpointPort {
     fn controller_url(&self) -> String;
     fn core_binary_path(&self) -> PathBuf;
     fn tun_service_status(&self) -> TunServiceStatus;
@@ -131,6 +132,11 @@ pub trait HostRuntime:
         None
     }
     fn lifecycle_port(&self) -> Arc<dyn CoreLifecyclePort>;
+    /// Explicit typed controller capabilities composed by the product owner.
+    fn runtime_configuration_ports(&self) -> RuntimeConfigurationPorts;
+    fn connection_port(&self) -> Arc<dyn ConnectionPort>;
+    fn runtime_stream_port(&self) -> Arc<dyn RuntimeStreamPort>;
+    fn resource_port(&self) -> Arc<dyn CoreResourcePort>;
     /// Typed outbound owner ports. Inbound surfaces obtain the active scope
     /// from the owner and never synthesize an identity or generation.
     fn outbound_port(&self) -> Option<Arc<dyn OutboundPort>> {

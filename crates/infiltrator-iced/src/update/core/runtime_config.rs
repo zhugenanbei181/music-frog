@@ -22,10 +22,8 @@ use infiltrator_contract::tun::TunStack;
 use infiltrator_desktop::tun_service::TunServiceManager;
 use infiltrator_ports::host_runtime::TunServiceStatus;
 use infiltrator_ports::runtime_configuration::ObservedValue;
-use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use infiltrator_shared::i18n_interpolator::localize;
 use infiltrator_shared::locales::{Lang, Localizer};
-use std::sync::Arc;
 use tokio::task::spawn_blocking;
 
 impl AppState {
@@ -133,10 +131,10 @@ impl AppState {
             .with_legacy_tun(Some(enabled))
             .with_pending(SystemToggle::Tun, enabled);
         self.refresh_tray();
-        let gateway: Arc<dyn RuntimeGateway> = rt.clone();
+        let configuration_ports = rt.runtime_configuration_ports();
         Task::perform(
             async move {
-                RuntimeConfigurationApplication::new(scope, gateway.configuration_ports())
+                RuntimeConfigurationApplication::new(scope, configuration_ports)
                     .set_tun_enabled(enabled)
                     .await
                     .map(|_| ())
@@ -210,15 +208,12 @@ impl AppState {
                             ));
                         }
                     };
-                    let gateway: Arc<dyn RuntimeGateway> = rt;
+                    let configuration_ports = rt.runtime_configuration_ports();
                     Task::perform(
                         async move {
-                            RuntimeConfigurationApplication::new(
-                                scope,
-                                gateway.configuration_ports(),
-                            )
-                            .observe_readout()
-                            .await
+                            RuntimeConfigurationApplication::new(scope, configuration_ports)
+                                .observe_readout()
+                                .await
                         },
                         move |result| Message::RuntimeConfigFetched(result, generation),
                     )
@@ -332,10 +327,10 @@ impl AppState {
                 };
                 let generation = rt.lifecycle_port().generation();
                 self.runtime.ipv6_routing.enabled = enabled;
-                let gateway: Arc<dyn RuntimeGateway> = rt;
+                let configuration_ports = rt.runtime_configuration_ports();
                 Task::perform(
                     async move {
-                        RuntimeConfigurationApplication::new(scope, gateway.configuration_ports())
+                        RuntimeConfigurationApplication::new(scope, configuration_ports)
                             .set_ipv6_routing(enabled)
                             .await
                             .map(|_| ())
@@ -552,10 +547,10 @@ impl AppState {
                 let generation = rt.lifecycle_port().generation();
                 self.editor.tun_stack = parsed.as_str().to_owned();
                 self.runtime.tun_stack_config.active_stack = parsed.as_str().to_owned();
-                let gateway: Arc<dyn RuntimeGateway> = rt.clone();
+                let configuration_ports = rt.runtime_configuration_ports();
                 Task::perform(
                     async move {
-                        RuntimeConfigurationApplication::new(scope, gateway.configuration_ports())
+                        RuntimeConfigurationApplication::new(scope, configuration_ports)
                             .set_tun_stack(parsed)
                             .await
                             .map(|_| ())
@@ -584,10 +579,10 @@ impl AppState {
                 if !enabled {
                     self.editor.tun_strict_route = false;
                 }
-                let gateway: Arc<dyn RuntimeGateway> = rt.clone();
+                let configuration_ports = rt.runtime_configuration_ports();
                 Task::perform(
                     async move {
-                        RuntimeConfigurationApplication::new(scope, gateway.configuration_ports())
+                        RuntimeConfigurationApplication::new(scope, configuration_ports)
                             .set_tun_auto_route(enabled)
                             .await
                             .map(|_| ())
@@ -616,10 +611,10 @@ impl AppState {
                 if enabled {
                     self.editor.tun_auto_route = true;
                 }
-                let gateway: Arc<dyn RuntimeGateway> = rt.clone();
+                let configuration_ports = rt.runtime_configuration_ports();
                 Task::perform(
                     async move {
-                        RuntimeConfigurationApplication::new(scope, gateway.configuration_ports())
+                        RuntimeConfigurationApplication::new(scope, configuration_ports)
                             .set_tun_strict_route(enabled)
                             .await
                             .map(|_| ())
@@ -643,10 +638,10 @@ impl AppState {
                 };
                 let generation = rt.lifecycle_port().generation();
                 self.editor.sniffer_enabled = enabled;
-                let gateway: Arc<dyn RuntimeGateway> = rt;
+                let configuration_ports = rt.runtime_configuration_ports();
                 Task::perform(
                     async move {
-                        RuntimeConfigurationApplication::new(scope, gateway.configuration_ports())
+                        RuntimeConfigurationApplication::new(scope, configuration_ports)
                             .set_sniffer_enabled(enabled)
                             .await
                             .map(|_| ())

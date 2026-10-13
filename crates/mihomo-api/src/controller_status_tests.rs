@@ -1,7 +1,7 @@
 //! test-intent: behavior
 use crate::client::MihomoClient;
 use crate::error::MihomoError;
-use crate::runtime_gateway::network_error;
+use crate::network_error::network_error;
 use crate::types::ConfigResponse;
 use infiltrator_contract::command::CoreLogLevel;
 use infiltrator_contract::error::{ErrorCode, Failure};

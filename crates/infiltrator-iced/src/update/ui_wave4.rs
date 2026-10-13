@@ -19,7 +19,6 @@ use infiltrator_contract::pac::{PacRequest, PacServiceState, PacSnapshot};
 use infiltrator_contract::snapshot::CoreWatchdogState;
 use infiltrator_contract::vpn::{VpnSessionSnapshot, VpnSessionState};
 use infiltrator_domain::pac_generator::{PacGenerator, validate_pac_script};
-use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use infiltrator_shared::i18n_interpolator::localize;
 use infiltrator_shared::locales::{Lang, Localizer};
 use std::fs::write;
@@ -99,7 +98,7 @@ impl AppState {
             minify: false,
         };
         let scope_source = runtime.core_scope_source();
-        let configuration_ports = runtime.configuration_ports();
+        let configuration_ports = runtime.runtime_configuration_ports();
         Task::perform(
             async move {
                 PacApplication::new(scope_source, configuration_ports, service)
@@ -216,7 +215,7 @@ impl AppState {
                 };
                 let baseline = self.runtime.network_roaming.clone();
                 let scope_source = runtime.core_scope_source();
-                let configuration_ports = runtime.configuration_ports();
+                let configuration_ports = runtime.runtime_configuration_ports();
                 Task::perform(
                     async move {
                         NetworkRoamingApplication::new(port)
@@ -263,7 +262,7 @@ impl AppState {
                     return Task::done(Message::NetworkRoamingRepaired(Err(error)));
                 };
                 let scope_source = runtime.core_scope_source();
-                let configuration_ports = runtime.configuration_ports();
+                let configuration_ports = runtime.runtime_configuration_ports();
                 Task::perform(
                     async move {
                         NetworkRoamingApplication::new(port)

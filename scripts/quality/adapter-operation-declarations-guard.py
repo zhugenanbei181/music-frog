@@ -401,7 +401,7 @@ def source_problems(repo_root: Path = REPO_ROOT) -> list[str]:
                 problems.append(f"Mihomo scoped log stream production source is unavailable: {error}")
             else:
                 for required in (
-                    "impl RuntimeGateway for MihomoRuntime",
+                    "impl HostRuntime for MihomoRuntime",
                     "fn runtime_stream_port(&self) -> Arc<dyn RuntimeStreamPort>",
                     "Arc::new(MihomoRuntimeStreamPort::new(",
                 ):

@@ -6,9 +6,10 @@ use infiltrator_contract::core_identity::{
 };
 use infiltrator_contract::tun::TunStack;
 use infiltrator_ports::runtime_configuration::ObservedValue;
-use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use mihomo_api::client::MihomoClient;
+use mihomo_api::runtime_configuration::{MihomoRuntimeConfigurationAdapter, RuntimeScopeResolver};
 use std::env;
+use std::sync::Arc;
 
 fn required_environment(name: &str) -> String {
     env::var(name).unwrap_or_else(|_| panic!("{name} must be set by the explicit Mihomo smoke"))
@@ -37,8 +38,12 @@ async fn runtime_configuration_applies_and_reads_back_tun_stack_while_tun_stays_
         generation: CoreGeneration::new(1),
         session_token: None,
     };
-    let application =
-        RuntimeConfigurationApplication::new(scope.clone(), client.configuration_ports());
+    let resolver_scope = scope.clone();
+    let scope_resolver: RuntimeScopeResolver = Arc::new(move || Ok(resolver_scope.clone()));
+    let application = RuntimeConfigurationApplication::new(
+        scope.clone(),
+        MihomoRuntimeConfigurationAdapter::ports(client, Some(scope_resolver)),
+    );
 
     let before = application
         .observe_tun()

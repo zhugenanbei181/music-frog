@@ -1,7 +1,7 @@
 //! Mihomo rule-provider adapter with owner and observation revision fences.
 
 use crate::client::MihomoClient;
-use crate::runtime_gateway::network_error;
+use crate::network_error::network_error;
 use crate::types::RuleProvider;
 use async_trait::async_trait;
 use infiltrator_contract::core_identity::{CoreScope, EngineId};

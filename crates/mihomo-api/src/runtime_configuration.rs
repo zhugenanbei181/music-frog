@@ -2,7 +2,7 @@
 
 use crate::client::MihomoClient;
 use crate::core_log_level::decode_mihomo_log_level;
-use crate::runtime_gateway::network_error;
+use crate::network_error::network_error;
 use crate::types::{ConfigResponse, Rule};
 use infiltrator_contract::capability::Capability;
 use infiltrator_contract::command::CoreLogLevel;

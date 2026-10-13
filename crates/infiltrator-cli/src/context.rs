@@ -21,18 +21,19 @@ use infiltrator_core::version_port::MihomoVersionPort;
 use infiltrator_domain::settings::AppSettings;
 use infiltrator_platform::defaults::DefaultCredentialStore;
 use infiltrator_platform::paths::get_home_dir;
-use infiltrator_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
+use infiltrator_ports::core_scope::CoreScopeSource;
 use infiltrator_ports::endpoint::EndpointSource as _;
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::outbound::OutboundPort;
-use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use infiltrator_ports::subscription_source::SubscriptionSource;
 use mihomo_api::client::MihomoClient;
+use mihomo_api::connection_port::MihomoConnectionPort;
 use mihomo_api::core_capability_provider::MihomoCoreCapabilityProvider;
 use mihomo_api::error;
 use mihomo_api::outbound::MihomoOutboundAdapter;
 use mihomo_api::readiness::ControllerReadiness;
-use mihomo_api::runtime_configuration::RuntimeScopeResolver;
+use mihomo_api::resource_port::MihomoRuntimeResourcePort;
+use mihomo_api::runtime_configuration::{RuntimeScopeResolver, scope_resolver_from_owner};
+use mihomo_api::runtime_stream::MihomoRuntimeStreamPort;
 use mihomo_config::endpoint::ProfileEndpointSource;
 use mihomo_config::manager::ConfigManager;
 use mihomo_config::manager::paths::resolve_configs_dir_in;
@@ -40,6 +41,12 @@ use mihomo_process::desktop::ProcessCoreController;
 use mihomo_version::manager::VersionManager;
 use std::path::PathBuf;
 use std::sync::Arc;
+
+struct RuntimeControllerContext {
+    scope_source: Arc<dyn CoreScopeSource>,
+    client: MihomoClient,
+    scope_resolver: RuntimeScopeResolver,
+}
 
 /// Per-invocation runtime context: the resolved home directory plus the
 /// loaded [`AppSettings`]. Every handler builds its managers through this
@@ -188,9 +195,7 @@ impl Runtime {
         })
     }
 
-    async fn runtime_scope_and_gateway(
-        &self,
-    ) -> anyhow::Result<(Arc<dyn CoreScopeSource>, Arc<dyn RuntimeGateway>)> {
+    async fn runtime_controller_context(&self) -> anyhow::Result<RuntimeControllerContext> {
         let endpoint_source = ProfileEndpointSource::new(Arc::new(self.config_manager()?));
         let endpoint = endpoint_source.resolve().await?;
         let owner = CoreApplication::new(
@@ -209,40 +214,45 @@ impl Runtime {
             anyhow::bail!("runtime observations require a ready, running core");
         }
         let scope_source: Arc<dyn CoreScopeSource> = Arc::new(owner);
-        let resolver_source = Arc::clone(&scope_source);
-        let scope_resolver: RuntimeScopeResolver =
-            Arc::new(move || match resolver_source.scope_observation() {
-                CoreScopeObservation::Observed(scope) => Ok(scope),
-                CoreScopeObservation::Unavailable => Err(PortError::Failed(
-                    "the active Core did not publish a scope".to_owned(),
-                )),
-            });
-        let client = MihomoClient::new(&endpoint.url, endpoint.secret)?
-            .with_configuration_scope_resolver(scope_resolver);
-        Ok((scope_source, Arc::new(client)))
+        let scope_resolver = scope_resolver_from_owner(scope_source.clone());
+        let client = MihomoClient::new(&endpoint.url, endpoint.secret)?;
+        Ok(RuntimeControllerContext {
+            scope_source,
+            client,
+            scope_resolver,
+        })
     }
 
     pub async fn resource_application(&self) -> anyhow::Result<ResourceApplication> {
-        let (scope_source, gateway) = self.runtime_scope_and_gateway().await?;
+        let context = self.runtime_controller_context().await?;
         Ok(ResourceApplication::new(
-            scope_source,
-            gateway.resource_port(),
+            context.scope_source,
+            Arc::new(MihomoRuntimeResourcePort::new(
+                context.client,
+                Some(context.scope_resolver),
+            )),
         ))
     }
 
     pub async fn connection_application(&self) -> anyhow::Result<ConnectionApplication> {
-        let (scope_source, gateway) = self.runtime_scope_and_gateway().await?;
+        let context = self.runtime_controller_context().await?;
         Ok(ConnectionApplication::new(
-            scope_source,
-            gateway.connection_port(),
+            context.scope_source,
+            Arc::new(MihomoConnectionPort::new(
+                context.client,
+                Some(context.scope_resolver),
+            )),
         ))
     }
 
     pub async fn runtime_query_application(&self) -> anyhow::Result<RuntimeQueryApplication> {
-        let (scope_source, gateway) = self.runtime_scope_and_gateway().await?;
+        let context = self.runtime_controller_context().await?;
         Ok(RuntimeQueryApplication::new(
-            scope_source,
-            gateway.runtime_stream_port(),
+            context.scope_source,
+            Arc::new(MihomoRuntimeStreamPort::new(
+                context.client,
+                Some(context.scope_resolver),
+            )),
         ))
     }
 

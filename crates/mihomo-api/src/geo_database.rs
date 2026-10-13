@@ -1,7 +1,7 @@
 //! Mihomo GeoIP/GeoSite trigger adapter.
 
 use crate::client::MihomoClient;
-use crate::runtime_gateway::network_error;
+use crate::network_error::network_error;
 use async_trait::async_trait;
 use infiltrator_contract::core_identity::{CoreScope, EngineId};
 use infiltrator_contract::error::{ErrorCode, Failure};

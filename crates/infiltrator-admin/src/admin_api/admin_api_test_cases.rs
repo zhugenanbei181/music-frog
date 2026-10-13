@@ -39,14 +39,16 @@ use infiltrator_platform::TEST_LOCK;
 use infiltrator_platform::defaults::DefaultCredentialStore;
 use infiltrator_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
 use infiltrator_ports::error::PortError;
-use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use infiltrator_ports::subscription_source::SubscriptionSource;
 use infiltrator_ports::version::{
     VersionActivationRequest, VersionInstallRequest, VersionPort, VersionUninstallRequest,
 };
 use mihomo_api::client::MihomoClient;
+use mihomo_api::connection_port::MihomoConnectionPort;
 use mihomo_api::outbound::MihomoOutboundAdapter;
-use mihomo_api::runtime_configuration::RuntimeScopeResolver;
+use mihomo_api::resource_port::MihomoRuntimeResourcePort;
+use mihomo_api::runtime_configuration::scope_resolver_from_owner;
+use mihomo_api::runtime_stream::MihomoRuntimeStreamPort;
 use std::collections::HashMap;
 #[cfg(unix)]
 use std::fs::Permissions;
@@ -112,6 +114,22 @@ fn secrets_key() -> String {
 }
 
 type SharedSecrets = Arc<Mutex<HashMap<String, String>>>;
+
+impl MockContext {
+    fn runtime_client(&self) -> anyhow::Result<MihomoClient> {
+        let runtime_url = self
+            .runtime_url
+            .as_deref()
+            .ok_or_else(|| anyhow!("runtime url is not configured"))?;
+        MihomoClient::new(runtime_url, None).map_err(|error| anyhow!(error.to_string()))
+    }
+
+    fn runtime_scope_source(&self) -> Arc<dyn CoreScopeSource> {
+        Arc::new(TestCoreScopeSource {
+            scope: test_outbound_scope(),
+        })
+    }
+}
 
 #[async_trait::async_trait]
 impl AdminApiContext for MockContext {
@@ -208,45 +226,37 @@ impl AdminApiContext for MockContext {
     async fn runtime_controller_url(&self) -> Option<String> {
         self.runtime_url.clone()
     }
-    async fn runtime_gateway(&self) -> anyhow::Result<Arc<dyn RuntimeGateway>> {
-        let runtime_url = self
-            .runtime_url
-            .as_deref()
-            .ok_or_else(|| anyhow!("runtime url is not configured"))?;
-        let scope = test_outbound_scope();
-        let scope_resolver: RuntimeScopeResolver = Arc::new(move || Ok(scope.clone()));
-        let client = MihomoClient::new(runtime_url, None)
-            .map_err(|e| anyhow!(e.to_string()))?
-            .with_configuration_scope_resolver(scope_resolver);
-        Ok(Arc::new(client))
-    }
     async fn connection_application(&self) -> anyhow::Result<ConnectionApplication> {
-        let gateway = self.runtime_gateway().await?;
-        let scope_source: Arc<dyn CoreScopeSource> = Arc::new(TestCoreScopeSource {
-            scope: test_outbound_scope(),
-        });
+        let scope_source = self.runtime_scope_source();
+        let scope_resolver = scope_resolver_from_owner(scope_source.clone());
         Ok(ConnectionApplication::new(
             scope_source,
-            gateway.connection_port(),
+            Arc::new(MihomoConnectionPort::new(
+                self.runtime_client()?,
+                Some(scope_resolver),
+            )),
         ))
     }
     async fn runtime_query_application(&self) -> anyhow::Result<RuntimeQueryApplication> {
-        let gateway = self.runtime_gateway().await?;
-        let scope_source: Arc<dyn CoreScopeSource> = Arc::new(TestCoreScopeSource {
-            scope: test_outbound_scope(),
-        });
+        let scope_source = self.runtime_scope_source();
+        let scope_resolver = scope_resolver_from_owner(scope_source.clone());
         Ok(RuntimeQueryApplication::new(
             scope_source,
-            gateway.runtime_stream_port(),
+            Arc::new(MihomoRuntimeStreamPort::new(
+                self.runtime_client()?,
+                Some(scope_resolver),
+            )),
         ))
     }
     async fn resource_application(&self) -> anyhow::Result<ResourceApplication> {
-        let gateway = self.runtime_gateway().await?;
+        let scope_source = self.runtime_scope_source();
+        let scope_resolver = scope_resolver_from_owner(scope_source.clone());
         Ok(ResourceApplication::new(
-            Arc::new(TestCoreScopeSource {
-                scope: test_outbound_scope(),
-            }),
-            gateway.resource_port(),
+            scope_source,
+            Arc::new(MihomoRuntimeResourcePort::new(
+                self.runtime_client()?,
+                Some(scope_resolver),
+            )),
         ))
     }
     async fn outbound_owner(&self) -> anyhow::Result<AdminOutboundOwner> {

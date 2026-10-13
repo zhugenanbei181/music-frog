@@ -25,7 +25,6 @@ use infiltrator_contract::routing_intent::{RoutingIntent, RoutingIntentSnapshot}
 use infiltrator_domain::settings::AppSettings;
 use infiltrator_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
 use infiltrator_ports::outbound::OutboundPort;
-use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use infiltrator_ports::subscription_source::SubscriptionSource;
 use std::env::var;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -105,7 +104,6 @@ pub trait AdminApiContext: Clone + Send + Sync + 'static {
     async fn save_app_settings(&self, settings: AppSettings) -> anyhow::Result<()>;
     async fn runtime_running(&self) -> bool;
     async fn runtime_controller_url(&self) -> Option<String>;
-    async fn runtime_gateway(&self) -> anyhow::Result<Arc<dyn RuntimeGateway>>;
     async fn connection_application(&self) -> anyhow::Result<ConnectionApplication> {
         Err(anyhow::anyhow!(
             "typed connection application is unavailable in this host"

@@ -6,7 +6,7 @@
 
 Trait 表达能力，不绑定具体 adapter、Tokio channel、HTTP response 或 UI 类型。实现由 composition 和 host adapter 注入。
 
-Core 生命周期使用 `CoreLifecyclePort`；活动 profile 的 revision-fenced 应用由独立的 `ActiveProfileReferenceApplier` 承担；owner scope 通过 `CoreScopeSource` 以 `Unavailable` / `Observed(CoreScope)` 显式表达；HTTP proxy endpoint 使用 `RuntimeHttpProxyEndpointPort` 与 `Configured` / `NotConfigured` 状态。`RuntimeGateway` 仍是待迁出的旧组合入口；provider 和 Geo 新操作必须用各自的窄 owner port。公网探测路由以 `PublicIpProbeRoute` 明确区分直连和 HTTP proxy。
+Core 生命周期使用 `CoreLifecyclePort`；活动 profile 的 revision-fenced 应用由独立的 `ActiveProfileReferenceApplier` 承担；owner scope 通过 `CoreScopeSource` 以 `Unavailable` / `Observed(CoreScope)` 显式表达；HTTP proxy endpoint 使用 `RuntimeHttpProxyEndpointPort` 与 `Configured` / `NotConfigured` 状态。Controller configuration、connection、stream、resource、provider 和 Geo 能力分别由 typed ports 注入。公网探测路由以 `PublicIpProbeRoute` 明确区分直连和 HTTP proxy。
 
 运行态路由意图使用专用 `RoutingIntentPort`，其成功结果必须是 adapter 写后读回的实际意图。
 

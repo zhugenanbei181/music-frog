@@ -43,7 +43,6 @@ mod tests {
     use infiltrator_platform::paths::clear_home_dir_override;
     #[cfg(test)]
     use infiltrator_platform::paths::set_home_dir_override;
-    use infiltrator_ports::runtime_gateway::RuntimeGateway;
     #[cfg(test)]
     use infiltrator_ports::subscription_source::SubscriptionSource;
     use std::sync::Arc;
@@ -130,9 +129,6 @@ mod tests {
         }
         async fn runtime_controller_url(&self) -> Option<String> {
             None
-        }
-        async fn runtime_gateway(&self) -> anyhow::Result<Arc<dyn RuntimeGateway>> {
-            Err(anyhow!("runtime client is not available in sync tests"))
         }
         async fn resource_application(
             &self,

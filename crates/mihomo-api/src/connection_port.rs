@@ -1,8 +1,8 @@
 //! Scope- and revision-fenced connection port for the Mihomo controller.
 
 use crate::client::MihomoClient;
+use crate::network_error::network_error;
 use crate::runtime_configuration::RuntimeScopeResolver;
-use crate::runtime_gateway::network_error;
 use crate::runtime_stream::scope_stream;
 use futures_util::StreamExt;
 use infiltrator_contract::capability::Capability;

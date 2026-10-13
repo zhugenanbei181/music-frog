@@ -1,8 +1,8 @@
 //! Scope-fenced Mihomo log and traffic stream adapter.
 
 use crate::client::{MihomoClient, StreamEvent};
+use crate::network_error::network_error;
 use crate::runtime_configuration::RuntimeScopeResolver;
-use crate::runtime_gateway::network_error;
 use async_trait::async_trait;
 use futures_util::{StreamExt, stream::unfold};
 use infiltrator_contract::capability::Capability;

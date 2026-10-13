@@ -1,7 +1,7 @@
 //! Mihomo controller adapter for the scoped Fake-IP cache operation.
 
 use crate::client::MihomoClient;
-use crate::runtime_gateway::network_error;
+use crate::network_error::network_error;
 use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_identity::CoreScope;
 use infiltrator_ports::controller_fake_ip_cache::{

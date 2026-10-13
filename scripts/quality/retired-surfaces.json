@@ -1337,11 +1337,83 @@
       ]
     },
     {
+      "id": "runtime-gateway-facade",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "RuntimeGateway",
+      "rationale": "Controller capabilities are injected as narrow typed ports; callers cannot query a generic runtime facade.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-application/src/runtime_configuration_application_tests.rs",
+        "crates/mihomo-api/src/client_auth_test.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-ports/src",
+        "crates/mihomo-api/src",
+        "crates/infiltrator-desktop/src",
+        "crates/infiltrator-iced/src"
+      ]
+    },
+    {
+      "id": "runtime-gateway-module",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "runtime_gateway",
+      "rationale": "The generic controller facade module is retired; typed capabilities live in their own port modules.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-application/src/runtime_configuration_application_tests.rs",
+        "crates/mihomo-api/src/client_auth_test.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-ports/src",
+        "crates/mihomo-api/src"
+      ]
+    },
+    {
+      "id": "mihomo-client-configuration-ports-facade",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "configuration_ports",
+      "rationale": "Mihomo configuration capabilities are constructed through the explicit typed adapter API.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-application/src/runtime_configuration_application_tests.rs",
+        "crates/mihomo-api/src/client_auth_test.rs"
+      ],
+      "source_roots": [
+        "crates/mihomo-api/src"
+      ]
+    },
+    {
+      "id": "mihomo-client-owned-scope-resolver-builder",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "with_configuration_scope_resolver",
+      "rationale": "Typed controller adapters receive owner scope explicitly instead of storing a resolver on the HTTP client.",
+      "replacement_behavior_tests": [
+        "crates/mihomo-api/src/client_auth_test.rs"
+      ],
+      "source_roots": [
+        "crates/mihomo-api/src"
+      ]
+    },
+    {
+      "id": "mihomo-client-owned-scope-resolver-setter",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "set_configuration_scope_resolver",
+      "rationale": "Mutable owner resolver state was removed from the HTTP client; typed adapters receive scope explicitly.",
+      "replacement_behavior_tests": [
+        "crates/mihomo-api/src/client_auth_test.rs"
+      ],
+      "source_roots": [
+        "crates/mihomo-api/src"
+      ]
+    },
+    {
       "id": "runtime-gateway-proxy-selection",
       "kind": "public_symbol",
       "language": "rust",
       "text": "switch_proxy",
-      "rationale": "The unscoped RuntimeGateway selector was removed; selection is issued through revision-fenced OutboundPort requests.",
+      "rationale": "The unscoped selector was removed; selection is issued through revision-fenced OutboundPort requests.",
       "replacement_behavior_tests": [
         "crates/infiltrator-application/src/command_outbound_tests.rs",
         "crates/mihomo-api/src/outbound_tests.rs"
@@ -1358,7 +1430,7 @@
       "kind": "public_symbol",
       "language": "rust",
       "text": "test_delay",
-      "rationale": "The unscoped RuntimeGateway delay probe was removed; probes use a validated outbound ID and observed inventory revision.",
+      "rationale": "The unscoped delay probe was removed; probes use a validated outbound ID and observed inventory revision.",
       "replacement_behavior_tests": [
         "crates/infiltrator-application/src/command_outbound_tests.rs",
         "crates/mihomo-api/src/outbound_tests.rs"

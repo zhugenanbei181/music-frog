@@ -1,5 +1,5 @@
-//! Host port trait implementations for [`MihomoRuntime`]: the runtime
-//! gateway, profile-owner and endpoint ports, and the host adapter composition.
+//! Host port implementations for [`MihomoRuntime`]: typed controller,
+//! profile-owner and endpoint ports, and host adapter composition.
 
 use super::MihomoRuntime;
 use crate::certificate_authority::DesktopCertificateAuthority;
@@ -15,7 +15,7 @@ use infiltrator_contract::active_profile_reference::{
     ActiveProfileReference, ActiveProfileReferenceWriteAuthorization,
 };
 use infiltrator_contract::capability::Capability;
-use infiltrator_contract::core_identity::{CoreScope, EngineId};
+use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use infiltrator_contract::resources::ResourceAvailability;
@@ -46,7 +46,6 @@ use infiltrator_ports::profile_workspace::{ProfileWorkspace, ProfileWorkspaceUpd
 use infiltrator_ports::resources::{CoreResourcePort, CpuResourceObserver};
 use infiltrator_ports::rule_provider_cache::RuleProviderCachePort;
 use infiltrator_ports::runtime_configuration::RuntimeConfigurationPorts;
-use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use infiltrator_ports::runtime_http_proxy_endpoint::{
     RuntimeHttpProxyEndpoint, RuntimeHttpProxyEndpointPort,
 };
@@ -94,29 +93,6 @@ impl MihomoRuntime {
             MihomoRuntimeResourcePort::new(self.client.clone(), Some(self.scope_resolver.clone()))
                 .with_cpu_observer(cpu_observer),
         )
-    }
-}
-
-#[async_trait::async_trait]
-impl RuntimeGateway for MihomoRuntime {
-    fn current_core_scope(&self) -> Result<CoreScope, PortError> {
-        (self.scope_resolver)()
-    }
-
-    fn configuration_ports(&self) -> RuntimeConfigurationPorts {
-        self.typed_runtime_configuration_ports()
-    }
-
-    fn connection_port(&self) -> Arc<dyn ConnectionPort> {
-        self.typed_connection_port()
-    }
-
-    fn runtime_stream_port(&self) -> Arc<dyn RuntimeStreamPort> {
-        self.typed_runtime_stream_port()
-    }
-
-    fn resource_port(&self) -> Arc<dyn CoreResourcePort> {
-        self.typed_resource_port()
     }
 }
 
@@ -333,6 +309,22 @@ impl HostRuntime for MihomoRuntime {
 
     fn lifecycle_port(&self) -> Arc<dyn CoreLifecyclePort> {
         self.application.clone()
+    }
+
+    fn runtime_configuration_ports(&self) -> RuntimeConfigurationPorts {
+        self.typed_runtime_configuration_ports()
+    }
+
+    fn connection_port(&self) -> Arc<dyn ConnectionPort> {
+        self.typed_connection_port()
+    }
+
+    fn runtime_stream_port(&self) -> Arc<dyn RuntimeStreamPort> {
+        self.typed_runtime_stream_port()
+    }
+
+    fn resource_port(&self) -> Arc<dyn CoreResourcePort> {
+        self.typed_resource_port()
     }
 
     fn outbound_port(&self) -> Option<Arc<dyn OutboundPort>> {

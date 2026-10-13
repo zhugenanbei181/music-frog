@@ -54,7 +54,6 @@ mod tests {
     #[cfg(test)]
     use infiltrator_platform::paths::set_home_dir_override;
     use infiltrator_ports::profile_store::ProfileStore;
-    use infiltrator_ports::runtime_gateway::RuntimeGateway;
     #[cfg(test)]
     use infiltrator_ports::subscription_source::SubscriptionSource;
     use mihomo_config::manager::ConfigManager;
@@ -165,11 +164,6 @@ mod tests {
         }
         async fn runtime_controller_url(&self) -> Option<String> {
             None
-        }
-        async fn runtime_gateway(&self) -> anyhow::Result<Arc<dyn RuntimeGateway>> {
-            Err(anyhow!(
-                "runtime client is not available in subscription tests"
-            ))
         }
         async fn resource_application(
             &self,

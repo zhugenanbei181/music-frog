@@ -1,7 +1,7 @@
 //! Mihomo REST adapter for the runtime-neutral OverviewReader port.
 
 use crate::client::MihomoClient;
-use crate::runtime_gateway::network_error;
+use crate::network_error::network_error;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::overview::{OverviewReader, OverviewSample};

@@ -107,7 +107,7 @@ impl AppState {
             return Task::done(Message::ShowToast(error.to_string(), ToastStatus::Error));
         };
         let desired = self.runtime.lan_sharing.clone();
-        let configuration_ports = runtime.configuration_ports();
+        let configuration_ports = runtime.runtime_configuration_ports();
         Task::perform(
             async move {
                 RuntimeConfigurationApplication::new(scope, configuration_ports)
@@ -155,7 +155,7 @@ impl AppState {
                 return Task::done(Message::ShowToast(error.to_string(), ToastStatus::Error));
             }
         };
-        let configuration_ports = runtime.configuration_ports();
+        let configuration_ports = runtime.runtime_configuration_ports();
         Task::perform(
             async move {
                 RuntimeConfigurationApplication::new(scope, configuration_ports)
@@ -214,7 +214,7 @@ impl AppState {
                     return Task::done(Message::ShowToast(error.to_string(), ToastStatus::Error));
                 };
                 let application = MtuApplication::new(port);
-                let configuration_ports = runtime.configuration_ports();
+                let configuration_ports = runtime.runtime_configuration_ports();
                 let generation = runtime.lifecycle_port().generation();
                 let session_token = self.runtime.core_session_token;
                 let Some(scope) = self.runtime.core_lifecycle.scope() else {

@@ -7,6 +7,7 @@ mod core_log_level;
 mod core_log_level_port;
 pub mod error;
 pub mod geo_database;
+mod network_error;
 pub mod outbound;
 pub mod overview;
 #[cfg(test)]
@@ -16,7 +17,6 @@ pub mod resource_port;
 pub mod routing_intent;
 pub mod rule_provider;
 pub mod runtime_configuration;
-mod runtime_gateway;
 pub mod runtime_proxy;
 pub mod runtime_stream;
 pub mod types;

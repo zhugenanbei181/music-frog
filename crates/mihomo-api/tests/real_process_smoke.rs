@@ -24,8 +24,7 @@ use infiltrator_ports::outbound::{OutboundPort, OutboundProbeRequest, ProbeTarge
 use infiltrator_ports::resources::{CoreResourcePort, GarbageCollectionOutcome};
 use infiltrator_ports::routing_intent::RoutingIntentPort;
 use infiltrator_ports::rule_provider_runtime::RuleProviderPort;
-use infiltrator_ports::runtime_gateway::RuntimeGateway;
-use infiltrator_ports::runtime_stream::RuntimeStreamEvent;
+use infiltrator_ports::runtime_stream::{RuntimeStreamEvent, RuntimeStreamPort};
 use mihomo_api::client::MihomoClient;
 use mihomo_api::connection_port::MihomoConnectionPort;
 use mihomo_api::controller_fake_ip_cache::MihomoControllerFakeIpCacheAdapter;
@@ -34,6 +33,7 @@ use mihomo_api::resource_port::MihomoRuntimeResourcePort;
 use mihomo_api::routing_intent::MihomoRoutingIntentAdapter;
 use mihomo_api::rule_provider::MihomoRuleProviderAdapter;
 use mihomo_api::runtime_configuration::RuntimeScopeResolver;
+use mihomo_api::runtime_stream::MihomoRuntimeStreamPort;
 use std::env;
 use std::sync::Arc;
 use std::time::Duration;
@@ -70,7 +70,6 @@ async fn typed_core_dns_fakeip_rule_provider_connection_close_and_runtime_ports_
     };
     let resolver_scope = connection_scope.clone();
     let scope_resolver: RuntimeScopeResolver = Arc::new(move || Ok(resolver_scope.clone()));
-    client.set_configuration_scope_resolver(scope_resolver.clone());
     let connection_port = MihomoConnectionPort::new(client.clone(), Some(scope_resolver.clone()));
     let observed_version = client
         .get_version()
@@ -130,7 +129,7 @@ async fn typed_core_dns_fakeip_rule_provider_connection_close_and_runtime_ports_
     .await
     .expect("Mihomo removes the exact connection after Connection.Close");
 
-    let stream_port = client.runtime_stream_port();
+    let stream_port = MihomoRuntimeStreamPort::new(client.clone(), Some(scope_resolver.clone()));
     let mut log_events = stream_port
         .logs(connection_scope.clone(), None)
         .await

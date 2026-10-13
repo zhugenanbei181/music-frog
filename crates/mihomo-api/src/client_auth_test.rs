@@ -88,9 +88,7 @@ async fn gc_endpoint_missing_without_startup_debug_is_typed_unsupported() {
     let scope = resource_scope(1);
     let resolver_scope = scope.clone();
     let resolver: RuntimeScopeResolver = Arc::new(move || Ok(resolver_scope.clone()));
-    let client = MihomoClient::new(&server.url(), Some("generated-by-host".to_owned()))
-        .unwrap()
-        .with_configuration_scope_resolver(resolver.clone());
+    let client = MihomoClient::new(&server.url(), Some("generated-by-host".to_owned())).unwrap();
     let port = MihomoRuntimeResourcePort::new(client, Some(resolver));
 
     let receipt = port
@@ -121,9 +119,7 @@ async fn typed_resource_gc_requires_and_returns_same_scope_memory_readback() {
     let scope = resource_scope(7);
     let resolver_scope = scope.clone();
     let resolver: RuntimeScopeResolver = Arc::new(move || Ok(resolver_scope.clone()));
-    let client = MihomoClient::new(&server.url(), Some("generated-by-host".to_owned()))
-        .unwrap()
-        .with_configuration_scope_resolver(resolver.clone());
+    let client = MihomoClient::new(&server.url(), Some("generated-by-host".to_owned())).unwrap();
     let port = MihomoRuntimeResourcePort::new(client, Some(resolver));
 
     let receipt = port
@@ -158,9 +154,7 @@ async fn typed_resource_observation_distinguishes_memory_from_unsupported_cpu() 
     let scope = resource_scope(9);
     let resolver_scope = scope.clone();
     let resolver: RuntimeScopeResolver = Arc::new(move || Ok(resolver_scope.clone()));
-    let client = MihomoClient::new(&server.url(), None)
-        .unwrap()
-        .with_configuration_scope_resolver(resolver.clone());
+    let client = MihomoClient::new(&server.url(), None).unwrap();
     let port = MihomoRuntimeResourcePort::new(client, Some(resolver));
 
     let observation = port
@@ -184,9 +178,7 @@ async fn typed_resource_observation_rejects_retired_scope_before_http_access() {
     let retired_scope = resource_scope(7);
     let resolver_scope = active_scope;
     let resolver: RuntimeScopeResolver = Arc::new(move || Ok(resolver_scope.clone()));
-    let client = MihomoClient::new(&server.url(), None)
-        .unwrap()
-        .with_configuration_scope_resolver(resolver.clone());
+    let client = MihomoClient::new(&server.url(), None).unwrap();
     let port = MihomoRuntimeResourcePort::new(client, Some(resolver));
 
     let error = port

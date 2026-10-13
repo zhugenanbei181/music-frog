@@ -34,16 +34,19 @@ use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceApplier;
+use infiltrator_ports::connection::{ConnectionPort, UnsupportedConnectionPort};
 use infiltrator_ports::core_capability_provider::{
     CoreCapabilityProvider, CoreCapabilityProviderError,
 };
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::host_runtime::{HostRuntime, TunServiceStatus};
-use infiltrator_ports::runtime_gateway::RuntimeGateway;
+use infiltrator_ports::resources::{CoreResourcePort, UnsupportedCoreResourcePort};
+use infiltrator_ports::runtime_configuration::RuntimeConfigurationPorts;
 use infiltrator_ports::runtime_http_proxy_endpoint::{
     RuntimeHttpProxyEndpoint, RuntimeHttpProxyEndpointPort,
 };
+use infiltrator_ports::runtime_stream::{RuntimeStreamPort, UnsupportedRuntimeStreamPort};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -199,9 +202,6 @@ struct TestHostRuntime {
 }
 
 #[async_trait]
-impl RuntimeGateway for TestHostRuntime {}
-
-#[async_trait]
 impl ActiveProfileReferenceApplier for TestHostRuntime {
     fn engine_id(&self) -> Option<EngineId> {
         CoreLifecyclePort::core_identity(self.application.as_ref()).map(|identity| identity.engine)
@@ -243,6 +243,22 @@ impl HostRuntime for TestHostRuntime {
 
     fn lifecycle_port(&self) -> Arc<dyn CoreLifecyclePort> {
         Arc::new(self.application.as_ref().clone())
+    }
+
+    fn runtime_configuration_ports(&self) -> RuntimeConfigurationPorts {
+        RuntimeConfigurationPorts::unsupported()
+    }
+
+    fn connection_port(&self) -> Arc<dyn ConnectionPort> {
+        Arc::new(UnsupportedConnectionPort)
+    }
+
+    fn runtime_stream_port(&self) -> Arc<dyn RuntimeStreamPort> {
+        Arc::new(UnsupportedRuntimeStreamPort)
+    }
+
+    fn resource_port(&self) -> Arc<dyn CoreResourcePort> {
+        Arc::new(UnsupportedCoreResourcePort)
     }
 
     fn core_scope_source(&self) -> Arc<dyn infiltrator_ports::core_scope::CoreScopeSource> {

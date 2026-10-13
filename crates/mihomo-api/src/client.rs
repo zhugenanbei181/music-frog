@@ -1,13 +1,12 @@
 use crate::connection_port::ConnectionRevisionState;
 use crate::error::{MihomoError, Result};
-use crate::runtime_configuration::RuntimeScopeResolver;
 use crate::types::*;
 use infiltrator_contract::error::Failure;
 use infiltrator_domain::proxy::Proxy;
 use reqwest::Client;
 use serde_json::{Value, json};
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
 use url::Url;
@@ -42,7 +41,6 @@ pub struct MihomoClient {
     base_url: Url,
     secret: Option<String>,
     configuration_write_lock: Arc<Mutex<()>>,
-    configuration_scope_resolver: Arc<RwLock<Option<RuntimeScopeResolver>>>,
     connection_revision_state: Arc<Mutex<ConnectionRevisionState>>,
 }
 
@@ -55,28 +53,8 @@ impl MihomoClient {
             base_url,
             secret,
             configuration_write_lock: Arc::new(Mutex::new(())),
-            configuration_scope_resolver: Arc::new(RwLock::new(None)),
             connection_revision_state: Arc::new(Mutex::new(ConnectionRevisionState::default())),
         })
-    }
-
-    pub fn with_configuration_scope_resolver(self, resolver: RuntimeScopeResolver) -> Self {
-        self.set_configuration_scope_resolver(resolver);
-        self
-    }
-
-    pub(crate) fn configuration_scope_resolver(&self) -> Option<RuntimeScopeResolver> {
-        self.configuration_scope_resolver
-            .read()
-            .expect("configuration scope resolver lock")
-            .clone()
-    }
-
-    pub fn set_configuration_scope_resolver(&self, resolver: RuntimeScopeResolver) {
-        *self
-            .configuration_scope_resolver
-            .write()
-            .expect("configuration scope resolver lock") = Some(resolver);
     }
 
     pub(crate) fn configuration_write_lock(&self) -> Arc<Mutex<()>> {

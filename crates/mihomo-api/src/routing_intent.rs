@@ -1,7 +1,7 @@
 //! Mihomo adapter for common traffic-routing policies.
 
 use crate::client::MihomoClient;
-use crate::runtime_gateway::network_error;
+use crate::network_error::network_error;
 use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_identity::{CoreScope, EngineId};
 use infiltrator_contract::error::{ErrorCode, Failure};
