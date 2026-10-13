@@ -13,14 +13,6 @@ pub struct TrafficData {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
-pub struct MemoryData {
-    #[serde(rename = "inuse")]
-    pub in_use: u64,
-    #[serde(rename = "oslimit")]
-    pub os_limit: u64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
 pub struct ConnectionMetadata {
     pub network: String,
     #[serde(rename = "type")]

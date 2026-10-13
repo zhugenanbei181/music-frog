@@ -6,9 +6,8 @@ use crate::error::MihomoError;
 use crate::resource_port::MihomoRuntimeResourcePort;
 use crate::runtime_stream::MihomoRuntimeStreamPort;
 use async_trait::async_trait;
-use infiltrator_contract::capability::Capability;
 use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_domain::runtime::{MemoryData, ProxyProvider, RuleProvider};
+use infiltrator_domain::runtime::{ProxyProvider, RuleProvider};
 use infiltrator_ports::connection::ConnectionPort;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::resources::CoreResourcePort;
@@ -79,28 +78,6 @@ impl RuntimeGateway for MihomoClient {
         MihomoClient::get_rule_provider_payload(self, name)
             .await
             .map_err(network_error)
-    }
-
-    async fn get_memory(&self) -> Result<MemoryData, PortError> {
-        MihomoClient::get_memory(self)
-            .await
-            .map(Into::into)
-            .map_err(network_error)
-    }
-
-    async fn trigger_gc(&self) -> Result<(), PortError> {
-        match MihomoClient::trigger_gc(self).await {
-            Ok(()) => Ok(()),
-            Err(MihomoError::Http(error))
-                if error.status().is_some_and(|status| status.as_u16() == 404) =>
-            {
-                Err(PortError::unsupported(
-                    Capability::CoreLifecycle,
-                    "Mihomo exposes /debug/gc only when log-level is debug at process startup",
-                ))
-            }
-            Err(error) => Err(network_error(error)),
-        }
     }
 
     fn connection_port(&self) -> std::sync::Arc<dyn ConnectionPort> {

@@ -4,7 +4,6 @@ use std::borrow::Cow;
 pub(super) fn translate_errors_zh(key: &str) -> Cow<'static, str> {
     match key {
         "admin_settings_save_failed" => "管理端设置保存失败：{reason}".into(),
-        "connections_refresh_failed" => "连接刷新失败：{reason}".into(),
         "core_boot_ports_failed" => "启动失败（已尝试控制端口 {ports}）：{reason}".into(),
         "core_egress_not_running" => "内核未运行，无法探测代理出口 IP".into(),
         "core_rebuild_restored" => "重建失败，已恢复上一份配置：{reason}".into(),
@@ -14,7 +13,6 @@ pub(super) fn translate_errors_zh(key: &str) -> Cow<'static, str> {
         }
         "lan_access_verified" => "局域网 ACL 与认证设置已应用并完成回读".into(),
         "lan_listen_verified" => "局域网监听设置已应用并完成回读".into(),
-        "memory_refresh_failed" => "内存刷新失败：{reason}".into(),
         "mtu_probe_failed_notice" => "MTU 探测失败：{reason}".into(),
         "mtu_probe_unavailable" => "当前宿主未提供物理链路 MTU 探测能力".into(),
         "mtu_probe_unsupported" => "当前宿主不支持物理链路 MTU 探测".into(),

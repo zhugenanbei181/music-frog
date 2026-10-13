@@ -150,7 +150,6 @@ fn initial_snapshot() -> CoreSnapshot {
         upload_bps: 0.0,
         download_bps: 0.0,
         active_connections: 0,
-        memory_bytes: None,
         watchdog: Default::default(),
     }
 }
@@ -166,7 +165,6 @@ fn pump_loop(
 ) {
     let mut previous_totals: Option<(u64, u64, Instant)> = None;
     let mut version: Option<String> = None;
-    let mut memory_bytes: Option<u64> = None;
     let mut revision = 0_u64;
 
     loop {
@@ -182,7 +180,6 @@ fn pump_loop(
             ) {
                 Ok(sample) => {
                     version = sample.core_version.or(version);
-                    memory_bytes = sample.memory_bytes.or(memory_bytes);
                     let now = Instant::now();
                     let (upload_bps, download_bps) = rates_from_totals(
                         previous_totals,
@@ -205,7 +202,6 @@ fn pump_loop(
                         upload_bps,
                         download_bps,
                         active_connections: sample.active_connections,
-                        memory_bytes,
                         watchdog: Default::default(),
                     }
                 }
@@ -226,7 +222,6 @@ fn pump_loop(
                         upload_bps: 0.0,
                         download_bps: 0.0,
                         active_connections: 0,
-                        memory_bytes,
                         watchdog: Default::default(),
                     }
                 }

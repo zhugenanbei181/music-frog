@@ -24,7 +24,6 @@ fn sample(epoch: i64, up: u64, down: u64) -> OverviewSample {
         upload_total: up,
         download_total: down,
         active_connections: 3,
-        memory_bytes: Some(2048),
         core_version: Some("actual-version".into()),
         sampled_at_epoch_ms: Some(epoch),
     }
@@ -39,7 +38,6 @@ fn baseline_duplicate_out_of_order_counter_reset_and_session_switch_never_invent
     let current = state.apply(core(1), sample(11, 120, 240), now + Duration::from_secs(2));
     assert_eq!((current.upload_bps, current.download_bps), (10.0, 20.0));
     assert_eq!(current.sampled_at_epoch_ms, Some(11));
-    assert_eq!(current.memory_bytes, Some(2048));
     let duplicate = state.apply(core(1), sample(11, 999, 999), now + Duration::from_secs(3));
     assert!(duplicate.sampled_at_epoch_ms.is_none());
     let old = state.apply(core(1), sample(9, 1000, 1000), now + Duration::from_secs(4));

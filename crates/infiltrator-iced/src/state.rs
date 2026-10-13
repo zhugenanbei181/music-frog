@@ -53,7 +53,7 @@ use infiltrator_contract::surface_snapshot::{
 };
 use infiltrator_contract::system_proxy::SystemProxyStatus;
 use infiltrator_desktop::product::DesktopProductSessionHandle;
-use infiltrator_domain::runtime::{MemoryData, TrafficData};
+use infiltrator_domain::runtime::TrafficData;
 use infiltrator_shared::fuzzy_search::pinyin_fuzzy_match;
 use infiltrator_shared::locales::{Lang, Localizer};
 use std::sync::Arc;

@@ -18,7 +18,7 @@ use infiltrator_contract::core_capabilities::{
 use infiltrator_contract::core_identity::{CoreScope, EngineId};
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
-use infiltrator_domain::runtime::{MemoryData, ProxyProvider, RuleProvider};
+use infiltrator_domain::runtime::{ProxyProvider, RuleProvider};
 use infiltrator_ports::core_binary_selection::CoreBinarySelection;
 use infiltrator_ports::core_capability_provider::CoreCapabilityProvider;
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
@@ -208,13 +208,6 @@ impl RuntimeGateway for DesktopCoreOwnerRuntime {
         unsupported(
             Capability::RoutingIntent,
             "desktop Core-only handoff does not expose rule-provider updates",
-        )
-    }
-
-    async fn get_memory(&self) -> Result<MemoryData, PortError> {
-        unsupported(
-            Capability::Connections,
-            "desktop Core-only handoff does not expose memory observation",
         )
     }
 }

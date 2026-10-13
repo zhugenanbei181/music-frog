@@ -96,8 +96,8 @@ pub fn refresh(mut copy: OverviewCopy) {
         let label = chip_label(chip.kind.0, language);
         let value = match chip.kind.0 {
             OverviewChipKind::Connections => projection.active_connections.to_string(),
-            OverviewChipKind::Memory => format_memory(projection.memory_bytes),
-            OverviewChipKind::Cpu => format_cpu(projection.cpu_percent),
+            OverviewChipKind::Memory => format_memory(&projection.memory_bytes),
+            OverviewChipKind::Cpu => format_cpu(&projection.cpu_percent),
             OverviewChipKind::Upload => upload.clone(),
             OverviewChipKind::Download => download.clone(),
             OverviewChipKind::TotalTraffic => format_total_traffic(projection.total_traffic_bytes),

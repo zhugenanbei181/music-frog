@@ -7,6 +7,7 @@
 //! mapping as seen by a STUN server, not a browser WebRTC result.
 
 use crate::state::AppState;
+use crate::state::diagnostics::StunProbeState;
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use iced::Task;
@@ -19,7 +20,7 @@ impl AppState {
     /// keeps the local optimistic report until the reader publishes the same
     /// fact.
     pub(crate) fn apply_stun_snapshot(&mut self, dns: &DnsPageSnapshot) {
-        if !self.diag.is_probing_stun || dns.stun.is_reported() {
+        if !matches!(self.diag.stun_probe, StunProbeState::InFlight) || dns.stun.is_reported() {
             self.editor.dns_stun = dns.stun.clone();
         }
     }
@@ -39,7 +40,7 @@ impl AppState {
                         NO_STUN_PORT_REASON,
                     ))));
                 };
-                self.diag.is_probing_stun = true;
+                self.diag.stun_probe = StunProbeState::InFlight;
                 Task::perform(
                     async move {
                         port.probe().await.map_err(|error| {
@@ -50,7 +51,7 @@ impl AppState {
                 )
             }
             Message::StunProbed(result) => {
-                self.diag.is_probing_stun = false;
+                self.diag.stun_probe = StunProbeState::Idle;
                 match result {
                     Ok(report) => {
                         self.editor.dns_stun = report;

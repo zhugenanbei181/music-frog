@@ -26,6 +26,7 @@ use infiltrator_contract::active_exit::ActiveExitSnapshot;
 use infiltrator_contract::overview_layout::OverviewLayoutSnapshot;
 use infiltrator_contract::public_ip::PublicIpProbeSnapshot;
 use infiltrator_contract::reconnect_mask::ReconnectMaskSnapshot;
+use infiltrator_contract::resources::ResourceAvailability;
 use infiltrator_contract::responsive_viewport::ResponsiveViewportSnapshot;
 use infiltrator_contract::routing_intent::RoutingIntentSnapshot;
 use infiltrator_contract::shell_readout::ShellReadoutSnapshot;
@@ -96,10 +97,8 @@ pub struct OverviewProjection {
     pub download_bps: f64,
     /// Number of active connections (0 when not running).
     pub active_connections: u32,
-    /// Core process memory in bytes, when the core reported it (`None`
-    /// means "not known right now" — the page shows an honest placeholder,
-    /// never a fabricated number).
-    pub memory_bytes: Option<u64>,
+    /// Core process memory in bytes with support and failure kept explicit.
+    pub memory_bytes: ResourceAvailability<u64>,
     /// When the source took this sample (its own monotonic clock origin).
     pub sampled_at: Duration,
     /// Why the core is unavailable — `Some` exactly when
@@ -133,7 +132,7 @@ pub struct OverviewProjection {
     /// Core-owned speedtest snapshot driving the Overview speedtest button.
     pub speedtest: SpeedtestSnapshot,
     /// CPU utilization percentage, if observed.
-    pub cpu_percent: Option<f32>,
+    pub cpu_percent: ResourceAvailability<f32>,
     /// Cumulative session traffic in bytes, if observed.
     pub total_traffic_bytes: Option<u64>,
 }
@@ -150,7 +149,7 @@ impl OverviewProjection {
             upload_bps: 0.0,
             download_bps: 0.0,
             active_connections: 0,
-            memory_bytes: None,
+            memory_bytes: ResourceAvailability::NotObserved,
             sampled_at: Duration::ZERO,
             failure: Some(reason.into()),
             origin,
@@ -167,7 +166,7 @@ impl OverviewProjection {
             system_toggles: Default::default(),
             routing_intent: Default::default(),
             speedtest: Default::default(),
-            cpu_percent: None,
+            cpu_percent: ResourceAvailability::NotObserved,
             total_traffic_bytes: None,
         }
     }
@@ -269,11 +268,18 @@ impl OverviewSource for DemoOverviewSource {
                 DEMO_UPLOAD_BPS,
                 DEMO_DOWNLOAD_BPS,
                 DEMO_CONNECTIONS,
-                Some(DEMO_MEMORY_BYTES),
-                Some(2.4),
+                ResourceAvailability::Available(DEMO_MEMORY_BYTES),
+                ResourceAvailability::Available(2.4),
                 Some(1024 * 1024 * 1024 * 12 + 1024 * 1024 * 512),
             ),
-            OverviewState::Stopped | OverviewState::Unavailable => (0.0, 0.0, 0, None, None, None),
+            OverviewState::Stopped | OverviewState::Unavailable => (
+                0.0,
+                0.0,
+                0,
+                ResourceAvailability::NotObserved,
+                ResourceAvailability::NotObserved,
+                None,
+            ),
         };
         let (upload_observation, download_observation) = match state {
             OverviewState::Running => (

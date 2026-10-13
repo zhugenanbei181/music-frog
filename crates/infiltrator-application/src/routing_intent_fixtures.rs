@@ -140,7 +140,6 @@ impl OverviewReader for RoutingIntentScenarioController {
             upload_total: 0,
             download_total: 0,
             active_connections: 0,
-            memory_bytes: None,
             core_version: Some("routing-intent-scenario-controller".into()),
             sampled_at_epoch_ms: None,
         })

@@ -229,7 +229,6 @@ fn running_core() -> CoreSnapshot {
         upload_bps: 0.0,
         download_bps: 0.0,
         active_connections: 0,
-        memory_bytes: None,
         watchdog: Default::default(),
     }
 }

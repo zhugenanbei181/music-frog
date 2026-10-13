@@ -28,6 +28,7 @@ use infiltrator_bevy_ui::route::{OverviewSourceHandle, PagesPlugin};
 use infiltrator_bevy_ui::surface::LatestSurfaceSnapshot;
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::chart::ChartPlate;
+use infiltrator_contract::resources::ResourceAvailability;
 use infiltrator_contract::routing_intent::{RoutingIntent, RoutingIntentSnapshot};
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_domain::traffic_waveform::display_series;
@@ -132,7 +133,7 @@ fn pump_projects_live_controller_fields() {
     });
     assert_eq!(projection.core_version.as_deref(), Some("v1.19.18"));
     assert_eq!(projection.active_connections, 3);
-    assert_eq!(projection.memory_bytes, Some(40 * 1024 * 1024));
+    assert_eq!(projection.memory_bytes, ResourceAvailability::NotObserved);
     assert_eq!(projection.routing_intent, RoutingIntentSnapshot::default());
     assert_eq!(projection.failure, None);
 
@@ -217,7 +218,7 @@ fn idle_null_tracker_falls_back_and_stays_running() {
         projection.active_connections, 0,
         "idle tracker: honest zero"
     );
-    assert_eq!(projection.memory_bytes, Some(0));
+    assert_eq!(projection.memory_bytes, ResourceAvailability::NotObserved);
     assert_eq!(projection.upload_bps, 0.0);
     assert_eq!(projection.download_bps, 0.0);
     assert_eq!(projection.routing_intent, RoutingIntentSnapshot::default());
@@ -317,7 +318,7 @@ fn pump_snapshots_flow_through_the_bridge_into_refresh_events() {
             && snapshot.core_version.as_deref() == Some("v1.19.18")
         {
             assert_eq!(snapshot.active_connections, 3);
-            assert_eq!(snapshot.memory_bytes, Some(40 * 1024 * 1024));
+            assert_eq!(snapshot.memory_bytes, ResourceAvailability::NotObserved);
             assert_eq!(snapshot.routing_intent, RoutingIntentSnapshot::default());
             break;
         }
@@ -403,7 +404,7 @@ fn banner_note_and_stop_slot_follow_the_projection_origin() {
                 download_bps: 0.0,
                 readout: Default::default(),
                 active_connections: 0,
-                memory_bytes: None,
+                memory_bytes: ResourceAvailability::NotObserved,
                 sampled_at: Duration::from_secs(1),
                 failure: None,
                 origin: OverviewOrigin::LiveCore,
@@ -418,7 +419,7 @@ fn banner_note_and_stop_slot_follow_the_projection_origin() {
                 viewport: Default::default(),
                 subscription_quota: Default::default(),
                 system_toggles: Default::default(),
-                cpu_percent: None,
+                cpu_percent: ResourceAvailability::NotObserved,
                 total_traffic_bytes: None,
                 routing_intent: RoutingIntentSnapshot {
                     current: Some(RoutingIntent::FollowRules),

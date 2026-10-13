@@ -11,6 +11,7 @@
 //! WebRTC traversal result.
 
 use crate::state::AppState;
+use crate::state::diagnostics::StunProbeState;
 use crate::types::message::Message;
 use crate::view::component_card::card;
 use crate::view::component_forms::{style_accent, text_btn};
@@ -26,7 +27,7 @@ use infiltrator_shared::locales::{Lang, Localizer};
 /// The STUN UDP-egress card.
 pub(crate) fn stun_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {
     let report = &state.editor.dns_stun;
-    let probing = state.diag.is_probing_stun;
+    let probing = matches!(state.diag.stun_probe, StunProbeState::InFlight);
     let display = project_stun(report, lang.0);
     let status = display.status;
     let kind = match display.tone {

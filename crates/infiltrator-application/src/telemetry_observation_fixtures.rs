@@ -70,7 +70,6 @@ impl OverviewReader for TelemetryObservationReader {
             upload_total: 512,
             download_total: 1024,
             active_connections: 0,
-            memory_bytes: None,
             core_version: None,
             sampled_at_epoch_ms: Some(self.epoch.fetch_add(1, Ordering::AcqRel) + 1),
         })

@@ -1,6 +1,7 @@
 use crate::context::Runtime;
 use crate::output::{print_info, print_success};
 use futures_util::StreamExt;
+use infiltrator_contract::resources::{CoreResourceSnapshot, ResourceAvailability};
 use infiltrator_ports::runtime_stream::{RuntimeStreamEvent, RuntimeStreamTerminal};
 use tokio::signal::ctrl_c;
 
@@ -73,17 +74,33 @@ pub(crate) async fn traffic() -> anyhow::Result<()> {
 /// Print the current core memory usage and exit.
 pub(crate) async fn memory() -> anyhow::Result<()> {
     let runtime = Runtime::detect().await?;
-    let memory = runtime
-        .runtime_query_application()
+    let snapshot = runtime
+        .resource_application()
         .await?
-        .memory()
+        .observe()
         .await
         .map_err(|failure| anyhow::anyhow!(failure.message))?;
-    print_success(&format!(
-        "memory in use: {} (system limit: {})",
-        format_bytes(memory.in_use),
-        format_bytes(memory.os_limit),
-    ));
+    match snapshot {
+        CoreResourceSnapshot::NotObserved => {
+            anyhow::bail!("the Core has not published a memory observation");
+        }
+        CoreResourceSnapshot::Observed {
+            memory: ResourceAvailability::Available(bytes),
+            ..
+        } => print_success(&format!("memory in use: {}", format_bytes(bytes))),
+        CoreResourceSnapshot::Observed {
+            memory: ResourceAvailability::NotObserved,
+            ..
+        } => anyhow::bail!("the Core has not published a memory observation"),
+        CoreResourceSnapshot::Observed {
+            memory: ResourceAvailability::Unsupported,
+            ..
+        } => anyhow::bail!("memory observation is unsupported by this Core"),
+        CoreResourceSnapshot::Observed {
+            memory: ResourceAvailability::Failed(failure),
+            ..
+        } => anyhow::bail!("memory observation failed: {}", failure.message),
+    }
     Ok(())
 }
 

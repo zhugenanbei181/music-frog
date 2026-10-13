@@ -175,7 +175,7 @@ mod tests {
     use infiltrator_contract::session::SessionToken;
     #[cfg(test)]
     use infiltrator_domain::rules::RuleEntry;
-    use infiltrator_domain::runtime::{MemoryData, ProxyProvider, RuleProvider};
+    use infiltrator_domain::runtime::{ProxyProvider, RuleProvider};
     use infiltrator_ports::error::PortError;
     use infiltrator_ports::pac::PacServicePort;
     use infiltrator_ports::runtime_configuration::{
@@ -284,10 +284,6 @@ mod tests {
         }
         async fn update_rule_provider(&self, _name: &str) -> Result<(), PortError> {
             Ok(())
-        }
-
-        async fn get_memory(&self) -> Result<MemoryData, PortError> {
-            Ok(MemoryData::default())
         }
     }
 

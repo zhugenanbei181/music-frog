@@ -21,6 +21,7 @@ use iced::widget::{Space, button, canvas, column, container, row, text};
 use iced::{
     Alignment, Border, Color, Element, Length, Point, Rectangle, Renderer, Theme, border, mouse,
 };
+use infiltrator_contract::resources::{CoreResourceSnapshot, ResourceAvailability};
 use infiltrator_presentation::traffic_readout::TrafficFreshness;
 use infiltrator_shared::locales::{Lang, Localizer};
 use std::collections::{HashMap, VecDeque};
@@ -93,12 +94,15 @@ pub(super) fn traffic_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Elemen
     );
     let up_rate = &rates.upload;
     let down_rate = &rates.download;
-    let mem_usage = state
-        .diag
-        .memory
-        .as_ref()
-        .map(|m| format_bytes(m.in_use))
-        .unwrap_or_else(|| "—".to_string());
+    let mem_usage = match &state.runtime.core_resources {
+        CoreResourceSnapshot::Observed {
+            memory: ResourceAvailability::Available(memory),
+            ..
+        } => format_bytes(*memory),
+        CoreResourceSnapshot::NotObserved | CoreResourceSnapshot::Observed { .. } => {
+            "—".to_string()
+        }
+    };
 
     let up_stat = stat_card(
         Icon::ArrowUp,

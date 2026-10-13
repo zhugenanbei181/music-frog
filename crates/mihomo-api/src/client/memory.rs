@@ -13,7 +13,7 @@ impl MihomoClient {
     /// Read the first complete, nonzero memory sample and then drop the response body.
     /// Mihomo keeps `/memory` open and pushes a JSON sample every second, so
     /// `Response::json()` would wait for an end-of-stream that never arrives.
-    pub async fn get_memory(&self) -> Result<MemoryData> {
+    pub(crate) async fn get_memory(&self) -> Result<MemoryData> {
         let url = self.build_url("/memory")?;
         let response = self
             .add_auth(self.client.get(url))

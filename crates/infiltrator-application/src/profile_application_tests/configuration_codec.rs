@@ -18,7 +18,7 @@ use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
 use infiltrator_contract::protocol_fidelity::{CodecAudit, NodeCodecFormat, ProtocolDraft};
 use infiltrator_contract::protocol_trust::TlsTrustParams;
 use infiltrator_domain::apply::ApplyStrategy;
-use infiltrator_domain::runtime::{MemoryData, ProxyProvider, RuleProvider};
+use infiltrator_domain::runtime::{ProxyProvider, RuleProvider};
 use infiltrator_domain::tun::TunConfigPatch;
 use infiltrator_ports::profile_document_codec::{
     ProfileConfigurationMutation, ProfileConfigurationQuery, ProfileConfigurationReadout,
@@ -60,9 +60,6 @@ impl RuntimeGateway for WorkspaceApplyRuntime {
         self.unexpected()
     }
     async fn update_rule_provider(&self, _: &str) -> Result<(), PortError> {
-        self.unexpected()
-    }
-    async fn get_memory(&self) -> Result<MemoryData, PortError> {
         self.unexpected()
     }
 }

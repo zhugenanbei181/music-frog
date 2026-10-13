@@ -29,7 +29,7 @@ use infiltrator_domain::profiles::{ProfileInfo, ProfileMetadata};
 use infiltrator_domain::rules::edit::build_custom_rule;
 use infiltrator_domain::rules::provider_store::RuleProviderDeclaration;
 use infiltrator_domain::rules::{game_routing_presets, load_rules_from_yaml};
-use infiltrator_domain::runtime::{ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider};
+use infiltrator_domain::runtime::{ConnectionSnapshot, ProxyProvider, RuleProvider};
 use infiltrator_ports::connection::{
     ConnectionControlReceipt, ConnectionControlRequest, ConnectionControlTarget,
     ConnectionObservationSnapshot, ConnectionPort,
@@ -468,10 +468,6 @@ impl RuntimeGateway for RecordingGeoGateway {
     async fn upgrade_geo(&self) -> Result<(), PortError> {
         self.geo_upgrades.fetch_add(1, Ordering::SeqCst);
         Ok(())
-    }
-
-    async fn get_memory(&self) -> Result<MemoryData, PortError> {
-        Ok(MemoryData::default())
     }
 }
 

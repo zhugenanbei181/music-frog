@@ -3,6 +3,7 @@
 
 use crate::state::AppState;
 use crate::types::message::Message;
+use infiltrator_contract::resources::{CoreResourceSnapshot, ResourceAvailability};
 use infiltrator_shared::byte_units::format_bytes;
 use std::mem;
 
@@ -27,24 +28,30 @@ pub fn stats_grid<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message>
         .as_ref()
         .map(|snapshot| snapshot.connections.len().to_string())
         .unwrap_or_else(|| "—".to_string());
-    let memory = state
-        .diag
-        .memory
-        .as_ref()
-        .map(|memory| format_bytes(memory.in_use))
-        .unwrap_or_else(|| "—".to_string());
+    let memory = match &state.runtime.core_resources {
+        CoreResourceSnapshot::Observed {
+            memory: ResourceAvailability::Available(memory),
+            ..
+        } => format_bytes(*memory),
+        CoreResourceSnapshot::NotObserved | CoreResourceSnapshot::Observed { .. } => {
+            "—".to_string()
+        }
+    };
     let upload = state
         .diag
         .traffic
         .as_ref()
         .map(|traffic| format!("{}/s", format_bytes(traffic.up)))
         .unwrap_or_else(|| "—".to_string());
-    let cpu = state
-        .runtime
-        .core_resources
-        .cpu_percent
-        .map(|p| format!("{:.1}%", p))
-        .unwrap_or_else(|| "—".to_string());
+    let cpu = match &state.runtime.core_resources {
+        CoreResourceSnapshot::Observed {
+            cpu_percent: ResourceAvailability::Available(cpu),
+            ..
+        } => format!("{cpu:.1}%"),
+        CoreResourceSnapshot::NotObserved | CoreResourceSnapshot::Observed { .. } => {
+            "—".to_string()
+        }
+    };
     let download = state
         .diag
         .traffic

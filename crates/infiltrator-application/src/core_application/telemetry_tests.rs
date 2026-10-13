@@ -61,7 +61,6 @@ async fn stopped_core_rejects_the_actual_inflight_old_telemetry_result_without_r
             upload_total: 100,
             download_total: 200,
             active_connections: 10,
-            memory_bytes: Some(4000),
             core_version: None,
             sampled_at_epoch_ms: Some(1),
         })

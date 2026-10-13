@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use futures_util::StreamExt;
 use futures_util::stream::{BoxStream, pending};
 use infiltrator_contract::core_identity::CoreScope;
-use infiltrator_domain::runtime::{MemoryData, ProxyProvider, RuleProvider, TrafficData};
+use infiltrator_domain::runtime::{ProxyProvider, RuleProvider, TrafficData};
 use infiltrator_ports::application_runtime::{
     ApplicationFuture, ApplicationRuntime, ApplicationSleep,
 };
@@ -97,9 +97,6 @@ impl RuntimeGateway for LogGateway {
     }
     async fn update_rule_provider(&self, _: &str) -> Result<(), PortError> {
         panic!("unexpected provider write")
-    }
-    async fn get_memory(&self) -> Result<MemoryData, PortError> {
-        panic!("unexpected memory read")
     }
 }
 

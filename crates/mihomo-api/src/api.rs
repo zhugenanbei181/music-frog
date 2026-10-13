@@ -30,7 +30,6 @@ pub trait MihomoApi: Send + Sync {
     async fn update_rule_provider(&self, name: &str) -> Result<()>;
     async fn get_dns_query(&self, name: &str, q_type: &str) -> Result<Value>;
     async fn get_script(&self) -> Result<Value>;
-    async fn get_memory(&self) -> Result<MemoryData>;
     /// Restarts the mihomo core (`POST /restart`): mihomo reloads its
     /// in-process configuration and then restarts itself.
     ///
@@ -139,10 +138,6 @@ impl MihomoApi for MihomoClient {
         MihomoClient::get_script(self).await
     }
 
-    async fn get_memory(&self) -> Result<MemoryData> {
-        MihomoClient::get_memory(self).await
-    }
-
     async fn restart_core(&self) -> Result<()> {
         MihomoClient::restart_core(self).await
     }
@@ -242,9 +237,6 @@ mod tests {
             unsupported()
         }
         async fn get_script(&self) -> Result<Value> {
-            unsupported()
-        }
-        async fn get_memory(&self) -> Result<MemoryData> {
             unsupported()
         }
         async fn restart_core(&self) -> Result<()> {

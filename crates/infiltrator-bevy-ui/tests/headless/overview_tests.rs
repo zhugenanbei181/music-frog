@@ -58,6 +58,7 @@ use infiltrator_bevy_widgets::surface::SurfacePanel;
 use infiltrator_bevy_widgets::switch::ThemeSwitch;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::{Theme, ThemeSkin};
+use infiltrator_contract::resources::{CoreResourceSnapshot, ResourceAvailability};
 use infiltrator_contract::routing_intent::RoutingIntent;
 use infiltrator_contract::routing_intent::RoutingIntentSnapshot;
 use infiltrator_contract::shell_readout::ShellReadoutSnapshot;
@@ -83,7 +84,7 @@ impl OverviewSource for StubSource {
             download_bps: 4_047.0,
             readout: fixture_readout(250_000.0, 4_047.0),
             active_connections: 3,
-            memory_bytes: Some(70 * 1024 * 1024),
+            memory_bytes: ResourceAvailability::Available(70 * 1024 * 1024),
             sampled_at: Duration::from_secs(7),
             failure: None,
             origin: OverviewOrigin::Demo,
@@ -98,7 +99,7 @@ impl OverviewSource for StubSource {
             viewport: Default::default(),
             subscription_quota: Default::default(),
             system_toggles: Default::default(),
-            cpu_percent: None,
+            cpu_percent: ResourceAvailability::NotObserved,
             total_traffic_bytes: None,
             routing_intent: RoutingIntentSnapshot {
                 current: Some(RoutingIntent::BypassProxy),
@@ -292,7 +293,7 @@ fn live_projection(upload_bps: f64, download_bps: f64) -> OverviewProjection {
         download_bps,
         readout: fixture_readout(upload_bps, download_bps),
         active_connections: 1,
-        memory_bytes: None,
+        memory_bytes: ResourceAvailability::NotObserved,
         sampled_at: Duration::from_secs(3),
         failure: None,
         origin: OverviewOrigin::LiveCore,
@@ -307,7 +308,7 @@ fn live_projection(upload_bps: f64, download_bps: f64) -> OverviewProjection {
         viewport: Default::default(),
         subscription_quota: Default::default(),
         system_toggles: Default::default(),
-        cpu_percent: None,
+        cpu_percent: ResourceAvailability::NotObserved,
         total_traffic_bytes: None,
         routing_intent: RoutingIntentSnapshot {
             current: Some(RoutingIntent::FollowRules),
@@ -366,7 +367,7 @@ impl OverviewSource for LiveFootStub {
             download_bps: 0.0,
             readout: fixture_readout(0.0, 0.0),
             active_connections: 0,
-            memory_bytes: None,
+            memory_bytes: ResourceAvailability::NotObserved,
             sampled_at: Duration::from_secs(1),
             failure: None,
             origin: OverviewOrigin::LiveCore,
@@ -381,7 +382,7 @@ impl OverviewSource for LiveFootStub {
             viewport: Default::default(),
             subscription_quota: Default::default(),
             system_toggles: Default::default(),
-            cpu_percent: None,
+            cpu_percent: ResourceAvailability::NotObserved,
             total_traffic_bytes: None,
             routing_intent: RoutingIntentSnapshot {
                 current: Some(RoutingIntent::FollowRules),

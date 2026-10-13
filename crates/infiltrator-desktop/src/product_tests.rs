@@ -33,7 +33,7 @@ use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
-use infiltrator_domain::runtime::{MemoryData, ProxyProvider, RuleProvider};
+use infiltrator_domain::runtime::{ProxyProvider, RuleProvider};
 use infiltrator_ports::core_capability_provider::{
     CoreCapabilityProvider, CoreCapabilityProviderError,
 };
@@ -231,10 +231,6 @@ impl RuntimeGateway for TestHostRuntime {
 
     async fn update_rule_provider(&self, _name: &str) -> Result<(), PortError> {
         unsupported(Capability::RoutingIntent)
-    }
-
-    async fn get_memory(&self) -> Result<MemoryData, PortError> {
-        unsupported(Capability::Connections)
     }
 }
 

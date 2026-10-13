@@ -66,7 +66,7 @@ use infiltrator_contract::offline_startup::{LocalAssetStatus, OfflineStartupSnap
 use infiltrator_contract::outbound::details::OutboundHealthObservation;
 use infiltrator_contract::port_conflict::{PortBinding, PortConflict, PortConflictSnapshot};
 use infiltrator_contract::proxies::ProxyGroupClassification;
-use infiltrator_contract::resources::{CoreGcStatus, CoreResourceSnapshot};
+use infiltrator_contract::resources::{CoreGcStatus, CoreResourceSnapshot, ResourceAvailability};
 use infiltrator_contract::runtime_control::RuntimeControlStatus;
 use infiltrator_contract::service_mode::{
     ServiceModePlatform, ServiceModeSnapshot, ServiceModeState,
@@ -499,8 +499,8 @@ fn settings_page_in_place_update() {
             }],
         },
         core_resources: CoreResourceSnapshot {
-            memory_bytes: Some(400 * 1024 * 1024),
-            cpu_percent: Some(12.5),
+            memory_bytes: ResourceAvailability::Available(400 * 1024 * 1024),
+            cpu_percent: ResourceAvailability::Available(12.5),
             memory_soft_limit_bytes: 512 * 1024 * 1024,
             gc: CoreGcStatus::NotNeeded,
         },

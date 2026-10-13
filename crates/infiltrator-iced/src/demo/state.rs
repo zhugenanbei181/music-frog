@@ -53,7 +53,7 @@ use infiltrator_contract::version::InstalledCoreVersion;
 use infiltrator_domain::filter_policy_form::filter_spec_to_draft;
 use infiltrator_domain::mrs::{Behavior, MrsMetadata};
 use infiltrator_domain::profile_options::{FilterDedup, FilterSpec, RenameSpec};
-use infiltrator_domain::runtime::{MemoryData, ProxyProvider, RuleProvider, TrafficData};
+use infiltrator_domain::runtime::{ProxyProvider, RuleProvider, TrafficData};
 use infiltrator_domain::traffic_scale::compute;
 use std::path::PathBuf;
 use std::time;
@@ -119,10 +119,6 @@ impl AppState {
         // card consumes both; a default scale would flatten the demo chart).
         state.runtime.traffic_waveform = demo_traffic_waveform();
         state.runtime.traffic_scale = compute(&state.runtime.traffic_waveform, 60);
-        state.diag.memory = Some(MemoryData {
-            in_use: 96_468_992,
-            os_limit: 0,
-        });
         // DUAL-13-10/12: seed the demo rows through the real rate derivation —
         // a previous observation of the same fixture two seconds earlier —
         // so the demo shows the same instantaneous rates and pulse the live

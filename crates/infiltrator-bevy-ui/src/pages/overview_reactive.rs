@@ -31,6 +31,7 @@ use infiltrator_bevy_widgets::reactive::{
 use infiltrator_bevy_widgets::signal_dag::{ReactiveDag, SignalId};
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::resources::ResourceAvailability;
 
 /// Active connection count source.
 pub const SIGNAL_CONNECTIONS: SignalId = SignalId(0);
@@ -72,12 +73,22 @@ pub fn connections_value(projection: &OverviewProjection) -> i64 {
 
 /// The source value for memory, in MiB (zero when unobserved).
 pub fn memory_mib_value(projection: &OverviewProjection) -> i64 {
-    projection.memory_bytes.unwrap_or(0) as i64 / (1024 * 1024)
+    match &projection.memory_bytes {
+        ResourceAvailability::Available(bytes) => *bytes as i64 / (1024 * 1024),
+        ResourceAvailability::NotObserved
+        | ResourceAvailability::Unsupported
+        | ResourceAvailability::Failed(_) => 0,
+    }
 }
 
 /// The source value for CPU utilization, in tenths of a percent.
 pub fn cpu_tenths_value(projection: &OverviewProjection) -> i64 {
-    (projection.cpu_percent.unwrap_or(0.0) * 10.0).round() as i64
+    match &projection.cpu_percent {
+        ResourceAvailability::Available(percent) => (*percent * 10.0).round() as i64,
+        ResourceAvailability::NotObserved
+        | ResourceAvailability::Unsupported
+        | ResourceAvailability::Failed(_) => 0,
+    }
 }
 
 /// Build the deterministic metrics DAG (source ids 0..=2, derived id 3).

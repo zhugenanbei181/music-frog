@@ -32,10 +32,22 @@ fn format_rate_spans_the_unit_ladder() {
 /// and an honest em-dash for an absent reading.
 #[test]
 fn format_memory_spans_the_unit_ladder() {
-    assert_eq!(format_memory(None), "—");
-    assert_eq!(format_memory(Some(0)), "0 B");
-    assert_eq!(format_memory(Some(1023)), "1023 B");
-    assert_eq!(format_memory(Some(1024)), "1.00 KB");
-    assert_eq!(format_memory(Some(96 * 1024 * 1024)), "96.00 MB");
-    assert_eq!(format_memory(Some(3 * 1024 * 1024 * 1024)), "3.00 GB");
+    assert_eq!(format_memory(&ResourceAvailability::NotObserved), "—");
+    assert_eq!(format_memory(&ResourceAvailability::Available(0)), "0 B");
+    assert_eq!(
+        format_memory(&ResourceAvailability::Available(1023)),
+        "1023 B"
+    );
+    assert_eq!(
+        format_memory(&ResourceAvailability::Available(1024)),
+        "1.00 KB"
+    );
+    assert_eq!(
+        format_memory(&ResourceAvailability::Available(96 * 1024 * 1024)),
+        "96.00 MB"
+    );
+    assert_eq!(
+        format_memory(&ResourceAvailability::Available(3 * 1024 * 1024 * 1024)),
+        "3.00 GB"
+    );
 }

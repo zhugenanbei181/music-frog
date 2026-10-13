@@ -8,7 +8,7 @@ use infiltrator_contract::core_identity::{
 use infiltrator_contract::resources::{
     CORE_MEMORY_SOFT_LIMIT_BYTES, CoreGcStatus, CoreResourceSnapshot, ResourceAvailability,
 };
-use infiltrator_domain::runtime::{MemoryData, ProxyProvider, RuleProvider};
+use infiltrator_domain::runtime::{ProxyProvider, RuleProvider};
 use infiltrator_ports::core_log_level::CoreLogLevelPort;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::resources::{
@@ -20,8 +20,6 @@ use std::sync::{Arc, Mutex};
 
 struct TestGateway {
     level: Mutex<String>,
-    memory_bytes: Mutex<u64>,
-    gc_calls: AtomicUsize,
     ignore_log_level_write: bool,
     scope: CoreScope,
 }
@@ -68,19 +66,6 @@ impl RuntimeGateway for TestGateway {
     async fn update_rule_provider(&self, _name: &str) -> Result<(), PortError> {
         Ok(())
     }
-
-    async fn get_memory(&self) -> Result<MemoryData, PortError> {
-        Ok(MemoryData {
-            in_use: *self.memory_bytes.lock().expect("memory lock"),
-            os_limit: 0,
-        })
-    }
-
-    async fn trigger_gc(&self) -> Result<(), PortError> {
-        self.gc_calls.fetch_add(1, Ordering::SeqCst);
-        *self.memory_bytes.lock().expect("memory lock") = 400 * 1024 * 1024;
-        Ok(())
-    }
 }
 
 #[async_trait]
@@ -118,11 +103,9 @@ impl CoreLogLevelPort for TestGateway {
     }
 }
 
-fn gateway(memory_bytes: u64, ignore_log_level_write: bool) -> Arc<TestGateway> {
+fn gateway(ignore_log_level_write: bool) -> Arc<TestGateway> {
     Arc::new(TestGateway {
         level: Mutex::new("info".to_owned()),
-        memory_bytes: Mutex::new(memory_bytes),
-        gc_calls: AtomicUsize::new(0),
         ignore_log_level_write,
         scope: test_scope(1),
     })
@@ -156,7 +139,7 @@ fn resource_port(
 
 #[tokio::test]
 async fn core_log_level_uses_the_typed_port_and_reports_its_readback() {
-    let gateway = gateway(0, false);
+    let gateway = gateway(false);
     RuntimeQueryApplication::new(gateway.clone())
         .with_core_log_level_port(gateway.clone())
         .set_core_log_level(CoreLogLevel::Debug)
@@ -167,7 +150,7 @@ async fn core_log_level_uses_the_typed_port_and_reports_its_readback() {
 
 #[tokio::test]
 async fn core_log_level_readback_mismatch_is_not_reported_as_success() {
-    let gateway = gateway(0, true);
+    let gateway = gateway(true);
     let failure = RuntimeQueryApplication::new(gateway.clone())
         .with_core_log_level_port(gateway)
         .set_core_log_level(CoreLogLevel::Debug)
@@ -181,7 +164,7 @@ async fn core_log_level_readback_mismatch_is_not_reported_as_success() {
 
 #[tokio::test]
 async fn resource_poll_triggers_gc_once_when_memory_exceeds_soft_limit() {
-    let gateway = gateway(CORE_MEMORY_SOFT_LIMIT_BYTES + 1, false);
+    let gateway = gateway(false);
     let resources = resource_port(
         gateway.scope.clone(),
         ResourceAvailability::Available(CORE_MEMORY_SOFT_LIMIT_BYTES + 1),
@@ -214,7 +197,7 @@ async fn resource_poll_triggers_gc_once_when_memory_exceeds_soft_limit() {
 
 #[tokio::test]
 async fn resource_observation_preserves_unsupported_and_failed_values() {
-    let gateway = gateway(0, false);
+    let gateway = gateway(false);
     let resources = resource_port(
         gateway.scope.clone(),
         ResourceAvailability::Failed(infiltrator_contract::error::Failure::new(
@@ -242,7 +225,7 @@ async fn resource_observation_preserves_unsupported_and_failed_values() {
 
 #[tokio::test]
 async fn unsupported_memory_does_not_trigger_garbage_collection() {
-    let gateway = gateway(0, false);
+    let gateway = gateway(false);
     let resources = resource_port(
         gateway.scope.clone(),
         ResourceAvailability::Unsupported,
@@ -265,7 +248,7 @@ async fn unsupported_memory_does_not_trigger_garbage_collection() {
 
 #[tokio::test]
 async fn stale_resource_observation_is_rejected_before_gc() {
-    let gateway = gateway(CORE_MEMORY_SOFT_LIMIT_BYTES + 1, false);
+    let gateway = gateway(false);
     let resources = resource_port(
         test_scope(2),
         ResourceAvailability::Available(CORE_MEMORY_SOFT_LIMIT_BYTES + 1),
@@ -284,7 +267,7 @@ async fn stale_resource_observation_is_rejected_before_gc() {
 
 #[tokio::test]
 async fn failed_gc_is_typed_and_does_not_claim_memory_reclamation() {
-    let gateway = gateway(CORE_MEMORY_SOFT_LIMIT_BYTES + 1, false);
+    let gateway = gateway(false);
     let resources = resource_port(
         gateway.scope.clone(),
         ResourceAvailability::Available(CORE_MEMORY_SOFT_LIMIT_BYTES + 1),
@@ -309,7 +292,7 @@ async fn failed_gc_is_typed_and_does_not_claim_memory_reclamation() {
 
 #[tokio::test]
 async fn unsupported_gc_is_never_reported_as_collection() {
-    let gateway = gateway(CORE_MEMORY_SOFT_LIMIT_BYTES + 1, false);
+    let gateway = gateway(false);
     let resources = resource_port(
         gateway.scope.clone(),
         ResourceAvailability::Available(CORE_MEMORY_SOFT_LIMIT_BYTES + 1),

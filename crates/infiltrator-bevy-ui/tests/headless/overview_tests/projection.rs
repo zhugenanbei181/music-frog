@@ -29,7 +29,7 @@ fn projection_updates_restamp_in_place() {
         upload_bps: 0.0,
         download_bps: 0.0,
         active_connections: 0,
-        memory_bytes: None,
+        memory_bytes: ResourceAvailability::NotObserved,
         sampled_at: Duration::from_secs(9),
         failure: None,
         origin: OverviewOrigin::Demo,
@@ -44,7 +44,7 @@ fn projection_updates_restamp_in_place() {
         viewport: Default::default(),
         subscription_quota: Default::default(),
         system_toggles: Default::default(),
-        cpu_percent: None,
+        cpu_percent: ResourceAvailability::NotObserved,
         total_traffic_bytes: None,
         routing_intent: RoutingIntentSnapshot {
             current: Some(RoutingIntent::RouteAllThroughProxy),
@@ -61,13 +61,13 @@ fn projection_updates_restamp_in_place() {
     snapshot.core.upload_bps = stopped.upload_bps;
     snapshot.core.download_bps = stopped.download_bps;
     snapshot.core.active_connections = stopped.active_connections;
-    snapshot.core.memory_bytes = stopped.memory_bytes;
+    snapshot.resources = CoreResourceSnapshot::NotObserved;
+
     snapshot.pages.overview = PageData::ready(OverviewPageSnapshot {
         routing_intent: stopped.routing_intent.clone(),
         upload_bps: stopped.upload_bps,
         download_bps: stopped.download_bps,
         active_connections: stopped.active_connections,
-        memory_bytes: stopped.memory_bytes,
         core_version: stopped.core_version,
     });
     snapshot.shell_readout = observations.project(&snapshot);
@@ -114,7 +114,7 @@ fn projection_updates_restamp_in_place() {
         upload_bps: 0.0,
         download_bps: 0.0,
         active_connections: 0,
-        memory_bytes: None,
+        memory_bytes: ResourceAvailability::NotObserved,
         sampled_at: Duration::from_secs(10),
         failure: Some("refused".to_owned()),
         origin: OverviewOrigin::LiveCore,
@@ -129,7 +129,7 @@ fn projection_updates_restamp_in_place() {
         viewport: Default::default(),
         subscription_quota: Default::default(),
         system_toggles: Default::default(),
-        cpu_percent: None,
+        cpu_percent: ResourceAvailability::NotObserved,
         total_traffic_bytes: None,
         routing_intent: RoutingIntentSnapshot {
             current: Some(RoutingIntent::RouteAllThroughProxy),

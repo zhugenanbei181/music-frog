@@ -8,13 +8,17 @@ use crate::types::runtime::RuntimeStatus;
 use async_trait::async_trait;
 use infiltrator_application::surface_application::SurfacePump;
 use infiltrator_contract::controller::{ControllerAuthSnapshot, ControllerAuthStatus};
-use infiltrator_contract::core_identity::EngineId;
+use infiltrator_contract::core_identity::{
+    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId,
+};
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::offline_startup::{
     LocalAssetStatus, OfflineStartupSnapshot, OfflineStartupState,
 };
 use infiltrator_contract::reconnect_mask::ReconnectMaskSnapshot;
-use infiltrator_contract::resources::{CoreGcStatus, CoreResourceSnapshot};
+use infiltrator_contract::resources::{
+    CORE_MEMORY_SOFT_LIMIT_BYTES, CoreGcStatus, CoreResourceSnapshot, ResourceAvailability,
+};
 use infiltrator_contract::service_mode::{
     ServiceModePlatform, ServiceModeSnapshot, ServiceModeState,
 };
@@ -221,13 +225,26 @@ fn shared_core_channel_probe_updates_the_iced_kernel_projection() {
         platform: ServiceModePlatform::LinuxPolkit,
         state: ServiceModeState::Ready,
     };
-    snapshot.resources = CoreResourceSnapshot {
-        memory_bytes: Some(512 * 1024 * 1024 + 1),
-        cpu_percent: Some(12.5),
-        memory_soft_limit_bytes: 512 * 1024 * 1024,
-        gc: CoreGcStatus::Triggered {
+    let scope = CoreScope {
+        identity: CoreIdentity::new(
+            EngineId::new("mihomo").unwrap(),
+            CoreInstanceId::new("surface-test").unwrap(),
+            None,
+        ),
+        generation: CoreGeneration::new(5),
+        session_token: None,
+    };
+    snapshot.core.identity = Some(scope.identity.clone());
+    snapshot.generation = 5;
+    snapshot.core.generation = 5;
+    snapshot.resources = CoreResourceSnapshot::Observed {
+        scope,
+        memory: ResourceAvailability::Available(512 * 1024 * 1024 + 1),
+        cpu_percent: ResourceAvailability::Available(12.5),
+        memory_soft_limit_bytes: CORE_MEMORY_SOFT_LIMIT_BYTES,
+        gc: CoreGcStatus::Collected {
             before_bytes: 512 * 1024 * 1024 + 1,
-            after_bytes: Some(400 * 1024 * 1024),
+            after_bytes: 400 * 1024 * 1024,
         },
     };
     snapshot.versions = CoreVersionSnapshot {
@@ -285,7 +302,13 @@ fn shared_core_channel_probe_updates_the_iced_kernel_projection() {
         ControllerAuthStatus::Secured
     );
     assert_eq!(state.runtime.service_mode.state, ServiceModeState::Ready);
-    assert_eq!(state.runtime.core_resources.cpu_percent, Some(12.5));
+    assert!(matches!(
+        &state.runtime.core_resources,
+        CoreResourceSnapshot::Observed {
+            cpu_percent: ResourceAvailability::Available(cpu),
+            ..
+        } if *cpu == 12.5
+    ));
 }
 
 struct TokioRuntime(Runtime);

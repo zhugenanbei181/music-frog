@@ -16,7 +16,7 @@ use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_domain::apply::ApplyStrategy;
-use infiltrator_domain::runtime::{MemoryData, ProxyProvider, RuleProvider};
+use infiltrator_domain::runtime::{ProxyProvider, RuleProvider};
 
 /// The controller-facing part of a running core host.
 ///
@@ -64,18 +64,6 @@ pub trait RuntimeGateway: Send + Sync {
         Err(PortError::unsupported(
             Capability::CoreLifecycle,
             "geo database upgrade is not supported by this gateway",
-        ))
-    }
-    async fn get_memory(&self) -> Result<MemoryData, PortError>;
-    /// Host-side CPU usage for the running core, when the platform exposes it.
-    async fn get_cpu_percent(&self) -> Result<Option<f32>, PortError> {
-        Ok(None)
-    }
-    /// Ask the running core to perform its supported active garbage collection.
-    async fn trigger_gc(&self) -> Result<(), PortError> {
-        Err(PortError::unsupported(
-            Capability::CoreLifecycle,
-            "core garbage collection is not supported by this gateway",
         ))
     }
     /// Narrow connection-control adapter composed by the host. Hosts without

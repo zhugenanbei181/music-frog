@@ -51,7 +51,6 @@ mod tests {
             upload_bps: 10.0,
             download_bps: 20.0,
             active_connections: 0,
-            memory_bytes: None,
             watchdog: Default::default(),
         });
         assert_eq!(snapshot.samples.len(), 1);

@@ -43,7 +43,7 @@ fn stat_chips_and_banner_status_carry_accesskit_semantics() {
         upload_bps: 0.0,
         download_bps: 0.0,
         active_connections: 0,
-        memory_bytes: None,
+        memory_bytes: ResourceAvailability::NotObserved,
         sampled_at: Duration::from_secs(9),
         failure: None,
         origin: OverviewOrigin::Demo,
@@ -58,7 +58,7 @@ fn stat_chips_and_banner_status_carry_accesskit_semantics() {
         viewport: Default::default(),
         subscription_quota: Default::default(),
         system_toggles: Default::default(),
-        cpu_percent: None,
+        cpu_percent: ResourceAvailability::NotObserved,
         total_traffic_bytes: None,
         routing_intent: RoutingIntentSnapshot {
             current: Some(RoutingIntent::FollowRules),

@@ -188,7 +188,6 @@ mod tests {
             upload_bps: 100.0,
             download_bps: 200.0,
             active_connections: 0,
-            memory_bytes: None,
             watchdog: Default::default(),
         }
     }

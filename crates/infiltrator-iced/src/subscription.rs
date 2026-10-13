@@ -13,12 +13,16 @@ use iced::futures::stream::BoxStream;
 use iced::system::theme_changes;
 use iced::theme::Mode;
 use iced::{Subscription, keyboard, stream, window};
+use infiltrator_application::connection_application::ConnectionApplication;
+use infiltrator_application::runtime_query_application::RuntimeQueryApplication;
 use infiltrator_application::system_proxy_application::SystemProxyApplication;
 use infiltrator_contract::cadence::RenderCadence;
 use infiltrator_contract::core_identity::CoreScope;
 use infiltrator_contract::shortcuts::KeyModifiers;
 use infiltrator_ports::host_runtime::HostRuntime;
-use infiltrator_ports::runtime_gateway::RuntimeStreamEvent;
+use infiltrator_ports::runtime_stream::{
+    RuntimeStreamEvent, RuntimeStreamTerminal, ScopedRuntimeStreamEvent,
+};
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -28,7 +32,8 @@ use tokio::time::{self, sleep};
 struct RuntimeStreamInput {
     identity: usize,
     scope: CoreScope,
-    gateway: Arc<dyn HostRuntime>,
+    runtime: RuntimeQueryApplication,
+    connections: ConnectionApplication,
     log_level: String,
     shared_logs: bool,
 }
@@ -68,7 +73,8 @@ pub(crate) fn runtime_streams_subscription(
     let input = RuntimeStreamInput {
         identity: Arc::as_ptr(runtime) as *const () as usize,
         scope,
-        gateway: runtime.clone(),
+        runtime: RuntimeQueryApplication::new(runtime.clone()),
+        connections: ConnectionApplication::new(runtime.clone()),
         log_level: log_level.to_string(),
         shared_logs,
     };
@@ -98,15 +104,12 @@ fn build_runtime_stream(input: &RuntimeStreamInput) -> BoxStream<'static, Messag
             ));
 
             let logs = if input.shared_logs {
-                Ok(Box::pin(pending()) as BoxStream<'static, RuntimeStreamEvent<String>>)
+                Ok(Box::pin(pending()) as BoxStream<'static, ScopedRuntimeStreamEvent<String>>)
             } else {
-                input
-                    .gateway
-                    .stream_logs(Some(input.log_level.clone()))
-                    .await
+                input.runtime.logs(Some(input.log_level.clone())).await
             };
-            let traffic = input.gateway.stream_traffic().await;
-            let connections = input.gateway.stream_connections().await;
+            let traffic = input.runtime.traffic().await;
+            let connections = input.connections.stream().await;
 
             let (mut logs, mut traffic, mut connections) = match (logs, traffic, connections) {
                 (Ok(logs), Ok(traffic), Ok(connections)) => (logs, traffic, connections),
@@ -140,67 +143,82 @@ fn build_runtime_stream(input: &RuntimeStreamInput) -> BoxStream<'static, Messag
             loop {
                 tokio::select! {
                     item = logs.next() => match item {
-                        Some(RuntimeStreamEvent::Item(line)) => {
-                            if output.try_send(Message::RuntimeStreamLogReceived(input.scope.clone(), line)).is_err() { return; }
-                        }
-                        Some(RuntimeStreamEvent::Connecting) => {
-                            if output.try_send(stream_state(RuntimeStreamKind::Logs, &input.scope, RuntimeStreamState::Connecting)).is_err() { return; }
-                        }
-                        Some(RuntimeStreamEvent::Connected) => {
-                            if output.try_send(stream_state(RuntimeStreamKind::Logs, &input.scope, RuntimeStreamState::Connected)).is_err() { return; }
-                        }
-                        Some(RuntimeStreamEvent::Reconnecting(error)) | Some(RuntimeStreamEvent::Failed(error)) => {
-                            if output.try_send(stream_state(RuntimeStreamKind::Logs, &input.scope, RuntimeStreamState::Failed(error.message))).is_err() { return; }
-                            if output.try_send(stream_state(RuntimeStreamKind::Logs, &input.scope, RuntimeStreamState::Reconnecting)).is_err() { return; }
-                        }
+                        Some(event) => match event.event {
+                            RuntimeStreamEvent::Item(line) => {
+                                if output.try_send(Message::RuntimeStreamLogReceived(event.scope, line)).is_err() { return; }
+                            }
+                            RuntimeStreamEvent::Connecting => {
+                                if output.try_send(stream_state(RuntimeStreamKind::Logs, &event.scope, RuntimeStreamState::Connecting)).is_err() { return; }
+                            }
+                            RuntimeStreamEvent::Connected => {
+                                if output.try_send(stream_state(RuntimeStreamKind::Logs, &event.scope, RuntimeStreamState::Connected)).is_err() { return; }
+                            }
+                            RuntimeStreamEvent::Reconnecting(_) => {
+                                if output.try_send(stream_state(RuntimeStreamKind::Logs, &event.scope, RuntimeStreamState::Reconnecting)).is_err() { return; }
+                            }
+                            RuntimeStreamEvent::Terminal(terminal) => {
+                                let state = terminal_state(terminal);
+                                if output.try_send(stream_state(RuntimeStreamKind::Logs, &event.scope, state)).is_err() { return; }
+                                break;
+                            }
+                        },
                         None => break,
                     },
                     item = traffic.next() => match item {
-                        Some(RuntimeStreamEvent::Item(data)) => {
-                            if output
-                                .try_send(Message::RuntimeStreamTrafficReceived(
-                                    input.scope.clone(),
-                                    data,
-                                ))
-                                .is_err()
-                            {
-                                return;
+                        Some(event) => match event.event {
+                            RuntimeStreamEvent::Item(data) => {
+                                if output
+                                    .try_send(Message::RuntimeStreamTrafficReceived(event.scope, data))
+                                    .is_err()
+                                {
+                                    return;
+                                }
                             }
-                        }
-                        Some(RuntimeStreamEvent::Connecting) => {
-                            if output.try_send(stream_state(RuntimeStreamKind::Traffic, &input.scope, RuntimeStreamState::Connecting)).is_err() { return; }
-                        }
-                        Some(RuntimeStreamEvent::Connected) => {
-                            if output.try_send(stream_state(RuntimeStreamKind::Traffic, &input.scope, RuntimeStreamState::Connected)).is_err() { return; }
-                        }
-                        Some(RuntimeStreamEvent::Reconnecting(error)) | Some(RuntimeStreamEvent::Failed(error)) => {
-                            if output.try_send(stream_state(RuntimeStreamKind::Traffic, &input.scope, RuntimeStreamState::Failed(error.message))).is_err() { return; }
-                            if output.try_send(stream_state(RuntimeStreamKind::Traffic, &input.scope, RuntimeStreamState::Reconnecting)).is_err() { return; }
-                        }
+                            RuntimeStreamEvent::Connecting => {
+                                if output.try_send(stream_state(RuntimeStreamKind::Traffic, &event.scope, RuntimeStreamState::Connecting)).is_err() { return; }
+                            }
+                            RuntimeStreamEvent::Connected => {
+                                if output.try_send(stream_state(RuntimeStreamKind::Traffic, &event.scope, RuntimeStreamState::Connected)).is_err() { return; }
+                            }
+                            RuntimeStreamEvent::Reconnecting(_) => {
+                                if output.try_send(stream_state(RuntimeStreamKind::Traffic, &event.scope, RuntimeStreamState::Reconnecting)).is_err() { return; }
+                            }
+                            RuntimeStreamEvent::Terminal(terminal) => {
+                                let state = terminal_state(terminal);
+                                if output.try_send(stream_state(RuntimeStreamKind::Traffic, &event.scope, state)).is_err() { return; }
+                                break;
+                            }
+                        },
                         None => break,
                     },
                     item = connections.next() => match item {
-                        Some(RuntimeStreamEvent::Item(snapshot)) => {
-                            if output
-                                .try_send(Message::RuntimeStreamConnectionsReceived(
-                                    input.scope.clone(),
-                                    snapshot,
-                                ))
-                                .is_err()
-                            {
-                                return;
+                        Some(event) => match event.event {
+                            RuntimeStreamEvent::Item(snapshot) => {
+                                if output
+                                    .try_send(Message::RuntimeStreamConnectionsReceived(
+                                        event.scope,
+                                        snapshot.snapshot().clone(),
+                                    ))
+                                    .is_err()
+                                {
+                                    return;
+                                }
                             }
-                        }
-                        Some(RuntimeStreamEvent::Connecting) => {
-                            if output.try_send(stream_state(RuntimeStreamKind::Connections, &input.scope, RuntimeStreamState::Connecting)).is_err() { return; }
-                        }
-                        Some(RuntimeStreamEvent::Connected) => {
-                            if output.try_send(stream_state(RuntimeStreamKind::Connections, &input.scope, RuntimeStreamState::Connected)).is_err() { return; }
-                        }
-                        Some(RuntimeStreamEvent::Reconnecting(error)) | Some(RuntimeStreamEvent::Failed(error)) => {
-                            if output.try_send(stream_state(RuntimeStreamKind::Connections, &input.scope, RuntimeStreamState::Failed(error.message))).is_err() { return; }
-                            if output.try_send(stream_state(RuntimeStreamKind::Connections, &input.scope, RuntimeStreamState::Reconnecting)).is_err() { return; }
-                        }
+                            RuntimeStreamEvent::Connecting => {
+                                if output.try_send(stream_state(RuntimeStreamKind::Connections, &event.scope, RuntimeStreamState::Connecting)).is_err() { return; }
+                            }
+                            RuntimeStreamEvent::Connected => {
+                                if output.try_send(stream_state(RuntimeStreamKind::Connections, &event.scope, RuntimeStreamState::Connected)).is_err() { return; }
+                            }
+                            RuntimeStreamEvent::Reconnecting(_) => {
+                                if output.try_send(stream_state(RuntimeStreamKind::Connections, &event.scope, RuntimeStreamState::Reconnecting)).is_err() { return; }
+                            }
+                            RuntimeStreamEvent::Terminal(terminal) => {
+                                let state = terminal_state(terminal);
+                                if output.try_send(stream_state(RuntimeStreamKind::Connections, &event.scope, state)).is_err() { return; }
+                                break;
+                            }
+                        },
                         None => break,
                     },
                 }
@@ -221,6 +239,15 @@ fn build_runtime_stream(input: &RuntimeStreamInput) -> BoxStream<'static, Messag
         }
     });
     Box::pin(channel)
+}
+
+fn terminal_state(terminal: RuntimeStreamTerminal) -> RuntimeStreamState {
+    match terminal {
+        RuntimeStreamTerminal::Cancelled => RuntimeStreamState::Idle,
+        RuntimeStreamTerminal::Failed(failure) | RuntimeStreamTerminal::Unsupported(failure) => {
+            RuntimeStreamState::Failed(failure.message)
+        }
+    }
 }
 
 pub(crate) fn system_proxy_watchdog_subscription(

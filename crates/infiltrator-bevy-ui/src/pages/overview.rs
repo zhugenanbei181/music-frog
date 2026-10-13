@@ -83,6 +83,7 @@ use infiltrator_bevy_widgets::switch::ThemeSwitch;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::{Breakpoint, space};
 use infiltrator_contract::overview_layout::OverviewCardKind;
+use infiltrator_contract::resources::ResourceAvailability;
 use infiltrator_contract::routing_intent::RoutingIntent;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface_snapshot::SurfaceOrigin;
@@ -320,15 +321,23 @@ pub fn format_rate(bytes_per_second: f64) -> String {
 /// Format a byte count for the memory chip: the shared [`format_bytes`]
 /// ladder; `None` renders an honest em-dash placeholder (the value is not
 /// known — never a fabricated zero). Pure function.
-pub fn format_memory(bytes: Option<u64>) -> String {
-    bytes.map(format_bytes).unwrap_or_else(|| "—".to_owned())
+pub fn format_memory(bytes: &ResourceAvailability<u64>) -> String {
+    match bytes {
+        ResourceAvailability::Available(bytes) => format_bytes(*bytes),
+        ResourceAvailability::NotObserved
+        | ResourceAvailability::Unsupported
+        | ResourceAvailability::Failed(_) => "—".to_owned(),
+    }
 }
 
 /// Format CPU utilization percentage for the CPU chip.
-pub fn format_cpu(percent: Option<f32>) -> String {
-    percent
-        .map(|p| format!("{:.1}%", p))
-        .unwrap_or_else(|| "—".to_owned())
+pub fn format_cpu(percent: &ResourceAvailability<f32>) -> String {
+    match percent {
+        ResourceAvailability::Available(percent) => format!("{percent:.1}%"),
+        ResourceAvailability::NotObserved
+        | ResourceAvailability::Unsupported
+        | ResourceAvailability::Failed(_) => "—".to_owned(),
+    }
 }
 
 /// Format cumulative session total traffic for the TotalTraffic chip.
@@ -755,8 +764,8 @@ fn rate_line(arrow: &str, kind: OverviewLineKind, value: String) -> impl Scene +
 /// refresh observer restamps alongside the visible value.
 fn chips_row_scene(projection: &OverviewProjection, palette: &UiPalette) -> impl Scene + use<> {
     let connections = projection.active_connections.to_string();
-    let memory = format_memory(projection.memory_bytes);
-    let cpu = format_cpu(projection.cpu_percent);
+    let memory = format_memory(&projection.memory_bytes);
+    let cpu = format_cpu(&projection.cpu_percent);
     let upload = rate_copy(&projection.readout.upload_bps, "en-US");
     let download = rate_copy(&projection.readout.download_bps, "en-US");
     let total = format_total_traffic(projection.total_traffic_bytes);

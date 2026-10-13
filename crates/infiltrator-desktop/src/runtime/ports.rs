@@ -23,7 +23,7 @@ use infiltrator_contract::resources::ResourceAvailability;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_core::apply::failure_from_apply_error;
 use infiltrator_domain::apply::ApplyStrategy;
-use infiltrator_domain::runtime::{MemoryData, ProxyProvider, RuleProvider};
+use infiltrator_domain::runtime::{ProxyProvider, RuleProvider};
 use infiltrator_ports::certificate_authority::CertificateAuthorityPort;
 use infiltrator_ports::connection::ConnectionPort;
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
@@ -120,38 +120,6 @@ impl RuntimeGateway for MihomoRuntime {
     async fn upgrade_geo(&self) -> Result<(), PortError> {
         self.client
             .upgrade_geo()
-            .await
-            .map_err(|error| PortError::Network(error.to_string()))
-    }
-
-    async fn get_memory(&self) -> Result<MemoryData, PortError> {
-        self.client
-            .get_memory()
-            .await
-            .map(Into::into)
-            .map_err(|error| PortError::Network(error.to_string()))
-    }
-
-    async fn get_cpu_percent(&self) -> Result<Option<f32>, PortError> {
-        let pid = match self
-            .service_manager
-            .status()
-            .await
-            .map_err(|error| PortError::Io(error.to_string()))?
-        {
-            ServiceStatus::Running(pid) => pid,
-            ServiceStatus::Stopped => return Ok(None),
-        };
-        let mut system = System::new();
-        system.refresh_processes(ProcessesToUpdate::All, true);
-        Ok(system
-            .process(Pid::from_u32(pid))
-            .map(|process| process.cpu_usage()))
-    }
-
-    async fn trigger_gc(&self) -> Result<(), PortError> {
-        self.client
-            .trigger_gc()
             .await
             .map_err(|error| PortError::Network(error.to_string()))
     }

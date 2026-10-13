@@ -148,7 +148,6 @@ pub struct CoreSnapshot {
     pub upload_bps: f64,
     pub download_bps: f64,
     pub active_connections: u32,
-    pub memory_bytes: Option<u64>,
     /// Crash recovery state owned by the shared application, not by either UI.
     #[serde(default)]
     pub watchdog: CoreWatchdogSnapshot,

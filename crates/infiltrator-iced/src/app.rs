@@ -491,7 +491,7 @@ impl AppState {
                 dns_cache_flush: DnsCacheFlushReport::default(),
                 dns_leak_action: Default::default(),
                 dns_leak_capture: None,
-                is_probing_stun: false,
+                stun_probe: Default::default(),
                 pcap_state: Default::default(),
                 speedtest: Default::default(),
                 speedtest_detail_open: false,

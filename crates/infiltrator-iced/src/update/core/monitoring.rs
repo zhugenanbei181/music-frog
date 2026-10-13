@@ -1,5 +1,5 @@
-//! Live runtime monitoring: the periodic polling loop (traffic, memory,
-//! public IP, proxies) plus log ingestion and per-connection operations.
+//! Live runtime monitoring: scoped stream ingestion, shared resource snapshots,
+//! explicit public-egress probes, and scoped per-connection operations.
 
 use crate::network::application;
 use crate::state::AppState;
@@ -11,12 +11,14 @@ use iced::Task;
 use iced::widget::Id;
 use iced::widget::operation::{scroll_to, snap_to};
 use iced::widget::scrollable::{AbsoluteOffset, RelativeOffset};
+use infiltrator_application::connection_application::ConnectionApplication;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_domain::connection_view::matches_search;
 use infiltrator_domain::runtime::ConnectionSnapshot;
-use infiltrator_shared::i18n_interpolator::localize;
+use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use infiltrator_shared::locales::{Lang, Localizer};
+use std::sync::Arc;
 use std::time::Instant;
 
 impl AppState {
@@ -34,62 +36,25 @@ impl AppState {
         }
     }
 
-    /// Kick one polling round: connections + memory always, proxies every
-    /// other tick and runtime config every 6th. Public-egress probing is
-    /// intentionally explicit (`FetchIpInfo`) because it contacts an
-    /// external provider.
+    /// Kick one polling round: scoped streams own live connections and traffic,
+    /// while the shared surface pump publishes scoped resource snapshots.
+    /// This refreshes slower outbound/config read models.
+    /// Public-egress probing is intentionally explicit (`FetchIpInfo`).
     pub(super) fn schedule_runtime_refresh(&mut self, follow_auto_refresh: bool) -> Task<Message> {
-        let copy_locale = self.shell.lang.clone();
         if follow_auto_refresh && !self.runtime.runtime_auto_refresh {
             return Task::none();
         }
         if !matches!(self.runtime.status, RuntimeStatus::Running) {
             return Task::none();
         }
-        let Some(rt) = self.runtime.runtime.clone() else {
+        if self.runtime.runtime.is_none() {
             return Task::none();
-        };
+        }
 
         self.runtime.runtime_poll_tick = self.runtime.runtime_poll_tick.saturating_add(1);
         let poll_tick = self.runtime.runtime_poll_tick;
 
-        let connections_locale = copy_locale.clone();
-        let rt_for_connections = rt.clone();
-        let rt_for_memory = rt.clone();
-        let mut tasks = vec![
-            Task::perform(
-                async move {
-                    rt_for_connections
-                        .get_connections()
-                        .await
-                        .map_err(|error| InfiltratorError::Internal(error.to_string()))
-                },
-                move |result| match result {
-                    Ok(snapshot) => Message::ConnectionsReceived(snapshot),
-                    Err(error) => Message::RuntimePollFailed(localize(
-                        &connections_locale,
-                        "connections_refresh_failed",
-                        &[("reason", error.to_string())],
-                    )),
-                },
-            ),
-            Task::perform(
-                async move {
-                    rt_for_memory
-                        .get_memory()
-                        .await
-                        .map_err(|error| InfiltratorError::Internal(error.to_string()))
-                },
-                move |result| match result {
-                    Ok(memory) => Message::MemoryReceived(memory),
-                    Err(error) => Message::RuntimePollFailed(localize(
-                        &copy_locale,
-                        "memory_refresh_failed",
-                        &[("reason", error.to_string())],
-                    )),
-                },
-            ),
-        ];
+        let mut tasks = Vec::new();
 
         if poll_tick.is_multiple_of(2) {
             tasks.push(Task::done(Message::RefreshOutboundInventory));
@@ -164,13 +129,6 @@ impl AppState {
                 if self.diag.traffic_history.len() > 60 {
                     self.diag.traffic_history.pop_front();
                 }
-                Task::none()
-            }
-            Message::MemoryReceived(data) => {
-                if self.commands.is_some() {
-                    return Task::none();
-                }
-                self.diag.memory = Some(data);
                 Task::none()
             }
             Message::IpInfoReceived(result, task_id) => {
@@ -248,10 +206,6 @@ impl AppState {
                         stream_kind_label(kind)
                     )));
                 }
-                Task::none()
-            }
-            Message::RuntimePollFailed(error) => {
-                self.set_error(InfiltratorError::Backend(error));
                 Task::none()
             }
             Message::LogsCommandFinished { generation, result } => {
@@ -345,9 +299,12 @@ impl AppState {
                     );
                 }
                 if let Some(rt) = self.runtime.runtime.clone() {
+                    let gateway: Arc<dyn RuntimeGateway> = rt;
+                    let application = ConnectionApplication::new(gateway);
                     Task::perform(
                         async move {
-                            rt.close_connection(&id)
+                            application
+                                .close(&id)
                                 .await
                                 .map_err(|error| InfiltratorError::Internal(error.to_string()))
                         },
@@ -373,10 +330,12 @@ impl AppState {
                         Message::OperationResult,
                     )
                 } else if let Some(runtime) = self.runtime.runtime.clone() {
+                    let gateway: Arc<dyn RuntimeGateway> = runtime;
+                    let application = ConnectionApplication::new(gateway);
                     Task::perform(
                         async move {
-                            runtime
-                                .close_all_connections()
+                            application
+                                .close_all()
                                 .await
                                 .map_err(|error| InfiltratorError::Internal(error.to_string()))
                         },
@@ -393,6 +352,8 @@ impl AppState {
                 let Some(rt) = self.runtime.runtime.clone() else {
                     return Task::none();
                 };
+                let gateway: Arc<dyn RuntimeGateway> = rt;
+                let application = ConnectionApplication::new(gateway);
                 let raw_filter = self.runtime.runtime_connection_filter.clone();
                 let query = raw_filter
                     .strip_prefix("tab:closed")
@@ -416,10 +377,11 @@ impl AppState {
                     })
                     .unwrap_or_default();
                 Task::batch(ids.into_iter().map(|id| {
-                    let rt = rt.clone();
+                    let application = application.clone();
                     Task::perform(
                         async move {
-                            rt.close_connection(&id)
+                            application
+                                .close(&id)
                                 .await
                                 .map_err(|error| InfiltratorError::Internal(error.to_string()))
                         },
@@ -435,6 +397,8 @@ impl AppState {
                 let Some(rt) = self.runtime.runtime.clone() else {
                     return Task::none();
                 };
+                let gateway: Arc<dyn RuntimeGateway> = rt;
+                let application = ConnectionApplication::new(gateway);
                 let timeout = self.diag.connection_idle_timeout_secs;
                 let now = current_unix_secs();
                 let idle: Vec<String> = match self.diag.connections.clone() {
@@ -448,10 +412,11 @@ impl AppState {
                 };
                 self.diag.last_idle_sweep = Some(idle.len());
                 Task::batch(idle.into_iter().map(|id| {
-                    let rt = rt.clone();
+                    let application = application.clone();
                     Task::perform(
                         async move {
-                            rt.close_connection(&id)
+                            application
+                                .close(&id)
                                 .await
                                 .map_err(|error| InfiltratorError::Internal(error.to_string()))
                         },

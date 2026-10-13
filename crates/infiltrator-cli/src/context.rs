@@ -4,6 +4,7 @@ use infiltrator_application::core_capability_application::CoreCapabilityApplicat
 use infiltrator_application::doctor_application::DoctorApplication;
 use infiltrator_application::outbound_application::OutboundApplication;
 use infiltrator_application::profile_application::ProfileApplication;
+use infiltrator_application::resource_application::ResourceApplication;
 use infiltrator_application::runtime_query_application::RuntimeQueryApplication;
 use infiltrator_application::settings_application::SettingsApplication;
 use infiltrator_application::sync_application::SyncApplication;
@@ -143,15 +144,6 @@ impl Runtime {
         Ok(SyncApplication::new(Arc::new(sync)))
     }
 
-    /// Controller API client for the current profile. Endpoint URL and secret
-    /// resolution reuse `mihomo_config::endpoint::ProfileEndpointSource`,
-    /// the same construction path every frontend takes.
-    pub async fn api_client(&self) -> anyhow::Result<MihomoClient> {
-        let source = ProfileEndpointSource::new(Arc::new(self.config_manager()?));
-        let endpoint = source.resolve().await?;
-        Ok(MihomoClient::new(&endpoint.url, endpoint.secret)?)
-    }
-
     /// Compose the typed CLI outbound path around a per-invocation Core owner.
     /// The owner adopts the existing process only after ProcessCoreController
     /// and ControllerReadiness confirm its live identity and version; the
@@ -196,13 +188,9 @@ impl Runtime {
     }
 
     /// Controller gateway for application services. The concrete client is
-    /// assembled here, at the CLI composition root; handlers only receive
-    /// runtime-neutral application facades.
+    /// assembled here with a scope resolver backed by the per-invocation Core
+    /// owner; handlers only receive runtime-neutral application facades.
     pub async fn runtime_gateway(&self) -> anyhow::Result<Arc<dyn RuntimeGateway>> {
-        Ok(Arc::new(self.api_client().await?))
-    }
-
-    pub async fn connection_application(&self) -> anyhow::Result<ConnectionApplication> {
         let endpoint_source = ProfileEndpointSource::new(Arc::new(self.config_manager()?));
         let endpoint = endpoint_source.resolve().await?;
         let owner = CoreApplication::new(
@@ -218,7 +206,7 @@ impl Runtime {
             .await
             .map_err(|failure| anyhow::anyhow!(failure.message))?
         {
-            anyhow::bail!("connection operations require a ready, running core");
+            anyhow::bail!("runtime observations require a ready, running core");
         }
         let scope_source: Arc<dyn OutboundScopeSource> = Arc::new(owner);
         let resolver_source = Arc::clone(&scope_source);
@@ -229,7 +217,19 @@ impl Runtime {
         });
         let client = MihomoClient::new(&endpoint.url, endpoint.secret)?
             .with_configuration_scope_resolver(scope_resolver);
-        Ok(ConnectionApplication::new(Arc::new(client)))
+        Ok(Arc::new(client))
+    }
+
+    pub async fn resource_application(&self) -> anyhow::Result<ResourceApplication> {
+        let gateway = self.runtime_gateway().await?;
+        Ok(ResourceApplication::new(
+            gateway.clone(),
+            gateway.resource_port(),
+        ))
+    }
+
+    pub async fn connection_application(&self) -> anyhow::Result<ConnectionApplication> {
+        Ok(ConnectionApplication::new(self.runtime_gateway().await?))
     }
 
     pub async fn runtime_query_application(&self) -> anyhow::Result<RuntimeQueryApplication> {

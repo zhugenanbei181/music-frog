@@ -32,6 +32,7 @@ use infiltrator_contract::outbound::{
     preferences::{OutboundHealthFilter, OutboundSortOrder},
 };
 use infiltrator_contract::proxies::ProxyGroupClassification;
+use infiltrator_contract::resources::{CoreResourceSnapshot, ResourceAvailability};
 use infiltrator_contract::snapshot::CoreLifecycle;
 use std::time;
 
@@ -60,9 +61,10 @@ pub(super) fn overview_projection(
         active_connections: page
             .map(|value| value.active_connections)
             .unwrap_or(core.active_connections),
-        memory_bytes: page
-            .and_then(|value| value.memory_bytes)
-            .or(core.memory_bytes),
+        memory_bytes: match &snapshot.resources {
+            CoreResourceSnapshot::NotObserved => ResourceAvailability::NotObserved,
+            CoreResourceSnapshot::Observed { memory, .. } => memory.clone(),
+        },
         sampled_at: core
             .sampled_at_epoch_ms
             .and_then(|value| u64::try_from(value).ok())
@@ -106,7 +108,10 @@ pub(super) fn overview_projection(
         system_toggles: SystemToggleApplication::from_surface(snapshot),
         routing_intent: RoutingIntentApplication::from_surface(snapshot),
         speedtest: snapshot.speedtest.clone(),
-        cpu_percent: snapshot.resources.cpu_percent,
+        cpu_percent: match &snapshot.resources {
+            CoreResourceSnapshot::NotObserved => ResourceAvailability::NotObserved,
+            CoreResourceSnapshot::Observed { cpu_percent, .. } => cpu_percent.clone(),
+        },
         total_traffic_bytes: snapshot
             .pages
             .connections

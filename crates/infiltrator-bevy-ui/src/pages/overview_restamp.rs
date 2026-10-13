@@ -339,8 +339,8 @@ pub(crate) fn apply_overview_projection(
     for (chip_entity, chip, semantic) in &mut chips {
         let value = match chip.0 {
             OverviewChipKind::Connections => projection.active_connections.to_string(),
-            OverviewChipKind::Memory => format_memory(projection.memory_bytes),
-            OverviewChipKind::Cpu => format_cpu(projection.cpu_percent),
+            OverviewChipKind::Memory => format_memory(&projection.memory_bytes),
+            OverviewChipKind::Cpu => format_cpu(&projection.cpu_percent),
             OverviewChipKind::Upload => rate_copy(&projection.readout.upload_bps, language),
             OverviewChipKind::Download => rate_copy(&projection.readout.download_bps, language),
             OverviewChipKind::TotalTraffic => format_total_traffic(projection.total_traffic_bytes),

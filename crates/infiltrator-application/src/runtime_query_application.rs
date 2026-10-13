@@ -2,7 +2,7 @@
 
 use infiltrator_contract::command::CoreLogLevel;
 use infiltrator_contract::error::Failure;
-use infiltrator_domain::runtime::{MemoryData, TrafficData};
+use infiltrator_domain::runtime::TrafficData;
 use infiltrator_ports::core_log_level::CoreLogLevelPort;
 use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use infiltrator_ports::runtime_stream::ScopedRuntimeStream;
@@ -25,10 +25,6 @@ impl RuntimeQueryApplication {
     pub fn with_core_log_level_port(mut self, port: Arc<dyn CoreLogLevelPort>) -> Self {
         self.core_log_level_port = Some(port);
         self
-    }
-
-    pub async fn memory(&self) -> Result<MemoryData, Failure> {
-        self.gateway.get_memory().await.map_err(Failure::from)
     }
 
     pub async fn set_core_log_level(&self, level: CoreLogLevel) -> Result<(), Failure> {

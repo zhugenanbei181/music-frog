@@ -43,7 +43,7 @@ use infiltrator_domain::{
     connection_view::ConnectionGroupingMode,
     profiles::ProfileInfo,
     rules::RuleProviderDiff,
-    runtime::{ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider, TrafficData},
+    runtime::{ConnectionSnapshot, ProxyProvider, RuleProvider, TrafficData},
     settings::AppSettings,
 };
 use infiltrator_ports::host_runtime::TunServiceStatus;
@@ -222,7 +222,6 @@ pub enum Message {
     UpdateRuntimeConnectionSort(String),
     RefreshRuntimeNow,
     TrafficReceived(TrafficData),
-    MemoryReceived(MemoryData),
     IpInfoReceived(Result<IpProbeResult, error::InfiltratorError>, usize),
     ConnectionsReceived(ConnectionSnapshot),
     LogReceived(String),
@@ -234,7 +233,6 @@ pub enum Message {
         scope: core_identity::CoreScope,
         state: RuntimeStreamState,
     },
-    RuntimePollFailed(String),
     ClearRuntimeLogs,
     ConfirmLogExport,
     CancelLogExport,

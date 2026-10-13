@@ -45,7 +45,9 @@ use infiltrator_contract::outbound::{
 use infiltrator_contract::port_conflict::PortConflictSnapshot;
 use infiltrator_contract::privileged_network::PrivilegedNetworkSnapshot;
 use infiltrator_contract::protocol_fidelity::ProtocolStudioSnapshot;
-use infiltrator_contract::resources::CoreResourceSnapshot;
+use infiltrator_contract::resources::{
+    CORE_MEMORY_SOFT_LIMIT_BYTES, CoreGcStatus, CoreResourceSnapshot, ResourceAvailability,
+};
 use infiltrator_contract::rule_provider_snapshot::RuleProviderSnapshot;
 use infiltrator_contract::rule_snapshot::RuleSnapshot;
 use infiltrator_contract::runtime_control::{RuntimeControlSnapshot, RuntimeControlStatus};
@@ -106,7 +108,6 @@ fn snapshot_from_overview_fixture(
         upload_bps: overview.upload_bps,
         download_bps: overview.download_bps,
         active_connections: overview.active_connections,
-        memory_bytes: overview.memory_bytes,
         watchdog: Default::default(),
     };
     let overview_data = surface_snapshot::OverviewPageSnapshot {
@@ -114,7 +115,6 @@ fn snapshot_from_overview_fixture(
         upload_bps: overview.upload_bps,
         download_bps: overview.download_bps,
         active_connections: overview.active_connections,
-        memory_bytes: overview.memory_bytes,
         core_version: overview.core_version.clone(),
     };
     let pages = match fixture {
@@ -186,9 +186,11 @@ fn snapshot_from_overview_fixture(
         controller_auth: ControllerAuthSnapshot::default(),
         service_mode: ServiceModeSnapshot::default(),
         port_conflicts: PortConflictSnapshot::default(),
-        resources: CoreResourceSnapshot {
-            cpu_percent: Some(2.4),
-            ..Default::default()
+        resources: match fixture {
+            OverviewFixture::DemoPages => {
+                demo_resource_snapshot(overview.memory_bytes.clone(), overview.cpu_percent.clone())
+            }
+            OverviewFixture::OverviewOnly => CoreResourceSnapshot::NotObserved,
         },
         offline_startup: OfflineStartupSnapshot::default(),
         mtu: MtuNegotiationSnapshot::default(),
@@ -274,7 +276,6 @@ pub(super) fn demo_snapshot() -> surface_snapshot::SurfaceSnapshot {
         upload_bps: overview.upload_bps,
         download_bps: overview.download_bps,
         active_connections: overview.active_connections,
-        memory_bytes: overview.memory_bytes,
         core_version: None,
     });
     let mut snapshot = surface_snapshot::SurfaceSnapshot {
@@ -312,10 +313,10 @@ pub(super) fn demo_snapshot() -> surface_snapshot::SurfaceSnapshot {
         controller_auth: ControllerAuthSnapshot::default(),
         service_mode: ServiceModeSnapshot::default(),
         port_conflicts: PortConflictSnapshot::default(),
-        resources: CoreResourceSnapshot {
-            cpu_percent: Some(2.4),
-            ..Default::default()
-        },
+        resources: demo_resource_snapshot(
+            ResourceAvailability::Available(96_468_992),
+            ResourceAvailability::Available(2.4),
+        ),
         offline_startup: OfflineStartupSnapshot::default(),
         mtu: MtuNegotiationSnapshot::default(),
         system_proxy: demo_system_proxy(),
@@ -369,6 +370,23 @@ fn demo_core_identity() -> CoreIdentity {
         CoreInstanceId::new("demo").expect("demo core instance ID is valid"),
         None,
     )
+}
+
+fn demo_resource_snapshot(
+    memory: ResourceAvailability<u64>,
+    cpu_percent: ResourceAvailability<f32>,
+) -> CoreResourceSnapshot {
+    CoreResourceSnapshot::Observed {
+        scope: CoreScope {
+            identity: demo_core_identity(),
+            generation: CoreGeneration::new(1),
+            session_token: None,
+        },
+        memory,
+        cpu_percent,
+        memory_soft_limit_bytes: CORE_MEMORY_SOFT_LIMIT_BYTES,
+        gc: CoreGcStatus::NotAttempted,
+    }
 }
 
 fn demo_outbound_inventory() -> OutboundInventorySnapshot {

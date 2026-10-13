@@ -283,7 +283,7 @@ mod tests {
         NetworkRoamingRepairRequest, NetworkRoamingRepairResult,
     };
     use infiltrator_contract::session::SessionToken;
-    use infiltrator_domain::runtime::{MemoryData, ProxyProvider, RuleProvider};
+    use infiltrator_domain::runtime::{ProxyProvider, RuleProvider};
     use infiltrator_ports::error::PortError;
     use infiltrator_ports::runtime_configuration::{
         ConfigurationApply, ConfigurationObservation, ConfigurationRevision, ObservedValue,
@@ -415,10 +415,6 @@ mod tests {
 
         async fn update_rule_provider(&self, _name: &str) -> Result<(), PortError> {
             Ok(())
-        }
-
-        async fn get_memory(&self) -> Result<MemoryData, PortError> {
-            Ok(MemoryData::default())
         }
     }
 

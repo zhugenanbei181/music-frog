@@ -10,7 +10,7 @@
 
 多阶段流程一律用显式 `enum`/sealed 状态表达互斥状态，并以 typed transition 和穷尽匹配限定合法迁移。**禁止用多个 `bool`、`Option`/null 或标志位组合藏出隐式状态机；`bool` 只表示真实二值事实。**修改后必须通过 typed-state 质量门禁；细则见 [代码质量底线](docs/CODE_QUALITY_BASELINE.md)。
 
-Core-first 顺序同样是硬门：先完成所有底层 Core TODO（domain/contract/ports、application 与 fake/nextest、Mihomo/sing-box adapter 与 conformance、Android owner/IPC/VPNService），再做 UI 适配。该 Core 阶段全部关闭前，不实现或重编 UI 包；每个 Core 切片用 mock/nextest 验收并提交，阶段统一验证后再进入 UI。
+Core-first 顺序同样是硬门：先完成所有可独立于 UI 推进的底层 Core TODO（domain/contract/ports、application 与 fake/nextest、Mihomo/sing-box adapter 与 conformance、Android owner/IPC/VPNService）。若剩余 Core 收口唯一被现有 UI 消费者的旧调用阻塞，只允许把迁移到新 typed API 的边界接线作为该 Core 切片的一部分一次完成；不改页面布局、视觉或新增 UI 功能。该迁移批次完成后再统一构建/测试 UI，并继续 Core 收口；没有可独立推进的必要 Core 工作后，才进入各 UI 的专属整改。Core 切片用 mock/nextest 验收并提交。
 
 ## 工作规则
 

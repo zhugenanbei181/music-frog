@@ -251,11 +251,6 @@ pub(super) fn fmt(m: &Message, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result
         Message::TrafficReceived(t) => {
             write!(f, "TrafficReceived(up: {}, down: {})", t.up, t.down)
         }
-        Message::MemoryReceived(m) => write!(
-            f,
-            "MemoryReceived(in_use: {}, os_limit: {})",
-            m.in_use, m.os_limit
-        ),
         Message::IpInfoReceived(Ok(result), id) => {
             write!(
                 f,
@@ -289,7 +284,6 @@ pub(super) fn fmt(m: &Message, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result
             f,
             "RuntimeStreamStateChanged({kind:?}, scope={scope:?}, state={state:?})"
         ),
-        Message::RuntimePollFailed(error) => write!(f, "RuntimePollFailed({error})"),
         Message::LogsCommandFinished { generation, result } => write!(
             f,
             "LogsCommandFinished(generation={generation}, result={result:?})"

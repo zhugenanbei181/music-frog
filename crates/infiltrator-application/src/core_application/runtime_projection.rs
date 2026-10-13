@@ -143,7 +143,6 @@ pub(super) fn snapshot_from_state(
         upload_bps: 0.0,
         download_bps: 0.0,
         active_connections: 0,
-        memory_bytes: None,
         watchdog,
     }
 }

@@ -25,6 +25,9 @@ use infiltrator_contract::outbound::{
         OutboundUiPreferencesValues,
     },
 };
+use infiltrator_contract::resources::{
+    CORE_MEMORY_SOFT_LIMIT_BYTES, CoreGcStatus, CoreResourceSnapshot, ResourceAvailability,
+};
 use infiltrator_contract::routing_intent::RoutingIntentSnapshot;
 use infiltrator_contract::session::SessionToken;
 use infiltrator_contract::snapshot::CoreLifecycle;
@@ -358,10 +361,17 @@ pub(super) fn demo_outbound_surface() -> SurfaceSnapshot {
     snapshot.revision = 1;
     snapshot.core.identity = Some(scope.identity.clone());
     snapshot.core.generation = 1;
-    snapshot.core.session_token = scope.session_token;
+    snapshot.core.session_token = scope.session_token.clone();
     snapshot.core.lifecycle = CoreLifecycle::Stopped;
     snapshot.core.routing_intent = RoutingIntentSnapshot::demo_fixture();
     snapshot.core.core_version = Some("1.19.32".to_owned());
+    snapshot.resources = CoreResourceSnapshot::Observed {
+        scope,
+        memory: ResourceAvailability::Available(96_468_992),
+        cpu_percent: ResourceAvailability::Available(2.4),
+        memory_soft_limit_bytes: CORE_MEMORY_SOFT_LIMIT_BYTES,
+        gc: CoreGcStatus::NotAttempted,
+    };
     snapshot.outbound_inventory = PageData::ready(inventory);
     snapshot.outbound_details = PageData::ready(details);
     snapshot.outbound_ui_preferences = PageData::ready(preferences);

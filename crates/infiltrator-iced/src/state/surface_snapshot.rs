@@ -1,5 +1,6 @@
 use super::proxy_probe;
 use super::*;
+use infiltrator_contract::resources::CoreResourceSnapshot;
 
 impl AppState {
     /// Apply the shared page read model as a monotonic render cache. The
@@ -57,7 +58,7 @@ impl AppState {
             self.diag.inspecting_connection_id = None;
             self.diag.traffic = None;
             self.diag.traffic_history.clear();
-            self.diag.memory = None;
+            self.runtime.core_resources = CoreResourceSnapshot::NotObserved;
             self.diag.public_ip = None;
             self.diag.public_ip_provider = None;
             self.diag.public_ip_checked_at = None;
@@ -372,10 +373,6 @@ impl AppState {
                 .map(|sample| (sample.upload_bps as u64, sample.download_bps as u64))
                 .collect();
         }
-        self.diag.memory = snapshot.core.memory_bytes.map(|in_use| MemoryData {
-            in_use,
-            os_limit: 0,
-        });
         true
     }
 

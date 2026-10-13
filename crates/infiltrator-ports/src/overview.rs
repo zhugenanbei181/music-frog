@@ -9,7 +9,6 @@ pub struct OverviewSample {
     pub upload_total: u64,
     pub download_total: u64,
     pub active_connections: u32,
-    pub memory_bytes: Option<u64>,
     pub core_version: Option<String>,
     pub sampled_at_epoch_ms: Option<i64>,
 }

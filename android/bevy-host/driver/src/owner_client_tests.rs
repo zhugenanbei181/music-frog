@@ -102,7 +102,6 @@ fn owner_snapshot(scope: &CoreScope, revision: u64) -> SurfaceSnapshot {
             upload_bps: 1.0,
             download_bps: 2.0,
             active_connections: 0,
-            memory_bytes: None,
             watchdog: Default::default(),
         },
         ..SurfaceSnapshot::unavailable(

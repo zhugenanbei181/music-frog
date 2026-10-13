@@ -25,6 +25,7 @@ use infiltrator_application::traffic_scale_application::TrafficScaleApplication;
 use infiltrator_application::traffic_waveform_application::TrafficWaveformApplication;
 use infiltrator_contract::active_exit::ActiveExitSnapshot;
 use infiltrator_contract::public_ip::PublicIpProbeSnapshot;
+use infiltrator_contract::resources::ResourceAvailability;
 use infiltrator_contract::shell_readout::ShellObservation;
 use infiltrator_contract::snapshot::{CoreLifecycle, CoreSnapshot};
 use infiltrator_contract::subscription_quota::SubscriptionQuotaSnapshot;
@@ -259,7 +260,7 @@ fn projection_from_snapshot(
         upload_bps: snapshot.upload_bps,
         download_bps: snapshot.download_bps,
         active_connections: snapshot.active_connections,
-        memory_bytes: snapshot.memory_bytes,
+        memory_bytes: ResourceAvailability::NotObserved,
         sampled_at,
         failure: snapshot.failure.map(|failure| failure.message),
         origin: OverviewOrigin::LiveCore,
@@ -292,7 +293,7 @@ fn projection_from_snapshot(
         system_toggles: SystemToggleSnapshot::from_legacy(false, None, snapshot.revision.max(1)),
         routing_intent,
         speedtest: Default::default(),
-        cpu_percent: None,
+        cpu_percent: ResourceAvailability::NotObserved,
         total_traffic_bytes: None,
     }
 }

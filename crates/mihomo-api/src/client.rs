@@ -297,7 +297,7 @@ impl MihomoClient {
     }
 
     /// Trigger Mihomo's active garbage collector.
-    pub async fn trigger_gc(&self) -> Result<()> {
+    pub(crate) async fn trigger_gc(&self) -> Result<()> {
         let url = self.build_url("/debug/gc")?;
         let req = self.add_auth(self.client.put(url));
         req.send().await?.error_for_status()?;

@@ -6,6 +6,7 @@ use crate::types::runtime::{RuntimeStatus, RuntimeStreamState};
 use iced::Task;
 use infiltrator_contract::core_control::CoreControlAction;
 use infiltrator_contract::error::InfiltratorError;
+use infiltrator_contract::resources::CoreResourceSnapshot;
 use infiltrator_shared::autostart;
 
 impl AppState {
@@ -43,7 +44,7 @@ impl AppState {
                 self.diag.traffic_history.clear();
                 self.diag.connections = None;
                 self.diag.connection_groups.clear_observation();
-                self.diag.memory = None;
+                self.runtime.core_resources = CoreResourceSnapshot::NotObserved;
                 self.diag.public_ip = None;
                 self.diag.public_ip_provider = None;
                 self.diag.public_ip_checked_at = None;

@@ -62,7 +62,6 @@ impl TelemetryState {
         core.upload_bps = rates.0;
         core.download_bps = rates.1;
         core.core_version = sample.core_version;
-        core.memory_bytes = sample.memory_bytes;
         core.active_connections = sample.active_connections;
         self.previous = Some((sample.upload_total, sample.download_total, now));
         self.epoch = sample.sampled_at_epoch_ms;

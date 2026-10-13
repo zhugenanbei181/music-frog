@@ -306,7 +306,6 @@ impl SurfaceReader for ApplicationSurfaceReader {
                 upload_bps: core.upload_bps,
                 download_bps: core.download_bps,
                 active_connections: core.active_connections,
-                memory_bytes: core.memory_bytes,
                 core_version: core.core_version.clone(),
             });
 

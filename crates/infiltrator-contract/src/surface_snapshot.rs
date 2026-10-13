@@ -228,7 +228,6 @@ pub struct OverviewPageSnapshot {
     pub upload_bps: f64,
     pub download_bps: f64,
     pub active_connections: u32,
-    pub memory_bytes: Option<u64>,
     pub core_version: Option<String>,
 }
 
@@ -909,7 +908,6 @@ impl SurfaceSnapshot {
                 upload_bps: 0.0,
                 download_bps: 0.0,
                 active_connections: 0,
-                memory_bytes: None,
                 watchdog: Default::default(),
             },
             capabilities: CapabilitySnapshot::new(host, 0, Vec::new()),

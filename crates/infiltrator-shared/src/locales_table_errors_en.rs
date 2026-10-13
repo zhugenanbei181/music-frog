@@ -4,7 +4,6 @@ use std::borrow::Cow;
 pub(super) fn translate_errors_en(key: &str) -> Cow<'static, str> {
     match key {
         "admin_settings_save_failed" => "Admin settings could not be saved: {reason}".into(),
-        "connections_refresh_failed" => "Connection refresh failed: {reason}".into(),
         "core_boot_ports_failed" => "Startup failed (controller ports tried: {ports}): {reason}".into(),
         "core_egress_not_running" => "Start the kernel before probing the proxy exit IP".into(),
         "core_rebuild_restored" => "Rebuild failed; the previous profile was restored: {reason}".into(),
@@ -12,7 +11,6 @@ pub(super) fn translate_errors_en(key: &str) -> Cow<'static, str> {
         "elevation_restart_unavailable" => "Automatic elevated restart is unavailable on this platform; run the app as an administrator".into(),
         "lan_access_verified" => "LAN access and authentication settings applied and verified".into(),
         "lan_listen_verified" => "LAN listening settings applied and verified".into(),
-        "memory_refresh_failed" => "Memory refresh failed: {reason}".into(),
         "mtu_probe_failed_notice" => "MTU probe failed: {reason}".into(),
         "mtu_probe_unavailable" => "Physical link MTU probing is unavailable on this host".into(),
         "mtu_probe_unsupported" => "Physical link MTU probing is unsupported on this host".into(),

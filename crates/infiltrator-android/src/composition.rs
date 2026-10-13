@@ -30,7 +30,7 @@ use infiltrator_contract::surface::HostKind;
 use infiltrator_core::apply::EndpointConfigReloader;
 use infiltrator_core::profile_configuration_transaction::MihomoProfileConfigurationTransactionAdapter;
 use infiltrator_core::version_port::MihomoVersionPort;
-use infiltrator_domain::runtime::{MemoryData, ProxyProvider, RuleProvider};
+use infiltrator_domain::runtime::{ProxyProvider, RuleProvider};
 use infiltrator_platform::android_bridge::AndroidBridge;
 use infiltrator_ports::core_capability_provider::CoreCapabilityProvider;
 use infiltrator_ports::core_log_level::CoreLogLevelPort;
@@ -317,10 +317,6 @@ impl RuntimeGateway for UnavailableAndroidRuntimeGateway {
     }
 
     async fn update_rule_provider(&self, _name: &str) -> Result<(), PortError> {
-        Err(self.failure())
-    }
-
-    async fn get_memory(&self) -> Result<MemoryData, PortError> {
         Err(self.failure())
     }
 }

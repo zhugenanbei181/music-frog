@@ -21,15 +21,21 @@ use infiltrator_contract::speedtest::SpeedtestSnapshot;
 use infiltrator_domain::connection_activity::ConnectionActivityTracker;
 use infiltrator_domain::connection_rate::ConnectionRates;
 use infiltrator_domain::runtime::Connection;
-use infiltrator_domain::runtime::{ConnectionSnapshot, MemoryData, TrafficData};
+use infiltrator_domain::runtime::{ConnectionSnapshot, TrafficData};
 use std::collections::VecDeque;
 use std::time::Instant;
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum StunProbeState {
+    #[default]
+    Idle,
+    InFlight,
+}
 
 /// 诊断域:流量/内存/连接/日志运行态快照与性能 HUD 测量(UI-002)。
 pub struct DiagnosticsState {
     pub traffic: Option<TrafficData>,
     pub traffic_history: VecDeque<(u64, u64)>,
-    pub memory: Option<MemoryData>,
     pub public_ip: Option<String>,
     pub public_ip_provider: Option<String>,
     pub public_ip_checked_at: Option<String>,
@@ -63,7 +69,7 @@ pub struct DiagnosticsState {
     pub dns_leak_capture: Option<DnsLeakApplication>,
     /// DUAL-14-09 (re-scoped): a STUN egress probe started from this surface
     /// is in flight.
-    pub is_probing_stun: bool,
+    pub stun_probe: StunProbeState,
     /// Honest per-target report of the last Fake-IP / OS DNS cache flush,
     /// consumed from the shared DNS page read model (DUAL-14-07).
     pub dns_cache_flush: DnsCacheFlushReport,

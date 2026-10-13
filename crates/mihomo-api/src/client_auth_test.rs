@@ -9,9 +9,7 @@ use infiltrator_contract::core_identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
 };
 use infiltrator_contract::resources::ResourceAvailability;
-use infiltrator_ports::error::PortError;
 use infiltrator_ports::resources::{CoreResourcePort, GarbageCollectionOutcome};
-use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use mockito::Server;
 use serde_json::json;
 use std::sync::Arc;
@@ -87,11 +85,20 @@ async fn gc_endpoint_missing_without_startup_debug_is_typed_unsupported() {
         .with_status(404)
         .create_async()
         .await;
-    let client = MihomoClient::new(&server.url(), Some("generated-by-host".to_owned())).unwrap();
+    let scope = resource_scope(1);
+    let resolver_scope = scope.clone();
+    let resolver: RuntimeScopeResolver = Arc::new(move || Ok(resolver_scope.clone()));
+    let client = MihomoClient::new(&server.url(), Some("generated-by-host".to_owned()))
+        .unwrap()
+        .with_configuration_scope_resolver(resolver.clone());
+    let port = MihomoRuntimeResourcePort::new(client, Some(resolver));
 
-    let result = RuntimeGateway::trigger_gc(&client).await;
-
-    assert!(matches!(result, Err(PortError::Unsupported { .. })));
+    let receipt = port
+        .collect_garbage(scope.clone(), 0)
+        .await
+        .expect("missing GC endpoint is a typed unsupported outcome");
+    assert_eq!(receipt.scope, scope);
+    assert_eq!(receipt.outcome, GarbageCollectionOutcome::Unsupported);
     mock.assert_async().await;
 }
 

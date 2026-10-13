@@ -33,11 +33,11 @@ pub struct TrafficData {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
-pub struct MemoryData {
+pub(crate) struct MemoryData {
     #[serde(rename = "inuse")]
-    pub in_use: u64,
+    pub(crate) in_use: u64,
     #[serde(rename = "oslimit", alias = "os")]
-    pub os_limit: u64,
+    pub(crate) os_limit: u64,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
@@ -251,15 +251,6 @@ impl From<TrafficData> for runtime::TrafficData {
         Self {
             up: value.up,
             down: value.down,
-        }
-    }
-}
-
-impl From<MemoryData> for runtime::MemoryData {
-    fn from(value: MemoryData) -> Self {
-        Self {
-            in_use: value.in_use,
-            os_limit: value.os_limit,
         }
     }
 }
