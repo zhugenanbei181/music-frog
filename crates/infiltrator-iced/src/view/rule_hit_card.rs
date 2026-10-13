@@ -9,8 +9,8 @@ use crate::view_root::interaction_regions::InteractionRegion;
 use iced::advanced::text::Renderer;
 use iced::widget::{Space, button, column, container, row, scrollable, text};
 use iced::{Element, Font, Length, Theme};
-use infiltrator_application::rule_statistics_inspector_projection::project_inspector;
-use infiltrator_application::rule_statistics_workbench::{StatisticsAction, StatisticsTab};
+use infiltrator_presentation::rule_statistics_inspector_projection::project_inspector;
+use infiltrator_presentation::rule_statistics_workbench::{StatisticsAction, StatisticsTab};
 use infiltrator_shared::locales::{Lang, Localizer};
 
 fn action(action: StatisticsAction) -> Message {

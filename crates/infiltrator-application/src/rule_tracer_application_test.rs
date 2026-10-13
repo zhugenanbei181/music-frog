@@ -1,5 +1,4 @@
 use super::*;
-use crate::rule_trace_projection::present_chain;
 use crate::rule_workspace_test_support::rule_workspace;
 use infiltrator_contract::core_identity::CoreScope;
 use infiltrator_contract::outbound::details::{
@@ -24,6 +23,7 @@ use infiltrator_contract::rule_tracer::{
 };
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::rule_tracer::{RuleOverridePort, RuleWorkspace};
+use infiltrator_presentation::rule_trace_projection::present_chain;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 fn scoped_for_test(

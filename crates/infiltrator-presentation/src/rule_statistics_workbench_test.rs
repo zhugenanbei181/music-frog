@@ -1,7 +1,7 @@
 //! test-intent: behavior
 //! Confirmations and reset receipts bind actual row and source identities.
 use super::*;
-use crate::rule_list_fixtures::list_document;
+use crate::rule_fixtures::list_document;
 use crate::rule_statistics_inspector_projection::project_inspector;
 use infiltrator_contract::rule_edit::RuleMoveDirection;
 use infiltrator_contract::rule_hit_audit::{RuleDeadEntry, RuleDeadReason};

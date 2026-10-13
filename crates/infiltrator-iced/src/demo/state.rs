@@ -140,7 +140,7 @@ impl AppState {
         // ---- rules page ---------------------------------------------------
         let document = list_document(demo_rules());
         state.editor.rule_list.observe_readback(
-            infiltrator_application::rule_list_editor::RuleListReadback::Observed(document),
+            infiltrator_presentation::rule_list_editor::RuleListReadback::Observed(document),
         );
         state
             .editor

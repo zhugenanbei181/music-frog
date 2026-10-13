@@ -6,7 +6,7 @@ use crate::view_root::interaction_regions::InteractionRegion;
 use iced::advanced::text::Renderer;
 use iced::widget::{button, column, container, row, scrollable, text};
 use iced::{Element, Font, Length, Theme};
-use infiltrator_application::rule_statistics_inspector_projection::project_inspector;
+use infiltrator_presentation::rule_statistics_inspector_projection::project_inspector;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 pub fn statistics_confirmation<'a, R: Renderer<Font = Font> + 'a>(

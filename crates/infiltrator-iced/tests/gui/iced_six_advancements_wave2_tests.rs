@@ -366,7 +366,7 @@ fn test_advancement_w2_4_connection_grouping_and_quick_rule() {
     let (mut state, _) = AppState::new();
     let document = list_document(state.editor.rule_list.draft.clone());
     state.editor.rule_list.observe_readback(
-        infiltrator_application::rule_list_editor::RuleListReadback::Observed(document),
+        infiltrator_presentation::rule_list_editor::RuleListReadback::Observed(document),
     );
 
     // Default grouping mode

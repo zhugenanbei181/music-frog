@@ -1857,6 +1857,163 @@
       "source_roots": [
         "crates/infiltrator-application/src"
       ]
+    },
+    {
+      "id": "application-rule-form-binding-module",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "rule_form_binding",
+      "rationale": "The rule_form_binding owner moved from infiltrator-application to infiltrator-presentation; application now owns only rule command side effects.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/rule_form_binding_test.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src/lib.rs"
+      ]
+    },
+    {
+      "id": "application-rule-list-editor-module",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "rule_list_editor",
+      "rationale": "The rule_list_editor owner moved from infiltrator-application to infiltrator-presentation; application now owns only rule command side effects.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-application/src/rule_list_application_test.rs",
+        "crates/infiltrator-presentation/src/rule_list_projection_test.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src/lib.rs"
+      ]
+    },
+    {
+      "id": "application-rule-list-projection-module",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "rule_list_projection",
+      "rationale": "The rule_list_projection owner moved from infiltrator-application to infiltrator-presentation; application now owns only rule command side effects.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/rule_list_projection_test.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src/lib.rs"
+      ]
+    },
+    {
+      "id": "application-rule-row-projection-module",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "rule_row_projection",
+      "rationale": "The rule_row_projection owner moved from infiltrator-application to infiltrator-presentation; application now owns only rule command side effects.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/rule_row_projection_test.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src/lib.rs"
+      ]
+    },
+    {
+      "id": "application-rule-condition-projection-module",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "rule_condition_projection",
+      "rationale": "The rule_condition_projection owner moved from infiltrator-application to infiltrator-presentation; application now owns only rule command side effects.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/rule_trace_projection_test.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src/lib.rs"
+      ]
+    },
+    {
+      "id": "application-rule-trace-actions-module",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "rule_trace_actions",
+      "rationale": "The rule_trace_actions owner moved from infiltrator-application to infiltrator-presentation; application now owns only rule command side effects.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/rule_trace_actions_test.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src/lib.rs"
+      ]
+    },
+    {
+      "id": "application-rule-trace-projection-module",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "rule_trace_projection",
+      "rationale": "The rule_trace_projection owner moved from infiltrator-application to infiltrator-presentation; application now owns only rule command side effects.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/rule_trace_projection_test.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src/lib.rs"
+      ]
+    },
+    {
+      "id": "application-rule-statistics-projection-module",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "rule_statistics_projection",
+      "rationale": "The rule_statistics_projection owner moved from infiltrator-application to infiltrator-presentation; application now owns only rule command side effects.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/rule_statistics_projection_test.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src/lib.rs"
+      ]
+    },
+    {
+      "id": "application-rule-statistics-workbench-module",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "rule_statistics_workbench",
+      "rationale": "The rule_statistics_workbench owner moved from infiltrator-application to infiltrator-presentation; application now owns only rule command side effects.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/rule_statistics_workbench_test.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src/lib.rs"
+      ]
+    },
+    {
+      "id": "application-rule-statistics-inspector-projection-module",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "rule_statistics_inspector_projection",
+      "rationale": "The rule_statistics_inspector_projection owner moved from infiltrator-application to infiltrator-presentation; application now owns only rule command side effects.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/rule_statistics_workbench_test.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src/lib.rs"
+      ]
+    },
+    {
+      "id": "application-rule-domain-rules-converter",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "domain_rules",
+      "rationale": "The rule definition to domain entry mapping is a domain value conversion, not an application API.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-application/src/rule_list_application_test.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src/rule_list_application.rs"
+      ]
+    },
+    {
+      "id": "application-rule-definitions-converter",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "rule_definitions",
+      "rationale": "The domain entry to rule definition mapping is a domain value conversion, not an application API.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-application/src/rule_list_application_test.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src/rule_list_application.rs"
+      ]
     }
   ]
 }

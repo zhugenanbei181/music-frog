@@ -18,9 +18,9 @@ use crate::view::theme::{FONT_SEMIBOLD, MONO, SP_LG, tokens};
 use crate::view_root::interaction_regions::InteractionRegion;
 use iced::widget::{Id, Space, button, column, container, row, text};
 use iced::{Alignment, Element, Length, Theme};
-use infiltrator_application::rule_list_projection::{editor_preview, editor_status};
 use infiltrator_contract::rules_workspace::RulesTab;
 use infiltrator_domain::rules::matrix::{RuleTypeFamily, matrix_family, matrix_label};
+use infiltrator_presentation::rule_list_projection::{editor_preview, editor_status};
 use infiltrator_shared::locales::{Lang, Localizer};
 
 pub(crate) mod providers;

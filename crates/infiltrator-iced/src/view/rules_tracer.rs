@@ -14,11 +14,11 @@ use crate::view::{svg_icons, theme};
 use crate::view_root::interaction_regions::InteractionRegion;
 use iced::widget::{Space, button, column, container, row, text, text_input};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
-use infiltrator_application::rule_trace_projection::{
-    present_chain, stage_text, trace_provenance, trace_status,
-};
 use infiltrator_contract::rule_tracer::{
     DecisionChainSnapshot, DecisionNodeStatus, RuleTracerSnapshot,
+};
+use infiltrator_presentation::rule_trace_projection::{
+    present_chain, stage_text, trace_provenance, trace_status,
 };
 use infiltrator_shared::locales::{Lang, Localizer};
 

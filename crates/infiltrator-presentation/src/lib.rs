@@ -34,9 +34,19 @@ pub mod protocol_studio_projection;
 pub mod routing_intent_actions;
 pub mod routing_intent_projection;
 pub mod routing_projection;
+pub mod rule_condition_projection;
+pub mod rule_form_binding;
 pub mod rule_json_projection;
+pub mod rule_list_editor;
+pub mod rule_list_projection;
 pub mod rule_mrs_projection;
 pub mod rule_provider_projection;
+pub mod rule_row_projection;
+pub mod rule_statistics_inspector_projection;
+pub mod rule_statistics_projection;
+pub mod rule_statistics_workbench;
+pub mod rule_trace_actions;
+pub mod rule_trace_projection;
 pub mod script_console_projection;
 pub mod settings_preference_projection;
 pub mod settings_status_projection;
@@ -59,3 +69,6 @@ mod dns_cache_actions_tests;
 
 #[cfg(test)]
 mod dns_query_actions_tests;
+
+#[cfg(test)]
+mod rule_fixtures;

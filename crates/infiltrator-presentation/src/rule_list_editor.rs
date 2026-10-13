@@ -1,5 +1,4 @@
 //! One draft, cancellation and source-fence model for either native rules surface.
-use crate::rule_list_application::{domain_rules, rule_definitions};
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::rule_document::{
     RuleDocumentSnapshot, RuleListCommit, RuleListOperationId, RuleRowId,
@@ -7,6 +6,7 @@ use infiltrator_contract::rule_document::{
 use infiltrator_contract::rule_edit::{RuleDraft, RuleMoveDirection};
 use infiltrator_contract::surface_snapshot::{PageData, PageStatus, RulesPageSnapshot};
 use infiltrator_domain::rules::RuleEntry;
+use infiltrator_domain::rules::document::{definitions_from_entries, entries_from_definitions};
 use infiltrator_domain::rules::edit::{
     build_custom_rule, move_rule, prepend_rules, toggle_rule_enabled,
 };
@@ -187,7 +187,7 @@ impl RuleListEditor {
     pub fn dirty(&self) -> bool {
         self.base
             .as_ref()
-            .is_some_and(|base| base.rules != rule_definitions(&self.draft))
+            .is_some_and(|base| base.rules != definitions_from_entries(&self.draft))
     }
 
     pub fn source_changed(&self) -> bool {
@@ -252,7 +252,7 @@ impl RuleListEditor {
                 ));
                 return false;
             }
-            if document.rules != rule_definitions(&self.draft) {
+            if document.rules != definitions_from_entries(&self.draft) {
                 if self
                     .base
                     .as_ref()
@@ -279,7 +279,7 @@ impl RuleListEditor {
         if self.base.as_ref() == Some(&document) {
             return false;
         }
-        self.draft = domain_rules(&document.rules);
+        self.draft = entries_from_definitions(&document.rules);
         self.reset_row_identities();
         self.base = Some(document);
         self.save = RuleListSavePhase::Idle;
@@ -293,7 +293,7 @@ impl RuleListEditor {
         let Some(document) = self.latest.clone() else {
             return false;
         };
-        self.draft = domain_rules(&document.rules);
+        self.draft = entries_from_definitions(&document.rules);
         self.reset_row_identities();
         self.base = Some(document);
         self.save = RuleListSavePhase::Idle;
@@ -377,7 +377,7 @@ impl RuleListEditor {
         let operation = RuleListOperationId(token);
         let request = RuleListCommit {
             expected_source: self.base.as_ref().expect("available base").source.clone(),
-            rules: rule_definitions(&self.draft),
+            rules: definitions_from_entries(&self.draft),
         };
         self.save = RuleListSavePhase::Submitting(operation);
         Ok((operation, request))

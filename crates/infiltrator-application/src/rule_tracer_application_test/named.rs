@@ -1,10 +1,10 @@
 //! Actual profile-backed named-table simulation and source-fenced leaf transactions.
 use super::*;
-use crate::rule_trace_actions::RuleTraceActions;
 use crate::rule_trace_fixtures::NAMED_TRACE_DOCUMENT;
 use crate::rule_trace_fixtures::RuleTraceStore;
 use infiltrator_contract::rule_location::RuleLocation;
 use infiltrator_contract::rule_trace_run::{RuleTraceOperationId, RuleTraceRequest};
+use infiltrator_presentation::rule_trace_actions::RuleTraceActions;
 
 #[tokio::test]
 async fn named_leaf_report_confirmation_and_commit_preserve_parent_tables_and_source_fence() {

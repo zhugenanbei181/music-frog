@@ -1,12 +1,32 @@
 //! test-intent: behavior
 //! Real isolated profile bytes and full documents, never a truncated display save.
 use super::*;
-use crate::rule_form_binding::RuleFormBinding;
-use crate::rule_list_editor::{RuleListEditor, RuleListReadback};
 use crate::rule_trace_fixtures::{NAMED_TRACE_DOCUMENT, RuleTraceStore};
 use crate::rule_workspace_test_support::rule_workspace;
+use infiltrator_contract::rule_document::RuleListCommit;
 use infiltrator_contract::rule_edit::RuleMoveDirection;
+use infiltrator_contract::rule_source::RuleSourceIdentity;
+use infiltrator_domain::rules::RuleEntry;
+use infiltrator_domain::rules::document::definitions_from_entries;
+use infiltrator_presentation::rule_form_binding::RuleFormBinding;
+use infiltrator_presentation::rule_list_editor::{RuleListEditor, RuleListReadback};
 use std::sync::atomic::Ordering;
+
+#[tokio::test]
+async fn uncomposed_rule_list_port_reports_unsupported_without_side_effects() {
+    let application = RuleListApplication::default();
+    let failure = application
+        .commit(&RuleListCommit {
+            expected_source: RuleSourceIdentity {
+                profile: "rules.yaml".into(),
+                document_hash: "observed".into(),
+            },
+            rules: Vec::new(),
+        })
+        .await
+        .unwrap_err();
+    assert_eq!(failure.code, ErrorCode::Unsupported);
+}
 
 #[tokio::test]
 async fn staged_edits_cancel_permission_retry_and_atomic_source_change_keep_exact_profile_ownership()
@@ -121,7 +141,7 @@ fn failed_read_changed_source_and_unobserved_success_preserve_draft_until_explic
     assert!(editor.source_changed());
     assert!(!editor.can_save());
     assert!(editor.discard());
-    assert_eq!(rule_definitions(&editor.draft), second.rules);
+    assert_eq!(definitions_from_entries(&editor.draft), second.rules);
     editor.toggle(editor.row_id(0).unwrap());
     let (operation, _) = editor.begin().unwrap();
     editor.finish(operation, Ok(()));
@@ -135,7 +155,7 @@ fn failed_read_changed_source_and_unobserved_success_preserve_draft_until_explic
     assert!(editor.source_changed());
     assert_eq!(editor.failure().unwrap().code, ErrorCode::NotReady);
     assert!(editor.discard());
-    assert_eq!(rule_definitions(&editor.draft), changed.rules);
+    assert_eq!(definitions_from_entries(&editor.draft), changed.rules);
 }
 
 #[test]

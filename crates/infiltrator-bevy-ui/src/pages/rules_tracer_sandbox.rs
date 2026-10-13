@@ -10,7 +10,6 @@ use bevy::ecs::system::{Query, Res, ResMut};
 use bevy::scene::{Scene, bsn};
 use bevy::ui::{Display, FlexDirection, Node, Overflow, UiRect, percent, px};
 use bevy::ui_widgets::{Activate, ScrollArea};
-use infiltrator_application::rule_condition_projection::field_key;
 use infiltrator_bevy_widgets::button::{ButtonDisabled, ButtonVariant};
 use infiltrator_bevy_widgets::localization::LocalizedText;
 use infiltrator_bevy_widgets::palette::UiPalette;
@@ -21,6 +20,7 @@ use infiltrator_bevy_widgets::text_input::state::TextFieldInput;
 use infiltrator_bevy_widgets::text_input::{TextField, TextFieldFocused};
 use infiltrator_contract::rule_condition::TrafficField;
 use infiltrator_contract::rules_workspace::RulesTab;
+use infiltrator_presentation::rule_condition_projection::field_key;
 
 #[derive(Component, Clone, Copy, Default)]
 pub struct TracerSandboxRoot;

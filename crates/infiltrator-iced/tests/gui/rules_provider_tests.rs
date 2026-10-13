@@ -105,7 +105,7 @@ async fn unpack_reads_the_host_cache_through_the_injected_port() {
     }];
     let document = list_document(state.editor.rule_list.draft.clone());
     state.editor.rule_list.observe_readback(
-        infiltrator_application::rule_list_editor::RuleListReadback::Observed(document),
+        infiltrator_presentation::rule_list_editor::RuleListReadback::Observed(document),
     );
     // The shared application service is exactly what the handler drives;
     // the async result then lands in `finish_rule_provider_unpack`.

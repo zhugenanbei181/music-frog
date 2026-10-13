@@ -6,7 +6,6 @@ use iced::Task;
 use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::language_choice_fixtures::LanguageCaptureProcess;
-use infiltrator_application::rule_statistics_workbench::{StatisticsAction, StatisticsTab};
 use infiltrator_application::rule_trace_fixtures::{
     scoped_rule_trace_request, unknown_rule_trace_observation,
 };
@@ -20,6 +19,7 @@ use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::SurfaceOrigin;
 use infiltrator_ports::rule_tracer::RuleOverridePort;
 use infiltrator_ports::surface::SurfaceReader;
+use infiltrator_presentation::rule_statistics_workbench::{StatisticsAction, StatisticsTab};
 use std::sync::Arc;
 
 pub(super) fn activate(state: &mut AppState) -> Task<Message> {

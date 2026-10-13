@@ -11,7 +11,6 @@ use iced::widget::text_editor::Content;
 use iced::{Task, clipboard, window};
 use infiltrator_application::connection_rate_application::project_connection;
 use infiltrator_application::proxy_group_order_editor::GroupMove;
-use infiltrator_application::rule_statistics_workbench::StatisticsAction;
 use infiltrator_contract::command_catalogue::CommandTarget;
 use infiltrator_contract::error::{InfiltratorError, from_backend};
 use infiltrator_contract::outbound::probe::OutboundProbeBatchScope;
@@ -19,6 +18,7 @@ use infiltrator_domain::connection_rate::PULSE_BREATH_HZ;
 use infiltrator_domain::connection_view::{ConnectionRuleSpec, append_draft_rule};
 use infiltrator_domain::yaml_edit::format::format_yaml;
 use infiltrator_presentation::profile_editor_projection;
+use infiltrator_presentation::rule_statistics_workbench::StatisticsAction;
 use infiltrator_shared::i18n_interpolator::localize;
 use infiltrator_shared::locales::{Lang, Localizer};
 #[cfg(target_os = "windows")]

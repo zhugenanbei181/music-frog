@@ -12,7 +12,6 @@ use bevy::ui::{InteractionDisabled, Pressed};
 use bevy::ui_widgets::ButtonPlugin;
 use bevy::window::{PrimaryWindow, Window};
 use infiltrator_application::command_application::CommandApplication;
-use infiltrator_application::rule_statistics_workbench::StatisticsTab;
 use infiltrator_application::rule_trace_fixtures::RuleTraceStore;
 use infiltrator_application::rule_tracer_application::RuleTracerApplication;
 use infiltrator_bevy_ui::app::ShellPlugin;
@@ -36,6 +35,7 @@ use infiltrator_contract::rule_tracer::TrafficContextSnapshot;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_ports::rule_tracer::RuleOverridePort;
 use infiltrator_ports::surface::SurfaceReader;
+use infiltrator_presentation::rule_statistics_workbench::StatisticsTab;
 use std::mem::discriminant;
 use std::sync::{Arc, atomic::Ordering};
 use std::thread::yield_now;
@@ -309,7 +309,7 @@ fn native_statistics_reset_failure_retry_waits_for_actual_readback_and_keeps_loc
     let state = &app.world().resource::<RulesStatisticsState>().model;
     assert!(matches!(
         state.reset_phase(),
-        infiltrator_application::rule_statistics_workbench::StatisticsResetPhase::AwaitingReadback { .. }
+        infiltrator_presentation::rule_statistics_workbench::StatisticsResetPhase::AwaitingReadback { .. }
     ));
     assert_eq!(state.audit.as_ref(), Some(&before));
     assert!(app.world().get::<ButtonDisabled>(reset).unwrap().0);

@@ -24,7 +24,7 @@ async fn test_rules_rule_provider_unpack_reads_shared_application() {
     }];
     let document = list_document(state.editor.rule_list.draft.clone());
     state.editor.rule_list.observe_readback(
-        infiltrator_application::rule_list_editor::RuleListReadback::Observed(document),
+        infiltrator_presentation::rule_list_editor::RuleListReadback::Observed(document),
     );
     state.editor.rule_providers_json_cache =
         r#"{"ads":{"type":"inline","behavior":"domain","payload":["ads.com","tracker.net"]}}"#

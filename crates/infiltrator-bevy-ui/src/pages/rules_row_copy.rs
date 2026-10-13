@@ -3,8 +3,8 @@ use crate::pages::rules::LastRulesProjection;
 use crate::pages::rules_projection::RulePayloadText;
 use bevy::ecs::system::{Query, Res};
 use bevy::ui::widget::Text;
-use infiltrator_application::rule_row_projection::row_detail;
 use infiltrator_bevy_widgets::localization::UiLocale;
+use infiltrator_presentation::rule_row_projection::row_detail;
 pub fn sync(
     last: Option<Res<LastRulesProjection>>,
     locale: Res<UiLocale>,

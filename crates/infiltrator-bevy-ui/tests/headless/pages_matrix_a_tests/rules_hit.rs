@@ -154,7 +154,7 @@ fn test_rules_hit_audit_projection_and_clear_command() {
     assert!(statistics.reset_request().is_none());
     assert!(!matches!(
         statistics.reset_phase(),
-        infiltrator_application::rule_statistics_workbench::StatisticsResetPhase::AwaitingReadback { .. }
+        infiltrator_presentation::rule_statistics_workbench::StatisticsResetPhase::AwaitingReadback { .. }
     ));
     assert!(
         statistics.reset_failure().is_some(),

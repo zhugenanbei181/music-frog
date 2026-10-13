@@ -13,6 +13,7 @@ use serde_yaml_ng::{Mapping, Value};
 use std::collections::{BTreeMap, HashSet};
 
 pub mod analyzer;
+pub mod document;
 pub mod edit;
 pub mod logical;
 pub mod matrix;

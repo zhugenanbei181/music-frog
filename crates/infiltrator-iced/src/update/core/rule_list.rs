@@ -5,11 +5,11 @@ use crate::types::editor::EditorLazyState;
 use crate::types::message::Message;
 use crate::types::rule_list::RuleListAction;
 use iced::Task;
-use infiltrator_application::rule_form_binding::default_form_target;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::rules_workspace::RulesJsonSection;
 use infiltrator_contract::surface_snapshot::{PageData, RulesPageSnapshot};
+use infiltrator_presentation::rule_form_binding::default_form_target;
 
 impl AppState {
     pub(crate) fn observe_rule_list_page(&mut self, page: &PageData<RulesPageSnapshot>) {

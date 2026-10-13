@@ -19,7 +19,6 @@ use bevy::ui::{
     percent,
 };
 use bevy::ui_widgets::Activate;
-use infiltrator_application::rule_condition_projection::location_text;
 use infiltrator_bevy_widgets::button::{ButtonDisabled, ButtonVariant};
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText, UiLocale};
@@ -29,6 +28,7 @@ use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::rule_location::RuleLocation;
+use infiltrator_presentation::rule_condition_projection::location_text;
 
 #[derive(Component, Clone, Copy, Default)]
 pub struct TraceConfirmationRoot;

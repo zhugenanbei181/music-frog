@@ -5,8 +5,8 @@ use crate::types::rule_trace::RuleTraceAction;
 use crate::view::component_forms::{form_input_style, style_ghost};
 use iced::widget::{button, column, row, scrollable, text, text_input};
 use iced::{Element, Length};
-use infiltrator_application::rule_condition_projection::field_key;
 use infiltrator_contract::rule_condition::TrafficField;
+use infiltrator_presentation::rule_condition_projection::field_key;
 use infiltrator_shared::locales::{Lang, Localizer};
 pub fn sandbox_view<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {
     let model = &state.editor.rule_trace;

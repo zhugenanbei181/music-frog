@@ -20,8 +20,6 @@ use bevy::scene::{Scene, bsn};
 use bevy::ui::widget::Text;
 use bevy::ui::{FlexDirection, FlexWrap, Node, percent};
 use bevy::ui_widgets::Activate;
-use infiltrator_application::rule_list_editor::RuleListEditor;
-use infiltrator_application::rule_list_projection::{draft_page, editor_preview, editor_status};
 use infiltrator_bevy_widgets::button::{ButtonDisabled, ButtonVariant};
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
@@ -31,6 +29,8 @@ use infiltrator_contract::command::RequestId;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::rule_document::RuleListOperationId;
 use infiltrator_contract::surface_snapshot::PageData;
+use infiltrator_presentation::rule_list_editor::RuleListEditor;
+use infiltrator_presentation::rule_list_projection::{draft_page, editor_preview, editor_status};
 
 #[derive(Resource, Default)]
 pub struct RulesDraftState {

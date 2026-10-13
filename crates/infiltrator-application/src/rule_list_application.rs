@@ -1,32 +1,49 @@
 //! Atomic source-bound root-list commits shared by both product surfaces.
 use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::rule_document::{RuleDefinition, RuleDocumentSnapshot, RuleListCommit};
-use infiltrator_domain::rules::RuleEntry;
+use infiltrator_contract::rule_document::{RuleDocumentSnapshot, RuleListCommit};
+use infiltrator_domain::rules::document::{definitions_from_entries, entries_from_definitions};
 use infiltrator_domain::rules::types::{RuleType, parse_rule_str};
 use infiltrator_domain::sub_rules::LogicalRuleAst;
 use infiltrator_ports::rule_tracer::{RuleOverridePort, RuleWorkspace};
 use std::sync::{Arc, Mutex};
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct RuleListApplication {
-    port: Arc<Mutex<Option<Arc<dyn RuleOverridePort>>>>,
+    port: Arc<Mutex<RuleListPortBinding>>,
 }
+
+#[derive(Clone)]
+enum RuleListPortBinding {
+    Uncomposed,
+    Composed(Arc<dyn RuleOverridePort>),
+}
+
+impl Default for RuleListApplication {
+    fn default() -> Self {
+        Self {
+            port: Arc::new(Mutex::new(RuleListPortBinding::Uncomposed)),
+        }
+    }
+}
+
 impl RuleListApplication {
     pub fn new(port: Arc<dyn RuleOverridePort>) -> Self {
         Self {
-            port: Arc::new(Mutex::new(Some(port))),
+            port: Arc::new(Mutex::new(RuleListPortBinding::Composed(port))),
         }
     }
     pub fn set_port(&self, port: Arc<dyn RuleOverridePort>) {
-        *self.port.lock().expect("rule-list host slot") = Some(port);
+        *self.port.lock().expect("rule-list host slot") = RuleListPortBinding::Composed(port);
     }
     pub async fn commit(&self, request: &RuleListCommit) -> Result<(), Failure> {
-        let port = self
-            .port
-            .lock()
-            .expect("rule-list host slot")
-            .clone()
-            .ok_or_else(|| Failure::unsupported("Atomic rule-list persistence is not composed"))?;
+        let port = match self.port.lock().expect("rule-list host slot").clone() {
+            RuleListPortBinding::Uncomposed => {
+                return Err(Failure::unsupported(
+                    "Atomic rule-list persistence is not composed",
+                ));
+            }
+            RuleListPortBinding::Composed(port) => port,
+        };
         let workspace = port.load_rule_workspace().await.map_err(Failure::from)?;
         if workspace.source != request.expected_source {
             return Err(Failure::new(
@@ -35,7 +52,7 @@ impl RuleListApplication {
                 true,
             ));
         }
-        let rules = domain_rules(&request.rules);
+        let rules = entries_from_definitions(&request.rules);
         for entry in &rules {
             if !entry.enabled {
                 continue;
@@ -62,32 +79,14 @@ impl RuleListApplication {
             .map_err(Failure::from)
     }
 }
-pub fn domain_rules(rules: &[RuleDefinition]) -> Vec<RuleEntry> {
-    rules
-        .iter()
-        .map(|rule| RuleEntry {
-            rule: rule.rule.clone(),
-            enabled: rule.enabled,
-        })
-        .collect()
-}
-pub fn rule_definitions(rules: &[RuleEntry]) -> Vec<RuleDefinition> {
-    rules
-        .iter()
-        .map(|rule| RuleDefinition {
-            rule: rule.rule.clone(),
-            enabled: rule.enabled,
-        })
-        .collect()
-}
 pub fn document_snapshot(workspace: &RuleWorkspace) -> RuleDocumentSnapshot {
     RuleDocumentSnapshot {
         source: workspace.source.clone(),
-        rules: rule_definitions(&workspace.rules),
+        rules: definitions_from_entries(&workspace.rules),
         sub_rules: workspace
             .sub_rules
             .iter()
-            .map(|(name, rules)| (name.clone(), rule_definitions(rules)))
+            .map(|(name, rules)| (name.clone(), definitions_from_entries(rules)))
             .collect(),
         targets: workspace.targets.clone(),
     }

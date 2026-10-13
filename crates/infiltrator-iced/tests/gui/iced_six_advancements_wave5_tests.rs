@@ -10,7 +10,6 @@ use crate::state::proxy_probe;
 use crate::types::message::Message;
 use crate::types::message::mtu_probe::MtuProbeCompletion;
 use infiltrator_application::rule_list_fixtures::list_document;
-use infiltrator_application::rule_statistics_workbench::StatisticsAction;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::ipv6::Ipv6RoutingSnapshot;
 use infiltrator_contract::lan::{LanSecuritySnapshot, LanSharingSnapshot};
@@ -34,6 +33,7 @@ use infiltrator_domain::rules::RuleEntry;
 use infiltrator_iced::demo::DemoEnv;
 use infiltrator_iced::types::app;
 use infiltrator_iced::types::options;
+use infiltrator_presentation::rule_statistics_workbench::StatisticsAction;
 
 fn rules_page_with_hit_audit(
     mut audit: RuleHitAuditSnapshot,

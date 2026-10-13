@@ -3,10 +3,10 @@ use crate::state::AppState;
 use crate::types::app::ConfirmAction;
 use crate::types::message::Message;
 use iced::Task;
-use infiltrator_application::rule_statistics_workbench::StatisticsAction;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_presentation::rule_statistics_workbench::StatisticsAction;
 
 impl AppState {
     pub(super) fn update_rule_statistics(&mut self, action: StatisticsAction) -> Task<Message> {

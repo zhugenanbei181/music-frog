@@ -23,7 +23,6 @@ use iced::widget::text_editor;
 use iced::window::{self, Screenshot};
 use infiltrator_application::profile_application::ProfileActivationOutcome;
 use infiltrator_application::rule_provider_application::ProviderUnpackPlan;
-use infiltrator_application::rule_statistics_workbench::StatisticsAction;
 use infiltrator_application::runtime_configuration_application::RuntimeConfigurationReadout;
 use infiltrator_contract::command::CoreLogLevel;
 use infiltrator_contract::outbound::{identity, inventory, preferences, probe};
@@ -49,6 +48,7 @@ use infiltrator_domain::{
 use infiltrator_ports::host_runtime::TunServiceStatus;
 use infiltrator_ports::profile_document_codec::ProfileMixinToggleId;
 use infiltrator_presentation::routing_intent_actions::PendingRoutingIntentChange;
+use infiltrator_presentation::rule_statistics_workbench::StatisticsAction;
 use std::{path::PathBuf, time::Instant};
 pub mod mtu_probe;
 use mtu_probe::MtuProbeCompletion;

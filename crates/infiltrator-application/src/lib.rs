@@ -82,18 +82,13 @@ pub mod responsive_viewport_application;
 pub mod routing_application;
 pub mod routing_intent_application;
 pub mod routing_intent_fixtures;
-pub mod rule_form_binding;
 pub mod rule_list_application;
-pub mod rule_list_editor;
 #[cfg(any(test, feature = "capture-fixtures"))]
 pub mod rule_list_fixtures;
-pub mod rule_list_projection;
 pub mod rule_provider_application;
 pub mod rule_provider_runtime_application;
-pub mod rule_trace_actions;
 #[cfg(any(test, feature = "capture-fixtures"))]
 pub mod rule_trace_fixtures;
-pub mod rule_trace_projection;
 pub mod rule_tracer_application;
 #[cfg(test)]
 mod rule_workspace_test_support;
@@ -192,12 +187,6 @@ mod log_stream_test_support;
 #[cfg(test)]
 mod log_search_tests;
 
-pub mod rule_statistics_projection;
-
-pub mod rule_statistics_workbench;
-
-pub mod rule_statistics_inspector_projection;
-
 #[cfg(test)]
 mod script_service_tests;
 
@@ -218,5 +207,3 @@ mod outbound_batch_tests;
 #[cfg(test)]
 #[path = "command_outbound_tests.rs"]
 mod command_outbound_tests;
-pub mod rule_condition_projection;
-pub mod rule_row_projection;

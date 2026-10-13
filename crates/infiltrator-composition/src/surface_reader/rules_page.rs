@@ -6,7 +6,6 @@
 use super::projections::missing;
 use super::*;
 use infiltrator_application::rule_list_application::document_snapshot;
-use infiltrator_application::rule_list_projection::rule_snapshot;
 use infiltrator_application::rule_provider_application::RuleProviderApplication;
 use infiltrator_application::rule_tracer_application::RuleTracerApplication;
 use infiltrator_contract::mrs_acceleration::MrsAccelerationSnapshot;
@@ -18,6 +17,7 @@ use infiltrator_contract::rule_provider_snapshot::{
 use infiltrator_domain::rules::analyzer::{ShadowedRuleWarning, find_shadowed_rules};
 use infiltrator_domain::rules::provider_store::RuleProviderDeclaration;
 use infiltrator_domain::rules::view::{RULE_PUBLISH_LIMIT, published_rule_count};
+use infiltrator_presentation::rule_list_projection::rule_snapshot;
 use std::collections::HashMap;
 
 /// Inputs the live rule tracer replays against: the shared engine plus the

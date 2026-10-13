@@ -12,13 +12,13 @@ use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
 use bevy::scene::{CommandsSceneExt, Scene, bsn};
 use bevy::ui::widget::Text;
 use bevy::ui::{Display, FlexDirection, Node, percent};
-use infiltrator_application::rule_statistics_inspector_projection::{
-    StatisticsRowKey, StatisticsRowProjection, project_inspector,
-};
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_presentation::rule_statistics_inspector_projection::{
+    StatisticsRowKey, StatisticsRowProjection, project_inspector,
+};
 
 #[derive(Component, Clone, Default)]
 pub struct StatisticsRow(pub Option<StatisticsRowKey>);

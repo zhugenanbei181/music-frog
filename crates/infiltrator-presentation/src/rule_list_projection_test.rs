@@ -1,8 +1,8 @@
 //! test-intent: behavior
 //! A draft cannot inherit trace observations from another source or unpublished rows.
 use super::*;
+use crate::rule_fixtures::list_document;
 use crate::rule_list_editor::RuleListReadback;
-use crate::rule_list_fixtures::list_document;
 use infiltrator_contract::rule_edit::RuleMoveDirection;
 use infiltrator_contract::rule_hit_audit::RuleHitAuditSnapshot;
 

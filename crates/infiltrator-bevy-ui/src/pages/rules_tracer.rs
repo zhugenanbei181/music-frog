@@ -22,10 +22,6 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Activate;
-use infiltrator_application::rule_trace_actions::RuleTraceActions;
-use infiltrator_application::rule_trace_projection::{
-    stage_text, trace_headline, trace_provenance, trace_status,
-};
 use infiltrator_bevy_widgets::button::{ButtonDisabled, ButtonVariant};
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::icon::IconId;
@@ -44,6 +40,10 @@ use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::rule_trace_run::RuleTraceOperationId;
 use infiltrator_contract::rule_tracer::RuleTracerSnapshot;
 use infiltrator_contract::rules_workspace::RulesTab;
+use infiltrator_presentation::rule_trace_actions::RuleTraceActions;
+use infiltrator_presentation::rule_trace_projection::{
+    stage_text, trace_headline, trace_provenance, trace_status,
+};
 
 #[derive(Resource, Default)]
 pub struct RulesTraceState {

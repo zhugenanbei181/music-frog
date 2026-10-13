@@ -10,9 +10,9 @@ use crate::view_root::modals::rule_statistics::statistics_confirmation;
 use futures_util::StreamExt;
 use iced::Task;
 use iced_runtime::{Action, task::into_stream};
-use infiltrator_application::rule_statistics_inspector_projection::project_inspector;
-use infiltrator_application::rule_statistics_workbench::StatisticsTab;
 use infiltrator_contract::error::ErrorCode;
+use infiltrator_presentation::rule_statistics_inspector_projection::project_inspector;
+use infiltrator_presentation::rule_statistics_workbench::StatisticsTab;
 use infiltrator_shared::locales::Lang;
 use std::sync::atomic::Ordering;
 use tokio::runtime::Builder;
@@ -98,7 +98,7 @@ fn native_statistics_reset_permission_retry_requires_matching_receipt_and_actual
     complete(&mut state, tasks);
     assert!(matches!(
         state.editor.rule_hit_audit.reset_phase(),
-        infiltrator_application::rule_statistics_workbench::StatisticsResetPhase::AwaitingReadback { .. }
+        infiltrator_presentation::rule_statistics_workbench::StatisticsResetPhase::AwaitingReadback { .. }
     ));
     assert_eq!(state.editor.rule_hit_audit.audit.as_ref(), Some(&before));
     publish(&mut state, &reader);

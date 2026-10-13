@@ -10,11 +10,11 @@ use bevy::ecs::query::With;
 use bevy::ecs::system::{Query, Res, ResMut};
 use bevy::ui::BackgroundColor;
 use bevy::ui::widget::Text;
-use infiltrator_application::rule_form_binding::default_form_target;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::text_input::{TextField, TextFieldFocused};
 use infiltrator_contract::rules_workspace::RulesTab;
+use infiltrator_presentation::rule_form_binding::default_form_target;
 
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
 pub enum RuleBuilderFieldKind {

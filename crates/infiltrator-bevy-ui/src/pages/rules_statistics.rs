@@ -22,15 +22,15 @@ use bevy::input::keyboard::KeyCode;
 use bevy::input_focus::InputFocus;
 use bevy::scene::Scene;
 use bevy::ui_widgets::{Activate, Button};
-use infiltrator_application::rule_statistics_inspector_projection::StatisticsRowKey;
-use infiltrator_application::rule_statistics_workbench::{
-    RuleStatisticsWorkbench, StatisticsResetRequest, StatisticsTab,
-};
 use infiltrator_bevy_widgets::button::{ButtonDisabled, sync_button_disabled};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_contract::command::RequestId;
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_presentation::rule_statistics_inspector_projection::StatisticsRowKey;
+use infiltrator_presentation::rule_statistics_workbench::{
+    RuleStatisticsWorkbench, StatisticsResetRequest, StatisticsTab,
+};
 
 #[derive(Resource, Default)]
 pub struct RulesStatisticsState {

@@ -25,10 +25,10 @@ use crate::view::{svg_icons, theme};
 use iced::widget::scrollable::Viewport;
 use iced::widget::{Id, Space, button, column, container, pick_list, row, text, text_input};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
-use infiltrator_application::rule_row_projection::{row_detail, row_hits_copy};
 use infiltrator_contract::rule_document::RuleRowId;
 use infiltrator_domain::rules::edit::CUSTOM_RULE_TYPE_CHOICES;
 use infiltrator_domain::rules::view::{RULE_ROW_HEIGHT_PX, page_count};
+use infiltrator_presentation::rule_row_projection::{row_detail, row_hits_copy};
 use infiltrator_shared::i18n_interpolator::interpolate;
 use infiltrator_shared::locales::{Lang, Localizer};
 

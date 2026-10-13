@@ -20,7 +20,6 @@ use bevy::ui::widget::Text;
 use bevy::ui_widgets::Activate;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::language_choice_fixtures::LanguageCaptureProcess;
-use infiltrator_application::rule_statistics_workbench::StatisticsTab;
 use infiltrator_application::rule_trace_fixtures::{
     RuleTraceStore, scoped_rule_trace_request, unknown_rule_trace_observation,
 };
@@ -36,6 +35,7 @@ use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::{SurfaceOrigin, SurfaceSnapshot};
 use infiltrator_ports::rule_tracer::RuleOverridePort;
 use infiltrator_ports::surface::SurfaceReader;
+use infiltrator_presentation::rule_statistics_workbench::StatisticsTab;
 use std::sync::{Arc, Mutex, atomic::Ordering};
 
 #[derive(Resource)]
