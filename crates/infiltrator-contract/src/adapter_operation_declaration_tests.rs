@@ -84,7 +84,12 @@ fn supported_operations_require_matching_ids_registered_in_each_engine_lock() {
         .iter()
         .filter(|operation| validated.verified_supported_evidence(**operation).is_some())
         .count();
-    assert_eq!(supported, 7);
+    assert_eq!(supported, 8);
+    assert!(
+        validated
+            .verified_supported_evidence(CoreOperation::Dns(DnsOperation::Query))
+            .is_some()
+    );
 
     let sing_box = validate_source(SING_BOX_DECLARATION, "sing-box", SING_BOX_EVIDENCE_LOCK);
     assert!(
