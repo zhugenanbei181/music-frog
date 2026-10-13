@@ -341,7 +341,10 @@ impl AdminApiContext for IcedAdminContext {
 
     async fn runtime_running(&self) -> bool {
         match self.shared.runtime() {
-            Some(runtime) => ManagedRuntime::is_running(runtime.as_ref()).await,
+            Some(runtime) => matches!(
+                runtime.lifecycle_port().lifecycle(),
+                CoreLifecycle::Ready | CoreLifecycle::Running
+            ),
             None => false,
         }
     }
@@ -390,11 +393,14 @@ impl AdminApiContext for IcedAdminContext {
                 .shared
                 .runtime()
                 .ok_or_else(|| anyhow!(Lang(&language).tr("core_not_running").into_owned()))?;
-            let endpoint = ManagedRuntime::http_proxy_endpoint(runtime.as_ref())
-                .await?
-                .ok_or_else(|| {
-                    anyhow!(Lang(&language).tr("system_proxy_missing_port").into_owned())
-                })?;
+            let endpoint = match runtime.observe_http_proxy_endpoint().await? {
+                RuntimeHttpProxyEndpoint::Configured { endpoint } => endpoint,
+                RuntimeHttpProxyEndpoint::NotConfigured => {
+                    return Err(anyhow!(
+                        Lang(&language).tr("system_proxy_missing_port").into_owned()
+                    ));
+                }
+            };
             let proxy_port = runtime
                 .system_proxy_port()
                 .unwrap_or_else(system_proxy_port);

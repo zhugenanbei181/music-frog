@@ -2,9 +2,10 @@
 //! test-intent: behavior
 
 use super::*;
+use crate::profile_application::ProfileRuntimeAccess;
 use crate::profile_document_application::ProfileDocumentApplication;
 use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
-use infiltrator_ports::runtime_gateway::ManagedRuntime;
+use infiltrator_ports::runtime_gateway::ActiveProfileReferenceApplier;
 use std::sync::Arc;
 
 #[tokio::test]
@@ -19,7 +20,7 @@ async fn local_profiles_stay_directly_editable() {
     let application = ProfileDocumentApplication::new(profiles);
     application
         .save(
-            crate::profile_application::ProfileRuntimeAccess::<dyn ManagedRuntime>::Offline,
+            ProfileRuntimeAccess::<dyn ActiveProfileReferenceApplier>::Offline,
             &source,
             "mode: global\n",
             ProfileWriteAuthorization::RequireUnlock,

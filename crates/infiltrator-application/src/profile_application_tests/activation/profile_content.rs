@@ -12,7 +12,7 @@ async fn stopped_core_profile_content_is_saved_without_starting_or_applying() {
 
     let outcome = application
         .save_profile_content_at_reference(
-            ProfileRuntimeAccess::Managed(runtime.clone()),
+            ProfileRuntimeAccess::CoreOwner(runtime.clone()),
             "main".to_owned(),
             "mode: global\n".to_owned(),
             ApplyStrategy::AlwaysRestart,
@@ -42,7 +42,7 @@ async fn failed_core_profile_content_is_stored_with_a_failed_lifecycle_receipt()
 
     let outcome = application
         .save_profile_content_at_reference(
-            ProfileRuntimeAccess::Managed(runtime.clone()),
+            ProfileRuntimeAccess::CoreOwner(runtime.clone()),
             "main".to_owned(),
             "mode: direct\n".to_owned(),
             ApplyStrategy::AlwaysRestart,
@@ -107,7 +107,7 @@ async fn transitioning_core_rejects_profile_content_before_store_or_runtime_effe
 
     let failure = application
         .save_profile_content_at_reference(
-            ProfileRuntimeAccess::Managed(runtime.clone()),
+            ProfileRuntimeAccess::CoreOwner(runtime.clone()),
             "main".to_owned(),
             "mode: global\n".to_owned(),
             ApplyStrategy::AlwaysRestart,

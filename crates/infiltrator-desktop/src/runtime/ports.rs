@@ -1,5 +1,5 @@
 //! Host port trait implementations for [`MihomoRuntime`]: the runtime
-//! gateway, the managed-runtime lifecycle and the host adapter composition.
+//! gateway, profile-owner and endpoint ports, and the host adapter composition.
 
 use super::MihomoRuntime;
 use crate::certificate_authority::DesktopCertificateAuthority;
@@ -46,7 +46,10 @@ use infiltrator_ports::profile_workspace::{ProfileWorkspace, ProfileWorkspaceUpd
 use infiltrator_ports::resources::{CoreResourcePort, CpuResourceObserver};
 use infiltrator_ports::rule_provider_cache::RuleProviderCachePort;
 use infiltrator_ports::runtime_configuration::RuntimeConfigurationPorts;
-use infiltrator_ports::runtime_gateway::{ManagedRuntime, RuntimeGateway};
+use infiltrator_ports::runtime_gateway::{ActiveProfileReferenceApplier, RuntimeGateway};
+use infiltrator_ports::runtime_http_proxy_endpoint::{
+    RuntimeHttpProxyEndpoint, RuntimeHttpProxyEndpointPort,
+};
 use infiltrator_ports::runtime_stream::RuntimeStreamPort;
 use infiltrator_ports::script_export::ScriptExportPort;
 use infiltrator_ports::service_mode::ServiceModePort;
@@ -178,7 +181,7 @@ impl CpuResourceObserver for DesktopCpuResourceObserver {
 }
 
 #[async_trait::async_trait]
-impl ManagedRuntime for MihomoRuntime {
+impl ActiveProfileReferenceApplier for MihomoRuntime {
     fn engine_id(&self) -> Option<EngineId> {
         CoreLifecyclePort::core_identity(self.application.as_ref()).map(|identity| identity.engine)
     }
@@ -187,15 +190,13 @@ impl ManagedRuntime for MihomoRuntime {
         CoreLifecyclePort::lifecycle(self.application.as_ref())
     }
 
-    fn active_profile_reference_write_authorization(
-        &self,
-    ) -> Result<ActiveProfileReferenceWriteAuthorization, PortError> {
+    fn write_authorization(&self) -> Result<ActiveProfileReferenceWriteAuthorization, PortError> {
         self.application
             .active_profile_reference_write_authorization()
             .map_err(PortError::Rejected)
     }
 
-    async fn apply_profile_workspace(
+    async fn apply_active_profile_workspace(
         &self,
         expected_reference: &ActiveProfileReference,
         expected: &ProfileWorkspaceIdentity,
@@ -204,7 +205,7 @@ impl ManagedRuntime for MihomoRuntime {
         strategy: ApplyStrategy,
     ) -> Result<ProfileWorkspace, PortError> {
         let runtime_engine = self.engine_id().ok_or_else(|| {
-            PortError::Failed("managed core engine identity is unavailable".into())
+            PortError::Failed("active Core engine identity is unavailable".into())
         })?;
         let store_engine = ProfileStore::engine_id(self.config_manager.engine_profile_store());
         if expected.document.engine_id != runtime_engine
@@ -214,7 +215,7 @@ impl ManagedRuntime for MihomoRuntime {
         {
             return Err(PortError::unsupported(
                 Capability::Profiles,
-                "profile engine does not match the managed runtime or profile store",
+                "profile engine does not match the active Core owner or profile store",
             ));
         }
         let outcome = self
@@ -252,32 +253,6 @@ impl ManagedRuntime for MihomoRuntime {
             }
         }
     }
-    fn generation(&self) -> u64 {
-        self.application.generation()
-    }
-
-    async fn is_running(&self) -> bool {
-        MihomoRuntime::is_running(self).await
-    }
-
-    async fn restart(&self) -> Result<u64, PortError> {
-        CoreLifecyclePort::restart(self.application.as_ref())
-            .await
-            .map_err(|error| PortError::Failed(error.to_string()))
-    }
-
-    async fn http_proxy_endpoint(&self) -> Result<Option<String>, PortError> {
-        MihomoRuntime::http_proxy_endpoint(self)
-            .await
-            .map_err(|error| PortError::Failed(error.to_string()))
-    }
-
-    async fn shutdown(&self) -> Result<(), PortError> {
-        MihomoRuntime::shutdown(self)
-            .await
-            .map_err(|error| PortError::Failed(error.to_string()))
-    }
-
     async fn apply_active_profile_reference(
         &self,
         expected: &ActiveProfileReference,
@@ -287,6 +262,15 @@ impl ManagedRuntime for MihomoRuntime {
             .await
             .map(|outcome| outcome.generation)
             .map_err(|error| PortError::Rejected(failure_from_apply_error(error)))
+    }
+}
+
+#[async_trait::async_trait]
+impl RuntimeHttpProxyEndpointPort for MihomoRuntime {
+    async fn observe_http_proxy_endpoint(&self) -> Result<RuntimeHttpProxyEndpoint, PortError> {
+        MihomoRuntime::observe_http_proxy_endpoint(self)
+            .await
+            .map_err(|error| PortError::Failed(error.to_string()))
     }
 }
 

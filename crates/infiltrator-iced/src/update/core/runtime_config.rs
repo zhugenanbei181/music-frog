@@ -123,7 +123,7 @@ impl AppState {
                 return Task::done(Message::ShowToast(error.to_string(), ToastStatus::Error));
             }
         };
-        let generation = rt.generation();
+        let generation = rt.lifecycle_port().generation();
         self.runtime.tun_enabled = Some(enabled);
         self.runtime.system_toggles = self
             .runtime
@@ -199,7 +199,7 @@ impl AppState {
         match message {
             Message::FetchRuntimeConfig => {
                 if let Some(rt) = self.runtime.runtime.clone() {
-                    let generation = rt.generation();
+                    let generation = rt.lifecycle_port().generation();
                     let scope = match self.runtime_configuration_scope() {
                         Ok(scope) => scope,
                         Err(failure) => {
@@ -326,7 +326,7 @@ impl AppState {
                     Ok(scope) => scope,
                     Err(failure) => return self.configuration_failure(failure),
                 };
-                let generation = rt.generation();
+                let generation = rt.lifecycle_port().generation();
                 self.runtime.ipv6_routing.enabled = enabled;
                 let gateway: Arc<dyn RuntimeGateway> = rt;
                 Task::perform(
@@ -545,7 +545,7 @@ impl AppState {
                     Ok(scope) => scope,
                     Err(failure) => return self.configuration_failure(failure),
                 };
-                let generation = rt.generation();
+                let generation = rt.lifecycle_port().generation();
                 self.editor.tun_stack = parsed.as_str().to_owned();
                 self.runtime.tun_stack_config.active_stack = parsed.as_str().to_owned();
                 let gateway: Arc<dyn RuntimeGateway> = rt.clone();
@@ -575,7 +575,7 @@ impl AppState {
                     Ok(scope) => scope,
                     Err(failure) => return self.configuration_failure(failure),
                 };
-                let generation = rt.generation();
+                let generation = rt.lifecycle_port().generation();
                 self.editor.tun_auto_route = enabled;
                 if !enabled {
                     self.editor.tun_strict_route = false;
@@ -607,7 +607,7 @@ impl AppState {
                     Ok(scope) => scope,
                     Err(failure) => return self.configuration_failure(failure),
                 };
-                let generation = rt.generation();
+                let generation = rt.lifecycle_port().generation();
                 self.editor.tun_strict_route = enabled;
                 if enabled {
                     self.editor.tun_auto_route = true;
@@ -637,7 +637,7 @@ impl AppState {
                     Ok(scope) => scope,
                     Err(failure) => return self.configuration_failure(failure),
                 };
-                let generation = rt.generation();
+                let generation = rt.lifecycle_port().generation();
                 self.editor.sniffer_enabled = enabled;
                 let gateway: Arc<dyn RuntimeGateway> = rt;
                 Task::perform(

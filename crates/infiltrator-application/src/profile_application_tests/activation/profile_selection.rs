@@ -53,7 +53,7 @@ async fn managed_activation_updates_selection_without_starting_a_stopped_core() 
     let application = ProfileApplication::new(store.clone());
 
     let outcome = application
-        .activate_profile(ProfileRuntimeAccess::Managed(runtime.clone()), "next")
+        .activate_profile(ProfileRuntimeAccess::CoreOwner(runtime.clone()), "next")
         .await
         .expect("stopped Core can select a profile without applying it");
 
@@ -75,7 +75,7 @@ async fn managed_activation_while_core_failed_keeps_the_failed_state() {
     let application = ProfileApplication::new(store.clone());
 
     let outcome = application
-        .activate_profile(ProfileRuntimeAccess::Managed(runtime.clone()), "next")
+        .activate_profile(ProfileRuntimeAccess::CoreOwner(runtime.clone()), "next")
         .await
         .expect("failed Core can persist the selected reference for next start");
 
@@ -97,7 +97,7 @@ async fn transitioning_core_rejects_activation_before_reference_or_apply_effects
     let application = ProfileApplication::new(store.clone());
 
     let failure = application
-        .activate_profile(ProfileRuntimeAccess::Managed(runtime.clone()), "next")
+        .activate_profile(ProfileRuntimeAccess::CoreOwner(runtime.clone()), "next")
         .await
         .expect_err("transitioning lifecycle must fence selection");
 

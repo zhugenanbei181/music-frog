@@ -122,7 +122,7 @@ pub enum UiCommand {
     /// DUAL-07-13: restore a profile's transient pre-save backup copy.
     RestoreSubscriptionBackup { id: String },
     /// DUAL-07-09: persist the post-update core-reload preference. A host
-    /// without a managed-runtime reload seam rejects `enabled = true` with a
+    /// without a Core-owner profile port rejects `enabled = true` with a
     /// typed unsupported failure.
     SetSubscriptionAutoReload { profile_id: String, enabled: bool },
     /// DUAL-07-14: persist the subscription URL / auto-update / interval / cron

@@ -772,7 +772,7 @@ pub(crate) async fn apply_selected_profile_reference_status(
 }
 
 /// Activate an Android profile through the same application-level CAS and
-/// conditional recovery path used by other managed runtimes.
+/// conditional recovery path used by other Core owners.
 pub(crate) async fn activate_profile_status(profile: &str) -> FfiStatus {
     let core = match shared_core().await {
         Ok(core) => core,

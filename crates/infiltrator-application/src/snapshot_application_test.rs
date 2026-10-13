@@ -5,6 +5,7 @@
 //! cache after a restore — the facts both surfaces render.
 //!
 use super::*;
+use crate::profile_application::ProfileRuntimeAccess;
 use crate::profile_workspace_test_support::{workspace_with_origin, workspace_with_raw_sidecar};
 use crate::snapshot_presentation;
 use async_trait::async_trait;
@@ -20,7 +21,7 @@ use infiltrator_domain::snapshots::content_hash;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::{ActiveProfileWorkspaceWriteLease, ProfileStore};
 use infiltrator_ports::profile_workspace::{ProfileWorkspace, ProfileWorkspaceUpdate};
-use infiltrator_ports::runtime_gateway::ManagedRuntime;
+use infiltrator_ports::runtime_gateway::ActiveProfileReferenceApplier;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::Mutex;
@@ -494,7 +495,7 @@ async fn restore_clears_the_cached_diff() {
         .await
         .expect("prepare");
     app.confirm_restore(
-        crate::profile_application::ProfileRuntimeAccess::<dyn ManagedRuntime>::Offline,
+        ProfileRuntimeAccess::<dyn ActiveProfileReferenceApplier>::Offline,
         &review.identity,
     )
     .await

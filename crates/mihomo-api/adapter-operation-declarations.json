@@ -28,8 +28,8 @@
         "operation": "apply_feature"
       },
       "support": {
-        "status": "supported",
-        "evidence_id": "profile.apply_feature"
+        "status": "evidence_open",
+        "reason": "Historical adapter evidence exists, but the current production composition audit does not authorize Supported status."
       }
     },
     {
@@ -48,8 +48,8 @@
         "operation": "apply_configuration"
       },
       "support": {
-        "status": "supported",
-        "evidence_id": "dns.apply_configuration"
+        "status": "evidence_open",
+        "reason": "Historical adapter evidence exists, but the current production composition audit does not authorize Supported status."
       }
     },
     {
@@ -78,8 +78,8 @@
         "operation": "query"
       },
       "support": {
-        "status": "supported",
-        "evidence_id": "dns.query"
+        "status": "evidence_open",
+        "reason": "Historical adapter evidence exists, but the current production composition audit does not authorize Supported status."
       }
     },
     {
@@ -98,8 +98,8 @@
         "operation": "trace"
       },
       "support": {
-        "status": "supported",
-        "evidence_id": "rules.trace"
+        "status": "evidence_open",
+        "reason": "Historical adapter evidence exists, but the current production composition audit does not authorize Supported status."
       }
     },
     {
@@ -108,8 +108,8 @@
         "operation": "apply"
       },
       "support": {
-        "status": "supported",
-        "evidence_id": "rules.apply"
+        "status": "evidence_open",
+        "reason": "Historical adapter evidence exists, but the current production composition audit does not authorize Supported status."
       }
     },
     {
@@ -118,8 +118,8 @@
         "operation": "refresh"
       },
       "support": {
-        "status": "supported",
-        "evidence_id": "subscription.refresh"
+        "status": "evidence_open",
+        "reason": "Historical adapter evidence exists, but the current production composition audit does not authorize Supported status."
       }
     },
     {
@@ -128,8 +128,8 @@
         "operation": "import"
       },
       "support": {
-        "status": "supported",
-        "evidence_id": "subscription.import"
+        "status": "evidence_open",
+        "reason": "Historical adapter evidence exists, but the current production composition audit does not authorize Supported status."
       }
     },
     {
@@ -138,8 +138,8 @@
         "operation": "update"
       },
       "support": {
-        "status": "supported",
-        "evidence_id": "subscription.update"
+        "status": "evidence_open",
+        "reason": "Historical adapter evidence exists, but the current production composition audit does not authorize Supported status."
       }
     },
     {
@@ -178,8 +178,8 @@
         "operation": "list_rule"
       },
       "support": {
-        "status": "supported",
-        "evidence_id": "provider.list_rule"
+        "status": "evidence_open",
+        "reason": "Historical adapter evidence exists, but the current production composition audit does not authorize Supported status."
       }
     },
     {
@@ -188,8 +188,8 @@
         "operation": "update_rule"
       },
       "support": {
-        "status": "supported",
-        "evidence_id": "provider.update_rule"
+        "status": "evidence_open",
+        "reason": "Historical adapter evidence exists, but the current production composition audit does not authorize Supported status."
       }
     },
     {
@@ -238,8 +238,8 @@
         "operation": "close"
       },
       "support": {
-        "status": "supported",
-        "evidence_id": "connection.close"
+        "status": "evidence_open",
+        "reason": "Historical adapter evidence exists, but the current production composition audit does not authorize Supported status."
       }
     },
     {
@@ -278,8 +278,8 @@
         "operation": "update_databases"
       },
       "support": {
-        "status": "supported",
-        "evidence_id": "geo.update_databases"
+        "status": "evidence_open",
+        "reason": "Historical adapter evidence exists, but the current production composition audit does not authorize Supported status."
       }
     },
     {
@@ -298,8 +298,8 @@
         "operation": "flush"
       },
       "support": {
-        "status": "supported",
-        "evidence_id": "fake_ip_cache.flush"
+        "status": "evidence_open",
+        "reason": "Historical adapter evidence exists, but the current production composition audit does not authorize Supported status."
       }
     },
     {
@@ -318,8 +318,8 @@
         "operation": "configure"
       },
       "support": {
-        "status": "supported",
-        "evidence_id": "tun.configure"
+        "status": "evidence_open",
+        "reason": "Historical adapter evidence exists, but the current production composition audit does not authorize Supported status."
       }
     },
     {
@@ -398,8 +398,8 @@
         "operation": "trigger"
       },
       "support": {
-        "status": "supported",
-        "evidence_id": "core_garbage_collection.trigger"
+        "status": "evidence_open",
+        "reason": "Historical adapter evidence exists, but the current production composition audit does not authorize Supported status."
       }
     },
     {

@@ -150,7 +150,7 @@ async fn prepare_desktop_switch(
         .await
         .map_err(before_reservation)?;
     let capabilities =
-        desktop_core_capability_provider(DesktopLogStreamAdapter::ManagedRuntimeScopeBound)
+        desktop_core_capability_provider(DesktopLogStreamAdapter::CoreOwnerScopeBound)
             .map_err(before_reservation)?;
     DesktopCoreOwnerRuntime::validate_engine_start_capability(
         &capabilities,

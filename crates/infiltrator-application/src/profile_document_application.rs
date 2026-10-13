@@ -22,7 +22,7 @@ use infiltrator_ports::profile_document_codec::{
 use infiltrator_ports::profile_workspace::{
     ProfileWorkspace, ProfileWorkspacePurpose, ProfileWorkspaceUpdate,
 };
-use infiltrator_ports::runtime_gateway::ManagedRuntime;
+use infiltrator_ports::runtime_gateway::ActiveProfileReferenceApplier;
 
 #[derive(Clone)]
 pub struct ProfileDocumentApplication {
@@ -106,7 +106,7 @@ impl ProfileDocumentApplication {
     /// The configured codec validates before any store or runtime access.
     /// `authorization` carries the editor's explicit unlock; the application
     /// re-checks the stored subscription metadata.
-    pub async fn save<R: ManagedRuntime + ?Sized>(
+    pub async fn save<R: ActiveProfileReferenceApplier + ?Sized>(
         &self,
         runtime: ProfileRuntimeAccess<R>,
         expected: &ProfileWorkspaceIdentity,

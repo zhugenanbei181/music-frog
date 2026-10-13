@@ -8,6 +8,7 @@ use super::vpn_start_result::confirmed;
 use super::*;
 use crate::connection_application::ConnectionApplication;
 use crate::profile_aggregation_application::ProfileAggregationApplication;
+use crate::profile_application::ProfileRuntimeAccess;
 use crate::protocol_codec_application::ProtocolCodecApplication;
 use crate::runtime_configuration_application::RuntimeConfigurationApplication;
 use crate::subscription_import_application::SubscriptionImportApplication;
@@ -20,18 +21,14 @@ use infiltrator_contract::privileged_network::PrivilegedNetworkRequest;
 use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
 use infiltrator_contract::rule_edit::RuleDraft;
 use infiltrator_ports::runtime_configuration::ObservedValue;
-use infiltrator_ports::runtime_gateway::ManagedRuntime;
+use infiltrator_ports::runtime_gateway::ActiveProfileReferenceApplier;
 use std::sync::Arc;
 
 impl CommandApplication {
-    pub(super) fn profile_runtime_access(
-        &self,
-    ) -> crate::profile_application::ProfileRuntimeAccess<dyn ManagedRuntime> {
-        match self.managed_runtime.as_ref() {
-            Some(runtime) => {
-                crate::profile_application::ProfileRuntimeAccess::Managed(Arc::clone(runtime))
-            }
-            None => crate::profile_application::ProfileRuntimeAccess::Offline,
+    pub(super) fn profile_access(&self) -> ProfileRuntimeAccess<dyn ActiveProfileReferenceApplier> {
+        match self.profile_reference_applier.as_ref() {
+            Some(runtime) => ProfileRuntimeAccess::CoreOwner(Arc::clone(runtime)),
+            None => ProfileRuntimeAccess::Offline,
         }
     }
 
@@ -64,7 +61,7 @@ impl CommandApplication {
             CommandIntent::SwitchProfile { profile_id } => {
                 let profile = self.profile()?;
                 profile
-                    .activate_profile(self.profile_runtime_access(), &profile_id)
+                    .activate_profile(self.profile_access(), &profile_id)
                     .await
                     .map(|_| ())
             }
@@ -160,7 +157,7 @@ impl CommandApplication {
             CommandIntent::CreateAggregatedProfile { draft } => {
                 let application = ProfileAggregationApplication::new(self.profile()?);
                 application
-                    .create_profile_with_runtime(self.profile_runtime_access(), &draft)
+                    .create_profile_with_access(self.profile_access(), &draft)
                     .await
                     .map(|_| ())
             }
@@ -175,7 +172,7 @@ impl CommandApplication {
             CommandIntent::ReAggregateProfile { template_name } => {
                 let application = ProfileAggregationApplication::new(self.profile()?);
                 application
-                    .reaggregate(self.profile_runtime_access(), &template_name)
+                    .reaggregate(self.profile_access(), &template_name)
                     .await
                     .map(|_| ())
             }
@@ -204,7 +201,7 @@ impl CommandApplication {
                 // verify both typed readbacks, and commit their exact output
                 // through the source-bound workspace transaction.
                 let trust = draft.params.tls_trust.clone();
-                let runtime = self.managed_runtime.clone().ok_or_else(|| {
+                let runtime = self.profile_reference_applier.clone().ok_or_else(|| {
                     Failure::unsupported(
                         "custom protocol editing requires an engine profile transaction",
                     )
@@ -252,12 +249,12 @@ impl CommandApplication {
                 profile_id,
                 enabled,
             } => {
-                // DUAL-07-09: a host without a managed-runtime reload seam must
+                // DUAL-07-09: a host without the Core-owner profile applier must
                 // reject the enable action with a typed failure instead of
                 // persisting a preference that can only silently no-op.
-                if enabled && self.managed_runtime.is_none() {
+                if enabled && self.profile_reference_applier.is_none() {
                     return Err(Failure::unsupported(
-                        "this host exposes no managed core-reload seam, so auto reload cannot be enabled",
+                        "this host exposes no Core-owner profile applier, so auto reload cannot be enabled",
                     ));
                 }
                 self.profile()?
@@ -306,7 +303,7 @@ impl CommandApplication {
             }
             CommandIntent::ApplyDnsSettings { patch } => self
                 .configuration()?
-                .apply_dns_settings_with_runtime(self.profile_runtime_access(), patch)
+                .apply_dns_settings_with_access(self.profile_access(), patch)
                 .await
                 .map(|_| ()),
             CommandIntent::RunDoctorDiagnostics => self.doctor()?.run(None).await.map(|_| ()),

@@ -2,8 +2,9 @@
 //! test-intent: behavior
 
 use super::*;
+use crate::profile_application::ProfileRuntimeAccess;
 use crate::profile_options_application::ProfileOptionsApplication;
-use infiltrator_ports::runtime_gateway::ManagedRuntime;
+use infiltrator_ports::runtime_gateway::ActiveProfileReferenceApplier;
 use std::sync::Arc;
 
 /// The Mixin commit strips the outgoing mixin's injected rule lines, so
@@ -23,7 +24,7 @@ async fn mixin_save_is_idempotent_and_keeps_handwritten_comments() {
     for _ in 0..2 {
         application
             .save_mixin(
-                crate::profile_application::ProfileRuntimeAccess::<dyn ManagedRuntime>::Offline,
+                ProfileRuntimeAccess::<dyn ActiveProfileReferenceApplier>::Offline,
                 &load_workspace(&store, "main").await.identity(),
                 overlay,
             )
@@ -54,7 +55,7 @@ async fn mixin_save_is_idempotent_and_keeps_handwritten_comments() {
 
 #[tokio::test]
 async fn failed_workspace_pair_commit_keeps_exact_document_and_sidecar_bytes() {
-    use infiltrator_ports::runtime_gateway::ManagedRuntime;
+    use infiltrator_ports::runtime_gateway::ActiveProfileReferenceApplier;
 
     let content = "# retained document bytes\r\nmode: rule\r\n";
     let sidecar = b"# retained sidecar bytes\r\nfilter:\r\n  include-keywords: [HK]\r\n";
@@ -73,7 +74,7 @@ async fn failed_workspace_pair_commit_keeps_exact_document_and_sidecar_bytes() {
 
     let failure = options
         .save_mixin(
-            crate::profile_application::ProfileRuntimeAccess::<dyn ManagedRuntime>::Offline,
+            ProfileRuntimeAccess::<dyn ActiveProfileReferenceApplier>::Offline,
             &before.identity(),
             "mode: global\n",
         )

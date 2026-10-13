@@ -40,7 +40,10 @@ use infiltrator_ports::core_capability_provider::{
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::host_runtime::{HostRuntime, TunServiceStatus};
-use infiltrator_ports::runtime_gateway::{ManagedRuntime, RuntimeGateway};
+use infiltrator_ports::runtime_gateway::{ActiveProfileReferenceApplier, RuntimeGateway};
+use infiltrator_ports::runtime_http_proxy_endpoint::{
+    RuntimeHttpProxyEndpoint, RuntimeHttpProxyEndpointPort,
+};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -235,46 +238,29 @@ impl RuntimeGateway for TestHostRuntime {
 }
 
 #[async_trait]
-impl ManagedRuntime for TestHostRuntime {
+impl ActiveProfileReferenceApplier for TestHostRuntime {
     fn engine_id(&self) -> Option<EngineId> {
         CoreLifecyclePort::core_identity(self.application.as_ref()).map(|identity| identity.engine)
-    }
-
-    fn generation(&self) -> u64 {
-        self.application.generation()
     }
 
     fn core_lifecycle(&self) -> CoreLifecycle {
         CoreLifecyclePort::lifecycle(self.application.as_ref())
     }
 
-    fn active_profile_reference_write_authorization(
-        &self,
-    ) -> Result<ActiveProfileReferenceWriteAuthorization, PortError> {
+    fn write_authorization(&self) -> Result<ActiveProfileReferenceWriteAuthorization, PortError> {
         self.application
             .active_profile_reference_write_authorization()
             .map_err(PortError::Rejected)
     }
+}
 
-    async fn is_running(&self) -> bool {
-        matches!(
-            self.core_lifecycle(),
-            CoreLifecycle::Ready | CoreLifecycle::Running
-        )
-    }
-
-    async fn restart(&self) -> Result<u64, PortError> {
-        unsupported(Capability::CoreLifecycle)
-    }
-
-    async fn http_proxy_endpoint(&self) -> Result<Option<String>, PortError> {
-        Ok(None)
-    }
-
-    async fn shutdown(&self) -> Result<(), PortError> {
-        CoreLifecyclePort::stop(self.application.as_ref())
-            .await
-            .map(|_| ())
+#[async_trait]
+impl RuntimeHttpProxyEndpointPort for TestHostRuntime {
+    async fn observe_http_proxy_endpoint(&self) -> Result<RuntimeHttpProxyEndpoint, PortError> {
+        Err(PortError::unsupported(
+            Capability::SystemProxy,
+            "test host does not compose a proxy endpoint",
+        ))
     }
 }
 

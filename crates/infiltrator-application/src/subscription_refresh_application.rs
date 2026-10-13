@@ -13,7 +13,7 @@
 //!   `InvalidState` failure instead of silently doubling the download.
 //!
 //! Selected content is committed through the same exact workspace transaction
-//! that performs managed native apply or explicitly stores for the next Core
+//! that applies through the Core owner or explicitly stores for the next Core
 //! start. There is no save-then-reload window.
 //!
 //! The profile store adapter and the outbound subscription source stay ports;
@@ -30,7 +30,7 @@ use infiltrator_contract::subscription_import::{
 use infiltrator_domain::profiles::sanitize_profile_name;
 use infiltrator_domain::subscription_scheduler_policy::RetryBackoffPolicy;
 use infiltrator_ports::application_runtime::ApplicationRuntime;
-use infiltrator_ports::runtime_gateway::ManagedRuntime;
+use infiltrator_ports::runtime_gateway::ActiveProfileReferenceApplier;
 use infiltrator_ports::subscription_notification::{
     SubscriptionNotification, SubscriptionNotificationKind, SubscriptionNotificationPort,
 };
@@ -79,7 +79,7 @@ pub struct SubscriptionRefreshApplication {
     runtime: Arc<dyn ApplicationRuntime>,
     policy: RetryBackoffPolicy,
     notifier: Option<Arc<dyn SubscriptionNotificationPort>>,
-    runtime_access: ProfileRuntimeAccess<dyn ManagedRuntime>,
+    runtime_access: ProfileRuntimeAccess<dyn ActiveProfileReferenceApplier>,
 }
 
 impl SubscriptionRefreshApplication {
@@ -113,16 +113,19 @@ impl SubscriptionRefreshApplication {
         self
     }
 
-    /// Attach the exact managed runtime used to apply a selected workspace.
+    /// Attach the exact Core owner used to apply a selected workspace.
     /// Offline hosts retain the explicit Unowned path.
-    pub fn with_managed_runtime(mut self, runtime: Arc<dyn ManagedRuntime>) -> Self {
-        self.runtime_access = ProfileRuntimeAccess::Managed(runtime);
+    pub fn with_profile_reference_applier(
+        mut self,
+        runtime: Arc<dyn ActiveProfileReferenceApplier>,
+    ) -> Self {
+        self.runtime_access = ProfileRuntimeAccess::CoreOwner(runtime);
         self
     }
 
-    /// Whether this refresh can use a managed Core transaction.
-    pub fn has_managed_runtime(&self) -> bool {
-        matches!(&self.runtime_access, ProfileRuntimeAccess::Managed(_))
+    /// Whether this refresh can use the composed Core-owner transaction.
+    pub fn has_profile_reference_applier(&self) -> bool {
+        matches!(&self.runtime_access, ProfileRuntimeAccess::CoreOwner(_))
     }
 
     /// The retry policy this application applies.
@@ -279,7 +282,7 @@ impl SubscriptionRefreshApplication {
             attempt += 1;
             match self
                 .profile
-                .update_subscription_conditional_with_runtime(
+                .update_subscription_conditional_with_access(
                     self.runtime_access.clone(),
                     source,
                     name,

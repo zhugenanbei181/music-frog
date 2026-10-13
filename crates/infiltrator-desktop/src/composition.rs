@@ -107,7 +107,7 @@ pub(crate) async fn open_default_product_backend(
 ) -> anyhow::Result<DesktopProductBackend> {
     let config_manager = Arc::new(app_config_manager().await?);
     let capability_provider =
-        desktop_core_capability_provider(DesktopLogStreamAdapter::ManagedRuntimeScopeBound)?;
+        desktop_core_capability_provider(DesktopLogStreamAdapter::CoreOwnerScopeBound)?;
     let profile_store = config_manager.engine_profile_store();
     let initial_reference = ActiveProfileReferenceStore::read(profile_store).await?;
     let migration_engine = match initial_reference {
@@ -571,11 +571,11 @@ pub struct DesktopCommandServices {
 
 /// Typed declaration of log-stream ownership at the command composition
 /// boundary. A controller client alone cannot provide the required scope
-/// proof, so only the managed runtime composition may enable this operation.
+/// proof, so only the Core owner composition may enable this operation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DesktopLogStreamAdapter {
     Unavailable,
-    ManagedRuntimeScopeBound,
+    CoreOwnerScopeBound,
 }
 
 pub fn desktop_command_application(
@@ -701,7 +701,7 @@ pub(crate) fn desktop_core_capability_provider(
     ];
     match log_stream {
         DesktopLogStreamAdapter::Unavailable => {}
-        DesktopLogStreamAdapter::ManagedRuntimeScopeBound => {
+        DesktopLogStreamAdapter::CoreOwnerScopeBound => {
             adapter_operations.push(CoreOperation::Logs(LogsOperation::Stream));
         }
     }

@@ -64,7 +64,7 @@ use infiltrator_ports::core_log_level::CoreLogLevelPort;
 use infiltrator_ports::dns_leak::DnsLeakProbePort;
 use infiltrator_ports::routing_intent::RoutingIntentPort;
 use infiltrator_ports::rule_provider_cache::RuleProviderCachePort;
-use infiltrator_ports::runtime_gateway::{ManagedRuntime, RuntimeGateway};
+use infiltrator_ports::runtime_gateway::{ActiveProfileReferenceApplier, RuntimeGateway};
 use infiltrator_ports::stun_probe::StunEgressProbePort;
 use infiltrator_ports::subscription_import::SubscriptionImportPort;
 use infiltrator_ports::subscription_notification::SubscriptionNotificationPort;
@@ -94,7 +94,7 @@ pub struct CommandApplication {
     profile: Option<ProfileApplication>,
     runtime: Option<Arc<dyn RuntimeGateway>>,
     core_log_level_port: Option<Arc<dyn CoreLogLevelPort>>,
-    managed_runtime: Option<Arc<dyn ManagedRuntime>>,
+    profile_reference_applier: Option<Arc<dyn ActiveProfileReferenceApplier>>,
     /// DUAL-07-05/06: executor-neutral delay seam + single-flight refresh.
     application_runtime: Option<Arc<dyn ApplicationRuntime>>,
     subscription_source: Option<Arc<dyn SubscriptionSource>>,
@@ -459,8 +459,8 @@ impl CommandApplication {
         let refresh = SubscriptionRefreshApplication::with_default_policy(profile, runtime);
         // The shipped command path uses the same exact active workspace
         // transaction as profile editing.
-        let refresh = match &self.managed_runtime {
-            Some(managed) => refresh.with_managed_runtime(Arc::clone(managed)),
+        let refresh = match &self.profile_reference_applier {
+            Some(managed) => refresh.with_profile_reference_applier(Arc::clone(managed)),
             None => refresh,
         };
         match &self.notifier {

@@ -199,7 +199,7 @@ pub async fn get_runtime_ip_http<C: AdminApiContext>(
         .network_application()
         .await
         .map_err(|error| ApiError::internal(error.to_string()))?
-        .probe_public_ip(None)
+        .probe_public_ip_direct()
         .await
         .map_err(|failure| ApiError::internal(failure.message))?;
 

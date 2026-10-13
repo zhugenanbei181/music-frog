@@ -119,11 +119,11 @@ async fn game_presets_prepend_the_shared_default_list() {
     assert_eq!(rules[expected.len()].rule, "DOMAIN,a.com,DIRECT");
 }
 
-/// DUAL-07-09: enabling auto-reload on a host without a managed-runtime reload
+/// DUAL-07-09: enabling auto-reload on a host without a Core-owner profile
 /// seam is a typed unsupported failure; disabling is always allowed because it
 /// cannot silently no-op.
 #[tokio::test]
-async fn auto_reload_enable_requires_a_managed_runtime_seam() {
+async fn auto_reload_enable_requires_a_profile_reference_applier_seam() {
     let store = Arc::new(FakeStore::with_profile(THREE_RULES));
     let application = application(&store);
 

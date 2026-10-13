@@ -21,7 +21,7 @@ use infiltrator_ports::profile_document_codec::ProfileMixinToggleId;
 use infiltrator_ports::profile_workspace::{
     ProfileWorkspace, ProfileWorkspacePurpose, ProfileWorkspaceUpdate,
 };
-use infiltrator_ports::runtime_gateway::ManagedRuntime;
+use infiltrator_ports::runtime_gateway::ActiveProfileReferenceApplier;
 
 /// Resolve the sidecar profile: an explicit name, or the active profile.
 async fn resolve_profile(
@@ -123,7 +123,7 @@ impl ProfileOptionsApplication {
     }
 
     /// Commit an edited Mixin overlay for `profile`.
-    pub async fn save_mixin<R: ManagedRuntime + ?Sized>(
+    pub async fn save_mixin<R: ActiveProfileReferenceApplier + ?Sized>(
         &self,
         runtime: ProfileRuntimeAccess<R>,
         expected: &ProfileWorkspaceIdentity,
@@ -183,7 +183,7 @@ impl ProfileOptionsApplication {
 
     /// Apply a neutral filter draft through the selected engine codec and
     /// commit its opaque document and sidecar mutation atomically.
-    pub async fn save_filter<R: ManagedRuntime + ?Sized>(
+    pub async fn save_filter<R: ActiveProfileReferenceApplier + ?Sized>(
         &self,
         runtime: ProfileRuntimeAccess<R>,
         expected: &ProfileWorkspaceIdentity,

@@ -11,7 +11,8 @@ use crate::outbound::{OutboundPort, OutboundScopeSource};
 use crate::pac::PacServicePort;
 use crate::privileged_network::PrivilegedNetworkPort;
 use crate::rule_provider_cache::RuleProviderCachePort;
-use crate::runtime_gateway::ManagedRuntime;
+use crate::runtime_gateway::{ActiveProfileReferenceApplier, RuntimeGateway};
+use crate::runtime_http_proxy_endpoint::RuntimeHttpProxyEndpointPort;
 use crate::script_export::ScriptExportPort;
 use crate::service_mode::ServiceModePort;
 use crate::stun_probe::StunEgressProbePort;
@@ -36,7 +37,9 @@ pub enum TunServiceStatus {
 /// Concrete process managers, controller clients and platform service types
 /// stay behind the host adapter. `lifecycle_port` is provided for composition
 /// code that needs a typed restart without exposing the application object.
-pub trait HostRuntime: ManagedRuntime {
+pub trait HostRuntime:
+    RuntimeGateway + ActiveProfileReferenceApplier + RuntimeHttpProxyEndpointPort
+{
     fn controller_url(&self) -> String;
     fn core_binary_path(&self) -> PathBuf;
     fn tun_service_status(&self) -> TunServiceStatus;

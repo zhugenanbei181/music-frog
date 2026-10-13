@@ -51,6 +51,7 @@ pub mod rule_provider_cache;
 pub mod rule_tracer;
 pub mod runtime_configuration;
 pub mod runtime_gateway;
+pub mod runtime_http_proxy_endpoint;
 pub mod runtime_stream;
 pub mod script_engine;
 pub mod script_export;

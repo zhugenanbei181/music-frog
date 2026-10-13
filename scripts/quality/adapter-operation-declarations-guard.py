@@ -393,28 +393,37 @@ def source_problems(repo_root: Path = REPO_ROOT) -> list[str]:
         )
         if engine == "mihomo" and ("logs", "stream") in PRODUCTION_COMPOSED_SUPPORTED[engine]:
             scoped_runtime_path = repo_root / "crates/infiltrator-desktop/src/runtime/ports.rs"
-            mihomo_gateway_path = repo_root / "crates/mihomo-api/src/runtime_gateway.rs"
+            mihomo_stream_path = repo_root / "crates/mihomo-api/src/runtime_stream.rs"
             try:
                 scoped_runtime = scoped_runtime_path.read_text(encoding="utf-8")
-                mihomo_gateway = mihomo_gateway_path.read_text(encoding="utf-8")
+                mihomo_stream = mihomo_stream_path.read_text(encoding="utf-8")
             except OSError as error:
                 problems.append(f"Mihomo scoped log stream production source is unavailable: {error}")
             else:
                 for required in (
                     "impl RuntimeGateway for MihomoRuntime",
-                    "async fn stream_logs_scoped(",
-                    "validate_log_open_scope(&requested_scope, &opening_scope)",
-                    "RuntimeGateway::stream_logs(self, level).await?",
-                    "validate_log_post_open_scope(&requested_scope, &opening_scope, &stream_scope)",
+                    "fn runtime_stream_port(&self) -> Arc<dyn RuntimeStreamPort>",
+                    "Arc::new(MihomoRuntimeStreamPort::new(",
                 ):
                     if required not in scoped_runtime:
                         problems.append(
                             f"{scoped_runtime_path}: supported logs.stream lost `{required}`"
                         )
-                if ".stream_logs_events(level.as_deref())" not in mihomo_gateway:
+                if "async fn logs(" not in mihomo_stream:
+                    problems.append(f"{mihomo_stream_path}: supported logs.stream has no typed stream method")
+                if mihomo_stream.count("self.validate_scope(&scope, Capability::Logs)?;") < 2:
                     problems.append(
-                        f"{mihomo_gateway_path}: supported logs.stream no longer calls the Mihomo log endpoint"
+                        f"{mihomo_stream_path}: supported logs.stream must validate scope before and after opening"
                     )
+                for required in (
+                    ".stream_logs_events(level.as_deref())",
+                    "Ok(scope_stream(",
+                    "Ok(active_scope) if active_scope == scope =>",
+                ):
+                    if required not in mihomo_stream:
+                        problems.append(
+                            f"{mihomo_stream_path}: supported logs.stream lost `{required}`"
+                        )
     return problems
 
 

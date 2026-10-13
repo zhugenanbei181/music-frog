@@ -125,7 +125,7 @@ async fn missing_or_mismatched_codec_never_claims_valid_or_reaches_store_on_writ
     );
     let reads_before_write = store.workspace_reads.load(Ordering::SeqCst);
     let error = plain_documents
-        .save::<dyn ManagedRuntime>(
+        .save::<dyn ActiveProfileReferenceApplier>(
             crate::profile_application::ProfileRuntimeAccess::Offline,
             &unavailable.workspace_identity,
             "mode: rule\n",

@@ -100,7 +100,7 @@ impl AppState {
         let Some(runtime) = self.runtime.runtime.clone() else {
             return self.runtime_unavailable(Lang(&copy_locale).tr("runtime_action_lan").as_ref());
         };
-        let generation = runtime.generation();
+        let generation = runtime.lifecycle_port().generation();
         let Some(scope) = self.runtime.core_lifecycle.scope() else {
             let error = InfiltratorError::Config(
                 "LAN configuration requires an observed Core scope".to_owned(),
@@ -130,7 +130,7 @@ impl AppState {
             return self
                 .runtime_unavailable(Lang(&copy_locale).tr("runtime_action_lan_access").as_ref());
         };
-        let generation = runtime.generation();
+        let generation = runtime.lifecycle_port().generation();
         let Some(scope) = self.runtime.core_lifecycle.scope() else {
             let error = InfiltratorError::Config(
                 "LAN configuration requires an observed Core scope".to_owned(),
@@ -217,7 +217,7 @@ impl AppState {
                 };
                 let application = MtuApplication::new(port);
                 let gateway: Arc<dyn RuntimeGateway> = runtime.clone();
-                let generation = runtime.generation();
+                let generation = runtime.lifecycle_port().generation();
                 let session_token = self.runtime.core_session_token;
                 let Some(scope) = self.runtime.core_lifecycle.scope() else {
                     let failure = Failure::new(

@@ -5,7 +5,7 @@ use infiltrator_contract::snapshot::PublicIpSnapshot;
 use infiltrator_http::HttpClient;
 use infiltrator_http::reqwest::Proxy;
 use infiltrator_ports::error::PortError;
-use infiltrator_ports::public_ip_probe::PublicIpProbe;
+use infiltrator_ports::public_ip_probe::{PublicIpProbe, PublicIpProbeRoute};
 use serde::Deserialize;
 use std::net::IpAddr;
 use std::time;
@@ -51,17 +51,18 @@ impl HttpPublicIpProbe {
 
 #[async_trait::async_trait]
 impl PublicIpProbe for HttpPublicIpProbe {
-    async fn probe(&self, proxy_endpoint: Option<String>) -> Result<PublicIpSnapshot, PortError> {
-        let client = if let Some(endpoint) = proxy_endpoint {
-            let proxy = Proxy::http(format!("http://{endpoint}"))
-                .map_err(|error| PortError::Failed(error.to_string()))?;
-            HttpClient::builder()
-                .timeout(time::Duration::from_secs(5))
-                .proxy(proxy)
-                .build()
-                .map_err(|error| PortError::Failed(error.to_string()))?
-        } else {
-            self.client.clone()
+    async fn probe(&self, route: PublicIpProbeRoute) -> Result<PublicIpSnapshot, PortError> {
+        let client = match route {
+            PublicIpProbeRoute::ThroughHttpProxy { endpoint } => {
+                let proxy = Proxy::http(format!("http://{endpoint}"))
+                    .map_err(|error| PortError::Failed(error.to_string()))?;
+                HttpClient::builder()
+                    .timeout(time::Duration::from_secs(5))
+                    .proxy(proxy)
+                    .build()
+                    .map_err(|error| PortError::Failed(error.to_string()))?
+            }
+            PublicIpProbeRoute::Direct => self.client.clone(),
         };
 
         let (endpoint, provider) = match self.provider {

@@ -22,12 +22,12 @@ async fn concurrent_switches_with_one_observed_revision_have_one_cas_winner() {
 
     let first = tokio::spawn(async move {
         first_application
-            .activate_profile(ProfileRuntimeAccess::Managed(first_runtime), "first")
+            .activate_profile(ProfileRuntimeAccess::CoreOwner(first_runtime), "first")
             .await
     });
     let second = tokio::spawn(async move {
         second_application
-            .activate_profile(ProfileRuntimeAccess::Managed(second_runtime), "second")
+            .activate_profile(ProfileRuntimeAccess::CoreOwner(second_runtime), "second")
             .await
     });
     let outcomes = [
@@ -67,7 +67,7 @@ async fn activation_applies_the_exact_committed_reference() {
 
     assert_eq!(
         application
-            .activate_profile(ProfileRuntimeAccess::Managed(runtime.clone()), "next")
+            .activate_profile(ProfileRuntimeAccess::CoreOwner(runtime.clone()), "next")
             .await
             .expect("activation"),
         ProfileActivationOutcome::SelectedAndApplied
@@ -93,7 +93,7 @@ async fn failed_apply_conditionally_restores_and_reapplies_the_previous_referenc
     ));
 
     let failure = application
-        .activate_profile(ProfileRuntimeAccess::Managed(runtime.clone()), "next")
+        .activate_profile(ProfileRuntimeAccess::CoreOwner(runtime.clone()), "next")
         .await
         .expect_err("failed apply remains an error");
 
@@ -125,7 +125,7 @@ async fn failed_conditional_recovery_preserves_a_later_selection_without_reapply
     ));
 
     let failure = application
-        .activate_profile(ProfileRuntimeAccess::Managed(runtime.clone()), "next")
+        .activate_profile(ProfileRuntimeAccess::CoreOwner(runtime.clone()), "next")
         .await
         .expect_err("target apply failed");
 
@@ -155,7 +155,7 @@ async fn runtime_activation_from_unselected_fails_before_selection_or_dispatch()
     let runtime = Arc::new(ActivationRuntime::new(store.clone(), []));
 
     let failure = application
-        .activate_profile(ProfileRuntimeAccess::Managed(runtime.clone()), "next")
+        .activate_profile(ProfileRuntimeAccess::CoreOwner(runtime.clone()), "next")
         .await
         .expect_err("no previous reference cannot be recovered safely");
 

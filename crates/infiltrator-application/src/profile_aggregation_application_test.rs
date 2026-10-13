@@ -466,7 +466,7 @@ async fn preview_synthesizes_custom_groups_from_the_draft() {
 }
 
 /// DUAL-08-12: the activation switch reuses the shared activation path and is
-/// reported honestly — a host without a managed runtime still switches the
+/// reported honestly — a host without a Core-owner applier still switches the
 /// active reference without claiming that Core applied the document.
 #[tokio::test]
 async fn create_profile_activates_through_the_shared_profile_path() {
@@ -580,7 +580,7 @@ proxies:
         .expect("update source");
 
     let refreshed = app
-        .reaggregate::<dyn ManagedRuntime>(
+        .reaggregate::<dyn ActiveProfileReferenceApplier>(
             crate::profile_application::ProfileRuntimeAccess::Offline,
             "Aggregated-Test",
         )
@@ -604,7 +604,7 @@ proxies:
     assert!(source.content.contains("Singapore"));
 
     let unknown = app
-        .reaggregate::<dyn ManagedRuntime>(
+        .reaggregate::<dyn ActiveProfileReferenceApplier>(
             crate::profile_application::ProfileRuntimeAccess::Offline,
             "nope",
         )

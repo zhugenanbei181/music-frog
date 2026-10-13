@@ -22,7 +22,6 @@ use infiltrator_application::system_proxy_application::SystemProxyApplication;
 use infiltrator_application::version_application::VersionApplication;
 use infiltrator_contract::error::{ErrorCode, Failure, InfiltratorError, from_backend};
 use infiltrator_contract::version::{CoreArtifactVerification, VersionDownloadProgress};
-use infiltrator_ports::runtime_gateway::ManagedRuntime;
 use infiltrator_ports::version::VersionProgressSink;
 use infiltrator_shared::autostart::set_autostart_enabled;
 use infiltrator_shared::locales::{Lang, Localizer};
@@ -345,19 +344,16 @@ impl AppState {
                 Task::perform(
                     async move {
                         if let Some(runtime) = runtime {
-                            timeout(
-                                Duration::from_secs(5),
-                                ManagedRuntime::shutdown(runtime.as_ref()),
-                            )
-                            .await
-                            .map_err(|_| {
-                                InfiltratorError::Internal(
-                                    Lang(&copy_locale)
-                                        .tr("core_reset_stop_timeout")
-                                        .into_owned(),
-                                )
-                            })?
-                            .map_err(|error| InfiltratorError::Backend(error.to_string()))?;
+                            timeout(Duration::from_secs(5), runtime.lifecycle_port().stop())
+                                .await
+                                .map_err(|_| {
+                                    InfiltratorError::Internal(
+                                        Lang(&copy_locale)
+                                            .tr("core_reset_stop_timeout")
+                                            .into_owned(),
+                                    )
+                                })?
+                                .map_err(|error| InfiltratorError::Backend(error.to_string()))?;
                         }
 
                         system_proxy_application

@@ -162,7 +162,7 @@ fn map_owner_command_outcome(outcome_json: &str) -> FfiStatus {
 
 async fn fetch_ip_check() -> Result<IpCheckResult, FfiStatus> {
     let snapshot = network_application()
-        .probe_public_ip(None)
+        .probe_public_ip_direct()
         .await
         .map_err(map_application_failure)?;
     Ok(IpCheckResult {

@@ -46,7 +46,7 @@ impl MihomoRuntime {
         .with_log_export(exports)
         .with_outbound(OutboundApplication::new(outbound_port))
         .with_outbound_ui_preferences(self.application.outbound_ui_preferences_application())
-        .with_managed_runtime(self.clone())
+        .with_profile_reference_applier(self.clone())
         .with_settings(SettingsApplication::new(settings_store().await?))
         .with_doctor(self.doctor.clone())
         .with_routing(RoutingApplication::new(Arc::new(app_routing_store()?)))

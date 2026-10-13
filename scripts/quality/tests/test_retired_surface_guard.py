@@ -193,6 +193,35 @@ class RetiredSurfaceGuardTests(unittest.TestCase):
         self.assertTrue(any("infiltrator_android/Bindings.kt:1" in item for item in problems))
         self.assertFalse(any("com/example/Screen.kt" in item for item in problems))
 
+    def test_exact_file_source_root_avoids_same_name_collision(self):
+        entry = self.registry["retired_surfaces"][0]
+        entry["source_roots"] = ["android/app/src/main/java/infiltrator_android/Bindings.kt"]
+        self.write_registry()
+        scoped = self.root / "android/app/src/main/java/infiltrator_android/Bindings.kt"
+        scoped.parent.mkdir(parents=True, exist_ok=True)
+        scoped.write_text("fun VpnStateManager() {}\n", encoding="utf-8")
+        unrelated = self.root / "android/app/src/main/java/infiltrator_android/Screen.kt"
+        unrelated.write_text("val VpnStateManager = current\n", encoding="utf-8")
+
+        problems = self.problems()
+
+        self.assertTrue(any("Bindings.kt:1" in item for item in problems))
+        self.assertFalse(any("Screen.kt" in item for item in problems))
+
+    def test_rust_test_module_directory_counts_as_replacement_test(self):
+        entry = self.registry["retired_surfaces"][0]
+        entry["replacement_behavior_tests"] = [
+            "crates/infiltrator-application/src/profile_application_tests/activation.rs",
+        ]
+        test_source = self.root / entry["replacement_behavior_tests"][0]
+        test_source.parent.mkdir(parents=True, exist_ok=True)
+        test_source.write_text("fn profile_activation_uses_owner_ports() {}\n", encoding="utf-8")
+        self.write_registry()
+
+        problems = self.problems()
+
+        self.assertFalse(any("not clearly a test" in item for item in problems))
+
     def test_source_root_scope_rejects_paths_outside_repository(self):
         self.registry["retired_surfaces"][0]["source_roots"] = ["../outside"]
         self.write_registry()

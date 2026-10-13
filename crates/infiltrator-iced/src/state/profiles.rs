@@ -69,7 +69,7 @@ pub struct ProfileState {
     /// DUAL-08-09: drop nodes failing the required-field precheck.
     pub aggregator_availability_precheck: bool,
     /// DUAL-08-12: make the generated profile the active profile (and hot
-    /// reload the kernel when the host owns a managed runtime).
+    /// reload the kernel when the host composes a Core-owner profile port).
     pub aggregator_activate_after_create: bool,
     /// DUAL-08-08: free-text regex rename rules (`模式 => 替换`).
     pub aggregator_renames: String,

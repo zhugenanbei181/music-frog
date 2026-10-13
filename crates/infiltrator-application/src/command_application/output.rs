@@ -244,7 +244,7 @@ impl CommandApplication {
                 filter,
             } => self
                 .profile_options()?
-                .save_filter(self.profile_runtime_access(), &workspace_identity, &filter)
+                .save_filter(self.profile_access(), &workspace_identity, &filter)
                 .await
                 .map(CommandOutput::SubscriptionFilterApplied),
             CommandIntent::LoadProfileDocument { profile } => self
@@ -260,7 +260,7 @@ impl CommandApplication {
                 let document = self
                     .profile_document()?
                     .save(
-                        self.profile_runtime_access(),
+                        self.profile_access(),
                         &workspace_identity,
                         &content,
                         authorization,
@@ -279,7 +279,7 @@ impl CommandApplication {
             } => self
                 .profile_options()?
                 .save_mixin(
-                    self.profile_runtime_access(),
+                    self.profile_access(),
                     &workspace_identity,
                     &mixin_yaml,
                 )

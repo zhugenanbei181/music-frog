@@ -13,7 +13,7 @@ use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use iced::Task;
 use infiltrator_application::profile_aggregation_application::ProfileAggregationApplication;
-use infiltrator_application::profile_application::ProfileApplication;
+use infiltrator_application::profile_application::{ProfileApplication, ProfileRuntimeAccess};
 use infiltrator_contract::aggregator::{
     AggregatedProfileOutcome, AggregationActivationOutcome, AggregationCustomGroup,
     AggregationDraft, AggregationRenameRule,
@@ -340,20 +340,14 @@ impl AppState {
                 // DUAL-08-12: carry the selected runtime access mode into the
                 // shared exact-reference activation use case.
                 let runtime = match self.runtime.runtime.clone() {
-                    Some(runtime) => {
-                        infiltrator_application::profile_application::ProfileRuntimeAccess::Managed(
-                            runtime,
-                        )
-                    }
-                    None => {
-                        infiltrator_application::profile_application::ProfileRuntimeAccess::Offline
-                    }
+                    Some(runtime) => ProfileRuntimeAccess::CoreOwner(runtime),
+                    None => ProfileRuntimeAccess::Offline,
                 };
                 Task::perform(
                     async move {
                         let store = config_manager().await?;
                         Self::aggregator_application(store)
-                            .create_profile_with_runtime(runtime, &draft)
+                            .create_profile_with_access(runtime, &draft)
                             .await
                             .map_err(|failure| InfiltratorError::Config(failure.message))
                     },
@@ -366,14 +360,8 @@ impl AppState {
             }
             Message::ReAggregateProfile(template_name) => {
                 let runtime = match self.runtime.runtime.clone() {
-                    Some(runtime) => {
-                        infiltrator_application::profile_application::ProfileRuntimeAccess::Managed(
-                            runtime,
-                        )
-                    }
-                    None => {
-                        infiltrator_application::profile_application::ProfileRuntimeAccess::Offline
-                    }
+                    Some(runtime) => ProfileRuntimeAccess::CoreOwner(runtime),
+                    None => ProfileRuntimeAccess::Offline,
                 };
                 Task::perform(
                     async move {

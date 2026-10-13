@@ -1,6 +1,7 @@
 //! test-intent: behavior
 //! Real port effects prove frozen review, cancellation, permissions and source comparison.
 use super::*;
+use crate::profile_application::ProfileRuntimeAccess;
 fn fixture() -> (
     SnapshotApplication,
     Arc<FakeProfileStore>,
@@ -41,7 +42,7 @@ async fn preparation_and_cancel_write_nothing_and_cancelled_identity_cannot_be_c
     assert!(
         other
             .confirm_restore(
-                crate::profile_application::ProfileRuntimeAccess::<dyn ManagedRuntime>::Offline,
+                ProfileRuntimeAccess::<dyn ActiveProfileReferenceApplier>::Offline,
                 &review.identity
             )
             .await
@@ -50,7 +51,7 @@ async fn preparation_and_cancel_write_nothing_and_cancelled_identity_cannot_be_c
     app.cancel_restore(&review.identity).unwrap();
     assert!(
         app.confirm_restore(
-            crate::profile_application::ProfileRuntimeAccess::<dyn ManagedRuntime>::Offline,
+            ProfileRuntimeAccess::<dyn ActiveProfileReferenceApplier>::Offline,
             &review.identity
         )
         .await
@@ -66,7 +67,7 @@ async fn permission_retry_keeps_review_and_commits_exactly_once() {
     profiles.denied.store(true, Ordering::SeqCst);
     assert_eq!(
         app.confirm_restore(
-            crate::profile_application::ProfileRuntimeAccess::<dyn ManagedRuntime>::Offline,
+            ProfileRuntimeAccess::<dyn ActiveProfileReferenceApplier>::Offline,
             &review.identity
         )
         .await
@@ -78,7 +79,7 @@ async fn permission_retry_keeps_review_and_commits_exactly_once() {
     profiles.denied.store(false, Ordering::SeqCst);
     let receipt = app
         .confirm_restore(
-            crate::profile_application::ProfileRuntimeAccess::<dyn ManagedRuntime>::Offline,
+            ProfileRuntimeAccess::<dyn ActiveProfileReferenceApplier>::Offline,
             &review.identity,
         )
         .await
@@ -88,7 +89,7 @@ async fn permission_retry_keeps_review_and_commits_exactly_once() {
     assert_eq!(profiles.writes.load(Ordering::SeqCst), 1);
     assert!(
         app.confirm_restore(
-            crate::profile_application::ProfileRuntimeAccess::<dyn ManagedRuntime>::Offline,
+            ProfileRuntimeAccess::<dyn ActiveProfileReferenceApplier>::Offline,
             &review.identity
         )
         .await
@@ -104,7 +105,7 @@ async fn changed_profile_or_snapshot_rejects_restore_without_overwriting_later_e
     let before = profiles.writes.load(Ordering::SeqCst);
     assert_eq!(
         app.confirm_restore(
-            crate::profile_application::ProfileRuntimeAccess::<dyn ManagedRuntime>::Offline,
+            ProfileRuntimeAccess::<dyn ActiveProfileReferenceApplier>::Offline,
             &review.identity
         )
         .await
@@ -123,7 +124,7 @@ async fn changed_profile_or_snapshot_rejects_restore_without_overwriting_later_e
     snapshots.snapshots.lock().unwrap().get_mut("main").unwrap()[0].1 = "mode: direct\n".into();
     assert_eq!(
         app.confirm_restore(
-            crate::profile_application::ProfileRuntimeAccess::<dyn ManagedRuntime>::Offline,
+            ProfileRuntimeAccess::<dyn ActiveProfileReferenceApplier>::Offline,
             &review.identity
         )
         .await
@@ -148,7 +149,7 @@ async fn changed_active_reference_expires_snapshot_review_before_workspace_write
 
     let failure = app
         .confirm_restore(
-            crate::profile_application::ProfileRuntimeAccess::<dyn ManagedRuntime>::Offline,
+            ProfileRuntimeAccess::<dyn ActiveProfileReferenceApplier>::Offline,
             &review.identity,
         )
         .await

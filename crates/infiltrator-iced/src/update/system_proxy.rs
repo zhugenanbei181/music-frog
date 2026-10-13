@@ -11,6 +11,7 @@ use infiltrator_contract::system_proxy::{
     SystemProxySnapshot, SystemProxyStatus,
 };
 use infiltrator_contract::system_toggle::SystemToggle;
+use infiltrator_ports::runtime_http_proxy_endpoint::RuntimeHttpProxyEndpoint;
 use infiltrator_shared::i18n_interpolator::localize;
 use infiltrator_shared::locales::{Lang, Localizer};
 
@@ -61,17 +62,20 @@ impl AppState {
                                 .into_owned(),
                         )
                     })?;
-                    runtime
-                        .http_proxy_endpoint()
+                    match runtime
+                        .observe_http_proxy_endpoint()
                         .await
                         .map_err(|error| InfiltratorError::Privilege(error.to_string()))?
-                        .ok_or_else(|| {
-                            InfiltratorError::Privilege(
+                    {
+                        RuntimeHttpProxyEndpoint::Configured { endpoint } => endpoint,
+                        RuntimeHttpProxyEndpoint::NotConfigured => {
+                            return Err(InfiltratorError::Privilege(
                                 Lang(&copy_locale)
                                     .tr("system_proxy_port_missing")
                                     .into_owned(),
-                            )
-                        })?
+                            ));
+                        }
+                    }
                 } else {
                     String::new()
                 };

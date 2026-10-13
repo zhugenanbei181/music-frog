@@ -2,8 +2,10 @@
 
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::snapshot::PublicIpSnapshot;
-use infiltrator_ports::public_ip_probe::PublicIpProbe;
-use infiltrator_ports::runtime_gateway::ManagedRuntime;
+use infiltrator_ports::public_ip_probe::{PublicIpProbe, PublicIpProbeRoute};
+use infiltrator_ports::runtime_http_proxy_endpoint::{
+    RuntimeHttpProxyEndpoint, RuntimeHttpProxyEndpointPort,
+};
 use std::sync::Arc;
 
 #[derive(Clone)]
@@ -16,31 +18,45 @@ impl NetworkApplication {
         Self { probe }
     }
 
-    pub async fn probe_public_ip(
-        &self,
-        proxy_endpoint: Option<String>,
-    ) -> Result<PublicIpSnapshot, Failure> {
+    pub async fn probe_public_ip_direct(&self) -> Result<PublicIpSnapshot, Failure> {
         self.probe
-            .probe(proxy_endpoint)
+            .probe(PublicIpProbeRoute::Direct)
             .await
             .map_err(Failure::from)
     }
 
-    pub async fn probe_through_runtime<R: ManagedRuntime + ?Sized>(
+    pub async fn probe_public_ip_through_proxy(
+        &self,
+        endpoint: String,
+    ) -> Result<PublicIpSnapshot, Failure> {
+        self.probe
+            .probe(PublicIpProbeRoute::ThroughHttpProxy { endpoint })
+            .await
+            .map_err(Failure::from)
+    }
+
+    pub async fn probe_through_runtime<R: RuntimeHttpProxyEndpointPort + ?Sized>(
         &self,
         runtime: Arc<R>,
     ) -> Result<PublicIpSnapshot, Failure> {
-        let endpoint = runtime
-            .http_proxy_endpoint()
+        let endpoint = match runtime
+            .observe_http_proxy_endpoint()
             .await
             .map_err(Failure::from)?
-            .ok_or_else(|| {
-                Failure::new(
+        {
+            RuntimeHttpProxyEndpoint::Configured { endpoint } => endpoint,
+            RuntimeHttpProxyEndpoint::NotConfigured => {
+                return Err(Failure::new(
                     ErrorCode::NotReady,
                     "no usable HTTP proxy endpoint is configured",
                     false,
-                )
-            })?;
-        self.probe_public_ip(Some(endpoint)).await
+                ));
+            }
+        };
+        self.probe_public_ip_through_proxy(endpoint).await
     }
 }
+
+#[cfg(test)]
+#[path = "network_application_tests.rs"]
+mod tests;

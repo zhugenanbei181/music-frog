@@ -19,7 +19,7 @@ use infiltrator_ports::profile_store::{
     ActiveProfileWorkspaceRestoreOutcome,
 };
 use infiltrator_ports::profile_workspace::{ProfileWorkspace, ProfileWorkspaceUpdate};
-use infiltrator_ports::runtime_gateway::{ManagedRuntime, RuntimeGateway};
+use infiltrator_ports::runtime_gateway::{ActiveProfileReferenceApplier, RuntimeGateway};
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
@@ -93,20 +93,16 @@ impl RuntimeGateway for ActivationRuntime {
 }
 
 #[async_trait]
-impl ManagedRuntime for ActivationRuntime {
+impl ActiveProfileReferenceApplier for ActivationRuntime {
     fn engine_id(&self) -> Option<EngineId> {
         Some(self.engine.clone())
-    }
-
-    fn generation(&self) -> u64 {
-        1
     }
 
     fn core_lifecycle(&self) -> infiltrator_contract::snapshot::CoreLifecycle {
         self.lifecycle.lock().expect("runtime lifecycle").clone()
     }
 
-    fn active_profile_reference_write_authorization(
+    fn write_authorization(
         &self,
     ) -> Result<
         infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization,
@@ -121,22 +117,6 @@ impl ManagedRuntime for ActivationRuntime {
             ),
             generation: infiltrator_contract::core_identity::CoreGeneration::new(1),
         })
-    }
-
-    async fn is_running(&self) -> bool {
-        true
-    }
-
-    async fn restart(&self) -> Result<u64, PortError> {
-        Err(self.unavailable())
-    }
-
-    async fn http_proxy_endpoint(&self) -> Result<Option<String>, PortError> {
-        Err(self.unavailable())
-    }
-
-    async fn shutdown(&self) -> Result<(), PortError> {
-        Err(self.unavailable())
     }
 
     async fn apply_active_profile_reference(
@@ -175,7 +155,7 @@ impl ManagedRuntime for ActivationRuntime {
         }
     }
 
-    async fn apply_profile_workspace(
+    async fn apply_active_profile_workspace(
         &self,
         expected_reference: &ActiveProfileReference,
         expected: &infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity,
@@ -192,8 +172,12 @@ impl ManagedRuntime for ActivationRuntime {
             )
             .await?;
         let published = resolve_fake_publish(lease.publish(update.clone()).await).await?;
-        match ManagedRuntime::apply_active_profile_reference(self, expected_reference, strategy)
-            .await
+        match ActiveProfileReferenceApplier::apply_active_profile_reference(
+            self,
+            expected_reference,
+            strategy,
+        )
+        .await
         {
             Ok(_) => Ok(published.commit()),
             Err(apply_error) => {

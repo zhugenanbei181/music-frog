@@ -1,5 +1,6 @@
 //! Foreign requests fail before adapter reads; malformed adapter receipts are detected after return.
 use super::*;
+use crate::profile_application::ProfileRuntimeAccess;
 use crate::profile_document_application::ProfileDocumentApplication;
 use crate::profile_options_application::ProfileOptionsApplication;
 use crate::runtime_query_application::RuntimeQueryApplication;
@@ -11,7 +12,7 @@ use infiltrator_contract::subscription_import::SubscriptionFilterDraft;
 use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_domain::runtime::{ProxyProvider, RuleProvider};
 use infiltrator_ports::profile_workspace::{ProfileWorkspacePurpose, ProfileWorkspaceUpdate};
-use infiltrator_ports::runtime_gateway::{ManagedRuntime, RuntimeGateway};
+use infiltrator_ports::runtime_gateway::{ActiveProfileReferenceApplier, RuntimeGateway};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -61,17 +62,14 @@ impl RuntimeGateway for NoCallRuntime {
 }
 
 #[async_trait]
-impl ManagedRuntime for NoCallRuntime {
+impl ActiveProfileReferenceApplier for NoCallRuntime {
     fn engine_id(&self) -> Option<EngineId> {
-        self.unexpected()
-    }
-    fn generation(&self) -> u64 {
         self.unexpected()
     }
     fn core_lifecycle(&self) -> infiltrator_contract::snapshot::CoreLifecycle {
         self.unexpected()
     }
-    fn active_profile_reference_write_authorization(
+    fn write_authorization(
         &self,
     ) -> Result<
         infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization,
@@ -79,19 +77,7 @@ impl ManagedRuntime for NoCallRuntime {
     > {
         self.unexpected()
     }
-    async fn is_running(&self) -> bool {
-        self.unexpected()
-    }
-    async fn restart(&self) -> Result<u64, PortError> {
-        self.unexpected()
-    }
-    async fn http_proxy_endpoint(&self) -> Result<Option<String>, PortError> {
-        self.unexpected()
-    }
-    async fn shutdown(&self) -> Result<(), PortError> {
-        self.unexpected()
-    }
-    async fn apply_profile_workspace(
+    async fn apply_active_profile_workspace(
         &self,
         _: &infiltrator_contract::active_profile_reference::ActiveProfileReference,
         _: &ProfileWorkspaceIdentity,
@@ -124,7 +110,7 @@ async fn foreign_engine_cas_is_rejected_before_store_or_runtime_calls() {
 
     let failure = profiles
         .commit_workspace(
-            crate::profile_application::ProfileRuntimeAccess::Managed(runtime.clone()),
+            ProfileRuntimeAccess::CoreOwner(runtime.clone()),
             &foreign,
             &update,
         )
@@ -159,7 +145,7 @@ async fn foreign_source_bound_writes_fail_before_workspace_reads_or_validation()
 
     let document_failure = document
         .save::<NoCallRuntime>(
-            crate::profile_application::ProfileRuntimeAccess::Managed(runtime.clone()),
+            ProfileRuntimeAccess::CoreOwner(runtime.clone()),
             &foreign,
             "proxies: [malformed",
             ProfileWriteAuthorization::RequireUnlock,
@@ -170,18 +156,14 @@ async fn foreign_source_bound_writes_fail_before_workspace_reads_or_validation()
     assert_eq!(runtime.calls.load(Ordering::SeqCst), 0);
 
     let mixin_failure = options
-        .save_mixin::<NoCallRuntime>(
-            crate::profile_application::ProfileRuntimeAccess::Offline,
-            &foreign,
-            "not: [valid",
-        )
+        .save_mixin::<NoCallRuntime>(ProfileRuntimeAccess::Offline, &foreign, "not: [valid")
         .await
         .unwrap_err();
     assert_eq!(mixin_failure.code, ErrorCode::Unsupported);
 
     let filter_failure = options
         .save_filter::<NoCallRuntime>(
-            crate::profile_application::ProfileRuntimeAccess::Offline,
+            ProfileRuntimeAccess::Offline,
             &foreign,
             &SubscriptionFilterDraft {
                 advanced_policy: Some("not: [valid".into()),
@@ -228,7 +210,7 @@ async fn options_codec_rejects_foreign_document_format_and_schema_before_fake_co
         );
         let mixin_failure = options
             .save_mixin(
-                crate::profile_application::ProfileRuntimeAccess::<dyn ManagedRuntime>::Offline,
+                ProfileRuntimeAccess::<dyn ActiveProfileReferenceApplier>::Offline,
                 &expected,
                 "not: [valid",
             )
@@ -237,7 +219,7 @@ async fn options_codec_rejects_foreign_document_format_and_schema_before_fake_co
         assert_eq!(mixin_failure.code, ErrorCode::Unsupported);
         let filter_failure = options
             .save_filter(
-                crate::profile_application::ProfileRuntimeAccess::<dyn ManagedRuntime>::Offline,
+                ProfileRuntimeAccess::<dyn ActiveProfileReferenceApplier>::Offline,
                 &expected,
                 &SubscriptionFilterDraft {
                     advanced_policy: Some("not: [valid".into()),
@@ -273,11 +255,7 @@ async fn foreign_engine_workspace_receipt_is_rejected_after_adapter_return() {
     };
 
     let failure = profiles
-        .commit_workspace::<NoCallRuntime>(
-            crate::profile_application::ProfileRuntimeAccess::Offline,
-            &expected,
-            &update,
-        )
+        .commit_workspace::<NoCallRuntime>(ProfileRuntimeAccess::Offline, &expected, &update)
         .await
         .unwrap_err();
 
@@ -304,7 +282,7 @@ async fn workspace_receipt_must_advance_changed_document_and_sidecar_revisions()
         .store(true, Ordering::SeqCst);
     let failure = profiles
         .commit_workspace::<NoCallRuntime>(
-            crate::profile_application::ProfileRuntimeAccess::Offline,
+            ProfileRuntimeAccess::Offline,
             &expected,
             &ProfileWorkspaceUpdate {
                 purpose: ProfileWorkspacePurpose::Derived,
@@ -333,7 +311,7 @@ async fn workspace_receipt_must_advance_changed_document_and_sidecar_revisions()
         .store(true, Ordering::SeqCst);
     let failure = profiles
         .commit_workspace::<NoCallRuntime>(
-            crate::profile_application::ProfileRuntimeAccess::Offline,
+            ProfileRuntimeAccess::Offline,
             &expected,
             &ProfileWorkspaceUpdate {
                 purpose: ProfileWorkspacePurpose::Derived,

@@ -175,7 +175,7 @@ pub enum CommandIntent {
     },
     /// DUAL-07-09: persist whether the active profile is reloaded into the
     /// running core after a successful subscription update. Hosts without a
-    /// managed-runtime seam reject `enabled = true` with a typed
+    /// Core-owner profile port reject `enabled = true` with a typed
     /// `Unsupported` failure instead of storing a preference that no-ops.
     SetSubscriptionAutoReload {
         profile_id: String,

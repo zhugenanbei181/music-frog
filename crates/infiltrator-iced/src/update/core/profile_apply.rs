@@ -1,7 +1,7 @@
 //! Shared profile-document commit path for Iced configuration editors.
 //!
 //! Each editor supplies a pure `YAML -> YAML` transform. The helper then
-//! commits the complete document through the host `ManagedRuntime` port
+//! commits the complete document through the host active-profile applier port
 //! when the core is live, or through the validated atomic config manager when
 //! it is stopped. This keeps individual page handlers from bypassing the
 //! apply/reload/readiness/rollback contract.
@@ -19,12 +19,12 @@ use std::sync::Arc;
 
 /// Convert the host's optional capability slot at the Iced-to-application
 /// boundary. Application use cases themselves receive only the explicit
-/// Offline/Managed access enum.
+/// Offline/CoreOwner access enum.
 pub(crate) fn runtime_access(
     runtime: Option<Arc<dyn HostRuntime>>,
 ) -> ProfileRuntimeAccess<dyn HostRuntime> {
     match runtime {
-        Some(runtime) => ProfileRuntimeAccess::Managed(runtime),
+        Some(runtime) => ProfileRuntimeAccess::CoreOwner(runtime),
         None => ProfileRuntimeAccess::Offline,
     }
 }

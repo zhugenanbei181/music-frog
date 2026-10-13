@@ -24,7 +24,7 @@ use infiltrator_domain::filter::{ContentDedupStrategy, DeduplicationStrategy, No
 use infiltrator_domain::profile_aggregator::{AggregationPlan, ProfileAggregator};
 use infiltrator_domain::profile_converter::{AggregationOptions, SourceSubscription};
 use infiltrator_domain::profiles::sanitize_profile_name;
-use infiltrator_ports::runtime_gateway::ManagedRuntime;
+use infiltrator_ports::runtime_gateway::ActiveProfileReferenceApplier;
 use std::sync::{Mutex, OnceLock};
 
 #[cfg(test)]
@@ -186,8 +186,11 @@ impl ProfileAggregationApplication {
         &self,
         draft: &AggregationDraft,
     ) -> Result<AggregatedProfileOutcome, Failure> {
-        self.create_profile_with_runtime::<dyn ManagedRuntime>(ProfileRuntimeAccess::Offline, draft)
-            .await
+        self.create_profile_with_access::<dyn ActiveProfileReferenceApplier>(
+            ProfileRuntimeAccess::Offline,
+            draft,
+        )
+        .await
     }
 
     /// DUAL-08-06/08-12: materialise the draft, optionally make the result the
@@ -195,10 +198,10 @@ impl ProfileAggregationApplication {
     /// generated profile keeps a re-aggregation link (DUAL-08-07).
     ///
     /// Activation reuses the shared [`ProfileApplication::activate_profile`]
-    /// path (switch + hot reload + rollback); a host without a managed-runtime
+    /// path (switch + hot reload + rollback); a host without a Core-owner
     /// seam switches the active profile without hot reload exactly like the
     /// shared `SwitchProfile` route.
-    pub async fn create_profile_with_runtime<R: ManagedRuntime + ?Sized>(
+    pub async fn create_profile_with_access<R: ActiveProfileReferenceApplier + ?Sized>(
         &self,
         runtime: ProfileRuntimeAccess<R>,
         draft: &AggregationDraft,
@@ -311,7 +314,7 @@ impl ProfileAggregationApplication {
     /// DUAL-08-07: re-read every source of a saved template, re-run the shared
     /// aggregation and overwrite the previously generated profile in place.
     /// Only profiles that the template itself produced are touched.
-    pub async fn reaggregate<R: ManagedRuntime + ?Sized>(
+    pub async fn reaggregate<R: ActiveProfileReferenceApplier + ?Sized>(
         &self,
         runtime: ProfileRuntimeAccess<R>,
         template_name: &str,
@@ -352,7 +355,7 @@ impl ProfileAggregationApplication {
     }
 
     /// Switch to a freshly generated profile through the shared typed activation path.
-    async fn activate_generated_profile<R: ManagedRuntime + ?Sized>(
+    async fn activate_generated_profile<R: ActiveProfileReferenceApplier + ?Sized>(
         &self,
         runtime: ProfileRuntimeAccess<R>,
         name: &str,

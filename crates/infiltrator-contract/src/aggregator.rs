@@ -115,7 +115,7 @@ pub struct AggregationDraft {
     /// DUAL-08-09: drop nodes failing the required-field precheck.
     pub availability_precheck: bool,
     /// DUAL-08-12: make the generated profile the active profile (and hot
-    /// reload the kernel when the host exposes a managed runtime seam).
+    /// reload the kernel when the host exposes a Core-owner profile port).
     pub activate_after_create: bool,
 }
 

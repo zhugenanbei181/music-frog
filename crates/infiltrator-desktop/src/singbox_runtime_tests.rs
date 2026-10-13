@@ -26,7 +26,6 @@ use infiltrator_ports::core_capability_provider::{
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::ProfileStore;
-use infiltrator_ports::runtime_gateway::ManagedRuntime;
 use infiltrator_profile_store::store::ProfileDocumentExtension;
 use mihomo_config::manager::ConfigManager;
 use reqwest::Url;
@@ -397,20 +396,29 @@ async fn desktop_runtime_starts_only_on_core_lifecycle_intent_and_reads_real_sta
     .expect("compose one offline sing-box Core owner");
     let application = runtime.application();
 
-    assert_eq!(runtime.core_lifecycle(), CoreLifecycle::Stopped);
+    assert_eq!(
+        CoreLifecyclePort::lifecycle(application.as_ref()),
+        CoreLifecycle::Stopped
+    );
     assert_eq!(counts.checks.load(Ordering::SeqCst), 0);
     assert_eq!(counts.spawns.load(Ordering::SeqCst), 0);
     CoreLifecyclePort::start(application.as_ref())
         .await
         .expect("explicit lifecycle intent starts sing-box");
-    assert_eq!(runtime.core_lifecycle(), CoreLifecycle::Running);
+    assert_eq!(
+        CoreLifecyclePort::lifecycle(application.as_ref()),
+        CoreLifecycle::Running
+    );
     assert_eq!(counts.checks.load(Ordering::SeqCst), 1);
     assert_eq!(counts.spawns.load(Ordering::SeqCst), 1);
 
-    ManagedRuntime::shutdown(&runtime)
+    CoreLifecyclePort::stop(application.as_ref())
         .await
         .expect("explicit stop intent terminates sing-box");
-    assert_eq!(runtime.core_lifecycle(), CoreLifecycle::Stopped);
+    assert_eq!(
+        CoreLifecyclePort::lifecycle(application.as_ref()),
+        CoreLifecycle::Stopped
+    );
     assert!(!counts.running.load(Ordering::SeqCst));
     application
         .close()

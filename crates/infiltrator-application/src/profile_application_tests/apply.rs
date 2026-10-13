@@ -2,9 +2,10 @@
 //! test-intent: behavior
 
 use super::*;
+use crate::profile_application::ProfileRuntimeAccess;
 use crate::profile_options_application::ProfileOptionsApplication;
 use infiltrator_contract::subscription_import::SubscriptionFilterDraft;
-use infiltrator_ports::runtime_gateway::ManagedRuntime;
+use infiltrator_ports::runtime_gateway::ActiveProfileReferenceApplier;
 
 /// A neutral filter draft is transformed by the selected codec and the
 /// resulting opaque document/sidecar pair is committed as one workspace.
@@ -29,7 +30,7 @@ async fn filter_application_reshapes_document_and_persists_projection() {
 
     let applied = options
         .save_filter(
-            crate::profile_application::ProfileRuntimeAccess::<dyn ManagedRuntime>::Offline,
+            ProfileRuntimeAccess::<dyn ActiveProfileReferenceApplier>::Offline,
             &source,
             &draft,
         )
@@ -64,7 +65,7 @@ async fn bound_filter_rejects_changed_document_or_options_and_returns_actual_com
     let later = profiles.load_workspace(&profile_id("main")).await.unwrap();
     let failure = options
         .save_filter(
-            crate::profile_application::ProfileRuntimeAccess::<dyn ManagedRuntime>::Offline,
+            ProfileRuntimeAccess::<dyn ActiveProfileReferenceApplier>::Offline,
             &source,
             &draft,
         )
@@ -78,7 +79,7 @@ async fn bound_filter_rejects_changed_document_or_options_and_returns_actual_com
 
     let mixin = options
         .save_mixin(
-            crate::profile_application::ProfileRuntimeAccess::<dyn ManagedRuntime>::Offline,
+            ProfileRuntimeAccess::<dyn ActiveProfileReferenceApplier>::Offline,
             &later.identity(),
             "mode: direct\n",
         )
@@ -88,7 +89,7 @@ async fn bound_filter_rejects_changed_document_or_options_and_returns_actual_com
     assert_eq!(mixin.options.workspace_identity, latest.identity());
     let failure = options
         .save_filter(
-            crate::profile_application::ProfileRuntimeAccess::<dyn ManagedRuntime>::Offline,
+            ProfileRuntimeAccess::<dyn ActiveProfileReferenceApplier>::Offline,
             &later.identity(),
             &draft,
         )
@@ -102,7 +103,7 @@ async fn bound_filter_rejects_changed_document_or_options_and_returns_actual_com
 
     let applied = options
         .save_filter(
-            crate::profile_application::ProfileRuntimeAccess::<dyn ManagedRuntime>::Offline,
+            ProfileRuntimeAccess::<dyn ActiveProfileReferenceApplier>::Offline,
             &latest.identity(),
             &draft,
         )

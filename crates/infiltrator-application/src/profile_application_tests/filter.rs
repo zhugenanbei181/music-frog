@@ -4,12 +4,13 @@
 use super::*;
 use crate::command_application::CommandApplication;
 use crate::core_capability_test_support::{execute_core_output_command, with_test_capabilities};
+use crate::profile_application::ProfileRuntimeAccess;
 use crate::profile_options_application::ProfileOptionsApplication;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::subscription_import::SubscriptionFilterDraft;
 use infiltrator_domain::profile_options::{FilterSpec, ProfileOptions};
-use infiltrator_ports::runtime_gateway::ManagedRuntime;
+use infiltrator_ports::runtime_gateway::ActiveProfileReferenceApplier;
 use std::sync::Arc;
 
 /// The scoped Mihomo codec rejects malformed drafts before a write, then
@@ -32,7 +33,7 @@ async fn filter_draft_save_uses_the_scoped_codec_and_persists_projection() {
     };
     let failure = application
         .save_filter(
-            crate::profile_application::ProfileRuntimeAccess::<dyn ManagedRuntime>::Offline,
+            ProfileRuntimeAccess::<dyn ActiveProfileReferenceApplier>::Offline,
             &source,
             &invalid_mode,
         )
@@ -51,7 +52,7 @@ async fn filter_draft_save_uses_the_scoped_codec_and_persists_projection() {
     };
     let failure = application
         .save_filter(
-            crate::profile_application::ProfileRuntimeAccess::<dyn ManagedRuntime>::Offline,
+            ProfileRuntimeAccess::<dyn ActiveProfileReferenceApplier>::Offline,
             &source,
             &broken,
         )
@@ -66,7 +67,7 @@ async fn filter_draft_save_uses_the_scoped_codec_and_persists_projection() {
     };
     let report = application
         .save_filter(
-            crate::profile_application::ProfileRuntimeAccess::<dyn ManagedRuntime>::Offline,
+            ProfileRuntimeAccess::<dyn ActiveProfileReferenceApplier>::Offline,
             &source,
             &draft,
         )
@@ -110,7 +111,7 @@ async fn filter_commit_rejects_unreadable_options_before_mutating_the_profile() 
         *store.options_read_error.lock().unwrap() = Some(error);
         let failure = application
             .save_filter(
-                crate::profile_application::ProfileRuntimeAccess::<dyn ManagedRuntime>::Offline,
+                ProfileRuntimeAccess::<dyn ActiveProfileReferenceApplier>::Offline,
                 &source,
                 &draft,
             )
@@ -125,7 +126,7 @@ async fn filter_commit_rejects_unreadable_options_before_mutating_the_profile() 
     *store.options_read_error.lock().unwrap() = None;
     let report = application
         .save_filter(
-            crate::profile_application::ProfileRuntimeAccess::<dyn ManagedRuntime>::Offline,
+            ProfileRuntimeAccess::<dyn ActiveProfileReferenceApplier>::Offline,
             &source,
             &draft,
         )

@@ -8,14 +8,16 @@ use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use crate::update::core::profile_apply::activate_profile;
 use iced::Task;
-use infiltrator_application::profile_application::ProfileActivationOutcome;
-use infiltrator_application::profile_application::ProfileApplication;
+use infiltrator_application::profile_application::{
+    ProfileActivationOutcome, ProfileApplication, ProfileRuntimeAccess,
+};
 use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_domain::config::validate_yaml;
 use infiltrator_domain::profile_converter::ProfileConverter;
 use infiltrator_domain::profiles::sanitize_profile_name;
+use infiltrator_ports::runtime_gateway::ActiveProfileReferenceApplier;
 use infiltrator_shared::locales::{Lang, Localizer};
 use std::path;
 use tokio::task::spawn_blocking;
@@ -79,7 +81,7 @@ impl AppState {
                         };
                         match (&runtime, target) {
                             (
-                                infiltrator_application::profile_application::ProfileRuntimeAccess::Managed(_),
+                                ProfileRuntimeAccess::CoreOwner(_),
                                 ProfileImportTarget::SelectedActive,
                             ) => {
                                 return Err(InfiltratorError::Config(
@@ -89,7 +91,7 @@ impl AppState {
                                 ));
                             }
                             (
-                                infiltrator_application::profile_application::ProfileRuntimeAccess::Offline,
+                                ProfileRuntimeAccess::Offline,
                                 ProfileImportTarget::SelectedActive,
                             ) => {
                                 return Err(InfiltratorError::Config(
@@ -98,8 +100,7 @@ impl AppState {
                                 ));
                             }
                             (
-                                infiltrator_application::profile_application::ProfileRuntimeAccess::Offline
-                                | infiltrator_application::profile_application::ProfileRuntimeAccess::Managed(_),
+                                ProfileRuntimeAccess::Offline | ProfileRuntimeAccess::CoreOwner(_),
                                 ProfileImportTarget::OtherSelection,
                             ) => {}
                         }
@@ -323,9 +324,7 @@ impl AppState {
                             ProfileImportTarget::OtherSelection => {
                                 profiles
                                     .save_profile_content_at_reference(
-                                        infiltrator_application::profile_application::ProfileRuntimeAccess::<
-                                            dyn infiltrator_ports::runtime_gateway::ActiveProfileReferenceApplier,
-                                        >::Offline,
+                                        ProfileRuntimeAccess::<dyn ActiveProfileReferenceApplier>::Offline,
                                         profile_name.clone(),
                                         content,
                                         ApplyStrategy::AlwaysRestart,

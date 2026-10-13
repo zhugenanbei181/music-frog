@@ -1,17 +1,18 @@
 //! Explicit dependency composition for the shared command application.
 
 use super::{
-    ApplicationRuntime, CapabilityProvider, CertificateAuthorityPort, CommandApplication,
-    ConfigurationApplication, CoreCapabilityApplication, CoreLogLevelPort, DnsCacheApplication,
-    DnsLatencyApplication, DnsLeakApplication, DnsQueryApplication, DoctorApplication,
-    LogApplication, LogExportApplication, ManagedRuntime, MtuApplication,
-    NetworkRoamingApplication, OutboundApplication, OutboundUiPreferencesApplication,
-    PacApplication, PortConflictApplication, PrivilegedNetworkApplication, ProfileApplication,
-    RoutingApplication, RoutingIntentPort, RuleListApplication, RuleProviderApplication,
-    RuleProviderCachePort, RuleTracerApplication, RuntimeGateway, ServiceModeApplication,
-    SettingsApplication, SnapshotApplication, StunProbeApplication, SubscriptionImportPort,
-    SubscriptionNotificationPort, SubscriptionSource, SyncApplication, SystemProxyApplication,
-    UwpLoopbackApplication, VersionApplication, VpnServiceApplication,
+    ActiveProfileReferenceApplier, ApplicationRuntime, CapabilityProvider,
+    CertificateAuthorityPort, CommandApplication, ConfigurationApplication,
+    CoreCapabilityApplication, CoreLogLevelPort, DnsCacheApplication, DnsLatencyApplication,
+    DnsLeakApplication, DnsQueryApplication, DoctorApplication, LogApplication,
+    LogExportApplication, MtuApplication, NetworkRoamingApplication, OutboundApplication,
+    OutboundUiPreferencesApplication, PacApplication, PortConflictApplication,
+    PrivilegedNetworkApplication, ProfileApplication, RoutingApplication, RoutingIntentPort,
+    RuleListApplication, RuleProviderApplication, RuleProviderCachePort, RuleTracerApplication,
+    RuntimeGateway, ServiceModeApplication, SettingsApplication, SnapshotApplication,
+    StunProbeApplication, SubscriptionImportPort, SubscriptionNotificationPort, SubscriptionSource,
+    SyncApplication, SystemProxyApplication, UwpLoopbackApplication, VersionApplication,
+    VpnServiceApplication,
 };
 use std::sync::Arc;
 
@@ -58,8 +59,11 @@ impl CommandApplication {
         self
     }
 
-    pub fn with_managed_runtime(mut self, runtime: Arc<dyn ManagedRuntime>) -> Self {
-        self.managed_runtime = Some(runtime);
+    pub fn with_profile_reference_applier(
+        mut self,
+        runtime: Arc<dyn ActiveProfileReferenceApplier>,
+    ) -> Self {
+        self.profile_reference_applier = Some(runtime);
         self
     }
 

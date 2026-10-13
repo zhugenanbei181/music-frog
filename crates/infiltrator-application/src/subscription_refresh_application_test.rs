@@ -2,6 +2,7 @@
 //! (DUAL-07-05 retry/backoff, DUAL-07-06 single-flight).
 
 use super::*;
+use crate::profile_application::ProfileRuntimeAccess;
 use crate::profile_document_codec_test_support::TestProfileDocumentCodec;
 use crate::profile_options_application::ProfileOptionsApplication;
 use crate::profile_workspace_test_support::workspace_with_raw_sidecar;
@@ -24,7 +25,7 @@ use infiltrator_ports::application_runtime::{
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::profile_workspace::{ProfileWorkspace, ProfileWorkspaceUpdate};
-use infiltrator_ports::runtime_gateway::ManagedRuntime;
+use infiltrator_ports::runtime_gateway::ActiveProfileReferenceApplier;
 use infiltrator_ports::subscription_source::{
     ConditionalDocumentResult, ConditionalFetchHeaders, SubscriptionDocument,
 };
@@ -651,7 +652,7 @@ async fn subscription_update_pipeline_regression_matrix() {
         exclude: "广告".to_string(),
         ..Default::default()
     };
-    let runtime = crate::profile_application::ProfileRuntimeAccess::<dyn ManagedRuntime>::Offline;
+    let runtime = ProfileRuntimeAccess::<dyn ActiveProfileReferenceApplier>::Offline;
     let report = ProfileOptionsApplication::new(profile.clone())
         .save_filter(
             runtime,

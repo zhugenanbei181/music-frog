@@ -23,14 +23,14 @@ use infiltrator_shared::i18n_interpolator::localize;
 use infiltrator_shared::locales::{Lang, Localizer};
 use std::sync::Arc;
 
-/// Install this surface's managed runtime for exact selected-workspace
-/// transactions. Offline refreshes retain an explicit Unowned access path.
-fn with_managed_runtime(
+/// Install this surface's active profile applier for exact selected-workspace
+/// transactions. Offline refreshes retain an explicit unowned access path.
+fn with_profile_reference_applier(
     refresh: SubscriptionRefreshApplication,
-    managed: Option<Arc<dyn HostRuntime>>,
+    core_owner: Option<Arc<dyn HostRuntime>>,
 ) -> SubscriptionRefreshApplication {
-    match managed {
-        Some(runtime) => refresh.with_managed_runtime(runtime),
+    match core_owner {
+        Some(runtime) => refresh.with_profile_reference_applier(runtime),
         None => refresh,
     }
 }
@@ -137,7 +137,7 @@ impl AppState {
                     .trim()
                     .to_string();
                 let cron_raw = self.profile.subscription_cron_expression.trim().to_string();
-                let has_managed_runtime = self.runtime.runtime.is_some();
+                let has_profile_reference_applier = self.runtime.runtime.is_some();
                 let auto_reload_was_enabled = self
                     .profile
                     .profiles
@@ -198,7 +198,7 @@ impl AppState {
                 // DUAL-07-09: enabling a reload this host cannot perform is a
                 // typed unsupported action, not a stored no-op. A preference
                 // that is already persisted stays a no-op-free pass-through.
-                if auto_reload_core && !auto_reload_was_enabled && !has_managed_runtime {
+                if auto_reload_core && !auto_reload_was_enabled && !has_profile_reference_applier {
                     let lang = Lang(&self.shell.lang);
                     return Task::done(Message::ShowToast(
                         lang.tr("sub_content_effect_unsupported").into_owned(),
@@ -267,7 +267,7 @@ impl AppState {
                     ));
                 }
                 self.profile.is_updating_subscription_now = true;
-                let managed = self.runtime.runtime.clone();
+                let core_owner = self.runtime.runtime.clone();
                 Task::perform(
                     async move {
                         let cm = config_manager().await?;
@@ -286,7 +286,7 @@ impl AppState {
                             application_runtime(),
                         )
                         .with_notifier(subscription_notifier());
-                        let refresh = with_managed_runtime(refresh, managed);
+                        let refresh = with_profile_reference_applier(refresh, core_owner);
                         let report = refresh
                             .refresh_profile(&source, &profile_name)
                             .await
@@ -328,7 +328,7 @@ impl AppState {
                 }
             }
             Message::TickSubUpdate => {
-                let managed = self.runtime.runtime.clone();
+                let core_owner = self.runtime.runtime.clone();
                 Task::perform(
                     async move {
                         let manager = config_manager().await?;
@@ -348,7 +348,7 @@ impl AppState {
                             application_runtime(),
                         )
                         .with_notifier(subscription_notifier());
-                        let refresh = with_managed_runtime(refresh, managed);
+                        let refresh = with_profile_reference_applier(refresh, core_owner);
                         let now = Utc::now();
                         let mut updated_names = Vec::new();
                         let mut applied_to_core = false;
@@ -437,7 +437,7 @@ impl AppState {
                     return Task::none();
                 }
                 self.profile.is_updating_subscription_now = true;
-                let managed = self.runtime.runtime.clone();
+                let core_owner = self.runtime.runtime.clone();
                 Task::perform(
                     async move {
                         let manager = config_manager().await?;
@@ -454,7 +454,7 @@ impl AppState {
                             application_runtime(),
                         )
                         .with_notifier(subscription_notifier());
-                        let refresh = with_managed_runtime(refresh, managed);
+                        let refresh = with_profile_reference_applier(refresh, core_owner);
                         refresh
                             .refresh_all(&source, BATCH_UPDATE_CONCURRENCY)
                             .await

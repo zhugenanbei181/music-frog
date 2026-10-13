@@ -3,9 +3,8 @@
 use crate::profile_application::{ProfileApplication, ProfileRuntimeAccess};
 use infiltrator_contract::dns_hosts::DnsHostEntry;
 use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::profile_configuration::{
-    ProfileConfigurationRequest, ProfileConfigurationUpdate as ContractConfigurationUpdate,
-};
+use infiltrator_contract::profile_configuration;
+use infiltrator_contract::profile_configuration::ProfileConfigurationRequest;
 use infiltrator_contract::provider_cache::KernelEtagSupportSnapshot;
 use infiltrator_contract::rules_workspace::{RulesJsonDocumentSnapshot, RulesJsonSection};
 use infiltrator_domain::{dns, fake_ip, proxy_providers, rules, sniffer, tun};
@@ -16,7 +15,7 @@ use infiltrator_ports::profile_document_codec::{
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::profile_workspace::{ProfileWorkspacePurpose, ProfileWorkspaceUpdate};
 use infiltrator_ports::rule_tracer::RuleWorkspace;
-use infiltrator_ports::runtime_gateway::ManagedRuntime;
+use infiltrator_ports::runtime_gateway::ActiveProfileReferenceApplier;
 #[cfg(test)]
 use std::sync::Arc;
 
@@ -53,7 +52,7 @@ impl ConfigurationApplication {
         )
     }
 
-    async fn apply_configuration<R: ManagedRuntime + ?Sized>(
+    async fn apply_configuration<R: ActiveProfileReferenceApplier + ?Sized>(
         &self,
         runtime: ProfileRuntimeAccess<R>,
         expected_profile: Option<&str>,
@@ -190,13 +189,13 @@ impl ConfigurationApplication {
             ));
         }
         let update = match request.update {
-            ContractConfigurationUpdate::RuleProviders(value) => {
+            profile_configuration::ProfileConfigurationUpdate::RuleProviders(value) => {
                 ProfileConfigurationUpdate::RuleProviders(value)
             }
-            ContractConfigurationUpdate::ProxyProviders(value) => {
+            profile_configuration::ProfileConfigurationUpdate::ProxyProviders(value) => {
                 ProfileConfigurationUpdate::ProxyProviders(value)
             }
-            ContractConfigurationUpdate::Sniffer(value) => {
+            profile_configuration::ProfileConfigurationUpdate::Sniffer(value) => {
                 ProfileConfigurationUpdate::Sniffer(sniffer_config_from_contract(value))
             }
         };
@@ -212,7 +211,7 @@ impl ConfigurationApplication {
             sidecar_bytes: workspace.sidecar_bytes,
         };
         self.profiles
-            .commit_workspace::<dyn ManagedRuntime>(
+            .commit_workspace::<dyn ActiveProfileReferenceApplier>(
                 ProfileRuntimeAccess::Offline,
                 &expected_workspace,
                 &update,
@@ -236,7 +235,7 @@ impl ConfigurationApplication {
         patch: dns::DnsConfigPatch,
     ) -> Result<dns::DnsConfig, Failure> {
         match self
-            .apply_configuration::<dyn ManagedRuntime>(
+            .apply_configuration::<dyn ActiveProfileReferenceApplier>(
                 ProfileRuntimeAccess::Offline,
                 None,
                 None,
@@ -264,7 +263,7 @@ impl ConfigurationApplication {
         patch: fake_ip::FakeIpConfigPatch,
     ) -> Result<fake_ip::FakeIpConfig, Failure> {
         match self
-            .apply_configuration::<dyn ManagedRuntime>(
+            .apply_configuration::<dyn ActiveProfileReferenceApplier>(
                 ProfileRuntimeAccess::Offline,
                 None,
                 None,
@@ -292,7 +291,7 @@ impl ConfigurationApplication {
         patch: tun::TunConfigPatch,
     ) -> Result<tun::TunConfig, Failure> {
         match self
-            .apply_configuration::<dyn ManagedRuntime>(
+            .apply_configuration::<dyn ActiveProfileReferenceApplier>(
                 ProfileRuntimeAccess::Offline,
                 None,
                 None,
@@ -320,7 +319,7 @@ impl ConfigurationApplication {
         entries: Vec<rules::RuleEntry>,
     ) -> Result<Vec<rules::RuleEntry>, Failure> {
         match self
-            .apply_configuration::<dyn ManagedRuntime>(
+            .apply_configuration::<dyn ActiveProfileReferenceApplier>(
                 ProfileRuntimeAccess::Offline,
                 None,
                 None,
@@ -360,7 +359,7 @@ impl ConfigurationApplication {
         providers: rules::RuleProviders,
     ) -> Result<rules::RuleProviders, Failure> {
         match self
-            .apply_configuration::<dyn ManagedRuntime>(
+            .apply_configuration::<dyn ActiveProfileReferenceApplier>(
                 ProfileRuntimeAccess::Offline,
                 None,
                 None,
@@ -388,7 +387,7 @@ impl ConfigurationApplication {
         providers: proxy_providers::ProxyProviders,
     ) -> Result<proxy_providers::ProxyProviders, Failure> {
         match self
-            .apply_configuration::<dyn ManagedRuntime>(
+            .apply_configuration::<dyn ActiveProfileReferenceApplier>(
                 ProfileRuntimeAccess::Offline,
                 None,
                 None,
@@ -437,7 +436,7 @@ impl ConfigurationApplication {
         config: sniffer::SnifferConfig,
     ) -> Result<sniffer::SnifferConfig, Failure> {
         match self
-            .apply_configuration::<dyn ManagedRuntime>(
+            .apply_configuration::<dyn ActiveProfileReferenceApplier>(
                 ProfileRuntimeAccess::Offline,
                 None,
                 None,

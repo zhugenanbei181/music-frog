@@ -6,6 +6,8 @@
 
 本 crate 不选择 executor、不创建具体网络客户端，也不依赖 UI。异步调度由 composition 注入；一个业务语义只能有一个 owner。
 
+Profile 用例只依赖活动 profile applier 和显式 `Offline` / `CoreOwner` access；网络用例通过 typed `PublicIpProbeRoute` 选择直连或已配置的 HTTP proxy，不把缺失 endpoint 当成直连。
+
 原文搜索片段、Unicode/grapheme 边界与范围重放归纯 Rust `zhuge-ui-core`，
 不引入 UI toolkit。产品搜索条件、拼音匹配与连接/日志业务投影继续由本层定义。
 

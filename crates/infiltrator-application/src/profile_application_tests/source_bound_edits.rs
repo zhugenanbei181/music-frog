@@ -1,6 +1,7 @@
 //! Actual coherent store results, stale proposals and shared request state.
 //! test-intent: behavior
 use super::*;
+use crate::profile_application::ProfileRuntimeAccess;
 use crate::profile_document_application::ProfileDocumentApplication;
 use crate::profile_edit_session::{
     ProfileEditFinish, ProfileEditObservation, ProfileEditOperationPhase, ProfileEditSession,
@@ -9,7 +10,7 @@ use crate::profile_options_application::ProfileOptionsApplication;
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::profile_document::ProfileDocumentSaved;
 use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
-use infiltrator_ports::runtime_gateway::ManagedRuntime;
+use infiltrator_ports::runtime_gateway::ActiveProfileReferenceApplier;
 use std::sync::Arc;
 
 #[tokio::test]
@@ -24,7 +25,7 @@ async fn document_and_mixin_saves_refuse_the_users_old_source_before_touching_ei
     let source = observed.workspace_identity;
     let failure = document
         .save(
-            crate::profile_application::ProfileRuntimeAccess::<dyn ManagedRuntime>::Offline,
+            ProfileRuntimeAccess::<dyn ActiveProfileReferenceApplier>::Offline,
             &source,
             "mode: global\n",
             ProfileWriteAuthorization::RequireUnlock,
@@ -38,7 +39,7 @@ async fn document_and_mixin_saves_refuse_the_users_old_source_before_touching_ei
     );
     let failure = mixin
         .save_mixin(
-            crate::profile_application::ProfileRuntimeAccess::<dyn ManagedRuntime>::Offline,
+            ProfileRuntimeAccess::<dyn ActiveProfileReferenceApplier>::Offline,
             &source,
             "mode: global\n",
         )
@@ -97,7 +98,7 @@ async fn shared_editor_rejects_unit_and_old_terminal_keeps_draft_and_accepts_onl
         .unwrap();
     let committed = document
         .save(
-            crate::profile_application::ProfileRuntimeAccess::<dyn ManagedRuntime>::Offline,
+            ProfileRuntimeAccess::<dyn ActiveProfileReferenceApplier>::Offline,
             &source,
             "mode: global\n",
             ProfileWriteAuthorization::RequireUnlock,
@@ -151,7 +152,7 @@ async fn a_new_external_source_cannot_inherit_this_editors_prior_saved_claim() {
         .unwrap();
     let saved = document
         .save(
-            crate::profile_application::ProfileRuntimeAccess::<dyn ManagedRuntime>::Offline,
+            ProfileRuntimeAccess::<dyn ActiveProfileReferenceApplier>::Offline,
             &source,
             "mode: global\n",
             ProfileWriteAuthorization::RequireUnlock,

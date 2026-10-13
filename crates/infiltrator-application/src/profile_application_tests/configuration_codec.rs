@@ -8,9 +8,8 @@ use crate::protocol_codec_application::ProtocolCodecApplication;
 use async_trait::async_trait;
 use infiltrator_contract::dns::DnsSettingsPatch;
 use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::profile_configuration::{
-    ProfileConfigurationRequest, ProfileConfigurationUpdate as ContractConfigurationUpdate,
-};
+use infiltrator_contract::profile_configuration;
+use infiltrator_contract::profile_configuration::ProfileConfigurationRequest;
 use infiltrator_contract::profile_document_identity::{
     ProfileDocumentRevision, ProfileFormatId, ProfileSchemaVersion,
 };
@@ -25,7 +24,7 @@ use infiltrator_ports::profile_document_codec::{
     ProfileProtocolNodeMutationReadback, ProfileRuleWorkspaceUpdate,
 };
 use infiltrator_ports::profile_workspace::{ProfileWorkspace, ProfileWorkspaceUpdate};
-use infiltrator_ports::runtime_gateway::{ManagedRuntime, RuntimeGateway};
+use infiltrator_ports::runtime_gateway::{ActiveProfileReferenceApplier, RuntimeGateway};
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::atomic::AtomicUsize;
@@ -65,17 +64,14 @@ impl RuntimeGateway for WorkspaceApplyRuntime {
 }
 
 #[async_trait]
-impl ManagedRuntime for WorkspaceApplyRuntime {
+impl ActiveProfileReferenceApplier for WorkspaceApplyRuntime {
     fn engine_id(&self) -> Option<infiltrator_contract::core_identity::EngineId> {
         infiltrator_contract::core_identity::EngineId::new("mihomo").ok()
-    }
-    fn generation(&self) -> u64 {
-        7
     }
     fn core_lifecycle(&self) -> infiltrator_contract::snapshot::CoreLifecycle {
         infiltrator_contract::snapshot::CoreLifecycle::Running
     }
-    fn active_profile_reference_write_authorization(
+    fn write_authorization(
         &self,
     ) -> Result<
         infiltrator_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization,
@@ -92,19 +88,7 @@ impl ManagedRuntime for WorkspaceApplyRuntime {
             generation: infiltrator_contract::core_identity::CoreGeneration::new(7),
         })
     }
-    async fn is_running(&self) -> bool {
-        true
-    }
-    async fn restart(&self) -> Result<u64, PortError> {
-        self.unexpected()
-    }
-    async fn http_proxy_endpoint(&self) -> Result<Option<String>, PortError> {
-        self.unexpected()
-    }
-    async fn shutdown(&self) -> Result<(), PortError> {
-        self.unexpected()
-    }
-    async fn apply_profile_workspace(
+    async fn apply_active_profile_workspace(
         &self,
         _: &infiltrator_contract::active_profile_reference::ActiveProfileReference,
         expected: &ProfileWorkspaceIdentity,
@@ -306,7 +290,7 @@ async fn committed_configuration_returns_codec_readback_for_exact_written_bytes(
 }
 
 #[tokio::test]
-async fn desktop_managed_runtime_receives_scoped_dns_mutation_and_returns_readback() {
+async fn desktop_profile_reference_applier_receives_scoped_dns_mutation_and_returns_readback() {
     let store = Arc::new(FakeStore::with_profile(
         "main",
         "dns:\n  enable: false\n",
@@ -317,8 +301,8 @@ async fn desktop_managed_runtime_receives_scoped_dns_mutation_and_returns_readba
     let runtime = Arc::new(WorkspaceApplyRuntime::default());
 
     let readback = application
-        .apply_dns_settings_with_runtime(
-            ProfileRuntimeAccess::Managed(runtime.clone()),
+        .apply_dns_settings_with_access(
+            ProfileRuntimeAccess::CoreOwner(runtime.clone()),
             DnsSettingsPatch {
                 expected_profile: Some("main".into()),
                 nameserver: Some(vec!["https://dns.example/query".into()]),
@@ -357,7 +341,9 @@ async fn typed_profile_update_rejects_stale_document_identity_before_codec_or_wr
     let failure = application
         .apply_profile_configuration_request(ProfileConfigurationRequest {
             identity: stale_identity,
-            update: ContractConfigurationUpdate::RuleProviders(BTreeMap::new()),
+            update: profile_configuration::ProfileConfigurationUpdate::RuleProviders(
+                BTreeMap::new(),
+            ),
         })
         .await
         .unwrap_err();
@@ -395,7 +381,9 @@ async fn typed_profile_update_commits_against_observed_revision_and_returns_read
     let readback = application
         .apply_profile_configuration_request(ProfileConfigurationRequest {
             identity: observed.document.identity,
-            update: ContractConfigurationUpdate::RuleProviders(providers.clone()),
+            update: profile_configuration::ProfileConfigurationUpdate::RuleProviders(
+                providers.clone(),
+            ),
         })
         .await
         .unwrap();

@@ -66,10 +66,12 @@ class AdapterOperationDeclarationGuardTests(unittest.TestCase):
     def test_current_engine_declarations_cover_all_core_operations(self):
         self.assertEqual(GUARD.source_problems(ROOT), [])
 
-    def test_scope_bound_mihomo_logs_stream_has_target_bound_real_evidence(self):
+    def test_scope_bound_mihomo_logs_stream_uses_typed_runtime_stream_port(self):
         spec = GUARD.ENGINE_ADAPTERS["mihomo"]
         declaration = GUARD.load_json(ROOT / spec["declaration"])
         evidence = GUARD.load_json(ROOT / spec["evidence"])
+        desktop_runtime = (ROOT / "crates/infiltrator-desktop/src/runtime/ports.rs").read_text()
+        mihomo_stream = (ROOT / "crates/mihomo-api/src/runtime_stream.rs").read_text()
         stream = next(
             item
             for item in declaration["operations"]
@@ -82,6 +84,14 @@ class AdapterOperationDeclarationGuardTests(unittest.TestCase):
         self.assertTrue(
             all("logs.stream" in asset["operations"] for asset in evidence["assets"])
         )
+        self.assertIn("fn runtime_stream_port(&self) -> Arc<dyn RuntimeStreamPort>", desktop_runtime)
+        self.assertIn("MihomoRuntimeStreamPort::new(", desktop_runtime)
+        self.assertGreaterEqual(
+            mihomo_stream.count("self.validate_scope(&scope, Capability::Logs)?;"),
+            2,
+        )
+        self.assertIn(".stream_logs_events(level.as_deref())", mihomo_stream)
+        self.assertIn("Ok(active_scope) if active_scope == scope =>", mihomo_stream)
 
     def test_registered_evidence_and_explicit_open_status_are_valid(self):
         self.assertEqual(

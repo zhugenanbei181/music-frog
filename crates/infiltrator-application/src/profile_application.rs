@@ -1,7 +1,7 @@
 //! Profile use-cases over the runtime-neutral profile store port.
 //!
 //! This module owns profile identity validation, projections, activation, and
-//! the boundary between a stored profile and a live managed runtime. Concrete
+//! the boundary between a stored profile and a live Core owner. Concrete
 //! config managers and filesystem details stay in outbound adapters.
 
 use crate::profile_editor_observations::EditorObservations;
@@ -98,19 +98,19 @@ enum SubscriptionProfileTarget {
 /// Offline writes are never represented as an absent runtime value.
 pub enum ProfileRuntimeAccess<R: ?Sized> {
     Offline,
-    Managed(Arc<R>),
+    CoreOwner(Arc<R>),
 }
 
 pub(crate) enum ProfileRuntimeAccessRef<'a, R: ?Sized> {
     Offline,
-    Managed(&'a R),
+    CoreOwner(&'a R),
 }
 
 impl<R: ?Sized> ProfileRuntimeAccess<R> {
     pub(crate) fn as_ref(&self) -> ProfileRuntimeAccessRef<'_, R> {
         match self {
             Self::Offline => ProfileRuntimeAccessRef::Offline,
-            Self::Managed(runtime) => ProfileRuntimeAccessRef::Managed(runtime.as_ref()),
+            Self::CoreOwner(runtime) => ProfileRuntimeAccessRef::CoreOwner(runtime.as_ref()),
         }
     }
 }
@@ -119,7 +119,7 @@ impl<R: ?Sized> Clone for ProfileRuntimeAccess<R> {
     fn clone(&self) -> Self {
         match self {
             Self::Offline => Self::Offline,
-            Self::Managed(runtime) => Self::Managed(Arc::clone(runtime)),
+            Self::CoreOwner(runtime) => Self::CoreOwner(Arc::clone(runtime)),
         }
     }
 }
@@ -519,7 +519,7 @@ impl ProfileApplication {
         source: &S,
         name: &str,
     ) -> Result<SubscriptionUpdateReport, Failure> {
-        self.update_subscription_conditional_with_runtime(
+        self.update_subscription_conditional_with_access(
             ProfileRuntimeAccess::<dyn ActiveProfileReferenceApplier>::Offline,
             source,
             name,
@@ -531,7 +531,7 @@ impl ProfileApplication {
     /// The selected reference and full opening-time workspace identity are
     /// captured before the network request; stale selection or content edits
     /// therefore fail before a write or native apply can be redirected.
-    pub async fn update_subscription_conditional_with_runtime<
+    pub async fn update_subscription_conditional_with_access<
         R: ActiveProfileReferenceApplier + ?Sized,
         S: SubscriptionSource + ?Sized,
     >(
@@ -571,10 +571,10 @@ impl ProfileApplication {
                             reason: StoreForNextStartReason::Offline,
                         },
                     ),
-                    ProfileRuntimeAccessRef::Managed(runtime) => {
+                    ProfileRuntimeAccessRef::CoreOwner(runtime) => {
                         let runtime_engine = runtime.engine_id().ok_or_else(|| {
                             Failure::unsupported(
-                                "selected subscription refresh requires an authoritative managed engine",
+                                "selected subscription refresh requires an authoritative Core owner",
                             )
                         })?;
                         if runtime_engine != reference.engine_id {
@@ -936,7 +936,7 @@ impl ProfileApplication {
     }
 
     /// Persist whether a selected subscription content update should apply to
-    /// the managed Core or be stored for the next start.
+    /// the owned Core or be stored for the next start.
     pub async fn update_subscription_auto_reload(
         &self,
         name: &str,
@@ -949,7 +949,7 @@ impl ProfileApplication {
     }
 
     /// Commit an arbitrary profile document through an explicit offline or
-    /// managed access path. Active managed writes are revision-bound; inactive
+    /// Core-owner access path. Active owner writes are revision-bound; inactive
     /// profiles use the store writer and clear their transient backup.
     pub async fn save_profile_content<R: ActiveProfileReferenceApplier + ?Sized>(
         &self,
@@ -965,7 +965,7 @@ impl ProfileApplication {
     }
 
     /// Save profile content against the complete observed active-reference
-    /// state. Active managed writes apply through a native transaction bound
+    /// state. Active owner writes apply through a native transaction bound
     /// to that exact reference, while offline/stopped writes use the exact
     /// selected-workspace persistence transaction.
     pub async fn save_profile_content_at_reference<R: ActiveProfileReferenceApplier + ?Sized>(
@@ -1120,7 +1120,7 @@ impl ProfileApplication {
                 .await?;
                 ProfileContentSaveOutcome::StoredOffline
             }
-            ProfileRuntimeAccessRef::Managed(runtime) => {
+            ProfileRuntimeAccessRef::CoreOwner(runtime) => {
                 if runtime.engine_id().as_ref() != Some(&reference.engine_id) {
                     return Err(Failure::unsupported(
                         "profile content runtime does not own the active profile engine",
@@ -1217,8 +1217,11 @@ impl ProfileApplication {
         applier: Arc<dyn ActiveProfileReferenceApplier>,
         profile: &str,
     ) -> Result<ProfileActivationOutcome, Failure> {
-        self.activate_profile_using(ProfileRuntimeAccessRef::Managed(applier.as_ref()), profile)
-            .await
+        self.activate_profile_using(
+            ProfileRuntimeAccessRef::CoreOwner(applier.as_ref()),
+            profile,
+        )
+        .await
     }
 
     async fn activate_profile_using<R: ActiveProfileReferenceApplier + ?Sized>(
@@ -1232,7 +1235,7 @@ impl ProfileApplication {
             .map_err(|error| Failure::new(ErrorCode::InvalidInput, error.to_string(), false))?;
         let mode = match runtime {
             ProfileRuntimeAccessRef::Offline => ActivationMode::Offline,
-            ProfileRuntimeAccessRef::Managed(runtime) => {
+            ProfileRuntimeAccessRef::CoreOwner(runtime) => {
                 if runtime.engine_id().as_ref() != Some(&engine_id) {
                     return Err(Failure::unsupported(
                         "profile activation runtime does not own the profile engine",
@@ -1602,7 +1605,7 @@ fn ensure_bound_owner_authorization(
         )),
         ActiveProfileReferenceWriteAuthorization::Unowned => Err(Failure::new(
             ErrorCode::InvalidState,
-            "managed profile activation requires an exact bound Core owner",
+            "Core-owner profile activation requires an exact bound owner",
             false,
         )),
     }
@@ -1724,7 +1727,7 @@ async fn ensure_profile_inactive(
         {
             Err(Failure::new(
                 ErrorCode::InvalidState,
-                "selected profile content requires its revision-bound managed apply path",
+                "selected profile content requires its revision-bound Core-owner apply path",
                 true,
             ))
         }

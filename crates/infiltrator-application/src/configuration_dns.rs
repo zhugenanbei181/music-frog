@@ -9,7 +9,7 @@ use infiltrator_domain::dns::DnsConfig;
 use infiltrator_ports::profile_document_codec::{
     ProfileConfigurationQuery, ProfileConfigurationReadout, ProfileConfigurationUpdate,
 };
-use infiltrator_ports::runtime_gateway::ManagedRuntime;
+use infiltrator_ports::runtime_gateway::ActiveProfileReferenceApplier;
 
 impl ConfigurationApplication {
     pub async fn load_hosts_profile(&self) -> Result<DnsHostsProfile, Failure> {
@@ -39,14 +39,14 @@ impl ConfigurationApplication {
     }
 
     pub async fn apply_dns_settings(&self, patch: DnsSettingsPatch) -> Result<DnsConfig, Failure> {
-        self.apply_dns_settings_with_runtime::<dyn ManagedRuntime>(
+        self.apply_dns_settings_with_access::<dyn ActiveProfileReferenceApplier>(
             ProfileRuntimeAccess::Offline,
             patch,
         )
         .await
     }
 
-    pub async fn apply_dns_settings_with_runtime<R: ManagedRuntime + ?Sized>(
+    pub async fn apply_dns_settings_with_access<R: ActiveProfileReferenceApplier + ?Sized>(
         &self,
         runtime: ProfileRuntimeAccess<R>,
         patch: DnsSettingsPatch,

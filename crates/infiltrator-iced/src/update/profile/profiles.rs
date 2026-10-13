@@ -12,7 +12,6 @@ use iced::Task;
 use infiltrator_application::profile_application::ProfileActivationOutcome;
 use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_contract::error::InfiltratorError;
-use infiltrator_ports::runtime_gateway::ManagedRuntime;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 impl AppState {
@@ -60,7 +59,9 @@ impl AppState {
                 Task::perform(
                     async move {
                         if let Some(runtime) = runtime {
-                            ManagedRuntime::shutdown(runtime.as_ref())
+                            runtime
+                                .lifecycle_port()
+                                .stop()
                                 .await
                                 .map_err(|error| InfiltratorError::Backend(error.to_string()))?;
                         }

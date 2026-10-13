@@ -87,13 +87,13 @@ fn subscription_refresh_app(
     runtime: Arc<ActivationRuntime>,
 ) -> SubscriptionRefreshApplication {
     let profile = ProfileApplication::new(store as Arc<dyn ProfileStore>);
-    let runtime: Arc<dyn ManagedRuntime> = runtime;
+    let runtime: Arc<dyn ActiveProfileReferenceApplier> = runtime;
     SubscriptionRefreshApplication::new(
         profile,
         Arc::new(ImmediateApplicationRuntime),
         RetryBackoffPolicy::test_immediate(),
     )
-    .with_managed_runtime(runtime)
+    .with_profile_reference_applier(runtime)
 }
 
 fn subscription_store() -> Arc<FakeStore> {

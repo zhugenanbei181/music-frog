@@ -118,7 +118,7 @@ impl ProfileApplication {
             ProfileRuntimeAccessRef::Offline => {
                 ProfileWorkspaceEffect::StoreForNextStart(ProfileWorkspaceStoreReason::Offline)
             }
-            ProfileRuntimeAccessRef::Managed(runtime) => match runtime.core_lifecycle() {
+            ProfileRuntimeAccessRef::CoreOwner(runtime) => match runtime.core_lifecycle() {
                 CoreLifecycle::Ready | CoreLifecycle::Running => {
                     ProfileWorkspaceEffect::Apply(ApplyStrategy::PreferReload)
                 }
@@ -228,12 +228,12 @@ impl ProfileApplication {
                     .await
                     .map_err(Failure::from)?,
             },
-            ProfileRuntimeAccessRef::Managed(runtime) => match reference_target {
+            ProfileRuntimeAccessRef::CoreOwner(runtime) => match reference_target {
                 WorkspaceReferenceTarget::Selected(reference) => {
                     let runtime_engine = runtime.engine_id().ok_or_else(|| {
                         Failure::new(
                             ErrorCode::NotReady,
-                            "Managed runtime has no authoritative engine identity",
+                            "Core owner has no authoritative engine identity",
                             false,
                         )
                     })?;

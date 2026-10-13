@@ -14,7 +14,7 @@ use infiltrator_domain::profile_source::hash_document_bytes;
 use infiltrator_ports::profile_workspace::{
     ProfileWorkspace, ProfileWorkspacePurpose, ProfileWorkspaceUpdate,
 };
-use infiltrator_ports::runtime_gateway::ManagedRuntime;
+use infiltrator_ports::runtime_gateway::ActiveProfileReferenceApplier;
 use std::path::Path;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -196,7 +196,7 @@ impl SnapshotApplication {
             identity: identity.clone(),
         })
     }
-    pub async fn confirm_restore<R: ManagedRuntime + ?Sized>(
+    pub async fn confirm_restore<R: ActiveProfileReferenceApplier + ?Sized>(
         &self,
         runtime: ProfileRuntimeAccess<R>,
         identity: &SnapshotRestoreIdentity,

@@ -94,8 +94,7 @@ fn desktop_runtime_factory_rejects_unknown_engine_before_provider_creation() {
 #[test]
 fn desktop_capability_registry_uses_sing_box_lifecycle_owner_and_fails_closed_for_unknown_engine() {
     let provider =
-        desktop_core_capability_provider(DesktopLogStreamAdapter::ManagedRuntimeScopeBound)
-            .unwrap();
+        desktop_core_capability_provider(DesktopLogStreamAdapter::CoreOwnerScopeBound).unwrap();
     let sing_box = singbox_api::engine_id();
     let matrix = provider.matrix_for(&sing_box, None).unwrap();
     let start = matrix

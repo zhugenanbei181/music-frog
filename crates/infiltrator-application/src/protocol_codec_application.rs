@@ -30,7 +30,7 @@ use infiltrator_ports::profile_document_codec::{
     ProfileConfigurationReadout, ProfileConfigurationUpdate,
 };
 use infiltrator_ports::profile_workspace::{ProfileWorkspacePurpose, ProfileWorkspaceUpdate};
-use infiltrator_ports::runtime_gateway::ManagedRuntime;
+use infiltrator_ports::runtime_gateway::ActiveProfileReferenceApplier;
 use std::sync::{Arc, Mutex, OnceLock};
 
 #[cfg(test)]
@@ -306,7 +306,7 @@ impl ProtocolCodecApplication {
     /// engine codec, then commit the exact candidate through the source-bound
     /// workspace transaction. Every typed readback is decoded from the
     /// adapter-produced bytes before the transaction is allowed to write.
-    pub async fn save_draft_to_active_profile<R: ManagedRuntime + ?Sized>(
+    pub async fn save_draft_to_active_profile<R: ActiveProfileReferenceApplier + ?Sized>(
         profiles: &ProfileApplication,
         runtime: Arc<R>,
         draft: &ProtocolDraft,
@@ -373,7 +373,11 @@ impl ProtocolCodecApplication {
             sidecar_bytes: workspace.sidecar_bytes.clone(),
         };
         let committed = profiles
-            .commit_workspace(ProfileRuntimeAccess::Managed(runtime), &expected, &updated)
+            .commit_workspace(
+                ProfileRuntimeAccess::CoreOwner(runtime),
+                &expected,
+                &updated,
+            )
             .await?;
         let profile_yaml = committed
             .document

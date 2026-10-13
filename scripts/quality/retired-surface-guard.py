@@ -149,7 +149,7 @@ def _parse_registry(root: Path) -> tuple[list[RetiredSurface], list[str]]:
                 problems.append(
                     f"{prefix}: source root must stay inside the repository: {source_root}"
                 )
-            elif not (root / relative).is_dir():
+            elif not (root / relative).is_dir() and not (root / relative).is_file():
                 problems.append(f"{prefix}: source root is missing: {root / relative}")
         surfaces.append(surface)
 
@@ -193,7 +193,11 @@ def _replacement_test_problems(root: Path, surface: RetiredSurface) -> list[str]
             problems.append(f"{surface.id}: replacement behavior test is missing: {path}")
             continue
         normalized = relative.as_posix()
-        in_test_location = any(part.lower() in {"test", "tests"} for part in relative.parts)
+        in_test_location = any(
+            part.lower() in {"test", "tests"}
+            or part.lower().endswith(("_test", "_tests"))
+            for part in relative.parts
+        )
         named_as_test = bool(
             re.search(r"(?:^|[_-])tests?(?:[_-]|\.)", relative.name, re.IGNORECASE)
             or re.search(r"tests?\.(?:kt|rs)$", relative.name, re.IGNORECASE)
@@ -287,7 +291,7 @@ def check_surfaces(root: Path, surfaces: list[RetiredSurface]) -> list[str]:
             sources = [
                 path
                 for path in sources
-                if any(path.is_relative_to(source_root) for source_root in roots)
+                if any(path == source_root or path.is_relative_to(source_root) for source_root in roots)
             ]
         candidates = sources + docs
         for path in candidates:

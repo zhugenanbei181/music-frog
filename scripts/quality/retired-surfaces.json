@@ -587,8 +587,8 @@
         "crates/infiltrator-application/src/core_application/speedtest_actor_tests.rs"
       ],
       "source_roots": [
-        "crates/infiltrator-contract/src",
-        "crates/infiltrator-application/src"
+        "crates/infiltrator-contract/src/speedtest.rs",
+        "crates/infiltrator-application/src/core_application/speedtest_actor_tests.rs"
       ]
     },
     {
@@ -1105,6 +1105,114 @@
       ],
       "source_roots": [
         "android/app/src/main/java/infiltrator_android"
+      ]
+    },
+    {
+      "id": "core-managed-runtime-trait",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "ManagedRuntime",
+      "rationale": "The wide trait was retired. Active-profile writes, lifecycle, controller operations and proxy endpoint observations now use separate typed ports.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-application/src/profile_application_tests/activation.rs",
+        "crates/infiltrator-application/src/network_application_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-ports/src"
+      ]
+    },
+    {
+      "id": "core-managed-runtime-builder",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "with_managed_runtime",
+      "rationale": "Command and subscription composition now inject the revision-fenced active-profile applier directly.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-application/src/profile_application_tests/activation/subscription.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "core-managed-runtime-scope-adapter",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "ManagedRuntimeScopeBound",
+      "rationale": "Log-stream capability composition now states its real Core-owner scope proof explicitly.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-desktop/src/composition_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-desktop/src"
+      ]
+    },
+    {
+      "id": "core-runtime-http-proxy-endpoint",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "http_proxy_endpoint",
+      "rationale": "The Option-returning runtime accessor was replaced by a typed endpoint observation with Configured and NotConfigured states.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-application/src/network_application_tests.rs",
+        "crates/infiltrator-desktop/src/runtime_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-ports/src",
+        "crates/infiltrator-desktop/src"
+      ]
+    },
+    {
+      "id": "core-profile-create-runtime-accessor",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "create_profile_with_runtime",
+      "rationale": "Profile creation now receives the explicit Offline/CoreOwner access enum.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-application/src/profile_aggregation_application_test.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "core-profile-dns-runtime-accessor",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "apply_dns_settings_with_runtime",
+      "rationale": "DNS profile edits now receive the explicit profile access value and active-profile applier.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-application/src/profile_application_tests/configuration_codec.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "core-subscription-runtime-accessor",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "update_subscription_conditional_with_runtime",
+      "rationale": "Subscription refresh now uses explicit profile access and a profile-reference applier builder.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-application/src/profile_application_tests/activation/subscription.rs",
+        "crates/infiltrator-application/src/subscription_refresh_application_test.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "core-option-public-ip-route",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "probe_public_ip",
+      "rationale": "Public-IP probing now distinguishes direct and proxy routes with dedicated methods and a typed route enum.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-application/src/network_application_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
       ]
     }
   ]

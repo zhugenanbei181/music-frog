@@ -26,7 +26,10 @@ use infiltrator_ports::error::PortError;
 use infiltrator_ports::host_runtime::{HostRuntime, TunServiceStatus};
 use infiltrator_ports::profile_configuration_transaction::ProfileConfigurationTransactionPort;
 use infiltrator_ports::runtime_configuration::RuntimeConfigurationPorts;
-use infiltrator_ports::runtime_gateway::{ManagedRuntime, RuntimeGateway};
+use infiltrator_ports::runtime_gateway::{ActiveProfileReferenceApplier, RuntimeGateway};
+use infiltrator_ports::runtime_http_proxy_endpoint::{
+    RuntimeHttpProxyEndpoint, RuntimeHttpProxyEndpointPort,
+};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
@@ -213,53 +216,29 @@ impl RuntimeGateway for DesktopCoreOwnerRuntime {
 }
 
 #[async_trait]
-impl ManagedRuntime for DesktopCoreOwnerRuntime {
+impl ActiveProfileReferenceApplier for DesktopCoreOwnerRuntime {
     fn engine_id(&self) -> Option<EngineId> {
         CoreLifecyclePort::core_identity(self.application.as_ref()).map(|identity| identity.engine)
-    }
-
-    fn generation(&self) -> u64 {
-        self.application.generation()
     }
 
     fn core_lifecycle(&self) -> CoreLifecycle {
         CoreLifecyclePort::lifecycle(self.application.as_ref())
     }
 
-    fn active_profile_reference_write_authorization(
-        &self,
-    ) -> Result<ActiveProfileReferenceWriteAuthorization, PortError> {
+    fn write_authorization(&self) -> Result<ActiveProfileReferenceWriteAuthorization, PortError> {
         self.application
             .active_profile_reference_write_authorization()
             .map_err(PortError::Rejected)
     }
+}
 
-    async fn is_running(&self) -> bool {
-        matches!(
-            self.core_lifecycle(),
-            CoreLifecycle::Running | CoreLifecycle::Ready
-        )
-    }
-
-    async fn restart(&self) -> Result<u64, PortError> {
+#[async_trait]
+impl RuntimeHttpProxyEndpointPort for DesktopCoreOwnerRuntime {
+    async fn observe_http_proxy_endpoint(&self) -> Result<RuntimeHttpProxyEndpoint, PortError> {
         unsupported(
-            Capability::CoreLifecycle,
-            "desktop Core-only handoff does not expose restart",
-        )
-    }
-
-    async fn http_proxy_endpoint(&self) -> Result<Option<String>, PortError> {
-        unsupported(
-            Capability::CoreLifecycle,
+            Capability::SystemProxy,
             "desktop Core-only handoff does not expose proxy endpoints",
         )
-    }
-
-    async fn shutdown(&self) -> Result<(), PortError> {
-        CoreLifecyclePort::stop(self.application.as_ref())
-            .await
-            .map(|_| ())
-            .map_err(|error| PortError::Failed(error.to_string()))
     }
 }
 

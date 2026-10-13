@@ -50,13 +50,13 @@ use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_platform::defaults::DefaultCredentialStore;
 use infiltrator_ports::core_binary_selection::CoreBinarySelection;
 use infiltrator_ports::core_capability_provider::CoreCapabilityProvider;
-use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::endpoint::EndpointSource;
 use infiltrator_ports::engine_backend_factory::EngineBackendPorts;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_configuration_transaction::ProfileConfigurationTransactionPort;
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::runtime_gateway::RuntimeGateway;
+use infiltrator_ports::runtime_http_proxy_endpoint::RuntimeHttpProxyEndpoint;
 use infiltrator_ports::speedtest_history::SpeedtestHistoryStore;
 use mihomo_api::client::MihomoClient;
 use mihomo_api::controller_fake_ip_cache::MihomoControllerFakeIpCacheAdapter;
@@ -462,19 +462,14 @@ impl MihomoRuntime {
         }
     }
 
-    pub async fn shutdown(&self) -> anyhow::Result<()> {
-        CoreLifecyclePort::stop(self.application.as_ref())
-            .await
-            .map_err(|e| anyhow!(e.to_string()))
-    }
-
-    pub async fn is_running(&self) -> bool {
-        self.service_manager.is_running().await
-    }
-
-    pub async fn http_proxy_endpoint(&self) -> anyhow::Result<Option<String>> {
+    pub(crate) async fn observe_http_proxy_endpoint(
+        &self,
+    ) -> anyhow::Result<RuntimeHttpProxyEndpoint> {
         let content = read_to_string(&self.config_path).await?;
-        proxy_endpoint_from_config(&content)
+        Ok(match proxy_endpoint_from_config(&content)? {
+            Some(endpoint) => RuntimeHttpProxyEndpoint::Configured { endpoint },
+            None => RuntimeHttpProxyEndpoint::NotConfigured,
+        })
     }
 }
 
