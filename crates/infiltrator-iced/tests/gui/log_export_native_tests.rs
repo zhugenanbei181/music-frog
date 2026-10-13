@@ -17,6 +17,7 @@ use iced_runtime::Action;
 use iced_runtime::task::into_stream;
 use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::core_application::CoreApplication;
+use infiltrator_application::log_application::LogIngestOutcome;
 use infiltrator_application::log_capture_fixtures::{
     LogCaptureProcess, append_follow_records, populate_logs,
 };
@@ -105,12 +106,16 @@ fn install(state: &mut AppState, port: Arc<dyn LogExportPort>) -> CoreApplicatio
     ));
     run(populate_logs(&core)).unwrap();
     let snapshot = core.snapshot();
-    assert!(core.log_application().ingest(
-        LogSession::from_core_scope(snapshot.scope().expect("core scope")).expect("log session"),
-        RuntimeStreamEvent::Item(
-            "GET https://api.sub.lan/token?token=secret_sub_token_123456 HTTP/1.1".into()
-        )
-    ));
+    assert_eq!(
+        core.log_application().ingest(
+            LogSession::from_core_scope(snapshot.scope().expect("core scope"))
+                .expect("log session"),
+            RuntimeStreamEvent::Item(
+                "GET https://api.sub.lan/token?token=secret_sub_token_123456 HTTP/1.1".into()
+            )
+        ),
+        LogIngestOutcome::Applied
+    );
     let reader = ProductSurfaceReader::new(
         Arc::new(core.clone()),
         SurfaceKind::IcedDesktop,

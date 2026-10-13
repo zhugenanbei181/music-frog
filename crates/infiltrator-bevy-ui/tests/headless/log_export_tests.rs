@@ -17,6 +17,7 @@ use bevy::ui_widgets::ButtonPlugin;
 use bevy::window::{PrimaryWindow, Window};
 use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::core_application::CoreApplication;
+use infiltrator_application::log_application::LogIngestOutcome;
 use infiltrator_application::log_capture_fixtures::{
     LogCaptureProcess, append_follow_records, populate_logs,
 };
@@ -133,12 +134,15 @@ fn setup(port: Arc<dyn LogExportPort>) -> (App, Arc<CoreApplication>) {
     ));
     run(populate_logs(&core)).unwrap();
     let scope = core.snapshot();
-    assert!(core.log_application().ingest(
-        LogSession::from_core_scope(scope.scope().expect("core scope")).expect("log session"),
-        RuntimeStreamEvent::Item(
-            "INFO[4] https://sub.example/?token=private-subscription-token".into()
-        )
-    ));
+    assert_eq!(
+        core.log_application().ingest(
+            LogSession::from_core_scope(scope.scope().expect("core scope")).expect("log session"),
+            RuntimeStreamEvent::Item(
+                "INFO[4] https://sub.example/?token=private-subscription-token".into()
+            )
+        ),
+        LogIngestOutcome::Applied
+    );
     let mut app = App::new();
     headless_plugins(&mut app);
     app.add_plugins((

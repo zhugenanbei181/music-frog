@@ -93,6 +93,7 @@ use infiltrator_ports::rule_provider_cache::RuleProviderCachePort;
 use infiltrator_ports::runtime_configuration::RuntimeConfigurationPorts;
 use infiltrator_ports::surface::SurfaceReader;
 use infiltrator_presentation::doctor_projection::project_observation;
+use infiltrator_presentation::log_projection::project_log_facts;
 use outbound_observation::{
     SurfaceReadScope, authorize_outbound_inventory, gate_outbound_observation,
     surface_read_scope_changed,
@@ -610,7 +611,8 @@ impl SurfaceReader for ProductSurfaceReader {
         )
         .await;
 
-        pages.logs = self.core.log_application().page(&core);
+        let log_facts = self.core.log_application().facts();
+        pages.logs = project_log_facts(&core, &log_facts);
 
         if let Some(doctor) = &self.doctor {
             pages.doctor = project_observation(&doctor.observation(), &doctor.list_checks());

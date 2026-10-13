@@ -3,6 +3,9 @@ use super::DesktopLogExportPort;
 use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::core_capability_application::CoreCapabilityApplication;
+use infiltrator_application::log_application::{
+    LogBindingIntent, LogBindingOutcome, LogIngestOutcome,
+};
 use infiltrator_application::log_capture_fixtures::{
     LogCaptureProcess, append_follow_records, populate_logs,
 };
@@ -168,15 +171,18 @@ async fn actual_typed_commands_cancel_without_files_save_frozen_bytes_and_retire
         .await
         .into_unit()
         .unwrap();
-    assert!(
-        !core
-            .log_application()
-            .bind(Some(summary.identity.session.clone()))
+    assert_eq!(
+        core.log_application()
+            .bind(LogBindingIntent::Bind(summary.identity.session.clone())),
+        LogBindingOutcome::RejectedByCoreOwner
     );
-    assert!(!core.log_application().ingest(
-        summary.identity.session.clone(),
-        RuntimeStreamEvent::Item("ERROR[old] rejected stale worker".into())
-    ));
+    assert_eq!(
+        core.log_application().ingest(
+            summary.identity.session.clone(),
+            RuntimeStreamEvent::Item("ERROR[old] rejected stale worker".into())
+        ),
+        LogIngestOutcome::RejectedForeignSession
+    );
     assert!(
         execute_at_observed_scope(
             &core,

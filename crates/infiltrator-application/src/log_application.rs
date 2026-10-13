@@ -1,181 +1,362 @@
-//! Bounded, session-fenced controller log facts. Readers never consume the stream.
-use crate::log_projection::project_log_record;
+//! Bounded, session-fenced raw controller log facts. Readers never consume the stream.
 use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::logs::{LogLevel, LogSession, LogStreamState};
+use infiltrator_contract::logs::{
+    LogBindingSnapshot, LogFactsSnapshot, LogLevel, LogObservationSnapshot, LogSession,
+    LogStreamState, RawLogRecord,
+};
 use infiltrator_contract::snapshot::{CoreLifecycle, CoreSnapshot};
-use infiltrator_contract::surface_snapshot::{LogSnapshot, LogsPageSnapshot, PageData, PageStatus};
 use infiltrator_ports::runtime_stream::{RuntimeStreamEvent, RuntimeStreamTerminal};
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 
 pub const LOG_CAPACITY: usize = 500;
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum LogBindingIntent {
+    Bind(LogSession),
+    Unbind,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LogBindingOutcome {
+    Bound,
+    CoreOwnerConfirmed,
+    RejectedByCoreOwner,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LogIngestOutcome {
+    Applied,
+    RejectedForeignSession,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+enum UnobservedLogStream {
+    #[default]
+    Idle,
+    Connecting,
+    Reconnecting(Failure),
+    Failed(Failure),
+    Unsupported(Failure),
+    Cancelled,
+}
+
+impl UnobservedLogStream {
+    fn stream_state(&self) -> LogStreamState {
+        match self {
+            Self::Idle => LogStreamState::Idle,
+            Self::Connecting => LogStreamState::Connecting,
+            Self::Reconnecting(failure) => LogStreamState::Reconnecting(failure.clone()),
+            Self::Failed(failure) => LogStreamState::Failed(failure.clone()),
+            Self::Unsupported(failure) => LogStreamState::Unsupported(failure.clone()),
+            Self::Cancelled => LogStreamState::Cancelled,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum LogBuffer {
+    Unobserved {
+        stream: UnobservedLogStream,
+    },
+    Observed {
+        session: LogSession,
+        stream: LogStreamState,
+        records: VecDeque<RawLogRecord>,
+    },
+}
+
+impl Default for LogBuffer {
+    fn default() -> Self {
+        Self::Unobserved {
+            stream: UnobservedLogStream::Idle,
+        }
+    }
+}
+
+impl LogBuffer {
+    fn session(&self) -> Option<&LogSession> {
+        match self {
+            Self::Unobserved { .. } => None,
+            Self::Observed { session, .. } => Some(session),
+        }
+    }
+
+    fn set_non_live_stream(&mut self, next: UnobservedLogStream) {
+        match self {
+            Self::Unobserved { stream } => *stream = next,
+            Self::Observed { stream, .. } => *stream = next.stream_state(),
+        }
+    }
+
+    fn connect(&mut self, session: LogSession) {
+        match self {
+            Self::Observed {
+                session: observed,
+                stream,
+                ..
+            } if *observed == session => *stream = LogStreamState::Live,
+            _ => {
+                *self = Self::Observed {
+                    session,
+                    stream: LogStreamState::Live,
+                    records: VecDeque::new(),
+                };
+            }
+        }
+    }
+
+    fn push(&mut self, session: LogSession, record: RawLogRecord) {
+        match self {
+            Self::Observed {
+                session: observed,
+                stream,
+                records,
+            } if *observed == session => {
+                *stream = LogStreamState::Live;
+                records.push_back(record);
+                while records.len() > LOG_CAPACITY {
+                    records.pop_front();
+                }
+            }
+            _ => {
+                *self = Self::Observed {
+                    session,
+                    stream: LogStreamState::Live,
+                    records: VecDeque::from([record]),
+                };
+            }
+        }
+    }
+
+    fn clear_records(&mut self) {
+        if let Self::Observed { records, .. } = self {
+            records.clear();
+        }
+    }
+
+    fn snapshot(&self) -> LogObservationSnapshot {
+        match self {
+            Self::Unobserved { stream } => match stream {
+                UnobservedLogStream::Idle => LogObservationSnapshot::Unobserved,
+                UnobservedLogStream::Connecting => LogObservationSnapshot::Connecting,
+                UnobservedLogStream::Reconnecting(failure) => {
+                    LogObservationSnapshot::Reconnecting(failure.clone())
+                }
+                UnobservedLogStream::Failed(failure) => {
+                    LogObservationSnapshot::Failed(failure.clone())
+                }
+                UnobservedLogStream::Unsupported(failure) => {
+                    LogObservationSnapshot::Unsupported(failure.clone())
+                }
+                UnobservedLogStream::Cancelled => LogObservationSnapshot::Cancelled,
+            },
+            Self::Observed {
+                session,
+                stream,
+                records,
+            } => LogObservationSnapshot::Observed {
+                session: session.clone(),
+                stream: stream.clone(),
+                records: records.iter().cloned().collect(),
+            },
+        }
+    }
+}
+
 #[derive(Default)]
 struct LogState {
-    core_owned: bool,
-    session: Option<LogSession>,
-    observed_session: Option<LogSession>,
-    stream: LogStreamState,
-    observed: bool,
+    binding: LogBindingSnapshot,
+    buffer: LogBuffer,
     next_id: u64,
-    entries: VecDeque<LogSnapshot>,
     filter: Option<LogLevel>,
 }
+
 #[derive(Clone, Default)]
 pub struct LogApplication {
     state: Arc<Mutex<LogState>>,
 }
+
 impl LogApplication {
     pub(crate) fn same_owner(&self, other: &Self) -> bool {
         Arc::ptr_eq(&self.state, &other.state)
     }
+
     pub(crate) fn has_export_scope(&self, session: &LogSession) -> bool {
-        self.state
-            .lock()
-            .expect("log facts")
-            .observed_session
-            .as_ref()
-            == Some(session)
+        self.state.lock().expect("log facts").buffer.session() == Some(session)
     }
+
     /// The lifecycle owner retires old facts synchronously, before publishing
     /// the new Core snapshot. A stream worker must not rebind an older scope.
     pub fn observe_core(&self, core: &CoreSnapshot) {
         let mut state = self.state.lock().expect("log facts");
-        state.core_owned = true;
         let scope = core.scope().and_then(LogSession::from_core_scope);
-        if state.observed_session.as_ref().is_some_and(|observed| {
+        let active = matches!(
+            core.lifecycle,
+            CoreLifecycle::Running | CoreLifecycle::Ready
+        )
+        .then_some(scope.clone())
+        .flatten();
+
+        if state.buffer.session().is_some_and(|observed| {
             observed.generation.value() != core.generation
                 || observed.identity() != core.identity.as_ref()
                 || scope.as_ref().is_some_and(|scope| scope != observed)
         }) {
-            state.entries.clear();
-            state.observed = false;
-            state.observed_session = scope.clone();
+            state.buffer = LogBuffer::default();
         }
-        let session = matches!(
-            core.lifecycle,
-            CoreLifecycle::Running | CoreLifecycle::Ready
-        )
-        .then_some(scope)
-        .flatten();
-        if state.session != session {
-            state.session = session.clone();
-            state.stream = if session.is_some() {
-                LogStreamState::Connecting
+
+        let next_binding = active
+            .clone()
+            .map(LogBindingSnapshot::CoreBound)
+            .unwrap_or(LogBindingSnapshot::CoreUnbound);
+        if state.binding != next_binding {
+            state.binding = next_binding;
+            state.buffer.set_non_live_stream(if active.is_some() {
+                UnobservedLogStream::Connecting
             } else {
-                LogStreamState::Idle
+                UnobservedLogStream::Idle
+            });
+        }
+
+        if let Some(session) = active
+            && state
+                .buffer
+                .session()
+                .is_some_and(|observed| observed != &session)
+        {
+            state.buffer = LogBuffer::Unobserved {
+                stream: UnobservedLogStream::Connecting,
             };
         }
-        if let Some(session) = session
-            && state.observed_session.as_ref() != Some(&session)
-        {
-            state.entries.clear();
-            state.observed = false;
-            state.observed_session = Some(session.clone());
-        }
     }
-    /// Export all observed records, independently of the page's severity filter.
+
+    /// Exports every observed original record, independently of display filtering.
     pub fn export_records(&self) -> Result<(LogSession, Vec<(u64, String)>), Failure> {
         let state = self.state.lock().expect("log facts");
-        let session = state
-            .observed_session
-            .as_ref()
-            .filter(|_| state.observed)
-            .cloned()
-            .ok_or_else(|| {
-                Failure::new(
+        let (session, records) = match &state.buffer {
+            LogBuffer::Observed {
+                session, records, ..
+            } => (session.clone(), records),
+            LogBuffer::Unobserved { .. } => {
+                return Err(Failure::new(
                     ErrorCode::NotReady,
                     "No observed controller log buffer to export",
                     true,
-                )
-            })?;
+                ));
+            }
+        };
         Ok((
             session,
-            state
-                .entries
+            records
                 .iter()
-                .map(|entry| {
-                    entry.raw.clone().map(|raw| (entry.id, raw)).ok_or_else(|| {
-                        Failure::new(
-                            ErrorCode::InvalidState,
-                            "An observed log record has no raw source",
-                            false,
-                        )
-                    })
-                })
-                .collect::<Result<Vec<_>, _>>()?,
+                .map(|record| (record.id, record.raw.clone()))
+                .collect(),
         ))
     }
-    pub fn bind(&self, session: Option<LogSession>) -> bool {
+
+    pub fn bind(&self, intent: LogBindingIntent) -> LogBindingOutcome {
         let mut state = self.state.lock().expect("log facts");
-        if state.core_owned {
-            return state.session == session;
+        if matches!(
+            &state.binding,
+            LogBindingSnapshot::CoreUnbound | LogBindingSnapshot::CoreBound(_)
+        ) {
+            return match (&state.binding, &intent) {
+                (LogBindingSnapshot::CoreUnbound, LogBindingIntent::Unbind) => {
+                    LogBindingOutcome::CoreOwnerConfirmed
+                }
+                (LogBindingSnapshot::CoreBound(current), LogBindingIntent::Bind(requested))
+                    if current == requested =>
+                {
+                    LogBindingOutcome::CoreOwnerConfirmed
+                }
+                _ => LogBindingOutcome::RejectedByCoreOwner,
+            };
         }
-        if state.session == session {
-            return true;
-        }
-        state.session = session.clone();
-        if let Some(session) = session.as_ref()
-            && state.observed_session.as_ref() != Some(session)
-        {
-            state.observed_session = Some(session.clone());
-            state.observed = false;
-            state.entries.clear();
-        }
-        state.stream = if session.is_some() {
-            LogStreamState::Connecting
-        } else {
-            LogStreamState::Idle
+
+        let next_binding = match &intent {
+            LogBindingIntent::Bind(session) => LogBindingSnapshot::StandaloneBound(session.clone()),
+            LogBindingIntent::Unbind => LogBindingSnapshot::StandaloneUnbound,
         };
-        true
+        if state.binding == next_binding {
+            return LogBindingOutcome::Bound;
+        }
+
+        state.binding = next_binding;
+        match intent {
+            LogBindingIntent::Bind(session) => {
+                state
+                    .buffer
+                    .set_non_live_stream(UnobservedLogStream::Connecting);
+                if state
+                    .buffer
+                    .session()
+                    .is_some_and(|observed| observed != &session)
+                {
+                    state.buffer = LogBuffer::Unobserved {
+                        stream: UnobservedLogStream::Connecting,
+                    };
+                }
+            }
+            LogBindingIntent::Unbind => state.buffer.set_non_live_stream(UnobservedLogStream::Idle),
+        }
+        LogBindingOutcome::Bound
     }
-    pub fn ingest(&self, session: LogSession, event: RuntimeStreamEvent<String>) -> bool {
+
+    pub fn ingest(
+        &self,
+        session: LogSession,
+        event: RuntimeStreamEvent<String>,
+    ) -> LogIngestOutcome {
         let mut state = self.state.lock().expect("log facts");
-        if state.session.as_ref() != Some(&session) {
-            return false;
+        if state.binding.session() != Some(&session) {
+            return LogIngestOutcome::RejectedForeignSession;
         }
         match event {
-            RuntimeStreamEvent::Connecting => state.stream = LogStreamState::Connecting,
-            RuntimeStreamEvent::Connected => {
-                state.stream = LogStreamState::Live;
-                state.observed = true;
-            }
+            RuntimeStreamEvent::Connecting => state
+                .buffer
+                .set_non_live_stream(UnobservedLogStream::Connecting),
+            RuntimeStreamEvent::Connected => state.buffer.connect(session),
             RuntimeStreamEvent::Item(raw) => {
                 state.next_id = state
                     .next_id
                     .checked_add(1)
                     .expect("log identity exhausted");
                 let id = state.next_id;
-                state.entries.push_back(project_log_record(id, &raw));
-                while state.entries.len() > LOG_CAPACITY {
-                    state.entries.pop_front();
-                }
-                state.observed = true;
-                state.stream = LogStreamState::Live;
+                state.buffer.push(session, RawLogRecord { id, raw });
             }
-            RuntimeStreamEvent::Reconnecting(failure) => {
-                state.stream = LogStreamState::Reconnecting(failure)
-            }
-            RuntimeStreamEvent::Terminal(RuntimeStreamTerminal::Cancelled) => {
-                state.stream = LogStreamState::Cancelled
-            }
-            RuntimeStreamEvent::Terminal(RuntimeStreamTerminal::Failed(failure)) => {
-                state.stream = LogStreamState::Failed(failure)
-            }
-            RuntimeStreamEvent::Terminal(RuntimeStreamTerminal::Unsupported(failure)) => {
-                state.stream = LogStreamState::Unsupported(failure)
-            }
+            RuntimeStreamEvent::Reconnecting(failure) => state
+                .buffer
+                .set_non_live_stream(UnobservedLogStream::Reconnecting(failure)),
+            RuntimeStreamEvent::Terminal(RuntimeStreamTerminal::Cancelled) => state
+                .buffer
+                .set_non_live_stream(UnobservedLogStream::Cancelled),
+            RuntimeStreamEvent::Terminal(RuntimeStreamTerminal::Failed(failure)) => state
+                .buffer
+                .set_non_live_stream(UnobservedLogStream::Failed(failure)),
+            RuntimeStreamEvent::Terminal(RuntimeStreamTerminal::Unsupported(failure)) => state
+                .buffer
+                .set_non_live_stream(UnobservedLogStream::Unsupported(failure)),
         }
-        true
+        LogIngestOutcome::Applied
     }
-    pub fn fail(&self, session: LogSession, failure: Failure) {
+
+    pub fn fail(&self, session: LogSession, failure: Failure) -> LogIngestOutcome {
         let mut state = self.state.lock().expect("log facts");
-        if state.session.as_ref() == Some(&session) {
-            state.stream = LogStreamState::Failed(failure);
+        if state.binding.session() == Some(&session) {
+            state
+                .buffer
+                .set_non_live_stream(UnobservedLogStream::Failed(failure));
+            LogIngestOutcome::Applied
+        } else {
+            LogIngestOutcome::RejectedForeignSession
         }
     }
+
     pub fn clear(&self) {
-        self.state.lock().expect("log facts").entries.clear();
+        self.state.lock().expect("log facts").buffer.clear_records();
     }
+
     pub fn set_filter(&self, filter: Option<String>) -> Result<(), Failure> {
         let level = filter
             .map(|value| {
@@ -194,65 +375,13 @@ impl LogApplication {
         self.state.lock().expect("log facts").filter = level;
         Ok(())
     }
-    pub fn page(&self, core: &CoreSnapshot) -> PageData<LogsPageSnapshot> {
+
+    pub fn facts(&self) -> LogFactsSnapshot {
         let state = self.state.lock().expect("log facts");
-        let scope = core.scope().and_then(LogSession::from_core_scope);
-        let running = matches!(
-            core.lifecycle,
-            CoreLifecycle::Running | CoreLifecycle::Ready
-        );
-        let data = LogsPageSnapshot {
-            total_entries: state.entries.len(),
-            active_level: state.filter.map(|level| level.label().into()),
-            entries: state
-                .entries
-                .iter()
-                .filter(|entry| {
-                    state
-                        .filter
-                        .is_none_or(|level| LogLevel::from_identifier(&entry.level) == level)
-                })
-                .cloned()
-                .collect(),
-            stream: state.stream.clone(),
-        };
-        if !running || state.session != scope || scope.is_none() {
-            let failure = Failure::new(
-                ErrorCode::NotReady,
-                "no current controller log session",
-                true,
-            );
-            return PageData {
-                status: PageStatus::Unavailable { failure },
-                data: (state.observed
-                    && state.observed_session.as_ref().is_some_and(|observed| {
-                        observed.generation.value() == core.generation
-                            && observed.identity() == core.identity.as_ref()
-                            && core
-                                .session_token
-                                .is_none_or(|token| token == observed.token)
-                    }))
-                .then_some(data),
-            };
-        }
-        let status = match &state.stream {
-            LogStreamState::Live if state.observed => {
-                if data.entries.is_empty() {
-                    PageStatus::Empty
-                } else {
-                    PageStatus::Ready
-                }
-            }
-            LogStreamState::Reconnecting(failure)
-            | LogStreamState::Failed(failure)
-            | LogStreamState::Unsupported(failure) => PageStatus::Failed {
-                failure: failure.clone(),
-            },
-            _ => PageStatus::Loading,
-        };
-        PageData {
-            status,
-            data: state.observed.then_some(data),
+        LogFactsSnapshot {
+            binding: state.binding.clone(),
+            observation: state.buffer.snapshot(),
+            active_level: state.filter,
         }
     }
 }

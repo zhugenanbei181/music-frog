@@ -9,7 +9,7 @@
 Profile 用例只依赖活动 profile applier 和显式 `Offline` / `CoreOwner` access；网络用例通过 typed `PublicIpProbeRoute` 选择直连或已配置的 HTTP proxy，不把缺失 endpoint 当成直连。
 
 原文搜索片段、Unicode/grapheme 边界与范围重放归纯 Rust `zhuge-ui-core`，
-不引入 UI toolkit。产品搜索条件、拼音匹配与连接/日志业务投影继续由本层定义。
+不引入 UI toolkit。产品搜索条件与拼音匹配由本层定义。日志用例只保留有界、scope-fenced 原始行、流状态、过滤事实和原文导出；日志解析、展示行与页面状态由 presentation 投影。
 
 通用 UI 功能先扩展对应 `zhuge-ui-*` owner，再在本 crate 接入；不得复制共享实现。
 产品适配保留业务职责，更新共享依赖时同时验证其他消费者和可见行为。

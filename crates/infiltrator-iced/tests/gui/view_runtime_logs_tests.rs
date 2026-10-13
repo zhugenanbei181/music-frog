@@ -1,5 +1,5 @@
-use infiltrator_application::log_projection::parse_structured_log;
 use infiltrator_contract::logs::LogLevel;
+use infiltrator_presentation::log_projection::parse_structured_log;
 
 #[test]
 fn test_parse_structured_connection_log() {

@@ -1,6 +1,8 @@
 //! Source-bound prepare/confirm/cancel over the actual shared log buffer.
 use super::LogExportApplication;
-use crate::log_application::LogApplication;
+use crate::log_application::{
+    LogApplication, LogBindingIntent, LogBindingOutcome, LogIngestOutcome,
+};
 use async_trait::async_trait;
 use futures_util::{FutureExt, poll};
 use infiltrator_contract::error::{ErrorCode, Failure};
@@ -14,6 +16,17 @@ use infiltrator_ports::runtime_stream::RuntimeStreamEvent;
 use std::future::pending;
 use std::sync::{Arc, Mutex};
 use std::task::Poll;
+
+fn bind(logs: &LogApplication, session: LogSession) {
+    assert_eq!(
+        logs.bind(LogBindingIntent::Bind(session)),
+        LogBindingOutcome::Bound
+    );
+}
+
+fn ingest(logs: &LogApplication, session: LogSession, event: RuntimeStreamEvent<String>) {
+    assert_eq!(logs.ingest(session, event), LogIngestOutcome::Applied);
+}
 
 #[derive(Default)]
 struct Writer {
@@ -38,16 +51,18 @@ impl LogExportPort for Writer {
 fn observed() -> (LogApplication, LogSession) {
     let logs = LogApplication::default();
     let session = LogSession::new(1, SessionToken::new(41));
-    logs.bind(Some(session.clone()));
-    assert!(logs.ingest(session.clone(), RuntimeStreamEvent::Connected));
-    assert!(logs.ingest(
+    bind(&logs, session.clone());
+    ingest(&logs, session.clone(), RuntimeStreamEvent::Connected);
+    ingest(
+        &logs,
         session.clone(),
-        RuntimeStreamEvent::Item("WARN[1] token=credential".into())
-    ));
-    assert!(logs.ingest(
+        RuntimeStreamEvent::Item("WARN[1] token=credential".into()),
+    );
+    ingest(
+        &logs,
         session.clone(),
-        RuntimeStreamEvent::Item("INFO[2] café healthy".into())
-    ));
+        RuntimeStreamEvent::Item("INFO[2] café healthy".into()),
+    );
     (logs, session)
 }
 #[tokio::test]
@@ -70,10 +85,11 @@ async fn cancel_is_effect_free_and_confirmation_freezes_all_records_despite_filt
     assert!(writer.writes.lock().unwrap().is_empty());
     let summary = application.prepare().await.unwrap();
     assert_eq!(summary.records, 2);
-    assert!(logs.ingest(
+    ingest(
+        &logs,
         session.clone(),
-        RuntimeStreamEvent::Item("DEBUG[3] arrived after confirmation".into())
-    ));
+        RuntimeStreamEvent::Item("DEBUG[3] arrived after confirmation".into()),
+    );
     let receipt = application.save(&summary.identity).await.unwrap();
     assert_eq!(receipt.summary, summary);
     assert_eq!(receipt.bytes_written, summary.bytes);
@@ -117,7 +133,7 @@ async fn superseded_confirmation_and_changed_controller_session_cannot_write() {
         application.save(&old.identity).await.unwrap_err().code,
         ErrorCode::InvalidState
     );
-    logs.bind(Some(LogSession::new(2, SessionToken::new(42))));
+    bind(&logs, LogSession::new(2, SessionToken::new(42)));
     assert!(application.save(&latest.identity).await.is_err());
     assert!(writer.writes.lock().unwrap().is_empty());
 }
@@ -130,8 +146,8 @@ async fn missing_host_is_typed_unsupported_and_observed_empty_differs_from_unobs
         ErrorCode::NotReady
     );
     let session = LogSession::new(1, SessionToken::new(41));
-    logs.bind(Some(session.clone()));
-    assert!(logs.ingest(session, RuntimeStreamEvent::Connected));
+    bind(&logs, session.clone());
+    ingest(&logs, session, RuntimeStreamEvent::Connected);
     let summary = application.prepare().await.unwrap();
     assert_eq!(summary.records, 0);
     assert_eq!(summary.bytes, 0);
@@ -194,10 +210,11 @@ async fn preparation_resolves_current_controller_credentials_and_preserves_sourc
         url: "http://localhost:9090".into(),
         secret: Some("rotated-bare-credential".into()),
     });
-    assert!(logs.ingest(
+    ingest(
+        &logs,
         session,
-        RuntimeStreamEvent::Item("DEBUG[3] rotated-bare-credential".into())
-    ));
+        RuntimeStreamEvent::Item("DEBUG[3] rotated-bare-credential".into()),
+    );
     let summary = application.prepare().await.unwrap();
     application.save(&summary.identity).await.unwrap();
     assert!(writer.writes.lock().unwrap()[0].contains("DEBUG[3] ***\n"));

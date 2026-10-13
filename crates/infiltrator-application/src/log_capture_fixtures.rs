@@ -1,5 +1,6 @@
 //! Isolated controller records pass through the actual application lifecycle and buffer.
 use crate::core_application::CoreApplication;
+use crate::log_application::{LogBindingIntent, LogBindingOutcome, LogIngestOutcome};
 use async_trait::async_trait;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::core_identity::{
@@ -96,10 +97,32 @@ pub async fn populate_logs(core: &CoreApplication) -> Result<(), Failure> {
             )
         })?;
     let logs = core.log_application();
-    logs.bind(Some(scope.clone()));
-    logs.ingest(scope.clone(), RuntimeStreamEvent::Connected);
+    if logs.bind(LogBindingIntent::Bind(scope.clone())) == LogBindingOutcome::RejectedByCoreOwner {
+        return Err(Failure::new(
+            ErrorCode::InvalidState,
+            "isolated log owner rejected fixture binding",
+            false,
+        ));
+    }
+    if logs.ingest(scope.clone(), RuntimeStreamEvent::Connected)
+        == LogIngestOutcome::RejectedForeignSession
+    {
+        return Err(Failure::new(
+            ErrorCode::InvalidState,
+            "isolated log owner rejected fixture observation",
+            false,
+        ));
+    }
     for record in LOG_RECORDS {
-        logs.ingest(scope.clone(), RuntimeStreamEvent::Item(record.into()));
+        if logs.ingest(scope.clone(), RuntimeStreamEvent::Item(record.into()))
+            == LogIngestOutcome::RejectedForeignSession
+        {
+            return Err(Failure::new(
+                ErrorCode::InvalidState,
+                "isolated log session changed",
+                false,
+            ));
+        }
     }
     Ok(())
 }
@@ -113,12 +136,13 @@ pub fn append_follow_records(core: &CoreApplication) -> Result<(), Failure> {
     )
     .ok_or_else(|| Failure::new(ErrorCode::NotReady, "no isolated log session", false))?;
     for index in 4..=35 {
-        if !core.log_application().ingest(
+        if core.log_application().ingest(
             scope.clone(),
             RuntimeStreamEvent::Item(format!(
                 "INFO[12:01:{index:02}] continued controller record {index}"
             )),
-        ) {
+        ) == LogIngestOutcome::RejectedForeignSession
+        {
             return Err(Failure::new(
                 ErrorCode::InvalidState,
                 "isolated log session changed",

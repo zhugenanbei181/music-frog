@@ -1,21 +1,47 @@
 //! test-intent: behavior
-use crate::log_projection::page_from_log_records;
 use crate::log_search::LogSearchState;
 use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::logs::LogStreamState;
 use infiltrator_contract::session::SessionToken;
-use infiltrator_contract::surface_snapshot::{PageData, PageStatus};
+use infiltrator_contract::surface_snapshot::{LogSnapshot, LogsPageSnapshot, PageData, PageStatus};
+
+fn observed_page(rows: &[(&str, &str, &str, &str)]) -> PageData<LogsPageSnapshot> {
+    let entries: Vec<_> = rows
+        .iter()
+        .enumerate()
+        .map(|(index, (level, timestamp, tag, message))| LogSnapshot {
+            id: index as u64 + 1,
+            raw: None,
+            timestamp: (*timestamp).into(),
+            level: (*level).into(),
+            tag: (*tag).into(),
+            message: (*message).into(),
+        })
+        .collect();
+    let status = if entries.is_empty() {
+        PageStatus::Empty
+    } else {
+        PageStatus::Ready
+    };
+    PageData {
+        status,
+        data: Some(LogsPageSnapshot {
+            stream: LogStreamState::Live,
+            total_entries: entries.len(),
+            active_level: None,
+            entries,
+        }),
+    }
+}
 
 #[test]
 fn regex_alternation_case_and_original_graphemes_define_one_filter_and_highlight() {
     let mut search = LogSearchState::default();
-    let page = page_from_log_records(
-        [
-            "INFO[1] e\u{301} api.Example 👩‍👩‍👧‍👦",
-            "ERROR[2] dial REFUSED",
-            "DEBUG[3] healthy",
-        ]
-        .into_iter(),
-    );
+    let page = observed_page(&[
+        ("INFO", "1", "", "e\u{301} api.Example 👩‍👩‍👧‍👦"),
+        ("ERROR", "2", "", "dial REFUSED"),
+        ("DEBUG", "3", "", "healthy"),
+    ]);
     search.observe(1, Some(SessionToken::new(1)), &page);
     search.edit_query("api\\.example|refused|e|👩");
     assert_eq!(search.source_count(), 3);
@@ -51,11 +77,7 @@ fn regex_alternation_case_and_original_graphemes_define_one_filter_and_highlight
 #[test]
 fn invalid_pattern_has_a_real_error_and_is_distinct_from_no_matches_or_no_observation() {
     let mut search = LogSearchState::default();
-    search.observe(
-        1,
-        None,
-        &page_from_log_records(["INFO[1] observed"].into_iter()),
-    );
+    search.observe(1, None, &observed_page(&[("INFO", "1", "", "observed")]));
     search.edit_query("(");
     assert!(search.invalid_pattern().unwrap().contains("unclosed"));
     assert_eq!(search.status_key(), "logs_search_invalid");
@@ -67,7 +89,7 @@ fn invalid_pattern_has_a_real_error_and_is_distinct_from_no_matches_or_no_observ
     search.edit_query("");
     assert_eq!(search.matched_count(), 1);
     assert_eq!(search.status_key(), "logs_search_results");
-    let data = page_from_log_records(["INFO[1] observed"].into_iter()).data;
+    let data = observed_page(&[("INFO", "1", "", "observed")]).data;
     search.observe(
         1,
         None,
@@ -89,25 +111,21 @@ fn observed_empty_and_source_change_preserve_query_without_reusing_old_records()
     search.observe(
         1,
         Some(SessionToken::new(1)),
-        &page_from_log_records(["ERROR[1] timeout"].into_iter()),
+        &observed_page(&[("ERROR", "1", "", "timeout")]),
     );
     assert_eq!(search.matched_count(), 1);
     search.observe(1, Some(SessionToken::new(2)), &PageData::loading());
     assert!(search.rows().is_empty());
     assert_eq!(search.status_key(), "logs_search_unavailable");
     assert_eq!(search.query(), "timeout");
-    search.observe(
-        2,
-        Some(SessionToken::new(3)),
-        &page_from_log_records([].into_iter()),
-    );
+    search.observe(2, Some(SessionToken::new(3)), &observed_page(&[]));
     assert!(search.source_current());
     assert_eq!(search.status_key(), "logs_no_realtime_records");
     assert_eq!(search.query(), "timeout");
     search.observe(
         2,
         Some(SessionToken::new(3)),
-        &page_from_log_records(["WARN[2] timeOUT again"].into_iter()),
+        &observed_page(&[("WARN", "2", "", "timeOUT again")]),
     );
     assert_eq!(search.matched_count(), 1);
     assert_eq!(

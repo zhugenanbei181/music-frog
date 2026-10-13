@@ -85,6 +85,87 @@ pub enum LogStreamState {
     Cancelled,
 }
 
+/// Original controller bytes retained by the runtime-neutral log owner.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RawLogRecord {
+    pub id: u64,
+    pub raw: String,
+}
+
+/// Whether the stream is driven by a standalone consumer or the Core owner.
+/// Each variant represents one valid owner/binding combination.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum LogBindingSnapshot {
+    #[default]
+    StandaloneUnbound,
+    StandaloneBound(LogSession),
+    CoreUnbound,
+    CoreBound(LogSession),
+}
+
+impl LogBindingSnapshot {
+    pub fn session(&self) -> Option<&LogSession> {
+        match self {
+            Self::StandaloneUnbound | Self::CoreUnbound => None,
+            Self::StandaloneBound(session) | Self::CoreBound(session) => Some(session),
+        }
+    }
+}
+
+/// Raw facts observed from one scoped stream. Display parsing belongs to the
+/// presentation layer and is intentionally absent from this contract.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum LogObservationSnapshot {
+    #[default]
+    Unobserved,
+    Connecting,
+    Reconnecting(Failure),
+    Failed(Failure),
+    Unsupported(Failure),
+    Cancelled,
+    Observed {
+        session: LogSession,
+        stream: LogStreamState,
+        records: Vec<RawLogRecord>,
+    },
+}
+
+impl LogObservationSnapshot {
+    pub fn stream(&self) -> LogStreamState {
+        match self {
+            Self::Unobserved => LogStreamState::Idle,
+            Self::Connecting => LogStreamState::Connecting,
+            Self::Reconnecting(failure) => LogStreamState::Reconnecting(failure.clone()),
+            Self::Failed(failure) => LogStreamState::Failed(failure.clone()),
+            Self::Unsupported(failure) => LogStreamState::Unsupported(failure.clone()),
+            Self::Cancelled => LogStreamState::Cancelled,
+            Self::Observed { stream, .. } => stream.clone(),
+        }
+    }
+
+    pub fn observed(&self) -> Option<(&LogSession, &[RawLogRecord])> {
+        match self {
+            Self::Observed {
+                session, records, ..
+            } => Some((session, records)),
+            Self::Unobserved
+            | Self::Connecting
+            | Self::Reconnecting(_)
+            | Self::Failed(_)
+            | Self::Unsupported(_)
+            | Self::Cancelled => None,
+        }
+    }
+}
+
+/// Application-owned raw log facts passed to a pure display projection.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LogFactsSnapshot {
+    pub binding: LogBindingSnapshot,
+    pub observation: LogObservationSnapshot,
+    pub active_level: Option<LogLevel>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::LogSession;

@@ -6,7 +6,7 @@
 
 | 范围 | 逻辑 owner | 实现边界 |
 | --- | --- | --- |
-| 共享业务规则与结果投影 | `infiltrator-domain`、`infiltrator-presentation`、`infiltrator-application` | domain 定义业务规则，presentation 统一折叠已接受观察用于显示（含 Doctor 页面与状态文案），application 处理用例并暴露 typed facts；contract 定义跨端类型，UI 不重算业务事实 |
+| 共享业务规则与结果投影 | `infiltrator-domain`、`infiltrator-presentation`、`infiltrator-application` | domain 定义业务规则，presentation 统一折叠已接受观察用于显示（含 Doctor 与日志页面状态），application 处理用例并暴露 typed facts；日志 application 只保留有界、scope-fenced 原始事件与导出事实；contract 定义跨端类型，UI 不重算业务事实 |
 | Core 生命周期与运行控制 | `infiltrator-application` | `infiltrator-composition` 按 engine 组合 `mihomo-api/config/process/version` 或 `singbox-api/config/process/version`；跨引擎规则见 [CORE_BACKENDS.md](CORE_BACKENDS.md) |
 | 跨页面 SurfaceSnapshot 装配 | `infiltrator-composition` | `ProductSurfaceReader` 实现 `SurfaceReader` port，汇集 application 观测并发布共享 contract 快照；单个纯展示折叠由 presentation 持有 |
 | 配置、Profile、订阅与同步 | `infiltrator-application`、`infiltrator-domain` | `infiltrator-ports::ProfileStore` 是共享契约，由 `infiltrator-profile-store::EngineProfileStore` 直接实现并拥有 engine-scoped 文件、reset、active-reference、workspace、catalog 与 sidecar；`mihomo-config`/`singbox-config` 持有各自原生格式，`mihomo-dav-sync` 持有 Mihomo YAML sync |

@@ -21,6 +21,7 @@ use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::runtime_stream::RuntimeStreamEvent;
+use infiltrator_presentation::log_projection::project_log_facts;
 use std::sync::Arc;
 use tokio::runtime::Builder;
 
@@ -104,7 +105,8 @@ fn observe(state: &mut AppState, core: &CoreApplication, revision: u64) {
         Failure::new(ErrorCode::NotReady, "fixture", true),
     );
     snapshot.core = core.snapshot();
-    snapshot.pages.logs = core.log_application().page(&snapshot.core);
+    let log_facts = core.log_application().facts();
+    snapshot.pages.logs = project_log_facts(&snapshot.core, &log_facts);
     snapshot.revision = revision;
     assert!(state.apply_shared_surface_snapshot(snapshot));
 }

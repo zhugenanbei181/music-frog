@@ -3,17 +3,39 @@ use crate::command_application::CommandApplication;
 use crate::command_application::handler::CommandHandler;
 use crate::core_capability_test_support::{execute_core_command, with_test_capabilities};
 use crate::log_application::{LOG_CAPACITY, LogApplication};
-use crate::log_projection::parse_structured_log;
+use crate::log_application::{LogBindingIntent, LogBindingOutcome, LogIngestOutcome};
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::core_identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
 };
 use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::logs::{LogLevel, LogSession, LogStreamState};
+use infiltrator_contract::logs::{
+    LogBindingSnapshot, LogObservationSnapshot, LogSession, LogStreamState,
+};
 use infiltrator_contract::session::SessionToken;
 use infiltrator_contract::snapshot::{CoreLifecycle, CoreSnapshot};
-use infiltrator_contract::surface_snapshot::PageStatus;
 use infiltrator_ports::runtime_stream::RuntimeStreamEvent;
+
+fn bind(logs: &LogApplication, session: LogSession) {
+    assert_eq!(
+        logs.bind(LogBindingIntent::Bind(session)),
+        LogBindingOutcome::Bound
+    );
+}
+
+fn unbind(logs: &LogApplication) {
+    assert_eq!(
+        logs.bind(LogBindingIntent::Unbind),
+        LogBindingOutcome::Bound
+    );
+}
+
+fn append(logs: &LogApplication, session: LogSession, raw: impl Into<String>) {
+    assert_eq!(
+        logs.ingest(session, RuntimeStreamEvent::Item(raw.into())),
+        LogIngestOutcome::Applied
+    );
+}
 
 fn core(session: &LogSession) -> CoreSnapshot {
     CoreSnapshot {
@@ -32,6 +54,7 @@ fn core(session: &LogSession) -> CoreSnapshot {
         watchdog: Default::default(),
     }
 }
+
 fn session(generation: u64, token: u128) -> LogSession {
     identity_bound_session("mihomo", "test-instance", generation, token)
 }
@@ -53,153 +76,176 @@ fn identity_bound_session(
     })
     .expect("valid identity-bound test log session")
 }
+
 #[test]
-fn connected_empty_is_observed_while_connecting_has_no_fabricated_facts() {
+fn connecting_and_observed_empty_are_distinct_typed_facts() {
     let logs = LogApplication::default();
     let scope = session(1, 11);
-    logs.bind(Some(scope.clone()));
-    let snapshot = core(&scope);
-    assert_eq!(logs.page(&snapshot).status, PageStatus::Loading);
-    assert!(logs.page(&snapshot).data.is_none());
-    assert!(logs.ingest(scope, RuntimeStreamEvent::Connected));
-    let page = logs.page(&snapshot);
-    assert_eq!(page.status, PageStatus::Empty);
-    let data = page.data.expect("observed empty buffer");
-    assert_eq!(data.total_entries, 0);
-    assert_eq!(data.stream, LogStreamState::Live);
+    bind(&logs, scope.clone());
+    let facts = logs.facts();
+    assert_eq!(
+        facts.binding,
+        LogBindingSnapshot::StandaloneBound(scope.clone())
+    );
+    assert_eq!(facts.observation, LogObservationSnapshot::Connecting);
+
+    assert_eq!(
+        logs.ingest(scope.clone(), RuntimeStreamEvent::Connected),
+        LogIngestOutcome::Applied
+    );
+    let facts = logs.facts();
+    assert!(matches!(
+        facts.observation,
+        LogObservationSnapshot::Observed {
+            session,
+            stream: LogStreamState::Live,
+            records,
+        } if session == scope && records.is_empty()
+    ));
 }
+
 #[test]
-fn bounded_buffer_retains_original_records_and_monotonic_row_identity() {
+fn bounded_buffer_keeps_raw_records_and_monotonic_identity() {
     let logs = LogApplication::default();
     let scope = session(2, 12);
-    logs.bind(Some(scope.clone()));
+    bind(&logs, scope.clone());
     for index in 0..LOG_CAPACITY + 2 {
-        assert!(logs.ingest(
-            scope.clone(),
-            RuntimeStreamEvent::Item(format!("INFO[{index}] row {index}"))
-        ));
+        append(&logs, scope.clone(), format!("INFO[{index}] row {index}"));
     }
-    let data = logs.page(&core(&scope)).data.unwrap();
-    assert_eq!(data.total_entries, LOG_CAPACITY);
-    assert_eq!(data.entries.first().unwrap().id, 3);
+    let facts = logs.facts();
+    let LogObservationSnapshot::Observed { records, .. } = facts.observation else {
+        panic!("raw buffer should be observed")
+    };
+    assert_eq!(records.len(), LOG_CAPACITY);
+    assert_eq!(records.first().unwrap().id, 3);
+    assert_eq!(records.first().unwrap().raw, "INFO[2] row 2");
     assert_eq!(
-        data.entries.first().unwrap().raw.as_deref(),
-        Some("INFO[2] row 2")
+        records.last().unwrap().raw,
+        format!("INFO[{}] row {}", LOG_CAPACITY + 1, LOG_CAPACITY + 1)
     );
-    assert_eq!(
-        data.entries.last().unwrap().message,
-        format!("row {}", LOG_CAPACITY + 1)
-    );
+
     logs.clear();
-    assert_eq!(logs.page(&core(&scope)).status, PageStatus::Empty);
-    assert!(logs.ingest(
-        scope.clone(),
-        RuntimeStreamEvent::Item("WARN[3] new row".into())
-    ));
-    let data = logs.page(&core(&scope)).data.unwrap();
-    assert_eq!(data.entries[0].id, (LOG_CAPACITY + 3) as u64);
-    assert_eq!(data.entries[0].level, "WARN");
+    let facts = logs.facts();
+    assert!(
+        matches!(facts.observation, LogObservationSnapshot::Observed { records, .. } if records.is_empty())
+    );
+    append(&logs, scope.clone(), "WARN[3] new row");
+    let facts = logs.facts();
+    assert!(
+        matches!(facts.observation, LogObservationSnapshot::Observed { records, .. } if records[0].id == (LOG_CAPACITY + 3) as u64 && records[0].raw == "WARN[3] new row")
+    );
 }
+
 #[test]
-fn token_and_generation_both_fence_old_events_and_failures() {
+fn token_generation_and_engine_identity_fence_old_stream_events() {
     let logs = LogApplication::default();
     let original = session(1, 11);
-    logs.bind(Some(original.clone()));
-    logs.ingest(
-        original.clone(),
-        RuntimeStreamEvent::Item("INFO[1] old".into()),
-    );
+    bind(&logs, original.clone());
+    append(&logs, original.clone(), "INFO[1] old");
     let replacement = session(1, 12);
-    logs.bind(Some(replacement.clone()));
-    assert!(!logs.ingest(
-        original.clone(),
-        RuntimeStreamEvent::Item("ERROR[1] stale".into())
-    ));
-    logs.fail(
-        original.clone(),
-        Failure::new(ErrorCode::Permission, "old failure", false),
+    bind(&logs, replacement.clone());
+    assert_eq!(
+        logs.ingest(
+            original.clone(),
+            RuntimeStreamEvent::Item("ERROR[1] stale".into())
+        ),
+        LogIngestOutcome::RejectedForeignSession
     );
-    assert_eq!(logs.page(&core(&replacement)).status, PageStatus::Loading);
-    assert!(logs.page(&core(&replacement)).data.is_none());
-    logs.ingest(
-        replacement.clone(),
-        RuntimeStreamEvent::Item("DEBUG[1] replacement".into()),
+    assert_eq!(
+        logs.fail(
+            original.clone(),
+            Failure::new(ErrorCode::Permission, "old failure", false),
+        ),
+        LogIngestOutcome::RejectedForeignSession
     );
-    assert!(logs.page(&core(&original)).data.is_none());
-    let next = session(2, 12);
-    logs.bind(Some(next.clone()));
-    assert!(!logs.ingest(replacement, RuntimeStreamEvent::Connected));
-    assert!(logs.page(&core(&next)).data.is_none());
+    assert_eq!(logs.facts().observation, LogObservationSnapshot::Connecting);
+    append(&logs, replacement.clone(), "DEBUG[1] replacement");
+    assert!(
+        matches!(logs.facts().observation, LogObservationSnapshot::Observed { session, .. } if session == replacement)
+    );
+
+    let previous_engine = identity_bound_session("mihomo", "desktop-main", 4, 41);
+    let current_engine = identity_bound_session("sing-box", "desktop-main", 4, 41);
+    logs.observe_core(&core(&previous_engine));
+    append(&logs, previous_engine.clone(), "INFO[2] previous engine");
+    logs.observe_core(&core(&current_engine));
+    assert_eq!(
+        logs.ingest(
+            previous_engine,
+            RuntimeStreamEvent::Item("ERROR[3] stale engine record".into())
+        ),
+        LogIngestOutcome::RejectedForeignSession
+    );
+    let facts = logs.facts();
+    assert_eq!(facts.binding, LogBindingSnapshot::CoreBound(current_engine));
+    assert_eq!(facts.observation, LogObservationSnapshot::Connecting);
 }
 
 #[test]
-fn engine_identity_fences_delayed_logs_even_when_generation_and_token_match() {
+fn core_owner_binding_uses_typed_confirmation_and_rejection() {
     let logs = LogApplication::default();
-    let previous = identity_bound_session("mihomo", "desktop-main", 4, 41);
-    let current = identity_bound_session("sing-box", "desktop-main", 4, 41);
-    logs.observe_core(&core(&previous));
-    assert!(logs.ingest(
-        previous.clone(),
-        RuntimeStreamEvent::Item("INFO[1] previous engine".into())
-    ));
-
+    let current = session(7, 71);
+    let foreign = session(7, 72);
     logs.observe_core(&core(&current));
 
-    assert!(!logs.ingest(
-        previous,
-        RuntimeStreamEvent::Item("ERROR[2] stale engine record".into())
-    ));
-    let page = logs.page(&core(&current));
-    assert_eq!(page.status, PageStatus::Loading);
-    assert!(page.data.is_none());
+    assert_eq!(
+        logs.bind(LogBindingIntent::Bind(current)),
+        LogBindingOutcome::CoreOwnerConfirmed
+    );
+    assert_eq!(
+        logs.bind(LogBindingIntent::Bind(foreign)),
+        LogBindingOutcome::RejectedByCoreOwner
+    );
 }
+
 #[test]
-fn same_generation_failure_and_stop_preserve_observed_records() {
+fn failed_and_stopped_streams_preserve_scoped_raw_observations() {
     let logs = LogApplication::default();
     let scope = session(3, 15);
-    logs.bind(Some(scope.clone()));
-    logs.ingest(
-        scope.clone(),
-        RuntimeStreamEvent::Item("INFO[1] retained".into()),
-    );
+    bind(&logs, scope.clone());
+    append(&logs, scope.clone(), "INFO[1] retained");
     let failure = Failure::new(ErrorCode::Permission, "controller access denied", false);
-    logs.fail(scope.clone(), failure.clone());
-    let failed = logs.page(&core(&scope));
     assert_eq!(
-        failed.status,
-        PageStatus::Failed {
-            failure: failure.clone()
-        }
+        logs.fail(scope.clone(), failure.clone()),
+        LogIngestOutcome::Applied
     );
-    assert_eq!(failed.data.as_ref().unwrap().entries[0].message, "retained");
-    assert_eq!(failed.data.unwrap().stream, LogStreamState::Failed(failure));
-    logs.bind(None);
-    let mut stopped = core(&scope);
-    stopped.lifecycle = CoreLifecycle::Stopped;
-    stopped.session_token = None;
-    let stopped_page = logs.page(&stopped);
     assert!(matches!(
-        stopped_page.status,
-        PageStatus::Unavailable { .. }
+        logs.facts().observation,
+        LogObservationSnapshot::Observed {
+            stream: LogStreamState::Failed(found),
+            records,
+            ..
+        } if found == failure && records[0].raw == "INFO[1] retained"
     ));
-    assert_eq!(stopped_page.data.unwrap().entries[0].message, "retained");
-    assert!(!logs.ingest(scope.clone(), RuntimeStreamEvent::Item("late".into())));
-    logs.bind(Some(scope.clone()));
-    assert_eq!(logs.page(&core(&scope)).data.unwrap().entries.len(), 1);
+
+    unbind(&logs);
+    let facts = logs.facts();
+    assert_eq!(facts.binding, LogBindingSnapshot::StandaloneUnbound);
+    assert!(matches!(
+        facts.observation,
+        LogObservationSnapshot::Observed {
+            stream: LogStreamState::Idle,
+            records,
+            ..
+        } if records[0].raw == "INFO[1] retained"
+    ));
+    assert_eq!(
+        logs.ingest(scope.clone(), RuntimeStreamEvent::Item("late".into())),
+        LogIngestOutcome::RejectedForeignSession
+    );
+    bind(&logs, scope);
+    assert!(
+        matches!(logs.facts().observation, LogObservationSnapshot::Observed { stream: LogStreamState::Connecting, records, .. } if records.len() == 1)
+    );
 }
+
 #[tokio::test]
-async fn commands_mutate_the_reader_owner_and_invalid_filters_have_no_effect() {
+async fn filter_changes_only_display_facts_and_clear_keeps_observation_semantics() {
     let logs = LogApplication::default();
     let scope = session(1, 11);
-    logs.bind(Some(scope.clone()));
-    logs.ingest(
-        scope.clone(),
-        RuntimeStreamEvent::Item("WARN[1] retained".into()),
-    );
-    logs.ingest(
-        scope.clone(),
-        RuntimeStreamEvent::Item("INFO[2] filtered".into()),
-    );
+    bind(&logs, scope.clone());
+    append(&logs, scope.clone(), "WARN[1] retained");
+    append(&logs, scope.clone(), "INFO[2] filtered");
     let commands = with_test_capabilities(CommandApplication::new().with_logs(logs.clone()));
     commands
         .handle(CommandIntent::SetLogLevelFilter {
@@ -207,18 +253,15 @@ async fn commands_mutate_the_reader_owner_and_invalid_filters_have_no_effect() {
         })
         .await
         .unwrap();
+    let facts = logs.facts();
     assert_eq!(
-        logs.page(&core(&scope))
-            .data
-            .unwrap()
-            .active_level
-            .as_deref(),
-        Some("WARN")
+        facts.active_level,
+        Some(infiltrator_contract::logs::LogLevel::Warn)
     );
-    let filtered = logs.page(&core(&scope)).data.unwrap();
-    assert_eq!(filtered.total_entries, 2);
-    assert_eq!(filtered.entries.len(), 1);
-    assert_eq!(filtered.entries[0].message, "retained");
+    assert!(
+        matches!(facts.observation, LogObservationSnapshot::Observed { records, .. } if records.len() == 2)
+    );
+
     let failure = commands
         .handle(CommandIntent::SetLogLevelFilter {
             level: Some("pretend".into()),
@@ -227,46 +270,18 @@ async fn commands_mutate_the_reader_owner_and_invalid_filters_have_no_effect() {
         .unwrap_err();
     assert_eq!(failure.code, ErrorCode::InvalidInput);
     assert_eq!(
-        logs.page(&core(&scope))
-            .data
-            .unwrap()
-            .active_level
-            .as_deref(),
-        Some("WARN")
+        logs.facts().active_level,
+        Some(infiltrator_contract::logs::LogLevel::Warn)
     );
+
     execute_core_command(&commands, CommandIntent::ClearLogs)
         .await
         .unwrap();
-    assert_eq!(logs.page(&core(&scope)).status, PageStatus::Empty);
-    assert_eq!(
-        logs.page(&core(&scope))
-            .data
-            .unwrap()
-            .active_level
-            .as_deref(),
-        Some("WARN")
-    );
-}
-#[test]
-fn severity_comes_from_reported_metadata_not_words_inside_the_message() {
-    assert_eq!(
-        parse_structured_log("information about error handling").level,
-        LogLevel::Unknown
+    assert!(
+        matches!(logs.facts().observation, LogObservationSnapshot::Observed { records, .. } if records.is_empty())
     );
     assert_eq!(
-        parse_structured_log("a WARN word and ERROR sample").level,
-        LogLevel::Unknown
-    );
-    assert_eq!(
-        parse_structured_log(r#"{"type":"unknown","payload":"ERROR[1] quoted"}"#).level,
-        LogLevel::Unknown
-    );
-    assert_eq!(
-        parse_structured_log(r#"{"type":"debug","payload":"[TCP] warning in message"}"#).level,
-        LogLevel::Debug
-    );
-    assert_eq!(
-        parse_structured_log("[WRN] native severity").level,
-        LogLevel::Warn
+        logs.facts().active_level,
+        Some(infiltrator_contract::logs::LogLevel::Warn)
     );
 }

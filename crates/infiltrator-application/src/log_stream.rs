@@ -1,5 +1,7 @@
 //! Application-owned stream driver with an injected executor and weak lifecycle observation.
-use crate::log_application::LogApplication;
+use crate::log_application::{
+    LogApplication, LogBindingIntent, LogBindingOutcome, LogIngestOutcome,
+};
 use futures_util::future::{AbortHandle, Abortable};
 use futures_util::{FutureExt, StreamExt, select};
 use infiltrator_contract::core_identity::CoreScope;
@@ -46,8 +48,13 @@ impl LogDriver {
     async fn run(self) {
         while (self.observe)().is_some() {
             let session = self.session();
-            if !self.logs.bind(session.clone()) {
-                continue;
+            let binding = match session.as_ref() {
+                Some(session) => LogBindingIntent::Bind(session.clone()),
+                None => LogBindingIntent::Unbind,
+            };
+            match self.logs.bind(binding) {
+                LogBindingOutcome::Bound | LogBindingOutcome::CoreOwnerConfirmed => {}
+                LogBindingOutcome::RejectedByCoreOwner => continue,
             }
             let Some(session) = session else {
                 self.runtime.sleep(POLL_INTERVAL).await;
@@ -130,7 +137,12 @@ impl LogDriver {
                             _ => retry_disposition,
                         };
                         let terminal = matches!(&event.event, RuntimeStreamEvent::Terminal(_));
-                        self.logs.ingest(session.clone(), event.event);
+                        if self.logs.ingest(session.clone(), event.event)
+                            == LogIngestOutcome::RejectedForeignSession
+                        {
+                            retry_disposition = LogRetryDisposition::WaitForSessionChange;
+                            break;
+                        }
                         if terminal {
                             break;
                         }

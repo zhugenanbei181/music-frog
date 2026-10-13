@@ -297,6 +297,60 @@
       ]
     },
     {
+      "id": "application-log-projection-module",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "log_projection",
+      "rationale": "Raw scoped records stay in LogApplication; parsing and shared log-page projection moved to presentation.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-application/src/log_application_tests.rs",
+        "crates/infiltrator-presentation/src/log_projection_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "application-log-record-parser",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "parse_structured_log",
+      "rationale": "Controller log parsing is presentation-owned; application consumes and exports original records.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-application/src/log_application_tests.rs",
+        "crates/infiltrator-presentation/src/log_projection_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "application-log-record-display-row",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "project_log_record",
+      "rationale": "Parsed display rows are produced by the shared presentation projection, not the raw-log application owner.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/log_projection_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "application-log-page-helper",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "page_from_log_records",
+      "rationale": "Raw-line page construction is presentation-owned and no longer exported by application.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/log_projection_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
       "id": "connection-rate-observed-boolean",
       "kind": "public_symbol",
       "language": "rust",

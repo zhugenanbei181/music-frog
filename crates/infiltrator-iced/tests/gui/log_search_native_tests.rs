@@ -13,6 +13,9 @@ use iced::{Rectangle, Task, Vector};
 use iced_runtime::Action;
 use iced_runtime::task::into_stream;
 use infiltrator_application::core_application::CoreApplication;
+use infiltrator_application::log_application::{
+    LogBindingIntent, LogBindingOutcome, LogIngestOutcome,
+};
 use infiltrator_application::log_capture_fixtures::{LogCaptureProcess, populate_logs};
 use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_composition::tokio_application_runtime;
@@ -165,9 +168,16 @@ fn native_log_query_keeps_failed_facts_and_retires_them_on_actual_core_restart()
     let current = core.snapshot();
     let scope = LogSession::from_core_scope(current.scope().expect("current core scope"))
         .expect("current log session");
-    core.log_application().bind(Some(scope.clone()));
-    core.log_application()
-        .ingest(scope, RuntimeStreamEvent::Connected);
+    assert_eq!(
+        core.log_application()
+            .bind(LogBindingIntent::Bind(scope.clone())),
+        LogBindingOutcome::CoreOwnerConfirmed
+    );
+    assert_eq!(
+        core.log_application()
+            .ingest(scope, RuntimeStreamEvent::Connected),
+        LogIngestOutcome::Applied
+    );
     read(&mut state);
     assert_eq!(
         state.diag.log_search.status_key(),

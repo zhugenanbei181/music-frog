@@ -1,6 +1,8 @@
 //! A single pure parser for original controller log records on all peers.
-use infiltrator_contract::logs::{LogLevel, LogStreamState};
-use infiltrator_contract::surface_snapshot::{LogSnapshot, LogsPageSnapshot, PageData};
+use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::logs::{LogFactsSnapshot, LogLevel, LogSession, LogStreamState};
+use infiltrator_contract::snapshot::{CoreLifecycle, CoreSnapshot};
+use infiltrator_contract::surface_snapshot::{LogSnapshot, LogsPageSnapshot, PageData, PageStatus};
 use infiltrator_shared::country_flags::node_flag_emoji;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -46,6 +48,93 @@ pub fn page_from_log_records<'a>(
         PageData::empty(data)
     } else {
         PageData::ready(data)
+    }
+}
+
+/// Convert scoped raw Core-owned log facts into the shared display read model.
+pub fn project_log_facts(
+    core: &CoreSnapshot,
+    facts: &LogFactsSnapshot,
+) -> PageData<LogsPageSnapshot> {
+    let scope = core.scope().and_then(LogSession::from_core_scope);
+    let running = matches!(
+        core.lifecycle,
+        CoreLifecycle::Running | CoreLifecycle::Ready
+    );
+    let owner_matches = running
+        && scope
+            .as_ref()
+            .is_some_and(|scope| facts.binding.session() == Some(scope));
+    let observed = facts.observation.observed();
+    let observed_matches_core =
+        observed.is_some_and(|(session, _)| observation_matches_core(session, core));
+    let data = observed
+        .filter(|(session, _)| observation_matches_core(session, core))
+        .map(|(_, records)| project_log_rows(records, facts));
+
+    if !owner_matches {
+        return PageData {
+            status: PageStatus::Unavailable {
+                failure: Failure::new(
+                    ErrorCode::NotReady,
+                    "no current controller log session",
+                    true,
+                ),
+            },
+            data,
+        };
+    }
+
+    let stream = facts.observation.stream();
+    let status = match stream {
+        LogStreamState::Live if observed_matches_core => {
+            if data.as_ref().is_some_and(|data| data.entries.is_empty()) {
+                PageStatus::Empty
+            } else {
+                PageStatus::Ready
+            }
+        }
+        LogStreamState::Reconnecting(failure)
+        | LogStreamState::Failed(failure)
+        | LogStreamState::Unsupported(failure) => PageStatus::Failed { failure },
+        _ => PageStatus::Loading,
+    };
+    PageData {
+        status,
+        data: observed_matches_core.then_some(data).flatten(),
+    }
+}
+
+fn observation_matches_core(session: &LogSession, core: &CoreSnapshot) -> bool {
+    session.generation.value() == core.generation
+        && session.identity() == core.identity.as_ref()
+        && core
+            .session_token
+            .is_none_or(|token| token == session.token)
+}
+
+fn project_log_rows(
+    records: &[infiltrator_contract::logs::RawLogRecord],
+    facts: &LogFactsSnapshot,
+) -> LogsPageSnapshot {
+    let all_entries: Vec<_> = records
+        .iter()
+        .map(|record| project_log_record(record.id, &record.raw))
+        .collect();
+    let entries = all_entries
+        .iter()
+        .filter(|entry| {
+            facts
+                .active_level
+                .is_none_or(|level| LogLevel::from_identifier(&entry.level) == level)
+        })
+        .cloned()
+        .collect();
+    LogsPageSnapshot {
+        total_entries: all_entries.len(),
+        active_level: facts.active_level.map(|level| level.label().into()),
+        entries,
+        stream: facts.observation.stream(),
     }
 }
 
@@ -231,3 +320,7 @@ fn parse_log_level(line: &str) -> LogLevel {
         .unwrap_or_default();
     LogLevel::from_identifier(prefix)
 }
+
+#[cfg(test)]
+#[path = "log_projection_tests.rs"]
+mod tests;

@@ -185,7 +185,6 @@ pub fn validate_logical_rule_syntax(rule: &str) -> Result<(), String> {
 pub mod protocol_form;
 
 pub mod log_capture_fixtures;
-pub mod log_projection;
 pub mod log_search;
 
 pub mod log_application;

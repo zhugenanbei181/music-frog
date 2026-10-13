@@ -5,8 +5,8 @@ use infiltrator_application::dns_leak_actions::DnsLeakActionState;
 use infiltrator_application::dns_leak_application::DnsLeakApplication;
 use infiltrator_application::dns_query_actions::DnsQueryActions;
 use infiltrator_application::log_export_actions::LogExportActions;
-use infiltrator_application::log_projection::page_from_log_records;
 use infiltrator_application::log_search::LogSearchState;
+use infiltrator_presentation::log_projection::page_from_log_records;
 
 use crate::types::app::Route;
 use crate::types::doctor::{CrashWatchdogState, DoctorPanelState};
