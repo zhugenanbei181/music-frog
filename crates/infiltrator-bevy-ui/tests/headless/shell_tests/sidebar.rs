@@ -2,7 +2,7 @@
 //! test-intent: behavior
 
 use super::*;
-use infiltrator_application::routing_intent_projection::routing_intent_copy;
+use infiltrator_presentation::routing_intent_projection::routing_intent_copy;
 
 #[test]
 fn sidebar_mounts_nav_and_routing_intent_segment() {

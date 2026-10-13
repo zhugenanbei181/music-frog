@@ -2,9 +2,9 @@
 //! test-intent: behavior
 
 use super::*;
-use infiltrator_application::routing_intent_projection::routing_intent_copy;
 use infiltrator_contract::a11y::ShellA11yNode;
 use infiltrator_contract::routing_intent::RoutingIntent;
+use infiltrator_presentation::routing_intent_projection::routing_intent_copy;
 
 #[test]
 fn nav_entries_mode_pills_and_content_region_carry_semantics() {

@@ -37,11 +37,11 @@ fn overview_routing_intent_submits_the_shared_typed_command() {
 
     let actions = &app.world().resource::<RoutingIntentActionState>().0;
     assert!(
-        actions.pending.is_none(),
+        actions.pending_change().is_none(),
         "demo command feedback completes the typed transition"
     );
     assert_eq!(
-        actions.observed.current,
+        actions.render_snapshot().current,
         Some(RoutingIntent::RouteAllThroughProxy)
     );
     assert_eq!(

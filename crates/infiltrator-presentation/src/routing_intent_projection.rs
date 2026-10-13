@@ -30,12 +30,11 @@ pub fn routing_intent_copy(intent: &RoutingIntent, locale: &str) -> String {
 }
 
 pub fn routing_intent_failure_copy(actions: &RoutingIntentActions, locale: &str) -> String {
-    let Some(failure) = &actions.failure else {
+    let Some(failure) = actions.failure() else {
         return String::new();
     };
     let target = actions
-        .requested
-        .as_ref()
+        .requested_target()
         .map(|intent| routing_intent_copy(intent, locale))
         .unwrap_or_else(|| Lang(locale).tr("shell_readout_unknown").into_owned());
     let reason = redact_line(&failure.message, &[]);

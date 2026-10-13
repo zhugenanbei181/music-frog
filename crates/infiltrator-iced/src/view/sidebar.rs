@@ -13,11 +13,11 @@ use crate::state::AppState;
 use crate::types::app::Route;
 use crate::types::message::Message;
 use crate::types::runtime::RuntimeStatus;
-use infiltrator_application::routing_intent_projection::{
-    routing_intent_copy_key, routing_intent_status_copy,
-};
 use infiltrator_contract::routing_intent::RoutingIntent;
 use infiltrator_contract::surface_snapshot::PageId;
+use infiltrator_presentation::routing_intent_projection::{
+    routing_intent_copy_key, routing_intent_status_copy,
+};
 use infiltrator_presentation::shell_readout::{
     count_copy, profile_kind, profile_name, profile_percent, profile_usage, rate_copy, rate_status,
 };

@@ -16,7 +16,6 @@ use crate::state::AppState;
 use crate::tray::spec::TrayActionId;
 use crate::types::app::Route;
 use crate::types::message::Message;
-use infiltrator_application::routing_intent_projection::routing_intent_copy;
 use infiltrator_contract::core_identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
 };
@@ -32,6 +31,7 @@ use infiltrator_contract::routing_intent::RoutingIntent;
 use infiltrator_contract::surface_snapshot::PageData;
 use infiltrator_contract::version::InstalledCoreVersion;
 use infiltrator_domain::profiles::ProfileInfo;
+use infiltrator_presentation::routing_intent_projection::routing_intent_copy;
 use infiltrator_shared::locales::{Lang, Localizer};
 use std::sync::mpsc;
 

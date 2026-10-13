@@ -132,7 +132,13 @@ fn native_retry_and_dismiss_execute_shared_commands_without_desktop_runtime_and_
     let task = state.update(Message::SetRoutingIntent(
         RoutingIntent::RouteAllThroughProxy,
     ));
-    assert!(state.runtime.routing_intent_actions.pending.is_some());
+    assert!(
+        state
+            .runtime
+            .routing_intent_actions
+            .pending_change()
+            .is_some()
+    );
     assert_eq!(
         state.runtime.routing_intent.as_ref(),
         Some(&RoutingIntent::FollowRules)
@@ -157,13 +163,7 @@ fn native_retry_and_dismiss_execute_shared_commands_without_desktop_runtime_and_
     assert_eq!(controller.requests(), [RoutingIntent::RouteAllThroughProxy]);
     assert_eq!(state.runtime.core_lifecycle, lifecycle);
     assert_eq!(
-        state
-            .runtime
-            .routing_intent_actions
-            .failure
-            .as_ref()
-            .unwrap()
-            .code,
+        state.runtime.routing_intent_actions.failure().unwrap().code,
         ErrorCode::Network
     );
     let mut healthy = controller.snapshot(
@@ -175,7 +175,7 @@ fn native_retry_and_dismiss_execute_shared_commands_without_desktop_runtime_and_
         .routing_intent_actions
         .next_observation_revision();
     assert!(state.apply_shared_surface_snapshot(healthy));
-    assert!(state.runtime.routing_intent_actions.failure.is_some());
+    assert!(state.runtime.routing_intent_actions.failure().is_some());
     controller.reject_with(None);
     let messages = click(&state, InteractionRegion::RoutingIntentRetry);
     assert_eq!(messages.len(), 1);
@@ -193,7 +193,7 @@ fn native_retry_and_dismiss_execute_shared_commands_without_desktop_runtime_and_
         state.runtime.routing_intent.as_ref(),
         Some(&RoutingIntent::RouteAllThroughProxy)
     );
-    assert!(state.runtime.routing_intent_actions.failure.is_none());
+    assert!(state.runtime.routing_intent_actions.failure().is_none());
     assert_eq!(state.runtime.core_lifecycle, lifecycle);
     controller.reject_with(Some(Failure::unsupported(
         "routing intent control unavailable",
@@ -201,13 +201,7 @@ fn native_retry_and_dismiss_execute_shared_commands_without_desktop_runtime_and_
     let task = state.update(Message::SetRoutingIntent(RoutingIntent::BypassProxy));
     let _ = state.update(terminal(task));
     assert_eq!(
-        state
-            .runtime
-            .routing_intent_actions
-            .failure
-            .as_ref()
-            .unwrap()
-            .code,
+        state.runtime.routing_intent_actions.failure().unwrap().code,
         ErrorCode::Unsupported
     );
     assert!(click(&state, InteractionRegion::RoutingIntentRetry).is_empty());
@@ -215,7 +209,7 @@ fn native_retry_and_dismiss_execute_shared_commands_without_desktop_runtime_and_
     assert_eq!(messages.len(), 1);
     assert!(matches!(messages[0], Message::DismissRoutingIntentFailure));
     let _ = state.update(messages.into_iter().next().unwrap());
-    assert!(state.runtime.routing_intent_actions.failure.is_none());
+    assert!(state.runtime.routing_intent_actions.failure().is_none());
     assert_eq!(
         controller.requests(),
         [
@@ -241,13 +235,7 @@ fn native_retry_and_dismiss_execute_shared_commands_without_desktop_runtime_and_
     let _ = state.update(messages.into_iter().next().unwrap());
     assert_eq!(state.shell.current_route, Route::Settings);
     assert_eq!(
-        state
-            .runtime
-            .routing_intent_actions
-            .failure
-            .as_ref()
-            .unwrap()
-            .code,
+        state.runtime.routing_intent_actions.failure().unwrap().code,
         ErrorCode::Authentication
     );
     assert_eq!(

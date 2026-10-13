@@ -3,10 +3,10 @@
 //! sibling section modules and composed into one page-level scrollable.
 
 use crate::view::pcap_panel::pcap_card;
-use infiltrator_application::routing_intent_projection::{
+use infiltrator_contract::routing_intent::{RoutingIntent, RoutingIntentStatus};
+use infiltrator_presentation::routing_intent_projection::{
     routing_intent_copy, routing_intent_status_copy,
 };
-use infiltrator_contract::routing_intent::{RoutingIntent, RoutingIntentStatus};
 use std::fmt::{self, Display, Formatter};
 pub(crate) mod connection_search;
 mod connections;

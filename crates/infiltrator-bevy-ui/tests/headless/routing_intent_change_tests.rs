@@ -8,7 +8,6 @@ use bevy::ecs::query::With;
 use bevy::ui::widget::Text;
 use bevy::ui::{Display, Node};
 use bevy::ui_widgets::ButtonPlugin;
-use infiltrator_application::routing_intent_projection::routing_intent_failure_copy;
 use infiltrator_bevy_ui::app::{RoutingIntentActionState, ShellPlugin};
 use infiltrator_bevy_ui::command::{CommandPumpPlugin, UiCommand, UiCommandSink};
 use infiltrator_bevy_ui::command_events::CommandExecutedEvent;
@@ -29,6 +28,7 @@ use infiltrator_contract::command_catalogue::CommandTarget;
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::routing_intent::RoutingIntent;
+use infiltrator_presentation::routing_intent_projection::routing_intent_failure_copy;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 

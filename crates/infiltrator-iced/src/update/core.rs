@@ -50,7 +50,11 @@ impl AppState {
                 | Message::SetTunAutoRoute(_)
                 | Message::SetTunStrictRoute(_)
                 | Message::SetSnifferEnabled(_)
-        ) && (self.runtime.routing_intent_actions.pending.is_some()
+        ) && (self
+            .runtime
+            .routing_intent_actions
+            .pending_change()
+            .is_some()
             || self.runtime.pending_runtime_patch.is_some())
         {
             return Task::none();

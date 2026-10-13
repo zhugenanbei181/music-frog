@@ -18,7 +18,6 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Activate;
-use infiltrator_application::routing_intent_projection::routing_intent_failure_copy;
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
@@ -26,6 +25,7 @@ use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_presentation::routing_intent_projection::routing_intent_failure_copy;
 
 #[derive(Component, Clone, Copy, Default)]
 pub struct RoutingIntentIssueRoot;
@@ -100,7 +100,7 @@ pub fn sync(
     for mut root in &mut roots {
         root.background.0 = palette.surface_elevated;
         *root.border = BorderColor::all(palette.danger);
-        root.node.display = if state.0.failure.is_some() {
+        root.node.display = if state.0.failure().is_some() {
             Display::Flex
         } else {
             Display::None
@@ -113,7 +113,7 @@ pub fn sync(
         text.color.0 = palette.ink;
     }
     for mut disabled in &mut retry {
-        disabled.0 = state.0.retry_target().is_none() || state.0.pending.is_some();
+        disabled.0 = state.0.retry_target().is_none() || state.0.pending_change().is_some();
     }
     for mut guide in &mut guides {
         guide.display = if state.0.needs_controller_settings() {

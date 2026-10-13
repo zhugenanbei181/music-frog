@@ -9,7 +9,7 @@ use crate::view_root::interaction_regions::InteractionRegion;
 use iced::advanced::text::Renderer;
 use iced::widget::{button, column, container, row, text};
 use iced::{Element, Font, Length, Theme};
-use infiltrator_application::routing_intent_projection::routing_intent_failure_copy;
+use infiltrator_presentation::routing_intent_projection::routing_intent_failure_copy;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 pub fn routing_intent_issue(state: &AppState) -> Element<'_, Message> {
@@ -63,7 +63,7 @@ pub fn controls<'a, R: Renderer<Font = Font> + 'a>(
         state
             .runtime
             .routing_intent_actions
-            .pending
+            .pending_change()
             .is_none()
             .then_some(Message::DismissRoutingIntentFailure),
     );

@@ -227,19 +227,17 @@ pub(crate) fn ready(state: &AppState, feature: FeatureId) -> bool {
                 actions.needs_controller_settings()
                     && actions.retry_target().is_none()
                     && actions
-                        .failure
-                        .as_ref()
+                        .failure()
                         .is_some_and(|failure| failure.code == ErrorCode::Authentication)
             } else {
                 actions.retry_target() == Some(RoutingIntent::RouteAllThroughProxy)
                     && actions
-                        .failure
-                        .as_ref()
+                        .failure()
                         .is_some_and(|failure| failure.code == ErrorCode::Network)
             };
             failed
-                && actions.pending.is_none()
-                && actions.observed.current == Some(RoutingIntent::FollowRules)
+                && actions.pending_change().is_none()
+                && actions.render_snapshot().current == Some(RoutingIntent::FollowRules)
         }
         FeatureId::ProfilesSnapshotRestoreConfirm => {
             let model = &state.editor.snapshot_restore;

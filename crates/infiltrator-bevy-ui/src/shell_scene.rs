@@ -44,7 +44,6 @@ use bevy::ui::prelude::{
 use bevy::ui::widget::InlineImage;
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
-use infiltrator_application::routing_intent_projection::routing_intent_copy_key;
 use infiltrator_bevy_widgets::button::{ButtonDisabled, pill_caption_scene};
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::icon::{IconId, icon_scene};
@@ -59,6 +58,7 @@ use infiltrator_bevy_widgets::tooltip::TooltipBubble;
 use infiltrator_contract::a11y::ShellA11yNode;
 use infiltrator_contract::routing_intent::RoutingIntent;
 use infiltrator_contract::system_toggle::SystemToggleSnapshot;
+use infiltrator_presentation::routing_intent_projection::routing_intent_copy_key;
 use infiltrator_presentation::system_toggle_projection::compact_label;
 
 /// The root shell scene.

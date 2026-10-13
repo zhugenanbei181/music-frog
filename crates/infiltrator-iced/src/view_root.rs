@@ -79,7 +79,7 @@ impl AppState {
             Route::AppRouting => app_routing::view(self),
             Route::Doctor => doctor::view(self),
         };
-        let body = if self.runtime.routing_intent_actions.failure.is_some() {
+        let body = if self.runtime.routing_intent_actions.failure().is_some() {
             Element::from(column![routing_intent_issue(self), page].spacing(8))
         } else {
             page

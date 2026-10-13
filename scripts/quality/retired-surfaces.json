@@ -1675,6 +1675,32 @@
       "source_roots": [
         "crates/infiltrator-application/src"
       ]
+    },
+    {
+      "id": "application-routing-intent-actions",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "routing_intent_actions",
+      "rationale": "The presentation-only routing-intent phase reducer moved to infiltrator-presentation; application retains command execution and verified Core readback only.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/routing_intent_actions_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "application-routing-intent-projection",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "routing_intent_projection",
+      "rationale": "Shared routing-intent labels and status copy are owned by infiltrator-presentation so all product surfaces use the same projection.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/routing_intent_projection_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
     }
   ]
 }

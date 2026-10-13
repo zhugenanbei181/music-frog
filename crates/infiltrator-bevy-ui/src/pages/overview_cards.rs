@@ -24,7 +24,6 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
-use infiltrator_application::routing_intent_projection::routing_intent_copy_key;
 use infiltrator_bevy_widgets::button::{ButtonDisabled, ControlVisual};
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::icon::{IconId, icon_scene};
@@ -38,6 +37,7 @@ use infiltrator_contract::active_exit::ActiveExitSnapshot;
 use infiltrator_contract::routing_intent::{RoutingIntent, RoutingIntentSnapshot};
 use infiltrator_contract::subscription_quota::SubscriptionQuotaSnapshot;
 use infiltrator_contract::system_toggle::{SystemToggle, SystemToggleSnapshot};
+use infiltrator_presentation::routing_intent_projection::routing_intent_copy_key;
 use infiltrator_presentation::subscription_quota_projection::{QuotaGrade, project_quota};
 
 /// Marker on active exit node card (BEVY-GAP-019).

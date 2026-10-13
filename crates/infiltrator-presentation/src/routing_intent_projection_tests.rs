@@ -1,5 +1,6 @@
 //! test-intent: behavior
 use super::*;
+use crate::routing_intent_actions::RoutingIntentFinishOutcome;
 use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::routing_intent::EngineDefinedRoutingIntent;
@@ -60,7 +61,10 @@ fn failure_copy_uses_the_typed_requested_intent_and_redacted_reason() {
     actions.observe(1, 1, RoutingIntentSnapshot::demo_fixture());
     let pending = actions.begin(RoutingIntent::BypassProxy).unwrap();
     let failure = Failure::new(ErrorCode::Network, "connection refused", true);
-    assert!(actions.finish(pending, Err(failure)));
+    assert_eq!(
+        actions.finish(pending, Err(failure)),
+        RoutingIntentFinishOutcome::Applied
+    );
     assert_eq!(
         routing_intent_failure_copy(&actions, "en"),
         "Switch to Bypass proxy failed: connection refused"

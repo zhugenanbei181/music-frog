@@ -58,7 +58,11 @@ impl AppState {
 
     fn begin_runtime_patch(&mut self) -> Option<u64> {
         if self.runtime.pending_runtime_patch.is_some()
-            || self.runtime.routing_intent_actions.pending.is_some()
+            || self
+                .runtime
+                .routing_intent_actions
+                .pending_change()
+                .is_some()
         {
             return None;
         }

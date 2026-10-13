@@ -7,6 +7,7 @@ use infiltrator_contract::command::{CommandIntent, CommandResult};
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::routing_intent::RoutingIntent;
+use infiltrator_presentation::routing_intent_actions::RoutingIntentFinishOutcome;
 
 impl AppState {
     pub(super) fn update_routing_intent(&mut self, message: Message) -> Task<Message> {
@@ -27,8 +28,9 @@ impl AppState {
                     return Task::none();
                 }
                 let actual = result.as_ref().ok().cloned();
-                if !self.runtime.routing_intent_actions.finish(request, result) {
-                    return Task::none();
+                match self.runtime.routing_intent_actions.finish(request, result) {
+                    RoutingIntentFinishOutcome::Applied => {}
+                    RoutingIntentFinishOutcome::IgnoredStale => return Task::none(),
                 }
                 self.runtime.routing_intent_state =
                     self.runtime.routing_intent_actions.render_snapshot();
@@ -51,7 +53,11 @@ impl AppState {
 
     fn submit_routing_intent(&mut self, target: RoutingIntent) -> Task<Message> {
         if self.runtime.pending_runtime_patch.is_some()
-            || self.runtime.routing_intent_actions.pending.is_some()
+            || self
+                .runtime
+                .routing_intent_actions
+                .pending_change()
+                .is_some()
         {
             return Task::none();
         }
@@ -66,19 +72,22 @@ impl AppState {
             self.runtime.routing_intent_state.clone(),
         );
         let Some(application) = self.command_ingress() else {
-            self.runtime.routing_intent_actions.failure = Some(Failure::new(
-                ErrorCode::NotReady,
-                "The application is unavailable for routing intent control",
-                true,
-            ));
-            self.runtime.routing_intent_actions.requested = Some(target.clone());
+            self.runtime.routing_intent_actions.record_failure(
+                target,
+                Failure::new(
+                    ErrorCode::NotReady,
+                    "The application is unavailable for routing intent control",
+                    true,
+                ),
+            );
             return Task::none();
         };
         let request = match self.runtime.routing_intent_actions.begin(target.clone()) {
             Ok(request) => request,
             Err(failure) => {
-                self.runtime.routing_intent_actions.failure = Some(failure);
-                self.runtime.routing_intent_actions.requested = Some(target.clone());
+                self.runtime
+                    .routing_intent_actions
+                    .record_failure(target, failure);
                 return Task::none();
             }
         };

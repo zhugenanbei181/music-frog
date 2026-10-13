@@ -10,11 +10,11 @@ use crate::view::theme;
 use crate::view::theme::{FONT_SEMIBOLD, MONO, R_CHIP, tokens};
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Border, Element, Length, Theme, border};
-use infiltrator_application::routing_intent_projection::routing_intent_copy;
 use infiltrator_contract::core_control::CoreControlAction;
 use infiltrator_contract::outbound::probe::OutboundProbeBatchScope;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_presentation::core_status_projection::lifecycle_copy;
+use infiltrator_presentation::routing_intent_projection::routing_intent_copy;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 /// Accent hero: status dot + localized status, routing intent / core-version meta row

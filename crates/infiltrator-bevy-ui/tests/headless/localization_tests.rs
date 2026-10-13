@@ -8,7 +8,6 @@ use bevy::scene::WorldSceneExt;
 use bevy::ui::Checked;
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Checkbox, CheckboxPlugin, ToggleChecked, checkbox_self_update};
-use infiltrator_application::routing_intent_projection::routing_intent_copy;
 use infiltrator_bevy_ui::localization::LocalizationPlugin;
 use infiltrator_bevy_ui::localized_widgets::{localized_checkbox_scene, localized_field_scene};
 use infiltrator_bevy_widgets::localization::{
@@ -19,6 +18,7 @@ use infiltrator_bevy_widgets::text_input::state::{TextFieldInput, TextFieldState
 use infiltrator_bevy_widgets::text_input::{TextField, TextFieldFocused};
 use infiltrator_bevy_widgets::theme::Theme;
 use infiltrator_contract::language::LanguagePreference;
+use infiltrator_presentation::routing_intent_projection::routing_intent_copy;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 #[test]

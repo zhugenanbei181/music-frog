@@ -17,13 +17,13 @@ use bevy::ecs::query::With;
 use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Activate;
-use infiltrator_application::routing_intent_projection::routing_intent_failure_copy;
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::parity::FeatureId;
 use infiltrator_contract::routing_intent::RoutingIntent;
 use infiltrator_contract::snapshot::CoreLifecycle;
+use infiltrator_presentation::routing_intent_projection::routing_intent_failure_copy;
 use std::sync::Arc;
 
 pub fn install(app: &mut App, feature: FeatureId) {
@@ -54,8 +54,8 @@ pub fn activate(
     mut commands: Commands,
 ) {
     if !selected(&feature, &route, feature.feature, Route::Overview)
-        || state.0.pending.is_some()
-        || state.0.failure.is_some()
+        || state.0.pending_change().is_some()
+        || state.0.failure().is_some()
     {
         return;
     }
@@ -92,10 +92,10 @@ pub fn observe(
         } else {
             ErrorCode::Network
         };
-        if state.pending.is_some()
-            || state.observed.current.as_ref() != Some(&RoutingIntent::FollowRules)
-            || state.failure.as_ref()?.code != failure_code
-            || state.requested.as_ref() != Some(&RoutingIntent::RouteAllThroughProxy)
+        if state.pending_change().is_some()
+            || state.render_snapshot().current.as_ref() != Some(&RoutingIntent::FollowRules)
+            || state.failure()?.code != failure_code
+            || state.requested_target() != Some(&RoutingIntent::RouteAllThroughProxy)
             || surface.latest.0.core.lifecycle != CoreLifecycle::Running
         {
             return None;

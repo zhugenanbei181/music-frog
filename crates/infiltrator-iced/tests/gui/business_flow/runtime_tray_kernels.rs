@@ -96,7 +96,7 @@ fn engine_defined_routing_intent_is_rejected_by_the_shared_ui_action() {
         units, 0,
         "refusal stays in the persistent operation surface"
     );
-    assert!(state.runtime.routing_intent_actions.failure.is_some());
+    assert!(state.runtime.routing_intent_actions.failure().is_some());
     assert_eq!(
         state.runtime.routing_intent.as_ref(),
         Some(&RoutingIntent::FollowRules),
@@ -454,7 +454,7 @@ fn tray_event_chains_resolve_intents_and_drive_state_domains() {
         Message::SetRoutingIntent(RoutingIntent::RouteAllThroughProxy),
     );
     assert!(
-        state.runtime.routing_intent_actions.failure.is_some(),
+        state.runtime.routing_intent_actions.failure().is_some(),
         "no runtime → persistent routing intent issue"
     );
     assert_eq!(
@@ -463,7 +463,7 @@ fn tray_event_chains_resolve_intents_and_drive_state_domains() {
     );
     assert!(state.runtime.pending_runtime_patch.is_none());
     assert_eq!(state.runtime.routing_intent_state.current, None);
-    assert!(state.runtime.routing_intent_actions.failure.is_some());
+    assert!(state.runtime.routing_intent_actions.failure().is_some());
 
     // Kernel default switch forwards the version payload.
     let units = feed(

@@ -114,7 +114,7 @@ fn runtime_config_refresh_does_not_replace_typed_routing_observation() {
         Some(&RoutingIntent::FollowRules)
     );
     assert_eq!(
-        state.runtime.routing_intent_actions.pending.as_ref(),
+        state.runtime.routing_intent_actions.pending_change(),
         Some(&request)
     );
 
@@ -180,12 +180,16 @@ fn failed_read_blocks_retry_until_typed_surface_observation_recovers() {
         "a failed typed read disables retries until current routing facts recover"
     );
     assert_eq!(
-        state.runtime.routing_intent_actions.failure,
+        state.runtime.routing_intent_actions.failure().cloned(),
         Some(write_failure.clone()),
         "the original write failure remains visible"
     );
     assert_eq!(
-        state.runtime.routing_intent_actions.observed.failure,
+        state
+            .runtime
+            .routing_intent_actions
+            .render_snapshot()
+            .failure,
         Some(read_failure)
     );
     surface.revision += 1;
@@ -196,12 +200,12 @@ fn failed_read_blocks_retry_until_typed_surface_observation_recovers() {
         Some(RoutingIntent::RouteAllThroughProxy)
     );
     assert_eq!(
-        state.runtime.routing_intent_actions.failure,
+        state.runtime.routing_intent_actions.failure().cloned(),
         Some(write_failure)
     );
 
     let _ = state.update(Message::DismissRoutingIntentFailure);
-    assert!(state.runtime.routing_intent_actions.failure.is_none());
+    assert!(state.runtime.routing_intent_actions.failure().is_none());
     assert_eq!(
         state.runtime.routing_intent.as_ref(),
         Some(&RoutingIntent::FollowRules)
@@ -231,19 +235,19 @@ fn mismatched_typed_receipt_preserves_observed_intent_and_exposes_retry() {
         Some(&RoutingIntent::BypassProxy)
     );
     assert_eq!(
-        state
-            .runtime
-            .routing_intent_actions
-            .failure
-            .as_ref()
-            .unwrap()
-            .code,
+        state.runtime.routing_intent_actions.failure().unwrap().code,
         ErrorCode::InvalidState
     );
     assert_eq!(
         state.runtime.routing_intent_actions.retry_target(),
         Some(RoutingIntent::RouteAllThroughProxy)
     );
-    assert!(state.runtime.routing_intent_actions.pending.is_none());
+    assert!(
+        state
+            .runtime
+            .routing_intent_actions
+            .pending_change()
+            .is_none()
+    );
     assert!(state.shell.error_msg.is_none());
 }

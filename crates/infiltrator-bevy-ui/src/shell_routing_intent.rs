@@ -21,15 +21,17 @@ use bevy::text::TextColor;
 use bevy::ui::BackgroundColor;
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Activate;
-use infiltrator_application::routing_intent_actions::RoutingIntentActions;
 use infiltrator_application::routing_intent_application::RoutingIntentApplication;
-use infiltrator_application::routing_intent_projection::routing_intent_status_copy;
 use infiltrator_bevy_widgets::button::{ButtonDisabled, ControlVisual};
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::routing_intent::RoutingIntent;
+use infiltrator_presentation::routing_intent_actions::{
+    RoutingIntentActions, RoutingIntentFinishOutcome,
+};
+use infiltrator_presentation::routing_intent_projection::routing_intent_status_copy;
 
 #[derive(QueryData)]
 #[query_data(mutable)]
@@ -177,7 +179,7 @@ pub(crate) fn begin_request(wanted: RoutingIntent, state: RoutingIntentActivatio
         mut actions,
         ..
     } = state;
-    if actions.0.pending.is_some() {
+    if actions.0.pending_change().is_some() {
         return;
     }
     observe_actions(&mut actions.0, latest.as_deref(), handle.as_deref());
@@ -242,8 +244,9 @@ pub fn completed(
         Err(failure) => Err(failure.clone()),
     };
     let verified = result.as_ref().ok().cloned();
-    if !actions.0.finish(request.transition, result) {
-        return;
+    match actions.0.finish(request.transition, result) {
+        RoutingIntentFinishOutcome::Applied => {}
+        RoutingIntentFinishOutcome::IgnoredStale => return,
     }
     if let Some(observed) = verified {
         if let Some(latest) = latest {

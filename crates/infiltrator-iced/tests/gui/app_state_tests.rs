@@ -295,7 +295,10 @@ fn routing_intent_actions_keep_typed_readback_and_failures() {
         request,
         result: Err(failure.clone()),
     });
-    assert_eq!(state.runtime.routing_intent_actions.failure, Some(failure));
+    assert_eq!(
+        state.runtime.routing_intent_actions.failure().cloned(),
+        Some(failure)
+    );
     assert_eq!(
         state.runtime.routing_intent_actions.retry_target(),
         Some(RoutingIntent::BypassProxy)

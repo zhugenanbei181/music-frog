@@ -6,10 +6,10 @@ use crate::view::theme;
 use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, R_CONTROL, tokens};
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
-use infiltrator_application::routing_intent_projection::{
+use infiltrator_contract::routing_intent::RoutingIntent;
+use infiltrator_presentation::routing_intent_projection::{
     routing_intent_copy, routing_intent_status_copy,
 };
-use infiltrator_contract::routing_intent::RoutingIntent;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 pub fn overview_routing_intent_segment<'a>(

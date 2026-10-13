@@ -21,6 +21,8 @@ pub mod profile_editor_projection;
 pub mod profile_metadata_projection;
 pub mod profile_preview;
 pub mod protocol_studio_projection;
+pub mod routing_intent_actions;
+pub mod routing_intent_projection;
 pub mod routing_projection;
 pub mod rule_json_projection;
 pub mod rule_mrs_projection;

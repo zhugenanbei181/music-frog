@@ -120,7 +120,6 @@ fn reported_optional<T: Clone>(value: &ObservedValue<T>) -> Option<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::routing_intent_actions::RoutingIntentActions;
     use crate::routing_intent_application::RoutingIntentApplication;
     use crate::runtime_configuration_application::RuntimeConfigurationReadout;
     use crate::system_toggle_application::SystemToggleApplication;
@@ -128,10 +127,9 @@ mod tests {
     use infiltrator_contract::core_identity::{
         CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
     };
-    use infiltrator_contract::routing_intent::EngineDefinedRoutingIntent;
-    use infiltrator_contract::routing_intent::RoutingIntent;
-    use infiltrator_contract::routing_intent::RoutingIntentExtensionId;
-    use infiltrator_contract::routing_intent::{RoutingIntentSnapshot, RoutingIntentStatus};
+    use infiltrator_contract::routing_intent::{
+        RoutingIntent, RoutingIntentSnapshot, RoutingIntentStatus,
+    };
     use infiltrator_contract::session::SessionToken;
     use infiltrator_contract::snapshot::CoreLifecycle;
     use infiltrator_contract::surface::{HostKind, SurfaceKind};
@@ -275,18 +273,6 @@ mod tests {
         surface.runtime_control = runtime_control(Some(&Ok(readout(false, 0))));
         let routing_intent = RoutingIntentApplication::from_surface(&surface);
         assert_eq!(routing_intent.current, None);
-        let mut actions = RoutingIntentActions::default();
-        actions.observe(1, 1, RoutingIntentSnapshot::demo_fixture());
-        assert!(
-            actions
-                .begin(RoutingIntent::EngineDefined(
-                    EngineDefinedRoutingIntent::new(
-                        EngineId::new("mihomo").unwrap(),
-                        RoutingIntentExtensionId::new("script").unwrap(),
-                    ),
-                ))
-                .is_err()
-        );
         assert_eq!(
             SystemToggleApplication::from_surface(&surface).tun,
             SystemToggleState::Disabled

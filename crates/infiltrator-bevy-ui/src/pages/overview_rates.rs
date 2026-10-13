@@ -12,11 +12,11 @@ use bevy::ecs::query::{Has, Or, QueryData, QueryFilter, With, Without};
 use bevy::ecs::system::{Query, Res, SystemParam};
 use bevy::text::TextColor;
 use bevy::ui::widget::Text;
-use infiltrator_application::routing_intent_projection::routing_intent_status_copy;
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::stat_chip::{StatChipLabel, StatChipValue};
 use infiltrator_presentation::core_status_projection::{failure_copy, lifecycle_copy};
+use infiltrator_presentation::routing_intent_projection::routing_intent_status_copy;
 use infiltrator_presentation::shell_readout::{rate_copy, rate_status};
 
 #[derive(QueryData)]
