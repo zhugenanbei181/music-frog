@@ -36,9 +36,9 @@ use infiltrator_application::filter_capture_store::{
     FILTER_POLICY, FILTER_PROFILE, FilterCaptureStore,
 };
 use infiltrator_application::language_choice_fixtures::LanguageCaptureProcess;
-use infiltrator_application::surface_reader::ApplicationSurfaceReader;
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::text_input::TextField;
+use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::error::ErrorCode;
@@ -53,7 +53,7 @@ use std::sync::{Arc, Mutex, RwLock, atomic::Ordering};
 #[derive(Resource)]
 struct FilterCapture {
     core: Arc<CoreApplication>,
-    reader: Arc<ApplicationSurfaceReader>,
+    reader: Arc<ProductSurfaceReader>,
     store: Arc<FilterCaptureStore>,
     stage: u8,
     reported: Option<(u8, ProfileEditorPane, bool)>,
@@ -70,7 +70,7 @@ pub fn install(app: &mut App) {
         CommandApplication::new().with_profile(super::mihomo_profiles(store.clone())),
     ));
     let reader = Arc::new(
-        ApplicationSurfaceReader::new(core.clone(), SurfaceKind::BevyDesktop, HostKind::Desktop)
+        ProductSurfaceReader::new(core.clone(), SurfaceKind::BevyDesktop, HostKind::Desktop)
             .with_profiles(super::mihomo_profiles(store.clone())),
     );
     let scope = core.snapshot().scope().expect("identified capture owner");

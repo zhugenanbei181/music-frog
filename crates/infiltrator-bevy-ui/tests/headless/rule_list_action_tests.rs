@@ -13,7 +13,6 @@ use bevy::ui_widgets::ButtonPlugin;
 use bevy::window::{Ime, PrimaryWindow, Window};
 use infiltrator_application::rule_list_application::RuleListApplication;
 use infiltrator_application::rule_trace_fixtures::{RuleTraceStore, TRACE_DOCUMENT};
-use infiltrator_application::surface_reader::ApplicationSurfaceReader;
 use infiltrator_bevy_ui::app::ShellPlugin;
 use infiltrator_bevy_ui::app::SidebarActiveProfileCard;
 use infiltrator_bevy_ui::pages::rules::LastRulesProjection;
@@ -31,6 +30,7 @@ use infiltrator_bevy_ui::surface::{LatestSurfaceSnapshot, SurfaceSnapshotUpdated
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::text_input::{TextField, TextFieldFocused};
+use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_contract::core_capabilities::{CoreOperation, RulesOperation};
 use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::rules_workspace::RulesTab;
@@ -42,7 +42,7 @@ use std::thread::yield_now;
 use std::time::{Duration, Instant};
 use tokio::runtime::Builder;
 
-fn publish(app: &mut App, reader: &ApplicationSurfaceReader) {
+fn publish(app: &mut App, reader: &ProductSurfaceReader) {
     let mut snapshot = Builder::new_current_thread()
         .enable_all()
         .build()
@@ -123,7 +123,7 @@ fn settle(app: &mut App) {
     }
     app.update();
 }
-pub(crate) fn setup() -> (App, ApplicationSurfaceReader, Arc<RuleTraceStore>) {
+pub(crate) fn setup() -> (App, ProductSurfaceReader, Arc<RuleTraceStore>) {
     let store = crate::configuration_codec::mihomo_rule_trace_fixture();
     let (core, _) = identified_recording_application();
     core.install_command_handler(Arc::new(
@@ -132,7 +132,7 @@ pub(crate) fn setup() -> (App, ApplicationSurfaceReader, Arc<RuleTraceStore>) {
     ));
     let core = Arc::new(core);
     let reader =
-        ApplicationSurfaceReader::new(core.clone(), SurfaceKind::BevyDesktop, HostKind::Desktop)
+        ProductSurfaceReader::new(core.clone(), SurfaceKind::BevyDesktop, HostKind::Desktop)
             .with_profiles(crate::support::mihomo_profiles(store.clone()))
             .with_configuration(crate::configuration_codec::mihomo_configuration(
                 store.clone(),

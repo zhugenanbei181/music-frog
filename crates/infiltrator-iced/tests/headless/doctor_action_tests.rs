@@ -9,7 +9,7 @@ use iced::advanced::widget::Tree;
 use iced_runtime::{Action, task::into_stream};
 use infiltrator_application::doctor_actions::DoctorActionPhase;
 use infiltrator_application::doctor_application::DoctorApplication;
-use infiltrator_application::surface_reader::ApplicationSurfaceReader;
+use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_contract::capability::Capability;
 use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::parity::FeatureId;
@@ -36,7 +36,7 @@ fn terminal(task: Task<Message>) -> Message {
             message
         })
 }
-fn publish(state: &mut AppState, reader: &ApplicationSurfaceReader) {
+fn publish(state: &mut AppState, reader: &ProductSurfaceReader) {
     let mut snapshot = Builder::new_current_thread()
         .enable_all()
         .build()
@@ -56,7 +56,7 @@ fn actual_doctor_command_failure_retry_single_repair_and_bootstrap_share_reader_
         host_test_command_application([Capability::CoreLifecycle]).with_doctor(doctor.clone()),
     ));
     let application = Arc::new(application);
-    let reader = ApplicationSurfaceReader::new(
+    let reader = ProductSurfaceReader::new(
         application.clone(),
         SurfaceKind::IcedDesktop,
         HostKind::Desktop,

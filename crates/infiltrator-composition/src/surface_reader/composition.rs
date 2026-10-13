@@ -1,6 +1,6 @@
 use super::*;
 
-impl ApplicationSurfaceReader {
+impl ProductSurfaceReader {
     pub fn new(core: Arc<CoreApplication>, surface: SurfaceKind, host: HostKind) -> Self {
         let outbound_ui_preferences = Some(core.outbound_ui_preferences_application());
         Self {

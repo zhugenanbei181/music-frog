@@ -6,14 +6,16 @@
 
 use super::projections::missing;
 use super::*;
-use crate::dns_latency_application::DnsLatencyApplication;
-use crate::dns_self_heal_application::{dns_listen_conflict, dns_self_heal_snapshot};
-use crate::dns_workbench_application::{
+use infiltrator_application::dns_latency_application::DnsLatencyApplication;
+use infiltrator_application::dns_self_heal_application::{
+    dns_listen_conflict, dns_self_heal_snapshot,
+};
+use infiltrator_application::dns_workbench_application::{
     apply_latency_report, dns_page_snapshot, dns_servers_from_lists, fake_ip_pool_from_connections,
     latency_report, stun_report,
 };
-use crate::runtime_configuration_application::RuntimeConfigurationReadout;
-use crate::stun_probe_application::StunProbeApplication;
+use infiltrator_application::runtime_configuration_application::RuntimeConfigurationReadout;
+use infiltrator_application::stun_probe_application::StunProbeApplication;
 use infiltrator_contract::dns::DnsEnhancedMode;
 use infiltrator_contract::pac::PacSnapshot;
 use infiltrator_contract::port_conflict::PortConflictSnapshot;

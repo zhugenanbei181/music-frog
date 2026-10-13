@@ -11,7 +11,7 @@ use infiltrator_application::log_capture_fixtures::{
 };
 use infiltrator_application::log_export_application::LogExportApplication;
 use infiltrator_application::log_export_capture::ReadOnlyLogExportCapture;
-use infiltrator_application::surface_reader::ApplicationSurfaceReader;
+use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::parity::FeatureId;
@@ -38,14 +38,14 @@ pub(super) fn activate(state: &mut AppState, feature: FeatureId) -> Task<Message
             )),
     ));
     attach_capture_owner(state, core.clone());
-    let reader = ApplicationSurfaceReader::new(
+    let reader = ProductSurfaceReader::new(
         Arc::new(core.clone()),
         SurfaceKind::IcedDesktop,
         HostKind::Desktop,
     );
     let revision = state.surface.revision() + 1;
     let continuing = core.clone();
-    let later_reader = ApplicationSurfaceReader::new(
+    let later_reader = ProductSurfaceReader::new(
         Arc::new(core.clone()),
         SurfaceKind::IcedDesktop,
         HostKind::Desktop,

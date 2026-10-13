@@ -1,13 +1,9 @@
 //! test-intent: behavior
 //! Independent product services preserve admission and exact reviewed host effects.
 use crate::command_application::CommandApplication;
-use crate::core_application::CoreApplication;
-use crate::language_choice_fixtures::LanguageCaptureProcess;
-use crate::log_stream_test_support::TestRuntime;
 use crate::script_application::ScriptApplication;
 use crate::script_export_application::ScriptExportApplication;
 use crate::script_workbench::ScriptWorkbench;
-use crate::surface_reader::ApplicationSurfaceReader;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::error::ErrorCode;
@@ -17,13 +13,11 @@ use infiltrator_contract::script_export::{
 use infiltrator_contract::script_export_review::{ScriptExportDraft, ScriptExportValidationScope};
 use infiltrator_contract::script_run::{ScriptOperationId, ScriptRunRequest};
 use infiltrator_contract::script_sandbox::{ScriptEngineCapabilities, ScriptEngineKind};
-use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_domain::script_engine::{HookStage, ScriptError, ScriptExecutionResult};
 use infiltrator_domain::script_export_review::content_sha256;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::script_engine::ScriptEnginePort;
 use infiltrator_ports::script_export::ScriptExportPort;
-use infiltrator_ports::surface::SurfaceReader;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
@@ -222,43 +216,6 @@ async fn command_outputs_and_native_workbench_reject_unit_and_late_results_witho
             .code,
         ErrorCode::Unsupported
     );
-}
-
-#[tokio::test]
-async fn readers_replay_only_their_injected_product_owner_and_clear_is_observed_on_both_surfaces() {
-    let core = Arc::new(CoreApplication::new(
-        Arc::new(LanguageCaptureProcess),
-        Arc::new(LanguageCaptureProcess),
-        Arc::new(TestRuntime),
-    ));
-    let owner = ScriptApplication::new();
-    let isolated = ScriptApplication::new();
-    let exports = ScriptExportApplication::without_host_port();
-    let iced =
-        ApplicationSurfaceReader::new(core.clone(), SurfaceKind::IcedDesktop, HostKind::Desktop)
-            .with_scripts(owner.clone(), exports.clone());
-    let bevy =
-        ApplicationSurfaceReader::new(core.clone(), SurfaceKind::BevyDesktop, HostKind::Desktop)
-            .with_scripts(owner.clone(), exports.clone());
-    let other = ApplicationSurfaceReader::new(core, SurfaceKind::BevyDesktop, HostKind::Desktop)
-        .with_scripts(isolated, ScriptExportApplication::without_host_port());
-    let result = owner.run_request(&run_request(1)).unwrap();
-    let review = exports.prepare(&draft()).unwrap();
-    for reader in [&iced, &bevy] {
-        let snapshot = reader.read().await.unwrap();
-        assert_eq!(snapshot.script_sandbox, Some(result.snapshot.clone()));
-        assert_eq!(snapshot.script_export, Some(review.snapshot.clone()));
-    }
-    let snapshot = other.read().await.unwrap();
-    assert!(snapshot.script_sandbox.is_none());
-    assert!(snapshot.script_export.is_none());
-    owner.clear(ScriptOperationId(2)).unwrap();
-    exports.cancel(&review.identity).unwrap();
-    for reader in [&iced, &bevy] {
-        let snapshot = reader.read().await.unwrap();
-        assert!(snapshot.script_sandbox.is_none());
-        assert!(snapshot.script_export.is_none());
-    }
 }
 
 #[test]

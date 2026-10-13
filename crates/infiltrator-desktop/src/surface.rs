@@ -2,7 +2,7 @@
 //!
 //! This module is intentionally outside both UI crates. It assembles concrete
 //! desktop storage/controller adapters into the runtime-neutral
-//! `ApplicationSurfaceReader` and `SurfacePump` consumed by Iced or Bevy.
+//! `ProductSurfaceReader` and `SurfacePump` consumed by Iced or Bevy.
 
 use crate::mtu::DesktopMtuProbe;
 use crate::offline_startup::offline_startup_port;
@@ -40,10 +40,10 @@ use infiltrator_application::settings_application::SettingsApplication;
 use infiltrator_application::snapshot_application::SnapshotApplication;
 use infiltrator_application::stun_probe_application::StunProbeApplication;
 use infiltrator_application::surface_application::SurfacePump;
-use infiltrator_application::surface_reader::ApplicationSurfaceReader;
 use infiltrator_application::system_proxy_application::SystemProxyApplication;
 use infiltrator_application::uwp_loopback_application::UwpLoopbackApplication;
 use infiltrator_application::version_application::VersionApplication;
+use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_contract::capability::{
     Availability, Capability, CapabilitySnapshot, CapabilityStatus,
 };
@@ -128,7 +128,7 @@ pub struct SurfaceEngines {
 
 /// Assemble all currently available desktop application facades into one
 /// surface reader. No UI toolkit appears in this function.
-pub async fn application_surface_reader(
+pub async fn product_surface_reader(
     core: Arc<CoreApplication>,
     connection_port: Arc<dyn ConnectionPort>,
     runtime_configuration_ports: RuntimeConfigurationPorts,
@@ -138,7 +138,7 @@ pub async fn application_surface_reader(
     binary_path: PathBuf,
     network_roaming_port: Arc<dyn NetworkRoamingPort>,
     engines: SurfaceEngines,
-) -> anyhow::Result<ApplicationSurfaceReader> {
+) -> anyhow::Result<ProductSurfaceReader> {
     let profile = engines.profiles;
     let config_dir = profile.config_dir();
     let configuration = engines.configuration;
@@ -173,7 +173,7 @@ pub async fn application_surface_reader(
         .rule_provider_port()
         .map(|port| RuleProviderRuntimeApplication::new(port, core.core_capability_application()));
 
-    let mut reader = ApplicationSurfaceReader::new(core, surface, HostKind::Desktop)
+    let mut reader = ProductSurfaceReader::new(core, surface, HostKind::Desktop)
         .with_capabilities(desktop_capabilities())
         .with_connection_port(connection_port)
         .with_runtime_configuration_ports(runtime_configuration_ports)
@@ -227,7 +227,7 @@ pub struct SurfacePumpParams {
 }
 
 pub async fn surface_pump(params: SurfacePumpParams) -> anyhow::Result<SurfacePump> {
-    let reader = application_surface_reader(
+    let reader = product_surface_reader(
         Arc::clone(&params.core),
         params.connection_port,
         params.runtime_configuration_ports,
@@ -250,13 +250,13 @@ pub async fn core_surface_pump(
     capabilities: CapabilitySnapshot,
     sample_interval: Duration,
 ) -> anyhow::Result<SurfacePump> {
-    let reader = ApplicationSurfaceReader::new(core, surface, HostKind::Desktop)
-        .with_capabilities(capabilities);
+    let reader =
+        ProductSurfaceReader::new(core, surface, HostKind::Desktop).with_capabilities(capabilities);
     spawn_surface_pump(reader, surface, sample_interval).await
 }
 
 async fn spawn_surface_pump(
-    reader: ApplicationSurfaceReader,
+    reader: ProductSurfaceReader,
     surface: SurfaceKind,
     sample_interval: Duration,
 ) -> anyhow::Result<SurfacePump> {

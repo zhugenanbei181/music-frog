@@ -5,10 +5,10 @@
 
 use super::projections::missing;
 use super::*;
-use crate::rule_list_application::document_snapshot;
-use crate::rule_list_projection::rule_snapshot;
-use crate::rule_provider_application::RuleProviderApplication;
-use crate::rule_tracer_application::RuleTracerApplication;
+use infiltrator_application::rule_list_application::document_snapshot;
+use infiltrator_application::rule_list_projection::rule_snapshot;
+use infiltrator_application::rule_provider_application::RuleProviderApplication;
+use infiltrator_application::rule_tracer_application::RuleTracerApplication;
 use infiltrator_contract::mrs_acceleration::MrsAccelerationSnapshot;
 use infiltrator_contract::provider_cache::RuleProviderCacheSnapshot;
 use infiltrator_contract::rule_provider_runtime::RuleProviderInventorySnapshot;

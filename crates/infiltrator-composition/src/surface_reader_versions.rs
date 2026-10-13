@@ -1,10 +1,10 @@
 //! Engine-scoped version observation used by the complete surface reader.
 
-use crate::surface_reader::ApplicationSurfaceReader;
+use super::ProductSurfaceReader;
 use infiltrator_contract::version::{CoreChannelStatus, CoreVersionSnapshot};
 use std::time::{Duration, Instant};
 
-impl ApplicationSurfaceReader {
+impl ProductSurfaceReader {
     pub(super) async fn read_versions(&self) -> CoreVersionSnapshot {
         let Some(versions) = &self.versions else {
             let Some(engine_id) = self

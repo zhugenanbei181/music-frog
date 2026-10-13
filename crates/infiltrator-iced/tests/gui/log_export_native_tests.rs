@@ -21,7 +21,7 @@ use infiltrator_application::log_capture_fixtures::{
     LogCaptureProcess, append_follow_records, populate_logs,
 };
 use infiltrator_application::log_export_application::LogExportApplication;
-use infiltrator_application::surface_reader::ApplicationSurfaceReader;
+use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::error::ErrorCode;
@@ -111,7 +111,7 @@ fn install(state: &mut AppState, port: Arc<dyn LogExportPort>) -> CoreApplicatio
             "GET https://api.sub.lan/token?token=secret_sub_token_123456 HTTP/1.1".into()
         )
     ));
-    let reader = ApplicationSurfaceReader::new(
+    let reader = ProductSurfaceReader::new(
         Arc::new(core.clone()),
         SurfaceKind::IcedDesktop,
         HostKind::Desktop,
@@ -256,7 +256,7 @@ fn native_permission_failure_retries_the_same_reviewed_source_and_restarted_sour
             .count(),
         1
     );
-    let restarted_snapshot = run(ApplicationSurfaceReader::new(
+    let restarted_snapshot = run(ProductSurfaceReader::new(
         Arc::new(core.clone()),
         SurfaceKind::IcedDesktop,
         HostKind::Desktop,

@@ -7,7 +7,7 @@ use iced_runtime::{Action, task::into_stream};
 use infiltrator_application::dns_cache_application::DnsCacheApplication;
 use infiltrator_application::dns_cache_fixtures::{CachePortMode, IsolatedCaches};
 use infiltrator_application::dns_cache_projection::project_cache;
-use infiltrator_application::surface_reader::ApplicationSurfaceReader;
+use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_contract::command_catalogue::CommandTarget;
 use infiltrator_contract::core_capabilities::{CoreOperation, FakeIpCacheOperation};
 use infiltrator_contract::dns_cache::DnsFlushOutcome;
@@ -34,7 +34,7 @@ fn terminal(task: Task<Message>) -> Message {
             message
         })
 }
-fn publish(state: &mut AppState, reader: &ApplicationSurfaceReader) {
+fn publish(state: &mut AppState, reader: &ProductSurfaceReader) {
     let mut snapshot = Builder::new_current_thread()
         .enable_all()
         .build()
@@ -44,13 +44,13 @@ fn publish(state: &mut AppState, reader: &ApplicationSurfaceReader) {
     snapshot.revision = state.surface.revision() + 1;
     assert!(state.apply_shared_surface_snapshot(snapshot));
 }
-fn setup(owner: DnsCacheApplication) -> (AppState, ApplicationSurfaceReader) {
+fn setup(owner: DnsCacheApplication) -> (AppState, ProductSurfaceReader) {
     let (application, _) = recording_application();
     application.install_command_handler(Arc::new(
         core_test_command_application([CoreOperation::FakeIpCache(FakeIpCacheOperation::Flush)])
             .with_dns_cache(owner.clone()),
     ));
-    let reader = ApplicationSurfaceReader::new(
+    let reader = ProductSurfaceReader::new(
         Arc::new(application.clone()),
         SurfaceKind::IcedDesktop,
         HostKind::Desktop,

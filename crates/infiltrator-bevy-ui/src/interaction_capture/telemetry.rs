@@ -15,8 +15,8 @@ use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
 use bevy::ui::widget::Text;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::log_capture_fixtures::LogCaptureProcess;
-use infiltrator_application::surface_reader::ApplicationSurfaceReader;
-use infiltrator_application::telemetry_observation_fixtures::{
+use infiltrator_composition::surface_reader::ProductSurfaceReader;
+use infiltrator_composition::telemetry_observation_fixtures::{
     TelemetryObservationReader, stale_zero_snapshot,
 };
 use infiltrator_composition::tokio_application_runtime;
@@ -28,7 +28,7 @@ use std::sync::{Arc, Mutex};
 #[derive(Resource)]
 struct TelemetryCapture {
     core: Arc<CoreApplication>,
-    reader: Arc<ApplicationSurfaceReader>,
+    reader: Arc<ProductSurfaceReader>,
     telemetry: Arc<TelemetryObservationReader>,
     runtime: Arc<dyn ApplicationRuntime>,
     initialized: bool,
@@ -43,7 +43,7 @@ pub fn install(app: &mut App) {
         telemetry.clone(),
         runtime.clone(),
     ));
-    let reader = Arc::new(ApplicationSurfaceReader::new(
+    let reader = Arc::new(ProductSurfaceReader::new(
         core.clone(),
         SurfaceKind::BevyDesktop,
         HostKind::Desktop,

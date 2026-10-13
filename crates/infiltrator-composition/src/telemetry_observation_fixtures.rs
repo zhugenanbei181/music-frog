@@ -1,7 +1,7 @@
 //! Isolated real telemetry reads: first observation, measured zero and a denied subsequent read.
-use crate::core_application::CoreApplication;
-use crate::surface_reader::ApplicationSurfaceReader;
+use crate::surface_reader::ProductSurfaceReader;
 use async_trait::async_trait;
+use infiltrator_application::core_application::CoreApplication;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::core_identity::CoreCommandRequest;
 use infiltrator_contract::error::{ErrorCode, Failure};
@@ -21,7 +21,7 @@ pub struct TelemetryObservationReader {
 /// Exercise real start, warmup, measured zero and denied read through the same application reader.
 pub async fn stale_zero_snapshot(
     core: &CoreApplication,
-    reader: &ApplicationSurfaceReader,
+    reader: &ProductSurfaceReader,
     telemetry: &TelemetryObservationReader,
 ) -> Result<SurfaceSnapshot, Failure> {
     let scope = core.snapshot().scope().ok_or_else(|| {

@@ -31,10 +31,10 @@ use infiltrator_application::log_capture_fixtures::{
 };
 use infiltrator_application::log_export_application::LogExportApplication;
 use infiltrator_application::log_export_capture::ReadOnlyLogExportCapture;
-use infiltrator_application::surface_reader::ApplicationSurfaceReader;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::text_input::TextField;
 use infiltrator_bevy_widgets::text_input::native::NativeTextField;
+use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::parity::FeatureId;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
@@ -48,7 +48,7 @@ use std::time::Duration;
 #[derive(Resource)]
 pub(super) struct LogsCapture {
     core: Arc<CoreApplication>,
-    reader: Arc<ApplicationSurfaceReader>,
+    reader: Arc<ProductSurfaceReader>,
     runtime: Arc<dyn ApplicationRuntime>,
     scope_observation: Arc<RwLock<CoreScopeObservation>>,
     pub(super) stage: u8,
@@ -70,7 +70,7 @@ pub fn install(app: &mut App) {
                 vec![],
             )),
     ));
-    let reader = Arc::new(ApplicationSurfaceReader::new(
+    let reader = Arc::new(ProductSurfaceReader::new(
         core.clone(),
         SurfaceKind::BevyDesktop,
         HostKind::Desktop,

@@ -5,8 +5,8 @@ use crate::types::message::Message;
 use iced::Task;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::log_capture_fixtures::LogCaptureProcess;
-use infiltrator_application::surface_reader::ApplicationSurfaceReader;
-use infiltrator_application::telemetry_observation_fixtures::{
+use infiltrator_composition::surface_reader::ProductSurfaceReader;
+use infiltrator_composition::telemetry_observation_fixtures::{
     TelemetryObservationReader, stale_zero_snapshot,
 };
 use infiltrator_composition::tokio_application_runtime;
@@ -23,7 +23,7 @@ pub(super) fn activate(state: &mut AppState) -> Task<Message> {
         tokio_application_runtime().expect("isolated telemetry executor"),
     );
     attach_capture_owner(state, core.clone());
-    let reader = ApplicationSurfaceReader::new(
+    let reader = ProductSurfaceReader::new(
         Arc::new(core.clone()),
         SurfaceKind::IcedDesktop,
         HostKind::Desktop,

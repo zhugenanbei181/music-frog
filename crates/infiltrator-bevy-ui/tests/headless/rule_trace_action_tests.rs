@@ -16,7 +16,6 @@ use infiltrator_application::rule_trace_fixtures::{
     NAMED_TRACE_DOCUMENT, RuleTraceStore, TRACE_DOCUMENT,
 };
 use infiltrator_application::rule_tracer_application::RuleTracerApplication;
-use infiltrator_application::surface_reader::ApplicationSurfaceReader;
 use infiltrator_bevy_ui::app::ShellPlugin;
 use infiltrator_bevy_ui::pages::rules_tabs::{RulesTabChip, RulesTabStrip};
 use infiltrator_bevy_ui::pages::rules_tracer::{
@@ -32,6 +31,7 @@ use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::modal::ModalScrim;
 use infiltrator_bevy_widgets::text_input::native::NativeTextField;
 use infiltrator_bevy_widgets::text_input::{TextField, TextFieldFocused};
+use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_contract::core_capabilities::{CoreOperation, RulesOperation};
 use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::rule_condition::TrafficField;
@@ -44,7 +44,7 @@ use std::thread::yield_now;
 use std::time::{Duration, Instant};
 use tokio::runtime::Builder;
 
-fn setup() -> (App, ApplicationSurfaceReader, Arc<RuleTraceStore>) {
+fn setup() -> (App, ProductSurfaceReader, Arc<RuleTraceStore>) {
     let store = crate::configuration_codec::mihomo_rule_trace_fixture();
     let owner = RuleTracerApplication::new();
     owner.set_override_port(store.clone());
@@ -61,7 +61,7 @@ fn setup() -> (App, ApplicationSurfaceReader, Arc<RuleTraceStore>) {
         .with_configuration(configuration.clone()),
     ));
     let application = Arc::new(application);
-    let reader = ApplicationSurfaceReader::new(
+    let reader = ProductSurfaceReader::new(
         application.clone(),
         SurfaceKind::BevyDesktop,
         HostKind::Desktop,
@@ -104,7 +104,7 @@ fn setup() -> (App, ApplicationSurfaceReader, Arc<RuleTraceStore>) {
     app.update();
     (app, reader, store)
 }
-fn publish(app: &mut App, reader: &ApplicationSurfaceReader) {
+fn publish(app: &mut App, reader: &ProductSurfaceReader) {
     let mut snapshot = Builder::new_current_thread()
         .enable_all()
         .build()
@@ -154,7 +154,7 @@ fn settle(app: &mut App) {
     }
     app.update();
 }
-fn run(app: &mut App, reader: &ApplicationSurfaceReader) {
+fn run(app: &mut App, reader: &ProductSurfaceReader) {
     let run = button::<SimulateRuleTraceButton>(app);
     click_entity(app, run);
     settle(app);

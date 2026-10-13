@@ -9,7 +9,7 @@ use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::dns_query_application::DnsQueryApplication;
 use infiltrator_application::dns_query_fixtures::{IsolatedQueries, QueryFixtureMode};
 use infiltrator_application::language_choice_fixtures::LanguageCaptureProcess;
-use infiltrator_application::surface_reader::ApplicationSurfaceReader;
+use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::dns_query::DnsRecordType;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
@@ -30,7 +30,7 @@ pub(super) fn activate(state: &mut AppState) -> Task<Message> {
         CommandApplication::new().with_dns_query(owner.clone()),
     ));
     let reader = Arc::new(
-        ApplicationSurfaceReader::new(
+        ProductSurfaceReader::new(
             Arc::new(core.clone()),
             SurfaceKind::IcedDesktop,
             HostKind::Desktop,

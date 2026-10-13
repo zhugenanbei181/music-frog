@@ -2,7 +2,7 @@
 
 > 层级：L3
 
-实现共享用例、命令编排和跨端业务事务。公开接口使用 contract 类型并经 ports 调用副作用；跨表面纯呈现投影由独立 presentation crate 统一提供。
+实现共享用例、命令编排和跨端业务事务。公开接口使用 contract 类型并经 ports 调用副作用；页面快照装配属于产品组合层，跨表面纯呈现投影由独立 presentation crate 统一提供。
 
 本 crate 不选择 executor、不创建具体网络客户端，也不依赖 UI。异步调度由 composition 注入；一个业务语义只能有一个 owner。
 

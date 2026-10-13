@@ -6,7 +6,7 @@ use iced::Task;
 use iced::advanced::widget::Tree;
 use iced_runtime::{Action, task::into_stream};
 use infiltrator_application::dns_hosts_fixtures::{HostsCaptureStore, ORIGINAL_HOSTS};
-use infiltrator_application::surface_reader::ApplicationSurfaceReader;
+use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_contract::core_capabilities::{CoreOperation, DnsOperation};
 use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::error::Failure;
@@ -32,7 +32,7 @@ fn terminal(task: Task<Message>) -> Message {
             message
         })
 }
-fn publish(state: &mut AppState, reader: &ApplicationSurfaceReader) {
+fn publish(state: &mut AppState, reader: &ProductSurfaceReader) {
     let mut snapshot = Builder::new_current_thread()
         .enable_all()
         .build()
@@ -52,7 +52,7 @@ fn actual_hosts_modal_edit_cancel_migration_failure_retry_and_reader_fences_pres
         core_test_command_application([CoreOperation::Dns(DnsOperation::ApplyConfiguration)])
             .with_configuration(configuration.clone()),
     ));
-    let reader = ApplicationSurfaceReader::new(
+    let reader = ProductSurfaceReader::new(
         Arc::new(application.clone()),
         SurfaceKind::IcedDesktop,
         HostKind::Desktop,

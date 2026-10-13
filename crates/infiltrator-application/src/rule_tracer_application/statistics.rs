@@ -5,7 +5,9 @@ use infiltrator_contract::rule_hit_audit::{
     RuleDeadEntry, RuleDeadReason, RuleHitAuditSnapshot, RuleHitSummary,
 };
 use infiltrator_contract::rule_source::RuleSourceIdentity;
-use infiltrator_contract::rule_statistics::RuleStatisticsResetReceipt;
+use infiltrator_contract::rule_statistics::{
+    RuleStatisticsObservation, RuleStatisticsResetReceipt,
+};
 use infiltrator_domain::rules::RuleEntry;
 use infiltrator_domain::rules::analyzer::{ShadowReason, find_shadowed_rules};
 use infiltrator_domain::rules::tracer::RuleTraceMatch;
@@ -103,33 +105,20 @@ impl TraceStatistics {
     }
 }
 
-pub(crate) struct RuleStatisticsReadout {
-    pub(crate) audit: RuleHitAuditSnapshot,
-    rows: HashMap<usize, RuleHitSummary>,
-}
-impl RuleStatisticsReadout {
-    pub(crate) fn row_count(&self, index: usize) -> u64 {
-        self.rows.get(&index).map_or(0, |row| row.hit_count)
-    }
-    pub(crate) fn row_timestamp(&self, index: usize) -> Option<u64> {
-        self.rows.get(&index).and_then(|row| row.last_hit_secs)
-    }
-}
-
 impl RuleTracerApplication {
-    pub(crate) fn statistics_for(
+    pub fn statistics_for(
         &self,
         source: &RuleSourceIdentity,
         rules: &[RuleEntry],
-    ) -> Option<RuleStatisticsReadout> {
+    ) -> Option<RuleStatisticsObservation> {
         let statistics = self
             .statistics
             .lock()
             .expect("rule statistics lock")
             .clone();
-        (statistics.source.as_ref() == Some(source)).then(|| RuleStatisticsReadout {
+        (statistics.source.as_ref() == Some(source)).then(|| RuleStatisticsObservation {
             audit: audit(&statistics, rules),
-            rows: statistics.rows,
+            rows: statistics.rows.into_iter().collect(),
         })
     }
 

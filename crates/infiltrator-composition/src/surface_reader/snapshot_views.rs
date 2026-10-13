@@ -1,9 +1,9 @@
 //! Snapshot observations belong to the injected product engine and actual active document.
-use super::ApplicationSurfaceReader;
+use super::ProductSurfaceReader;
 use infiltrator_contract::error::Failure;
 use infiltrator_contract::snapshot_history::SnapshotHistorySnapshot;
 use infiltrator_contract::yaml_ast_diff::YamlAstDiffSnapshot;
-impl ApplicationSurfaceReader {
+impl ProductSurfaceReader {
     pub(super) async fn read_snapshot_views(
         &self,
     ) -> Result<(Option<SnapshotHistorySnapshot>, Option<YamlAstDiffSnapshot>), Failure> {

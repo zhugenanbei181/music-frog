@@ -18,7 +18,6 @@ use bevy::window::Ime;
 use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::core_capability_application::CoreCapabilityApplication;
 use infiltrator_application::dns_hosts_fixtures::{HostsCaptureStore, ORIGINAL_HOSTS};
-use infiltrator_application::surface_reader::ApplicationSurfaceReader;
 use infiltrator_bevy_ui::app::ShellPlugin;
 use infiltrator_bevy_ui::command::UiCommand;
 use infiltrator_bevy_ui::command_events::CommandExecutedEvent;
@@ -30,6 +29,7 @@ use infiltrator_bevy_ui::route::{PagesPlugin, Route, RouteChanged};
 use infiltrator_bevy_ui::surface::{LatestSurfaceSnapshot, SurfaceSnapshotUpdated};
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::text_input::{TextField, TextFieldFocused};
+use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_contract::active_profile_reference::{
     ActiveProfileReferenceCasOutcome, ActiveProfileReferenceTarget,
 };
@@ -71,7 +71,7 @@ async fn select_profile(store: &HostsCaptureStore, profile: &str) {
     }
 }
 
-fn setup(store: Arc<HostsCaptureStore>) -> (App, ApplicationSurfaceReader) {
+fn setup(store: Arc<HostsCaptureStore>) -> (App, ProductSurfaceReader) {
     let configuration = crate::configuration_codec::mihomo_configuration(store);
     let (application, _) = identified_recording_application();
     application.install_command_handler(Arc::new(
@@ -82,7 +82,7 @@ fn setup(store: Arc<HostsCaptureStore>) -> (App, ApplicationSurfaceReader) {
             .with_configuration(configuration.clone()),
     ));
     let application = Arc::new(application);
-    let reader = ApplicationSurfaceReader::new(
+    let reader = ProductSurfaceReader::new(
         application.clone(),
         SurfaceKind::BevyDesktop,
         HostKind::Desktop,
@@ -102,7 +102,7 @@ fn setup(store: Arc<HostsCaptureStore>) -> (App, ApplicationSurfaceReader) {
     publish(&mut app, &reader);
     (app, reader)
 }
-fn publish(app: &mut App, reader: &ApplicationSurfaceReader) {
+fn publish(app: &mut App, reader: &ProductSurfaceReader) {
     let mut snapshot = Builder::new_current_thread()
         .enable_all()
         .build()

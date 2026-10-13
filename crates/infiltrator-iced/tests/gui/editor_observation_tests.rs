@@ -10,7 +10,7 @@ use futures_util::StreamExt;
 use iced::Task;
 use iced_runtime::{Action, task::into_stream};
 use infiltrator_application::filter_capture_store::{FILTER_PROFILE, FilterCaptureStore};
-use infiltrator_application::surface_reader::ApplicationSurfaceReader;
+use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_contract::core_capabilities::{CoreOperation, ProfileOperation};
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
@@ -47,7 +47,7 @@ fn tea_read_failure_retains_actual_document_keeps_typed_error_and_recovers_witho
         core_test_command_application([CoreOperation::Profile(ProfileOperation::Apply)])
             .with_profile(profiles.clone()),
     ));
-    let reader = ApplicationSurfaceReader::new(
+    let reader = ProductSurfaceReader::new(
         Arc::new(core.clone()),
         SurfaceKind::IcedDesktop,
         HostKind::Desktop,

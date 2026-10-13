@@ -10,7 +10,6 @@ use bevy::ui_widgets::Activate;
 use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::doctor_actions::DoctorActionPhase;
 use infiltrator_application::doctor_application::DoctorApplication;
-use infiltrator_application::surface_reader::ApplicationSurfaceReader;
 use infiltrator_bevy_ui::app::ShellPlugin;
 use infiltrator_bevy_ui::command::{CommandPumpPlugin, DemoCommandSink, UiCommand, UiCommandSink};
 use infiltrator_bevy_ui::command_events::CommandExecutedEvent;
@@ -28,6 +27,7 @@ use infiltrator_bevy_ui::surface::{
 };
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::localization::UiLocale;
+use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_contract::command::RequestId;
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::core_identity::EngineId;
@@ -86,7 +86,7 @@ fn pending_token(app: &App) -> u64 {
         }
     }
 }
-fn publish(app: &mut App, reader: &ApplicationSurfaceReader) {
+fn publish(app: &mut App, reader: &ProductSurfaceReader) {
     let snapshot = Builder::new_current_thread()
         .enable_all()
         .build()
@@ -111,7 +111,7 @@ fn native_doctor_controls_execute_real_failure_retry_repair_bootstrap_and_reject
             .with_doctor(doctor.clone()),
     ));
     let application = Arc::new(application);
-    let reader = ApplicationSurfaceReader::new(
+    let reader = ProductSurfaceReader::new(
         application.clone(),
         SurfaceKind::BevyDesktop,
         HostKind::Desktop,

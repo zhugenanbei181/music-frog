@@ -7,7 +7,7 @@ use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::language_choice_fixtures::LanguageCaptureProcess;
 use infiltrator_application::rule_list_application::RuleListApplication;
-use infiltrator_application::surface_reader::ApplicationSurfaceReader;
+use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::parity::FeatureId;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
@@ -26,7 +26,7 @@ pub(super) fn activate(state: &mut AppState) -> Task<Message> {
     core.install_command_handler(Arc::new(
         CommandApplication::new().with_rule_list(RuleListApplication::new(store.clone())),
     ));
-    let reader = ApplicationSurfaceReader::new(
+    let reader = ProductSurfaceReader::new(
         Arc::new(core.clone()),
         SurfaceKind::IcedDesktop,
         HostKind::Desktop,

@@ -1,9 +1,6 @@
-//! Behavior tests for the application surface reader.
+//! Behavior tests for the product surface reader.
 
 use super::*;
-use crate::core_application::test_execute_result_at_current_scope;
-use crate::core_application::tests::install_lifecycle_capabilities;
-use crate::core_capability_application::CoreCapabilityApplication;
 use async_trait::async_trait;
 use infiltrator_contract::android_control::{
     VpnAuthorizationState, VpnOwnerCoreReadback, VpnOwnerLifecycle, VpnOwnerReadiness,
@@ -520,7 +517,7 @@ async fn surface_reader_publishes_and_caches_all_core_channel_results() {
         Arc::new(TestReadiness),
         Arc::new(TestRuntime),
     ));
-    let reader = ApplicationSurfaceReader::new(core, SurfaceKind::BevyDesktop, HostKind::Desktop)
+    let reader = ProductSurfaceReader::new(core, SurfaceKind::BevyDesktop, HostKind::Desktop)
         .with_versions(
             VersionApplication::new(
                 EngineId::new("mihomo").unwrap(),
@@ -615,9 +612,8 @@ async fn surface_reader_publishes_android_authorization_separately_from_runtime_
         Arc::new(TestReadiness),
         Arc::new(TestRuntime),
     ));
-    let reader =
-        ApplicationSurfaceReader::new(core, SurfaceKind::AndroidCompose, HostKind::Android)
-            .with_vpn(VpnServiceApplication::new(Arc::new(TestVpn)));
+    let reader = ProductSurfaceReader::new(core, SurfaceKind::AndroidCompose, HostKind::Android)
+        .with_vpn(VpnServiceApplication::new(Arc::new(TestVpn)));
 
     let snapshot = reader.read().await.expect("Android surface read");
 
@@ -652,7 +648,7 @@ async fn cloned_surface_readers_do_not_reuse_another_engines_version_cache() {
         Arc::new(TestReadiness),
         Arc::new(TestRuntime),
     ));
-    let base = ApplicationSurfaceReader::new(core, SurfaceKind::BevyDesktop, HostKind::Desktop);
+    let base = ProductSurfaceReader::new(core, SurfaceKind::BevyDesktop, HostKind::Desktop);
     let mihomo_id = EngineId::new("mihomo").unwrap();
     let mihomo = VersionApplication::new(
         mihomo_id.clone(),
@@ -712,7 +708,7 @@ async fn surface_reader_rejects_a_snapshot_when_core_scope_changes_mid_read() {
     ));
     let starting_scope = core.snapshot().scope().expect("running core scope");
     let reader =
-        ApplicationSurfaceReader::new(core.clone(), SurfaceKind::BevyDesktop, HostKind::Desktop)
+        ProductSurfaceReader::new(core.clone(), SurfaceKind::BevyDesktop, HostKind::Desktop)
             .with_system_proxy(SystemProxyApplication::new(Arc::new(
                 StopCoreDuringSurfaceRead { core: core.clone() },
             )));

@@ -1,6 +1,6 @@
 //! Host-service state reads kept outside the large surface assembler.
 
-use super::ApplicationSurfaceReader;
+use super::ProductSurfaceReader;
 use infiltrator_contract::android_control::VpnAuthorizationState;
 use infiltrator_contract::capability::{Availability, Capability};
 use infiltrator_contract::controller::{ControllerAuthSnapshot, ControllerAuthStatus};
@@ -19,7 +19,7 @@ use infiltrator_contract::system_proxy::{SystemProxyRecoverySnapshot, SystemProx
 use infiltrator_contract::uwp::UwpLoopbackSnapshot;
 use infiltrator_contract::vpn::VpnSurfaceObservation;
 
-impl ApplicationSurfaceReader {
+impl ProductSurfaceReader {
     pub(super) async fn read_controller_auth(&self) -> ControllerAuthSnapshot {
         let Some(source) = &self.endpoint_source else {
             return ControllerAuthSnapshot::default();

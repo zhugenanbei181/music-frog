@@ -15,7 +15,6 @@ use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::rule_statistics_workbench::StatisticsTab;
 use infiltrator_application::rule_trace_fixtures::RuleTraceStore;
 use infiltrator_application::rule_tracer_application::RuleTracerApplication;
-use infiltrator_application::surface_reader::ApplicationSurfaceReader;
 use infiltrator_bevy_ui::app::ShellPlugin;
 use infiltrator_bevy_ui::pages::rules_builder_input::{RuleBuilderField, RuleBuilderFieldKind};
 use infiltrator_bevy_ui::pages::rules_draft::RulesDraftState;
@@ -30,6 +29,7 @@ use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::modal::ModalScrim;
 use infiltrator_bevy_widgets::text_input::{TextField, TextFieldFocused};
+use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::rule_trace_run::{RuleTraceOperationId, RuleTraceRequest};
 use infiltrator_contract::rule_tracer::TrafficContextSnapshot;
@@ -42,7 +42,7 @@ use std::thread::yield_now;
 use std::time::{Duration, Instant};
 use tokio::runtime::Builder;
 
-fn setup(trace: bool) -> (App, ApplicationSurfaceReader, Arc<RuleTraceStore>) {
+fn setup(trace: bool) -> (App, ProductSurfaceReader, Arc<RuleTraceStore>) {
     let store = crate::configuration_codec::mihomo_rule_trace_fixture();
     let owner = RuleTracerApplication::new();
     owner.set_override_port(store.clone());
@@ -88,7 +88,7 @@ fn setup(trace: bool) -> (App, ApplicationSurfaceReader, Arc<RuleTraceStore>) {
         CommandApplication::new().with_rule_tracer(owner.clone()),
     ));
     let application = Arc::new(application);
-    let reader = ApplicationSurfaceReader::new(
+    let reader = ProductSurfaceReader::new(
         application.clone(),
         SurfaceKind::BevyDesktop,
         HostKind::Desktop,
@@ -111,7 +111,7 @@ fn setup(trace: bool) -> (App, ApplicationSurfaceReader, Arc<RuleTraceStore>) {
     publish(&mut app, &reader);
     (app, reader, store)
 }
-fn publish(app: &mut App, reader: &ApplicationSurfaceReader) {
+fn publish(app: &mut App, reader: &ProductSurfaceReader) {
     let mut snapshot = Builder::new_current_thread()
         .enable_all()
         .build()

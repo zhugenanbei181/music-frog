@@ -66,6 +66,7 @@ openssl = { version = "0.10", optional = true }
 
 [dev-dependencies]
 infiltrator-application = { path = "../infiltrator-application", features = ["capture-fixtures"] }
+infiltrator-composition = { path = "../infiltrator-composition" }
 tempfile = { workspace = true }
 mockito = { workspace = true }
 async-trait = { workspace = true }

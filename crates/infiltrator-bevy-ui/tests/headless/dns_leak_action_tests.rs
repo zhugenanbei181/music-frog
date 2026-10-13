@@ -8,7 +8,6 @@ use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::dns_leak_actions::DnsLeakActionPhase;
 use infiltrator_application::dns_leak_application::{DnsLeakApplication, default_echo_sources};
 use infiltrator_application::dns_leak_fixtures::{EchoMode, IsolatedEcho};
-use infiltrator_application::surface_reader::ApplicationSurfaceReader;
 use infiltrator_bevy_ui::app::ShellPlugin;
 use infiltrator_bevy_ui::command::UiCommand;
 use infiltrator_bevy_ui::command_events::CommandExecutedEvent;
@@ -19,6 +18,7 @@ use infiltrator_bevy_ui::pages::dns_leak_rows::LeakRowIdentity;
 use infiltrator_bevy_ui::route::{PagesPlugin, Route, RouteChanged};
 use infiltrator_bevy_ui::surface::{SurfaceSnapshotUpdated, dns_projection};
 use infiltrator_bevy_widgets::localization::UiLocale;
+use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_contract::command::RequestId;
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::dns_leak::DnsLeakOperation;
@@ -37,7 +37,7 @@ fn entity<T: Component>(app: &mut App) -> Entity {
         .expect("mounted native DNS control")
         .0
 }
-fn publish(app: &mut App, reader: &ApplicationSurfaceReader) {
+fn publish(app: &mut App, reader: &ProductSurfaceReader) {
     let snapshot = Builder::new_current_thread()
         .enable_all()
         .build()
@@ -85,7 +85,7 @@ fn native_probe_failure_retry_and_unsupported_stay_on_the_surface_with_real_fact
     let (application, _) = recording_application();
     application.install_command_handler(Arc::new(command_application(leak.clone())));
     let application = Arc::new(application);
-    let reader = ApplicationSurfaceReader::new(
+    let reader = ProductSurfaceReader::new(
         application.clone(),
         SurfaceKind::BevyDesktop,
         HostKind::Desktop,
@@ -182,7 +182,7 @@ fn native_probe_failure_retry_and_unsupported_stay_on_the_surface_with_real_fact
     assert!(!subtree_has_text(app.world(), card, "observed identity:"));
     let unsupported = DnsLeakApplication::unconfigured();
     application.install_command_handler(Arc::new(command_application(unsupported.clone())));
-    let unsupported_reader = ApplicationSurfaceReader::new(
+    let unsupported_reader = ProductSurfaceReader::new(
         application.clone(),
         SurfaceKind::BevyDesktop,
         HostKind::Desktop,

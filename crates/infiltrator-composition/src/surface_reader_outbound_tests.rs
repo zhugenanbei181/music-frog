@@ -1,5 +1,4 @@
 use super::*;
-use crate::core_application::test_execute_result_at_current_scope;
 
 struct SurfaceOutboundPort {
     calls: AtomicUsize,
@@ -196,7 +195,7 @@ async fn surface_reader_publishes_the_typed_outbound_inventory_for_its_core_scop
     });
     let scope = core.snapshot().scope().expect("active scope");
     let reader =
-        ApplicationSurfaceReader::new(core.clone(), SurfaceKind::BevyDesktop, HostKind::Desktop)
+        ProductSurfaceReader::new(core.clone(), SurfaceKind::BevyDesktop, HostKind::Desktop)
             .with_outbound(OutboundApplication::new(port.clone()));
 
     let snapshot = reader.read().await.expect("surface read");
@@ -252,7 +251,7 @@ async fn surface_reader_denies_unregistered_outbound_list_before_adapter_io() {
     let port = Arc::new(SurfaceOutboundPort {
         calls: AtomicUsize::new(0),
     });
-    let reader = ApplicationSurfaceReader::new(core, SurfaceKind::BevyDesktop, HostKind::Desktop)
+    let reader = ProductSurfaceReader::new(core, SurfaceKind::BevyDesktop, HostKind::Desktop)
         .with_outbound(OutboundApplication::new(port.clone()));
 
     let snapshot = reader.read().await.expect("surface read");
@@ -282,7 +281,7 @@ async fn surface_reader_disables_selection_when_select_capability_is_not_registe
     let port = Arc::new(SurfaceOutboundPort {
         calls: AtomicUsize::new(0),
     });
-    let reader = ApplicationSurfaceReader::new(core, SurfaceKind::BevyDesktop, HostKind::Desktop)
+    let reader = ProductSurfaceReader::new(core, SurfaceKind::BevyDesktop, HostKind::Desktop)
         .with_outbound(OutboundApplication::new(port.clone()));
 
     let snapshot = reader.read().await.expect("surface read");

@@ -36,10 +36,10 @@ use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::language_choice_fixtures::LanguageCaptureProcess;
 use infiltrator_application::rule_trace_fixtures::RuleTraceStore;
 use infiltrator_application::rule_tracer_application::RuleTracerApplication;
-use infiltrator_application::surface_reader::ApplicationSurfaceReader;
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::text_input::TextField;
 use infiltrator_bevy_widgets::text_input::native::NativeTextField;
+use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::parity::FeatureId;
 use infiltrator_contract::rules_workspace::RulesTab;
@@ -53,7 +53,7 @@ use std::sync::{Arc, Mutex, atomic::Ordering};
 struct TraceCapture {
     owner: RuleTracerApplication,
     store: Arc<RuleTraceStore>,
-    reader: Arc<ApplicationSurfaceReader>,
+    reader: Arc<ProductSurfaceReader>,
     stage: u8,
 }
 pub fn install(app: &mut App) {
@@ -67,7 +67,7 @@ pub fn install(app: &mut App) {
         tokio_application_runtime().expect("isolated capture runtime"),
     ));
     let reader = Arc::new(
-        ApplicationSurfaceReader::new(core, SurfaceKind::BevyDesktop, HostKind::Desktop)
+        ProductSurfaceReader::new(core, SurfaceKind::BevyDesktop, HostKind::Desktop)
             .with_rule_tracer(owner.clone())
             .with_profiles(super::mihomo_profiles(store.clone()))
             .with_configuration(super::mihomo_configuration_application(store.clone())),

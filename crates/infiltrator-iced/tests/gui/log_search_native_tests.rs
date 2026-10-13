@@ -14,7 +14,7 @@ use iced_runtime::Action;
 use iced_runtime::task::into_stream;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::log_capture_fixtures::{LogCaptureProcess, populate_logs};
-use infiltrator_application::surface_reader::ApplicationSurfaceReader;
+use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::error::{ErrorCode, Failure};
@@ -118,7 +118,7 @@ fn native_log_query_keeps_failed_facts_and_retires_them_on_actual_core_restart()
     let core = CoreApplication::new(process.clone(), process, runtime.clone());
     install_lifecycle_test_capabilities(&core);
     state.attach_product_application(core.clone());
-    let reader = ApplicationSurfaceReader::new(
+    let reader = ProductSurfaceReader::new(
         Arc::new(core.clone()),
         SurfaceKind::IcedDesktop,
         HostKind::Desktop,

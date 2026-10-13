@@ -12,7 +12,6 @@ use bevy::ui::widget::Text;
 use bevy::ui_widgets::ButtonPlugin;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::filter_capture_store::{FILTER_PROFILE, FilterCaptureStore};
-use infiltrator_application::surface_reader::ApplicationSurfaceReader;
 use infiltrator_bevy_ui::app::ShellPlugin;
 use infiltrator_bevy_ui::pages::profiles_editor::{
     ProfileEditorSaveButton, ProfileEditorStatusText,
@@ -22,6 +21,7 @@ use infiltrator_bevy_ui::route::{PagesPlugin, Route, RouteChanged};
 use infiltrator_bevy_ui::surface::{LatestSurfaceSnapshot, SurfaceSnapshotUpdated};
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::localization::UiLocale;
+use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::error::{ErrorCode, Failure};
@@ -38,7 +38,7 @@ fn run<F: Future>(future: F) -> F::Output {
         .unwrap()
         .block_on(future)
 }
-fn publish(app: &mut App, reader: &ApplicationSurfaceReader) {
+fn publish(app: &mut App, reader: &ProductSurfaceReader) {
     let mut snapshot = run(reader.read()).unwrap();
     snapshot.revision = app.world().resource::<LatestSurfaceSnapshot>().0.revision + 1;
     app.world_mut().trigger(SurfaceSnapshotUpdated(snapshot));
@@ -68,7 +68,7 @@ fn native_editor_keeps_its_observed_document_on_permission_failure_disables_save
     .into_profile_document()
     .unwrap();
     let reader =
-        ApplicationSurfaceReader::new(core.clone(), SurfaceKind::BevyDesktop, HostKind::Desktop)
+        ProductSurfaceReader::new(core.clone(), SurfaceKind::BevyDesktop, HostKind::Desktop)
             .with_profiles(profiles);
     let mut app = App::new();
     headless_plugins(&mut app);

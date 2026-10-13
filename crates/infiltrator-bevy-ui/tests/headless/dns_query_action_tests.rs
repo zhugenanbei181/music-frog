@@ -11,7 +11,6 @@ use bevy::ui_widgets::ButtonPlugin;
 use infiltrator_application::dns_query_actions::QuerySection;
 use infiltrator_application::dns_query_application::DnsQueryApplication;
 use infiltrator_application::dns_query_fixtures::{IsolatedQueries, QueryFixtureMode};
-use infiltrator_application::surface_reader::ApplicationSurfaceReader;
 use infiltrator_bevy_ui::app::ShellPlugin;
 use infiltrator_bevy_ui::command::UiCommand;
 use infiltrator_bevy_ui::command_events::CommandExecutedEvent;
@@ -21,6 +20,7 @@ use infiltrator_bevy_ui::surface::{LatestSurfaceSnapshot, SurfaceSnapshotUpdated
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::localization::{LocalizedLabel, UiLocale};
 use infiltrator_bevy_widgets::text_input::{TextField, TextFieldFocused};
+use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::core_capabilities::{CoreOperation, DnsOperation};
 use infiltrator_contract::dns_query::{DnsQueryOperationId, DnsQueryRequest, DnsRecordType};
@@ -32,7 +32,7 @@ use std::thread::yield_now;
 use std::time::{Duration, Instant};
 use tokio::runtime::Builder;
 
-fn setup(port: Arc<IsolatedQueries>) -> (App, ApplicationSurfaceReader) {
+fn setup(port: Arc<IsolatedQueries>) -> (App, ProductSurfaceReader) {
     let owner = DnsQueryApplication::new(Some(port));
     let (application, _) = identified_recording_application();
     application.install_command_handler(Arc::new(
@@ -40,7 +40,7 @@ fn setup(port: Arc<IsolatedQueries>) -> (App, ApplicationSurfaceReader) {
             .with_dns_query(owner.clone()),
     ));
     let application = Arc::new(application);
-    let reader = ApplicationSurfaceReader::new(
+    let reader = ProductSurfaceReader::new(
         application.clone(),
         SurfaceKind::BevyDesktop,
         HostKind::Desktop,
@@ -60,7 +60,7 @@ fn setup(port: Arc<IsolatedQueries>) -> (App, ApplicationSurfaceReader) {
     publish(&mut app, &reader);
     (app, reader)
 }
-fn publish(app: &mut App, reader: &ApplicationSurfaceReader) {
+fn publish(app: &mut App, reader: &ProductSurfaceReader) {
     let mut snapshot = Builder::new_current_thread()
         .enable_all()
         .build()

@@ -23,8 +23,8 @@ use infiltrator_application::resource_application::ResourceApplication;
 use infiltrator_application::rule_provider_runtime_application::RuleProviderRuntimeApplication;
 use infiltrator_application::surface_application::SurfacePump;
 use infiltrator_application::surface_application::SurfacePumpBridge;
-use infiltrator_application::surface_reader::ApplicationSurfaceReader;
 use infiltrator_application::vpn_application::VpnServiceApplication;
+use infiltrator_composition::surface_reader::ProductSurfaceReader;
 #[cfg(test)]
 use infiltrator_contract::android_control::AndroidHostProcessRole;
 use infiltrator_contract::error::{ErrorCode, Failure};
@@ -213,7 +213,7 @@ impl AndroidProductComposition {
         });
         let capabilities =
             CapabilityProvider::capabilities(&AndroidBridgeAdapter::new(bridge.clone()));
-        let mut reader = ApplicationSurfaceReader::new(
+        let mut reader = ProductSurfaceReader::new(
             application.clone(),
             ANDROID_PRODUCT_SURFACE,
             HostKind::Android,

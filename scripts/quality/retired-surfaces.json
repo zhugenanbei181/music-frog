@@ -1513,6 +1513,33 @@
       "source_roots": [
         "crates/infiltrator-iced/src"
       ]
+    },
+    {
+      "id": "application-surface-reader",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "ApplicationSurfaceReader",
+      "rationale": "The application-owned surface assembler was removed; product page snapshots are assembled by ProductSurfaceReader in composition.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-composition/src/surface_reader_test.rs",
+        "crates/infiltrator-composition/src/surface_reader_outbound_tests.rs"
+      ],
+      "source_roots": [
+        "crates"
+      ]
+    },
+    {
+      "id": "desktop-application-surface-reader-factory",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "application_surface_reader",
+      "rationale": "The desktop helper name that implied application ownership was retired with the move to ProductSurfaceReader.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-composition/src/surface_reader_test.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-desktop/src"
+      ]
     }
   ]
 }

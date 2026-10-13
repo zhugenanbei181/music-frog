@@ -8,7 +8,7 @@ use infiltrator_application::dns_query_actions::QuerySection;
 use infiltrator_application::dns_query_application::DnsQueryApplication;
 use infiltrator_application::dns_query_fixtures::{IsolatedQueries, QueryFixtureMode};
 use infiltrator_application::dns_query_projection::project_query;
-use infiltrator_application::surface_reader::ApplicationSurfaceReader;
+use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_contract::core_capabilities::{CoreOperation, DnsOperation};
 use infiltrator_contract::dns_query::DnsRecordType;
 use infiltrator_contract::error::ErrorCode;
@@ -35,14 +35,14 @@ fn terminal(task: Task<Message>) -> Message {
             message
         })
 }
-fn setup(port: Arc<IsolatedQueries>) -> (AppState, ApplicationSurfaceReader) {
+fn setup(port: Arc<IsolatedQueries>) -> (AppState, ProductSurfaceReader) {
     let owner = DnsQueryApplication::new(Some(port));
     let (application, _) = recording_application();
     application.install_command_handler(Arc::new(
         core_test_command_application([CoreOperation::Dns(DnsOperation::Query)])
             .with_dns_query(owner.clone()),
     ));
-    let reader = ApplicationSurfaceReader::new(
+    let reader = ProductSurfaceReader::new(
         Arc::new(application.clone()),
         SurfaceKind::IcedDesktop,
         HostKind::Desktop,
@@ -55,7 +55,7 @@ fn setup(port: Arc<IsolatedQueries>) -> (AppState, ApplicationSurfaceReader) {
     publish(&mut state, &reader);
     (state, reader)
 }
-fn publish(state: &mut AppState, reader: &ApplicationSurfaceReader) {
+fn publish(state: &mut AppState, reader: &ProductSurfaceReader) {
     let mut snapshot = Builder::new_current_thread()
         .enable_all()
         .build()

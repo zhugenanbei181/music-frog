@@ -9,7 +9,7 @@ use iced_runtime::{Action, task::into_stream};
 use infiltrator_application::dns_leak_actions::DnsLeakActionPhase;
 use infiltrator_application::dns_leak_application::{DnsLeakApplication, default_echo_sources};
 use infiltrator_application::dns_leak_fixtures::{EchoMode, IsolatedEcho};
-use infiltrator_application::surface_reader::ApplicationSurfaceReader;
+use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_contract::capability::Capability;
 use infiltrator_contract::dns_leak::DnsLeakOperation;
 use infiltrator_contract::error::ErrorCode;
@@ -36,7 +36,7 @@ fn terminal(task: Task<Message>) -> Message {
             message
         })
 }
-fn publish(state: &mut AppState, reader: &ApplicationSurfaceReader) {
+fn publish(state: &mut AppState, reader: &ProductSurfaceReader) {
     let mut snapshot = Builder::new_current_thread()
         .enable_all()
         .build()
@@ -55,7 +55,7 @@ fn actual_dns_probe_reports_divergence_and_preserves_facts_on_permission_failure
     application.install_command_handler(Arc::new(
         host_test_command_application([Capability::Dns]).with_dns_leak(leak.clone()),
     ));
-    let reader = ApplicationSurfaceReader::new(
+    let reader = ProductSurfaceReader::new(
         Arc::new(application.clone()),
         SurfaceKind::IcedDesktop,
         HostKind::Desktop,
@@ -135,7 +135,7 @@ fn unsupported_probe_keeps_its_typed_refusal_visible_without_observations_or_net
     application.install_command_handler(Arc::new(
         host_test_command_application([Capability::Dns]).with_dns_leak(leak.clone()),
     ));
-    let reader = ApplicationSurfaceReader::new(
+    let reader = ProductSurfaceReader::new(
         Arc::new(application.clone()),
         SurfaceKind::IcedDesktop,
         HostKind::Desktop,

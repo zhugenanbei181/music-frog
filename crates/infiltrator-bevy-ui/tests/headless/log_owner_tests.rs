@@ -15,12 +15,12 @@ use infiltrator_application::command_application::handler::{
 };
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::log_capture_fixtures::{LogCaptureProcess, populate_logs};
-use infiltrator_application::surface_reader::ApplicationSurfaceReader;
 use infiltrator_bevy_ui::app::ShellPlugin;
 use infiltrator_bevy_ui::pages::logs::{ClearLogsButton, LogLevelFilterButton};
 use infiltrator_bevy_ui::pages::logs_search::LogsViewState;
 use infiltrator_bevy_ui::route::{PagesPlugin, Route, RouteChanged};
 use infiltrator_bevy_ui::surface::SurfaceSnapshotUpdated;
+use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::capability::Capability;
 use infiltrator_contract::command::CommandIntent;
@@ -94,7 +94,7 @@ fn native_logs_filter_and_clear_mutate_the_shared_reader_owner_after_real_comple
         populate_logs(&producer).await.unwrap();
     }));
     let reader =
-        ApplicationSurfaceReader::new(core.clone(), SurfaceKind::BevyDesktop, HostKind::Desktop);
+        ProductSurfaceReader::new(core.clone(), SurfaceKind::BevyDesktop, HostKind::Desktop);
     let mut app = App::new();
     headless_plugins(&mut app);
     app.add_plugins((

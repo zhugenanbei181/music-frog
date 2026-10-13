@@ -1,63 +1,65 @@
-//! Default application-level assembler for the complete UI surface model.
+//! Default product-composition assembler for the complete UI surface model.
 //!
 //! This type contains no concrete Mihomo, filesystem, or platform code. A
 //! host composition supplies application facades and ports; this assembler
 //! turns their results into the one contract read model consumed by Iced and
 //! Bevy.
 
-use crate::active_exit_application::ActiveExitApplication;
-use crate::configuration_application::ConfigurationApplication;
-use crate::connection_rate_application::{ConnectionRateApplication, connections_page_snapshot};
-use crate::core_application::CoreApplication;
-use crate::core_capability_application::{
+use infiltrator_application::active_exit_application::ActiveExitApplication;
+use infiltrator_application::configuration_application::ConfigurationApplication;
+use infiltrator_application::connection_rate_application::{
+    ConnectionRateApplication, connections_page_snapshot,
+};
+use infiltrator_application::core_application::CoreApplication;
+use infiltrator_application::core_capability_application::{
     CoreCapabilityApplication, CoreCapabilityGateFailure, CoreCapabilityLookup,
     CoreCapabilityRequirement, CoreCommandEffect,
 };
-use crate::dns_cache_application::DnsCacheApplication;
-use crate::dns_latency_application::DnsLatencyApplication;
-use crate::dns_leak_application::DnsLeakApplication;
-use crate::dns_query_application::DnsQueryApplication;
-use crate::dns_workbench_application::leak_report;
-use crate::doctor_application::DoctorApplication;
-use crate::language_choice::project_language;
-use crate::mrs_acceleration_application::MrsAccelerationApplication;
-use crate::mtu_application::MtuApplication;
-use crate::network_roaming_application::NetworkRoamingApplication;
-use crate::offline_startup_application::OfflineStartupApplication;
-use crate::outbound_application::OutboundApplication;
-use crate::outbound_application::preferences::OutboundUiPreferencesApplication;
-use crate::pac_application::PacApplication;
-use crate::port_conflict_application::PortConflictApplication;
-use crate::privileged_network_application::PrivilegedNetworkApplication;
-use crate::profile_aggregation_application::last_aggregation_report;
-use crate::profile_application::ProfileApplication;
-use crate::protocol_codec_application::studio_snapshot;
-use crate::reconnect_mask_application::ReconnectMaskApplication;
-use crate::resource_application::ResourceApplication;
-use crate::routing_application::RoutingApplication;
-use crate::routing_intent_application::RoutingIntentApplication;
-use crate::rule_provider_application::RuleProviderApplication;
-use crate::rule_provider_runtime_application::RuleProviderRuntimeApplication;
-use crate::rule_tracer_application::RuleTracerApplication;
-use crate::runtime_configuration_application::RuntimeConfigurationApplication;
-use crate::runtime_control_projection::RuntimeControlApplication;
-use crate::runtime_probe_settings::project_settings;
-use crate::runtime_status_application::project_runtime_status;
-use crate::script_application::ScriptApplication;
-use crate::script_export_application::ScriptExportApplication;
-use crate::service_mode_application::ServiceModeApplication;
-use crate::settings_application::SettingsApplication;
-use crate::shell_readout_application::ShellReadoutApplication;
-use crate::snapshot_application::SnapshotApplication;
-use crate::stun_probe_application::StunProbeApplication;
-use crate::subscription_quota_application::SubscriptionQuotaApplication;
-use crate::system_proxy_application::SystemProxyApplication;
-use crate::traffic_scale_application::TrafficScaleApplication;
-use crate::traffic_topology_application::TrafficTopologyApplication;
-use crate::traffic_waveform_application::TrafficWaveformApplication;
-use crate::uwp_loopback_application::UwpLoopbackApplication;
-use crate::version_application::VersionApplication;
-use crate::vpn_application::VpnServiceApplication;
+use infiltrator_application::dns_cache_application::DnsCacheApplication;
+use infiltrator_application::dns_latency_application::DnsLatencyApplication;
+use infiltrator_application::dns_leak_application::DnsLeakApplication;
+use infiltrator_application::dns_query_application::DnsQueryApplication;
+use infiltrator_application::dns_workbench_application::leak_report;
+use infiltrator_application::doctor_application::DoctorApplication;
+use infiltrator_application::language_choice::project_language;
+use infiltrator_application::mrs_acceleration_application::MrsAccelerationApplication;
+use infiltrator_application::mtu_application::MtuApplication;
+use infiltrator_application::network_roaming_application::NetworkRoamingApplication;
+use infiltrator_application::offline_startup_application::OfflineStartupApplication;
+use infiltrator_application::outbound_application::OutboundApplication;
+use infiltrator_application::outbound_application::preferences::OutboundUiPreferencesApplication;
+use infiltrator_application::pac_application::PacApplication;
+use infiltrator_application::port_conflict_application::PortConflictApplication;
+use infiltrator_application::privileged_network_application::PrivilegedNetworkApplication;
+use infiltrator_application::profile_aggregation_application::last_aggregation_report;
+use infiltrator_application::profile_application::ProfileApplication;
+use infiltrator_application::protocol_codec_application::studio_snapshot;
+use infiltrator_application::reconnect_mask_application::ReconnectMaskApplication;
+use infiltrator_application::resource_application::ResourceApplication;
+use infiltrator_application::routing_application::RoutingApplication;
+use infiltrator_application::routing_intent_application::RoutingIntentApplication;
+use infiltrator_application::rule_provider_application::RuleProviderApplication;
+use infiltrator_application::rule_provider_runtime_application::RuleProviderRuntimeApplication;
+use infiltrator_application::rule_tracer_application::RuleTracerApplication;
+use infiltrator_application::runtime_configuration_application::RuntimeConfigurationApplication;
+use infiltrator_application::runtime_control_projection::RuntimeControlApplication;
+use infiltrator_application::runtime_probe_settings::project_settings;
+use infiltrator_application::runtime_status_application::project_runtime_status;
+use infiltrator_application::script_application::ScriptApplication;
+use infiltrator_application::script_export_application::ScriptExportApplication;
+use infiltrator_application::service_mode_application::ServiceModeApplication;
+use infiltrator_application::settings_application::SettingsApplication;
+use infiltrator_application::shell_readout_application::ShellReadoutApplication;
+use infiltrator_application::snapshot_application::SnapshotApplication;
+use infiltrator_application::stun_probe_application::StunProbeApplication;
+use infiltrator_application::subscription_quota_application::SubscriptionQuotaApplication;
+use infiltrator_application::system_proxy_application::SystemProxyApplication;
+use infiltrator_application::traffic_scale_application::TrafficScaleApplication;
+use infiltrator_application::traffic_topology_application::TrafficTopologyApplication;
+use infiltrator_application::traffic_waveform_application::TrafficWaveformApplication;
+use infiltrator_application::uwp_loopback_application::UwpLoopbackApplication;
+use infiltrator_application::version_application::VersionApplication;
+use infiltrator_application::vpn_application::VpnServiceApplication;
 use infiltrator_contract::capability::CapabilitySnapshot;
 use infiltrator_contract::core_capabilities::{
     CapabilityAccess, CoreCapabilitySnapshot, CoreCapabilityStatus, CoreOperation,
@@ -117,7 +119,7 @@ mod versions;
 
 /// Application facades required to expose the page read model.
 #[derive(Clone)]
-pub struct ApplicationSurfaceReader {
+pub struct ProductSurfaceReader {
     scripts: Option<ScriptApplication>,
     script_exports: Option<ScriptExportApplication>,
     shell_readout: ShellReadoutApplication,
@@ -176,7 +178,7 @@ pub struct ApplicationSurfaceReader {
 }
 
 #[async_trait::async_trait]
-impl SurfaceReader for ApplicationSurfaceReader {
+impl SurfaceReader for ProductSurfaceReader {
     async fn read(&self) -> Result<surface_snapshot::SurfaceSnapshot, PortError> {
         let read_scope = SurfaceReadScope::from(&self.core.snapshot());
         let telemetry = self.core.read_telemetry().await;
@@ -734,5 +736,19 @@ impl SurfaceReader for ApplicationSurfaceReader {
 }
 
 #[cfg(test)]
+#[path = "surface_reader_test_support.rs"]
+mod test_support;
+#[cfg(test)]
+use self::test_support::{install_lifecycle_capabilities, test_execute_result_at_current_scope};
+
+#[cfg(test)]
 #[path = "surface_reader_test.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "surface_reader_script_tests.rs"]
+mod script_tests;
+
+#[cfg(test)]
+#[path = "surface_reader_profile_tests.rs"]
+mod profile_tests;

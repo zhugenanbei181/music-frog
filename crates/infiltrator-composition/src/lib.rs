@@ -520,6 +520,8 @@ pub mod engine_backend_factory;
 pub mod engine_capability_provider_registry;
 pub mod mihomo_engine_backend_provider;
 pub mod snapshot_restore_fixture;
+pub mod surface_reader;
+pub mod telemetry_observation_fixtures;
 
 #[cfg(test)]
 #[path = "singbox_profile_store_tests.rs"]

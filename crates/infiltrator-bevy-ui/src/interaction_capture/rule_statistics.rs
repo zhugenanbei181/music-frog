@@ -25,9 +25,9 @@ use infiltrator_application::rule_trace_fixtures::{
     RuleTraceStore, scoped_rule_trace_request, unknown_rule_trace_observation,
 };
 use infiltrator_application::rule_tracer_application::RuleTracerApplication;
-use infiltrator_application::surface_reader::ApplicationSurfaceReader;
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::modal::ModalScrim;
+use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::parity::FeatureId;
 use infiltrator_contract::rule_trace_run::{RuleTraceOperationId, RuleTraceRequest};
@@ -53,7 +53,7 @@ pub fn install(app: &mut App) {
         Arc::new(LanguageCaptureProcess),
         tokio_application_runtime().expect("isolated statistics runtime"),
     ));
-    let reader = ApplicationSurfaceReader::new(core, SurfaceKind::BevyDesktop, HostKind::Desktop)
+    let reader = ProductSurfaceReader::new(core, SurfaceKind::BevyDesktop, HostKind::Desktop)
         .with_rule_tracer(owner.clone())
         .with_configuration(super::mihomo_configuration_application(store.clone()));
     let observed = Arc::new(Mutex::new(None));

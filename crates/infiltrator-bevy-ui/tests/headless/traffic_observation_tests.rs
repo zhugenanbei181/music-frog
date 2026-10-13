@@ -16,13 +16,13 @@ use bevy::ui::widget::Text;
 use bevy::ui::{ComputedNode, ScrollPosition};
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::log_capture_fixtures::LogCaptureProcess;
-use infiltrator_application::surface_reader::ApplicationSurfaceReader;
-use infiltrator_application::telemetry_observation_fixtures::TelemetryObservationReader;
 use infiltrator_bevy_ui::app::ShellPlugin;
 use infiltrator_bevy_ui::pages::overview::{OverviewLine, OverviewLineKind, OverviewPageRoot};
 use infiltrator_bevy_ui::route::{PagesPlugin, Route, RouteChanged};
 use infiltrator_bevy_ui::surface::SurfaceSnapshotUpdated;
 use infiltrator_bevy_widgets::localization::UiLocale;
+use infiltrator_composition::surface_reader::ProductSurfaceReader;
+use infiltrator_composition::telemetry_observation_fixtures::TelemetryObservationReader;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::core_capabilities::{CoreLifecycleOperation, CoreOperation};
@@ -120,7 +120,7 @@ fn native_rates_unknown_zero_failed_stale_locale_and_new_session_follow_the_shar
         .into_unit()
         .unwrap();
     let reader =
-        ApplicationSurfaceReader::new(core.clone(), SurfaceKind::BevyDesktop, HostKind::Desktop);
+        ProductSurfaceReader::new(core.clone(), SurfaceKind::BevyDesktop, HostKind::Desktop);
     let mut app = App::new();
     headless_plugins(&mut app);
     app.add_plugins((ShellPlugin::default(), PagesPlugin::default()));

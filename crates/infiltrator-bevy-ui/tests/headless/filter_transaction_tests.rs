@@ -15,7 +15,6 @@ use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::filter_capture_store::{
     FILTER_POLICY, FILTER_PROFILE, FilterCaptureStore,
 };
-use infiltrator_application::surface_reader::ApplicationSurfaceReader;
 use infiltrator_bevy_ui::app::ShellPlugin;
 use infiltrator_bevy_ui::pages::profiles_editor_filter::{EditorFilterDiscard, EditorFilterText};
 use infiltrator_bevy_ui::pages::profiles_editor_panes::{
@@ -23,6 +22,7 @@ use infiltrator_bevy_ui::pages::profiles_editor_panes::{
 };
 use infiltrator_bevy_ui::route::{PagesPlugin, Route, RouteChanged};
 use infiltrator_bevy_ui::surface::{LatestSurfaceSnapshot, SurfaceSnapshotUpdated};
+use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::core_capabilities::{CoreOperation, ProfileOperation};
@@ -43,7 +43,7 @@ fn block_on<F: Future>(future: F) -> F::Output {
         .unwrap()
         .block_on(future)
 }
-fn publish(app: &mut App, reader: &ApplicationSurfaceReader) {
+fn publish(app: &mut App, reader: &ProductSurfaceReader) {
     let mut snapshot = block_on(reader.read()).unwrap();
     snapshot.revision = app.world().resource::<LatestSurfaceSnapshot>().0.revision + 1;
     app.world_mut().trigger(SurfaceSnapshotUpdated(snapshot));
@@ -87,7 +87,7 @@ fn wait_terminal(app: &mut App) {
         yield_now();
     }
 }
-fn setup() -> (App, ApplicationSurfaceReader, Arc<FilterCaptureStore>) {
+fn setup() -> (App, ProductSurfaceReader, Arc<FilterCaptureStore>) {
     let store = Arc::new(FilterCaptureStore::default());
     let core = Arc::new(CoreApplication::new(
         Arc::new(IdentifiedHostlessProcess),
@@ -119,7 +119,7 @@ fn setup() -> (App, ApplicationSurfaceReader, Arc<FilterCaptureStore>) {
     .into_profile_options()
     .unwrap();
     let reader =
-        ApplicationSurfaceReader::new(core.clone(), SurfaceKind::BevyDesktop, HostKind::Desktop)
+        ProductSurfaceReader::new(core.clone(), SurfaceKind::BevyDesktop, HostKind::Desktop)
             .with_profiles(profiles);
     let mut app = App::new();
     headless_plugins(&mut app);

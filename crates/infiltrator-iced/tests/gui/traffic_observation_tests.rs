@@ -10,8 +10,8 @@ use iced::advanced::widget::{Id, Operation, Tree};
 use iced::{Color, Rectangle, Size};
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::log_capture_fixtures::LogCaptureProcess;
-use infiltrator_application::surface_reader::ApplicationSurfaceReader;
-use infiltrator_application::telemetry_observation_fixtures::TelemetryObservationReader;
+use infiltrator_composition::surface_reader::ProductSurfaceReader;
+use infiltrator_composition::telemetry_observation_fixtures::TelemetryObservationReader;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
@@ -71,7 +71,7 @@ fn composed_rates_unknown_zero_failed_stale_and_new_session_are_distinct_and_uns
     run(execute_at_observed_scope(&core, CommandIntent::StartCore))
         .into_unit()
         .unwrap();
-    let reader = ApplicationSurfaceReader::new(
+    let reader = ProductSurfaceReader::new(
         Arc::new(core.clone()),
         SurfaceKind::IcedDesktop,
         HostKind::Desktop,

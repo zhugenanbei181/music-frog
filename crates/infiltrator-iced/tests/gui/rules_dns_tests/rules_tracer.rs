@@ -16,7 +16,7 @@ use infiltrator_application::rule_trace_fixtures::{
     NAMED_TRACE_DOCUMENT, RuleTraceStore, TRACE_DOCUMENT,
 };
 use infiltrator_application::rule_tracer_application::RuleTracerApplication;
-use infiltrator_application::surface_reader::ApplicationSurfaceReader;
+use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_contract::core_capabilities::{CoreOperation, RulesOperation};
 use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::rules_workspace::RulesTab;
@@ -25,7 +25,7 @@ use infiltrator_ports::surface::SurfaceReader;
 use std::sync::{Arc, atomic::Ordering};
 use tokio::runtime::Builder;
 
-pub(crate) fn setup() -> (AppState, ApplicationSurfaceReader, Arc<RuleTraceStore>) {
+pub(crate) fn setup() -> (AppState, ProductSurfaceReader, Arc<RuleTraceStore>) {
     let store = infiltrator_iced::configuration::mihomo_rule_trace_fixture();
     let owner = RuleTracerApplication::new();
     owner.set_override_port(store.clone());
@@ -42,7 +42,7 @@ pub(crate) fn setup() -> (AppState, ApplicationSurfaceReader, Arc<RuleTraceStore
         .with_profile(profiles.clone())
         .with_configuration(configuration.clone()),
     ));
-    let reader = ApplicationSurfaceReader::new(
+    let reader = ProductSurfaceReader::new(
         Arc::new(application.clone()),
         SurfaceKind::IcedDesktop,
         HostKind::Desktop,
@@ -57,7 +57,7 @@ pub(crate) fn setup() -> (AppState, ApplicationSurfaceReader, Arc<RuleTraceStore
     publish(&mut state, &reader);
     (state, reader, store)
 }
-pub(crate) fn publish(state: &mut AppState, reader: &ApplicationSurfaceReader) {
+pub(crate) fn publish(state: &mut AppState, reader: &ProductSurfaceReader) {
     let mut snapshot = Builder::new_current_thread()
         .enable_all()
         .build()
@@ -82,7 +82,7 @@ fn complete(state: &mut AppState, task: Task<Message>) {
         });
     let _ = state.update(message);
 }
-pub(crate) fn run(state: &mut AppState, reader: &ApplicationSurfaceReader) {
+pub(crate) fn run(state: &mut AppState, reader: &ProductSurfaceReader) {
     let task = state.update(Message::RunRulesTracer);
     complete(state, task);
     publish(state, reader);

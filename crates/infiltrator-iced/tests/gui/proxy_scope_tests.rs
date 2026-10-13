@@ -13,7 +13,7 @@ use crate::types::message::Message;
 use infiltrator_application::connection_grouping_fixtures::grouping_snapshot;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::log_capture_fixtures::{LogCaptureProcess, populate_logs};
-use infiltrator_application::surface_reader::ApplicationSurfaceReader;
+use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::command_output::CommandOutput;
@@ -234,7 +234,7 @@ fn composed_snapshot_retires_demo_rows_and_rejects_reads_from_the_previous_core_
     runtime.block_on(Box::pin(async move {
         populate_logs(&producing).await.unwrap();
     }));
-    let reader = ApplicationSurfaceReader::new(
+    let reader = ProductSurfaceReader::new(
         Arc::new(core.clone()),
         SurfaceKind::IcedDesktop,
         HostKind::Desktop,

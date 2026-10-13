@@ -26,8 +26,8 @@ use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::language_choice_fixtures::LanguageCaptureProcess;
 use infiltrator_application::rule_list_application::RuleListApplication;
 use infiltrator_application::rule_trace_fixtures::{RuleTraceStore, TRACE_DOCUMENT};
-use infiltrator_application::surface_reader::ApplicationSurfaceReader;
 use infiltrator_bevy_widgets::button::ButtonDisabled;
+use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::parity::FeatureId;
@@ -39,7 +39,7 @@ use std::sync::{Arc, Mutex, atomic::Ordering};
 #[derive(Resource)]
 struct CaptureList {
     store: Arc<RuleTraceStore>,
-    reader: Arc<ApplicationSurfaceReader>,
+    reader: Arc<ProductSurfaceReader>,
     stage: u8,
 }
 pub fn install(app: &mut App) {
@@ -51,7 +51,7 @@ pub fn install(app: &mut App) {
         tokio_application_runtime().expect("isolated rule-list capture"),
     ));
     let reader = Arc::new(
-        ApplicationSurfaceReader::new(core, SurfaceKind::BevyDesktop, HostKind::Desktop)
+        ProductSurfaceReader::new(core, SurfaceKind::BevyDesktop, HostKind::Desktop)
             .with_profiles(super::mihomo_profiles(store.clone()))
             .with_configuration(super::mihomo_configuration_application(store.clone())),
     );

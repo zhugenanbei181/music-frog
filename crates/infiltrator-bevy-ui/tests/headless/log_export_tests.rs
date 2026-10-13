@@ -21,7 +21,6 @@ use infiltrator_application::log_capture_fixtures::{
     LogCaptureProcess, append_follow_records, populate_logs,
 };
 use infiltrator_application::log_export_application::LogExportApplication;
-use infiltrator_application::surface_reader::ApplicationSurfaceReader;
 use infiltrator_bevy_ui::app::ShellPlugin;
 use infiltrator_bevy_ui::pages::logs::{ClearLogsButton, ExportLogsButton};
 use infiltrator_bevy_ui::pages::logs_export::{LogsExportAction, LogsExportLine, LogsExportState};
@@ -32,6 +31,7 @@ use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::modal::ModalScrim;
 use infiltrator_bevy_widgets::text_input::native::NativeTextField;
 use infiltrator_bevy_widgets::text_input::{TextField, TextFieldFocused};
+use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::core_capabilities::{CoreLifecycleOperation, CoreOperation};
@@ -154,7 +154,7 @@ fn setup(port: Arc<dyn LogExportPort>) -> (App, Arc<CoreApplication>) {
     app.world_mut().trigger(RouteChanged(Route::Logs));
     app.update();
     let reader =
-        ApplicationSurfaceReader::new(core.clone(), SurfaceKind::BevyDesktop, HostKind::Desktop);
+        ProductSurfaceReader::new(core.clone(), SurfaceKind::BevyDesktop, HostKind::Desktop);
     let snapshot = run(reader.read()).unwrap();
     app.world_mut().trigger(SurfaceSnapshotUpdated(snapshot));
     app.update();
@@ -407,7 +407,7 @@ fn native_failure_retry_pending_cancel_and_test_port_effects_remain_correlated()
         .into_unit()
         .unwrap();
     let reader =
-        ApplicationSurfaceReader::new(core.clone(), SurfaceKind::BevyDesktop, HostKind::Desktop);
+        ProductSurfaceReader::new(core.clone(), SurfaceKind::BevyDesktop, HostKind::Desktop);
     let snapshot = run(reader.read()).unwrap();
     app.world_mut().trigger(SurfaceSnapshotUpdated(snapshot));
     app.update();

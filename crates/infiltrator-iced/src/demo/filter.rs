@@ -10,7 +10,7 @@ use infiltrator_application::filter_capture_store::{
     FILTER_POLICY, FILTER_PROFILE, FilterCaptureStore,
 };
 use infiltrator_application::language_choice_fixtures::LanguageCaptureProcess;
-use infiltrator_application::surface_reader::ApplicationSurfaceReader;
+use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::parity::FeatureId;
@@ -37,7 +37,7 @@ pub(super) fn activate(state: &mut AppState) -> Task<Message> {
         .command_ingress()
         .expect("attached capture application")
         .clone();
-    let reader = ApplicationSurfaceReader::new(
+    let reader = ProductSurfaceReader::new(
         Arc::new(core.clone()),
         SurfaceKind::IcedDesktop,
         HostKind::Desktop,

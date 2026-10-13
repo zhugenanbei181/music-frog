@@ -964,8 +964,6 @@ mod source_bound_edits;
 mod engine_scope;
 #[path = "profile_application_tests/namespace.rs"]
 mod namespace;
-#[path = "profile_application_tests/quota_reader.rs"]
-mod quota_reader;
 #[path = "profile_application_tests/read_status.rs"]
 mod read_status;
 

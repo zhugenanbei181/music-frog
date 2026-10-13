@@ -5,7 +5,7 @@
 //! them without the parent file owning every helper.
 
 use super::*;
-use crate::runtime_configuration_application::RuntimeConfigurationReadout;
+use infiltrator_application::runtime_configuration_application::RuntimeConfigurationReadout;
 use infiltrator_contract::mtu::MtuNegotiationSnapshot;
 use infiltrator_ports::runtime_configuration::ObservedValue;
 

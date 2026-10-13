@@ -17,7 +17,6 @@ use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::core_capability_application::CoreCapabilityApplication;
 use infiltrator_application::dns_cache_application::DnsCacheApplication;
 use infiltrator_application::dns_cache_fixtures::{CachePortMode, IsolatedCaches};
-use infiltrator_application::surface_reader::ApplicationSurfaceReader;
 use infiltrator_bevy_ui::app::ShellPlugin;
 use infiltrator_bevy_ui::command::UiCommand;
 use infiltrator_bevy_ui::command_events::CommandExecutedEvent;
@@ -28,6 +27,7 @@ use infiltrator_bevy_ui::pages::dns_cache::{
 use infiltrator_bevy_ui::route::{PagesPlugin, Route, RouteChanged};
 use infiltrator_bevy_ui::surface::{LatestSurfaceSnapshot, SurfaceSnapshotUpdated};
 use infiltrator_bevy_widgets::localization::UiLocale;
+use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_contract::command::RequestId;
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::dns_cache::{DnsCacheOperationId, DnsFlushOutcome};
@@ -39,7 +39,7 @@ use std::sync::atomic::Ordering;
 use std::thread::yield_now;
 use std::time::{Duration, Instant};
 use tokio::runtime::Builder;
-fn setup(owner: DnsCacheApplication) -> (App, ApplicationSurfaceReader) {
+fn setup(owner: DnsCacheApplication) -> (App, ProductSurfaceReader) {
     let (application, _) = identified_recording_application();
     application.install_command_handler(Arc::new(
         CommandApplication::new()
@@ -49,7 +49,7 @@ fn setup(owner: DnsCacheApplication) -> (App, ApplicationSurfaceReader) {
             .with_dns_cache(owner.clone()),
     ));
     let application = Arc::new(application);
-    let reader = ApplicationSurfaceReader::new(
+    let reader = ProductSurfaceReader::new(
         application.clone(),
         SurfaceKind::BevyDesktop,
         HostKind::Desktop,
@@ -122,7 +122,7 @@ fn open(app: &mut App) {
     app.update();
     assert!(app.world().resource::<CacheConfirmation>().model.open);
 }
-fn publish(app: &mut App, reader: &ApplicationSurfaceReader) {
+fn publish(app: &mut App, reader: &ProductSurfaceReader) {
     let mut snapshot = Builder::new_current_thread()
         .enable_all()
         .build()

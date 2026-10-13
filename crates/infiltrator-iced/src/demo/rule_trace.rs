@@ -11,7 +11,7 @@ use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::language_choice_fixtures::LanguageCaptureProcess;
 use infiltrator_application::rule_tracer_application::RuleTracerApplication;
-use infiltrator_application::surface_reader::ApplicationSurfaceReader;
+use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::parity::FeatureId;
 use infiltrator_contract::rules_workspace::RulesTab;
@@ -34,7 +34,7 @@ pub(super) fn activate(state: &mut AppState) -> Task<Message> {
         CommandApplication::new().with_rule_tracer(owner.clone()),
     ));
     let reader = Arc::new(
-        ApplicationSurfaceReader::new(
+        ProductSurfaceReader::new(
             Arc::new(core.clone()),
             SurfaceKind::IcedDesktop,
             HostKind::Desktop,

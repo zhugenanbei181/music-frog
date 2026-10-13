@@ -11,7 +11,7 @@ use infiltrator_application::rule_trace_fixtures::{
     scoped_rule_trace_request, unknown_rule_trace_observation,
 };
 use infiltrator_application::rule_tracer_application::RuleTracerApplication;
-use infiltrator_application::surface_reader::ApplicationSurfaceReader;
+use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::parity::FeatureId;
 use infiltrator_contract::rule_trace_run::{RuleTraceOperationId, RuleTraceRequest};
@@ -34,7 +34,7 @@ pub(super) fn activate(state: &mut AppState) -> Task<Message> {
     core.install_command_handler(Arc::new(
         CommandApplication::new().with_rule_tracer(owner.clone()),
     ));
-    let reader = ApplicationSurfaceReader::new(
+    let reader = ProductSurfaceReader::new(
         Arc::new(core.clone()),
         SurfaceKind::IcedDesktop,
         HostKind::Desktop,

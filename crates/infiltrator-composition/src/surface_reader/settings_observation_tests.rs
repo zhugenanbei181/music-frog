@@ -1,7 +1,7 @@
 //! test-intent: behavior
 use super::{build_settings_page, build_sync_page};
-use crate::runtime_configuration_application::RuntimeConfigurationReadout;
-use crate::runtime_control_projection::RuntimeControlApplication;
+use infiltrator_application::runtime_configuration_application::RuntimeConfigurationReadout;
+use infiltrator_application::runtime_control_projection::RuntimeControlApplication;
 use infiltrator_contract::core_identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
 };
