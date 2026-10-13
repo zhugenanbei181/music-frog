@@ -1,8 +1,12 @@
-//! One fold from real diagnostic reports to peer-product rows and status semantics.
+//! Pure diagnostic page projection and localized copy over accepted observations.
 use chrono::{DateTime, Utc};
-use infiltrator_contract::doctor::{DoctorCheckKind, DoctorCheckMeta, DoctorReport, DoctorStatus};
+use infiltrator_contract::doctor::{
+    DoctorCheckKind, DoctorCheckMeta, DoctorObservation, DoctorReport, DoctorStatus,
+};
 use infiltrator_contract::snapshot::{CoreWatchdogSnapshot, CoreWatchdogState};
-use infiltrator_contract::surface_snapshot::{DoctorCheckSnapshot, DoctorPageSnapshot};
+use infiltrator_contract::surface_snapshot::{
+    DoctorCheckSnapshot, DoctorPageSnapshot, PageData, PageStatus,
+};
 use infiltrator_shared::i18n_interpolator::localize;
 use infiltrator_shared::locales::{Lang, Localizer};
 
@@ -89,7 +93,35 @@ pub const fn watchdog_badge(state: &CoreWatchdogState) -> (&'static str, DoctorS
     }
 }
 
-pub fn project_report(
+pub fn project_observation(
+    observation: &DoctorObservation,
+    metadata: &[DoctorCheckMeta],
+) -> PageData<DoctorPageSnapshot> {
+    let (status, report) = match observation {
+        DoctorObservation::Unobserved => (PageStatus::Empty, None),
+        DoctorObservation::Loading => (PageStatus::Loading, None),
+        DoctorObservation::LoadingWithReport(report) => (PageStatus::Loading, Some(report)),
+        DoctorObservation::Failed(failure) => (
+            PageStatus::Failed {
+                failure: failure.clone(),
+            },
+            None,
+        ),
+        DoctorObservation::FailedWithReport { report, failure } => (
+            PageStatus::Failed {
+                failure: failure.clone(),
+            },
+            Some(report),
+        ),
+        DoctorObservation::Ready(report) => (PageStatus::Ready, Some(report)),
+    };
+    PageData {
+        status,
+        data: Some(project_ready_report(report, metadata)),
+    }
+}
+
+fn project_ready_report(
     report: Option<&DoctorReport>,
     metadata: &[DoctorCheckMeta],
 ) -> DoctorPageSnapshot {
@@ -160,86 +192,5 @@ pub fn check_detail(key: Option<&str>, observed: &str, code: &str) -> String {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use infiltrator_contract::doctor::DoctorCheckResult;
-    #[test]
-    fn skipped_and_unobserved_are_never_healthy_and_external_copy_remains_opaque() {
-        assert_eq!(
-            status_counts([
-                DoctorStatus::Pass,
-                DoctorStatus::Warn,
-                DoctorStatus::Fail,
-                DoctorStatus::Skip
-            ]),
-            [1, 1, 1, 1]
-        );
-        assert_eq!(summary([], None, "en-US"), "Diagnostics have not run yet");
-        assert_eq!(
-            watchdog_badge(&CoreWatchdogState::Idle).1,
-            DoctorStatus::Skip
-        );
-        assert_eq!(
-            watchdog_badge(&CoreWatchdogState::Recovered { attempts: 1 }).1,
-            DoctorStatus::Pass
-        );
-        let report = DoctorReport {
-            started_at: 100,
-            finished_at: 200,
-            checks: vec![DoctorCheckResult {
-                id: "probe".into(),
-                category: "network".into(),
-                status: DoctorStatus::Skip,
-                summary: "reported {count}".into(),
-                detail: Some("{pass}".into()),
-                hint: Some("install permission".into()),
-            }],
-        };
-        let page = project_report(Some(&report), &[]);
-        assert!(!page.overall_healthy);
-        assert_eq!(page.report_started_at, Some(100));
-        assert_eq!(page.report_finished_at, Some(200));
-        assert_eq!(page.checks[0].state, DoctorStatus::Skip);
-        assert!(!page.checks[0].fix_available);
-        assert_eq!(
-            check_name(
-                None,
-                &page.checks[0].name,
-                &page.checks[0].category,
-                "en-US"
-            ),
-            "[network] reported {count}"
-        );
-        assert_eq!(
-            check_detail(None, &page.checks[0].detail, "en-US"),
-            "{pass}"
-        );
-        assert_eq!(page.checks[0].hint.as_deref(), Some("install permission"));
-        assert!(serde_json::from_str::<DoctorStatus>("\"unexpected\"").is_err());
-        assert_eq!(
-            serde_json::from_str::<DoctorStatus>("\"skip\"").unwrap(),
-            DoctorStatus::Skip
-        );
-        assert_eq!(
-            serde_json::from_str::<DoctorStatus>("\"warning\"").unwrap(),
-            DoctorStatus::Warn
-        );
-    }
-    #[test]
-    fn completed_empty_report_preserves_observation_and_never_claims_healthy_or_not_run() {
-        let report = DoctorReport {
-            started_at: 10,
-            finished_at: 20,
-            checks: Vec::new(),
-        };
-        let page = project_report(Some(&report), &[]);
-        assert!(!page.overall_healthy);
-        assert_eq!(page.report_finished_at, Some(20));
-        assert_eq!(
-            summary([], page.report_finished_at, "en-US"),
-            "Diagnostics completed without check results"
-        );
-        assert_eq!(summary([], None, "en-US"), "Diagnostics have not run yet");
-        assert!(!page.last_run.is_empty());
-    }
-}
+#[path = "doctor_projection_tests.rs"]
+mod tests;

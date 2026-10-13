@@ -14,6 +14,7 @@ use infiltrator_contract::capability::Capability;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
+use infiltrator_presentation::doctor_projection::project_observation;
 use std::sync::Arc;
 
 pub(super) fn activate(state: &mut AppState) -> Task<Message> {
@@ -40,7 +41,7 @@ pub(super) fn activate(state: &mut AppState) -> Task<Message> {
         HostKind::Desktop,
         Failure::new(ErrorCode::NotReady, "doctor capture is preparing", true),
     );
-    snapshot.pages.doctor = doctor.page();
+    snapshot.pages.doctor = project_observation(&doctor.observation(), &doctor.list_checks());
     attach_capture_owner_with_snapshot(state, application, snapshot);
     state.diag.doctor.capture_observation = Some(doctor);
     state.update(Message::RunDoctor)

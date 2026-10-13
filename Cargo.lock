@@ -6084,6 +6084,7 @@ dependencies = [
  "infiltrator-domain",
  "infiltrator-ios",
  "infiltrator-ports",
+ "infiltrator-presentation",
  "infiltrator-profile-store",
  "log",
  "mihomo-api",
@@ -6333,6 +6334,7 @@ dependencies = [
  "infiltrator-contract",
  "infiltrator-domain",
  "infiltrator-shared",
+ "serde_json",
  "serde_yaml_ng",
 ]
 

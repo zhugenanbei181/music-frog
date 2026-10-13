@@ -10,6 +10,7 @@ pub mod core_control_projection;
 pub mod core_status_projection;
 pub mod dns_leak_projection;
 pub mod dns_mapping_projection;
+pub mod doctor_projection;
 pub mod host_network_projection;
 pub mod logical_rule_projection;
 pub mod network_status_projection;

@@ -235,7 +235,6 @@ mod outbound_batch_tests;
 mod command_outbound_tests;
 pub mod dns_observation_projection;
 pub mod dns_status_projection;
-pub mod doctor_projection;
 pub mod latency_projection;
 pub mod rule_condition_projection;
 pub mod rule_row_projection;

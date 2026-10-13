@@ -5,7 +5,7 @@ use crate::core_capability_test_support::with_test_capabilities;
 use async_trait::async_trait;
 use futures_util::{future, poll};
 use infiltrator_contract::command::CommandIntent;
-use infiltrator_contract::doctor::{DoctorCheckResult, DoctorStatus};
+use infiltrator_contract::doctor::{DoctorCheckResult, DoctorObservation, DoctorStatus};
 use infiltrator_ports::error::PortError;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
@@ -75,29 +75,31 @@ async fn real_command_and_reader_clone_share_reports_fix_refresh_and_permission_
     let port = Arc::new(DiagnosticPort::default());
     let doctor = DoctorApplication::new(port.clone());
     let reader = doctor.clone();
-    assert_eq!(reader.page().status, PageStatus::Empty);
-    assert!(!reader.page().data.unwrap().overall_healthy);
+    assert_eq!(reader.observation(), DoctorObservation::Unobserved);
     let commands = with_test_capabilities(CommandApplication::new().with_doctor(doctor));
     commands
         .execute(CommandIntent::RunDoctorDiagnostics)
         .await
         .unwrap();
-    let first = reader.page();
-    assert_eq!(first.status, PageStatus::Ready);
-    assert_eq!(
-        first.data.as_ref().unwrap().checks[0].state,
-        DoctorStatus::Fail
-    );
-    assert!(first.data.as_ref().unwrap().checks[0].fix_available);
+    let DoctorObservation::Ready(first) = reader.observation() else {
+        panic!("ready report")
+    };
+    assert_eq!(first.checks[0].status, DoctorStatus::Fail);
     port.fail.store(true, Ordering::SeqCst);
     let failure = commands
         .execute(CommandIntent::RunDoctorDiagnostics)
         .await
         .unwrap_err();
     assert_eq!(failure.code, ErrorCode::Permission);
-    let failed = reader.page();
-    assert_eq!(failed.data, first.data);
-    assert_eq!(failed.status, PageStatus::Failed { failure });
+    let DoctorObservation::FailedWithReport {
+        report,
+        failure: observed_failure,
+    } = reader.observation()
+    else {
+        panic!("failed read retains its accepted report")
+    };
+    assert_eq!(report, first);
+    assert_eq!(observed_failure, failure);
     port.fail.store(false, Ordering::SeqCst);
     commands
         .execute(CommandIntent::RepairDoctorIssue {
@@ -105,14 +107,10 @@ async fn real_command_and_reader_clone_share_reports_fix_refresh_and_permission_
         })
         .await
         .unwrap();
-    let repaired = reader.page();
-    assert_eq!(repaired.status, PageStatus::Ready);
-    assert!(repaired.data.as_ref().unwrap().overall_healthy);
-    assert_eq!(
-        repaired.data.as_ref().unwrap().checks[0].state,
-        DoctorStatus::Pass
-    );
-    assert!(!repaired.data.as_ref().unwrap().checks[0].fix_available);
+    let DoctorObservation::Ready(repaired) = reader.observation() else {
+        panic!("repaired report")
+    };
+    assert_eq!(repaired.checks[0].status, DoctorStatus::Pass);
     assert_eq!(port.runs.load(Ordering::SeqCst), 3);
     assert_eq!(port.fixes.load(Ordering::SeqCst), 1);
 }
@@ -123,21 +121,25 @@ async fn dropping_a_pending_operation_preserves_report_and_clears_busy_with_canc
     let port = Arc::new(DiagnosticPort::default());
     let doctor = DoctorApplication::new(port.clone());
     doctor.run(None).await.unwrap();
-    let previous = doctor.page().data;
+    let DoctorObservation::Ready(previous) = doctor.observation() else {
+        panic!("initial report")
+    };
     port.blocked.store(true, Ordering::SeqCst);
     let mut request = Box::pin(doctor.run(None));
     assert!(poll!(request.as_mut()).is_pending());
-    assert_eq!(doctor.page().status, PageStatus::Loading);
-    assert_eq!(doctor.page().data, previous);
+    assert_eq!(
+        doctor.observation(),
+        DoctorObservation::LoadingWithReport(previous.clone())
+    );
     drop(request);
-    let PageStatus::Failed { failure } = doctor.page().status else {
+    let DoctorObservation::FailedWithReport { report, failure } = doctor.observation() else {
         panic!("cancel outcome")
     };
     assert_eq!(failure.code, ErrorCode::Canceled);
-    assert_eq!(doctor.page().data, previous);
+    assert_eq!(report, previous);
     port.blocked.store(false, Ordering::SeqCst);
     doctor.run(None).await.unwrap();
-    assert_eq!(doctor.page().status, PageStatus::Ready);
+    assert!(matches!(doctor.observation(), DoctorObservation::Ready(_)));
 }
 
 #[tokio::test]
@@ -145,12 +147,20 @@ async fn malformed_report_is_rejected_without_replacing_the_last_observation() {
     let port = Arc::new(DiagnosticPort::default());
     let doctor = DoctorApplication::new(port);
     doctor.run(None).await.unwrap();
-    let previous = doctor.page().data;
-    let mut malformed = doctor.observation.lock().unwrap().report.clone().unwrap();
+    let DoctorObservation::Ready(previous) = doctor.observation() else {
+        panic!("initial report")
+    };
+    let mut malformed = previous.clone();
     malformed.checks.push(malformed.checks[0].clone());
     let failure = DoctorApplication::validate_report(malformed).unwrap_err();
     assert_eq!(failure.code, ErrorCode::InvalidState);
+    let _pending = doctor.begin().unwrap();
     doctor.finish(&Err(failure.clone())).unwrap();
-    assert_eq!(doctor.page().data, previous);
-    assert_eq!(doctor.page().status, PageStatus::Failed { failure });
+    assert_eq!(
+        doctor.observation(),
+        DoctorObservation::FailedWithReport {
+            report: previous,
+            failure
+        }
+    );
 }

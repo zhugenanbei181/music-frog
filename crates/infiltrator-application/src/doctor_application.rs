@@ -1,13 +1,11 @@
 //! Doctor and bootstrap use-cases over a host-provided port.
 
-use crate::doctor_projection::project_report;
 use futures_util::lock;
 use infiltrator_contract::doctor::{
-    BootstrapReport, DoctorCheckMeta, DoctorFixReport, DoctorReport,
+    BootstrapReport, DoctorCheckMeta, DoctorFixReport, DoctorObservation, DoctorReport,
 };
 use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::error::Failure;
-use infiltrator_contract::surface_snapshot::{DoctorPageSnapshot, PageData, PageStatus};
 use infiltrator_ports::doctor::DoctorPort;
 use std::collections::HashSet;
 use std::fmt;
@@ -28,25 +26,15 @@ impl fmt::Debug for DoctorApplication {
     }
 }
 
-#[derive(Default)]
-struct DoctorObservation {
-    report: Option<DoctorReport>,
-    failure: Option<Failure>,
-    pending: bool,
-}
-
 struct PendingObservation(Arc<Mutex<DoctorObservation>>);
 impl Drop for PendingObservation {
     fn drop(&mut self) {
-        if let Ok(mut state) = self.0.lock()
-            && state.pending
-        {
-            state.pending = false;
-            state.failure = Some(Failure::new(
-                ErrorCode::Canceled,
-                "diagnostic operation was canceled",
-                true,
-            ));
+        match self.0.lock() {
+            Ok(mut state) => match state.clone().cancel() {
+                Ok(cancelled) => *state = cancelled,
+                Err(_) => {}
+            },
+            Err(_) => {}
         }
     }
 }
@@ -55,7 +43,7 @@ impl DoctorApplication {
     pub fn new(port: Arc<dyn DoctorPort>) -> Self {
         Self {
             port,
-            observation: Arc::new(Mutex::new(DoctorObservation::default())),
+            observation: Arc::new(Mutex::new(DoctorObservation::Unobserved)),
             operation: Arc::new(lock::Mutex::new(())),
         }
     }
@@ -141,45 +129,22 @@ impl DoctorApplication {
         }
     }
 
-    pub fn page(&self) -> PageData<DoctorPageSnapshot> {
-        let metadata = self.port.list_checks();
-        let observation = match self.observation.lock() {
-            Ok(observation) => observation,
-            Err(_) => return PageData::failed(Self::poisoned()),
-        };
-        let data = project_report(observation.report.as_ref(), &metadata);
-        let status = if observation.pending {
-            PageStatus::Loading
-        } else if let Some(failure) = &observation.failure {
-            PageStatus::Failed {
-                failure: failure.clone(),
-            }
-        } else if observation.report.is_some() {
-            PageStatus::Ready
-        } else {
-            PageStatus::Empty
-        };
-        PageData {
-            status,
-            data: Some(data),
+    pub fn observation(&self) -> DoctorObservation {
+        match self.observation.lock() {
+            Ok(observation) => observation.clone(),
+            Err(_) => DoctorObservation::Failed(Self::poisoned()),
         }
     }
     fn begin(&self) -> Result<PendingObservation, Failure> {
         let mut state = self.observation.lock().map_err(|_| Self::poisoned())?;
-        state.pending = true;
-        state.failure = None;
+        let next = state.begin()?;
+        *state = next;
         Ok(PendingObservation(self.observation.clone()))
     }
     fn finish(&self, result: &Result<DoctorReport, Failure>) -> Result<(), Failure> {
         let mut state = self.observation.lock().map_err(|_| Self::poisoned())?;
-        state.pending = false;
-        match result {
-            Ok(report) => {
-                state.report = Some(report.clone());
-                state.failure = None;
-            }
-            Err(failure) => state.failure = Some(failure.clone()),
-        }
+        let next = state.clone().finish(result.clone())?;
+        *state = next;
         Ok(())
     }
     fn validate_report(report: DoctorReport) -> Result<DoctorReport, Failure> {

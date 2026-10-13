@@ -13,6 +13,7 @@ use infiltrator_contract::doctor::DoctorAction;
 use infiltrator_contract::doctor::{BootstrapReport, DoctorFixReport, DoctorReport};
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_desktop::admin_client::AdminApiClient;
+use infiltrator_presentation::doctor_projection::project_observation;
 use infiltrator_shared::i18n_interpolator::localize;
 use infiltrator_shared::locales::{Lang, Localizer};
 
@@ -63,7 +64,8 @@ impl AppState {
                             let mut snapshot =
                                 self.surface.latest().expect("capture observation").clone();
                             snapshot.revision += 1;
-                            snapshot.pages.doctor = doctor.page();
+                            snapshot.pages.doctor =
+                                project_observation(&doctor.observation(), &doctor.list_checks());
                             self.apply_shared_surface_snapshot(snapshot);
                         }
                     }

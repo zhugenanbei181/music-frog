@@ -16,9 +16,6 @@ use bevy::scene::{CommandsSceneExt, Scene, bsn};
 use bevy::text::TextColor;
 use bevy::ui::widget::Text;
 use bevy::ui::{AlignItems, BorderRadius, FlexDirection, Node, UiRect, percent, px};
-use infiltrator_application::doctor_projection::{
-    check_detail, check_name, status_key, summary, watchdog_status_text,
-};
 use infiltrator_bevy_widgets::button::{ButtonDisabled, ButtonVariant};
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
@@ -26,6 +23,9 @@ use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_presentation::doctor_projection::{
+    check_detail, check_name, status_key, summary, watchdog_status_text,
+};
 use infiltrator_shared::i18n_interpolator::localize;
 use infiltrator_shared::locales::{Lang, Localizer};
 use std::collections::HashMap;

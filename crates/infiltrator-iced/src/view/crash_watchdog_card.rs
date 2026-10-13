@@ -11,7 +11,7 @@ use crate::view::theme::{FONT_MEDIUM, MONO, tokens};
 use crate::view::{svg_icons, theme};
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Element, Length, Theme};
-use infiltrator_application::doctor_projection::{watchdog_badge, watchdog_status_text};
+use infiltrator_presentation::doctor_projection::{watchdog_badge, watchdog_status_text};
 use infiltrator_shared::i18n_interpolator::localize;
 use infiltrator_shared::locales::{Lang, Localizer};
 

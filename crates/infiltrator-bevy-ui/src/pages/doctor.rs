@@ -28,7 +28,6 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Button, ScrollArea};
-use infiltrator_application::doctor_projection::{summary, watchdog_status_text};
 use infiltrator_bevy_widgets::button::{ButtonDisabled, ButtonVariant};
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
@@ -40,6 +39,7 @@ use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::doctor::{DoctorCheckKind, DoctorStatus};
 use infiltrator_contract::snapshot::CoreWatchdogSnapshot;
+use infiltrator_presentation::doctor_projection::{summary, watchdog_status_text};
 use infiltrator_shared::i18n_interpolator::localize;
 #[cfg(any(feature = "capture-tools", test))]
 use infiltrator_shared::locales::{Lang, Localizer};

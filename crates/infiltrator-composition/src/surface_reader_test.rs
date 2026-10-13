@@ -2,6 +2,7 @@
 
 use super::*;
 use async_trait::async_trait;
+use infiltrator_application::doctor_capture_fixtures::DoctorCapturePort;
 use infiltrator_contract::android_control::{
     VpnAuthorizationState, VpnOwnerCoreReadback, VpnOwnerLifecycle, VpnOwnerReadiness,
     VpnOwnerResourceFact, VpnOwnerResourceKind, VpnOwnerResourceState, VpnOwnerSnapshot,
@@ -43,6 +44,7 @@ use infiltrator_contract::service_mode::{
     ServiceModePlatform, ServiceModeSnapshot, ServiceModeState,
 };
 use infiltrator_contract::snapshot::CoreLifecycle;
+use infiltrator_contract::surface_snapshot::PageStatus;
 use infiltrator_contract::system_proxy::SystemProxyObservation;
 use infiltrator_contract::version::{
     CoreChannelStatus, CoreRelease, CoreReleaseSummary, CoreRollbackSnapshot, EngineReleaseChannel,
@@ -90,6 +92,39 @@ impl ApplicationRuntime for TestRuntime {
     fn sleep(&self, duration: Duration) -> ApplicationSleep<'_> {
         Box::pin(sleep(duration))
     }
+}
+
+#[tokio::test]
+async fn product_surface_projects_typed_doctor_observation_and_retains_report_on_failure() {
+    let doctor = DoctorApplication::new(Arc::new(DoctorCapturePort::default()));
+    let core = Arc::new(CoreApplication::new(
+        Arc::new(TestProcess),
+        Arc::new(TestReadiness),
+        Arc::new(TestRuntime),
+    ));
+    let reader = ProductSurfaceReader::new(core, SurfaceKind::BevyDesktop, HostKind::Desktop)
+        .with_doctor(doctor.clone());
+
+    let empty = reader.read().await.expect("unobserved surface read");
+    assert_eq!(empty.pages.doctor.status, PageStatus::Empty);
+
+    doctor.run(None).await.expect("first diagnostic report");
+    let ready = reader.read().await.expect("ready surface read");
+    assert_eq!(ready.pages.doctor.status, PageStatus::Ready);
+    let report = ready
+        .pages
+        .doctor
+        .data
+        .as_ref()
+        .expect("ready doctor page")
+        .clone();
+    assert_eq!(report.report_finished_at, Some(20));
+
+    let failure = doctor.run(None).await.expect_err("second run is denied");
+    assert_eq!(failure.code, ErrorCode::Permission);
+    let failed = reader.read().await.expect("failed surface read");
+    assert_eq!(failed.pages.doctor.status, PageStatus::Failed { failure });
+    assert_eq!(failed.pages.doctor.data, Some(report));
 }
 
 struct TestProcess;

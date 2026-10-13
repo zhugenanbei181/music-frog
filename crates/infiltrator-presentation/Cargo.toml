@@ -11,3 +11,6 @@ infiltrator-contract = { path = "../infiltrator-contract" }
 infiltrator-domain = { path = "../infiltrator-domain" }
 infiltrator-shared = { path = "../infiltrator-shared" }
 serde_yaml_ng.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true

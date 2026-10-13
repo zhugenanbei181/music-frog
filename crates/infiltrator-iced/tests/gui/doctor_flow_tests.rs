@@ -177,7 +177,7 @@ fn test_doctor_actions_are_noop_in_demo_mode() {
 fn test_doctor_status_badge_mapping() {
     use crate::view::components::BadgeKind;
     use crate::view::doctor::status_badge_kind;
-    use infiltrator_application::doctor_projection::status_key;
+    use infiltrator_presentation::doctor_projection::status_key;
     use infiltrator_shared::locales::{Lang, Localizer};
     assert_eq!(status_badge_kind(DoctorStatus::Pass), BadgeKind::Success);
     assert_eq!(status_badge_kind(DoctorStatus::Warn), BadgeKind::Warning);

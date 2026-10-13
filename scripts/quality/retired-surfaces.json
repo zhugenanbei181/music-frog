@@ -1540,6 +1540,34 @@
       "source_roots": [
         "crates/infiltrator-desktop/src"
       ]
+    },
+    {
+      "id": "application-doctor-projection-module",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "doctor_projection",
+      "rationale": "Doctor page and status projections are presentation-owned; application now exposes typed DoctorObservation facts.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/doctor_projection_tests.rs",
+        "crates/infiltrator-application/src/doctor_application_test.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "application-doctor-report-projection",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "project_report",
+      "rationale": "The application-owned Doctor report presenter was removed with DoctorApplication::page; pure report and typed-status folding now lives in infiltrator-presentation.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/doctor_projection_tests.rs",
+        "crates/infiltrator-composition/src/surface_reader_test.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
     }
   ]
 }
