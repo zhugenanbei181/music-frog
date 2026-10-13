@@ -10,7 +10,8 @@ pub struct Rule {
     pub rule_type: String,
     pub payload: String,
     pub proxy: String,
-    pub size: u64,
+    /// Preserve the controller's signed wire value; Mihomo can return `-1`.
+    pub size: i64,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]

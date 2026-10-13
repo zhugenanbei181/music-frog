@@ -629,6 +629,8 @@ fn test_apply_dns_patch_to_yaml() {
 
     assert_eq!(config.enable, Some(true));
     assert_eq!(config.nameserver, Some(vec!["8.8.8.8".to_string()]));
+    assert!(doc["dns"].get("default-nameserver").is_none());
+    assert!(doc["dns"].get("fallback-filter").is_none());
     assert_eq!(config.prefer_h3, Some(true));
     assert_eq!(config.cache_algorithm, Some("lru".to_string()));
     assert_eq!(config.min_ttl, Some(30));
@@ -724,6 +726,7 @@ fn test_partial_fallback_filter_preserves_unedited_subfields() {
     assert_eq!(filter.ipcidr, Some(vec!["192.168.0.0/16".to_string()]));
     assert_eq!(filter.geosite, Some(vec!["cn".to_string()]));
     assert_eq!(filter.domain_suffix, Some(vec!["example.com".to_string()]));
+    assert!(doc["dns"]["fallback-filter"].get("domain").is_none());
 }
 
 #[test]

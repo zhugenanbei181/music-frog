@@ -323,6 +323,16 @@ mod tests {
         assert_eq!(rule.size, 1234);
     }
 
+    #[test]
+    fn rule_size_preserves_the_signed_wire_sentinel() {
+        let rule: Rule = serde_json::from_str(
+            r#"{"type":"DOMAIN","payload":"example.test","proxy":"REJECT","size":-1}"#,
+        )
+        .expect("Mihomo signed rule size");
+
+        assert_eq!(rule.size, -1);
+    }
+
     // ──────────────────────────────────────────────
     // MemoryData：内存使用
     // ──────────────────────────────────────────────

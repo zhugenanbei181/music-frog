@@ -67,8 +67,10 @@ def source_fixture(root: Path, real_process_test: str) -> Path:
         "mihomo-evidence-guard.py cargo nextest run --test real_process_smoke "
         "--run-ignored only log-level: debug MIHOMO_REAL_CONTROLLER_URL "
         "MIHOMO_REAL_CONTROLLER_SECRET MIHOMO_REAL_VERSION "
-        "MIHOMO_REAL_CONFIGS_ROOT MIHOMO_REAL_PROFILE_PATH -p infiltrator-core "
-        "--test real_process_profile_smoke --run-ignored only",
+        "MIHOMO_REAL_BINARY MIHOMO_REAL_CONFIGS_ROOT MIHOMO_REAL_PROFILE_PATH -p infiltrator-core "
+        "--test real_process_profile_smoke --run-ignored only "
+        "MIHOMO_REAL_DNS_ALT_SERVER "
+        "Profile, DNS and Rules transaction apply/readback/restore",
         encoding="utf-8",
     )
     core_apply.write_text("pub trait ConfigReloader { async fn reload(&self); }", encoding="utf-8")
@@ -79,14 +81,19 @@ def source_fixture(root: Path, real_process_test: str) -> Path:
     profile_integration.write_text(
         "#[ignore = \"explicit profile smoke only\"] "
         "MIHOMO_REAL_CONTROLLER_URL MIHOMO_REAL_CONTROLLER_SECRET "
-        "MIHOMO_REAL_VERSION MIHOMO_REAL_CONFIGS_ROOT MIHOMO_REAL_PROFILE_PATH EndpointConfigReloader "
+        "MIHOMO_REAL_VERSION MIHOMO_REAL_CONFIGS_ROOT MIHOMO_REAL_PROFILE_PATH "
+        "MIHOMO_REAL_BINARY MIHOMO_REAL_DNS_ALT_SERVER EndpointConfigReloader "
         "ProfileEndpointSource MihomoProfileConfigurationTransactionAdapter "
+        "profile_dns_rules_apply_readback_and_restore_use_the_live_mihomo_transaction "
         "ProfileConfigurationTransactionPort ProfileConfigurationTransactionRequest "
         "ProfileConfigurationTransactionOutcome::Committed "
         "ProfileConfigurationTransactionOutcome::RolledBack "
         "ProfileConfigurationTransactionOutcome::RollbackFailed "
         "ProfileStore::load_active_workspace get_config log_level let restored = "
-        "restored_config",
+        "restored_config ProfileConfigurationUpdate::DnsSettings "
+        "dns_codec_readback DnsQueryPort::query core-smoke-dns-updated.test "
+        "core-smoke-dns-restored.test 192.0.2.53 ProfileConfigurationUpdate::Rules "
+        "rules_codec_readback get_rules() core-smoke-rule-apply.test",
         encoding="utf-8",
     )
     return root
@@ -157,7 +164,7 @@ class MihomoEvidenceGuardTests(unittest.TestCase):
         changed = copy.deepcopy(EVIDENCE)
         changed["assets"][0]["operations"].append("connection.list")
         self.assertTrue(
-            any("operations do not match the fifteen verified behaviors" in issue
+            any("operations do not match the seventeen verified behaviors" in issue
                 for issue in GUARD.validate_documents(changed, PRODUCT))
         )
 
@@ -247,6 +254,7 @@ class MihomoEvidenceGuardTests(unittest.TestCase):
             OutboundPort RoutingIntentPort
             stream_logs_events StreamEvent::Connected
             CoreGarbageCollection.Trigger only when log-level is debug at process startup
+            DnsSettingsPatch
             MIHOMO_REAL_CONTROLLER_URL MIHOMO_REAL_CONTROLLER_SECRET MIHOMO_REAL_VERSION
         """
         with tempfile.TemporaryDirectory() as directory:

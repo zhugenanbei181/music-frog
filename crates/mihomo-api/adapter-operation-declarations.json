@@ -48,8 +48,8 @@
         "operation": "apply_configuration"
       },
       "support": {
-        "status": "evidence_open",
-        "reason": "ApplyDnsSettings is composed with ConfigurationApplication and ManagedRuntime, but no real Mihomo run for this operation is registered in the evidence lock."
+        "status": "supported",
+        "evidence_id": "dns.apply_configuration"
       }
     },
     {
@@ -108,8 +108,8 @@
         "operation": "apply"
       },
       "support": {
-        "status": "evidence_open",
-        "reason": "Rule edit commands use ConfigurationApplication and ManagedRuntime, but no real Mihomo run for this operation is registered in the evidence lock."
+        "status": "supported",
+        "evidence_id": "rules.apply"
       }
     },
     {

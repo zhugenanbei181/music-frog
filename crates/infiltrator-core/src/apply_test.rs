@@ -699,6 +699,14 @@ fn apply_error_port_mapping_preserves_typed_failure_classes() {
             ErrorCode::InvalidState,
             CoreApplyFailureKind::Lifecycle,
         ),
+        (
+            ApplyError::ReloadAndRestartFailed {
+                reload: "reload rejected".into(),
+                restart: "start rejected".into(),
+            },
+            ErrorCode::InvalidState,
+            CoreApplyFailureKind::Lifecycle,
+        ),
     ];
     for (error, expected_code, expected_kind) in cases {
         let failure = failure_from_apply_error(error);
@@ -1005,6 +1013,31 @@ async fn reload_failure_falls_back_to_restart() {
     assert_ne!(outcome.session_token, old_session);
     assert_eq!(file_content(&f.config).await, NEW);
     assert_eq!(f.reloader.calls.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn reload_and_restart_failure_preserve_both_causes_through_rollback() {
+    let f = fixture(0, true).await;
+    start_ready(&f).await;
+    f.controller.fail_starts_left.store(1, Ordering::SeqCst);
+
+    let error = apply_to_selected_reference(
+        &f.session,
+        &f.config,
+        &f.reloader,
+        NEW,
+        params(ApplyStrategy::PreferReload),
+    )
+    .await
+    .expect_err("the injected reload and restart failures must roll back");
+
+    let ApplyError::RolledBack { cause } = error else {
+        panic!("the previous profile should be restored, got {error:?}")
+    };
+    assert!(cause.contains("reload rejected"), "{cause}");
+    assert!(cause.contains("start rejected"), "{cause}");
+    assert_eq!(file_content(&f.config).await, OLD);
+    assert_eq!(f.session.lifecycle(), CoreLifecycle::Ready);
 }
 
 #[tokio::test]

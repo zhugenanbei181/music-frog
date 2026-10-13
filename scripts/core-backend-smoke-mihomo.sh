@@ -169,11 +169,12 @@ mkdir -m 700 -p "$profile_config_dir"
 profile_path="$profile_config_dir/profile.yaml"
 probe_server_port_file="$run_dir/probe-server-port"
 dns_server_port_file="$run_dir/dns-server-port"
+dns_alt_server_port_file="$run_dir/dns-alt-server-port"
 active_proxy_ready_file="$run_dir/active-proxy-ready"
 active_proxy_closed_file="$run_dir/active-proxy-closed"
 rule_provider_update_signal_file="$run_dir/rule-provider-update-enabled"
 
-python3 - "$probe_server_port_file" "$dns_server_port_file" "$active_proxy_ready_file" "$active_proxy_closed_file" "$rule_provider_update_signal_file" >"$run_dir/probe-server.log" 2>&1 <<'PY' &
+python3 - "$probe_server_port_file" "$dns_server_port_file" "$dns_alt_server_port_file" "$active_proxy_ready_file" "$active_proxy_closed_file" "$rule_provider_update_signal_file" >"$run_dir/probe-server.log" 2>&1 <<'PY' &
 import os
 import socket
 import socketserver
@@ -185,9 +186,10 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 port_file = sys.argv[1]
 dns_port_file = sys.argv[2]
-active_proxy_ready_file = sys.argv[3]
-active_proxy_closed_file = sys.argv[4]
-rule_provider_update_signal_file = sys.argv[5]
+dns_alt_port_file = sys.argv[3]
+active_proxy_ready_file = sys.argv[4]
+active_proxy_closed_file = sys.argv[5]
+rule_provider_update_signal_file = sys.argv[6]
 
 class ProbeDnsHandler(socketserver.BaseRequestHandler):
     def handle(self):
@@ -213,18 +215,33 @@ class ProbeDnsHandler(socketserver.BaseRequestHandler):
         if ".".join(labels).casefold() not in {
             "core-smoke.test",
             "core-smoke-active.test",
+            "core-smoke-dns-updated.test",
+            "core-smoke-dns-restored.test",
         } or qtype != 1 or qclass != 1:
             return
         request_flags = struct.unpack_from(">H", packet, 2)[0]
         response_flags = 0x8000 | (request_flags & 0x0100) | 0x0080
         header = packet[:2] + struct.pack(">HHHHH", response_flags, 1, 1, 0, 0)
-        answer = b"\xc0\x0c" + struct.pack(">HHIH", 1, 1, 60, 4) + socket.inet_aton("192.0.2.42")
+        answer = (
+            b"\xc0\x0c"
+            + struct.pack(">HHIH", 1, 1, 60, 4)
+            + socket.inet_aton(self.server.answer_ip)
+        )
         self.request[1].sendto(header + question + answer, self.client_address)
 
-dns_server = socketserver.ThreadingUDPServer(("127.0.0.1", 0), ProbeDnsHandler)
+class ProbeDnsServer(socketserver.ThreadingUDPServer):
+    def __init__(self, answer_ip):
+        self.answer_ip = answer_ip
+        super().__init__(("127.0.0.1", 0), ProbeDnsHandler)
+
+dns_server = ProbeDnsServer("192.0.2.42")
 with open(dns_port_file, "w", encoding="utf-8") as destination:
     destination.write(str(dns_server.server_address[1]))
 threading.Thread(target=dns_server.serve_forever, daemon=True).start()
+dns_alt_server = ProbeDnsServer("192.0.2.53")
+with open(dns_alt_port_file, "w", encoding="utf-8") as destination:
+    destination.write(str(dns_alt_server.server_address[1]))
+threading.Thread(target=dns_alt_server.serve_forever, daemon=True).start()
 
 class ProbeProxyHandler(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -307,12 +324,22 @@ if [[ ! -s "$dns_server_port_file" ]]; then
     exit 1
 fi
 dns_server_port="$(cat "$dns_server_port_file")"
+if [[ ! -s "$dns_alt_server_port_file" ]]; then
+    cat "$run_dir/probe-server.log" >&2
+    printf '[FAIL] alternate loopback DNS server did not report its port\n' >&2
+    exit 1
+fi
+dns_alt_server_port="$(cat "$dns_alt_server_port_file")"
 if [[ ! "$probe_server_port" =~ ^[0-9]+$ ]]; then
     printf '[FAIL] loopback probe server reported an invalid port\n' >&2
     exit 1
 fi
 if [[ ! "$dns_server_port" =~ ^[0-9]+$ ]]; then
     printf '[FAIL] loopback DNS server reported an invalid port\n' >&2
+    exit 1
+fi
+if [[ ! "$dns_alt_server_port" =~ ^[0-9]+$ ]]; then
+    printf '[FAIL] alternate loopback DNS server reported an invalid port\n' >&2
     exit 1
 fi
 
@@ -655,14 +682,31 @@ if ! env -u INFILTRATOR_CONFIGS_DIR \
     MIHOMO_REAL_CONTROLLER_URL="$base_url" \
     MIHOMO_REAL_CONTROLLER_SECRET="$controller_secret" \
     MIHOMO_REAL_VERSION="$expected_version" \
+    MIHOMO_REAL_BINARY="$binary_path" \
     MIHOMO_REAL_CONFIGS_ROOT="$configs_root" \
     MIHOMO_REAL_PROFILE_PATH="$profile_path" \
+    MIHOMO_REAL_DNS_ALT_SERVER="127.0.0.1:$dns_alt_server_port" \
     cargo nextest run --offline --locked -p infiltrator-core \
         --test real_process_profile_smoke --run-ignored only; then
     printf '[FAIL] Rust Profile transaction smoke failed for %s\n' "$expected_version" >&2
+    python3 - "$run_dir/core.log" <<'PY' >&2
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as source:
+    diagnostics = [
+        line.rstrip()
+        for line in source
+        if "level=error" in line.casefold() or "level=warning" in line.casefold()
+    ]
+for line in diagnostics:
+    if "secret" in line.casefold() or "token" in line.casefold():
+        print("[REDACTED] Mihomo diagnostic contained secret material")
+    else:
+        print(line)
+PY
     exit 1
 fi
-printf '[PASS] Rust Profile transaction apply/readback/restore drove %s\n' \
+printf '[PASS] Rust Profile, DNS and Rules transaction apply/readback/restore drove %s\n' \
     "$expected_version"
 
 reload_body="$(python3 - "$profile_path" <<'PY'
@@ -863,7 +907,7 @@ PY
 }
 printf '[PASS] /connections read: %s; counters observed\n' "$connection_summary"
 
-printf '[NOT COVERED] Logs.Read/Clear, TUN/VPN, DNS cache contents, Fake-IP cache readback, GC memory effect readback, rules trace/apply, proxy providers/healthcheck, Connection.List, non-Linux hosts\n'
+printf '[NOT COVERED] Logs.Read/Clear, TUN/VPN, DNS cache contents, Fake-IP cache readback, GC memory effect readback, rules trace, proxy providers/healthcheck, Connection.List, non-Linux hosts\n'
 
 if ! cleanup_active_processes; then
     exit 1

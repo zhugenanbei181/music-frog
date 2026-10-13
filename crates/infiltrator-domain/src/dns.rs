@@ -621,7 +621,8 @@ fn apply_dns_config(doc: &mut Value, config: &DnsConfig) -> Result<()> {
         preserved.remove(declared_key);
     }
     if !config.is_empty() {
-        let encoded = serde_yaml_ng::to_value(config).context("encode dns config")?;
+        let mut encoded = serde_yaml_ng::to_value(config).context("encode dns config")?;
+        remove_absent_option_values(&mut encoded);
         preserved.extend(
             encoded
                 .as_mapping()
@@ -635,6 +636,28 @@ fn apply_dns_config(doc: &mut Value, config: &DnsConfig) -> Result<()> {
         map.insert(key, Value::Mapping(preserved));
     }
     Ok(())
+}
+
+fn remove_absent_option_values(value: &mut Value) {
+    match value {
+        Value::Mapping(mapping) => {
+            let mut retained = Mapping::new();
+            for (key, mut child) in std::mem::take(mapping) {
+                remove_absent_option_values(&mut child);
+                if !matches!(child, Value::Null) {
+                    retained.insert(key, child);
+                }
+            }
+            *mapping = retained;
+        }
+        Value::Sequence(sequence) => {
+            for child in sequence {
+                remove_absent_option_values(child);
+            }
+        }
+        Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => {}
+        _ => {}
+    }
 }
 
 /// Comprehensive DNS topology auditor and validator.

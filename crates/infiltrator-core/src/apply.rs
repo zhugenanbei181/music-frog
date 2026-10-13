@@ -135,6 +135,8 @@ pub enum ApplyError {
     RolledBack { cause: String },
     #[error("apply failed ({cause}) and rollback failed as well; core is down: {rollback}")]
     RollbackFailed { cause: String, rollback: String },
+    #[error("hot reload failed ({reload}) and restart recovery failed ({restart})")]
+    ReloadAndRestartFailed { reload: String, restart: String },
     #[error("core lifecycle failed: {0}")]
     Lifecycle(String),
 }
@@ -195,7 +197,7 @@ pub fn failure_from_apply_error(error: ApplyError) -> Failure {
             false,
             FailureReason::CoreApplyFailure(CoreApplyFailureKind::RollbackFailed),
         ),
-        ApplyError::Lifecycle(_) => (
+        ApplyError::Lifecycle(_) | ApplyError::ReloadAndRestartFailed { .. } => (
             ErrorCode::InvalidState,
             false,
             FailureReason::CoreApplyFailure(CoreApplyFailureKind::Lifecycle),
@@ -358,7 +360,13 @@ pub(crate) async fn apply_prepared_strategy<C: CoreLifecyclePort + ?Sized>(
                 Ok(outcome) => Ok(outcome),
                 Err(cause) => {
                     log::warn!("hot reload failed, restarting: {cause}");
-                    restart_and_check(session, params).await
+                    match restart_and_check(session, params).await {
+                        Ok(outcome) => Ok(outcome),
+                        Err(restart) => Err(ApplyError::ReloadAndRestartFailed {
+                            reload: cause,
+                            restart: restart.to_string(),
+                        }),
+                    }
                 }
             }
         }

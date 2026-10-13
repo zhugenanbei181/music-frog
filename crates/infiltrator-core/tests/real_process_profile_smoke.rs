@@ -3,9 +3,9 @@
 //! This test is deliberately ignored in ordinary nextest runs. The smoke
 //! harness starts an exact SHA-locked Mihomo binary and supplies its active
 //! profile path and controller credentials. The smoke drives
-//! `MihomoProfileConfigurationTransactionAdapter` directly, including live
-//! reload, exact workspace readback, and typed terminal outcomes. It does not
-//! assert the product capability matrix or composition wiring.
+//! `MihomoProfileConfigurationTransactionAdapter` directly, including typed
+//! DNS settings, live reload, exact workspace readback, and terminal outcomes.
+//! It does not assert product capability matrix or composition wiring.
 
 use async_trait::async_trait;
 use infiltrator_contract::active_profile_reference::{
@@ -14,13 +14,17 @@ use infiltrator_contract::active_profile_reference::{
 };
 use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_identity::{CoreIdentity, CoreInstanceId, CoreVersion, EngineId};
+use infiltrator_contract::dns::DnsSettingsPatch;
+use infiltrator_contract::dns_query::{DnsQueryRequest, DnsRecordType};
 use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_contract::session::SessionToken;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_core::apply::{ConfigReloader, EndpointConfigReloader};
 use infiltrator_core::profile_configuration_transaction::MihomoProfileConfigurationTransactionAdapter;
 use infiltrator_domain::apply::ApplyStrategy;
+use infiltrator_domain::rules::RuleEntry;
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
+use infiltrator_ports::dns_query::DnsQueryPort;
 use infiltrator_ports::endpoint::EndpointSource;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_configuration_transaction::{
@@ -29,7 +33,10 @@ use infiltrator_ports::profile_configuration_transaction::{
     ProfileConfigurationTransactionRequest, ProfileConfigurationTransactionScope,
     UnavailableProfileConfigurationCandidateValidator,
 };
-use infiltrator_ports::profile_document_codec::ProfileDocumentCodecPort;
+use infiltrator_ports::profile_document_codec::{
+    ProfileConfigurationQuery, ProfileConfigurationReadout, ProfileConfigurationUpdate,
+    ProfileDocumentCodecPort,
+};
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::profile_workspace::{
     ProfileWorkspace, ProfileWorkspacePurpose, ProfileWorkspaceUpdate,
@@ -42,6 +49,7 @@ use mihomo_config::profile_document_codec::MihomoProfileDocumentCodec;
 use std::collections::HashMap;
 use std::env;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::fs;
@@ -187,30 +195,66 @@ fn workspace_update(
     }
 }
 
-fn require_committed(outcome: ProfileConfigurationTransactionOutcome) -> ProfileWorkspace {
+fn native_check_candidate(
+    binary: &str,
+    data_dir: &Path,
+    filename: &str,
+    document_bytes: &[u8],
+    controller_secret: &str,
+) {
+    let candidate_path = data_dir.join(filename);
+    std::fs::write(&candidate_path, document_bytes)
+        .expect("write isolated profile candidate for native validation");
+    let native_check = Command::new(binary)
+        .arg("-t")
+        .arg("-d")
+        .arg(data_dir)
+        .arg("-f")
+        .arg(&candidate_path)
+        .output()
+        .expect("run the exact locked Mihomo native config check");
+    let _ = std::fs::remove_file(&candidate_path);
+    let native_stdout = String::from_utf8_lossy(&native_check.stdout);
+    let native_stderr = String::from_utf8_lossy(&native_check.stderr);
+    assert!(
+        native_check.status.success(),
+        "Mihomo native check rejected typed candidate ({}): stdout={} stderr={}",
+        native_check.status,
+        native_stdout.replace(controller_secret, "[redacted]"),
+        native_stderr.replace(controller_secret, "[redacted]")
+    );
+}
+
+fn require_committed(
+    context: &str,
+    outcome: ProfileConfigurationTransactionOutcome,
+) -> ProfileWorkspace {
     match outcome {
         ProfileConfigurationTransactionOutcome::Committed {
             workspace,
             effect: ProfileConfigurationCommitEffect::AppliedToRunningCore,
         } => workspace,
         ProfileConfigurationTransactionOutcome::Committed { effect, .. } => {
-            panic!("real-process smoke expected a live apply, got {effect:?}")
+            panic!("{context}: expected a live apply, got {effect:?}")
         }
         ProfileConfigurationTransactionOutcome::RolledBack { cause, .. } => {
-            panic!("Mihomo transaction rolled back: {cause:?}")
+            panic!("{context}: Mihomo transaction rolled back: {cause:?}")
         }
         ProfileConfigurationTransactionOutcome::RollbackFailed { cause, rollback } => {
-            panic!("Mihomo transaction rollback failed: cause={cause:?}, rollback={rollback:?}")
+            panic!(
+                "{context}: Mihomo transaction rollback failed: cause={cause:?}, rollback={rollback:?}"
+            )
         }
     }
 }
 
 #[tokio::test]
 #[ignore = "requires the explicit SHA-locked Mihomo real-process smoke"]
-async fn profile_apply_readback_and_restore_use_the_live_mihomo_transaction() {
+async fn profile_dns_rules_apply_readback_and_restore_use_the_live_mihomo_transaction() {
     let controller_url = required_environment("MIHOMO_REAL_CONTROLLER_URL");
     let controller_secret = required_environment("MIHOMO_REAL_CONTROLLER_SECRET");
     let expected_version = required_environment("MIHOMO_REAL_VERSION");
+    let mihomo_binary = required_environment("MIHOMO_REAL_BINARY");
     let configs_root = PathBuf::from(required_environment("MIHOMO_REAL_CONFIGS_ROOT"));
     let profile_path = PathBuf::from(required_environment("MIHOMO_REAL_PROFILE_PATH"));
     let (profile_name, config_directory) = profile_name_and_directory(&profile_path);
@@ -302,7 +346,7 @@ async fn profile_apply_readback_and_restore_use_the_live_mihomo_transaction() {
             "the real-process smoke exercises the running-controller validation path",
         ));
     let transaction = MihomoProfileConfigurationTransactionAdapter::new(
-        codec,
+        Arc::clone(&codec),
         stopped_validator,
         session,
         config.clone(),
@@ -325,6 +369,19 @@ async fn profile_apply_readback_and_restore_use_the_live_mihomo_transaction() {
         .expect("read initial controller config");
     assert_eq!(initial_config.mode, "rule");
     assert_eq!(initial_config.log_level, "debug");
+    let ProfileConfigurationReadout::Dns(original_dns) = codec
+        .read_configuration(
+            &before.document.identity,
+            &before.document.raw_bytes,
+            ProfileConfigurationQuery::Dns,
+        )
+        .expect("read original typed Mihomo DNS profile config")
+    else {
+        panic!("Mihomo DNS query returned a non-DNS typed readout")
+    };
+    let original_runtime_dns_nameservers = original_dns
+        .nameserver
+        .expect("smoke profile has configured nameservers");
     assert_eq!(
         fs::canonicalize(
             config
@@ -360,7 +417,7 @@ async fn profile_apply_readback_and_restore_use_the_live_mihomo_transaction() {
         })
         .await
         .expect("pre-write checks accept the active workspace candidate");
-    let changed = require_committed(changed);
+    let changed = require_committed("log-level change", changed);
     assert_eq!(changed.document.utf8_text().unwrap(), changed_text);
     assert_eq!(changed.sidecar_bytes, before.sidecar_bytes);
     assert_eq!(
@@ -387,7 +444,7 @@ async fn profile_apply_readback_and_restore_use_the_live_mihomo_transaction() {
         })
         .await
         .expect("pre-write checks accept the original workspace fixture");
-    let restored = require_committed(restored);
+    let restored = require_committed("log-level restore", restored);
     assert_eq!(restored.document.raw_bytes, before.document.raw_bytes);
     assert_eq!(restored.sidecar_bytes, before.sidecar_bytes);
     assert_eq!(
@@ -402,4 +459,214 @@ async fn profile_apply_readback_and_restore_use_the_live_mihomo_transaction() {
         .expect("read controller config after fixture restore");
     assert_eq!(restored_config.mode, "rule");
     assert_eq!(restored_config.log_level, "debug");
+
+    let dns_before = ProfileStore::load_active_workspace(config.engine_profile_store())
+        .await
+        .expect("read the original workspace before typed DNS apply");
+    let dns_reference =
+        match ProfileStore::read_active_profile_reference(config.engine_profile_store())
+            .await
+            .expect("read active selection before DNS transaction")
+        {
+            ActiveProfileReferenceState::Selected(reference) => reference,
+            ActiveProfileReferenceState::Unselected { .. } => {
+                panic!("real-process DNS smoke requires a selected profile")
+            }
+        };
+    let updated_nameservers = vec![required_environment("MIHOMO_REAL_DNS_ALT_SERVER")];
+    let dns_mutation = codec
+        .apply_configuration(
+            &dns_before.document.identity,
+            &dns_before.document.raw_bytes,
+            ProfileConfigurationUpdate::DnsSettings(DnsSettingsPatch {
+                nameserver: Some(updated_nameservers.clone()),
+                ..Default::default()
+            }),
+        )
+        .expect("apply the shared typed DnsSettingsPatch through Mihomo codec");
+    let ProfileConfigurationReadout::Dns(dns_codec_readback) = dns_mutation.readback else {
+        panic!("Mihomo DNS patch returned a non-DNS typed readback")
+    };
+    assert_eq!(
+        dns_codec_readback.nameserver.as_deref(),
+        Some(updated_nameservers.as_slice())
+    );
+    native_check_candidate(
+        &mihomo_binary,
+        config.config_dir(),
+        "core-smoke-dns-candidate.yaml",
+        &dns_mutation.document_bytes,
+        &controller_secret,
+    );
+    let dns_applied = transaction
+        .transact(ProfileConfigurationTransactionRequest {
+            expected_reference: dns_reference.clone(),
+            expected: dns_before.identity(),
+            update: workspace_update(&dns_before, dns_mutation.document_bytes),
+            authorization: ActiveProfileReferenceWriteAuthorization::Unowned,
+            strategy: ApplyStrategy::PreferReload,
+        })
+        .await
+        .expect("apply typed DNS profile update through the live Mihomo transaction");
+    let dns_applied = require_committed("typed DNS apply", dns_applied);
+    assert_eq!(
+        ProfileStore::load_active_workspace(config.engine_profile_store())
+            .await
+            .expect("read back the DNS-updated workspace"),
+        dns_applied
+    );
+    let dns_runtime_readback = DnsQueryPort::query(
+        &client,
+        &DnsQueryRequest {
+            name: "core-smoke-dns-updated.test".to_owned(),
+            record_type: DnsRecordType::A,
+        },
+    )
+    .await
+    .expect("query through the updated live Mihomo DNS nameserver");
+    assert!(dns_runtime_readback.answers.iter().any(|answer| {
+        answer.record_type == DnsRecordType::A.number() && answer.data == "192.0.2.53"
+    }));
+
+    let dns_restored = transaction
+        .transact(ProfileConfigurationTransactionRequest {
+            expected_reference: dns_reference,
+            expected: dns_applied.identity(),
+            update: workspace_update(&dns_applied, dns_before.document.raw_bytes.clone()),
+            authorization: ActiveProfileReferenceWriteAuthorization::Unowned,
+            strategy: ApplyStrategy::PreferReload,
+        })
+        .await
+        .expect("restore exact original workspace after DNS conformance");
+    let dns_restored = require_committed("typed DNS restore", dns_restored);
+    assert_eq!(
+        dns_restored.document.raw_bytes,
+        dns_before.document.raw_bytes
+    );
+    assert_eq!(
+        ProfileStore::load_active_workspace(config.engine_profile_store())
+            .await
+            .expect("read restored original DNS workspace"),
+        dns_restored
+    );
+    let restored_dns = DnsQueryPort::query(
+        &client,
+        &DnsQueryRequest {
+            name: "core-smoke-dns-restored.test".to_owned(),
+            record_type: DnsRecordType::A,
+        },
+    )
+    .await
+    .expect("query through the restored live Mihomo DNS nameserver");
+    assert!(!original_runtime_dns_nameservers.is_empty());
+    assert!(restored_dns.answers.iter().any(|answer| {
+        answer.record_type == DnsRecordType::A.number() && answer.data == "192.0.2.42"
+    }));
+
+    let rules_before = ProfileStore::load_active_workspace(config.engine_profile_store())
+        .await
+        .expect("read the original workspace before typed rule apply");
+    let rules_reference =
+        match ProfileStore::read_active_profile_reference(config.engine_profile_store())
+            .await
+            .expect("read active selection before rule transaction")
+        {
+            ActiveProfileReferenceState::Selected(reference) => reference,
+            ActiveProfileReferenceState::Unselected { .. } => {
+                panic!("real-process rule smoke requires a selected profile")
+            }
+        };
+    let ProfileConfigurationReadout::Rules(original_rules) = codec
+        .read_configuration(
+            &rules_before.document.identity,
+            &rules_before.document.raw_bytes,
+            ProfileConfigurationQuery::Rules,
+        )
+        .expect("read original typed Mihomo rules")
+    else {
+        panic!("Mihomo rules query returned a non-rules typed readout")
+    };
+    let new_rule = "DOMAIN,core-smoke-rule-apply.test,REJECT";
+    let mut updated_rules = original_rules.clone();
+    updated_rules.push(RuleEntry {
+        rule: new_rule.to_owned(),
+        enabled: true,
+    });
+    let rules_mutation = codec
+        .apply_configuration(
+            &rules_before.document.identity,
+            &rules_before.document.raw_bytes,
+            ProfileConfigurationUpdate::Rules(updated_rules),
+        )
+        .expect("apply typed Mihomo rules update through profile codec");
+    let ProfileConfigurationReadout::Rules(rules_codec_readback) = rules_mutation.readback else {
+        panic!("Mihomo rules patch returned a non-rules typed readback")
+    };
+    assert!(
+        rules_codec_readback
+            .iter()
+            .any(|entry| entry.rule == new_rule)
+    );
+    native_check_candidate(
+        &mihomo_binary,
+        config.config_dir(),
+        "core-smoke-rules-candidate.yaml",
+        &rules_mutation.document_bytes,
+        &controller_secret,
+    );
+    let rules_applied = transaction
+        .transact(ProfileConfigurationTransactionRequest {
+            expected_reference: rules_reference.clone(),
+            expected: rules_before.identity(),
+            update: workspace_update(&rules_before, rules_mutation.document_bytes),
+            authorization: ActiveProfileReferenceWriteAuthorization::Unowned,
+            strategy: ApplyStrategy::PreferReload,
+        })
+        .await
+        .expect("apply typed rule profile update through the live Mihomo transaction");
+    let rules_applied = require_committed("typed rules apply", rules_applied);
+    assert_eq!(
+        ProfileStore::load_active_workspace(config.engine_profile_store())
+            .await
+            .expect("read back the rule-updated workspace"),
+        rules_applied
+    );
+    let live_rules = client
+        .get_rules()
+        .await
+        .expect("read live Mihomo rules after ApplyConfiguration");
+    assert!(live_rules.iter().any(|rule| {
+        rule.rule_type == "Domain"
+            && rule.payload == "core-smoke-rule-apply.test"
+            && rule.proxy == "REJECT"
+    }));
+
+    let rules_restored = transaction
+        .transact(ProfileConfigurationTransactionRequest {
+            expected_reference: rules_reference,
+            expected: rules_applied.identity(),
+            update: workspace_update(&rules_applied, rules_before.document.raw_bytes.clone()),
+            authorization: ActiveProfileReferenceWriteAuthorization::Unowned,
+            strategy: ApplyStrategy::PreferReload,
+        })
+        .await
+        .expect("restore exact original workspace after rule conformance");
+    let rules_restored = require_committed("typed rules restore", rules_restored);
+    assert_eq!(
+        rules_restored.document.raw_bytes,
+        rules_before.document.raw_bytes
+    );
+    assert_eq!(
+        ProfileStore::load_active_workspace(config.engine_profile_store())
+            .await
+            .expect("read restored original rule workspace"),
+        rules_restored
+    );
+    let restored_rules = client
+        .get_rules()
+        .await
+        .expect("read Mihomo rules after rule restore");
+    assert!(!restored_rules.iter().any(|rule| {
+        rule.rule_type == "Domain" && rule.payload == "core-smoke-rule-apply.test"
+    }));
 }

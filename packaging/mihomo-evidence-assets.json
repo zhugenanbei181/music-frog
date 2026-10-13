@@ -14,7 +14,9 @@
       "operations": [
         "profile.validate",
         "profile.apply",
+        "dns.apply_configuration",
         "dns.query",
+        "rules.apply",
         "connection.close",
         "fake_ip_cache.flush",
         "provider.list_rule",
@@ -41,7 +43,9 @@
       "operations": [
         "profile.validate",
         "profile.apply",
+        "dns.apply_configuration",
         "dns.query",
+        "rules.apply",
         "connection.close",
         "fake_ip_cache.flush",
         "provider.list_rule",

@@ -29,7 +29,9 @@ REQUIRED_VERSIONS = {"v1.19.18", "v1.19.32"}
 REQUIRED_OPERATIONS = (
     "profile.validate",
     "profile.apply",
+    "dns.apply_configuration",
     "dns.query",
+    "rules.apply",
     "connection.close",
     "fake_ip_cache.flush",
     "provider.list_rule",
@@ -105,7 +107,7 @@ def validate_documents(evidence: object, product: object) -> list[str]:
                 problems.append(f"{where} has an invalid {digest_key}")
         operations = asset.get("operations")
         if not isinstance(operations, list) or tuple(operations) != REQUIRED_OPERATIONS:
-            problems.append(f"{where} operations do not match the fifteen verified behaviors")
+            problems.append(f"{where} operations do not match the seventeen verified behaviors")
 
     if set(assets_by_version) != REQUIRED_VERSIONS:
         problems.append(
@@ -248,6 +250,10 @@ def source_problems(repo_root: Path) -> list[str]:
     for required in ("cargo nextest run", "--test real_process_smoke", "--run-ignored only"):
         if required not in smoke:
             problems.append(f"{smoke_path}: explicit Rust adapter smoke must use `{required}`")
+    if "Profile, DNS and Rules transaction apply/readback/restore" not in smoke:
+        problems.append(
+            f"{smoke_path}: real-process Profile smoke must exercise typed DNS and Rules apply/readback/restore"
+        )
     for required in (
         "MIHOMO_REAL_CONTROLLER_URL",
         "MIHOMO_REAL_CONTROLLER_SECRET",
@@ -279,11 +285,14 @@ def source_problems(repo_root: Path) -> list[str]:
         "MIHOMO_REAL_CONTROLLER_URL",
         "MIHOMO_REAL_CONTROLLER_SECRET",
         "MIHOMO_REAL_VERSION",
+        "MIHOMO_REAL_BINARY",
         "MIHOMO_REAL_CONFIGS_ROOT",
         "MIHOMO_REAL_PROFILE_PATH",
+        "MIHOMO_REAL_DNS_ALT_SERVER",
         "EndpointConfigReloader",
         "ProfileEndpointSource",
         "MihomoProfileConfigurationTransactionAdapter",
+        "profile_dns_rules_apply_readback_and_restore_use_the_live_mihomo_transaction",
         "ProfileConfigurationTransactionPort",
         "ProfileConfigurationTransactionRequest",
         "ProfileConfigurationTransactionOutcome::Committed",
@@ -294,11 +303,25 @@ def source_problems(repo_root: Path) -> list[str]:
         "log_level",
         "let restored =",
         "restored_config",
+        "ProfileConfigurationUpdate::DnsSettings",
+        "ProfileConfigurationUpdate::Rules",
+        "dns_codec_readback",
+        "rules_codec_readback",
+        "DnsQueryPort::query",
+        "get_rules()",
+        "core-smoke-dns-updated.test",
+        "core-smoke-dns-restored.test",
+        "core-smoke-rule-apply.test",
+        "192.0.2.53",
     ):
         if required not in real_profile_test:
             problems.append(
                 f"{real_profile_test_path}: real Profile evidence must exercise `{required}`"
             )
+    if "MIHOMO_REAL_DNS_ALT_SERVER" not in smoke:
+        problems.append(
+            f"{smoke_path}: the locked profile smoke must supply its alternate DNS fixture"
+        )
     retired_live_preflight = "preflight" + "_check"
     retired_force_switch = "reload_config_with_" + "force"
     retired_force_false = "force=" + "false"

@@ -713,7 +713,9 @@ fn apply_error(error: ApplyError) -> PortError {
         ApplyError::Validation(_) => rejected(ErrorCode::Configuration, message),
         ApplyError::Write(_) => rejected(ErrorCode::Storage, message),
         ApplyError::Permission(_) => rejected(ErrorCode::Permission, message),
-        ApplyError::Lifecycle(_) => rejected(ErrorCode::InvalidState, message),
+        ApplyError::Lifecycle(_) | ApplyError::ReloadAndRestartFailed { .. } => {
+            rejected(ErrorCode::InvalidState, message)
+        }
         ApplyError::RolledBack { .. } | ApplyError::RollbackFailed { .. } => rejected(
             ErrorCode::InvalidState,
             format!("transaction adapter missed a terminal apply state: {message}"),

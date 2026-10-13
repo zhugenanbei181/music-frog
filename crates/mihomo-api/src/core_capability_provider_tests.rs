@@ -340,6 +340,22 @@ fn real_dns_query_evidence_authorizes_only_the_exact_locked_mihomo_scope() {
 }
 
 #[test]
+fn real_dns_apply_configuration_evidence_authorizes_only_the_exact_locked_mihomo_scope() {
+    assert_versioned_evidence_is_authorized_only_for_its_exact_mihomo_scope(
+        CoreOperation::Dns(DnsOperation::ApplyConfiguration),
+        "DNS configuration apply",
+    );
+}
+
+#[test]
+fn real_rules_apply_evidence_authorizes_only_the_exact_locked_mihomo_scope() {
+    assert_versioned_evidence_is_authorized_only_for_its_exact_mihomo_scope(
+        CoreOperation::Rules(RulesOperation::Apply),
+        "Rules.Apply",
+    );
+}
+
+#[test]
 fn real_connection_close_evidence_authorizes_only_the_exact_locked_mihomo_scope() {
     assert_versioned_evidence_is_authorized_only_for_its_exact_mihomo_scope(
         CoreOperation::Connection(ConnectionOperation::Close),
@@ -580,8 +596,16 @@ fn capability_matrix_keeps_unverified_operations_closed_and_verified_dns_availab
             ExpectedStatus::Available,
         ),
         (
+            CoreOperation::Dns(DnsOperation::ApplyConfiguration),
+            ExpectedStatus::Available,
+        ),
+        (
             CoreOperation::Rules(RulesOperation::Trace),
             ExpectedStatus::VersionUnavailable,
+        ),
+        (
+            CoreOperation::Rules(RulesOperation::Apply),
+            ExpectedStatus::Available,
         ),
         (
             CoreOperation::Subscription(SubscriptionOperation::Refresh),
@@ -701,7 +725,7 @@ fn locked_binary_observations_do_not_override_typed_profile_unsupported() {
     for (version, target, revision, operation_ids) in locked {
         assert_eq!(target, "x86_64-unknown-linux-gnu", "{version}");
         assert_eq!(revision, 1, "{version}");
-        assert_eq!(operation_ids.len(), 15, "{version}");
+        assert_eq!(operation_ids.len(), 17, "{version}");
         for (operation, evidence_id) in [
             (
                 CoreOperation::Profile(ProfileOperation::Validate),
