@@ -3,12 +3,11 @@ use async_trait::async_trait;
 use futures_util::StreamExt;
 use futures_util::stream::{BoxStream, pending};
 use infiltrator_contract::core_identity::CoreScope;
-use infiltrator_domain::runtime::{ProxyProvider, RuleProvider, TrafficData};
+use infiltrator_domain::runtime::TrafficData;
 use infiltrator_ports::application_runtime::{
     ApplicationFuture, ApplicationRuntime, ApplicationSleep,
 };
 use infiltrator_ports::error::PortError;
-use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use infiltrator_ports::runtime_stream::{
     RuntimeStreamEvent, RuntimeStreamPort, ScopedRuntimeStream, ScopedRuntimeStreamEvent,
 };
@@ -68,38 +67,6 @@ impl LogGateway {
         }
     }
 }
-#[async_trait]
-impl RuntimeGateway for LogGateway {
-    fn current_core_scope(&self) -> Result<CoreScope, PortError> {
-        self.current_scope
-            .clone()
-            .or_else(|| self.requested_scope.lock().unwrap().clone())
-            .ok_or_else(|| PortError::Failed("test Core scope is unavailable".into()))
-    }
-
-    fn runtime_stream_port(&self) -> Arc<dyn RuntimeStreamPort> {
-        Arc::new(self.clone())
-    }
-    async fn switch_proxy(&self, _: &str, _: &str) -> Result<(), PortError> {
-        panic!("unexpected proxy write")
-    }
-    async fn test_delay(&self, _: &str, _: &str, _: u32) -> Result<u32, PortError> {
-        panic!("unexpected probe")
-    }
-    async fn get_proxy_providers(&self) -> Result<Vec<ProxyProvider>, PortError> {
-        panic!("unexpected provider read")
-    }
-    async fn get_rule_providers(&self) -> Result<Vec<RuleProvider>, PortError> {
-        panic!("unexpected provider read")
-    }
-    async fn update_proxy_provider(&self, _: &str) -> Result<(), PortError> {
-        panic!("unexpected provider write")
-    }
-    async fn update_rule_provider(&self, _: &str) -> Result<(), PortError> {
-        panic!("unexpected provider write")
-    }
-}
-
 #[async_trait]
 impl RuntimeStreamPort for LogGateway {
     async fn logs(

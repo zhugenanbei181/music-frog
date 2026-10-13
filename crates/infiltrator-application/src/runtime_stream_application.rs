@@ -3,14 +3,14 @@
 use futures_util::{StreamExt, stream::unfold};
 use infiltrator_contract::core_identity::CoreScope;
 use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_ports::runtime_gateway::RuntimeGateway;
+use infiltrator_ports::core_scope::CoreScopeSource;
 use infiltrator_ports::runtime_stream::{
     RuntimeStreamEvent, RuntimeStreamTerminal, ScopedRuntimeStream, ScopedRuntimeStreamEvent,
 };
 use std::sync::Arc;
 
 pub(crate) fn scope_checked<T>(
-    gateway: Arc<dyn RuntimeGateway>,
+    scope_source: Arc<dyn CoreScopeSource>,
     expected_scope: CoreScope,
     stream: ScopedRuntimeStream<T>,
 ) -> ScopedRuntimeStream<T>
@@ -20,11 +20,11 @@ where
     unfold(
         (
             stream,
-            gateway,
+            scope_source,
             expected_scope,
             ScopeFenceProgress::Receiving,
         ),
-        |(mut stream, gateway, expected_scope, progress)| async move {
+        |(mut stream, scope_source, expected_scope, progress)| async move {
             match progress {
                 ScopeFenceProgress::Terminated => None,
                 ScopeFenceProgress::Receiving => {
@@ -36,14 +36,14 @@ where
                             ),
                             (
                                 stream,
-                                gateway,
+                                scope_source,
                                 expected_scope,
                                 ScopeFenceProgress::Terminated,
                             ),
                         ));
                     };
 
-                    let event = match gateway.current_core_scope() {
+                    let event = match crate::runtime_scope::active_scope(scope_source.as_ref()) {
                         Ok(active_scope)
                             if event.scope == expected_scope && active_scope == expected_scope =>
                         {
@@ -61,21 +61,21 @@ where
                                 ),
                                 (
                                     stream,
-                                    gateway,
+                                    scope_source,
                                     expected_scope,
                                     ScopeFenceProgress::Terminated,
                                 ),
                             ));
                         }
-                        Err(error) => {
+                        Err(failure) => {
                             return Some((
                                 terminal_event(
                                     expected_scope.clone(),
-                                    RuntimeStreamTerminal::Failed(Failure::from(error)),
+                                    RuntimeStreamTerminal::Failed(failure),
                                 ),
                                 (
                                     stream,
-                                    gateway,
+                                    scope_source,
                                     expected_scope,
                                     ScopeFenceProgress::Terminated,
                                 ),
@@ -93,7 +93,7 @@ where
                     };
                     Some((
                         event,
-                        (stream, gateway, expected_scope, next),
+                        (stream, scope_source, expected_scope, next),
                     ))
                 }
             }

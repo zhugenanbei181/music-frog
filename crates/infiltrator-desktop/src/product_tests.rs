@@ -281,6 +281,10 @@ impl HostRuntime for TestHostRuntime {
     fn lifecycle_port(&self) -> Arc<dyn CoreLifecyclePort> {
         Arc::new(self.application.as_ref().clone())
     }
+
+    fn core_scope_source(&self) -> Arc<dyn infiltrator_ports::core_scope::CoreScopeSource> {
+        Arc::new(self.application.as_ref().clone())
+    }
 }
 
 fn application() -> Arc<CoreApplication> {

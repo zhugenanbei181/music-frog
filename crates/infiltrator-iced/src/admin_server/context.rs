@@ -365,15 +365,37 @@ impl AdminApiContext for IcedAdminContext {
         Ok(runtime)
     }
 
+    async fn connection_application(&self) -> anyhow::Result<ConnectionApplication> {
+        let core_not_running = self.localized_message("core_not_running").await;
+        let runtime = self
+            .shared
+            .runtime()
+            .ok_or_else(|| anyhow!(core_not_running))?;
+        Ok(ConnectionApplication::new(
+            runtime.core_scope_source(),
+            runtime.connection_port(),
+        ))
+    }
+
+    async fn runtime_query_application(&self) -> anyhow::Result<RuntimeQueryApplication> {
+        let core_not_running = self.localized_message("core_not_running").await;
+        let runtime = self
+            .shared
+            .runtime()
+            .ok_or_else(|| anyhow!(core_not_running))?;
+        Ok(RuntimeQueryApplication::new(
+            runtime.core_scope_source(),
+            runtime.runtime_stream_port(),
+        ))
+    }
+
     async fn resource_application(&self) -> anyhow::Result<ResourceApplication> {
         let core_not_running = self.localized_message("core_not_running").await;
         let runtime = self
             .shared
             .runtime()
             .ok_or_else(|| anyhow!(core_not_running))?;
-        let scope_source = runtime
-            .core_scope_source()
-            .ok_or_else(|| anyhow!("typed Core scope source is not composed"))?;
+        let scope_source = runtime.core_scope_source();
         Ok(ResourceApplication::new(
             scope_source,
             runtime.resource_port(),
@@ -389,9 +411,7 @@ impl AdminApiContext for IcedAdminContext {
         let port = runtime
             .outbound_port()
             .ok_or_else(|| anyhow!("typed outbound owner is not composed"))?;
-        let scope_source = runtime
-            .core_scope_source()
-            .ok_or_else(|| anyhow!("typed Core scope source is not composed"))?;
+        let scope_source = runtime.core_scope_source();
         Ok(AdminOutboundOwner::new(port, scope_source))
     }
 

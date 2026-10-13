@@ -8,18 +8,20 @@ use infiltrator_contract::core_identity::{
 use infiltrator_contract::resources::{
     CORE_MEMORY_SOFT_LIMIT_BYTES, CoreGcStatus, CoreResourceSnapshot, ResourceAvailability,
 };
-use infiltrator_domain::runtime::{ProxyProvider, RuleProvider};
+use infiltrator_domain::runtime::TrafficData;
 use infiltrator_ports::core_log_level::CoreLogLevelPort;
 use infiltrator_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::resources::{
     CoreResourcePort, GarbageCollectionOutcome, ScopedGarbageCollection, ScopedResourceObservation,
 };
-use infiltrator_ports::runtime_gateway::RuntimeGateway;
+use infiltrator_ports::runtime_stream::{
+    RuntimeStreamPort, ScopedRuntimeStream, UnsupportedRuntimeStreamPort,
+};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
-struct TestGateway {
+struct TestCoreOwner {
     level: Mutex<String>,
     ignore_log_level_write: bool,
     scope: CoreScope,
@@ -34,43 +36,7 @@ struct TestResourcePort {
     gc_calls: AtomicUsize,
 }
 
-#[async_trait]
-impl RuntimeGateway for TestGateway {
-    fn current_core_scope(&self) -> Result<CoreScope, PortError> {
-        Ok(self.scope.clone())
-    }
-
-    async fn switch_proxy(&self, _group: &str, _proxy: &str) -> Result<(), PortError> {
-        Ok(())
-    }
-
-    async fn test_delay(
-        &self,
-        _proxy: &str,
-        _url: &str,
-        _timeout_ms: u32,
-    ) -> Result<u32, PortError> {
-        Ok(0)
-    }
-
-    async fn get_proxy_providers(&self) -> Result<Vec<ProxyProvider>, PortError> {
-        Ok(Vec::new())
-    }
-
-    async fn get_rule_providers(&self) -> Result<Vec<RuleProvider>, PortError> {
-        Ok(Vec::new())
-    }
-
-    async fn update_proxy_provider(&self, _name: &str) -> Result<(), PortError> {
-        Ok(())
-    }
-
-    async fn update_rule_provider(&self, _name: &str) -> Result<(), PortError> {
-        Ok(())
-    }
-}
-
-impl CoreScopeSource for TestGateway {
+impl CoreScopeSource for TestCoreOwner {
     fn scope_observation(&self) -> CoreScopeObservation {
         CoreScopeObservation::Observed(self.scope.clone())
     }
@@ -101,7 +67,7 @@ impl CoreResourcePort for TestResourcePort {
 }
 
 #[async_trait]
-impl CoreLogLevelPort for TestGateway {
+impl CoreLogLevelPort for TestCoreOwner {
     async fn set_core_log_level(&self, level: CoreLogLevel) -> Result<CoreLogLevel, PortError> {
         if !self.ignore_log_level_write {
             *self.level.lock().expect("level lock") = level.as_key().to_owned();
@@ -112,8 +78,8 @@ impl CoreLogLevelPort for TestGateway {
     }
 }
 
-fn gateway(ignore_log_level_write: bool) -> Arc<TestGateway> {
-    Arc::new(TestGateway {
+fn gateway(ignore_log_level_write: bool) -> Arc<TestCoreOwner> {
+    Arc::new(TestCoreOwner {
         level: Mutex::new("info".to_owned()),
         ignore_log_level_write,
         scope: test_scope(1),
@@ -155,10 +121,52 @@ impl CoreScopeSource for UnavailableCoreScope {
     }
 }
 
+struct CountingRuntimeStreamPort(AtomicUsize);
+
+#[async_trait]
+impl RuntimeStreamPort for CountingRuntimeStreamPort {
+    async fn logs(
+        &self,
+        _scope: CoreScope,
+        _level: Option<String>,
+    ) -> Result<ScopedRuntimeStream<String>, PortError> {
+        self.0.fetch_add(1, Ordering::SeqCst);
+        Err(PortError::Failed("unexpected log stream open".to_owned()))
+    }
+
+    async fn traffic(
+        &self,
+        _scope: CoreScope,
+    ) -> Result<ScopedRuntimeStream<TrafficData>, PortError> {
+        self.0.fetch_add(1, Ordering::SeqCst);
+        Err(PortError::Failed(
+            "unexpected traffic stream open".to_owned(),
+        ))
+    }
+}
+
+#[tokio::test]
+async fn unavailable_scope_rejects_runtime_stream_before_port_call() {
+    let stream_port = Arc::new(CountingRuntimeStreamPort(AtomicUsize::new(0)));
+    let application =
+        RuntimeQueryApplication::new(Arc::new(UnavailableCoreScope), stream_port.clone());
+
+    let failure = match application.logs(None).await {
+        Err(failure) => failure,
+        Ok(_) => panic!("inactive Core unexpectedly opened a runtime stream"),
+    };
+
+    assert_eq!(
+        failure.code,
+        infiltrator_contract::error::ErrorCode::NotReady
+    );
+    assert_eq!(stream_port.0.load(Ordering::SeqCst), 0);
+}
+
 #[tokio::test]
 async fn core_log_level_uses_the_typed_port_and_reports_its_readback() {
     let gateway = gateway(false);
-    RuntimeQueryApplication::new(gateway.clone())
+    RuntimeQueryApplication::new(gateway.clone(), Arc::new(UnsupportedRuntimeStreamPort))
         .with_core_log_level_port(gateway.clone())
         .set_core_log_level(CoreLogLevel::Debug)
         .await
@@ -169,11 +177,12 @@ async fn core_log_level_uses_the_typed_port_and_reports_its_readback() {
 #[tokio::test]
 async fn core_log_level_readback_mismatch_is_not_reported_as_success() {
     let gateway = gateway(true);
-    let failure = RuntimeQueryApplication::new(gateway.clone())
-        .with_core_log_level_port(gateway)
-        .set_core_log_level(CoreLogLevel::Debug)
-        .await
-        .expect_err("ignored update must not report success");
+    let failure =
+        RuntimeQueryApplication::new(gateway.clone(), Arc::new(UnsupportedRuntimeStreamPort))
+            .with_core_log_level_port(gateway)
+            .set_core_log_level(CoreLogLevel::Debug)
+            .await
+            .expect_err("ignored update must not report success");
     assert_eq!(
         failure.code,
         infiltrator_contract::error::ErrorCode::InvalidState

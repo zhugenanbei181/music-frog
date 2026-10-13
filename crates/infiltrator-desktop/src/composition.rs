@@ -27,6 +27,7 @@ use crate::system_proxy::DesktopSystemProxy;
 use crate::uwp_loopback_port::DesktopUwpLoopbackPort;
 use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::configuration_application::ConfigurationApplication;
+use infiltrator_application::connection_application::ConnectionApplication;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::core_capability_application::CoreCapabilityApplication;
 use infiltrator_application::log_export_application::LogExportApplication;
@@ -35,6 +36,7 @@ use infiltrator_application::network_roaming_application::NetworkRoamingApplicat
 use infiltrator_application::outbound_application::OutboundApplication;
 use infiltrator_application::pac_application::PacApplication;
 use infiltrator_application::port_conflict_application::PortConflictApplication;
+use infiltrator_application::runtime_query_application::RuntimeQueryApplication;
 use infiltrator_application::service_mode_application::ServiceModeApplication;
 use infiltrator_application::speedtest_application::SpeedtestApplication;
 use infiltrator_application::surface_application::SurfacePump;
@@ -70,6 +72,7 @@ use infiltrator_ports::core_binary_selection::{
 };
 use infiltrator_ports::core_capability_provider::CoreCapabilityProvider;
 use infiltrator_ports::core_log_level::CoreLogLevelPort;
+use infiltrator_ports::core_scope::CoreScopeSource;
 use infiltrator_ports::endpoint::EndpointSource;
 use infiltrator_ports::engine_backend_factory::{
     EngineBackendOwnerScopeBindingResult, EngineBackendPorts, EngineBackendProvider,
@@ -79,6 +82,7 @@ use infiltrator_ports::error::PortError;
 use infiltrator_ports::host_runtime::HostRuntime;
 use infiltrator_ports::profile_configuration_transaction::ProfileConfigurationTransactionScope;
 use infiltrator_ports::profile_store::ProfileStore;
+use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use infiltrator_ports::subscription_source::SubscriptionSource;
 use mihomo_api::client::MihomoClient;
 use mihomo_api::core_capability_provider::MihomoCoreCapabilityProvider;
@@ -504,8 +508,9 @@ pub(crate) async fn core_application(
             apply_guard,
         )?);
         transaction_binding.bind(transaction)?;
+        let gateway: Arc<dyn RuntimeGateway> = Arc::new(client.clone());
         application
-            .install_log_gateway(Arc::new(client.clone()))
+            .install_log_stream_port(gateway.runtime_stream_port())
             .map_err(|failure| anyhow::anyhow!(failure.message))?;
         let outbound_port = ports.operations().outbound()?;
         application
@@ -526,6 +531,7 @@ pub(crate) async fn core_application(
             engines,
             profile_store,
             subscription_source,
+            core_scope_source: Arc::new(application.clone()),
         })?;
         application
             .install_core_capability_application(commands.core_capability_application())
@@ -567,6 +573,7 @@ pub struct DesktopCommandServices {
     pub engines: SurfaceEngines,
     pub profile_store: Arc<dyn ProfileStore>,
     pub subscription_source: Arc<dyn SubscriptionSource>,
+    pub core_scope_source: Arc<dyn CoreScopeSource>,
 }
 
 /// Typed declaration of log-stream ownership at the command composition
@@ -589,6 +596,7 @@ pub fn desktop_command_application(
         engines,
         profile_store,
         subscription_source,
+        core_scope_source,
     } = services;
     let SurfaceEngines {
         profiles,
@@ -617,27 +625,34 @@ pub fn desktop_command_application(
     let service_mode =
         ServiceModeApplication::new(Arc::new(DesktopServiceMode::new(binary_path.clone())));
     let port_conflicts = PortConflictApplication::new(Arc::new(port_conflict()?));
+    let gateway: Arc<dyn RuntimeGateway> = Arc::new(client.clone());
     let pac = PacApplication::new(
-        Arc::new(client.clone()),
+        core_scope_source.clone(),
+        gateway.configuration_ports(),
         Arc::new(DesktopPacServicePort::shared()),
     );
-    let network_roaming = NetworkRoamingApplication::new(
-        Arc::new(DesktopNetworkRoamingPort::shared()),
-        Some(Arc::new(client.clone())),
-    );
+    let network_roaming =
+        NetworkRoamingApplication::new(Arc::new(DesktopNetworkRoamingPort::shared()))
+            .with_core_configuration(core_scope_source.clone(), gateway.configuration_ports());
     // DUAL-11-06/07: the kernel's provider cache lives next to the profiles
     // (`-d <config dir>`), so the command handler purges exactly that folder.
     let rule_provider_cache = Arc::new(DesktopRuleProviderCache::new(profile_store.config_dir()));
     let core_capabilities = CoreCapabilityApplication::new(core_capability_provider);
     let core_log_level_port: Arc<dyn CoreLogLevelPort> = Arc::new(client.clone());
+    let connections =
+        ConnectionApplication::new(core_scope_source.clone(), gateway.connection_port());
+    let runtime_queries =
+        RuntimeQueryApplication::new(core_scope_source, gateway.runtime_stream_port())
+            .with_core_log_level_port(core_log_level_port);
     Ok(CommandApplication::new()
         .with_core_capabilities(core_capabilities)
         .with_routing_intent_port(backend_ports.operations().routing_intent()?)
-        .with_core_log_level_port(core_log_level_port)
+        .with_connections(connections)
+        .with_runtime_queries(runtime_queries)
         .with_host_capabilities(Arc::new(DesktopHostCapabilities))
         .with_scripts(scripts, script_exports)
         .with_doctor(doctor)
-        .with_runtime(Arc::new(client.clone()))
+        .with_runtime(gateway)
         .with_application_runtime(runtime)
         .with_profile(profiles)
         .with_configuration(configuration)

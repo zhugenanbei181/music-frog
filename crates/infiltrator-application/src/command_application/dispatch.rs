@@ -6,7 +6,6 @@
 
 use super::vpn_start_result::confirmed;
 use super::*;
-use crate::connection_application::ConnectionApplication;
 use crate::profile_aggregation_application::ProfileAggregationApplication;
 use crate::profile_application::ProfileRuntimeAccess;
 use crate::protocol_codec_application::ProtocolCodecApplication;
@@ -285,9 +284,7 @@ impl CommandApplication {
                         false,
                     )
                 })?;
-                ConnectionApplication::new(self.runtime()?)
-                    .close_for_scope(scope, &id)
-                    .await
+                self.connections()?.close_for_scope(scope, &id).await
             }
             CommandIntent::CloseAllConnections => {
                 let scope = scope.cloned().ok_or_else(|| {
@@ -297,9 +294,7 @@ impl CommandApplication {
                         false,
                     )
                 })?;
-                ConnectionApplication::new(self.runtime()?)
-                    .close_all_for_scope(scope)
-                    .await
+                self.connections()?.close_all_for_scope(scope).await
             }
             CommandIntent::ApplyDnsSettings { patch } => self
                 .configuration()?
@@ -359,10 +354,7 @@ impl CommandApplication {
                 Failure::unsupported("routing intent requires its validated Core scope route"),
             ),
             CommandIntent::SetCoreLogLevel { level } => {
-                RuntimeQueryApplication::new(self.runtime()?)
-                    .with_core_log_level_port(self.core_log_level_port()?)
-                    .set_core_log_level(level)
-                    .await
+                self.runtime_queries()?.set_core_log_level(level).await
             }
             CommandIntent::SetTunStack { stack } => self
                 .configuration_for_scope(scope)?
@@ -385,7 +377,7 @@ impl CommandApplication {
                 .await
                 .map(|_| ()),
             CommandIntent::ProbeTunMtu => {
-                let runtime = self.runtime()?.clone();
+                let configuration_ports = self.runtime()?.configuration_ports();
                 let scope = scope.ok_or_else(|| {
                     Failure::new(
                         ErrorCode::NotReady,
@@ -393,7 +385,10 @@ impl CommandApplication {
                         false,
                     )
                 })?;
-                let snapshot = self.mtu()?.probe_and_apply(runtime, scope.clone()).await;
+                let snapshot = self
+                    .mtu()?
+                    .probe_and_apply(configuration_ports, scope.clone())
+                    .await;
                 match snapshot.state {
                     MtuProbeState::Ready => Ok(()),
                     MtuProbeState::Unsupported => Err(Failure::unsupported(

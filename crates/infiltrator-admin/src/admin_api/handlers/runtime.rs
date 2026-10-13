@@ -8,8 +8,6 @@ use axum::http::StatusCode;
 use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::{Json, extract};
 use futures_util::StreamExt;
-use infiltrator_application::connection_application::ConnectionApplication;
-use infiltrator_application::runtime_query_application::RuntimeQueryApplication;
 use infiltrator_contract::resources::CoreResourceSnapshot;
 use infiltrator_contract::routing_intent::RoutingIntentSnapshot;
 use infiltrator_domain::runtime::ConnectionsResponse;
@@ -54,12 +52,12 @@ pub async fn stop_runtime_http<C: AdminApiContext>(
 pub async fn list_runtime_connections_http<C: AdminApiContext>(
     extract::State(state): extract::State<AdminApiState<C>>,
 ) -> Result<Json<ConnectionsResponse>, ApiError> {
-    let gateway = state
+    let application = state
         .ctx
-        .runtime_gateway()
+        .connection_application()
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
-    let observation = ConnectionApplication::new(gateway)
+    let observation = application
         .snapshot()
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
@@ -75,12 +73,12 @@ pub async fn list_runtime_connections_http<C: AdminApiContext>(
 pub async fn close_all_runtime_connections_http<C: AdminApiContext>(
     extract::State(state): extract::State<AdminApiState<C>>,
 ) -> Result<StatusCode, ApiError> {
-    let gateway = state
+    let application = state
         .ctx
-        .runtime_gateway()
+        .connection_application()
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
-    ConnectionApplication::new(gateway)
+    application
         .close_all()
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
@@ -95,12 +93,12 @@ pub async fn close_runtime_connection_http<C: AdminApiContext>(
     if connection_id.is_empty() {
         return Err(ApiError::bad_request("连接 ID 不能为空"));
     }
-    let gateway = state
+    let application = state
         .ctx
-        .runtime_gateway()
+        .connection_application()
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
-    ConnectionApplication::new(gateway)
+    application
         .close(connection_id)
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
@@ -112,12 +110,12 @@ pub async fn stream_runtime_logs_http<C: AdminApiContext>(
     extract::Query(query): extract::Query<RuntimeLogsQuery>,
 ) -> Result<Sse<impl tokio_stream::Stream<Item = Result<Event, Infallible>>>, ApiError> {
     let level = normalize_log_level(query.level.as_deref())?;
-    let client = state
+    let application = state
         .ctx
-        .runtime_gateway()
+        .runtime_query_application()
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
-    let receiver = RuntimeQueryApplication::new(client)
+    let receiver = application
         .logs(level)
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
@@ -157,12 +155,12 @@ pub async fn stream_runtime_logs_http<C: AdminApiContext>(
 pub async fn get_runtime_traffic_http<C: AdminApiContext>(
     extract::State(state): extract::State<AdminApiState<C>>,
 ) -> Result<Json<RuntimeTrafficSnapshotResponse>, ApiError> {
-    let gateway = state
+    let application = state
         .ctx
-        .runtime_gateway()
+        .connection_application()
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
-    let observation = ConnectionApplication::new(gateway)
+    let observation = application
         .snapshot()
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;

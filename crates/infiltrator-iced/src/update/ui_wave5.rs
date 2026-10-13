@@ -16,10 +16,8 @@ use infiltrator_contract::privileged_network::{
     PrivilegedNetworkRequest, PrivilegedNetworkSnapshot, PrivilegedNetworkState,
 };
 use infiltrator_ports::runtime_configuration::LanAuthenticationUpdate;
-use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use infiltrator_shared::i18n_interpolator::localize;
 use infiltrator_shared::locales::{Lang, Localizer};
-use std::sync::Arc;
 
 impl AppState {
     fn run_privileged_network_regression(&mut self) -> Task<Message> {
@@ -109,10 +107,10 @@ impl AppState {
             return Task::done(Message::ShowToast(error.to_string(), ToastStatus::Error));
         };
         let desired = self.runtime.lan_sharing.clone();
-        let gateway: Arc<dyn RuntimeGateway> = runtime;
+        let configuration_ports = runtime.configuration_ports();
         Task::perform(
             async move {
-                RuntimeConfigurationApplication::new(scope, gateway.configuration_ports())
+                RuntimeConfigurationApplication::new(scope, configuration_ports)
                     .set_lan_sharing(desired.allow_lan, desired.mixed_port, &desired.bind_address)
                     .await
                     .map_err(|failure| InfiltratorError::Config(failure.message))
@@ -157,10 +155,10 @@ impl AppState {
                 return Task::done(Message::ShowToast(error.to_string(), ToastStatus::Error));
             }
         };
-        let gateway: Arc<dyn RuntimeGateway> = runtime;
+        let configuration_ports = runtime.configuration_ports();
         Task::perform(
             async move {
-                RuntimeConfigurationApplication::new(scope, gateway.configuration_ports())
+                RuntimeConfigurationApplication::new(scope, configuration_ports)
                     .set_lan_security(
                         &allowed_ips,
                         &disallowed_ips,
@@ -216,7 +214,7 @@ impl AppState {
                     return Task::done(Message::ShowToast(error.to_string(), ToastStatus::Error));
                 };
                 let application = MtuApplication::new(port);
-                let gateway: Arc<dyn RuntimeGateway> = runtime.clone();
+                let configuration_ports = runtime.configuration_ports();
                 let generation = runtime.lifecycle_port().generation();
                 let session_token = self.runtime.core_session_token;
                 let Some(scope) = self.runtime.core_lifecycle.scope() else {
@@ -232,7 +230,11 @@ impl AppState {
                 self.runtime.mtu = application.probing_snapshot();
                 self.runtime.tun_stack_config.is_probing_mtu = true;
                 Task::perform(
-                    async move { application.probe_and_apply(gateway, scope).await },
+                    async move {
+                        application
+                            .probe_and_apply(configuration_ports, scope)
+                            .await
+                    },
                     move |snapshot| {
                         Message::MtuProbeFinished(MtuProbeCompletion {
                             snapshot,

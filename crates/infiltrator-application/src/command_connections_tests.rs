@@ -1,12 +1,24 @@
 //! test-intent: behavior
 use super::*;
 use crate::command_application::handler::ValidatedCoreCommandScope;
+use crate::connection_application::ConnectionApplication;
 use crate::core_capability_test_support::{core_scope, with_test_capabilities};
+use infiltrator_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
+
+struct UnavailableCoreScope;
+
+impl CoreScopeSource for UnavailableCoreScope {
+    fn scope_observation(&self) -> CoreScopeObservation {
+        CoreScopeObservation::Unavailable
+    }
+}
 
 #[tokio::test]
 async fn close_all_uses_the_actual_runtime_port_and_preserves_typed_failure_for_retry() {
     let gateway = Arc::new(RecordingGeoGateway::default());
-    let app = with_test_capabilities(CommandApplication::new().with_runtime(gateway.clone()));
+    let connections =
+        ConnectionApplication::new(Arc::new(UnavailableCoreScope), gateway.connection_port());
+    let app = with_test_capabilities(CommandApplication::new().with_connections(connections));
     app.handle_scoped(
         ValidatedCoreCommandScope::from_core_application(Some(core_scope())),
         CommandIntent::CloseAllConnections,

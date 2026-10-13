@@ -73,8 +73,14 @@ pub(crate) fn runtime_streams_subscription(
     let input = RuntimeStreamInput {
         identity: Arc::as_ptr(runtime) as *const () as usize,
         scope,
-        runtime: RuntimeQueryApplication::new(runtime.clone()),
-        connections: ConnectionApplication::new(runtime.clone()),
+        runtime: RuntimeQueryApplication::new(
+            runtime.core_scope_source(),
+            runtime.runtime_stream_port(),
+        ),
+        connections: ConnectionApplication::new(
+            runtime.core_scope_source(),
+            runtime.connection_port(),
+        ),
         log_level: log_level.to_string(),
         shared_logs,
     };

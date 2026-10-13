@@ -9,7 +9,7 @@ use infiltrator_contract::mtu::{
 use infiltrator_domain::mtu_optimizer::MtuOptimizer;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::mtu_probe::MtuProbePort;
-use infiltrator_ports::runtime_gateway::RuntimeGateway;
+use infiltrator_ports::runtime_configuration::RuntimeConfigurationPorts;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -62,14 +62,14 @@ impl MtuApplication {
     /// calculated value; a failed apply never masquerades as a ready result.
     pub async fn probe_and_apply(
         &self,
-        gateway: Arc<dyn RuntimeGateway>,
+        configuration_ports: RuntimeConfigurationPorts,
         scope: CoreScope,
     ) -> MtuNegotiationSnapshot {
         let snapshot = self.probe().await;
         let tun_mtu = snapshot.tun_mtu;
         let snapshot = match (snapshot.state.clone(), tun_mtu) {
             (MtuProbeState::Ready, Some(tun_mtu)) => {
-                match RuntimeConfigurationApplication::new(scope, gateway.configuration_ports())
+                match RuntimeConfigurationApplication::new(scope, configuration_ports)
                     .set_tun_mtu(tun_mtu)
                     .await
                 {

@@ -10,8 +10,9 @@ use infiltrator_domain::mtu_optimizer::MtuOptimizer;
 use infiltrator_domain::network_roaming::{
     NetworkRoamingBaseline, NetworkRoamingDecision, decide, select_active_interface,
 };
+use infiltrator_ports::core_scope::CoreScopeSource;
 use infiltrator_ports::network_roaming::NetworkRoamingPort;
-use infiltrator_ports::runtime_gateway::RuntimeGateway;
+use infiltrator_ports::runtime_configuration::RuntimeConfigurationPorts;
 use std::sync::Arc;
 
 mod route_repair;
@@ -38,18 +39,24 @@ enum NetworkObservationHistory {
 #[derive(Clone)]
 pub struct NetworkRoamingApplication {
     port: Arc<dyn NetworkRoamingPort>,
-    gateway: Option<Arc<dyn RuntimeGateway>>,
+    core_configuration: CoreConfigurationOwner,
     state: Arc<Mutex<State>>,
 }
 
+#[derive(Clone)]
+enum CoreConfigurationOwner {
+    NotComposed,
+    Composed {
+        scope_source: Arc<dyn CoreScopeSource>,
+        ports: RuntimeConfigurationPorts,
+    },
+}
+
 impl NetworkRoamingApplication {
-    pub fn new(
-        port: Arc<dyn NetworkRoamingPort>,
-        gateway: Option<Arc<dyn RuntimeGateway>>,
-    ) -> Self {
+    pub fn new(port: Arc<dyn NetworkRoamingPort>) -> Self {
         Self {
             port,
-            gateway,
+            core_configuration: CoreConfigurationOwner::NotComposed,
             state: Arc::new(Mutex::new(State {
                 observation_history: NetworkObservationHistory::AwaitingInitial,
                 snapshot: NetworkRoamingSnapshot::default(),
@@ -57,6 +64,18 @@ impl NetworkRoamingApplication {
                 route_repair_count: 0,
             })),
         }
+    }
+
+    pub fn with_core_configuration(
+        mut self,
+        scope_source: Arc<dyn CoreScopeSource>,
+        ports: RuntimeConfigurationPorts,
+    ) -> Self {
+        self.core_configuration = CoreConfigurationOwner::Composed {
+            scope_source,
+            ports,
+        };
+        self
     }
 
     pub async fn snapshot(&self) -> NetworkRoamingSnapshot {
@@ -117,27 +136,21 @@ impl NetworkRoamingApplication {
             }
         };
 
-        let tun_configuration = match &self.gateway {
-            Some(gateway) => {
-                let scope = gateway.current_core_scope();
-                match scope {
+        let tun_configuration = match &self.core_configuration {
+            CoreConfigurationOwner::NotComposed => TunConfigurationObservation::NotComposed,
+            CoreConfigurationOwner::Composed { scope_source, ports } => {
+                match crate::runtime_scope::active_scope(scope_source.as_ref()) {
                     Ok(scope) => match crate::runtime_configuration_application::
-                        RuntimeConfigurationApplication::new(
-                            scope,
-                            gateway.configuration_ports(),
-                        )
+                        RuntimeConfigurationApplication::new(scope, ports.clone())
                         .observe_tun()
                         .await
                     {
                         Ok(observed) => TunConfigurationObservation::Reported(observed.value),
                         Err(failure) => TunConfigurationObservation::Failed(failure),
                     },
-                    Err(error) => {
-                        TunConfigurationObservation::Failed(Failure::from(error))
-                    }
+                    Err(failure) => TunConfigurationObservation::Failed(failure),
                 }
             }
-            None => TunConfigurationObservation::NotComposed,
         };
         let tun_interface = observation
             .interfaces
@@ -291,13 +304,12 @@ mod tests {
         NetworkRoamingRepairRequest, NetworkRoamingRepairResult,
     };
     use infiltrator_contract::session::SessionToken;
-    use infiltrator_domain::runtime::{ProxyProvider, RuleProvider};
+    use infiltrator_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
     use infiltrator_ports::error::PortError;
     use infiltrator_ports::runtime_configuration::{
         ConfigurationApply, ConfigurationObservation, ConfigurationRevision, ObservedValue,
         RuntimeConfigurationPorts, TunConfiguration, TunConfigurationPort,
     };
-    use infiltrator_ports::runtime_gateway::RuntimeGateway;
     #[cfg(test)]
     use std::sync;
     use std::sync::atomic::{AtomicUsize, Ordering};
@@ -340,7 +352,7 @@ mod tests {
         }
     }
 
-    struct FakeGateway {
+    struct FakeCoreConfigurationOwner {
         scope: CoreScope,
         tun_port: Arc<FakeTunConfiguration>,
     }
@@ -384,57 +396,31 @@ mod tests {
         }
     }
 
-    #[async_trait]
-    impl RuntimeGateway for FakeGateway {
-        fn current_core_scope(&self) -> Result<CoreScope, PortError> {
-            Ok(self.scope.clone())
+    impl CoreScopeSource for FakeCoreConfigurationOwner {
+        fn scope_observation(&self) -> CoreScopeObservation {
+            CoreScopeObservation::Observed(self.scope.clone())
         }
+    }
 
+    impl FakeCoreConfigurationOwner {
         fn configuration_ports(&self) -> RuntimeConfigurationPorts {
             let mut ports = RuntimeConfigurationPorts::unsupported();
             ports.tun = self.tun_port.clone();
             ports
         }
-
-        async fn switch_proxy(&self, _group: &str, _node: &str) -> Result<(), PortError> {
-            Ok(())
-        }
-
-        async fn test_delay(
-            &self,
-            _proxy: &str,
-            _url: &str,
-            _timeout_ms: u32,
-        ) -> Result<u32, PortError> {
-            Ok(0)
-        }
-
-        async fn get_proxy_providers(&self) -> Result<Vec<ProxyProvider>, PortError> {
-            Ok(Vec::new())
-        }
-
-        async fn get_rule_providers(&self) -> Result<Vec<RuleProvider>, PortError> {
-            Ok(Vec::new())
-        }
-
-        async fn update_proxy_provider(&self, _name: &str) -> Result<(), PortError> {
-            Ok(())
-        }
-
-        async fn update_rule_provider(&self, _name: &str) -> Result<(), PortError> {
-            Ok(())
-        }
     }
 
-    fn fake_gateway(auto_route: bool) -> Arc<FakeGateway> {
-        fake_gateway_with_configurations(vec![tun_configuration(
+    fn fake_core_configuration_owner(auto_route: bool) -> Arc<FakeCoreConfigurationOwner> {
+        fake_core_configuration_with_configurations(vec![tun_configuration(
             ObservedValue::Reported(true),
             ObservedValue::Reported(auto_route),
             ObservedValue::Reported(true),
         )])
     }
 
-    fn fake_gateway_with_configurations(configurations: Vec<TunConfiguration>) -> Arc<FakeGateway> {
+    fn fake_core_configuration_with_configurations(
+        configurations: Vec<TunConfiguration>,
+    ) -> Arc<FakeCoreConfigurationOwner> {
         let scope = CoreScope {
             identity: CoreIdentity::new(
                 EngineId::new("mihomo").expect("engine"),
@@ -444,12 +430,20 @@ mod tests {
             generation: CoreGeneration::new(1),
             session_token: Some(SessionToken::new(1)),
         };
-        Arc::new(FakeGateway {
+        Arc::new(FakeCoreConfigurationOwner {
             scope,
             tun_port: Arc::new(FakeTunConfiguration {
                 observations: sync::Mutex::new(configurations),
             }),
         })
+    }
+
+    fn with_fake_core_configuration(
+        application: NetworkRoamingApplication,
+        owner: Arc<FakeCoreConfigurationOwner>,
+    ) -> NetworkRoamingApplication {
+        let scope_source: Arc<dyn CoreScopeSource> = owner.clone();
+        application.with_core_configuration(scope_source, owner.configuration_ports())
     }
 
     fn tun_configuration(
@@ -501,7 +495,10 @@ mod tests {
             repairs: AtomicUsize::new(0),
             repair_outcome: FakeRepairOutcome::Repaired,
         });
-        let application = NetworkRoamingApplication::new(port.clone(), Some(fake_gateway(true)));
+        let application = with_fake_core_configuration(
+            NetworkRoamingApplication::new(port.clone()),
+            fake_core_configuration_owner(true),
+        );
         let first = application.refresh().await;
         assert_eq!(first.status, NetworkRoamingStatus::Stable);
         assert!(matches!(
@@ -529,7 +526,10 @@ mod tests {
             repairs: AtomicUsize::new(0),
             repair_outcome: FakeRepairOutcome::Repaired,
         });
-        let application = NetworkRoamingApplication::new(port.clone(), Some(fake_gateway(false)));
+        let application = with_fake_core_configuration(
+            NetworkRoamingApplication::new(port.clone()),
+            fake_core_configuration_owner(false),
+        );
         let _ = application.refresh().await;
         let snapshot = application.refresh().await;
         assert_eq!(snapshot.active_interface.as_deref(), Some("eth0"));
@@ -548,7 +548,7 @@ mod tests {
             repairs: AtomicUsize::new(0),
             repair_outcome: FakeRepairOutcome::Repaired,
         });
-        let application = NetworkRoamingApplication::new(port, None);
+        let application = NetworkRoamingApplication::new(port);
         let failure = application
             .force_repair()
             .await
@@ -567,7 +567,10 @@ mod tests {
             repairs: AtomicUsize::new(0),
             repair_outcome: FakeRepairOutcome::Failed,
         });
-        let application = NetworkRoamingApplication::new(port.clone(), Some(fake_gateway(true)));
+        let application = with_fake_core_configuration(
+            NetworkRoamingApplication::new(port.clone()),
+            fake_core_configuration_owner(true),
+        );
 
         let initial = application.refresh().await;
         assert!(matches!(
@@ -599,9 +602,9 @@ mod tests {
             repairs: AtomicUsize::new(0),
             repair_outcome: FakeRepairOutcome::Repaired,
         });
-        let application = NetworkRoamingApplication::new(
-            port.clone(),
-            Some(fake_gateway_with_configurations(vec![
+        let application = with_fake_core_configuration(
+            NetworkRoamingApplication::new(port.clone()),
+            fake_core_configuration_with_configurations(vec![
                 tun_configuration(
                     ObservedValue::Reported(true),
                     ObservedValue::Reported(true),
@@ -617,7 +620,7 @@ mod tests {
                     ObservedValue::Reported(true),
                     ObservedValue::Reported(true),
                 ),
-            ])),
+            ]),
         );
 
         let _ = application.refresh().await;

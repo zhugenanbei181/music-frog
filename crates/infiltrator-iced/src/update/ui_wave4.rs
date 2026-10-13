@@ -23,7 +23,6 @@ use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use infiltrator_shared::i18n_interpolator::localize;
 use infiltrator_shared::locales::{Lang, Localizer};
 use std::fs::write;
-use std::sync::Arc;
 
 fn split_pac_domains(value: &str) -> Vec<String> {
     value
@@ -99,10 +98,11 @@ impl AppState {
             bypass_lan: true,
             minify: false,
         };
-        let gateway: Arc<dyn RuntimeGateway> = runtime;
+        let scope_source = runtime.core_scope_source();
+        let configuration_ports = runtime.configuration_ports();
         Task::perform(
             async move {
-                PacApplication::new(gateway, service)
+                PacApplication::new(scope_source, configuration_ports, service)
                     .apply(request)
                     .await
                     .map_err(|failure| InfiltratorError::Internal(failure.message))
@@ -215,10 +215,12 @@ impl AppState {
                     return Task::done(Message::NetworkInterfacesPolled(snapshot));
                 };
                 let baseline = self.runtime.network_roaming.clone();
-                let gateway: Arc<dyn RuntimeGateway> = runtime;
+                let scope_source = runtime.core_scope_source();
+                let configuration_ports = runtime.configuration_ports();
                 Task::perform(
                     async move {
-                        NetworkRoamingApplication::new(port, Some(gateway))
+                        NetworkRoamingApplication::new(port)
+                            .with_core_configuration(scope_source, configuration_ports)
                             .refresh_from(Some(baseline))
                             .await
                     },
@@ -260,10 +262,12 @@ impl AppState {
                     );
                     return Task::done(Message::NetworkRoamingRepaired(Err(error)));
                 };
-                let gateway: Arc<dyn RuntimeGateway> = runtime;
+                let scope_source = runtime.core_scope_source();
+                let configuration_ports = runtime.configuration_ports();
                 Task::perform(
                     async move {
-                        NetworkRoamingApplication::new(port, Some(gateway))
+                        NetworkRoamingApplication::new(port)
+                            .with_core_configuration(scope_source, configuration_ports)
                             .force_repair()
                             .await
                             .map_err(|failure| InfiltratorError::Internal(failure.message))

@@ -13,10 +13,12 @@ use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use infiltrator_application::cache_application::CacheApplication;
 use infiltrator_application::configuration_application::ConfigurationApplication;
+use infiltrator_application::connection_application::ConnectionApplication;
 use infiltrator_application::doctor_application::DoctorApplication;
 use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::profile_reset_application::ProfileResetApplication;
 use infiltrator_application::resource_application::ResourceApplication;
+use infiltrator_application::runtime_query_application::RuntimeQueryApplication;
 use infiltrator_application::sync_application::SyncApplication;
 use infiltrator_application::version_application::VersionApplication;
 use infiltrator_contract::core_identity::{
@@ -217,6 +219,26 @@ impl AdminApiContext for MockContext {
             .map_err(|e| anyhow!(e.to_string()))?
             .with_configuration_scope_resolver(scope_resolver);
         Ok(Arc::new(client))
+    }
+    async fn connection_application(&self) -> anyhow::Result<ConnectionApplication> {
+        let gateway = self.runtime_gateway().await?;
+        let scope_source: Arc<dyn CoreScopeSource> = Arc::new(TestCoreScopeSource {
+            scope: test_outbound_scope(),
+        });
+        Ok(ConnectionApplication::new(
+            scope_source,
+            gateway.connection_port(),
+        ))
+    }
+    async fn runtime_query_application(&self) -> anyhow::Result<RuntimeQueryApplication> {
+        let gateway = self.runtime_gateway().await?;
+        let scope_source: Arc<dyn CoreScopeSource> = Arc::new(TestCoreScopeSource {
+            scope: test_outbound_scope(),
+        });
+        Ok(RuntimeQueryApplication::new(
+            scope_source,
+            gateway.runtime_stream_port(),
+        ))
     }
     async fn resource_application(&self) -> anyhow::Result<ResourceApplication> {
         let gateway = self.runtime_gateway().await?;

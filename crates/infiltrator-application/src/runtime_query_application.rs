@@ -4,20 +4,25 @@ use infiltrator_contract::command::CoreLogLevel;
 use infiltrator_contract::error::Failure;
 use infiltrator_domain::runtime::TrafficData;
 use infiltrator_ports::core_log_level::CoreLogLevelPort;
-use infiltrator_ports::runtime_gateway::RuntimeGateway;
-use infiltrator_ports::runtime_stream::ScopedRuntimeStream;
+use infiltrator_ports::core_scope::CoreScopeSource;
+use infiltrator_ports::runtime_stream::{RuntimeStreamPort, ScopedRuntimeStream};
 use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct RuntimeQueryApplication {
-    gateway: Arc<dyn RuntimeGateway>,
+    scope_source: Arc<dyn CoreScopeSource>,
+    stream_port: Arc<dyn RuntimeStreamPort>,
     core_log_level_port: Option<Arc<dyn CoreLogLevelPort>>,
 }
 
 impl RuntimeQueryApplication {
-    pub fn new(gateway: Arc<dyn RuntimeGateway>) -> Self {
+    pub fn new(
+        scope_source: Arc<dyn CoreScopeSource>,
+        stream_port: Arc<dyn RuntimeStreamPort>,
+    ) -> Self {
         Self {
-            gateway,
+            scope_source,
+            stream_port,
             core_log_level_port: None,
         }
     }
@@ -55,30 +60,28 @@ impl RuntimeQueryApplication {
         &self,
         level: Option<String>,
     ) -> Result<ScopedRuntimeStream<String>, Failure> {
-        let scope = self.gateway.current_core_scope().map_err(Failure::from)?;
+        let scope = crate::runtime_scope::active_scope(self.scope_source.as_ref())?;
         let stream = self
-            .gateway
-            .runtime_stream_port()
+            .stream_port
             .logs(scope.clone(), level)
             .await
             .map_err(Failure::from)?;
         Ok(crate::runtime_stream_application::scope_checked(
-            self.gateway.clone(),
+            self.scope_source.clone(),
             scope,
             stream,
         ))
     }
 
     pub async fn traffic(&self) -> Result<ScopedRuntimeStream<TrafficData>, Failure> {
-        let scope = self.gateway.current_core_scope().map_err(Failure::from)?;
+        let scope = crate::runtime_scope::active_scope(self.scope_source.as_ref())?;
         let stream = self
-            .gateway
-            .runtime_stream_port()
+            .stream_port
             .traffic(scope.clone())
             .await
             .map_err(Failure::from)?;
         Ok(crate::runtime_stream_application::scope_checked(
-            self.gateway.clone(),
+            self.scope_source.clone(),
             scope,
             stream,
         ))

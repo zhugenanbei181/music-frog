@@ -152,9 +152,13 @@ pub async fn application_surface_reader(
     let mtu = MtuApplication::new(Arc::new(DesktopMtuProbe::new()));
     let system_proxy = SystemProxyApplication::new(Arc::new(DesktopSystemProxy::new()));
     let uwp_loopback = UwpLoopbackApplication::new(Arc::new(DesktopUwpLoopbackPort));
-    let pac = PacApplication::new(gateway.clone(), Arc::new(DesktopPacServicePort::shared()));
-    let network_roaming =
-        NetworkRoamingApplication::new(network_roaming_port, Some(gateway.clone()));
+    let pac = PacApplication::new(
+        core.clone(),
+        gateway.configuration_ports(),
+        Arc::new(DesktopPacServicePort::shared()),
+    );
+    let network_roaming = NetworkRoamingApplication::new(network_roaming_port)
+        .with_core_configuration(core.clone(), gateway.configuration_ports());
     let service_mode = ServiceModeApplication::new(Arc::new(DesktopServiceMode::new(binary_path)));
     // DUAL-11-07: the published cache fact comes from the same host directory
     // the desktop command handler purges.

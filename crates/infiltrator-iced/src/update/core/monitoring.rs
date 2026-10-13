@@ -16,7 +16,6 @@ use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_domain::connection_view::matches_search;
 use infiltrator_domain::runtime::ConnectionSnapshot;
-use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use infiltrator_shared::locales::{Lang, Localizer};
 use std::sync::Arc;
 use std::time::Instant;
@@ -299,8 +298,8 @@ impl AppState {
                     );
                 }
                 if let Some(rt) = self.runtime.runtime.clone() {
-                    let gateway: Arc<dyn RuntimeGateway> = rt;
-                    let application = ConnectionApplication::new(gateway);
+                    let application =
+                        ConnectionApplication::new(rt.core_scope_source(), rt.connection_port());
                     Task::perform(
                         async move {
                             application
@@ -330,8 +329,10 @@ impl AppState {
                         Message::OperationResult,
                     )
                 } else if let Some(runtime) = self.runtime.runtime.clone() {
-                    let gateway: Arc<dyn RuntimeGateway> = runtime;
-                    let application = ConnectionApplication::new(gateway);
+                    let application = ConnectionApplication::new(
+                        runtime.core_scope_source(),
+                        runtime.connection_port(),
+                    );
                     Task::perform(
                         async move {
                             application
@@ -352,8 +353,8 @@ impl AppState {
                 let Some(rt) = self.runtime.runtime.clone() else {
                     return Task::none();
                 };
-                let gateway: Arc<dyn RuntimeGateway> = rt;
-                let application = ConnectionApplication::new(gateway);
+                let application =
+                    ConnectionApplication::new(rt.core_scope_source(), rt.connection_port());
                 let raw_filter = self.runtime.runtime_connection_filter.clone();
                 let query = raw_filter
                     .strip_prefix("tab:closed")
@@ -397,8 +398,8 @@ impl AppState {
                 let Some(rt) = self.runtime.runtime.clone() else {
                     return Task::none();
                 };
-                let gateway: Arc<dyn RuntimeGateway> = rt;
-                let application = ConnectionApplication::new(gateway);
+                let application =
+                    ConnectionApplication::new(rt.core_scope_source(), rt.connection_port());
                 let timeout = self.diag.connection_idle_timeout_secs;
                 let now = current_unix_secs();
                 let idle: Vec<String> = match self.diag.connections.clone() {

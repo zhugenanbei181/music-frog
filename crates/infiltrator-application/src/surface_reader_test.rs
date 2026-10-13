@@ -541,12 +541,11 @@ async fn surface_reader_publishes_and_caches_all_core_channel_results() {
         .with_system_proxy(SystemProxyApplication::new(Arc::new(TestSystemProxy {
             calls: proxy_calls.clone(),
         })))
-        .with_network_roaming(NetworkRoamingApplication::new(
-            Arc::new(TestNetworkRoaming {
+        .with_network_roaming(NetworkRoamingApplication::new(Arc::new(
+            TestNetworkRoaming {
                 calls: network_calls.clone(),
-            }),
-            None,
-        ))
+            },
+        )))
         .with_vpn(VpnServiceApplication::new(Arc::new(TestVpn)));
 
     let first = reader.read().await.expect("first surface read");

@@ -9,6 +9,7 @@ use self::handler::{
     ValidatedCoreCommandScope,
 };
 use crate::configuration_application::ConfigurationApplication;
+use crate::connection_application::ConnectionApplication;
 use crate::core_capability_application::CoreCapabilityApplication;
 use crate::dns_cache_application::DnsCacheApplication;
 use crate::dns_latency_application::DnsLatencyApplication;
@@ -61,7 +62,6 @@ use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceA
 use infiltrator_ports::application_runtime::ApplicationRuntime;
 use infiltrator_ports::capability_provider::CapabilityProvider;
 use infiltrator_ports::certificate_authority::CertificateAuthorityPort;
-use infiltrator_ports::core_log_level::CoreLogLevelPort;
 use infiltrator_ports::dns_leak::DnsLeakProbePort;
 use infiltrator_ports::routing_intent::RoutingIntentPort;
 use infiltrator_ports::rule_provider_cache::RuleProviderCachePort;
@@ -94,7 +94,8 @@ pub struct CommandApplication {
     log_export: Option<LogExportApplication>,
     profile: Option<ProfileApplication>,
     runtime: Option<Arc<dyn RuntimeGateway>>,
-    core_log_level_port: Option<Arc<dyn CoreLogLevelPort>>,
+    connections: Option<ConnectionApplication>,
+    runtime_queries: Option<RuntimeQueryApplication>,
     profile_reference_applier: Option<Arc<dyn ActiveProfileReferenceApplier>>,
     /// DUAL-07-05/06: executor-neutral delay seam + single-flight refresh.
     application_runtime: Option<Arc<dyn ApplicationRuntime>>,
@@ -438,10 +439,16 @@ impl CommandApplication {
             .ok_or_else(|| missing("runtime gateway"))
     }
 
-    fn core_log_level_port(&self) -> Result<Arc<dyn CoreLogLevelPort>, Failure> {
-        self.core_log_level_port
+    fn connections(&self) -> Result<ConnectionApplication, Failure> {
+        self.connections
             .clone()
-            .ok_or_else(|| Failure::unsupported("core log-level port is not composed"))
+            .ok_or_else(|| missing("connection application"))
+    }
+
+    fn runtime_queries(&self) -> Result<RuntimeQueryApplication, Failure> {
+        self.runtime_queries
+            .clone()
+            .ok_or_else(|| missing("runtime query application"))
     }
 
     fn subscription_source(&self) -> Result<Arc<dyn SubscriptionSource>, Failure> {

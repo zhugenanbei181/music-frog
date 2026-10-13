@@ -4,24 +4,31 @@ use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::pac::{PacRequest, PacServiceState, PacSnapshot};
 use infiltrator_domain::pac_generator::{PacGenerator, validate_pac_script};
 use infiltrator_domain::pac_policy::normalize_bypass_domains;
+use infiltrator_ports::core_scope::CoreScopeSource;
 use infiltrator_ports::pac::PacServicePort;
 use infiltrator_ports::runtime_configuration::ObservedValue;
-use infiltrator_ports::runtime_gateway::RuntimeGateway;
+use infiltrator_ports::runtime_configuration::RuntimeConfigurationPorts;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
 #[derive(Clone)]
 pub struct PacApplication {
-    gateway: Arc<dyn RuntimeGateway>,
+    scope_source: Arc<dyn CoreScopeSource>,
+    configuration_ports: RuntimeConfigurationPorts,
     service: Arc<dyn PacServicePort>,
     next_revision: Arc<AtomicU64>,
     last_snapshot: Arc<Mutex<PacSnapshot>>,
 }
 
 impl PacApplication {
-    pub fn new(gateway: Arc<dyn RuntimeGateway>, service: Arc<dyn PacServicePort>) -> Self {
+    pub fn new(
+        scope_source: Arc<dyn CoreScopeSource>,
+        configuration_ports: RuntimeConfigurationPorts,
+        service: Arc<dyn PacServicePort>,
+    ) -> Self {
         Self {
-            gateway,
+            scope_source,
+            configuration_ports,
             service,
             next_revision: Arc::new(AtomicU64::new(1)),
             last_snapshot: Arc::new(Mutex::new(PacSnapshot::default())),
@@ -53,11 +60,11 @@ impl PacApplication {
     }
 
     pub async fn apply(&self, request: PacRequest) -> Result<PacSnapshot, Failure> {
-        let scope = self.gateway.current_core_scope().map_err(Failure::from)?;
+        let scope = crate::runtime_scope::active_scope(self.scope_source.as_ref())?;
         let configuration =
             crate::runtime_configuration_application::RuntimeConfigurationApplication::new(
                 scope,
-                self.gateway.configuration_ports(),
+                self.configuration_ports.clone(),
             );
         self.apply_with_configuration(configuration, request).await
     }
@@ -70,7 +77,7 @@ impl PacApplication {
         let configuration =
             crate::runtime_configuration_application::RuntimeConfigurationApplication::new(
                 scope,
-                self.gateway.configuration_ports(),
+                self.configuration_ports.clone(),
             );
         self.apply_with_configuration(configuration, request).await
     }
@@ -179,14 +186,13 @@ mod tests {
     use infiltrator_contract::session::SessionToken;
     #[cfg(test)]
     use infiltrator_domain::rules::RuleEntry;
-    use infiltrator_domain::runtime::{ProxyProvider, RuleProvider};
+    use infiltrator_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
     use infiltrator_ports::error::PortError;
     use infiltrator_ports::pac::PacServicePort;
     use infiltrator_ports::runtime_configuration::{
         ConfigurationObservation, ConfigurationRevision, PacRuleReadPort, ProxyPortsConfiguration,
         ProxyPortsReadPort, RuntimeConfigurationPorts,
     };
-    use infiltrator_ports::runtime_gateway::RuntimeGateway;
 
     #[derive(Default)]
     struct FakeService {
@@ -248,55 +254,27 @@ mod tests {
         }
     }
 
-    struct FakeGateway {
-        config: FakePacConfiguration,
+    struct FakeCoreOwner(CoreScope);
+
+    impl CoreScopeSource for FakeCoreOwner {
+        fn scope_observation(&self) -> CoreScopeObservation {
+            CoreScopeObservation::Observed(self.0.clone())
+        }
     }
 
-    #[async_trait]
-    impl RuntimeGateway for FakeGateway {
-        fn current_core_scope(&self) -> Result<CoreScope, PortError> {
-            Ok(self.config.0.clone())
-        }
-
-        fn configuration_ports(&self) -> RuntimeConfigurationPorts {
-            let configuration = Arc::new(self.config.clone());
-            let mut ports = RuntimeConfigurationPorts::unsupported();
-            ports.proxy_ports = configuration.clone();
-            ports.pac_rules = configuration;
-            ports
-        }
-
-        async fn switch_proxy(&self, _group: &str, _proxy: &str) -> Result<(), PortError> {
-            Ok(())
-        }
-        async fn test_delay(
-            &self,
-            _proxy: &str,
-            _url: &str,
-            _timeout_ms: u32,
-        ) -> Result<u32, PortError> {
-            Ok(0)
-        }
-        async fn get_proxy_providers(&self) -> Result<Vec<ProxyProvider>, PortError> {
-            Ok(Vec::new())
-        }
-        async fn get_rule_providers(&self) -> Result<Vec<RuleProvider>, PortError> {
-            Ok(Vec::new())
-        }
-        async fn update_proxy_provider(&self, _name: &str) -> Result<(), PortError> {
-            Ok(())
-        }
-        async fn update_rule_provider(&self, _name: &str) -> Result<(), PortError> {
-            Ok(())
-        }
+    fn configuration_ports(configuration: Arc<FakePacConfiguration>) -> RuntimeConfigurationPorts {
+        let mut ports = RuntimeConfigurationPorts::unsupported();
+        ports.proxy_ports = configuration.clone();
+        ports.pac_rules = configuration;
+        ports
     }
 
     #[tokio::test]
     async fn pac_application_compiles_live_rules_and_reads_back_service() {
+        let config = Arc::new(FakePacConfiguration(scope()));
         let application = PacApplication::new(
-            Arc::new(FakeGateway {
-                config: FakePacConfiguration(scope()),
-            }),
+            Arc::new(FakeCoreOwner(config.0.clone())),
+            configuration_ports(config),
             Arc::new(FakeService::default()),
         );
         let snapshot = application

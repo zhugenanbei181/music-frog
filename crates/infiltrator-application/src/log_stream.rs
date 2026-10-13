@@ -7,8 +7,10 @@ use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::logs::LogSession;
 use infiltrator_contract::snapshot::{CoreLifecycle, CoreLifecycleSnapshot};
 use infiltrator_ports::application_runtime::ApplicationRuntime;
-use infiltrator_ports::runtime_gateway::RuntimeGateway;
-use infiltrator_ports::runtime_stream::{RuntimeStreamEvent, RuntimeStreamTerminal};
+use infiltrator_ports::core_scope::CoreScopeSource;
+use infiltrator_ports::runtime_stream::{
+    RuntimeStreamEvent, RuntimeStreamPort, RuntimeStreamTerminal,
+};
 use std::sync::Arc;
 use std::thread::{Builder, JoinHandle, current};
 use std::time::Duration;
@@ -16,7 +18,8 @@ use std::time::Duration;
 const POLL_INTERVAL: Duration = Duration::from_millis(100);
 struct LogDriver {
     logs: LogApplication,
-    gateway: Arc<dyn RuntimeGateway>,
+    scope_source: Arc<dyn CoreScopeSource>,
+    stream_port: Arc<dyn RuntimeStreamPort>,
     runtime: Arc<dyn ApplicationRuntime>,
     observe: Box<dyn Fn() -> Option<CoreLifecycleSnapshot> + Send + Sync>,
 }
@@ -64,8 +67,10 @@ impl LogDriver {
                 }
                 continue;
             };
-            let stream_port = self.gateway.runtime_stream_port();
-            let opening = stream_port.logs(scope.clone(), Some("debug".into())).fuse();
+            let opening = self
+                .stream_port
+                .logs(scope.clone(), Some("debug".into()))
+                .fuse();
             futures_util::pin_mut!(opening);
             let opened = loop {
                 let tick = self.runtime.sleep(POLL_INTERVAL).fuse();
@@ -81,7 +86,7 @@ impl LogDriver {
             let Some(opened) = opened else { continue };
             let mut stream = match opened {
                 Ok(stream) => crate::runtime_stream_application::scope_checked(
-                    self.gateway.clone(),
+                    self.scope_source.clone(),
                     scope.clone(),
                     stream,
                 ),
@@ -184,14 +189,16 @@ pub struct LogPump {
 impl LogPump {
     pub fn spawn(
         logs: LogApplication,
-        gateway: Arc<dyn RuntimeGateway>,
+        scope_source: Arc<dyn CoreScopeSource>,
+        stream_port: Arc<dyn RuntimeStreamPort>,
         runtime: Arc<dyn ApplicationRuntime>,
         observe: impl Fn() -> Option<CoreLifecycleSnapshot> + Send + Sync + 'static,
     ) -> Result<Self, Failure> {
         let (abort, registration) = AbortHandle::new_pair();
         let driver = LogDriver {
             logs,
-            gateway,
+            scope_source,
+            stream_port,
             runtime: runtime.clone(),
             observe: Box::new(observe),
         };

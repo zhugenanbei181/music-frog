@@ -376,8 +376,8 @@ impl HostRuntime for MihomoRuntime {
         self.application.outbound_port()
     }
 
-    fn core_scope_source(&self) -> Option<Arc<dyn CoreScopeSource>> {
-        Some(Arc::new(self.application.as_ref().clone()))
+    fn core_scope_source(&self) -> Arc<dyn CoreScopeSource> {
+        Arc::new(self.application.as_ref().clone())
     }
 
     fn script_export_port(&self) -> Option<Arc<dyn ScriptExportPort>> {

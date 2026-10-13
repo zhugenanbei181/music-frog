@@ -9,6 +9,7 @@ use crate::native_host::clipboard::AndroidClipboardPort;
 use crate::runtime::{AndroidBridgeAdapter, AndroidCoreProcessAdapter};
 use crate::vpn_service::AndroidVpnServicePort;
 use infiltrator_application::command_application::CommandApplication;
+use infiltrator_application::connection_application::ConnectionApplication;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::core_capability_application::CoreCapabilityApplication;
 use infiltrator_application::mtu_application::MtuApplication;
@@ -16,6 +17,7 @@ use infiltrator_application::offline_startup_application::OfflineStartupApplicat
 use infiltrator_application::outbound_application::OutboundApplication;
 use infiltrator_application::overview::UnavailableOverviewReader;
 use infiltrator_application::profile_application::ProfileApplication;
+use infiltrator_application::runtime_query_application::RuntimeQueryApplication;
 use infiltrator_application::vpn_application::VpnServiceApplication;
 use infiltrator_composition::engine_backend_factory::EngineBackendFactoryRegistry;
 use infiltrator_composition::mihomo_engine_backend_provider::MihomoEngineBackendProvider;
@@ -569,8 +571,17 @@ fn core_application_from_backend<S: SecureStore + 'static>(
         AndroidControllerAdapters::Available { client } => {
             let core_log_level_port: Arc<dyn CoreLogLevelPort> = Arc::new(client.clone());
             let operations = backend.operations();
+            let gateway = controller_adapters.runtime_gateway();
+            let scope_source: Arc<dyn infiltrator_ports::core_scope::CoreScopeSource> =
+                Arc::new(application.clone());
+            let connections =
+                ConnectionApplication::new(scope_source.clone(), gateway.connection_port());
+            let runtime_queries =
+                RuntimeQueryApplication::new(scope_source, gateway.runtime_stream_port())
+                    .with_core_log_level_port(core_log_level_port);
             handler = handler
-                .with_core_log_level_port(core_log_level_port)
+                .with_connections(connections)
+                .with_runtime_queries(runtime_queries)
                 .with_routing_intent_port(operations.routing_intent()?);
             let outbound_port = operations.outbound()?;
             application
@@ -578,10 +589,10 @@ fn core_application_from_backend<S: SecureStore + 'static>(
                 .map_err(|failure| PortError::Failed(failure.message))?;
             handler = handler.with_outbound(OutboundApplication::new(outbound_port));
             application
-                .install_log_gateway(controller_adapters.runtime_gateway())
+                .install_log_stream_port(gateway.runtime_stream_port())
                 .map_err(|failure| PortError::Failed(failure.message))?;
             handler = handler
-                .with_runtime(controller_adapters.runtime_gateway())
+                .with_runtime(gateway)
                 .with_logs(application.log_application());
         }
         AndroidControllerAdapters::Unavailable { .. } => {}

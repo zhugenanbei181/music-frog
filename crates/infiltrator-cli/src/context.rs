@@ -188,15 +188,6 @@ impl Runtime {
         })
     }
 
-    /// Controller gateway for application services. The concrete client is
-    /// assembled here with a scope resolver backed by the per-invocation Core
-    /// owner; handlers only receive runtime-neutral application facades.
-    pub async fn runtime_gateway(&self) -> anyhow::Result<Arc<dyn RuntimeGateway>> {
-        self.runtime_scope_and_gateway()
-            .await
-            .map(|(_, gateway)| gateway)
-    }
-
     async fn runtime_scope_and_gateway(
         &self,
     ) -> anyhow::Result<(Arc<dyn CoreScopeSource>, Arc<dyn RuntimeGateway>)> {
@@ -240,11 +231,19 @@ impl Runtime {
     }
 
     pub async fn connection_application(&self) -> anyhow::Result<ConnectionApplication> {
-        Ok(ConnectionApplication::new(self.runtime_gateway().await?))
+        let (scope_source, gateway) = self.runtime_scope_and_gateway().await?;
+        Ok(ConnectionApplication::new(
+            scope_source,
+            gateway.connection_port(),
+        ))
     }
 
     pub async fn runtime_query_application(&self) -> anyhow::Result<RuntimeQueryApplication> {
-        Ok(RuntimeQueryApplication::new(self.runtime_gateway().await?))
+        let (scope_source, gateway) = self.runtime_scope_and_gateway().await?;
+        Ok(RuntimeQueryApplication::new(
+            scope_source,
+            gateway.runtime_stream_port(),
+        ))
     }
 
     /// Apply `update` to the in-memory settings and persist them to the

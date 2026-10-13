@@ -12,8 +12,10 @@ use infiltrator_contract::subscription_import::SubscriptionFilterDraft;
 use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_domain::runtime::{ProxyProvider, RuleProvider};
 use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceApplier;
+use infiltrator_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
 use infiltrator_ports::profile_workspace::{ProfileWorkspacePurpose, ProfileWorkspaceUpdate};
 use infiltrator_ports::runtime_gateway::RuntimeGateway;
+use infiltrator_ports::runtime_stream::UnsupportedRuntimeStreamPort;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -25,10 +27,11 @@ struct NoCallRuntime {
 #[tokio::test]
 async fn missing_typed_log_level_port_is_unsupported_without_config_fallback() {
     let gateway = Arc::new(NoCallRuntime::default());
-    let failure = RuntimeQueryApplication::new(gateway.clone())
-        .set_core_log_level(CoreLogLevel::Debug)
-        .await
-        .unwrap_err();
+    let failure =
+        RuntimeQueryApplication::new(gateway.clone(), Arc::new(UnsupportedRuntimeStreamPort))
+            .set_core_log_level(CoreLogLevel::Debug)
+            .await
+            .unwrap_err();
     assert_eq!(failure.code, ErrorCode::Unsupported);
     assert_eq!(gateway.calls.load(Ordering::SeqCst), 0);
 }
@@ -37,6 +40,12 @@ impl NoCallRuntime {
     fn unexpected(&self) -> ! {
         self.calls.fetch_add(1, Ordering::SeqCst);
         panic!("foreign engine identity must fail before runtime calls")
+    }
+}
+
+impl CoreScopeSource for NoCallRuntime {
+    fn scope_observation(&self) -> CoreScopeObservation {
+        CoreScopeObservation::Observed(crate::core_capability_test_support::core_scope())
     }
 }
 

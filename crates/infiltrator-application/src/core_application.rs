@@ -35,7 +35,7 @@ use infiltrator_ports::overview::OverviewReader;
 use infiltrator_ports::profile_document_codec::ProfileDocumentSnippetOutcome;
 use infiltrator_ports::profile_document_codec::ProfileMixinStudioProjection;
 use infiltrator_ports::profile_document_codec::ProfileMixinToggleId;
-use infiltrator_ports::runtime_gateway::RuntimeGateway;
+use infiltrator_ports::runtime_stream::RuntimeStreamPort;
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc::{Receiver, Sender, SyncSender, sync_channel};
@@ -553,16 +553,21 @@ impl CoreApplication {
     pub fn log_application(&self) -> LogApplication {
         self.inner.logs.clone()
     }
-    pub fn install_log_gateway(&self, gateway: Arc<dyn RuntimeGateway>) -> Result<(), Failure> {
+    pub fn install_log_stream_port(
+        &self,
+        stream_port: Arc<dyn RuntimeStreamPort>,
+    ) -> Result<(), Failure> {
         let mut slot = self.inner.log_pump.lock().expect("log driver");
         if self.inner.closed.load(Ordering::Acquire) {
             return Err(closed_failure());
         }
         slot.take();
         let weak = Arc::downgrade(&self.inner);
+        let scope_source: Arc<dyn CoreScopeSource> = Arc::new(self.clone());
         let pump = LogPump::spawn(
             self.inner.logs.clone(),
-            gateway,
+            scope_source,
+            stream_port,
             self.inner.runtime.clone(),
             move || {
                 weak.upgrade()

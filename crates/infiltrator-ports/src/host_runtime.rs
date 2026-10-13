@@ -131,12 +131,10 @@ pub trait HostRuntime:
         None
     }
     fn lifecycle_port(&self) -> Arc<dyn CoreLifecyclePort>;
-    /// Optional typed outbound owner ports. Inbound surfaces obtain the active
-    /// scope from the owner and never synthesize an identity or generation.
+    /// Typed outbound owner ports. Inbound surfaces obtain the active scope
+    /// from the owner and never synthesize an identity or generation.
     fn outbound_port(&self) -> Option<Arc<dyn OutboundPort>> {
         None
     }
-    fn core_scope_source(&self) -> Option<Arc<dyn CoreScopeSource>> {
-        None
-    }
+    fn core_scope_source(&self) -> Arc<dyn CoreScopeSource>;
 }

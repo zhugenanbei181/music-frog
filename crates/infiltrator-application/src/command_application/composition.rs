@@ -2,17 +2,16 @@
 
 use super::{
     ActiveProfileReferenceApplier, ApplicationRuntime, CapabilityProvider,
-    CertificateAuthorityPort, CommandApplication, ConfigurationApplication,
-    CoreCapabilityApplication, CoreLogLevelPort, DnsCacheApplication, DnsLatencyApplication,
-    DnsLeakApplication, DnsQueryApplication, DoctorApplication, LogApplication,
-    LogExportApplication, MtuApplication, NetworkRoamingApplication, OutboundApplication,
-    OutboundUiPreferencesApplication, PacApplication, PortConflictApplication,
-    PrivilegedNetworkApplication, ProfileApplication, RoutingApplication, RoutingIntentPort,
-    RuleListApplication, RuleProviderApplication, RuleProviderCachePort, RuleTracerApplication,
-    RuntimeGateway, ServiceModeApplication, SettingsApplication, SnapshotApplication,
-    StunProbeApplication, SubscriptionImportPort, SubscriptionNotificationPort, SubscriptionSource,
-    SyncApplication, SystemProxyApplication, UwpLoopbackApplication, VersionApplication,
-    VpnServiceApplication,
+    CertificateAuthorityPort, CommandApplication, ConfigurationApplication, ConnectionApplication,
+    CoreCapabilityApplication, DnsCacheApplication, DnsLatencyApplication, DnsLeakApplication,
+    DnsQueryApplication, DoctorApplication, LogApplication, LogExportApplication, MtuApplication,
+    NetworkRoamingApplication, OutboundApplication, OutboundUiPreferencesApplication,
+    PacApplication, PortConflictApplication, PrivilegedNetworkApplication, ProfileApplication,
+    RoutingApplication, RoutingIntentPort, RuleListApplication, RuleProviderApplication,
+    RuleProviderCachePort, RuleTracerApplication, RuntimeGateway, RuntimeQueryApplication,
+    ServiceModeApplication, SettingsApplication, SnapshotApplication, StunProbeApplication,
+    SubscriptionImportPort, SubscriptionNotificationPort, SubscriptionSource, SyncApplication,
+    SystemProxyApplication, UwpLoopbackApplication, VersionApplication, VpnServiceApplication,
 };
 use std::sync::Arc;
 
@@ -54,8 +53,13 @@ impl CommandApplication {
         self
     }
 
-    pub fn with_core_log_level_port(mut self, port: Arc<dyn CoreLogLevelPort>) -> Self {
-        self.core_log_level_port = Some(port);
+    pub fn with_connections(mut self, application: ConnectionApplication) -> Self {
+        self.connections = Some(application);
+        self
+    }
+
+    pub fn with_runtime_queries(mut self, application: RuntimeQueryApplication) -> Self {
+        self.runtime_queries = Some(application);
         self
     }
 

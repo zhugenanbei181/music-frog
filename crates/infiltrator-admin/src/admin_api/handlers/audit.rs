@@ -6,7 +6,6 @@ use crate::admin_api::models::{
 use crate::admin_api::state::{AdminApiContext, AdminApiState};
 use axum::{Json, extract};
 use chrono::Utc;
-use infiltrator_application::connection_application::ConnectionApplication;
 use infiltrator_domain::dns_tester::DnsTester;
 use infiltrator_domain::runtime::Connection;
 use std::cmp::Reverse;
@@ -26,7 +25,7 @@ pub async fn get_audit_http<C: AdminApiContext>(
 ) -> Result<Json<AuditResponse>, ApiError> {
     let now = Utc::now().to_rfc3339();
 
-    let gateway = match state.ctx.runtime_gateway().await {
+    let application = match state.ctx.connection_application().await {
         Ok(c) => c,
         Err(_) => {
             return Ok(Json(AuditResponse {
@@ -47,7 +46,7 @@ pub async fn get_audit_http<C: AdminApiContext>(
         }
     };
 
-    let observation = ConnectionApplication::new(gateway)
+    let observation = application
         .snapshot()
         .await
         .map_err(|e| ApiError::internal(format!("failed to get runtime connections: {e}")))?;

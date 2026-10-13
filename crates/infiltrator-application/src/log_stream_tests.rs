@@ -9,8 +9,11 @@ use infiltrator_contract::logs::{LogSession, LogStreamState};
 use infiltrator_contract::session::SessionToken;
 use infiltrator_contract::snapshot::{CoreLifecycle, CoreLifecycleSnapshot, CoreSnapshot};
 use infiltrator_contract::surface_snapshot::PageStatus;
+use infiltrator_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
 use infiltrator_ports::error::PortError;
-use infiltrator_ports::runtime_stream::{RuntimeStreamEvent, RuntimeStreamTerminal};
+use infiltrator_ports::runtime_stream::{
+    RuntimeStreamEvent, RuntimeStreamPort, RuntimeStreamTerminal,
+};
 use std::collections::VecDeque;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
@@ -63,11 +66,31 @@ fn driver(
     gateway: Arc<LogGateway>,
     state: Arc<Mutex<Option<CoreLifecycleSnapshot>>>,
 ) -> LogDriver {
+    let scope_source = Arc::new(LifecycleScopeSource(state.clone()));
+    let stream_port: Arc<dyn RuntimeStreamPort> = gateway;
     LogDriver {
         logs,
-        gateway,
+        scope_source,
+        stream_port,
         runtime: Arc::new(TestRuntime),
         observe: Box::new(move || state.lock().unwrap().clone()),
+    }
+}
+
+struct LifecycleScopeSource(Arc<Mutex<Option<CoreLifecycleSnapshot>>>);
+
+impl CoreScopeSource for LifecycleScopeSource {
+    fn scope_observation(&self) -> CoreScopeObservation {
+        match self
+            .0
+            .lock()
+            .unwrap()
+            .as_ref()
+            .and_then(CoreLifecycleSnapshot::scope)
+        {
+            Some(scope) => CoreScopeObservation::Observed(scope),
+            None => CoreScopeObservation::Unavailable,
+        }
     }
 }
 #[tokio::test(start_paused = true)]
@@ -151,9 +174,13 @@ async fn pump_drop_cancels_pending_io_and_releases_gateway_ownership() {
     gateway.streams.lock().unwrap().push(Box::pin(pending()));
     let weak = Arc::downgrade(&gateway);
     let opened = gateway.opened.clone();
+    let state = Arc::new(Mutex::new(Some(lifecycle())));
+    let scope_source: Arc<dyn CoreScopeSource> = Arc::new(LifecycleScopeSource(state.clone()));
+    let stream_port: Arc<dyn RuntimeStreamPort> = gateway.clone();
     let pump = LogPump::spawn(
         LogApplication::default(),
-        gateway.clone(),
+        scope_source,
+        stream_port,
         Arc::new(TestRuntime),
         || Some(lifecycle()),
     )

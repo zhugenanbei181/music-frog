@@ -9,7 +9,7 @@ use infiltrator_ports::connection::{
     ConnectionControlReceipt, ConnectionControlRequest, ConnectionControlTarget,
     ConnectionObservationSnapshot, ConnectionPort,
 };
-use infiltrator_ports::runtime_gateway::RuntimeGateway;
+use infiltrator_ports::core_scope::CoreScopeSource;
 use infiltrator_ports::runtime_stream::ScopedRuntimeStream;
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -27,32 +27,32 @@ pub struct IdleSweepReport {
 
 #[derive(Clone)]
 pub struct ConnectionApplication {
-    gateway: Arc<dyn RuntimeGateway>,
+    scope_source: Arc<dyn CoreScopeSource>,
     port: Arc<dyn ConnectionPort>,
     activity: Arc<Mutex<ConnectionActivityTracker>>,
 }
 
 impl ConnectionApplication {
-    pub fn new(gateway: Arc<dyn RuntimeGateway>) -> Self {
+    pub fn new(scope_source: Arc<dyn CoreScopeSource>, port: Arc<dyn ConnectionPort>) -> Self {
         Self {
-            port: gateway.connection_port(),
-            gateway,
+            scope_source,
+            port,
             activity: Arc::new(Mutex::new(ConnectionActivityTracker::new())),
         }
     }
 
     pub async fn snapshot(&self) -> Result<ConnectionObservationSnapshot, Failure> {
-        let scope = self.gateway.current_core_scope().map_err(Failure::from)?;
+        let scope = crate::runtime_scope::active_scope(self.scope_source.as_ref())?;
         self.snapshot_for_scope(scope).await
     }
 
     pub async fn close(&self, id: &str) -> Result<(), Failure> {
-        let scope = self.gateway.current_core_scope().map_err(Failure::from)?;
+        let scope = crate::runtime_scope::active_scope(self.scope_source.as_ref())?;
         self.close_for_scope(scope, id).await
     }
 
     pub async fn close_all(&self) -> Result<(), Failure> {
-        let scope = self.gateway.current_core_scope().map_err(Failure::from)?;
+        let scope = crate::runtime_scope::active_scope(self.scope_source.as_ref())?;
         self.close_all_for_scope(scope).await
     }
 
@@ -128,14 +128,14 @@ impl ConnectionApplication {
     pub async fn stream(
         &self,
     ) -> Result<ScopedRuntimeStream<ConnectionObservationSnapshot>, Failure> {
-        let scope = self.gateway.current_core_scope().map_err(Failure::from)?;
+        let scope = crate::runtime_scope::active_scope(self.scope_source.as_ref())?;
         let stream = self
             .port
             .stream(scope.clone())
             .await
             .map_err(Failure::from)?;
         Ok(crate::runtime_stream_application::scope_checked(
-            self.gateway.clone(),
+            self.scope_source.clone(),
             scope,
             stream,
         ))
@@ -234,4 +234,66 @@ fn current_unix_secs() -> u64 {
         .duration_since(UNIX_EPOCH)
         .map(|duration| duration.as_secs())
         .unwrap_or(0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use async_trait::async_trait;
+    use infiltrator_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    struct UnavailableScope;
+
+    impl CoreScopeSource for UnavailableScope {
+        fn scope_observation(&self) -> CoreScopeObservation {
+            CoreScopeObservation::Unavailable
+        }
+    }
+
+    struct CountingConnectionPort(AtomicUsize);
+
+    #[async_trait]
+    impl ConnectionPort for CountingConnectionPort {
+        async fn observe(
+            &self,
+            _scope: CoreScope,
+        ) -> Result<ConnectionObservationSnapshot, infiltrator_ports::error::PortError> {
+            self.0.fetch_add(1, Ordering::SeqCst);
+            Err(infiltrator_ports::error::PortError::Failed(
+                "unexpected observation".to_owned(),
+            ))
+        }
+
+        async fn close(
+            &self,
+            _request: ConnectionControlRequest,
+        ) -> Result<ConnectionControlReceipt, infiltrator_ports::error::PortError> {
+            panic!("unavailable owner must fail before close")
+        }
+
+        async fn stream(
+            &self,
+            _scope: CoreScope,
+        ) -> Result<
+            ScopedRuntimeStream<ConnectionObservationSnapshot>,
+            infiltrator_ports::error::PortError,
+        > {
+            panic!("unavailable owner must fail before stream")
+        }
+    }
+
+    #[tokio::test]
+    async fn unavailable_owner_scope_rejects_connection_read_before_adapter_call() {
+        let port = Arc::new(CountingConnectionPort(AtomicUsize::new(0)));
+        let application = ConnectionApplication::new(Arc::new(UnavailableScope), port.clone());
+
+        let failure = application
+            .snapshot()
+            .await
+            .expect_err("inactive Core cannot provide a connection snapshot");
+
+        assert_eq!(failure.code, ErrorCode::NotReady);
+        assert_eq!(port.0.load(Ordering::SeqCst), 0);
+    }
 }

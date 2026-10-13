@@ -24,6 +24,7 @@ use infiltrator_ports::application_runtime::{
 use infiltrator_ports::core_watchdog::CoreWatchdogPort;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::overview::OverviewReader;
+use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use mihomo_api::client::MihomoClient;
 use mihomo_api::core_capability_provider::MihomoCoreCapabilityProvider;
 use mihomo_api::overview::ControllerOverviewReader;
@@ -389,8 +390,9 @@ where
         Arc::new(ControllerOverviewReader::new(client.clone())),
         runtime.clone(),
     );
+    let gateway: Arc<dyn RuntimeGateway> = Arc::new(client.clone());
     application
-        .install_log_gateway(Arc::new(client.clone()))
+        .install_log_stream_port(gateway.runtime_stream_port())
         .map_err(|failure| failure.message)?;
     let core_capabilities =
         CoreCapabilityApplication::new(Arc::new(MihomoCoreCapabilityProvider::new(
@@ -419,8 +421,20 @@ where
             .with_host_capabilities(host.clone())
             .with_logs(application.log_application())
             .with_routing_intent_port(Arc::new(MihomoRoutingIntentAdapter::new(client.clone())))
-            .with_core_log_level_port(Arc::new(client.clone()))
-            .with_runtime(Arc::new(client))
+            .with_connections(
+                infiltrator_application::connection_application::ConnectionApplication::new(
+                    Arc::new(application.clone()),
+                    gateway.connection_port(),
+                ),
+            )
+            .with_runtime_queries(
+                infiltrator_application::runtime_query_application::RuntimeQueryApplication::new(
+                    Arc::new(application.clone()),
+                    gateway.runtime_stream_port(),
+                )
+                .with_core_log_level_port(Arc::new(client.clone())),
+            )
+            .with_runtime(gateway)
             .with_application_runtime(runtime)
             .with_mtu(MtuApplication::new(host)),
     ));

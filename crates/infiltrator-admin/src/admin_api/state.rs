@@ -2,12 +2,14 @@ use super::events::AdminEventBus;
 use super::models::{RebuildStatusResponse, RuntimeTrafficSnapshotResponse};
 use infiltrator_application::cache_application::CacheApplication;
 use infiltrator_application::configuration_application::ConfigurationApplication;
+use infiltrator_application::connection_application::ConnectionApplication;
 use infiltrator_application::doctor_application::DoctorApplication;
 use infiltrator_application::network_application::NetworkApplication;
 use infiltrator_application::outbound_application::OutboundApplication;
 use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::profile_reset_application::ProfileResetApplication;
 use infiltrator_application::resource_application::ResourceApplication;
+use infiltrator_application::runtime_query_application::RuntimeQueryApplication;
 use infiltrator_application::sync_application::SyncApplication;
 use infiltrator_application::version_application::VersionApplication;
 use infiltrator_contract::active_profile_reference::ActiveProfileReferenceTarget;
@@ -104,6 +106,16 @@ pub trait AdminApiContext: Clone + Send + Sync + 'static {
     async fn runtime_running(&self) -> bool;
     async fn runtime_controller_url(&self) -> Option<String>;
     async fn runtime_gateway(&self) -> anyhow::Result<Arc<dyn RuntimeGateway>>;
+    async fn connection_application(&self) -> anyhow::Result<ConnectionApplication> {
+        Err(anyhow::anyhow!(
+            "typed connection application is unavailable in this host"
+        ))
+    }
+    async fn runtime_query_application(&self) -> anyhow::Result<RuntimeQueryApplication> {
+        Err(anyhow::anyhow!(
+            "typed runtime query application is unavailable in this host"
+        ))
+    }
     async fn resource_application(&self) -> anyhow::Result<ResourceApplication>;
     async fn system_proxy_enabled(&self) -> bool;
     async fn set_system_proxy_enabled(&self, enabled: bool) -> anyhow::Result<()>;
