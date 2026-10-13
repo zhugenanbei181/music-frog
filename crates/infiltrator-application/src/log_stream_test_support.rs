@@ -1,17 +1,16 @@
 //! test-intent: support
 use async_trait::async_trait;
 use futures_util::StreamExt;
-use futures_util::stream::pending;
+use futures_util::stream::{BoxStream, pending};
 use infiltrator_contract::core_identity::CoreScope;
-use infiltrator_domain::runtime::{
-    ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider, TrafficData,
-};
+use infiltrator_domain::runtime::{MemoryData, ProxyProvider, RuleProvider, TrafficData};
 use infiltrator_ports::application_runtime::{
     ApplicationFuture, ApplicationRuntime, ApplicationSleep,
 };
 use infiltrator_ports::error::PortError;
-use infiltrator_ports::runtime_gateway::{
-    RuntimeGateway, RuntimeStream, ScopedRuntimeStream, ScopedRuntimeStreamEvent,
+use infiltrator_ports::runtime_gateway::RuntimeGateway;
+use infiltrator_ports::runtime_stream::{
+    RuntimeStreamEvent, RuntimeStreamPort, ScopedRuntimeStream, ScopedRuntimeStreamEvent,
 };
 use mem::take;
 use std::collections::VecDeque;
@@ -36,18 +35,22 @@ impl ApplicationRuntime for TestRuntime {
         Box::pin(sleep(duration))
     }
 }
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct LogGateway {
-    pub streams: Mutex<Vec<RuntimeStream<String>>>,
-    pub event_scopes: Mutex<VecDeque<CoreScope>>,
-    pub calls: AtomicUsize,
+    pub streams: Arc<Mutex<Vec<BoxStream<'static, RuntimeStreamEvent<String>>>>>,
+    pub event_scopes: Arc<Mutex<VecDeque<CoreScope>>>,
+    pub calls: Arc<AtomicUsize>,
     pub opened: Arc<Notify>,
     pub current_scope: Option<CoreScope>,
+    pub requested_scope: Arc<Mutex<Option<CoreScope>>>,
     pub opening_gate: Option<Arc<Notify>>,
     pub failure: Option<PortError>,
 }
 impl LogGateway {
-    async fn open_stream(&self, level: Option<String>) -> Result<RuntimeStream<String>, PortError> {
+    async fn open_stream(
+        &self,
+        level: Option<String>,
+    ) -> Result<BoxStream<'static, RuntimeStreamEvent<String>>, PortError> {
         assert_eq!(level.as_deref(), Some("debug"));
         self.calls.fetch_add(1, Ordering::SeqCst);
         self.opened.notify_one();
@@ -67,33 +70,15 @@ impl LogGateway {
 }
 #[async_trait]
 impl RuntimeGateway for LogGateway {
-    async fn stream_logs(&self, level: Option<String>) -> Result<RuntimeStream<String>, PortError> {
-        self.open_stream(level).await
+    fn current_core_scope(&self) -> Result<CoreScope, PortError> {
+        self.current_scope
+            .clone()
+            .or_else(|| self.requested_scope.lock().unwrap().clone())
+            .ok_or_else(|| PortError::Failed("test Core scope is unavailable".into()))
     }
-    async fn stream_logs_scoped(
-        &self,
-        scope: CoreScope,
-        level: Option<String>,
-    ) -> Result<ScopedRuntimeStream<String>, PortError> {
-        if self
-            .current_scope
-            .as_ref()
-            .is_some_and(|current| current != &scope)
-        {
-            self.calls.fetch_add(1, Ordering::SeqCst);
-            self.opened.notify_one();
-            return Err(PortError::Failed(
-                "test gateway scope does not match the request".to_string(),
-            ));
-        }
-        let stream = self.open_stream(level).await?;
-        let scopes = take(&mut *self.event_scopes.lock().unwrap());
-        let mut event_scopes = scopes.into_iter();
-        let scoped = stream.map(move |event| ScopedRuntimeStreamEvent {
-            scope: event_scopes.next().unwrap_or_else(|| scope.clone()),
-            event,
-        });
-        Ok(Box::pin(scoped))
+
+    fn runtime_stream_port(&self) -> Arc<dyn RuntimeStreamPort> {
+        Arc::new(self.clone())
     }
     async fn switch_proxy(&self, _: &str, _: &str) -> Result<(), PortError> {
         panic!("unexpected proxy write")
@@ -113,22 +98,43 @@ impl RuntimeGateway for LogGateway {
     async fn update_rule_provider(&self, _: &str) -> Result<(), PortError> {
         panic!("unexpected provider write")
     }
-    async fn get_connections(&self) -> Result<ConnectionSnapshot, PortError> {
-        panic!("unexpected connection read")
-    }
     async fn get_memory(&self) -> Result<MemoryData, PortError> {
         panic!("unexpected memory read")
     }
-    async fn close_connection(&self, _: &str) -> Result<(), PortError> {
-        panic!("unexpected connection write")
+}
+
+#[async_trait]
+impl RuntimeStreamPort for LogGateway {
+    async fn logs(
+        &self,
+        scope: CoreScope,
+        level: Option<String>,
+    ) -> Result<ScopedRuntimeStream<String>, PortError> {
+        if self
+            .current_scope
+            .as_ref()
+            .is_some_and(|current| current != &scope)
+        {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            self.opened.notify_one();
+            return Err(PortError::Failed(
+                "test gateway scope does not match the request".to_string(),
+            ));
+        }
+        *self.requested_scope.lock().unwrap() = Some(scope.clone());
+        let stream = self.open_stream(level).await?;
+        let scopes = take(&mut *self.event_scopes.lock().unwrap());
+        let mut event_scopes = scopes.into_iter();
+        let scoped = stream.map(move |event| ScopedRuntimeStreamEvent {
+            scope: event_scopes.next().unwrap_or_else(|| scope.clone()),
+            event,
+        });
+        Ok(Box::pin(scoped))
     }
-    async fn close_all_connections(&self) -> Result<(), PortError> {
-        panic!("unexpected connection write")
-    }
-    async fn stream_traffic(&self) -> Result<RuntimeStream<TrafficData>, PortError> {
+    async fn traffic(
+        &self,
+        _scope: CoreScope,
+    ) -> Result<ScopedRuntimeStream<TrafficData>, PortError> {
         panic!("unexpected traffic stream")
-    }
-    async fn stream_connections(&self) -> Result<RuntimeStream<ConnectionSnapshot>, PortError> {
-        panic!("unexpected connection stream")
     }
 }

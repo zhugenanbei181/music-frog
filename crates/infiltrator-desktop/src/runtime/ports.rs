@@ -11,8 +11,6 @@ use crate::service::ServiceStatus;
 use crate::system_dns_cache::DesktopSystemDnsCache;
 use crate::system_proxy::DesktopSystemProxy;
 use crate::tun_service::{ServiceModeStatus, TunServiceManager};
-use futures_util::StreamExt;
-use futures_util::stream::{BoxStream, unfold};
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_contract::active_profile_reference::{
     ActiveProfileReference, ActiveProfileReferenceWriteAuthorization,
@@ -21,13 +19,13 @@ use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_identity::{CoreScope, EngineId};
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
+use infiltrator_contract::resources::ResourceAvailability;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_core::apply::failure_from_apply_error;
 use infiltrator_domain::apply::ApplyStrategy;
-use infiltrator_domain::runtime::{
-    ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider, TrafficData,
-};
+use infiltrator_domain::runtime::{MemoryData, ProxyProvider, RuleProvider};
 use infiltrator_ports::certificate_authority::CertificateAuthorityPort;
+use infiltrator_ports::connection::ConnectionPort;
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::dns_latency::DnsLatencyProbePort;
 use infiltrator_ports::dns_leak::DnsLeakProbePort;
@@ -45,23 +43,22 @@ use infiltrator_ports::profile_configuration_transaction::{
 };
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::profile_workspace::{ProfileWorkspace, ProfileWorkspaceUpdate};
+use infiltrator_ports::resources::{CoreResourcePort, CpuResourceObserver};
 use infiltrator_ports::rule_provider_cache::RuleProviderCachePort;
 use infiltrator_ports::runtime_configuration::RuntimeConfigurationPorts;
-use infiltrator_ports::runtime_gateway::{
-    ManagedRuntime, RuntimeGateway, RuntimeStream, RuntimeStreamEvent, ScopedRuntimeStream,
-    ScopedRuntimeStreamEvent,
-};
+use infiltrator_ports::runtime_gateway::{ManagedRuntime, RuntimeGateway};
+use infiltrator_ports::runtime_stream::RuntimeStreamPort;
 use infiltrator_ports::script_export::ScriptExportPort;
 use infiltrator_ports::service_mode::ServiceModePort;
 use infiltrator_ports::stun_probe::StunEgressProbePort;
 use infiltrator_ports::system_dns_cache::SystemDnsCachePort;
 use infiltrator_ports::system_proxy::SystemProxyPort;
-use mihomo_api::client::StreamEvent;
+use mihomo_api::resource_port::MihomoRuntimeResourcePort;
 use mihomo_api::runtime_configuration::{MihomoRuntimeConfigurationAdapter, RuntimeScopeResolver};
+use mihomo_api::runtime_stream::MihomoRuntimeStreamPort;
 use std::path::PathBuf;
 use std::sync::Arc;
 use sysinfo::{Pid, ProcessesToUpdate, System};
-use tokio::sync::mpsc::UnboundedReceiver;
 
 #[async_trait::async_trait]
 impl RuntimeGateway for MihomoRuntime {
@@ -127,14 +124,6 @@ impl RuntimeGateway for MihomoRuntime {
             .map_err(|error| PortError::Network(error.to_string()))
     }
 
-    async fn get_connections(&self) -> Result<ConnectionSnapshot, PortError> {
-        self.client
-            .get_connections()
-            .await
-            .map(Into::into)
-            .map_err(|error| PortError::Network(error.to_string()))
-    }
-
     async fn get_memory(&self) -> Result<MemoryData, PortError> {
         self.client
             .get_memory()
@@ -167,64 +156,56 @@ impl RuntimeGateway for MihomoRuntime {
             .map_err(|error| PortError::Network(error.to_string()))
     }
 
-    async fn close_connection(&self, id: &str) -> Result<(), PortError> {
-        self.client
-            .close_connection(id)
-            .await
-            .map_err(|error| PortError::Network(error.to_string()))
+    fn connection_port(&self) -> Arc<dyn ConnectionPort> {
+        self.runtime_gateway.connection_port()
     }
 
-    async fn close_all_connections(&self) -> Result<(), PortError> {
-        self.client
-            .close_all_connections()
-            .await
-            .map_err(|error| PortError::Network(error.to_string()))
+    fn runtime_stream_port(&self) -> Arc<dyn RuntimeStreamPort> {
+        let application = self.application.clone();
+        let resolver: RuntimeScopeResolver =
+            Arc::new(move || active_core_scope_for_application(&application));
+        Arc::new(MihomoRuntimeStreamPort::new(
+            self.client.clone(),
+            Some(resolver),
+        ))
     }
 
-    async fn stream_logs(&self, level: Option<String>) -> Result<RuntimeStream<String>, PortError> {
-        let receiver = self
-            .client
-            .stream_logs_events(level.as_deref())
-            .await
-            .map_err(|error| PortError::Network(error.to_string()))?;
-        Ok(map_stream(receiver, |line| line))
-    }
-
-    async fn stream_logs_scoped(
-        &self,
-        requested_scope: CoreScope,
-        level: Option<String>,
-    ) -> Result<ScopedRuntimeStream<String>, PortError> {
-        let opening_scope = active_core_scope(self)?;
-        validate_log_open_scope(&requested_scope, &opening_scope)?;
-
-        let stream = RuntimeGateway::stream_logs(self, level).await?;
-        let stream_scope = active_core_scope(self)?;
-        validate_log_post_open_scope(&requested_scope, &opening_scope, &stream_scope)?;
-
-        let scoped = stream.map(move |event| ScopedRuntimeStreamEvent {
-            scope: stream_scope.clone(),
-            event,
+    fn resource_port(&self) -> Arc<dyn CoreResourcePort> {
+        let application = self.application.clone();
+        let resolver: RuntimeScopeResolver =
+            Arc::new(move || active_core_scope_for_application(&application));
+        let cpu_observer: Arc<dyn CpuResourceObserver> = Arc::new(DesktopCpuResourceObserver {
+            service_manager: self.service_manager.clone(),
         });
-        Ok(Box::pin(scoped))
+        Arc::new(
+            MihomoRuntimeResourcePort::new(self.client.clone(), Some(resolver))
+                .with_cpu_observer(cpu_observer),
+        )
     }
+}
 
-    async fn stream_traffic(&self) -> Result<RuntimeStream<TrafficData>, PortError> {
-        let receiver = self
-            .client
-            .stream_traffic_events()
-            .await
-            .map_err(|error| PortError::Network(error.to_string()))?;
-        Ok(map_stream(receiver, Into::into))
-    }
+struct DesktopCpuResourceObserver {
+    service_manager: crate::service::ServiceManager,
+}
 
-    async fn stream_connections(&self) -> Result<RuntimeStream<ConnectionSnapshot>, PortError> {
-        let receiver = self
-            .client
-            .stream_connections_events()
-            .await
-            .map_err(|error| PortError::Network(error.to_string()))?;
-        Ok(map_stream(receiver, Into::into))
+#[async_trait::async_trait]
+impl CpuResourceObserver for DesktopCpuResourceObserver {
+    async fn observe_cpu_percent(&self) -> ResourceAvailability<f32> {
+        let pid = match self.service_manager.status().await {
+            Ok(ServiceStatus::Running(pid)) => pid,
+            Ok(ServiceStatus::Stopped) => return ResourceAvailability::Unsupported,
+            Err(error) => {
+                return ResourceAvailability::Failed(Failure::from(PortError::Io(
+                    error.to_string(),
+                )));
+            }
+        };
+        let mut system = System::new();
+        system.refresh_processes(ProcessesToUpdate::All, true);
+        match system.process(Pid::from_u32(pid)) {
+            Some(process) => ResourceAvailability::Available(process.cpu_usage()),
+            None => ResourceAvailability::Unsupported,
+        }
     }
 }
 
@@ -455,27 +436,6 @@ impl HostRuntime for MihomoRuntime {
     }
 }
 
-fn map_stream<T, U>(
-    receiver: UnboundedReceiver<StreamEvent<T>>,
-    map_item: fn(T) -> U,
-) -> BoxStream<'static, RuntimeStreamEvent<U>>
-where
-    T: Send + 'static,
-    U: Send + 'static,
-{
-    Box::pin(unfold(receiver, move |mut receiver| async move {
-        let event = receiver.recv().await?;
-        let event = match event {
-            StreamEvent::Connecting => RuntimeStreamEvent::Connecting,
-            StreamEvent::Connected => RuntimeStreamEvent::Connected,
-            StreamEvent::Item(item) => RuntimeStreamEvent::Item(map_item(item)),
-            StreamEvent::Reconnecting(error) => RuntimeStreamEvent::Reconnecting(error),
-            StreamEvent::Failed(error) => RuntimeStreamEvent::Failed(error),
-        };
-        Some((event, receiver))
-    }))
-}
-
 fn active_core_scope(runtime: &MihomoRuntime) -> Result<CoreScope, PortError> {
     active_core_scope_for_application(&runtime.application)
 }
@@ -486,82 +446,10 @@ fn active_core_scope_for_application(
     let lifecycle = application.snapshot().lifecycle_snapshot();
     match &lifecycle.lifecycle {
         CoreLifecycle::Running | CoreLifecycle::Ready => lifecycle.scope().ok_or_else(|| {
-            PortError::Failed("active core identity is unavailable for controller logs".into())
+            PortError::Failed("active Core identity is unavailable for controller operation".into())
         }),
         _ => Err(PortError::Failed(
-            "controller log stream requires a running core".to_string(),
+            "controller operation requires a running Core".to_string(),
         )),
-    }
-}
-
-fn validate_log_open_scope(requested: &CoreScope, opening: &CoreScope) -> Result<(), PortError> {
-    if opening == requested {
-        Ok(())
-    } else {
-        Err(PortError::Failed(
-            "controller log request does not match the active core scope".to_string(),
-        ))
-    }
-}
-
-fn validate_log_post_open_scope(
-    requested: &CoreScope,
-    opening: &CoreScope,
-    observed: &CoreScope,
-) -> Result<(), PortError> {
-    if opening == requested && observed == requested && observed == opening {
-        Ok(())
-    } else {
-        Err(PortError::Failed(
-            "active core scope changed while opening the controller log stream".to_string(),
-        ))
-    }
-}
-
-#[cfg(test)]
-mod log_scope_tests {
-    use super::{validate_log_open_scope, validate_log_post_open_scope};
-    use infiltrator_contract::core_identity::{
-        CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
-    };
-    use infiltrator_contract::session::SessionToken;
-    use infiltrator_ports::error::PortError;
-
-    fn scope(generation: u64, session: u128) -> CoreScope {
-        CoreScope {
-            identity: CoreIdentity::new(
-                EngineId::new("mihomo").expect("engine"),
-                CoreInstanceId::new("desktop-main").expect("instance"),
-                Some(CoreVersion::new("v1.19.32").expect("version")),
-            ),
-            generation: CoreGeneration::new(generation),
-            session_token: Some(SessionToken::new(session)),
-        }
-    }
-
-    #[test]
-    fn scoped_log_stream_rejects_a_request_for_another_active_generation() {
-        let requested = scope(7, 70);
-        let active = scope(8, 80);
-
-        let error = validate_log_open_scope(&requested, &active)
-            .expect_err("mismatched scope must fail before opening the stream");
-
-        assert!(matches!(error, PortError::Failed(_)));
-        assert!(validate_log_post_open_scope(&requested, &active, &active).is_err());
-    }
-
-    #[test]
-    fn scoped_log_stream_accepts_only_a_stable_scope_across_opening() {
-        let requested = scope(7, 70);
-        let opening = scope(7, 70);
-        assert!(validate_log_open_scope(&requested, &opening).is_ok());
-        assert!(validate_log_post_open_scope(&requested, &opening, &opening).is_ok());
-
-        let restarted = scope(8, 80);
-        assert!(matches!(
-            validate_log_post_open_scope(&requested, &opening, &restarted),
-            Err(PortError::Failed(_))
-        ));
     }
 }

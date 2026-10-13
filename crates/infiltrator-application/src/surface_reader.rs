@@ -82,6 +82,7 @@ use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot;
 use infiltrator_contract::version::CoreVersionSnapshot;
 use infiltrator_domain::app_routing::{AppRoutingMode, AppRoutingRule};
+use infiltrator_ports::connection::ConnectionPort;
 use infiltrator_ports::endpoint::EndpointSource;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::routing_intent::RoutingIntentPort;
@@ -122,6 +123,7 @@ pub struct ApplicationSurfaceReader {
     runtime_control: RuntimeControlApplication,
     core: Arc<CoreApplication>,
     gateway: Option<Arc<dyn RuntimeGateway>>,
+    connection_port: Option<Arc<dyn ConnectionPort>>,
     routing_intent_port: Option<Arc<dyn RoutingIntentPort>>,
     profiles: Option<ProfileApplication>,
     configuration: Option<ConfigurationApplication>,
@@ -327,9 +329,12 @@ impl SurfaceReader for ApplicationSurfaceReader {
             self.runtime_control
                 .observe(core.generation, revision, runtime_config.as_ref());
         let mtu = merge_applied_mtu(self.read_mtu().await, runtime_config.as_ref());
-        let runtime_connections = match &self.gateway {
-            Some(gateway) => Some(gateway.get_connections().await),
-            None => None,
+        let runtime_connections = match (&self.connection_port, core.scope()) {
+            (Some(port), Some(scope)) => Some(port.observe(scope.clone()).await),
+            (Some(_), None) => Some(Err(PortError::Failed(
+                "active Core scope is unavailable for connection reads".to_owned(),
+            ))),
+            (None, _) => None,
         };
         let traffic_topology = self.traffic_topology.project(
             &core,
@@ -563,10 +568,10 @@ impl SurfaceReader for ApplicationSurfaceReader {
                 // and the shared mapper publishes them into the read model.
                 let rates = self
                     .connection_rates
-                    .observe_at(Instant::now(), &connections.connections);
-                connections_page_snapshot(&connections, &rates)
+                    .observe_at(Instant::now(), &connections.snapshot().connections);
+                connections_page_snapshot(connections.snapshot(), &rates)
             },
-            "Mihomo connections gateway",
+            "Mihomo connection port",
         );
 
         let mrs_acceleration_snapshot = if let Some(Ok(provs)) = &runtime_rule_providers {

@@ -1,18 +1,38 @@
-//! Cross-surface core resource and soft-quota state.
+//! Typed, owner-scoped core resource observations.
 
+use crate::core_identity::CoreScope;
 use crate::error::Failure;
 use serde::{Deserialize, Serialize};
 
 pub const CORE_MEMORY_SOFT_LIMIT_BYTES: u64 = 512 * 1024 * 1024;
 
+/// Availability of one resource fact. Missing support and failed reads stay
+/// distinct from a real zero value.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "availability", content = "value", rename_all = "snake_case")]
+pub enum ResourceAvailability<T> {
+    NotObserved,
+    Available(T),
+    Unsupported,
+    Failed(Failure),
+}
+
+impl<T> Default for ResourceAvailability<T> {
+    fn default() -> Self {
+        Self::NotObserved
+    }
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "state", rename_all = "snake_case")]
 pub enum CoreGcStatus {
     #[default]
-    Unknown,
+    NotAttempted,
     NotNeeded,
-    Triggered {
+    Collecting,
+    Collected {
         before_bytes: u64,
-        after_bytes: Option<u64>,
+        after_bytes: u64,
     },
     Failed {
         failure: Failure,
@@ -20,28 +40,40 @@ pub enum CoreGcStatus {
     Unsupported,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct CoreResourceSnapshot {
-    pub memory_bytes: Option<u64>,
-    pub cpu_percent: Option<f32>,
-    pub memory_soft_limit_bytes: u64,
-    pub gc: CoreGcStatus,
-}
-
-impl Default for CoreResourceSnapshot {
-    fn default() -> Self {
-        Self {
-            memory_bytes: None,
-            cpu_percent: None,
-            memory_soft_limit_bytes: CORE_MEMORY_SOFT_LIMIT_BYTES,
-            gc: CoreGcStatus::Unknown,
-        }
-    }
+/// A surface-ready resource observation. An observed value always carries the
+/// owner scope that produced it; no Optional data is used to encode support or
+/// failure states.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "observation", rename_all = "snake_case")]
+pub enum CoreResourceSnapshot {
+    #[default]
+    NotObserved,
+    Observed {
+        scope: CoreScope,
+        memory: ResourceAvailability<u64>,
+        cpu_percent: ResourceAvailability<f32>,
+        memory_soft_limit_bytes: u64,
+        gc: CoreGcStatus,
+    },
 }
 
 impl CoreResourceSnapshot {
     pub fn over_memory_limit(&self) -> bool {
-        self.memory_bytes
-            .is_some_and(|bytes| bytes > self.memory_soft_limit_bytes)
+        match self {
+            Self::NotObserved => false,
+            Self::Observed {
+                memory: ResourceAvailability::Available(bytes),
+                memory_soft_limit_bytes,
+                ..
+            } => bytes > memory_soft_limit_bytes,
+            Self::Observed { .. } => false,
+        }
+    }
+
+    pub fn scope(&self) -> Option<&CoreScope> {
+        match self {
+            Self::NotObserved => None,
+            Self::Observed { scope, .. } => Some(scope),
+        }
     }
 }

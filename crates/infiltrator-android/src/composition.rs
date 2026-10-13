@@ -30,9 +30,7 @@ use infiltrator_contract::surface::HostKind;
 use infiltrator_core::apply::EndpointConfigReloader;
 use infiltrator_core::profile_configuration_transaction::MihomoProfileConfigurationTransactionAdapter;
 use infiltrator_core::version_port::MihomoVersionPort;
-use infiltrator_domain::runtime::{
-    ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider, TrafficData,
-};
+use infiltrator_domain::runtime::{MemoryData, ProxyProvider, RuleProvider};
 use infiltrator_platform::android_bridge::AndroidBridge;
 use infiltrator_ports::core_capability_provider::CoreCapabilityProvider;
 use infiltrator_ports::core_log_level::CoreLogLevelPort;
@@ -50,7 +48,6 @@ use infiltrator_ports::profile_configuration_transaction::{
 use infiltrator_ports::profile_document_codec::ProfileDocumentCodecPort;
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::runtime_gateway::RuntimeGateway;
-use infiltrator_ports::runtime_gateway::RuntimeStream;
 use infiltrator_ports::secure_store::SecureStore;
 use mihomo_api::client::MihomoClient;
 use mihomo_api::core_capability_provider::MihomoCoreCapabilityProvider;
@@ -323,34 +320,7 @@ impl RuntimeGateway for UnavailableAndroidRuntimeGateway {
         Err(self.failure())
     }
 
-    async fn get_connections(&self) -> Result<ConnectionSnapshot, PortError> {
-        Err(self.failure())
-    }
-
     async fn get_memory(&self) -> Result<MemoryData, PortError> {
-        Err(self.failure())
-    }
-
-    async fn close_connection(&self, _id: &str) -> Result<(), PortError> {
-        Err(self.failure())
-    }
-
-    async fn close_all_connections(&self) -> Result<(), PortError> {
-        Err(self.failure())
-    }
-
-    async fn stream_logs(
-        &self,
-        _level: Option<String>,
-    ) -> Result<RuntimeStream<String>, PortError> {
-        Err(self.failure())
-    }
-
-    async fn stream_traffic(&self) -> Result<RuntimeStream<TrafficData>, PortError> {
-        Err(self.failure())
-    }
-
-    async fn stream_connections(&self) -> Result<RuntimeStream<ConnectionSnapshot>, PortError> {
         Err(self.failure())
     }
 }

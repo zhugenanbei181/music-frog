@@ -4,7 +4,7 @@ use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::logs::{LogLevel, LogSession, LogStreamState};
 use infiltrator_contract::snapshot::{CoreLifecycle, CoreSnapshot};
 use infiltrator_contract::surface_snapshot::{LogSnapshot, LogsPageSnapshot, PageData, PageStatus};
-use infiltrator_ports::runtime_gateway::RuntimeStreamEvent;
+use infiltrator_ports::runtime_stream::{RuntimeStreamEvent, RuntimeStreamTerminal};
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 
@@ -155,7 +155,15 @@ impl LogApplication {
             RuntimeStreamEvent::Reconnecting(failure) => {
                 state.stream = LogStreamState::Reconnecting(failure)
             }
-            RuntimeStreamEvent::Failed(failure) => state.stream = LogStreamState::Failed(failure),
+            RuntimeStreamEvent::Terminal(RuntimeStreamTerminal::Cancelled) => {
+                state.stream = LogStreamState::Cancelled
+            }
+            RuntimeStreamEvent::Terminal(RuntimeStreamTerminal::Failed(failure)) => {
+                state.stream = LogStreamState::Failed(failure)
+            }
+            RuntimeStreamEvent::Terminal(RuntimeStreamTerminal::Unsupported(failure)) => {
+                state.stream = LogStreamState::Unsupported(failure)
+            }
         }
         true
     }
@@ -235,11 +243,11 @@ impl LogApplication {
                     PageStatus::Ready
                 }
             }
-            LogStreamState::Reconnecting(failure) | LogStreamState::Failed(failure) => {
-                PageStatus::Failed {
-                    failure: failure.clone(),
-                }
-            }
+            LogStreamState::Reconnecting(failure)
+            | LogStreamState::Failed(failure)
+            | LogStreamState::Unsupported(failure) => PageStatus::Failed {
+                failure: failure.clone(),
+            },
             _ => PageStatus::Loading,
         };
         PageData {

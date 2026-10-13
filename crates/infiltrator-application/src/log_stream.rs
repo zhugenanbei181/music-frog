@@ -7,7 +7,8 @@ use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::logs::LogSession;
 use infiltrator_contract::snapshot::{CoreLifecycle, CoreLifecycleSnapshot};
 use infiltrator_ports::application_runtime::ApplicationRuntime;
-use infiltrator_ports::runtime_gateway::{RuntimeGateway, RuntimeStreamEvent};
+use infiltrator_ports::runtime_gateway::RuntimeGateway;
+use infiltrator_ports::runtime_stream::{RuntimeStreamEvent, RuntimeStreamTerminal};
 use std::sync::Arc;
 use std::thread::{Builder, JoinHandle, current};
 use std::time::Duration;
@@ -63,10 +64,8 @@ impl LogDriver {
                 }
                 continue;
             };
-            let opening = self
-                .gateway
-                .stream_logs_scoped(scope.clone(), Some("debug".into()))
-                .fuse();
+            let stream_port = self.gateway.runtime_stream_port();
+            let opening = stream_port.logs(scope.clone(), Some("debug".into())).fuse();
             futures_util::pin_mut!(opening);
             let opened = loop {
                 let tick = self.runtime.sleep(POLL_INTERVAL).fuse();
@@ -81,7 +80,11 @@ impl LogDriver {
             }
             let Some(opened) = opened else { continue };
             let mut stream = match opened {
-                Ok(stream) => stream,
+                Ok(stream) => crate::runtime_stream_application::scope_checked(
+                    self.gateway.clone(),
+                    scope.clone(),
+                    stream,
+                ),
                 Err(error) => {
                     let failure = Failure::from(error);
                     let retryable = failure.retryable;
@@ -96,7 +99,7 @@ impl LogDriver {
                     continue;
                 }
             };
-            let mut permanent_failure = false;
+            let mut retry_disposition = LogRetryDisposition::Reconnect;
             loop {
                 let event = stream.next().fuse();
                 let tick = self.runtime.sleep(POLL_INTERVAL).fuse();
@@ -109,15 +112,21 @@ impl LogDriver {
                     Some(Some(event)) => {
                         if event.scope != scope {
                             self.logs.fail(session.clone(), scope_mismatch_failure());
-                            permanent_failure = true;
+                            retry_disposition = LogRetryDisposition::WaitForSessionChange;
                             break;
                         }
-                        permanent_failure = matches!(
-                            &event.event,
-                            RuntimeStreamEvent::Failed(failure) if !failure.retryable
-                        );
+                        retry_disposition = match &event.event {
+                            RuntimeStreamEvent::Terminal(RuntimeStreamTerminal::Failed(
+                                failure,
+                            )) if !failure.retryable => LogRetryDisposition::WaitForSessionChange,
+                            RuntimeStreamEvent::Terminal(RuntimeStreamTerminal::Unsupported(_)) => {
+                                LogRetryDisposition::WaitForSessionChange
+                            }
+                            _ => retry_disposition,
+                        };
+                        let terminal = matches!(&event.event, RuntimeStreamEvent::Terminal(_));
                         self.logs.ingest(session.clone(), event.event);
-                        if permanent_failure {
+                        if terminal {
                             break;
                         }
                     }
@@ -132,15 +141,24 @@ impl LogDriver {
                 }
             }
             drop(stream);
-            if permanent_failure {
-                while self.session().as_ref() == Some(&session) {
-                    self.runtime.sleep(POLL_INTERVAL).await;
+            match retry_disposition {
+                LogRetryDisposition::Reconnect => {
+                    self.wait(&session, Duration::from_millis(100)).await;
                 }
-            } else {
-                self.wait(&session, Duration::from_millis(100)).await;
+                LogRetryDisposition::WaitForSessionChange => {
+                    while self.session().as_ref() == Some(&session) {
+                        self.runtime.sleep(POLL_INTERVAL).await;
+                    }
+                }
             }
         }
     }
+}
+
+#[derive(Clone, Copy)]
+enum LogRetryDisposition {
+    Reconnect,
+    WaitForSessionChange,
 }
 
 fn scope_from_session(session: &LogSession) -> Option<CoreScope> {

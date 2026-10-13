@@ -1,7 +1,4 @@
 //! One fact-to-copy owner for host VPN, privileged transactions and PAC observations.
-#[cfg(test)]
-#[cfg(test)]
-use infiltrator_contract::android_control::VpnOwnerCoreReadback;
 use infiltrator_contract::android_control::{
     VpnOwnerLifecycle, VpnOwnerReadiness, VpnOwnerResourceState, VpnOwnerSnapshot,
 };

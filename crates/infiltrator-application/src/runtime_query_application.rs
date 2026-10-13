@@ -4,7 +4,8 @@ use infiltrator_contract::command::CoreLogLevel;
 use infiltrator_contract::error::Failure;
 use infiltrator_domain::runtime::{MemoryData, TrafficData};
 use infiltrator_ports::core_log_level::CoreLogLevelPort;
-use infiltrator_ports::runtime_gateway::{RuntimeGateway, RuntimeStream};
+use infiltrator_ports::runtime_gateway::RuntimeGateway;
+use infiltrator_ports::runtime_stream::ScopedRuntimeStream;
 use std::sync::Arc;
 
 #[derive(Clone)]
@@ -54,12 +55,37 @@ impl RuntimeQueryApplication {
         Ok(())
     }
 
-    pub async fn logs(&self, level: Option<String>) -> Result<RuntimeStream<String>, Failure> {
-        self.gateway.stream_logs(level).await.map_err(Failure::from)
+    pub async fn logs(
+        &self,
+        level: Option<String>,
+    ) -> Result<ScopedRuntimeStream<String>, Failure> {
+        let scope = self.gateway.current_core_scope().map_err(Failure::from)?;
+        let stream = self
+            .gateway
+            .runtime_stream_port()
+            .logs(scope.clone(), level)
+            .await
+            .map_err(Failure::from)?;
+        Ok(crate::runtime_stream_application::scope_checked(
+            self.gateway.clone(),
+            scope,
+            stream,
+        ))
     }
 
-    pub async fn traffic(&self) -> Result<RuntimeStream<TrafficData>, Failure> {
-        self.gateway.stream_traffic().await.map_err(Failure::from)
+    pub async fn traffic(&self) -> Result<ScopedRuntimeStream<TrafficData>, Failure> {
+        let scope = self.gateway.current_core_scope().map_err(Failure::from)?;
+        let stream = self
+            .gateway
+            .runtime_stream_port()
+            .traffic(scope.clone())
+            .await
+            .map_err(Failure::from)?;
+        Ok(crate::runtime_stream_application::scope_checked(
+            self.gateway.clone(),
+            scope,
+            stream,
+        ))
     }
 }
 

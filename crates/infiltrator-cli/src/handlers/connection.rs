@@ -5,7 +5,7 @@ use crate::output::{print_info, print_success, print_table};
 use futures_util::StreamExt;
 use infiltrator_application::connection_application::ConnectionApplication;
 use infiltrator_domain::runtime::Connection;
-use infiltrator_ports::runtime_gateway::RuntimeStreamEvent;
+use infiltrator_ports::runtime_stream::{RuntimeStreamEvent, RuntimeStreamTerminal};
 use tokio::signal::ctrl_c;
 
 /// Filters accepted by `connection list`; all are substrings matched
@@ -51,14 +51,11 @@ async fn list(
     filters: ListFilters,
     json: bool,
 ) -> anyhow::Result<()> {
-    let connections = apply_filters(
-        application
-            .snapshot()
-            .await
-            .map_err(|failure| anyhow::anyhow!(failure.message))?
-            .connections,
-        &filters,
-    );
+    let observed = application
+        .snapshot()
+        .await
+        .map_err(|failure| anyhow::anyhow!(failure.message))?;
+    let connections = apply_filters(observed.snapshot().connections.clone(), &filters);
     if json {
         output::print_json(&connections)?;
         return Ok(());
@@ -127,9 +124,9 @@ async fn stats(application: &ConnectionApplication) -> anyhow::Result<()> {
         .snapshot()
         .await
         .map_err(|failure| anyhow::anyhow!(failure.message))?;
-    println!("connections: {}", snapshot.connections.len());
-    println!("upload total: {}", snapshot.upload_total);
-    println!("download total: {}", snapshot.download_total);
+    println!("connections: {}", snapshot.snapshot().connections.len());
+    println!("upload total: {}", snapshot.snapshot().upload_total);
+    println!("download total: {}", snapshot.snapshot().download_total);
     Ok(())
 }
 
@@ -142,17 +139,23 @@ async fn stream(application: &ConnectionApplication) -> anyhow::Result<()> {
     loop {
         tokio::select! {
             event = events.next() => match event {
-                Some(RuntimeStreamEvent::Item(snapshot)) => println!(
-                    "connections: {}  ↑ {}  ↓ {}",
-                    snapshot.connections.len(),
-                    snapshot.upload_total,
-                    snapshot.download_total,
-                ),
-                Some(RuntimeStreamEvent::Failed(error)) => return Err(anyhow::anyhow!(error)),
-                Some(RuntimeStreamEvent::Reconnecting(error)) => {
-                    print_info(&format!("connection stream reconnecting: {error}"));
-                }
-                Some(RuntimeStreamEvent::Connecting | RuntimeStreamEvent::Connected) => {}
+                Some(scoped) => match scoped.event {
+                    RuntimeStreamEvent::Item(observation) => println!(
+                        "connections: {}  ↑ {}  ↓ {}",
+                        observation.snapshot().connections.len(),
+                        observation.snapshot().upload_total,
+                        observation.snapshot().download_total,
+                    ),
+                    RuntimeStreamEvent::Terminal(RuntimeStreamTerminal::Failed(error)
+                        | RuntimeStreamTerminal::Unsupported(error)) => {
+                        return Err(anyhow::anyhow!(error));
+                    }
+                    RuntimeStreamEvent::Terminal(RuntimeStreamTerminal::Cancelled) => break,
+                    RuntimeStreamEvent::Reconnecting(error) => {
+                        print_info(&format!("connection stream reconnecting: {error}"));
+                    }
+                    RuntimeStreamEvent::Connecting | RuntimeStreamEvent::Connected => {}
+                },
                 None => break,
             },
             _ = ctrl_c() => break,

@@ -33,16 +33,14 @@ use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
-use infiltrator_domain::runtime::{
-    ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider, TrafficData,
-};
+use infiltrator_domain::runtime::{MemoryData, ProxyProvider, RuleProvider};
 use infiltrator_ports::core_capability_provider::{
     CoreCapabilityProvider, CoreCapabilityProviderError,
 };
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::host_runtime::{HostRuntime, TunServiceStatus};
-use infiltrator_ports::runtime_gateway::{ManagedRuntime, RuntimeGateway, RuntimeStream};
+use infiltrator_ports::runtime_gateway::{ManagedRuntime, RuntimeGateway};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -235,34 +233,7 @@ impl RuntimeGateway for TestHostRuntime {
         unsupported(Capability::RoutingIntent)
     }
 
-    async fn get_connections(&self) -> Result<ConnectionSnapshot, PortError> {
-        unsupported(Capability::Connections)
-    }
-
     async fn get_memory(&self) -> Result<MemoryData, PortError> {
-        unsupported(Capability::Connections)
-    }
-
-    async fn close_connection(&self, _id: &str) -> Result<(), PortError> {
-        unsupported(Capability::Connections)
-    }
-
-    async fn close_all_connections(&self) -> Result<(), PortError> {
-        unsupported(Capability::Connections)
-    }
-
-    async fn stream_logs(
-        &self,
-        _level: Option<String>,
-    ) -> Result<RuntimeStream<String>, PortError> {
-        unsupported(Capability::Logs)
-    }
-
-    async fn stream_traffic(&self) -> Result<RuntimeStream<TrafficData>, PortError> {
-        unsupported(Capability::Connections)
-    }
-
-    async fn stream_connections(&self) -> Result<RuntimeStream<ConnectionSnapshot>, PortError> {
         unsupported(Capability::Connections)
     }
 }

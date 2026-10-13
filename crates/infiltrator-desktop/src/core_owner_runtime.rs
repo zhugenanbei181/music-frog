@@ -18,9 +18,7 @@ use infiltrator_contract::core_capabilities::{
 use infiltrator_contract::core_identity::{CoreScope, EngineId};
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
-use infiltrator_domain::runtime::{
-    ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider, TrafficData,
-};
+use infiltrator_domain::runtime::{MemoryData, ProxyProvider, RuleProvider};
 use infiltrator_ports::core_binary_selection::CoreBinarySelection;
 use infiltrator_ports::core_capability_provider::CoreCapabilityProvider;
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
@@ -28,7 +26,7 @@ use infiltrator_ports::error::PortError;
 use infiltrator_ports::host_runtime::{HostRuntime, TunServiceStatus};
 use infiltrator_ports::profile_configuration_transaction::ProfileConfigurationTransactionPort;
 use infiltrator_ports::runtime_configuration::RuntimeConfigurationPorts;
-use infiltrator_ports::runtime_gateway::{ManagedRuntime, RuntimeGateway, RuntimeStream};
+use infiltrator_ports::runtime_gateway::{ManagedRuntime, RuntimeGateway};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
@@ -213,55 +211,10 @@ impl RuntimeGateway for DesktopCoreOwnerRuntime {
         )
     }
 
-    async fn get_connections(&self) -> Result<ConnectionSnapshot, PortError> {
-        unsupported(
-            Capability::Connections,
-            "desktop Core-only handoff does not expose connection listing",
-        )
-    }
-
     async fn get_memory(&self) -> Result<MemoryData, PortError> {
         unsupported(
             Capability::Connections,
             "desktop Core-only handoff does not expose memory observation",
-        )
-    }
-
-    async fn close_connection(&self, _id: &str) -> Result<(), PortError> {
-        unsupported(
-            Capability::Connections,
-            "desktop Core-only handoff does not expose connection close",
-        )
-    }
-
-    async fn close_all_connections(&self) -> Result<(), PortError> {
-        unsupported(
-            Capability::Connections,
-            "desktop Core-only handoff does not expose connection close",
-        )
-    }
-
-    async fn stream_logs(
-        &self,
-        _level: Option<String>,
-    ) -> Result<RuntimeStream<String>, PortError> {
-        unsupported(
-            Capability::Logs,
-            "desktop Core-only handoff does not expose log streaming",
-        )
-    }
-
-    async fn stream_traffic(&self) -> Result<RuntimeStream<TrafficData>, PortError> {
-        unsupported(
-            Capability::Connections,
-            "desktop Core-only handoff does not expose traffic streaming",
-        )
-    }
-
-    async fn stream_connections(&self) -> Result<RuntimeStream<ConnectionSnapshot>, PortError> {
-        unsupported(
-            Capability::Connections,
-            "desktop Core-only handoff does not expose connection streaming",
         )
     }
 }

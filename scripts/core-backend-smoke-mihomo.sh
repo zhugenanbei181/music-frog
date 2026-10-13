@@ -560,7 +560,11 @@ try:
     )
     with open(ready_file, "w", encoding="utf-8") as destination:
         destination.write("request sent")
-    connection.settimeout(30)
+    # The ignored adapter suite can trigger a first-time Rust build after the
+    # fixture is opened. Keep the live connection available through that build
+    # and the remaining sequential smoke checks; the EXIT trap still owns
+    # deterministic cleanup when a check fails.
+    connection.settimeout(300)
     while connection.recv(4096):
         pass
 except ConnectionResetError:
@@ -659,7 +663,7 @@ if ! MIHOMO_REAL_CONTROLLER_URL="$base_url" \
     probe_diagnostics
     exit 1
 fi
-printf '[PASS] Rust typed DNS query, scoped Fake-IP flush, rule-provider list/update, Connection.Close, GC trigger, log stream, log-level, outbound, and routing adapters drove %s\n' \
+printf '[PASS] Rust typed DNS query, scoped Fake-IP flush, rule-provider list/update, Connection.Close, scoped GC with memory readback, log stream, log-level, outbound, and routing adapters drove %s\n' \
     "$expected_version"
 
 printf '[INFO] running ignored Rust Geo update trigger smoke against %s\n' "$expected_version"
@@ -986,7 +990,7 @@ PY
 }
 printf '[PASS] /connections read: %s; counters observed\n' "$connection_summary"
 
-printf '[NOT COVERED] Logs.Read/Clear, host TUN device/VPN activation, DNS cache contents, Fake-IP cache readback, GC memory effect readback, proxy providers/healthcheck, Connection.List, non-Linux hosts\n'
+printf '[NOT COVERED] Logs.Read/Clear, host TUN device/VPN activation, DNS cache contents, Fake-IP cache readback, proxy providers/healthcheck, Connection.List, non-Linux hosts\n'
 
 if ! cleanup_active_processes; then
     exit 1

@@ -10,7 +10,7 @@ use infiltrator_contract::session::SessionToken;
 use infiltrator_ports::endpoint::{ControllerEndpoint, EndpointSource};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::log_export::LogExportPort;
-use infiltrator_ports::runtime_gateway::RuntimeStreamEvent;
+use infiltrator_ports::runtime_stream::RuntimeStreamEvent;
 use std::future::pending;
 use std::sync::{Arc, Mutex};
 use std::task::Poll;

@@ -1,14 +1,9 @@
-//! Object-safe API seam over [`MihomoClient`].
+//! Object-safe engine API seam used by adapter tests and outbound discovery.
 //!
-//! [`MihomoApi`] mirrors the public async surface of [`MihomoClient`] so that
-//! frontends and tests can depend on `impl MihomoApi` / `dyn MihomoApi`
-//! instead of the concrete HTTP client. This makes the API layer mockable:
-//! tests can supply an in-memory implementation and never touch the external
-//! network or spawn a real mihomo process.
-//!
-//! The trait is strictly additive: [`MihomoClient`] keeps its inherent methods
-//! (inherent methods take precedence in method resolution), so existing
-//! callers are unaffected.
+//! Connection list and close operations intentionally do not appear here.
+//! Production code accesses them only through the scope- and revision-bound
+//! `ConnectionPort`; the raw controller calls remain private to this crate.
+//! Tests can provide an in-memory implementation without starting Mihomo.
 
 use crate::client::MihomoClient;
 use crate::error::Result;
@@ -17,7 +12,6 @@ use async_trait::async_trait;
 use infiltrator_domain::proxy::Proxy;
 use serde_json::Value;
 use std::collections::HashMap;
-use tokio::sync::mpsc::UnboundedReceiver;
 
 #[async_trait]
 pub trait MihomoApi: Send + Sync {
@@ -36,14 +30,7 @@ pub trait MihomoApi: Send + Sync {
     async fn update_rule_provider(&self, name: &str) -> Result<()>;
     async fn get_dns_query(&self, name: &str, q_type: &str) -> Result<Value>;
     async fn get_script(&self) -> Result<Value>;
-    async fn stream_logs(&self, level: Option<&str>) -> Result<UnboundedReceiver<String>>;
-    async fn stream_traffic(&self) -> Result<UnboundedReceiver<TrafficData>>;
-    async fn stream_connections(&self) -> Result<UnboundedReceiver<ConnectionSnapshot>>;
     async fn get_memory(&self) -> Result<MemoryData>;
-    async fn get_connections(&self) -> Result<ConnectionsResponse>;
-    async fn close_connection(&self, id: &str) -> Result<()>;
-    async fn close_all_connections(&self) -> Result<()>;
-
     /// Restarts the mihomo core (`POST /restart`): mihomo reloads its
     /// in-process configuration and then restarts itself.
     ///
@@ -152,32 +139,8 @@ impl MihomoApi for MihomoClient {
         MihomoClient::get_script(self).await
     }
 
-    async fn stream_logs(&self, level: Option<&str>) -> Result<UnboundedReceiver<String>> {
-        MihomoClient::stream_logs(self, level).await
-    }
-
-    async fn stream_traffic(&self) -> Result<UnboundedReceiver<TrafficData>> {
-        MihomoClient::stream_traffic(self).await
-    }
-
-    async fn stream_connections(&self) -> Result<UnboundedReceiver<ConnectionSnapshot>> {
-        MihomoClient::stream_connections(self).await
-    }
-
     async fn get_memory(&self) -> Result<MemoryData> {
         MihomoClient::get_memory(self).await
-    }
-
-    async fn get_connections(&self) -> Result<ConnectionsResponse> {
-        MihomoClient::get_connections(self).await
-    }
-
-    async fn close_connection(&self, id: &str) -> Result<()> {
-        MihomoClient::close_connection(self, id).await
-    }
-
-    async fn close_all_connections(&self) -> Result<()> {
-        MihomoClient::close_all_connections(self).await
     }
 
     async fn restart_core(&self) -> Result<()> {
@@ -281,25 +244,7 @@ mod tests {
         async fn get_script(&self) -> Result<Value> {
             unsupported()
         }
-        async fn stream_logs(&self, _level: Option<&str>) -> Result<UnboundedReceiver<String>> {
-            unsupported()
-        }
-        async fn stream_traffic(&self) -> Result<UnboundedReceiver<TrafficData>> {
-            unsupported()
-        }
-        async fn stream_connections(&self) -> Result<UnboundedReceiver<ConnectionSnapshot>> {
-            unsupported()
-        }
         async fn get_memory(&self) -> Result<MemoryData> {
-            unsupported()
-        }
-        async fn get_connections(&self) -> Result<ConnectionsResponse> {
-            unsupported()
-        }
-        async fn close_connection(&self, _id: &str) -> Result<()> {
-            unsupported()
-        }
-        async fn close_all_connections(&self) -> Result<()> {
             unsupported()
         }
         async fn restart_core(&self) -> Result<()> {

@@ -48,7 +48,7 @@ async fn test_runtime_memory_route() {
     let _m = server
         .mock("GET", "/memory")
         .with_status(200)
-        .with_body(r#"{"inuse":123,"oslimit":456}"#)
+        .with_body(r#"{"inuse":600000000,"oslimit":700000000}"#)
         .create_async()
         .await;
     let app = setup_app_with_runtime(Some(server.url()));
@@ -64,17 +64,40 @@ async fn test_runtime_memory_route() {
     assert_eq!(response.status(), StatusCode::OK);
     let body = to_bytes(response.into_body(), 1024).await.unwrap();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(json["inuse"], 123);
-    assert_eq!(json["oslimit"], 456);
+    assert_eq!(json["observation"], "observed");
+    assert_eq!(
+        json["scope"],
+        serde_json::to_value(test_outbound_scope()).unwrap()
+    );
+    assert_eq!(json["memory"]["availability"], "available");
+    assert_eq!(json["memory"]["value"], 600000000);
+    assert_eq!(json["cpu_percent"]["availability"], "unsupported");
+    assert_eq!(json["gc"]["state"], "not_attempted");
 }
 
 #[tokio::test]
 async fn test_runtime_close_single_connection_route() {
     let _guard = TEST_LOCK.lock().await;
     let mut server = mockito::Server::new_async().await;
+    let _before_close = server
+        .mock("GET", "/connections")
+        .with_status(200)
+        .with_body(
+            r#"{"connections":[{"id":"c1","metadata":{},"rule":"Match","chains":["DIRECT"]}]}"#,
+        )
+        .expect(2)
+        .create_async()
+        .await;
     let _m = server
         .mock("DELETE", "/connections/c1")
         .with_status(204)
+        .create_async()
+        .await;
+    let _after_close = server
+        .mock("GET", "/connections")
+        .with_status(200)
+        .with_body(r#"{"connections":[]}"#)
+        .expect(1)
         .create_async()
         .await;
     let app = setup_app_with_runtime(Some(server.url()));

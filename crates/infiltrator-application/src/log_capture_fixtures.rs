@@ -10,7 +10,7 @@ use infiltrator_contract::logs::LogSession;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
 use infiltrator_ports::error::PortError;
-use infiltrator_ports::runtime_gateway::RuntimeStreamEvent;
+use infiltrator_ports::runtime_stream::RuntimeStreamEvent;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 pub const LOG_QUERY: &str = "api\\.example|timeout";

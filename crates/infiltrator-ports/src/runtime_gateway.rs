@@ -1,44 +1,22 @@
 //! Runtime controller operations exposed as a transport-neutral port.
 
+use crate::connection::{ConnectionPort, UnsupportedConnectionPort};
 use crate::error::PortError;
 use crate::profile_workspace::{ProfileWorkspace, ProfileWorkspaceUpdate};
+use crate::resources::{CoreResourcePort, UnsupportedCoreResourcePort};
 use crate::runtime_configuration::RuntimeConfigurationPorts;
+use crate::runtime_stream::{RuntimeStreamPort, UnsupportedRuntimeStreamPort};
 use async_trait::async_trait;
-use futures_util::stream::BoxStream;
 use infiltrator_contract::active_profile_reference::{
     ActiveProfileReference, ActiveProfileReferenceWriteAuthorization,
 };
 use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_identity::CoreScope;
 use infiltrator_contract::core_identity::EngineId;
-use infiltrator_contract::error::Failure;
 use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_domain::apply::ApplyStrategy;
-use infiltrator_domain::runtime::{
-    ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider, TrafficData,
-};
-
-/// Lifecycle-independent events from a controller stream.
-#[derive(Debug)]
-pub enum RuntimeStreamEvent<T> {
-    Connecting,
-    Connected,
-    Item(T),
-    Reconnecting(Failure),
-    Failed(Failure),
-}
-
-pub type RuntimeStream<T> = BoxStream<'static, RuntimeStreamEvent<T>>;
-
-/// A controller event stamped by a gateway that verified its active core scope.
-#[derive(Debug)]
-pub struct ScopedRuntimeStreamEvent<T> {
-    pub scope: CoreScope,
-    pub event: RuntimeStreamEvent<T>,
-}
-
-pub type ScopedRuntimeStream<T> = BoxStream<'static, ScopedRuntimeStreamEvent<T>>;
+use infiltrator_domain::runtime::{MemoryData, ProxyProvider, RuleProvider};
 
 /// The controller-facing part of a running core host.
 ///
@@ -88,7 +66,6 @@ pub trait RuntimeGateway: Send + Sync {
             "geo database upgrade is not supported by this gateway",
         ))
     }
-    async fn get_connections(&self) -> Result<ConnectionSnapshot, PortError>;
     async fn get_memory(&self) -> Result<MemoryData, PortError>;
     /// Host-side CPU usage for the running core, when the platform exposes it.
     async fn get_cpu_percent(&self) -> Result<Option<f32>, PortError> {
@@ -101,25 +78,19 @@ pub trait RuntimeGateway: Send + Sync {
             "core garbage collection is not supported by this gateway",
         ))
     }
-    async fn close_connection(&self, id: &str) -> Result<(), PortError>;
-    async fn close_all_connections(&self) -> Result<(), PortError>;
-
-    async fn stream_logs(&self, level: Option<String>) -> Result<RuntimeStream<String>, PortError>;
-    /// Opens logs only after the gateway proves it currently addresses `scope`.
-    /// The default deliberately refuses to wrap the legacy unscoped stream:
-    /// caller-side tagging would make stale events appear current.
-    async fn stream_logs_scoped(
-        &self,
-        _scope: CoreScope,
-        _level: Option<String>,
-    ) -> Result<ScopedRuntimeStream<String>, PortError> {
-        Err(PortError::unsupported(
-            Capability::Logs,
-            "this gateway cannot prove the requested core scope",
-        ))
+    /// Narrow connection-control adapter composed by the host. Hosts without
+    /// a verified connection owner return an explicit unsupported port.
+    fn connection_port(&self) -> std::sync::Arc<dyn ConnectionPort> {
+        std::sync::Arc::new(UnsupportedConnectionPort)
     }
-    async fn stream_traffic(&self) -> Result<RuntimeStream<TrafficData>, PortError>;
-    async fn stream_connections(&self) -> Result<RuntimeStream<ConnectionSnapshot>, PortError>;
+
+    fn runtime_stream_port(&self) -> std::sync::Arc<dyn RuntimeStreamPort> {
+        std::sync::Arc::new(UnsupportedRuntimeStreamPort)
+    }
+
+    fn resource_port(&self) -> std::sync::Arc<dyn CoreResourcePort> {
+        std::sync::Arc::new(UnsupportedCoreResourcePort)
+    }
 }
 
 /// Additional host-owned operations available when a gateway also owns the

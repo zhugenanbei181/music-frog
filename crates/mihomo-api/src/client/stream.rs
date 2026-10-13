@@ -1,12 +1,12 @@
 //! Lifecycle-aware controller WebSocket streams: one reconnecting
-//! worker per endpoint, surfaced either as data-only receivers or as
-//! [`StreamEvent`] lifecycle events.
+//! worker per endpoint, surfaced as typed [`StreamEvent`] lifecycle events.
 
 use super::{MihomoClient, StreamEvent};
 use crate::error::Result;
 use crate::types::*;
 use futures_util::StreamExt;
 use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_ports::runtime_stream::RuntimeStreamTerminal;
 use std::cmp::min;
 use std::time::Duration;
 use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
@@ -56,7 +56,9 @@ impl MihomoClient {
                 let mut request = match ws_url_str.as_str().into_client_request() {
                     Ok(req) => req,
                     Err(error) => {
-                        let _ = tx.send(StreamEvent::Failed(websocket_failure(error)));
+                        let _ = tx.send(StreamEvent::Terminal(RuntimeStreamTerminal::Failed(
+                            websocket_failure(error),
+                        )));
                         break;
                     }
                 };
@@ -64,10 +66,12 @@ impl MihomoClient {
                     let value = match format!("Bearer {}", s).parse() {
                         Ok(value) => value,
                         Err(_) => {
-                            let _ = tx.send(StreamEvent::Failed(Failure::new(
-                                ErrorCode::Configuration,
-                                "controller secret cannot be encoded as an HTTP header",
-                                false,
+                            let _ = tx.send(StreamEvent::Terminal(RuntimeStreamTerminal::Failed(
+                                Failure::new(
+                                    ErrorCode::Configuration,
+                                    "controller secret cannot be encoded as an HTTP header",
+                                    false,
+                                ),
                             )));
                             break;
                         }
@@ -112,7 +116,13 @@ impl MihomoClient {
                 };
 
                 if !reconnect_reason.retryable {
-                    let _ = tx.send(StreamEvent::Failed(reconnect_reason));
+                    let terminal = match reconnect_reason.code {
+                        ErrorCode::Unsupported => {
+                            RuntimeStreamTerminal::Unsupported(reconnect_reason)
+                        }
+                        _ => RuntimeStreamTerminal::Failed(reconnect_reason),
+                    };
+                    let _ = tx.send(StreamEvent::Terminal(terminal));
                     return;
                 }
                 if tx
@@ -135,33 +145,7 @@ impl MihomoClient {
         Ok(rx)
     }
 
-    async fn spawn_reconnecting_stream<T, F>(
-        &self,
-        endpoint: &str,
-        query: Option<String>,
-        parse: F,
-    ) -> Result<UnboundedReceiver<T>>
-    where
-        T: Send + 'static,
-        F: Fn(&str) -> Option<T> + Send + Sync + 'static,
-    {
-        let mut events = self
-            .spawn_reconnecting_stream_events(endpoint, query, parse)
-            .await?;
-        let (tx, rx) = unbounded_channel();
-        tokio::spawn(async move {
-            while let Some(event) = events.recv().await {
-                if let StreamEvent::Item(item) = event
-                    && tx.send(item).is_err()
-                {
-                    break;
-                }
-            }
-        });
-        Ok(rx)
-    }
-
-    pub async fn stream_logs_events(
+    pub(crate) async fn stream_logs_events(
         &self,
         level: Option<&str>,
     ) -> Result<UnboundedReceiver<StreamEvent<String>>> {
@@ -173,7 +157,7 @@ impl MihomoClient {
         .await
     }
 
-    pub async fn stream_traffic_events(
+    pub(crate) async fn stream_traffic_events(
         &self,
     ) -> Result<UnboundedReceiver<StreamEvent<TrafficData>>> {
         self.spawn_reconnecting_stream_events("/traffic", None, |text| {
@@ -182,31 +166,10 @@ impl MihomoClient {
         .await
     }
 
-    pub async fn stream_connections_events(
+    pub(crate) async fn stream_connections_events(
         &self,
     ) -> Result<UnboundedReceiver<StreamEvent<ConnectionSnapshot>>> {
         self.spawn_reconnecting_stream_events("/connections", None, |text| {
-            serde_json::from_str::<ConnectionSnapshot>(text).ok()
-        })
-        .await
-    }
-
-    pub async fn stream_logs(&self, level: Option<&str>) -> Result<UnboundedReceiver<String>> {
-        self.spawn_reconnecting_stream("/logs", level.map(|l| format!("level={}", l)), |text| {
-            Some(text.to_string())
-        })
-        .await
-    }
-
-    pub async fn stream_traffic(&self) -> Result<UnboundedReceiver<TrafficData>> {
-        self.spawn_reconnecting_stream("/traffic", None, |text| {
-            serde_json::from_str::<TrafficData>(text).ok()
-        })
-        .await
-    }
-
-    pub async fn stream_connections(&self) -> Result<UnboundedReceiver<ConnectionSnapshot>> {
-        self.spawn_reconnecting_stream("/connections", None, |text| {
             serde_json::from_str::<ConnectionSnapshot>(text).ok()
         })
         .await

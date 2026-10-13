@@ -7,22 +7,19 @@ use infiltrator_contract::active_profile_reference::{
     ActiveProfileReferenceWriteAuthorization,
 };
 use infiltrator_contract::capability::Capability;
-use infiltrator_contract::core_identity::{CoreGeneration, CoreIdentity, CoreInstanceId, EngineId};
+use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_domain::profiles::ProfileMetadata;
-use infiltrator_domain::runtime::{
-    ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider, TrafficData,
-};
+use infiltrator_domain::runtime::{MemoryData, ProxyProvider, RuleProvider};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::{
     ActiveProfileWorkspacePublishOutcome, ActiveProfileWorkspacePublishedLease,
     ActiveProfileWorkspaceRecoveryLease, ActiveProfileWorkspaceRecoveryResolution,
-    ActiveProfileWorkspaceRestoreOutcome, ActiveProfileWorkspaceRestoredLease,
-    ActiveProfileWorkspaceWriteLease,
+    ActiveProfileWorkspaceRestoreOutcome,
 };
 use infiltrator_ports::profile_workspace::{ProfileWorkspace, ProfileWorkspaceUpdate};
-use infiltrator_ports::runtime_gateway::{ManagedRuntime, RuntimeGateway, RuntimeStream};
+use infiltrator_ports::runtime_gateway::{ManagedRuntime, RuntimeGateway};
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
@@ -93,25 +90,7 @@ impl RuntimeGateway for ActivationRuntime {
     async fn update_rule_provider(&self, _: &str) -> Result<(), PortError> {
         Err(self.unavailable())
     }
-    async fn get_connections(&self) -> Result<ConnectionSnapshot, PortError> {
-        Err(self.unavailable())
-    }
     async fn get_memory(&self) -> Result<MemoryData, PortError> {
-        Err(self.unavailable())
-    }
-    async fn close_connection(&self, _: &str) -> Result<(), PortError> {
-        Err(self.unavailable())
-    }
-    async fn close_all_connections(&self) -> Result<(), PortError> {
-        Err(self.unavailable())
-    }
-    async fn stream_logs(&self, _: Option<String>) -> Result<RuntimeStream<String>, PortError> {
-        Err(self.unavailable())
-    }
-    async fn stream_traffic(&self) -> Result<RuntimeStream<TrafficData>, PortError> {
-        Err(self.unavailable())
-    }
-    async fn stream_connections(&self) -> Result<RuntimeStream<ConnectionSnapshot>, PortError> {
         Err(self.unavailable())
     }
 }

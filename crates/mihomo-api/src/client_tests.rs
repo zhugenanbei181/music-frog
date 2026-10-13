@@ -141,15 +141,24 @@ async fn test_stream_traffic() {
     });
 
     let client = MihomoClient::new(&format!("http://{addr}"), None).unwrap();
-    let mut rx = client.stream_traffic().await.unwrap();
-
-    let data = timeout(time::Duration::from_secs(1), rx.recv())
-        .await
-        .unwrap();
-    assert!(data.is_some());
-    let traffic = data.unwrap();
-    assert_eq!(traffic.up, 1024);
-    assert_eq!(traffic.down, 2048);
+    let mut rx = client.stream_traffic_events().await.unwrap();
+    loop {
+        match timeout(time::Duration::from_secs(1), rx.recv())
+            .await
+            .unwrap()
+        {
+            Some(StreamEvent::Item(traffic)) => {
+                assert_eq!(traffic.up, 1024);
+                assert_eq!(traffic.down, 2048);
+                break;
+            }
+            Some(StreamEvent::Terminal(terminal)) => panic!("traffic stream ended: {terminal:?}"),
+            Some(
+                StreamEvent::Connecting | StreamEvent::Connected | StreamEvent::Reconnecting(_),
+            ) => {}
+            None => panic!("traffic stream closed before delivering a sample"),
+        }
+    }
 }
 
 #[tokio::test]
@@ -176,12 +185,22 @@ async fn test_stream_connections() {
     });
 
     let client = MihomoClient::new(&format!("http://{addr}"), None).unwrap();
-    let mut rx = client.stream_connections().await.unwrap();
-
-    let data = timeout(time::Duration::from_secs(1), rx.recv())
-        .await
-        .unwrap();
-    assert!(data.is_some());
+    let mut rx = client.stream_connections_events().await.unwrap();
+    loop {
+        match timeout(time::Duration::from_secs(1), rx.recv())
+            .await
+            .unwrap()
+        {
+            Some(StreamEvent::Item(_)) => break,
+            Some(StreamEvent::Terminal(terminal)) => {
+                panic!("connections stream ended: {terminal:?}")
+            }
+            Some(
+                StreamEvent::Connecting | StreamEvent::Connected | StreamEvent::Reconnecting(_),
+            ) => {}
+            None => panic!("connections stream closed before delivering a sample"),
+        }
+    }
 }
 
 #[tokio::test]
@@ -221,7 +240,7 @@ async fn test_stream_events_expose_lifecycle_and_data() {
                 saw_item = true;
                 break;
             }
-            StreamEvent::Reconnecting(_) | StreamEvent::Failed(_) => {}
+            StreamEvent::Reconnecting(_) | StreamEvent::Terminal(_) => {}
         }
     }
     assert!(saw_connecting);

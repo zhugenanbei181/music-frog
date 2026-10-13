@@ -43,6 +43,7 @@ use infiltrator_ports::version::{
 };
 use mihomo_api::client::MihomoClient;
 use mihomo_api::outbound::MihomoOutboundAdapter;
+use mihomo_api::runtime_configuration::RuntimeScopeResolver;
 use std::collections::HashMap;
 #[cfg(unix)]
 use std::fs::Permissions;
@@ -209,7 +210,11 @@ impl AdminApiContext for MockContext {
             .runtime_url
             .as_deref()
             .ok_or_else(|| anyhow!("runtime url is not configured"))?;
-        let client = MihomoClient::new(runtime_url, None).map_err(|e| anyhow!(e.to_string()))?;
+        let scope = test_outbound_scope();
+        let scope_resolver: RuntimeScopeResolver = Arc::new(move || Ok(scope.clone()));
+        let client = MihomoClient::new(runtime_url, None)
+            .map_err(|e| anyhow!(e.to_string()))?
+            .with_configuration_scope_resolver(scope_resolver);
         Ok(Arc::new(client))
     }
     async fn outbound_owner(&self) -> anyhow::Result<AdminOutboundOwner> {

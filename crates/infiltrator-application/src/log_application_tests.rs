@@ -13,7 +13,7 @@ use infiltrator_contract::logs::{LogLevel, LogSession, LogStreamState};
 use infiltrator_contract::session::SessionToken;
 use infiltrator_contract::snapshot::{CoreLifecycle, CoreSnapshot};
 use infiltrator_contract::surface_snapshot::PageStatus;
-use infiltrator_ports::runtime_gateway::RuntimeStreamEvent;
+use infiltrator_ports::runtime_stream::RuntimeStreamEvent;
 
 fn core(session: &LogSession) -> CoreSnapshot {
     CoreSnapshot {

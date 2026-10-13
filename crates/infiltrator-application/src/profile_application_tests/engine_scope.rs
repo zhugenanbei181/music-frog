@@ -9,11 +9,9 @@ use infiltrator_contract::profile_document_identity::{ProfileFormatId, ProfileSc
 use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
 use infiltrator_contract::subscription_import::SubscriptionFilterDraft;
 use infiltrator_domain::apply::ApplyStrategy;
-use infiltrator_domain::runtime::{
-    ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider, TrafficData,
-};
+use infiltrator_domain::runtime::{MemoryData, ProxyProvider, RuleProvider};
 use infiltrator_ports::profile_workspace::{ProfileWorkspacePurpose, ProfileWorkspaceUpdate};
-use infiltrator_ports::runtime_gateway::{ManagedRuntime, RuntimeGateway, RuntimeStream};
+use infiltrator_ports::runtime_gateway::{ManagedRuntime, RuntimeGateway};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -60,25 +58,7 @@ impl RuntimeGateway for NoCallRuntime {
     async fn update_rule_provider(&self, _: &str) -> Result<(), PortError> {
         self.unexpected()
     }
-    async fn get_connections(&self) -> Result<ConnectionSnapshot, PortError> {
-        self.unexpected()
-    }
     async fn get_memory(&self) -> Result<MemoryData, PortError> {
-        self.unexpected()
-    }
-    async fn close_connection(&self, _: &str) -> Result<(), PortError> {
-        self.unexpected()
-    }
-    async fn close_all_connections(&self) -> Result<(), PortError> {
-        self.unexpected()
-    }
-    async fn stream_logs(&self, _: Option<String>) -> Result<RuntimeStream<String>, PortError> {
-        self.unexpected()
-    }
-    async fn stream_traffic(&self) -> Result<RuntimeStream<TrafficData>, PortError> {
-        self.unexpected()
-    }
-    async fn stream_connections(&self) -> Result<RuntimeStream<ConnectionSnapshot>, PortError> {
         self.unexpected()
     }
 }

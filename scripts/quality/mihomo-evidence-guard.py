@@ -285,7 +285,7 @@ def source_problems(repo_root: Path) -> list[str]:
             problems.append(f"{smoke_path}: smoke must verify locked {required} data")
     if "log-level: debug" not in smoke:
         problems.append(
-            f"{smoke_path}: CoreGarbageCollection.Trigger evidence must start Mihomo with log-level debug"
+            f"{smoke_path}: /debug/gc evidence must start Mihomo with log-level debug"
         )
     if "mihomo-evidence-guard.py" not in smoke:
         problems.append(f"{smoke_path}: smoke must run the dedicated evidence guard")
@@ -460,10 +460,14 @@ def source_problems(repo_root: Path) -> list[str]:
         "MihomoRoutingIntentAdapter",
         "OutboundPort",
         "RoutingIntentPort",
-        "stream_logs_events",
-        "StreamEvent::Connected",
-        "CoreGarbageCollection.Trigger",
-        "only when log-level is debug at process startup",
+        "runtime_stream_port()",
+        ".logs(connection_scope.clone(), None)",
+        "RuntimeStreamEvent::Connected",
+        "MihomoRuntimeResourcePort",
+        ".observe(connection_scope.clone())",
+        ".collect_garbage(connection_scope.clone(), before_bytes)",
+        "GarbageCollectionOutcome::Collected",
+        "after_bytes",
     ):
         if required not in real_process_test:
             problems.append(

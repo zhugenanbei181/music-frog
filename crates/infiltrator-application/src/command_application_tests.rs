@@ -18,6 +18,7 @@ use infiltrator_contract::active_profile_reference::{
     ActiveProfileReferenceWriteAuthorization,
 };
 use infiltrator_contract::core_identity::EngineId;
+use infiltrator_contract::outbound::identity::SnapshotRevision;
 use infiltrator_contract::profile_document_identity::{ProfileId, ProfileWorkspaceIdentity};
 use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
 use infiltrator_contract::profile_protection::ProfileWriteProtection;
@@ -28,8 +29,10 @@ use infiltrator_domain::profiles::{ProfileInfo, ProfileMetadata};
 use infiltrator_domain::rules::edit::build_custom_rule;
 use infiltrator_domain::rules::provider_store::RuleProviderDeclaration;
 use infiltrator_domain::rules::{game_routing_presets, load_rules_from_yaml};
-use infiltrator_domain::runtime::{
-    ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider, TrafficData,
+use infiltrator_domain::runtime::{ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider};
+use infiltrator_ports::connection::{
+    ConnectionControlReceipt, ConnectionControlRequest, ConnectionControlTarget,
+    ConnectionObservationSnapshot, ConnectionPort,
 };
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::{
@@ -43,7 +46,7 @@ use infiltrator_ports::profile_workspace::{
 use infiltrator_ports::rule_provider_cache::{
     ProviderCacheEntry, ProviderFileFact, RuleProviderCachePort,
 };
-use infiltrator_ports::runtime_gateway::{RuntimeGateway, RuntimeStream};
+use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use std::path::PathBuf;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -401,8 +404,8 @@ pub(super) struct RecordingGeoGateway {
     switches: AtomicUsize,
     deny_probe: AtomicBool,
     denied_probe_names: Mutex<Vec<String>>,
-    close_all_calls: AtomicUsize,
-    deny_close_all: AtomicBool,
+    close_all_calls: Arc<AtomicUsize>,
+    deny_close_all: Arc<AtomicBool>,
 }
 
 impl RecordingGeoGateway {
@@ -413,6 +416,13 @@ impl RecordingGeoGateway {
 
 #[async_trait]
 impl RuntimeGateway for RecordingGeoGateway {
+    fn connection_port(&self) -> Arc<dyn ConnectionPort> {
+        Arc::new(RecordingConnectionPort {
+            close_all_calls: self.close_all_calls.clone(),
+            deny_close_all: self.deny_close_all.clone(),
+        })
+    }
+
     async fn switch_proxy(&self, _group: &str, _proxy: &str) -> Result<(), PortError> {
         self.switches.fetch_add(1, Ordering::SeqCst);
         Ok(())
@@ -460,42 +470,51 @@ impl RuntimeGateway for RecordingGeoGateway {
         Ok(())
     }
 
-    async fn get_connections(&self) -> Result<ConnectionSnapshot, PortError> {
-        Ok(ConnectionSnapshot::default())
-    }
-
     async fn get_memory(&self) -> Result<MemoryData, PortError> {
         Ok(MemoryData::default())
     }
+}
 
-    async fn close_connection(&self, _id: &str) -> Result<(), PortError> {
-        Ok(())
+struct RecordingConnectionPort {
+    close_all_calls: Arc<AtomicUsize>,
+    deny_close_all: Arc<AtomicBool>,
+}
+
+#[async_trait]
+impl ConnectionPort for RecordingConnectionPort {
+    async fn observe(
+        &self,
+        scope: infiltrator_contract::core_identity::CoreScope,
+    ) -> Result<ConnectionObservationSnapshot, PortError> {
+        ConnectionObservationSnapshot::new(
+            scope,
+            SnapshotRevision::new(1),
+            ConnectionSnapshot::default(),
+        )
+        .map_err(|error| PortError::Failed(error.to_string()))
     }
 
-    async fn close_all_connections(&self) -> Result<(), PortError> {
+    async fn close(
+        &self,
+        request: ConnectionControlRequest,
+    ) -> Result<ConnectionControlReceipt, PortError> {
+        if !matches!(request.target(), ConnectionControlTarget::All) {
+            return Err(PortError::Failed(
+                "close-all application sent a single-connection target".to_owned(),
+            ));
+        }
         self.close_all_calls.fetch_add(1, Ordering::SeqCst);
         if self.deny_close_all.load(Ordering::SeqCst) {
-            Err(PortError::PermissionDenied(
+            return Err(PortError::PermissionDenied(
                 "grant connection control permission".into(),
-            ))
-        } else {
-            Ok(())
+            ));
         }
-    }
-
-    async fn stream_logs(
-        &self,
-        _level: Option<String>,
-    ) -> Result<RuntimeStream<String>, PortError> {
-        Err(PortError::Failed("not implemented".into()))
-    }
-
-    async fn stream_traffic(&self) -> Result<RuntimeStream<TrafficData>, PortError> {
-        Err(PortError::Failed("not implemented".into()))
-    }
-
-    async fn stream_connections(&self) -> Result<RuntimeStream<ConnectionSnapshot>, PortError> {
-        Err(PortError::Failed("not implemented".into()))
+        ConnectionControlReceipt::new(
+            request.scope().clone(),
+            request.expected_revision(),
+            Vec::new(),
+        )
+        .map_err(|error| PortError::Failed(error.to_string()))
     }
 }
 

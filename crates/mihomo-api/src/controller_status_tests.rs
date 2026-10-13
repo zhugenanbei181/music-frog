@@ -1,5 +1,6 @@
 //! test-intent: behavior
 use crate::client::MihomoClient;
+use crate::error::MihomoError;
 use crate::runtime_gateway::network_error;
 use crate::types::ConfigResponse;
 use infiltrator_contract::command::CoreLogLevel;
@@ -38,10 +39,12 @@ async fn failed_controller_mutations_never_return_success_and_can_retry_after_re
         .create_async()
         .await;
     let client = MihomoClient::new(&server.url(), None).unwrap();
-    let error = RuntimeGateway::close_all_connections(&client)
-        .await
-        .unwrap_err();
-    assert!(matches!(error, PortError::PermissionDenied(_)));
+    let error = client.close_all_connections().await.unwrap_err();
+    assert!(matches!(
+        error,
+        MihomoError::Http(ref response)
+            if response.status().is_some_and(|status| status.as_u16() == 403)
+    ));
     denial.assert_async().await;
     denial.remove_async().await;
     let success = server
@@ -49,9 +52,7 @@ async fn failed_controller_mutations_never_return_success_and_can_retry_after_re
         .with_status(204)
         .create_async()
         .await;
-    RuntimeGateway::close_all_connections(&client)
-        .await
-        .unwrap();
+    client.close_all_connections().await.unwrap();
     success.assert_async().await;
     let select = server
         .mock("PUT", "/proxies/Group")

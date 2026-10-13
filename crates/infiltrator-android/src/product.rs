@@ -246,10 +246,12 @@ impl AndroidProductComposition {
                     let routing_intent_port =
                         Arc::new(MihomoRoutingIntentAdapter::new(client.clone()));
                     let gateway: Arc<dyn RuntimeGateway> = Arc::new(client);
+                    let resources =
+                        ResourceApplication::new(gateway.clone(), gateway.resource_port());
                     reader = reader
                         .with_routing_intent_port(routing_intent_port)
                         .with_gateway(gateway.clone())
-                        .with_resources(ResourceApplication::new(gateway));
+                        .with_resources(resources);
                 }
             }
             AndroidProductController::SingBoxLifecycleOnly => {}

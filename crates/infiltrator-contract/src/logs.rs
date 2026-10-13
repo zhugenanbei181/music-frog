@@ -81,6 +81,8 @@ pub enum LogStreamState {
     Live,
     Reconnecting(Failure),
     Failed(Failure),
+    Unsupported(Failure),
+    Cancelled,
 }
 
 #[cfg(test)]

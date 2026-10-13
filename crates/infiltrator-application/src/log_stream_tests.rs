@@ -2,7 +2,7 @@
 use crate::log_application::LogApplication;
 use crate::log_stream::{LogDriver, LogPump};
 use crate::log_stream_test_support::{LogGateway, TestRuntime};
-use futures_util::stream::{iter, pending};
+use futures_util::stream::{BoxStream, iter, pending};
 use infiltrator_contract::core_identity::{CoreIdentity, CoreInstanceId, CoreScope, EngineId};
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::logs::{LogSession, LogStreamState};
@@ -10,7 +10,7 @@ use infiltrator_contract::session::SessionToken;
 use infiltrator_contract::snapshot::{CoreLifecycle, CoreLifecycleSnapshot, CoreSnapshot};
 use infiltrator_contract::surface_snapshot::PageStatus;
 use infiltrator_ports::error::PortError;
-use infiltrator_ports::runtime_gateway::RuntimeStreamEvent;
+use infiltrator_ports::runtime_stream::{RuntimeStreamEvent, RuntimeStreamTerminal};
 use std::collections::VecDeque;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
@@ -128,7 +128,7 @@ async fn stream_end_preserves_records_and_new_session_retires_them_before_reconn
     yield_now().await;
     let data = logs.page(&snapshot(&lifecycle())).data.unwrap();
     assert_eq!(data.entries[0].message, "retained");
-    assert!(matches!(data.stream, LogStreamState::Failed(_)));
+    assert_eq!(data.stream, LogStreamState::Cancelled);
     let next_core = CoreLifecycleSnapshot {
         generation: 2,
         session_token: Some(SessionToken::new(43)),
@@ -183,7 +183,7 @@ async fn permanent_event_failure_preserves_records_and_cannot_be_overwritten_by_
     gateway.streams.lock().unwrap().push(Box::pin(iter([
         RuntimeStreamEvent::Connected,
         RuntimeStreamEvent::Item("INFO[1] retained".into()),
-        RuntimeStreamEvent::Failed(failure.clone()),
+        RuntimeStreamEvent::Terminal(RuntimeStreamTerminal::Failed(failure.clone())),
     ])));
     let task = tokio::spawn(driver(logs.clone(), gateway.clone(), state.clone()).run());
     gateway.opened.notified().await;
@@ -211,11 +211,13 @@ async fn stale_gateway_scope_is_rejected_before_its_stream_can_write_current_log
     let logs = LogApplication::default();
     let current = lifecycle();
     let state = Arc::new(Mutex::new(Some(current.clone())));
+    let stale_stream: BoxStream<'static, RuntimeStreamEvent<String>> =
+        Box::pin(iter([RuntimeStreamEvent::Item(
+            "stale gateway record".into(),
+        )]));
     let gateway = Arc::new(LogGateway {
         current_scope: Some(older_scope()),
-        streams: Mutex::new(vec![Box::pin(iter([RuntimeStreamEvent::Item(
-            "stale gateway record".into(),
-        )]))]),
+        streams: Arc::new(Mutex::new(vec![stale_stream])),
         ..Default::default()
     });
     let task = tokio::spawn(driver(logs.clone(), gateway.clone(), state.clone()).run());
@@ -242,13 +244,14 @@ async fn old_stream_event_scope_cannot_append_to_current_log_buffer() {
     let current = lifecycle();
     let current_scope = current.scope().expect("current core scope");
     let state = Arc::new(Mutex::new(Some(current.clone())));
+    let old_stream: BoxStream<'static, RuntimeStreamEvent<String>> = Box::pin(iter([
+        RuntimeStreamEvent::Connected,
+        RuntimeStreamEvent::Item("old stream record".into()),
+    ]));
     let gateway = Arc::new(LogGateway {
         current_scope: Some(current_scope.clone()),
-        event_scopes: Mutex::new(VecDeque::from([current_scope, older_scope()])),
-        streams: Mutex::new(vec![Box::pin(iter([
-            RuntimeStreamEvent::Connected,
-            RuntimeStreamEvent::Item("old stream record".into()),
-        ]))]),
+        event_scopes: Arc::new(Mutex::new(VecDeque::from([current_scope, older_scope()]))),
+        streams: Arc::new(Mutex::new(vec![old_stream])),
         ..Default::default()
     });
     let task = tokio::spawn(driver(logs.clone(), gateway.clone(), state.clone()).run());

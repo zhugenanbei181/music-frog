@@ -1,7 +1,7 @@
 use crate::context::Runtime;
 use crate::output::{print_info, print_success};
 use futures_util::StreamExt;
-use infiltrator_ports::runtime_gateway::RuntimeStreamEvent;
+use infiltrator_ports::runtime_stream::{RuntimeStreamEvent, RuntimeStreamTerminal};
 use tokio::signal::ctrl_c;
 
 /// Stream controller logs until Ctrl-C (or the controller closes the stream).
@@ -16,12 +16,18 @@ pub(crate) async fn logs(level: Option<&str>) -> anyhow::Result<()> {
     loop {
         tokio::select! {
             event = events.next() => match event {
-                Some(RuntimeStreamEvent::Item(line)) => println!("{}", format_log_line(&line)),
-                Some(RuntimeStreamEvent::Failed(error)) => return Err(anyhow::anyhow!(error)),
-                Some(RuntimeStreamEvent::Reconnecting(error)) => {
-                    print_info(&format!("log stream reconnecting: {error}"));
-                }
-                Some(RuntimeStreamEvent::Connecting | RuntimeStreamEvent::Connected) => {}
+                Some(scoped) => match scoped.event {
+                    RuntimeStreamEvent::Item(line) => println!("{}", format_log_line(&line)),
+                    RuntimeStreamEvent::Terminal(RuntimeStreamTerminal::Failed(error)
+                        | RuntimeStreamTerminal::Unsupported(error)) => {
+                        return Err(anyhow::anyhow!(error));
+                    }
+                    RuntimeStreamEvent::Terminal(RuntimeStreamTerminal::Cancelled) => break,
+                    RuntimeStreamEvent::Reconnecting(error) => {
+                        print_info(&format!("log stream reconnecting: {error}"));
+                    }
+                    RuntimeStreamEvent::Connecting | RuntimeStreamEvent::Connected => {}
+                },
                 None => break,
             },
             _ = ctrl_c() => break,
@@ -42,14 +48,20 @@ pub(crate) async fn traffic() -> anyhow::Result<()> {
     loop {
         tokio::select! {
             event = events.next() => match event {
-                Some(RuntimeStreamEvent::Item(sample)) => {
-                    println!("↑ {}  ↓ {}", format_bytes(sample.up), format_bytes(sample.down));
-                }
-                Some(RuntimeStreamEvent::Failed(error)) => return Err(anyhow::anyhow!(error)),
-                Some(RuntimeStreamEvent::Reconnecting(error)) => {
-                    print_info(&format!("traffic stream reconnecting: {error}"));
-                }
-                Some(RuntimeStreamEvent::Connecting | RuntimeStreamEvent::Connected) => {}
+                Some(scoped) => match scoped.event {
+                    RuntimeStreamEvent::Item(sample) => {
+                        println!("↑ {}  ↓ {}", format_bytes(sample.up), format_bytes(sample.down));
+                    }
+                    RuntimeStreamEvent::Terminal(RuntimeStreamTerminal::Failed(error)
+                        | RuntimeStreamTerminal::Unsupported(error)) => {
+                        return Err(anyhow::anyhow!(error));
+                    }
+                    RuntimeStreamEvent::Terminal(RuntimeStreamTerminal::Cancelled) => break,
+                    RuntimeStreamEvent::Reconnecting(error) => {
+                        print_info(&format!("traffic stream reconnecting: {error}"));
+                    }
+                    RuntimeStreamEvent::Connecting | RuntimeStreamEvent::Connected => {}
+                },
                 None => break,
             },
             _ = ctrl_c() => break,

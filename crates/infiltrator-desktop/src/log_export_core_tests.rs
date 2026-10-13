@@ -21,7 +21,7 @@ use infiltrator_contract::surface::HostKind;
 use infiltrator_ports::core_capability_provider::{
     CoreCapabilityProvider, CoreCapabilityProviderError,
 };
-use infiltrator_ports::runtime_gateway::RuntimeStreamEvent;
+use infiltrator_ports::runtime_stream::RuntimeStreamEvent;
 use std::fs;
 use std::sync::Arc;
 use tempfile::tempdir;

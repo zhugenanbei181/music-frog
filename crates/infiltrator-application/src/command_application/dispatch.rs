@@ -6,6 +6,7 @@
 
 use super::vpn_start_result::confirmed;
 use super::*;
+use crate::connection_application::ConnectionApplication;
 use crate::profile_aggregation_application::ProfileAggregationApplication;
 use crate::protocol_codec_application::ProtocolCodecApplication;
 use crate::runtime_configuration_application::RuntimeConfigurationApplication;
@@ -279,16 +280,30 @@ impl CommandApplication {
                 }
                 Ok(())
             }
-            CommandIntent::CloseConnection { id } => self
-                .runtime()?
-                .close_connection(&id)
-                .await
-                .map_err(Failure::from),
-            CommandIntent::CloseAllConnections => self
-                .runtime()?
-                .close_all_connections()
-                .await
-                .map_err(Failure::from),
+            CommandIntent::CloseConnection { id } => {
+                let scope = scope.cloned().ok_or_else(|| {
+                    Failure::new(
+                        ErrorCode::NotReady,
+                        "connection close has no validated Core scope",
+                        false,
+                    )
+                })?;
+                ConnectionApplication::new(self.runtime()?)
+                    .close_for_scope(scope, &id)
+                    .await
+            }
+            CommandIntent::CloseAllConnections => {
+                let scope = scope.cloned().ok_or_else(|| {
+                    Failure::new(
+                        ErrorCode::NotReady,
+                        "close-all has no validated Core scope",
+                        false,
+                    )
+                })?;
+                ConnectionApplication::new(self.runtime()?)
+                    .close_all_for_scope(scope)
+                    .await
+            }
             CommandIntent::ApplyDnsSettings { patch } => self
                 .configuration()?
                 .apply_dns_settings_with_runtime(self.profile_runtime_access(), patch)

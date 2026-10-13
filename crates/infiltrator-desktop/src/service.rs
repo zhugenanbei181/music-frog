@@ -49,6 +49,7 @@ pub enum ServiceStatus {
     Stopped,
 }
 
+#[derive(Clone)]
 pub struct ServiceManager {
     controller: Arc<ProcessCoreController>,
     binary_path: PathBuf,

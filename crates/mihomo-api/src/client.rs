@@ -1,3 +1,4 @@
+use crate::connection_port::ConnectionRevisionState;
 use crate::error::{MihomoError, Result};
 use crate::runtime_configuration::RuntimeScopeResolver;
 use crate::runtime_proxy::ControllerProxy;
@@ -23,19 +24,17 @@ pub(crate) fn validate_mihomo_delay_timeout(timeout_ms: u32) -> Result<()> {
     Ok(())
 }
 
+mod memory;
 mod stream;
 
-/// Lifecycle-aware item emitted by a controller WebSocket stream. The
-/// existing `stream_*` methods keep returning data-only receivers for API
-/// compatibility; surfaces that need an honest connection badge use the
-/// `stream_*_events` variants.
+/// Lifecycle-aware item emitted by a controller WebSocket stream.
 #[derive(Debug)]
-pub enum StreamEvent<T> {
+pub(crate) enum StreamEvent<T> {
     Connecting,
     Connected,
     Item(T),
     Reconnecting(Failure),
-    Failed(Failure),
+    Terminal(infiltrator_ports::runtime_stream::RuntimeStreamTerminal),
 }
 
 #[derive(Clone)]
@@ -45,6 +44,7 @@ pub struct MihomoClient {
     secret: Option<String>,
     configuration_write_lock: Arc<Mutex<()>>,
     configuration_scope_resolver: Arc<RwLock<Option<RuntimeScopeResolver>>>,
+    connection_revision_state: Arc<Mutex<ConnectionRevisionState>>,
 }
 
 impl MihomoClient {
@@ -57,6 +57,7 @@ impl MihomoClient {
             secret,
             configuration_write_lock: Arc::new(Mutex::new(())),
             configuration_scope_resolver: Arc::new(RwLock::new(None)),
+            connection_revision_state: Arc::new(Mutex::new(ConnectionRevisionState::default())),
         })
     }
 
@@ -81,6 +82,10 @@ impl MihomoClient {
 
     pub(crate) fn configuration_write_lock(&self) -> Arc<Mutex<()>> {
         self.configuration_write_lock.clone()
+    }
+
+    pub(crate) fn connection_revision_state(&self) -> Arc<Mutex<ConnectionRevisionState>> {
+        self.connection_revision_state.clone()
     }
 
     fn build_url(&self, path: &str) -> Result<Url> {
@@ -291,14 +296,6 @@ impl MihomoClient {
         Ok(resp.json().await?)
     }
 
-    pub async fn get_memory(&self) -> Result<MemoryData> {
-        let url = self.build_url("/memory")?;
-        let req = self.client.get(url);
-        let req = self.add_auth(req);
-        let resp = req.send().await?.error_for_status()?;
-        Ok(resp.json().await?)
-    }
-
     /// Trigger Mihomo's active garbage collector.
     pub async fn trigger_gc(&self) -> Result<()> {
         let url = self.build_url("/debug/gc")?;
@@ -307,7 +304,7 @@ impl MihomoClient {
         Ok(())
     }
 
-    pub async fn get_connections(&self) -> Result<ConnectionsResponse> {
+    pub(crate) async fn get_connections(&self) -> Result<ConnectionsResponse> {
         let url = self.build_url("/connections")?;
         log::debug!("Fetching connections from: {}", url);
         let req = self.client.get(url);
@@ -318,7 +315,7 @@ impl MihomoClient {
         Ok(data)
     }
 
-    pub async fn close_connection(&self, id: &str) -> Result<()> {
+    pub(crate) async fn close_connection(&self, id: &str) -> Result<()> {
         let url = self.build_url(&format!("/connections/{}", id))?;
         let req = self.client.delete(url);
         let req = self.add_auth(req);
@@ -326,7 +323,7 @@ impl MihomoClient {
         Ok(())
     }
 
-    pub async fn close_all_connections(&self) -> Result<()> {
+    pub(crate) async fn close_all_connections(&self) -> Result<()> {
         let url = self.build_url("/connections")?;
         let req = self.client.delete(url);
         let req = self.add_auth(req);

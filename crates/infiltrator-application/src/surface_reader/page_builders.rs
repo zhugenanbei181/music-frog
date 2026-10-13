@@ -24,8 +24,8 @@ use infiltrator_contract::sync_snapshot::{SnapshotItemSnapshot, SyncPageSnapshot
 use infiltrator_contract::system_proxy::SystemProxySnapshot;
 use infiltrator_contract::uwp::UwpLoopbackSnapshot;
 use infiltrator_domain::app_routing::AppRoutingConfig;
-use infiltrator_domain::runtime::ConnectionSnapshot;
 use infiltrator_domain::settings::AppSettings;
+use infiltrator_ports::connection::ConnectionObservationSnapshot;
 use infiltrator_ports::runtime_configuration::ObservedValue;
 
 #[cfg(test)]
@@ -38,12 +38,14 @@ pub(super) async fn build_dns_page(
     runtime_config: Option<&Result<RuntimeConfigurationReadout, Failure>>,
     dns_latency: Option<&DnsLatencyApplication>,
     stun_probe: Option<&StunProbeApplication>,
-    runtime_connections: Option<&Result<ConnectionSnapshot, PortError>>,
+    runtime_connections: Option<&Result<ConnectionObservationSnapshot, PortError>>,
     port_conflicts: &PortConflictSnapshot,
 ) -> surface_snapshot::PageData<surface_snapshot::DnsPageSnapshot> {
     let latency = latency_report(dns_latency);
     let stun = stun_report(stun_probe);
-    let connections = runtime_connections.and_then(|result| result.as_ref().ok());
+    let connections = runtime_connections
+        .and_then(|result| result.as_ref().ok())
+        .map(ConnectionObservationSnapshot::snapshot);
     if let Some(configuration) = configuration {
         let dns = configuration.load_dns_config().await;
         let fake_ip = configuration.load_fake_ip_config().await;

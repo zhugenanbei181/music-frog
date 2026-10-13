@@ -1,4 +1,6 @@
+use futures_util::StreamExt;
 use infiltrator_contract::command::CoreLogLevel;
+use infiltrator_contract::connection::ConnectionId;
 use infiltrator_contract::core_identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
 };
@@ -8,6 +10,9 @@ use infiltrator_contract::outbound::inventory::{
     OutboundInventoryState, OutboundProbeState, OutboundSelectionState,
 };
 use infiltrator_contract::routing_intent::RoutingIntent;
+use infiltrator_ports::connection::{
+    ConnectionControlRequest, ConnectionControlTarget, ConnectionPort,
+};
 use infiltrator_ports::controller_fake_ip_cache::{
     ControllerFakeIpCacheFlushRequest, ControllerFakeIpCacheFlushState, ControllerFakeIpCachePort,
 };
@@ -16,12 +21,17 @@ use infiltrator_ports::dns_query::DnsQueryPort;
 use infiltrator_ports::outbound::{
     OutboundPort, OutboundProbeRequest, OutboundScopeSource, ProbeTarget,
 };
+use infiltrator_ports::resources::{CoreResourcePort, GarbageCollectionOutcome};
 use infiltrator_ports::routing_intent::RoutingIntentPort;
 use infiltrator_ports::runtime_gateway::RuntimeGateway;
-use mihomo_api::client::{MihomoClient, StreamEvent};
+use infiltrator_ports::runtime_stream::RuntimeStreamEvent;
+use mihomo_api::client::MihomoClient;
+use mihomo_api::connection_port::MihomoConnectionPort;
 use mihomo_api::controller_fake_ip_cache::MihomoControllerFakeIpCacheAdapter;
 use mihomo_api::outbound::MihomoOutboundAdapter;
+use mihomo_api::resource_port::MihomoRuntimeResourcePort;
 use mihomo_api::routing_intent::MihomoRoutingIntentAdapter;
+use mihomo_api::runtime_configuration::RuntimeScopeResolver;
 use std::env;
 use std::sync::Arc;
 use std::time::Duration;
@@ -47,6 +57,19 @@ async fn typed_core_dns_fakeip_rule_provider_connection_close_and_runtime_ports_
     let expected_version = required_environment("MIHOMO_REAL_VERSION");
     let client = MihomoClient::new(&controller_url, Some(controller_secret))
         .expect("construct production Mihomo controller client");
+    let connection_scope = CoreScope {
+        identity: CoreIdentity::new(
+            EngineId::new("mihomo").expect("Mihomo engine ID"),
+            CoreInstanceId::new("real-process-smoke").expect("smoke Core instance ID"),
+            None,
+        ),
+        generation: CoreGeneration::new(1),
+        session_token: None,
+    };
+    let resolver_scope = connection_scope.clone();
+    let scope_resolver: RuntimeScopeResolver = Arc::new(move || Ok(resolver_scope.clone()));
+    client.set_configuration_scope_resolver(scope_resolver.clone());
+    let connection_port = MihomoConnectionPort::new(client.clone(), Some(scope_resolver.clone()));
     let observed_version = client
         .get_version()
         .await
@@ -65,28 +88,38 @@ async fn typed_core_dns_fakeip_rule_provider_connection_close_and_runtime_ports_
         answer.record_type == DnsRecordType::A.number() && answer.data == "192.0.2.42"
     }));
 
-    let active_connections = RuntimeGateway::get_connections(&client)
+    let active_connections = connection_port
+        .observe(connection_scope.clone())
         .await
         .expect("typed Mihomo connection snapshot");
     let active_connection = active_connections
+        .snapshot()
         .connections
         .iter()
         .find(|connection| connection.metadata.host == "core-smoke-active.test")
         .expect("the smoke fixture holds one live connection through Mihomo");
-    let active_connection_id = active_connection.id.clone();
-    RuntimeGateway::close_connection(&client, &active_connection_id)
+    let active_connection_id = ConnectionId::new(
+        connection_scope.identity.engine.clone(),
+        active_connection.id.clone(),
+    )
+    .expect("engine-scoped Mihomo connection ID");
+    let close_request = ConnectionControlRequest::new(
+        connection_scope.clone(),
+        active_connections.revision(),
+        ConnectionControlTarget::One(active_connection_id.clone()),
+    )
+    .expect("close request uses the observed connection revision");
+    connection_port
+        .close(close_request)
         .await
         .expect("typed Connection.Close reaches the live Mihomo controller");
     tokio::time::timeout(Duration::from_secs(5), async {
         loop {
-            let snapshot = RuntimeGateway::get_connections(&client)
+            let snapshot = connection_port
+                .observe(connection_scope.clone())
                 .await
                 .expect("typed connection readback remains available");
-            if !snapshot
-                .connections
-                .iter()
-                .any(|connection| connection.id == active_connection_id)
-            {
+            if !snapshot.connection_ids().contains(&active_connection_id) {
                 break;
             }
             tokio::time::sleep(Duration::from_millis(50)).await;
@@ -95,16 +128,23 @@ async fn typed_core_dns_fakeip_rule_provider_connection_close_and_runtime_ports_
     .await
     .expect("Mihomo removes the exact connection after Connection.Close");
 
-    let mut log_events = client
-        .stream_logs_events(None)
+    let stream_port = client.runtime_stream_port();
+    let mut log_events = stream_port
+        .logs(connection_scope.clone(), None)
         .await
-        .expect("open typed Mihomo log stream");
+        .expect("open Core-scoped Mihomo log stream");
     tokio::time::timeout(Duration::from_secs(5), async {
         loop {
-            match log_events.recv().await.expect("log stream remains open") {
-                StreamEvent::Connected => break,
-                StreamEvent::Failed(failure) => panic!("log stream failed: {failure}"),
-                StreamEvent::Connecting | StreamEvent::Item(_) | StreamEvent::Reconnecting(_) => {}
+            let event = log_events.next().await.expect("log stream remains open");
+            assert_eq!(event.scope, connection_scope);
+            match event.event {
+                RuntimeStreamEvent::Connected => break,
+                RuntimeStreamEvent::Terminal(terminal) => {
+                    panic!("log stream terminated: {terminal:?}")
+                }
+                RuntimeStreamEvent::Connecting
+                | RuntimeStreamEvent::Item(_)
+                | RuntimeStreamEvent::Reconnecting(_) => {}
             }
         }
     })
@@ -150,9 +190,32 @@ async fn typed_core_dns_fakeip_rule_provider_connection_close_and_runtime_ports_
         "debug",
         "the smoke process starts in debug mode because Mihomo mounts /debug only when log-level is debug at process startup"
     );
-    RuntimeGateway::trigger_gc(&client)
+    let resource_port =
+        MihomoRuntimeResourcePort::new(client.clone(), Some(scope_resolver.clone()));
+    let resource_before = resource_port
+        .observe(connection_scope.clone())
         .await
-        .expect("typed Mihomo CoreGarbageCollection.Trigger is accepted");
+        .expect("typed scoped resource observation");
+    let before_bytes = match resource_before.memory_bytes {
+        infiltrator_contract::resources::ResourceAvailability::Available(value) => value,
+        outcome => panic!("live Mihomo memory must be available: {outcome:?}"),
+    };
+    let gc_receipt = resource_port
+        .collect_garbage(connection_scope.clone(), before_bytes)
+        .await
+        .expect("typed scoped Mihomo GC and memory readback");
+    assert_eq!(gc_receipt.scope, connection_scope);
+    let after_bytes = match gc_receipt.outcome {
+        GarbageCollectionOutcome::Collected {
+            before_bytes: observed,
+            after_bytes,
+        } if observed == before_bytes => after_bytes,
+        outcome => panic!("GC requires same-scope memory readback: {outcome:?}"),
+    };
+    assert!(
+        after_bytes > 0,
+        "live Mihomo readback must contain memory use"
+    );
 
     let scope = CoreScope {
         identity: CoreIdentity::new(

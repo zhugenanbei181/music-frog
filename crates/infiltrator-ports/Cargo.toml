@@ -12,3 +12,6 @@ infiltrator-contract = { path = "../infiltrator-contract" }
 infiltrator-domain = { path = "../infiltrator-domain" }
 serde_json = { workspace = true }
 url = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }

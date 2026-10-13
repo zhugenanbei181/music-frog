@@ -5,8 +5,8 @@ use infiltrator_contract::error::Failure;
 use infiltrator_contract::outbound::inventory::OutboundObservationSnapshot;
 use infiltrator_contract::snapshot::{CoreLifecycle, CoreSnapshot};
 use infiltrator_contract::traffic_topology::TrafficTopologySnapshot;
-use infiltrator_domain::runtime::ConnectionSnapshot;
 use infiltrator_domain::traffic_topology::{TrafficTopologyInput, derive};
+use infiltrator_ports::connection::ConnectionObservationSnapshot;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::runtime_configuration::ObservedValue;
 
@@ -21,7 +21,7 @@ impl TrafficTopologyApplication {
         core: &CoreSnapshot,
         config: Option<&Result<RuntimeConfigurationReadout, Failure>>,
         observation: Option<&Result<OutboundObservationSnapshot, Failure>>,
-        connections: Option<&Result<ConnectionSnapshot, PortError>>,
+        connections: Option<&Result<ConnectionObservationSnapshot, PortError>>,
     ) -> TrafficTopologySnapshot {
         let revision = core.revision.max(1);
         if !matches!(
@@ -53,7 +53,7 @@ impl TrafficTopologyApplication {
             return TrafficTopologySnapshot::unsupported(
                 core.generation,
                 revision,
-                "connection gateway is not composed",
+                "connection port is not composed",
             );
         };
 
@@ -93,6 +93,13 @@ impl TrafficTopologyApplication {
                 "outbound observation belongs to a different core scope",
             );
         }
+        if connections.scope() != &scope {
+            return TrafficTopologySnapshot::unavailable(
+                core.generation,
+                revision,
+                "connection observation belongs to a different core scope",
+            );
+        }
         if config.tun.scope != scope
             || config.lan_sharing.scope != scope
             || config.sniffer.scope != scope
@@ -121,7 +128,8 @@ impl TrafficTopologyApplication {
             mixed_port,
             http_port,
             sniffer_enabled,
-            connections: &connections.connections,
+            connection_scope: &scope,
+            connections: &connections.snapshot().connections,
             outbounds: observation,
         })
     }
@@ -186,7 +194,7 @@ mod tests {
     }
 
     #[test]
-    fn missing_gateway_is_typed_unsupported() {
+    fn missing_connection_port_is_typed_unsupported() {
         let snapshot =
             TrafficTopologyApplication.project(&core(CoreLifecycle::Running), None, None, None);
         assert_eq!(snapshot.status, TrafficTopologyStatus::Unsupported);

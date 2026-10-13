@@ -167,7 +167,6 @@ mod tests {
     use super::*;
     use async_trait::async_trait;
     #[cfg(test)]
-    use futures_util::stream::empty;
     use infiltrator_contract::core_identity::{
         CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
     };
@@ -176,16 +175,14 @@ mod tests {
     use infiltrator_contract::session::SessionToken;
     #[cfg(test)]
     use infiltrator_domain::rules::RuleEntry;
-    use infiltrator_domain::runtime::{
-        ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider, TrafficData,
-    };
+    use infiltrator_domain::runtime::{MemoryData, ProxyProvider, RuleProvider};
     use infiltrator_ports::error::PortError;
     use infiltrator_ports::pac::PacServicePort;
     use infiltrator_ports::runtime_configuration::{
         ConfigurationObservation, ConfigurationRevision, PacRuleReadPort, ProxyPortsConfiguration,
         ProxyPortsReadPort, RuntimeConfigurationPorts,
     };
-    use infiltrator_ports::runtime_gateway::{RuntimeGateway, RuntimeStream};
+    use infiltrator_ports::runtime_gateway::RuntimeGateway;
 
     #[derive(Default)]
     struct FakeService {
@@ -288,29 +285,9 @@ mod tests {
         async fn update_rule_provider(&self, _name: &str) -> Result<(), PortError> {
             Ok(())
         }
-        async fn get_connections(&self) -> Result<ConnectionSnapshot, PortError> {
-            Ok(ConnectionSnapshot::default())
-        }
+
         async fn get_memory(&self) -> Result<MemoryData, PortError> {
             Ok(MemoryData::default())
-        }
-        async fn close_connection(&self, _id: &str) -> Result<(), PortError> {
-            Ok(())
-        }
-        async fn close_all_connections(&self) -> Result<(), PortError> {
-            Ok(())
-        }
-        async fn stream_logs(
-            &self,
-            _level: Option<String>,
-        ) -> Result<RuntimeStream<String>, PortError> {
-            Ok(Box::pin(empty()))
-        }
-        async fn stream_traffic(&self) -> Result<RuntimeStream<TrafficData>, PortError> {
-            Ok(Box::pin(empty()))
-        }
-        async fn stream_connections(&self) -> Result<RuntimeStream<ConnectionSnapshot>, PortError> {
-            Ok(Box::pin(empty()))
         }
     }
 

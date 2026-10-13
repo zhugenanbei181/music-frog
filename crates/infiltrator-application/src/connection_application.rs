@@ -1,9 +1,16 @@
-//! Active-connection use-cases over the runtime gateway.
+//! Active-connection use-cases over the scoped connection port.
 
-use infiltrator_contract::error::Failure;
+use infiltrator_contract::connection::ConnectionId;
+use infiltrator_contract::core_identity::CoreScope;
+use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_domain::connection_activity::ConnectionActivityTracker;
-use infiltrator_domain::runtime::{Connection, ConnectionSnapshot};
-use infiltrator_ports::runtime_gateway::{RuntimeGateway, RuntimeStream};
+use infiltrator_domain::runtime::Connection;
+use infiltrator_ports::connection::{
+    ConnectionControlReceipt, ConnectionControlRequest, ConnectionControlTarget,
+    ConnectionObservationSnapshot, ConnectionPort,
+};
+use infiltrator_ports::runtime_gateway::RuntimeGateway;
+use infiltrator_ports::runtime_stream::ScopedRuntimeStream;
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -21,56 +28,117 @@ pub struct IdleSweepReport {
 #[derive(Clone)]
 pub struct ConnectionApplication {
     gateway: Arc<dyn RuntimeGateway>,
+    port: Arc<dyn ConnectionPort>,
     activity: Arc<Mutex<ConnectionActivityTracker>>,
 }
 
 impl ConnectionApplication {
     pub fn new(gateway: Arc<dyn RuntimeGateway>) -> Self {
         Self {
+            port: gateway.connection_port(),
             gateway,
             activity: Arc::new(Mutex::new(ConnectionActivityTracker::new())),
         }
     }
 
-    pub async fn snapshot(&self) -> Result<ConnectionSnapshot, Failure> {
-        self.gateway.get_connections().await.map_err(Failure::from)
+    pub async fn snapshot(&self) -> Result<ConnectionObservationSnapshot, Failure> {
+        let scope = self.gateway.current_core_scope().map_err(Failure::from)?;
+        self.snapshot_for_scope(scope).await
     }
 
     pub async fn close(&self, id: &str) -> Result<(), Failure> {
-        self.gateway
-            .close_connection(id)
-            .await
-            .map_err(Failure::from)
+        let scope = self.gateway.current_core_scope().map_err(Failure::from)?;
+        self.close_for_scope(scope, id).await
     }
 
     pub async fn close_all(&self) -> Result<(), Failure> {
-        self.gateway
-            .close_all_connections()
+        let scope = self.gateway.current_core_scope().map_err(Failure::from)?;
+        self.close_all_for_scope(scope).await
+    }
+
+    pub async fn snapshot_for_scope(
+        &self,
+        scope: CoreScope,
+    ) -> Result<ConnectionObservationSnapshot, Failure> {
+        let observed = self
+            .port
+            .observe(scope.clone())
             .await
-            .map_err(Failure::from)
+            .map_err(Failure::from)?;
+        if observed.scope() != &scope {
+            return Err(stale_scope_failure());
+        }
+        Ok(observed)
+    }
+
+    pub async fn close_for_scope(&self, scope: CoreScope, raw_id: &str) -> Result<(), Failure> {
+        let connection_id = ConnectionId::new(scope.identity.engine.clone(), raw_id)
+            .map_err(|error| Failure::new(ErrorCode::InvalidInput, error.to_string(), false))?;
+        let observed = self.snapshot_for_scope(scope.clone()).await?;
+        if !observed.connection_ids().contains(&connection_id) {
+            return Err(Failure::new(
+                ErrorCode::InvalidInput,
+                "connection ID was not present in the accepted Core observation",
+                false,
+            ));
+        }
+        let request = ConnectionControlRequest::new(
+            scope.clone(),
+            observed.revision(),
+            ConnectionControlTarget::One(connection_id.clone()),
+        )
+        .map_err(|error| Failure::new(ErrorCode::InvalidInput, error.to_string(), false))?;
+        let receipt = self.port.close(request).await.map_err(Failure::from)?;
+        validate_receipt(&scope, observed.revision(), &receipt, &[connection_id])
+    }
+
+    pub async fn close_all_for_scope(&self, scope: CoreScope) -> Result<(), Failure> {
+        let observed = self.snapshot_for_scope(scope.clone()).await?;
+        let expected_ids = observed.connection_ids().to_vec();
+        let request = ConnectionControlRequest::new(
+            scope.clone(),
+            observed.revision(),
+            ConnectionControlTarget::All,
+        )
+        .map_err(|error| Failure::new(ErrorCode::InvalidInput, error.to_string(), false))?;
+        let receipt = self.port.close(request).await.map_err(Failure::from)?;
+        validate_receipt(&scope, observed.revision(), &receipt, &expected_ids)
     }
 
     pub async fn close_by_host(&self, host: &str) -> Result<usize, Failure> {
-        let connections = self.snapshot().await?.connections;
-        self.close_matching(connections, |connection| {
-            connection.metadata.host.contains(host)
-        })
+        let observed = self.snapshot().await?;
+        self.close_matching(
+            observed.scope().clone(),
+            observed.snapshot().connections.clone(),
+            |connection| connection.metadata.host.contains(host),
+        )
         .await
     }
 
     pub async fn close_by_process(&self, process: &str) -> Result<usize, Failure> {
-        let connections = self.snapshot().await?.connections;
-        self.close_matching(connections, |connection| {
-            connection.metadata.process_path.contains(process)
-        })
+        let observed = self.snapshot().await?;
+        self.close_matching(
+            observed.scope().clone(),
+            observed.snapshot().connections.clone(),
+            |connection| connection.metadata.process_path.contains(process),
+        )
         .await
     }
 
-    pub async fn stream(&self) -> Result<RuntimeStream<ConnectionSnapshot>, Failure> {
-        self.gateway
-            .stream_connections()
+    pub async fn stream(
+        &self,
+    ) -> Result<ScopedRuntimeStream<ConnectionObservationSnapshot>, Failure> {
+        let scope = self.gateway.current_core_scope().map_err(Failure::from)?;
+        let stream = self
+            .port
+            .stream(scope.clone())
             .await
-            .map_err(Failure::from)
+            .map_err(Failure::from)?;
+        Ok(crate::runtime_stream_application::scope_checked(
+            self.gateway.clone(),
+            scope,
+            stream,
+        ))
     }
 
     /// Record the current connection slice so idle detection can compare
@@ -99,19 +167,19 @@ impl ConnectionApplication {
     }
 
     /// Sweep idle connections through the shared tracker and terminate each
-    /// identified id over the gateway (DUAL-13-11). The report is honest: it
+    /// identified ID through the scoped connection port (DUAL-13-11). The report is honest: it
     /// counts only the ids actually closed.
     pub async fn sweep_idle(&self, timeout_secs: u64) -> Result<IdleSweepReport, Failure> {
         let snapshot = self.snapshot().await?;
         let now = current_unix_secs();
-        let idle = self.idle_connections(&snapshot.connections, now, timeout_secs);
+        let idle = self.idle_connections(&snapshot.snapshot().connections, now, timeout_secs);
         let mut closed = 0usize;
         for id in &idle {
-            self.close(id).await?;
+            self.close_for_scope(snapshot.scope().clone(), id).await?;
             closed += 1;
         }
         Ok(IdleSweepReport {
-            inspected: snapshot.connections.len(),
+            inspected: snapshot.snapshot().connections.len(),
             idle,
             closed,
         })
@@ -119,6 +187,7 @@ impl ConnectionApplication {
 
     async fn close_matching(
         &self,
+        scope: CoreScope,
         connections: Vec<Connection>,
         matches: impl Fn(&Connection) -> bool,
     ) -> Result<usize, Failure> {
@@ -128,10 +197,34 @@ impl ConnectionApplication {
             .map(|connection| connection.id.clone())
             .collect::<Vec<_>>();
         for id in &ids {
-            self.close(id).await?;
+            self.close_for_scope(scope.clone(), id).await?;
         }
         Ok(ids.len())
     }
+}
+
+fn validate_receipt(
+    scope: &CoreScope,
+    expected_revision: infiltrator_contract::outbound::identity::SnapshotRevision,
+    receipt: &ConnectionControlReceipt,
+    expected_ids: &[ConnectionId],
+) -> Result<(), Failure> {
+    if receipt.scope() != scope
+        || receipt.observed_revision() < expected_revision
+        || receipt.closed().len() != expected_ids.len()
+        || expected_ids.iter().any(|id| !receipt.closed().contains(id))
+    {
+        return Err(stale_scope_failure());
+    }
+    Ok(())
+}
+
+fn stale_scope_failure() -> Failure {
+    Failure::new(
+        ErrorCode::InvalidState,
+        "connection observation or close receipt belongs to another Core scope",
+        false,
+    )
 }
 
 /// Wall-clock seconds, the observation instant shared by both surfaces'

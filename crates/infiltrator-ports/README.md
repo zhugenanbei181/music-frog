@@ -9,3 +9,5 @@ Trait 表达能力，不绑定具体 adapter、Tokio channel、HTTP response 或
 运行态路由意图使用专用 `RoutingIntentPort`，其成功结果必须是 adapter 写后读回的实际意图。
 
 运行中 Core 的 Fake-IP 清理使用独立 `ControllerFakeIpCachePort`，请求和回执绑定已验证的 `CoreScope` 与操作 ID；宿主本地缓存端口不能代替 controller 操作。
+
+Core 资源通过 `CoreResourcePort` 按 `CoreScope` 读取；支持状态是 typed outcome，GC 的 `Collected` 回执必须带同 owner 的真实 post-GC memory readback。

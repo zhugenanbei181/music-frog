@@ -171,8 +171,11 @@ class MihomoEvidenceGuardTests(unittest.TestCase):
                 "#[ignore] MihomoOutboundAdapter MihomoRoutingIntentAdapter "
                 "OutboundPort RoutingIntentPort MIHOMO_REAL_CONTROLLER_URL "
                 "MIHOMO_REAL_CONTROLLER_SECRET MIHOMO_REAL_VERSION "
-                "stream_logs_events StreamEvent::Connected "
-                "CoreGarbageCollection.Trigger only when log-level is debug at process startup",
+                "runtime_stream_port() .logs(connection_scope.clone(), None) "
+                "RuntimeStreamEvent::Connected "
+                "MihomoRuntimeResourcePort .observe(connection_scope.clone()) "
+                ".collect_garbage(connection_scope.clone(), before_bytes) "
+                "GarbageCollectionOutcome::Collected after_bytes",
             )
             smoke = root / GUARD.SMOKE_SOURCE
             smoke.write_text(
@@ -277,8 +280,11 @@ class MihomoEvidenceGuardTests(unittest.TestCase):
                 "#[ignore] MihomoOutboundAdapter MihomoRoutingIntentAdapter "
                 "OutboundPort RoutingIntentPort MIHOMO_REAL_CONTROLLER_URL "
                 "MIHOMO_REAL_CONTROLLER_SECRET MIHOMO_REAL_VERSION "
-                "stream_logs_events StreamEvent::Connected "
-                "CoreGarbageCollection.Trigger only when log-level is debug at process startup",
+                "runtime_stream_port() .logs(connection_scope.clone(), None) "
+                "RuntimeStreamEvent::Connected "
+                "MihomoRuntimeResourcePort .observe(connection_scope.clone()) "
+                ".collect_garbage(connection_scope.clone(), before_bytes) "
+                "GarbageCollectionOutcome::Collected after_bytes",
             )
             self.assertEqual(GUARD.source_problems(root), [])
 
@@ -326,8 +332,11 @@ class MihomoEvidenceGuardTests(unittest.TestCase):
             #[ignore = \"explicit smoke only\"]
             MihomoOutboundAdapter MihomoRoutingIntentAdapter
             OutboundPort RoutingIntentPort
-            stream_logs_events StreamEvent::Connected
-            CoreGarbageCollection.Trigger only when log-level is debug at process startup
+            runtime_stream_port() .logs(connection_scope.clone(), None)
+            RuntimeStreamEvent::Connected
+            MihomoRuntimeResourcePort .observe(connection_scope.clone())
+            .collect_garbage(connection_scope.clone(), before_bytes)
+            GarbageCollectionOutcome::Collected after_bytes
             DnsSettingsPatch
             MIHOMO_REAL_CONTROLLER_URL MIHOMO_REAL_CONTROLLER_SECRET MIHOMO_REAL_VERSION
         """

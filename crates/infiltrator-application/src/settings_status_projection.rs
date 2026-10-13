@@ -7,7 +7,9 @@ use infiltrator_contract::offline_startup::{
     LocalAssetStatus, OfflineStartupSnapshot, OfflineStartupState,
 };
 use infiltrator_contract::port_conflict::PortConflictSnapshot;
-use infiltrator_contract::resources::{CoreGcStatus, CoreResourceSnapshot};
+use infiltrator_contract::resources::{
+    CORE_MEMORY_SOFT_LIMIT_BYTES, CoreGcStatus, CoreResourceSnapshot, ResourceAvailability,
+};
 use infiltrator_contract::runtime_control::RuntimeControlStatus;
 use infiltrator_contract::service_mode::{
     ServiceModePlatform, ServiceModeSnapshot, ServiceModeState,
@@ -207,33 +209,33 @@ pub fn format_port_conflicts(snapshot: &PortConflictSnapshot, code: &str) -> Str
         .join(" · ")
 }
 pub fn format_core_resources(snapshot: &CoreResourceSnapshot, code: &str) -> String {
-    let memory = snapshot.memory_bytes.map_or_else(
-        || "?".into(),
-        |bytes| format!("{:.1}", bytes as f64 / 1_048_576.0),
-    );
-    let cpu = snapshot
-        .cpu_percent
-        .filter(|value| value.is_finite())
-        .map_or_else(|| "?".into(), |value| format!("{value:.1}"));
-    let gc = match &snapshot.gc {
-        CoreGcStatus::Unknown => tr(code, "core_gc_unknown"),
-        CoreGcStatus::NotNeeded => tr(code, "core_gc_not_needed"),
-        CoreGcStatus::Triggered { after_bytes, .. } => after_bytes.map_or_else(
-            || tr(code, "core_gc_triggered"),
-            |bytes| {
-                localize(
-                    code,
-                    "core_gc_after",
-                    &[("memory", format!("{:.1}", bytes as f64 / 1_048_576.0))],
-                )
-            },
+    let (memory, cpu, gc, memory_limit) = match snapshot {
+        CoreResourceSnapshot::NotObserved => (
+            tr(code, "core_resource_not_observed"),
+            tr(code, "core_resource_not_observed"),
+            tr(code, "core_gc_not_attempted"),
+            format!("{:.1}", CORE_MEMORY_SOFT_LIMIT_BYTES as f64 / 1_048_576.0),
         ),
-        CoreGcStatus::Failed { failure } => localize(
-            code,
-            "core_gc_failed",
-            &[("message", safe(&failure.message))],
+        CoreResourceSnapshot::Observed {
+            memory,
+            cpu_percent,
+            memory_soft_limit_bytes,
+            gc,
+            ..
+        } => (
+            format_resource_availability(memory, code, |bytes| {
+                format!("{:.1} MiB", *bytes as f64 / 1_048_576.0)
+            }),
+            format_resource_availability(cpu_percent, code, |value| {
+                if value.is_finite() {
+                    format!("{value:.1}%")
+                } else {
+                    tr(code, "core_resource_invalid")
+                }
+            }),
+            format_gc_status(gc, code),
+            format!("{:.1}", *memory_soft_limit_bytes as f64 / 1_048_576.0),
         ),
-        CoreGcStatus::Unsupported => tr(code, "core_gc_unsupported"),
     };
     localize(
         code,
@@ -241,16 +243,49 @@ pub fn format_core_resources(snapshot: &CoreResourceSnapshot, code: &str) -> Str
         &[
             ("memory", memory),
             ("cpu", cpu),
-            (
-                "limit",
-                format!(
-                    "{:.1}",
-                    snapshot.memory_soft_limit_bytes as f64 / 1_048_576.0
-                ),
-            ),
+            ("limit", memory_limit),
             ("gc", gc),
         ],
     )
+}
+
+fn format_resource_availability<T>(
+    availability: &ResourceAvailability<T>,
+    code: &str,
+    format_value: impl FnOnce(&T) -> String,
+) -> String {
+    match availability {
+        ResourceAvailability::NotObserved => tr(code, "core_resource_not_observed"),
+        ResourceAvailability::Available(value) => format_value(value),
+        ResourceAvailability::Unsupported => tr(code, "core_resource_unsupported"),
+        ResourceAvailability::Failed(failure) => localize(
+            code,
+            "core_resource_failed",
+            &[("message", safe(&failure.message))],
+        ),
+    }
+}
+
+fn format_gc_status(status: &CoreGcStatus, code: &str) -> String {
+    match status {
+        CoreGcStatus::NotAttempted => tr(code, "core_gc_not_attempted"),
+        CoreGcStatus::NotNeeded => tr(code, "core_gc_not_needed"),
+        CoreGcStatus::Collecting => tr(code, "core_gc_collecting"),
+        CoreGcStatus::Collected { after_bytes, .. } => localize(
+            code,
+            "core_gc_collected_after",
+            &[(
+                "memory",
+                format!("{:.1}", *after_bytes as f64 / 1_048_576.0),
+            )],
+        ),
+        CoreGcStatus::Failed { failure } => localize(
+            code,
+            "core_gc_failed",
+            &[("message", safe(&failure.message))],
+        ),
+        CoreGcStatus::Unsupported => tr(code, "core_gc_unsupported"),
+    }
 }
 pub fn format_mtu(snapshot: &MtuNegotiationSnapshot, code: &str) -> String {
     match &snapshot.state {

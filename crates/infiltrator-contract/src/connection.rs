@@ -7,8 +7,108 @@
 //! stream badge on either surface means the same thing.
 
 use crate::capability::Availability;
+use crate::core_identity::EngineId;
 use crate::surface_snapshot::PageStatus;
+use serde::de::Error as _;
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
+use std::error::Error;
+use std::fmt::{self, Display, Formatter};
+
+const MAX_CONNECTION_ID_BYTES: usize = 512;
+
+/// A connection identity scoped to the engine which issued it. The active
+/// Core instance and generation are carried by `CoreScope` on every request.
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize)]
+pub struct ConnectionId {
+    engine_id: EngineId,
+    value: String,
+}
+
+impl ConnectionId {
+    pub fn new(
+        engine_id: EngineId,
+        value: impl Into<String>,
+    ) -> Result<Self, ConnectionContractError> {
+        let value = value.into();
+        if value.trim().is_empty() {
+            return Err(ConnectionContractError::EmptyId);
+        }
+        if value.len() > MAX_CONNECTION_ID_BYTES {
+            return Err(ConnectionContractError::OversizedId);
+        }
+        Ok(Self { engine_id, value })
+    }
+
+    pub fn engine_id(&self) -> &EngineId {
+        &self.engine_id
+    }
+
+    pub fn value(&self) -> &str {
+        &self.value
+    }
+}
+
+#[derive(Deserialize)]
+struct ConnectionIdFields {
+    engine_id: EngineId,
+    value: String,
+}
+
+impl<'de> Deserialize<'de> for ConnectionId {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let fields = ConnectionIdFields::deserialize(deserializer)?;
+        Self::new(fields.engine_id, fields.value).map_err(D::Error::custom)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ConnectionContractError {
+    EmptyId,
+    OversizedId,
+    EngineScopeMismatch,
+    DuplicateConnectionId,
+}
+
+impl Display for ConnectionContractError {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::EmptyId => formatter.write_str("connection ID must not be empty"),
+            Self::OversizedId => formatter.write_str("connection ID exceeds 512 bytes"),
+            Self::EngineScopeMismatch => {
+                formatter.write_str("connection ID engine does not match Core scope")
+            }
+            Self::DuplicateConnectionId => {
+                formatter.write_str("connection observation contains a duplicate ID")
+            }
+        }
+    }
+}
+
+impl Error for ConnectionContractError {}
+
+/// Validate the native connection IDs in a decoded controller observation.
+/// The API payload stays a string at its wire boundary; Core operations use
+/// `ConnectionId` after this validation.
+pub fn validate_connection_ids(
+    engine_id: &EngineId,
+    values: impl IntoIterator<Item = String>,
+) -> Result<Vec<ConnectionId>, ConnectionContractError> {
+    let mut seen = HashSet::new();
+    values
+        .into_iter()
+        .map(|value| {
+            let id = ConnectionId::new(engine_id.clone(), value)?;
+            if !seen.insert(id.value.clone()) {
+                return Err(ConnectionContractError::DuplicateConnectionId);
+            }
+            Ok(id)
+        })
+        .collect()
+}
 
 /// Lifecycle phase of the live connections telemetry feed (DUAL-13-01).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]

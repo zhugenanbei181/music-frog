@@ -14,3 +14,5 @@
 shell 读数使用 `ShellObservation<T>` 区分 `Unobserved`、`Current(T)`、`CurrentEmpty` 与 `Stale(T)`。序列化采用带 `state` 标记的枚举；跨进程或外部传输的载荷形状变更必须同步更新对应协议版本。
 
 连接速率使用 `ConnectionRateObservation::{Unobserved, Measured}` 表示采样是否具备有效的双快照计数窗口；不以 `bool` 搭配零值速率表达采样状态。
+
+Core 资源使用 [`ResourceAvailability<T>` 与 owner-scoped `CoreResourceSnapshot`](src/resources.rs)：缺样、可用、不支持和失败均为显式状态；GC 只有携带同 scope 的前后内存读回时才可表示为 `Collected`。

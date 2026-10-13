@@ -6,8 +6,9 @@ use crate::admin_api::models::{
 use crate::admin_api::state::{AdminApiContext, AdminApiState};
 use axum::{Json, extract};
 use chrono::Utc;
+use infiltrator_application::connection_application::ConnectionApplication;
 use infiltrator_domain::dns_tester::DnsTester;
-use infiltrator_domain::runtime::{Connection, ConnectionsResponse};
+use infiltrator_domain::runtime::Connection;
 use std::cmp::Reverse;
 use std::collections::HashMap;
 use std::path;
@@ -46,20 +47,16 @@ pub async fn get_audit_http<C: AdminApiContext>(
         }
     };
 
-    let snapshot = gateway
-        .get_connections()
+    let observation = ConnectionApplication::new(gateway)
+        .snapshot()
         .await
         .map_err(|e| ApiError::internal(format!("failed to get runtime connections: {e}")))?;
-    let connections_resp = ConnectionsResponse {
-        download_total: snapshot.download_total,
-        upload_total: snapshot.upload_total,
-        connections: snapshot.connections,
-    };
+    let snapshot = observation.snapshot();
 
     let audit_result = analyze_connections_for_audit(
-        &connections_resp.connections,
-        connections_resp.upload_total,
-        connections_resp.download_total,
+        &snapshot.connections,
+        snapshot.upload_total,
+        snapshot.download_total,
         now,
     );
 

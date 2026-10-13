@@ -21,6 +21,7 @@ use infiltrator_domain::settings::AppSettings;
 use infiltrator_platform::defaults::DefaultCredentialStore;
 use infiltrator_platform::paths::get_home_dir;
 use infiltrator_ports::endpoint::EndpointSource as _;
+use infiltrator_ports::error::PortError;
 use infiltrator_ports::outbound::{OutboundPort, OutboundScopeSource};
 use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use infiltrator_ports::subscription_source::SubscriptionSource;
@@ -29,6 +30,7 @@ use mihomo_api::core_capability_provider::MihomoCoreCapabilityProvider;
 use mihomo_api::error;
 use mihomo_api::outbound::MihomoOutboundAdapter;
 use mihomo_api::readiness::ControllerReadiness;
+use mihomo_api::runtime_configuration::RuntimeScopeResolver;
 use mihomo_config::endpoint::ProfileEndpointSource;
 use mihomo_config::manager::ConfigManager;
 use mihomo_config::manager::paths::resolve_configs_dir_in;
@@ -201,7 +203,33 @@ impl Runtime {
     }
 
     pub async fn connection_application(&self) -> anyhow::Result<ConnectionApplication> {
-        Ok(ConnectionApplication::new(self.runtime_gateway().await?))
+        let endpoint_source = ProfileEndpointSource::new(Arc::new(self.config_manager()?));
+        let endpoint = endpoint_source.resolve().await?;
+        let owner = CoreApplication::new(
+            Arc::new(self.process_core_controller().await?),
+            Arc::new(ControllerReadiness::new(
+                endpoint.url.clone(),
+                endpoint.secret.clone(),
+            )),
+            infiltrator_composition::tokio_application_runtime().map_err(anyhow::Error::msg)?,
+        );
+        if !owner
+            .adopt_if_running()
+            .await
+            .map_err(|failure| anyhow::anyhow!(failure.message))?
+        {
+            anyhow::bail!("connection operations require a ready, running core");
+        }
+        let scope_source: Arc<dyn OutboundScopeSource> = Arc::new(owner);
+        let resolver_source = Arc::clone(&scope_source);
+        let scope_resolver: RuntimeScopeResolver = Arc::new(move || {
+            resolver_source.current_scope().ok_or_else(|| {
+                PortError::Failed("the active Core did not publish a scope".to_owned())
+            })
+        });
+        let client = MihomoClient::new(&endpoint.url, endpoint.secret)?
+            .with_configuration_scope_resolver(scope_resolver);
+        Ok(ConnectionApplication::new(Arc::new(client)))
     }
 
     pub async fn runtime_query_application(&self) -> anyhow::Result<RuntimeQueryApplication> {

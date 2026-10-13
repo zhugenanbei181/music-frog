@@ -8,9 +8,13 @@ use axum::http::StatusCode;
 use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::{Json, extract};
 use futures_util::StreamExt;
+use infiltrator_application::connection_application::ConnectionApplication;
+use infiltrator_application::resource_application::ResourceApplication;
+use infiltrator_application::runtime_query_application::RuntimeQueryApplication;
+use infiltrator_contract::resources::CoreResourceSnapshot;
 use infiltrator_contract::routing_intent::RoutingIntentSnapshot;
-use infiltrator_domain::runtime::{ConnectionsResponse, MemoryData};
-use infiltrator_ports::runtime_gateway::RuntimeStreamEvent;
+use infiltrator_domain::runtime::ConnectionsResponse;
+use infiltrator_ports::runtime_stream::{RuntimeStreamEvent, RuntimeStreamTerminal};
 use log::warn;
 use std::convert::Infallible;
 use std::time::Duration;
@@ -51,19 +55,20 @@ pub async fn stop_runtime_http<C: AdminApiContext>(
 pub async fn list_runtime_connections_http<C: AdminApiContext>(
     extract::State(state): extract::State<AdminApiState<C>>,
 ) -> Result<Json<ConnectionsResponse>, ApiError> {
-    let client = state
+    let gateway = state
         .ctx
         .runtime_gateway()
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
-    let snapshot = client
-        .get_connections()
+    let observation = ConnectionApplication::new(gateway)
+        .snapshot()
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
+    let snapshot = observation.snapshot();
     let data = ConnectionsResponse {
         download_total: snapshot.download_total,
         upload_total: snapshot.upload_total,
-        connections: snapshot.connections,
+        connections: snapshot.connections.clone(),
     };
     Ok(Json(data))
 }
@@ -71,13 +76,13 @@ pub async fn list_runtime_connections_http<C: AdminApiContext>(
 pub async fn close_all_runtime_connections_http<C: AdminApiContext>(
     extract::State(state): extract::State<AdminApiState<C>>,
 ) -> Result<StatusCode, ApiError> {
-    let client = state
+    let gateway = state
         .ctx
         .runtime_gateway()
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
-    client
-        .close_all_connections()
+    ConnectionApplication::new(gateway)
+        .close_all()
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(StatusCode::NO_CONTENT)
@@ -91,13 +96,13 @@ pub async fn close_runtime_connection_http<C: AdminApiContext>(
     if connection_id.is_empty() {
         return Err(ApiError::bad_request("连接 ID 不能为空"));
     }
-    let client = state
+    let gateway = state
         .ctx
         .runtime_gateway()
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
-    client
-        .close_connection(connection_id)
+    ConnectionApplication::new(gateway)
+        .close(connection_id)
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(StatusCode::NO_CONTENT)
@@ -113,22 +118,35 @@ pub async fn stream_runtime_logs_http<C: AdminApiContext>(
         .runtime_gateway()
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
-    let receiver = client
-        .stream_logs(level)
+    let receiver = RuntimeQueryApplication::new(client)
+        .logs(level)
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
     let stream = receiver.filter_map(|event| async move {
-        let RuntimeStreamEvent::Item(message) = event else {
-            return None;
-        };
-        let payload = match serde_json::to_string(&RuntimeLogEvent { message }) {
-            Ok(payload) => payload,
-            Err(err) => {
-                warn!("failed to serialize runtime log event: {err}");
-                return None;
+        let (event_name, payload) = match event.event {
+            RuntimeStreamEvent::Connecting => ("connecting", String::new()),
+            RuntimeStreamEvent::Connected => ("connected", String::new()),
+            RuntimeStreamEvent::Item(message) => {
+                match serde_json::to_string(&RuntimeLogEvent { message }) {
+                    Ok(payload) => ("message", payload),
+                    Err(err) => {
+                        warn!("failed to serialize runtime log event: {err}");
+                        return None;
+                    }
+                }
+            }
+            RuntimeStreamEvent::Reconnecting(failure) => ("reconnecting", failure.to_string()),
+            RuntimeStreamEvent::Terminal(RuntimeStreamTerminal::Cancelled) => {
+                ("cancelled", String::new())
+            }
+            RuntimeStreamEvent::Terminal(RuntimeStreamTerminal::Failed(failure)) => {
+                ("failed", failure.to_string())
+            }
+            RuntimeStreamEvent::Terminal(RuntimeStreamTerminal::Unsupported(failure)) => {
+                ("unsupported", failure.to_string())
             }
         };
-        Some(Ok(Event::default().data(payload)))
+        Some(Ok(Event::default().event(event_name).data(payload)))
     });
     Ok(Sse::new(stream).keep_alive(
         KeepAlive::new()
@@ -140,15 +158,16 @@ pub async fn stream_runtime_logs_http<C: AdminApiContext>(
 pub async fn get_runtime_traffic_http<C: AdminApiContext>(
     extract::State(state): extract::State<AdminApiState<C>>,
 ) -> Result<Json<RuntimeTrafficSnapshotResponse>, ApiError> {
-    let client = state
+    let gateway = state
         .ctx
         .runtime_gateway()
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
-    let connections = client
-        .get_connections()
+    let observation = ConnectionApplication::new(gateway)
+        .snapshot()
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
+    let connections = observation.snapshot();
     let snapshot = state.traffic_snapshot(
         connections.upload_total,
         connections.download_total,
@@ -159,17 +178,17 @@ pub async fn get_runtime_traffic_http<C: AdminApiContext>(
 
 pub async fn get_runtime_memory_http<C: AdminApiContext>(
     extract::State(state): extract::State<AdminApiState<C>>,
-) -> Result<Json<MemoryData>, ApiError> {
-    let client = state
+) -> Result<Json<CoreResourceSnapshot>, ApiError> {
+    let gateway = state
         .ctx
         .runtime_gateway()
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
-    let memory = client
-        .get_memory()
+    let snapshot = ResourceApplication::new(gateway.clone(), gateway.resource_port())
+        .observe()
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
-    Ok(Json(memory))
+    Ok(Json(snapshot))
 }
 
 pub async fn get_runtime_ip_http<C: AdminApiContext>(

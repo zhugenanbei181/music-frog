@@ -1,17 +1,19 @@
 //! RuntimeGateway implementation for the HTTP controller client.
 
-use crate::client::{MihomoClient, StreamEvent};
+use crate::client::MihomoClient;
+use crate::connection_port::MihomoConnectionPort;
 use crate::error::MihomoError;
+use crate::resource_port::MihomoRuntimeResourcePort;
+use crate::runtime_stream::MihomoRuntimeStreamPort;
 use async_trait::async_trait;
-use futures_util::stream::unfold;
 use infiltrator_contract::capability::Capability;
 use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_domain::runtime::{
-    ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider, TrafficData,
-};
+use infiltrator_domain::runtime::{MemoryData, ProxyProvider, RuleProvider};
+use infiltrator_ports::connection::ConnectionPort;
 use infiltrator_ports::error::PortError;
-use infiltrator_ports::runtime_gateway::{RuntimeGateway, RuntimeStream, RuntimeStreamEvent};
-use tokio::sync::mpsc::UnboundedReceiver;
+use infiltrator_ports::resources::CoreResourcePort;
+use infiltrator_ports::runtime_gateway::RuntimeGateway;
+use infiltrator_ports::runtime_stream::RuntimeStreamPort;
 
 #[async_trait]
 impl RuntimeGateway for MihomoClient {
@@ -79,13 +81,6 @@ impl RuntimeGateway for MihomoClient {
             .map_err(network_error)
     }
 
-    async fn get_connections(&self) -> Result<ConnectionSnapshot, PortError> {
-        MihomoClient::get_connections(self)
-            .await
-            .map(Into::into)
-            .map_err(network_error)
-    }
-
     async fn get_memory(&self) -> Result<MemoryData, PortError> {
         MihomoClient::get_memory(self)
             .await
@@ -108,37 +103,25 @@ impl RuntimeGateway for MihomoClient {
         }
     }
 
-    async fn close_connection(&self, id: &str) -> Result<(), PortError> {
-        MihomoClient::close_connection(self, id)
-            .await
-            .map_err(network_error)
+    fn connection_port(&self) -> std::sync::Arc<dyn ConnectionPort> {
+        std::sync::Arc::new(MihomoConnectionPort::new(
+            self.clone(),
+            self.configuration_scope_resolver(),
+        ))
     }
 
-    async fn close_all_connections(&self) -> Result<(), PortError> {
-        MihomoClient::close_all_connections(self)
-            .await
-            .map_err(network_error)
+    fn runtime_stream_port(&self) -> std::sync::Arc<dyn RuntimeStreamPort> {
+        std::sync::Arc::new(MihomoRuntimeStreamPort::new(
+            self.clone(),
+            self.configuration_scope_resolver(),
+        ))
     }
 
-    async fn stream_logs(&self, level: Option<String>) -> Result<RuntimeStream<String>, PortError> {
-        let receiver = self
-            .stream_logs_events(level.as_deref())
-            .await
-            .map_err(network_error)?;
-        Ok(map_stream(receiver, |line| line))
-    }
-
-    async fn stream_traffic(&self) -> Result<RuntimeStream<TrafficData>, PortError> {
-        let receiver = self.stream_traffic_events().await.map_err(network_error)?;
-        Ok(map_stream(receiver, Into::into))
-    }
-
-    async fn stream_connections(&self) -> Result<RuntimeStream<ConnectionSnapshot>, PortError> {
-        let receiver = self
-            .stream_connections_events()
-            .await
-            .map_err(network_error)?;
-        Ok(map_stream(receiver, Into::into))
+    fn resource_port(&self) -> std::sync::Arc<dyn CoreResourcePort> {
+        std::sync::Arc::new(MihomoRuntimeResourcePort::new(
+            self.clone(),
+            self.configuration_scope_resolver(),
+        ))
     }
 }
 
@@ -165,25 +148,4 @@ pub(crate) fn network_error(error: MihomoError) -> PortError {
         }
     }
     PortError::Network(error.to_string())
-}
-
-fn map_stream<T, U>(
-    receiver: UnboundedReceiver<StreamEvent<T>>,
-    map_item: fn(T) -> U,
-) -> RuntimeStream<U>
-where
-    T: Send + 'static,
-    U: Send + 'static,
-{
-    Box::pin(unfold(receiver, move |mut receiver| async move {
-        let event = receiver.recv().await?;
-        let event = match event {
-            StreamEvent::Connecting => RuntimeStreamEvent::Connecting,
-            StreamEvent::Connected => RuntimeStreamEvent::Connected,
-            StreamEvent::Item(item) => RuntimeStreamEvent::Item(map_item(item)),
-            StreamEvent::Reconnecting(error) => RuntimeStreamEvent::Reconnecting(error),
-            StreamEvent::Failed(error) => RuntimeStreamEvent::Failed(error),
-        };
-        Some((event, receiver))
-    }))
 }
