@@ -78,8 +78,8 @@
         "operation": "query"
       },
       "support": {
-        "status": "evidence_open",
-        "reason": "Desktop composes DnsQueryApplication with MihomoClient, but no real Mihomo query run is registered in the evidence lock."
+        "status": "supported",
+        "evidence_id": "dns.query"
       }
     },
     {

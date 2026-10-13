@@ -2,11 +2,13 @@ use infiltrator_contract::command::CoreLogLevel;
 use infiltrator_contract::core_identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
 };
+use infiltrator_contract::dns_query::{DnsQueryRequest, DnsRecordType};
 use infiltrator_contract::outbound::inventory::{
     OutboundInventoryState, OutboundProbeState, OutboundSelectionState,
 };
 use infiltrator_contract::routing_intent::RoutingIntent;
 use infiltrator_ports::core_log_level::CoreLogLevelPort;
+use infiltrator_ports::dns_query::DnsQueryPort;
 use infiltrator_ports::outbound::{
     OutboundPort, OutboundProbeRequest, OutboundScopeSource, ProbeTarget,
 };
@@ -32,7 +34,7 @@ fn required_environment(name: &str) -> String {
 
 #[tokio::test]
 #[ignore = "requires the explicit SHA-locked Mihomo real-process smoke"]
-async fn typed_core_log_level_outbound_and_routing_ports_drive_the_live_mihomo_controller() {
+async fn typed_core_dns_log_level_outbound_and_routing_ports_drive_the_live_mihomo_controller() {
     let controller_url = required_environment("MIHOMO_REAL_CONTROLLER_URL");
     let controller_secret = required_environment("MIHOMO_REAL_CONTROLLER_SECRET");
     let expected_version = required_environment("MIHOMO_REAL_VERSION");
@@ -43,6 +45,18 @@ async fn typed_core_log_level_outbound_and_routing_ports_drive_the_live_mihomo_c
         .await
         .expect("read live controller version");
     assert_eq!(observed_version.version, expected_version);
+
+    let dns_request = DnsQueryRequest {
+        name: "core-smoke.test".to_owned(),
+        record_type: DnsRecordType::A,
+    };
+    let dns_response = DnsQueryPort::query(&client, &dns_request)
+        .await
+        .expect("typed DNS query against the running Mihomo controller");
+    assert_eq!(dns_response.status, 0, "fixture DNS query is successful");
+    assert!(dns_response.answers.iter().any(|answer| {
+        answer.record_type == DnsRecordType::A.number() && answer.data == "192.0.2.42"
+    }));
 
     let mut log_events = client
         .stream_logs_events(None)

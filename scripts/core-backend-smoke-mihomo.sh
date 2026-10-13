@@ -154,13 +154,53 @@ profile_config_dir="$configs_root/engines/mihomo"
 mkdir -m 700 -p "$profile_config_dir"
 profile_path="$profile_config_dir/profile.yaml"
 probe_server_port_file="$run_dir/probe-server-port"
+dns_server_port_file="$run_dir/dns-server-port"
 
-python3 - "$probe_server_port_file" >"$run_dir/probe-server.log" 2>&1 <<'PY' &
+python3 - "$probe_server_port_file" "$dns_server_port_file" >"$run_dir/probe-server.log" 2>&1 <<'PY' &
+import socket
+import socketserver
+import struct
 import sys
+import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 port_file = sys.argv[1]
+dns_port_file = sys.argv[2]
+
+class ProbeDnsHandler(socketserver.BaseRequestHandler):
+    def handle(self):
+        packet, _ = self.request
+        if len(packet) < 17:
+            return
+        offset = 12
+        labels = []
+        while offset < len(packet):
+            size = packet[offset]
+            offset += 1
+            if size == 0:
+                break
+            if size & 0xC0 or offset + size > len(packet):
+                return
+            labels.append(packet[offset:offset + size].decode("ascii", "strict"))
+            offset += size
+        if offset + 4 > len(packet):
+            return
+        qtype, qclass = struct.unpack_from(">HH", packet, offset)
+        question_end = offset + 4
+        question = packet[12:question_end]
+        if ".".join(labels).casefold() != "core-smoke.test" or qtype != 1 or qclass != 1:
+            return
+        request_flags = struct.unpack_from(">H", packet, 2)[0]
+        response_flags = 0x8000 | (request_flags & 0x0100) | 0x0080
+        header = packet[:2] + struct.pack(">HHHHH", response_flags, 1, 1, 0, 0)
+        answer = b"\xc0\x0c" + struct.pack(">HHIH", 1, 1, 60, 4) + socket.inet_aton("192.0.2.42")
+        self.request[1].sendto(header + question + answer, self.client_address)
+
+dns_server = socketserver.ThreadingUDPServer(("127.0.0.1", 0), ProbeDnsHandler)
+with open(dns_port_file, "w", encoding="utf-8") as destination:
+    destination.write(str(dns_server.server_address[1]))
+threading.Thread(target=dns_server.serve_forever, daemon=True).start()
 
 class ProbeProxyHandler(BaseHTTPRequestHandler):
     def do_CONNECT(self):
@@ -210,8 +250,18 @@ if [[ ! -s "$probe_server_port_file" ]]; then
     exit 1
 fi
 probe_server_port="$(cat "$probe_server_port_file")"
+if [[ ! -s "$dns_server_port_file" ]]; then
+    cat "$run_dir/probe-server.log" >&2
+    printf '[FAIL] loopback DNS server did not report its port\n' >&2
+    exit 1
+fi
+dns_server_port="$(cat "$dns_server_port_file")"
 if [[ ! "$probe_server_port" =~ ^[0-9]+$ ]]; then
     printf '[FAIL] loopback probe server reported an invalid port\n' >&2
+    exit 1
+fi
+if [[ ! "$dns_server_port" =~ ^[0-9]+$ ]]; then
+    printf '[FAIL] loopback DNS server reported an invalid port\n' >&2
     exit 1
 fi
 
@@ -227,6 +277,12 @@ log-level: info
 ipv6: false
 external-controller: 127.0.0.1:$controller_port
 secret: "$controller_secret"
+dns:
+  enable: true
+  ipv6: false
+  enhanced-mode: redir-host
+  nameserver:
+    - 127.0.0.1:$dns_server_port
 tun:
   enable: false
 proxies:
@@ -298,7 +354,7 @@ api_request() {
 probe_diagnostics() {
     printf '%s\n' '--- Mihomo log ---' >&2
     cat "$run_dir/core.log" >&2
-    printf '%s\n' '--- local HTTP proxy log ---' >&2
+    printf '%s\n' '--- loopback fixture log ---' >&2
     cat "$run_dir/probe-server.log" >&2
 }
 
@@ -338,6 +394,33 @@ then
 fi
 printf '[PASS] real controller /version: %s\n' "$expected_version"
 
+if ! api_request GET '/dns/query?name=core-smoke.test&type=A'; then
+    printf '[FAIL] DNS query returned HTTP %s\n' "$api_status" >&2
+    printf '%s\n' "$api_body" >&2
+    probe_diagnostics
+    exit 1
+fi
+if ! python3 - "$response_file" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as source:
+    payload = json.load(source)
+if payload.get("Status") != 0:
+    raise SystemExit(f"DNS RCODE is {payload.get('Status')!r}, expected 0")
+if not any(
+    answer.get("type") == 1 and answer.get("data") == "192.0.2.42"
+    for answer in payload.get("Answer", [])
+):
+    raise SystemExit("DNS response has no expected A answer")
+PY
+then
+    printf '[FAIL] live /dns/query response did not match the fixture answer\n' >&2
+    probe_diagnostics
+    exit 1
+fi
+printf '[PASS] live /dns/query endpoint: A core-smoke.test -> 192.0.2.42\n'
+
 printf '[INFO] running ignored Rust adapter smoke against %s\n' "$expected_version"
 if ! MIHOMO_REAL_CONTROLLER_URL="$base_url" \
     MIHOMO_REAL_CONTROLLER_SECRET="$controller_secret" \
@@ -345,9 +428,10 @@ if ! MIHOMO_REAL_CONTROLLER_URL="$base_url" \
     cargo nextest run --offline --locked -p mihomo-api \
         --test real_process_smoke --run-ignored only; then
     printf '[FAIL] Rust typed adapter smoke failed for %s\n' "$expected_version" >&2
+    probe_diagnostics
     exit 1
 fi
-printf '[PASS] Rust typed log stream, log-level, outbound, and routing adapters drove %s\n' \
+printf '[PASS] Rust typed DNS query, log stream, log-level, outbound, and routing adapters drove %s\n' \
     "$expected_version"
 
 printf '[INFO] running ignored Rust Profile transaction smoke against %s\n' "$expected_version"
@@ -563,7 +647,7 @@ PY
 }
 printf '[PASS] /connections read: %s; counters observed\n' "$connection_summary"
 
-printf '[NOT COVERED] Logs.Read/Clear, TUN/VPN, DNS query/cache, rules trace/apply, providers, connection close, non-Linux hosts\n'
+printf '[NOT COVERED] Logs.Read/Clear, TUN/VPN, DNS cache, rules trace/apply, providers, connection close, non-Linux hosts\n'
 
 if ! cleanup_active_processes; then
     exit 1

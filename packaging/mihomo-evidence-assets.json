@@ -14,6 +14,7 @@
       "operations": [
         "profile.validate",
         "profile.apply",
+        "dns.query",
         "outbound.list",
         "outbound.select",
         "outbound.probe",
@@ -35,6 +36,7 @@
       "operations": [
         "profile.validate",
         "profile.apply",
+        "dns.query",
         "outbound.list",
         "outbound.select",
         "outbound.probe",
