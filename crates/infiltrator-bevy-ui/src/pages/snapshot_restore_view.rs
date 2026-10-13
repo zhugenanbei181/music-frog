@@ -11,11 +11,11 @@ use bevy::text::EditableText;
 use bevy::ui::widget::Text;
 use bevy::ui::{Display, Node};
 use bevy::ui_widgets::Button;
-use infiltrator_application::snapshot_restore_projection::project_restore;
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::interaction_block::InteractionBlocked;
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::text_input::TextField;
+use infiltrator_presentation::snapshot_restore_projection::project_restore;
 
 #[derive(QueryFilter)]
 pub struct BackgroundFilter {
@@ -39,7 +39,7 @@ pub struct RestoreView<'w, 's> {
     live: Query<'w, 's, ()>,
 }
 pub fn replay(mut view: RestoreView, mut commands: Commands) {
-    let open = view.state.model.visible;
+    let open = view.state.model.is_visible();
     let presentation = project_restore(&view.state.model, view.locale.code());
     for mut node in &mut view.overlays {
         node.display = if open { Display::Flex } else { Display::None };

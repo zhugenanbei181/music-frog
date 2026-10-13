@@ -292,8 +292,8 @@ fn console_body<'a>(lang: &Lang<'_>, snapshot: &ScriptSandboxSnapshot) -> Elemen
 
 pub fn view<'a>(state: &'a AppState) -> Element<'a, Message> {
     let lang = Lang(&state.shell.lang);
-    let snapshot = state.editor.script_sandbox.snapshot.as_ref();
-    let active_preset = state.editor.script_sandbox.selected_preset.as_deref();
+    let snapshot = state.editor.script_sandbox.snapshot();
+    let active_preset = state.editor.script_sandbox.selected_preset();
 
     let preset_definitions = ScriptApplication::new().builtin_presets();
     let mut preset_row = row![
@@ -430,7 +430,7 @@ pub fn view<'a>(state: &'a AppState) -> Element<'a, Message> {
     if state.editor.script_sandbox.is_running() {
         feedback = feedback.push(text(lang.tr("script_workbench_running")).size(12));
     }
-    if let Some(failure) = &state.editor.script_sandbox.failure {
+    if let Some(failure) = state.editor.script_sandbox.failure() {
         feedback = feedback.push(
             container(text(&failure.message).size(12).width(Length::Fill))
                 .padding(8)

@@ -194,20 +194,18 @@ pub(crate) fn ready(state: &AppState, feature: FeatureId) -> bool {
                 && matches!(state.traffic_readout().freshness, TrafficFreshness::Failed)
         }
         FeatureId::LogsRedactedExport => {
-            state.diag.log_export.open
-                && state.diag.log_export.pending.is_none()
+            state.diag.log_export.is_open()
+                && !state.diag.log_export.is_pending()
                 && state
                     .diag
                     .log_export
-                    .summary
-                    .as_ref()
+                    .summary()
                     .is_some_and(|summary| summary.records == 3)
-                && state.diag.log_export.receipt.is_none()
+                && state.diag.log_export.receipt().is_none()
                 && state
                     .diag
                     .log_export
-                    .failure
-                    .as_ref()
+                    .failure()
                     .is_some_and(|failure| failure.code == ErrorCode::Permission)
         }
         FeatureId::LogsScrollLock => {
@@ -241,7 +239,10 @@ pub(crate) fn ready(state: &AppState, feature: FeatureId) -> bool {
         }
         FeatureId::ProfilesSnapshotRestoreConfirm => {
             let model = &state.editor.snapshot_restore;
-            model.visible && !model.busy() && model.failure.is_none() && model.review.is_some()
+            model.is_visible()
+                && !model.is_busy()
+                && model.failure().is_none()
+                && model.review().is_some()
         }
         FeatureId::ProfilesFilterEditor => {
             let editor = &state.editor.filter_editor;

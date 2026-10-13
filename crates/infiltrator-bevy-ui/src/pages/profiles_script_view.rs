@@ -14,7 +14,6 @@ use bevy::text::EditableText;
 use bevy::ui::widget::Text;
 use bevy::ui::{Display, Node, percent};
 use bevy::ui_widgets::Button;
-use infiltrator_application::script_export_projection::project_script_export;
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::interaction_block::InteractionBlocked;
 use infiltrator_bevy_widgets::localization::UiLocale;
@@ -22,6 +21,7 @@ use infiltrator_bevy_widgets::multiline_editor::{MultilineEditor, MultilineReadO
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::text_input::{TextField, TextFieldFocused};
 use infiltrator_presentation::script_console_projection::report_rows;
+use infiltrator_presentation::script_export_projection::project_script_export;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 #[derive(QueryData)]
@@ -72,7 +72,7 @@ pub struct ScriptView<'w, 's> {
     rows: Query<'w, 's, (&'static ScriptResultRow, &'static mut Text), Without<ScriptReviewLine>>,
 }
 pub fn render(mut view: ScriptView, mut commands: Commands) {
-    let open = view.state.model.export_visible && view.route.0 == Some(Route::Profiles);
+    let open = view.state.model.is_export_visible() && view.route.0 == Some(Route::Profiles);
     if !open
         && let Some(entity) = view
             .focus
@@ -163,7 +163,7 @@ pub fn render(mut view: ScriptView, mut commands: Commands) {
             view.focus.set(entity, FocusCause::Navigated);
         }
     }
-    let mut rows = report_rows(view.state.model.snapshot.as_ref(), view.locale.code());
+    let mut rows = report_rows(view.state.model.snapshot(), view.locale.code());
     if view.state.model.is_running() {
         rows.insert(
             0,
@@ -172,10 +172,10 @@ pub fn render(mut view: ScriptView, mut commands: Commands) {
                 .into_owned(),
         );
     }
-    if !open && let Some(failure) = &view.state.model.failure {
+    if !open && let Some(failure) = view.state.model.failure() {
         rows.insert(0, failure.message.clone());
     }
-    if view.state.model.export.is_some() && !open {
+    if view.state.model.export().is_some() && !open {
         rows.push(presentation.status.clone());
         rows.push(presentation.details.clone());
         rows.push(format!(

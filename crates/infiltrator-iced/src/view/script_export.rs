@@ -108,7 +108,7 @@ pub fn export_section<'a>(state: &'a AppState, kinds: &[ScriptExportKind]) -> El
     }
 
     let mut panel = column![buttons].spacing(theme::SP_XS);
-    match state.editor.script_sandbox.export.as_ref() {
+    match state.editor.script_sandbox.export() {
         None => {
             panel = panel.push(
                 text(lang.tr("script_export_empty").to_string())

@@ -527,7 +527,7 @@ fn mixin_export_writes_a_real_yaml_file_and_reports_the_host_outcome() {
 
     // The result message clears the busy flag and publishes the shared fact.
     assert!(!state.editor.script_sandbox.is_exporting());
-    assert_eq!(state.editor.script_sandbox.export.as_ref(), Some(&snapshot));
+    assert_eq!(state.editor.script_sandbox.export(), Some(&snapshot));
     let _panel = export_section(&state, &[ScriptExportKind::MixinOverlayYaml]);
 
     // A host with no save-file adapter is a typed unsupported, not a fake path.

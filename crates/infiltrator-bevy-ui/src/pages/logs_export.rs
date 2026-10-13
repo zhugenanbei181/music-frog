@@ -18,10 +18,10 @@ use bevy::input::ButtonInput;
 use bevy::input::keyboard::KeyCode;
 use bevy::input_focus::InputFocus;
 use bevy::ui_widgets::{Activate, Button};
-use infiltrator_application::log_export_actions::{LogExportActions, LogExportPending};
 use infiltrator_bevy_widgets::button::{ButtonDisabled, sync_button_disabled};
 use infiltrator_contract::command::{CommandIntent, RequestId};
 use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_presentation::log_export_actions::{LogExportActions, LogExportPending};
 
 #[derive(Resource, Default)]
 pub struct LogsExportState {
@@ -136,12 +136,7 @@ fn finish(
     };
     if event.request_id == request
         && event_operation == operation
-        && event.command.to_intent()
-            == state
-                .model
-                .pending
-                .as_ref()
-                .map(|pending| pending.intent.clone())
+        && event.command.to_intent() == state.model.pending().map(|pending| pending.intent.clone())
         && state.model.finish(operation, event.result.clone())
     {
         state.request = None;
@@ -155,7 +150,7 @@ fn observe(
     sink: Option<Res<CommandSinkHandle>>,
     mut focus: LogExportFocus,
 ) {
-    if state.model.open
+    if state.model.is_open()
         && (route.0 != Some(Route::Logs)
             || keys.is_some_and(|keys| keys.just_pressed(KeyCode::Escape)))
         && let Some(request) = state.model.cancel()

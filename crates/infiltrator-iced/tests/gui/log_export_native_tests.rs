@@ -58,15 +58,15 @@ fn native_unsupported_host_keeps_the_reason_and_allows_effect_free_close() {
     let task = click(&mut state, InteractionRegion::LogExportConfirm);
     drive(&mut state, task);
     assert_eq!(
-        state.diag.log_export.failure.as_ref().unwrap().code,
+        state.diag.log_export.failure().unwrap().code,
         ErrorCode::Unsupported
     );
     assert!(!state.diag.log_export.can_retry());
-    assert!(state.diag.log_export.receipt.is_none());
+    assert!(state.diag.log_export.receipt().is_none());
     assert!(!directory.path().join("exports").exists());
     let task = click(&mut state, InteractionRegion::LogExportCancel);
     drive(&mut state, task);
-    assert!(!state.diag.log_export.open);
+    assert!(!state.diag.log_export.is_open());
     assert!(!directory.path().join("exports").exists());
     run(core.close()).unwrap();
 }
@@ -139,7 +139,7 @@ pub(crate) fn exercise_redacted_export(state: &mut AppState) {
     let directory = tempdir().unwrap();
     let core = install(state, Arc::new(DesktopLogExportPort::new(directory.path())));
     let task = launch(state);
-    assert!(state.diag.log_export.pending.is_some());
+    assert!(state.diag.log_export.pending().is_some());
     assert!(
         native(
             content(state),
@@ -149,12 +149,12 @@ pub(crate) fn exercise_redacted_export(state: &mut AppState) {
         .is_empty()
     );
     drive(state, task);
-    assert_eq!(state.diag.log_export.summary.as_ref().unwrap().records, 4);
-    assert!(state.diag.log_export.receipt.is_none());
+    assert_eq!(state.diag.log_export.summary().unwrap().records, 4);
+    assert!(state.diag.log_export.receipt().is_none());
     assert!(!directory.path().join("exports").exists());
     let task = click(state, InteractionRegion::LogExportCancel);
     drive(state, task);
-    assert!(!state.diag.log_export.open);
+    assert!(!state.diag.log_export.is_open());
     assert!(!directory.path().join("exports").exists());
     let task = launch(state);
     drive(state, task);
@@ -172,9 +172,9 @@ pub(crate) fn exercise_redacted_export(state: &mut AppState) {
         key: "Escape".into(),
         modifiers: KeyModifiers::default(),
     });
-    assert!(state.diag.log_export.open && state.diag.log_export.pending.is_some());
+    assert!(state.diag.log_export.is_open() && state.diag.log_export.pending().is_some());
     drive(state, task);
-    let receipt = state.diag.log_export.receipt.as_ref().unwrap();
+    let receipt = state.diag.log_export.receipt().unwrap();
     assert!(Path::new(&receipt.path).starts_with(directory.path().join("exports")));
     let exported = fs::read_to_string(&receipt.path).expect("actual exported file");
     assert_eq!(exported.lines().count(), 4);
@@ -184,7 +184,7 @@ pub(crate) fn exercise_redacted_export(state: &mut AppState) {
     assert_eq!(receipt.bytes_written, exported.len());
     let task = click(state, InteractionRegion::LogExportCancel);
     drive(state, task);
-    assert!(!state.diag.log_export.open);
+    assert!(!state.diag.log_export.is_open());
     assert_eq!(
         fs::read_dir(directory.path().join("exports"))
             .unwrap()
@@ -224,22 +224,19 @@ fn native_permission_failure_retries_the_same_reviewed_source_and_restarted_sour
     let core = install(&mut state, writer.clone());
     let task = launch(&mut state);
     drive(&mut state, task);
-    let summary = state.diag.log_export.summary.clone().unwrap();
+    let summary = state.diag.log_export.summary().unwrap().clone();
     let task = click(&mut state, InteractionRegion::LogExportConfirm);
     drive(&mut state, task);
     assert_eq!(
-        state.diag.log_export.failure.as_ref().unwrap().code,
+        state.diag.log_export.failure().unwrap().code,
         ErrorCode::Permission
     );
-    assert!(state.diag.log_export.open && state.diag.log_export.receipt.is_none());
+    assert!(state.diag.log_export.is_open() && state.diag.log_export.receipt().is_none());
     assert!(!directory.path().join("exports").exists());
     writer.denied.store(false, Ordering::Release);
     let task = click(&mut state, InteractionRegion::LogExportRetry);
     drive(&mut state, task);
-    assert_eq!(
-        state.diag.log_export.receipt.as_ref().unwrap().summary,
-        summary
-    );
+    assert_eq!(state.diag.log_export.receipt().unwrap().summary, summary);
     let task = click(&mut state, InteractionRegion::LogExportCancel);
     drive(&mut state, task);
     let task = launch(&mut state);
@@ -250,11 +247,11 @@ fn native_permission_failure_retries_the_same_reviewed_source_and_restarted_sour
     let task = click(&mut state, InteractionRegion::LogExportConfirm);
     drive(&mut state, task);
     assert_eq!(
-        state.diag.log_export.failure.as_ref().unwrap().code,
+        state.diag.log_export.failure().unwrap().code,
         ErrorCode::InvalidState
     );
     assert!(!state.diag.log_export.can_retry());
-    assert!(state.diag.log_export.receipt.is_none());
+    assert!(state.diag.log_export.receipt().is_none());
     assert_eq!(
         fs::read_dir(directory.path().join("exports"))
             .unwrap()
@@ -271,6 +268,6 @@ fn native_permission_failure_retries_the_same_reviewed_source_and_restarted_sour
     assert!(state.apply_shared_surface_snapshot(restarted_snapshot));
     let task = click(&mut state, InteractionRegion::LogExportCancel);
     drive(&mut state, task);
-    assert!(!state.diag.log_export.open);
+    assert!(!state.diag.log_export.is_open());
     run(core.close()).unwrap();
 }

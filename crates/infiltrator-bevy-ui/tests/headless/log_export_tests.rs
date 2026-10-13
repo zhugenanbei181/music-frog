@@ -93,12 +93,12 @@ fn native_missing_host_is_explicit_unsupported_and_cancel_remains_effect_free() 
     click(&mut app, LogsExportAction::Confirm);
     terminal(&mut app);
     let model = &app.world().resource::<LogsExportState>().model;
-    assert_eq!(model.failure.as_ref().unwrap().code, ErrorCode::Unsupported);
-    assert!(!model.can_retry() && model.receipt.is_none());
+    assert_eq!(model.failure().unwrap().code, ErrorCode::Unsupported);
+    assert!(!model.can_retry() && model.receipt().is_none());
     assert!(!directory.path().join("exports").exists());
     click(&mut app, LogsExportAction::Cancel);
     terminal(&mut app);
-    assert!(!app.world().resource::<LogsExportState>().model.open);
+    assert!(!app.world().resource::<LogsExportState>().model.is_open());
     assert!(!directory.path().join("exports").exists());
     run(core.close()).unwrap();
 }
@@ -195,7 +195,7 @@ fn terminal(app: &mut App) {
         .world()
         .resource::<LogsExportState>()
         .model
-        .pending
+        .pending()
         .is_some()
     {
         assert!(
@@ -239,7 +239,7 @@ fn native_modal_cancel_and_confirm_freeze_all_records_and_show_only_an_actual_re
         app.world()
             .resource::<LogsExportState>()
             .model
-            .summary
+            .summary()
             .as_ref()
             .unwrap()
             .records,
@@ -263,7 +263,7 @@ fn native_modal_cancel_and_confirm_freeze_all_records_and_show_only_an_actual_re
     });
     app.update();
     terminal(&mut app);
-    assert!(!app.world().resource::<LogsExportState>().model.open);
+    assert!(!app.world().resource::<LogsExportState>().model.is_open());
     assert!(!directory.path().join("exports").exists());
     assert!(!app.world().get::<TextField>(field).unwrap().0.is_disabled());
     assert!(app.world().get::<TextFieldFocused>(field).unwrap().0);
@@ -275,7 +275,7 @@ fn native_modal_cancel_and_confirm_freeze_all_records_and_show_only_an_actual_re
         .world()
         .resource::<LogsExportState>()
         .model
-        .receipt
+        .receipt()
         .clone()
         .unwrap();
     assert!(Path::new(&receipt.path).starts_with(directory.path().join("exports")));
@@ -296,7 +296,7 @@ fn native_modal_cancel_and_confirm_freeze_all_records_and_show_only_an_actual_re
     assert_eq!(visible_path, receipt.path);
     click(&mut app, LogsExportAction::Cancel);
     terminal(&mut app);
-    assert!(!app.world().resource::<LogsExportState>().model.open);
+    assert!(!app.world().resource::<LogsExportState>().model.is_open());
     assert_eq!(
         fs::read_dir(directory.path().join("exports"))
             .unwrap()
@@ -347,7 +347,7 @@ fn native_failure_retry_pending_cancel_and_test_port_effects_remain_correlated()
         .world()
         .resource::<LogsExportState>()
         .model
-        .summary
+        .summary()
         .clone()
         .unwrap();
     click(&mut app, LogsExportAction::Confirm);
@@ -356,7 +356,7 @@ fn native_failure_retry_pending_cancel_and_test_port_effects_remain_correlated()
         app.world()
             .resource::<LogsExportState>()
             .model
-            .failure
+            .failure()
             .as_ref()
             .unwrap()
             .code,
@@ -366,7 +366,7 @@ fn native_failure_retry_pending_cancel_and_test_port_effects_remain_correlated()
         app.world()
             .resource::<LogsExportState>()
             .model
-            .receipt
+            .receipt()
             .is_none()
     );
     assert!(!directory.path().join("exports").exists());
@@ -381,7 +381,7 @@ fn native_failure_retry_pending_cancel_and_test_port_effects_remain_correlated()
         app.world()
             .resource::<LogsExportState>()
             .model
-            .pending
+            .pending()
             .is_some()
     );
     let clear = app
@@ -397,7 +397,7 @@ fn native_failure_retry_pending_cancel_and_test_port_effects_remain_correlated()
         app.world()
             .resource::<LogsExportState>()
             .model
-            .receipt
+            .receipt()
             .as_ref()
             .unwrap()
             .summary,
@@ -421,7 +421,7 @@ fn native_failure_retry_pending_cancel_and_test_port_effects_remain_correlated()
         app.world()
             .resource::<LogsExportState>()
             .model
-            .failure
+            .failure()
             .as_ref()
             .unwrap()
             .code,
@@ -432,7 +432,7 @@ fn native_failure_retry_pending_cancel_and_test_port_effects_remain_correlated()
         app.world()
             .resource::<LogsExportState>()
             .model
-            .receipt
+            .receipt()
             .is_none()
     );
     assert_eq!(
@@ -443,6 +443,6 @@ fn native_failure_retry_pending_cancel_and_test_port_effects_remain_correlated()
     );
     click(&mut app, LogsExportAction::Cancel);
     terminal(&mut app);
-    assert!(!app.world().resource::<LogsExportState>().model.open);
+    assert!(!app.world().resource::<LogsExportState>().model.is_open());
     run(core.close()).unwrap();
 }

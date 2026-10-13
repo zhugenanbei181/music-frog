@@ -8,11 +8,11 @@ use bevy::ecs::system::{Query, Res, SystemParam};
 use bevy::text::TextColor;
 use bevy::ui::widget::Text;
 use bevy::ui::{BorderColor, Display, Node};
-use infiltrator_application::log_export_projection::project_log_export;
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::modal::ModalScrim;
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_presentation::log_export_projection::project_log_export;
 #[derive(QueryData)]
 #[query_data(mutable)]
 struct ExportControl {
@@ -50,7 +50,7 @@ pub struct ExportSurface<'w, 's> {
 pub fn render(mut surface: ExportSurface) {
     let view = project_log_export(&surface.state.model, surface.locale.code());
     for mut root in &mut surface.roots {
-        root.display = if surface.state.model.open {
+        root.display = if surface.state.model.is_open() {
             Display::Flex
         } else {
             Display::None
@@ -70,7 +70,7 @@ pub fn render(mut surface: ExportSurface) {
         control.node.display = if shown { Display::Flex } else { Display::None };
         control.disabled.0 = !enabled;
         if matches!(control.action, LogsExportAction::Cancel) && control.scrim.is_none() {
-            let key = if surface.state.model.receipt.is_some() {
+            let key = if surface.state.model.receipt().is_some() {
                 "logs_export_close"
             } else {
                 "logs_export_cancel"

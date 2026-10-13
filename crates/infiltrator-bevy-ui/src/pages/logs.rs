@@ -493,7 +493,7 @@ fn on_logs_action_activated(
     handle: Option<Res<CommandSinkHandle>>,
     export: Res<LogsExportState>,
 ) {
-    if export.model.open {
+    if export.model.is_open() {
         return;
     }
     let Some(handle) = handle else {

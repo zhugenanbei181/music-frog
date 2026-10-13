@@ -14,15 +14,15 @@ use bevy::ecs::system::{Query, Res, ResMut};
 use bevy::input::ButtonInput;
 use bevy::input::keyboard::KeyCode;
 use bevy::ui_widgets::Activate;
-use infiltrator_application::snapshot_restore_workbench::{
-    RestorePending, SnapshotRestoreWorkbench,
-};
 use infiltrator_bevy_widgets::button::{
     sync_button_disabled, sync_control_labels, sync_control_visuals,
 };
 use infiltrator_contract::command::RequestId;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::snapshot_restore::SnapshotRestoreTarget;
+use infiltrator_presentation::snapshot_restore_workbench::{
+    RestorePending, SnapshotRestoreWorkbench,
+};
 
 #[derive(Event)]
 pub struct OpenSnapshotRestore(pub SnapshotRestoreTarget);
@@ -103,7 +103,7 @@ fn completed(event: On<CommandExecutedEvent>, mut state: ResMut<RestoreState>) {
     let Some((id, operation)) = state.request else {
         return;
     };
-    let Some(pending) = &state.model.pending else {
+    let Some(pending) = state.model.pending() else {
         return;
     };
     if id != event.request_id
@@ -123,8 +123,8 @@ fn dismiss(
     handle: Option<Res<CommandSinkHandle>>,
     mut state: ResMut<RestoreState>,
 ) {
-    if state.model.visible
-        && !state.model.busy()
+    if state.model.is_visible()
+        && !state.model.is_busy()
         && (route.0 != state.opened_on
             || keys.is_some_and(|keys| keys.just_pressed(KeyCode::Escape)))
         && let Some(pending) = state.model.cancel()

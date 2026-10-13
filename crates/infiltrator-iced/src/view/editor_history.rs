@@ -258,7 +258,7 @@ pub(super) fn history_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element
                 .padding([4, 10])
                 .style(style_ghost)
                 .on_press_maybe(
-                    (!state.editor.snapshot_restore.visible)
+                    (!state.editor.snapshot_restore.is_visible())
                         .then_some(Message::RestoreProfileSnapshot(snapshot_path)),
                 );
 

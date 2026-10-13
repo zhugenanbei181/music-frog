@@ -60,7 +60,7 @@ fn native_sandbox_pending_edit_fence_clear_and_hostless_export_remain_actual_com
     let _ = state.update(Message::Script(ScriptAction::EditYaml(
         "mode: global\n".into(),
     )));
-    assert_eq!(state.editor.script_sandbox.input_yaml, "mode: rule\n");
+    assert_eq!(state.editor.script_sandbox.input_yaml(), "mode: rule\n");
     complete(&mut state, task);
     assert!(
         state
@@ -78,22 +78,22 @@ fn native_sandbox_pending_edit_fence_clear_and_hostless_export_remain_actual_com
     let task = state.update(Message::Script(ScriptAction::Clear));
     complete(&mut state, task);
     assert!(scripts.observation().result.is_none());
-    assert!(state.editor.script_sandbox.snapshot.is_none());
+    assert!(state.editor.script_sandbox.snapshot().is_none());
     let task = state.update(Message::Script(ScriptAction::Export(
         ScriptExportKind::DirectiveDslScript,
     )));
     complete(&mut state, task);
-    assert!(state.editor.script_sandbox.export_visible);
-    assert!(state.editor.script_sandbox.review.is_some());
+    assert!(state.editor.script_sandbox.is_export_visible());
+    assert!(state.editor.script_sandbox.review().is_some());
     let task = state.update(Message::Script(ScriptAction::ConfirmExport));
     complete(&mut state, task);
     assert_eq!(
-        state.editor.script_sandbox.failure.as_ref().unwrap().code,
+        state.editor.script_sandbox.failure().unwrap().code,
         ErrorCode::Unsupported
     );
     let task = state.update(Message::Script(ScriptAction::CancelExport));
     complete(&mut state, task);
-    assert!(!state.editor.script_sandbox.export_visible);
+    assert!(!state.editor.script_sandbox.is_export_visible());
     assert_eq!(
         state
             .update(Message::Script(ScriptAction::ConfirmExport))

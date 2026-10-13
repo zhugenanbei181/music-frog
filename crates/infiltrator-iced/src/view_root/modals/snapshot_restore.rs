@@ -7,7 +7,7 @@ use crate::view::component_forms::{style_accent, style_ghost};
 use crate::view_root::interaction_regions::InteractionRegion;
 use iced::widget::{Scrollable, Space, button, column, container, row, text};
 use iced::{Element, Length};
-use infiltrator_application::snapshot_restore_projection::project_restore;
+use infiltrator_presentation::snapshot_restore_projection::project_restore;
 use infiltrator_shared::locales::{Lang, Localizer};
 pub(crate) fn modal(state: &AppState) -> Element<'_, Message> {
     let lang = Lang(&state.shell.lang);

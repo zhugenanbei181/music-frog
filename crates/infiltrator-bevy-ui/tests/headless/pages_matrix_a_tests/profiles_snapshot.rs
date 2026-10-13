@@ -82,7 +82,7 @@ fn test_profiles_snapshot_diff_renders_shared_rows_and_confirms_rollback() {
     assert!(
         matches!(submitted.last(), Some(UiCommand::SnapshotRestore { intent: CommandIntent::PrepareSnapshotRestore { target } }) if target.snapshot_id == "/fake/configs/main-history/snap-001.yaml")
     );
-    assert!(app.world().resource::<RestoreState>().model.visible);
+    assert!(app.world().resource::<RestoreState>().model.is_visible());
     let count = submitted.len();
     app.world_mut().trigger(Activate { entity: rollback });
     app.update();
@@ -280,7 +280,7 @@ fn test_profiles_snapshot_history_entry_restore_is_armed_before_it_executes() {
         .commands()
         .trigger(Activate { entity: restore });
     app.update();
-    assert!(app.world().resource::<RestoreState>().model.visible);
+    assert!(app.world().resource::<RestoreState>().model.is_visible());
     assert!(
         matches!(sink.submitted().last(), Some(UiCommand::SnapshotRestore { intent: CommandIntent::PrepareSnapshotRestore { target } }) if target.profile == "main" && target.snapshot_id.ends_with("snap-001.yaml"))
     );

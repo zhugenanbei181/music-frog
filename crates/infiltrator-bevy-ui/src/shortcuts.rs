@@ -213,14 +213,14 @@ pub fn dispatch_chords(
     } = feedback;
     if restore
         .as_ref()
-        .is_some_and(|restore| restore.model.visible)
+        .is_some_and(|restore| restore.model.is_visible())
     {
         chords.clear();
         return;
     }
     if script
         .as_deref()
-        .is_some_and(|state| state.model.export_visible)
+        .is_some_and(|state| state.model.is_export_visible())
     {
         chords.clear();
         return;

@@ -25,7 +25,7 @@ pub struct LogExportFocus<'w, 's> {
 }
 impl LogExportFocus<'_, '_> {
     pub fn sync(&mut self, state: &mut LogsExportState) {
-        if state.model.open && !state.holding_focus {
+        if state.model.is_open() && !state.holding_focus {
             state.previous_sdk_focus = self.sdk.get();
             self.sdk.clear();
             if let Some((entity, _, _)) = self
@@ -45,7 +45,7 @@ impl LogExportFocus<'_, '_> {
                 }
             }
             state.holding_focus = true;
-        } else if !state.model.open && state.holding_focus {
+        } else if !state.model.is_open() && state.holding_focus {
             for (entity, disabled, focused) in state.held_fields.drain(..) {
                 if let Ok((_, marker, mut field, mut focus)) = self.fields.get_mut(entity)
                     && marker.0 == 11
@@ -63,7 +63,7 @@ impl LogExportFocus<'_, '_> {
             {
                 self.sdk.set(entity, FocusCause::Navigated);
             }
-        } else if state.model.open
+        } else if state.model.is_open()
             && self
                 .sdk
                 .get()

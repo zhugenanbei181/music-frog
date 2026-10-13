@@ -97,7 +97,7 @@ pub fn palette_keyboard_input(
     if !state.is_open
         || script
             .as_deref()
-            .is_some_and(|script| script.model.export_visible)
+            .is_some_and(|script| script.model.is_export_visible())
     {
         keys.clear();
         return;

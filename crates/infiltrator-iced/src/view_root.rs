@@ -111,10 +111,10 @@ impl AppState {
         let main_view: Element<Message> = column![chrome_strip(self), main_view].into();
 
         let mut layers: Vec<Element<Message>> = vec![main_view];
-        if self.editor.script_sandbox.export_visible {
+        if self.editor.script_sandbox.is_export_visible() {
             layers.push(script_export::modal(self));
         }
-        if self.diag.log_export.open {
+        if self.diag.log_export.is_open() {
             layers.push(log_export::modal(self));
         }
         if self.diag.dns_query.is_open() {
@@ -420,7 +420,7 @@ impl AppState {
             );
         }
 
-        if self.editor.snapshot_restore.visible {
+        if self.editor.snapshot_restore.is_visible() {
             layers.push(snapshot_restore::modal(self));
         }
         let root: Element<Message> = stack(layers).into();

@@ -1,7 +1,8 @@
-//! One locale-aware review fold, preserving opaque source identities and complete YAML.
-use crate::snapshot_restore_workbench::SnapshotRestoreWorkbench;
+//! Locale-aware restoration review projection over typed workbench phases.
+use crate::snapshot_restore_workbench::{SnapshotRestorePhase, SnapshotRestoreWorkbench};
 use infiltrator_shared::i18n_interpolator::localize;
 use infiltrator_shared::locales::{Lang, Localizer};
+
 pub struct RestorePresentation {
     pub status: String,
     pub details: String,
@@ -10,29 +11,33 @@ pub struct RestorePresentation {
     pub cancel: bool,
     pub retry: bool,
 }
+
 pub fn project_restore(model: &SnapshotRestoreWorkbench, locale: &str) -> RestorePresentation {
     let lang = Lang(locale);
-    let status = if let Some(failure) = &model.failure {
+    let status = if let Some(failure) = model.failure() {
         localize(
             locale,
             "snapshot_restore_failed",
             &[("reason", failure.message.clone())],
         )
     } else {
-        lang.tr(if model.busy() {
-            "snapshot_restore_pending"
-        } else if model.restored.is_some() {
-            "snapshot_restore_committed"
-        } else if model.review.is_some() {
-            "snapshot_restore_ready"
-        } else {
-            "snapshot_restore_preparing"
-        })
-        .into_owned()
+        let key = match model.phase() {
+            SnapshotRestorePhase::Preparing { .. } => "snapshot_restore_pending",
+            SnapshotRestorePhase::Restoring { .. } | SnapshotRestorePhase::Cancelling { .. } => {
+                "snapshot_restore_pending"
+            }
+            SnapshotRestorePhase::Restored { .. } => "snapshot_restore_committed",
+            SnapshotRestorePhase::Review { .. } => "snapshot_restore_ready",
+            SnapshotRestorePhase::Closed
+            | SnapshotRestorePhase::PrepareFailed { .. }
+            | SnapshotRestorePhase::ReviewRejected { .. }
+            | SnapshotRestorePhase::RestoreFailed { .. }
+            | SnapshotRestorePhase::CancelFailed { .. } => "snapshot_restore_preparing",
+        };
+        lang.tr(key).into_owned()
     };
     let details = model
-        .review
-        .as_ref()
+        .review()
         .map(|review| {
             localize(
                 locale,
@@ -56,8 +61,7 @@ pub fn project_restore(model: &SnapshotRestoreWorkbench, locale: &str) -> Restor
         })
         .unwrap_or_default();
     let content = model
-        .review
-        .as_ref()
+        .review()
         .map(|review| {
             format!(
                 "{}\n{}\n\n{}\n{}",
@@ -72,12 +76,8 @@ pub fn project_restore(model: &SnapshotRestoreWorkbench, locale: &str) -> Restor
         status,
         details,
         content,
-        confirm: model.visible
-            && !model.busy()
-            && model.failure.is_none()
-            && model.review.is_some()
-            && model.restored.is_none(),
-        cancel: model.visible && !model.busy(),
+        confirm: model.can_confirm(),
+        cancel: model.can_cancel(),
         retry: model.can_retry(),
     }
 }

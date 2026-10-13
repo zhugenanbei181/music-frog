@@ -23,6 +23,8 @@ pub mod doctor_projection;
 pub mod failure_projection;
 pub mod host_network_projection;
 pub mod latency_projection;
+pub mod log_export_actions;
+pub mod log_export_projection;
 pub mod log_projection;
 pub mod logical_rule_projection;
 pub mod network_status_projection;
@@ -48,9 +50,13 @@ pub mod rule_statistics_workbench;
 pub mod rule_trace_actions;
 pub mod rule_trace_projection;
 pub mod script_console_projection;
+pub mod script_export_projection;
+pub mod script_workbench;
 pub mod settings_preference_projection;
 pub mod settings_status_projection;
 pub mod shell_readout;
+pub mod snapshot_restore_projection;
+pub mod snapshot_restore_workbench;
 pub mod speedtest_detail_projection;
 pub mod speedtest_summary_projection;
 pub mod stun_projection;
@@ -71,4 +77,13 @@ mod dns_cache_actions_tests;
 mod dns_query_actions_tests;
 
 #[cfg(test)]
+mod log_export_actions_tests;
+
+#[cfg(test)]
+mod script_workbench_tests;
+
+#[cfg(test)]
 mod rule_fixtures;
+
+#[cfg(test)]
+mod snapshot_restore_workbench_tests;

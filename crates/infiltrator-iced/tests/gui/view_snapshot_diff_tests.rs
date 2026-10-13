@@ -68,7 +68,7 @@ fn rollback_never_executes_before_the_second_confirmation() {
     let before = state.editor.editor_content.text();
     let _ = state.update(Message::RollbackToSnapshot("snap".to_string()));
     assert!(
-        state.editor.snapshot_restore.visible,
+        state.editor.snapshot_restore.is_visible(),
         "the launcher opens an independent review surface"
     );
     assert!(
@@ -76,10 +76,10 @@ fn rollback_never_executes_before_the_second_confirmation() {
         "opening review preserves the diff inspector"
     );
     assert_eq!(state.editor.editor_content.text(), before);
-    assert!(state.editor.snapshot_restore.restored.is_none());
+    assert!(state.editor.snapshot_restore.restored().is_none());
     let _ = state.update(Message::CancelRestoreProfileSnapshot);
     assert!(
-        !state.editor.snapshot_restore.visible,
+        !state.editor.snapshot_restore.is_visible(),
         "failed preparation can be closed without a write"
     );
     assert_eq!(state.editor.editor_content.text(), before);
@@ -170,9 +170,9 @@ fn history_panel_restore_is_armed_before_it_executes() {
     let path = PathBuf::from("/fake/configs/main-history/1-deadbeef.yaml");
     let before = state.editor.editor_content.text();
     let _ = state.update(Message::RestoreProfileSnapshot(path.clone()));
-    assert!(state.editor.snapshot_restore.visible);
-    assert!(!state.editor.snapshot_restore.busy());
-    assert!(state.editor.snapshot_restore.restored.is_none());
+    assert!(state.editor.snapshot_restore.is_visible());
+    assert!(!state.editor.snapshot_restore.is_busy());
+    assert!(state.editor.snapshot_restore.restored().is_none());
     assert_eq!(
         state
             .editor
@@ -184,7 +184,7 @@ fn history_panel_restore_is_armed_before_it_executes() {
         path.to_string_lossy()
     );
     let _ = state.update(Message::CancelRestoreProfileSnapshot);
-    assert!(!state.editor.snapshot_restore.visible);
+    assert!(!state.editor.snapshot_restore.is_visible());
     assert_eq!(state.editor.editor_content.text(), before);
 }
 

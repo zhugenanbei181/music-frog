@@ -47,8 +47,8 @@ pub fn activate(
         return;
     }
     let target = match controls.capture.stage {
-        1 if !controls.state.model.open => controls.launchers.single().ok(),
-        2 if controls.state.model.pending.is_none() && controls.state.model.summary.is_some() => {
+        1 if !controls.state.model.is_open() => controls.launchers.single().ok(),
+        2 if !controls.state.model.is_pending() && controls.state.model.summary().is_some() => {
             controls
                 .actions
                 .iter()
@@ -107,16 +107,12 @@ pub fn observe(
         return;
     }
     let model = &controls.state.model;
-    if !model.open
-        || model.pending.is_some()
-        || model.receipt.is_some()
+    if !model.is_open()
+        || model.is_pending()
+        || model.receipt().is_some()
+        || !model.summary().is_some_and(|summary| summary.records == 3)
         || !model
-            .summary
-            .as_ref()
-            .is_some_and(|summary| summary.records == 3)
-        || !model
-            .failure
-            .as_ref()
+            .failure()
             .is_some_and(|failure| failure.code == ErrorCode::Permission)
     {
         return;

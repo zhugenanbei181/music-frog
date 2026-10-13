@@ -4,11 +4,11 @@ use crate::types::message::Message;
 use crate::types::script::ScriptAction;
 use iced::Task;
 use iced::widget::text_editor;
-use infiltrator_application::script_workbench::ScriptPending;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::script_export::ScriptExportKind;
 use infiltrator_contract::script_export_review::{ScriptExportDraft, ScriptExportValidationScope};
 use infiltrator_contract::script_run::ScriptEditorField;
+use infiltrator_presentation::script_workbench::ScriptPending;
 
 impl AppState {
     pub(crate) fn update_script_workbench(&mut self, message: Message) -> Task<Message> {
@@ -57,8 +57,12 @@ impl AppState {
                     profile,
                     base_yaml: self.editor.editor_content.text(),
                     mixin_yaml: self.editor.mixin_content.text(),
-                    script_code: self.editor.script_sandbox.script_code.clone(),
-                    preset: self.editor.script_sandbox.selected_preset.clone(),
+                    script_code: self.editor.script_sandbox.script_code().to_owned(),
+                    preset: self
+                        .editor
+                        .script_sandbox
+                        .selected_preset()
+                        .map(str::to_owned),
                 };
                 self.editor.script_sandbox.prepare_export(draft)
             }
@@ -75,33 +79,36 @@ impl AppState {
             }
             Message::Script(ScriptAction::SelectPreset(preset)) => {
                 self.editor.script_sandbox.select_preset(&preset);
-                if !self.editor.script_sandbox.busy() && !self.editor.script_sandbox.export_visible
+                if !self.editor.script_sandbox.busy()
+                    && !self.editor.script_sandbox.is_export_visible()
                 {
                     self.editor.script_code_content =
-                        text_editor::Content::with_text(&self.editor.script_sandbox.script_code);
+                        text_editor::Content::with_text(self.editor.script_sandbox.script_code());
                 }
                 return Task::none();
             }
             Message::Script(ScriptAction::EditCode(text)) => {
                 self.editor.script_sandbox.edit_script(text);
-                if !self.editor.script_sandbox.busy() && !self.editor.script_sandbox.export_visible
+                if !self.editor.script_sandbox.busy()
+                    && !self.editor.script_sandbox.is_export_visible()
                 {
                     self.editor.script_code_content =
-                        text_editor::Content::with_text(&self.editor.script_sandbox.script_code);
+                        text_editor::Content::with_text(self.editor.script_sandbox.script_code());
                 }
                 return Task::none();
             }
             Message::Script(ScriptAction::EditYaml(text)) => {
                 self.editor.script_sandbox.edit_yaml(text);
-                if !self.editor.script_sandbox.busy() && !self.editor.script_sandbox.export_visible
+                if !self.editor.script_sandbox.busy()
+                    && !self.editor.script_sandbox.is_export_visible()
                 {
                     self.editor.script_yaml_content =
-                        text_editor::Content::with_text(&self.editor.script_sandbox.input_yaml);
+                        text_editor::Content::with_text(self.editor.script_sandbox.input_yaml());
                 }
                 return Task::none();
             }
             Message::Script(ScriptAction::EditDocument { field, action }) => {
-                if self.editor.script_sandbox.export_visible
+                if self.editor.script_sandbox.is_export_visible()
                     || (self.editor.script_sandbox.busy() && action.is_edit())
                 {
                     return Task::none();

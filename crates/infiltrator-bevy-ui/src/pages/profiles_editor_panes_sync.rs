@@ -486,14 +486,14 @@ pub fn route_editor_keyboard(context: EditorKeyboard) {
     } = context;
     if restore
         .as_ref()
-        .is_some_and(|restore| restore.model.visible)
+        .is_some_and(|restore| restore.model.is_visible())
     {
         keys.clear();
         return;
     }
     if script
         .as_deref()
-        .is_some_and(|script| script.model.export_visible)
+        .is_some_and(|script| script.model.is_export_visible())
         || focus.get().is_some_and(|entity| native.contains(entity))
     {
         document.focused = false;

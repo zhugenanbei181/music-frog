@@ -34,17 +34,14 @@ fn native_restore_cancel_preserves_editor_and_locale_preserves_frozen_identity()
     let task = state.update(Message::SnapshotRestore(RestoreAction::Open(
         fixture.target.clone(),
     )));
-    assert!(state.editor.snapshot_restore.busy());
+    assert!(state.editor.snapshot_restore.is_busy());
     assert_eq!(fixture.writes(), 0);
     complete(&mut state, task);
-    let review = state.editor.snapshot_restore.review.clone().unwrap();
+    let review = state.editor.snapshot_restore.review().unwrap().clone();
     assert_eq!(review.before_yaml, BEFORE);
     assert_eq!(review.restored_yaml, AFTER);
     state.shell.lang = "en-US".into();
-    assert_eq!(
-        state.editor.snapshot_restore.review.as_ref().unwrap(),
-        &review
-    );
+    assert_eq!(state.editor.snapshot_restore.review().unwrap(), &review);
     let before = state.editor.editor_content.text();
     let _ = state.update(Message::EditorAction(text_editor::Action::Edit(
         text_editor::Edit::Insert('x'),
@@ -56,7 +53,7 @@ fn native_restore_cancel_preserves_editor_and_locale_preserves_frozen_identity()
     );
     let task = state.update(Message::SnapshotRestore(RestoreAction::Cancel));
     complete(&mut state, task);
-    assert!(!state.editor.snapshot_restore.visible);
+    assert!(!state.editor.snapshot_restore.is_visible());
     assert_eq!(fixture.writes(), 0);
     assert_eq!(fixture.content(), BEFORE);
     assert_eq!(
@@ -77,14 +74,14 @@ fn native_restore_permission_retry_and_source_change_use_real_typed_terminals() 
     let task = state.update(Message::SnapshotRestore(RestoreAction::Confirm));
     complete(&mut state, task);
     assert_eq!(
-        state.editor.snapshot_restore.failure.as_ref().unwrap().code,
+        state.editor.snapshot_restore.failure().unwrap().code,
         ErrorCode::Permission
     );
     assert_eq!(fixture.writes(), 0);
     fixture.deny(false);
     let task = state.update(Message::SnapshotRestore(RestoreAction::Retry));
     complete(&mut state, task);
-    assert!(state.editor.snapshot_restore.restored.is_some());
+    assert!(state.editor.snapshot_restore.restored().is_some());
     assert_eq!(fixture.writes(), 1);
     assert_eq!(fixture.content(), AFTER);
     assert_eq!(
@@ -103,13 +100,13 @@ fn native_restore_permission_retry_and_source_change_use_real_typed_terminals() 
     let task = state.update(Message::SnapshotRestore(RestoreAction::Confirm));
     complete(&mut state, task);
     assert_eq!(
-        state.editor.snapshot_restore.failure.as_ref().unwrap().code,
+        state.editor.snapshot_restore.failure().unwrap().code,
         ErrorCode::NotReady
     );
     assert_eq!(fixture.writes(), 1);
     let task = state.update(Message::SnapshotRestore(RestoreAction::Cancel));
     complete(&mut state, task);
-    assert!(!state.editor.snapshot_restore.visible);
+    assert!(!state.editor.snapshot_restore.is_visible());
     let task = state.update(Message::SnapshotRestore(RestoreAction::Open(
         fixture.target.clone(),
     )));
@@ -118,7 +115,7 @@ fn native_restore_permission_retry_and_source_change_use_real_typed_terminals() 
     let task = state.update(Message::SnapshotRestore(RestoreAction::Confirm));
     complete(&mut state, task);
     assert_eq!(
-        state.editor.snapshot_restore.failure.as_ref().unwrap().code,
+        state.editor.snapshot_restore.failure().unwrap().code,
         ErrorCode::NotReady
     );
     assert_eq!(fixture.writes(), 1);
@@ -134,7 +131,7 @@ fn native_restore_rejects_uncorrelated_and_unit_completions_without_fabricating_
     let operation = state
         .editor
         .snapshot_restore
-        .pending
+        .pending()
         .as_ref()
         .unwrap()
         .operation;
@@ -142,13 +139,13 @@ fn native_restore_rejects_uncorrelated_and_unit_completions_without_fabricating_
         operation: operation + 1,
         result: Box::new(Ok(CommandOutput::Unit)),
     }));
-    assert!(state.editor.snapshot_restore.busy());
+    assert!(state.editor.snapshot_restore.is_busy());
     complete(&mut state, task);
     let _task = state.update(Message::SnapshotRestore(RestoreAction::Confirm));
     let operation = state
         .editor
         .snapshot_restore
-        .pending
+        .pending()
         .as_ref()
         .unwrap()
         .operation;
@@ -157,9 +154,9 @@ fn native_restore_rejects_uncorrelated_and_unit_completions_without_fabricating_
         result: Box::new(Ok(CommandOutput::Unit)),
     }));
     assert_eq!(
-        state.editor.snapshot_restore.failure.as_ref().unwrap().code,
+        state.editor.snapshot_restore.failure().unwrap().code,
         ErrorCode::InvalidState
     );
-    assert!(state.editor.snapshot_restore.restored.is_none());
+    assert!(state.editor.snapshot_restore.restored().is_none());
     assert_eq!(fixture.writes(), 0);
 }

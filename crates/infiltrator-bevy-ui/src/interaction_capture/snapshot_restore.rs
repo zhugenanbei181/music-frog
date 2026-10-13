@@ -66,10 +66,10 @@ fn observe(
     mut feature: ResMut<InteractionCapture>,
     mut observed: ResMut<ObservedInteraction>,
 ) {
-    if !state.model.visible
-        || state.model.busy()
-        || state.model.failure.is_some()
-        || state.model.review.is_none()
+    if !state.model.is_visible()
+        || state.model.is_busy()
+        || state.model.failure().is_some()
+        || state.model.review().is_none()
         || fixture.fixture.writes() != 0
     {
         return;

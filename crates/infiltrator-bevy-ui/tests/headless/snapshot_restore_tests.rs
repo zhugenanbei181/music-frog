@@ -101,7 +101,7 @@ fn native_restore_reviews_complete_bytes_and_cancel_has_zero_writes_with_locale_
         .world()
         .resource::<RestoreState>()
         .model
-        .review
+        .review()
         .as_ref()
         .unwrap()
         .identity
@@ -121,7 +121,7 @@ fn native_restore_reviews_complete_bytes_and_cancel_has_zero_writes_with_locale_
         app.world()
             .resource::<RestoreState>()
             .model
-            .review
+            .review()
             .as_ref()
             .unwrap()
             .identity,
@@ -130,7 +130,7 @@ fn native_restore_reviews_complete_bytes_and_cancel_has_zero_writes_with_locale_
     let cancel = control(&mut app, RestoreControl::Cancel);
     click_entity(&mut app, cancel);
     settle(&mut app);
-    assert!(!app.world().resource::<RestoreState>().model.visible);
+    assert!(!app.world().resource::<RestoreState>().model.is_visible());
     assert_eq!(fixture.writes(), 0);
     assert_eq!(fixture.content(), BEFORE);
     app.world_mut()
@@ -147,7 +147,7 @@ fn native_restore_reviews_complete_bytes_and_cancel_has_zero_writes_with_locale_
     );
     click_entity(&mut app, scrim);
     settle(&mut app);
-    assert!(!app.world().resource::<RestoreState>().model.visible);
+    assert!(!app.world().resource::<RestoreState>().model.is_visible());
     assert_eq!(fixture.writes(), 0);
     assert_eq!(fixture.content(), BEFORE);
     let confirm = control(&mut app, RestoreControl::Confirm);
@@ -170,13 +170,13 @@ fn native_restore_permission_retry_commits_once_and_changed_source_never_overwri
         app.world()
             .resource::<RestoreState>()
             .model
-            .failure
+            .failure()
             .as_ref()
             .unwrap()
             .code,
         ErrorCode::Permission
     );
-    assert!(app.world().resource::<RestoreState>().model.visible);
+    assert!(app.world().resource::<RestoreState>().model.is_visible());
     assert_eq!(fixture.writes(), 0);
     fixture.deny(false);
     let retry = control(&mut app, RestoreControl::Retry);
@@ -186,7 +186,7 @@ fn native_restore_permission_retry_commits_once_and_changed_source_never_overwri
         app.world()
             .resource::<RestoreState>()
             .model
-            .restored
+            .restored()
             .is_some()
     );
     assert_eq!(fixture.writes(), 1);
@@ -207,7 +207,7 @@ fn native_restore_permission_retry_commits_once_and_changed_source_never_overwri
         app.world()
             .resource::<RestoreState>()
             .model
-            .failure
+            .failure()
             .as_ref()
             .unwrap()
             .code,
@@ -217,7 +217,7 @@ fn native_restore_permission_retry_commits_once_and_changed_source_never_overwri
     assert_eq!(fixture.content(), "# Later edit\nmode: direct\n");
     click_entity(&mut app, close);
     settle(&mut app);
-    assert!(!app.world().resource::<RestoreState>().model.visible);
+    assert!(!app.world().resource::<RestoreState>().model.is_visible());
     app.world_mut()
         .trigger(OpenSnapshotRestore(fixture.target.clone()));
     settle(&mut app);
@@ -228,7 +228,7 @@ fn native_restore_permission_retry_commits_once_and_changed_source_never_overwri
         app.world()
             .resource::<RestoreState>()
             .model
-            .failure
+            .failure()
             .as_ref()
             .unwrap()
             .code,

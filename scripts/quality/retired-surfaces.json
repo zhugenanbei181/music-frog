@@ -2014,6 +2014,84 @@
       "source_roots": [
         "crates/infiltrator-application/src/rule_list_application.rs"
       ]
+    },
+    {
+      "id": "application-log-export-actions-module",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "log_export_actions",
+      "rationale": "The shared typed log-export workbench moved to infiltrator-presentation; application retains only export I/O and command effects.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/log_export_actions_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src/lib.rs"
+      ]
+    },
+    {
+      "id": "application-log-export-projection-module",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "log_export_projection",
+      "rationale": "The shared log-export view projection moved to infiltrator-presentation.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/log_export_actions_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src/lib.rs"
+      ]
+    },
+    {
+      "id": "application-script-workbench-module",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "script_workbench",
+      "rationale": "The shared typed script workbench moved to infiltrator-presentation; application retains script execution and export I/O.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/script_workbench_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src/lib.rs"
+      ]
+    },
+    {
+      "id": "application-script-export-projection-module",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "script_export_projection",
+      "rationale": "The shared script-export view projection moved to infiltrator-presentation.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/script_workbench_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src/lib.rs"
+      ]
+    },
+    {
+      "id": "application-snapshot-restore-workbench-module",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "snapshot_restore_workbench",
+      "rationale": "The shared typed snapshot-restore workbench moved to infiltrator-presentation; application retains snapshot storage and command effects.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/snapshot_restore_workbench_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src/lib.rs"
+      ]
+    },
+    {
+      "id": "application-snapshot-restore-projection-module",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "snapshot_restore_projection",
+      "rationale": "The shared snapshot-restore view projection moved to infiltrator-presentation.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/snapshot_restore_workbench_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src/lib.rs"
+      ]
     }
   ]
 }

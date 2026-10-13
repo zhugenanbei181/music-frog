@@ -11,7 +11,7 @@ Profile 用例只依赖活动 profile applier 和显式 `Offline` / `CoreOwner` 
 原文搜索片段、Unicode/grapheme 边界与范围重放归纯 Rust `zhuge-ui-core`，
 不引入 UI toolkit。产品搜索条件与拼音匹配由本层定义。日志用例只保留有界、scope-fenced 原始行、流状态、过滤事实和原文导出；日志解析、展示行与页面状态由 presentation 投影。RoutingIntent 的纯观察/请求/失败阶段归约及共享 copy 也由 presentation 持有；application 只执行命令并返回 Core 读回事实。
 
-`RuleListApplication` 只负责 source-fenced 规则提交与端口副作用；规则草稿、trace、statistics 的 typed reducers 和共享投影由 `infiltrator-presentation` 持有。
+`RuleListApplication` 只负责 source-fenced 规则提交与端口副作用；规则草稿、trace、statistics、日志导出、脚本导出及快照恢复工作台的 typed reducers 和共享投影由 `infiltrator-presentation` 持有。本 crate 仍负责文件、Core 命令与其他 host port 的实际副作用。
 
 通用 UI 功能先扩展对应 `zhuge-ui-*` owner，再在本 crate 接入；不得复制共享实现。
 产品适配保留业务职责，更新共享依赖时同时验证其他消费者和可见行为。

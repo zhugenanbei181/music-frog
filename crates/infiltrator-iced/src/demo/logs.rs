@@ -89,7 +89,7 @@ pub(super) fn update(state: &mut AppState, message: Message) -> Task<Message> {
         }
     );
     let task = state.update(message);
-    if prepared && state.diag.log_export.summary.is_some() {
+    if prepared && state.diag.log_export.summary().is_some() {
         task.chain(Task::done(Message::ConfirmLogExport))
     } else {
         task

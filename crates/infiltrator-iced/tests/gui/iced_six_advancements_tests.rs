@@ -257,7 +257,7 @@ fn test_advancement_6_quickjs_script_sandbox_console_lifecycle() {
         "auto-country-groups".to_string(),
     )));
     assert_eq!(
-        state.editor.script_sandbox.selected_preset.as_deref(),
+        state.editor.script_sandbox.selected_preset(),
         Some("auto-country-groups")
     );
     assert!(
@@ -313,6 +313,6 @@ fn test_advancement_6_quickjs_script_sandbox_console_lifecycle() {
     // Clear sandbox
     let task = state.update(Message::Script(ScriptAction::Clear));
     script_workbench_tests::complete(&mut state, task);
-    assert!(state.editor.script_sandbox.snapshot.is_none());
+    assert!(state.editor.script_sandbox.snapshot().is_none());
     assert!(scripts.observation().result.is_none());
 }

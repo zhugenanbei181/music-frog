@@ -105,16 +105,12 @@ pub mod script_application;
 pub mod script_engine_boa;
 pub mod script_engine_direct;
 pub mod script_export_application;
-pub mod script_export_projection;
 pub mod script_sandbox_matrix_application;
-pub mod script_workbench;
 pub mod service_mode_application;
 pub mod settings_application;
 pub mod shell_readout_application;
 pub mod shortcut_application;
 pub mod snapshot_application;
-pub mod snapshot_restore_projection;
-pub mod snapshot_restore_workbench;
 pub mod speedtest_application;
 pub mod stun_probe_application;
 pub mod subscription_filter_copy;
@@ -171,10 +167,8 @@ pub mod log_capture_fixtures;
 pub mod log_search;
 
 pub mod log_application;
-pub mod log_export_actions;
 pub mod log_export_application;
 pub mod log_export_capture;
-pub mod log_export_projection;
 pub mod log_follow;
 mod log_stream;
 

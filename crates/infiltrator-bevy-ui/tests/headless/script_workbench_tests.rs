@@ -250,7 +250,7 @@ fn native_export_cancel_is_side_effect_free_and_retry_writes_only_reviewed_bytes
         .world()
         .resource::<ScriptWorkbenchState>()
         .model
-        .review
+        .review()
         .clone()
         .unwrap();
     *host.failure.lock().unwrap() = true;
@@ -260,7 +260,7 @@ fn native_export_cancel_is_side_effect_free_and_retry_writes_only_reviewed_bytes
         app.world()
             .resource::<ScriptWorkbenchState>()
             .model
-            .failure
+            .failure()
             .as_ref()
             .unwrap()
             .code,
@@ -309,7 +309,7 @@ fn native_ime_preedit_disables_actions_and_commits_once_to_the_actual_buffer() {
         app.world()
             .resource::<ScriptWorkbenchState>()
             .model
-            .pending
+            .pending()
             .is_none()
     );
     // Clicking outside an editor ends the OS composition. A disabled action
@@ -426,9 +426,6 @@ fn native_pending_input_and_unrelated_or_unit_terminals_cannot_complete_executio
     app.update();
     let state = app.world().resource::<ScriptWorkbenchState>();
     assert!(!state.model.busy());
-    assert!(state.model.snapshot.is_none());
-    assert_eq!(
-        state.model.failure.as_ref().unwrap().code,
-        ErrorCode::InvalidState
-    );
+    assert!(state.model.snapshot().is_none());
+    assert_eq!(state.model.failure().unwrap().code, ErrorCode::InvalidState);
 }

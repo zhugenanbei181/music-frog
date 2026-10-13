@@ -3,7 +3,6 @@
 use crate::command_application::CommandApplication;
 use crate::script_application::ScriptApplication;
 use crate::script_export_application::ScriptExportApplication;
-use crate::script_workbench::ScriptWorkbench;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::error::ErrorCode;
@@ -18,6 +17,7 @@ use infiltrator_domain::script_export_review::content_sha256;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::script_engine::ScriptEnginePort;
 use infiltrator_ports::script_export::ScriptExportPort;
+use infiltrator_presentation::script_workbench::ScriptWorkbench;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
@@ -179,32 +179,29 @@ async fn command_outputs_and_native_workbench_reject_unit_and_late_results_witho
         ScriptExportApplication::without_host_port(),
     );
     let mut model = ScriptWorkbench::default();
-    model.script_code = run_request(1).script_code;
-    model.input_yaml = "mode: rule\n".into();
+    model.set_script_code(run_request(1).script_code);
+    model.set_input_yaml("mode: rule\n".into());
     let request = model.run().unwrap();
     assert!(model.run().is_none());
     model.edit_yaml("mode: global\n".into());
-    assert_eq!(model.input_yaml, "mode: rule\n");
+    assert_eq!(model.input_yaml(), "mode: rule\n");
     let result = commands
         .execute_output(request.intent.clone())
         .await
         .unwrap();
     model.finish(request.operation + 1, Ok(result.clone()));
-    assert!(model.pending.is_some());
+    assert!(model.pending().is_some());
     model.finish(request.operation, Ok(result));
-    let observed = model.snapshot.clone();
+    let observed = model.snapshot().cloned();
     let next = model.run().unwrap();
     model.finish(request.operation, Ok(CommandOutput::Unit));
-    assert_eq!(model.snapshot, observed);
+    assert_eq!(model.snapshot(), observed.as_ref());
     model.finish(next.operation, Ok(CommandOutput::Unit));
-    assert_eq!(
-        model.failure.as_ref().unwrap().code,
-        ErrorCode::InvalidState
-    );
+    assert_eq!(model.failure().unwrap().code, ErrorCode::InvalidState);
     let retry = model.retry().unwrap();
     let output = commands.execute_output(retry.intent).await.unwrap();
     model.finish(retry.operation, Ok(output));
-    assert!(model.failure.is_none());
+    assert!(model.failure().is_none());
     assert_eq!(scripts.observation().revision, 2);
     assert_eq!(
         CommandApplication::new()

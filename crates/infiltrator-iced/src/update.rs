@@ -31,7 +31,7 @@ impl AppState {
         if let Message::SnapshotRestore(action) = message {
             return self.update_snapshot_restore(action);
         }
-        if self.editor.snapshot_restore.visible {
+        if self.editor.snapshot_restore.is_visible() {
             if matches!(
                 message,
                 Message::EditorAction(_)
@@ -57,7 +57,7 @@ impl AppState {
                 return self.update_snapshot_restore(RestoreAction::Cancel);
             }
         }
-        if self.editor.script_sandbox.export_visible {
+        if self.editor.script_sandbox.is_export_visible() {
             if let Message::KeyboardChord { key, .. } = &message {
                 return if key.eq_ignore_ascii_case("escape") {
                     self.update_script_workbench(Message::Script(ScriptAction::CancelExport))
@@ -72,7 +72,7 @@ impl AppState {
                 return Task::none();
             }
         }
-        if self.diag.log_export.open {
+        if self.diag.log_export.is_open() {
             if let Message::KeyboardChord { key, .. } = &message {
                 return if key.eq_ignore_ascii_case("escape") {
                     self.update_log_export(Message::CancelLogExport)

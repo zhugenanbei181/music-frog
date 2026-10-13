@@ -73,7 +73,9 @@ pub(crate) fn export<'a, R: Renderer<Font = Font> + 'a>(
     container(
         button(text(Lang(&state.shell.lang).tr("logs_export_action")).size(11))
             .style(style_accent)
-            .on_press_maybe((!state.diag.log_export.open).then_some(Message::ExportRedactedLogs)),
+            .on_press_maybe(
+                (!state.diag.log_export.is_open()).then_some(Message::ExportRedactedLogs),
+            ),
     )
     .id(InteractionRegion::LogExportLaunch.id())
     .into()

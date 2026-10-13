@@ -8,7 +8,7 @@ use crate::view_root::interaction_regions::InteractionRegion;
 use iced::advanced::text::{Renderer, Wrapping};
 use iced::widget::{Scrollable, Space, button, column, container, row, text};
 use iced::{Border, Element, Font, Length, Theme};
-use infiltrator_application::log_export_projection::project_log_export;
+use infiltrator_presentation::log_export_projection::project_log_export;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 pub(crate) fn content<'a, R: Renderer<Font = Font> + 'a>(
@@ -46,7 +46,7 @@ pub(crate) fn content<'a, R: Renderer<Font = Font> + 'a>(
     let mut actions = row![
         container(
             button(
-                text(lang.tr(if model.receipt.is_some() {
+                text(lang.tr(if model.receipt().is_some() {
                     "logs_export_close"
                 } else {
                     "logs_export_cancel"

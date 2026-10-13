@@ -18,7 +18,6 @@ use bevy::input::ButtonInput;
 use bevy::input::keyboard::KeyCode;
 use bevy::text::{EditableText, EditableTextSystems, TextEditChange};
 use bevy::ui_widgets::{Activate, Button};
-use infiltrator_application::script_workbench::{ScriptPending, ScriptWorkbench};
 use infiltrator_bevy_widgets::button::{
     ButtonDisabled, ButtonInteractionState, sync_button_disabled, sync_control_labels,
     sync_control_visuals,
@@ -30,6 +29,7 @@ use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::script_export::ScriptExportKind;
 use infiltrator_contract::script_export_review::{ScriptExportDraft, ScriptExportValidationScope};
 use infiltrator_contract::script_run::ScriptEditorField;
+use infiltrator_presentation::script_workbench::{ScriptPending, ScriptWorkbench};
 use mem::take;
 use std::mem;
 
@@ -100,8 +100,8 @@ fn initialize(
         return;
     };
     let value = match field.0 {
-        ScriptEditorField::Code => &state.model.script_code,
-        ScriptEditorField::InputYaml => &state.model.input_yaml,
+        ScriptEditorField::Code => state.model.script_code(),
+        ScriptEditorField::InputYaml => state.model.input_yaml(),
     };
     editable.editor_mut().set_text(value);
 }
@@ -127,8 +127,10 @@ fn edited(
     }
     let text = value.value().to_string();
     match field.0 {
-        ScriptEditorField::Code if state.model.script_code != text => state.model.edit_script(text),
-        ScriptEditorField::InputYaml if state.model.input_yaml != text => {
+        ScriptEditorField::Code if state.model.script_code() != text => {
+            state.model.edit_script(text)
+        }
+        ScriptEditorField::InputYaml if state.model.input_yaml() != text => {
             state.model.edit_yaml(text)
         }
         _ => {}
@@ -138,8 +140,8 @@ fn observe(event: On<ProfilesProjectionUpdated>, mut state: ResMut<ScriptWorkben
     if state.model.has_local_actions() {
         return;
     }
-    state.model.snapshot = event.0.script_sandbox.clone();
-    state.model.export = event.0.script_export.clone();
+    state.model.observe_snapshot(event.0.script_sandbox.clone());
+    state.model.observe_export(event.0.script_export.clone());
 }
 #[derive(SystemParam)]
 pub struct ScriptInteraction<'w, 's> {
@@ -158,7 +160,7 @@ fn process(mut surface: ScriptInteraction) {
         .keyboard
         .as_deref()
         .is_some_and(|keys| keys.just_pressed(KeyCode::Escape));
-    if surface.state.model.export_visible
+    if surface.state.model.is_export_visible()
         && !surface.state.model.busy()
         && (leaving || (!composing && escape))
         && let Some(request) = surface.state.model.cancel_export()
@@ -175,7 +177,7 @@ fn process(mut surface: ScriptInteraction) {
         if surface.state.model.busy() {
             continue;
         }
-        if surface.state.model.export_visible
+        if surface.state.model.is_export_visible()
             && !matches!(
                 control,
                 ScriptControl::Confirm | ScriptControl::Cancel | ScriptControl::Retry
@@ -205,7 +207,7 @@ fn process(mut surface: ScriptInteraction) {
                     if field.0 == ScriptEditorField::Code {
                         value
                             .editor_mut()
-                            .set_text(&surface.state.model.script_code);
+                            .set_text(surface.state.model.script_code());
                     }
                 }
                 None
@@ -215,10 +217,10 @@ fn process(mut surface: ScriptInteraction) {
                     kind,
                     validation_scope: ScriptExportValidationScope::Unscoped,
                     profile: None,
-                    base_yaml: surface.state.model.input_yaml.clone(),
+                    base_yaml: surface.state.model.input_yaml().to_owned(),
                     mixin_yaml: String::new(),
-                    script_code: surface.state.model.script_code.clone(),
-                    preset: surface.state.model.selected_preset.clone(),
+                    script_code: surface.state.model.script_code().to_owned(),
+                    preset: surface.state.model.selected_preset().map(str::to_owned),
                 };
                 surface.state.model.prepare_export(draft)
             }
@@ -286,8 +288,7 @@ fn completed(event: On<CommandExecutedEvent>, mut state: ResMut<ScriptWorkbenchS
     if id != event.request_id
         || state
             .model
-            .pending
-            .as_ref()
+            .pending()
             .is_none_or(|pending| Some(pending.intent.clone()) != event.command.to_intent())
     {
         return;

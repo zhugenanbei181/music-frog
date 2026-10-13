@@ -6,7 +6,7 @@ use crate::types::script::ScriptAction;
 use crate::view::component_forms::{style_accent, style_ghost};
 use iced::widget::{Scrollable, Space, button, column, row, text};
 use iced::{Element, Length};
-use infiltrator_application::script_export_projection::project_script_export;
+use infiltrator_presentation::script_export_projection::project_script_export;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 pub(crate) fn modal(state: &AppState) -> Element<'_, Message> {
@@ -23,8 +23,7 @@ pub(crate) fn modal(state: &AppState) -> Element<'_, Message> {
     .spacing(12)
     .width(Length::Fill);
     let saved = model
-        .export
-        .as_ref()
+        .export()
         .is_some_and(|snapshot| snapshot.outcome.is_saved());
     let mut actions = row![
         button(text(lang.tr(if saved {
