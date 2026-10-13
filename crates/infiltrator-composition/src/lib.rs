@@ -23,17 +23,22 @@ use infiltrator_ports::application_runtime::{
     ApplicationFuture, ApplicationRuntime, ApplicationSleep, ApplicationTaskAdmission,
     ApplicationTaskId, ApplicationTaskShutdown,
 };
+use infiltrator_ports::core_scope::CoreScopeSource;
 use infiltrator_ports::core_watchdog::CoreWatchdogPort;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::overview::OverviewReader;
-use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use mihomo_api::client::MihomoClient;
+use mihomo_api::connection_port::MihomoConnectionPort;
 use mihomo_api::core_capability_provider::MihomoCoreCapabilityProvider;
 use mihomo_api::geo_database::MihomoGeoDatabaseAdapter;
 use mihomo_api::overview::ControllerOverviewReader;
 use mihomo_api::readiness::ControllerReadiness;
 use mihomo_api::routing_intent::MihomoRoutingIntentAdapter;
 use mihomo_api::rule_provider::MihomoRuleProviderAdapter;
+use mihomo_api::runtime_configuration::{
+    MihomoRuntimeConfigurationAdapter, scope_resolver_from_owner,
+};
+use mihomo_api::runtime_stream::MihomoRuntimeStreamPort;
 use std::num::NonZeroU64;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -394,9 +399,20 @@ where
         Arc::new(ControllerOverviewReader::new(client.clone())),
         runtime.clone(),
     );
-    let gateway: Arc<dyn RuntimeGateway> = Arc::new(client.clone());
+    let scope_source: Arc<dyn CoreScopeSource> = Arc::new(application.clone());
+    let scope_resolver = scope_resolver_from_owner(scope_source.clone());
+    let connection_port = Arc::new(MihomoConnectionPort::new(
+        client.clone(),
+        Some(scope_resolver.clone()),
+    ));
+    let runtime_stream_port = Arc::new(MihomoRuntimeStreamPort::new(
+        client.clone(),
+        Some(scope_resolver.clone()),
+    ));
+    let configuration_ports =
+        MihomoRuntimeConfigurationAdapter::ports(client.clone(), Some(scope_resolver));
     application
-        .install_log_stream_port(gateway.runtime_stream_port())
+        .install_log_stream_port(runtime_stream_port.clone())
         .map_err(|failure| failure.message)?;
     let core_capabilities =
         CoreCapabilityApplication::new(Arc::new(MihomoCoreCapabilityProvider::new(
@@ -416,15 +432,13 @@ where
                 CoreOperation::ProxyControl(ProxyControlOperation::GetRoutingIntent),
             ],
         )));
-    let scope_source: Arc<dyn infiltrator_ports::core_scope::CoreScopeSource> =
-        Arc::new(application.clone());
     let provider_port: Arc<dyn infiltrator_ports::rule_provider_runtime::RuleProviderPort> =
         Arc::new(MihomoRuleProviderAdapter::new(
             Arc::new(client.clone()),
             scope_source.clone(),
         ));
     let geo_port: Arc<dyn infiltrator_ports::geo_database::GeoDatabasePort> = Arc::new(
-        MihomoGeoDatabaseAdapter::new(Arc::new(client.clone()), scope_source),
+        MihomoGeoDatabaseAdapter::new(Arc::new(client.clone()), scope_source.clone()),
     );
     application
         .install_rule_provider_port(provider_port.clone())
@@ -451,18 +465,18 @@ where
             .with_routing_intent_port(Arc::new(MihomoRoutingIntentAdapter::new(client.clone())))
             .with_connections(
                 infiltrator_application::connection_application::ConnectionApplication::new(
-                    Arc::new(application.clone()),
-                    gateway.connection_port(),
+                    scope_source.clone(),
+                    connection_port,
                 ),
             )
             .with_runtime_queries(
                 infiltrator_application::runtime_query_application::RuntimeQueryApplication::new(
-                    Arc::new(application.clone()),
-                    gateway.runtime_stream_port(),
+                    scope_source,
+                    runtime_stream_port,
                 )
                 .with_core_log_level_port(Arc::new(client.clone())),
             )
-            .with_runtime_configuration_ports(gateway.configuration_ports())
+            .with_runtime_configuration_ports(configuration_ports)
             .with_application_runtime(runtime)
             .with_mtu(MtuApplication::new(host)),
     ));

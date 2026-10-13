@@ -35,7 +35,6 @@ use infiltrator_composition::active_profile_backend::{
 };
 use infiltrator_contract::active_profile_reference::ActiveProfileReference;
 use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::stun_probe::DEFAULT_STUN_SERVER;
 use infiltrator_contract::surface::SurfaceKind;
 use infiltrator_contract::system_proxy::SystemProxyRecoveryStatus;
@@ -55,13 +54,12 @@ use infiltrator_ports::engine_backend_factory::EngineBackendPorts;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_configuration_transaction::ProfileConfigurationTransactionPort;
 use infiltrator_ports::profile_store::ProfileStore;
-use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use infiltrator_ports::runtime_http_proxy_endpoint::RuntimeHttpProxyEndpoint;
 use infiltrator_ports::speedtest_history::SpeedtestHistoryStore;
 use mihomo_api::client::MihomoClient;
 use mihomo_api::controller_fake_ip_cache::MihomoControllerFakeIpCacheAdapter;
 use mihomo_api::routing_intent::MihomoRoutingIntentAdapter;
-use mihomo_api::runtime_configuration::RuntimeScopeResolver;
+use mihomo_api::runtime_configuration::{RuntimeScopeResolver, scope_resolver_from_owner};
 use mihomo_config::endpoint::ProfileEndpointSource;
 use mihomo_config::manager::ConfigManager;
 use mihomo_config::yaml;
@@ -88,7 +86,7 @@ pub(crate) struct MihomoRuntime {
     pub controller_url: String,
     client: MihomoClient,
     core_capability_provider: Arc<dyn CoreCapabilityProvider>,
-    runtime_gateway: Arc<dyn RuntimeGateway>,
+    scope_resolver: RuntimeScopeResolver,
     backend_ports: EngineBackendPorts,
     service_manager: ServiceManager,
     endpoints: Arc<ProfileEndpointSource<DefaultCredentialStore>>,
@@ -124,7 +122,6 @@ struct PreparedMihomoRuntime {
     backend_ports: EngineBackendPorts,
     client: MihomoClient,
     core_capability_provider: Arc<dyn CoreCapabilityProvider>,
-    runtime_gateway: Arc<dyn RuntimeGateway>,
     configuration_transaction: Arc<dyn ProfileConfigurationTransactionPort>,
     speedtest: SpeedtestApplication,
     rule_tracer: RuleTracerApplication,
@@ -260,7 +257,6 @@ impl MihomoRuntime {
             backend_ports,
             client,
             core_capability_provider,
-            runtime_gateway,
             configuration_transaction,
             speedtest,
             rule_tracer,
@@ -312,23 +308,7 @@ impl MihomoRuntime {
             )
             .await?,
         );
-        let scope_application = application.clone();
-        let scope_resolver: RuntimeScopeResolver = Arc::new(move || {
-            let lifecycle = scope_application.snapshot().lifecycle_snapshot();
-            match &lifecycle.lifecycle {
-                CoreLifecycle::Running | CoreLifecycle::Ready => {
-                    lifecycle.scope().ok_or_else(|| {
-                        PortError::Failed(
-                            "active Core identity is unavailable for configuration access".into(),
-                        )
-                    })
-                }
-                _ => Err(PortError::Failed(
-                    "configuration access requires a running Core".to_owned(),
-                )),
-            }
-        });
-        client.set_configuration_scope_resolver(scope_resolver);
+        let scope_resolver = scope_resolver_from_owner(Arc::new(application.as_ref().clone()));
         // Attach to an already-running instance by proving it answers, or
         // start a fresh one and let the application own readiness retries.
         if service_manager.is_running().await {
@@ -371,7 +351,7 @@ impl MihomoRuntime {
             controller_url,
             client,
             core_capability_provider,
-            runtime_gateway,
+            scope_resolver,
             backend_ports,
             service_manager,
             endpoints,
@@ -433,7 +413,9 @@ impl MihomoRuntime {
     ) -> anyhow::Result<SurfacePump> {
         surface_pump(SurfacePumpParams {
             core: self.application.clone(),
-            gateway: self.runtime_gateway.clone(),
+            connection_port: self.typed_connection_port(),
+            runtime_configuration_ports: self.typed_runtime_configuration_ports(),
+            resource_port: self.typed_resource_port(),
             routing_intent_port: Arc::new(MihomoRoutingIntentAdapter::new(self.client.clone())),
             surface,
             sample_interval,
@@ -480,7 +462,6 @@ async fn prepare_mihomo_runtime(
     core_capability_provider: Arc<dyn CoreCapabilityProvider>,
 ) -> anyhow::Result<PreparedMihomoRuntime> {
     let configuration_transaction = backend_ports.configuration_transaction();
-    let runtime_gateway: Arc<dyn RuntimeGateway> = Arc::new(client.clone());
     let history_store: Arc<dyn SpeedtestHistoryStore> = Arc::new(speedtest_history_store()?);
     let speedtest = SpeedtestApplication::new(SettingsApplication::new(settings_store().await?))
         .with_history_store(history_store);
@@ -517,7 +498,6 @@ async fn prepare_mihomo_runtime(
         backend_ports,
         client,
         core_capability_provider,
-        runtime_gateway,
         configuration_transaction,
         speedtest,
         rule_tracer,

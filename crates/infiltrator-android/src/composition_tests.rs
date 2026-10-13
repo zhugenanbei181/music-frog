@@ -10,10 +10,9 @@ use infiltrator_contract::active_profile_reference::{
     ActiveProfileReferenceCasOutcome, ActiveProfileReferenceTarget,
 };
 use infiltrator_contract::android_control::{
-    AndroidChildProcessIdentity, AndroidCoreLifecycleSnapshot, AndroidCoreProcessObservation,
-    AndroidHostProcessRole, AndroidOwnedCoreProcess, AndroidProductCommand,
-    AndroidProductCommandRequest, CoreLaunchSpec, VpnOwnerCoreReadback, VpnOwnerLifecycle,
-    VpnOwnerReadiness, VpnOwnerSnapshot,
+    AndroidChildProcessIdentity, AndroidCoreProcessObservation, AndroidHostProcessRole,
+    AndroidOwnedCoreProcess, AndroidProductCommand, AndroidProductCommandRequest, CoreLaunchSpec,
+    VpnOwnerCoreReadback, VpnOwnerLifecycle, VpnOwnerReadiness, VpnOwnerSnapshot,
 };
 use infiltrator_contract::command::{CommandIntent, CommandResult};
 use infiltrator_contract::command_output::CommandOutput;
@@ -51,6 +50,7 @@ use infiltrator_ports::engine_backend_factory::EngineBackendFactory;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::secure_store::SecureStore;
+use mihomo_api::runtime_configuration::scope_resolver_from_owner;
 use mihomo_config::manager::ConfigManager;
 use std::env;
 use std::fs;
@@ -329,7 +329,7 @@ fn android_mihomo_backend_provider_recreates_scoped_ports_without_hidden_state()
 }
 
 #[test]
-fn android_controller_scope_resolver_remains_available_to_host_runtime_composition() {
+fn android_core_scope_resolver_rejects_a_stopped_owner() {
     let (_home, store) = config_manager();
     let provider = Arc::new(
         super::AndroidMihomoBackendProvider::new(
@@ -344,31 +344,26 @@ fn android_controller_scope_resolver_remains_available_to_host_runtime_compositi
     );
     let provider_for_factory: Arc<
         dyn infiltrator_ports::engine_backend_factory::EngineBackendProvider,
-    > = provider.clone();
+    > = provider;
     let factory = EngineBackendFactoryRegistry::new([provider_for_factory]).unwrap();
     let backend = factory
         .backend_ports(&MihomoVersionPort::engine_identifier())
         .expect("registered provider composes runtime ports");
-    let runtime_gateway = provider.controller_adapters.runtime_gateway();
     let application = CoreApplication::new_with_overview(
         backend.process(),
         backend.readiness(),
         Arc::new(UnavailableOverviewReader::new(PortError::unsupported(
             infiltrator_contract::capability::Capability::CoreLifecycle,
-            "scope binding test does not need overview polling",
+            "scope resolver test does not need overview polling",
         ))),
         infiltrator_composition::tokio_application_runtime().unwrap(),
     );
 
-    provider
-        .controller_adapters
-        .bind_configuration_scope(&application);
-    let error = runtime_gateway
-        .current_core_scope()
-        .expect_err("a stopped owner must not authorize runtime configuration");
+    let scope_resolver = scope_resolver_from_owner(Arc::new(application));
+    let error = scope_resolver().expect_err("a stopped owner must not authorize controller access");
 
     assert!(
-        matches!(error, PortError::Failed(message) if message.contains("requires a running Core"))
+        matches!(error, PortError::Failed(message) if message.contains("owner scope is unavailable"))
     );
 }
 

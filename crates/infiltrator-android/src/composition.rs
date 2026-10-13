@@ -29,7 +29,6 @@ use infiltrator_contract::core_capabilities::{
     OutboundOperation, ProfileOperation, ProviderOperation, ProxyControlOperation,
 };
 use infiltrator_contract::core_identity::EngineId;
-use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface::HostKind;
 use infiltrator_core::apply::EndpointConfigReloader;
 use infiltrator_core::profile_configuration_transaction::MihomoProfileConfigurationTransactionAdapter;
@@ -38,6 +37,7 @@ use infiltrator_platform::android_bridge::AndroidBridge;
 use infiltrator_ports::core_capability_provider::CoreCapabilityProvider;
 use infiltrator_ports::core_log_level::CoreLogLevelPort;
 use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
+use infiltrator_ports::core_scope::CoreScopeSource;
 use infiltrator_ports::engine_backend_factory::{
     EngineBackendFactory, EngineBackendOwnerScopeBindingResult, EngineBackendPorts,
     EngineBackendProvider,
@@ -50,13 +50,16 @@ use infiltrator_ports::profile_configuration_transaction::{
 };
 use infiltrator_ports::profile_document_codec::ProfileDocumentCodecPort;
 use infiltrator_ports::profile_store::ProfileStore;
-use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use infiltrator_ports::secure_store::SecureStore;
 use mihomo_api::client::MihomoClient;
+use mihomo_api::connection_port::MihomoConnectionPort;
 use mihomo_api::core_capability_provider::MihomoCoreCapabilityProvider;
 use mihomo_api::overview::ControllerOverviewReader;
 use mihomo_api::readiness::ControllerReadiness;
-use mihomo_api::runtime_configuration::RuntimeScopeResolver;
+use mihomo_api::runtime_configuration::{
+    MihomoRuntimeConfigurationAdapter, scope_resolver_from_owner,
+};
+use mihomo_api::runtime_stream::MihomoRuntimeStreamPort;
 use mihomo_config::endpoint::ProfileEndpointSource;
 use mihomo_config::manager::ConfigManager;
 use std::sync::Arc;
@@ -99,13 +102,6 @@ impl AndroidControllerAdapters {
         }
     }
 
-    fn runtime_gateway(&self) -> Arc<dyn RuntimeGateway> {
-        match self {
-            Self::Available { client } => Arc::new(client.clone()),
-            Self::Unavailable { .. } => Arc::new(UnavailableAndroidRuntimeGateway),
-        }
-    }
-
     fn capability_provider(&self) -> Arc<dyn CoreCapabilityProvider> {
         let mut adapter_operations = vec![
             CoreOperation::Lifecycle(CoreLifecycleOperation::Start),
@@ -134,29 +130,6 @@ impl AndroidControllerAdapters {
             HostKind::Android,
             adapter_operations,
         ))
-    }
-
-    fn bind_configuration_scope(&self, application: &CoreApplication) {
-        if let Self::Available { client } = self {
-            let scope_application = application.clone();
-            let scope_resolver: RuntimeScopeResolver = Arc::new(move || {
-                let lifecycle = scope_application.snapshot().lifecycle_snapshot();
-                match &lifecycle.lifecycle {
-                    CoreLifecycle::Running | CoreLifecycle::Ready => {
-                        lifecycle.scope().ok_or_else(|| {
-                            PortError::Failed(
-                                "active Core identity is unavailable for configuration access"
-                                    .to_owned(),
-                            )
-                        })
-                    }
-                    _ => Err(PortError::Failed(
-                        "configuration access requires a running Core".to_owned(),
-                    )),
-                }
-            });
-            client.set_configuration_scope_resolver(scope_resolver);
-        }
     }
 }
 
@@ -279,11 +252,6 @@ pub(crate) fn android_mihomo_backend_provider<S: SecureStore + 'static>(
         readiness,
     )?))
 }
-
-struct UnavailableAndroidRuntimeGateway;
-
-#[async_trait::async_trait]
-impl RuntimeGateway for UnavailableAndroidRuntimeGateway {}
 
 impl<S: SecureStore + 'static> AndroidCoreComposition<S> {
     pub fn new(profile_store: Arc<ConfigManager<S>>) -> Self {
@@ -520,7 +488,6 @@ fn core_application_from_backend<S: SecureStore + 'static>(
         }
     };
     transaction_binding.bind(transaction)?;
-    controller_adapters.bind_configuration_scope(&application);
     let mtu = MtuApplication::new(Arc::new(AndroidBridgeAdapter::new(bridge.clone())));
     let core_capabilities = CoreCapabilityApplication::new(capability_provider);
     application
@@ -554,13 +521,25 @@ fn core_application_from_backend<S: SecureStore + 'static>(
         AndroidControllerAdapters::Available { client } => {
             let core_log_level_port: Arc<dyn CoreLogLevelPort> = Arc::new(client.clone());
             let operations = backend_operations;
-            let gateway = controller_adapters.runtime_gateway();
-            let scope_source: Arc<dyn infiltrator_ports::core_scope::CoreScopeSource> =
-                Arc::new(application.clone());
-            let connections =
-                ConnectionApplication::new(scope_source.clone(), gateway.connection_port());
+            let scope_source: Arc<dyn CoreScopeSource> = Arc::new(application.clone());
+            let scope_resolver = scope_resolver_from_owner(scope_source.clone());
+            let configuration_ports = MihomoRuntimeConfigurationAdapter::ports(
+                client.clone(),
+                Some(scope_resolver.clone()),
+            );
+            let runtime_stream_port = Arc::new(MihomoRuntimeStreamPort::new(
+                client.clone(),
+                Some(scope_resolver.clone()),
+            ));
+            let connections = ConnectionApplication::new(
+                scope_source.clone(),
+                Arc::new(MihomoConnectionPort::new(
+                    client.clone(),
+                    Some(scope_resolver),
+                )),
+            );
             let runtime_queries =
-                RuntimeQueryApplication::new(scope_source, gateway.runtime_stream_port())
+                RuntimeQueryApplication::new(scope_source, runtime_stream_port.clone())
                     .with_core_log_level_port(core_log_level_port);
             handler = handler
                 .with_connections(connections)
@@ -572,10 +551,10 @@ fn core_application_from_backend<S: SecureStore + 'static>(
                 .map_err(|failure| PortError::Failed(failure.message))?;
             handler = handler.with_outbound(OutboundApplication::new(outbound_port));
             application
-                .install_log_stream_port(gateway.runtime_stream_port())
+                .install_log_stream_port(runtime_stream_port)
                 .map_err(|failure| PortError::Failed(failure.message))?;
             handler = handler
-                .with_runtime_configuration_ports(gateway.configuration_ports())
+                .with_runtime_configuration_ports(configuration_ports)
                 .with_logs(application.log_application());
         }
         AndroidControllerAdapters::Unavailable { .. } => {}

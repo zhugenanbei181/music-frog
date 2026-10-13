@@ -84,11 +84,15 @@ use infiltrator_ports::error::PortError;
 use infiltrator_ports::host_runtime::HostRuntime;
 use infiltrator_ports::profile_configuration_transaction::ProfileConfigurationTransactionScope;
 use infiltrator_ports::profile_store::ProfileStore;
-use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use infiltrator_ports::subscription_source::SubscriptionSource;
 use mihomo_api::client::MihomoClient;
+use mihomo_api::connection_port::MihomoConnectionPort;
 use mihomo_api::core_capability_provider::MihomoCoreCapabilityProvider;
 use mihomo_api::overview::ControllerOverviewReader;
+use mihomo_api::runtime_configuration::{
+    MihomoRuntimeConfigurationAdapter, scope_resolver_from_owner,
+};
+use mihomo_api::runtime_stream::MihomoRuntimeStreamPort;
 use mihomo_config::manager::ConfigManager;
 use mihomo_version::bundled_kernel::packaged_candidates;
 use singbox_api::capability_provider::SingBoxCoreCapabilityProvider;
@@ -510,9 +514,14 @@ pub(crate) async fn core_application(
             apply_guard,
         )?);
         transaction_binding.bind(transaction)?;
-        let gateway: Arc<dyn RuntimeGateway> = Arc::new(client.clone());
+        let scope_source: Arc<dyn CoreScopeSource> = Arc::new(application.clone());
+        let scope_resolver = scope_resolver_from_owner(scope_source);
+        let runtime_stream_port = Arc::new(MihomoRuntimeStreamPort::new(
+            client.clone(),
+            Some(scope_resolver),
+        ));
         application
-            .install_log_stream_port(gateway.runtime_stream_port())
+            .install_log_stream_port(runtime_stream_port)
             .map_err(|failure| anyhow::anyhow!(failure.message))?;
         let outbound_port = ports.operations().outbound()?;
         application
@@ -633,15 +642,20 @@ pub fn desktop_command_application(
     let service_mode =
         ServiceModeApplication::new(Arc::new(DesktopServiceMode::new(binary_path.clone())));
     let port_conflicts = PortConflictApplication::new(Arc::new(port_conflict()?));
-    let gateway: Arc<dyn RuntimeGateway> = Arc::new(client.clone());
+    let scope_resolver = scope_resolver_from_owner(core_scope_source.clone());
+    let runtime_configuration_ports =
+        MihomoRuntimeConfigurationAdapter::ports(client.clone(), Some(scope_resolver.clone()));
     let pac = PacApplication::new(
         core_scope_source.clone(),
-        gateway.configuration_ports(),
+        runtime_configuration_ports.clone(),
         Arc::new(DesktopPacServicePort::shared()),
     );
     let network_roaming =
         NetworkRoamingApplication::new(Arc::new(DesktopNetworkRoamingPort::shared()))
-            .with_core_configuration(core_scope_source.clone(), gateway.configuration_ports());
+            .with_core_configuration(
+                core_scope_source.clone(),
+                runtime_configuration_ports.clone(),
+            );
     // DUAL-11-06/07: the kernel's provider cache lives next to the profiles
     // (`-d <config dir>`), so the command handler purges exactly that folder.
     let rule_provider_cache = Arc::new(DesktopRuleProviderCache::new(profile_store.config_dir()));
@@ -655,11 +669,21 @@ pub fn desktop_command_application(
         core_capabilities.clone(),
     );
     let core_log_level_port: Arc<dyn CoreLogLevelPort> = Arc::new(client.clone());
-    let connections =
-        ConnectionApplication::new(core_scope_source.clone(), gateway.connection_port());
-    let runtime_queries =
-        RuntimeQueryApplication::new(core_scope_source, gateway.runtime_stream_port())
-            .with_core_log_level_port(core_log_level_port);
+    let connections = ConnectionApplication::new(
+        core_scope_source.clone(),
+        Arc::new(MihomoConnectionPort::new(
+            client.clone(),
+            Some(scope_resolver.clone()),
+        )),
+    );
+    let runtime_queries = RuntimeQueryApplication::new(
+        core_scope_source,
+        Arc::new(MihomoRuntimeStreamPort::new(
+            client.clone(),
+            Some(scope_resolver),
+        )),
+    )
+    .with_core_log_level_port(core_log_level_port);
     Ok(CommandApplication::new()
         .with_core_capabilities(core_capabilities)
         .with_rule_provider_runtime(rule_provider_runtime)
@@ -670,7 +694,7 @@ pub fn desktop_command_application(
         .with_host_capabilities(Arc::new(DesktopHostCapabilities))
         .with_scripts(scripts, script_exports)
         .with_doctor(doctor)
-        .with_runtime_configuration_ports(gateway.configuration_ports())
+        .with_runtime_configuration_ports(runtime_configuration_ports)
         .with_application_runtime(runtime)
         .with_profile(profiles)
         .with_configuration(configuration)

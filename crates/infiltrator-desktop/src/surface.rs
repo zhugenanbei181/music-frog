@@ -52,9 +52,11 @@ use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_core::settings_io::app_config_manager;
 use infiltrator_core::version_port::MihomoVersionPort;
+use infiltrator_ports::connection::ConnectionPort;
 use infiltrator_ports::network_roaming::NetworkRoamingPort;
+use infiltrator_ports::resources::CoreResourcePort;
 use infiltrator_ports::routing_intent::RoutingIntentPort;
-use infiltrator_ports::runtime_gateway::RuntimeGateway;
+use infiltrator_ports::runtime_configuration::RuntimeConfigurationPorts;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
@@ -128,7 +130,9 @@ pub struct SurfaceEngines {
 /// surface reader. No UI toolkit appears in this function.
 pub async fn application_surface_reader(
     core: Arc<CoreApplication>,
-    gateway: Arc<dyn RuntimeGateway>,
+    connection_port: Arc<dyn ConnectionPort>,
+    runtime_configuration_ports: RuntimeConfigurationPorts,
+    resource_port: Arc<dyn CoreResourcePort>,
     routing_intent_port: Arc<dyn RoutingIntentPort>,
     surface: SurfaceKind,
     binary_path: PathBuf,
@@ -146,7 +150,7 @@ pub async fn application_surface_reader(
         VersionApplication::from_factory(MihomoVersionPort::engine_identifier(), &version_factory)?;
     let endpoint_source = Arc::new(endpoint_source().await?);
     let port_conflicts = PortConflictApplication::new(Arc::new(port_conflict()?));
-    let resources = ResourceApplication::new(core.clone(), gateway.resource_port());
+    let resources = ResourceApplication::new(core.clone(), resource_port);
     let config_path = app_config_manager().await?.get_current_path().await?;
     let offline_startup =
         OfflineStartupApplication::new(Arc::new(offline_startup_port(&config_path, &binary_path)));
@@ -155,11 +159,11 @@ pub async fn application_surface_reader(
     let uwp_loopback = UwpLoopbackApplication::new(Arc::new(DesktopUwpLoopbackPort));
     let pac = PacApplication::new(
         core.clone(),
-        gateway.configuration_ports(),
+        runtime_configuration_ports.clone(),
         Arc::new(DesktopPacServicePort::shared()),
     );
     let network_roaming = NetworkRoamingApplication::new(network_roaming_port)
-        .with_core_configuration(core.clone(), gateway.configuration_ports());
+        .with_core_configuration(core.clone(), runtime_configuration_ports.clone());
     let service_mode = ServiceModeApplication::new(Arc::new(DesktopServiceMode::new(binary_path)));
     // DUAL-11-07: the published cache fact comes from the same host directory
     // the desktop command handler purges.
@@ -171,8 +175,8 @@ pub async fn application_surface_reader(
 
     let mut reader = ApplicationSurfaceReader::new(core, surface, HostKind::Desktop)
         .with_capabilities(desktop_capabilities())
-        .with_connection_port(gateway.connection_port())
-        .with_runtime_configuration_ports(gateway.configuration_ports())
+        .with_connection_port(connection_port)
+        .with_runtime_configuration_ports(runtime_configuration_ports)
         .with_routing_intent_port(routing_intent_port)
         .with_resources(resources)
         .with_offline_startup(offline_startup)
@@ -211,7 +215,9 @@ pub async fn application_surface_reader(
 /// Spawn the bounded desktop surface pump used by frame-driven UI hosts.
 pub struct SurfacePumpParams {
     pub core: Arc<CoreApplication>,
-    pub gateway: Arc<dyn RuntimeGateway>,
+    pub connection_port: Arc<dyn ConnectionPort>,
+    pub runtime_configuration_ports: RuntimeConfigurationPorts,
+    pub resource_port: Arc<dyn CoreResourcePort>,
     pub routing_intent_port: Arc<dyn RoutingIntentPort>,
     pub surface: SurfaceKind,
     pub sample_interval: Duration,
@@ -223,7 +229,9 @@ pub struct SurfacePumpParams {
 pub async fn surface_pump(params: SurfacePumpParams) -> anyhow::Result<SurfacePump> {
     let reader = application_surface_reader(
         Arc::clone(&params.core),
-        params.gateway,
+        params.connection_port,
+        params.runtime_configuration_ports,
+        params.resource_port,
         params.routing_intent_port,
         params.surface,
         params.binary_path,

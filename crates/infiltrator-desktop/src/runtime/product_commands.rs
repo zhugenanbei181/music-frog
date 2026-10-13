@@ -10,7 +10,6 @@ use infiltrator_application::settings_application::SettingsApplication;
 use infiltrator_application::sync_application::SyncApplication;
 use infiltrator_ports::endpoint::EndpointSource;
 use infiltrator_ports::host_runtime::HostRuntime;
-use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use std::sync::Arc;
 
 impl MihomoRuntime {
@@ -29,7 +28,7 @@ impl MihomoRuntime {
         )
         .with_endpoint_source(self.endpoints.clone());
         self.application
-            .install_log_stream_port(self.runtime_stream_port())
+            .install_log_stream_port(self.typed_runtime_stream_port())
             .map_err(|failure| anyhow::anyhow!(failure.message))?;
         let outbound_port = self
             .application

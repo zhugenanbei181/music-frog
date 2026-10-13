@@ -11,7 +11,6 @@ use crate::service::ServiceStatus;
 use crate::system_dns_cache::DesktopSystemDnsCache;
 use crate::system_proxy::DesktopSystemProxy;
 use crate::tun_service::{ServiceModeStatus, TunServiceManager};
-use infiltrator_application::core_application::CoreApplication;
 use infiltrator_contract::active_profile_reference::{
     ActiveProfileReference, ActiveProfileReferenceWriteAuthorization,
 };
@@ -57,51 +56,67 @@ use infiltrator_ports::service_mode::ServiceModePort;
 use infiltrator_ports::stun_probe::StunEgressProbePort;
 use infiltrator_ports::system_dns_cache::SystemDnsCachePort;
 use infiltrator_ports::system_proxy::SystemProxyPort;
+use mihomo_api::connection_port::MihomoConnectionPort;
 use mihomo_api::resource_port::MihomoRuntimeResourcePort;
-use mihomo_api::runtime_configuration::{MihomoRuntimeConfigurationAdapter, RuntimeScopeResolver};
+use mihomo_api::runtime_configuration::MihomoRuntimeConfigurationAdapter;
 use mihomo_api::runtime_stream::MihomoRuntimeStreamPort;
 use std::path::PathBuf;
 use std::sync::Arc;
 use sysinfo::{Pid, ProcessesToUpdate, System};
 
-#[async_trait::async_trait]
-impl RuntimeGateway for MihomoRuntime {
-    fn current_core_scope(&self) -> Result<CoreScope, PortError> {
-        active_core_scope(self)
-    }
-
-    fn configuration_ports(&self) -> RuntimeConfigurationPorts {
-        let application = self.application.clone();
-        let scope_resolver: RuntimeScopeResolver =
-            Arc::new(move || active_core_scope_for_application(&application));
-        MihomoRuntimeConfigurationAdapter::ports(self.client.clone(), Some(scope_resolver))
-    }
-
-    fn connection_port(&self) -> Arc<dyn ConnectionPort> {
-        self.runtime_gateway.connection_port()
-    }
-
-    fn runtime_stream_port(&self) -> Arc<dyn RuntimeStreamPort> {
-        let application = self.application.clone();
-        let resolver: RuntimeScopeResolver =
-            Arc::new(move || active_core_scope_for_application(&application));
-        Arc::new(MihomoRuntimeStreamPort::new(
+impl MihomoRuntime {
+    pub(crate) fn typed_connection_port(&self) -> Arc<dyn ConnectionPort> {
+        Arc::new(MihomoConnectionPort::new(
             self.client.clone(),
-            Some(resolver),
+            Some(self.scope_resolver.clone()),
         ))
     }
 
-    fn resource_port(&self) -> Arc<dyn CoreResourcePort> {
-        let application = self.application.clone();
-        let resolver: RuntimeScopeResolver =
-            Arc::new(move || active_core_scope_for_application(&application));
+    pub(crate) fn typed_runtime_configuration_ports(&self) -> RuntimeConfigurationPorts {
+        MihomoRuntimeConfigurationAdapter::ports(
+            self.client.clone(),
+            Some(self.scope_resolver.clone()),
+        )
+    }
+
+    pub(crate) fn typed_runtime_stream_port(&self) -> Arc<dyn RuntimeStreamPort> {
+        Arc::new(MihomoRuntimeStreamPort::new(
+            self.client.clone(),
+            Some(self.scope_resolver.clone()),
+        ))
+    }
+
+    pub(crate) fn typed_resource_port(&self) -> Arc<dyn CoreResourcePort> {
         let cpu_observer: Arc<dyn CpuResourceObserver> = Arc::new(DesktopCpuResourceObserver {
             service_manager: self.service_manager.clone(),
         });
         Arc::new(
-            MihomoRuntimeResourcePort::new(self.client.clone(), Some(resolver))
+            MihomoRuntimeResourcePort::new(self.client.clone(), Some(self.scope_resolver.clone()))
                 .with_cpu_observer(cpu_observer),
         )
+    }
+}
+
+#[async_trait::async_trait]
+impl RuntimeGateway for MihomoRuntime {
+    fn current_core_scope(&self) -> Result<CoreScope, PortError> {
+        (self.scope_resolver)()
+    }
+
+    fn configuration_ports(&self) -> RuntimeConfigurationPorts {
+        self.typed_runtime_configuration_ports()
+    }
+
+    fn connection_port(&self) -> Arc<dyn ConnectionPort> {
+        self.typed_connection_port()
+    }
+
+    fn runtime_stream_port(&self) -> Arc<dyn RuntimeStreamPort> {
+        self.typed_runtime_stream_port()
+    }
+
+    fn resource_port(&self) -> Arc<dyn CoreResourcePort> {
+        self.typed_resource_port()
     }
 }
 
@@ -335,23 +350,5 @@ impl HostRuntime for MihomoRuntime {
         // the port is omitted and every export is a typed unsupported.
         let config_dir = self.config_path.parent()?.to_path_buf();
         Some(Arc::new(DesktopScriptExportPort::new(config_dir)))
-    }
-}
-
-fn active_core_scope(runtime: &MihomoRuntime) -> Result<CoreScope, PortError> {
-    active_core_scope_for_application(&runtime.application)
-}
-
-fn active_core_scope_for_application(
-    application: &CoreApplication,
-) -> Result<CoreScope, PortError> {
-    let lifecycle = application.snapshot().lifecycle_snapshot();
-    match &lifecycle.lifecycle {
-        CoreLifecycle::Running | CoreLifecycle::Ready => lifecycle.scope().ok_or_else(|| {
-            PortError::Failed("active Core identity is unavailable for controller operation".into())
-        }),
-        _ => Err(PortError::Failed(
-            "controller operation requires a running Core".to_string(),
-        )),
     }
 }

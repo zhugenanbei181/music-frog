@@ -28,7 +28,6 @@ use infiltrator_application::vpn_application::VpnServiceApplication;
 #[cfg(test)]
 use infiltrator_contract::android_control::AndroidHostProcessRole;
 use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 #[cfg(test)]
@@ -38,12 +37,16 @@ use infiltrator_contract::vpn::{
 };
 use infiltrator_platform::android_bridge::{AndroidBridge, get_android_bridge};
 use infiltrator_ports::capability_provider::CapabilityProvider;
-use infiltrator_ports::error::PortError;
-use infiltrator_ports::runtime_gateway::RuntimeGateway;
+use infiltrator_ports::core_scope::CoreScopeSource;
 #[cfg(test)]
 use infiltrator_ports::secure_store::SecureStore;
 use mihomo_api::client::MihomoClient;
+use mihomo_api::connection_port::MihomoConnectionPort;
+use mihomo_api::resource_port::MihomoRuntimeResourcePort;
 use mihomo_api::routing_intent::MihomoRoutingIntentAdapter;
+use mihomo_api::runtime_configuration::{
+    MihomoRuntimeConfigurationAdapter, scope_resolver_from_owner,
+};
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 use tokio::sync::Mutex;
@@ -229,36 +232,29 @@ impl AndroidProductComposition {
         }
         match controller {
             AndroidProductController::Mihomo { endpoint, secret } => {
-                let scope_application = application.clone();
-                let scope_resolver: mihomo_api::runtime_configuration::RuntimeScopeResolver =
-                    Arc::new(move || {
-                        let lifecycle = scope_application.snapshot().lifecycle_snapshot();
-                        match &lifecycle.lifecycle {
-                            CoreLifecycle::Running | CoreLifecycle::Ready => {
-                                lifecycle.scope().ok_or_else(|| {
-                                    PortError::Failed(
-                                        "active Core identity is unavailable for configuration access"
-                                            .into(),
-                                    )
-                                })
-                            }
-                            _ => Err(PortError::Failed(
-                                "configuration access requires a running Core".to_owned(),
-                            )),
-                        }
-                    });
-                if let Ok(client) = MihomoClient::new(&endpoint, secret)
-                    .map(|client| client.with_configuration_scope_resolver(scope_resolver))
-                {
+                if let Ok(client) = MihomoClient::new(&endpoint, secret) {
+                    let scope_source: Arc<dyn CoreScopeSource> = application.clone();
+                    let scope_resolver = scope_resolver_from_owner(scope_source.clone());
+                    let configuration_ports = MihomoRuntimeConfigurationAdapter::ports(
+                        client.clone(),
+                        Some(scope_resolver.clone()),
+                    );
                     let routing_intent_port =
                         Arc::new(MihomoRoutingIntentAdapter::new(client.clone()));
-                    let gateway: Arc<dyn RuntimeGateway> = Arc::new(client);
-                    let resources =
-                        ResourceApplication::new(application.clone(), gateway.resource_port());
+                    let resources = ResourceApplication::new(
+                        application.clone(),
+                        Arc::new(MihomoRuntimeResourcePort::new(
+                            client.clone(),
+                            Some(scope_resolver.clone()),
+                        )),
+                    );
                     reader = reader
                         .with_routing_intent_port(routing_intent_port)
-                        .with_connection_port(gateway.connection_port())
-                        .with_runtime_configuration_ports(gateway.configuration_ports())
+                        .with_connection_port(Arc::new(MihomoConnectionPort::new(
+                            client.clone(),
+                            Some(scope_resolver.clone()),
+                        )))
+                        .with_runtime_configuration_ports(configuration_ports)
                         .with_resources(resources);
                 }
             }

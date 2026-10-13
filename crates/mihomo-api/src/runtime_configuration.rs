@@ -11,6 +11,7 @@ use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::mtu::{MAX_TUN_MTU_BYTES, MIN_TUN_MTU_BYTES};
 use infiltrator_contract::tun::TunStack;
 use infiltrator_domain::rules::RuleEntry;
+use infiltrator_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::runtime_configuration::{
     ConfigurationApply, ConfigurationObservation, ConfigurationRevision, CoreLogLevelReadPort,
@@ -30,6 +31,17 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 pub type RuntimeScopeResolver = Arc<dyn Fn() -> Result<CoreScope, PortError> + Send + Sync>;
+
+/// Adapt the single Core owner's validated scope into the controller adapter
+/// fence used by Mihomo configuration, connection, stream, and resource ports.
+pub fn scope_resolver_from_owner(owner: Arc<dyn CoreScopeSource>) -> RuntimeScopeResolver {
+    Arc::new(move || match owner.scope_observation() {
+        CoreScopeObservation::Observed(scope) => Ok(scope),
+        CoreScopeObservation::Unavailable => Err(PortError::Failed(
+            "active Core owner scope is unavailable".to_owned(),
+        )),
+    })
+}
 
 #[derive(Clone)]
 pub struct MihomoRuntimeConfigurationAdapter {
@@ -648,6 +660,47 @@ impl PacRuleReadPort for MihomoRuntimeConfigurationAdapter {
 mod tests {
     use super::*;
     use crate::types::{DnsConfig, SnifferConfig, TunConfig};
+    use infiltrator_contract::core_identity::{
+        CoreGeneration, CoreIdentity, CoreInstanceId, EngineId,
+    };
+
+    struct FixedOwner(CoreScopeObservation);
+
+    impl CoreScopeSource for FixedOwner {
+        fn scope_observation(&self) -> CoreScopeObservation {
+            self.0.clone()
+        }
+    }
+
+    fn test_scope() -> CoreScope {
+        CoreScope {
+            identity: CoreIdentity::new(
+                EngineId::new("mihomo").unwrap(),
+                CoreInstanceId::new("primary").unwrap(),
+                None,
+            ),
+            generation: CoreGeneration::new(7),
+            session_token: None,
+        }
+    }
+
+    #[test]
+    fn scope_resolver_reads_the_owner_scope() {
+        let scope = test_scope();
+        let resolver = scope_resolver_from_owner(Arc::new(FixedOwner(
+            CoreScopeObservation::Observed(scope.clone()),
+        )));
+
+        assert_eq!(resolver().unwrap(), scope);
+    }
+
+    #[test]
+    fn scope_resolver_rejects_an_unavailable_owner() {
+        let resolver =
+            scope_resolver_from_owner(Arc::new(FixedOwner(CoreScopeObservation::Unavailable)));
+
+        assert!(matches!(resolver(), Err(PortError::Failed(_))));
+    }
 
     #[test]
     fn mihomo_config_mapping_preserves_absent_vs_explicit_false_empty_and_zero() {
