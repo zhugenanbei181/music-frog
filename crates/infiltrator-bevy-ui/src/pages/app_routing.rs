@@ -31,7 +31,6 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button, ScrollArea};
-use infiltrator_application::routing_projection::{process_copy, routing_summary, rule_key};
 use infiltrator_bevy_widgets::button::ControlVisual;
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::icon::IconId;
@@ -46,6 +45,7 @@ use infiltrator_contract::uwp::UwpLoopbackSnapshot;
 #[cfg(any(feature = "capture-tools", test))]
 use infiltrator_contract::uwp::UwpPackageSnapshot;
 use infiltrator_domain::app_routing::{AppRoutingMode, AppRoutingRule};
+use infiltrator_presentation::routing_projection::{process_copy, routing_summary, rule_key};
 use infiltrator_shared::locales::{Lang, Localizer};
 
 /// Root marker on the App Routing page scene.

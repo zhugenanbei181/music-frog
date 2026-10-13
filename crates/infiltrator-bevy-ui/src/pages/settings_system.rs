@@ -13,7 +13,6 @@ use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{AlignItems, JustifyContent, Node, UiRect, percent};
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::ValueChange;
-use infiltrator_application::network_status_projection::system_proxy_status;
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::LocalizedText;
 use infiltrator_bevy_widgets::palette::UiPalette;
@@ -21,6 +20,7 @@ use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::system_proxy::{SystemProxyRecoverySnapshot, SystemProxySnapshot};
+use infiltrator_presentation::network_status_projection::system_proxy_status;
 
 /// Parent marker for the host system proxy checkbox.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]

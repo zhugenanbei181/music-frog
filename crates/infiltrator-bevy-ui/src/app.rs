@@ -65,7 +65,6 @@ use infiltrator_application::routing_intent_actions::{
     PendingRoutingIntentChange, RoutingIntentActions,
 };
 use infiltrator_application::system_toggle_application::SystemToggleApplication;
-use infiltrator_application::system_toggle_projection::compact_label;
 use infiltrator_bevy_widgets::WidgetsPlugin;
 use infiltrator_bevy_widgets::button::{ButtonDisabled, ControlVisual, PillLabel};
 use infiltrator_bevy_widgets::icon::status_dot_image;
@@ -81,6 +80,7 @@ use infiltrator_contract::shell_gesture;
 use infiltrator_contract::system_toggle::{SystemToggle, SystemToggleSnapshot};
 use infiltrator_contract::theme::ThemePreference;
 use infiltrator_contract::window_chrome::CHROME_DRAG_STRIP_HEIGHT_PX;
+use infiltrator_presentation::system_toggle_projection::compact_label;
 
 /// Sidebar rail standard width (px).
 pub const SIDEBAR_WIDTH_PX: f32 = 240.0;

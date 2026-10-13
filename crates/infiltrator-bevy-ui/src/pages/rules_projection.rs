@@ -16,15 +16,15 @@ use bevy::ecs::component::Component;
 use bevy::ecs::observer::On;
 use bevy::ecs::system::{Query, Res, ResMut};
 use bevy::ui::widget::Text;
-use infiltrator_application::rule_provider_projection::{
-    default_action, etag_support_line, provider_count, provider_fingerprint_line,
-    provider_lifecycle_line, published_truncation, rules_summary,
-};
 use infiltrator_application::rule_row_projection::{row_hits_copy, row_hits_key};
 use infiltrator_application::rule_statistics_projection::project_statistics;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_domain::rules::matrix::{RuleTypeFamily, matrix_family, matrix_label};
+use infiltrator_presentation::rule_provider_projection::{
+    default_action, etag_support_line, provider_count, provider_fingerprint_line,
+    provider_lifecycle_line, published_truncation, rules_summary,
+};
 use infiltrator_shared::locales::Lang;
 
 /// Marker for text lines updated by the projection observer.

@@ -8,8 +8,8 @@ use crate::view::theme;
 use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, tokens};
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Element, Length, Theme};
-use infiltrator_application::system_toggle_projection::{action_label, status_label};
 use infiltrator_contract::system_toggle::{SystemToggle, SystemToggleSnapshot, SystemToggleState};
+use infiltrator_presentation::system_toggle_projection::{action_label, status_label};
 use infiltrator_shared::locales::{Lang, Localizer};
 
 /// The same two primary controls as the sidebar, rendered as Overview cards

@@ -10,12 +10,12 @@ use crate::types::message::Message;
 use crate::view::speedtest_modal::speedtest_card;
 use crate::view_root::speedtest_detail_modal::speedtest_detail_modal;
 use infiltrator_application::rule_list_fixtures::list_document;
-use infiltrator_application::speedtest_summary_projection::history_lines;
 use infiltrator_contract::error::Failure;
 use infiltrator_contract::speedtest::{PacketLossRating, SpeedtestPhase, SpeedtestSnapshot};
 use infiltrator_contract::uwp::{UwpLoopbackAvailability, UwpLoopbackSnapshot, UwpPackageSnapshot};
 use infiltrator_domain::rules::edit::DEFAULT_RULE_TARGET;
 use infiltrator_domain::sub_rules::validate_logical_rule_syntax;
+use infiltrator_presentation::speedtest_summary_projection::history_lines;
 use infiltrator_shared::locales::Lang;
 use std::fs::read;
 

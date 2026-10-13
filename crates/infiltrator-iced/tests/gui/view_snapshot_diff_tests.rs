@@ -6,9 +6,9 @@
 
 use super::*;
 use crate::types::app::SnapshotDiffMode;
-use infiltrator_application::profile_editor_projection::protection_label;
 use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
 use infiltrator_domain::profiles::ProfileInfo;
+use infiltrator_presentation::profile_editor_projection::protection_label;
 use std::path::PathBuf;
 
 fn fixture() -> YamlAstDiffSnapshot {

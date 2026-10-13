@@ -20,10 +20,6 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button, ValueChange};
-use infiltrator_application::settings_status_projection::{
-    format_controller_auth, format_core_resources, format_mtu, format_port_conflicts,
-    format_rollback_target, format_runtime_status, format_service_mode, optional_copy,
-};
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
@@ -50,6 +46,10 @@ use infiltrator_contract::system_proxy::{SystemProxyRecoverySnapshot, SystemProx
 use infiltrator_contract::tun::TunStack;
 use infiltrator_contract::version::{CoreArtifactVerification, CoreVersionSnapshot};
 use infiltrator_contract::vpn::VpnSurfaceObservation;
+use infiltrator_presentation::settings_status_projection::{
+    format_controller_auth, format_core_resources, format_mtu, format_port_conflicts,
+    format_rollback_target, format_runtime_status, format_service_mode, optional_copy,
+};
 
 /// Marker for text lines updated by the Settings projection observer.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]

@@ -3,9 +3,9 @@
 
 use super::*;
 use bevy::ecs::query::With;
-use infiltrator_application::network_status_projection::{roaming_interfaces, roaming_route};
 use infiltrator_bevy_ui::pages::settings::settings_network_roaming::NetworkRoamingRouteLine;
 use infiltrator_bevy_widgets::localization::UiLocale;
+use infiltrator_presentation::network_status_projection::{roaming_interfaces, roaming_route};
 
 #[test]
 fn test_settings_network_roaming_projection_and_actions_submit_shared_commands() {

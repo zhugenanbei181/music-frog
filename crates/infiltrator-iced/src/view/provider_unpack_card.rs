@@ -10,7 +10,7 @@ use crate::view::theme::{FONT_MEDIUM, MONO, tokens};
 use crate::view::{svg_icons, theme};
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Element, Length, Theme};
-use infiltrator_application::rule_provider_projection::provider_cache_line;
+use infiltrator_presentation::rule_provider_projection::provider_cache_line;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 pub fn provider_unpack_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {

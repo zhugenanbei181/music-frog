@@ -24,7 +24,6 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Button, ScrollArea};
-use infiltrator_application::command_palette_projection::{filtered_indices, localized_title};
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
@@ -35,6 +34,7 @@ use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::a11y::ShellA11yNode;
 use infiltrator_contract::command_catalogue::{CommandCatalogue, CommandEntry};
 use infiltrator_contract::shortcuts::ShortcutRegistry;
+use infiltrator_presentation::command_palette_projection::{filtered_indices, localized_title};
 use infiltrator_shared::fuzzy_search::pinyin_fuzzy_match;
 use infiltrator_shared::locales::{Lang, Localizer};
 

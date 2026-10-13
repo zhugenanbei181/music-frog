@@ -14,7 +14,6 @@ use crate::view::theme::type_scale::{BODY, CAPTION, DISPLAY, HEADING, MONO, TAG,
 use crate::view::theme::{is_amoled, is_forest};
 use crate::window_chrome::{support, window_settings};
 use iced::window::Id;
-use infiltrator_application::system_toggle_projection::compact_status_line;
 use infiltrator_contract::command_catalogue::{CommandTarget, ShellPage};
 use infiltrator_contract::design_tokens::type_scale;
 use infiltrator_contract::mini_hud::{MiniHudPlacement, MiniHudWaveformStrip};
@@ -27,6 +26,7 @@ use infiltrator_contract::theme::{ThemePreference, ThemeSkin};
 use infiltrator_contract::traffic_waveform::TrafficWaveformSnapshot;
 use infiltrator_domain::runtime::TrafficData;
 use infiltrator_domain::settings::AppSettings;
+use infiltrator_presentation::system_toggle_projection::compact_status_line;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 

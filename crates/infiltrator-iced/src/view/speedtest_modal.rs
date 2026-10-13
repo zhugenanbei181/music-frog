@@ -14,14 +14,14 @@ use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
 use crate::view::{svg_icons, theme};
 use iced::widget::{Space, button, column, row, text};
 use iced::{Alignment, Element, Length, Theme};
-use infiltrator_application::speedtest_summary_projection::{
-    dead_archive, history_lines, node_metrics, rating_label,
-};
 use infiltrator_contract::core_identity::CoreScope;
 use infiltrator_contract::outbound::inventory::OutboundInventoryState;
 use infiltrator_contract::outbound::probe::OutboundProbeBatchScope;
 use infiltrator_contract::speedtest::{
     PacketLossRating, SpeedtestOutboundResult, SpeedtestRounds, SpeedtestTarget,
+};
+use infiltrator_presentation::speedtest_summary_projection::{
+    dead_archive, history_lines, node_metrics, rating_label,
 };
 use infiltrator_shared::locales::{Lang, Localizer};
 

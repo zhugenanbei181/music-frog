@@ -5,7 +5,6 @@ use crate::pages_matrix_b_tests::setup_matrix_b_app;
 use bevy::ecs::entity::Entity;
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::ButtonPlugin;
-use infiltrator_application::routing_projection::{process_copy, routing_summary};
 use infiltrator_bevy_ui::command::{DemoCommandSink, UiCommand};
 use infiltrator_bevy_ui::pages::app_routing::{
     AppNameText, AppProcessText, AppRoutingLine, AppRoutingProjection, AppRoutingProjectionUpdated,
@@ -15,6 +14,7 @@ use infiltrator_bevy_ui::route::{Route, RouteChanged};
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_contract::app_routing::AppRoutingRule;
 use infiltrator_domain::app_routing::AppRoutingMode;
+use infiltrator_presentation::routing_projection::{process_copy, routing_summary};
 use std::sync::Arc;
 
 #[test]

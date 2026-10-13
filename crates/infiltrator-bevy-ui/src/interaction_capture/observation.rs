@@ -20,13 +20,13 @@ use crate::pages::proxy_inspection::{
 use bevy::ecs::prelude::*;
 use bevy::ecs::system::SystemParam;
 use bevy::ui::widget::Text;
-use infiltrator_application::speedtest_detail_projection::{listing, project_details};
 use infiltrator_bevy_widgets::adaptive_modal::{AdaptiveModalRoot, ModalCard, ModalState};
 use infiltrator_bevy_widgets::chart::ChartPlate;
 use infiltrator_bevy_widgets::drawer::DrawerPanel;
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_contract::parity::FeatureId;
 use infiltrator_contract::protocol_form::ProtocolStudioSlot;
+use infiltrator_presentation::speedtest_detail_projection::{listing, project_details};
 use infiltrator_shared::locales::{Lang, Localizer};
 
 #[derive(SystemParam)]

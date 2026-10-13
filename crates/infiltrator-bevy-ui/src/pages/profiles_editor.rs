@@ -56,7 +56,6 @@ use bevy::ui_widgets::{Activate, Button, ScrollArea};
 use infiltrator_application::profile_edit_session::{
     ProfileEditObservation, ProfileEditReadTarget,
 };
-use infiltrator_application::profile_editor_projection;
 use infiltrator_bevy_widgets::editor::state::CodeEditorState;
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::icon::IconId;
@@ -69,6 +68,7 @@ use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::profile_protection::ProfileWriteProtection;
 use infiltrator_contract::yaml_snippets::YAML_SNIPPETS;
+use infiltrator_presentation::profile_editor_projection;
 
 /// Marker for the editor card root.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]

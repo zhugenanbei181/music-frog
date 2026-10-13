@@ -33,11 +33,9 @@ use bevy::text::TextColor;
 use bevy::ui::prelude::{BackgroundColor, Display, percent};
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Activate;
-use infiltrator_application::core_status_projection::{failure_copy, lifecycle_copy};
 use infiltrator_application::routing_intent_projection::routing_intent_status_copy;
 use infiltrator_application::subscription_quota_projection::{QuotaPresentation, project_quota};
 use infiltrator_application::system_toggle_application::SystemToggleApplication;
-use infiltrator_application::system_toggle_projection::{action_label, status_label};
 use infiltrator_bevy_widgets::chart::ChartPlate;
 use infiltrator_bevy_widgets::chart::ChartSpec;
 use infiltrator_bevy_widgets::chart::bezier::ScaleMode;
@@ -47,7 +45,9 @@ use infiltrator_contract::active_exit::{ActiveExitSnapshot, ActiveExitStatus};
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::public_ip::PublicIpProbeStatus;
 use infiltrator_contract::system_toggle::{SystemToggle, SystemToggleSnapshot, SystemToggleState};
+use infiltrator_presentation::core_status_projection::{failure_copy, lifecycle_copy};
 use infiltrator_presentation::shell_readout::{rate_copy, rate_status};
+use infiltrator_presentation::system_toggle_projection::{action_label, status_label};
 
 /// Marker on the high-fidelity active-exit card's mutable facts.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]

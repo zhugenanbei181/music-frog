@@ -14,7 +14,6 @@ use bevy::text::EditableText;
 use bevy::ui::widget::Text;
 use bevy::ui::{Display, Node, percent};
 use bevy::ui_widgets::Button;
-use infiltrator_application::script_console_projection::report_rows;
 use infiltrator_application::script_export_projection::project_script_export;
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::interaction_block::InteractionBlocked;
@@ -22,6 +21,7 @@ use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::multiline_editor::{MultilineEditor, MultilineReadOnly};
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::text_input::{TextField, TextFieldFocused};
+use infiltrator_presentation::script_console_projection::report_rows;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 #[derive(QueryData)]

@@ -15,10 +15,10 @@ use crate::view::theme;
 use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
-use infiltrator_application::rule_mrs_projection::{
+use infiltrator_contract::rule_provider_snapshot::RuleProviderSnapshot;
+use infiltrator_presentation::rule_mrs_projection::{
     mrs_acceleration_item_label, mrs_acceleration_status_line,
 };
-use infiltrator_contract::rule_provider_snapshot::RuleProviderSnapshot;
 use infiltrator_shared::locales::{Lang, Localizer};
 use std::collections::HashMap;
 

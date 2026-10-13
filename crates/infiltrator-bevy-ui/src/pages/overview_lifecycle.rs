@@ -16,7 +16,6 @@ use bevy::text::TextColor;
 use bevy::ui::widget::Text;
 use bevy::ui::{BackgroundColor, BorderRadius, Display, FlexDirection, Node, UiRect, percent, px};
 use bevy::ui_widgets::{Activate, Button};
-use infiltrator_application::core_control_projection::project_core_control;
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
@@ -28,6 +27,7 @@ use infiltrator_contract::command::RequestId;
 use infiltrator_contract::core_control::{CoreControlAction, CoreControlProjection};
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::snapshot::{CoreLifecycle, CoreLifecycleSnapshot};
+use infiltrator_presentation::core_control_projection::project_core_control;
 
 #[derive(Component, Clone, Copy, Debug, Default)]
 pub struct CoreControlButton;

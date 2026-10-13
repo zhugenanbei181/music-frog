@@ -15,9 +15,9 @@ use crate::view::theme;
 use crate::view::theme::{MONO, tokens};
 use iced::widget::{Space, column, row, text, text_input};
 use iced::{Alignment, Element, Length, Theme};
-use infiltrator_application::settings_status_projection::format_service_mode;
 use infiltrator_contract::runtime_control::RuntimeControlStatus;
 use infiltrator_ports::host_runtime::TunServiceStatus;
+use infiltrator_presentation::settings_status_projection::format_service_mode;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 pub(super) fn tun_card<'a>(

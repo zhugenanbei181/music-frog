@@ -10,10 +10,10 @@ use crate::view::theme::{FONT_MEDIUM, MONO, tokens};
 use crate::view::{svg_icons, theme};
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Element, Length, Theme};
-use infiltrator_application::network_status_projection::{
+use infiltrator_contract::network_roaming::NetworkRoamingStatus;
+use infiltrator_presentation::network_status_projection::{
     roaming_event, roaming_mtu, roaming_status,
 };
-use infiltrator_contract::network_roaming::NetworkRoamingStatus;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 pub fn net_roam_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {

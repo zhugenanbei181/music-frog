@@ -18,7 +18,6 @@ use bevy::ui::{
     UiRect, percent, px,
 };
 use bevy::ui_widgets::Button;
-use infiltrator_application::settings_preference_projection::project;
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText, UiLocale};
@@ -27,6 +26,7 @@ use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::surface_snapshot::PageStatus;
+use infiltrator_presentation::settings_preference_projection::project;
 
 #[derive(Clone, Copy, Debug, Default)]
 pub enum PreferenceKind {

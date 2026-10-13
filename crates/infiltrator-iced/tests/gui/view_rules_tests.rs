@@ -2,10 +2,10 @@ use super::providers::{
     format_provider_behavior, format_rule_provider_format, rule_provider_row, total_external_rules,
 };
 use super::*;
-use infiltrator_application::rule_provider_projection::{
+use infiltrator_contract::rule_provider_snapshot::RuleProviderSnapshot;
+use infiltrator_presentation::rule_provider_projection::{
     etag_support_line, provider_fingerprint_line, provider_lifecycle_line,
 };
-use infiltrator_contract::rule_provider_snapshot::RuleProviderSnapshot;
 use infiltrator_shared::locales::Lang;
 
 #[test]

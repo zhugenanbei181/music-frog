@@ -22,7 +22,6 @@ use bevy::ui::prelude::{AlignItems, FlexDirection, JustifyContent, Node, UiRect,
 use bevy::ui::widget::Text;
 use bevy::ui::{BorderRadius, Checked};
 use bevy::ui_widgets::{Activate, Button, ValueChange};
-use infiltrator_application::settings_status_projection::format_lan_auth;
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
@@ -35,6 +34,7 @@ use infiltrator_bevy_widgets::text_input::{
 };
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::lan::LanCredentials;
+use infiltrator_presentation::settings_status_projection::format_lan_auth;
 use std::collections::HashMap;
 
 #[derive(Resource, Default)]

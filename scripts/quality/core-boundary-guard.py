@@ -88,6 +88,7 @@ FORBIDDEN_DIRECT = {
         "reqwest",
         "bevy",
         "iced",
+        "infiltrator-presentation",
         "mihomo-api",
         "mihomo-config",
         "infiltrator-platform",
@@ -96,6 +97,22 @@ FORBIDDEN_DIRECT = {
         "infiltrator-desktop",
         "infiltrator-android",
         "infiltrator-ios",
+        *ENGINE_ADAPTER_CRATES,
+    },
+    "infiltrator-presentation": {
+        "tokio",
+        "reqwest",
+        "bevy",
+        "iced",
+        "infiltrator-ports",
+        "infiltrator-application",
+        "infiltrator-composition",
+        "infiltrator-platform",
+        "infiltrator-core",
+        "infiltrator-desktop",
+        "infiltrator-android",
+        "infiltrator-ios",
+        "mihomo-version",
         *ENGINE_ADAPTER_CRATES,
     },
     "infiltrator-bevy-ui": {
@@ -153,6 +170,10 @@ SOURCE_PATTERNS = {
     "infiltrator-iced": re.compile(
         r"\b(?:reqwest|mihomo_(?:api|config|process|version)|"
         r"singbox_(?:api|config|process|version)|infiltrator_platform|infiltrator_core)::|\bMihomoClient\b"
+    ),
+    "infiltrator-presentation": re.compile(
+        r"\b(?:tokio|reqwest|bevy|iced|mihomo_(?:api|config|process|version)|"
+        r"singbox_(?:api|config|process|version)|infiltrator_(?:ports|application|composition|platform|core|desktop|android|ios))::"
     ),
 }
 
@@ -255,7 +276,7 @@ def check_profile_ports_sources(
 def check(repo_root: pathlib.Path) -> list[str]:
     problems: list[str] = []
     peer_packages = {"infiltrator-iced", "infiltrator-bevy-ui", "infiltrator-bevy-widgets", "iced", "bevy"}
-    shared_packages = {"infiltrator-domain", "infiltrator-contract", "infiltrator-ports", "infiltrator-application", "infiltrator-composition"}
+    shared_packages = {"infiltrator-domain", "infiltrator-contract", "infiltrator-ports", "infiltrator-application", "infiltrator-presentation", "infiltrator-composition"}
     for package in shared_packages:
         manifest = repo_root / "crates" / package / "Cargo.toml"
         document = tomllib.loads(manifest.read_text(encoding="utf-8"))
@@ -315,11 +336,21 @@ def self_test() -> int:
         REPO_ROOT / "crates/infiltrator-domain/Cargo.toml"
     )
     assert not domain_dependencies & FORBIDDEN_DIRECT["infiltrator-domain"]
+    presentation_dependencies = direct_dependencies(
+        REPO_ROOT / "crates/infiltrator-presentation/Cargo.toml"
+    )
+    assert not presentation_dependencies & FORBIDDEN_DIRECT["infiltrator-presentation"]
     assert not SOURCE_PATTERNS["infiltrator-domain"].search(
         strip_comments("// tokio::spawn\nuse serde::Serialize;")
     )
     assert SOURCE_PATTERNS["infiltrator-bevy-ui"].search(
         "use mihomo_api::client::MihomoClient;"
+    )
+    assert not SOURCE_PATTERNS["infiltrator-presentation"].search(
+        "use infiltrator_domain::rules::RuleEntry;"
+    )
+    assert SOURCE_PATTERNS["infiltrator-presentation"].search(
+        "use infiltrator_application::core_application::CoreApplication;"
     )
     assert not SOURCE_PATTERNS["infiltrator-ports"].search(
         strip_test_attributes("#[tokio::test(start_paused = true)] async fn test() {}")

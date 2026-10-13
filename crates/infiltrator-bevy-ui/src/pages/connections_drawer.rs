@@ -15,7 +15,7 @@ use crate::command::{CommandSinkHandle, UiCommand};
 use crate::pages::connections::{ConnectionsProjection, LastConnectionsProjection};
 use crate::pages::connections_clipboard::CopyConnectionHostButton;
 use bevy::ecs::change_detection::DetectChanges;
-use infiltrator_application::connection_detail_projection::{kernel_asn_label, kernel_geo_label};
+use infiltrator_presentation::connection_detail_projection::{kernel_asn_label, kernel_geo_label};
 use infiltrator_shared::byte_units::format_bytes;
 
 use crate::route::{ActiveRoute, Route};

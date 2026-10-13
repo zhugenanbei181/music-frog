@@ -38,7 +38,6 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button, ScrollArea};
-use infiltrator_application::settings_status_projection::{format_core_versions, format_integrity};
 use infiltrator_bevy_widgets::button::sync_button_disabled;
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
@@ -50,6 +49,9 @@ use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::command::CoreLogLevel;
 use infiltrator_contract::service_mode::ServiceModeState;
 use infiltrator_contract::tun::TunStack;
+use infiltrator_presentation::settings_status_projection::{
+    format_core_versions, format_integrity,
+};
 use settings_preferences::{PreferenceKind, preference_row_scene};
 use settings_runtime::{RuntimeField, RuntimePolicy};
 

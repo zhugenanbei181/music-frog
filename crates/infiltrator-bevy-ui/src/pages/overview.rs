@@ -68,7 +68,6 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, ScrollArea};
-use infiltrator_application::core_status_projection::{failure_copy, lifecycle_copy, source_copy};
 use infiltrator_application::routing_intent_projection::routing_intent_status_copy;
 use infiltrator_bevy_widgets::button::{ButtonSize, ButtonVariant, button_sized_scene};
 use infiltrator_bevy_widgets::chart::chart_scene_with_scale;
@@ -88,6 +87,7 @@ use infiltrator_contract::routing_intent::RoutingIntent;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface_snapshot::SurfaceOrigin;
 use infiltrator_contract::traffic_scale::TrafficScaleSnapshot;
+use infiltrator_presentation::core_status_projection::{failure_copy, lifecycle_copy, source_copy};
 use infiltrator_presentation::shell_readout::{observed_rate, rate_copy, rate_status};
 use infiltrator_shared::byte_units::format_bytes;
 use infiltrator_shared::locales::{Lang, Localizer};

@@ -1,9 +1,9 @@
 //! Toolkit adaptation of lifecycle facts; the action decision belongs to the shared application.
 use crate::state::AppState;
-use infiltrator_application::core_control_projection::project_core_control;
 use infiltrator_contract::capability::{Availability, Capability};
 use infiltrator_contract::core_control::CoreControlProjection;
 use infiltrator_contract::snapshot::CoreLifecycleSnapshot;
+use infiltrator_presentation::core_control_projection::project_core_control;
 
 impl AppState {
     pub fn core_lifecycle_snapshot(&self) -> CoreLifecycleSnapshot {

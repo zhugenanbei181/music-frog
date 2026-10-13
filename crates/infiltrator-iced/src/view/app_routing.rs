@@ -12,9 +12,9 @@ use crate::view::uwp_card::uwp_card;
 use crate::view::{svg_icons, theme};
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Element, Length, Theme};
-use infiltrator_application::routing_projection::{mode_key, rule_key};
 use infiltrator_desktop::process_enumerator::ProcessCategory;
 use infiltrator_domain::app_routing::{AppRoutingMode, AppRoutingRule};
+use infiltrator_presentation::routing_projection::{mode_key, rule_key};
 use infiltrator_shared::locales::{Lang, Localizer};
 
 fn category_badge_kind(cat: ProcessCategory) -> BadgeKind {

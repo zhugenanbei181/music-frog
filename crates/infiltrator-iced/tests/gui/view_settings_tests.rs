@@ -5,8 +5,8 @@ use super::integration::{
 use super::kernel::kernel_management_card;
 use super::tun::tun_card;
 use super::*;
-use infiltrator_application::settings_status_projection::format_offline_startup;
 use infiltrator_contract::offline_startup::{LocalAssetStatus, OfflineStartupSnapshot};
+use infiltrator_presentation::settings_status_projection::format_offline_startup;
 
 #[test]
 fn test_settings_choice_display() {

@@ -4,12 +4,12 @@ use super::integration::{CORE_CHANNEL_OPTIONS, SettingsChoice, secondary_text};
 use crate::state::AppState;
 use crate::types::app::ConfirmAction;
 use crate::types::message::Message;
-use infiltrator_application::settings_status_projection::{
+use infiltrator_contract::command::CoreLogLevel;
+use infiltrator_contract::runtime_control::RuntimeControlStatus;
+use infiltrator_presentation::settings_status_projection::{
     format_controller_auth, format_core_resources, format_core_versions, format_integrity,
     format_offline_startup, optional_copy,
 };
-use infiltrator_contract::command::CoreLogLevel;
-use infiltrator_contract::runtime_control::RuntimeControlStatus;
 use infiltrator_shared::byte_units::format_bytes;
 use infiltrator_shared::i18n_interpolator::localize;
 

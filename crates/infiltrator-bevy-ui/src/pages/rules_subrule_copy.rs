@@ -7,10 +7,10 @@ use bevy::ecs::query::{Has, Or, QueryData, QueryFilter, With};
 use bevy::ecs::system::{Query, Res};
 use bevy::ui::BackgroundColor;
 use bevy::ui::widget::Text;
-use infiltrator_application::logical_rule_projection::project_logical_rule;
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_domain::rules::logical;
+use infiltrator_presentation::logical_rule_projection::project_logical_rule;
 
 #[derive(QueryData)]
 #[query_data(mutable)]

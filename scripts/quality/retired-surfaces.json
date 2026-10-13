@@ -451,7 +451,7 @@
       "rationale": "Name-keyed node rows were replaced by SpeedtestOutboundResult keyed by engine-owned OutboundId.",
       "replacement_behavior_tests": [
         "crates/infiltrator-application/src/speedtest_application_tests.rs",
-        "crates/infiltrator-application/src/speedtest_detail_projection_test.rs"
+        "crates/infiltrator-presentation/src/speedtest_detail_projection_test.rs"
       ]
     },
     {

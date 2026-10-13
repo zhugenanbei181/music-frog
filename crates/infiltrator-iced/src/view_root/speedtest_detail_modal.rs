@@ -13,9 +13,9 @@ use crate::view::theme::{FONT_SEMIBOLD, HAIRLINE, MONO, R_SM, tokens};
 use crate::view_root::interaction_regions::InteractionRegion;
 use iced::widget::{Space, button, column, container, row, scrollable, text};
 use iced::{Alignment, Border, Element, Length, Theme, border};
-use infiltrator_application::speedtest_detail_projection::project_details;
 use infiltrator_contract::speedtest::{SpeedtestPhase, SpeedtestResultState};
 use infiltrator_contract::speedtest_details::{SpeedtestDetailRow, SpeedtestDetails};
+use infiltrator_presentation::speedtest_detail_projection::project_details;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 fn metric(label: String, value: String) -> Element<'static, Message> {

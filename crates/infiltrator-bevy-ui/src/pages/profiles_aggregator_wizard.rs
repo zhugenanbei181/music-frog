@@ -29,13 +29,13 @@ use bevy::ecs::system::{Commands, Query, Res, ResMut};
 use bevy::ui::Checked;
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Checkbox, ValueChange};
-use infiltrator_application::aggregation_preview_projection::aggregation_custom_groups;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::text_input::TextField;
 use infiltrator_bevy_widgets::text_input::state::TextFieldState;
 use infiltrator_contract::aggregator::{
     AggregationCustomGroup, AggregationDraft, AggregationRenameRule, AggregationTemplate,
 };
+use infiltrator_presentation::aggregation_preview_projection::aggregation_custom_groups;
 
 #[derive(QueryData)]
 #[query_data(mutable)]

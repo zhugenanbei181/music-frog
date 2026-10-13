@@ -7,9 +7,9 @@ use bevy::ecs::query::{Or, QueryData, QueryFilter, With};
 use bevy::ecs::system::{Query, Res};
 use bevy::text::TextColor;
 use bevy::ui::widget::Text;
-use infiltrator_application::routing_projection::{process_copy, routing_summary, rule_key};
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_presentation::routing_projection::{process_copy, routing_summary, rule_key};
 use infiltrator_shared::locales::{Lang, Localizer};
 
 #[derive(QueryData)]

@@ -15,7 +15,6 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
-use infiltrator_application::profile_editor_projection::protection_label;
 use infiltrator_application::profile_metadata_projection;
 use infiltrator_bevy_widgets::button::ControlVisual;
 use infiltrator_bevy_widgets::feathers_theme::Token;
@@ -27,6 +26,7 @@ use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_presentation::profile_editor_projection::protection_label;
 
 pub(super) fn header_card_scene(
     summary: String,

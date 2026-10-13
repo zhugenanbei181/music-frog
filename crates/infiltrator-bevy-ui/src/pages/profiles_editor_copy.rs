@@ -11,9 +11,9 @@ use bevy::ecs::system::{Query, Res, SystemParam};
 use bevy::text::TextColor;
 use bevy::ui::BackgroundColor;
 use bevy::ui::widget::Text;
-use infiltrator_application::profile_editor_projection;
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_presentation::profile_editor_projection;
 
 pub fn replay_document_copy(
     state: Res<ProfileEditorState>,

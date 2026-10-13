@@ -9,7 +9,7 @@ use crate::view::theme;
 use crate::view::theme::{MONO, tokens};
 use iced::widget::{Space, button, column, row, text};
 use iced::{Alignment, Element, Length, Theme};
-use infiltrator_application::host_network_projection::privileged;
+use infiltrator_presentation::host_network_projection::privileged;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 pub fn privileged_network_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {

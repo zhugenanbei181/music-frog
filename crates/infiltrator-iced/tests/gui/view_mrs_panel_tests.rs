@@ -1,9 +1,9 @@
 use super::*;
-use infiltrator_application::rule_mrs_projection::mrs_acceleration_status_line;
 use infiltrator_contract::mrs_acceleration::{
     MrsAccelerationSnapshot, MrsBehaviorKind, MrsCompressionKind, MrsItemSnapshot,
 };
 use infiltrator_domain::mrs::{Behavior, MrsMetadata};
+use infiltrator_presentation::rule_mrs_projection::mrs_acceleration_status_line;
 
 #[test]
 fn test_format_behavior_name() {

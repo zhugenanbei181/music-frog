@@ -9,8 +9,8 @@ use crate::view_root::interaction_regions::InteractionRegion;
 use iced::widget::{Space, button, column, container, row, scrollable, text, text_input};
 use iced::{Alignment, Border, Element, Length, Theme, border};
 use infiltrator_application::protocol_form::project_fields;
-use infiltrator_application::protocol_studio_projection::slot_text;
 use infiltrator_contract::protocol_form::ProtocolStudioSlot;
+use infiltrator_presentation::protocol_studio_projection::slot_text;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 pub fn custom_node_modal(state: &AppState) -> Element<'_, Message> {

@@ -7,7 +7,7 @@
 //! synthesized group cascade, and the generated YAML structure. It never
 //! clusters, deduplicates, or renders fabricated placeholders.
 
-use infiltrator_application::aggregation_preview_projection::{
+use infiltrator_presentation::aggregation_preview_projection::{
     aggregation_counters, aggregation_custom_group_row, aggregation_groups, aggregation_regions,
     aggregation_template_row, aggregation_yaml_preview,
 };

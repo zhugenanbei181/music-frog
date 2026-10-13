@@ -6329,6 +6329,7 @@ dependencies = [
 name = "infiltrator-presentation"
 version = "0.41.0"
 dependencies = [
+ "chrono",
  "infiltrator-contract",
  "infiltrator-domain",
  "infiltrator-shared",

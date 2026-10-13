@@ -4,8 +4,8 @@ use crate::pages::app_routing_uwp::{UwpEmptyLine, UwpPackageName, UwpPackageStat
 use bevy::ecs::query::{Has, Or, QueryData, QueryFilter, With};
 use bevy::ecs::system::{Query, Res};
 use bevy::ui::widget::Text;
-use infiltrator_application::routing_projection::{uwp_empty, uwp_state_key, uwp_summary};
 use infiltrator_bevy_widgets::localization::UiLocale;
+use infiltrator_presentation::routing_projection::{uwp_empty, uwp_state_key, uwp_summary};
 use infiltrator_shared::locales::{Lang, Localizer};
 
 #[derive(QueryData)]

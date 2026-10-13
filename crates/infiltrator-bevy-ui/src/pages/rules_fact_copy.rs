@@ -7,15 +7,15 @@ use crate::pages::rules_projection::{
 use bevy::ecs::query::{Or, QueryData, QueryFilter, With};
 use bevy::ecs::system::{Query, Res};
 use bevy::ui::widget::Text;
-use infiltrator_application::rule_mrs_projection::{
+use infiltrator_application::rule_statistics_projection::project_statistics;
+use infiltrator_bevy_widgets::localization::UiLocale;
+use infiltrator_presentation::rule_mrs_projection::{
     mrs_acceleration_item_label, mrs_acceleration_status_line,
 };
-use infiltrator_application::rule_provider_projection::{
+use infiltrator_presentation::rule_provider_projection::{
     default_action, etag_support_line, provider_cache_line, provider_count,
     provider_fingerprint_line, provider_lifecycle_line, published_truncation, rules_summary,
 };
-use infiltrator_application::rule_statistics_projection::project_statistics;
-use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_shared::locales::Lang;
 
 #[derive(QueryData)]

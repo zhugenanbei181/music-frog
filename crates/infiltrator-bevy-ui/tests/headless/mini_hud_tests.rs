@@ -14,7 +14,6 @@ use bevy::scene::ScenePlugin;
 use bevy::ui::widget::{ImageNode, Text};
 use bevy::ui_widgets::Activate;
 use infiltrator_application::routing_intent_projection::routing_intent_status_copy;
-use infiltrator_application::system_toggle_projection::compact_status_line;
 use infiltrator_bevy_ui::app::{ShellPlugin, SidebarToggleProjection};
 use infiltrator_bevy_ui::command::{CommandSinkHandle, DemoCommandSink, UiCommand};
 use infiltrator_bevy_ui::mini_hud::{
@@ -30,6 +29,7 @@ use infiltrator_contract::mini_hud::MiniHudWaveformStrip;
 use infiltrator_contract::system_toggle::{SystemToggle, SystemToggleSnapshot};
 use infiltrator_contract::theme::{ThemePreference, ThemeSkin};
 use infiltrator_contract::traffic_waveform::{TrafficSample, TrafficWaveformSnapshot};
+use infiltrator_presentation::system_toggle_projection::compact_status_line;
 use std::sync::Arc;
 
 fn mounted_app() -> (App, Arc<DemoCommandSink>) {

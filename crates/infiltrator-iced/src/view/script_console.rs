@@ -17,10 +17,10 @@ use crate::view::{svg_icons, theme};
 use iced::widget::{Space, button, column, container, row, text, text_editor};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
 use infiltrator_application::script_application::ScriptApplication;
-use infiltrator_application::script_console_projection::project_report;
 use infiltrator_contract::script_export::ScriptExportKind;
 use infiltrator_contract::script_run::ScriptEditorField;
 use infiltrator_contract::script_sandbox::ScriptSandboxSnapshot;
+use infiltrator_presentation::script_console_projection::project_report;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 fn preset_chip<'a>(

@@ -20,10 +20,6 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
-use infiltrator_application::rule_mrs_projection::{
-    mrs_acceleration_item_label, mrs_acceleration_status_line,
-};
-use infiltrator_application::rule_provider_projection::provider_cache_line;
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
@@ -35,6 +31,10 @@ use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::mrs_acceleration::MrsAccelerationSnapshot;
 use infiltrator_contract::provider_cache::RuleProviderCacheSnapshot;
+use infiltrator_presentation::rule_mrs_projection::{
+    mrs_acceleration_item_label, mrs_acceleration_status_line,
+};
+use infiltrator_presentation::rule_provider_projection::provider_cache_line;
 use infiltrator_shared::locales::Lang;
 
 /// Marker for the MRS ruleset engine card root.

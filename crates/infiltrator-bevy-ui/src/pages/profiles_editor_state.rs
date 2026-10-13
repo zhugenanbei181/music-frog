@@ -10,7 +10,6 @@ use bevy::color::Color;
 use bevy::ecs::resource::Resource;
 use bevy::input::keyboard::Key;
 use infiltrator_application::profile_edit_session::{ProfileEditObservation, ProfileEditSession};
-use infiltrator_application::profile_editor_projection::{self, EditorStatus};
 use infiltrator_bevy_widgets::editor::state::CodeEditorState;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_contract::command::RequestId;
@@ -27,6 +26,7 @@ use infiltrator_contract::yaml_snippets::{
 use infiltrator_domain::yaml_edit::format::{FormatSkipReason, format_yaml};
 use infiltrator_ports::profile_document_codec::ProfileDocumentSnippetOutcome;
 use infiltrator_ports::profile_document_codec::ProfileMixinPreflight;
+use infiltrator_presentation::profile_editor_projection::{self, EditorStatus};
 
 /// Maximum number of lines rendered per frame (no virtual scroll; see the
 /// scene module docs). The window follows the cursor, so editing never leaves

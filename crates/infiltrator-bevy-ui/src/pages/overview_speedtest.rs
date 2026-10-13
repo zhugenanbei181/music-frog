@@ -22,10 +22,6 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button, ScrollArea};
-use infiltrator_application::speedtest_detail_projection::{listing, project_details};
-use infiltrator_application::speedtest_summary_projection::{
-    dead_archive, history_caption, metrics_label,
-};
 use infiltrator_bevy_widgets::adaptive_modal::ModalState;
 use infiltrator_bevy_widgets::adaptive_modal::{OpenModal, adaptive_modal_scene};
 use infiltrator_bevy_widgets::feathers_theme::Token;
@@ -40,6 +36,10 @@ use infiltrator_contract::outbound::inventory::OutboundInventoryState;
 use infiltrator_contract::outbound::probe::OutboundProbeBatchScope;
 use infiltrator_contract::speedtest::{
     SpeedtestConcurrency, SpeedtestPhase, SpeedtestRounds, SpeedtestTarget,
+};
+use infiltrator_presentation::speedtest_detail_projection::{listing, project_details};
+use infiltrator_presentation::speedtest_summary_projection::{
+    dead_archive, history_caption, metrics_label,
 };
 use infiltrator_shared::locales::{Lang, Localizer};
 

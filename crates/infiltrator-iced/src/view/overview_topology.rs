@@ -13,11 +13,11 @@ use crate::view::topology::topology_flow_canvas;
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
 use infiltrator_application::traffic_topology_navigation_application::TrafficTopologyNavigationApplication;
-use infiltrator_application::traffic_topology_projection::status_label;
 use infiltrator_contract::surface_snapshot::PageId;
 use infiltrator_contract::traffic_topology::{
     TrafficTopologySnapshot, TrafficTopologyStage, TrafficTopologyStatus,
 };
+use infiltrator_presentation::traffic_topology_projection::status_label;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 pub fn topology_card<'a>(

@@ -142,10 +142,10 @@ fn shared_console_projection_carries_every_wired_fact_for_both_surfaces() {
 /// through the same helper, so the swap needs no view change.
 #[test]
 fn iced_console_renders_the_reported_engine_and_its_capability_limits() {
-    use infiltrator_application::script_console_projection::engine_meta_rows;
     use infiltrator_contract::script_sandbox::{
         ScriptEngineCapabilities, ScriptEngineKind, ScriptSandboxSnapshot,
     };
+    use infiltrator_presentation::script_console_projection::engine_meta_rows;
     use infiltrator_shared::locales::Lang;
 
     let dsl = ScriptSandboxSnapshot::demo_fixture();

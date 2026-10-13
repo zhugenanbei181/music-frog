@@ -19,12 +19,12 @@ use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, SP_MD, tokens};
 use crate::view::{svg_icons, theme};
 use iced::widget::{Space, button, column, container, row, text, text_editor};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
-use infiltrator_application::rule_provider_projection::{
-    etag_support_line, provider_fingerprint_line, provider_lifecycle_line,
-};
 use infiltrator_contract::provider_cache::ProviderCacheFingerprint;
 use infiltrator_contract::rule_provider_snapshot::RuleProviderSnapshot;
 use infiltrator_contract::rules_workspace::RulesJsonSection;
+use infiltrator_presentation::rule_provider_projection::{
+    etag_support_line, provider_fingerprint_line, provider_lifecycle_line,
+};
 use infiltrator_shared::locales::{Lang, Localizer};
 
 fn editor_lazy_placeholder<'a>(title: String, on_press: Message) -> Element<'a, Message> {

@@ -8,7 +8,7 @@
 //! synthesizes groups locally.
 
 use bevy::feathers::theme::ThemeBackgroundColor;
-use infiltrator_application::aggregation_preview_projection::{
+use infiltrator_presentation::aggregation_preview_projection::{
     aggregation_counters, aggregation_custom_groups, aggregation_groups, aggregation_regions,
     aggregation_templates, aggregation_yaml_preview,
 };

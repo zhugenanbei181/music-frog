@@ -10,8 +10,8 @@ use crate::view::theme::{FONT_MEDIUM, MONO, tokens};
 use crate::view::{svg_icons, theme};
 use iced::widget::{Space, button, column, container, row, text, text_input};
 use iced::{Alignment, Element, Length, Theme};
-use infiltrator_application::host_network_projection::pac;
 use infiltrator_contract::pac::PacServiceState;
+use infiltrator_presentation::host_network_projection::pac;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 pub fn pac_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {

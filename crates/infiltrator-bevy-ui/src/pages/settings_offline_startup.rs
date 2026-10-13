@@ -11,7 +11,6 @@ use bevy::scene::{Scene, bsn};
 use bevy::ui::BorderRadius;
 use bevy::ui::prelude::{AlignItems, JustifyContent, Node, UiRect, percent};
 use bevy::ui::widget::Text;
-use infiltrator_application::settings_status_projection::format_offline_startup;
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
@@ -19,6 +18,7 @@ use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::offline_startup::OfflineStartupSnapshot;
+use infiltrator_presentation::settings_status_projection::format_offline_startup;
 
 pub(super) fn offline_startup_row_scene(
     snapshot: &OfflineStartupSnapshot,

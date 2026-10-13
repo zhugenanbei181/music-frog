@@ -6,16 +6,16 @@ use bevy::ecs::entity::Entity;
 use bevy::ecs::query::With;
 use bevy::ui::widget::Text;
 use bevy::window::{Ime, PrimaryWindow};
-use infiltrator_application::rule_mrs_projection::mrs_acceleration_status_line;
-use infiltrator_application::rule_provider_projection::{
-    default_action, provider_cache_line, rules_summary,
-};
 use infiltrator_bevy_ui::pages::rules::LastRulesProjection;
 use infiltrator_bevy_ui::pages::rules_builder_input::{RuleBuilderField, RuleBuilderFieldKind};
 use infiltrator_bevy_ui::pages::rules_mrs::{MrsStatusText, ProviderCacheText};
 use infiltrator_bevy_ui::pages::rules_projection::{RulesLine, RulesLineKind};
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::text_input::{TextField, TextFieldFocused};
+use infiltrator_presentation::rule_mrs_projection::mrs_acceleration_status_line;
+use infiltrator_presentation::rule_provider_projection::{
+    default_action, provider_cache_line, rules_summary,
+};
 use infiltrator_shared::locales::{Lang, Localizer};
 use std::sync::atomic::Ordering;
 

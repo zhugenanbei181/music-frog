@@ -18,9 +18,6 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
-use infiltrator_application::network_status_projection::{
-    roaming_interfaces, roaming_route, roaming_status,
-};
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
@@ -28,6 +25,9 @@ use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_presentation::network_status_projection::{
+    roaming_interfaces, roaming_route, roaming_status,
+};
 
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct NetworkRoamingRefreshButton;

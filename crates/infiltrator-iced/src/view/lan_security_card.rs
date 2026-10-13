@@ -9,8 +9,8 @@ use crate::view::theme;
 use crate::view::theme::{FONT_SEMIBOLD, MONO, tokens};
 use iced::widget::{Space, column, row, text, text_input};
 use iced::{Alignment, Element, Length, Theme};
-use infiltrator_application::settings_status_projection::format_lan_auth;
 use infiltrator_contract::runtime_control::RuntimeControlStatus;
+use infiltrator_presentation::settings_status_projection::format_lan_auth;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 pub fn lan_security_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {

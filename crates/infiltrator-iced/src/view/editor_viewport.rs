@@ -22,8 +22,8 @@ use iced::advanced::text::{LineHeight, Wrapping};
 use iced::border::Radius;
 use iced::widget::{Row, Space, column, container, row, text, text_editor};
 use iced::{Alignment, Element, Length, Pixels, Theme};
-use infiltrator_application::profile_editor_projection::viewport_range;
 use infiltrator_contract::editor_viewport::{EditorViewport, line_indent_level};
+use infiltrator_presentation::profile_editor_projection::viewport_range;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 /// Line height the editor and its gutter share, in pixels. Both the editor's

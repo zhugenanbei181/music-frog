@@ -15,8 +15,8 @@ use crate::view::theme::{FONT_SEMIBOLD, MONO, tokens};
 use crate::view::{svg_icons, theme};
 use iced::widget::{Space, button, column, container, row, text, text_input};
 use iced::{Alignment, Border, Element, Length, Theme, border};
-use infiltrator_application::logical_rule_projection::project_logical_rule;
 use infiltrator_domain::rules::logical;
+use infiltrator_presentation::logical_rule_projection::project_logical_rule;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 pub fn subrules_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {

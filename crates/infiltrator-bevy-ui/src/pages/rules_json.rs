@@ -38,7 +38,6 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button, ScrollArea};
-use infiltrator_application::rule_json_projection::json_editor_status;
 use infiltrator_bevy_widgets::editor::code_editor_scene;
 use infiltrator_bevy_widgets::editor::state::CodeEditorState;
 use infiltrator_bevy_widgets::feathers_theme::Token;
@@ -55,6 +54,7 @@ use infiltrator_contract::rule_json_feedback::RuleJsonFeedback;
 use infiltrator_contract::rules_workspace::{
     RulesJsonDocumentSnapshot, RulesJsonSection, RulesTab,
 };
+use infiltrator_presentation::rule_json_projection::json_editor_status;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 /// Which JSON document the partition shows, plus its edit buffer.

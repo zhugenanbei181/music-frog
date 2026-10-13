@@ -6,15 +6,15 @@ use bevy::ecs::change_detection::DetectChanges;
 use bevy::ecs::query::QueryData;
 use bevy::ecs::system::{Query, Res};
 use bevy::ui::widget::Text;
-use infiltrator_application::host_network_projection::pac;
-use infiltrator_application::network_status_projection::system_proxy_status;
-use infiltrator_application::settings_status_projection::{
+use infiltrator_bevy_widgets::localization::UiLocale;
+use infiltrator_contract::service_mode::ServiceModeState;
+use infiltrator_presentation::host_network_projection::pac;
+use infiltrator_presentation::network_status_projection::system_proxy_status;
+use infiltrator_presentation::settings_status_projection::{
     format_controller_auth, format_core_resources, format_core_versions, format_integrity,
     format_ipv6, format_lan_auth, format_mtu, format_offline_startup, format_port_conflicts,
     format_rollback_target, format_runtime_status, format_service_mode, optional_copy,
 };
-use infiltrator_bevy_widgets::localization::UiLocale;
-use infiltrator_contract::service_mode::ServiceModeState;
 use infiltrator_shared::i18n_interpolator::localize;
 use infiltrator_shared::locales::{Lang, Localizer};
 

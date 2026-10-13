@@ -19,7 +19,6 @@ use crate::types::app_routing::AppRoutingState;
 use crate::types::message::Message;
 use crate::types::runtime::{RuntimeStatus, RuntimeStreamState};
 use crate::utils::sanitize_ui_text;
-use infiltrator_application::command_palette_projection::filtered_indices;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::core_application::ScopedCoreCommandClient;
 use infiltrator_application::routing_intent_application::RoutingIntentApplication;
@@ -54,6 +53,7 @@ use infiltrator_contract::surface_snapshot::{
 use infiltrator_contract::system_proxy::SystemProxyStatus;
 use infiltrator_desktop::product::DesktopProductSessionHandle;
 use infiltrator_domain::runtime::TrafficData;
+use infiltrator_presentation::command_palette_projection::filtered_indices;
 use infiltrator_shared::fuzzy_search::pinyin_fuzzy_match;
 use infiltrator_shared::locales::{Lang, Localizer};
 use std::sync::Arc;

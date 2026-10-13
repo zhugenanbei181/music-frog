@@ -10,7 +10,7 @@ use crate::view::theme::{FONT_MEDIUM, MONO, tokens};
 use crate::view::{svg_icons, theme};
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Border, Element, Length, Theme, border};
-use infiltrator_application::routing_projection::uwp_summary;
+use infiltrator_presentation::routing_projection::uwp_summary;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 pub fn uwp_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {

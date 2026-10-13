@@ -10,7 +10,7 @@ use crate::accessibility::labelled;
 use crate::state::AppState;
 use crate::types::message::Message;
 use infiltrator_application::routing_intent_projection::routing_intent_copy;
-use infiltrator_application::system_toggle_projection::compact_status_line;
+use infiltrator_presentation::system_toggle_projection::compact_status_line;
 use infiltrator_shared::byte_units::format_bytes;
 
 use crate::view::components::{BadgeKind, badge, icon_button};

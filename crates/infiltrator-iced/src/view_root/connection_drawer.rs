@@ -12,12 +12,12 @@ use crate::view::theme;
 use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
-use infiltrator_application::connection_detail_projection::{kernel_asn_label, kernel_geo_label};
 use infiltrator_application::connection_rate_application::project_connection;
 use infiltrator_contract::capability::Availability;
 use infiltrator_contract::connection::{ConnectionRateObservation, timing_availability};
 use infiltrator_domain::connection_view;
 use infiltrator_domain::runtime::Connection;
+use infiltrator_presentation::connection_detail_projection::{kernel_asn_label, kernel_geo_label};
 use infiltrator_shared::locales::{Lang, Localizer};
 
 pub fn connection_drawer_modal<'a>(state: &'a AppState, conn_id: &'a str) -> Element<'a, Message> {

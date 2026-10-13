@@ -7,7 +7,7 @@ use crate::view::component_forms::style_accent;
 use crate::view::theme::FONT_MEDIUM;
 use iced::Element;
 use iced::widget::{button, column, text};
-use infiltrator_application::profile_editor_projection::transaction;
+use infiltrator_presentation::profile_editor_projection::transaction;
 use infiltrator_shared::locales::{Lang, Localizer};
 pub fn apply_guard_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {
     let status = state

@@ -22,7 +22,6 @@ use bevy::ui::{Checked, ScrollPosition};
 use bevy::ui_widgets::{Activate, ValueChange};
 use editor_support::{editor_options_page_projection, editor_page_projection};
 use filter_support::{filter_field_entity, filter_field_text};
-use infiltrator_application::logical_rule_projection::project_logical_rule;
 use infiltrator_application::rule_tracer_application::RuleTracerApplication;
 use infiltrator_application::subscription_filter_fixture::{FIXTURE_DOCUMENT, observation};
 use infiltrator_bevy_ui::app::ShellPlugin;
@@ -113,6 +112,7 @@ use infiltrator_domain::connection_view::ConnectionGroupingMode;
 use infiltrator_domain::rules::RuleEntry;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::rule_tracer::{RuleOverridePort, RuleWorkspace};
+use infiltrator_presentation::logical_rule_projection::project_logical_rule;
 use std::sync::Arc;
 use std::sync::Mutex;
 

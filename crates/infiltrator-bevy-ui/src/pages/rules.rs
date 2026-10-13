@@ -66,10 +66,6 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button, ScrollArea};
-use infiltrator_application::rule_provider_projection::{
-    default_action, etag_support_line, provider_count, provider_fingerprint_line,
-    provider_lifecycle_line, published_truncation, rules_summary,
-};
 use infiltrator_application::rule_row_projection::row_hits_key;
 use infiltrator_application::rule_statistics_projection::project_statistics;
 use infiltrator_bevy_widgets::button::ButtonDisabled;
@@ -94,6 +90,10 @@ use infiltrator_contract::rule_tracer::RuleTracerSnapshot;
 use infiltrator_contract::rules_workspace::{RulesJsonDocumentSnapshot, RulesTab};
 use infiltrator_domain::rules::matrix::matrix_label;
 use infiltrator_domain::rules::view::{RULE_DEFAULT_VIEWPORT_PX, rule_window};
+use infiltrator_presentation::rule_provider_projection::{
+    default_action, etag_support_line, provider_count, provider_fingerprint_line,
+    provider_lifecycle_line, published_truncation, rules_summary,
+};
 use infiltrator_shared::locales::Lang;
 
 /// Root marker on the Rules page scene.

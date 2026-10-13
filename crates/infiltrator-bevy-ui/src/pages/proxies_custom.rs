@@ -26,7 +26,6 @@ use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
 use infiltrator_application::protocol_codec_application::ProtocolCodecApplication;
 use infiltrator_application::protocol_form::field_projection;
-use infiltrator_application::protocol_studio_projection::slot_text;
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::palette::UiPalette;
@@ -35,6 +34,7 @@ use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::text_input::{TextField, text_field_with_placeholder_scene};
 use infiltrator_contract::protocol_fidelity::ProtocolStudioSnapshot;
 use infiltrator_contract::protocol_form::ProtocolStudioSlot;
+use infiltrator_presentation::protocol_studio_projection::slot_text;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 /// Marker for custom node editor card root.

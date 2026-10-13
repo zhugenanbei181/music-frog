@@ -7,17 +7,14 @@
 use infiltrator_domain::sub_rules;
 use std::sync::mpsc::sync_channel;
 pub mod active_exit_application;
-pub mod aggregation_preview_projection;
 pub mod android_control_application;
 pub mod android_core_owner_recovery_application;
 pub mod cache_application;
 pub mod certificate_authority_application;
 pub mod command_application;
 pub mod command_capability;
-pub mod command_palette_projection;
 pub mod configuration_application;
 pub mod connection_application;
-pub mod connection_detail_projection;
 pub mod connection_grouping;
 pub mod connection_grouping_fixtures;
 pub mod connection_rate_application;
@@ -26,11 +23,9 @@ pub mod core_application;
 pub mod core_capability_application;
 #[cfg(test)]
 pub mod core_capability_test_support;
-pub mod core_control_projection;
 pub mod core_owner_shutdown_application;
 #[cfg(test)]
 mod core_product_control_tests;
-pub mod core_status_projection;
 pub mod core_version_management_application;
 pub mod dialer_chain_application;
 pub mod dns_cache_actions;
@@ -49,32 +44,27 @@ pub mod dns_leak_application;
 pub mod dns_leak_fixtures;
 pub mod dns_leak_projection;
 pub mod dns_mapping_projection;
-pub mod dns_observation_projection;
 pub mod dns_query_actions;
 pub mod dns_query_application;
 pub mod dns_query_fixtures;
 pub mod dns_query_projection;
 pub mod dns_self_heal_application;
-pub mod dns_status_projection;
 pub mod dns_workbench_application;
 pub mod doctor_actions;
 pub mod doctor_application;
 pub mod doctor_capture_fixtures;
-pub mod doctor_projection;
 pub mod failure_projection;
 #[cfg(any(test, feature = "capture-fixtures"))]
 pub mod filter_capture_store;
 pub mod geo_database_application;
 pub mod language_choice;
 pub mod language_choice_fixtures;
-pub mod latency_projection;
 pub mod mini_hud_application;
 pub mod mixin_studio_projection;
 pub mod mrs_acceleration_application;
 pub mod mtu_application;
 pub mod network_application;
 pub mod network_roaming_application;
-pub mod network_status_projection;
 pub mod offline_startup_application;
 pub mod outbound_application;
 pub mod overview;
@@ -87,7 +77,6 @@ pub mod profile_application;
 pub mod profile_document_application;
 #[cfg(test)]
 pub(crate) mod profile_document_codec_test_support;
-pub mod profile_editor_projection;
 pub mod profile_metadata_projection;
 pub mod profile_options_application;
 pub mod profile_reset_application;
@@ -107,8 +96,6 @@ pub mod routing_intent_actions;
 pub mod routing_intent_application;
 pub mod routing_intent_fixtures;
 pub mod routing_intent_projection;
-pub mod routing_projection;
-pub mod rule_condition_projection;
 pub mod rule_form_binding;
 pub mod rule_list_application;
 pub mod rule_list_editor;
@@ -117,7 +104,6 @@ pub mod rule_list_fixtures;
 pub mod rule_list_projection;
 pub mod rule_provider_application;
 pub mod rule_provider_runtime_application;
-pub mod rule_row_projection;
 pub mod rule_trace_actions;
 #[cfg(any(test, feature = "capture-fixtures"))]
 pub mod rule_trace_fixtures;
@@ -134,7 +120,6 @@ mod runtime_scope;
 pub mod runtime_status_application;
 pub mod runtime_stream_application;
 pub mod script_application;
-pub mod script_console_projection;
 #[cfg(feature = "script-engine-boa")]
 pub mod script_engine_boa;
 pub mod script_engine_direct;
@@ -144,8 +129,6 @@ pub mod script_sandbox_matrix_application;
 pub mod script_workbench;
 pub mod service_mode_application;
 pub mod settings_application;
-pub mod settings_preference_projection;
-pub mod settings_status_projection;
 pub mod shell_readout_application;
 pub mod shortcut_application;
 pub mod snapshot_application;
@@ -153,7 +136,6 @@ pub mod snapshot_restore_projection;
 pub mod snapshot_restore_workbench;
 pub mod speedtest_application;
 pub mod stun_probe_application;
-pub mod stun_projection;
 pub mod subscription_filter_copy;
 pub mod subscription_filter_editor;
 #[cfg(any(test, feature = "capture-fixtures"))]
@@ -161,19 +143,16 @@ pub mod subscription_filter_fixture;
 pub mod subscription_import_application;
 pub mod subscription_quota_application;
 pub mod subscription_refresh_application;
-pub mod subscription_status_projection;
 pub mod surface_application;
 pub mod surface_reader;
 pub mod sync_application;
 pub mod sync_projection;
 pub mod system_proxy_application;
 pub mod system_toggle_application;
-pub mod system_toggle_projection;
 pub mod telemetry_observation_fixtures;
 pub mod traffic_scale_application;
 pub mod traffic_topology_application;
 pub mod traffic_topology_navigation_application;
-pub mod traffic_topology_projection;
 pub mod traffic_waveform_application;
 pub mod uwp_loopback_application;
 pub mod version_application;
@@ -208,12 +187,7 @@ pub fn validate_logical_rule_syntax(rule: &str) -> Result<(), String> {
     sub_rules::validate_logical_rule_syntax(rule).map_err(|error| error.to_string())
 }
 
-pub mod speedtest_detail_projection;
-pub mod speedtest_summary_projection;
-
 pub mod protocol_form;
-
-pub mod protocol_studio_projection;
 
 pub mod log_capture_fixtures;
 pub mod log_projection;
@@ -236,10 +210,6 @@ mod log_stream_test_support;
 #[cfg(test)]
 mod log_search_tests;
 
-pub mod logical_rule_projection;
-pub mod rule_json_projection;
-pub mod rule_mrs_projection;
-pub mod rule_provider_projection;
 pub mod rule_statistics_projection;
 
 pub mod rule_statistics_workbench;
@@ -248,8 +218,6 @@ pub mod rule_statistics_inspector_projection;
 
 #[cfg(test)]
 mod script_service_tests;
-
-pub mod host_network_projection;
 
 pub mod snapshot_presentation;
 
@@ -270,3 +238,11 @@ mod outbound_batch_tests;
 #[cfg(test)]
 #[path = "command_outbound_tests.rs"]
 mod command_outbound_tests;
+pub mod dns_observation_projection;
+pub mod dns_status_projection;
+pub mod doctor_projection;
+pub mod latency_projection;
+pub mod rule_condition_projection;
+pub mod rule_row_projection;
+pub mod stun_projection;
+pub mod subscription_status_projection;

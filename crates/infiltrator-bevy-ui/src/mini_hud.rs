@@ -21,7 +21,6 @@ use bevy::ui::prelude::{
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
 use infiltrator_application::routing_intent_projection::routing_intent_status_copy;
-use infiltrator_application::system_toggle_projection::{compact_label, compact_status_line};
 use infiltrator_bevy_widgets::button::{ButtonDisabled, pill_caption_scene};
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::icon::IconId;
@@ -34,6 +33,7 @@ use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::a11y::ShellA11yNode;
 use infiltrator_contract::mini_hud::{MiniHudReadModel, MiniHudWaveformStrip};
 use infiltrator_contract::system_toggle::SystemToggle;
+use infiltrator_presentation::system_toggle_projection::{compact_label, compact_status_line};
 use infiltrator_shared::locales::{Lang, Localizer};
 
 /// Toggle state for Mini HUD mode.

@@ -18,7 +18,6 @@ use bevy::ui::Checked;
 use bevy::ui::prelude::{AlignItems, FlexDirection, JustifyContent, Node, UiRect, percent};
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Checkbox;
-use infiltrator_application::settings_status_projection::optional_copy;
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
@@ -26,6 +25,7 @@ use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_presentation::settings_status_projection::optional_copy;
 
 pub(super) fn card(projection: &SettingsProjection, palette: &UiPalette) -> impl Scene + use<> {
     let stack_str = optional_copy(projection.tun_stack.as_ref(), UiLocale::default().code());

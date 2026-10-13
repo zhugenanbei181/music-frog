@@ -17,10 +17,10 @@ use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, tokens};
 use crate::view_root::interaction_regions::InteractionRegion;
 use iced::widget::{Space, button, column, container, row, text, text_input};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
-use infiltrator_application::command_palette_projection::localized_title;
 use infiltrator_contract::a11y::ShellA11yNode;
 use infiltrator_contract::command_catalogue::{CommandCategory, CommandTarget, ShellPage};
 use infiltrator_contract::routing_intent::RoutingIntent;
+use infiltrator_presentation::command_palette_projection::localized_title;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 /// The Iced icon for a shared command target (presentation only).

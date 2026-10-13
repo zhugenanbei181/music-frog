@@ -21,7 +21,6 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
-use infiltrator_application::routing_projection::{uwp_empty, uwp_state_key, uwp_summary};
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
@@ -32,6 +31,7 @@ use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::uwp::UwpPackageSnapshot;
+use infiltrator_presentation::routing_projection::{uwp_empty, uwp_state_key, uwp_summary};
 use infiltrator_shared::locales::{Lang, Localizer};
 
 /// Marker for the UWP exemption card root.
