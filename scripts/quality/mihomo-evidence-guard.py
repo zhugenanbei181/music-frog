@@ -21,6 +21,15 @@ OPERATION_DECLARATION_SOURCE = Path(
 SMOKE_SOURCE = Path("scripts/core-backend-smoke-mihomo.sh")
 REAL_PROCESS_TEST = Path("crates/mihomo-api/tests/real_process_smoke.rs")
 REAL_PROFILE_TEST = Path("crates/infiltrator-core/tests/real_process_profile_smoke.rs")
+REAL_TUN_CONFIG_TEST = Path(
+    "crates/infiltrator-composition/tests/mihomo_tun_configuration_real_process_smoke.rs"
+)
+REAL_RULE_TRACE_TEST = Path(
+    "crates/infiltrator-composition/tests/mihomo_rule_trace_real_process_smoke.rs"
+)
+REAL_PROFILE_FEATURE_TEST = Path(
+    "crates/infiltrator-composition/tests/mihomo_profile_feature_real_process_smoke.rs"
+)
 CORE_APPLY_SOURCE = Path("crates/infiltrator-core/src/apply.rs")
 CORE_PROFILE_TRANSACTION_SOURCE = Path("crates/infiltrator-core/src/profile_configuration_transaction.rs")
 MIHOMO_CLIENT_SOURCE = Path("crates/mihomo-api/src/client.rs")
@@ -29,9 +38,11 @@ REQUIRED_VERSIONS = {"v1.19.18", "v1.19.32"}
 REQUIRED_OPERATIONS = (
     "profile.validate",
     "profile.apply",
+    "profile.apply_feature",
     "dns.apply_configuration",
     "dns.query",
     "rules.apply",
+    "rules.trace",
     "connection.close",
     "fake_ip_cache.flush",
     "provider.list_rule",
@@ -44,6 +55,7 @@ REQUIRED_OPERATIONS = (
     "logs.stream",
     "routing.set_intent",
     "routing.get_intent",
+    "tun.configure",
 )
 LINUX_AMD64_TARGET = "x86_64-unknown-linux-gnu"
 
@@ -107,7 +119,7 @@ def validate_documents(evidence: object, product: object) -> list[str]:
                 problems.append(f"{where} has an invalid {digest_key}")
         operations = asset.get("operations")
         if not isinstance(operations, list) or tuple(operations) != REQUIRED_OPERATIONS:
-            problems.append(f"{where} operations do not match the seventeen verified behaviors")
+            problems.append(f"{where} operations do not match the twenty verified behaviors")
 
     if set(assets_by_version) != REQUIRED_VERSIONS:
         problems.append(
@@ -164,6 +176,9 @@ def source_problems(repo_root: Path) -> list[str]:
     smoke_path = repo_root / SMOKE_SOURCE
     real_process_test_path = repo_root / REAL_PROCESS_TEST
     real_profile_test_path = repo_root / REAL_PROFILE_TEST
+    real_tun_config_test_path = repo_root / REAL_TUN_CONFIG_TEST
+    real_rule_trace_test_path = repo_root / REAL_RULE_TRACE_TEST
+    real_profile_feature_test_path = repo_root / REAL_PROFILE_FEATURE_TEST
     core_apply_path = repo_root / CORE_APPLY_SOURCE
     core_profile_transaction_path = repo_root / CORE_PROFILE_TRANSACTION_SOURCE
     mihomo_client_path = repo_root / MIHOMO_CLIENT_SOURCE
@@ -180,6 +195,12 @@ def source_problems(repo_root: Path) -> list[str]:
         problems.append(f"{real_process_test_path}: typed adapter smoke test is missing")
     if not real_profile_test_path.is_file():
         problems.append(f"{real_profile_test_path}: real-process Profile transaction test is missing")
+    if not real_tun_config_test_path.is_file():
+        problems.append(f"{real_tun_config_test_path}: real-process TUN configuration test is missing")
+    if not real_rule_trace_test_path.is_file():
+        problems.append(f"{real_rule_trace_test_path}: real-process Rule.Trace test is missing")
+    if not real_profile_feature_test_path.is_file():
+        problems.append(f"{real_profile_feature_test_path}: real-process Profile.ApplyFeature test is missing")
     for source_path in (
         core_apply_path,
         core_profile_transaction_path,
@@ -196,6 +217,9 @@ def source_problems(repo_root: Path) -> list[str]:
     smoke = smoke_path.read_text(encoding="utf-8")
     real_process_test = real_process_test_path.read_text(encoding="utf-8")
     real_profile_test = real_profile_test_path.read_text(encoding="utf-8")
+    real_tun_config_test = real_tun_config_test_path.read_text(encoding="utf-8")
+    real_rule_trace_test = real_rule_trace_test_path.read_text(encoding="utf-8")
+    real_profile_feature_test = real_profile_feature_test_path.read_text(encoding="utf-8")
     live_transaction_sources = {
         core_apply_path: core_apply_path.read_text(encoding="utf-8"),
         core_profile_transaction_path: core_profile_transaction_path.read_text(encoding="utf-8"),
@@ -255,6 +279,45 @@ def source_problems(repo_root: Path) -> list[str]:
             f"{smoke_path}: real-process Profile smoke must exercise typed DNS and Rules apply/readback/restore"
         )
     for required in (
+        "-p infiltrator-composition",
+        "--test mihomo_tun_configuration_real_process_smoke",
+        "TUN stack typed apply/readback/restore kept the TUN disabled",
+    ):
+        if required not in smoke:
+            problems.append(
+                f"{smoke_path}: real-process TUN smoke must include `{required}`"
+            )
+    for required in (
+        "-p infiltrator-composition",
+        "--test mihomo_rule_trace_real_process_smoke",
+        "read-only Rule.Trace resolved the live profile rule against Mihomo outbound evidence",
+    ):
+        if required not in smoke:
+            problems.append(
+                f"{smoke_path}: real-process Rule.Trace smoke must include `{required}`"
+            )
+    for required in (
+        "-p infiltrator-composition",
+        "--test mihomo_profile_feature_real_process_smoke",
+        "Profile.ApplyFeature IPv6 write/readback/restore kept the host TUN disabled",
+    ):
+        if required not in smoke:
+            problems.append(
+                f"{smoke_path}: real-process Profile.ApplyFeature smoke must include `{required}`"
+            )
+    if "tun:\n  enable: false\n  stack: system" not in smoke:
+        problems.append(
+            f"{smoke_path}: TUN configuration evidence must keep the live TUN disabled"
+        )
+    if "ipv6: false" not in smoke:
+        problems.append(
+            f"{smoke_path}: Profile.ApplyFeature evidence must start from IPv6 disabled"
+        )
+    if "rules:\n  - DOMAIN,core-smoke-active.test,CORE-SMOKE-HTTP\n  - RULE-SET,CORE-SMOKE-RULE,DIRECT" not in smoke:
+        problems.append(
+            f"{smoke_path}: the Rule.Trace fixture must place the directly evaluable live rule before RULE-SET"
+        )
+    for required in (
         "MIHOMO_REAL_CONTROLLER_URL",
         "MIHOMO_REAL_CONTROLLER_SECRET",
         "MIHOMO_REAL_VERSION",
@@ -267,6 +330,54 @@ def source_problems(repo_root: Path) -> list[str]:
         problems.append(
             f"{real_process_test_path}: real-process test must be ignored in ordinary nextest runs"
         )
+    if "#[ignore" not in real_tun_config_test:
+        problems.append(
+            f"{real_tun_config_test_path}: real-process test must be ignored in ordinary nextest runs"
+        )
+    for required in (
+        "RuntimeConfigurationApplication",
+        "set_tun_stack(TunStack::Mixed)",
+        "set_tun_stack(TunStack::System)",
+        "ObservedValue::Reported(false)",
+        "get_version()",
+    ):
+        if required not in real_tun_config_test:
+            problems.append(
+                f"{real_tun_config_test_path}: real TUN evidence must exercise `{required}`"
+            )
+    if "#[ignore" not in real_rule_trace_test:
+        problems.append(
+            f"{real_rule_trace_test_path}: real-process test must be ignored in ordinary nextest runs"
+        )
+    for required in (
+        "RuleTracerApplication",
+        "ProfileApplication",
+        "MihomoOutboundAdapter",
+        "RuleTraceOutboundFacts::Observed",
+        "RuleTraceRuntimeMode::Live",
+        "core-smoke-active.test",
+        "CORE-SMOKE-HTTP",
+        "the read-only rule-trace smoke does not compose rule override",
+    ):
+        if required not in real_rule_trace_test:
+            problems.append(
+                f"{real_rule_trace_test_path}: real Rule.Trace evidence must exercise `{required}`"
+            )
+    if "#[ignore" not in real_profile_feature_test:
+        problems.append(
+            f"{real_profile_feature_test_path}: real-process test must be ignored in ordinary nextest runs"
+        )
+    for required in (
+        "RuntimeConfigurationApplication",
+        "set_ipv6_routing(true)",
+        "set_ipv6_routing(false)",
+        "ObservedValue::Reported(false)",
+        "get_version()",
+    ):
+        if required not in real_profile_feature_test:
+            problems.append(
+                f"{real_profile_feature_test_path}: real Profile.ApplyFeature evidence must exercise `{required}`"
+            )
     for required in (
         "MihomoOutboundAdapter",
         "MihomoRoutingIntentAdapter",

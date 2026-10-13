@@ -219,7 +219,7 @@ fn only_manifest_verified_operations_are_supported_at_exact_locked_versions() {
                         let should_be_supported =
                             manifest_operations.is_some_and(|(target, revision, operations)| {
                                 target == "x86_64-unknown-linux-gnu"
-                                    && revision == 1
+                                    && revision == 2
                                     && operations
                                         .iter()
                                         .any(|candidate| candidate == evidence_id.as_str())
@@ -300,17 +300,17 @@ fn assert_versioned_evidence_is_authorized_only_for_its_exact_mihomo_scope(
         (
             HostKind::Android,
             EngineBinaryTarget::Aarch64LinuxAndroid,
-            AdapterRevision::new(1),
-        ),
-        (
-            HostKind::Desktop,
-            EngineBinaryTarget::X86_64UnknownLinuxGnu,
             AdapterRevision::new(2),
         ),
         (
             HostKind::Desktop,
-            EngineBinaryTarget::Aarch64UnknownLinuxGnu,
+            EngineBinaryTarget::X86_64UnknownLinuxGnu,
             AdapterRevision::new(1),
+        ),
+        (
+            HostKind::Desktop,
+            EngineBinaryTarget::Aarch64UnknownLinuxGnu,
+            AdapterRevision::new(2),
         ),
     ] {
         let scoped_provider =
@@ -517,22 +517,22 @@ fn mismatched_host_target_and_adapter_revision_fail_closed() {
         (
             HostKind::Android,
             EngineBinaryTarget::X86_64UnknownLinuxGnu,
-            AdapterRevision::new(1),
-        ),
-        (
-            HostKind::Desktop,
-            EngineBinaryTarget::Aarch64LinuxAndroid,
-            AdapterRevision::new(1),
-        ),
-        (
-            HostKind::Desktop,
-            EngineBinaryTarget::X86_64UnknownLinuxGnu,
             AdapterRevision::new(2),
         ),
         (
             HostKind::Desktop,
-            EngineBinaryTarget::Aarch64UnknownLinuxGnu,
+            EngineBinaryTarget::Aarch64LinuxAndroid,
+            AdapterRevision::new(2),
+        ),
+        (
+            HostKind::Desktop,
+            EngineBinaryTarget::X86_64UnknownLinuxGnu,
             AdapterRevision::new(1),
+        ),
+        (
+            HostKind::Desktop,
+            EngineBinaryTarget::Aarch64UnknownLinuxGnu,
+            AdapterRevision::new(2),
         ),
     ];
     for (host, target, revision) in cases {
@@ -557,7 +557,7 @@ fn mismatched_host_target_and_adapter_revision_fail_closed() {
                 resolution.status,
                 CoreCapabilityStatus::HostUnavailable { .. }
             ),
-            "{host:?}/{target:?}/revision {} must not reuse x86_64-unknown-linux-gnu revision 1 evidence",
+            "{host:?}/{target:?}/revision {} must not reuse x86_64-unknown-linux-gnu revision 2 evidence",
             revision.value()
         );
     }
@@ -592,6 +592,10 @@ fn capability_matrix_keeps_unverified_operations_closed_and_verified_dns_availab
             ExpectedStatus::Unsupported,
         ),
         (
+            CoreOperation::Profile(ProfileOperation::ApplyFeature),
+            ExpectedStatus::Available,
+        ),
+        (
             CoreOperation::Dns(DnsOperation::Query),
             ExpectedStatus::Available,
         ),
@@ -601,7 +605,7 @@ fn capability_matrix_keeps_unverified_operations_closed_and_verified_dns_availab
         ),
         (
             CoreOperation::Rules(RulesOperation::Trace),
-            ExpectedStatus::VersionUnavailable,
+            ExpectedStatus::Available,
         ),
         (
             CoreOperation::Rules(RulesOperation::Apply),
@@ -637,7 +641,7 @@ fn capability_matrix_keeps_unverified_operations_closed_and_verified_dns_availab
         ),
         (
             CoreOperation::Tun(TunOperation::Configure),
-            ExpectedStatus::VersionUnavailable,
+            ExpectedStatus::Available,
         ),
         (
             CoreOperation::Version(VersionOperation::Install),
@@ -724,8 +728,45 @@ fn locked_binary_observations_do_not_override_typed_profile_unsupported() {
     let locked = locked_versions_and_operations();
     for (version, target, revision, operation_ids) in locked {
         assert_eq!(target, "x86_64-unknown-linux-gnu", "{version}");
-        assert_eq!(revision, 1, "{version}");
-        assert_eq!(operation_ids.len(), 17, "{version}");
+        assert_eq!(revision, 2, "{version}");
+        assert_eq!(operation_ids.len(), 20, "{version}");
+        let core_version = CoreVersion::new(version.clone()).expect("locked version");
+        let tun_operation = CoreOperation::Tun(TunOperation::Configure);
+        assert!(
+            operation_ids
+                .iter()
+                .any(|registered| registered == "tun.configure")
+        );
+        assert!(declarations.has_verified_support_for_scope(
+            tun_operation,
+            &core_version,
+            EngineBinaryTarget::X86_64UnknownLinuxGnu,
+            AdapterRevision::new(revision),
+        ));
+        let rule_trace_operation = CoreOperation::Rules(RulesOperation::Trace);
+        assert!(
+            operation_ids
+                .iter()
+                .any(|registered| registered == "rules.trace")
+        );
+        assert!(declarations.has_verified_support_for_scope(
+            rule_trace_operation,
+            &core_version,
+            EngineBinaryTarget::X86_64UnknownLinuxGnu,
+            AdapterRevision::new(revision),
+        ));
+        let profile_feature_operation = CoreOperation::Profile(ProfileOperation::ApplyFeature);
+        assert!(
+            operation_ids
+                .iter()
+                .any(|registered| registered == "profile.apply_feature")
+        );
+        assert!(declarations.has_verified_support_for_scope(
+            profile_feature_operation,
+            &core_version,
+            EngineBinaryTarget::X86_64UnknownLinuxGnu,
+            AdapterRevision::new(revision),
+        ));
         for (operation, evidence_id) in [
             (
                 CoreOperation::Profile(ProfileOperation::Validate),
@@ -741,7 +782,6 @@ fn locked_binary_observations_do_not_override_typed_profile_unsupported() {
                     .iter()
                     .any(|registered| registered == evidence_id)
             );
-            let core_version = CoreVersion::new(version.clone()).expect("locked version");
             assert!(!declarations.has_verified_support_for_scope(
                 operation,
                 &core_version,

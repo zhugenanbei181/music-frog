@@ -26,6 +26,9 @@ def source_fixture(root: Path, real_process_test: str) -> Path:
     smoke = root / GUARD.SMOKE_SOURCE
     integration = root / GUARD.REAL_PROCESS_TEST
     profile_integration = root / GUARD.REAL_PROFILE_TEST
+    tun_integration = root / GUARD.REAL_TUN_CONFIG_TEST
+    rule_trace_integration = root / GUARD.REAL_RULE_TRACE_TEST
+    profile_feature_integration = root / GUARD.REAL_PROFILE_FEATURE_TEST
     core_apply = root / GUARD.CORE_APPLY_SOURCE
     core_profile_transaction = root / GUARD.CORE_PROFILE_TRANSACTION_SOURCE
     mihomo_client = root / GUARD.MIHOMO_CLIENT_SOURCE
@@ -36,6 +39,9 @@ def source_fixture(root: Path, real_process_test: str) -> Path:
         smoke,
         integration,
         profile_integration,
+        tun_integration,
+        rule_trace_integration,
+        profile_feature_integration,
         core_apply,
         core_profile_transaction,
         mihomo_client,
@@ -69,6 +75,15 @@ def source_fixture(root: Path, real_process_test: str) -> Path:
         "MIHOMO_REAL_CONTROLLER_SECRET MIHOMO_REAL_VERSION "
         "MIHOMO_REAL_BINARY MIHOMO_REAL_CONFIGS_ROOT MIHOMO_REAL_PROFILE_PATH -p infiltrator-core "
         "--test real_process_profile_smoke --run-ignored only "
+        "-p infiltrator-composition --test mihomo_tun_configuration_real_process_smoke "
+        "TUN stack typed apply/readback/restore kept the TUN disabled "
+        "--test mihomo_profile_feature_real_process_smoke "
+        "Profile.ApplyFeature IPv6 write/readback/restore kept the host TUN disabled "
+        "--test mihomo_rule_trace_real_process_smoke "
+        "read-only Rule.Trace resolved the live profile rule against Mihomo outbound evidence "
+        "ipv6: false "
+        "tun:\n  enable: false\n  stack: system "
+        "rules:\n  - DOMAIN,core-smoke-active.test,CORE-SMOKE-HTTP\n  - RULE-SET,CORE-SMOKE-RULE,DIRECT "
         "MIHOMO_REAL_DNS_ALT_SERVER "
         "Profile, DNS and Rules transaction apply/readback/restore",
         encoding="utf-8",
@@ -94,6 +109,26 @@ def source_fixture(root: Path, real_process_test: str) -> Path:
         "dns_codec_readback DnsQueryPort::query core-smoke-dns-updated.test "
         "core-smoke-dns-restored.test 192.0.2.53 ProfileConfigurationUpdate::Rules "
         "rules_codec_readback get_rules() core-smoke-rule-apply.test",
+        encoding="utf-8",
+    )
+    tun_integration.write_text(
+        "#[ignore = \\\"explicit TUN real-process smoke only\\\"] "
+        "RuntimeConfigurationApplication set_tun_stack(TunStack::Mixed) "
+        "set_tun_stack(TunStack::System) ObservedValue::Reported(false) get_version()",
+        encoding="utf-8",
+    )
+    rule_trace_integration.write_text(
+        "#[ignore = \\\"explicit Rule.Trace real-process smoke only\\\"] "
+        "RuleTracerApplication ProfileApplication MihomoOutboundAdapter "
+        "RuleTraceOutboundFacts::Observed RuleTraceRuntimeMode::Live "
+        "core-smoke-active.test CORE-SMOKE-HTTP "
+        "the read-only rule-trace smoke does not compose rule override",
+        encoding="utf-8",
+    )
+    profile_feature_integration.write_text(
+        "#[ignore = \\\"explicit Profile.ApplyFeature real-process smoke only\\\"] "
+        "RuntimeConfigurationApplication set_ipv6_routing(true) "
+        "set_ipv6_routing(false) ObservedValue::Reported(false) get_version()",
         encoding="utf-8",
     )
     return root
@@ -164,8 +199,22 @@ class MihomoEvidenceGuardTests(unittest.TestCase):
         changed = copy.deepcopy(EVIDENCE)
         changed["assets"][0]["operations"].append("connection.list")
         self.assertTrue(
-            any("operations do not match the seventeen verified behaviors" in issue
+            any("operations do not match the twenty verified behaviors" in issue
                 for issue in GUARD.validate_documents(changed, PRODUCT))
+        )
+
+        missing_tun_evidence = copy.deepcopy(EVIDENCE)
+        missing_tun_evidence["assets"][0]["operations"].remove("tun.configure")
+        self.assertTrue(
+            any("operations do not match the twenty verified behaviors" in issue
+                for issue in GUARD.validate_documents(missing_tun_evidence, PRODUCT))
+        )
+
+        missing_rule_trace = copy.deepcopy(EVIDENCE)
+        missing_rule_trace["assets"][0]["operations"].remove("rules.trace")
+        self.assertTrue(
+            any("operations do not match the twenty verified behaviors" in issue
+                for issue in GUARD.validate_documents(missing_rule_trace, PRODUCT))
         )
 
     def test_evidence_is_target_and_adapter_revision_scoped(self):

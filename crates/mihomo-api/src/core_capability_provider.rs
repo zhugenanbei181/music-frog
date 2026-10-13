@@ -16,7 +16,7 @@ use infiltrator_ports::core_capability_provider::{
 use std::collections::HashSet;
 use std::sync::OnceLock;
 
-const MIHOMO_ADAPTER_REVISION: u64 = 1;
+const MIHOMO_ADAPTER_REVISION: u64 = 2;
 
 const MIHOMO_EVIDENCE_MANIFEST: &str =
     include_str!("../../../packaging/mihomo-evidence-assets.json");

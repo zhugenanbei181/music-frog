@@ -151,7 +151,10 @@ impl FakeBackend {
             // The fake models the exact Linux GNU evidence row used by the
             // shared declaration matrix; it does not claim to run that binary.
             binary_target: EngineBinaryTarget::X86_64UnknownLinuxGnu,
-            adapter_revision: AdapterRevision::new(1),
+            adapter_revision: match kind {
+                FakeBackendKind::MihomoLike => AdapterRevision::new(2),
+                FakeBackendKind::SingBoxLike => AdapterRevision::new(1),
+            },
             declared_operations: match kind {
                 FakeBackendKind::MihomoLike => {
                     let mut operations = supported_engine_operations();
@@ -664,7 +667,7 @@ pub fn declaration_matrix_keeps_evidence_open_and_unsupported_out_of_verified_su
             operation,
             &mihomo_version,
             EngineBinaryTarget::X86_64UnknownLinuxGnu,
-            AdapterRevision::new(1),
+            AdapterRevision::new(2),
         ));
     }
     // The asset lock alone does not promote a binary check to a product
@@ -673,25 +676,25 @@ pub fn declaration_matrix_keeps_evidence_open_and_unsupported_out_of_verified_su
         profile_validate,
         &mihomo_version,
         EngineBinaryTarget::X86_64UnknownLinuxGnu,
-        AdapterRevision::new(1),
+        AdapterRevision::new(2),
     ));
     assert!(!mihomo.has_verified_support_for_scope(
         profile_apply,
         &mihomo_version,
         EngineBinaryTarget::X86_64UnknownLinuxGnu,
-        AdapterRevision::new(1),
+        AdapterRevision::new(2),
     ));
     assert!(!mihomo.has_verified_support_for_scope(
         outbound_probe,
         &mihomo_version,
         EngineBinaryTarget::Aarch64LinuxAndroid,
-        AdapterRevision::new(1),
+        AdapterRevision::new(2),
     ));
     assert!(!mihomo.has_verified_support_for_scope(
         outbound_probe,
         &mihomo_version,
         EngineBinaryTarget::X86_64UnknownLinuxGnu,
-        AdapterRevision::new(2),
+        AdapterRevision::new(1),
     ));
     assert_eq!(
         mihomo.engine().as_str(),

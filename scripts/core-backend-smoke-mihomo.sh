@@ -363,6 +363,7 @@ dns:
     - 127.0.0.1:$dns_server_port
 tun:
   enable: false
+  stack: system
 proxies:
   - name: CORE-SMOKE-HTTP
     type: http
@@ -384,8 +385,8 @@ rule-providers:
     path: ./providers/core-smoke-rules.txt
     interval: 3600
 rules:
-  - RULE-SET,CORE-SMOKE-RULE,DIRECT
   - DOMAIN,core-smoke-active.test,CORE-SMOKE-HTTP
+  - RULE-SET,CORE-SMOKE-RULE,DIRECT
   - MATCH,DIRECT
 EOF
 
@@ -653,6 +654,48 @@ fi
 printf '[PASS] Rust typed DNS query, scoped Fake-IP flush, rule-provider list/update, Connection.Close, GC trigger, log stream, log-level, outbound, and routing adapters drove %s\n' \
     "$expected_version"
 
+printf '[INFO] running ignored Rust TUN configuration application smoke against %s\n' "$expected_version"
+if ! MIHOMO_REAL_CONTROLLER_URL="$base_url" \
+    MIHOMO_REAL_CONTROLLER_SECRET="$controller_secret" \
+    MIHOMO_REAL_VERSION="$expected_version" \
+    cargo nextest run --offline --locked -p infiltrator-composition \
+        --test mihomo_tun_configuration_real_process_smoke --run-ignored only; then
+    printf '[FAIL] Rust TUN configuration smoke failed for %s\n' "$expected_version" >&2
+    probe_diagnostics
+    exit 1
+fi
+printf '[PASS] TUN stack typed apply/readback/restore kept the TUN disabled for %s\n' \
+    "$expected_version"
+
+printf '[INFO] running ignored Rust Profile.ApplyFeature smoke against %s\n' "$expected_version"
+if ! MIHOMO_REAL_CONTROLLER_URL="$base_url" \
+    MIHOMO_REAL_CONTROLLER_SECRET="$controller_secret" \
+    MIHOMO_REAL_VERSION="$expected_version" \
+    cargo nextest run --offline --locked -p infiltrator-composition \
+        --test mihomo_profile_feature_real_process_smoke --run-ignored only; then
+    printf '[FAIL] Rust Profile.ApplyFeature smoke failed for %s\n' "$expected_version" >&2
+    probe_diagnostics
+    exit 1
+fi
+printf '[PASS] Profile.ApplyFeature IPv6 write/readback/restore kept the host TUN disabled for %s\n' \
+    "$expected_version"
+
+printf '[INFO] running ignored Rust Rule.Trace application smoke against %s\n' "$expected_version"
+if ! env -u INFILTRATOR_CONFIGS_DIR \
+    MIHOMO_REAL_CONTROLLER_URL="$base_url" \
+    MIHOMO_REAL_CONTROLLER_SECRET="$controller_secret" \
+    MIHOMO_REAL_VERSION="$expected_version" \
+    MIHOMO_REAL_CONFIGS_ROOT="$configs_root" \
+    MIHOMO_REAL_PROFILE_PATH="$profile_path" \
+    cargo nextest run --offline --locked -p infiltrator-composition \
+        --test mihomo_rule_trace_real_process_smoke --run-ignored only; then
+    printf '[FAIL] Rust Rule.Trace smoke failed for %s\n' "$expected_version" >&2
+    probe_diagnostics
+    exit 1
+fi
+printf '[PASS] read-only Rule.Trace resolved the live profile rule against Mihomo outbound evidence for %s\n' \
+    "$expected_version"
+
 for _ in $(seq 1 50); do
     if [[ -s "$connection_client_done_file" ]]; then
         break
@@ -907,7 +950,7 @@ PY
 }
 printf '[PASS] /connections read: %s; counters observed\n' "$connection_summary"
 
-printf '[NOT COVERED] Logs.Read/Clear, TUN/VPN, DNS cache contents, Fake-IP cache readback, GC memory effect readback, rules trace, proxy providers/healthcheck, Connection.List, non-Linux hosts\n'
+printf '[NOT COVERED] Logs.Read/Clear, host TUN device/VPN activation, DNS cache contents, Fake-IP cache readback, GC memory effect readback, proxy providers/healthcheck, Connection.List, non-Linux hosts\n'
 
 if ! cleanup_active_processes; then
     exit 1

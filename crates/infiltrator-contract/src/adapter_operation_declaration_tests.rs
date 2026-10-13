@@ -6,7 +6,7 @@ use super::adapter_operation_declaration::{
 use super::core_capabilities::{
     AdapterRevision, CoreGarbageCollectionOperation, CoreLifecycleOperation, CoreOperation,
     DnsOperation, EngineBinaryTarget, EngineCapabilityDecision, FakeIpCacheOperation,
-    OutboundOperation, ProviderOperation, RulesOperation,
+    OutboundOperation, ProfileOperation, ProviderOperation, RulesOperation, TunOperation,
 };
 use super::core_identity::{CoreVersion, EngineId};
 use std::collections::HashSet;
@@ -85,7 +85,7 @@ fn supported_operations_require_matching_ids_registered_in_each_engine_lock() {
         .iter()
         .filter(|operation| validated.verified_supported_evidence(**operation).is_some())
         .count();
-    assert_eq!(supported, 15);
+    assert_eq!(supported, 18);
     assert!(
         validated
             .verified_supported_evidence(CoreOperation::Dns(DnsOperation::Query))
@@ -99,6 +99,21 @@ fn supported_operations_require_matching_ids_registered_in_each_engine_lock() {
     assert!(
         validated
             .verified_supported_evidence(CoreOperation::Rules(RulesOperation::Apply))
+            .is_some()
+    );
+    assert!(
+        validated
+            .verified_supported_evidence(CoreOperation::Tun(TunOperation::Configure))
+            .is_some()
+    );
+    assert!(
+        validated
+            .verified_supported_evidence(CoreOperation::Rules(RulesOperation::Trace))
+            .is_some()
+    );
+    assert!(
+        validated
+            .verified_supported_evidence(CoreOperation::Profile(ProfileOperation::ApplyFeature))
             .is_some()
     );
     assert!(
@@ -216,23 +231,23 @@ fn supported_evidence_is_bound_to_exact_version_target_and_adapter_revision() {
         operation,
         &version,
         EngineBinaryTarget::X86_64UnknownLinuxGnu,
-        AdapterRevision::new(1),
+        AdapterRevision::new(2),
     ));
     for (version, target, revision) in [
         (
             CoreVersion::new("v1.19.33").expect("valid version"),
             EngineBinaryTarget::X86_64UnknownLinuxGnu,
-            AdapterRevision::new(1),
+            AdapterRevision::new(2),
         ),
         (
             CoreVersion::new("v1.19.32").expect("valid version"),
             EngineBinaryTarget::Aarch64LinuxAndroid,
-            AdapterRevision::new(1),
+            AdapterRevision::new(2),
         ),
         (
             CoreVersion::new("v1.19.32").expect("valid version"),
             EngineBinaryTarget::X86_64UnknownLinuxGnu,
-            AdapterRevision::new(2),
+            AdapterRevision::new(1),
         ),
     ] {
         assert!(!validated.has_verified_support_for_scope(operation, &version, target, revision,));
@@ -273,7 +288,7 @@ fn engine_decision_is_shared_for_owner_managed_supported_and_unsupported_operati
             outbound_list,
             Some(&version),
             EngineBinaryTarget::X86_64UnknownLinuxGnu,
-            AdapterRevision::new(1),
+            AdapterRevision::new(2),
         ),
         EngineCapabilityDecision::Supported
     );
@@ -282,7 +297,7 @@ fn engine_decision_is_shared_for_owner_managed_supported_and_unsupported_operati
             outbound_list,
             None,
             EngineBinaryTarget::X86_64UnknownLinuxGnu,
-            AdapterRevision::new(1),
+            AdapterRevision::new(2),
         ),
         EngineCapabilityDecision::VersionUnavailable { .. }
     ));

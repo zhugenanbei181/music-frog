@@ -28,8 +28,8 @@
         "operation": "apply_feature"
       },
       "support": {
-        "status": "evidence_open",
-        "reason": "Desktop Core command composition routes profile feature edits through ProfileOptionsApplication and ManagedRuntime, but no real Mihomo run for this operation is registered in the evidence lock."
+        "status": "supported",
+        "evidence_id": "profile.apply_feature"
       }
     },
     {
@@ -98,8 +98,8 @@
         "operation": "trace"
       },
       "support": {
-        "status": "evidence_open",
-        "reason": "SimulateRuleTrace is composed with RuleTracerApplication and the active Mihomo runtime, but no real Mihomo run for this operation is registered in the evidence lock."
+        "status": "supported",
+        "evidence_id": "rules.trace"
       }
     },
     {
@@ -318,8 +318,8 @@
         "operation": "configure"
       },
       "support": {
-        "status": "evidence_open",
-        "reason": "TUN configuration commands are composed with ConfigurationApplication and ManagedRuntime, but no real Mihomo run for this operation is registered in the evidence lock."
+        "status": "supported",
+        "evidence_id": "tun.configure"
       }
     },
     {

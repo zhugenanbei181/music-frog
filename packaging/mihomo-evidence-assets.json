@@ -5,7 +5,7 @@
     {
       "version": "v1.19.32",
       "binary_target": "x86_64-unknown-linux-gnu",
-      "adapter_revision": 1,
+      "adapter_revision": 2,
       "release_url": "https://github.com/MetaCubeX/mihomo/releases/tag/v1.19.32",
       "archive": "mihomo-linux-amd64-v1-v1.19.32.gz",
       "archive_sha256": "306f81e723e60ce6b828899a6fe83e1d00e9ecefb2dc8d4d849312a5bc00efdc",
@@ -14,9 +14,11 @@
       "operations": [
         "profile.validate",
         "profile.apply",
+        "profile.apply_feature",
         "dns.apply_configuration",
         "dns.query",
         "rules.apply",
+        "rules.trace",
         "connection.close",
         "fake_ip_cache.flush",
         "provider.list_rule",
@@ -28,13 +30,14 @@
         "logs.set_level",
         "logs.stream",
         "routing.set_intent",
-        "routing.get_intent"
+        "routing.get_intent",
+        "tun.configure"
       ]
     },
     {
       "version": "v1.19.18",
       "binary_target": "x86_64-unknown-linux-gnu",
-      "adapter_revision": 1,
+      "adapter_revision": 2,
       "release_url": "https://github.com/MetaCubeX/mihomo/releases/tag/v1.19.18",
       "archive": "mihomo-linux-amd64-v1-v1.19.18.gz",
       "archive_sha256": "4b7f2a8cd5c772153ec975f0cee74efbc8f294d6d3e64623b079674d8a903b49",
@@ -43,9 +46,11 @@
       "operations": [
         "profile.validate",
         "profile.apply",
+        "profile.apply_feature",
         "dns.apply_configuration",
         "dns.query",
         "rules.apply",
+        "rules.trace",
         "connection.close",
         "fake_ip_cache.flush",
         "provider.list_rule",
@@ -57,7 +62,8 @@
         "logs.set_level",
         "logs.stream",
         "routing.set_intent",
-        "routing.get_intent"
+        "routing.get_intent",
+        "tun.configure"
       ]
     }
   ]

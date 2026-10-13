@@ -9,6 +9,7 @@ use infiltrator_contract::command::CoreLogLevel;
 use infiltrator_contract::core_identity::CoreScope;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::mtu::{MAX_TUN_MTU_BYTES, MIN_TUN_MTU_BYTES};
+use infiltrator_contract::tun::TunStack;
 use infiltrator_domain::rules::RuleEntry;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::runtime_configuration::{
@@ -181,13 +182,19 @@ fn tun_configuration(config: &ConfigResponse) -> TunConfiguration {
     match config.tun.as_ref() {
         Some(tun) => TunConfiguration {
             enabled: observed(tun.enable),
-            stack: observed(tun.stack.clone()),
+            stack: observed(tun.stack.clone().map(canonical_tun_stack)),
             auto_route: observed(tun.auto_route),
             strict_route: observed(tun.strict_route),
             mtu: observed(tun.mtu),
         },
         None => TunConfiguration::default(),
     }
+}
+
+fn canonical_tun_stack(raw: String) -> String {
+    TunStack::parse(&raw)
+        .map(|stack| stack.as_str().to_owned())
+        .unwrap_or(raw)
 }
 
 fn lan_sharing_configuration(config: &ConfigResponse) -> LanSharingConfiguration {
@@ -757,6 +764,29 @@ mod tests {
         assert_eq!(
             core_log_level_configuration(&unknown),
             ObservedValue::Unreported
+        );
+
+        let canonical_stack = ConfigResponse {
+            tun: Some(TunConfig {
+                stack: Some("System".to_owned()),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        assert_eq!(
+            tun_configuration(&canonical_stack).stack,
+            ObservedValue::Reported("system".to_owned())
+        );
+        let unknown_stack = ConfigResponse {
+            tun: Some(TunConfig {
+                stack: Some("future-stack".to_owned()),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        assert_eq!(
+            tun_configuration(&unknown_stack).stack,
+            ObservedValue::Reported("future-stack".to_owned())
         );
     }
 
