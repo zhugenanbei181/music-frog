@@ -3,21 +3,33 @@
 use futures_util::lock::Mutex;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::network_roaming::{
-    NetworkInterfaceKind, NetworkObservation, NetworkRoamingEvent, NetworkRoamingRepairRequest,
-    NetworkRoamingSnapshot, NetworkRoamingStatus,
+    NetworkInterfaceKind, NetworkObservation, NetworkRoamingEvent, NetworkRoamingSnapshot,
+    NetworkRoamingStatus,
 };
 use infiltrator_domain::mtu_optimizer::MtuOptimizer;
-use infiltrator_domain::network_roaming::{decide, select_active_interface};
+use infiltrator_domain::network_roaming::{
+    NetworkRoamingBaseline, NetworkRoamingDecision, decide, select_active_interface,
+};
 use infiltrator_ports::network_roaming::NetworkRoamingPort;
-use infiltrator_ports::runtime_configuration::ObservedValue;
 use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use std::sync::Arc;
 
+mod route_repair;
+
+use route_repair::{
+    ReconcileIntent, RouteRepairPlan, TunConfigurationObservation, plan_route_repair,
+};
+
 struct State {
-    last_observation: Option<NetworkObservation>,
+    observation_history: NetworkObservationHistory,
     snapshot: NetworkRoamingSnapshot,
     next_revision: u64,
     route_repair_count: u64,
+}
+
+enum NetworkObservationHistory {
+    AwaitingInitial,
+    Observed(NetworkObservation),
 }
 
 /// Application owner of network observation, migration detection and recovery.
@@ -39,7 +51,7 @@ impl NetworkRoamingApplication {
             port,
             gateway,
             state: Arc::new(Mutex::new(State {
-                last_observation: None,
+                observation_history: NetworkObservationHistory::AwaitingInitial,
                 snapshot: NetworkRoamingSnapshot::default(),
                 next_revision: 1,
                 route_repair_count: 0,
@@ -55,7 +67,7 @@ impl NetworkRoamingApplication {
     /// Mihomo TUN auto-route is live. A failed repair is retained as a typed
     /// failed snapshot and never becomes a success with stale data.
     pub async fn refresh(&self) -> NetworkRoamingSnapshot {
-        match self.reconcile(false).await {
+        match self.reconcile(ReconcileIntent::Observe).await {
             Ok(snapshot) => snapshot,
             Err(_) => self.snapshot().await,
         }
@@ -70,7 +82,7 @@ impl NetworkRoamingApplication {
     ) -> NetworkRoamingSnapshot {
         if let Some(baseline) = baseline.filter(|snapshot| !snapshot.interfaces.is_empty()) {
             let mut state = self.state.lock().await;
-            state.last_observation = Some(NetworkObservation {
+            state.observation_history = NetworkObservationHistory::Observed(NetworkObservation {
                 interfaces: baseline.interfaces.clone(),
                 observed_at_epoch_ms: baseline.observed_at_epoch_ms,
             });
@@ -84,10 +96,10 @@ impl NetworkRoamingApplication {
     /// Force a route repair using the current live gateway, even when no
     /// migration has been observed since the last sample.
     pub async fn force_repair(&self) -> Result<NetworkRoamingSnapshot, Failure> {
-        self.reconcile(true).await
+        self.reconcile(ReconcileIntent::ForceRepair).await
     }
 
-    async fn reconcile(&self, force: bool) -> Result<NetworkRoamingSnapshot, Failure> {
+    async fn reconcile(&self, intent: ReconcileIntent) -> Result<NetworkRoamingSnapshot, Failure> {
         let mut state = self.state.lock().await;
         let revision = state.next_revision;
         state.next_revision = state.next_revision.saturating_add(1);
@@ -105,38 +117,36 @@ impl NetworkRoamingApplication {
             }
         };
 
-        let (tun_enabled, tun_auto_route, tun_strict_route, controller_failure) =
-            match &self.gateway {
-                Some(gateway) => {
-                    match crate::runtime_configuration_application::
-                        RuntimeConfigurationApplication::from_current_gateway(gateway.as_ref())
-                    {
-                        Ok(configuration) => match configuration.observe_tun().await {
-                            Ok(observed) => (
-                                reported_bool(&observed.value.enabled),
-                                reported_bool(&observed.value.auto_route),
-                                reported_bool(&observed.value.strict_route),
-                                None,
-                            ),
-                            Err(failure) => (None, None, None, Some(failure)),
-                        },
-                        Err(failure) => (None, None, None, Some(failure)),
-                    }
+        let tun_configuration = match &self.gateway {
+            Some(gateway) => {
+                match crate::runtime_configuration_application::
+                    RuntimeConfigurationApplication::from_current_gateway(gateway.as_ref())
+                {
+                    Ok(configuration) => match configuration.observe_tun().await {
+                        Ok(observed) => TunConfigurationObservation::Reported(observed.value),
+                        Err(failure) => TunConfigurationObservation::Failed(failure),
+                    },
+                    Err(failure) => TunConfigurationObservation::Failed(failure),
                 }
-                None => (None, None, None, None),
+            }
+            None => TunConfigurationObservation::NotComposed,
         };
         let tun_interface = observation
             .interfaces
             .iter()
             .find(|interface| interface.is_up && interface.kind == NetworkInterfaceKind::Tun)
             .map(|interface| interface.name.clone());
-        let decision = decide(
-            state.last_observation.as_ref(),
-            &observation,
-            tun_enabled,
-            tun_auto_route,
-            tun_interface.as_deref(),
-        );
+        let baseline = match &state.observation_history {
+            NetworkObservationHistory::AwaitingInitial => {
+                NetworkRoamingBaseline::AwaitingInitialObservation
+            }
+            NetworkObservationHistory::Observed(previous) => {
+                NetworkRoamingBaseline::Observed(previous)
+            }
+        };
+        let decision = decide(baseline, &observation);
+        let active_interface = decision.active_interface().map(str::to_owned);
+        let gateway_ip = decision.gateway_ip().map(str::to_owned);
         let selected = select_active_interface(&observation.interfaces);
         let (physical_mtu, recommended_tun_mtu, tcp_mss) = selected
             .and_then(|interface| interface.mtu)
@@ -150,13 +160,13 @@ impl NetworkRoamingApplication {
                 NetworkRoamingStatus::Stable
             } else {
                 NetworkRoamingStatus::Degraded {
-                    reason: decision.reason.clone(),
+                    reason: decision.reason().to_owned(),
                 }
             },
             interfaces: observation.interfaces.clone(),
-            active_interface: decision.active_interface.clone(),
-            default_gateway: decision.gateway_ip.clone(),
-            previous_interface: decision.previous_interface.clone(),
+            active_interface: active_interface.clone(),
+            default_gateway: gateway_ip.clone(),
+            previous_interface: decision.previous_interface().map(str::to_owned),
             tun_interface: tun_interface.clone(),
             physical_mtu,
             recommended_tun_mtu,
@@ -166,100 +176,56 @@ impl NetworkRoamingApplication {
             observed_at_epoch_ms: observation.observed_at_epoch_ms,
             revision,
         };
-        if let Some(failure) = controller_failure.as_ref() {
-            snapshot.status = NetworkRoamingStatus::Degraded {
-                reason: failure.message.clone(),
-            };
+        match &decision {
+            NetworkRoamingDecision::InitialObservation { .. } => {
+                snapshot.last_event = Some(NetworkRoamingEvent::InitialObservation {
+                    interface: active_interface.clone(),
+                    gateway_ip: gateway_ip.clone(),
+                });
+            }
+            NetworkRoamingDecision::InterfaceAddressChanged { interface, .. } => {
+                snapshot.last_event = Some(NetworkRoamingEvent::InterfaceAddressChanged {
+                    interface: interface.clone(),
+                });
+            }
+            NetworkRoamingDecision::GatewayChanged {
+                previous_interface,
+                active_interface,
+                previous_gateway_ip,
+                gateway_ip,
+            } => {
+                snapshot.last_event = Some(NetworkRoamingEvent::GatewayChanged {
+                    old_interface: previous_interface.clone(),
+                    new_interface: active_interface.clone(),
+                    old_gateway_ip: previous_gateway_ip.clone(),
+                    new_gateway_ip: gateway_ip.clone(),
+                });
+            }
+            NetworkRoamingDecision::Stable { .. } => {}
         }
 
-        if state.last_observation.is_none() {
-            snapshot.last_event = Some(NetworkRoamingEvent::InitialObservation {
-                interface: decision.active_interface.clone(),
-                gateway_ip: decision.gateway_ip.clone(),
-            });
-        } else if decision.changed {
-            snapshot.last_event = if decision.active_address_changed
-                && decision.previous_interface == decision.active_interface
-                && decision.previous_gateway_ip == decision.gateway_ip
-            {
-                decision
-                    .active_interface
-                    .clone()
-                    .map(|interface| NetworkRoamingEvent::InterfaceAddressChanged { interface })
-            } else {
-                Some(NetworkRoamingEvent::GatewayChanged {
-                    old_interface: decision.previous_interface.clone(),
-                    new_interface: decision.active_interface.clone(),
-                    old_gateway_ip: decision.previous_gateway_ip.clone(),
-                    new_gateway_ip: decision.gateway_ip.clone(),
-                })
-            };
-        }
-
-        if force && selected.is_none() {
-            let failure = Failure::new(
-                ErrorCode::NotReady,
-                "no live physical egress interface is available",
-                true,
-            );
-            snapshot.status = NetworkRoamingStatus::Failed {
-                failure: failure.clone(),
-            };
-            snapshot.last_event = Some(NetworkRoamingEvent::RepairFailed {
-                failure: failure.clone(),
-            });
-            state.snapshot = snapshot;
-            return Err(failure);
-        }
-
-        let should_repair = selected.is_some() && (force || decision.route_repair_required);
-        if should_repair {
-            let failure = if self.gateway.is_none() {
-                Some(Failure::unsupported(
-                    "Mihomo gateway is not composed for network route repair",
-                ))
-            } else if let Some(failure) = controller_failure.clone() {
-                Some(failure)
-            } else if tun_enabled.is_none() {
-                Some(Failure::new(
-                    ErrorCode::NotReady,
-                    "TUN enable state was not reported",
-                    true,
-                ))
-            } else if tun_enabled == Some(false) {
-                Some(Failure::new(
-                    ErrorCode::NotReady,
-                    "TUN is not enabled; no route table needs repair",
-                    false,
-                ))
-            } else if tun_auto_route.is_none() {
-                Some(Failure::new(
-                    ErrorCode::NotReady,
-                    "TUN auto-route state was not reported",
-                    true,
-                ))
-            } else if tun_auto_route == Some(false) {
-                Some(Failure::new(
-                    ErrorCode::InvalidState,
-                    "TUN auto-route is disabled; refusing to mutate host routes",
-                    false,
-                ))
-            } else if tun_strict_route.is_none() {
-                Some(Failure::new(
-                    ErrorCode::NotReady,
-                    "TUN strict-route state was not reported",
-                    true,
-                ))
-            } else if tun_interface.is_none() {
-                Some(Failure::new(
-                    ErrorCode::NotReady,
-                    "active TUN interface was not observed",
-                    true,
-                ))
-            } else {
-                None
-            };
-            if let Some(failure) = failure {
+        match plan_route_repair(
+            intent,
+            &decision,
+            selected,
+            &tun_configuration,
+            tun_interface.as_deref(),
+        ) {
+            RouteRepairPlan::NotRequested => {}
+            RouteRepairPlan::Skipped(reason) => {
+                snapshot.last_event = Some(NetworkRoamingEvent::RepairSkipped { reason });
+            }
+            RouteRepairPlan::Degraded(failure) => {
+                snapshot.status = NetworkRoamingStatus::Degraded {
+                    reason: failure.message.clone(),
+                };
+                snapshot.last_event = Some(NetworkRoamingEvent::RepairSkipped {
+                    reason: failure.message,
+                });
+                state.snapshot = snapshot.clone();
+                return Ok(snapshot);
+            }
+            RouteRepairPlan::Failed(failure) => {
                 snapshot.status = NetworkRoamingStatus::Failed {
                     failure: failure.clone(),
                 };
@@ -269,76 +235,37 @@ impl NetworkRoamingApplication {
                 state.snapshot = snapshot;
                 return Err(failure);
             }
-
-            let selected = selected.expect("selected interface checked above");
-            let request = NetworkRoamingRepairRequest {
-                physical_interface: selected.name.clone(),
-                gateway_ip: selected.gateway_ip.clone(),
-                tun_interface: tun_interface.clone().expect("TUN checked above"),
-                strict_route: tun_strict_route.ok_or_else(|| {
-                    Failure::new(
-                        ErrorCode::NotReady,
-                        "TUN strict-route has not been observed",
-                        true,
-                    )
-                })?,
-            };
-            snapshot.status = NetworkRoamingStatus::Recovering;
-            match self.port.repair(request.clone()).await {
-                Ok(result) => {
-                    state.route_repair_count = state.route_repair_count.saturating_add(1);
-                    snapshot.route_repair_count = state.route_repair_count;
-                    snapshot.status = NetworkRoamingStatus::Stable;
-                    snapshot.last_event = Some(NetworkRoamingEvent::RoutesRepaired {
-                        physical_interface: request.physical_interface,
-                        tun_interface: request.tun_interface,
-                        detail: result.detail,
-                    });
+            RouteRepairPlan::Repair(request) => {
+                snapshot.status = NetworkRoamingStatus::Recovering;
+                match self.port.repair(request.clone()).await {
+                    Ok(result) => {
+                        state.route_repair_count = state.route_repair_count.saturating_add(1);
+                        snapshot.route_repair_count = state.route_repair_count;
+                        snapshot.status = NetworkRoamingStatus::Stable;
+                        snapshot.last_event = Some(NetworkRoamingEvent::RoutesRepaired {
+                            physical_interface: request.physical_interface,
+                            tun_interface: request.tun_interface,
+                            detail: result.detail,
+                        });
+                    }
+                    Err(error) => {
+                        let failure = Failure::from(error);
+                        snapshot.status = NetworkRoamingStatus::Failed {
+                            failure: failure.clone(),
+                        };
+                        snapshot.last_event = Some(NetworkRoamingEvent::RepairFailed {
+                            failure: failure.clone(),
+                        });
+                        state.snapshot = snapshot;
+                        return Err(failure);
+                    }
                 }
-                Err(error) => {
-                    let failure = Failure::from(error);
-                    snapshot.status = NetworkRoamingStatus::Failed {
-                        failure: failure.clone(),
-                    };
-                    snapshot.last_event = Some(NetworkRoamingEvent::RepairFailed {
-                        failure: failure.clone(),
-                    });
-                    state.snapshot = snapshot;
-                    return Err(failure);
-                }
-            }
-        } else if decision.changed {
-            snapshot.last_event = Some(NetworkRoamingEvent::RepairSkipped {
-                reason: controller_failure
-                    .as_ref()
-                    .map(|failure| failure.message.clone())
-                    .unwrap_or_else(|| decision.reason.clone()),
-            });
-            if let Some(failure) = controller_failure {
-                snapshot.status = NetworkRoamingStatus::Degraded {
-                    reason: failure.message,
-                };
-            } else if tun_enabled == Some(true)
-                && tun_auto_route == Some(true)
-                && tun_interface.is_none()
-            {
-                snapshot.status = NetworkRoamingStatus::Degraded {
-                    reason: "active TUN route was configured but no TUN interface was observed"
-                        .to_owned(),
-                };
             }
         }
 
-        state.last_observation = Some(observation);
+        state.observation_history = NetworkObservationHistory::Observed(observation);
         state.snapshot = snapshot.clone();
         Ok(snapshot)
-    }
-}
-
-fn reported_bool(value: &ObservedValue<bool>) -> Option<bool> {
-    match value {
-        ObservedValue::Unreported => None,
-        ObservedValue::Reported(value) => Some(*value),
     }
 }
 
@@ -354,7 +281,7 @@ mod tests {
     #[cfg(test)]
     use infiltrator_contract::network_roaming::{
         NetworkInterfaceKind, NetworkInterfaceSnapshot, NetworkObservation,
-        NetworkRoamingRepairResult,
+        NetworkRoamingRepairRequest, NetworkRoamingRepairResult,
     };
     use infiltrator_contract::session::SessionToken;
     use infiltrator_domain::runtime::{
@@ -362,7 +289,7 @@ mod tests {
     };
     use infiltrator_ports::error::PortError;
     use infiltrator_ports::runtime_configuration::{
-        ConfigurationApply, ConfigurationObservation, ConfigurationRevision,
+        ConfigurationApply, ConfigurationObservation, ConfigurationRevision, ObservedValue,
         RuntimeConfigurationPorts, TunConfiguration, TunConfigurationPort,
     };
     use infiltrator_ports::runtime_gateway::{RuntimeGateway, RuntimeStream, RuntimeStreamEvent};
@@ -373,6 +300,13 @@ mod tests {
     struct FakePort {
         observations: sync::Mutex<Vec<NetworkObservation>>,
         repairs: AtomicUsize,
+        repair_outcome: FakeRepairOutcome,
+    }
+
+    #[derive(Clone, Copy)]
+    enum FakeRepairOutcome {
+        Repaired,
+        Failed,
     }
 
     #[async_trait]
@@ -391,6 +325,9 @@ mod tests {
             _request: NetworkRoamingRepairRequest,
         ) -> Result<NetworkRoamingRepairResult, PortError> {
             self.repairs.fetch_add(1, Ordering::SeqCst);
+            if matches!(self.repair_outcome, FakeRepairOutcome::Failed) {
+                return Err(PortError::Failed("fixture route repair failure".to_owned()));
+            }
             Ok(NetworkRoamingRepairResult {
                 route_generation: 2,
                 detail: "test route readback matched".to_owned(),
@@ -404,7 +341,7 @@ mod tests {
     }
 
     struct FakeTunConfiguration {
-        auto_route: bool,
+        observations: sync::Mutex<Vec<TunConfiguration>>,
     }
 
     #[async_trait]
@@ -413,16 +350,19 @@ mod tests {
             &self,
             scope: &CoreScope,
         ) -> Result<ConfigurationObservation<TunConfiguration>, PortError> {
+            let mut observations = self.observations.lock().expect("TUN observations lock");
+            let value = if observations.len() > 1 {
+                observations.remove(0)
+            } else {
+                observations
+                    .first()
+                    .cloned()
+                    .expect("TUN configuration fixture")
+            };
             Ok(ConfigurationObservation {
                 scope: scope.clone(),
                 revision: ConfigurationRevision::new(1),
-                value: TunConfiguration {
-                    enabled: ObservedValue::Reported(true),
-                    stack: ObservedValue::Reported("gvisor".to_owned()),
-                    auto_route: ObservedValue::Reported(self.auto_route),
-                    strict_route: ObservedValue::Reported(true),
-                    mtu: ObservedValue::Reported(1420),
-                },
+                value,
             })
         }
 
@@ -513,6 +453,14 @@ mod tests {
     }
 
     fn fake_gateway(auto_route: bool) -> Arc<FakeGateway> {
+        fake_gateway_with_configurations(vec![tun_configuration(
+            ObservedValue::Reported(true),
+            ObservedValue::Reported(auto_route),
+            ObservedValue::Reported(true),
+        )])
+    }
+
+    fn fake_gateway_with_configurations(configurations: Vec<TunConfiguration>) -> Arc<FakeGateway> {
         let scope = CoreScope {
             identity: CoreIdentity::new(
                 EngineId::new("mihomo").expect("engine"),
@@ -524,8 +472,24 @@ mod tests {
         };
         Arc::new(FakeGateway {
             scope,
-            tun_port: Arc::new(FakeTunConfiguration { auto_route }),
+            tun_port: Arc::new(FakeTunConfiguration {
+                observations: sync::Mutex::new(configurations),
+            }),
         })
+    }
+
+    fn tun_configuration(
+        enabled: ObservedValue<bool>,
+        auto_route: ObservedValue<bool>,
+        strict_route: ObservedValue<bool>,
+    ) -> TunConfiguration {
+        TunConfiguration {
+            enabled,
+            stack: ObservedValue::Reported("gvisor".to_owned()),
+            auto_route,
+            strict_route,
+            mtu: ObservedValue::Reported(1420),
+        }
     }
 
     fn observation(physical: &str, gateway: &str) -> NetworkObservation {
@@ -561,10 +525,15 @@ mod tests {
                 observation("eth0", "192.168.1.1"),
             ]),
             repairs: AtomicUsize::new(0),
+            repair_outcome: FakeRepairOutcome::Repaired,
         });
         let application = NetworkRoamingApplication::new(port.clone(), Some(fake_gateway(true)));
         let first = application.refresh().await;
         assert_eq!(first.status, NetworkRoamingStatus::Stable);
+        assert!(matches!(
+            first.last_event,
+            Some(NetworkRoamingEvent::InitialObservation { .. })
+        ));
         let second = application.refresh().await;
         assert_eq!(second.status, NetworkRoamingStatus::Stable);
         assert_eq!(second.active_interface.as_deref(), Some("eth0"));
@@ -584,6 +553,7 @@ mod tests {
                 observation("eth0", "192.168.1.1"),
             ]),
             repairs: AtomicUsize::new(0),
+            repair_outcome: FakeRepairOutcome::Repaired,
         });
         let application = NetworkRoamingApplication::new(port.clone(), Some(fake_gateway(false)));
         let _ = application.refresh().await;
@@ -602,6 +572,7 @@ mod tests {
         let port = Arc::new(FakePort {
             observations: sync::Mutex::new(vec![observation("eth0", "192.168.1.1")]),
             repairs: AtomicUsize::new(0),
+            repair_outcome: FakeRepairOutcome::Repaired,
         });
         let application = NetworkRoamingApplication::new(port, None);
         let failure = application
@@ -609,5 +580,89 @@ mod tests {
             .await
             .expect_err("route repair without a gateway must fail closed");
         assert_eq!(failure.code, ErrorCode::Unsupported);
+    }
+
+    #[tokio::test]
+    async fn failed_route_repair_keeps_the_last_accepted_observation_as_baseline() {
+        let port = Arc::new(FakePort {
+            observations: sync::Mutex::new(vec![
+                observation("wlan0", "192.168.2.1"),
+                observation("eth0", "192.168.1.1"),
+                observation("eth0", "192.168.1.1"),
+            ]),
+            repairs: AtomicUsize::new(0),
+            repair_outcome: FakeRepairOutcome::Failed,
+        });
+        let application = NetworkRoamingApplication::new(port.clone(), Some(fake_gateway(true)));
+
+        let initial = application.refresh().await;
+        assert!(matches!(
+            initial.last_event,
+            Some(NetworkRoamingEvent::InitialObservation { .. })
+        ));
+        let failed_migration = application.refresh().await;
+        assert!(matches!(
+            failed_migration.last_event,
+            Some(NetworkRoamingEvent::RepairFailed { .. })
+        ));
+        let retried_migration = application.refresh().await;
+
+        assert_eq!(port.repairs.load(Ordering::SeqCst), 2);
+        assert!(matches!(
+            retried_migration.last_event,
+            Some(NetworkRoamingEvent::RepairFailed { .. })
+        ));
+    }
+
+    #[tokio::test]
+    async fn unreported_tun_state_keeps_migration_pending_until_route_repair_is_possible() {
+        let port = Arc::new(FakePort {
+            observations: sync::Mutex::new(vec![
+                observation("wlan0", "192.168.2.1"),
+                observation("eth0", "192.168.1.1"),
+                observation("eth0", "192.168.1.1"),
+            ]),
+            repairs: AtomicUsize::new(0),
+            repair_outcome: FakeRepairOutcome::Repaired,
+        });
+        let application = NetworkRoamingApplication::new(
+            port.clone(),
+            Some(fake_gateway_with_configurations(vec![
+                tun_configuration(
+                    ObservedValue::Reported(true),
+                    ObservedValue::Reported(true),
+                    ObservedValue::Reported(true),
+                ),
+                tun_configuration(
+                    ObservedValue::Unreported,
+                    ObservedValue::Reported(true),
+                    ObservedValue::Reported(true),
+                ),
+                tun_configuration(
+                    ObservedValue::Reported(true),
+                    ObservedValue::Reported(true),
+                    ObservedValue::Reported(true),
+                ),
+            ])),
+        );
+
+        let _ = application.refresh().await;
+        let unavailable = application.refresh().await;
+        assert!(matches!(
+            unavailable.status,
+            NetworkRoamingStatus::Degraded { .. }
+        ));
+        assert!(matches!(
+            unavailable.last_event,
+            Some(NetworkRoamingEvent::RepairSkipped { .. })
+        ));
+        assert_eq!(port.repairs.load(Ordering::SeqCst), 0);
+
+        let retried = application.refresh().await;
+        assert!(matches!(
+            retried.last_event,
+            Some(NetworkRoamingEvent::RoutesRepaired { .. })
+        ));
+        assert_eq!(port.repairs.load(Ordering::SeqCst), 1);
     }
 }

@@ -5,15 +5,98 @@ use infiltrator_contract::network_roaming::{
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct NetworkRoamingDecision {
-    pub active_interface: Option<String>,
-    pub gateway_ip: Option<String>,
-    pub previous_interface: Option<String>,
-    pub previous_gateway_ip: Option<String>,
-    pub changed: bool,
-    pub active_address_changed: bool,
-    pub route_repair_required: bool,
-    pub reason: String,
+pub enum NetworkRoamingDecision {
+    InitialObservation {
+        active_interface: Option<String>,
+        gateway_ip: Option<String>,
+    },
+    Stable {
+        active_interface: Option<String>,
+        gateway_ip: Option<String>,
+    },
+    InterfaceAddressChanged {
+        interface: String,
+        gateway_ip: Option<String>,
+    },
+    GatewayChanged {
+        previous_interface: Option<String>,
+        active_interface: Option<String>,
+        previous_gateway_ip: Option<String>,
+        gateway_ip: Option<String>,
+    },
+}
+
+#[derive(Clone, Copy)]
+pub enum NetworkRoamingBaseline<'a> {
+    AwaitingInitialObservation,
+    Observed(&'a NetworkObservation),
+}
+
+impl NetworkRoamingDecision {
+    pub fn reason(&self) -> &'static str {
+        match self {
+            Self::InitialObservation { .. } => "initial physical-link observation",
+            Self::Stable {
+                active_interface: None,
+                ..
+            } => "no live physical egress interface is available",
+            Self::Stable { .. } => "physical egress is stable",
+            Self::GatewayChanged {
+                active_interface: None,
+                ..
+            } => "no live physical egress interface is available",
+            Self::InterfaceAddressChanged { .. } | Self::GatewayChanged { .. } => {
+                "physical egress changed while TUN route repair was not required"
+            }
+        }
+    }
+
+    pub fn active_interface(&self) -> Option<&str> {
+        match self {
+            Self::InitialObservation {
+                active_interface, ..
+            }
+            | Self::Stable {
+                active_interface, ..
+            }
+            | Self::GatewayChanged {
+                active_interface, ..
+            } => active_interface.as_deref(),
+            Self::InterfaceAddressChanged { interface, .. } => Some(interface),
+        }
+    }
+
+    pub fn gateway_ip(&self) -> Option<&str> {
+        match self {
+            Self::InitialObservation { gateway_ip, .. }
+            | Self::Stable { gateway_ip, .. }
+            | Self::InterfaceAddressChanged { gateway_ip, .. }
+            | Self::GatewayChanged { gateway_ip, .. } => gateway_ip.as_deref(),
+        }
+    }
+
+    pub fn previous_interface(&self) -> Option<&str> {
+        match self {
+            Self::GatewayChanged {
+                previous_interface, ..
+            } => previous_interface.as_deref(),
+            Self::InitialObservation { .. }
+            | Self::Stable { .. }
+            | Self::InterfaceAddressChanged { .. } => None,
+        }
+    }
+
+    pub fn previous_gateway_ip(&self) -> Option<&str> {
+        match self {
+            Self::GatewayChanged {
+                previous_gateway_ip,
+                ..
+            } => previous_gateway_ip.as_deref(),
+            Self::InitialObservation { .. }
+            | Self::Stable { .. }
+            | Self::InterfaceAddressChanged { .. } => None,
+        }
+    }
 }
 
 /// Select the best live physical egress. An OS-confirmed default route wins;
@@ -40,60 +123,55 @@ pub fn select_active_interface(
         })
 }
 
-/// Decide whether a physical-link observation requires a TUN route repair.
-/// The initial observation is deliberately non-destructive; only a transition
-/// after a known baseline can trigger automatic host changes.
+/// Classify the physical-link transition. The initial observation is
+/// deliberately non-destructive; only a later typed transition can trigger
+/// automatic host changes.
 pub fn decide(
-    previous: Option<&NetworkObservation>,
+    baseline: NetworkRoamingBaseline<'_>,
     current: &NetworkObservation,
-    tun_enabled: Option<bool>,
-    tun_auto_route: Option<bool>,
-    tun_interface: Option<&str>,
 ) -> NetworkRoamingDecision {
     let selected = select_active_interface(&current.interfaces);
-    let previous_selected =
-        previous.and_then(|observation| select_active_interface(&observation.interfaces));
     let active_interface = selected.map(|interface| interface.name.clone());
     let gateway_ip = selected.and_then(|interface| interface.gateway_ip.clone());
-    let previous_interface = previous_selected.map(|interface| interface.name.clone());
-    let previous_gateway_ip = previous_selected.and_then(|interface| interface.gateway_ip.clone());
-    let active_address_changed = match (previous_selected, selected) {
-        (Some(previous), Some(current)) if previous.name == current.name => {
-            previous.ip_addresses != current.ip_addresses
+    match baseline {
+        NetworkRoamingBaseline::AwaitingInitialObservation => {
+            NetworkRoamingDecision::InitialObservation {
+                active_interface,
+                gateway_ip,
+            }
         }
-        _ => false,
-    };
-    let changed = previous.is_some()
-        && (active_interface != previous_interface
-            || gateway_ip != previous_gateway_ip
-            || active_address_changed);
-    let route_repair_required = changed
-        && selected.is_some()
-        && tun_enabled == Some(true)
-        && tun_auto_route == Some(true)
-        && tun_interface.is_some();
-
-    let reason = if previous.is_none() {
-        "initial physical-link observation".to_owned()
-    } else if selected.is_none() {
-        "no live physical egress interface is available".to_owned()
-    } else if route_repair_required {
-        "physical egress changed while TUN auto-route is active".to_owned()
-    } else if changed {
-        "physical egress changed while TUN route repair was not required".to_owned()
-    } else {
-        "physical egress is stable".to_owned()
-    };
-
-    NetworkRoamingDecision {
-        active_interface,
-        gateway_ip,
-        previous_interface,
-        previous_gateway_ip,
-        changed,
-        active_address_changed,
-        route_repair_required,
-        reason,
+        NetworkRoamingBaseline::Observed(previous) => {
+            let previous_selected = select_active_interface(&previous.interfaces);
+            let previous_interface = previous_selected.map(|interface| interface.name.clone());
+            let previous_gateway_ip =
+                previous_selected.and_then(|interface| interface.gateway_ip.clone());
+            match (previous_selected, selected) {
+                (Some(previous), Some(current))
+                    if previous.name == current.name
+                        && previous.gateway_ip == current.gateway_ip
+                        && previous.ip_addresses != current.ip_addresses =>
+                {
+                    NetworkRoamingDecision::InterfaceAddressChanged {
+                        interface: current.name.clone(),
+                        gateway_ip,
+                    }
+                }
+                _ if active_interface == previous_interface
+                    && gateway_ip == previous_gateway_ip =>
+                {
+                    NetworkRoamingDecision::Stable {
+                        active_interface,
+                        gateway_ip,
+                    }
+                }
+                _ => NetworkRoamingDecision::GatewayChanged {
+                    previous_interface,
+                    active_interface,
+                    previous_gateway_ip,
+                    gateway_ip,
+                },
+            }
+        }
     }
 }
 
@@ -133,7 +211,7 @@ mod tests {
     }
 
     #[test]
-    fn gateway_migration_requests_repair_when_tun_auto_route_is_live() {
+    fn gateway_migration_is_a_typed_transition() {
         let previous = NetworkObservation {
             interfaces: vec![link(
                 "wlan0",
@@ -152,21 +230,34 @@ mod tests {
             )],
             observed_at_epoch_ms: Some(2),
         };
-        let decision = decide(
-            Some(&previous),
-            &current,
-            Some(true),
-            Some(true),
-            Some("Meta"),
-        );
-        assert!(decision.changed);
-        assert!(decision.route_repair_required);
-        assert_eq!(decision.previous_interface.as_deref(), Some("wlan0"));
-        assert_eq!(decision.active_interface.as_deref(), Some("eth0"));
+        let decision = decide(NetworkRoamingBaseline::Observed(&previous), &current);
+        assert!(matches!(
+            decision,
+            NetworkRoamingDecision::GatewayChanged {
+                previous_interface: Some(ref previous),
+                active_interface: Some(ref active),
+                ..
+            } if previous == "wlan0" && active == "eth0"
+        ));
     }
 
     #[test]
-    fn migration_is_observed_but_not_repaired_when_tun_is_inactive() {
+    fn unchanged_path_is_a_typed_stable_transition() {
+        let previous = NetworkObservation {
+            interfaces: vec![link(
+                "wlan0",
+                NetworkInterfaceKind::Wifi,
+                "192.168.2.1",
+                200,
+            )],
+            observed_at_epoch_ms: Some(1),
+        };
+        let decision = decide(NetworkRoamingBaseline::Observed(&previous), &previous);
+        assert!(matches!(decision, NetworkRoamingDecision::Stable { .. }));
+    }
+
+    #[test]
+    fn changed_address_on_the_same_path_has_its_own_transition() {
         let previous = NetworkObservation {
             interfaces: vec![link(
                 "wlan0",
@@ -177,6 +268,23 @@ mod tests {
             observed_at_epoch_ms: Some(1),
         };
         let current = NetworkObservation {
+            interfaces: vec![NetworkInterfaceSnapshot {
+                ip_addresses: vec!["192.168.2.20/24".to_owned()],
+                ..previous.interfaces[0].clone()
+            }],
+            observed_at_epoch_ms: Some(2),
+        };
+        let decision = decide(NetworkRoamingBaseline::Observed(&previous), &current);
+        assert!(matches!(
+            decision,
+            NetworkRoamingDecision::InterfaceAddressChanged { ref interface, .. }
+                if interface == "wlan0"
+        ));
+    }
+
+    #[test]
+    fn initial_observation_is_distinct_from_stable_path() {
+        let current = NetworkObservation {
             interfaces: vec![link(
                 "eth0",
                 NetworkInterfaceKind::Ethernet,
@@ -185,15 +293,13 @@ mod tests {
             )],
             observed_at_epoch_ms: Some(2),
         };
-        let decision = decide(
-            Some(&previous),
-            &current,
-            Some(false),
-            Some(true),
-            Some("Meta"),
-        );
-        assert!(decision.changed);
-        assert!(!decision.route_repair_required);
+        let decision = decide(NetworkRoamingBaseline::AwaitingInitialObservation, &current);
+        assert!(matches!(
+            decision,
+            NetworkRoamingDecision::InitialObservation {
+                active_interface: Some(ref active), ..
+            } if active == "eth0"
+        ));
     }
 
     #[test]
@@ -207,14 +313,8 @@ mod tests {
             }],
             observed_at_epoch_ms: Some(1),
         };
-        let decision = decide(
-            Some(&observation),
-            &observation,
-            Some(true),
-            Some(true),
-            Some("Meta"),
-        );
-        assert!(decision.active_interface.is_none());
-        assert!(!decision.route_repair_required);
+        let decision = decide(NetworkRoamingBaseline::Observed(&observation), &observation);
+        assert!(matches!(decision, NetworkRoamingDecision::Stable { .. }));
+        assert_eq!(decision.active_interface(), None);
     }
 }
