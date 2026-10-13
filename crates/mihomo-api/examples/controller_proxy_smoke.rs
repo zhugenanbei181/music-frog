@@ -1,9 +1,24 @@
 //! Read-only real-controller smoke; callers own and clean up the isolated kernel process.
-use anyhow::{Context, Result, ensure};
-use infiltrator_domain::proxy::Proxy;
+use anyhow::{Context, Result, bail, ensure};
+use infiltrator_contract::core_identity::{
+    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId,
+};
+use infiltrator_contract::outbound::inventory::OutboundInventoryState;
+use infiltrator_ports::core_scope::{CoreScopeObservation, CoreScopeSource};
+use infiltrator_ports::outbound::OutboundPort;
 use mihomo_api::client::MihomoClient;
+use mihomo_api::outbound::MihomoOutboundAdapter;
 use serde_json::json;
 use std::env;
+use std::sync::Arc;
+
+struct FixedScope(CoreScope);
+
+impl CoreScopeSource for FixedScope {
+    fn scope_observation(&self) -> CoreScopeObservation {
+        CoreScopeObservation::Observed(self.0.clone())
+    }
+}
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -12,30 +27,47 @@ async fn main() -> Result<()> {
         .context("an explicit isolated controller URL is required")?;
     let client = MihomoClient::new(&endpoint, None)?;
     let version = client.get_version().await?;
-    let proxies = client.get_proxies().await?;
+    let scope = CoreScope {
+        identity: CoreIdentity::new(
+            EngineId::mihomo(),
+            CoreInstanceId::new("controller-proxy-smoke")?,
+            None,
+        ),
+        generation: CoreGeneration::new(1),
+        session_token: None,
+    };
+    let adapter = MihomoOutboundAdapter::new(Arc::new(client), Arc::new(FixedScope(scope.clone())));
+    let observation = OutboundPort::observation(&adapter, scope.clone()).await?;
     ensure!(
-        !proxies.is_empty(),
+        observation.inventory().scope() == &scope,
+        "controller returned an outbound observation for a different owner scope"
+    );
+    let (outbound_count, selection_set_count) = match observation.inventory().inventory() {
+        OutboundInventoryState::Ready {
+            entries,
+            collections,
+        } => (entries.len(), collections.len()),
+        OutboundInventoryState::Empty => (0, 0),
+        OutboundInventoryState::Failed { failure } => bail!(
+            "controller outbound observation failed: {}",
+            failure.message
+        ),
+        OutboundInventoryState::Unknown => bail!("controller outbound observation is unknown"),
+        OutboundInventoryState::Unsupported => {
+            bail!("controller outbound inventory is unsupported")
+        }
+    };
+    ensure!(
+        outbound_count > 0,
         "controller supplied no proxy observations"
     );
-    for (identity, proxy) in &proxies {
-        ensure!(
-            identity == proxy.name(),
-            "controller returned a mismatched identity"
-        );
-        let single = client.get_proxy(identity).await?;
-        ensure!(
-            &single == proxy,
-            "list and single-node observations disagree for {identity}"
-        );
-    }
     println!(
         "{}",
         json!({
             "version":version.version,
-            "proxy_count":proxies.len(),
-            "group_count":proxies.values().filter(|proxy|proxy.is_group()).count(),
-            "partial_observation_count":proxies.values().filter(|proxy|matches!(proxy,Proxy::Observed(_))).count(),
-            "list_and_node_endpoints":"verified"
+            "outbound_count":outbound_count,
+            "selection_set_count":selection_set_count,
+            "scope_generation":scope.generation.value(),
         })
     );
     Ok(())

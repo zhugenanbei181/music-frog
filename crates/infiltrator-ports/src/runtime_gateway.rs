@@ -31,8 +31,6 @@ pub trait RuntimeGateway: Send + Sync {
     fn configuration_ports(&self) -> RuntimeConfigurationPorts {
         RuntimeConfigurationPorts::unsupported()
     }
-    async fn switch_proxy(&self, group: &str, proxy: &str) -> Result<(), PortError>;
-    async fn test_delay(&self, proxy: &str, url: &str, timeout_ms: u32) -> Result<u32, PortError>;
     async fn get_proxy_providers(&self) -> Result<Vec<ProxyProvider>, PortError>;
     async fn get_rule_providers(&self) -> Result<Vec<RuleProvider>, PortError>;
     async fn update_proxy_provider(&self, name: &str) -> Result<(), PortError>;

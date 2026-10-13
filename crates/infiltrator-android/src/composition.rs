@@ -293,19 +293,6 @@ impl UnavailableAndroidRuntimeGateway {
 
 #[async_trait::async_trait]
 impl RuntimeGateway for UnavailableAndroidRuntimeGateway {
-    async fn switch_proxy(&self, _group: &str, _proxy: &str) -> Result<(), PortError> {
-        Err(self.failure())
-    }
-
-    async fn test_delay(
-        &self,
-        _proxy: &str,
-        _url: &str,
-        _timeout_ms: u32,
-    ) -> Result<u32, PortError> {
-        Err(self.failure())
-    }
-
     async fn get_proxy_providers(&self) -> Result<Vec<ProxyProvider>, PortError> {
         Err(self.failure())
     }

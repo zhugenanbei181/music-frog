@@ -78,20 +78,6 @@ impl RuntimeGateway for MihomoRuntime {
         MihomoRuntimeConfigurationAdapter::ports(self.client.clone(), Some(scope_resolver))
     }
 
-    async fn switch_proxy(&self, group: &str, proxy: &str) -> Result<(), PortError> {
-        self.client
-            .switch_proxy(group, proxy)
-            .await
-            .map_err(|error| PortError::Network(error.to_string()))
-    }
-
-    async fn test_delay(&self, proxy: &str, url: &str, timeout_ms: u32) -> Result<u32, PortError> {
-        self.client
-            .test_delay(proxy, url, timeout_ms)
-            .await
-            .map_err(|error| PortError::Network(error.to_string()))
-    }
-
     async fn get_proxy_providers(&self) -> Result<Vec<ProxyProvider>, PortError> {
         self.client
             .get_proxy_providers()

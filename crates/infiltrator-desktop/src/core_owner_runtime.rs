@@ -168,25 +168,6 @@ impl RuntimeGateway for DesktopCoreOwnerRuntime {
         RuntimeConfigurationPorts::unsupported()
     }
 
-    async fn switch_proxy(&self, _group: &str, _proxy: &str) -> Result<(), PortError> {
-        unsupported(
-            Capability::RoutingIntent,
-            "desktop Core-only handoff does not expose proxy selection",
-        )
-    }
-
-    async fn test_delay(
-        &self,
-        _proxy: &str,
-        _url: &str,
-        _timeout_ms: u32,
-    ) -> Result<u32, PortError> {
-        unsupported(
-            Capability::RoutingIntent,
-            "desktop Core-only handoff does not expose delay probing",
-        )
-    }
-
     async fn get_proxy_providers(&self) -> Result<Vec<ProxyProvider>, PortError> {
         unsupported(
             Capability::RoutingIntent,

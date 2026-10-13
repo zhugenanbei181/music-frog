@@ -49,8 +49,6 @@ async fn close_all_uses_the_actual_runtime_port_and_preserves_typed_failure_for_
     .await
     .unwrap();
     assert_eq!(gateway.close_all_calls.load(Ordering::SeqCst), 3);
-    assert!(gateway.probe_calls.lock().unwrap().is_empty());
-    assert_eq!(gateway.switches.load(Ordering::SeqCst), 0);
     let failure = with_test_capabilities(CommandApplication::new())
         .handle_scoped(
             ValidatedCoreCommandScope::from_core_application(Some(core_scope())),

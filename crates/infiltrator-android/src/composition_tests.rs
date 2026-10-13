@@ -50,7 +50,6 @@ use infiltrator_ports::core_process::CoreReadiness;
 use infiltrator_ports::engine_backend_factory::EngineBackendFactory;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::ProfileStore;
-use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use infiltrator_ports::secure_store::SecureStore;
 use mihomo_config::manager::ConfigManager;
 use std::env;

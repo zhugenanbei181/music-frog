@@ -37,30 +37,20 @@ fn real_controller_runtime_nodes_decode_without_configuration_secrets_or_server_
 }
 
 #[tokio::test]
-async fn actual_controller_list_and_single_node_endpoints_use_the_runtime_decoder() {
+async fn actual_controller_proxy_inventory_uses_the_runtime_decoder() {
     let mut server = Server::new_async().await;
-    let payload: Value = from_str(CONTROLLER_FIXTURE).unwrap();
-    let node = &payload["proxies"]["Inspection node"];
     let list = server
         .mock("GET", "/proxies")
         .with_status(200)
         .with_body(CONTROLLER_FIXTURE)
         .create_async()
         .await;
-    let single = server
-        .mock("GET", "/proxies/Inspection%20node")
-        .with_status(200)
-        .with_body(node.to_string())
-        .create_async()
-        .await;
     let client = MihomoClient::new(&server.url(), None).unwrap();
     let proxies = client.get_proxies().await.unwrap();
-    let detail = client.get_proxy("Inspection node").await.unwrap();
-    assert_eq!(proxies["Inspection node"], detail);
-    assert_eq!(detail.name(), "Inspection node");
-    assert_eq!(detail.health_observation(), Some(true));
+    let observed = &proxies["Inspection node"];
+    assert_eq!(observed.name(), "Inspection node");
+    assert_eq!(observed.health_observation(), Some(true));
     list.assert_async().await;
-    single.assert_async().await;
 }
 
 #[test]

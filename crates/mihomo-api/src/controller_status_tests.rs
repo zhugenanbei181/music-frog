@@ -7,7 +7,6 @@ use infiltrator_contract::command::CoreLogLevel;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_ports::core_log_level::CoreLogLevelPort;
 use infiltrator_ports::error::PortError;
-use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use mockito::Server;
 use serde_json::json;
 
@@ -59,11 +58,9 @@ async fn failed_controller_mutations_never_return_success_and_can_retry_after_re
         .with_status(400)
         .create_async()
         .await;
-    let failure = Failure::from(
-        RuntimeGateway::switch_proxy(&client, "Group", "leaf")
-            .await
-            .unwrap_err(),
-    );
+    let failure = Failure::from(network_error(
+        client.switch_proxy("Group", "leaf").await.unwrap_err(),
+    ));
     assert_eq!(failure.code, ErrorCode::InvalidInput);
     assert!(!failure.retryable);
     select.assert_async().await;

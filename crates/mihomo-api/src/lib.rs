@@ -1,4 +1,4 @@
-pub mod api;
+mod api;
 pub mod client;
 pub mod connection_port;
 pub mod controller_fake_ip_cache;
@@ -8,7 +8,8 @@ mod core_log_level_port;
 pub mod error;
 pub mod outbound;
 pub mod overview;
-pub mod proxy;
+#[cfg(test)]
+mod proxy;
 pub mod readiness;
 pub mod resource_port;
 pub mod routing_intent;
@@ -20,8 +21,6 @@ pub mod types;
 
 #[cfg(test)]
 mod error_test;
-#[cfg(test)]
-mod proxy_test;
 #[cfg(test)]
 mod readiness_tests;
 #[cfg(test)]

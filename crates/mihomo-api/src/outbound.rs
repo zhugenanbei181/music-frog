@@ -1,7 +1,7 @@
 //! Mihomo adapter for engine-neutral outbound observations.
 
-use crate::api::MihomoApi;
-use crate::client::MAX_MIHOMO_DELAY_TIMEOUT_MS;
+use crate::api::MihomoOutboundApi;
+use crate::client::{MAX_MIHOMO_DELAY_TIMEOUT_MS, MihomoClient};
 #[path = "outbound/mapping.rs"]
 mod mapping;
 use crate::error::MihomoError;
@@ -37,13 +37,13 @@ use tokio::sync::Mutex;
 /// This fence only covers calls made through this adapter instance; callers
 /// that bypass it and write directly to the controller remain outside the fence.
 pub struct MihomoOutboundAdapter {
-    api: Arc<dyn MihomoApi>,
+    api: Arc<dyn MihomoOutboundApi>,
     scope_source: Arc<dyn CoreScopeSource>,
     observation: Mutex<OutboundObservationState>,
 }
 
 impl MihomoOutboundAdapter {
-    pub fn new(api: Arc<dyn MihomoApi>, scope_source: Arc<dyn CoreScopeSource>) -> Self {
+    pub fn new(api: Arc<MihomoClient>, scope_source: Arc<dyn CoreScopeSource>) -> Self {
         Self {
             api,
             scope_source,

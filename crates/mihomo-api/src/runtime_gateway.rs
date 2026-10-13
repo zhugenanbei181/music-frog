@@ -36,18 +36,6 @@ impl RuntimeGateway for MihomoClient {
         )
     }
 
-    async fn switch_proxy(&self, group: &str, proxy: &str) -> Result<(), PortError> {
-        MihomoClient::switch_proxy(self, group, proxy)
-            .await
-            .map_err(network_error)
-    }
-
-    async fn test_delay(&self, proxy: &str, url: &str, timeout_ms: u32) -> Result<u32, PortError> {
-        MihomoClient::test_delay(self, proxy, url, timeout_ms)
-            .await
-            .map_err(network_error)
-    }
-
     async fn get_proxy_providers(&self) -> Result<Vec<ProxyProvider>, PortError> {
         MihomoClient::get_proxy_providers(self)
             .await

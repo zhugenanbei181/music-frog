@@ -1,7 +1,6 @@
 use crate::connection_port::ConnectionRevisionState;
 use crate::error::{MihomoError, Result};
 use crate::runtime_configuration::RuntimeScopeResolver;
-use crate::runtime_proxy::ControllerProxy;
 use crate::types::*;
 use infiltrator_contract::error::Failure;
 use infiltrator_domain::proxy::Proxy;
@@ -154,7 +153,7 @@ impl MihomoClient {
         Ok(list.rules)
     }
 
-    pub async fn get_proxies(&self) -> Result<HashMap<String, Proxy>> {
+    pub(crate) async fn get_proxies(&self) -> Result<HashMap<String, Proxy>> {
         let url = self.build_url("/proxies")?;
         log::debug!("Fetching proxies from: {}", url);
         let req = self.client.get(url);
@@ -165,16 +164,7 @@ impl MihomoClient {
         Ok(data.proxies)
     }
 
-    pub async fn get_proxy(&self, name: &str) -> Result<Proxy> {
-        let url = self.build_url(&format!("/proxies/{}", name))?;
-        let req = self.client.get(url);
-        let req = self.add_auth(req);
-        let resp = req.send().await?.error_for_status()?;
-        let ControllerProxy(proxy) = resp.json().await?;
-        Ok(proxy)
-    }
-
-    pub async fn switch_proxy(&self, group: &str, name: &str) -> Result<()> {
+    pub(crate) async fn switch_proxy(&self, group: &str, name: &str) -> Result<()> {
         let url = self.build_url_with_segments(&["proxies", group])?;
         let req = self.client.put(url).json(&json!({ "name": name }));
         let req = self.add_auth(req);
@@ -182,7 +172,7 @@ impl MihomoClient {
         Ok(())
     }
 
-    pub async fn test_delay(&self, name: &str, url: &str, timeout: u32) -> Result<u32> {
+    pub(crate) async fn test_delay(&self, name: &str, url: &str, timeout: u32) -> Result<u32> {
         validate_mihomo_delay_timeout(timeout)?;
         let mut request_url = self.build_url_with_segments(&["proxies", name, "delay"])?;
         request_url
@@ -339,9 +329,8 @@ impl MihomoClient {
     /// command methods here — any success response is treated as `Ok(())`
     /// without inspecting the body.
     ///
-    /// Note: `POST /upgrade` (core self-upgrade) is intentionally NOT
-    /// wrapped by this client; see the `MihomoApi` trait docs in
-    /// `crate::api` for the UP-001 rationale.
+    /// Note: `POST /upgrade` (core self-upgrade) is intentionally not exposed;
+    /// Core delivery stays in the versioned download and verification flow.
     pub async fn restart_core(&self) -> Result<()> {
         let url = self.build_url("/restart")?;
         let req = self.client.post(url);

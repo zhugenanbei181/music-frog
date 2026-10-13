@@ -73,12 +73,6 @@ impl ActivationRuntime {
 
 #[async_trait]
 impl RuntimeGateway for ActivationRuntime {
-    async fn switch_proxy(&self, _: &str, _: &str) -> Result<(), PortError> {
-        Err(self.unavailable())
-    }
-    async fn test_delay(&self, _: &str, _: &str, _: u32) -> Result<u32, PortError> {
-        Err(self.unavailable())
-    }
     async fn get_proxy_providers(&self) -> Result<Vec<ProxyProvider>, PortError> {
         Err(self.unavailable())
     }

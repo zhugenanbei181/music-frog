@@ -44,12 +44,6 @@ impl WorkspaceApplyRuntime {
 
 #[async_trait]
 impl RuntimeGateway for WorkspaceApplyRuntime {
-    async fn switch_proxy(&self, _: &str, _: &str) -> Result<(), PortError> {
-        self.unexpected()
-    }
-    async fn test_delay(&self, _: &str, _: &str, _: u32) -> Result<u32, PortError> {
-        self.unexpected()
-    }
     async fn get_proxy_providers(&self) -> Result<Vec<ProxyProvider>, PortError> {
         self.unexpected()
     }

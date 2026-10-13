@@ -29,13 +29,10 @@ impl SettingsStore for ProbeSettings {
 }
 
 #[tokio::test]
-async fn set_runtime_probe_settings_persists_typed_values_without_probing_or_selecting() {
-    let gateway = Arc::new(RecordingGeoGateway::default());
+async fn set_runtime_probe_settings_persists_typed_values() {
     let settings = Arc::new(ProbeSettings::default());
     let app = with_test_capabilities(
-        CommandApplication::new()
-            .with_runtime(gateway.clone())
-            .with_settings(SettingsApplication::new(settings.clone())),
+        CommandApplication::new().with_settings(SettingsApplication::new(settings.clone())),
     );
     let probe_settings =
         RuntimeProbeSettings::new("https://probe.example.test/selected", 60_000).unwrap();
@@ -51,10 +48,7 @@ async fn set_runtime_probe_settings_persists_typed_values_without_probing_or_sel
 
     let stored = settings.load().await.unwrap();
     assert_eq!(stored.runtime_panel.probe_settings, probe_settings);
-    assert!(gateway.probe_calls.lock().unwrap().is_empty());
-    assert_eq!(gateway.switches.load(Ordering::SeqCst), 0);
 
     assert!(RuntimeProbeSettings::new("file:///etc/passwd", 1000).is_err());
     assert_eq!(settings.load().await.unwrap(), stored);
-    assert!(gateway.probe_calls.lock().unwrap().is_empty());
 }

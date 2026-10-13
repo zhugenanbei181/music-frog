@@ -1293,6 +1293,82 @@
       "source_roots": [
         "crates/infiltrator-application/src"
       ]
+    },
+    {
+      "id": "mihomo-proxy-manager-facade",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "ProxyManager",
+      "rationale": "The unscoped name-based proxy facade was replaced by owner- and revision-fenced OutboundPort operations.",
+      "replacement_behavior_tests": [
+        "crates/mihomo-api/src/outbound_tests.rs",
+        "crates/infiltrator-application/src/outbound_application_tests.rs"
+      ],
+      "source_roots": [
+        "crates/mihomo-api/src"
+      ]
+    },
+    {
+      "id": "mihomo-broad-api-trait",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "MihomoApi",
+      "rationale": "The broad public trait was narrowed to private MihomoOutboundApi operations behind the typed OutboundPort adapter.",
+      "replacement_behavior_tests": [
+        "crates/mihomo-api/src/outbound_tests.rs",
+        "crates/infiltrator-application/src/outbound_application_tests.rs"
+      ],
+      "source_roots": [
+        "crates/mihomo-api/src"
+      ]
+    },
+    {
+      "id": "mihomo-single-proxy-name-lookup",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "get_proxy",
+      "rationale": "Single-node name lookup was removed; consumers read the typed owner-scoped outbound inventory and details.",
+      "replacement_behavior_tests": [
+        "crates/mihomo-api/src/outbound_tests.rs",
+        "crates/infiltrator-application/src/outbound_application_tests.rs"
+      ],
+      "source_roots": [
+        "crates/mihomo-api/src"
+      ]
+    },
+    {
+      "id": "runtime-gateway-proxy-selection",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "switch_proxy",
+      "rationale": "The unscoped RuntimeGateway selector was removed; selection is issued through revision-fenced OutboundPort requests.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-application/src/command_outbound_tests.rs",
+        "crates/mihomo-api/src/outbound_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-ports/src",
+        "crates/infiltrator-application/src",
+        "crates/infiltrator-desktop/src",
+        "crates/infiltrator-android/src"
+      ]
+    },
+    {
+      "id": "runtime-gateway-proxy-delay-test",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "test_delay",
+      "rationale": "The unscoped RuntimeGateway delay probe was removed; probes use a validated outbound ID and observed inventory revision.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-application/src/command_outbound_tests.rs",
+        "crates/mihomo-api/src/outbound_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-ports/src",
+        "crates/infiltrator-application/src",
+        "crates/infiltrator-desktop/src",
+        "crates/infiltrator-android/src"
+      ]
     }
   ]
 }

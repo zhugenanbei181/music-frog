@@ -400,10 +400,6 @@ const THREE_RULES: &str =
 #[derive(Default)]
 pub(super) struct RecordingGeoGateway {
     geo_upgrades: AtomicUsize,
-    probe_calls: Mutex<Vec<(String, String, u32)>>,
-    switches: AtomicUsize,
-    deny_probe: AtomicBool,
-    denied_probe_names: Mutex<Vec<String>>,
     close_all_calls: Arc<AtomicUsize>,
     deny_close_all: Arc<AtomicBool>,
 }
@@ -421,32 +417,6 @@ impl RuntimeGateway for RecordingGeoGateway {
             close_all_calls: self.close_all_calls.clone(),
             deny_close_all: self.deny_close_all.clone(),
         })
-    }
-
-    async fn switch_proxy(&self, _group: &str, _proxy: &str) -> Result<(), PortError> {
-        self.switches.fetch_add(1, Ordering::SeqCst);
-        Ok(())
-    }
-
-    async fn test_delay(&self, proxy: &str, url: &str, timeout_ms: u32) -> Result<u32, PortError> {
-        self.probe_calls
-            .lock()
-            .unwrap()
-            .push((proxy.into(), url.into(), timeout_ms));
-        if self.deny_probe.load(Ordering::SeqCst)
-            || self
-                .denied_probe_names
-                .lock()
-                .unwrap()
-                .iter()
-                .any(|name| name == proxy)
-        {
-            Err(PortError::PermissionDenied(
-                "grant proxy probe permission".into(),
-            ))
-        } else {
-            Ok(42)
-        }
     }
 
     async fn get_proxy_providers(&self) -> Result<Vec<ProxyProvider>, PortError> {

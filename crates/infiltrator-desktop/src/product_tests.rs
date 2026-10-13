@@ -208,19 +208,6 @@ fn unsupported<T>(capability: Capability) -> Result<T, PortError> {
 
 #[async_trait]
 impl RuntimeGateway for TestHostRuntime {
-    async fn switch_proxy(&self, _group: &str, _proxy: &str) -> Result<(), PortError> {
-        unsupported(Capability::RoutingIntent)
-    }
-
-    async fn test_delay(
-        &self,
-        _proxy: &str,
-        _url: &str,
-        _timeout_ms: u32,
-    ) -> Result<u32, PortError> {
-        unsupported(Capability::RoutingIntent)
-    }
-
     async fn get_proxy_providers(&self) -> Result<Vec<ProxyProvider>, PortError> {
         unsupported(Capability::RoutingIntent)
     }
