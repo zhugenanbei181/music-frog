@@ -1,3 +1,5 @@
+#[cfg(any(target_os = "android", test))]
+mod android_async_bridge;
 pub mod composition;
 mod configuration_candidate_validator;
 mod core_launch_spec;

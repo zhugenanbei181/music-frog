@@ -1,3 +1,8 @@
+use crate::android_async_bridge::{
+    AndroidBridgeCall, AndroidBridgeCallCompletion, AndroidBridgeCallFailure,
+    AndroidBridgeCallReply, AndroidBridgeDispatchAcceptance, AndroidBridgeRequestId,
+    AndroidCredentialMutationOutcome, next_android_bridge_request_id, pending_android_bridge_calls,
+};
 use crate::jni_clipboard::JniClipboardChannel;
 use crate::native_host::clipboard::clear_native_clipboard_channel;
 use crate::native_host::clipboard::set_native_clipboard_channel;
@@ -13,18 +18,17 @@ use crate::service_init::init_android_process;
 use crate::{FfiErrorCode, FfiStatus};
 use infiltrator_contract::android_control::{
     AndroidCoreLifecycleSnapshot, AndroidCoreProcessObservation, AndroidCoreProcessRecoveryReceipt,
-    AndroidHostProcessRole, CoreLaunchSpec, VpnAuthorizationState, VpnOwnerSnapshot,
+    AndroidHostProcessRole, VpnAuthorizationState, VpnOwnerSnapshot,
 };
 use infiltrator_contract::vpn::{
-    PreparedVpnConfiguration, VpnConfiguration, VpnConfigurationApplyOutcome, VpnOwnerStopReceipt,
-    VpnStartOutcome, VpnStopTarget,
+    PreparedVpnConfiguration, VpnConfigurationApplyOutcome, VpnOwnerStopReceipt, VpnStartOutcome,
+    VpnStopTarget,
 };
 use infiltrator_platform::android_bridge::{
     AndroidBridge, AndroidBridgeResult as Result, AndroidCoreConfigurationValidationOutcome,
     AndroidCoreConfigurationValidationReply, AndroidCoreConfigurationValidationRequest,
     CoreProcessStartReceipt, CoreProcessStopReceipt, set_android_bridge,
 };
-use infiltrator_ports::core_process::CoreProcessStartContext;
 use infiltrator_ports::error::PortError;
 use jni::errors::LogErrorAndDefault;
 use jni::objects::{Global, JObject, JString, JValue, Reference as _};
@@ -35,6 +39,13 @@ use jni::{Env, EnvUnowned, JavaVM, errors};
 use std::path::PathBuf;
 use std::result;
 use std::sync::Arc;
+use std::time::Duration;
+
+const SIG_NOARGS_INT: &str = "()I";
+const SIG_NOARGS_STRING: &str = "()Ljava/lang/String;";
+const SIG_BRIDGE_DISPATCH: &str = "(JLjava/lang/String;J)I";
+const SIG_BRIDGE_CANCEL: &str = "(J)I";
+const BRIDGE_CALL_TIMEOUT: Duration = Duration::from_secs(30);
 
 #[derive(serde::Serialize)]
 struct PreparedVpnConfigurationWire<'a> {
@@ -42,7 +53,7 @@ struct PreparedVpnConfigurationWire<'a> {
     vpn_generation: u64,
     owner_data_revision: u64,
     core_scope: PreparedVpnCoreScopeWire<'a>,
-    configuration: &'a VpnConfiguration,
+    configuration: &'a infiltrator_contract::vpn::VpnConfiguration,
 }
 
 #[derive(serde::Serialize)]
@@ -54,22 +65,6 @@ struct PreparedVpnCoreScopeWire<'a> {
     session_token: String,
 }
 
-#[derive(serde::Serialize)]
-struct CoreStartRequestWire<'a> {
-    launch_spec: &'a CoreLaunchSpec,
-    start_context: &'a CoreProcessStartContext,
-}
-
-const SIG_NOARGS_INT: &str = "()I";
-const SIG_INT_LONG_INT: &str = "(IJ)I";
-const SIG_INT_LONG_STRING: &str = "(IJ)Ljava/lang/String;";
-const SIG_NOARGS_STRING: &str = "()Ljava/lang/String;";
-const SIG_STRING_INT: &str = "(Ljava/lang/String;)I";
-const SIG_STR_STR_BOOL: &str = "(Ljava/lang/String;Ljava/lang/String;)Z";
-const SIG_STR_STR_STR_BOOL: &str = "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Z";
-const SIG_STR_STR_STRING: &str = "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;";
-const SIG_STRING_STRING: &str = "(Ljava/lang/String;)Ljava/lang/String;";
-
 struct JniBridge {
     vm: JavaVM,
     host: Global<JObject<'static>>,
@@ -78,18 +73,6 @@ struct JniBridge {
 impl JniBridge {
     fn new(vm: JavaVM, host: Global<JObject<'static>>) -> Self {
         Self { vm, host }
-    }
-
-    fn call_bool(&self, method: &str, sig: &str, args: &[JValue]) -> Result<bool> {
-        let name = JNIString::new(method);
-        let signature = parse_method_signature(method, sig)?;
-        let signature = signature.method_signature();
-        self.vm
-            .attach_current_thread(|env| -> errors::Result<bool> {
-                env.call_method(self.host.as_obj(), &name, &signature, args)?
-                    .z()
-            })
-            .map_err(|err| map_jni_error(method, err))
     }
 
     fn call_int(&self, method: &str, sig: &str, args: &[JValue]) -> Result<i32> {
@@ -121,98 +104,134 @@ impl JniBridge {
             .map_err(|err| map_jni_error(method, err))
     }
 
-    fn call_int_with_string(&self, method: &str, value: &str) -> Result<i32> {
+    fn dispatch_android_bridge_call(
+        &self,
+        request_id: AndroidBridgeRequestId,
+        request_json: &str,
+        timeout: Duration,
+    ) -> Result<i32> {
+        let method = "dispatchAndroidBridgeCall";
         let name = JNIString::new(method);
-        let signature = parse_method_signature(method, SIG_STRING_INT)?;
+        let signature = parse_method_signature(method, SIG_BRIDGE_DISPATCH)?;
         let signature = signature.method_signature();
+        let timeout_millis = i64::try_from(timeout.as_millis()).map_err(|_| {
+            PortError::Failed("Android host-call timeout exceeds the JNI Long range".to_owned())
+        })?;
         self.vm
             .attach_current_thread(|env| -> errors::Result<i32> {
-                let value = env.new_string(value)?;
-                let args = [JValue::Object(value.as_ref())];
-                env.call_method(self.host.as_obj(), &name, &signature, &args)?
+                let request_json = env.new_string(request_json)?;
+                let arguments = [
+                    JValue::Long(request_id.value() as jlong),
+                    JValue::Object(request_json.as_ref()),
+                    JValue::Long(timeout_millis as jlong),
+                ];
+                env.call_method(self.host.as_obj(), &name, &signature, &arguments)?
                     .i()
             })
-            .map_err(|err| map_jni_error(method, err))
+            .map_err(|error| map_jni_error(method, error))
     }
 
-    fn call_string_with_args(
-        &self,
-        method: &str,
-        arg1: &str,
-        arg2: &str,
-    ) -> Result<Option<String>> {
+    fn cancel_android_bridge_call(&self, request_id: AndroidBridgeRequestId) {
+        let method = "cancelAndroidBridgeCall";
         let name = JNIString::new(method);
-        let signature = parse_method_signature(method, SIG_STR_STR_STRING)?;
-        let signature = signature.method_signature();
-        self.vm
-            .attach_current_thread(|env| -> errors::Result<Option<String>> {
-                let arg1 = env.new_string(arg1)?;
-                let arg2 = env.new_string(arg2)?;
-                let args = [JValue::Object(arg1.as_ref()), JValue::Object(arg2.as_ref())];
-                let value = env.call_method(self.host.as_obj(), &name, &signature, &args)?;
-                let obj = value.l()?;
-                if obj.is_null() {
-                    return Ok(None);
-                }
-                let text = JString::cast_local(env, obj)?.try_to_string(env)?;
-                Ok(Some(text))
-            })
-            .map_err(|err| map_jni_error(method, err))
-    }
-
-    fn call_string_with_single_arg(&self, method: &str, value: &str) -> Result<Option<String>> {
-        let name = JNIString::new(method);
-        let signature = parse_method_signature(method, SIG_STRING_STRING)?;
-        let signature = signature.method_signature();
-        self.vm
-            .attach_current_thread(|env| -> errors::Result<Option<String>> {
-                let value = env.new_string(value)?;
-                let args = [JValue::Object(value.as_ref())];
-                let result = env.call_method(self.host.as_obj(), &name, &signature, &args)?;
-                let object = result.l()?;
-                if object.is_null() {
-                    return Ok(None);
-                }
-                let text = JString::cast_local(env, object)?.try_to_string(env)?;
-                Ok(Some(text))
-            })
-            .map_err(|err| map_jni_error(method, err))
-    }
-
-    fn call_bool_with_args(
-        &self,
-        method: &str,
-        sig: &str,
-        arg1: &str,
-        arg2: &str,
-        arg3: Option<&str>,
-    ) -> Result<()> {
-        let name = JNIString::new(method);
-        let signature = parse_method_signature(method, sig)?;
-        let signature = signature.method_signature();
-        let ok = self
-            .vm
-            .attach_current_thread(|env| -> errors::Result<bool> {
-                let arg1 = env.new_string(arg1)?;
-                let arg2 = env.new_string(arg2)?;
-                let arg3_value = match arg3 {
-                    Some(value) => Some(env.new_string(value)?),
-                    None => None,
-                };
-                let mut values = vec![JValue::Object(arg1.as_ref()), JValue::Object(arg2.as_ref())];
-                if let Some(arg3_value) = arg3_value.as_ref() {
-                    values.push(JValue::Object(arg3_value.as_ref()));
-                }
-                env.call_method(self.host.as_obj(), &name, &signature, &values)?
-                    .z()
-            })
-            .map_err(|err| map_jni_error(method, err))?;
-        if ok {
+        let signature = match parse_method_signature(method, SIG_BRIDGE_CANCEL) {
+            Ok(signature) => signature,
+            Err(_) => return,
+        };
+        let _ = self.vm.attach_current_thread(|env| -> errors::Result<()> {
+            let arguments = [JValue::Long(request_id.value() as jlong)];
+            env.call_method(
+                self.host.as_obj(),
+                &name,
+                &signature.method_signature(),
+                &arguments,
+            )?
+            .i()?;
             Ok(())
-        } else {
-            Err(PortError::Failed(format!(
-                "android bridge method {method} returned false"
-            )))
+        });
+    }
+
+    async fn invoke_android_bridge_call(
+        &self,
+        call: AndroidBridgeCall,
+    ) -> Result<AndroidBridgeCallReply> {
+        let request_id = next_android_bridge_request_id().ok_or_else(|| {
+            PortError::Failed("Android host-call request ID space is exhausted".to_owned())
+        })?;
+        let request_json = serde_json::to_string(&call).map_err(|error| {
+            PortError::Failed(format!(
+                "Android host call could not be serialized: {error}"
+            ))
+        })?;
+        let receiver = pending_android_bridge_calls()
+            .admit(request_id)
+            .map_err(|admission| {
+                PortError::Failed(format!(
+                    "Android host-call request admission failed: {admission:?}"
+                ))
+            })?;
+        let mut guard = AndroidBridgeCallGuard::new(self, request_id);
+
+        let admission_code =
+            self.dispatch_android_bridge_call(request_id, &request_json, BRIDGE_CALL_TIMEOUT)?;
+        let admission = AndroidBridgeDispatchAcceptance::from_wire_code(admission_code)
+            .ok_or_else(|| {
+                PortError::Failed(format!(
+                    "Android host returned unknown dispatch acceptance code {admission_code}"
+                ))
+            })?;
+        match admission {
+            AndroidBridgeDispatchAcceptance::Accepted => {}
+            AndroidBridgeDispatchAcceptance::QueueFull => {
+                guard.retire();
+                pending_android_bridge_calls().cancel(request_id);
+                return Err(PortError::Failed(
+                    "Android host-call executor is at capacity".to_owned(),
+                ));
+            }
+            AndroidBridgeDispatchAcceptance::DuplicateRequestId => {
+                guard.retire();
+                pending_android_bridge_calls().cancel(request_id);
+                return Err(PortError::Failed(
+                    "Android host-call request ID is already pending".to_owned(),
+                ));
+            }
+            AndroidBridgeDispatchAcceptance::HostUnavailable => {
+                guard.retire();
+                pending_android_bridge_calls().cancel(request_id);
+                return Err(PortError::Failed(
+                    "Android host-call dispatcher is unavailable".to_owned(),
+                ));
+            }
+            AndroidBridgeDispatchAcceptance::InvalidRequest => {
+                guard.retire();
+                pending_android_bridge_calls().cancel(request_id);
+                return Err(PortError::Failed(
+                    "Android host rejected a malformed typed call".to_owned(),
+                ));
+            }
+        }
+
+        let completion = match tokio::time::timeout(BRIDGE_CALL_TIMEOUT, receiver).await {
+            Ok(Ok(completion)) => completion,
+            Ok(Err(_)) => {
+                guard.retire();
+                return Err(PortError::Failed(
+                    "Android host-call completion channel closed".to_owned(),
+                ));
+            }
+            Err(_) => {
+                return Err(PortError::Failed(
+                    "Android host call exceeded its end-to-end deadline".to_owned(),
+                ));
+            }
+        };
+        guard.retire();
+        match completion {
+            AndroidBridgeCallCompletion::Reply(reply) => Ok(reply),
+            AndroidBridgeCallCompletion::Failed(failure) => Err(match failure {
+                AndroidBridgeCallFailure::Host(message) => PortError::Failed(message),
+            }),
         }
     }
 }
@@ -228,63 +247,93 @@ impl AndroidBridge for JniBridge {
 
     async fn core_start(
         &self,
-        launch_spec: &CoreLaunchSpec,
-        context: &CoreProcessStartContext,
+        launch_spec: &infiltrator_contract::android_control::CoreLaunchSpec,
+        context: &infiltrator_ports::core_process::CoreProcessStartContext,
     ) -> Result<CoreProcessStartReceipt> {
-        let request = CoreStartRequestWire {
+        #[derive(serde::Serialize)]
+        struct StartRequest<'a> {
+            launch_spec: &'a infiltrator_contract::android_control::CoreLaunchSpec,
+            start_context: &'a infiltrator_ports::core_process::CoreProcessStartContext,
+        }
+        let start_request_json = serde_json::to_string(&StartRequest {
             launch_spec,
             start_context: context,
-        };
-        let start_request_json = serde_json::to_string(&request).map_err(|error| {
+        })
+        .map_err(|error| {
             PortError::Failed(format!(
                 "Android Core start request could not be serialized: {error}"
             ))
         })?;
-        let code = self.call_int_with_string("coreStart", &start_request_json)?;
-        CoreProcessStartReceipt::from_wire_code(code).ok_or_else(|| {
-            PortError::Failed(format!(
-                "android bridge returned unknown core start receipt code {code}"
-            ))
-        })
+        match self
+            .invoke_android_bridge_call(AndroidBridgeCall::CoreStart { start_request_json })
+            .await?
+        {
+            AndroidBridgeCallReply::CoreStart { wire_code } => {
+                CoreProcessStartReceipt::from_wire_code(wire_code).ok_or_else(|| {
+                    PortError::Failed(format!(
+                        "Android host returned unknown Core start receipt code {wire_code}"
+                    ))
+                })
+            }
+            _ => Err(unexpected_bridge_reply("CoreStart")),
+        }
     }
 
     async fn core_stop(&self) -> Result<CoreProcessStopReceipt> {
-        let code = self.call_int("coreStop", SIG_NOARGS_INT, &[])?;
-        CoreProcessStopReceipt::from_wire_code(code).ok_or_else(|| {
-            PortError::Failed(format!(
-                "android bridge returned unknown core stop receipt code {code}"
-            ))
-        })
+        match self
+            .invoke_android_bridge_call(AndroidBridgeCall::CoreStop)
+            .await?
+        {
+            AndroidBridgeCallReply::CoreStop { wire_code } => {
+                CoreProcessStopReceipt::from_wire_code(wire_code).ok_or_else(|| {
+                    PortError::Failed(format!(
+                        "Android host returned unknown Core stop receipt code {wire_code}"
+                    ))
+                })
+            }
+            _ => Err(unexpected_bridge_reply("CoreStop")),
+        }
     }
 
     async fn core_process_observation(&self) -> Result<AndroidCoreProcessObservation> {
-        let json = self
-            .call_string("coreProcessObservationJson", SIG_NOARGS_STRING, &[])?
-            .ok_or_else(|| {
-                PortError::Failed("android bridge returned no Core process observation".to_owned())
-            })?;
-        serde_json::from_str(&json).map_err(|error| {
+        let encoded = match self
+            .invoke_android_bridge_call(AndroidBridgeCall::CoreProcessObservation)
+            .await?
+        {
+            AndroidBridgeCallReply::CoreProcessObservation(encoded) => encoded,
+            _ => return Err(unexpected_bridge_reply("CoreProcessObservation")),
+        };
+        serde_json::from_str(&encoded).map_err(|error| {
             PortError::Failed(format!(
-                "android bridge returned an invalid Core process observation: {error}"
+                "Android bridge returned an invalid Core process observation: {error}"
             ))
         })
     }
 
     async fn core_process_recovery_completed(
         &self,
-        context: &CoreProcessStartContext,
+        context: &infiltrator_ports::core_process::CoreProcessStartContext,
     ) -> Result<AndroidCoreProcessRecoveryReceipt> {
         let context_json = serde_json::to_string(context).map_err(|error| {
             PortError::Failed(format!(
-                "Android Core recovery context could not be serialized: {error}"
+                "Android Core recovery context serialization failed: {error}"
             ))
         })?;
-        let code = self.call_int_with_string("coreProcessExitRecovered", &context_json)?;
-        AndroidCoreProcessRecoveryReceipt::from_wire_code(code).ok_or_else(|| {
-            PortError::Failed(format!(
-                "android bridge returned unknown Core recovery receipt code {code}"
-            ))
-        })
+        match self
+            .invoke_android_bridge_call(AndroidBridgeCall::CoreProcessRecoveryCompleted {
+                context_json,
+            })
+            .await?
+        {
+            AndroidBridgeCallReply::CoreProcessRecoveryCompleted { wire_code } => {
+                AndroidCoreProcessRecoveryReceipt::from_wire_code(wire_code).ok_or_else(|| {
+                    PortError::Failed(format!(
+                        "Android host returned unknown Core recovery receipt code {wire_code}"
+                    ))
+                })
+            }
+            _ => Err(unexpected_bridge_reply("CoreProcessRecoveryCompleted")),
+        }
     }
 
     async fn core_validate_configuration(
@@ -293,16 +342,18 @@ impl AndroidBridge for JniBridge {
     ) -> Result<AndroidCoreConfigurationValidationOutcome> {
         let request_json = serde_json::to_string(request).map_err(|error| {
             PortError::Failed(format!(
-                "Android Core configuration validation request could not be serialized: {error}"
+                "Android Core validation request serialization failed: {error}"
             ))
         })?;
-        let encoded = self
-            .call_string_with_single_arg("coreValidateConfiguration", &request_json)?
-            .ok_or_else(|| {
-                PortError::Failed(
-                    "Android Core configuration validation returned no receipt".to_owned(),
-                )
-            })?;
+        let encoded = match self
+            .invoke_android_bridge_call(AndroidBridgeCall::CoreValidateConfiguration {
+                request_json,
+            })
+            .await?
+        {
+            AndroidBridgeCallReply::CoreValidateConfiguration(encoded) => encoded,
+            _ => return Err(unexpected_bridge_reply("CoreValidateConfiguration")),
+        };
         match serde_json::from_str::<AndroidCoreConfigurationValidationReply>(&encoded).map_err(
             |error| {
                 PortError::Failed(format!(
@@ -327,55 +378,104 @@ impl AndroidBridge for JniBridge {
     }
 
     async fn core_lifecycle_snapshot(&self) -> Result<AndroidCoreLifecycleSnapshot> {
-        let encoded = self
-            .call_string("coreLifecycleSnapshot", SIG_NOARGS_STRING, &[])?
-            .ok_or_else(|| {
-                PortError::Failed("Android core lifecycle IPC returned no snapshot".to_owned())
-            })?;
+        let encoded = match self
+            .invoke_android_bridge_call(AndroidBridgeCall::CoreLifecycleSnapshot)
+            .await?
+        {
+            AndroidBridgeCallReply::CoreLifecycleSnapshot(encoded) => encoded,
+            _ => return Err(unexpected_bridge_reply("CoreLifecycleSnapshot")),
+        };
         serde_json::from_str(&encoded).map_err(|error| {
-            PortError::Failed(format!(
-                "Android core lifecycle IPC returned an invalid snapshot: {error}"
-            ))
+            PortError::Failed(format!("Android lifecycle snapshot is invalid: {error}"))
         })
     }
 
     async fn execute_product_command_json(&self, command_json: &str) -> Result<String> {
-        self.call_string_with_single_arg("executeProductCommandJson", command_json)?
-            .ok_or_else(|| {
-                PortError::Failed(
-                    "Android product command IPC returned no terminal result".to_owned(),
-                )
+        match self
+            .invoke_android_bridge_call(AndroidBridgeCall::ExecuteProductCommand {
+                command_json: command_json.to_owned(),
             })
+            .await?
+        {
+            AndroidBridgeCallReply::ExecuteProductCommand(result) => Ok(result),
+            _ => Err(unexpected_bridge_reply("ExecuteProductCommand")),
+        }
     }
 
     async fn surface_snapshot_json(&self) -> Result<String> {
-        self.call_string("surfaceSnapshotJson", SIG_NOARGS_STRING, &[])?
-            .ok_or_else(|| PortError::Failed("Android surface IPC returned no snapshot".to_owned()))
+        match self
+            .invoke_android_bridge_call(AndroidBridgeCall::SurfaceSnapshot)
+            .await?
+        {
+            AndroidBridgeCallReply::SurfaceSnapshot(snapshot) => Ok(snapshot),
+            _ => Err(unexpected_bridge_reply("SurfaceSnapshot")),
+        }
     }
 
     async fn execute_owner_operation_json(&self, operation_json: &str) -> Result<String> {
-        self.call_string_with_single_arg("executeOwnerOperationJson", operation_json)?
-            .ok_or_else(|| {
-                PortError::Failed("Android owner operation IPC returned no result".to_owned())
+        match self
+            .invoke_android_bridge_call(AndroidBridgeCall::ExecuteOwnerOperation {
+                operation_json: operation_json.to_owned(),
             })
+            .await?
+        {
+            AndroidBridgeCallReply::ExecuteOwnerOperation(result) => Ok(result),
+            _ => Err(unexpected_bridge_reply("ExecuteOwnerOperation")),
+        }
     }
 
     async fn credential_get(&self, service: &str, key: &str) -> Result<Option<String>> {
-        self.call_string_with_args("credentialGet", service, key)
+        match self
+            .invoke_android_bridge_call(AndroidBridgeCall::CredentialGet {
+                service: service.to_owned(),
+                key: key.to_owned(),
+            })
+            .await?
+        {
+            AndroidBridgeCallReply::CredentialGet(value) => Ok(value),
+            _ => Err(unexpected_bridge_reply("CredentialGet")),
+        }
     }
 
     async fn credential_set(&self, service: &str, key: &str, value: &str) -> Result<()> {
-        self.call_bool_with_args(
-            "credentialSet",
-            SIG_STR_STR_STR_BOOL,
-            service,
-            key,
-            Some(value),
-        )
+        match self
+            .invoke_android_bridge_call(AndroidBridgeCall::CredentialSet {
+                service: service.to_owned(),
+                key: key.to_owned(),
+                value: value.to_owned(),
+            })
+            .await?
+        {
+            AndroidBridgeCallReply::CredentialSet {
+                outcome: AndroidCredentialMutationOutcome::Applied,
+            } => Ok(()),
+            AndroidBridgeCallReply::CredentialSet {
+                outcome: AndroidCredentialMutationOutcome::Rejected,
+            } => Err(PortError::Failed(
+                "Android credential store rejected the write".to_owned(),
+            )),
+            _ => Err(unexpected_bridge_reply("CredentialSet")),
+        }
     }
 
     async fn credential_delete(&self, service: &str, key: &str) -> Result<()> {
-        self.call_bool_with_args("credentialDelete", SIG_STR_STR_BOOL, service, key, None)
+        match self
+            .invoke_android_bridge_call(AndroidBridgeCall::CredentialDelete {
+                service: service.to_owned(),
+                key: key.to_owned(),
+            })
+            .await?
+        {
+            AndroidBridgeCallReply::CredentialDelete {
+                outcome: AndroidCredentialMutationOutcome::Applied,
+            } => Ok(()),
+            AndroidBridgeCallReply::CredentialDelete {
+                outcome: AndroidCredentialMutationOutcome::Rejected,
+            } => Err(PortError::Failed(
+                "Android credential store rejected the delete".to_owned(),
+            )),
+            _ => Err(unexpected_bridge_reply("CredentialDelete")),
+        }
     }
 
     fn data_dir(&self) -> Option<PathBuf> {
@@ -393,20 +493,33 @@ impl AndroidBridge for JniBridge {
     }
 
     async fn vpn_start(&self) -> Result<VpnStartOutcome> {
-        let code = self.call_int("vpnStartOutcome", SIG_NOARGS_INT, &[])?;
-        VpnStartOutcome::from_wire_code(code).ok_or_else(|| {
+        let wire_code = match self
+            .invoke_android_bridge_call(AndroidBridgeCall::VpnStart)
+            .await?
+        {
+            AndroidBridgeCallReply::VpnStart { wire_code } => wire_code,
+            _ => return Err(unexpected_bridge_reply("VpnStart")),
+        };
+        VpnStartOutcome::from_wire_code(wire_code).ok_or_else(|| {
             PortError::Failed(format!(
-                "android bridge returned unknown VPN start outcome code {code}"
+                "Android host returned unknown VPN start outcome {wire_code}"
             ))
         })
     }
 
     async fn vpn_authorization_state(&self) -> Result<VpnAuthorizationState> {
-        match self.call_int("vpnAuthorizationState", SIG_NOARGS_INT, &[])? {
+        let wire_code = match self
+            .invoke_android_bridge_call(AndroidBridgeCall::VpnAuthorizationState)
+            .await?
+        {
+            AndroidBridgeCallReply::VpnAuthorizationState { wire_code } => wire_code,
+            _ => return Err(unexpected_bridge_reply("VpnAuthorizationState")),
+        };
+        match wire_code {
             0 => Ok(VpnAuthorizationState::Granted),
             1 => Ok(VpnAuthorizationState::Required),
             code => Err(PortError::Failed(format!(
-                "android bridge returned unknown VPN authorization code {code}"
+                "Android host returned unknown VPN authorization state {code}"
             ))),
         }
     }
@@ -440,51 +553,93 @@ impl AndroidBridge for JniBridge {
             },
             configuration: &prepared.configuration,
         };
-        let config_json = serde_json::to_string(&wire).map_err(|error| {
+        let prepared_json = serde_json::to_string(&wire).map_err(|error| {
             PortError::Failed(format!("serialize prepared VPN configuration: {error}"))
         })?;
-        let code = self.call_int_with_string("vpnApplyConfiguration", &config_json)?;
-        VpnConfigurationApplyOutcome::from_wire_code(code).ok_or_else(|| {
+        let wire_code = match self
+            .invoke_android_bridge_call(AndroidBridgeCall::VpnApplyConfiguration { prepared_json })
+            .await?
+        {
+            AndroidBridgeCallReply::VpnConfigurationApply { wire_code } => wire_code,
+            _ => return Err(unexpected_bridge_reply("VpnApplyConfiguration")),
+        };
+        VpnConfigurationApplyOutcome::from_wire_code(wire_code).ok_or_else(|| {
             PortError::Failed(format!(
-                "android bridge returned unknown VPN configuration outcome code {code}"
+                "Android host returned unknown VPN configuration outcome {wire_code}"
             ))
         })
     }
 
     async fn vpn_stop(&self, target: VpnStopTarget) -> Result<VpnOwnerStopReceipt> {
-        let generation = target.generation_wire_value();
-        if matches!(target, VpnStopTarget::Generation(_)) && generation == 0 {
+        if matches!(target, VpnStopTarget::Generation(_)) && target.generation_wire_value() == 0 {
             return Err(PortError::Failed(
                 "VPN stop generation must be non-zero".to_owned(),
             ));
         }
-        let generation = i64::try_from(generation).map_err(|_| {
-            PortError::Failed("VPN stop generation exceeds Android Long range".to_owned())
-        })?;
-        let args = [JValue::Int(target.wire_code()), JValue::Long(generation)];
-        let encoded = self
-            .call_string("vpnStopResultJson", SIG_INT_LONG_STRING, &args)?
-            .ok_or_else(|| {
-                PortError::Failed("Android VPN stop IPC returned no owner readback".to_owned())
-            })?;
+        let encoded = match self
+            .invoke_android_bridge_call(AndroidBridgeCall::VpnStop { target })
+            .await?
+        {
+            AndroidBridgeCallReply::VpnStop(encoded) => encoded,
+            _ => return Err(unexpected_bridge_reply("VpnStop")),
+        };
         serde_json::from_str(&encoded).map_err(|error| {
-            PortError::Failed(format!(
-                "Android VPN stop IPC returned an invalid owner readback: {error}"
-            ))
+            PortError::Failed(format!("Android VPN stop receipt is invalid: {error}"))
         })
     }
 
     async fn vpn_owner_snapshot(&self) -> Result<VpnOwnerSnapshot> {
-        let encoded = self
-            .call_string("vpnOwnerSnapshotJson", SIG_NOARGS_STRING, &[])?
-            .ok_or_else(|| {
-                PortError::Failed("Android VPN owner IPC returned no snapshot".to_owned())
-            })?;
+        let encoded = match self
+            .invoke_android_bridge_call(AndroidBridgeCall::VpnOwnerSnapshot)
+            .await?
+        {
+            AndroidBridgeCallReply::VpnOwnerSnapshot(encoded) => encoded,
+            _ => return Err(unexpected_bridge_reply("VpnOwnerSnapshot")),
+        };
         serde_json::from_str(&encoded).map_err(|error| {
-            PortError::Failed(format!(
-                "Android VPN owner IPC returned an invalid snapshot: {error}"
-            ))
+            PortError::Failed(format!("Android VPN owner snapshot is invalid: {error}"))
         })
+    }
+}
+
+fn unexpected_bridge_reply(expected: &str) -> PortError {
+    PortError::Failed(format!(
+        "Android host returned a reply variant different from {expected}"
+    ))
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum AndroidBridgeCallGuardState {
+    AwaitingReply,
+    Retired,
+}
+
+struct AndroidBridgeCallGuard<'a> {
+    bridge: &'a JniBridge,
+    request_id: AndroidBridgeRequestId,
+    state: AndroidBridgeCallGuardState,
+}
+
+impl<'a> AndroidBridgeCallGuard<'a> {
+    fn new(bridge: &'a JniBridge, request_id: AndroidBridgeRequestId) -> Self {
+        Self {
+            bridge,
+            request_id,
+            state: AndroidBridgeCallGuardState::AwaitingReply,
+        }
+    }
+
+    fn retire(&mut self) {
+        self.state = AndroidBridgeCallGuardState::Retired;
+    }
+}
+
+impl Drop for AndroidBridgeCallGuard<'_> {
+    fn drop(&mut self) {
+        if self.state == AndroidBridgeCallGuardState::AwaitingReply {
+            pending_android_bridge_calls().cancel(self.request_id);
+            self.bridge.cancel_android_bridge_call(self.request_id);
+        }
     }
 }
 
@@ -526,6 +681,48 @@ pub extern "system" fn Java_com_musicfrog_infiltrator_RustBridge_nativeRegisterB
     })
     .resolve::<LogErrorAndDefault>();
     status.code as jint
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_musicfrog_infiltrator_RustBridge_nativeCompleteAndroidBridgeCall<
+    'local,
+>(
+    mut env: EnvUnowned<'local>,
+    _object: JObject<'local>,
+    request_id: jlong,
+    completion_json: JString<'local>,
+) -> jint {
+    let mut result = 3;
+    env.with_env(|env| -> errors::Result<()> {
+        if request_id <= 0 {
+            result = 4;
+            return Ok(());
+        }
+        let encoded = match read_java_string(env, &completion_json, "Android bridge completion") {
+            Ok(encoded) => encoded,
+            Err(_) => {
+                result = 4;
+                return Ok(());
+            }
+        };
+        let completion = match serde_json::from_str::<AndroidBridgeCallCompletion>(&encoded) {
+            Ok(completion) => completion,
+            Err(_) => {
+                result = 4;
+                return Ok(());
+            }
+        };
+        result = match pending_android_bridge_calls()
+            .complete(AndroidBridgeRequestId::new(request_id as u64), completion)
+        {
+            crate::android_async_bridge::AndroidBridgeCallCompletionResult::Delivered => 0,
+            crate::android_async_bridge::AndroidBridgeCallCompletionResult::CallerCanceled => 1,
+            crate::android_async_bridge::AndroidBridgeCallCompletionResult::UnknownRequest => 2,
+        };
+        Ok(())
+    })
+    .resolve::<LogErrorAndDefault>();
+    result
 }
 
 #[unsafe(no_mangle)]

@@ -19,25 +19,30 @@ cd "$REPO_ROOT"
 
 echo "[android-check] repo root: $REPO_ROOT"
 
+python3 scripts/android-toolchain.py check
 python3 scripts/quality/android-product-identity-guard.py
 python3 scripts/quality/android-mihomo-assets-guard.py
 
 # Locate NDK toolchain if available
 find_ndk() {
-    if [ -n "${ANDROID_NDK_HOME:-}" ] && [ -d "${ANDROID_NDK_HOME}" ]; then
-        echo "$ANDROID_NDK_HOME"; return 0
-    fi
-    if [ -n "${ANDROID_NDK_ROOT:-}" ] && [ -d "${ANDROID_NDK_ROOT}" ]; then
-        echo "$ANDROID_NDK_ROOT"; return 0
-    fi
+    local expected_ndk; expected_ndk="$(python3 scripts/android-toolchain.py get android.ndk.version)"
+    local ndk_candidate
+    for ndk_candidate in "${ANDROID_NDK_HOME:-}" "${ANDROID_NDK_ROOT:-}"; do
+        if [ -n "$ndk_candidate" ] && [ -d "$ndk_candidate" ]; then
+            [ "$(basename "$ndk_candidate")" = "$expected_ndk" ] || return 1
+            echo "$ndk_candidate"; return 0
+        fi
+    done
     local props="$REPO_ROOT/android/local.properties"
     if [ -f "$props" ]; then
         local prop; prop="$(grep -E '^ndk\.dir=' "$props" | cut -d= -f2- | tr -d '\r' || true)"
-        if [ -n "$prop" ] && [ -d "$prop" ]; then echo "$prop"; return 0; fi
+        if [ -n "$prop" ] && [ -d "$prop" ] && [ "$(basename "$prop")" = "$expected_ndk" ]; then
+            echo "$prop"; return 0
+        fi
     fi
     for ndk_candidate in "${ANDROID_SDK_ROOT:-}" "${ANDROID_HOME:-}"; do
-        if [ -n "$ndk_candidate" ] && ls -d "$ndk_candidate"/ndk/* >/dev/null 2>&1; then
-            echo "$ndk_candidate"/ndk/* | sort -V | tail -1; return 0
+        if [ -n "$ndk_candidate" ] && [ -d "$ndk_candidate/ndk/$expected_ndk" ]; then
+            echo "$ndk_candidate/ndk/$expected_ndk"; return 0
         fi
     done
     return 1

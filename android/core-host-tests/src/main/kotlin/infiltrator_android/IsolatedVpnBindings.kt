@@ -75,6 +75,23 @@ enum class AndroidHostReply {
     FAILED,
 }
 
+enum class AndroidHostProtocolVersion {
+    V9,
+}
+
+enum class AndroidHostRequest {
+    READ_CORE_LIFECYCLE,
+    EXECUTE_PRODUCT_COMMAND,
+    READ_SURFACE_SNAPSHOT,
+    EXECUTE_OWNER_OPERATION,
+    READ_OWNER_DATA_REVISION,
+    START_VPN_SERVICE,
+    STOP_VPN_SERVICE,
+    READ_VPN_AUTHORIZATION,
+    READ_VPN_OWNER_SNAPSHOT,
+    APPLY_VPN_CONFIGURATION,
+}
+
 data class AndroidVpnRoutingActivationLease(
     val leaseId: ULong,
     val routingRevision: ULong,

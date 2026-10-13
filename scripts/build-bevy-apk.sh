@@ -32,11 +32,20 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ROOT="${ANDROID_TOOLS_ROOT:-$HOME/android-tools-bevy}"
-# BANDROID-020: keep SDK platform / build-tools / NDK identical to the Compose
-# host (android/app/build.gradle.kts) so "Android compiles in CI" means the same
-# target for both products. Do not let these drift again.
-API="android-36"
-BUILD_TOOLS="36.0.0"
+toolchain_value() {
+    python3 "$REPO_ROOT/scripts/android-toolchain.py" get "$1"
+}
+JAVA_BOOTSTRAP_VERSION="$(toolchain_value java.bootstrap.version)"
+JAVA_BOOTSTRAP_DIRECTORY="$(toolchain_value java.bootstrap.directory)"
+JAVA_BOOTSTRAP_URL="$(toolchain_value java.bootstrap.url)"
+CMDLINE_TOOLS_REVISION="$(toolchain_value android.cmdline.tools.revision)"
+SDK_PLATFORM="android-$(toolchain_value android.sdk.platform)"
+EMULATOR_API="android-$(toolchain_value android.emulator.api)"
+EMULATOR_IMAGE="$(toolchain_value android.emulator.image)"
+BUILD_TOOLS="$(toolchain_value android.build.tools)"
+ANDROID_MIN_SDK="$(toolchain_value android.min.sdk)"
+ANDROID_TARGET_SDK="$(toolchain_value android.target.sdk)"
+PINNED_NDK_VERSION="$(toolchain_value android.ndk.version)"
 AVD_NAME="bevy-smoke"
 DRIVER="$REPO_ROOT/target/android-tools/apk-driver"
 DRIVER_PKG="infiltrator-bevy-apk-driver"
@@ -87,21 +96,21 @@ if [ "$USE_SYSTEM_TOOLCHAIN" = "1" ]; then
 else
     SDK="$ROOT/android"
     JDK="$ROOT/jdk"
-    NDK_VERSION="29.0.14206865"
+    NDK_VERSION="$PINNED_NDK_VERSION"
 fi
 
 mkdir -p "$ROOT/dl" "$ROOT/logs"
 
 log() { printf '[build-bevy-apk] %s\n' "$*"; }
 
-# --- 1. Temurin JDK 17 (userspace mode only) ---------------------------------
+# --- 1. Pinned Temurin JDK (userspace mode only) -----------------------------
 if [ "$USE_SYSTEM_TOOLCHAIN" != "1" ]; then
     if [ ! -x "$JDK/bin/java" ]; then
-        log "installing Temurin JDK 17"
+        log "installing Temurin JDK $JAVA_BOOTSTRAP_VERSION"
         curl -sL --retry 3 -o "$ROOT/dl/jdk17.tar.gz" \
-            "https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.20.1%2B1/OpenJDK17U-jdk_x64_linux_hotspot_17.0.20.1_1.tar.gz"
+            "$JAVA_BOOTSTRAP_URL"
         tar xzf "$ROOT/dl/jdk17.tar.gz" -C "$ROOT"
-        mv "$ROOT/jdk-17.0.20.1+1" "$JDK"
+        mv "$ROOT/$JAVA_BOOTSTRAP_DIRECTORY" "$JDK"
     else
         log "JDK present"
     fi
@@ -110,7 +119,7 @@ if [ "$USE_SYSTEM_TOOLCHAIN" != "1" ]; then
     if [ ! -x "$SDK/cmdline-tools/latest/bin/sdkmanager" ]; then
         log "installing Android cmdline-tools"
         curl -sL --retry 3 -o "$ROOT/dl/cmdline-tools.zip" \
-            "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip"
+            "https://dl.google.com/android/repository/commandlinetools-linux-${CMDLINE_TOOLS_REVISION}_latest.zip"
         unzip -q "$ROOT/dl/cmdline-tools.zip" -d "$ROOT/cmdline-tools-tmp"
         mkdir -p "$SDK/cmdline-tools"
         mv "$ROOT/cmdline-tools-tmp/cmdline-tools" "$SDK/cmdline-tools/latest"
@@ -131,7 +140,7 @@ SDKMANAGER="$SDK/cmdline-tools/latest/bin/sdkmanager"
 
 # --- 3. SDK components -------------------------------------------------------
 # sdkmanager package names use ';' separators; the on-disk layout uses '/',
-# so probe the mapped path (a literal "$SDK/platforms;android-36" never
+# so probe the mapped path (a literal "$SDK/$SDK_PLATFORM" never
 # exists and would re-invoke sdkmanager on every run). `yes |` dies with
 # SIGPIPE once sdkmanager stops reading; neutralize that for the pipeline
 # only (pipefail would otherwise abort the script after a *successful*
@@ -140,9 +149,9 @@ SDKMANAGER="$SDK/cmdline-tools/latest/bin/sdkmanager"
 # BEVY_APK_SKIP_EMULATOR=1 drops the emulator + system image (~1 GB) and the
 # AVD step, which is the dominant install cost on a release runner.
 SKIP_EMULATOR="${BEVY_APK_SKIP_EMULATOR:-0}"
-sdk_packages=("platform-tools" "platforms;$API" "build-tools;$BUILD_TOOLS" "ndk;$NDK_VERSION")
+sdk_packages=("platform-tools" "platforms;$SDK_PLATFORM" "build-tools;$BUILD_TOOLS" "ndk;$NDK_VERSION")
 if [ "$SKIP_EMULATOR" != "1" ]; then
-    sdk_packages+=("emulator" "system-images;$API;default;x86_64")
+    sdk_packages+=("emulator" "system-images;$EMULATOR_API;$EMULATOR_IMAGE")
 fi
 missing=""
 for pkg in "${sdk_packages[@]}"; do
@@ -163,6 +172,8 @@ fi
 if [ "$USE_SYSTEM_TOOLCHAIN" != "1" ]; then
     export ANDROID_NDK_ROOT="$SDK/ndk/$NDK_VERSION"
 fi
+export ANDROID_NDK_HOME="${ANDROID_NDK_HOME:-$ANDROID_NDK_ROOT}"
+python3 "$REPO_ROOT/scripts/android-toolchain.py" check
 log "ANDROID_NDK_ROOT=$ANDROID_NDK_ROOT"
 
 # --- 4. AVD ------------------------------------------------------------------
@@ -171,7 +182,7 @@ if [ "$SKIP_EMULATOR" = "1" ]; then
 elif [ ! -e "$HOME/.android/avd/$AVD_NAME.avd" ] && [ ! -e "$HOME/.android/avd/$AVD_NAME.ini" ]; then
     log "creating AVD $AVD_NAME"
     "$SDK/cmdline-tools/latest/bin/avdmanager" create avd \
-        -n "$AVD_NAME" -k "system-images;$API;default;x86_64" -d pixel_5 --force
+        -n "$AVD_NAME" -k "system-images;$EMULATOR_API;$EMULATOR_IMAGE" -d pixel_5 --force
 else
     log "AVD $AVD_NAME present"
 fi
@@ -249,10 +260,10 @@ name = "android.permission.RECEIVE_BOOT_COMPLETED"
 [[package.metadata.android.uses_permission]]
 name = "android.permission.FOREGROUND_SERVICE_SYSTEM_EXEMPTED"
 
-# BANDROID-020: min/target SDK must match android/app/build.gradle.kts (29/36).
+# Keep cargo-apk metadata aligned with the shared Android SDK contract.
 [package.metadata.android.sdk]
-min_sdk_version = 29
-target_sdk_version = 36
+min_sdk_version = __ANDROID_MIN_SDK__
+target_sdk_version = __ANDROID_TARGET_SDK__
 
 [package.metadata.android.application]
 label = "__BEVY_DISPLAY_NAME__"
@@ -267,6 +278,8 @@ sed -i \
     -e "s|__BEVY_APK_NAME__|$BEVY_APK_NAME|g" \
     -e "s|__BEVY_DISPLAY_NAME__|$BEVY_DISPLAY_NAME|g" \
     -e "s|__BEVY_ICON_RESOURCE__|$BEVY_ICON_RESOURCE|g" \
+    -e "s|__ANDROID_MIN_SDK__|$ANDROID_MIN_SDK|g" \
+    -e "s|__ANDROID_TARGET_SDK__|$ANDROID_TARGET_SDK|g" \
     "$DRIVER/Cargo.toml"
 cat > "$DRIVER/src/lib.rs" <<'EOF'
 //! Generated by scripts/build-bevy-apk.sh (BEVY-006 back half). See the

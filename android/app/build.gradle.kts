@@ -79,6 +79,18 @@ val productIcons = mapOf(
     "slint" to (slintIconAsset to slintIconResource),
 )
 
+val androidToolchainFile = rootProject.file("toolchain.properties")
+check(androidToolchainFile.isFile) { "Android toolchain pins are missing: $androidToolchainFile" }
+val androidToolchain = Properties().apply {
+    androidToolchainFile.inputStream().use(::load)
+}
+fun toolchainValue(key: String): String =
+    androidToolchain.getProperty(key)?.takeIf { it.isNotBlank() }
+        ?: error("Missing Android toolchain key '$key' in $androidToolchainFile")
+fun toolchainInt(key: String): Int = toolchainValue(key).toIntOrNull()
+    ?: error("Android toolchain key '$key' must be an integer")
+val javaTargetVersion = toolchainValue("java.major")
+
 fun launcherActivityClass(activity: String): String =
     if (activity.startsWith('.')) "$androidNamespace$activity" else activity
 
@@ -89,17 +101,16 @@ plugins {
 
 android {
     namespace = androidNamespace
-    // BANDROID-024: latest stable AndroidX/Compose (Compose 1.12.x, core-ktx
-    // 1.19.x, lifecycle 2.11.x) require compiling against API 37 or later.
-    // compileSdk is independent of targetSdk; runtime behavior stays at 36.
-    compileSdk = 37
-    ndkVersion = "29.0.14206865"
+    // BANDROID-024: compile SDK is independent from the registered target SDK.
+    // Shared SDK values live in android/toolchain.properties.
+    compileSdk = toolchainInt("android.compile.sdk")
+    ndkVersion = toolchainValue("android.ndk.version")
 
     defaultConfig {
         applicationId = composeApplicationId
-        minSdk = 29
+        minSdk = toolchainInt("android.min.sdk")
         //noinspection OldTargetApi
-        targetSdk = 36
+        targetSdk = toolchainInt("android.target.sdk")
         versionCode = composeVersionCode
         versionName = productVersionName
         // All device tests refuse physical devices and keep the emulator guest
@@ -190,13 +201,13 @@ android {
     }
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
+        sourceCompatibility = JavaVersion.toVersion(javaTargetVersion)
+        targetCompatibility = JavaVersion.toVersion(javaTargetVersion)
     }
 
     kotlin {
         compilerOptions {
-            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.fromTarget(javaTargetVersion))
         }
     }
 

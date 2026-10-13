@@ -1,6 +1,7 @@
 package com.musicfrog.infiltrator
 
 import android.content.Context
+import android.os.SystemClock
 import android.util.Log
 import java.io.File
 import java.io.IOException
@@ -8,14 +9,64 @@ import infiltrator_android.AndroidHostReply
 
 private const val TAG = "CoreHost"
 
-class CoreHost(private val context: Context) : BridgeHost {
+internal class CoreHost(private val context: Context) : BridgeHost, AndroidBridgeCallHost {
     private val processController = CoreProcessController(context)
     private val credentialStore = AndroidCredentialStore(context)
     private val processRole = AndroidProcessRole.current(context)
     private val controlClient = (context.applicationContext as? MihomoApplication)?.ownerIpcClient
         ?: throw IllegalStateException("MihomoApplication must own the Android control client")
+    private val bridgeCallRouter = AndroidBridgeCallRouter(this)
 
     override fun processRole(): Int = processRole.toWireCode()
+
+    override fun dispatchAndroidBridgeCall(
+        requestId: Long,
+        requestJson: String,
+        timeoutMillis: Long,
+    ): Int {
+        if (requestId <= 0L || timeoutMillis <= 0L) return AndroidBridgeDispatchState.InvalidRequest.wireCode
+        val call = when (val decoded = AndroidBridgeCallWire.decode(requestJson)) {
+            is AndroidBridgeCallDecode.Accepted -> decoded.call
+            is AndroidBridgeCallDecode.Rejected -> {
+                Log.w(TAG, "Rust host call was rejected: ${decoded.reason}")
+                return AndroidBridgeDispatchState.InvalidRequest.wireCode
+            }
+        }
+        val deadline = VpnOwnerRequestDeadline.after(
+            SystemClock.elapsedRealtime(),
+            timeoutMillis,
+        )
+        val application = context.applicationContext as? MihomoApplication
+            ?: return AndroidBridgeDispatchState.HostUnavailable.wireCode
+        return application.bridgeCallDispatcher.submit(
+            requestId = requestId,
+            call = call,
+            execute = { admittedCall ->
+                if (deadline.remainingAt(SystemClock.elapsedRealtime()) == VpnDeadlineState.Expired) {
+                    throw IllegalStateException("Android host call expired before execution")
+                }
+                bridgeCallRouter.execute(admittedCall, deadline)
+            },
+            complete = { completedId, reply ->
+                RustBridge.completeAndroidBridgeCall(
+                    completedId,
+                    AndroidBridgeCallWire.encodeReply(reply),
+                )
+            },
+            fail = { failedId, reason ->
+                RustBridge.completeAndroidBridgeCall(
+                    failedId,
+                    AndroidBridgeCallWire.encodeFailure(reason),
+                )
+            },
+        ).wireCode
+    }
+
+    override fun cancelAndroidBridgeCall(requestId: Long): Int {
+        val application = context.applicationContext as? MihomoApplication
+            ?: return AndroidBridgeCallCancellation.UnknownRequest.wireCode
+        return application.bridgeCallDispatcher.cancel(requestId).wireCode
+    }
 
     override fun coreStart(startRequestJson: String): Int = when (processRole) {
         AndroidProcessRole.VpnOwner -> startCoreLocally(startRequestJson).wireCode
@@ -95,26 +146,32 @@ class CoreHost(private val context: Context) : BridgeHost {
             AndroidCoreProcessRecoveryReceiptWire.NotVpnOwner.wireCode
     }
 
-    override fun coreLifecycleSnapshot(): String? = when (processRole) {
-        AndroidProcessRole.Ui -> controlClient.readCoreLifecycleSnapshotJson()
+    override fun coreLifecycleSnapshot(deadline: VpnOwnerRequestDeadline): String? = when (processRole) {
+        AndroidProcessRole.Ui -> controlClient.readCoreLifecycleSnapshotJson(deadline)
         AndroidProcessRole.VpnOwner,
         is AndroidProcessRole.Unsupported -> null
     }
 
-    override fun executeProductCommandJson(commandJson: String): String? = when (processRole) {
-        AndroidProcessRole.Ui -> controlClient.executeProductCommandJson(commandJson)
+    override fun executeProductCommandJson(
+        commandJson: String,
+        deadline: VpnOwnerRequestDeadline,
+    ): String? = when (processRole) {
+        AndroidProcessRole.Ui -> controlClient.executeProductCommandJson(commandJson, deadline)
         AndroidProcessRole.VpnOwner,
         is AndroidProcessRole.Unsupported -> null
     }
 
-    override fun surfaceSnapshotJson(): String? = when (processRole) {
-        AndroidProcessRole.Ui -> controlClient.readSurfaceSnapshotJson()
+    override fun surfaceSnapshotJson(deadline: VpnOwnerRequestDeadline): String? = when (processRole) {
+        AndroidProcessRole.Ui -> controlClient.readSurfaceSnapshotJson(deadline)
         AndroidProcessRole.VpnOwner,
         is AndroidProcessRole.Unsupported -> null
     }
 
-    override fun executeOwnerOperationJson(operationJson: String): String? = when (processRole) {
-        AndroidProcessRole.Ui -> controlClient.executeOwnerOperationJson(operationJson)
+    override fun executeOwnerOperationJson(
+        operationJson: String,
+        deadline: VpnOwnerRequestDeadline,
+    ): String? = when (processRole) {
+        AndroidProcessRole.Ui -> controlClient.executeOwnerOperationJson(operationJson, deadline)
         AndroidProcessRole.VpnOwner,
         is AndroidProcessRole.Unsupported -> null
     }
@@ -123,11 +180,15 @@ class CoreHost(private val context: Context) : BridgeHost {
         return credentialStore.get(service, key)
     }
 
-    override fun credentialSet(service: String, key: String, value: String): Boolean {
+    override fun credentialSet(
+        service: String,
+        key: String,
+        value: String,
+    ): AndroidCredentialMutationOutcome {
         return credentialStore.set(service, key, value)
     }
 
-    override fun credentialDelete(service: String, key: String): Boolean {
+    override fun credentialDelete(service: String, key: String): AndroidCredentialMutationOutcome {
         return credentialStore.delete(service, key)
     }
 
@@ -139,24 +200,24 @@ class CoreHost(private val context: Context) : BridgeHost {
         return context.cacheDir.absolutePath
     }
 
-    override fun vpnStartOutcome(): Int {
+    override fun vpnStartOutcome(deadline: VpnOwnerRequestDeadline): Int {
         val outcome = when (processRole) {
             AndroidProcessRole.VpnOwner ->
-                MihomoVpnService.startAndAwaitRunning(context).toWireOutcome()
-            AndroidProcessRole.Ui -> controlClient.startVpnService()
+                MihomoVpnService.startAndAwaitRunning(context, deadline).toWireOutcome()
+            AndroidProcessRole.Ui -> controlClient.startVpnService(deadline)
             is AndroidProcessRole.Unsupported -> VpnStartOutcomeWire.OwnerUnavailable
         }
         return outcome.wireCode
     }
 
-    override fun vpnAuthorizationState(): Int {
+    override fun vpnAuthorizationState(deadline: VpnOwnerRequestDeadline): Int {
         val state = when (processRole) {
             AndroidProcessRole.VpnOwner -> when (android.net.VpnService.prepare(context)) {
                 null -> AndroidHostReply.VPN_AUTHORIZED
                 else -> AndroidHostReply.VPN_PERMISSION_REQUIRED
             }
             AndroidProcessRole.Ui ->
-                controlClient.readVpnAuthorization()
+                controlClient.readVpnAuthorization(deadline)
             is AndroidProcessRole.Unsupported -> AndroidHostReply.SERVICE_UNAVAILABLE
         }
         return when (state) {
@@ -166,16 +227,23 @@ class CoreHost(private val context: Context) : BridgeHost {
         }
     }
 
-    override fun vpnApplyConfiguration(configJson: String): Int {
+    override fun vpnApplyConfiguration(
+        configJson: String,
+        deadline: VpnOwnerRequestDeadline,
+    ): Int {
         val outcome = when (processRole) {
             AndroidProcessRole.VpnOwner -> MihomoVpnService.setPendingConfiguration(context, configJson)
-            AndroidProcessRole.Ui -> controlClient.applyVpnConfiguration(configJson)
+            AndroidProcessRole.Ui -> controlClient.applyVpnConfiguration(configJson, deadline)
             is AndroidProcessRole.Unsupported -> VpnConfigurationApplyOutcomeWire.OwnerUnavailable
         }
         return outcome.wireCode
     }
 
-    override fun vpnStopResultJson(targetCode: Int, generation: Long): String? {
+    override fun vpnStopResultJson(
+        targetCode: Int,
+        generation: Long,
+        deadline: VpnOwnerRequestDeadline,
+    ): String? {
         val target = VpnStopTarget.fromWire(targetCode, generation)
         if (target == null) {
             val evidence = if (processRole == AndroidProcessRole.VpnOwner) {
@@ -193,11 +261,12 @@ class CoreHost(private val context: Context) : BridgeHost {
         }
         return when (processRole) {
             AndroidProcessRole.VpnOwner -> {
-                val result = MihomoVpnService.stopAndAwaitStopped(context, target)
+                val result = MihomoVpnService.stopAndAwaitStopped(context, target, deadline)
                 if (result is VpnStopResult.Failed) {
                     Log.e(TAG, "VpnService shutdown failed: ${result.message}")
                 }
-                val snapshotJson = (context.applicationContext as? MihomoApplication)?.vpnOwnerSnapshotJson()
+                val snapshotJson =
+                    (context.applicationContext as? MihomoApplication)?.vpnOwnerSnapshotJson()
                 val snapshot = snapshotJson?.let(VpnOwnerSnapshotWire::parse)
                 val evidence = when (snapshot) {
                     null -> VpnStopReadbackEvidence.Missing
@@ -206,15 +275,17 @@ class CoreHost(private val context: Context) : BridgeHost {
                 vpnOwnerStopReceiptJson(result.toOwnerStopReceipt(evidence))
             }
             AndroidProcessRole.Ui -> when (target) {
-                VpnStopTarget.Current -> controlClient.stopVpnService()
-                is VpnStopTarget.Generation -> vpnOwnerStopReceiptJson(
-                    VpnStopResult.Failed("UI VPN stop must use the current owner service").toOwnerStopReceipt(
-                        controlClient.readVpnOwnerSnapshot()?.let {
-                            VpnStopReadbackEvidence.OwnerSnapshot(it)
-                        }
-                            ?: VpnStopReadbackEvidence.Missing,
-                    ),
-                )
+                VpnStopTarget.Current -> controlClient.stopVpnService(deadline)
+                is VpnStopTarget.Generation -> {
+                    val evidence = controlClient.readVpnOwnerSnapshot(deadline)?.let {
+                        VpnStopReadbackEvidence.OwnerSnapshot(it)
+                    } ?: VpnStopReadbackEvidence.Missing
+                    vpnOwnerStopReceiptJson(
+                        VpnStopResult.Failed(
+                            "UI VPN stop must use the current owner service",
+                        ).toOwnerStopReceipt(evidence),
+                    )
+                }
             }
             is AndroidProcessRole.Unsupported -> vpnOwnerStopReceiptJson(
                 VpnOwnerStopReceiptWire.OwnerUnavailable(
@@ -228,10 +299,10 @@ class CoreHost(private val context: Context) : BridgeHost {
         }
     }
 
-    override fun vpnOwnerSnapshotJson(): String? = when (processRole) {
+    override fun vpnOwnerSnapshotJson(deadline: VpnOwnerRequestDeadline): String? = when (processRole) {
         AndroidProcessRole.VpnOwner ->
             (context.applicationContext as? MihomoApplication)?.vpnOwnerSnapshotJson()
-        AndroidProcessRole.Ui -> controlClient.readVpnOwnerSnapshotJson()
+        AndroidProcessRole.Ui -> controlClient.readVpnOwnerSnapshotJson(deadline)
         is AndroidProcessRole.Unsupported -> null
     }
 

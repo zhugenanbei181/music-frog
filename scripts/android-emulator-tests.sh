@@ -14,13 +14,8 @@ SDK_ROOT="${SDK_ROOT/#\~/$HOME}"
 [[ -d "$SDK_ROOT" ]] || { printf 'Android SDK directory does not exist: %s\n' "$SDK_ROOT" >&2; exit 2; }
 
 if [[ -z "${JAVA_HOME:-}" ]]; then
-    if [[ -x /opt/android-studio/jbr/bin/java ]]; then
-        export JAVA_HOME=/opt/android-studio/jbr
-        export PATH="$JAVA_HOME/bin:$PATH"
-    elif ! command -v java >/dev/null 2>&1; then
-        printf 'JDK missing: set JAVA_HOME or install Android Studio with its bundled JBR.\n' >&2
-        exit 2
-    fi
+    export JAVA_HOME="$(python3 "$REPO_ROOT/scripts/android-toolchain.py" resolve-java)"
+    export PATH="$JAVA_HOME/bin:$PATH"
 fi
 
 find_sdkmanager() {
@@ -112,6 +107,12 @@ if [[ ! -x "$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" ]]; then
     "$SDKMANAGER" --sdk_root="$SDK_ROOT" --install 'cmdline-tools;latest'
 fi
 SDKMANAGER="$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+
+SDK_PLATFORM="$(python3 "$REPO_ROOT/scripts/android-toolchain.py" get android.sdk.platform)"
+BUILD_TOOLS="$(python3 "$REPO_ROOT/scripts/android-toolchain.py" get android.build.tools)"
+EMULATOR_API="$(python3 "$REPO_ROOT/scripts/android-toolchain.py" get android.emulator.api)"
+EMULATOR_IMAGE="$(python3 "$REPO_ROOT/scripts/android-toolchain.py" get android.emulator.image)"
+NDK_VERSION="$(python3 "$REPO_ROOT/scripts/android-toolchain.py" get android.ndk.version)"
 set +o pipefail
 yes | "$SDKMANAGER" --sdk_root="$SDK_ROOT" --licenses >/dev/null
 license_status=$?
@@ -120,25 +121,26 @@ set -o pipefail
 "$SDKMANAGER" --sdk_root="$SDK_ROOT" --install \
     'platform-tools' \
     'emulator' \
-    'platforms;android-37.0' \
-    'build-tools;37.0.0' \
-    'ndk;29.0.14206865' \
-    'system-images;android-36;default;x86_64'
+    "platforms;android-$SDK_PLATFORM" \
+    "build-tools;$BUILD_TOOLS" \
+    "ndk;$NDK_VERSION" \
+    "system-images;android-$EMULATOR_API;$EMULATOR_IMAGE"
 
 for required_path in \
     "$SDK_ROOT/platform-tools/adb" \
     "$SDK_ROOT/emulator/emulator" \
-    "$SDK_ROOT/build-tools/37.0.0/aapt" \
-    "$SDK_ROOT/ndk/29.0.14206865/source.properties" \
-    "$SDK_ROOT/system-images/android-36/default/x86_64/source.properties"; do
+    "$SDK_ROOT/build-tools/$BUILD_TOOLS/aapt" \
+    "$SDK_ROOT/ndk/$NDK_VERSION/source.properties" \
+    "$SDK_ROOT/system-images/android-$EMULATOR_API/${EMULATOR_IMAGE/;/\/}/source.properties"; do
     [[ -e "$required_path" ]] || { printf 'Required Android SDK package file missing: %s\n' "$required_path" >&2; exit 2; }
 done
 
 export ANDROID_HOME="$SDK_ROOT"
 export ANDROID_SDK_ROOT="$SDK_ROOT"
-export ANDROID_NDK_HOME="$SDK_ROOT/ndk/29.0.14206865"
+export ANDROID_NDK_HOME="$SDK_ROOT/ndk/$NDK_VERSION"
 export ANDROID_NDK_ROOT="$ANDROID_NDK_HOME"
 export PATH="$SDK_ROOT/platform-tools:$SDK_ROOT/emulator:$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH"
+python3 "$REPO_ROOT/scripts/android-toolchain.py" check
 {
     printf 'git_head=%s\n' "$(git -C "$REPO_ROOT" rev-parse HEAD)"
     printf 'git_dirty_sha256=%s\n' "$(git -C "$REPO_ROOT" status --porcelain | sha256sum | awk '{print $1}')"
@@ -159,7 +161,7 @@ export PATH="$SDK_ROOT/platform-tools:$SDK_ROOT/emulator:$ANDROID_NDK_HOME/toolc
 ) 2>&1 | tee "$EVIDENCE_DIR/gradle.log"
 
 python3 "$REPO_ROOT/scripts/quality/android-product-identity-guard.py" \
-    --aapt "$SDK_ROOT/build-tools/37.0.0/aapt" \
+    --aapt "$SDK_ROOT/build-tools/$BUILD_TOOLS/aapt" \
     --apk "compose=$ANDROID_DIR/app/build/outputs/apk/compose/debug/app-compose-universal-debug.apk" \
     --apk "bevy=$ANDROID_DIR/app/build/outputs/apk/bevy/debug/app-bevy-universal-debug.apk" \
     --apk "slint=$ANDROID_DIR/app/build/outputs/apk/slint/debug/app-slint-universal-debug.apk"

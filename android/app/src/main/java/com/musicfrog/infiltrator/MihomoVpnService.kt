@@ -1368,6 +1368,15 @@ class MihomoVpnService : VpnService() {
                     SystemClock.elapsedRealtime(),
                     OWNER_REQUEST_TIMEOUT_MILLIS,
                 ),
+            )
+
+        internal fun startAndAwaitRunning(
+            context: android.content.Context,
+            deadline: VpnOwnerRequestDeadline,
+        ): VpnStartResult =
+            startAndAwaitRunning(
+                context,
+                deadline,
                 { VpnOwnerStartGenerationBinding.Bound },
                 { VpnOwnerStartGenerationBinding.ExecutionAlreadyStarted },
                 { VpnOwnerStartDispatchOutcome.Admitted },

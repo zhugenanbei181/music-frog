@@ -24,6 +24,7 @@ class MihomoApplication : Application() {
     private val coreReadbackMutex = Mutex()
 
     internal val ownerIpcScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    internal val bridgeCallDispatcher = AndroidBridgeCallDispatcher()
 
     private val ownerIpcConnectionDelegate = lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
         MihomoOwnerIpcConnection(applicationContext)
@@ -161,6 +162,7 @@ class MihomoApplication : Application() {
 
     override fun onTerminate() {
         super.onTerminate()
+        bridgeCallDispatcher.close()
         ownerIpcScope.cancel()
         if (ownerIpcConnectionDelegate.isInitialized()) ownerIpcConnectionDelegate.value.close()
         bridgeShutdown()

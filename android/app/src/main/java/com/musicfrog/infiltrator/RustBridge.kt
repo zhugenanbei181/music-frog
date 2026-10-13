@@ -5,38 +5,12 @@ import android.util.Log
 interface BridgeHost {
     /** Wire value mirrors Rust `AndroidHostProcessRole`; unknown values fail closed. */
     fun processRole(): Int
-    /** CoreProcessStartReceipt wire code; decoded exhaustively by Rust. */
-    fun coreStart(startRequestJson: String): Int
-    /** Serde-tagged validation receipt produced by the stopped :vpn owner. */
-    fun coreValidateConfiguration(requestJson: String): String
-    /** CoreProcessStopReceipt wire code; decoded exhaustively by Rust. */
-    fun coreStop(): Int
-    fun coreProcessObservationJson(): String
-    /** Consume the exact exited child record after Rust owner proof recovery. */
-    fun coreProcessExitRecovered(contextJson: String): Int
-    /** JSON-encoded typed lifecycle snapshot from the `:vpn` owner. */
-    fun coreLifecycleSnapshot(): String?
-    /** Execute shared typed Rust command JSON through the `:vpn` owner. */
-    fun executeProductCommandJson(commandJson: String): String?
-    /** Read the owner-authored shared product snapshot through typed IPC. */
-    fun surfaceSnapshotJson(): String?
-    /** Execute a Rust-serde typed persisted-data operation through :vpn. */
-    fun executeOwnerOperationJson(operationJson: String): String?
-    fun credentialGet(service: String, key: String): String?
-    fun credentialSet(service: String, key: String, value: String): Boolean
-    fun credentialDelete(service: String, key: String): Boolean
+    /** Dispatches a serde-tagged Rust enum and returns before host work starts. */
+    fun dispatchAndroidBridgeCall(requestId: Long, requestJson: String, timeoutMillis: Long): Int
+    /** Cancels the matching queued or running host request by correlation ID. */
+    fun cancelAndroidBridgeCall(requestId: Long): Int
     fun dataDir(): String?
     fun cacheDir(): String?
-    /** VpnStartOutcome wire code, decoded exhaustively by the Rust bridge. */
-    fun vpnStartOutcome(): Int
-    /** Rust wire codes: 0 = granted, 1 = system consent required, other = unavailable. */
-    fun vpnAuthorizationState(): Int
-    /** VpnConfigurationApplyOutcome wire code, decoded exhaustively by Rust. */
-    fun vpnApplyConfiguration(configJson: String): Int
-    /** Serde JSON containing one dedicated Stop terminal and its owner snapshot. */
-    fun vpnStopResultJson(targetCode: Int, generation: Long): String?
-    /** Serde JSON for one owner-authored VPN/Core/resource snapshot. */
-    fun vpnOwnerSnapshotJson(): String?
 }
 
 object RustBridge {
@@ -45,6 +19,7 @@ object RustBridge {
     private external fun nativePing(): String
     private external fun nativeInit(dataDir: String, cacheDir: String): Int
     private external fun nativeRegisterBridge(host: BridgeHost): Int
+    private external fun nativeCompleteAndroidBridgeCall(requestId: Long, completionJson: String): Int
     private external fun nativeRegisterNativeHost(host: NativeHostBridge): Int
     private external fun nativeClearNativeHost(): Int
     private external fun nativeOnLifecycle(
@@ -103,6 +78,19 @@ object RustBridge {
             255
         }
     }
+
+    /** Complete an asynchronous Rust host call using its original request ID. */
+    fun completeAndroidBridgeCall(requestId: Long, completionJson: String): Int =
+        if (ensureLoaded()) {
+            try {
+                nativeCompleteAndroidBridgeCall(requestId, completionJson)
+            } catch (err: LinkageError) {
+                Log.e("RustBridge", "host-call completion failed: ${err.message}", err)
+                255
+            }
+        } else {
+            255
+        }
 
     /** BANDROID-005/006/008: register the Activity's native host adapter. */
     fun registerNativeHost(host: NativeHostBridge): Int {

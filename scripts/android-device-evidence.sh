@@ -94,7 +94,8 @@ BEVY_APK="$(detect_apk "$BEVY_APK" \
 
 if [ -n "$COMPOSE_APK" ] && [ -n "$BEVY_APK" ]; then
     SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
-    AAPT="$SDK_ROOT/build-tools/37.0.0/aapt"
+    BUILD_TOOLS="$(python3 scripts/android-toolchain.py get android.build.tools)"
+    AAPT="$SDK_ROOT/build-tools/$BUILD_TOOLS/aapt"
     if [ ! -x "$AAPT" ]; then
         echo "ERROR: Android build-tools aapt not found at $AAPT" >&2
         exit 1

@@ -7,14 +7,24 @@ plugins {
     id("com.android.library")
 }
 
+val androidToolchainFile = rootProject.file("toolchain.properties")
+check(androidToolchainFile.isFile) { "Android toolchain pins are missing: $androidToolchainFile" }
+val androidToolchain = Properties().apply {
+    androidToolchainFile.inputStream().use(::load)
+}
+fun toolchainValue(key: String): String =
+    androidToolchain.getProperty(key)?.takeIf { it.isNotBlank() }
+        ?: error("Missing Android toolchain key '$key' in $androidToolchainFile")
+fun toolchainInt(key: String): Int = toolchainValue(key).toIntOrNull()
+    ?: error("Android toolchain key '$key' must be an integer")
+
 android {
     namespace = "com.musicfrog.infiltrator.bevyhost"
-    compileSdk = 37
-    // BANDROID-020: keep the toolchain identical to :app.
-    ndkVersion = "29.0.14206865"
+    compileSdk = toolchainInt("android.compile.sdk")
+    ndkVersion = toolchainValue("android.ndk.version")
 
     defaultConfig {
-        minSdk = 29
+        minSdk = toolchainInt("android.min.sdk")
         ndk {
             abiFilters += listOf("arm64-v8a", "x86_64")
         }

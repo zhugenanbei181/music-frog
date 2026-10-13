@@ -13,6 +13,11 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
+internal enum class AndroidCredentialMutationOutcome(val wireValue: String) {
+    Applied("applied"),
+    Rejected("rejected"),
+}
+
 internal class AndroidCredentialStore(context: Context) {
     private val prefs: SharedPreferences = context.getSharedPreferences(
         CREDENTIALS_PREFS,
@@ -24,13 +29,19 @@ internal class AndroidCredentialStore(context: Context) {
         return decrypt(payload)
     }
 
-    fun set(service: String, key: String, value: String): Boolean {
-        val payload = encrypt(value) ?: return false
-        return prefs.edit().putString(combineKey(service, key), payload).commit()
+    fun set(service: String, key: String, value: String): AndroidCredentialMutationOutcome {
+        val payload = encrypt(value) ?: return AndroidCredentialMutationOutcome.Rejected
+        return when (prefs.edit().putString(combineKey(service, key), payload).commit()) {
+            true -> AndroidCredentialMutationOutcome.Applied
+            false -> AndroidCredentialMutationOutcome.Rejected
+        }
     }
 
-    fun delete(service: String, key: String): Boolean =
-        prefs.edit().remove(combineKey(service, key)).commit()
+    fun delete(service: String, key: String): AndroidCredentialMutationOutcome =
+        when (prefs.edit().remove(combineKey(service, key)).commit()) {
+            true -> AndroidCredentialMutationOutcome.Applied
+            false -> AndroidCredentialMutationOutcome.Rejected
+        }
 
     private fun combineKey(service: String, key: String): String = "$service:$key"
 
