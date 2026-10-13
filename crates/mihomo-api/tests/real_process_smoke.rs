@@ -2,11 +2,15 @@ use infiltrator_contract::command::CoreLogLevel;
 use infiltrator_contract::core_identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
 };
+use infiltrator_contract::dns_cache::DnsCacheOperationId;
 use infiltrator_contract::dns_query::{DnsQueryRequest, DnsRecordType};
 use infiltrator_contract::outbound::inventory::{
     OutboundInventoryState, OutboundProbeState, OutboundSelectionState,
 };
 use infiltrator_contract::routing_intent::RoutingIntent;
+use infiltrator_ports::controller_fake_ip_cache::{
+    ControllerFakeIpCacheFlushRequest, ControllerFakeIpCacheFlushState, ControllerFakeIpCachePort,
+};
 use infiltrator_ports::core_log_level::CoreLogLevelPort;
 use infiltrator_ports::dns_query::DnsQueryPort;
 use infiltrator_ports::outbound::{
@@ -15,6 +19,7 @@ use infiltrator_ports::outbound::{
 use infiltrator_ports::routing_intent::RoutingIntentPort;
 use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use mihomo_api::client::{MihomoClient, StreamEvent};
+use mihomo_api::controller_fake_ip_cache::MihomoControllerFakeIpCacheAdapter;
 use mihomo_api::outbound::MihomoOutboundAdapter;
 use mihomo_api::routing_intent::MihomoRoutingIntentAdapter;
 use std::env;
@@ -145,6 +150,20 @@ async fn typed_core_dns_connection_close_log_level_outbound_and_routing_ports_dr
         generation: CoreGeneration::new(1),
         session_token: None,
     };
+    let fake_ip_cache = MihomoControllerFakeIpCacheAdapter::new(client.clone());
+    let fake_ip_request = ControllerFakeIpCacheFlushRequest {
+        scope: scope.clone(),
+        operation: DnsCacheOperationId(43),
+    };
+    let fake_ip_receipt = ControllerFakeIpCachePort::flush(&fake_ip_cache, fake_ip_request.clone())
+        .await
+        .expect("typed scoped Fake-IP flush reaches the live Mihomo controller");
+    assert_eq!(fake_ip_receipt.scope, fake_ip_request.scope);
+    assert_eq!(fake_ip_receipt.operation, fake_ip_request.operation);
+    assert_eq!(
+        fake_ip_receipt.state,
+        ControllerFakeIpCacheFlushState::Flushed
+    );
     let outbound = MihomoOutboundAdapter::new(
         Arc::new(client.clone()),
         Arc::new(FixedScope(scope.clone())),

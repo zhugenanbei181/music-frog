@@ -10,8 +10,9 @@ use infiltrator_contract::adapter_operation_declaration::{
 use infiltrator_contract::core_capabilities::{
     AdapterCapabilityDecision, AdapterRevision, ConnectionOperation, CoreCapabilityKey,
     CoreCapabilityStatus, CoreLifecycleOperation, CoreOperation, CoreVersionRequirement,
-    DnsOperation, EngineBinaryTarget, EngineCapabilityDecision, OutboundOperation,
-    ProfileOperation, RulesOperation, SubscriptionOperation, TunOperation, VersionOperation,
+    DnsOperation, EngineBinaryTarget, EngineCapabilityDecision, FakeIpCacheOperation,
+    OutboundOperation, ProfileOperation, RulesOperation, SubscriptionOperation, TunOperation,
+    VersionOperation,
 };
 use infiltrator_contract::core_identity::{CoreVersion, EngineId};
 use infiltrator_contract::surface::HostKind;
@@ -245,91 +246,10 @@ fn only_manifest_verified_operations_are_supported_at_exact_locked_versions() {
     }
 }
 
-#[test]
-fn real_dns_query_evidence_authorizes_only_the_exact_locked_mihomo_scope() {
-    let provider = MihomoCoreCapabilityProvider::new_for_target(
-        HostKind::Desktop,
-        EngineBinaryTarget::X86_64UnknownLinuxGnu,
-        [CoreOperation::Dns(DnsOperation::Query)],
-    );
-    let engine_id = EngineId::new("mihomo").expect("valid engine ID");
-
-    for raw_version in ["v1.19.18", "v1.19.32"] {
-        let version = CoreVersion::new(raw_version).expect("locked Mihomo version");
-        let matrix = provider
-            .matrix_for(&engine_id, Some(&version))
-            .expect("Mihomo DNS capability matrix");
-        let query = CoreOperation::Dns(DnsOperation::Query);
-        let resolution = matrix.resolve(CoreCapabilityKey::new(matrix.scope.clone(), query));
-        assert_eq!(resolution.engine, Some(EngineCapabilityDecision::Supported));
-        assert_eq!(
-            resolution.adapter,
-            Some(AdapterCapabilityDecision::Supported)
-        );
-        assert!(matches!(
-            resolution.status,
-            CoreCapabilityStatus::Available { .. }
-        ));
-    }
-
-    let unregistered_version = CoreVersion::new("v1.19.33").expect("unregistered version");
-    let matrix = provider
-        .matrix_for(&engine_id, Some(&unregistered_version))
-        .expect("unregistered version remains representable");
-    let resolution = matrix.resolve(CoreCapabilityKey::new(
-        matrix.scope.clone(),
-        CoreOperation::Dns(DnsOperation::Query),
-    ));
-    assert!(matches!(
-        resolution.engine,
-        Some(EngineCapabilityDecision::VersionUnavailable { .. })
-    ));
-    assert!(!matches!(
-        resolution.status,
-        CoreCapabilityStatus::Available { .. }
-    ));
-
-    for (host, target, revision) in [
-        (
-            HostKind::Android,
-            EngineBinaryTarget::Aarch64LinuxAndroid,
-            AdapterRevision::new(1),
-        ),
-        (
-            HostKind::Desktop,
-            EngineBinaryTarget::X86_64UnknownLinuxGnu,
-            AdapterRevision::new(2),
-        ),
-        (
-            HostKind::Desktop,
-            EngineBinaryTarget::Aarch64UnknownLinuxGnu,
-            AdapterRevision::new(1),
-        ),
-    ] {
-        let scoped_provider = MihomoCoreCapabilityProvider::new_with_scope(
-            host,
-            target,
-            revision,
-            [CoreOperation::Dns(DnsOperation::Query)],
-        );
-        let version = CoreVersion::new("v1.19.32").expect("locked version");
-        let matrix = scoped_provider
-            .matrix_for(&engine_id, Some(&version))
-            .expect("mismatched scope remains representable");
-        let resolution = matrix.resolve(CoreCapabilityKey::new(
-            matrix.scope.clone(),
-            CoreOperation::Dns(DnsOperation::Query),
-        ));
-        assert!(matches!(
-            resolution.status,
-            CoreCapabilityStatus::HostUnavailable { .. }
-        ));
-    }
-}
-
-#[test]
-fn real_connection_close_evidence_authorizes_only_the_exact_locked_mihomo_scope() {
-    let operation = CoreOperation::Connection(ConnectionOperation::Close);
+fn assert_versioned_evidence_is_authorized_only_for_its_exact_mihomo_scope(
+    operation: CoreOperation,
+    operation_name: &str,
+) {
     let provider = MihomoCoreCapabilityProvider::new_for_target(
         HostKind::Desktop,
         EngineBinaryTarget::X86_64UnknownLinuxGnu,
@@ -341,17 +261,22 @@ fn real_connection_close_evidence_authorizes_only_the_exact_locked_mihomo_scope(
         let version = CoreVersion::new(raw_version).expect("locked Mihomo version");
         let matrix = provider
             .matrix_for(&engine_id, Some(&version))
-            .expect("Mihomo connection-close capability matrix");
+            .expect("Mihomo capability matrix");
         let resolution = matrix.resolve(CoreCapabilityKey::new(matrix.scope.clone(), operation));
-        assert_eq!(resolution.engine, Some(EngineCapabilityDecision::Supported));
+        assert_eq!(
+            resolution.engine,
+            Some(EngineCapabilityDecision::Supported),
+            "{operation_name} at {raw_version}"
+        );
         assert_eq!(
             resolution.adapter,
-            Some(AdapterCapabilityDecision::Supported)
+            Some(AdapterCapabilityDecision::Supported),
+            "{operation_name} at {raw_version}"
         );
-        assert!(matches!(
-            resolution.status,
-            CoreCapabilityStatus::Available { .. }
-        ));
+        assert!(
+            matches!(resolution.status, CoreCapabilityStatus::Available { .. }),
+            "{operation_name} at {raw_version}"
+        );
     }
 
     let unregistered_version = CoreVersion::new("v1.19.33").expect("unregistered version");
@@ -359,14 +284,17 @@ fn real_connection_close_evidence_authorizes_only_the_exact_locked_mihomo_scope(
         .matrix_for(&engine_id, Some(&unregistered_version))
         .expect("unregistered version remains representable");
     let resolution = matrix.resolve(CoreCapabilityKey::new(matrix.scope.clone(), operation));
-    assert!(matches!(
-        resolution.engine,
-        Some(EngineCapabilityDecision::VersionUnavailable { .. })
-    ));
-    assert!(!matches!(
-        resolution.status,
-        CoreCapabilityStatus::Available { .. }
-    ));
+    assert!(
+        matches!(
+            resolution.engine,
+            Some(EngineCapabilityDecision::VersionUnavailable { .. })
+        ),
+        "{operation_name}"
+    );
+    assert!(
+        !matches!(resolution.status, CoreCapabilityStatus::Available { .. }),
+        "{operation_name}"
+    );
 
     for (host, target, revision) in [
         (
@@ -392,11 +320,39 @@ fn real_connection_close_evidence_authorizes_only_the_exact_locked_mihomo_scope(
             .matrix_for(&engine_id, Some(&version))
             .expect("mismatched scope remains representable");
         let resolution = matrix.resolve(CoreCapabilityKey::new(matrix.scope.clone(), operation));
-        assert!(matches!(
-            resolution.status,
-            CoreCapabilityStatus::HostUnavailable { .. }
-        ));
+        assert!(
+            matches!(
+                resolution.status,
+                CoreCapabilityStatus::HostUnavailable { .. }
+            ),
+            "{operation_name} at {host:?}/{target:?}/revision {}",
+            revision.value()
+        );
     }
+}
+
+#[test]
+fn real_dns_query_evidence_authorizes_only_the_exact_locked_mihomo_scope() {
+    assert_versioned_evidence_is_authorized_only_for_its_exact_mihomo_scope(
+        CoreOperation::Dns(DnsOperation::Query),
+        "DNS query",
+    );
+}
+
+#[test]
+fn real_connection_close_evidence_authorizes_only_the_exact_locked_mihomo_scope() {
+    assert_versioned_evidence_is_authorized_only_for_its_exact_mihomo_scope(
+        CoreOperation::Connection(ConnectionOperation::Close),
+        "Connection.Close",
+    );
+}
+
+#[test]
+fn real_fake_ip_flush_evidence_authorizes_only_the_exact_locked_mihomo_scope() {
+    assert_versioned_evidence_is_authorized_only_for_its_exact_mihomo_scope(
+        CoreOperation::FakeIpCache(FakeIpCacheOperation::Flush),
+        "FakeIpCache.Flush",
+    );
 }
 
 #[test]
@@ -612,6 +568,10 @@ fn capability_matrix_keeps_unverified_operations_closed_and_verified_dns_availab
             ExpectedStatus::Available,
         ),
         (
+            CoreOperation::FakeIpCache(FakeIpCacheOperation::Flush),
+            ExpectedStatus::Available,
+        ),
+        (
             CoreOperation::Connection(ConnectionOperation::List),
             ExpectedStatus::Unsupported,
         ),
@@ -705,7 +665,7 @@ fn locked_binary_observations_do_not_override_typed_profile_unsupported() {
     for (version, target, revision, operation_ids) in locked {
         assert_eq!(target, "x86_64-unknown-linux-gnu", "{version}");
         assert_eq!(revision, 1, "{version}");
-        assert_eq!(operation_ids.len(), 11, "{version}");
+        assert_eq!(operation_ids.len(), 12, "{version}");
         for (operation, evidence_id) in [
             (
                 CoreOperation::Profile(ProfileOperation::Validate),

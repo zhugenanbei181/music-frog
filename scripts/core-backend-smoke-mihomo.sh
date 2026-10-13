@@ -566,7 +566,7 @@ if ! MIHOMO_REAL_CONTROLLER_URL="$base_url" \
     probe_diagnostics
     exit 1
 fi
-printf '[PASS] Rust typed DNS query, Connection.Close, log stream, log-level, outbound, and routing adapters drove %s\n' \
+printf '[PASS] Rust typed DNS query, scoped Fake-IP flush, Connection.Close, log stream, log-level, outbound, and routing adapters drove %s\n' \
     "$expected_version"
 
 for _ in $(seq 1 50); do
@@ -806,7 +806,7 @@ PY
 }
 printf '[PASS] /connections read: %s; counters observed\n' "$connection_summary"
 
-printf '[NOT COVERED] Logs.Read/Clear, TUN/VPN, DNS cache, rules trace/apply, providers, Connection.List, non-Linux hosts\n'
+printf '[NOT COVERED] Logs.Read/Clear, TUN/VPN, DNS cache contents, Fake-IP cache readback, rules trace/apply, providers, Connection.List, non-Linux hosts\n'
 
 if ! cleanup_active_processes; then
     exit 1

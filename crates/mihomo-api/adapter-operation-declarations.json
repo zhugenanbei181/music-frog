@@ -298,8 +298,8 @@
         "operation": "flush"
       },
       "support": {
-        "status": "evidence_open",
-        "reason": "ClearDnsCache composes MihomoControllerFakeIpCacheAdapter with the host resolver-cache adapter, but no real Mihomo run for this operation is registered in the evidence lock."
+        "status": "supported",
+        "evidence_id": "fake_ip_cache.flush"
       }
     },
     {
