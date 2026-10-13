@@ -23,7 +23,7 @@ fn test_dns_clear_cache_requires_an_independent_confirmation() {
     app.update();
 
     assert!(sink.submitted().is_empty());
-    assert!(app.world().resource::<CacheConfirmation>().model.open);
+    assert!(app.world().resource::<CacheConfirmation>().model.is_open());
     let confirm = app
         .world_mut()
         .query::<(Entity, &CacheAction)>()
@@ -34,7 +34,7 @@ fn test_dns_clear_cache_requires_an_independent_confirmation() {
     app.world_mut().trigger(Activate { entity: confirm });
     app.update();
     let model = &app.world().resource::<CacheConfirmation>().model;
-    assert!(model.pending.is_some());
+    assert!(model.is_pending());
     assert_eq!(
         sink.submitted(),
         vec![UiCommand::ClearDnsCache {

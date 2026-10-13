@@ -1,8 +1,8 @@
 //! Shared health severity and human-readable suggested actions.
-use crate::dns_observation_projection::DnsObservationTone;
 use infiltrator_contract::dns_self_heal::{
     DnsSelfHealFix, DnsSelfHealKind, DnsSelfHealSnapshot, DnsSelfHealState,
 };
+use infiltrator_shared::dns_observation::DnsObservationTone;
 use infiltrator_shared::i18n_interpolator::localize;
 
 #[derive(Clone, Debug, PartialEq, Eq)]

@@ -30,10 +30,10 @@ fn stable_row_edits_cancel_migration_failure_retry_and_stale_ack_preserve_real_a
     );
     editor.import_legacy();
     assert_eq!(editor.rows.len(), 2);
-    assert!(editor.importing_legacy);
+    assert!(editor.is_importing_legacy());
     assert!(editor.cancel());
     assert_eq!(editor.rows.len(), 1);
-    assert!(!editor.importing_legacy);
+    assert!(!editor.is_importing_legacy());
     assert_eq!(editor.rows[0].entry.address, "9.9.9.9");
     editor.show();
     editor.import_legacy();
@@ -42,22 +42,32 @@ fn stable_row_edits_cancel_migration_failure_retry_and_stale_ack_preserve_real_a
     assert!(pending.patch.remove_legacy_hosts);
     assert!(!editor.cancel());
     assert!(!editor.finish(pending.token + 1, Ok(())));
-    assert!(editor.pending.is_some());
+    assert!(editor.is_pending());
     editor.edit_address("discarded input while saving".into());
-    assert!(editor.address.is_empty());
+    assert!(editor.address().is_empty());
     let failure = Failure::new(ErrorCode::Permission, "write denied", true);
     assert!(editor.finish(pending.token, Err(failure.clone())));
-    assert_eq!(editor.failure, Some(failure));
+    assert_eq!(editor.failure(), Some(&failure));
     assert_eq!(editor.applied.as_ref().unwrap().entries.len(), 1);
     assert_eq!(editor.rows.len(), 2);
-    assert!(editor.importing_legacy);
+    assert!(editor.is_importing_legacy());
     let retry = editor.begin().unwrap();
     assert!(editor.finish(retry.token, Ok(())));
+    assert!(editor.is_awaiting_readback());
+    assert!(
+        crate::dns_hosts_projection::feedback(&editor, "en-US")
+            .contains("Waiting for the updated Hosts configuration")
+    );
     assert_eq!(editor.applied.as_ref().unwrap().entries.len(), 2);
     assert!(editor.applied.as_ref().unwrap().legacy_entries.is_empty());
     editor.observe(&original);
+    assert!(
+        editor.is_awaiting_readback(),
+        "stale readback cannot claim save completion"
+    );
     assert_eq!(editor.applied.as_ref().unwrap().entries.len(), 2);
     assert!(editor.cancel());
+    assert!(!editor.is_awaiting_readback());
     assert_eq!(
         editor.rows.len(),
         2,
@@ -76,7 +86,7 @@ fn failed_loading_changed_profile_and_changed_mapping_never_erase_a_draft_or_all
     let failure = Failure::new(ErrorCode::Storage, "read failed", true);
     editor.observe(&PageData::failed(failure.clone()));
     assert_eq!(editor.rows, rows);
-    assert_eq!(editor.read_failure, Some(failure));
+    assert_eq!(editor.read_failure(), Some(&failure));
     assert!(!editor.can_apply());
     editor.observe(&PageData::loading());
     assert_eq!(editor.rows, rows);
@@ -87,7 +97,7 @@ fn failed_loading_changed_profile_and_changed_mapping_never_erase_a_draft_or_all
     assert_eq!(editor.applied.as_ref().unwrap().profile, "one");
     editor.cancel();
     editor.observe(&observed("two"));
-    assert!(editor.ready);
+    assert!(editor.is_ready());
     assert_eq!(editor.applied.as_ref().unwrap().profile, "two");
     editor.show();
     editor.edit_address("1.2.3.4".into());
@@ -108,7 +118,7 @@ fn a_profile_switch_during_pending_write_cannot_publish_old_rows_into_the_new_pr
     let pending = editor.begin().unwrap();
     editor.observe(&observed("new"));
     assert_eq!(editor.applied.as_ref().unwrap().profile, "old");
-    assert!(!editor.ready);
+    assert!(!editor.is_ready());
     editor.finish(pending.token, Ok(()));
     assert_eq!(editor.applied.as_ref().unwrap().profile, "old");
     editor.cancel();
@@ -130,7 +140,7 @@ fn invalid_row_input_deletion_and_restore_reject_old_row_identities_and_real_emp
     let new = editor.rows[1].id;
     editor.remove(new);
     editor.select(new);
-    assert_eq!(editor.editing, None);
+    assert_eq!(editor.is_editing(), false);
     let original = editor.rows[0].id;
     editor.remove(original);
     assert!(editor.rows.is_empty());

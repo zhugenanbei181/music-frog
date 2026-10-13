@@ -7,17 +7,17 @@ use crate::view::theme::{FONT_SEMIBOLD, MONO, tokens};
 use crate::view_root::interaction_regions::InteractionRegion;
 use iced::widget::{Space, button, column, container, row, scrollable, text, text_input};
 use iced::{Element, Length, Theme};
-use infiltrator_application::dns_hosts_projection::{feedback, legacy_hint};
+use infiltrator_presentation::dns_hosts_projection::{feedback, legacy_hint};
 use infiltrator_shared::locales::{Lang, Localizer};
 pub fn hosts_editor_modal(state: &AppState) -> Element<'_, Message> {
     let editor = &state.editor.dns_hosts_editor;
     let lang = Lang(&state.shell.lang);
-    let pending = editor.pending.is_some();
+    let pending = editor.is_pending();
     let input = row![
         column![
             text(lang.tr("dns_hosts_address")).size(11),
             container(
-                text_input("192.168.1.1", &editor.address)
+                text_input("192.168.1.1", editor.address())
                     .on_input_maybe((!pending).then_some(Message::UpdateDnsHostsAddress))
                     .padding(8)
                     .size(12)
@@ -29,7 +29,7 @@ pub fn hosts_editor_modal(state: &AppState) -> Element<'_, Message> {
         column![
             text(lang.tr("dns_hosts_domain")).size(11),
             container(
-                text_input("router.lan", &editor.domain)
+                text_input("router.lan", editor.domain())
                     .on_input_maybe((!pending).then_some(Message::UpdateDnsHostsDomain))
                     .padding(8)
                     .size(12)
@@ -65,10 +65,10 @@ pub fn hosts_editor_modal(state: &AppState) -> Element<'_, Message> {
         rows = rows.push(text(lang.tr("dns_hosts_empty")).size(11));
     }
     let can_import = !pending
-        && editor.editing.is_none()
-        && editor.address.is_empty()
-        && editor.domain.is_empty()
-        && !editor.importing_legacy
+        && !editor.is_editing()
+        && editor.address().is_empty()
+        && editor.domain().is_empty()
+        && !editor.is_importing_legacy()
         && editor
             .applied
             .as_ref()
@@ -81,7 +81,7 @@ pub fn hosts_editor_modal(state: &AppState) -> Element<'_, Message> {
         input,
         row![
             button(
-                text(lang.tr(if editor.editing.is_some() {
+                text(lang.tr(if editor.is_editing() {
                     "dns_hosts_commit_row"
                 } else {
                     "dns_hosts_add"
@@ -123,7 +123,7 @@ pub fn hosts_editor_modal(state: &AppState) -> Element<'_, Message> {
                 button(
                     text(lang.tr(if pending {
                         "dns_hosts_saving"
-                    } else if editor.failure.is_some() {
+                    } else if editor.failure().is_some() {
                         "dns_hosts_retry"
                     } else {
                         "dns_hosts_apply"

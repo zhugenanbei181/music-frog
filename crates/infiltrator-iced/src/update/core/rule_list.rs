@@ -70,7 +70,9 @@ impl AppState {
                 }
             }
             RuleListAction::DiscardForm => {
-                if self.editor.rule_list.pending.is_none() && !self.editor.rule_list.awaiting_read {
+                if !self.editor.rule_list.is_pending()
+                    && !self.editor.rule_list.is_awaiting_readback()
+                {
                     self.editor.new_rule_type = "DOMAIN-SUFFIX".into();
                     self.editor.new_rule_payload.clear();
                     self.editor.new_rule_target = default_form_target(&self.editor.rule_list);
@@ -87,7 +89,7 @@ impl AppState {
     }
     pub(super) fn commit_rule_list(&mut self) -> Task<Message> {
         let Some(commands) = self.command_ingress() else {
-            self.editor.rule_list.failure = Some(Failure::new(
+            self.editor.rule_list.record_failure(Failure::new(
                 ErrorCode::NotReady,
                 "The rule command service is unavailable",
                 true,
@@ -97,7 +99,7 @@ impl AppState {
         let (operation, request) = match self.editor.rule_list.begin() {
             Ok(pending) => pending,
             Err(failure) => {
-                self.editor.rule_list.failure = Some(failure);
+                self.editor.rule_list.record_failure(failure);
                 return Task::none();
             }
         };

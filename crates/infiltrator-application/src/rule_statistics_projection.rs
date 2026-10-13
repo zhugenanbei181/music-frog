@@ -164,7 +164,9 @@ mod tests {
             2
         ]);
         let mut editor = RuleListEditor::default();
-        editor.observe(Some(&document), None);
+        editor.observe_readback(crate::rule_list_editor::RuleListReadback::Observed(
+            document.clone(),
+        ));
         let first = editor.row_id(0).unwrap();
         let second = editor.row_id(1).unwrap();
         let mut audit = RuleHitAuditSnapshot {

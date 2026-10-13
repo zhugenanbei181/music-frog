@@ -547,6 +547,7 @@ pub(super) fn translate_workflow_zh(key: &str) -> Cow<'static, str> {
         "dns_hosts_issue_pattern_conflict" => "映射 {value} 与其它模式展开到相同域名，却声明不同地址".into(),
         "dns_hosts_issue_alias_cycle" => "域名 {value} 存在别名映射循环".into(),
         "dns_hosts_unobserved" => "尚未读取 Hosts 配置".into(),
+        "dns_hosts_waiting_readback" => "正在等待读取更新后的 Hosts 配置".into(),
         "dns_hosts_summary" => "配置 {profile}：{addresses} 条地址 / {domains} 个域名".into(),
         "dns_hosts_failed" => "Hosts 操作暂不可完成：{reason}".into(),
         "dns_hosts_legacy_preview" => "已将 {count} 条旧格式映射加入草稿；应用后迁移，取消保留原文件".into(),

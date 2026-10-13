@@ -44,7 +44,9 @@ impl AppState {
                     self.apply_rules_filter();
                 }
             }
-            StatisticsAction::DismissFailure => self.editor.rule_hit_audit.clear_failure = None,
+            StatisticsAction::DismissFailure => {
+                self.editor.rule_hit_audit.dismiss_failure();
+            }
             StatisticsAction::Reset => {
                 let Some(request) = self.editor.rule_hit_audit.begin_reset() else {
                     return Task::none();

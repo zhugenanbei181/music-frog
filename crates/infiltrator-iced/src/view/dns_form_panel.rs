@@ -20,15 +20,15 @@ use crate::view::theme::{MONO, tokens};
 use crate::view::{svg_icons, theme};
 use iced::widget::{Space, column, container, row, text, text_input};
 use iced::{Alignment, Element, Length, Theme};
-use infiltrator_application::dns_latency_projection::server_tags_text;
-#[cfg(test)]
-use infiltrator_application::dns_status_projection::flush_outcome;
-use infiltrator_application::dns_status_projection::flush_summary;
-use infiltrator_application::dns_status_projection::{field_label, form_issue};
 use infiltrator_contract::dns::{DnsEnhancedMode, DnsFakeIpFilterMode, DnsServerTag};
 #[cfg(test)]
 use infiltrator_contract::dns_cache::DnsFlushOutcome;
 use infiltrator_contract::dns_form::{DnsFormField, DnsFormIssue, DnsWorkbenchForm};
+#[cfg(test)]
+use infiltrator_presentation::dns_cache_projection::flush_outcome;
+use infiltrator_presentation::dns_cache_projection::flush_summary;
+use infiltrator_presentation::dns_latency_projection::server_tags_text;
+use infiltrator_presentation::dns_settings_projection::{field_label, form_issue};
 use infiltrator_shared::locales::{Lang, Localizer};
 
 pub(crate) fn token_row<'a>(

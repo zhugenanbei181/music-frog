@@ -14,7 +14,7 @@ impl AppState {
                 Task::none()
             }
             Message::CancelDnsHostRowInput => {
-                if editor.open {
+                if editor.is_open() {
                     editor.cancel_row();
                 }
                 Task::none()
@@ -24,37 +24,37 @@ impl AppState {
                 Task::none()
             }
             Message::UpdateDnsHostsAddress(value) => {
-                if editor.open {
+                if editor.is_open() {
                     editor.edit_address(value);
                 }
                 Task::none()
             }
             Message::UpdateDnsHostsDomain(value) => {
-                if editor.open {
+                if editor.is_open() {
                     editor.edit_domain(value);
                 }
                 Task::none()
             }
             Message::AddDnsHostRow => {
-                if editor.open {
+                if editor.is_open() {
                     editor.commit_row();
                 }
                 Task::none()
             }
             Message::EditDnsHostRow(id) => {
-                if editor.open {
+                if editor.is_open() {
                     editor.select(id);
                 }
                 Task::none()
             }
             Message::RemoveDnsHostRow(id) => {
-                if editor.open {
+                if editor.is_open() {
                     editor.remove(id);
                 }
                 Task::none()
             }
             Message::ImportLegacyDnsHosts => {
-                if editor.open {
+                if editor.is_open() {
                     editor.import_legacy();
                 }
                 Task::none()

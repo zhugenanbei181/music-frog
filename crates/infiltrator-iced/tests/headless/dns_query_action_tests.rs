@@ -4,10 +4,8 @@ use futures_util::StreamExt;
 use iced::Task;
 use iced::advanced::widget::Tree;
 use iced_runtime::{Action, task::into_stream};
-use infiltrator_application::dns_query_actions::QuerySection;
 use infiltrator_application::dns_query_application::DnsQueryApplication;
 use infiltrator_application::dns_query_fixtures::{IsolatedQueries, QueryFixtureMode};
-use infiltrator_application::dns_query_projection::project_query;
 use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_contract::core_capabilities::{CoreOperation, DnsOperation};
 use infiltrator_contract::dns_query::DnsRecordType;
@@ -18,6 +16,8 @@ use infiltrator_iced::types::app::Route;
 use infiltrator_iced::types::dns_query::QueryAction;
 use infiltrator_iced::types::message::Message;
 use infiltrator_ports::surface::SurfaceReader;
+use infiltrator_presentation::dns_query_actions::QuerySection;
+use infiltrator_presentation::dns_query_projection::project_query;
 use std::sync::Arc;
 use tokio::runtime::Builder;
 
@@ -79,17 +79,17 @@ fn actual_query_modal_cancel_tabs_pages_stale_terminals_permission_retry_and_gui
     let _ = send(&mut state, QueryAction::Name("music.test".into()));
     let _ = send(&mut state, QueryAction::RecordType(DnsRecordType::Txt));
     let _ = send(&mut state, QueryAction::Cancel);
-    assert!(!state.diag.dns_query.open);
+    assert!(!state.diag.dns_query.is_open());
     assert!(port.requests().is_empty());
     assert_eq!(send(&mut state, QueryAction::Run).units(), 0);
     let _ = send(&mut state, QueryAction::Open);
     let _ = state.update(Message::Navigate(Route::Settings));
-    assert!(!state.diag.dns_query.open);
+    assert!(!state.diag.dns_query.is_open());
     assert!(port.requests().is_empty());
     let _ = state.update(Message::Navigate(Route::Dns));
     let _ = send(&mut state, QueryAction::Open);
     let task = send(&mut state, QueryAction::Run);
-    let token = state.diag.dns_query.pending.unwrap();
+    let token = state.diag.dns_query.requested_operation().unwrap();
     assert_eq!(send(&mut state, QueryAction::Run).units(), 0);
     let _ = send(&mut state, QueryAction::Name("cannot-change.test".into()));
     assert_eq!(state.diag.dns_query.name, "music.test");
@@ -100,7 +100,7 @@ fn actual_query_modal_cancel_tabs_pages_stale_terminals_permission_retry_and_gui
             result: Ok(()),
         },
     );
-    assert_eq!(state.diag.dns_query.pending, Some(token));
+    assert_eq!(state.diag.dns_query.requested_operation(), Some(token));
     let _ = state.update(terminal(task));
     publish(&mut state, &reader);
     assert_eq!(port.requests().len(), 1);
@@ -135,7 +135,7 @@ fn actual_query_modal_cancel_tabs_pages_stale_terminals_permission_retry_and_gui
     let _ = state.update(terminal(task));
     publish(&mut state, &reader);
     assert_eq!(
-        state.diag.dns_query.failure.as_ref().unwrap().code,
+        state.diag.dns_query.current_failure().unwrap().code,
         ErrorCode::Permission
     );
     assert_eq!(state.diag.dns_query.snapshot.report, previous);
@@ -154,7 +154,7 @@ fn actual_query_modal_cancel_tabs_pages_stale_terminals_permission_retry_and_gui
     let task = send(&mut state, QueryAction::Retry);
     let _ = state.update(terminal(task));
     publish(&mut state, &reader);
-    assert!(state.diag.dns_query.failure.is_none());
+    assert!(state.diag.dns_query.current_failure().is_none());
     assert_eq!(port.requests().len(), 3);
     assert!(
         project_query(&state.diag.dns_query, "en-US")
@@ -167,7 +167,7 @@ fn actual_query_modal_cancel_tabs_pages_stale_terminals_permission_retry_and_gui
     publish(&mut state, &reader);
     assert!(state.diag.dns_query.can_guide());
     let _ = state.update(Message::Navigate(Route::Settings));
-    assert!(!state.diag.dns_query.open);
+    assert!(!state.diag.dns_query.is_open());
     assert_eq!(port.requests().len(), 4);
 }
 #[test]
@@ -179,7 +179,7 @@ fn invalid_query_and_unsupported_host_cannot_invent_records_while_negative_answe
     let _ = send(&mut state, QueryAction::Name("bad..name".into()));
     assert_eq!(send(&mut state, QueryAction::Run).units(), 0);
     assert_eq!(
-        state.diag.dns_query.failure.as_ref().unwrap().code,
+        state.diag.dns_query.current_failure().unwrap().code,
         ErrorCode::InvalidInput
     );
     assert!(port.requests().is_empty());
@@ -189,7 +189,7 @@ fn invalid_query_and_unsupported_host_cannot_invent_records_while_negative_answe
     let _ = state.update(terminal(task));
     publish(&mut state, &reader);
     assert_eq!(
-        state.diag.dns_query.failure.as_ref().unwrap().code,
+        state.diag.dns_query.current_failure().unwrap().code,
         ErrorCode::Unsupported
     );
     assert!(state.diag.dns_query.snapshot.report.is_none());

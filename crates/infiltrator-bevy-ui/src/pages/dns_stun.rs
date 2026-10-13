@@ -17,7 +17,6 @@ use bevy::ui::prelude::{
     AlignItems, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, Val, percent,
 };
 use bevy::ui::widget::Text;
-use infiltrator_application::stun_projection::project_stun;
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::palette::UiPalette;
@@ -25,6 +24,7 @@ use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_presentation::stun_projection::project_stun;
 
 /// The STUN UDP-egress card (status + mapping / comparison listing).
 pub fn dns_stun_card_scene(projection: &DnsProjection, palette: &UiPalette) -> impl Scene + use<> {

@@ -57,7 +57,7 @@ pub(super) fn update(state: &mut AppState, message: Message) -> Task<Message> {
         && state.shell.capture_scenario == Some(FeatureId::RulesListEditor)
         && state.editor.rule_list.editable()
         && !state.editor.rule_list.dirty()
-        && state.editor.rule_list.failure.is_none()
+        && state.editor.rule_list.failure().is_none()
         && let Some(id) = state.editor.rule_list.row_id(0)
     {
         task.chain(Task::done(Message::ToggleRuleEnabled(id)))

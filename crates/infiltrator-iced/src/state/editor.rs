@@ -8,7 +8,6 @@ use crate::types::editor::{EditorLazyState, GeoDataStatus};
 use crate::types::options::{EditorPane, MrsProviderDetail};
 use crate::types::rules::{ProviderUnpackState, RuleRenderItem};
 use iced::widget::text_editor;
-use infiltrator_application::dns_hosts_editor::DnsHostsEditor;
 use infiltrator_application::profile_edit_session::ProfileEditSession;
 use infiltrator_application::rule_form_binding::RuleFormBinding;
 use infiltrator_application::rule_list_editor::RuleListEditor;
@@ -37,6 +36,7 @@ use infiltrator_contract::snapshot_history::SnapshotHistorySnapshot;
 use infiltrator_contract::stun_probe::StunProbeReport;
 use infiltrator_contract::yaml_ast_diff::YamlAstDiffSnapshot;
 use infiltrator_domain::rules::RuleProviderDiff;
+use infiltrator_presentation::dns_hosts_editor::DnsHostsEditor;
 use std::path::PathBuf;
 
 /// 配置编辑器域:Rules / Providers / Sniffer / DNS / Fake-IP / TUN 的 JSON 与

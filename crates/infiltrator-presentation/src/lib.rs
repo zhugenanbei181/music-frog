@@ -8,11 +8,21 @@ pub mod command_palette_projection;
 pub mod connection_detail_projection;
 pub mod core_control_projection;
 pub mod core_status_projection;
+pub mod dns_cache_actions;
+pub mod dns_cache_projection;
+pub mod dns_health_projection;
+pub mod dns_hosts_editor;
+pub mod dns_hosts_projection;
+pub mod dns_latency_projection;
 pub mod dns_leak_projection;
 pub mod dns_mapping_projection;
+pub mod dns_query_actions;
+pub mod dns_query_projection;
+pub mod dns_settings_projection;
 pub mod doctor_projection;
 pub mod failure_projection;
 pub mod host_network_projection;
+pub mod latency_projection;
 pub mod log_projection;
 pub mod logical_rule_projection;
 pub mod network_status_projection;
@@ -33,9 +43,19 @@ pub mod settings_status_projection;
 pub mod shell_readout;
 pub mod speedtest_detail_projection;
 pub mod speedtest_summary_projection;
+pub mod stun_projection;
 pub mod subscription_quota_projection;
 pub mod subscription_status_projection;
 pub mod sync_projection;
 pub mod system_toggle_projection;
 pub mod traffic_readout;
 pub mod traffic_topology_projection;
+
+#[cfg(test)]
+mod dns_projections_tests;
+
+#[cfg(test)]
+mod dns_cache_actions_tests;
+
+#[cfg(test)]
+mod dns_query_actions_tests;

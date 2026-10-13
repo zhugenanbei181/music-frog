@@ -27,6 +27,42 @@ fn new_row_id() -> RuleRowId {
     )
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum RuleListObservationPhase {
+    Unobserved,
+    Loading(Failure),
+    Ready,
+    Failed(Failure),
+}
+
+impl Default for RuleListObservationPhase {
+    fn default() -> Self {
+        Self::Unobserved
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum RuleListSavePhase {
+    Idle,
+    Submitting(RuleListOperationId),
+    AwaitingReadback,
+    Failed(Failure),
+}
+
+impl Default for RuleListSavePhase {
+    fn default() -> Self {
+        Self::Idle
+    }
+}
+
+#[derive(Clone, Debug)]
+pub enum RuleListReadback {
+    Loading,
+    Failed(Failure),
+    Missing,
+    Observed(RuleDocumentSnapshot),
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct RuleListEditor {
     pub base: Option<RuleDocumentSnapshot>,
@@ -34,18 +70,78 @@ pub struct RuleListEditor {
     pub draft: Vec<RuleEntry>,
     row_ids: Vec<RuleRowId>,
     base_row_indices: HashMap<RuleRowId, usize>,
-    pub pending: Option<RuleListOperationId>,
-    pub failure: Option<Failure>,
-    pub read_failure: Option<Failure>,
-    pub awaiting_read: bool,
+    observation: RuleListObservationPhase,
+    save: RuleListSavePhase,
 }
+
 impl RuleListEditor {
+    pub fn observation(&self) -> &RuleListObservationPhase {
+        &self.observation
+    }
+
+    pub fn save_phase(&self) -> &RuleListSavePhase {
+        &self.save
+    }
+
+    pub fn pending_operation(&self) -> Option<RuleListOperationId> {
+        match &self.save {
+            RuleListSavePhase::Submitting(operation) => Some(*operation),
+            RuleListSavePhase::Idle
+            | RuleListSavePhase::AwaitingReadback
+            | RuleListSavePhase::Failed(_) => None,
+        }
+    }
+
+    pub fn is_pending(&self) -> bool {
+        matches!(&self.save, RuleListSavePhase::Submitting(_))
+    }
+
+    pub fn is_awaiting_readback(&self) -> bool {
+        matches!(&self.save, RuleListSavePhase::AwaitingReadback)
+    }
+
+    pub fn failure(&self) -> Option<&Failure> {
+        match &self.save {
+            RuleListSavePhase::Failed(failure) => Some(failure),
+            RuleListSavePhase::Idle
+            | RuleListSavePhase::Submitting(_)
+            | RuleListSavePhase::AwaitingReadback => None,
+        }
+    }
+
+    pub fn read_failure(&self) -> Option<&Failure> {
+        match &self.observation {
+            RuleListObservationPhase::Loading(failure)
+            | RuleListObservationPhase::Failed(failure) => Some(failure),
+            RuleListObservationPhase::Unobserved | RuleListObservationPhase::Ready => None,
+        }
+    }
+
+    pub fn current_failure(&self) -> Option<&Failure> {
+        self.read_failure().or_else(|| self.failure())
+    }
+
+    pub fn record_failure(&mut self, failure: Failure) {
+        self.save = RuleListSavePhase::Failed(failure);
+    }
+
+    pub fn dismiss_failure(&mut self) -> bool {
+        if matches!(&self.save, RuleListSavePhase::Failed(_)) {
+            self.save = RuleListSavePhase::Idle;
+            true
+        } else {
+            false
+        }
+    }
+
     pub fn row_id(&self, index: usize) -> Option<RuleRowId> {
         self.row_ids.get(index).copied()
     }
+
     pub fn base_row_index(&self, id: RuleRowId) -> Option<usize> {
         self.base_row_indices.get(&id).copied()
     }
+
     fn reset_row_identities(&mut self) {
         self.row_ids = self.draft.iter().map(|_| new_row_id()).collect();
         self.base_row_indices = self
@@ -56,95 +152,113 @@ impl RuleListEditor {
             .map(|(index, id)| (id, index))
             .collect();
     }
+
     pub fn row_index(&self, id: RuleRowId) -> Option<usize> {
         self.row_ids.iter().position(|candidate| *candidate == id)
     }
+
     pub fn can_guide(&self) -> bool {
-        self.pending.is_none()
-            && !self.awaiting_read
-            && self
-                .read_failure
-                .as_ref()
-                .or(self.failure.as_ref())
-                .is_some_and(|failure| {
-                    matches!(
-                        failure.code,
-                        ErrorCode::Permission | ErrorCode::Authentication
-                    )
-                })
+        !self.is_pending()
+            && !self.is_awaiting_readback()
+            && self.current_failure().is_some_and(|failure| {
+                matches!(
+                    failure.code,
+                    ErrorCode::Permission | ErrorCode::Authentication
+                )
+            })
     }
+
     pub fn observe_page(&mut self, page: &PageData<RulesPageSnapshot>) -> bool {
-        let document = page.data.as_ref().and_then(|page| page.document.as_ref());
-        let failure = match &page.status {
+        let readback = match &page.status {
             PageStatus::Failed { failure } | PageStatus::Unavailable { failure } => {
-                Some(failure.clone())
+                RuleListReadback::Failed(failure.clone())
             }
-            PageStatus::Loading => Some(Failure::new(
-                ErrorCode::NotReady,
-                "The current rule source is still loading",
-                true,
-            )),
-            PageStatus::Ready | PageStatus::Empty => None,
+            PageStatus::Loading => RuleListReadback::Loading,
+            PageStatus::Ready | PageStatus::Empty => page
+                .data
+                .as_ref()
+                .and_then(|page| page.document.as_ref())
+                .cloned()
+                .map_or(RuleListReadback::Missing, RuleListReadback::Observed),
         };
-        self.observe(document, failure)
+        self.observe_readback(readback)
     }
+
     pub fn dirty(&self) -> bool {
         self.base
             .as_ref()
             .is_some_and(|base| base.rules != rule_definitions(&self.draft))
     }
+
     pub fn source_changed(&self) -> bool {
         self.base
             .as_ref()
             .zip(self.latest.as_ref())
             .is_some_and(|(base, latest)| base.source != latest.source)
     }
+
     pub fn editable(&self) -> bool {
         self.base.is_some()
-            && self.pending.is_none()
-            && !self.awaiting_read
-            && self.read_failure.is_none()
+            && matches!(&self.observation, RuleListObservationPhase::Ready)
+            && !self.is_pending()
+            && !self.is_awaiting_readback()
             && !self.source_changed()
     }
+
     pub fn can_save(&self) -> bool {
         self.editable() && self.dirty()
     }
-    pub fn observe(
-        &mut self,
-        document: Option<&RuleDocumentSnapshot>,
-        failure: Option<Failure>,
-    ) -> bool {
-        self.read_failure = failure;
-        let Some(document) = document else {
-            if self.read_failure.is_none() {
-                self.read_failure = Some(Failure::new(
+
+    pub fn observe_readback(&mut self, readback: RuleListReadback) -> bool {
+        let document = match readback {
+            RuleListReadback::Loading => {
+                let failure = Failure::new(
+                    ErrorCode::NotReady,
+                    "The current rule source is still loading",
+                    true,
+                );
+                self.observation = RuleListObservationPhase::Loading(failure);
+                return false;
+            }
+            RuleListReadback::Failed(failure) => {
+                self.observation = RuleListObservationPhase::Failed(failure);
+                return false;
+            }
+            RuleListReadback::Missing => {
+                self.observation = RuleListObservationPhase::Failed(Failure::new(
                     ErrorCode::NotReady,
                     "The current rule document has not been observed",
                     true,
                 ));
+                return false;
             }
-            return false;
+            RuleListReadback::Observed(document) => document,
         };
-        if self.read_failure.is_some() {
-            return false;
-        }
+        self.observation = RuleListObservationPhase::Ready;
         self.latest = Some(document.clone());
-        if self.pending.is_some() {
+        if self.is_pending() {
             return false;
         }
-        if self.awaiting_read {
+        if self.is_awaiting_readback() {
             let same_profile = self
                 .base
                 .as_ref()
                 .is_some_and(|base| base.source.profile == document.source.profile);
-            if same_profile && document.rules != rule_definitions(&self.draft) {
+            if !same_profile {
+                self.save = RuleListSavePhase::Failed(Failure::new(
+                    ErrorCode::NotReady,
+                    "The selected rule profile changed before the saved rules could be observed; retain or discard this draft",
+                    true,
+                ));
+                return false;
+            }
+            if document.rules != rule_definitions(&self.draft) {
                 if self
                     .base
                     .as_ref()
                     .is_some_and(|base| base.source != document.source)
                 {
-                    self.awaiting_read = false;
-                    self.failure = Some(Failure::new(
+                    self.save = RuleListSavePhase::Failed(Failure::new(
                         ErrorCode::NotReady,
                         "The saved rules changed before they could be observed; retain or discard this draft",
                         true,
@@ -152,14 +266,15 @@ impl RuleListEditor {
                 }
                 return false;
             }
-            self.awaiting_read = false;
-            return self.adopt(document.clone());
+            self.save = RuleListSavePhase::Idle;
+            return self.adopt(document);
         }
         if self.dirty() {
             return false;
         }
-        self.adopt(document.clone())
+        self.adopt(document)
     }
+
     fn adopt(&mut self, document: RuleDocumentSnapshot) -> bool {
         if self.base.as_ref() == Some(&document) {
             return false;
@@ -167,11 +282,12 @@ impl RuleListEditor {
         self.draft = domain_rules(&document.rules);
         self.reset_row_identities();
         self.base = Some(document);
-        self.failure = None;
+        self.save = RuleListSavePhase::Idle;
         true
     }
+
     pub fn discard(&mut self) -> bool {
-        if self.pending.is_some() || self.awaiting_read {
+        if self.is_pending() || self.is_awaiting_readback() {
             return false;
         }
         let Some(document) = self.latest.clone() else {
@@ -180,15 +296,17 @@ impl RuleListEditor {
         self.draft = domain_rules(&document.rules);
         self.reset_row_identities();
         self.base = Some(document);
-        self.failure = None;
+        self.save = RuleListSavePhase::Idle;
         true
     }
+
     pub fn toggle(&mut self, id: RuleRowId) -> bool {
         self.editable()
             && self
                 .row_index(id)
                 .is_some_and(|index| toggle_rule_enabled(&mut self.draft, index))
     }
+
     pub fn move_rule(&mut self, id: RuleRowId, direction: RuleMoveDirection) -> bool {
         let Some(index) = self.row_index(id) else {
             return false;
@@ -203,6 +321,7 @@ impl RuleListEditor {
         self.row_ids.swap(index, other);
         true
     }
+
     pub fn remove(&mut self, id: RuleRowId) -> bool {
         let Some(index) = self.row_index(id) else {
             return false;
@@ -214,6 +333,7 @@ impl RuleListEditor {
         self.row_ids.remove(index);
         true
     }
+
     pub fn prepend(&mut self, entries: impl IntoIterator<Item = RuleEntry>) -> bool {
         if !self.editable() {
             return false;
@@ -224,14 +344,17 @@ impl RuleListEditor {
         self.row_ids.splice(0..0, ids);
         changed
     }
+
     pub fn add(&mut self, draft: &RuleDraft) -> Result<bool, Failure> {
         let entry = build_custom_rule(draft)
             .map_err(|message| Failure::new(ErrorCode::InvalidInput, message, false))?;
         Ok(self.prepend([entry]))
     }
+
     pub fn game_presets(&mut self, target: &str) -> bool {
         self.prepend(game_routing_presets(target))
     }
+
     pub fn begin(&mut self) -> Result<(RuleListOperationId, RuleListCommit), Failure> {
         if !self.can_save() {
             return Err(Failure::new(
@@ -256,29 +379,22 @@ impl RuleListEditor {
             expected_source: self.base.as_ref().expect("available base").source.clone(),
             rules: rule_definitions(&self.draft),
         };
-        self.pending = Some(operation);
-        self.failure = None;
+        self.save = RuleListSavePhase::Submitting(operation);
         Ok((operation, request))
     }
+
     pub fn finish(&mut self, operation: RuleListOperationId, result: Result<(), Failure>) -> bool {
-        if self.pending != Some(operation) {
+        if self.pending_operation() != Some(operation) {
             return false;
         }
-        self.pending = None;
         match result {
             Ok(()) => {
-                self.awaiting_read = true;
-                if let Some(latest) = self.latest.clone()
-                    && self
-                        .base
-                        .as_ref()
-                        .is_some_and(|base| base.source != latest.source)
-                    && latest.rules == rule_definitions(&self.draft)
-                {
-                    self.observe(Some(&latest), None);
+                self.save = RuleListSavePhase::AwaitingReadback;
+                if let Some(latest) = self.latest.clone() {
+                    self.observe_readback(RuleListReadback::Observed(latest));
                 }
             }
-            Err(failure) => self.failure = Some(failure),
+            Err(failure) => self.save = RuleListSavePhase::Failed(failure),
         }
         true
     }

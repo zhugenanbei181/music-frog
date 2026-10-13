@@ -82,8 +82,8 @@ pub fn activate(
     }
     let wanted = match capture.stage {
         0 => HostAction::Open,
-        1 if editor.editor.open => HostAction::ImportLegacy,
-        2 if editor.editor.importing_legacy && editor.editor.can_apply() => HostAction::Apply,
+        1 if editor.editor.is_open() => HostAction::ImportLegacy,
+        2 if editor.editor.is_importing_legacy() && editor.editor.can_apply() => HostAction::Apply,
         _ => return,
     };
     if let Some((entity, _)) = actions.iter().find(|(_, action)| **action == wanted) {
@@ -111,12 +111,11 @@ pub fn observe(
     let bounds = (|| {
         let editor = &probe.editor.editor;
         if probe.capture.stage != 3
-            || !editor.open
-            || editor.pending.is_some()
+            || !editor.is_open()
+            || editor.is_pending()
             || !editor.can_apply()
             || !editor
-                .failure
-                .as_ref()
+                .failure()
                 .is_some_and(|failure| failure.code == ErrorCode::Permission)
             || probe.capture.store.writes.load(Ordering::SeqCst) != 1
             || probe.capture.store.content() != ORIGINAL_HOSTS

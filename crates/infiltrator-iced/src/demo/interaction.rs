@@ -257,7 +257,7 @@ pub(crate) fn ready(state: &AppState, feature: FeatureId) -> bool {
         FeatureId::RulesStatisticsInspector => {
             let model = &state.editor.rule_hit_audit;
             model.current()
-                && model.confirmation.is_some()
+                && model.confirmation().is_some()
                 && model.can_confirm_cleanup(&state.editor.rule_list)
                 && !state.editor.rule_list.dirty()
         }
@@ -267,20 +267,23 @@ pub(crate) fn ready(state: &AppState, feature: FeatureId) -> bool {
                 && !model.draft.is_empty()
                 && model.dirty()
                 && model.can_save()
-                && model.pending.is_none()
+                && !model.is_pending()
                 && model
-                    .failure
-                    .as_ref()
+                    .failure()
                     .is_some_and(|failure| failure.code == ErrorCode::Permission)
                 && model.draft.first().is_some_and(|rule| {
                     !rule.enabled && rule.rule == "SRC-IP-CIDR,10.0.0.0/8,DIRECT"
                 })
         }
         FeatureId::RulesOverrideEditor => {
-            state.editor.rule_trace.override_pending.is_none()
+            state
+                .editor
+                .rule_trace
+                .override_pending_operation()
+                .is_none()
                 && matches!(&state.shell.confirmation, Some(ConfirmAction::TracerOverride(request))
                 if request.expected_rule == "DOMAIN-SUFFIX,google.com,PROXY" && request.new_target == "DIRECT")
-                && state.editor.rule_trace.confirmation.is_some()
+                && state.editor.rule_trace.confirmation().is_some()
         }
         FeatureId::RulesTracerDrawer => {
             let model = &state.editor.rule_trace;
@@ -296,11 +299,11 @@ pub(crate) fn ready(state: &AppState, feature: FeatureId) -> bool {
         }
         FeatureId::DnsQueryDetails => {
             let model = &state.diag.dns_query;
-            model.open
-                && model.pending.is_none()
-                && model.failure.is_none()
-                && model.requested.is_some()
-                && model.requested == model.snapshot.report_id
+            model.is_open()
+                && !model.is_pending()
+                && model.current_failure().is_none()
+                && model.requested_operation().is_some()
+                && model.requested_operation() == model.snapshot.report_id
                 && model
                     .snapshot
                     .report
@@ -309,18 +312,17 @@ pub(crate) fn ready(state: &AppState, feature: FeatureId) -> bool {
         }
         FeatureId::DnsFakeIpFlushConfirm => {
             let model = &state.diag.dns_cache_actions;
-            model.open && !model.confirmed && model.pending.is_none()
+            model.is_open() && !model.is_confirmed() && !model.is_pending()
         }
         FeatureId::DnsHostsEditor => {
             let editor = &state.editor.dns_hosts_editor;
-            editor.open
-                && editor.pending.is_none()
+            editor.is_open()
+                && !editor.is_pending()
                 && editor.can_apply()
                 && editor
-                    .failure
-                    .as_ref()
+                    .failure()
                     .is_some_and(|failure| failure.code == ErrorCode::Permission)
-                && editor.importing_legacy
+                && editor.is_importing_legacy()
                 && editor.rows.len() == 3
                 && editor.applied.as_ref().is_some_and(|profile| {
                     profile.entries.len() == 2 && profile.legacy_entries.len() == 1

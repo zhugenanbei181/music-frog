@@ -64,8 +64,8 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     .id(InteractionRegion::RuleListSave.id());
     let discard = container(
         button(text(lang.tr("rules_draft_discard").to_string())).on_press_maybe(
-            (state.editor.rule_list.pending.is_none()
-                && !state.editor.rule_list.awaiting_read
+            (!state.editor.rule_list.is_pending()
+                && !state.editor.rule_list.is_awaiting_readback()
                 && (state.editor.rule_list.dirty() || state.editor.rule_list.source_changed()))
             .then_some(Message::RuleList(RuleListAction::Discard)),
         ),

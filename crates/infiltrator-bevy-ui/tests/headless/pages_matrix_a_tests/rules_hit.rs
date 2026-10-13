@@ -134,7 +134,7 @@ fn test_rules_hit_audit_projection_and_clear_command() {
         app.world()
             .resource::<RulesStatisticsState>()
             .model
-            .clear_pending
+            .reset_request()
             .is_some()
     );
     app.world_mut().trigger(CommandExecutedEvent {
@@ -148,13 +148,16 @@ fn test_rules_hit_audit_projection_and_clear_command() {
     let statistics = &app.world().resource::<RulesStatisticsState>().model;
     assert_eq!(statistics.audit.as_ref().unwrap().total_hits, 1287);
     assert_eq!(
-        statistics.clear_failure.as_ref().unwrap().code,
+        statistics.reset_failure().unwrap().code,
         ErrorCode::InvalidState
     );
-    assert!(statistics.clear_pending.is_none());
-    assert!(statistics.awaiting_revision.is_none());
+    assert!(statistics.reset_request().is_none());
+    assert!(!matches!(
+        statistics.reset_phase(),
+        infiltrator_application::rule_statistics_workbench::StatisticsResetPhase::AwaitingReadback { .. }
+    ));
     assert!(
-        statistics.clear_failure.is_some(),
+        statistics.reset_failure().is_some(),
         "a mock without a typed terminal cannot publish a reset success"
     );
 }

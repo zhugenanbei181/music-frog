@@ -117,13 +117,13 @@ impl AppState {
         if self.diag.log_export.open {
             layers.push(log_export::modal(self));
         }
-        if self.diag.dns_query.open {
+        if self.diag.dns_query.is_open() {
             layers.push(query_modal(self));
         }
-        if self.diag.dns_cache_actions.open {
+        if self.diag.dns_cache_actions.is_open() {
             layers.push(cache_modal(self));
         }
-        if self.editor.dns_hosts_editor.open {
+        if self.editor.dns_hosts_editor.is_open() {
             layers.push(hosts_editor_modal(self));
         }
         if self.runtime.group_order_dialog

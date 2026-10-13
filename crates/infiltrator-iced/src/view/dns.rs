@@ -668,7 +668,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
 }
 
 #[cfg(test)]
-use infiltrator_application::dns_latency_projection::server_tags_text;
+use infiltrator_presentation::dns_latency_projection::server_tags_text;
 
 #[cfg(test)]
 #[path = "../../tests/gui/view_dns_tests.rs"]

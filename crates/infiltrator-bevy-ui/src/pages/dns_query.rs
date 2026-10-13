@@ -16,8 +16,6 @@ use bevy::text::TextColor;
 use bevy::ui::widget::Text;
 use bevy::ui::{Display, Node};
 use bevy::ui_widgets::{Activate, Button};
-use infiltrator_application::dns_query_actions::{DnsQueryActions, QuerySection};
-use infiltrator_application::dns_query_projection::project_query;
 use infiltrator_bevy_widgets::button::{ButtonDisabled, ButtonVariant, ButtonVariantStyle};
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::palette::UiPalette;
@@ -25,6 +23,8 @@ use infiltrator_bevy_widgets::text_input::{TextField, TextFieldFocused};
 use infiltrator_contract::command::RequestId;
 use infiltrator_contract::dns_query::{DnsQueryOperationId, DnsRecordType};
 use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_presentation::dns_query_actions::{DnsQueryActions, QuerySection};
+use infiltrator_presentation::dns_query_projection::project_query;
 
 #[derive(Resource, Default)]
 pub struct QueryPanel {
@@ -88,7 +88,7 @@ pub fn activate(
         return;
     };
     match action {
-        QueryAction::Open if state.model.pending.is_none() && !state.model.open => {
+        QueryAction::Open if !state.model.is_pending() && !state.model.is_open() => {
             state.model.show();
             state.restore_focus.clear();
             for (entity, _, mut focus, own) in &mut fields {
@@ -116,8 +116,8 @@ pub fn activate(
             }
             return;
         }
-        _ if !state.model.open => return,
-        QueryAction::TypePicker if state.model.pending.is_none() => {
+        _ if !state.model.is_open() => return,
+        QueryAction::TypePicker if !state.model.is_pending() => {
             state.kind_open = !state.kind_open;
             return;
         }
@@ -234,11 +234,11 @@ pub fn observe(
         if own.is_none() {
             continue;
         }
-        let disabled = !state.model.open || state.model.pending.is_some();
+        let disabled = !state.model.is_open() || state.model.is_pending();
         if field.0.is_disabled() != disabled {
             field.0.set_disabled(disabled);
         }
-        if state.model.open && state.model.pending.is_none() {
+        if state.model.is_open() && !state.model.is_pending() {
             state.model.set_name(field.0.text().to_string());
         }
     }
@@ -262,7 +262,7 @@ pub fn render(
 ) {
     let view = project_query(&state.model, locale.code());
     for mut node in &mut roots {
-        let display = if state.model.open {
+        let display = if state.model.is_open() {
             Display::Flex
         } else {
             Display::None
@@ -272,7 +272,7 @@ pub fn render(
         }
     }
     for mut menu in &mut menus {
-        let display = if state.model.open && state.kind_open {
+        let display = if state.model.is_open() && state.kind_open {
             Display::Flex
         } else {
             Display::None
@@ -283,7 +283,7 @@ pub fn render(
     }
     for mut control in &mut controls {
         let enabled = match control.action {
-            QueryAction::Open => !state.model.open,
+            QueryAction::Open => !state.model.is_open(),
             QueryAction::Cancel => view.close,
             QueryAction::Settings => view.guide,
             QueryAction::Run => view.run,
@@ -293,7 +293,7 @@ pub fn render(
             QueryAction::Section(_) => true,
             QueryAction::Previous => view.previous,
             QueryAction::Next => view.next,
-        } && (matches!(control.action, QueryAction::Open) || state.model.open);
+        } && (matches!(control.action, QueryAction::Open) || state.model.is_open());
         if control.disabled.0 == enabled {
             control.disabled.0 = !enabled;
         }

@@ -14,6 +14,7 @@ use iced::Task;
 use iced::widget::Id;
 use iced::widget::operation::scroll_to;
 use iced::widget::scrollable::AbsoluteOffset;
+use infiltrator_application::rule_list_editor::RuleListReadback;
 use infiltrator_application::rule_list_projection::draft_page;
 use infiltrator_application::rule_row_projection::rule_row;
 use infiltrator_contract::command::CommandIntent;
@@ -191,7 +192,8 @@ impl AppState {
                 self.scroll_rules_list_to_window()
             }
             Message::RuleTrace(RuleTraceAction::ToggleSandbox) => {
-                if !self.editor.rule_trace.busy() && self.editor.rule_trace.confirmation.is_none() {
+                if !self.editor.rule_trace.busy() && self.editor.rule_trace.confirmation().is_none()
+                {
                     self.editor.rule_trace.advanced_open = !self.editor.rule_trace.advanced_open;
                 }
                 Task::none()
@@ -204,8 +206,7 @@ impl AppState {
                 if self
                     .editor
                     .rule_trace
-                    .override_failure
-                    .as_ref()
+                    .override_failure()
                     .is_some_and(|failure| {
                         matches!(
                             failure.code,
@@ -224,7 +225,8 @@ impl AppState {
                 Task::none()
             }
             Message::UpdateRulesTracerInput(input) => {
-                if self.editor.rule_trace.busy() || self.editor.rule_trace.confirmation.is_some() {
+                if self.editor.rule_trace.busy() || self.editor.rule_trace.confirmation().is_some()
+                {
                     return Task::none();
                 }
                 self.editor.rule_trace.set_query(input.clone());
@@ -232,7 +234,8 @@ impl AppState {
                 Task::none()
             }
             Message::UpdateTracerSourceIp(input) => {
-                if self.editor.rule_trace.busy() || self.editor.rule_trace.confirmation.is_some() {
+                if self.editor.rule_trace.busy() || self.editor.rule_trace.confirmation().is_some()
+                {
                     return Task::none();
                 }
                 self.editor.rule_trace.set_source_ip(input.clone());
@@ -241,7 +244,8 @@ impl AppState {
             }
             Message::RunRulesTracer => self.run_rules_tracer(),
             Message::UpdateTracerOverrideTarget(target) => {
-                if self.editor.rule_trace.busy() || self.editor.rule_trace.confirmation.is_some() {
+                if self.editor.rule_trace.busy() || self.editor.rule_trace.confirmation().is_some()
+                {
                     return Task::none();
                 }
                 self.editor.rules_tracer_override_target = target;
@@ -263,8 +267,8 @@ impl AppState {
                     self.shell.confirmation = self
                         .editor
                         .rule_trace
-                        .confirmation
-                        .clone()
+                        .confirmation()
+                        .cloned()
                         .map(ConfirmAction::TracerOverride);
                 }
                 Task::none()
@@ -302,7 +306,7 @@ impl AppState {
             }
             Message::RuleTrace(RuleTraceAction::OverrideFinished { operation, result }) => {
                 if self.editor.rule_trace.finish_override(operation, result)
-                    && self.editor.rule_trace.confirmation.is_none()
+                    && self.editor.rule_trace.confirmation().is_none()
                 {
                     self.shell.confirmation = None;
                 }
@@ -332,7 +336,7 @@ impl AppState {
                     .rule_form_binding
                     .require_current(&self.editor.rule_list)
                 {
-                    self.editor.rule_list.failure = Some(failure);
+                    self.editor.rule_list.record_failure(failure);
                     return Task::none();
                 }
                 let payload = self.editor.new_rule_payload.trim().to_string();
@@ -355,7 +359,7 @@ impl AppState {
                         self.apply_rules_filter();
                     }
                     Ok(false) => {}
-                    Err(failure) => self.editor.rule_list.failure = Some(failure),
+                    Err(failure) => self.editor.rule_list.record_failure(failure),
                 }
                 Task::none()
             }
@@ -450,17 +454,24 @@ impl AppState {
                 self.editor.is_loading_rules = false;
                 match result {
                     Ok(document) => {
-                        if self.editor.rule_list.observe(Some(&document), None) {
+                        if self
+                            .editor
+                            .rule_list
+                            .observe_readback(RuleListReadback::Observed(document))
+                        {
                             self.editor.rules_loaded_once = true;
                             self.rebuild_rules_render_cache();
                             self.apply_rules_filter();
                         }
                     }
                     Err(error) => {
-                        self.editor.rule_list.observe(
-                            None,
-                            Some(Failure::new(ErrorCode::Storage, error.to_string(), true)),
-                        );
+                        self.editor
+                            .rule_list
+                            .observe_readback(RuleListReadback::Failed(Failure::new(
+                                ErrorCode::Storage,
+                                error.to_string(),
+                                true,
+                            )));
                     }
                 }
                 Task::none()
@@ -503,7 +514,7 @@ impl AppState {
                     .rule_form_binding
                     .require_current(&self.editor.rule_list)
                 {
-                    self.editor.rule_list.failure = Some(failure);
+                    self.editor.rule_list.record_failure(failure);
                     return Task::none();
                 }
                 let target = self.editor.new_rule_target.clone();

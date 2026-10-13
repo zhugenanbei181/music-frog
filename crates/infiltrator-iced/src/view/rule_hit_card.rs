@@ -109,7 +109,7 @@ pub fn rule_hit_card<'a, R: Renderer<Font = Font> + 'a>(
                 color: Some(tokens(theme).text_primary),
             }),
     );
-    let clear_key = if model.clear_failure.is_some() {
+    let clear_key = if model.reset_failure().is_some() {
         "logs_export_retry"
     } else {
         "rule_hit_btn_clear"
@@ -141,7 +141,7 @@ pub fn rule_hit_card<'a, R: Renderer<Font = Font> + 'a>(
         .spacing(8)
         .wrap(),
     );
-    if model.clear_failure.is_some() {
+    if model.reset_failure().is_some() {
         body = body.push(
             button(text(lang.tr("modal_close").into_owned()))
                 .on_press(action(StatisticsAction::DismissFailure)),

@@ -11,10 +11,10 @@ use iced::widget::{
     Space, button, column, container, pick_list, row, scrollable, text, text_input,
 };
 use iced::{Element, Length, Theme};
-use infiltrator_application::dns_observation_projection::DnsObservationTone;
-use infiltrator_application::dns_query_actions::QuerySection;
-use infiltrator_application::dns_query_projection::project_query;
 use infiltrator_contract::dns_query::DnsRecordType;
+use infiltrator_presentation::dns_query_actions::QuerySection;
+use infiltrator_presentation::dns_query_projection::project_query;
+use infiltrator_shared::dns_observation::DnsObservationTone;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 pub fn query_modal(state: &AppState) -> Element<'_, Message> {

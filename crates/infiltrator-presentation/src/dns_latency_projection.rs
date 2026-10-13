@@ -1,9 +1,9 @@
 //! Shared labels, severity and ordered rows of the actual nameserver report.
-use crate::dns_observation_projection::DnsObservationTone;
 use crate::latency_projection::project_measured_latency;
 use infiltrator_contract::dns::DnsServerTag;
 use infiltrator_contract::dns_latency::{DnsLatencyReport, DnsLatencySummary, DnsProbeOutcome};
 use infiltrator_contract::latency_display::LatencyBand;
+use infiltrator_shared::dns_observation::DnsObservationTone;
 use infiltrator_shared::i18n_interpolator::localize;
 
 #[derive(Clone, Debug, PartialEq, Eq)]

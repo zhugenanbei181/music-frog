@@ -37,13 +37,11 @@ async fn named_leaf_report_confirmation_and_commit_preserve_parent_tables_and_so
             .iter()
             .any(|line| line.contains("Table secure rule #1"))
     );
-    let mut actions = RuleTraceActions {
-        query: request.query,
-        snapshot: app.execution(),
-        ..RuleTraceActions::default()
-    };
+    let mut actions = RuleTraceActions::default();
+    actions.query = request.query;
+    actions.snapshot = app.execution();
     assert!(actions.prepare_override(&report, 0, "DIRECT".into()));
-    let override_request = actions.confirmation.clone().unwrap();
+    let override_request = actions.confirmation().cloned().unwrap();
     assert_eq!(override_request.rule_table.as_deref(), Some("secure"));
     assert!(actions.cancel_override());
     assert_eq!(store.content(), NAMED_TRACE_DOCUMENT);

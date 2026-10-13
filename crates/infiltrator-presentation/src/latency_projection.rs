@@ -59,29 +59,3 @@ pub fn project_proxy_latency(delay: Option<u32>) -> LatencyPresentation {
 pub fn project_measured_latency(delay: Option<u32>) -> LatencyPresentation {
     project_latency(delay.map_or(LatencyReading::NotObserved, LatencyReading::Measured))
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use infiltrator_shared::locales::{Lang, Localizer};
-
-    #[test]
-    fn provenance_keeps_measured_zero_history_zero_and_absence_distinct_in_each_language() {
-        for language in ["en-US", "zh-CN"] {
-            let tr = |key: &str| Lang(language).tr(key).into_owned();
-            let zero = project_measured_latency(Some(0));
-            assert_eq!(zero.band, LatencyBand::Fast);
-            assert_eq!(zero.render(&tr), "0 ms");
-            let ambiguous = project_proxy_latency(Some(0));
-            assert_eq!(ambiguous.band, LatencyBand::UnconfirmedZero);
-            assert_eq!(
-                ambiguous.render(&tr),
-                tr("proxy_inspection_unconfirmed_zero")
-            );
-            let missing = project_proxy_latency(None);
-            assert_eq!(missing.band, LatencyBand::NotObserved);
-            assert_eq!(missing.render(&tr), tr("proxy_inspection_unmeasured"));
-            assert_ne!(ambiguous.render(&tr), missing.render(&tr));
-        }
-    }
-}

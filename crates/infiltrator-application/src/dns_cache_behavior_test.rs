@@ -1,13 +1,16 @@
 //! test-intent: behavior
 use super::*;
 use crate::command_application::handler::{CommandHandler, ValidatedCoreCommandScope};
-use crate::dns_cache_actions::DnsCacheActions;
-use crate::dns_cache_actions::allocate_operation;
 use crate::dns_cache_fixtures::{CachePortMode, IsolatedCaches};
-use crate::dns_cache_projection::project_cache;
 use futures_util::{FutureExt, pin_mut};
 use infiltrator_contract::command::CommandIntent;
-use std::sync::atomic::Ordering;
+use infiltrator_contract::dns_cache::DnsCacheOperationId;
+use std::sync::atomic::{AtomicU64, Ordering};
+
+fn operation_id() -> DnsCacheOperationId {
+    static NEXT_TEST_OPERATION: AtomicU64 = AtomicU64::new(1);
+    DnsCacheOperationId(NEXT_TEST_OPERATION.fetch_add(1, Ordering::Relaxed))
+}
 
 #[tokio::test]
 async fn missing_core_capability_refuses_before_controller_or_host_cache_side_effects() {
@@ -21,7 +24,7 @@ async fn missing_core_capability_refuses_before_controller_or_host_cache_side_ef
                 crate::dns_cache_fixtures::test_core_scope(),
             )),
             CommandIntent::ClearDnsCache {
-                operation: allocate_operation().unwrap(),
+                operation: operation_id(),
             },
         )
         .await
@@ -47,7 +50,7 @@ async fn actual_targets_preserve_permission_identity_publish_partial_facts_retry
     assert_eq!(owner.snapshot().operation, DnsCacheOperation::Idle);
     let original = ports.contents();
     ports.set_system_mode(CachePortMode::Denied);
-    let operation = allocate_operation().unwrap();
+    let operation = operation_id();
     let failure = owner
         .flush_with_id(crate::dns_cache_fixtures::test_core_scope(), operation)
         .await
@@ -76,7 +79,7 @@ async fn actual_targets_preserve_permission_identity_publish_partial_facts_retry
     );
     assert_eq!(ports.fake_calls.load(Ordering::SeqCst), 1);
     ports.set_system_mode(CachePortMode::Allowed);
-    let retry = allocate_operation().unwrap();
+    let retry = operation_id();
     let report = owner
         .flush_with_id(crate::dns_cache_fixtures::test_core_scope(), retry)
         .await
@@ -94,15 +97,12 @@ async fn concurrent_or_dropped_flush_cannot_claim_completion_or_lose_previous_ob
     let ports = Arc::new(IsolatedCaches::default());
     let owner = DnsCacheApplication::new(Some(ports.clone()), Some(ports.clone()));
     let previous = owner
-        .flush_with_id(
-            crate::dns_cache_fixtures::test_core_scope(),
-            allocate_operation().unwrap(),
-        )
+        .flush_with_id(crate::dns_cache_fixtures::test_core_scope(), operation_id())
         .await
         .unwrap();
     let previous_id = owner.snapshot().report_id;
     ports.set_fake_mode(CachePortMode::Pending);
-    let operation = allocate_operation().unwrap();
+    let operation = operation_id();
     {
         let pending = owner.flush_with_id(crate::dns_cache_fixtures::test_core_scope(), operation);
         pin_mut!(pending);
@@ -111,10 +111,7 @@ async fn concurrent_or_dropped_flush_cannot_claim_completion_or_lose_previous_ob
         assert_eq!(owner.snapshot().report, previous);
         assert_eq!(
             owner
-                .flush_with_id(
-                    crate::dns_cache_fixtures::test_core_scope(),
-                    allocate_operation().unwrap(),
-                )
+                .flush_with_id(crate::dns_cache_fixtures::test_core_scope(), operation_id(),)
                 .await
                 .unwrap_err()
                 .code,
@@ -129,85 +126,11 @@ async fn concurrent_or_dropped_flush_cannot_claim_completion_or_lose_previous_ob
     ports.set_fake_mode(CachePortMode::Allowed);
     assert!(
         owner
-            .flush_with_id(
-                crate::dns_cache_fixtures::test_core_scope(),
-                allocate_operation().unwrap(),
-            )
+            .flush_with_id(crate::dns_cache_fixtures::test_core_scope(), operation_id(),)
             .await
             .unwrap()
             .fake_ip
             .is_flushed()
     );
     assert_eq!(owner.snapshot().operation, DnsCacheOperation::Completed);
-}
-#[test]
-fn other_operation_or_stale_report_cannot_complete_confirmation_and_permission_copy_is_single_pass()
-{
-    let mut model = DnsCacheActions::default();
-    model.show();
-    let token = model.confirm().unwrap();
-    let before = model.snapshot.clone();
-    model.observe(&DnsCacheSnapshot {
-        revision: 20,
-        operation_id: Some(DnsCacheOperationId(token + 1)),
-        report_id: Some(DnsCacheOperationId(token + 1)),
-        operation: DnsCacheOperation::Completed,
-        ..Default::default()
-    });
-    assert_eq!(model.snapshot, before);
-    assert!(model.finish(token, Ok(())));
-    assert!(
-        project_cache(&model, "en-US")
-            .status
-            .contains("waiting for the shared report")
-    );
-    let snapshot = DnsCacheSnapshot {
-        revision: 22,
-        operation_id: Some(DnsCacheOperationId(token)),
-        report_id: Some(DnsCacheOperationId(token)),
-        operation: DnsCacheOperation::Completed,
-        report: DnsCacheFlushReport {
-            fake_ip: DnsFlushOutcome::Flushed,
-            os_cache: DnsFlushOutcome::Flushed,
-        },
-        ..Default::default()
-    };
-    model.observe(&snapshot);
-    assert!(
-        project_cache(&model, "en-US")
-            .status
-            .contains("Clearing finished")
-    );
-    let other = DnsCacheSnapshot {
-        revision: 24,
-        operation: DnsCacheOperation::Failed,
-        operation_id: Some(DnsCacheOperationId(token + 1)),
-        failure: Some(Failure::new(
-            ErrorCode::Canceled,
-            "other operation canceled",
-            true,
-        )),
-        ..snapshot.clone()
-    };
-    model.observe(&other);
-    assert!(
-        project_cache(&model, "en-US")
-            .status
-            .contains("Clearing finished")
-    );
-    model.show();
-    let token = model.confirm().unwrap();
-    model.finish(
-        token,
-        Err(Failure::new(
-            ErrorCode::Permission,
-            "allow {reason} verbatim",
-            false,
-        )),
-    );
-    let view = project_cache(&model, "zh-CN");
-    assert!(view.retry);
-    assert!(view.status.contains("allow {reason} verbatim"));
-    assert!(model.cancel());
-    assert!(!model.open);
 }

@@ -1,8 +1,9 @@
 //! One localized fold for the confirmation and per-target facts on both peers.
 use crate::dns_cache_actions::DnsCacheActions;
-use crate::dns_status_projection::flush_outcome;
 use infiltrator_contract::dns_cache::DnsCacheOperation;
+use infiltrator_contract::dns_cache::{DnsCacheFlushReport, DnsFlushOutcome};
 use infiltrator_shared::i18n_interpolator::localize;
+use infiltrator_shared::locales::{Lang, Localizer};
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CachePresentation {
     pub status: String,
@@ -14,12 +15,44 @@ pub struct CachePresentation {
     pub retry: bool,
     pub close: bool,
 }
+
+pub fn flush_outcome(outcome: &DnsFlushOutcome, code: &str) -> String {
+    match outcome {
+        DnsFlushOutcome::NotRequested => Lang(code).tr("dns_flush_not_requested").into_owned(),
+        DnsFlushOutcome::Flushed => Lang(code).tr("dns_flush_flushed").into_owned(),
+        DnsFlushOutcome::Unsupported { reason } => localize(
+            code,
+            "dns_flush_unsupported_detail",
+            &[("reason", reason.clone())],
+        ),
+        DnsFlushOutcome::Failed { failure } => localize(
+            code,
+            "dns_flush_failed_detail",
+            &[("reason", failure.message.clone())],
+        ),
+    }
+}
+
+pub fn flush_summary(report: &DnsCacheFlushReport, code: &str) -> String {
+    localize(
+        code,
+        "dns_flush_summary",
+        &[
+            ("fakeip", flush_outcome(&report.fake_ip, code)),
+            ("os", flush_outcome(&report.os_cache, code)),
+        ],
+    )
+}
+
 pub fn project_cache(state: &DnsCacheActions, code: &str) -> CachePresentation {
-    let key = if state.pending.is_some() {
+    let requested = state.requested_operation();
+    let confirmed = state.is_confirmed();
+    let pending = state.is_pending();
+    let key = if pending {
         "dns_cache_running"
-    } else if !state.confirmed {
+    } else if !confirmed {
         "dns_cache_confirm_detail"
-    } else if state.requested != state.snapshot.report_id {
+    } else if requested != state.snapshot.report_id {
         "dns_cache_waiting_report"
     } else {
         match state.snapshot.report.operation() {
@@ -30,14 +63,12 @@ pub fn project_cache(state: &DnsCacheActions, code: &str) -> CachePresentation {
             DnsCacheOperation::Unsupported => "dns_cache_unavailable",
         }
     };
-    let failure = state.failure.as_ref().or_else(|| {
-        (state.snapshot.operation_id == state.requested)
+    let failure = state.failure().or_else(|| {
+        (state.snapshot.operation_id == requested)
             .then_some(state.snapshot.failure.as_ref())
             .flatten()
     });
-    let status = if state.confirmed
-        && let Some(failure) = failure
-    {
+    let status = if confirmed && let Some(failure) = failure {
         localize(
             code,
             "dns_cache_failure_detail",
@@ -48,10 +79,10 @@ pub fn project_cache(state: &DnsCacheActions, code: &str) -> CachePresentation {
     };
     CachePresentation {
         status,
-        error: state.confirmed && failure.is_some(),
+        error: confirmed && failure.is_some(),
         results_label: localize(
             code,
-            if state.confirmed && state.requested == state.snapshot.report_id {
+            if confirmed && requested == state.snapshot.report_id {
                 "dns_cache_this_request"
             } else {
                 "dns_cache_previous_report"
@@ -74,8 +105,8 @@ pub fn project_cache(state: &DnsCacheActions, code: &str) -> CachePresentation {
                 flush_outcome(&state.snapshot.report.os_cache, code),
             )],
         ),
-        confirm: state.open && !state.confirmed && state.pending.is_none(),
+        confirm: state.is_open() && !confirmed && !pending,
         retry: state.can_retry(),
-        close: state.pending.is_none(),
+        close: !pending,
     }
 }

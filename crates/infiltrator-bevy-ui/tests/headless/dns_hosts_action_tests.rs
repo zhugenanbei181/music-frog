@@ -210,8 +210,7 @@ fn settle(app: &mut App) {
         .world()
         .resource::<DnsHostsEditorState>()
         .editor
-        .pending
-        .is_some()
+        .is_pending()
     {
         assert!(
             Instant::now() < deadline,
@@ -228,7 +227,12 @@ fn native_hosts_keyboard_pointer_migration_failure_retry_cancel_and_empty_restor
     let store = Arc::new(HostsCaptureStore::default());
     let (mut app, reader) = setup(store.clone());
     do_action(&mut app, |a| matches!(a, HostAction::Open));
-    assert!(app.world().resource::<DnsHostsEditorState>().editor.open);
+    assert!(
+        app.world()
+            .resource::<DnsHostsEditorState>()
+            .editor
+            .is_open()
+    );
     let card = entity::<HostsModalCard>(&mut app);
     let first = app.world().resource::<DnsHostsEditorState>().editor.rows[0].id;
     do_action(
@@ -261,7 +265,12 @@ fn native_hosts_keyboard_pointer_migration_failure_retry_cancel_and_empty_restor
     );
     assert_eq!(store.content(), ORIGINAL_HOSTS);
     do_action(&mut app, |a| matches!(a, HostAction::Cancel));
-    assert!(!app.world().resource::<DnsHostsEditorState>().editor.open);
+    assert!(
+        !app.world()
+            .resource::<DnsHostsEditorState>()
+            .editor
+            .is_open()
+    );
     assert_eq!(store.writes.load(Ordering::SeqCst), 0);
     do_action(&mut app, |a| matches!(a, HostAction::Open));
     do_action(&mut app, |a| matches!(a, HostAction::ImportLegacy));
@@ -280,9 +289,9 @@ fn native_hosts_keyboard_pointer_migration_failure_retry_cancel_and_empty_restor
         .world()
         .resource::<DnsHostsEditorState>()
         .editor
-        .pending
-        .clone()
-        .unwrap();
+        .pending()
+        .unwrap()
+        .clone();
     let (request, _) = app
         .world()
         .resource::<DnsHostsEditorState>()
@@ -307,19 +316,23 @@ fn native_hosts_keyboard_pointer_migration_failure_retry_cancel_and_empty_restor
         app.world()
             .resource::<DnsHostsEditorState>()
             .editor
-            .pending
-            .as_ref()
+            .pending()
             .unwrap()
             .token,
         pending.token
     );
     let cancel = action(&mut app, |a| matches!(a, HostAction::Cancel));
     pointer_click(&mut app, cancel);
-    assert!(app.world().resource::<DnsHostsEditorState>().editor.open);
+    assert!(
+        app.world()
+            .resource::<DnsHostsEditorState>()
+            .editor
+            .is_open()
+    );
     settle(&mut app);
     publish(&mut app, &reader);
     let editor = &app.world().resource::<DnsHostsEditorState>().editor;
-    assert_eq!(editor.failure.as_ref().unwrap().code, ErrorCode::Permission);
+    assert_eq!(editor.failure().unwrap().code, ErrorCode::Permission);
     assert_eq!(editor.rows.len(), 3);
     assert_eq!(editor.applied.as_ref().unwrap().entries.len(), 2);
     assert_eq!(store.content(), ORIGINAL_HOSTS);
@@ -329,7 +342,7 @@ fn native_hosts_keyboard_pointer_migration_failure_retry_cancel_and_empty_restor
     settle(&mut app);
     publish(&mut app, &reader);
     let editor = &app.world().resource::<DnsHostsEditorState>().editor;
-    assert!(editor.failure.is_none());
+    assert!(editor.failure().is_none());
     assert_eq!(editor.applied.as_ref().unwrap().entries.len(), 3);
     assert!(editor.applied.as_ref().unwrap().legacy_entries.is_empty());
     assert_eq!(store.writes.load(Ordering::SeqCst), 1);
@@ -390,11 +403,17 @@ fn native_hosts_ime_locale_reader_fences_invalid_rows_and_navigation_keep_the_dr
         |a| matches!(a, HostAction::Edit(id) if *id == first),
     );
     assert_eq!(
-        app.world().resource::<DnsHostsEditorState>().editor.address,
+        app.world()
+            .resource::<DnsHostsEditorState>()
+            .editor
+            .address(),
         "1.1.1.1"
     );
     assert_eq!(
-        app.world().resource::<DnsHostsEditorState>().editor.domain,
+        app.world()
+            .resource::<DnsHostsEditorState>()
+            .editor
+            .domain(),
         "new.test"
     );
     do_action(&mut app, |a| matches!(a, HostAction::CancelRow));
@@ -488,10 +507,7 @@ fn native_hosts_ime_locale_reader_fences_invalid_rows_and_navigation_keep_the_dr
     publish(&mut app, &reader);
     let editor = &app.world().resource::<DnsHostsEditorState>().editor;
     assert_eq!(editor.rows, draft);
-    assert_eq!(
-        editor.read_failure.as_ref().unwrap().code,
-        ErrorCode::Permission
-    );
+    assert_eq!(editor.read_failure().unwrap().code, ErrorCode::Permission);
     assert!(!editor.can_apply());
     store.deny_read.store(false, Ordering::SeqCst);
     publish(&mut app, &reader);
@@ -536,7 +552,12 @@ fn native_hosts_ime_locale_reader_fences_invalid_rows_and_navigation_keep_the_dr
     );
     app.world_mut().trigger(RouteChanged(Route::Settings));
     app.update();
-    assert!(!app.world().resource::<DnsHostsEditorState>().editor.open);
+    assert!(
+        !app.world()
+            .resource::<DnsHostsEditorState>()
+            .editor
+            .is_open()
+    );
     assert_eq!(
         app.world().get::<Node>(root).unwrap().display,
         Display::None
@@ -558,10 +579,7 @@ fn hosts_unavailable_reader_is_visible_and_disabled_native_apply_performs_no_wri
     do_action(&mut app, |a| matches!(a, HostAction::Open));
     let card = entity::<HostsModalCard>(&mut app);
     let editor = &app.world().resource::<DnsHostsEditorState>().editor;
-    assert_eq!(
-        editor.read_failure.as_ref().unwrap().code,
-        ErrorCode::Unsupported
-    );
+    assert_eq!(editor.read_failure().unwrap().code, ErrorCode::Unsupported);
     assert!(!editor.can_apply());
     assert!(subtree_has_text(
         app.world(),
@@ -575,7 +593,7 @@ fn hosts_unavailable_reader_is_visible_and_disabled_native_apply_performs_no_wri
         app.world()
             .resource::<DnsHostsEditorState>()
             .editor
-            .pending
+            .pending()
             .is_none()
     );
 }

@@ -85,7 +85,7 @@ pub fn activate(
     let Ok(action) = actions.get(event.entity) else {
         return;
     };
-    if state.model.confirmation.is_none() {
+    if state.model.confirmation().is_none() {
         return;
     }
     match action {
@@ -93,17 +93,12 @@ pub fn activate(
             state.model.cancel_override();
         }
         TraceConfirmationAction::Settings => {
-            if state
-                .model
-                .override_failure
-                .as_ref()
-                .is_some_and(|failure| {
-                    matches!(
-                        failure.code,
-                        ErrorCode::Permission | ErrorCode::Authentication
-                    )
-                })
-                && state.model.cancel_override()
+            if state.model.override_failure().is_some_and(|failure| {
+                matches!(
+                    failure.code,
+                    ErrorCode::Permission | ErrorCode::Authentication
+                )
+            }) && state.model.cancel_override()
             {
                 commands.trigger(RouteChanged(Route::Settings));
             }
@@ -137,7 +132,7 @@ pub fn finish(event: On<CommandExecutedEvent>, mut state: ResMut<RulesTraceState
         return;
     };
     if event.request_id == id
-        && state.model.confirmation.as_ref() == Some(request)
+        && state.model.confirmation() == Some(request)
         && state.model.finish_override(operation, event.unit_result())
     {
         state.override_request = None;
@@ -166,15 +161,14 @@ pub fn render(
     if route.0 != Some(Route::Rules) {
         state.model.cancel_override();
     }
-    let open = state.model.confirmation.is_some();
-    let pending = state.model.override_pending.is_some();
+    let open = state.model.confirmation().is_some();
+    let pending = state.model.override_pending_operation().is_some();
     for mut node in &mut roots {
         node.display = if open { Display::Flex } else { Display::None };
     }
     let message = state
         .model
-        .confirmation
-        .as_ref()
+        .confirmation()
         .map(|request| {
             format!(
                 "{}\n{}",
@@ -199,8 +193,7 @@ pub fn render(
         .unwrap_or_default();
     let failure = state
         .model
-        .override_failure
-        .as_ref()
+        .override_failure()
         .map(|failure| failure.message.as_str())
         .unwrap_or("");
     for mut text in &mut copy {
@@ -213,16 +206,12 @@ pub fn render(
             }
         );
     }
-    let guide = state
-        .model
-        .override_failure
-        .as_ref()
-        .is_some_and(|failure| {
-            matches!(
-                failure.code,
-                ErrorCode::Permission | ErrorCode::Authentication
-            )
-        });
+    let guide = state.model.override_failure().is_some_and(|failure| {
+        matches!(
+            failure.code,
+            ErrorCode::Permission | ErrorCode::Authentication
+        )
+    });
     for (action, mut disabled, mut node) in &mut controls {
         disabled.0 = !open || pending;
         node.display = if matches!(action, TraceConfirmationAction::Settings) && !guide {

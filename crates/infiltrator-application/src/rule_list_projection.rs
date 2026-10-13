@@ -98,15 +98,15 @@ pub fn draft_page(applied: &RulesPageSnapshot, editor: &RuleListEditor) -> Rules
     page
 }
 pub fn editor_status(editor: &RuleListEditor, locale: &str) -> String {
-    let key = if editor.read_failure.is_some() {
+    let key = if editor.read_failure().is_some() {
         "rules_draft_read_failed"
     } else if editor.source_changed() {
         "rules_draft_source_changed"
-    } else if editor.pending.is_some() {
+    } else if editor.is_pending() {
         "rules_draft_submitting"
-    } else if editor.awaiting_read {
+    } else if editor.is_awaiting_readback() {
         "rules_draft_waiting_read"
-    } else if editor.failure.is_some() {
+    } else if editor.failure().is_some() {
         "rules_draft_commit_failed"
     } else if editor.dirty() {
         "rules_draft_unsaved"
@@ -121,9 +121,7 @@ pub fn editor_status(editor: &RuleListEditor, locale: &str) -> String {
         .map(|document| document.source.profile.as_str())
         .unwrap_or_default();
     let reason = editor
-        .read_failure
-        .as_ref()
-        .or(editor.failure.as_ref())
+        .current_failure()
         .map(|failure| failure.message.as_str())
         .unwrap_or_default();
     interpolate(

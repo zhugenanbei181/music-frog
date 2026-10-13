@@ -25,7 +25,6 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
-use infiltrator_application::dns_status_projection::{field_label_key, form_status};
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
@@ -39,6 +38,7 @@ use infiltrator_bevy_widgets::text_input::{TextField, text_field_with_placeholde
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::dns::{append_server, parse_server_list};
 use infiltrator_contract::dns_form::{DnsFormField, DnsFormIssue, DnsWorkbenchForm};
+use infiltrator_presentation::dns_settings_projection::{field_label_key, form_status};
 use infiltrator_shared::locales::{Lang, Localizer};
 
 /// Shared workbench draft plus the honest local validation state.

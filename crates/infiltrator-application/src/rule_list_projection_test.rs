@@ -1,6 +1,7 @@
 //! test-intent: behavior
 //! A draft cannot inherit trace observations from another source or unpublished rows.
 use super::*;
+use crate::rule_list_editor::RuleListReadback;
 use crate::rule_list_fixtures::list_document;
 use infiltrator_contract::rule_edit::RuleMoveDirection;
 use infiltrator_contract::rule_hit_audit::RuleHitAuditSnapshot;
@@ -35,7 +36,9 @@ fn observed_page() -> RulesPageSnapshot {
 fn draft_row_trace_observations_are_bound_to_the_exact_document_source() {
     let page = observed_page();
     let mut editor = RuleListEditor::default();
-    editor.observe(page.document.as_ref(), None);
+    editor.observe_readback(RuleListReadback::Observed(
+        page.document.as_ref().unwrap().clone(),
+    ));
     editor.toggle(editor.row_id(0).unwrap());
     let draft = editor.draft.clone();
     let same = draft_page(&page, &editor);
@@ -53,7 +56,9 @@ fn draft_row_trace_observations_are_bound_to_the_exact_document_source() {
         }
         other.rules[0].hit_count = Some(99);
         other.rules[0].last_hit_secs = Some(88);
-        editor.observe(other.document.as_ref(), None);
+        editor.observe_readback(RuleListReadback::Observed(
+            other.document.as_ref().unwrap().clone(),
+        ));
         assert!(editor.source_changed());
         assert_eq!(editor.draft, draft);
         let projected = draft_page(&other, &editor);
@@ -78,7 +83,9 @@ fn duplicate_rule_text_keeps_each_original_rows_observation_after_reorder() {
         rule_snapshot(2, &rule, Some(7), Some(42), None),
     ];
     let mut editor = RuleListEditor::default();
-    editor.observe(page.document.as_ref(), None);
+    editor.observe_readback(RuleListReadback::Observed(
+        page.document.as_ref().unwrap().clone(),
+    ));
     let second = editor.row_id(1).unwrap();
     assert_eq!(draft_page(&page, &editor).rules[0].hit_count, Some(0));
     assert_eq!(draft_page(&page, &editor).rules[1].hit_count, Some(7));
@@ -94,7 +101,9 @@ fn duplicate_rule_text_keeps_each_original_rows_observation_after_reorder() {
 fn published_zero_unknown_and_unpublished_rows_remain_distinct() {
     let mut page = observed_page();
     let mut editor = RuleListEditor::default();
-    editor.observe(page.document.as_ref(), None);
+    editor.observe_readback(RuleListReadback::Observed(
+        page.document.as_ref().unwrap().clone(),
+    ));
     page.rules[0].hit_count = Some(0);
     assert_eq!(draft_page(&page, &editor).rules[0].hit_count, Some(0));
     page.rules[0].hit_count = None;

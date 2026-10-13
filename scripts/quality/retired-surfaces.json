@@ -2,6 +2,162 @@
   "version": 1,
   "retired_surfaces": [
     {
+      "id": "application-dns-health-projection-module",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "dns_health_projection",
+      "rationale": "DNS health readout projection moved to infiltrator-presentation so identical observations render the same across UI surfaces.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/dns_projections_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "application-dns-latency-projection-module",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "dns_latency_projection",
+      "rationale": "DNS latency display projection moved to infiltrator-presentation and is covered with observed, missing, and unsupported results.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/dns_projections_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "application-dns-settings-projection-module",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "dns_status_projection",
+      "rationale": "DNS settings labels, form status, and flush summary moved to infiltrator-presentation; shared flush outcome copy is owned by infiltrator-shared.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/dns_projections_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "application-dns-observation-projection-module",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "dns_observation_projection",
+      "rationale": "The cross-surface DNS observation tone is a shared semantic type; UI display projections live in infiltrator-presentation.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/dns_projections_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "application-dns-stun-projection-module",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "stun_projection",
+      "rationale": "STUN probe display projection moved to infiltrator-presentation and keeps ordered observation facts shared across UI surfaces.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/dns_projections_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "application-generic-latency-projection-module",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "latency_projection",
+      "rationale": "Generic measured and proxy latency display projection moved to infiltrator-presentation for shared Iced and Bevy rendering semantics.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/dns_projections_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "application-dns-cache-actions-module",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "dns_cache_actions",
+      "rationale": "The pure cache confirmation and correlated readback reducer now belongs to infiltrator-presentation and uses an explicit phase enum.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/dns_cache_actions_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "application-dns-cache-projection-module",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "dns_cache_projection",
+      "rationale": "Cache status, terminal facts, and localized command results are presentation projections shared by all UI surfaces.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/dns_cache_actions_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "application-dns-query-actions-module",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "dns_query_actions",
+      "rationale": "The query draft, validation, request correlation, and readback lifecycle now use a typed phase enum in infiltrator-presentation.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/dns_query_actions_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "application-dns-query-projection-module",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "dns_query_projection",
+      "rationale": "Query response rendering, pagination, and status projection now live beside the shared query reducer in infiltrator-presentation.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/dns_query_actions_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "application-dns-hosts-editor-module",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "dns_hosts_editor",
+      "rationale": "Hosts draft edits and save/readback lifecycle now use named typed phases in infiltrator-presentation.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/dns_hosts_editor_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "application-dns-hosts-projection-module",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "dns_hosts_projection",
+      "rationale": "Hosts summaries, validation feedback, and legacy import hints are presentation projections shared by both surfaces.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/dns_hosts_editor_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
       "id": "iced-local-virtual-viewport",
       "kind": "public_symbol",
       "language": "rust",

@@ -29,7 +29,6 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
-use infiltrator_application::latency_projection::project_proxy_latency;
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::button::ControlVisual;
 use infiltrator_bevy_widgets::feathers_theme::Token;
@@ -45,6 +44,7 @@ use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::outbound::identity::OutboundId;
+use infiltrator_presentation::latency_projection::project_proxy_latency;
 use infiltrator_shared::country_flags::node_flag_emoji;
 
 /// Renders the toolbar card containing search box, "只看可用" toggle switch, 4 sort mode pills, and "测试地址" indicator.

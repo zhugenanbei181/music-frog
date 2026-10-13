@@ -114,7 +114,7 @@ pub fn activate(
     sink: Option<Res<CommandSinkHandle>>,
     mut commands: Commands,
 ) {
-    if statistics.is_some_and(|state| state.model.confirmation.is_some()) {
+    if statistics.is_some_and(|state| state.model.confirmation().is_some()) {
         return;
     }
     let Ok(action) = actions.get(event.entity) else {
@@ -134,7 +134,7 @@ pub fn activate(
                 return;
             }
             let Some(sink) = sink else {
-                state.model.failure = Some(Failure::new(
+                state.model.record_failure(Failure::new(
                     ErrorCode::NotReady,
                     "The rule command service is unavailable",
                     true,
@@ -144,7 +144,7 @@ pub fn activate(
             let (operation, request) = match state.model.begin() {
                 Ok(pending) => pending,
                 Err(failure) => {
-                    state.model.failure = Some(failure);
+                    state.model.record_failure(failure);
                     return;
                 }
             };
@@ -194,8 +194,8 @@ pub fn render(
             RuleListControl::Settings => !state.model.can_guide(),
             RuleListControl::Save => !state.model.can_save() || state.input_composing,
             RuleListControl::Discard => {
-                state.model.pending.is_some()
-                    || state.model.awaiting_read
+                state.model.is_pending()
+                    || state.model.is_awaiting_readback()
                     || (!state.model.dirty() && !state.model.source_changed())
             }
         };
@@ -215,6 +215,6 @@ pub fn sync_form_discard(
     mut buttons: Query<&mut ButtonDisabled, With<DiscardRuleFormButton>>,
 ) {
     for mut disabled in &mut buttons {
-        disabled.0 = state.model.pending.is_some() || state.model.awaiting_read;
+        disabled.0 = state.model.is_pending() || state.model.is_awaiting_readback();
     }
 }

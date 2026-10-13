@@ -17,13 +17,13 @@ use bevy::ui::widget::Text;
 use bevy::ui_widgets::Activate;
 use bevy::window::{PrimaryWindow, Window};
 use infiltrator_application::command_application::CommandApplication;
-use infiltrator_application::dns_query_actions::QuerySection;
 use infiltrator_application::dns_query_application::DnsQueryApplication;
 use infiltrator_application::dns_query_fixtures::{IsolatedQueries, QueryFixtureMode};
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::localization::LocalizedLabel;
 use infiltrator_contract::dns_query::DnsRecordType;
 use infiltrator_contract::parity::FeatureId;
+use infiltrator_presentation::dns_query_actions::QuerySection;
 use std::sync::Arc;
 
 #[derive(Resource)]
@@ -68,7 +68,7 @@ pub fn activate(mut probe: QueryActivation, mut geometry: CaptureGeometry, mut c
     }
     let wanted = match probe.capture.stage {
         0 => QueryAction::Open,
-        1 if probe.panel.model.open => {
+        1 if probe.panel.model.is_open() => {
             let Ok((window, _)) = probe.windows.single() else {
                 return;
             };
@@ -96,7 +96,7 @@ pub fn activate(mut probe: QueryActivation, mut geometry: CaptureGeometry, mut c
         3 if probe.panel.kind_open => QueryAction::Type(DnsRecordType::Txt),
         4 if probe.panel.model.record_type == DnsRecordType::Txt => QueryAction::Run,
         5 => {
-            if probe.panel.model.pending.is_none() {
+            if !probe.panel.model.is_pending() {
                 probe.latest.0.dns_query = probe.capture.application.snapshot();
             }
             return;
@@ -151,11 +151,11 @@ pub fn observe(
         let model = &probe.panel.model;
         if probe.capture.stage != 5
             || probe.capture.port.requests().len() != 1
-            || !model.open
-            || model.pending.is_some()
-            || model.failure.is_some()
-            || model.requested != model.snapshot.report_id
-            || model.requested.is_none()
+            || !model.is_open()
+            || model.is_pending()
+            || model.current_failure().is_some()
+            || model.requested_operation() != model.snapshot.report_id
+            || model.requested_operation().is_none()
             || model.snapshot.report.as_ref()?.response.answers.len() != 2
         {
             return None;

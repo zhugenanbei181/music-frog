@@ -12,7 +12,9 @@ fn test_rules_game_presets_and_geo_update() {
         enabled: true,
     }];
     let document = list_document(state.editor.rule_list.draft.clone());
-    state.editor.rule_list.observe(Some(&document), None);
+    state.editor.rule_list.observe_readback(
+        infiltrator_application::rule_list_editor::RuleListReadback::Observed(document),
+    );
     state.editor.new_rule_target = "Game-Proxy".into();
 
     let _ = state.update(Message::ApplyGameRoutingPresets);

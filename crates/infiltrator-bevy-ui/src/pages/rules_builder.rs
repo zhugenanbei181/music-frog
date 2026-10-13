@@ -302,7 +302,7 @@ pub(crate) fn on_rules_builder_activated(
     interaction: RuleBuilderInteraction,
     statistics: Option<Res<RulesStatisticsState>>,
 ) {
-    if statistics.is_some_and(|state| state.model.confirmation.is_some()) {
+    if statistics.is_some_and(|state| state.model.confirmation().is_some()) {
         return;
     }
     let RuleBuilderInteraction {
@@ -327,8 +327,8 @@ pub(crate) fn on_rules_builder_activated(
         return;
     }
     if discard_buttons.contains(activate.entity) {
-        if draft.model.pending.is_none()
-            && !draft.model.awaiting_read
+        if !draft.model.is_pending()
+            && !draft.model.is_awaiting_readback()
             && let Some(builder) = builder.as_deref_mut()
         {
             *builder = RulesBuilderState::default();
@@ -345,7 +345,7 @@ pub(crate) fn on_rules_builder_activated(
     };
     builder.binding.observe(&draft.model);
     if let Err(failure) = builder.binding.require_current(&draft.model) {
-        draft.model.failure = Some(failure);
+        draft.model.record_failure(failure);
         return;
     }
     if let Ok(chip) = chips.get(activate.entity) {
@@ -372,7 +372,7 @@ pub(crate) fn on_rules_builder_activated(
         };
         match draft.model.add(&fields) {
             Ok(changed) => draft.repaint |= changed,
-            Err(failure) => draft.model.failure = Some(failure),
+            Err(failure) => draft.model.record_failure(failure),
         }
     } else if preset_buttons.contains(activate.entity) {
         let target = field_text(&target_wrappers, &text_fields).unwrap_or_default();

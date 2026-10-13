@@ -2,7 +2,7 @@
 //! Real isolated profile bytes and full documents, never a truncated display save.
 use super::*;
 use crate::rule_form_binding::RuleFormBinding;
-use crate::rule_list_editor::RuleListEditor;
+use crate::rule_list_editor::{RuleListEditor, RuleListReadback};
 use crate::rule_trace_fixtures::{NAMED_TRACE_DOCUMENT, RuleTraceStore};
 use crate::rule_workspace_test_support::rule_workspace;
 use infiltrator_contract::rule_edit::RuleMoveDirection;
@@ -16,7 +16,7 @@ async fn staged_edits_cancel_permission_retry_and_atomic_source_change_keep_exac
     let application = RuleListApplication::new(store.clone());
     let document = document_snapshot(&store.load_rule_workspace().await.unwrap());
     let mut editor = RuleListEditor::default();
-    assert!(editor.observe(Some(&document), None));
+    assert!(editor.observe_readback(RuleListReadback::Observed(document.clone())));
     assert!(editor.toggle(editor.row_id(0).unwrap()));
     assert_eq!(store.content(), NAMED_TRACE_DOCUMENT);
     assert!(editor.dirty());
@@ -46,7 +46,7 @@ async fn staged_edits_cancel_permission_retry_and_atomic_source_change_keep_exac
         "success waits for an independent reader"
     );
     let updated = document_snapshot(&store.load_rule_workspace().await.unwrap());
-    assert!(editor.observe(Some(&updated), None));
+    assert!(editor.observe_readback(RuleListReadback::Observed(updated.clone())));
     assert!(!editor.dirty());
     assert_eq!(updated.sub_rules, document.sub_rules);
     assert_eq!(store.writes.load(Ordering::SeqCst), 1);
@@ -76,7 +76,7 @@ async fn full_document_edits_past_the_publish_cap_cannot_drop_rules_or_accept_in
     let document = document_snapshot(&store.load_rule_workspace().await.unwrap());
     assert_eq!(document.rules.len(), 5101);
     let mut editor = RuleListEditor::default();
-    editor.observe(Some(&document), None);
+    editor.observe_readback(RuleListReadback::Observed(document.clone()));
     assert!(editor.toggle(editor.row_id(5050).unwrap()));
     let (_, request) = editor.begin().unwrap();
     let application = RuleListApplication::new(store.clone());
@@ -102,20 +102,21 @@ fn failed_read_changed_source_and_unobserved_success_preserve_draft_until_explic
     let workspace = rule_workspace("first.yaml".into(), NAMED_TRACE_DOCUMENT).unwrap();
     let first = document_snapshot(&workspace);
     let mut editor = RuleListEditor::default();
-    editor.observe(Some(&first), None);
+    editor.observe_readback(RuleListReadback::Observed(first.clone()));
     editor.toggle(editor.row_id(0).unwrap());
     let draft = editor.draft.clone();
-    editor.observe(
-        None,
-        Some(Failure::new(ErrorCode::Storage, "unreadable", true)),
-    );
+    editor.observe_readback(RuleListReadback::Failed(Failure::new(
+        ErrorCode::Storage,
+        "unreadable",
+        true,
+    )));
     assert_eq!(editor.draft, draft);
     assert!(!editor.can_save());
     assert!(!editor.toggle(editor.row_id(0).unwrap()));
     let second = document_snapshot(
         &rule_workspace("second.yaml".into(), "rules:\n  - MATCH,REJECT\n").unwrap(),
     );
-    editor.observe(Some(&second), None);
+    editor.observe_readback(RuleListReadback::Observed(second.clone()));
     assert_eq!(editor.draft, draft);
     assert!(editor.source_changed());
     assert!(!editor.can_save());
@@ -124,17 +125,39 @@ fn failed_read_changed_source_and_unobserved_success_preserve_draft_until_explic
     editor.toggle(editor.row_id(0).unwrap());
     let (operation, _) = editor.begin().unwrap();
     editor.finish(operation, Ok(()));
-    editor.observe(Some(&second), None);
-    assert!(editor.awaiting_read);
+    editor.observe_readback(RuleListReadback::Observed(second.clone()));
+    assert!(editor.is_awaiting_readback());
     let changed = document_snapshot(
         &rule_workspace("second.yaml".into(), "rules:\n  - MATCH,DIRECT\n").unwrap(),
     );
-    editor.observe(Some(&changed), None);
-    assert!(!editor.awaiting_read);
+    editor.observe_readback(RuleListReadback::Observed(changed.clone()));
+    assert!(!editor.is_awaiting_readback());
     assert!(editor.source_changed());
-    assert_eq!(editor.failure.as_ref().unwrap().code, ErrorCode::NotReady);
+    assert_eq!(editor.failure().unwrap().code, ErrorCode::NotReady);
     assert!(editor.discard());
     assert_eq!(rule_definitions(&editor.draft), changed.rules);
+}
+
+#[test]
+fn matching_readback_that_arrives_before_the_save_receipt_is_committed_only_after_success() {
+    let workspace = rule_workspace("first.yaml".into(), NAMED_TRACE_DOCUMENT).unwrap();
+    let base = document_snapshot(&workspace);
+    let mut editor = RuleListEditor::default();
+    assert!(editor.observe_readback(RuleListReadback::Observed(base.clone())));
+    assert!(editor.toggle(editor.row_id(0).unwrap()));
+    let (operation, request) = editor.begin().unwrap();
+
+    let mut updated = base.clone();
+    updated.rules = request.rules;
+    updated.source.document_hash = "saved-document-hash".into();
+    assert!(!editor.observe_readback(RuleListReadback::Observed(updated.clone())));
+    assert!(editor.is_pending());
+    assert!(editor.finish(operation, Ok(())));
+
+    assert!(!editor.is_pending());
+    assert!(!editor.is_awaiting_readback());
+    assert!(!editor.dirty());
+    assert_eq!(editor.base, Some(updated));
 }
 
 #[test]
@@ -147,7 +170,7 @@ fn row_identity_survives_reorder_and_prepend_but_rejects_removed_discarded_and_r
         .unwrap(),
     );
     let mut editor = RuleListEditor::default();
-    editor.observe(Some(&document), None);
+    editor.observe_readback(RuleListReadback::Observed(document.clone()));
     let first = editor.row_id(0).unwrap();
     let second = editor.row_id(1).unwrap();
     assert_ne!(
@@ -179,7 +202,7 @@ fn row_identity_survives_reorder_and_prepend_but_rejects_removed_discarded_and_r
         &rule_workspace("other.yaml".into(), "rules:\n  - MATCH,REJECT\n").unwrap(),
     );
     let old = editor.row_id(0).unwrap();
-    assert!(editor.observe(Some(&replacement), None));
+    assert!(editor.observe_readback(RuleListReadback::Observed(replacement.clone())));
     assert!(!editor.toggle(old));
     assert_eq!(editor.draft[0].rule, "MATCH,REJECT");
     assert!(editor.draft[0].enabled);
@@ -193,12 +216,12 @@ fn unsent_form_source_is_retained_across_refresh_and_only_explicit_reset_rebinds
     let second =
         document_snapshot(&rule_workspace("second.yaml".into(), NAMED_TRACE_DOCUMENT).unwrap());
     let mut editor = RuleListEditor::default();
-    editor.observe(Some(&first), None);
+    editor.observe_readback(RuleListReadback::Observed(first.clone()));
     let mut form = RuleFormBinding::default();
     form.observe(&editor);
     assert!(form.current(&editor));
     form.edit(&editor);
-    editor.observe(Some(&second), None);
+    editor.observe_readback(RuleListReadback::Observed(second.clone()));
     form.observe(&editor);
     assert!(!form.current(&editor));
     assert_eq!(
@@ -213,12 +236,13 @@ fn unsent_form_source_is_retained_across_refresh_and_only_explicit_reset_rebinds
     );
     form.reset(&editor);
     assert!(form.current(&editor));
-    editor.observe(
-        None,
-        Some(Failure::new(ErrorCode::Storage, "unreadable", true)),
-    );
+    editor.observe_readback(RuleListReadback::Failed(Failure::new(
+        ErrorCode::Storage,
+        "unreadable",
+        true,
+    )));
     assert!(!form.current(&editor));
-    editor.observe(Some(&second), None);
+    editor.observe_readback(RuleListReadback::Observed(second.clone()));
     form.observe(&editor);
     assert!(form.current(&editor));
     assert!(editor.toggle(editor.row_id(0).unwrap()));

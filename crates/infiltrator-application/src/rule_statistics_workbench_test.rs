@@ -69,6 +69,10 @@ fn cleanup_cancel_changes_nothing_and_confirm_follows_stable_identity_after_reor
     );
     let before = editor.draft.clone();
     assert!(model.cancel_cleanup());
+    assert!(matches!(
+        model.inspection_phase(),
+        StatisticsInspectionPhase::Inspected { .. }
+    ));
     assert_eq!(editor.draft, before);
     assert!(!editor.dirty());
     assert!(model.prepare_cleanup(&editor));
@@ -90,11 +94,11 @@ fn failed_reads_retain_values_as_stale_and_new_sources_retire_them_without_cance
     model.observe(&first);
     assert!(model.inspect(&editor));
     assert!(model.prepare_cleanup(&editor));
-    let confirmation = model.confirmation.clone();
+    let confirmation = model.confirmation().cloned();
     let failure = Failure::new(ErrorCode::Permission, "cannot read source", false);
     model.observe(&PageData::failed(failure.clone()));
     assert_eq!(model.audit, first.data.as_ref().unwrap().hit_audit);
-    assert_eq!(model.read_failure, Some(failure));
+    assert_eq!(model.read_failure(), Some(&failure));
     assert!(!model.can_confirm_cleanup(&editor));
     assert!(!model.can_reset());
     let mut changed = first.clone();
@@ -111,7 +115,7 @@ fn failed_reads_retain_values_as_stale_and_new_sources_retire_them_without_cance
     editor.observe_page(&changed);
     model.observe(&changed);
     assert_eq!(model.audit, None);
-    assert_eq!(model.confirmation, confirmation);
+    assert_eq!(model.confirmation().cloned(), confirmation);
     assert!(!model.can_confirm_cleanup(&editor));
     assert!(model.cancel_cleanup());
     assert!(editor.draft.iter().all(|row| row.enabled));
@@ -123,6 +127,10 @@ fn reset_waits_for_matching_receipt_and_rejects_old_readback_and_foreign_complet
     let mut model = RuleStatisticsWorkbench::default();
     model.observe(&first);
     let request = model.begin_reset().unwrap();
+    assert!(matches!(
+        model.reset_phase(),
+        StatisticsResetPhase::Submitting(pending) if pending == &request
+    ));
     assert!(model.begin_reset().is_none());
     let receipt = RuleStatisticsResetReceipt {
         source: request.source.clone(),
@@ -136,6 +144,10 @@ fn reset_waits_for_matching_receipt_and_rejects_old_readback_and_foreign_complet
     assert!(model.busy());
     assert!(model.finish_reset(&request, Ok(receipt)));
     assert!(model.busy());
+    assert!(matches!(
+        model.reset_phase(),
+        StatisticsResetPhase::AwaitingReadback { revision: 8, .. }
+    ));
     assert!(!model.current());
     model.observe(&first);
     assert!(model.busy());
@@ -146,6 +158,7 @@ fn reset_waits_for_matching_receipt_and_rejects_old_readback_and_foreign_complet
     audit.can_clear = false;
     model.observe(&fresh);
     assert!(!model.busy());
+    assert!(matches!(model.reset_phase(), StatisticsResetPhase::Idle));
     assert!(model.current());
     assert_eq!(model.audit.as_ref().unwrap().total_hits, 0);
     model.observe(&first);
@@ -186,12 +199,16 @@ fn invalid_reset_receipts_preserve_counts_and_retry_allocates_a_new_operation() 
             _ => receipt.removed_rows = 2,
         }
         assert!(model.finish_reset(&request, Ok(receipt)));
-        assert_eq!(
-            model.clear_failure.as_ref().unwrap().code,
-            ErrorCode::InvalidState
-        );
+        assert_eq!(model.reset_failure().unwrap().code, ErrorCode::InvalidState);
+        assert!(matches!(
+            model.reset_phase(),
+            StatisticsResetPhase::Failed(_)
+        ));
         assert_eq!(model.audit, first.data.as_ref().unwrap().hit_audit);
-        assert!(model.awaiting_revision.is_none());
+        assert!(!matches!(
+            model.reset_phase(),
+            StatisticsResetPhase::AwaitingReadback { .. }
+        ));
         let retry = model.begin_reset().unwrap();
         assert_ne!(request.operation, retry.operation);
         assert!(!model.finish_reset(
@@ -202,7 +219,7 @@ fn invalid_reset_receipts_preserve_counts_and_retry_allocates_a_new_operation() 
                 false
             ))
         ));
-        assert_eq!(model.clear_pending, Some(retry));
+        assert_eq!(model.reset_request(), Some(&retry));
     }
 }
 
@@ -216,7 +233,7 @@ fn fresh_readback_before_terminal_receipt_completes_without_waiting_for_another_
     audit.total_hits = 0;
     audit.can_clear = false;
     model.observe(&fresh);
-    assert!(model.clear_pending.is_some());
+    assert!(model.reset_request().is_some());
     assert!(model.finish_reset(
         &request,
         Ok(RuleStatisticsResetReceipt {
@@ -227,8 +244,23 @@ fn fresh_readback_before_terminal_receipt_completes_without_waiting_for_another_
         })
     ));
     assert!(!model.busy());
-    assert_eq!(model.clear_failure, None);
+    assert!(model.reset_failure().is_none());
     assert_eq!(model.audit.as_ref().unwrap().total_hits, 0);
     model.observe(&page(5));
     assert_eq!(model.audit.as_ref().unwrap().revision, 8);
+}
+
+#[test]
+fn statistics_tab_selection_resets_page_and_preserves_typed_inspection_state() {
+    let mut model = RuleStatisticsWorkbench {
+        page: 3,
+        ..RuleStatisticsWorkbench::default()
+    };
+    model.select_tab(StatisticsTab::Inactive);
+    assert_eq!(model.tab, StatisticsTab::Inactive);
+    assert_eq!(model.page, 0);
+    assert!(matches!(
+        model.inspection_phase(),
+        StatisticsInspectionPhase::NotInspected
+    ));
 }

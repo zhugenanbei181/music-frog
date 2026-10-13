@@ -28,24 +28,16 @@ pub mod core_owner_shutdown_application;
 mod core_product_control_tests;
 pub mod core_version_management_application;
 pub mod dialer_chain_application;
-pub mod dns_cache_actions;
 pub mod dns_cache_application;
 pub mod dns_cache_fixtures;
-pub mod dns_cache_projection;
-pub mod dns_health_projection;
-pub mod dns_hosts_editor;
 #[cfg(any(test, feature = "capture-fixtures"))]
 pub mod dns_hosts_fixtures;
-pub mod dns_hosts_projection;
 pub mod dns_latency_application;
-pub mod dns_latency_projection;
 pub mod dns_leak_actions;
 pub mod dns_leak_application;
 pub mod dns_leak_fixtures;
-pub mod dns_query_actions;
 pub mod dns_query_application;
 pub mod dns_query_fixtures;
-pub mod dns_query_projection;
 pub mod dns_self_heal_application;
 pub mod dns_workbench_application;
 pub mod doctor_actions;
@@ -226,9 +218,5 @@ mod outbound_batch_tests;
 #[cfg(test)]
 #[path = "command_outbound_tests.rs"]
 mod command_outbound_tests;
-pub mod dns_observation_projection;
-pub mod dns_status_projection;
-pub mod latency_projection;
 pub mod rule_condition_projection;
 pub mod rule_row_projection;
-pub mod stun_projection;

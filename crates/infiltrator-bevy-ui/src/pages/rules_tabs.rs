@@ -141,7 +141,7 @@ pub fn sync_rules_tabs(
     let Some(state) = state else {
         return;
     };
-    let tabs_disabled = statistics.is_some_and(|state| state.model.confirmation.is_some());
+    let tabs_disabled = statistics.is_some_and(|state| state.model.confirmation().is_some());
     for (mut node, body) in &mut bodies {
         let want = if body.0 == state.tab {
             Display::Flex
@@ -191,7 +191,7 @@ pub fn on_rules_tab_activated(
     mut state: Option<ResMut<RulesTabState>>,
     mut json: Option<ResMut<RulesJsonState>>,
 ) {
-    if statistics.is_some_and(|state| state.model.confirmation.is_some()) {
+    if statistics.is_some_and(|state| state.model.confirmation().is_some()) {
         return;
     }
     if !strips.contains(change.source) {

@@ -30,10 +30,13 @@ pub fn summary(editor: &DnsHostsEditor, code: &str) -> String {
     )
 }
 pub fn feedback(editor: &DnsHostsEditor, code: &str) -> String {
-    if editor.pending.is_some() {
+    if editor.is_pending() {
         return localize(code, "dns_hosts_saving", &[]);
     }
-    if let Some(failure) = editor.failure.as_ref().or(editor.read_failure.as_ref()) {
+    if editor.is_awaiting_readback() {
+        return localize(code, "dns_hosts_waiting_readback", &[]);
+    }
+    if let Some(failure) = editor.failure().or(editor.read_failure()) {
         return localize(
             code,
             "dns_hosts_failed",
@@ -50,9 +53,12 @@ pub fn feedback(editor: &DnsHostsEditor, code: &str) -> String {
     if editor.applied.is_none() {
         return localize(code, "dns_hosts_unobserved", &[]);
     }
+    if !editor.is_ready() {
+        return localize(code, "dns_hosts_unobserved", &[]);
+    }
     localize(
         code,
-        if editor.dirty {
+        if editor.is_dirty() {
             "dns_hosts_pending"
         } else {
             "dns_hosts_saved"
@@ -70,7 +76,7 @@ pub fn legacy_hint(editor: &DnsHostsEditor, code: &str) -> String {
     } else {
         localize(
             code,
-            if editor.importing_legacy {
+            if editor.is_importing_legacy() {
                 "dns_hosts_legacy_preview"
             } else {
                 "dns_hosts_legacy_available"

@@ -20,7 +20,6 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
-use infiltrator_application::dns_status_projection::field_label_key;
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
@@ -34,6 +33,7 @@ use infiltrator_contract::dns::{
     DnsCoreSwitches, DnsEnhancedMode, DnsFakeIpFilterMode, DnsSwitchField,
 };
 use infiltrator_contract::dns_form::DnsFormField;
+use infiltrator_presentation::dns_settings_projection::field_label_key;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 fn dns_switch_row_scene(

@@ -79,7 +79,7 @@ pub fn activate(
         || route.0 != Some(Route::Rules)
         || tab.as_ref().is_none_or(|tab| tab.tab != RulesTab::Tracer)
         || state.model.busy()
-        || state.model.confirmation.is_some()
+        || state.model.confirmation().is_some()
     {
         return;
     }
@@ -105,7 +105,7 @@ pub fn sync(
     let active = route.0 == Some(Route::Rules)
         && tab.as_ref().is_some_and(|tab| tab.tab == RulesTab::Tracer);
     let open = active && state.model.advanced_open;
-    let disabled = !open || state.model.busy() || state.model.confirmation.is_some();
+    let disabled = !open || state.model.busy() || state.model.confirmation().is_some();
     for (_, mut node) in &mut roots {
         node.display = if open { Display::Flex } else { Display::None };
     }
@@ -133,6 +133,6 @@ pub fn sync(
         }
     }
     for (_, mut disabled) in &mut toggles {
-        disabled.0 = !active || state.model.busy() || state.model.confirmation.is_some();
+        disabled.0 = !active || state.model.busy() || state.model.confirmation().is_some();
     }
 }

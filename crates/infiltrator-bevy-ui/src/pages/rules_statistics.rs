@@ -108,7 +108,7 @@ fn observe(
     if latest.is_changed() {
         state.model.observe(&latest.0.pages.rules);
     }
-    if state.model.confirmation.is_some()
+    if state.model.confirmation().is_some()
         && (route.0 != Some(Route::Rules)
             || keys.is_some_and(|keys| keys.just_pressed(KeyCode::Escape)))
     {
@@ -136,7 +136,7 @@ fn activate(
         };
         control
     };
-    if state.model.confirmation.is_some()
+    if state.model.confirmation().is_some()
         && !matches!(
             control,
             StatisticsControl::CancelCleanup | StatisticsControl::ConfirmCleanup
@@ -162,7 +162,9 @@ fn activate(
                 draft.repaint = true;
             }
         }
-        StatisticsControl::DismissFailure => state.model.clear_failure = None,
+        StatisticsControl::DismissFailure => {
+            state.model.dismiss_failure();
+        }
         StatisticsControl::Reset => {
             let Some(request) = state.model.begin_reset() else {
                 return;

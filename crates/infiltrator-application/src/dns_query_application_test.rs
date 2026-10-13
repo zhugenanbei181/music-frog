@@ -1,10 +1,7 @@
 use super::*;
 use crate::command_application::CommandApplication;
 use crate::core_capability_test_support::{execute_core_command, with_test_capabilities};
-use crate::dns_observation_projection::DnsObservationTone;
-use crate::dns_query_actions::{DnsQueryActions, QuerySection};
 use crate::dns_query_fixtures::{IsolatedQueries, QueryFixtureMode};
-use crate::dns_query_projection::project_query;
 use futures_util::FutureExt;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::dns_query::DnsRecordType;
@@ -132,74 +129,4 @@ async fn concurrent_or_dropped_query_retains_previous_response_and_allows_a_fres
         ErrorCode::Unsupported
     );
     assert!(absent.snapshot().report.is_none());
-}
-#[tokio::test]
-async fn shared_query_draft_cancel_tabs_pagination_retry_and_stale_results_follow_actual_owner_facts()
- {
-    let port = Arc::new(IsolatedQueries::default());
-    let owner = DnsQueryApplication::new(Some(port.clone()));
-    let mut model = DnsQueryActions::default();
-    assert!(model.begin().is_err());
-    model.show();
-    model.set_name(request().name);
-    model.set_type(request().record_type);
-    assert!(model.cancel());
-    assert!(model.begin().is_err());
-    assert!(port.requests().is_empty());
-    model.show();
-    let (token, query) = model.begin().unwrap();
-    assert!(model.begin().is_err());
-    model.set_name("must-not-change.test".into());
-    assert_eq!(model.name, "music.test");
-    owner
-        .query(DnsQueryOperationId(token), query)
-        .await
-        .unwrap();
-    model.observe(&owner.snapshot());
-    assert_eq!(model.pending, Some(token));
-    assert!(!model.finish(token + 1, Ok(())));
-    assert!(model.finish(token, Ok(())));
-    for code in ["zh-CN", "en-US"] {
-        let display = project_query(&model, code);
-        assert_eq!(display.tone, DnsObservationTone::Success);
-        assert!(display.records.contains("observed-0 {ttl}"));
-        assert!(!display.records.contains("observed-8"));
-    }
-    model.next();
-    model.next();
-    model.next();
-    assert_eq!(model.page, 2);
-    assert!(
-        project_query(&model, "en-US")
-            .records
-            .contains("observed-17 {ttl}")
-    );
-    assert!(!project_query(&model, "en-US").next);
-    model.select(QuerySection::Authority);
-    assert_eq!(model.page, 0);
-    assert!(project_query(&model, "en-US").records.contains("ns.test."));
-    model.select(QuerySection::Additional);
-    assert!(project_query(&model, "en-US").records.contains("TTL 0s"));
-    port.set_mode(QueryFixtureMode::Permission);
-    let (second, query) = model.begin().unwrap();
-    let failure = owner.query(DnsQueryOperationId(second), query).await;
-    assert!(model.finish(second, failure));
-    model.observe(&owner.snapshot());
-    assert!(model.can_retry());
-    assert!(
-        project_query(&model, "en-US")
-            .status
-            .ends_with("Allow controller DNS query access {reason}")
-    );
-    assert!(
-        project_query(&model, "en-US")
-            .provenance
-            .contains("not the new query result")
-    );
-    let prior_revision = model.snapshot.revision;
-    model.observe(&DnsQuerySnapshot::default());
-    assert_eq!(model.snapshot.revision, prior_revision);
-    let (third, _) = model.begin().unwrap();
-    assert!(!model.finish(second, Ok(())));
-    assert_eq!(model.pending, Some(third));
 }

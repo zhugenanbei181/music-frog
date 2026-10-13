@@ -8,7 +8,6 @@ use bevy::input::ButtonState;
 use bevy::input::keyboard::{Key, KeyCode, KeyboardInput};
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::ButtonPlugin;
-use infiltrator_application::dns_query_actions::QuerySection;
 use infiltrator_application::dns_query_application::DnsQueryApplication;
 use infiltrator_application::dns_query_fixtures::{IsolatedQueries, QueryFixtureMode};
 use infiltrator_bevy_ui::app::ShellPlugin;
@@ -27,6 +26,7 @@ use infiltrator_contract::dns_query::{DnsQueryOperationId, DnsQueryRequest, DnsR
 use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_ports::surface::SurfaceReader;
+use infiltrator_presentation::dns_query_actions::QuerySection;
 use std::sync::Arc;
 use std::thread::yield_now;
 use std::time::{Duration, Instant};
@@ -97,7 +97,7 @@ fn input(app: &mut App) -> Entity {
 }
 fn settle(app: &mut App) {
     let deadline = Instant::now() + Duration::from_secs(5);
-    while app.world().resource::<QueryPanel>().model.pending.is_some() {
+    while app.world().resource::<QueryPanel>().model.is_pending() {
         assert!(Instant::now() < deadline, "correlated query terminal event");
         app.update();
         yield_now();
@@ -129,7 +129,7 @@ fn native_query_keyboard_type_menu_cancel_pagination_permission_retry_and_locale
         "music.test"
     );
     click(&mut app, QueryAction::Cancel);
-    assert!(!app.world().resource::<QueryPanel>().model.open);
+    assert!(!app.world().resource::<QueryPanel>().model.is_open());
     assert!(port.requests().is_empty());
     click(&mut app, QueryAction::Open);
     click(&mut app, QueryAction::Type(DnsRecordType::Txt));
@@ -144,7 +144,7 @@ fn native_query_keyboard_type_menu_cancel_pagination_permission_retry_and_locale
     assert!(!app.world().resource::<QueryPanel>().kind_open);
     port.set_mode(QueryFixtureMode::Pending);
     click(&mut app, QueryAction::Run);
-    assert!(app.world().resource::<QueryPanel>().model.pending.is_some());
+    assert!(app.world().resource::<QueryPanel>().model.is_pending());
     let run = action(&mut app, QueryAction::Run);
     assert!(app.world().get::<ButtonDisabled>(run).unwrap().0);
     click(&mut app, QueryAction::Run);
@@ -170,12 +170,15 @@ fn native_query_keyboard_type_menu_cancel_pagination_permission_retry_and_locale
     });
     app.update();
     assert_eq!(
-        app.world().resource::<QueryPanel>().model.pending,
+        app.world()
+            .resource::<QueryPanel>()
+            .model
+            .requested_operation(),
         Some(token)
     );
 
     click(&mut app, QueryAction::Cancel);
-    assert!(app.world().resource::<QueryPanel>().model.open);
+    assert!(app.world().resource::<QueryPanel>().model.is_open());
     port.set_mode(QueryFixtureMode::Answer);
     settle(&mut app);
     publish(&mut app, &reader);
@@ -202,8 +205,7 @@ fn native_query_keyboard_type_menu_cancel_pagination_permission_retry_and_locale
         app.world()
             .resource::<QueryPanel>()
             .model
-            .failure
-            .as_ref()
+            .current_failure()
             .unwrap()
             .code,
         ErrorCode::Permission
@@ -231,7 +233,13 @@ fn native_query_keyboard_type_menu_cancel_pagination_permission_retry_and_locale
     click(&mut app, QueryAction::Retry);
     settle(&mut app);
     publish(&mut app, &reader);
-    assert!(app.world().resource::<QueryPanel>().model.failure.is_none());
+    assert!(
+        app.world()
+            .resource::<QueryPanel>()
+            .model
+            .current_failure()
+            .is_none()
+    );
     assert_eq!(port.requests().len(), 3);
     assert!(line(&mut app, QueryLine::Records).contains("observed-0 {ttl}"));
     port.set_mode(QueryFixtureMode::Authentication);
@@ -239,7 +247,7 @@ fn native_query_keyboard_type_menu_cancel_pagination_permission_retry_and_locale
     settle(&mut app);
     publish(&mut app, &reader);
     click(&mut app, QueryAction::Settings);
-    assert!(!app.world().resource::<QueryPanel>().model.open);
+    assert!(!app.world().resource::<QueryPanel>().model.is_open());
     assert!(
         !app.world().get::<TextFieldFocused>(field).unwrap().0,
         "settings guidance releases the query input focus"
@@ -268,8 +276,7 @@ fn native_invalid_and_unsupported_query_cannot_invent_a_response_and_negative_an
         app.world()
             .resource::<QueryPanel>()
             .model
-            .failure
-            .as_ref()
+            .current_failure()
             .unwrap()
             .code,
         ErrorCode::InvalidInput
@@ -294,7 +301,10 @@ fn native_invalid_and_unsupported_query_cannot_invent_a_response_and_negative_an
     settle(&mut app);
     publish(&mut app, &reader);
     let state = &app.world().resource::<QueryPanel>().model;
-    assert_eq!(state.failure.as_ref().unwrap().code, ErrorCode::Unsupported);
+    assert_eq!(
+        state.current_failure().unwrap().code,
+        ErrorCode::Unsupported
+    );
     assert!(state.snapshot.report.is_none());
     assert!(!state.can_retry());
     port.set_mode(QueryFixtureMode::NegativeAnswer);
@@ -321,6 +331,6 @@ fn native_invalid_and_unsupported_query_cannot_invent_a_response_and_negative_an
     click(&mut app, QueryAction::Open);
     app.world_mut().trigger(RouteChanged(Route::Settings));
     app.update();
-    assert!(!app.world().resource::<QueryPanel>().model.open);
+    assert!(!app.world().resource::<QueryPanel>().model.is_open());
     assert_eq!(port.requests().len(), 2);
 }

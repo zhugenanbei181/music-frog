@@ -135,7 +135,7 @@ impl AppState {
         }
         if let Some(action) = self.shell.hotkey_capture {
             if escape {
-                if self.diag.dns_cache_actions.open {
+                if self.diag.dns_cache_actions.is_open() {
                     return self.update(Message::CancelDnsCacheFlush);
                 }
                 self.shell.hotkey_capture = None;
@@ -167,13 +167,13 @@ impl AppState {
             });
         }
         if escape {
-            if self.diag.dns_query.open {
+            if self.diag.dns_query.is_open() {
                 return self.update(Message::DnsQuery(QueryAction::Cancel));
             }
             if self.runtime.outbound_inspecting.is_some() {
                 return self.update_core(Message::InspectOutbound(None));
             }
-            if self.editor.dns_hosts_editor.open {
+            if self.editor.dns_hosts_editor.is_open() {
                 return self.update(Message::CancelDnsHostsEditor);
             }
             if self.runtime.group_order_dialog

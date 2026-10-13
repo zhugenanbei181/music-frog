@@ -536,6 +536,7 @@ pub(super) fn translate_workflow_en(key: &str) -> Cow<'static, str> {
         "dns_hosts_issue_pattern_conflict" => "Mapping {value} overlaps another pattern with different addresses".into(),
         "dns_hosts_issue_alias_cycle" => "Alias mappings for {value} contain a cycle".into(),
         "dns_hosts_unobserved" => "Hosts configuration has not been observed".into(),
+        "dns_hosts_waiting_readback" => "Waiting for the updated Hosts configuration to be observed".into(),
         "dns_hosts_summary" => "Profile {profile}: {addresses} addresses / {domains} domains".into(),
         "dns_hosts_failed" => "Hosts operation cannot complete: {reason}".into(),
         "dns_hosts_legacy_preview" => "Previewing {count} legacy mappings; apply to migrate, or cancel to retain the original file".into(),

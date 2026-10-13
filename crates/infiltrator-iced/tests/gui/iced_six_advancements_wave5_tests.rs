@@ -90,7 +90,7 @@ fn test_advancement_w5_1_rule_hit_counter_and_stale_analyzer() {
 
     // No fabricated audit before the shared projection arrives.
     assert!(state.editor.rule_hit_audit.audit.is_none());
-    assert!(state.editor.rule_hit_audit.zero_hit_rows.is_empty());
+    assert!(state.editor.rule_hit_audit.inspected_rows().is_none());
 
     // The application-owned hit audit reaches the Iced projection verbatim.
     let audit = RuleHitAuditSnapshot {
@@ -159,7 +159,7 @@ fn test_advancement_w5_1_rule_hit_counter_and_stale_analyzer() {
     // not from any `idx % 2` fabrication.
     let _ = state.update(Message::RuleStatistics(StatisticsAction::Inspect));
     assert_eq!(
-        state.editor.rule_hit_audit.zero_hit_rows,
+        state.editor.rule_hit_audit.inspected_rows().unwrap(),
         vec![
             state.editor.rule_list.row_id(1).unwrap(),
             state.editor.rule_list.row_id(3).unwrap()
@@ -169,11 +169,11 @@ fn test_advancement_w5_1_rule_hit_counter_and_stale_analyzer() {
     // Disable stale rules
     let _ = state.update(Message::RuleStatistics(StatisticsAction::PrepareCleanup));
     let before = state.editor.rule_list.draft.clone();
-    assert!(state.editor.rule_hit_audit.confirmation.is_some());
+    assert!(state.editor.rule_hit_audit.confirmation().is_some());
     assert_eq!(state.editor.rule_list.draft, before);
     let _ = state.update(Message::CancelConfirmation);
     assert_eq!(state.editor.rule_list.draft, before);
-    assert!(state.editor.rule_hit_audit.confirmation.is_none());
+    assert!(state.editor.rule_hit_audit.confirmation().is_none());
     let _ = state.update(Message::RuleStatistics(StatisticsAction::PrepareCleanup));
     let _ = state.update(Message::ConfirmAction);
 

@@ -3,10 +3,10 @@ use crate::view::dns_form_panel::{
     dns_form_field_widget, domain_mapping_mode_control, filter_mode_control, flush_outcome_label,
     form_issue_banner, token_row,
 };
-use infiltrator_application::dns_status_projection::form_issue;
 use infiltrator_contract::dns::{DnsEnhancedMode, DnsFakeIpFilterMode, DnsServerTag};
 use infiltrator_contract::dns_form::{DnsFallbackPolicyDraft, DnsWorkbenchForm};
 use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_presentation::dns_settings_projection::form_issue;
 
 #[test]
 fn test_configuration_save_status_badge_states() {

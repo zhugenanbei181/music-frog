@@ -114,7 +114,7 @@ fn tea_unsent_form_retains_old_source_until_explicit_discard_and_never_stages_in
     assert_eq!(state.editor.rule_list.draft.len(), 1);
     assert!(!state.editor.rule_list.dirty());
     assert_eq!(
-        state.editor.rule_list.failure.as_ref().unwrap().code,
+        state.editor.rule_list.failure().unwrap().code,
         ErrorCode::NotReady
     );
     let _ = state.update(Message::RuleList(RuleListAction::DiscardForm));
@@ -161,7 +161,7 @@ fn tea_list_draft_discard_permission_retry_and_changed_source_never_rewrite_anot
     assert_eq!(state.update(Message::SaveRules).units(), 0);
     complete(&mut state, task);
     assert_eq!(
-        state.editor.rule_list.failure.as_ref().unwrap().code,
+        state.editor.rule_list.failure().unwrap().code,
         ErrorCode::Permission
     );
     assert_eq!(store.content(), original);
@@ -173,7 +173,7 @@ fn tea_list_draft_discard_permission_retry_and_changed_source_never_rewrite_anot
     store.deny_write.store(false, Ordering::SeqCst);
     let task = state.update(Message::SaveRules);
     complete(&mut state, task);
-    assert!(state.editor.rule_list.awaiting_read);
+    assert!(state.editor.rule_list.is_awaiting_readback());
     // Running the separate tracer command also drains its real reader; it does not save the draft.
     let _ = state.update(Message::UpdateRulesTracerInput("example.org".into()));
     run(&mut state, &reader);
@@ -229,19 +229,19 @@ fn demo_list_save_runs_the_injected_isolated_owner_and_blocks_without_a_service(
         state.editor.rule_list.row_id(0).unwrap(),
     ));
     let task = state.update(Message::SaveRules);
-    assert!(state.editor.rule_list.pending.is_some());
+    assert!(state.editor.rule_list.is_pending());
     complete(&mut state, task);
     assert_eq!(
-        state.editor.rule_list.failure.as_ref().unwrap().code,
+        state.editor.rule_list.failure().unwrap().code,
         ErrorCode::Permission
     );
-    assert!(state.editor.rule_list.pending.is_none());
+    assert!(!state.editor.rule_list.is_pending());
     assert!(state.editor.rule_list.can_save());
     assert_eq!(store.content(), original);
     assert_eq!(store.writes.load(Ordering::SeqCst), 0);
     state.commands = None;
     assert_eq!(state.update(Message::SaveRules).units(), 0);
-    assert!(state.editor.rule_list.pending.is_none());
+    assert!(!state.editor.rule_list.is_pending());
 }
 
 #[test]

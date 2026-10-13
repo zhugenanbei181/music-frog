@@ -6,7 +6,6 @@ use crate::support::allow_outbound_probe;
 use bevy::ecs::query::With;
 use bevy::ui::prelude;
 use bevy::ui::prelude::Val;
-use infiltrator_application::latency_projection::project_proxy_latency;
 use infiltrator_bevy_ui::pages::proxies::{
     LatencySkeletonPulse, NodeDetailButton, ProxyGroupMoveUpButton, ProxyNode,
     ResetProxyGroupOrderButton, ToggleViewModeButton,
@@ -41,6 +40,7 @@ use infiltrator_contract::outbound::{
 };
 use infiltrator_contract::surface_snapshot::PageData;
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
+use infiltrator_presentation::latency_projection::project_proxy_latency;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 fn set_outbound_inventory(

@@ -6,7 +6,6 @@ use iced::advanced::widget::Tree;
 use iced_runtime::{Action, task::into_stream};
 use infiltrator_application::dns_cache_application::DnsCacheApplication;
 use infiltrator_application::dns_cache_fixtures::{CachePortMode, IsolatedCaches};
-use infiltrator_application::dns_cache_projection::project_cache;
 use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_contract::command_catalogue::CommandTarget;
 use infiltrator_contract::core_capabilities::{CoreOperation, FakeIpCacheOperation};
@@ -17,6 +16,7 @@ use infiltrator_iced::state::AppState;
 use infiltrator_iced::types::app::Route;
 use infiltrator_iced::types::message::Message;
 use infiltrator_ports::surface::SurfaceReader;
+use infiltrator_presentation::dns_cache_projection::project_cache;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use tokio::runtime::Builder;
@@ -74,35 +74,38 @@ fn actual_cache_confirmation_cancel_and_navigation_touch_neither_target_and_perm
         "missing configuration cannot fake successful DNS data"
     );
     assert_eq!(state.update(Message::FlushFakeIpCache).units(), 0);
-    assert!(state.diag.dns_cache_actions.open);
+    assert!(state.diag.dns_cache_actions.is_open());
     let mut tree = Tree::new(state.view().as_widget());
     assert_eq!(state.update(Message::CancelDnsCacheFlush).units(), 0);
-    assert!(!state.diag.dns_cache_actions.open);
+    assert!(!state.diag.dns_cache_actions.is_open());
     assert_eq!(state.update(Message::ConfirmDnsCacheFlush).units(), 0);
     assert_eq!(ports.contents(), original);
     assert_eq!(ports.fake_calls.load(Ordering::SeqCst), 0);
     assert_eq!(ports.system_calls.load(Ordering::SeqCst), 0);
     let _ = state.update(Message::FlushFakeIpCache);
     let _ = state.update(Message::Navigate(Route::Settings));
-    assert!(!state.diag.dns_cache_actions.open);
+    assert!(!state.diag.dns_cache_actions.is_open());
     assert_eq!(state.update(Message::ConfirmDnsCacheFlush).units(), 0);
     let _ = state.update(Message::Navigate(Route::Dns));
     let _ = state.update(Message::FlushFakeIpCache);
     ports.set_system_mode(CachePortMode::Denied);
     let task = state.update(Message::ConfirmDnsCacheFlush);
-    let token = state.diag.dns_cache_actions.pending.unwrap();
+    let token = state.diag.dns_cache_actions.requested_operation().unwrap();
     assert_eq!(state.update(Message::ConfirmDnsCacheFlush).units(), 0);
     let _ = state.update(Message::CancelDnsCacheFlush);
-    assert!(state.diag.dns_cache_actions.open);
+    assert!(state.diag.dns_cache_actions.is_open());
     let _ = state.update(Message::DnsCacheCommandFinished {
         token: token + 1,
         result: Ok(()),
     });
-    assert_eq!(state.diag.dns_cache_actions.pending, Some(token));
+    assert_eq!(
+        state.diag.dns_cache_actions.requested_operation(),
+        Some(token)
+    );
     let _ = state.update(terminal(task));
     publish(&mut state, &reader);
     assert_eq!(
-        state.diag.dns_cache_actions.failure.as_ref().unwrap().code,
+        state.diag.dns_cache_actions.failure().unwrap().code,
         ErrorCode::Permission
     );
     assert_eq!(state.diag.dns_cache_flush.fake_ip, DnsFlushOutcome::Flushed);
@@ -124,20 +127,23 @@ fn actual_cache_confirmation_cancel_and_navigation_touch_neither_target_and_perm
     stale.dns_cache.report_id = None;
     assert!(state.apply_shared_surface_snapshot(stale));
     assert_eq!(
-        state.diag.dns_cache_actions.failure.as_ref().unwrap().code,
+        state.diag.dns_cache_actions.failure().unwrap().code,
         ErrorCode::Permission
     );
     ports.set_system_mode(CachePortMode::Allowed);
     let task = state.update(Message::RetryDnsCacheFlush);
-    let next = state.diag.dns_cache_actions.pending.unwrap();
+    let next = state.diag.dns_cache_actions.requested_operation().unwrap();
     let _ = state.update(Message::DnsCacheCommandFinished {
         token,
         result: Ok(()),
     });
-    assert_eq!(state.diag.dns_cache_actions.pending, Some(next));
+    assert_eq!(
+        state.diag.dns_cache_actions.requested_operation(),
+        Some(next)
+    );
     let _ = state.update(terminal(task));
     publish(&mut state, &reader);
-    assert!(state.diag.dns_cache_actions.failure.is_none());
+    assert!(state.diag.dns_cache_actions.failure().is_none());
     assert_eq!(
         state.diag.dns_cache_flush.os_cache,
         DnsFlushOutcome::Flushed
@@ -160,13 +166,13 @@ fn palette_clear_routes_to_real_confirmation_and_unsupported_targets_stay_visibl
     let _ = state.update(Message::Navigate(Route::Overview));
     let _ = state.update(Message::ExecuteCommand(CommandTarget::FlushDnsCache));
     assert_eq!(state.shell.current_route, Route::Dns);
-    assert!(state.diag.dns_cache_actions.open);
+    assert!(state.diag.dns_cache_actions.is_open());
     let before = ports.contents();
     let task = state.update(Message::ConfirmDnsCacheFlush);
     let _ = state.update(terminal(task));
     publish(&mut state, &reader);
     assert_eq!(
-        state.diag.dns_cache_actions.failure.as_ref().unwrap().code,
+        state.diag.dns_cache_actions.failure().unwrap().code,
         ErrorCode::Unsupported
     );
     assert!(matches!(

@@ -737,8 +737,8 @@ pub(crate) fn outbound_ui_preference_request(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use infiltrator_application::latency_projection::project_proxy_latency;
     use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
+    use infiltrator_presentation::latency_projection::project_proxy_latency;
     use infiltrator_shared::country_flags::node_flag_emoji;
 
     fn native_caption(delay: Option<u32>) -> (String, LatencyBand) {

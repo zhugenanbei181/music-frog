@@ -15,8 +15,6 @@ use bevy::ui::prelude::{
     AlignItems, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, percent,
 };
 use bevy::ui::widget::Text;
-use infiltrator_application::dns_latency_projection::{project_dns_latency, server_tags_text};
-use infiltrator_application::latency_projection::project_measured_latency;
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
@@ -25,6 +23,8 @@ use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::dns_latency::DnsLatencyReport;
+use infiltrator_presentation::dns_latency_projection::{project_dns_latency, server_tags_text};
+use infiltrator_presentation::latency_projection::project_measured_latency;
 
 /// Marker for a DNS server's address display text.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]

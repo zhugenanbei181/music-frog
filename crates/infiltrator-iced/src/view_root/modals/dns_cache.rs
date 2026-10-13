@@ -7,7 +7,7 @@ use crate::view::theme::{FONT_SEMIBOLD, tokens};
 use crate::view_root::interaction_regions::InteractionRegion;
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Element, Length, Theme};
-use infiltrator_application::dns_cache_projection::project_cache;
+use infiltrator_presentation::dns_cache_projection::project_cache;
 use infiltrator_shared::locales::{Lang, Localizer};
 pub fn cache_modal(state: &AppState) -> Element<'_, Message> {
     let model = &state.diag.dns_cache_actions;
@@ -25,7 +25,7 @@ pub fn cache_modal(state: &AppState) -> Element<'_, Message> {
     let mut actions = row![
         container(
             button(
-                text(lang.tr(if model.confirmed {
+                text(lang.tr(if model.is_confirmed() {
                     "dns_cache_close"
                 } else {
                     "dns_cache_cancel"

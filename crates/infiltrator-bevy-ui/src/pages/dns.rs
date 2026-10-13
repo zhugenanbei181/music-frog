@@ -43,13 +43,6 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button, ScrollArea};
-use infiltrator_application::dns_health_projection::project_dns_health;
-use infiltrator_application::dns_latency_projection::{project_dns_latency, server_tags_text};
-use infiltrator_application::dns_status_projection::{
-    filter_key, flush_summary, heading, mode_key,
-};
-use infiltrator_application::latency_projection::project_measured_latency;
-use infiltrator_application::stun_projection::project_stun;
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::icon::IconId;
@@ -72,7 +65,13 @@ use infiltrator_contract::dns_leak::DnsLeakReport;
 use infiltrator_contract::dns_self_heal::DnsSelfHealSnapshot;
 use infiltrator_contract::stun_probe::StunProbeReport;
 use infiltrator_contract::surface_snapshot::DnsPageSnapshot;
+use infiltrator_presentation::dns_cache_projection::flush_summary;
+use infiltrator_presentation::dns_health_projection::project_dns_health;
+use infiltrator_presentation::dns_latency_projection::{project_dns_latency, server_tags_text};
 use infiltrator_presentation::dns_leak_projection::project_leak;
+use infiltrator_presentation::dns_settings_projection::{filter_key, heading, mode_key};
+use infiltrator_presentation::latency_projection::project_measured_latency;
+use infiltrator_presentation::stun_projection::project_stun;
 use infiltrator_shared::i18n_interpolator::localize;
 use infiltrator_shared::locales::{Lang, Localizer};
 

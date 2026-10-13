@@ -20,8 +20,8 @@ use crate::view::theme;
 use crate::view::theme::{SP_XS, tokens};
 use iced::widget::{Space, column, row, text};
 use iced::{Alignment, Element, Length, Theme};
-use infiltrator_application::dns_observation_projection::DnsObservationTone;
-use infiltrator_application::stun_projection::project_stun;
+use infiltrator_presentation::stun_projection::project_stun;
+use infiltrator_shared::dns_observation::DnsObservationTone;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 /// The STUN UDP-egress card.

@@ -16,10 +16,10 @@ use bevy::ecs::system::{Query, Res, ResMut, SystemParam};
 use bevy::text::TextColor;
 use bevy::ui::widget::Text;
 use bevy::ui::{BackgroundColor, BorderColor, Display, Node};
-use infiltrator_application::latency_projection::project_proxy_latency;
 use infiltrator_bevy_widgets::button::ControlVisual;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_presentation::latency_projection::project_proxy_latency;
 use infiltrator_shared::country_flags::node_flag_emoji;
 
 #[derive(QueryData)]

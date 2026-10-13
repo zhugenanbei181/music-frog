@@ -16,7 +16,7 @@ pub fn statistics_confirmation<'a, R: Renderer<Font = Font> + 'a>(
     let lang = Lang(&state.shell.lang);
     let projection = project_inspector(model, &state.editor.rule_list, &state.shell.lang);
     let mut targets = column![];
-    let Some(confirmation) = &model.confirmation else {
+    let Some(confirmation) = model.confirmation() else {
         return text(String::new()).into();
     };
     for target in &confirmation.targets {

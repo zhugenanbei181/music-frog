@@ -87,7 +87,7 @@ pub(super) fn update(state: &mut AppState, message: Message) -> Task<Message> {
     if observed
         && state.shell.capture_scenario == Some(FeatureId::RulesStatisticsInspector)
         && state.editor.rule_hit_audit.current()
-        && state.editor.rule_hit_audit.confirmation.is_none()
+        && state.editor.rule_hit_audit.confirmation().is_none()
     {
         task.chain(Task::done(Message::RuleStatistics(StatisticsAction::Tab(
             StatisticsTab::Inactive,

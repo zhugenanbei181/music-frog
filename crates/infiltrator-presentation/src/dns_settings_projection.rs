@@ -1,6 +1,5 @@
 //! Shared labels for DNS settings and observed cache results, with single-pass interpolation.
 use infiltrator_contract::dns::{DnsEnhancedMode, DnsFakeIpFilterMode};
-use infiltrator_contract::dns_cache::{DnsCacheFlushReport, DnsFlushOutcome};
 use infiltrator_contract::dns_form::{DnsFormField, DnsFormIssue};
 use infiltrator_shared::i18n_interpolator::localize;
 use infiltrator_shared::locales::{Lang, Localizer};
@@ -17,32 +16,6 @@ pub const fn filter_key(mode: DnsFakeIpFilterMode) -> &'static str {
         DnsFakeIpFilterMode::Whitelist => "dns_filter_whitelist",
         DnsFakeIpFilterMode::Rules => "dns_filter_rules",
     }
-}
-pub fn flush_outcome(outcome: &DnsFlushOutcome, code: &str) -> String {
-    match outcome {
-        DnsFlushOutcome::NotRequested => Lang(code).tr("dns_flush_not_requested").into_owned(),
-        DnsFlushOutcome::Flushed => Lang(code).tr("dns_flush_flushed").into_owned(),
-        DnsFlushOutcome::Unsupported { reason } => localize(
-            code,
-            "dns_flush_unsupported_detail",
-            &[("reason", reason.clone())],
-        ),
-        DnsFlushOutcome::Failed { failure } => localize(
-            code,
-            "dns_flush_failed_detail",
-            &[("reason", failure.message.clone())],
-        ),
-    }
-}
-pub fn flush_summary(report: &DnsCacheFlushReport, code: &str) -> String {
-    localize(
-        code,
-        "dns_flush_summary",
-        &[
-            ("fakeip", flush_outcome(&report.fake_ip, code)),
-            ("os", flush_outcome(&report.os_cache, code)),
-        ],
-    )
 }
 pub fn heading(mode: DnsEnhancedMode, count: usize, code: &str) -> String {
     localize(
@@ -124,43 +97,4 @@ pub fn form_status(
             "dns_edit_unchanged"
         })
         .into_owned()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{field_label, form_issue, form_status};
-    use infiltrator_contract::dns_form::{DnsFormField, DnsFormIssue};
-
-    #[test]
-    fn dns_issue_interpolation_keeps_user_placeholders_and_unicode_opaque_in_both_languages() {
-        let entry = "ftp://{field}/{reason}/中文🙂";
-        let issue = DnsFormIssue::UnsupportedScheme {
-            field: DnsFormField::Nameserver,
-            entry: entry.into(),
-        };
-        assert_eq!(
-            form_issue(&issue, "en-US"),
-            format!("Unsupported upstream scheme in nameserver: {entry}")
-        );
-        assert_eq!(
-            form_issue(&issue, "zh-CN"),
-            format!("字段 nameserver 的上游协议不受支持: {entry}")
-        );
-        assert_eq!(
-            form_status(&[issue], false, true, false, "en-US"),
-            format!("Local validation failed: Unsupported upstream scheme in nameserver: {entry}")
-        );
-        assert_eq!(
-            field_label(DnsFormField::BootstrapNameserver, "en-US"),
-            "default_nameserver (bootstrap, pure IP)"
-        );
-        assert_eq!(
-            form_status(&[], false, true, true, "en-US"),
-            "Command service is not composed; DNS patch was not submitted"
-        );
-        assert_eq!(
-            form_status(&[], false, true, false, "en-US"),
-            "DNS workbench patch queued; awaiting actual result"
-        );
-    }
 }

@@ -93,7 +93,7 @@ pub fn render(mut surface: StatisticsSurface, mut commands: Commands) {
             StatisticsLine::Page => display.page.clone(),
             StatisticsLine::Confirmation => {
                 let mut value = display.confirmation_summary.clone();
-                if let Some(confirmation) = &surface.state.model.confirmation {
+                if let Some(confirmation) = surface.state.model.confirmation() {
                     for target in &confirmation.targets {
                         value.push('\n');
                         value.push_str(&target.raw);
@@ -110,7 +110,7 @@ pub fn render(mut surface: StatisticsSurface, mut commands: Commands) {
             line.text.0 = value;
         }
     }
-    let modal = surface.state.model.confirmation.is_some();
+    let modal = surface.state.model.confirmation().is_some();
     for mut disabled in &mut surface.launchers {
         disabled.0 = !display.can_reset;
     }
@@ -123,14 +123,14 @@ pub fn render(mut surface: StatisticsSurface, mut commands: Commands) {
             StatisticsControl::Next => display.can_next,
             StatisticsControl::ConfirmCleanup => display.can_confirm_cleanup,
             StatisticsControl::CancelCleanup => modal,
-            StatisticsControl::DismissFailure => surface.state.model.clear_failure.is_some(),
+            StatisticsControl::DismissFailure => surface.state.model.reset_failure().is_some(),
             StatisticsControl::Tab(_) => !modal,
         };
         if disabled.0 == enabled {
             disabled.0 = !enabled;
         }
         if matches!(action, StatisticsControl::DismissFailure) {
-            node.display = if surface.state.model.clear_failure.is_some() {
+            node.display = if surface.state.model.reset_failure().is_some() {
                 Display::Flex
             } else {
                 Display::None

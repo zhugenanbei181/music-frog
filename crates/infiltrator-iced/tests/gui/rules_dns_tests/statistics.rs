@@ -57,14 +57,14 @@ fn native_statistics_cleanup_cancel_and_confirm_require_independent_review_and_n
     assert_eq!(state.editor.rule_hit_audit.tab, StatisticsTab::Inactive);
     native(&mut state, InteractionRegion::StatisticsInspect, false);
     native(&mut state, InteractionRegion::StatisticsCleanup, false);
-    let review = state.editor.rule_hit_audit.confirmation.clone().unwrap();
+    let review = state.editor.rule_hit_audit.confirmation().cloned().unwrap();
     assert_eq!(state.editor.rule_list.draft, before);
     native(&mut state, InteractionRegion::ConfirmationCancel, true);
     assert_eq!(state.editor.rule_list.draft, before);
     assert!(!state.editor.rule_list.dirty());
     native(&mut state, InteractionRegion::StatisticsCleanup, false);
     native(&mut state, InteractionRegion::ConfirmationAccept, true);
-    assert!(state.editor.rule_hit_audit.confirmation.is_none());
+    assert!(state.editor.rule_hit_audit.confirmation().is_none());
     assert!(state.shell.confirmation.is_none());
     for target in review.targets {
         assert!(
@@ -86,23 +86,20 @@ fn native_statistics_reset_permission_retry_requires_matching_receipt_and_actual
     assert_eq!(state.editor.rule_hit_audit.tab, StatisticsTab::TopHits);
     store.deny_read.store(true, Ordering::SeqCst);
     let tasks = native(&mut state, InteractionRegion::StatisticsReset, false);
-    assert!(state.editor.rule_hit_audit.clear_pending.is_some());
+    assert!(state.editor.rule_hit_audit.reset_request().is_some());
     complete(&mut state, tasks);
     assert_eq!(
-        state
-            .editor
-            .rule_hit_audit
-            .clear_failure
-            .as_ref()
-            .unwrap()
-            .code,
+        state.editor.rule_hit_audit.reset_failure().unwrap().code,
         ErrorCode::Permission
     );
     assert_eq!(state.editor.rule_hit_audit.audit.as_ref(), Some(&before));
     store.deny_read.store(false, Ordering::SeqCst);
     let tasks = native(&mut state, InteractionRegion::StatisticsReset, false);
     complete(&mut state, tasks);
-    assert!(state.editor.rule_hit_audit.awaiting_revision.is_some());
+    assert!(matches!(
+        state.editor.rule_hit_audit.reset_phase(),
+        infiltrator_application::rule_statistics_workbench::StatisticsResetPhase::AwaitingReadback { .. }
+    ));
     assert_eq!(state.editor.rule_hit_audit.audit.as_ref(), Some(&before));
     publish(&mut state, &reader);
     assert!(!state.editor.rule_hit_audit.busy());
@@ -127,11 +124,11 @@ fn native_statistics_changed_source_retains_review_but_disabled_confirm_publishe
     run(&mut state, &reader);
     native(&mut state, InteractionRegion::StatisticsInspect, false);
     native(&mut state, InteractionRegion::StatisticsCleanup, false);
-    let review = state.editor.rule_hit_audit.confirmation.clone().unwrap();
+    let review = state.editor.rule_hit_audit.confirmation().cloned().unwrap();
     store.select_profile("other.yaml", "rules:\n  - MATCH,DIRECT\n");
     publish(&mut state, &reader);
     assert_eq!(state.editor.rule_hit_audit.audit, None);
-    assert_eq!(state.editor.rule_hit_audit.confirmation, Some(review));
+    assert_eq!(state.editor.rule_hit_audit.confirmation(), Some(&review));
     let messages = native_widgets::native(
         statistics_confirmation(&state),
         InteractionRegion::ConfirmationAccept.id(),
@@ -145,10 +142,10 @@ fn native_statistics_changed_source_retains_review_but_disabled_confirm_publishe
     for message in messages {
         let _ = state.update(message);
     }
-    assert!(state.editor.rule_hit_audit.confirmation.is_some());
+    assert!(state.editor.rule_hit_audit.confirmation().is_some());
     assert!(!state.editor.rule_list.dirty());
     native(&mut state, InteractionRegion::ConfirmationCancel, true);
-    assert!(state.editor.rule_hit_audit.confirmation.is_none());
+    assert!(state.editor.rule_hit_audit.confirmation().is_none());
     assert!(state.shell.confirmation.is_none());
     assert_eq!(store.writes.load(Ordering::SeqCst), 0);
 }

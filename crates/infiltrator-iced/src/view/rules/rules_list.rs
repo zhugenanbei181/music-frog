@@ -249,7 +249,7 @@ fn add_rule_panel<'a>(
     let reset = text_btn(
         lang.tr("rules_form_discard").to_string(),
         style_ghost,
-        (state.editor.rule_list.pending.is_none() && !state.editor.rule_list.awaiting_read)
+        (!state.editor.rule_list.is_pending() && !state.editor.rule_list.is_awaiting_readback())
             .then_some(Message::RuleList(RuleListAction::DiscardForm)),
     );
     card(

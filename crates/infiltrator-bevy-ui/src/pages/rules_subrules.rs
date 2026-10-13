@@ -388,7 +388,7 @@ pub(crate) fn on_rules_subrules_activated(
     if interaction
         .statistics
         .as_ref()
-        .is_some_and(|state| state.model.confirmation.is_some())
+        .is_some_and(|state| state.model.confirmation().is_some())
     {
         return;
     }

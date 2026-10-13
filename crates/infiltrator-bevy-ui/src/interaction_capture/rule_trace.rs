@@ -325,7 +325,7 @@ pub fn observe(
             {
                 return None;
             }
-            let confirmation = probe.state.model.confirmation.as_ref()?;
+            let confirmation = probe.state.model.confirmation()?;
             if confirmation.expected_rule != "DOMAIN-SUFFIX,google.com,PROXY"
                 || confirmation.new_target != "DIRECT"
             {

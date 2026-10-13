@@ -2,7 +2,8 @@
 use crate::rule_list_editor::RuleListEditor;
 use crate::rule_statistics_projection::{RuleStatisticsProjection, project_statistics};
 use crate::rule_statistics_workbench::{
-    RuleStatisticsWorkbench, STATS_ROWS_PER_PAGE, StatisticsTab,
+    RuleStatisticsWorkbench, STATS_ROWS_PER_PAGE, StatisticsCleanupFeedback, StatisticsResetPhase,
+    StatisticsTab,
 };
 use infiltrator_contract::rule_hit_audit::RuleDeadReason;
 use infiltrator_contract::rule_source::RuleSourceIdentity;
@@ -73,11 +74,14 @@ pub fn project_inspector(
                 .unwrap_or_else(|| Lang(locale).tr("rule_hit_none").into_owned())
         })
         .unwrap_or_else(|| unknown.clone());
-    let status = if let Some(failure) = &model.read_failure {
+    let status = if let Some(failure) = model.read_failure() {
         copy(locale, "rules_stats_stale", &[("reason", &failure.message)])
-    } else if model.clear_pending.is_some() {
+    } else if model.reset_request().is_some() {
         Lang(locale).tr("rules_stats_clearing").into_owned()
-    } else if model.awaiting_revision.is_some() {
+    } else if matches!(
+        model.reset_phase(),
+        StatisticsResetPhase::AwaitingReadback { .. }
+    ) {
         Lang(locale).tr("rules_stats_waiting_readback").into_owned()
     } else if model.audit.is_none() {
         Lang(locale).tr("rules_trace_stats_unobserved").into_owned()
@@ -190,29 +194,32 @@ pub fn project_inspector(
     } else {
         String::new()
     };
-    let feedback = if let Some(failure) = &model.clear_failure {
+    let feedback = if let Some(failure) = model.reset_failure() {
         copy(
             locale,
             "rules_stats_clear_failed",
             &[("reason", &failure.message)],
         )
-    } else if let Some(count) = model.last_cleanup_count {
-        copy(
-            locale,
-            "rules_trace_disabled_rows",
-            &[("count", &count.to_string())],
-        )
-    } else if model.inspected {
-        copy(
-            locale,
-            "rules_trace_audit_complete",
-            &[
-                ("count", &model.zero_hit_rows.len().to_string()),
-                ("total", &editor.draft.len().to_string()),
-            ],
-        )
     } else {
-        String::new()
+        match model.cleanup_feedback() {
+            StatisticsCleanupFeedback::Completed(count) => copy(
+                locale,
+                "rules_trace_disabled_rows",
+                &[("count", &count.to_string())],
+            ),
+            StatisticsCleanupFeedback::None => {
+                model.inspected_rows().map_or_else(String::new, |rows| {
+                    copy(
+                        locale,
+                        "rules_trace_audit_complete",
+                        &[
+                            ("count", &rows.len().to_string()),
+                            ("total", &editor.draft.len().to_string()),
+                        ],
+                    )
+                })
+            }
+        }
     };
     let can_confirm_cleanup = model.can_confirm_cleanup(editor);
     StatisticsInspectorProjection {
@@ -234,14 +241,14 @@ pub fn project_inspector(
         can_previous: page_index > 0,
         can_next: page_index + 1 < pages,
         can_inspect: model.can_inspect(editor),
-        can_prepare_cleanup: model.inspected
+        can_prepare_cleanup: model.is_inspected()
             && !model.busy()
-            && model.confirmation.is_none()
-            && !model.zero_hit_rows.is_empty()
+            && model.confirmation().is_none()
+            && model.inspected_rows().is_some_and(|rows| !rows.is_empty())
             && model.can_inspect(editor),
         can_reset: model.can_reset(),
         feedback,
-        confirmation_status: if model.confirmation.is_some() && !can_confirm_cleanup {
+        confirmation_status: if model.confirmation().is_some() && !can_confirm_cleanup {
             Lang(locale)
                 .tr("rules_stats_confirmation_stale")
                 .into_owned()
@@ -249,9 +256,8 @@ pub fn project_inspector(
             String::new()
         },
         confirmation_summary: model
-            .confirmation
-            .as_ref()
-            .map(|confirmation| {
+            .confirmation()
+            .map_or_else(String::new, |confirmation| {
                 copy(
                     locale,
                     "rules_stats_cleanup_preview",
@@ -260,8 +266,7 @@ pub fn project_inspector(
                         ("count", &confirmation.targets.len().to_string()),
                     ],
                 )
-            })
-            .unwrap_or_default(),
+            }),
         can_confirm_cleanup,
     }
 }

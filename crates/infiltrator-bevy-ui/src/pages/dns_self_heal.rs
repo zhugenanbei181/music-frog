@@ -17,10 +17,6 @@ use bevy::ui::prelude::{
     AlignItems, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, Val, percent,
 };
 use bevy::ui::widget::Text;
-use infiltrator_application::dns_health_projection::project_dns_health;
-use infiltrator_application::dns_latency_projection::{project_dns_latency, server_tags_text};
-use infiltrator_application::dns_observation_projection::DnsObservationTone;
-use infiltrator_application::stun_projection::project_stun;
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
@@ -28,6 +24,10 @@ use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_presentation::dns_health_projection::project_dns_health;
+use infiltrator_presentation::dns_latency_projection::{project_dns_latency, server_tags_text};
+use infiltrator_presentation::stun_projection::project_stun;
+use infiltrator_shared::dns_observation::DnsObservationTone;
 
 /// The DNS self-heal card (overall state + one row per check).
 pub fn dns_self_heal_card_scene(

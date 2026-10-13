@@ -1,8 +1,8 @@
 use super::*;
 use iced::advanced::widget::Tree;
-use infiltrator_application::dns_hosts_projection::issue_text;
 use infiltrator_contract::dns::FakeIpMappingPool;
 use infiltrator_contract::dns_hosts::{DnsHostEntry, validate_hosts};
+use infiltrator_presentation::dns_hosts_projection::issue_text;
 
 // ===========================================================================
 // DUAL-14-06 / 14-10 / 14-11: Fake-IP pool, latency policy & hosts editor
@@ -198,7 +198,7 @@ fn test_dns_hosts_panel_add_remove_rows_uses_the_shared_draft() {
             .collect::<Vec<_>>(),
         vec![host_row("router.lan", "192.168.1.1")]
     );
-    assert!(state.editor.dns_hosts_editor.dirty);
+    assert!(state.editor.dns_hosts_editor.is_dirty());
 
     // An exact duplicate row is not added twice.
     let _ = state.update(Message::UpdateDnsHostsAddress("192.168.1.1".to_owned()));
@@ -207,8 +207,8 @@ fn test_dns_hosts_panel_add_remove_rows_uses_the_shared_draft() {
     assert_eq!(state.editor.dns_hosts_editor.rows.len(), 1);
 
     // The add form is cleared after a successful insert.
-    assert!(state.editor.dns_hosts_editor.address.is_empty());
-    assert!(state.editor.dns_hosts_editor.domain.is_empty());
+    assert!(state.editor.dns_hosts_editor.address().is_empty());
+    assert!(state.editor.dns_hosts_editor.domain().is_empty());
 
     let _ = state.update(Message::RemoveDnsHostRow(0));
     assert!(state.editor.dns_hosts_editor.rows.is_empty());

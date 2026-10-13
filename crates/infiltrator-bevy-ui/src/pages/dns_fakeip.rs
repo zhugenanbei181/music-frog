@@ -129,10 +129,10 @@ pub fn sync_dns_fake_ip_filter(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use infiltrator_application::dns_health_projection::project_dns_health;
-    use infiltrator_application::dns_latency_projection::project_dns_latency;
     use infiltrator_contract::dns::{FakeIpMappingEntry, FakeIpMappingPool, FakeIpMappingSource};
     use infiltrator_contract::dns_latency::DnsLatencyReport;
+    use infiltrator_presentation::dns_health_projection::project_dns_health;
+    use infiltrator_presentation::dns_latency_projection::project_dns_latency;
 
     fn pool() -> FakeIpMappingPool {
         FakeIpMappingPool {

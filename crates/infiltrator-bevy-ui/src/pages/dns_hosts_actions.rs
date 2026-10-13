@@ -28,7 +28,7 @@ pub fn activate(
     let Ok(action) = actions.get(event.entity) else {
         return;
     };
-    if route.0 != Some(Route::Dns) || state.editor.pending.is_some() {
+    if route.0 != Some(Route::Dns) || state.editor.is_pending() {
         return;
     }
     if matches!(action, HostAction::Open) {
@@ -36,7 +36,7 @@ pub fn activate(
         state.sync_fields = true;
         return;
     }
-    if !state.editor.open {
+    if !state.editor.is_open() {
         return;
     }
     if matches!(
@@ -120,8 +120,7 @@ pub fn finish(event: On<CommandExecutedEvent>, mut state: ResMut<DnsHostsEditorS
     if request != event.request_id
         || !state
             .editor
-            .pending
-            .as_ref()
+            .pending()
             .is_some_and(|pending| pending.token == token && &pending.patch == patch)
     {
         return;

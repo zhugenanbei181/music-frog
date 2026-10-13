@@ -6,7 +6,6 @@ use bevy::ecs::resource::Resource;
 use bevy::scene::{Scene, bsn};
 use bevy::ui::{FlexDirection, Node, percent};
 use bevy::ui_widgets::Button;
-use infiltrator_application::dns_hosts_editor::DnsHostsEditor;
 use infiltrator_bevy_widgets::button::{ButtonDisabled, ButtonVariant};
 use infiltrator_bevy_widgets::localization::LocalizedText;
 use infiltrator_bevy_widgets::palette::UiPalette;
@@ -14,6 +13,7 @@ use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_contract::command::RequestId;
+use infiltrator_presentation::dns_hosts_editor::DnsHostsEditor;
 
 #[derive(Resource, Default)]
 pub struct DnsHostsEditorState {

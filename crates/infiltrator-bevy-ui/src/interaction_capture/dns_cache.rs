@@ -26,7 +26,7 @@ pub fn activate(
         &route,
         FeatureId::DnsFakeIpFlushConfirm,
         Route::Dns,
-    ) || state.model.open
+    ) || state.model.is_open()
     {
         return;
     }
@@ -59,9 +59,9 @@ pub fn observe(
     mut observation: ResMut<ObservedInteraction>,
 ) {
     let bounds = (|| {
-        if !state.model.open
-            || state.model.confirmed
-            || state.model.pending.is_some()
+        if !state.model.is_open()
+            || state.model.is_confirmed()
+            || state.model.is_pending()
             || state.request.is_some()
         {
             return None;

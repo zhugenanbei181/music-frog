@@ -85,36 +85,30 @@ fn actual_hosts_modal_edit_cancel_migration_failure_retry_and_reader_fences_pres
     );
     assert_eq!(store.content(), ORIGINAL_HOSTS);
     let _ = state.update(Message::CancelDnsHostsEditor);
-    assert!(!state.editor.dns_hosts_editor.open);
+    assert!(!state.editor.dns_hosts_editor.is_open());
     assert_eq!(store.writes.load(Ordering::SeqCst), 0);
     assert_eq!(state.update(Message::SaveDnsHosts).units(), 0);
     let _ = state.update(Message::OpenDnsHostsEditor);
     let _ = state.update(Message::ImportLegacyDnsHosts);
     assert_eq!(state.editor.dns_hosts_editor.rows.len(), 3);
-    assert!(state.editor.dns_hosts_editor.importing_legacy);
+    assert!(state.editor.dns_hosts_editor.is_importing_legacy());
     let mut tree = Tree::new(state.view().as_widget());
     store.deny_save.store(true, Ordering::SeqCst);
     let task = state.update(Message::SaveDnsHosts);
-    let token = state
-        .editor
-        .dns_hosts_editor
-        .pending
-        .as_ref()
-        .unwrap()
-        .token;
+    let token = state.editor.dns_hosts_editor.pending().unwrap().token;
     assert_eq!(state.update(Message::SaveDnsHosts).units(), 0);
     let _ = state.update(Message::CancelDnsHostsEditor);
-    assert!(state.editor.dns_hosts_editor.open);
-    assert!(state.editor.dns_hosts_editor.pending.is_some());
+    assert!(state.editor.dns_hosts_editor.is_open());
+    assert!(state.editor.dns_hosts_editor.is_pending());
     let _ = state.update(Message::DnsHostsCommandFinished {
         token: token + 1,
         result: Ok(()),
     });
-    assert!(state.editor.dns_hosts_editor.pending.is_some());
+    assert!(state.editor.dns_hosts_editor.is_pending());
     let _ = state.update(terminal(task));
     publish(&mut state, &reader);
     assert_eq!(
-        state.editor.dns_hosts_editor.failure.as_ref().unwrap().code,
+        state.editor.dns_hosts_editor.failure().unwrap().code,
         ErrorCode::Permission
     );
     assert_eq!(state.editor.dns_hosts_editor.rows.len(), 3);
@@ -135,7 +129,7 @@ fn actual_hosts_modal_edit_cancel_migration_failure_retry_and_reader_fences_pres
     let task = state.update(Message::SaveDnsHosts);
     let _ = state.update(terminal(task));
     publish(&mut state, &reader);
-    assert!(state.editor.dns_hosts_editor.failure.is_none());
+    assert!(state.editor.dns_hosts_editor.failure().is_none());
     assert_eq!(
         state
             .editor
@@ -167,13 +161,7 @@ fn actual_hosts_modal_edit_cancel_migration_failure_retry_and_reader_fences_pres
     publish(&mut state, &reader);
     assert_eq!(state.editor.dns_hosts_editor.rows, draft);
     assert_eq!(
-        state
-            .editor
-            .dns_hosts_editor
-            .read_failure
-            .as_ref()
-            .unwrap()
-            .code,
+        state.editor.dns_hosts_editor.read_failure().unwrap().code,
         ErrorCode::Permission
     );
     assert!(!state.editor.dns_hosts_editor.can_apply());
@@ -244,26 +232,20 @@ fn unsupported_hosts_reader_stays_visible_and_uncommitted_row_input_survives_row
     });
     let _ = state.update(Message::OpenDnsHostsEditor);
     assert_eq!(
-        state
-            .editor
-            .dns_hosts_editor
-            .read_failure
-            .as_ref()
-            .unwrap()
-            .code,
+        state.editor.dns_hosts_editor.read_failure().unwrap().code,
         ErrorCode::Unsupported
     );
     assert!(!state.editor.dns_hosts_editor.can_apply());
     let _ = state.update(Message::UpdateDnsHostsAddress("1.1.1.1".into()));
     let _ = state.update(Message::UpdateDnsHostsDomain("new.test".into()));
     let _ = state.update(Message::EditDnsHostRow(0));
-    assert_eq!(state.editor.dns_hosts_editor.address, "1.1.1.1");
-    assert_eq!(state.editor.dns_hosts_editor.domain, "new.test");
+    assert_eq!(state.editor.dns_hosts_editor.address(), "1.1.1.1");
+    assert_eq!(state.editor.dns_hosts_editor.domain(), "new.test");
     let _ = state.update(Message::CancelDnsHostRowInput);
-    assert!(state.editor.dns_hosts_editor.address.is_empty());
+    assert!(state.editor.dns_hosts_editor.address().is_empty());
     let _ = state.update(Message::AddDnsHostRow);
     assert!(!state.editor.dns_hosts_editor.issues.is_empty());
     let _ = state.update(Message::CancelDnsHostsEditor);
-    assert!(!state.editor.dns_hosts_editor.open);
+    assert!(!state.editor.dns_hosts_editor.is_open());
     assert_eq!(state.update(Message::SaveDnsHosts).units(), 0);
 }

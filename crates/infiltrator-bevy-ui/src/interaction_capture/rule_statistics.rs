@@ -146,7 +146,7 @@ pub fn activate(
     let wanted = match probe.capture.stage {
         0 => StatisticsControl::Tab(StatisticsTab::Inactive),
         1 if probe.statistics.model.tab == StatisticsTab::Inactive => StatisticsControl::Inspect,
-        2 if probe.statistics.model.inspected => StatisticsControl::PrepareCleanup,
+        2 if probe.statistics.model.is_inspected() => StatisticsControl::PrepareCleanup,
         _ => return,
     };
     let Some((entity, _, _, _)) = probe.controls.iter().find(|(_, action, disabled, scrim)| {

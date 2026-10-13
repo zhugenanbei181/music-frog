@@ -34,6 +34,19 @@ impl StatisticsTab {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub enum StatisticsReadPhase {
+    Unobserved,
+    Loading(Failure),
+    Ready,
+    Failed(Failure),
+}
+impl Default for StatisticsReadPhase {
+    fn default() -> Self {
+        Self::Unobserved
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RuleCleanupTarget {
     pub id: RuleRowId,
     pub raw: String,
@@ -43,11 +56,44 @@ pub struct RuleCleanupConfirmation {
     pub source: RuleSourceIdentity,
     pub targets: Vec<RuleCleanupTarget>,
 }
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub enum StatisticsInspectionPhase {
+    #[default]
+    NotInspected,
+    Inspected {
+        zero_hit_rows: Vec<RuleRowId>,
+    },
+    Confirming {
+        zero_hit_rows: Vec<RuleRowId>,
+        confirmation: RuleCleanupConfirmation,
+    },
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct StatisticsResetRequest {
     pub operation: u64,
     pub revision: u64,
     pub source: RuleSourceIdentity,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub enum StatisticsResetPhase {
+    #[default]
+    Idle,
+    Submitting(StatisticsResetRequest),
+    AwaitingReadback {
+        source: RuleSourceIdentity,
+        revision: u64,
+    },
+    Failed(Failure),
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub enum StatisticsCleanupFeedback {
+    #[default]
+    None,
+    Completed(usize),
 }
 
 #[derive(Clone, Debug)]
@@ -71,20 +117,83 @@ pub enum StatisticsAction {
 pub struct RuleStatisticsWorkbench {
     pub audit: Option<RuleHitAuditSnapshot>,
     pub source: Option<RuleSourceIdentity>,
-    pub read_failure: Option<Failure>,
     pub tab: StatisticsTab,
     pub page: usize,
-    pub zero_hit_rows: Vec<RuleRowId>,
-    pub inspected: bool,
-    pub confirmation: Option<RuleCleanupConfirmation>,
-    pub last_cleanup_count: Option<usize>,
-    pub clear_pending: Option<StatisticsResetRequest>,
-    pub clear_failure: Option<Failure>,
-    pub awaiting_revision: Option<(RuleSourceIdentity, u64)>,
+    read: StatisticsReadPhase,
+    inspection: StatisticsInspectionPhase,
+    cleanup_feedback: StatisticsCleanupFeedback,
+    reset: StatisticsResetPhase,
     revision_floor: u64,
 }
 
 impl RuleStatisticsWorkbench {
+    pub fn read_phase(&self) -> &StatisticsReadPhase {
+        &self.read
+    }
+
+    pub fn inspection_phase(&self) -> &StatisticsInspectionPhase {
+        &self.inspection
+    }
+
+    pub fn reset_phase(&self) -> &StatisticsResetPhase {
+        &self.reset
+    }
+
+    pub fn cleanup_feedback(&self) -> &StatisticsCleanupFeedback {
+        &self.cleanup_feedback
+    }
+
+    pub fn read_failure(&self) -> Option<&Failure> {
+        match &self.read {
+            StatisticsReadPhase::Loading(failure) | StatisticsReadPhase::Failed(failure) => {
+                Some(failure)
+            }
+            StatisticsReadPhase::Unobserved | StatisticsReadPhase::Ready => None,
+        }
+    }
+
+    pub fn reset_failure(&self) -> Option<&Failure> {
+        match &self.reset {
+            StatisticsResetPhase::Failed(failure) => Some(failure),
+            StatisticsResetPhase::Idle
+            | StatisticsResetPhase::Submitting(_)
+            | StatisticsResetPhase::AwaitingReadback { .. } => None,
+        }
+    }
+
+    pub fn is_inspected(&self) -> bool {
+        matches!(
+            &self.inspection,
+            StatisticsInspectionPhase::Inspected { .. }
+                | StatisticsInspectionPhase::Confirming { .. }
+        )
+    }
+
+    pub fn inspected_rows(&self) -> Option<&[RuleRowId]> {
+        match &self.inspection {
+            StatisticsInspectionPhase::Inspected { zero_hit_rows }
+            | StatisticsInspectionPhase::Confirming { zero_hit_rows, .. } => Some(zero_hit_rows),
+            StatisticsInspectionPhase::NotInspected => None,
+        }
+    }
+
+    pub fn confirmation(&self) -> Option<&RuleCleanupConfirmation> {
+        match &self.inspection {
+            StatisticsInspectionPhase::Confirming { confirmation, .. } => Some(confirmation),
+            StatisticsInspectionPhase::NotInspected
+            | StatisticsInspectionPhase::Inspected { .. } => None,
+        }
+    }
+
+    pub fn reset_request(&self) -> Option<&StatisticsResetRequest> {
+        match &self.reset {
+            StatisticsResetPhase::Submitting(request) => Some(request),
+            StatisticsResetPhase::Idle
+            | StatisticsResetPhase::AwaitingReadback { .. }
+            | StatisticsResetPhase::Failed(_) => None,
+        }
+    }
+
     pub fn observe(&mut self, page: &PageData<RulesPageSnapshot>) {
         let source = page
             .data
@@ -94,25 +203,34 @@ impl RuleStatisticsWorkbench {
         if let Some(source) = source {
             if self.source.as_ref() != Some(&source) {
                 self.audit = None;
-                self.zero_hit_rows.clear();
-                self.inspected = false;
-                self.last_cleanup_count = None;
-                self.awaiting_revision = None;
+                self.invalidate_inspection_preserving_review();
+                self.cleanup_feedback = StatisticsCleanupFeedback::None;
+                if matches!(
+                    &self.reset,
+                    StatisticsResetPhase::AwaitingReadback { source: pending, .. }
+                        if pending != &source
+                ) {
+                    self.reset = StatisticsResetPhase::Failed(Failure::new(
+                        ErrorCode::NotReady,
+                        "The rule source changed before reset readback was observed",
+                        true,
+                    ));
+                }
             }
             self.source = Some(source);
         }
-        self.read_failure = match &page.status {
+        self.read = match &page.status {
             PageStatus::Failed { failure } | PageStatus::Unavailable { failure } => {
-                Some(failure.clone())
+                StatisticsReadPhase::Failed(failure.clone())
             }
-            PageStatus::Loading => Some(Failure::new(
+            PageStatus::Loading => StatisticsReadPhase::Loading(Failure::new(
                 ErrorCode::NotReady,
                 "Rule statistics are still loading",
                 true,
             )),
-            PageStatus::Ready | PageStatus::Empty => None,
+            PageStatus::Ready | PageStatus::Empty => StatisticsReadPhase::Ready,
         };
-        if self.read_failure.is_some() {
+        if !matches!(&self.read, StatisticsReadPhase::Ready) {
             return;
         }
         let next = page
@@ -121,32 +239,39 @@ impl RuleStatisticsWorkbench {
             .and_then(|data| data.hit_audit.as_ref())
             .filter(|audit| self.source.is_some() && audit.source.as_ref() == self.source.as_ref());
         if let Some(next) = next {
-            let boundary = self
-                .awaiting_revision
-                .as_ref()
-                .map_or(self.revision_floor, |(_, revision)| *revision);
+            let boundary = match &self.reset {
+                StatisticsResetPhase::AwaitingReadback { revision, .. } => *revision,
+                StatisticsResetPhase::Idle
+                | StatisticsResetPhase::Submitting(_)
+                | StatisticsResetPhase::Failed(_) => self.revision_floor,
+            };
             if next.revision < boundary {
                 return;
             }
             if self.audit.as_ref() != Some(next) {
-                self.zero_hit_rows.clear();
-                self.inspected = false;
+                self.invalidate_inspection_preserving_review();
             }
             self.revision_floor = next.revision;
             self.audit = Some(next.clone());
-            if self
-                .awaiting_revision
-                .as_ref()
-                .is_some_and(|(source, revision)| {
-                    next.source.as_ref() == Some(source) && next.revision >= *revision
-                })
-            {
-                self.awaiting_revision = None;
+            if matches!(
+                &self.reset,
+                StatisticsResetPhase::AwaitingReadback { source, revision }
+                    if next.source.as_ref() == Some(source) && next.revision >= *revision
+            ) {
+                self.reset = StatisticsResetPhase::Idle;
             }
-        } else if self.awaiting_revision.is_none() {
+        } else if !matches!(&self.reset, StatisticsResetPhase::AwaitingReadback { .. }) {
             self.audit = None;
-            self.zero_hit_rows.clear();
-            self.inspected = false;
+            self.invalidate_inspection_preserving_review();
+        }
+    }
+
+    fn invalidate_inspection_preserving_review(&mut self) {
+        if !matches!(
+            &self.inspection,
+            StatisticsInspectionPhase::Confirming { .. }
+        ) {
+            self.inspection = StatisticsInspectionPhase::NotInspected;
         }
     }
 
@@ -170,12 +295,15 @@ impl RuleStatisticsWorkbench {
         }
     }
     pub fn busy(&self) -> bool {
-        self.clear_pending.is_some() || self.awaiting_revision.is_some()
+        matches!(
+            &self.reset,
+            StatisticsResetPhase::Submitting(_) | StatisticsResetPhase::AwaitingReadback { .. }
+        )
     }
     pub fn current(&self) -> bool {
         self.source.is_some()
-            && self.read_failure.is_none()
-            && self.awaiting_revision.is_none()
+            && matches!(&self.read, StatisticsReadPhase::Ready)
+            && !matches!(&self.reset, StatisticsResetPhase::AwaitingReadback { .. })
             && self
                 .audit
                 .as_ref()
@@ -184,26 +312,32 @@ impl RuleStatisticsWorkbench {
     pub fn can_inspect(&self, editor: &RuleListEditor) -> bool {
         self.current()
             && !self.busy()
-            && self.confirmation.is_none()
+            && self.confirmation().is_none()
             && can_audit_rows(editor, self.audit.as_ref())
     }
     pub fn inspect(&mut self, editor: &RuleListEditor) -> bool {
         if !self.can_inspect(editor) {
             return false;
         }
-        self.zero_hit_rows = zero_hit_rows(editor, self.audit.as_ref());
-        self.inspected = true;
-        self.last_cleanup_count = None;
+        self.inspection = StatisticsInspectionPhase::Inspected {
+            zero_hit_rows: zero_hit_rows(editor, self.audit.as_ref()),
+        };
+        self.cleanup_feedback = StatisticsCleanupFeedback::None;
         true
     }
 
     pub fn prepare_cleanup(&mut self, editor: &RuleListEditor) -> bool {
-        if !self.current() || self.busy() || self.confirmation.is_some() || !self.inspected {
+        if !self.current() || self.busy() || self.confirmation().is_some() {
             return false;
         }
+        let StatisticsInspectionPhase::Inspected {
+            zero_hit_rows: inspected_rows,
+        } = &self.inspection
+        else {
+            return false;
+        };
         let allowed = zero_hit_rows(editor, self.audit.as_ref());
-        let targets = self
-            .zero_hit_rows
+        let targets = inspected_rows
             .iter()
             .filter(|id| allowed.contains(id))
             .filter_map(|id| {
@@ -219,11 +353,14 @@ impl RuleStatisticsWorkbench {
         if targets.is_empty() {
             return false;
         }
-        self.confirmation = Some(RuleCleanupConfirmation { source, targets });
+        self.inspection = StatisticsInspectionPhase::Confirming {
+            zero_hit_rows: inspected_rows.clone(),
+            confirmation: RuleCleanupConfirmation { source, targets },
+        };
         true
     }
     pub fn can_confirm_cleanup(&self, editor: &RuleListEditor) -> bool {
-        let Some(confirmation) = &self.confirmation else {
+        let Some(confirmation) = self.confirmation() else {
             return false;
         };
         if !self.current() || self.busy() || self.source.as_ref() != Some(&confirmation.source) {
@@ -239,29 +376,40 @@ impl RuleStatisticsWorkbench {
             })
     }
     pub fn cancel_cleanup(&mut self) -> bool {
-        self.confirmation.take().is_some()
+        match std::mem::take(&mut self.inspection) {
+            StatisticsInspectionPhase::Confirming { zero_hit_rows, .. } => {
+                self.inspection = StatisticsInspectionPhase::Inspected { zero_hit_rows };
+                true
+            }
+            phase => {
+                self.inspection = phase;
+                false
+            }
+        }
     }
     pub fn confirm_cleanup(&mut self, editor: &mut RuleListEditor) -> Option<usize> {
         if !self.can_confirm_cleanup(editor) {
             return None;
         }
-        let confirmation = self.confirmation.take()?;
-        let requested = confirmation
-            .targets
-            .iter()
-            .map(|target| target.id)
-            .collect::<Vec<_>>();
-        let count = disable_zero_hit_rows(editor, self.audit.as_ref(), &requested);
-        self.zero_hit_rows.clear();
-        self.inspected = false;
-        self.last_cleanup_count = Some(count);
+        let count = disable_zero_hit_rows(
+            editor,
+            self.audit.as_ref(),
+            &self
+                .confirmation()?
+                .targets
+                .iter()
+                .map(|target| target.id)
+                .collect::<Vec<_>>(),
+        );
+        self.inspection = StatisticsInspectionPhase::NotInspected;
+        self.cleanup_feedback = StatisticsCleanupFeedback::Completed(count);
         Some(count)
     }
 
     pub fn can_reset(&self) -> bool {
         self.current()
             && !self.busy()
-            && self.confirmation.is_none()
+            && self.confirmation().is_none()
             && clear_source(self.audit.as_ref()).is_some()
     }
     pub fn begin_reset(&mut self) -> Option<StatisticsResetRequest> {
@@ -269,18 +417,25 @@ impl RuleStatisticsWorkbench {
             return None;
         }
         let source = clear_source(self.audit.as_ref())?.clone();
-        let operation = NEXT_RESET
-            .try_update(Ordering::SeqCst, Ordering::SeqCst, |next| {
-                next.checked_add(1)
-            })
-            .expect("statistics operation identity exhausted");
+        let operation = match NEXT_RESET.try_update(Ordering::SeqCst, Ordering::SeqCst, |next| {
+            next.checked_add(1)
+        }) {
+            Ok(operation) => operation,
+            Err(_) => {
+                self.reset = StatisticsResetPhase::Failed(Failure::new(
+                    ErrorCode::InvalidState,
+                    "Statistics reset identity exhausted",
+                    false,
+                ));
+                return None;
+            }
+        };
         let request = StatisticsResetRequest {
             operation,
             source,
             revision: self.audit.as_ref()?.revision,
         };
-        self.clear_pending = Some(request.clone());
-        self.clear_failure = None;
+        self.reset = StatisticsResetPhase::Submitting(request.clone());
         Some(request)
     }
     pub fn finish_reset(
@@ -288,10 +443,9 @@ impl RuleStatisticsWorkbench {
         request: &StatisticsResetRequest,
         result: Result<RuleStatisticsResetReceipt, Failure>,
     ) -> bool {
-        if self.clear_pending.as_ref() != Some(request) {
+        if self.reset_request() != Some(request) {
             return false;
         }
-        self.clear_pending = None;
         let result = result.and_then(|receipt| {
             receipt.validate(&request.source)?;
             if self.source.as_ref() != Some(&request.source) || receipt.revision <= request.revision
@@ -307,22 +461,29 @@ impl RuleStatisticsWorkbench {
         match result {
             Ok(receipt) => {
                 self.revision_floor = self.revision_floor.max(receipt.revision);
-                self.awaiting_revision = if self.audit.as_ref().is_some_and(|audit| {
+                self.reset = if self.audit.as_ref().is_some_and(|audit| {
                     audit.source.as_ref() == Some(&receipt.source)
                         && audit.revision >= receipt.revision
                 }) {
-                    None
+                    StatisticsResetPhase::Idle
                 } else {
-                    Some((receipt.source, receipt.revision))
+                    StatisticsResetPhase::AwaitingReadback {
+                        source: receipt.source,
+                        revision: receipt.revision,
+                    }
                 };
-                self.clear_failure = None;
             }
-            Err(failure) => {
-                self.clear_failure = Some(failure);
-                self.awaiting_revision = None;
-            }
+            Err(failure) => self.reset = StatisticsResetPhase::Failed(failure),
         }
         true
+    }
+    pub fn dismiss_failure(&mut self) -> bool {
+        if matches!(&self.reset, StatisticsResetPhase::Failed(_)) {
+            self.reset = StatisticsResetPhase::Idle;
+            true
+        } else {
+            false
+        }
     }
 }
 

@@ -2,8 +2,8 @@
 use crate::view::theme::{MONO, tokens};
 use iced::widget::text;
 use iced::{Element, Theme};
-use infiltrator_application::latency_projection::project_proxy_latency;
 use infiltrator_contract::latency_display::LatencyBand;
+use infiltrator_presentation::latency_projection::project_proxy_latency;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 pub fn latency_badge<'a, Message: 'a>(

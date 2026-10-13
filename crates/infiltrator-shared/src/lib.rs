@@ -4,6 +4,7 @@ pub mod assets;
 pub mod autostart;
 pub mod byte_units;
 pub mod country_flags;
+pub mod dns_observation;
 pub mod error_codes;
 pub mod fuzzy_search;
 pub mod i18n_interpolator;

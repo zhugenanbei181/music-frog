@@ -1,12 +1,22 @@
+//! test-intent: behavior
 use crate::dns_health_projection::project_dns_health;
 use crate::dns_latency_projection::project_dns_latency;
-use crate::dns_observation_projection::DnsObservationTone;
+use crate::dns_settings_projection::{field_label, form_issue, form_status};
+use crate::latency_projection::{project_measured_latency, project_proxy_latency};
+use crate::stun_projection::project_stun;
+use infiltrator_contract::dns_form::{DnsFormField, DnsFormIssue};
 use infiltrator_contract::dns_latency::{
     DnsLatencyReport, DnsProbeOutcome, DnsProbeTransport, DnsServerLatency,
 };
 use infiltrator_contract::dns_self_heal::{
     DnsSelfHealCheck, DnsSelfHealFix, DnsSelfHealKind, DnsSelfHealSnapshot, DnsSelfHealState,
 };
+use infiltrator_contract::latency_display::LatencyBand;
+use infiltrator_contract::stun_probe::{
+    StunMappedAddress, StunProbeObservation, StunProbeReport, StunProbeStatus,
+};
+use infiltrator_shared::dns_observation::DnsObservationTone;
+use infiltrator_shared::locales::{Lang, Localizer};
 
 fn server(outcome: DnsProbeOutcome, fallback: bool) -> DnsServerLatency {
     DnsServerLatency {
@@ -143,4 +153,105 @@ fn health_projection_preserves_each_fact_but_incomplete_coverage_cannot_claim_ov
     );
     assert!(!failed.listing().contains("repair_dns_listen_port"));
     assert_eq!(failed.rows[0].detail, "actual observation {fix}");
+}
+
+#[test]
+fn settings_projection_keeps_validation_copy_and_placeholders_opaque_in_both_languages() {
+    let entry = "ftp://{field}/{reason}/中文🙂";
+    let issue = DnsFormIssue::UnsupportedScheme {
+        field: DnsFormField::Nameserver,
+        entry: entry.into(),
+    };
+    assert_eq!(
+        form_issue(&issue, "en-US"),
+        format!("Unsupported upstream scheme in nameserver: {entry}")
+    );
+    assert_eq!(
+        form_issue(&issue, "zh-CN"),
+        format!("字段 nameserver 的上游协议不受支持: {entry}")
+    );
+    assert_eq!(
+        form_status(&[issue], false, true, false, "en-US"),
+        format!("Local validation failed: Unsupported upstream scheme in nameserver: {entry}")
+    );
+    assert_eq!(
+        field_label(DnsFormField::BootstrapNameserver, "en-US"),
+        "default_nameserver (bootstrap, pure IP)"
+    );
+    assert_eq!(
+        form_status(&[], false, true, true, "en-US"),
+        "Command service is not composed; DNS patch was not submitted"
+    );
+    assert_eq!(
+        form_status(&[], false, true, false, "en-US"),
+        "DNS workbench patch queued; awaiting actual result"
+    );
+}
+
+#[test]
+fn latency_projection_keeps_measured_zero_history_zero_and_absence_distinct() {
+    for language in ["en-US", "zh-CN"] {
+        let translate = |key: &str| Lang(language).tr(key).into_owned();
+        let measured_zero = project_measured_latency(Some(0));
+        assert_eq!(measured_zero.band, LatencyBand::Fast);
+        assert_eq!(measured_zero.render(&translate), "0 ms");
+        let history_zero = project_proxy_latency(Some(0));
+        assert_eq!(history_zero.band, LatencyBand::UnconfirmedZero);
+        assert_eq!(
+            history_zero.render(&translate),
+            translate("proxy_inspection_unconfirmed_zero")
+        );
+        let missing = project_proxy_latency(None);
+        assert_eq!(missing.band, LatencyBand::NotObserved);
+        assert_eq!(
+            missing.render(&translate),
+            translate("proxy_inspection_unmeasured")
+        );
+        assert_ne!(history_zero.render(&translate), missing.render(&translate));
+    }
+}
+
+#[test]
+fn stun_projection_keeps_observation_and_egress_comparison_as_separate_facts() {
+    let observed = StunProbeReport::from_observation(
+        StunProbeObservation::observed(
+            "stun{mapping}.example:3478",
+            StunMappedAddress::new("2001:db8::7", 51000),
+        ),
+        Some(StunMappedAddress::new("2001:db8::7", 0)),
+    );
+    for code in ["en-US", "zh-CN"] {
+        let display = project_stun(&observed, code);
+        assert_eq!(display.tone, DnsObservationTone::Success);
+        assert!(display.status.contains("[2001:db8::7]:51000"));
+        assert!(display.server.ends_with("stun{mapping}.example:3478"));
+        assert_eq!(display.listing().lines().count(), 3);
+
+        let unknown = StunProbeReport::from_observation(
+            StunProbeObservation::observed(
+                "stun{mapping}.example:3478",
+                StunMappedAddress::new("2001:db8::7", 51000),
+            ),
+            None,
+        );
+        assert_ne!(project_stun(&unknown, code).comparison, display.comparison);
+        let missing = StunProbeReport::from_observation(
+            StunProbeObservation {
+                status: StunProbeStatus::Observed,
+                ..StunProbeObservation::default()
+            },
+            None,
+        );
+        assert_eq!(
+            project_stun(&missing, code).tone,
+            DnsObservationTone::Neutral
+        );
+        let failed = StunProbeReport::from_observation(
+            StunProbeObservation::failed("stun.example:3478", "socket {mapping}"),
+            None,
+        );
+        let failure = project_stun(&failed, code);
+        assert_eq!(failure.tone, DnsObservationTone::Danger);
+        assert!(failure.status.ends_with("socket {mapping}"));
+    }
 }

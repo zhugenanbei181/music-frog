@@ -21,7 +21,9 @@ fn test_rules_edit_operations_delegate_to_shared_module() {
         entry("MATCH,DIRECT"),
     ];
     let document = list_document(state.editor.rule_list.draft.clone());
-    state.editor.rule_list.observe(Some(&document), None);
+    state.editor.rule_list.observe_readback(
+        infiltrator_application::rule_list_editor::RuleListReadback::Observed(document),
+    );
     state.rebuild_rules_render_cache();
 
     // DUAL-11-09: toggle flips the shared `RuleEntry.enabled` fact.

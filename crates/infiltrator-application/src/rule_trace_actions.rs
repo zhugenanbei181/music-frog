@@ -13,23 +13,121 @@ use std::net::IpAddr;
 use std::sync::atomic::{AtomicU64, Ordering};
 static NEXT_OPERATION: AtomicU64 = AtomicU64::new(1);
 
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub enum RuleTraceReadbackPhase {
+    #[default]
+    Waiting,
+    Observed,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub enum RuleTraceRunPhase {
+    #[default]
+    Idle,
+    ValidationFailed(Failure),
+    Submitting {
+        operation: RuleTraceOperationId,
+        readback: RuleTraceReadbackPhase,
+    },
+    AwaitingReadback {
+        operation: RuleTraceOperationId,
+    },
+    Observed {
+        operation: RuleTraceOperationId,
+    },
+    Failed {
+        operation: RuleTraceOperationId,
+        failure: Failure,
+    },
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub enum RuleOverridePhase {
+    #[default]
+    Idle,
+    Confirming(TracerRuleOverride),
+    Submitting {
+        operation: RuleTraceOperationId,
+        request: TracerRuleOverride,
+    },
+    Failed {
+        request: TracerRuleOverride,
+        failure: Failure,
+    },
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct RuleTraceActions {
     pub query: String,
     pub source_ip: String,
     pub sandbox: BTreeMap<TrafficField, String>,
     pub advanced_open: bool,
-    pub pending: Option<RuleTraceOperationId>,
-    pub requested: Option<RuleTraceOperationId>,
-    pub failure: Option<Failure>,
+    run: RuleTraceRunPhase,
     pub snapshot: RuleTraceExecution,
-    pub confirmation: Option<TracerRuleOverride>,
-    pub override_pending: Option<RuleTraceOperationId>,
-    pub override_failure: Option<Failure>,
+    override_phase: RuleOverridePhase,
 }
 impl RuleTraceActions {
+    pub fn run_phase(&self) -> &RuleTraceRunPhase {
+        &self.run
+    }
+    pub fn override_phase(&self) -> &RuleOverridePhase {
+        &self.override_phase
+    }
+    pub fn requested_operation(&self) -> Option<RuleTraceOperationId> {
+        match &self.run {
+            RuleTraceRunPhase::Submitting { operation, .. }
+            | RuleTraceRunPhase::AwaitingReadback { operation }
+            | RuleTraceRunPhase::Observed { operation }
+            | RuleTraceRunPhase::Failed { operation, .. } => Some(*operation),
+            RuleTraceRunPhase::Idle | RuleTraceRunPhase::ValidationFailed(_) => None,
+        }
+    }
+    pub fn pending_operation(&self) -> Option<RuleTraceOperationId> {
+        match &self.run {
+            RuleTraceRunPhase::Submitting { operation, .. } => Some(*operation),
+            RuleTraceRunPhase::Idle
+            | RuleTraceRunPhase::ValidationFailed(_)
+            | RuleTraceRunPhase::AwaitingReadback { .. }
+            | RuleTraceRunPhase::Observed { .. }
+            | RuleTraceRunPhase::Failed { .. } => None,
+        }
+    }
+    pub fn confirmation(&self) -> Option<&TracerRuleOverride> {
+        match &self.override_phase {
+            RuleOverridePhase::Confirming(request)
+            | RuleOverridePhase::Submitting { request, .. }
+            | RuleOverridePhase::Failed { request, .. } => Some(request),
+            RuleOverridePhase::Idle => None,
+        }
+    }
+    pub fn override_pending_operation(&self) -> Option<RuleTraceOperationId> {
+        match &self.override_phase {
+            RuleOverridePhase::Submitting { operation, .. } => Some(*operation),
+            RuleOverridePhase::Idle
+            | RuleOverridePhase::Confirming(_)
+            | RuleOverridePhase::Failed { .. } => None,
+        }
+    }
+    pub fn override_failure(&self) -> Option<&Failure> {
+        match &self.override_phase {
+            RuleOverridePhase::Failed { failure, .. } => Some(failure),
+            RuleOverridePhase::Idle
+            | RuleOverridePhase::Confirming(_)
+            | RuleOverridePhase::Submitting { .. } => None,
+        }
+    }
+    pub fn failure(&self) -> Option<&Failure> {
+        match &self.run {
+            RuleTraceRunPhase::ValidationFailed(failure)
+            | RuleTraceRunPhase::Failed { failure, .. } => Some(failure),
+            RuleTraceRunPhase::Idle
+            | RuleTraceRunPhase::Submitting { .. }
+            | RuleTraceRunPhase::AwaitingReadback { .. }
+            | RuleTraceRunPhase::Observed { .. } => None,
+        }
+    }
     pub fn begin(&mut self) -> Result<(RuleTraceOperationId, RuleTraceRequest), Failure> {
-        if self.busy() || self.confirmation.is_some() {
+        if self.busy() || self.confirmation().is_some() {
             return Err(Failure::new(
                 ErrorCode::NotReady,
                 "Rule simulation is already pending",
@@ -39,54 +137,89 @@ impl RuleTraceActions {
         let request = match self.request() {
             Ok(request) => request,
             Err(failure) => {
-                self.failure = Some(failure.clone());
+                self.run = RuleTraceRunPhase::ValidationFailed(failure.clone());
                 return Err(failure);
             }
         };
         if let Err(failure) = request.validate() {
-            self.failure = Some(failure.clone());
+            self.run = RuleTraceRunPhase::ValidationFailed(failure.clone());
             return Err(failure);
         }
-        let operation = self.allocate()?;
-        self.pending = Some(operation);
-        self.requested = Some(operation);
-        self.failure = None;
+        let operation = match self.allocate() {
+            Ok(operation) => operation,
+            Err(failure) => {
+                self.run = RuleTraceRunPhase::ValidationFailed(failure.clone());
+                return Err(failure);
+            }
+        };
+        self.run = RuleTraceRunPhase::Submitting {
+            operation,
+            readback: RuleTraceReadbackPhase::Waiting,
+        };
         Ok((operation, request))
     }
     pub fn finish(&mut self, operation: RuleTraceOperationId, result: Result<(), Failure>) -> bool {
-        if self.pending != Some(operation) {
-            return false;
-        }
-        self.pending = None;
-        self.failure = result.err();
+        let readback_observed = match &self.run {
+            RuleTraceRunPhase::Submitting {
+                operation: pending,
+                readback,
+            } if *pending == operation => *readback == RuleTraceReadbackPhase::Observed,
+            _ => return false,
+        };
+        self.run = match result {
+            Ok(()) if readback_observed => RuleTraceRunPhase::Observed { operation },
+            Ok(()) => RuleTraceRunPhase::AwaitingReadback { operation },
+            Err(failure) => RuleTraceRunPhase::Failed { operation, failure },
+        };
         true
     }
     pub fn observe(&mut self, snapshot: RuleTraceExecution) -> bool {
         if snapshot.revision < self.snapshot.revision {
             return false;
         }
-        if let Some(requested) = self.requested
+        if let Some(requested) = self.requested_operation()
             && snapshot
                 .operation_id
                 .is_none_or(|operation| operation.0 < requested.0)
         {
             return false;
         }
+        let observed_operation = snapshot.operation_id;
+        self.run = match &self.run {
+            RuleTraceRunPhase::Submitting {
+                operation,
+                readback: RuleTraceReadbackPhase::Waiting,
+            } if observed_operation == Some(*operation) => RuleTraceRunPhase::Submitting {
+                operation: *operation,
+                readback: RuleTraceReadbackPhase::Observed,
+            },
+            RuleTraceRunPhase::AwaitingReadback { operation }
+                if observed_operation == Some(*operation) =>
+            {
+                RuleTraceRunPhase::Observed {
+                    operation: *operation,
+                }
+            }
+            phase => phase.clone(),
+        };
         self.snapshot = snapshot;
         true
     }
     pub fn set_query(&mut self, query: String) {
-        if !self.busy() && self.confirmation.is_none() {
+        if !self.busy() && self.confirmation().is_none() {
             self.query = query;
         }
     }
     pub fn set_source_ip(&mut self, source_ip: String) {
-        if !self.busy() && self.confirmation.is_none() {
+        if !self.busy() && self.confirmation().is_none() {
             self.source_ip = source_ip;
         }
     }
     pub fn busy(&self) -> bool {
-        self.pending.is_some() || self.override_pending.is_some()
+        matches!(
+            &self.run,
+            RuleTraceRunPhase::Submitting { .. } | RuleTraceRunPhase::AwaitingReadback { .. }
+        ) || self.override_pending_operation().is_some()
     }
     pub fn prepare_override(
         &mut self,
@@ -95,7 +228,7 @@ impl RuleTraceActions {
         target: String,
     ) -> bool {
         if self.busy()
-            || self.confirmation.is_some()
+            || !matches!(&self.override_phase, RuleOverridePhase::Idle)
             || !report.can_reverse_apply
             || self.current_failure().is_some()
             || (self.snapshot.report_id.is_some() && !self.draft_matches(report))
@@ -111,38 +244,45 @@ impl RuleTraceActions {
         if chain.hit_rule_index != Some(index) || chain.is_fallback {
             return false;
         }
-        self.confirmation = Some(TracerRuleOverride {
+        self.override_phase = RuleOverridePhase::Confirming(TracerRuleOverride {
             rule_index: index,
             rule_table: chain.hit_rule_table.clone(),
             new_target: target.trim().to_owned(),
             expected_source: source,
             expected_rule: chain.matched_rule_raw.clone(),
         });
-        self.override_failure = None;
         true
     }
     pub fn cancel_override(&mut self) -> bool {
-        if self.override_pending.is_some() {
-            return false;
+        match &self.override_phase {
+            RuleOverridePhase::Confirming(_) | RuleOverridePhase::Failed { .. } => {
+                self.override_phase = RuleOverridePhase::Idle;
+                true
+            }
+            RuleOverridePhase::Idle | RuleOverridePhase::Submitting { .. } => false,
         }
-        self.confirmation = None;
-        self.override_failure = None;
-        true
     }
     pub fn begin_override(&mut self) -> Option<(RuleTraceOperationId, TracerRuleOverride)> {
-        if self.busy() {
+        if self.pending_operation().is_some() || self.override_pending_operation().is_some() {
             return None;
         }
-        let request = self.confirmation.clone()?;
+        let request = match &self.override_phase {
+            RuleOverridePhase::Confirming(request) | RuleOverridePhase::Failed { request, .. } => {
+                request.clone()
+            }
+            RuleOverridePhase::Idle | RuleOverridePhase::Submitting { .. } => return None,
+        };
         let operation = match self.allocate() {
             Ok(operation) => operation,
             Err(failure) => {
-                self.override_failure = Some(failure);
+                self.override_phase = RuleOverridePhase::Failed { request, failure };
                 return None;
             }
         };
-        self.override_pending = Some(operation);
-        self.override_failure = None;
+        self.override_phase = RuleOverridePhase::Submitting {
+            operation,
+            request: request.clone(),
+        };
         Some((operation, request))
     }
     pub fn finish_override(
@@ -150,16 +290,16 @@ impl RuleTraceActions {
         operation: RuleTraceOperationId,
         result: Result<(), Failure>,
     ) -> bool {
-        if self.override_pending != Some(operation) {
-            return false;
-        }
-        self.override_pending = None;
+        let request = match &self.override_phase {
+            RuleOverridePhase::Submitting {
+                operation: pending,
+                request,
+            } if *pending == operation => request.clone(),
+            _ => return false,
+        };
         match result {
-            Ok(()) => {
-                self.confirmation = None;
-                self.override_failure = None;
-            }
-            Err(failure) => self.override_failure = Some(failure),
+            Ok(()) => self.override_phase = RuleOverridePhase::Idle,
+            Err(failure) => self.override_phase = RuleOverridePhase::Failed { request, failure },
         }
         true
     }
@@ -181,7 +321,7 @@ impl RuleTraceActions {
         allocate(&NEXT_OPERATION, minimum)
     }
     pub fn set_sandbox(&mut self, field: TrafficField, value: String) {
-        if !self.busy() && self.confirmation.is_none() {
+        if !self.busy() && self.confirmation().is_none() {
             self.sandbox.insert(field, value);
         }
     }
@@ -242,14 +382,13 @@ impl RuleTraceActions {
         })
     }
     pub fn current_failure(&self) -> Option<&Failure> {
-        self.override_failure
-            .as_ref()
-            .or(self.failure.as_ref())
+        self.override_failure()
+            .or_else(|| self.failure())
             .or_else(|| {
                 self.snapshot
                     .failure
                     .as_ref()
-                    .filter(|_| self.snapshot.operation_id == self.requested)
+                    .filter(|_| self.snapshot.operation_id == self.requested_operation())
             })
     }
 }

@@ -18,7 +18,7 @@ fn confirmation_freezes_drafts_and_operation_until_cancel() {
     let mut state = RuleTraceActions {
         query: "example.org".into(),
         source_ip: "192.0.2.1".into(),
-        confirmation: Some(confirmation.clone()),
+        override_phase: RuleOverridePhase::Confirming(confirmation.clone()),
         ..RuleTraceActions::default()
     };
     state.set_query("blocked.test".into());
@@ -28,7 +28,7 @@ fn confirmation_freezes_drafts_and_operation_until_cancel() {
     assert_eq!(state.source_ip, "192.0.2.1");
     assert!(state.sandbox.is_empty());
     assert_eq!(state.begin().unwrap_err().code, ErrorCode::NotReady);
-    assert!(state.pending.is_none());
+    assert!(state.pending_operation().is_none());
     let (operation, request) = state.begin_override().unwrap();
     assert_eq!(request, confirmation);
     assert!(!state.cancel_override());
@@ -36,7 +36,7 @@ fn confirmation_freezes_drafts_and_operation_until_cancel() {
         operation,
         Err(Failure::new(ErrorCode::Permission, "denied", true))
     ));
-    assert!(state.confirmation.is_some());
+    assert!(state.confirmation().is_some());
     assert!(state.cancel_override());
     state.set_query("next.test".into());
     assert_eq!(state.begin().unwrap().1.query, "next.test");
@@ -108,8 +108,22 @@ fn all_sandbox_values_reach_one_request_and_invalid_values_do_not_submit() {
     assert_eq!(request.context.uid, Some(0));
     assert_eq!(request.context.package_name.as_deref(), Some("org.test"));
     assert!(!state.finish(RuleTraceOperationId(operation.0 + 1), Ok(())));
-    assert_eq!(state.pending, Some(operation));
+    assert_eq!(state.pending_operation(), Some(operation));
     assert!(state.finish(operation, Ok(())));
+    assert!(
+        state.busy(),
+        "a successful receipt waits for its terminal readback"
+    );
+    assert!(state.observe(RuleTraceExecution {
+        operation_id: Some(operation),
+        revision: 1,
+        ..RuleTraceExecution::default()
+    }));
+    assert!(matches!(
+        state.run_phase(),
+        RuleTraceRunPhase::Observed { operation: observed } if *observed == operation
+    ));
+    assert!(!state.busy());
     for (field, value) in [
         (TrafficField::DestinationPort, "0"),
         (TrafficField::DestinationPort, "70000"),
@@ -120,7 +134,47 @@ fn all_sandbox_values_reach_one_request_and_invalid_values_do_not_submit() {
         let old = state.sandbox.clone();
         state.set_sandbox(field, value.into());
         assert_eq!(state.begin().unwrap_err().code, ErrorCode::InvalidInput);
-        assert!(state.pending.is_none());
+        assert!(state.pending_operation().is_none());
         state.sandbox = old;
     }
+}
+
+#[test]
+fn trace_readback_can_arrive_before_receipt_and_stale_results_cannot_complete_a_later_run() {
+    let mut state = RuleTraceActions {
+        query: "first.example".into(),
+        ..RuleTraceActions::default()
+    };
+    let (first, _) = state.begin().unwrap();
+    assert!(state.observe(RuleTraceExecution {
+        operation_id: Some(first),
+        revision: 1,
+        ..RuleTraceExecution::default()
+    }));
+    assert!(state.busy());
+    assert!(matches!(
+        state.run_phase(),
+        RuleTraceRunPhase::Submitting {
+            operation,
+            readback: RuleTraceReadbackPhase::Observed
+        } if *operation == first
+    ));
+    assert!(state.finish(first, Ok(())));
+    assert!(matches!(
+        state.run_phase(),
+        RuleTraceRunPhase::Observed { operation } if *operation == first
+    ));
+
+    state.set_query("second.example".into());
+    let (second, _) = state.begin().unwrap();
+    assert!(second.0 > first.0);
+    assert!(!state.observe(RuleTraceExecution {
+        operation_id: Some(first),
+        revision: 2,
+        ..RuleTraceExecution::default()
+    }));
+    assert!(matches!(
+        state.run_phase(),
+        RuleTraceRunPhase::Submitting { operation, .. } if *operation == second
+    ));
 }

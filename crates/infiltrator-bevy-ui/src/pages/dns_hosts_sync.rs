@@ -11,21 +11,28 @@ use bevy::ecs::system::{Query, Res, ResMut};
 use bevy::input::{ButtonInput, keyboard::KeyCode};
 use bevy::ui::widget::Text;
 use bevy::ui::{Display, Node};
-use infiltrator_application::dns_hosts_projection::{feedback, legacy_hint, summary};
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::text_input::state::TextFieldInput;
 use infiltrator_bevy_widgets::text_input::{TextField, TextFieldFocused};
+use infiltrator_presentation::dns_hosts_projection::{feedback, legacy_hint, summary};
 pub fn observe(
     latest: Res<LatestSurfaceSnapshot>,
     route: Res<ActiveRoute>,
     keys: Option<Res<ButtonInput<KeyCode>>>,
     mut state: ResMut<DnsHostsEditorState>,
 ) {
-    let previous = (state.editor.address.clone(), state.editor.domain.clone());
+    let previous = (
+        state.editor.address().to_owned(),
+        state.editor.domain().to_owned(),
+    );
     state.editor.observe(&latest.0.dns_hosts);
-    state.sync_fields |= previous != (state.editor.address.clone(), state.editor.domain.clone());
-    if state.editor.open
+    state.sync_fields |= previous
+        != (
+            state.editor.address().to_owned(),
+            state.editor.domain().to_owned(),
+        );
+    if state.editor.is_open()
         && (route.0 != Some(Route::Dns)
             || keys.is_some_and(|keys| keys.just_pressed(KeyCode::Escape)))
         && state.editor.cancel()
@@ -48,16 +55,16 @@ pub fn inputs(
                 continue;
             };
             let wanted = if address {
-                &state.editor.address
+                state.editor.address()
             } else {
-                &state.editor.domain
+                state.editor.domain()
             };
             if state.sync_fields {
                 if field.0.text() != wanted {
-                    field.0.apply(TextFieldInput::SetText(wanted.clone()));
+                    field.0.apply(TextFieldInput::SetText(wanted.to_owned()));
                 }
-            } else if state.editor.open
-                && state.editor.pending.is_none()
+            } else if state.editor.is_open()
+                && !state.editor.is_pending()
                 && field.0.text() != wanted
             {
                 let value = field.0.text().to_owned();
@@ -67,7 +74,7 @@ pub fn inputs(
                     state.editor.edit_domain(value);
                 }
             }
-            let disabled = !state.editor.open || state.editor.pending.is_some();
+            let disabled = !state.editor.is_open() || state.editor.is_pending();
             if field.0.is_disabled() != disabled {
                 field.0.set_disabled(disabled);
             }
@@ -85,7 +92,7 @@ pub fn controls(
     mut buttons: Query<(&HostAction, &mut ButtonDisabled)>,
 ) {
     for mut root in &mut roots {
-        let wanted = if state.editor.open {
+        let wanted = if state.editor.is_open() {
             Display::Flex
         } else {
             Display::None
@@ -106,17 +113,17 @@ pub fn controls(
     }
     for (action, mut disabled) in &mut buttons {
         let wanted = if matches!(action, HostAction::Open) {
-            state.editor.pending.is_some()
+            state.editor.is_pending()
         } else {
-            state.editor.pending.is_some()
-                || !state.editor.open
+            state.editor.is_pending()
+                || !state.editor.is_open()
                 || match action {
                     HostAction::Apply => !state.editor.can_apply(),
                     HostAction::ImportLegacy => {
-                        state.editor.editing.is_some()
-                            || !state.editor.address.is_empty()
-                            || !state.editor.domain.is_empty()
-                            || state.editor.importing_legacy
+                        state.editor.is_editing()
+                            || !state.editor.address().is_empty()
+                            || !state.editor.domain().is_empty()
+                            || state.editor.is_importing_legacy()
                             || !state
                                 .editor
                                 .applied
@@ -180,16 +187,16 @@ pub fn copy(
     for (action, children, mut label) in &mut buttons {
         let key = match action {
             HostAction::CommitRow => {
-                if state.editor.editing.is_some() {
+                if state.editor.is_editing() {
                     "dns_hosts_commit_row"
                 } else {
                     "dns_hosts_add"
                 }
             }
             HostAction::Apply => {
-                if state.editor.pending.is_some() {
+                if state.editor.is_pending() {
                     "dns_hosts_saving"
-                } else if state.editor.failure.is_some() {
+                } else if state.editor.failure().is_some() {
                     "dns_hosts_retry"
                 } else {
                     "dns_hosts_apply"

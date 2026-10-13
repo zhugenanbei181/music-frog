@@ -19,14 +19,14 @@ use bevy::text::TextColor;
 use bevy::ui::widget::Text;
 use bevy::ui::{Display, Node};
 use bevy::ui_widgets::{Activate, Button};
-use infiltrator_application::dns_cache_actions::DnsCacheActions;
-use infiltrator_application::dns_cache_projection::project_cache;
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_contract::command::RequestId;
 use infiltrator_contract::dns_cache::DnsCacheOperationId;
 use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_presentation::dns_cache_actions::DnsCacheActions;
+use infiltrator_presentation::dns_cache_projection::project_cache;
 #[derive(Resource, Default)]
 pub struct CacheConfirmation {
     pub model: DnsCacheActions,
@@ -61,7 +61,7 @@ pub fn request(
     mut state: ResMut<CacheConfirmation>,
     mut commands: Commands,
 ) {
-    if state.model.pending.is_none() {
+    if !state.model.is_pending() {
         state.requested = true;
         commands.trigger(RouteChanged(Route::Dns));
     }
@@ -75,7 +75,7 @@ pub fn activate(
     sink: Option<Res<CommandSinkHandle>>,
     mut focus: CacheFocus,
 ) {
-    if route.0 != Some(Route::Dns) || state.model.pending.is_some() {
+    if route.0 != Some(Route::Dns) || state.model.is_pending() {
         return;
     }
     if launchers.contains(event.entity) {
@@ -143,7 +143,7 @@ pub fn observe(
         state.model.show();
         focus.suspend(&mut state);
     }
-    if state.model.open
+    if state.model.is_open()
         && (route.0 != Some(Route::Dns)
             || keys.is_some_and(|keys| keys.just_pressed(KeyCode::Escape)))
         && state.model.cancel()
@@ -171,7 +171,7 @@ pub fn render(
 ) {
     let view = project_cache(&state.model, locale.code());
     for mut root in &mut roots {
-        let wanted = if state.model.open {
+        let wanted = if state.model.is_open() {
             Display::Flex
         } else {
             Display::None
@@ -187,7 +187,7 @@ pub fn render(
         let children = control.children;
         let label = control.label;
         if matches!(action, CacheAction::Cancel) {
-            let key = if state.model.confirmed {
+            let key = if state.model.is_confirmed() {
                 "dns_cache_close"
             } else {
                 "dns_cache_cancel"
@@ -206,11 +206,11 @@ pub fn render(
             }
         }
         let shown = match action {
-            CacheAction::Confirm => !state.model.confirmed,
+            CacheAction::Confirm => !state.model.is_confirmed(),
             CacheAction::Cancel => true,
             CacheAction::Retry => view.retry,
         };
-        let enabled = state.model.open
+        let enabled = state.model.is_open()
             && match action {
                 CacheAction::Confirm => view.confirm,
                 CacheAction::Cancel => view.close,

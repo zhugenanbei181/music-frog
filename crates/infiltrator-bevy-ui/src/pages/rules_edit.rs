@@ -34,7 +34,8 @@ pub(crate) fn on_rules_row_edit_activated(
     mut state: ResMut<RulesDraftState>,
     statistics: Option<Res<RulesStatisticsState>>,
 ) {
-    if statistics.is_some_and(|state| state.model.confirmation.is_some()) || state.input_composing {
+    if statistics.is_some_and(|state| state.model.confirmation().is_some()) || state.input_composing
+    {
         return;
     }
     if let Ok(button) = toggles.get(activate.entity) {

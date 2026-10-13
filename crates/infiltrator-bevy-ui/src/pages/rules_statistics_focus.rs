@@ -23,7 +23,7 @@ pub struct StatisticsFocus<'w, 's> {
     live: Query<'w, 's, ()>,
 }
 pub fn sync(mut focus: StatisticsFocus, mut commands: Commands) {
-    let open = focus.state.model.confirmation.is_some();
+    let open = focus.state.model.confirmation().is_some();
     if open {
         if !focus.state.holding_focus {
             focus.state.previous_focus = focus

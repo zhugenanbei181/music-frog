@@ -161,7 +161,7 @@ pub(crate) fn on_tracer_action_activated(
     handle: Option<Res<CommandSinkHandle>>,
 ) {
     if !input.active()
-        || state.model.confirmation.is_some()
+        || state.model.confirmation().is_some()
         || input
             .composition
             .as_ref()
@@ -170,7 +170,7 @@ pub(crate) fn on_tracer_action_activated(
         return;
     }
     if let Ok(preset) = input.presets.get(activate.entity) {
-        if state.model.pending.is_some() {
+        if state.model.pending_operation().is_some() {
             return;
         }
         state.model.set_query(preset.0.clone());
@@ -202,7 +202,7 @@ pub(crate) fn on_tracer_action_activated(
         .find_map(|child| input.text_fields.get(*child).ok())
         .map(|field| field.0.text())
         .unwrap_or_default();
-    if state.model.pending.is_some() {
+    if state.model.pending_operation().is_some() {
         return;
     }
     state.model.set_query(query.to_owned());
@@ -273,7 +273,7 @@ pub fn sync_basic_drafts(
     mut fields: Query<(&mut TextField, &NativeTextField, &mut TracerNativeField)>,
 ) {
     let first_mount = !state.drafts_initialized;
-    let frozen = state.model.busy() || state.model.confirmation.is_some();
+    let frozen = state.model.busy() || state.model.confirmation().is_some();
     let mut inputs = 0;
     for (mut field, native, mut draft) in &mut fields {
         if !draft.initialized {
@@ -348,7 +348,7 @@ pub fn observe_simulation(
             text.0 = wanted;
         }
     }
-    let pending = !active || state.model.busy() || state.model.confirmation.is_some();
+    let pending = !active || state.model.busy() || state.model.confirmation().is_some();
     let composing = observation
         .composition
         .as_ref()

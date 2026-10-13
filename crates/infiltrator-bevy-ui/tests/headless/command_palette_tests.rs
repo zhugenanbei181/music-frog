@@ -208,7 +208,7 @@ fn test_command_palette_action_execution_dispatches_route_and_command() {
 
     app.update();
     assert!(sink.submitted().is_empty());
-    assert!(app.world().resource::<CacheConfirmation>().model.open);
+    assert!(app.world().resource::<CacheConfirmation>().model.is_open());
     assert_eq!(app.world().resource::<ActiveRoute>().0, Some(Route::Dns));
     assert_eq!(
         app.world_mut()

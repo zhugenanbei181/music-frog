@@ -149,7 +149,7 @@ fn settle_terminal(app: &mut App) {
         .world()
         .resource::<RulesStatisticsState>()
         .model
-        .clear_pending
+        .reset_request()
         .is_some()
     {
         assert!(Instant::now() < deadline, "real command terminal event");
@@ -298,10 +298,7 @@ fn native_statistics_reset_failure_retry_waits_for_actual_readback_and_keeps_loc
     click(&mut app, StatisticsControl::Reset);
     settle_terminal(&mut app);
     let state = &app.world().resource::<RulesStatisticsState>().model;
-    assert_eq!(
-        state.clear_failure.as_ref().unwrap().code,
-        ErrorCode::Permission
-    );
+    assert_eq!(state.reset_failure().unwrap().code, ErrorCode::Permission);
     assert_eq!(state.audit.as_ref(), Some(&before));
     assert!(state.can_reset());
     store.deny_read.store(false, Ordering::SeqCst);
@@ -310,7 +307,10 @@ fn native_statistics_reset_failure_retry_waits_for_actual_readback_and_keeps_loc
     click_entity(&mut app, reset);
     settle_terminal(&mut app);
     let state = &app.world().resource::<RulesStatisticsState>().model;
-    assert!(state.awaiting_revision.is_some());
+    assert!(matches!(
+        state.reset_phase(),
+        infiltrator_application::rule_statistics_workbench::StatisticsResetPhase::AwaitingReadback { .. }
+    ));
     assert_eq!(state.audit.as_ref(), Some(&before));
     assert!(app.world().get::<ButtonDisabled>(reset).unwrap().0);
     assert!(app.world().get::<InteractionDisabled>(reset).is_some());

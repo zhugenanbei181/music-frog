@@ -237,7 +237,7 @@ pub fn observe(
 ) {
     if feature.feature != FeatureId::RulesListEditor
         || probe.capture.stage != 3
-        || probe.editor.model.pending.is_some()
+        || probe.editor.model.is_pending()
         || !probe.editor.model.dirty()
         || !probe.editor.model.can_save()
         || !probe

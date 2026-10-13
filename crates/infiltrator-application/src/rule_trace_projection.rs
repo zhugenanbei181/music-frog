@@ -19,7 +19,7 @@ pub fn trace_status(state: &RuleTraceActions, code: &str) -> String {
         .snapshot
         .issue
         .as_ref()
-        .filter(|_| state.snapshot.operation_id == state.requested)
+        .filter(|_| state.snapshot.operation_id == state.requested_operation())
     {
         let message = localize(
             code,
@@ -41,7 +41,9 @@ pub fn trace_status(state: &RuleTraceActions, code: &str) -> String {
         )
     } else if state.busy() {
         localize(code, "rule_trace_running", &[])
-    } else if state.requested.is_some() && state.requested != state.snapshot.report_id {
+    } else if state.requested_operation().is_some()
+        && state.requested_operation() != state.snapshot.report_id
+    {
         localize(code, "rule_trace_waiting", &[])
     } else {
         localize(code, "rule_trace_simulation_notice", &[])
@@ -55,7 +57,7 @@ pub fn trace_provenance(state: &RuleTraceActions, code: &str) -> String {
         code,
         if state.current_failure().is_some()
             || state.busy()
-            || state.requested != state.snapshot.report_id
+            || state.requested_operation() != state.snapshot.report_id
             || !state.draft_matches(report)
         {
             "rule_trace_previous_report"

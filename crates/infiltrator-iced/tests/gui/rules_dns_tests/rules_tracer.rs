@@ -110,13 +110,7 @@ fn tracer_tab_close_preserves_report_and_permission_guide_does_not_commit() {
     let task = state.update(Message::ConfirmAction);
     complete(&mut state, task);
     assert_eq!(
-        state
-            .editor
-            .rule_trace
-            .override_failure
-            .as_ref()
-            .unwrap()
-            .code,
+        state.editor.rule_trace.override_failure().unwrap().code,
         ErrorCode::Permission
     );
     let _ = state.update(Message::RuleTrace(RuleTraceAction::Settings));
@@ -131,12 +125,19 @@ fn test_rules_tracer_gui_flow() {
     let _ = state.update(Message::UpdateRulesTracerInput("mail.google.com".into()));
     assert_eq!(store.rule_loads.load(Ordering::SeqCst), 0);
     let task = state.update(Message::RunRulesTracer);
-    let operation = state.editor.rule_trace.pending.expect("pending command");
+    let operation = state
+        .editor
+        .rule_trace
+        .pending_operation()
+        .expect("pending command");
     assert_eq!(state.update(Message::RunRulesTracer).units(), 0);
     let _ = state.update(Message::UpdateRulesTracerInput("ignored.example".into()));
     assert_eq!(state.editor.rules_tracer_input, "mail.google.com");
     complete(&mut state, task);
-    assert_eq!(state.editor.rule_trace.requested, Some(operation));
+    assert_eq!(
+        state.editor.rule_trace.requested_operation(),
+        Some(operation)
+    );
     assert!(state.editor.rules_tracer_chain.is_none());
     publish(&mut state, &reader);
     let chain = state.editor.rules_tracer_chain.as_ref().unwrap();

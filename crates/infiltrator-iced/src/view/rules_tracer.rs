@@ -417,7 +417,8 @@ pub fn tracer_view<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Mess
         .into(),
     };
 
-    let pending = state.editor.rule_trace.busy() || state.editor.rule_trace.confirmation.is_some();
+    let pending =
+        state.editor.rule_trace.busy() || state.editor.rule_trace.confirmation().is_some();
     let clear_btn = if pending || state.editor.rules_tracer_input.is_empty() {
         Element::from(Space::new().width(0))
     } else {

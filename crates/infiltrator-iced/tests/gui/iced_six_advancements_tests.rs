@@ -97,7 +97,7 @@ fn test_advancement_1_live_rule_tracer_contract() {
     assert_eq!(state.update(Message::RunRulesTracer).units(), 0);
     assert_eq!(state.editor.rules_tracer_chain.as_ref(), Some(&chain_fb));
     assert_eq!(
-        state.editor.rule_trace.failure.as_ref().unwrap().code,
+        state.editor.rule_trace.failure().unwrap().code,
         ErrorCode::InvalidInput
     );
     assert_eq!(store.rule_loads.load(Ordering::SeqCst), 3);

@@ -29,15 +29,18 @@ pub fn confirmation_modal<'a>(
     let (title, detail, confirm_label) = confirmation_copy(action, &lang);
     let cancel_label = lang.tr("modal_cancel");
     let pending = matches!(action, ConfirmAction::TracerOverride(_))
-        && state.editor.rule_trace.override_pending.is_some();
+        && state
+            .editor
+            .rule_trace
+            .override_pending_operation()
+            .is_some();
 
     let mut actions = row![];
     let guide = matches!(action, ConfirmAction::TracerOverride(_))
         && state
             .editor
             .rule_trace
-            .override_failure
-            .as_ref()
+            .override_failure()
             .is_some_and(|failure| {
                 matches!(
                     failure.code,
@@ -78,8 +81,7 @@ pub fn confirmation_modal<'a>(
             state
                 .editor
                 .rule_trace
-                .override_failure
-                .as_ref()
+                .override_failure()
                 .map(|failure| failure.message.clone())
                 .unwrap_or_default()
         } else {

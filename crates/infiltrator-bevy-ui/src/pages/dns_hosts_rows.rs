@@ -10,12 +10,12 @@ use bevy::ecs::system::{Commands, Query, Res};
 use bevy::scene::{CommandsSceneExt, Scene, bsn};
 use bevy::ui::widget::Text;
 use bevy::ui::{AlignItems, Node, percent, px};
-use infiltrator_application::dns_hosts_editor::HostDraftRow;
 use infiltrator_bevy_widgets::button::ButtonVariant;
 use infiltrator_bevy_widgets::localization::LocalizedText;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_presentation::dns_hosts_editor::HostDraftRow;
 use std::collections::HashMap;
 fn row_scene(row: &HostDraftRow, palette: &UiPalette) -> impl Scene + use<> {
     let id = row.id;

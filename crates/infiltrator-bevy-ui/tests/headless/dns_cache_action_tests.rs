@@ -120,7 +120,7 @@ fn open(app: &mut App) {
     let launcher = entity::<ClearDnsCacheButton>(app);
     click(app, launcher);
     app.update();
-    assert!(app.world().resource::<CacheConfirmation>().model.open);
+    assert!(app.world().resource::<CacheConfirmation>().model.is_open());
 }
 fn publish(app: &mut App, reader: &ProductSurfaceReader) {
     let mut snapshot = Builder::new_current_thread()
@@ -139,8 +139,7 @@ fn settle(app: &mut App) {
         .world()
         .resource::<CacheConfirmation>()
         .model
-        .pending
-        .is_some()
+        .is_pending()
     {
         assert!(Instant::now() < deadline, "actual cache command terminal");
         app.update();
@@ -163,7 +162,7 @@ fn native_cache_confirmation_cancel_escape_navigation_and_permission_retry_keep_
     let confirm = button(&mut app, |a| matches!(a, CacheAction::Confirm));
     click(&mut app, cancel);
     app.update();
-    assert!(!app.world().resource::<CacheConfirmation>().model.open);
+    assert!(!app.world().resource::<CacheConfirmation>().model.is_open());
     click(&mut app, confirm);
     app.update();
     assert_eq!(ports.fake_calls.load(Ordering::SeqCst), 0);
@@ -174,14 +173,14 @@ fn native_cache_confirmation_cancel_escape_navigation_and_permission_retry_keep_
     keys.press(KeyCode::Escape);
     app.insert_resource(keys);
     app.update();
-    assert!(!app.world().resource::<CacheConfirmation>().model.open);
+    assert!(!app.world().resource::<CacheConfirmation>().model.is_open());
     app.world_mut()
         .resource_mut::<ButtonInput<KeyCode>>()
         .reset_all();
     open(&mut app);
     app.world_mut().trigger(RouteChanged(Route::Settings));
     app.update();
-    assert!(!app.world().resource::<CacheConfirmation>().model.open);
+    assert!(!app.world().resource::<CacheConfirmation>().model.is_open());
     assert_eq!(ports.fake_calls.load(Ordering::SeqCst), 0);
     app.world_mut().trigger(RouteChanged(Route::Dns));
     app.update();
@@ -205,15 +204,18 @@ fn native_cache_confirmation_cancel_escape_navigation_and_permission_retry_keep_
     });
     app.world_mut().flush();
     assert_eq!(
-        app.world().resource::<CacheConfirmation>().model.pending,
+        app.world()
+            .resource::<CacheConfirmation>()
+            .model
+            .requested_operation(),
         Some(token)
     );
     click(&mut app, cancel);
-    assert!(app.world().resource::<CacheConfirmation>().model.open);
+    assert!(app.world().resource::<CacheConfirmation>().model.is_open());
     settle(&mut app);
     publish(&mut app, &reader);
     let model = &app.world().resource::<CacheConfirmation>().model;
-    assert_eq!(model.failure.as_ref().unwrap().code, ErrorCode::Permission);
+    assert_eq!(model.failure().unwrap().code, ErrorCode::Permission);
     assert_eq!(model.snapshot.report.fake_ip, DnsFlushOutcome::Flushed);
     assert!(
         matches!(model.snapshot.report.os_cache, DnsFlushOutcome::Failed { ref failure } if failure.code == ErrorCode::Permission)
@@ -242,7 +244,7 @@ fn native_cache_confirmation_cancel_escape_navigation_and_permission_retry_keep_
         app.world()
             .resource::<CacheConfirmation>()
             .model
-            .failure
+            .failure()
             .is_none()
     );
     assert!(subtree_has_text(app.world(), card, "Clearing finished"));
@@ -277,7 +279,7 @@ fn native_cache_reports_both_unsupported_targets_and_preserves_contents_without_
     settle(&mut app);
     publish(&mut app, &reader);
     let model = &app.world().resource::<CacheConfirmation>().model;
-    assert_eq!(model.failure.as_ref().unwrap().code, ErrorCode::Unsupported);
+    assert_eq!(model.failure().unwrap().code, ErrorCode::Unsupported);
     assert!(matches!(
         model.snapshot.report.fake_ip,
         DnsFlushOutcome::Unsupported { .. }

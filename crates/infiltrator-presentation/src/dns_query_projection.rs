@@ -1,7 +1,7 @@
 //! One fold of the full query response, shared window and original record data.
-use crate::dns_observation_projection::DnsObservationTone;
 use crate::dns_query_actions::{DnsQueryActions, QUERY_PAGE_SIZE};
 use infiltrator_contract::error::ErrorCode;
+use infiltrator_shared::dns_observation::DnsObservationTone;
 use infiltrator_shared::i18n_interpolator::localize;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -35,12 +35,14 @@ pub fn project_query(state: &DnsQueryActions, code: &str) -> DnsQueryDisplay {
                 DnsObservationTone::Danger
             },
         )
-    } else if state.pending.is_some() {
+    } else if state.is_pending() {
         (
             localize(code, "dns_query_running", &[]),
             DnsObservationTone::Neutral,
         )
-    } else if state.requested.is_some() && state.requested != state.snapshot.report_id {
+    } else if state.requested_operation().is_some()
+        && state.requested_operation() != state.snapshot.report_id
+    {
         (
             localize(code, "dns_query_waiting", &[]),
             DnsObservationTone::Neutral,
@@ -120,7 +122,9 @@ pub fn project_query(state: &DnsQueryActions, code: &str) -> DnsQueryDisplay {
         tone,
         provenance: localize(
             code,
-            if state.requested.is_some() && state.requested == state.snapshot.report_id {
+            if state.requested_operation().is_some()
+                && state.requested_operation() == state.snapshot.report_id
+            {
                 "dns_query_this_request"
             } else {
                 "dns_query_previous_result"
@@ -148,9 +152,9 @@ pub fn project_query(state: &DnsQueryActions, code: &str) -> DnsQueryDisplay {
         ),
         previous: state.page > 0,
         next: offset + rows.len() < records.len(),
-        run: state.open && state.pending.is_none(),
+        run: state.is_open() && !state.is_pending(),
         retry: state.can_retry(),
-        close: state.pending.is_none(),
+        close: !state.is_pending(),
         guide: state.can_guide(),
     }
 }

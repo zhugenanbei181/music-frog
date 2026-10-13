@@ -69,7 +69,7 @@ impl RuleFormBinding {
         }
     }
     pub fn status(&self, editor: &RuleListEditor, locale: &str) -> String {
-        if editor.read_failure.is_none()
+        if editor.read_failure().is_none()
             && !editor.source_changed()
             && self
                 .source
