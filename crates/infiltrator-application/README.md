@@ -2,7 +2,7 @@
 
 > 层级：L3
 
-实现共享用例、命令编排和跨端业务事务。公开接口使用 contract 类型并经 ports 调用副作用；页面快照装配属于产品组合层，profile metadata、订阅状态/配额、Mixin Studio 文案与失败文案等跨表面投影由独立 presentation crate 统一提供。ProfileEditSession 只输出 contract 定义的 typed 状态事实，不生成本地化文案。
+实现共享用例、命令编排和跨端业务事务。公开接口使用 contract 类型并经 ports 调用副作用；页面快照装配属于产品组合层，profile metadata、订阅状态/配额、Mixin Studio 文案与失败文案等跨表面投影由独立 presentation crate 统一提供。Profile display name 是独立于文件身份的共享元数据，只经 ProfileApplication 与 ProfileStore owner 更新；ProfileEditSession 只输出 contract 定义的 typed 状态事实，不生成本地化文案。
 
 本 crate 不选择 executor、不创建具体网络客户端，也不依赖 UI。异步调度由 composition 注入；一个业务语义只能有一个 owner。
 

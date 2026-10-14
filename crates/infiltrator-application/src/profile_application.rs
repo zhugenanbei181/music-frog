@@ -1574,6 +1574,9 @@ impl ProfileApplication {
     }
 }
 
+#[path = "profile_application/display_name.rs"]
+mod display_name;
+
 fn selection_matches_target(
     state: &ActiveProfileReferenceState,
     target: &ActiveProfileReferenceTarget,

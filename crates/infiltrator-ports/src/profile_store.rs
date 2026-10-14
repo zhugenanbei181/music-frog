@@ -11,6 +11,9 @@ use infiltrator_contract::aggregator::AggregationTemplate;
 use infiltrator_contract::apply_transaction::ApplyTransactionSnapshot;
 use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_identity::EngineId;
+use infiltrator_contract::profile_display_name::{
+    ProfileDisplayNameMutation, ProfileDisplayNameObservation, ProfileDisplayNameTarget,
+};
 use infiltrator_contract::profile_document_identity::{ProfileId, ProfileWorkspaceIdentity};
 use infiltrator_domain::profiles::{ProfileInfo, ProfileMetadata};
 use std::path::PathBuf;
@@ -171,6 +174,30 @@ pub trait ProfileStore: Send + Sync {
         profile: &str,
         metadata: &ProfileMetadata,
     ) -> Result<(), PortError>;
+    /// Observe the profile's presentation label without changing its stable
+    /// file identity. `Identity` means the label follows the `ProfileId`.
+    async fn profile_display_name(
+        &self,
+        _profile: &ProfileId,
+    ) -> Result<ProfileDisplayNameObservation, PortError> {
+        Err(PortError::unsupported(
+            Capability::Profiles,
+            "profile display-name observation is unavailable",
+        ))
+    }
+    /// Set or reset one profile's presentation label and return the exact
+    /// persisted observation. This mutation never changes profile identity,
+    /// active selection, Core, or VPN lifecycle.
+    async fn set_profile_display_name(
+        &self,
+        _profile: &ProfileId,
+        _target: ProfileDisplayNameTarget,
+    ) -> Result<ProfileDisplayNameMutation, PortError> {
+        Err(PortError::unsupported(
+            Capability::Profiles,
+            "profile display-name mutation is unavailable",
+        ))
+    }
     async fn delete_subscription_credential(&self, profile: &str) -> Result<(), PortError>;
     /// Both documents must be read under the same persistence boundary.
     async fn load_workspace(&self, _profile: &ProfileId) -> Result<ProfileWorkspace, PortError> {

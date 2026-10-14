@@ -15,3 +15,5 @@ Core 生命周期使用 `CoreLifecyclePort`；活动 profile 的 revision-fenced
 Core 资源通过 `CoreResourcePort` 按 `CoreScope` 读取；支持状态是 typed outcome，GC 的 `Collected` 回执必须带同 owner 的真实 post-GC memory readback。
 
 Rule provider 的 inventory/payload/refresh 使用 `RuleProviderPort`，并以 engine-scoped ID、`CoreScope` 和 inventory revision 拒绝 foreign/stale 操作。Geo 数据库触发使用 `GeoDatabasePort`，只报告 controller 接受了异步请求。
+
+Profile 展示名通过 `ProfileStore` 的 typed observation/mutation 与 `ProfileApplication` 访问；它独立于稳定 `ProfileId` 和文件名持久化，也不触发 Core/VPN 生命周期变化。

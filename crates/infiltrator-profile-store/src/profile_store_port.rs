@@ -14,6 +14,9 @@ use infiltrator_contract::aggregator::AggregationTemplate;
 use infiltrator_contract::apply_transaction::ApplyTransactionSnapshot;
 use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::error::ErrorCode;
+use infiltrator_contract::profile_display_name::{
+    ProfileDisplayNameMutation, ProfileDisplayNameObservation, ProfileDisplayNameTarget,
+};
 use infiltrator_contract::profile_document_identity::{ProfileId, ProfileWorkspaceIdentity};
 use infiltrator_domain::profiles::{ProfileInfo, ProfileMetadata};
 use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceStore;
@@ -132,6 +135,21 @@ impl<S: SecureStore> ProfileStore for EngineProfileStore<S> {
         let _guard = acquire_reset_fenced_profile_mutation_for_dir(self.config_dir()).await?;
         let profile = parse_profile_id(profile)?;
         EngineProfileStore::update_profile_metadata(self, profile.as_str(), metadata).await
+    }
+
+    async fn profile_display_name(
+        &self,
+        profile: &ProfileId,
+    ) -> Result<ProfileDisplayNameObservation, PortError> {
+        EngineProfileStore::profile_display_name(self, profile).await
+    }
+
+    async fn set_profile_display_name(
+        &self,
+        profile: &ProfileId,
+        target: ProfileDisplayNameTarget,
+    ) -> Result<ProfileDisplayNameMutation, PortError> {
+        EngineProfileStore::set_profile_display_name(self, profile, target).await
     }
 
     async fn delete_subscription_credential(&self, profile: &str) -> Result<(), PortError> {

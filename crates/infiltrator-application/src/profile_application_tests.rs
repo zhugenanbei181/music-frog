@@ -13,6 +13,9 @@ use infiltrator_contract::active_profile_reference::{
 };
 use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_identity::{CoreGeneration, CoreIdentity, EngineId};
+use infiltrator_contract::profile_display_name::{
+    ProfileDisplayNameMutation, ProfileDisplayNameObservation, ProfileDisplayNameTarget,
+};
 use infiltrator_contract::profile_document_identity::{ProfileId, ProfileWorkspaceIdentity};
 use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
 use infiltrator_domain::profile_options::ProfileOptions;
@@ -38,6 +41,7 @@ struct FakeStore {
     reference_write_count: AtomicUsize,
     profile_save_count: AtomicUsize,
     profiles: Mutex<BTreeMap<String, (String, ProfileMetadata)>>,
+    display_names: Mutex<BTreeMap<String, ProfileDisplayNameObservation>>,
     sidecars: Mutex<BTreeMap<String, Vec<u8>>>,
     options_read_error: Mutex<Option<PortError>>,
     workspace_write_error: Mutex<Option<PortError>>,
@@ -772,6 +776,21 @@ impl ProfileStore for FakeStore {
             .ok_or_else(|| PortError::NotFound(profile.to_string()))
     }
 
+    async fn profile_display_name(
+        &self,
+        profile: &ProfileId,
+    ) -> Result<ProfileDisplayNameObservation, PortError> {
+        display_name::observe_fake_store(self, profile)
+    }
+
+    async fn set_profile_display_name(
+        &self,
+        profile: &ProfileId,
+        target: ProfileDisplayNameTarget,
+    ) -> Result<ProfileDisplayNameMutation, PortError> {
+        display_name::set_fake_store(self, profile, target)
+    }
+
     async fn delete_subscription_credential(&self, _profile: &str) -> Result<(), PortError> {
         Ok(())
     }
@@ -921,6 +940,8 @@ mod batch;
 mod conditional;
 #[path = "profile_application_tests/deletion.rs"]
 mod deletion;
+#[path = "profile_application_tests/display_name.rs"]
+mod display_name;
 #[path = "profile_application_tests/edited.rs"]
 mod edited;
 #[path = "profile_application_tests/fetch.rs"]

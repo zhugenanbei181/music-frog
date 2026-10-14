@@ -58,6 +58,7 @@ pub mod parity;
 pub mod port_conflict;
 pub mod privileged_network;
 pub mod profile_configuration;
+pub mod profile_display_name;
 pub mod profile_document;
 pub mod profile_document_identity;
 pub mod profile_mixin_studio;
