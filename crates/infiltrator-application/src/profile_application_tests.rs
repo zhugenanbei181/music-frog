@@ -13,6 +13,10 @@ use infiltrator_contract::active_profile_reference::{
 };
 use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_identity::{CoreGeneration, CoreIdentity, EngineId};
+use infiltrator_contract::profile_age_credential::{
+    ProfileAgeContentDecryption, ProfileAgeCredentialRevision, ProfileAgeDecryptedContent,
+    ProfileAgeEncryptedContent,
+};
 use infiltrator_contract::profile_catalog_order::{
     ProfileCatalogOrderMutation, ProfileCatalogOrderRequest,
 };
@@ -46,6 +50,8 @@ struct FakeStore {
     profiles: Mutex<BTreeMap<String, (String, ProfileMetadata)>>,
     catalog_order: Mutex<Option<Vec<ProfileId>>>,
     display_names: Mutex<BTreeMap<String, ProfileDisplayNameObservation>>,
+    age_decryption: Mutex<FakeAgeDecryption>,
+    age_decryption_calls: AtomicUsize,
     sidecars: Mutex<BTreeMap<String, Vec<u8>>>,
     options_read_error: Mutex<Option<PortError>>,
     workspace_write_error: Mutex<Option<PortError>>,
@@ -62,6 +68,18 @@ struct FakeStore {
     stale_sidecar_revision_receipt: AtomicBool,
     stale_after_next_workspace_read: AtomicBool,
     workspace_lease_gate: Arc<tokio::sync::Mutex<()>>,
+}
+
+#[derive(Default)]
+enum FakeAgeDecryption {
+    #[default]
+    Unsupported,
+    Decrypted {
+        content: String,
+        revision: u64,
+    },
+    CredentialNotConfigured,
+    InvalidCredentialOrContent,
 }
 
 fn profile_id(name: &str) -> ProfileId {
@@ -94,6 +112,13 @@ fn profiles_with_mihomo_codec(store: Arc<dyn ProfileStore>) -> ProfileApplicatio
 }
 
 impl FakeStore {
+    fn decrypt_age_to(&self, content: &str, revision: u64) {
+        *self.age_decryption.lock().expect("Age decryption") = FakeAgeDecryption::Decrypted {
+            content: content.to_owned(),
+            revision,
+        };
+    }
+
     fn with_profile(name: &str, content: &str, active: bool) -> Self {
         let mut profiles = BTreeMap::new();
         profiles.insert(
@@ -804,6 +829,42 @@ impl ProfileStore for FakeStore {
         display_name::set_fake_store(self, profile, target)
     }
 
+    async fn decrypt_age_subscription_content(
+        &self,
+        _profile: &ProfileId,
+        content: ProfileAgeEncryptedContent,
+    ) -> Result<ProfileAgeContentDecryption, PortError> {
+        self.age_decryption_calls.fetch_add(1, Ordering::SeqCst);
+        if !content
+            .as_str()
+            .trim_start()
+            .starts_with("-----BEGIN AGE ENCRYPTED FILE-----")
+        {
+            return Err(PortError::Failed(
+                "Age decrypt fake received non-armored content".to_owned(),
+            ));
+        }
+        let outcome = std::mem::take(&mut *self.age_decryption.lock().expect("Age decryption"));
+        match outcome {
+            FakeAgeDecryption::Unsupported => Err(PortError::unsupported(
+                Capability::Profiles,
+                "Age decryption fake is not configured",
+            )),
+            FakeAgeDecryption::Decrypted { content, revision } => {
+                Ok(ProfileAgeContentDecryption::Decrypted {
+                    content: ProfileAgeDecryptedContent::new(content),
+                    credential_revision: ProfileAgeCredentialRevision::new(revision),
+                })
+            }
+            FakeAgeDecryption::CredentialNotConfigured => {
+                Ok(ProfileAgeContentDecryption::CredentialNotConfigured)
+            }
+            FakeAgeDecryption::InvalidCredentialOrContent => {
+                Ok(ProfileAgeContentDecryption::InvalidCredentialOrContent)
+            }
+        }
+    }
+
     async fn delete_subscription_credential(&self, _profile: &str) -> Result<(), PortError> {
         Ok(())
     }
@@ -880,10 +941,12 @@ impl SubscriptionSource for FakeSource {
         _profile: &str,
         _url: &CheckedSubscriptionUrl,
     ) -> Result<SubscriptionDocument, PortError> {
-        Err(PortError::unsupported(
-            Capability::Profiles,
-            "use fetch_conditional",
-        ))
+        match self.result.lock().expect("result lock").clone() {
+            Some(ConditionalDocumentResult::Modified { document, .. }) => Ok(document),
+            Some(ConditionalDocumentResult::NotModified { .. }) | None => Err(
+                PortError::unsupported(Capability::Profiles, "no modified subscription content"),
+            ),
+        }
     }
 
     async fn fetch_conditional(

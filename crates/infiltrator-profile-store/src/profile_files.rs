@@ -3,6 +3,7 @@
 use crate::document_store::{remove_optional, write_document_bytes_durable};
 use crate::file_lock::lock_profile_writes_for_dir;
 use crate::metadata::delete_subscription_url;
+use crate::profile_age_credential::retire_profile_age_credential_locked;
 use crate::store::EngineProfileStore;
 use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
 use infiltrator_contract::error::{ErrorCode, Failure};
@@ -200,16 +201,37 @@ impl<S: SecureStore> EngineProfileStore<S> {
         let previous_document = fs::read(&path)
             .await
             .map_err(|error| PortError::Io(error.to_string()))?;
-        fs::remove_file(&path)
-            .await
-            .map_err(|error| PortError::Io(error.to_string()))?;
-
         let sidecar_path = options_path(self.config_dir(), profile.as_str());
+        let previous_sidecar = match fs::read(&sidecar_path).await {
+            Ok(sidecar) => Some(sidecar),
+            Err(error) if error.kind() == ErrorKind::NotFound => None,
+            Err(error) => return Err(PortError::Io(error.to_string())),
+        };
+        let age_credential = retire_profile_age_credential_locked(self, profile).await?;
+
+        if let Err(error) = fs::remove_file(&path).await {
+            if age_credential.rollback(self).await.is_err() {
+                return Err(PortError::Failed(
+                    "profile deletion failed and Age credential rollback was not confirmed".into(),
+                ));
+            }
+            return Err(PortError::Io(error.to_string()));
+        }
+
         if let Err(error) = remove_optional(&sidecar_path).await {
-            if let Err(rollback) = write_document_bytes_durable(&path, &previous_document).await {
-                return Err(PortError::Io(format!(
-                    "profile deletion sidecar cleanup failed ({error}); profile restore failed ({rollback})"
-                )));
+            let document_restored = write_document_bytes_durable(&path, &previous_document).await;
+            let sidecar_restored = match previous_sidecar.as_deref() {
+                Some(sidecar) => write_document_bytes_durable(&sidecar_path, sidecar).await,
+                None => Ok(()),
+            };
+            let credential_restored = age_credential.rollback(self).await;
+            if document_restored.is_err()
+                || sidecar_restored.is_err()
+                || credential_restored.is_err()
+            {
+                return Err(PortError::Failed(
+                    "profile deletion failed and its rollback was not fully confirmed".into(),
+                ));
             }
             return Err(error);
         }

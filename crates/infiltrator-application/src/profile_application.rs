@@ -431,10 +431,15 @@ impl ProfileApplication {
         let url = CheckedSubscriptionUrl::parse(url)
             .map_err(|error| Failure::new(ErrorCode::InvalidInput, error.to_string(), false))?;
         let document = source.fetch(&name, &url).await.map_err(Failure::from)?;
-        let content_bytes = document.content.len();
-        let format = FormatDetector::detect(&document.content);
-        let node_count = FormatDetector::count_nodes(&document.content);
-        commit_subscription_document(&self.store, &name, url.as_str(), document).await?;
+        let profile_id = profile_id_for_name(&name)?;
+        let prepared_content = self
+            .prepare_subscription_content(&profile_id, &document.content)
+            .await?;
+        let content = prepared_content.as_str();
+        let content_bytes = content.len();
+        let format = FormatDetector::detect(content);
+        let node_count = FormatDetector::count_nodes(content);
+        commit_subscription_document(&self.store, &name, url.as_str(), &document, content).await?;
         Ok(SubscriptionImportReport {
             profile_name: name,
             channel: SubscriptionImportChannel::Url,
@@ -663,18 +668,23 @@ impl ProfileApplication {
                 etag,
                 last_modified,
             } => {
-                if document.content.trim().is_empty() {
+                let profile_id = profile_id_for_name(&name)?;
+                let prepared_content = self
+                    .prepare_subscription_content(&profile_id, &document.content)
+                    .await?;
+                let content = prepared_content.as_str();
+                if content.trim().is_empty() {
                     return Err(Failure::new(
                         ErrorCode::Configuration,
                         "subscription returned empty content",
                         false,
                     ));
                 }
-                validate_yaml(&document.content).map_err(|error| {
+                validate_yaml(content).map_err(|error| {
                     Failure::new(ErrorCode::Configuration, error.to_string(), false)
                 })?;
-                let new_bytes = document.content.len();
-                let node_count = FormatDetector::count_nodes(&document.content);
+                let new_bytes = content.len();
+                let node_count = FormatDetector::count_nodes(content);
                 match &target {
                     SubscriptionProfileTarget::Selected {
                         state,
@@ -684,7 +694,7 @@ impl ProfileApplication {
                     } => {
                         let update = ProfileWorkspaceUpdate {
                             purpose: ProfileWorkspacePurpose::Derived,
-                            document_bytes: document.content.as_bytes().to_vec(),
+                            document_bytes: content.as_bytes().to_vec(),
                             sidecar_bytes: workspace.sidecar_bytes.clone(),
                         };
                         self.commit_workspace_at_reference_with_effect(
@@ -698,7 +708,7 @@ impl ProfileApplication {
                     }
                     SubscriptionProfileTarget::Inactive => {
                         self.store
-                            .save_inactive_profile(&name, &document.content)
+                            .save_inactive_profile(&name, content)
                             .await
                             .map_err(Failure::from)?;
                     }
@@ -1746,20 +1756,21 @@ async fn commit_subscription_document(
     store: &Arc<dyn ProfileStore>,
     name: &str,
     source_url: &str,
-    document: SubscriptionDocument,
+    document: &SubscriptionDocument,
+    content: &str,
 ) -> Result<(), Failure> {
-    if document.content.trim().is_empty() {
+    if content.trim().is_empty() {
         return Err(Failure::new(
             ErrorCode::Configuration,
             "subscription returned empty content",
             false,
         ));
     }
-    validate_yaml(&document.content)
+    validate_yaml(content)
         .map_err(|error| Failure::new(ErrorCode::Configuration, error.to_string(), false))?;
     ensure_profile_inactive(store, name).await?;
     store
-        .save_inactive_profile(name, &document.content)
+        .save_inactive_profile(name, content)
         .await
         .map_err(Failure::from)?;
 
@@ -1768,11 +1779,21 @@ async fn commit_subscription_document(
         .await
         .map_err(Failure::from)?;
     metadata.subscription_url = Some(source_url.to_owned());
-    apply_subscription_metadata(&mut metadata, document.userinfo, Utc::now());
+    apply_subscription_metadata(&mut metadata, document.userinfo.clone(), Utc::now());
     store
         .update_profile_metadata(name, &metadata)
         .await
         .map_err(Failure::from)
+}
+
+fn profile_id_for_name(name: &str) -> Result<ProfileId, Failure> {
+    ProfileId::new(name.to_owned()).map_err(|_| {
+        Failure::new(
+            ErrorCode::InvalidInput,
+            "profile identity is invalid for subscription credential access",
+            false,
+        )
+    })
 }
 
 fn apply_subscription_metadata(

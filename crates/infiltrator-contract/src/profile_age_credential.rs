@@ -13,6 +13,8 @@ use std::ptr;
 use std::sync::atomic::{Ordering, compiler_fence};
 
 const MAX_AGE_PRIVATE_KEY_BYTES: usize = 4096;
+const MAX_AGE_ENCRYPTED_CONTENT_BYTES: usize = 20 * 1024 * 1024;
+const AGE_ENCRYPTED_FILE_HEADER: &str = "-----BEGIN AGE ENCRYPTED FILE-----";
 
 /// Age private key input. It is intentionally neither serializable nor
 /// displayable; `Debug` is always redacted and its owned bytes are scrubbed on
@@ -75,6 +77,102 @@ impl Drop for AgePrivateKey {
     fn drop(&mut self) {
         scrub_string(&mut self.0);
     }
+}
+
+/// A bounded, armored Age document accepted only by the Core subscription
+/// decoder. It is not serializable or printable.
+pub struct ProfileAgeEncryptedContent(String);
+
+impl ProfileAgeEncryptedContent {
+    pub fn is_armored_age_document(value: &str) -> bool {
+        value.trim_start().starts_with(AGE_ENCRYPTED_FILE_HEADER)
+    }
+
+    pub fn new(mut value: String) -> Result<Self, ProfileAgeEncryptedContentError> {
+        let error = if value.len() > MAX_AGE_ENCRYPTED_CONTENT_BYTES {
+            Some(ProfileAgeEncryptedContentError::TooLong)
+        } else if !Self::is_armored_age_document(&value) {
+            Some(ProfileAgeEncryptedContentError::NotArmoredAge)
+        } else {
+            None
+        };
+        match error {
+            Some(error) => {
+                scrub_string(&mut value);
+                Err(error)
+            }
+            None => Ok(Self(value)),
+        }
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl Debug for ProfileAgeEncryptedContent {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        formatter.write_str("ProfileAgeEncryptedContent([REDACTED])")
+    }
+}
+
+impl Drop for ProfileAgeEncryptedContent {
+    fn drop(&mut self) {
+        scrub_string(&mut self.0);
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ProfileAgeEncryptedContentError {
+    TooLong,
+    NotArmoredAge,
+}
+
+impl Display for ProfileAgeEncryptedContentError {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        formatter.write_str(match self {
+            Self::TooLong => "Age-encrypted profile content exceeds the supported size",
+            Self::NotArmoredAge => "profile content is not an armored Age document",
+        })
+    }
+}
+
+impl error::Error for ProfileAgeEncryptedContentError {}
+
+/// Decrypted profile text for immediate validation and owner commit. The
+/// value cannot be formatted, serialized, or cloned and is scrubbed on drop.
+pub struct ProfileAgeDecryptedContent(String);
+
+impl ProfileAgeDecryptedContent {
+    pub fn new(value: String) -> Self {
+        Self(value)
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl Debug for ProfileAgeDecryptedContent {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        formatter.write_str("ProfileAgeDecryptedContent([REDACTED])")
+    }
+}
+
+impl Drop for ProfileAgeDecryptedContent {
+    fn drop(&mut self) {
+        scrub_string(&mut self.0);
+    }
+}
+
+#[derive(Debug)]
+pub enum ProfileAgeContentDecryption {
+    CredentialNotConfigured,
+    InvalidCredentialOrContent,
+    Decrypted {
+        content: ProfileAgeDecryptedContent,
+        credential_revision: ProfileAgeCredentialRevision,
+    },
 }
 
 impl<'de> Deserialize<'de> for AgePrivateKey {
@@ -227,7 +325,10 @@ fn scrub_string(value: &mut String) {
 
 #[cfg(test)]
 mod tests {
-    use super::{AgePrivateKey, ProfileAgeCredentialObservation};
+    use super::{
+        AgePrivateKey, ProfileAgeCredentialObservation, ProfileAgeDecryptedContent,
+        ProfileAgeEncryptedContent,
+    };
     use crate::core_identity::EngineId;
     use crate::profile_document_identity::ProfileId;
 
@@ -249,5 +350,21 @@ mod tests {
         let encoded = serde_json::to_string(&observation).unwrap();
         assert!(!encoded.contains("AGE-SECRET"));
         assert!(encoded.contains("configured"));
+    }
+
+    #[test]
+    fn encrypted_and_decrypted_profile_content_debug_is_redacted() {
+        let encrypted_document = "-----BEGIN AGE ENCRYPTED FILE-----\nopaque-ciphertext\n-----END AGE ENCRYPTED FILE-----";
+        assert!(ProfileAgeEncryptedContent::is_armored_age_document(
+            encrypted_document
+        ));
+        assert!(!ProfileAgeEncryptedContent::is_armored_age_document(
+            "proxies: []\n"
+        ));
+        let armored = ProfileAgeEncryptedContent::new(encrypted_document.to_owned()).unwrap();
+        let decrypted = ProfileAgeDecryptedContent::new("proxies: [private]".to_owned());
+
+        assert!(!format!("{armored:?}").contains("opaque-ciphertext"));
+        assert!(!format!("{decrypted:?}").contains("private"));
     }
 }

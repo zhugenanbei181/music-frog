@@ -13,8 +13,9 @@ use infiltrator_ports::profile_document_codec::{
 };
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::secure_store::SecureStore;
+use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use tempfile::TempDir;
 
 struct TestCodec(ProfileDocumentCodecScope);
@@ -29,24 +30,40 @@ impl ProfileDocumentCodecPort for TestCodec {
     }
 }
 
-struct NoopSecureStore;
+#[derive(Default)]
+struct MemorySecureStore {
+    values: Mutex<HashMap<(String, String), String>>,
+}
 
 #[async_trait::async_trait]
-impl SecureStore for NoopSecureStore {
-    async fn get(&self, _namespace: &str, _key: &str) -> Result<Option<String>, PortError> {
-        Ok(None)
+impl SecureStore for MemorySecureStore {
+    async fn get(&self, namespace: &str, key: &str) -> Result<Option<String>, PortError> {
+        Ok(self
+            .values
+            .lock()
+            .expect("secure store lock")
+            .get(&(namespace.to_owned(), key.to_owned()))
+            .cloned())
     }
 
-    async fn set(&self, _namespace: &str, _key: &str, _value: &str) -> Result<(), PortError> {
+    async fn set(&self, namespace: &str, key: &str, value: &str) -> Result<(), PortError> {
+        self.values
+            .lock()
+            .expect("secure store lock")
+            .insert((namespace.to_owned(), key.to_owned()), value.to_owned());
         Ok(())
     }
 
-    async fn delete(&self, _namespace: &str, _key: &str) -> Result<(), PortError> {
+    async fn delete(&self, namespace: &str, key: &str) -> Result<(), PortError> {
+        self.values
+            .lock()
+            .expect("secure store lock")
+            .remove(&(namespace.to_owned(), key.to_owned()));
         Ok(())
     }
 }
 
-fn make_store(root: PathBuf) -> EngineProfileStore<NoopSecureStore> {
+fn make_store(root: PathBuf) -> EngineProfileStore<MemorySecureStore> {
     let engine_id = EngineId::new("mihomo").unwrap();
     let codec = Arc::new(TestCodec(ProfileDocumentCodecScope {
         engine_id: engine_id.clone(),
@@ -58,12 +75,12 @@ fn make_store(root: PathBuf) -> EngineProfileStore<NoopSecureStore> {
         root,
         codec,
         ProfileDocumentExtension::Json,
-        NoopSecureStore,
+        MemorySecureStore::default(),
     )
     .unwrap()
 }
 
-async fn write_profiles(store: &EngineProfileStore<NoopSecureStore>, names: &[&str]) {
+async fn write_profiles(store: &EngineProfileStore<MemorySecureStore>, names: &[&str]) {
     for name in names {
         store
             .write_profile_document_locked(&ProfileId::new(*name).unwrap(), b"profile")
@@ -72,7 +89,7 @@ async fn write_profiles(store: &EngineProfileStore<NoopSecureStore>, names: &[&s
     }
 }
 
-async fn snapshot(store: &EngineProfileStore<NoopSecureStore>) -> ProfileCatalogSnapshot {
+async fn snapshot(store: &EngineProfileStore<MemorySecureStore>) -> ProfileCatalogSnapshot {
     let profiles = ProfileStore::list_profiles(store).await.unwrap();
     ProfileCatalogSnapshot::new(
         EngineId::new("mihomo").unwrap(),

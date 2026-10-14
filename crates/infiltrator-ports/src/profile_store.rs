@@ -12,8 +12,8 @@ use infiltrator_contract::apply_transaction::ApplyTransactionSnapshot;
 use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::profile_age_credential::{
-    ProfileAgeCredentialMutation, ProfileAgeCredentialReadOutcome, ProfileAgeCredentialReadRequest,
-    ProfileAgeCredentialWriteRequest,
+    ProfileAgeContentDecryption, ProfileAgeCredentialMutation, ProfileAgeCredentialReadOutcome,
+    ProfileAgeCredentialReadRequest, ProfileAgeCredentialWriteRequest, ProfileAgeEncryptedContent,
 };
 use infiltrator_contract::profile_catalog_order::{
     ProfileCatalogOrderMutation, ProfileCatalogOrderRequest,
@@ -236,6 +236,20 @@ pub trait ProfileStore: Send + Sync {
         Err(PortError::unsupported(
             Capability::Profiles,
             "owner-authorized Age credential mutation is unavailable",
+        ))
+    }
+    /// Decrypt one armored Age subscription payload within the profile owner.
+    /// The private key never leaves the injected secure store owner; callers
+    /// receive only a redacted, zeroizing content value for immediate
+    /// validation and commit.
+    async fn decrypt_age_subscription_content(
+        &self,
+        _profile: &ProfileId,
+        _content: ProfileAgeEncryptedContent,
+    ) -> Result<ProfileAgeContentDecryption, PortError> {
+        Err(PortError::unsupported(
+            Capability::Profiles,
+            "Age subscription decryption is unavailable",
         ))
     }
     async fn delete_subscription_credential(&self, profile: &str) -> Result<(), PortError>;

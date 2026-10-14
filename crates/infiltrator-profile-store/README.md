@@ -10,6 +10,8 @@ Profile catalog 顺序也存于 `profile-state.toml`，compare 与 write 在 sel
 
 活动选择清除在 owner authorization 与 root CAS fence 内验证；无 owner 可清除当前引擎选择，精确匹配的 bound owner 也可清除自身引擎选择而保持 owner 绑定不变。foreign/stale/错误 owner 凭据不会写入；该 CAS 不调用 Core 或 VPN 生命周期接口。
 
-Age 私钥以 engine/profile 作用域存入注入的 `SecureStore`，不会进入 profile TOML、文档、metadata 或普通列表快照。owner 读写持有 root → owner-state → profile fence，并校验完整 selection、owner 授权与凭据 revision；每次变化都通过安全存储读回验证，失败文案不带 adapter 原始错误。保存的 secure envelope 内以 `NotConfigured` tombstone 保留 revision，避免删除后 revision 回退。
+Age 私钥以 engine/profile 作用域存入注入的 `SecureStore`，不会进入 profile TOML、文档、metadata 或普通列表快照。凭据 owner 独立于 profile 文档存在与否，允许首次加密订阅先配置密钥、在 owner 内解密，再创建 Profile；解密/校验失败不保存正文，凭据保留供重试或显式清除。owner 读写持有 root → owner-state → profile fence，并校验完整 selection、owner 授权与凭据 revision；每次变化都通过安全存储读回验证，失败文案不带 adapter 原始错误。保存的 secure envelope 内以 `NotConfigured` tombstone 保留 revision，避免删除后 revision 回退。
+
+Armored Age 订阅正文只在此 owner 内读取私钥并解密；错误只返回通用 typed 状态，私钥不离开 SecureStore 边界，解密正文用 drop 时清零的 contract 类型返回给 application 校验/提交。删除 Profile 前先写入并读回递增 revision 的 `NotConfigured` tombstone；文件/sidecar 删除失败时恢复凭据，防止 profile ID 重用后旧 key 或过期 edit 生效。
 
 可移植 profile 名称由 `infiltrator-domain::profiles` 统一校验，文件路径、sidecar 与远端旧格式迁移共用同一规则；Mihomo 私有的重复校验和消毒入口已退役。

@@ -6,10 +6,25 @@ use infiltrator_contract::active_profile_reference::{
 };
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_age_credential::{
-    ProfileAgeCredentialMutation, ProfileAgeCredentialReadOutcome, ProfileAgeCredentialReadRequest,
-    ProfileAgeCredentialWriteRequest,
+    ProfileAgeContentDecryption, ProfileAgeCredentialMutation, ProfileAgeCredentialReadOutcome,
+    ProfileAgeCredentialReadRequest, ProfileAgeCredentialWriteRequest, ProfileAgeDecryptedContent,
+    ProfileAgeEncryptedContent,
 };
 use infiltrator_contract::profile_document_identity::ProfileId;
+
+pub(super) enum PreparedSubscriptionContent<'a> {
+    Plaintext(&'a str),
+    AgeDecrypted(ProfileAgeDecryptedContent),
+}
+
+impl PreparedSubscriptionContent<'_> {
+    pub(super) fn as_str(&self) -> &str {
+        match self {
+            Self::Plaintext(content) => content,
+            Self::AgeDecrypted(content) => content.as_str(),
+        }
+    }
+}
 
 impl ProfileApplication {
     /// Read Age-key presence and revision through the exact selected-reference
@@ -47,5 +62,37 @@ impl ProfileApplication {
             .mutate_profile_age_credential(request)
             .await
             .map_err(Failure::from)
+    }
+
+    pub(super) async fn prepare_subscription_content<'a>(
+        &self,
+        profile_id: &ProfileId,
+        content: &'a str,
+    ) -> Result<PreparedSubscriptionContent<'a>, Failure> {
+        if !ProfileAgeEncryptedContent::is_armored_age_document(content) {
+            return Ok(PreparedSubscriptionContent::Plaintext(content));
+        }
+        let encrypted = ProfileAgeEncryptedContent::new(content.to_owned())
+            .map_err(|error| Failure::new(ErrorCode::Configuration, error.to_string(), false))?;
+        match self
+            .store
+            .decrypt_age_subscription_content(profile_id, encrypted)
+            .await
+            .map_err(Failure::from)?
+        {
+            ProfileAgeContentDecryption::Decrypted { content, .. } => {
+                Ok(PreparedSubscriptionContent::AgeDecrypted(content))
+            }
+            ProfileAgeContentDecryption::CredentialNotConfigured => Err(Failure::new(
+                ErrorCode::Configuration,
+                "Age-encrypted subscription requires a configured Age private key",
+                false,
+            )),
+            ProfileAgeContentDecryption::InvalidCredentialOrContent => Err(Failure::new(
+                ErrorCode::Configuration,
+                "Age private key could not decrypt this subscription content",
+                false,
+            )),
+        }
     }
 }

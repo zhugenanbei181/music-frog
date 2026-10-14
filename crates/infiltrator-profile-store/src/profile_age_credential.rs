@@ -18,9 +18,11 @@ use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_age_credential::{
-    AgePrivateKey, ProfileAgeCredentialMutation, ProfileAgeCredentialObservation,
-    ProfileAgeCredentialReadOutcome, ProfileAgeCredentialReadRequest, ProfileAgeCredentialRevision,
-    ProfileAgeCredentialState, ProfileAgeCredentialTarget, ProfileAgeCredentialWriteRequest,
+    AgePrivateKey, ProfileAgeContentDecryption, ProfileAgeCredentialMutation,
+    ProfileAgeCredentialObservation, ProfileAgeCredentialReadOutcome,
+    ProfileAgeCredentialReadRequest, ProfileAgeCredentialRevision, ProfileAgeCredentialState,
+    ProfileAgeCredentialTarget, ProfileAgeCredentialWriteRequest, ProfileAgeDecryptedContent,
+    ProfileAgeEncryptedContent,
 };
 use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_platform::instance_lock::ThreadedInstanceLockGuard;
@@ -46,6 +48,17 @@ struct ProfileAgeCredentialWriteGuards {
     _root: ThreadedInstanceLockGuard,
     _owner_state: ThreadedInstanceLockGuard,
     _profile: ProfileWriteGuard,
+}
+
+struct ProfileAgeCredentialUseGuards {
+    _root: ThreadedInstanceLockGuard,
+    _owner_state: ThreadedInstanceLockGuard,
+    _profile: ProfileWriteGuard,
+}
+
+pub(crate) struct ProfileAgeCredentialRetirement {
+    profile_id: ProfileId,
+    previous: PersistedAgeCredentialRecord,
 }
 
 #[derive(Deserialize)]
@@ -153,8 +166,6 @@ impl<S: SecureStore> EngineProfileStore<S> {
             }
         };
 
-        self.existing_profile_document_path(&request.profile_id)
-            .await?;
         let record = read_credential_record(self, &request.profile_id).await?;
         Ok(ProfileAgeCredentialReadOutcome::Observed {
             current: record.observation(self.engine_id(), request.profile_id),
@@ -184,8 +195,6 @@ impl<S: SecureStore> EngineProfileStore<S> {
             }
         };
 
-        self.existing_profile_document_path(&request.expected.profile_id)
-            .await?;
         let current = read_credential_record(self, &request.expected.profile_id).await?;
         let current_observation =
             current.observation(self.engine_id(), request.expected.profile_id.clone());
@@ -257,6 +266,85 @@ impl<S: SecureStore> EngineProfileStore<S> {
             }
         }
     }
+
+    /// Decrypt one armored subscription response while holding the same
+    /// profile and Core-owner read fences used by credential mutations. The
+    /// key remains inside this owner; only a redacted, zeroizing document
+    /// value crosses back to the application use case.
+    pub async fn decrypt_age_subscription_content(
+        &self,
+        profile_id: &ProfileId,
+        content: ProfileAgeEncryptedContent,
+    ) -> Result<ProfileAgeContentDecryption, PortError> {
+        let _guards = acquire_age_credential_use_fence(self).await?;
+        let record = read_credential_record(self, profile_id).await?;
+        let credential_revision = ProfileAgeCredentialRevision::new(record.revision);
+        let PersistedAgeCredentialState::Configured { private_key } = record.credential else {
+            return Ok(ProfileAgeContentDecryption::CredentialNotConfigured);
+        };
+        let Ok(identity) = private_key.as_str().parse::<age::x25519::Identity>() else {
+            return Ok(ProfileAgeContentDecryption::InvalidCredentialOrContent);
+        };
+        let Ok(plaintext) = age::decrypt(&identity, content.as_str().as_bytes()) else {
+            return Ok(ProfileAgeContentDecryption::InvalidCredentialOrContent);
+        };
+        let content = match String::from_utf8(plaintext) {
+            Ok(content) => content,
+            Err(error) => {
+                let mut plaintext = error.into_bytes();
+                scrub_bytes(&mut plaintext);
+                return Ok(ProfileAgeContentDecryption::InvalidCredentialOrContent);
+            }
+        };
+        Ok(ProfileAgeContentDecryption::Decrypted {
+            content: ProfileAgeDecryptedContent::new(content),
+            credential_revision,
+        })
+    }
+}
+
+/// Advance the credential revision to a `NotConfigured` tombstone before a
+/// profile ID is retired. The caller must hold the root selection lease and
+/// profile write lock, in that order.
+pub(crate) async fn retire_profile_age_credential_locked<S: SecureStore>(
+    store: &EngineProfileStore<S>,
+    profile_id: &ProfileId,
+) -> Result<ProfileAgeCredentialRetirement, PortError> {
+    let previous = read_credential_record(store, profile_id).await?;
+    let previous_observation = previous.observation(store.engine_id(), profile_id.clone());
+    let revision = next_age_credential_revision(&previous_observation)?;
+    let retired = PersistedAgeCredentialRecord {
+        schema_version: AGE_CREDENTIAL_SCHEMA_VERSION,
+        revision: revision.value(),
+        credential: PersistedAgeCredentialState::NotConfigured,
+    };
+    write_credential_record(store, profile_id, &retired).await?;
+    let readback = read_credential_record(store, profile_id).await?;
+    if !readback.matches(&retired) {
+        return Err(PortError::Failed(
+            "Age credential retirement returned a mismatched readback".into(),
+        ));
+    }
+    Ok(ProfileAgeCredentialRetirement {
+        profile_id: profile_id.clone(),
+        previous,
+    })
+}
+
+impl ProfileAgeCredentialRetirement {
+    pub(crate) async fn rollback<S: SecureStore>(
+        self,
+        store: &EngineProfileStore<S>,
+    ) -> Result<(), PortError> {
+        write_credential_record(store, &self.profile_id, &self.previous).await?;
+        let readback = read_credential_record(store, &self.profile_id).await?;
+        if !readback.matches(&self.previous) {
+            return Err(PortError::Failed(
+                "Age credential restoration returned a mismatched readback".into(),
+            ));
+        }
+        Ok(())
+    }
 }
 
 async fn acquire_age_credential_fence<S: SecureStore>(
@@ -300,6 +388,39 @@ async fn acquire_age_credential_fence<S: SecureStore>(
             _profile: profile_guard,
         },
     ))
+}
+
+async fn acquire_age_credential_use_fence<S: SecureStore>(
+    store: &EngineProfileStore<S>,
+) -> Result<ProfileAgeCredentialUseGuards, PortError> {
+    initialize_namespace_with_reset_fence(store).await?;
+    let file = ActiveProfileReferenceFile::new(store.config_root().to_path_buf());
+    let (config_root, root_guard) = file.acquire_root_lock().await?;
+    ensure_no_pending_reset_in_engine_namespaces(
+        &config_root,
+        ActiveProfileResetMutationAccess::OrdinaryMutation,
+    )
+    .await?;
+    let mut record = file.read_active_profile_record_sync_or_pending()?;
+    let (owner_state, owner_state_guard) = ActiveProfileOwnerCoordinator::new(config_root.clone())
+        .normalize_owner_state_unlocked(&mut record)
+        .await?;
+    match owner_state {
+        ActiveCoreOwnerState::Unowned | ActiveCoreOwnerState::Bound { .. } => {}
+        ActiveCoreOwnerState::Switching { .. } => {
+            return Err(PortError::Rejected(Failure::new(
+                ErrorCode::NotReady,
+                "Age credentials cannot be used during a Core owner switch",
+                true,
+            )));
+        }
+    }
+    let profile_guard = lock_profile_writes_for_dir(store.config_dir()).await?;
+    Ok(ProfileAgeCredentialUseGuards {
+        _root: root_guard,
+        _owner_state: owner_state_guard,
+        _profile: profile_guard,
+    })
 }
 
 async fn read_credential_record<S: SecureStore>(
