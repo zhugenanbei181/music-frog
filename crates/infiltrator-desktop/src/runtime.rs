@@ -1,5 +1,5 @@
 use crate::composition::mihomo_backend::DesktopMihomoBackend;
-use crate::composition::{core_application, desktop_product_backend};
+use crate::composition::{CoreApplicationInputs, core_application, desktop_product_backend};
 use crate::network_roaming::DesktopNetworkRoamingPort;
 use crate::pac_service::DesktopPacServicePort;
 use crate::rule_override::DesktopRuleOverridePort;
@@ -73,6 +73,19 @@ use yaml_rust2::{Yaml, YamlLoader};
 
 mod ports;
 mod product_commands;
+
+/// Required ownership and runtime inputs for composing a Mihomo product.
+pub(crate) struct MihomoRuntimeAssemblyInputs {
+    pub(crate) selection: CoreBinarySelection,
+    pub(crate) config_manager: Arc<ConfigManager<DefaultCredentialStore>>,
+    pub(crate) config_path: PathBuf,
+    pub(crate) controller_url: String,
+    pub(crate) service_manager: ServiceManager,
+    pub(crate) service_mode: Arc<DesktopServiceMode>,
+    pub(crate) endpoints: Arc<ProfileEndpointSource<DefaultCredentialStore>>,
+    pub(crate) endpoint_secret: Option<String>,
+    pub(crate) backend: DesktopMihomoBackend,
+}
 
 pub(crate) struct MihomoRuntime {
     profiles: ProfileApplication,
@@ -210,31 +223,34 @@ impl MihomoRuntime {
         )
         .await
         .map_err(|error| anyhow!(error.to_string()))?;
-        Self::assemble_product(
+        Self::assemble_product(MihomoRuntimeAssemblyInputs {
             selection,
-            cm,
+            config_manager: cm,
             config_path,
             controller_url,
             service_manager,
             service_mode,
             endpoints,
-            endpoint.secret,
+            endpoint_secret: endpoint.secret,
             backend,
-        )
+        })
         .await
     }
 
     pub(crate) async fn assemble_product(
-        selection: CoreBinarySelection,
-        cm: Arc<ConfigManager<DefaultCredentialStore>>,
-        config_path: PathBuf,
-        controller_url: String,
-        service_manager: ServiceManager,
-        service_mode: Arc<DesktopServiceMode>,
-        endpoints: Arc<ProfileEndpointSource<DefaultCredentialStore>>,
-        endpoint_secret: Option<String>,
-        backend: DesktopMihomoBackend,
+        inputs: MihomoRuntimeAssemblyInputs,
     ) -> anyhow::Result<Self> {
+        let MihomoRuntimeAssemblyInputs {
+            selection,
+            config_manager: cm,
+            config_path,
+            controller_url,
+            service_manager,
+            service_mode,
+            endpoints,
+            endpoint_secret,
+            backend,
+        } = inputs;
         let binary = selection.binary_path.clone();
         let DesktopMihomoBackend {
             ports,
@@ -275,16 +291,16 @@ impl MihomoRuntime {
             script_exports,
         } = prepared;
         let application = Arc::new(
-            core_application(
-                &service_manager,
-                DesktopMihomoBackend {
+            core_application(CoreApplicationInputs {
+                service: &service_manager,
+                backend: DesktopMihomoBackend {
                     ports,
                     client: backend_client,
                     capability_provider,
                     selection: selected,
                 },
-                endpoint_secret.clone(),
-                SurfaceEngines {
+                secret: endpoint_secret.clone(),
+                engines: SurfaceEngines {
                     profiles: profiles.clone(),
                     configuration: configuration.clone(),
                     snapshots: snapshots.clone(),
@@ -299,13 +315,13 @@ impl MihomoRuntime {
                     dns_leak: dns_leak.clone(),
                     stun_probe: stun_probe.clone(),
                 },
-                speedtest.clone(),
-                cm.shared_engine_profile_store(),
-                Arc::new(subscription_source()),
-                cm.clone(),
-                endpoints.clone() as Arc<dyn EndpointSource>,
-                apply_guard.clone(),
-            )
+                speedtest: speedtest.clone(),
+                profile_store: cm.shared_engine_profile_store(),
+                subscription_source: Arc::new(subscription_source()),
+                config_manager: cm.clone(),
+                endpoints: endpoints.clone() as Arc<dyn EndpointSource>,
+                apply_guard: apply_guard.clone(),
+            })
             .await?,
         );
         let scope_resolver = scope_resolver_from_owner(Arc::new(application.as_ref().clone()));

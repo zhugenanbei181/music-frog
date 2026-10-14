@@ -126,19 +126,35 @@ pub struct SurfaceEngines {
     pub stun_probe: StunProbeApplication,
 }
 
+/// Inputs for assembling the desktop application's runtime-neutral surface.
+pub struct ProductSurfaceReaderParams {
+    pub core: Arc<CoreApplication>,
+    pub connection_port: Arc<dyn ConnectionPort>,
+    pub runtime_configuration_ports: RuntimeConfigurationPorts,
+    pub resource_port: Arc<dyn CoreResourcePort>,
+    pub routing_intent_port: Arc<dyn RoutingIntentPort>,
+    pub surface: SurfaceKind,
+    pub binary_path: PathBuf,
+    pub network_roaming_port: Arc<dyn NetworkRoamingPort>,
+    pub engines: SurfaceEngines,
+}
+
 /// Assemble all currently available desktop application facades into one
 /// surface reader. No UI toolkit appears in this function.
 pub async fn product_surface_reader(
-    core: Arc<CoreApplication>,
-    connection_port: Arc<dyn ConnectionPort>,
-    runtime_configuration_ports: RuntimeConfigurationPorts,
-    resource_port: Arc<dyn CoreResourcePort>,
-    routing_intent_port: Arc<dyn RoutingIntentPort>,
-    surface: SurfaceKind,
-    binary_path: PathBuf,
-    network_roaming_port: Arc<dyn NetworkRoamingPort>,
-    engines: SurfaceEngines,
+    params: ProductSurfaceReaderParams,
 ) -> anyhow::Result<ProductSurfaceReader> {
+    let ProductSurfaceReaderParams {
+        core,
+        connection_port,
+        runtime_configuration_ports,
+        resource_port,
+        routing_intent_port,
+        surface,
+        binary_path,
+        network_roaming_port,
+        engines,
+    } = params;
     let profile = engines.profiles;
     let config_dir = profile.config_dir();
     let configuration = engines.configuration;
@@ -227,17 +243,17 @@ pub struct SurfacePumpParams {
 }
 
 pub async fn surface_pump(params: SurfacePumpParams) -> anyhow::Result<SurfacePump> {
-    let reader = product_surface_reader(
-        Arc::clone(&params.core),
-        params.connection_port,
-        params.runtime_configuration_ports,
-        params.resource_port,
-        params.routing_intent_port,
-        params.surface,
-        params.binary_path,
-        params.network_roaming_port,
-        params.engines,
-    )
+    let reader = product_surface_reader(ProductSurfaceReaderParams {
+        core: Arc::clone(&params.core),
+        connection_port: params.connection_port,
+        runtime_configuration_ports: params.runtime_configuration_ports,
+        resource_port: params.resource_port,
+        routing_intent_port: params.routing_intent_port,
+        surface: params.surface,
+        binary_path: params.binary_path,
+        network_roaming_port: params.network_roaming_port,
+        engines: params.engines,
+    })
     .await?;
     spawn_surface_pump(reader, params.surface, params.sample_interval).await
 }

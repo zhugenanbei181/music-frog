@@ -9,7 +9,10 @@ use crate::composition::{
 };
 use crate::core_owner_runtime::DesktopCoreOwnerRuntime;
 use crate::product::DesktopProductSwitchFailure;
-use crate::runtime::{MihomoRuntime, collect_geoip_candidates, ensure_geoip_database_offline};
+use crate::runtime::{
+    MihomoRuntime, MihomoRuntimeAssemblyInputs, collect_geoip_candidates,
+    ensure_geoip_database_offline,
+};
 use crate::service::ServiceManager;
 use crate::service_mode::DesktopServiceMode;
 use crate::singbox_runtime::{SingBoxRuntime, desktop_singbox_instance_id, validate_selection};
@@ -131,7 +134,7 @@ async fn prepare_desktop_switch(
         Arc::new(engine_profile_stores(Arc::clone(&config_manager)).map_err(before_reservation)?);
     let profile_store = profile_stores
         .for_engine(&engine_id)
-        .map_err(|error| before_reservation(error))?;
+        .map_err(before_reservation)?;
     let target_workspace = profile_store
         .load_workspace(&profile_id)
         .await
@@ -258,7 +261,7 @@ async fn compose_desktop_switch(
             provider: _,
             profile_document: _,
         } => {
-            compose_mihomo_switch(
+            compose_mihomo_switch(MihomoSwitchCompositionInputs {
                 selection,
                 config_manager,
                 service_manager,
@@ -269,7 +272,7 @@ async fn compose_desktop_switch(
                 client,
                 selected,
                 surface,
-            )
+            })
             .await
         }
         PreparedDesktopEngine::SingBox {
@@ -449,7 +452,7 @@ async fn prepare_sing_box(
     })
 }
 
-async fn compose_mihomo_switch(
+struct MihomoSwitchCompositionInputs {
     selection: CoreBinarySelection,
     config_manager: Arc<ConfigManager<DefaultCredentialStore>>,
     service_manager: ServiceManager,
@@ -460,23 +463,39 @@ async fn compose_mihomo_switch(
     client: MihomoClient,
     selected: SelectedActiveProfileBackend,
     surface: SurfaceKind,
+}
+
+async fn compose_mihomo_switch(
+    inputs: MihomoSwitchCompositionInputs,
 ) -> Result<DesktopProductBackend, DesktopProductSwitchFailure> {
+    let MihomoSwitchCompositionInputs {
+        selection,
+        config_manager,
+        service_manager,
+        config_path,
+        endpoints,
+        controller_url,
+        endpoint_secret,
+        client,
+        selected,
+        surface,
+    } = inputs;
     let backend = desktop_mihomo_backend_from_selected(client, selected)
         .await
         .map_err(old_owner_closed)?;
     let binary_path = selection.binary_path.clone();
     let runtime = Arc::new(
-        MihomoRuntime::assemble_product(
+        MihomoRuntime::assemble_product(MihomoRuntimeAssemblyInputs {
             selection,
-            config_manager.clone(),
+            config_manager: config_manager.clone(),
             config_path,
             controller_url,
             service_manager,
-            Arc::new(DesktopServiceMode::new(binary_path)),
+            service_mode: Arc::new(DesktopServiceMode::new(binary_path)),
             endpoints,
             endpoint_secret,
             backend,
-        )
+        })
         .await
         .map_err(old_owner_closed)?,
     );

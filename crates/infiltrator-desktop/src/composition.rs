@@ -454,23 +454,40 @@ pub(crate) async fn select_product_binary(
     Ok(selection)
 }
 
+/// Inputs for composing the desktop-owned lifecycle application.
+pub(crate) struct CoreApplicationInputs<'a> {
+    pub(crate) service: &'a ServiceManager,
+    pub(crate) backend: DesktopMihomoBackend,
+    pub(crate) secret: Option<String>,
+    pub(crate) engines: SurfaceEngines,
+    pub(crate) speedtest: SpeedtestApplication,
+    pub(crate) profile_store: Arc<dyn ProfileStore>,
+    pub(crate) subscription_source: Arc<dyn SubscriptionSource>,
+    pub(crate) config_manager: Arc<ConfigManager<DefaultCredentialStore>>,
+    pub(crate) endpoints: Arc<dyn EndpointSource>,
+    pub(crate) apply_guard: Arc<Mutex<()>>,
+}
+
 /// Build the 0.30 lifecycle application over the desktop process host and
 /// Mihomo controller readiness adapter.
 ///
 /// The speedtest owner and surfaces use the same engine-scoped outbound port
 /// and accepted inventory revision as selection and one-shot probes.
 pub(crate) async fn core_application(
-    service: &ServiceManager,
-    backend: DesktopMihomoBackend,
-    secret: Option<String>,
-    engines: SurfaceEngines,
-    speedtest: SpeedtestApplication,
-    profile_store: Arc<dyn ProfileStore>,
-    subscription_source: Arc<dyn SubscriptionSource>,
-    config_manager: Arc<ConfigManager<DefaultCredentialStore>>,
-    endpoints: Arc<dyn EndpointSource>,
-    apply_guard: Arc<Mutex<()>>,
+    inputs: CoreApplicationInputs<'_>,
 ) -> anyhow::Result<CoreApplication> {
+    let CoreApplicationInputs {
+        service,
+        backend,
+        secret,
+        engines,
+        speedtest,
+        profile_store,
+        subscription_source,
+        config_manager,
+        endpoints,
+        apply_guard,
+    } = inputs;
     let DesktopMihomoBackend {
         ports,
         client,
