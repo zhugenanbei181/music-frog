@@ -1,4 +1,8 @@
-//! Explicit editor states for the Core-owned runtime probe settings.
+//! Explicit presentation states for editing runtime probe settings.
+
+#[cfg(test)]
+#[path = "runtime_probe_settings_editor_tests.rs"]
+mod tests;
 
 use crate::runtime_probe_settings::parse_draft;
 use infiltrator_contract::error::{ErrorCode, Failure};
@@ -42,7 +46,10 @@ struct Checkpoint {
 enum EditorState {
     Unavailable {
         failure: Failure,
-        previous: Option<Checkpoint>,
+    },
+    UnavailableWithCheckpoint {
+        failure: Failure,
+        checkpoint: Checkpoint,
     },
     Ready {
         applied: RuntimeProbeSettings,
@@ -80,7 +87,6 @@ impl Default for RuntimeProbeSettingsEditor {
         Self {
             state: EditorState::Unavailable {
                 failure: Failure::unsupported("runtime probe settings have not been observed"),
-                previous: None,
             },
             next_token: 0,
         }
@@ -100,16 +106,13 @@ impl RuntimeProbeSettingsEditor {
                 }
                 EditorState::AwaitingReadback { .. } => {}
                 EditorState::WriteFailed { .. } => {}
-                EditorState::Unavailable {
-                    previous: Some(checkpoint),
-                    ..
-                } => {
+                EditorState::UnavailableWithCheckpoint { checkpoint, .. } => {
                     self.state = EditorState::Editing {
                         applied: settings.clone(),
                         draft: checkpoint.draft.clone(),
                     };
                 }
-                EditorState::Unavailable { previous: None, .. } | EditorState::Ready { .. } => {
+                EditorState::Unavailable { .. } | EditorState::Ready { .. } => {
                     self.state = EditorState::Ready {
                         applied: settings.clone(),
                         draft: RuntimeProbeSettingsDraft::from(settings),
@@ -118,10 +121,15 @@ impl RuntimeProbeSettingsEditor {
             },
             RuntimeProbeSettingsState::Unavailable { failure } => match &self.state {
                 EditorState::Saving { .. } | EditorState::AwaitingReadback { .. } => {}
-                EditorState::Unavailable { previous, .. } => {
+                EditorState::Unavailable { .. } => {
                     self.state = EditorState::Unavailable {
                         failure: failure.clone(),
-                        previous: previous.clone(),
+                    };
+                }
+                EditorState::UnavailableWithCheckpoint { checkpoint, .. } => {
+                    self.state = EditorState::UnavailableWithCheckpoint {
+                        failure: failure.clone(),
+                        checkpoint: checkpoint.clone(),
                     };
                 }
                 EditorState::Ready { applied, draft }
@@ -131,12 +139,12 @@ impl RuntimeProbeSettingsEditor {
                     draft,
                     failure: _,
                 } => {
-                    self.state = EditorState::Unavailable {
+                    self.state = EditorState::UnavailableWithCheckpoint {
                         failure: failure.clone(),
-                        previous: Some(Checkpoint {
+                        checkpoint: Checkpoint {
                             applied: applied.clone(),
                             draft: draft.clone(),
-                        }),
+                        },
                     };
                 }
             },
@@ -145,9 +153,8 @@ impl RuntimeProbeSettingsEditor {
 
     pub fn draft(&self) -> Option<&RuntimeProbeSettingsDraft> {
         match &self.state {
-            EditorState::Unavailable { previous, .. } => {
-                previous.as_ref().map(|entry| &entry.draft)
-            }
+            EditorState::UnavailableWithCheckpoint { checkpoint, .. } => Some(&checkpoint.draft),
+            EditorState::Unavailable { .. } => None,
             EditorState::Ready { draft, .. }
             | EditorState::Editing { draft, .. }
             | EditorState::Saving { draft, .. }
@@ -158,9 +165,8 @@ impl RuntimeProbeSettingsEditor {
 
     pub fn applied(&self) -> Option<&RuntimeProbeSettings> {
         match &self.state {
-            EditorState::Unavailable { previous, .. } => {
-                previous.as_ref().map(|entry| &entry.applied)
-            }
+            EditorState::UnavailableWithCheckpoint { checkpoint, .. } => Some(&checkpoint.applied),
+            EditorState::Unavailable { .. } => None,
             EditorState::Ready { applied, .. }
             | EditorState::Editing { applied, .. }
             | EditorState::Saving { applied, .. }
@@ -171,9 +177,9 @@ impl RuntimeProbeSettingsEditor {
 
     pub fn failure(&self) -> Option<&Failure> {
         match &self.state {
-            EditorState::Unavailable { failure, .. } | EditorState::WriteFailed { failure, .. } => {
-                Some(failure)
-            }
+            EditorState::Unavailable { failure, .. }
+            | EditorState::UnavailableWithCheckpoint { failure, .. }
+            | EditorState::WriteFailed { failure, .. } => Some(failure),
             _ => None,
         }
     }
@@ -196,8 +202,8 @@ impl RuntimeProbeSettingsEditor {
             EditorState::Ready { draft, .. }
             | EditorState::Editing { draft, .. }
             | EditorState::WriteFailed { draft, .. }
-            | EditorState::Unavailable {
-                previous: Some(Checkpoint { draft, .. }),
+            | EditorState::UnavailableWithCheckpoint {
+                checkpoint: Checkpoint { draft, .. },
                 ..
             } => parse_draft(draft).err(),
             _ => None,
@@ -253,35 +259,24 @@ impl RuntimeProbeSettingsEditor {
     }
 
     pub fn cancel(&mut self) {
-        let checkpoint = match &self.state {
+        let (applied, draft) = match &self.state {
+            EditorState::Editing { applied, .. } | EditorState::WriteFailed { applied, .. } => {
+                (applied.clone(), RuntimeProbeSettingsDraft::from(applied))
+            }
             EditorState::Ready { .. }
+            | EditorState::Unavailable { .. }
+            | EditorState::UnavailableWithCheckpoint { .. }
             | EditorState::Saving { .. }
             | EditorState::AwaitingReadback { .. } => return,
-            EditorState::Unavailable { .. } => return,
-            EditorState::Editing { applied, .. } | EditorState::WriteFailed { applied, .. } => {
-                Some(Checkpoint {
-                    applied: applied.clone(),
-                    draft: RuntimeProbeSettingsDraft::from(applied),
-                })
-            }
         };
-        self.state = match checkpoint {
-            Some(checkpoint) => EditorState::Ready {
-                applied: checkpoint.applied,
-                draft: checkpoint.draft,
-            },
-            None => EditorState::Unavailable {
-                failure: Failure::unsupported("runtime probe settings have not been observed"),
-                previous: None,
-            },
-        };
+        self.state = EditorState::Ready { applied, draft };
     }
 
     pub fn begin(&mut self) -> Result<PendingRuntimeProbeSettings, Failure> {
         let (applied, draft) = match &self.state {
             EditorState::Editing { applied, draft }
             | EditorState::WriteFailed { applied, draft, .. } => (applied.clone(), draft.clone()),
-            EditorState::Unavailable { .. } => {
+            EditorState::Unavailable { .. } | EditorState::UnavailableWithCheckpoint { .. } => {
                 return Err(Failure::new(
                     ErrorCode::NotReady,
                     "runtime probe settings are unavailable",
@@ -365,62 +360,5 @@ impl RuntimeProbeSettingsEditor {
                 RuntimeProbeSettingsWriteOutcome::Failed
             }
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn available(settings: RuntimeProbeSettings) -> RuntimeProbeSettingsState {
-        RuntimeProbeSettingsState::Available { settings }
-    }
-
-    #[test]
-    fn invalid_draft_and_stale_write_receipt_never_change_the_applied_value() {
-        let original = RuntimeProbeSettings::default();
-        let mut editor = RuntimeProbeSettingsEditor::default();
-        editor.observe(&available(original.clone()));
-        editor.edit_timeout("0".into());
-        assert!(editor.validation().is_some());
-        assert!(!editor.can_apply());
-        assert_eq!(editor.applied(), Some(&original));
-
-        editor.cancel();
-        editor.edit_url("https://probe.example.test/check".into());
-        let pending = editor.begin().unwrap();
-        assert!(editor.begin().is_err());
-        assert_eq!(
-            editor.finish(pending.token + 1, Ok(())),
-            RuntimeProbeSettingsWriteOutcome::Stale
-        );
-        assert_eq!(editor.applied(), Some(&original));
-        assert_eq!(
-            editor.finish(pending.token, Err(Failure::unsupported("write denied"))),
-            RuntimeProbeSettingsWriteOutcome::Failed
-        );
-        assert_eq!(editor.applied(), Some(&original));
-        assert!(editor.failure().is_some());
-    }
-
-    #[test]
-    fn successful_write_waits_for_matching_owner_readback_before_becoming_ready() {
-        let mut editor = RuntimeProbeSettingsEditor::default();
-        editor.observe(&available(RuntimeProbeSettings::default()));
-        editor.edit_url("https://probe.example.test/check".into());
-        let pending = editor.begin().unwrap();
-        assert_eq!(
-            editor.finish(pending.token, Ok(())),
-            RuntimeProbeSettingsWriteOutcome::Saved
-        );
-        assert!(editor.is_pending());
-        editor.observe(&available(RuntimeProbeSettings::default()));
-        assert!(
-            editor.is_pending(),
-            "a stale snapshot cannot undo the write"
-        );
-        editor.observe(&available(pending.settings.clone()));
-        assert!(!editor.is_pending());
-        assert_eq!(editor.applied(), Some(&pending.settings));
     }
 }

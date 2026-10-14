@@ -10,13 +10,8 @@ description = "Bevy UI frontend shell for MusicFrog Infiltrator: a peer desktop+
 # DUAL-10-01: forward the real-ECMAScript engine to the shared application. It
 # is on by default, matching the application's default configuration, so the
 # Bevy surface is built and tested against Boa unless defaults are disabled.
-default = ["script-engine-boa", "ui-application-projections"]
+default = ["script-engine-boa"]
 script-engine-boa = ["dep:infiltrator-application", "infiltrator-application/script-engine-boa"]
-# Transitional product-page imports still reach pure state/projection helpers
-# in infiltrator-application. This feature adds that crate to the link closure;
-# Android removes it after the production consumers migrate to presentation/
-# contract. It is separate from the opt-in capture host adapters below.
-ui-application-projections = ["dep:infiltrator-application"]
 # Isolated screenshot/demo tooling. This feature is opt-in and is not part of
 # the product defaults or Android product driver closure.
 capture-tools = [
@@ -51,7 +46,7 @@ infiltrator-shared = { path = "../infiltrator-shared" }
 # below own the real closure (bevy derive macros scan this plain table).
 bevy = { workspace = true }
 
-# The application-owned controller pump (BEVY-005).
+# Application APIs are optional and limited to script-engine/capture features.
 infiltrator-application = { path = "../infiltrator-application", default-features = false, optional = true }
 infiltrator-ports = { path = "../infiltrator-ports" }
 serde = { workspace = true }

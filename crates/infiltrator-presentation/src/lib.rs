@@ -41,6 +41,8 @@ pub mod profile_edit_status_projection;
 pub mod profile_editor_projection;
 pub mod profile_metadata_projection;
 pub mod profile_preview;
+pub mod protocol_editor_operation;
+pub mod protocol_form;
 pub mod protocol_studio_projection;
 pub mod proxy_group_order_editor;
 pub mod routing_intent_actions;
@@ -59,6 +61,8 @@ pub mod rule_statistics_projection;
 pub mod rule_statistics_workbench;
 pub mod rule_trace_actions;
 pub mod rule_trace_projection;
+pub mod runtime_probe_settings;
+pub mod runtime_probe_settings_editor;
 pub mod script_console_projection;
 pub mod script_export_projection;
 pub mod script_workbench;
@@ -104,3 +108,7 @@ mod rule_fixtures;
 
 #[cfg(test)]
 mod snapshot_restore_workbench_tests;
+
+#[cfg(test)]
+#[path = "runtime_probe_settings_tests.rs"]
+mod runtime_probe_settings_tests;

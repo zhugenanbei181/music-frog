@@ -12,12 +12,6 @@ use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::*;
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
-use infiltrator_application::protocol_codec_application::{
-    ProtocolCodecApplication, studio_snapshot,
-};
-use infiltrator_application::protocol_form::{
-    ProtocolInputs, field_projection, special_projection, visible,
-};
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::palette::UiPalette;
@@ -26,21 +20,15 @@ use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::text_input::TextField;
 use infiltrator_bevy_widgets::text_input::state::{TextFieldInput, ValidationStatus};
 use infiltrator_bevy_widgets::text_input::text_field_with_placeholder_scene;
-use infiltrator_contract::command::RequestId;
 use infiltrator_contract::protocol_fidelity::{ProtocolDraft, ProtocolStudioSnapshot};
 use infiltrator_contract::protocol_form::{ProtocolField, ProtocolStudioSlot};
+use infiltrator_presentation::protocol_editor_operation::{
+    ProtocolEditorEffect, ProtocolEditorOperation,
+};
+use infiltrator_presentation::protocol_form::{
+    ProtocolInputs, field_projection, project_draft, special_projection, uri_from_draft, visible,
+};
 use infiltrator_shared::locales::{Lang, Localizer};
-
-#[derive(Clone, Debug)]
-pub struct PendingProtocolSave {
-    pub request_id: RequestId,
-    pub draft: ProtocolDraft,
-}
-#[derive(Clone, Debug)]
-pub struct PendingProtocolImport {
-    pub request_id: RequestId,
-    pub uri: String,
-}
 
 #[derive(Resource, Clone, Debug, Default)]
 pub struct CustomNodeForm {
@@ -48,17 +36,15 @@ pub struct CustomNodeForm {
     pub inputs: ProtocolInputs,
     pub reset_fields: bool,
     pub reset_uri: bool,
-    pub saving: Option<PendingProtocolSave>,
-    pub importing: Option<PendingProtocolImport>,
+    pub operation: ProtocolEditorOperation,
 }
 impl CustomNodeForm {
-    pub fn begin(&mut self) {
-        self.studio = ProtocolCodecApplication::project_draft(ProtocolDraft::new("vless"), None);
+    pub fn begin(&mut self, studio: ProtocolStudioSnapshot) {
+        self.studio = studio;
         self.inputs = ProtocolInputs::default();
         self.reset_fields = true;
         self.reset_uri = true;
-        self.saving = None;
-        self.importing = None;
+        self.operation = ProtocolEditorOperation::Idle;
     }
     pub fn load(&mut self, studio: ProtocolStudioSnapshot) {
         self.studio = studio;
@@ -71,8 +57,8 @@ impl CustomNodeForm {
         };
         match self.inputs.edit(draft, id, raw) {
             Ok(next) => {
-                let preview = ProtocolCodecApplication::uri_from_draft(&next).ok();
-                let mut studio = ProtocolCodecApplication::project_draft(next, preview);
+                let preview = uri_from_draft(&next).ok();
+                let mut studio = project_draft(next, preview);
                 studio.dialer = self.studio.dialer.clone();
                 studio.ca_trust = self.studio.ca_trust.clone();
                 self.studio = studio;
@@ -184,7 +170,7 @@ pub(crate) fn sync_protocol_form(
     mut fields: Query<&mut TextField>,
     mut texts: Query<(&mut Text, &ProtocolFormText)>,
 ) {
-    let active = panel.0 == Some(PanelKind::CustomNode) && form.saving.is_none();
+    let active = panel.0 == Some(PanelKind::CustomNode) && !form.operation.is_saving();
     let reset = form.reset_fields;
     for (id, nodes, mut node) in &mut wrappers {
         let Some(draft) = form.studio.draft.as_ref() else {
@@ -287,7 +273,7 @@ pub fn stage_native_fields(
     }
 }
 
-/// A projection refresh never substitutes for a terminal application acknowledgment.
+/// An owner snapshot never substitutes for the terminal command acknowledgment.
 pub(crate) fn finish_custom_node(
     result: On<CommandExecutedEvent>,
     mut form: ResMut<CustomNodeForm>,
@@ -295,47 +281,42 @@ pub(crate) fn finish_custom_node(
     mut roots: Query<(&BusinessPanelRoot, &mut Node)>,
 ) {
     match &result.command {
-        UiCommand::SaveCustomNodeDraft { draft }
-            if form.saving.as_ref().is_some_and(|pending| {
-                pending.request_id == result.request_id && &pending.draft == draft.as_ref()
-            }) =>
-        {
-            form.saving = None;
-            if result.result.is_ok() {
-                if panel.0 == Some(PanelKind::CustomNode) {
-                    panel.0 = None;
-                    for (root, mut node) in &mut roots {
-                        if root.0 == PanelKind::CustomNode {
-                            node.display = Display::None;
+        UiCommand::SaveCustomNodeDraft { draft } => {
+            let effect = form.operation.finish_save(
+                result.request_id,
+                draft,
+                result.result.as_ref().map(|_| ()).map_err(Clone::clone),
+            );
+            match effect {
+                ProtocolEditorEffect::Saved => {
+                    if panel.0 == Some(PanelKind::CustomNode) {
+                        panel.0 = None;
+                        for (root, mut node) in &mut roots {
+                            if root.0 == PanelKind::CustomNode {
+                                node.display = Display::None;
+                            }
                         }
                     }
                 }
-            } else {
-                form.studio.last_error = result.error_message().map(str::to_owned);
-            }
-        }
-        UiCommand::ImportCustomNodeUri { uri }
-            if panel.0 == Some(PanelKind::CustomNode)
-                && form.importing.as_ref().is_some_and(|pending| {
-                    pending.request_id == result.request_id && &pending.uri == uri
-                }) =>
-        {
-            form.importing = None;
-            if result.result.is_ok() {
-                if let Some(studio) = studio_snapshot() {
-                    form.load(studio);
+                ProtocolEditorEffect::Failed(failure) => {
+                    form.studio.last_error = Some(failure.message);
                 }
-            } else {
-                form.studio.last_error = result.error_message().map(str::to_owned);
+                ProtocolEditorEffect::Ignored
+                | ProtocolEditorEffect::ImportAwaitingReadback
+                | ProtocolEditorEffect::Imported(_) => {}
             }
         }
-        UiCommand::ScanCustomNodeDialer | UiCommand::VerifyCustomNodeCa { .. }
-            if panel.0 == Some(PanelKind::CustomNode) =>
-        {
-            if let Some(studio) = studio_snapshot() {
-                form.studio.dialer = studio.dialer;
-                form.studio.ca_trust = studio.ca_trust;
+        UiCommand::ImportCustomNodeUri { uri } => {
+            let effect = form.operation.finish_import(
+                result.request_id,
+                uri,
+                result.result.as_ref().map(|_| ()).map_err(Clone::clone),
+            );
+            if let ProtocolEditorEffect::Failed(failure) = effect {
+                form.studio.last_error = Some(failure.message);
             }
+        }
+        UiCommand::ScanCustomNodeDialer | UiCommand::VerifyCustomNodeCa { .. } => {
             if !result.result.is_ok() {
                 form.studio.last_error = result.error_message().map(str::to_owned);
             }

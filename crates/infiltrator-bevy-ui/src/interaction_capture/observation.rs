@@ -163,7 +163,7 @@ pub fn protocol_observation(
             return None;
         }
         if marker.feature.feature == FeatureId::ProxiesUriImportPreview {
-            if surface.form.importing.is_some()
+            if surface.form.operation.is_busy()
                 || surface.form.studio.draft.as_ref()?.name != "Imported-Node"
             {
                 return None;

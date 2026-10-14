@@ -64,3 +64,21 @@ fn typed_edits_preserve_credentials_transport_and_unknown_values() {
     assert_eq!(next.params.transport.ws.host(), "ws.example.com");
     assert_eq!(next.preserved_fields, draft.preserved_fields);
 }
+
+#[test]
+fn uri_conversion_and_studio_projection_belong_to_presentation() {
+    let mut draft = ProtocolDraft::new("vless");
+    draft.name = "edge node".to_owned();
+    draft.server = "edge.example.test".to_owned();
+    draft.port = 443;
+    draft.uuid = "b831381d-6324-4d53-ad4f-8cda48b30811".to_owned();
+
+    let uri = uri_from_draft(&draft).unwrap();
+    let decoded = draft_from_uri(&uri).unwrap();
+    let snapshot = project_draft(decoded.clone(), Some(uri.clone()));
+
+    assert_eq!(snapshot.draft, Some(decoded.clone()));
+    assert_eq!(snapshot.uri_preview, Some(uri));
+    assert_eq!(snapshot.report, Some(decoded.report()));
+    assert!(snapshot.uri_gaps.is_empty());
+}

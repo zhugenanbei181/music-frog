@@ -10,14 +10,13 @@ use bevy::ui::Node;
 use bevy::ui::prelude::Display;
 use bevy::ui_widgets::Activate;
 use infiltrator_application::command_application::CommandApplication;
-use infiltrator_application::runtime_probe_settings::project_settings;
 use infiltrator_application::settings_application::SettingsApplication;
 use infiltrator_bevy_ui::app::ShellPlugin;
 use infiltrator_bevy_ui::command::{CommandSinkHandle, UiCommand, UiCommandSink};
 use infiltrator_bevy_ui::command_events::CommandExecutedEvent;
 use infiltrator_bevy_ui::pages::proxy_probe_settings::{
-    ApplyProbeSettings, CancelProbeSettings, OpenProbeSettings, ProbeSettingsRoot,
-    ProbeSettingsState, ProbeTimeoutField, ProbeUrlField,
+    ApplyProbeSettings, CancelProbeSettings, OpenProbeSettings, ProbeSettingsDialogState,
+    ProbeSettingsRoot, ProbeSettingsState, ProbeTimeoutField, ProbeUrlField,
 };
 use infiltrator_bevy_ui::route::{PagesPlugin, Route, RouteChanged};
 use infiltrator_bevy_ui::surface::LatestSurfaceSnapshot;
@@ -31,6 +30,7 @@ use infiltrator_contract::outbound::identity::SnapshotRevision;
 use infiltrator_contract::outbound::preferences::OutboundUiPreferenceIntent;
 use infiltrator_contract::outbound::preferences::OutboundUiPreferenceRequest;
 use infiltrator_contract::runtime_settings::{RuntimeProbeSettings, RuntimeProbeSettingsState};
+use infiltrator_presentation::runtime_probe_settings::project_settings;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 use std::thread::yield_now;
@@ -148,7 +148,7 @@ fn native_parameter_modal_preserves_input_entities_cancel_has_no_write_and_real_
     activate(&mut app, cancel);
     assert_eq!(
         app.world().resource::<ProbeSettingsState>().dialog,
-        infiltrator_bevy_ui::pages::proxy_probe_settings::ProbeSettingsDialogState::Closed
+        ProbeSettingsDialogState::Closed
     );
     assert_eq!(store.writes.load(Ordering::SeqCst), 0);
     activate(&mut app, open);
@@ -166,10 +166,7 @@ fn native_parameter_modal_preserves_input_entities_cancel_has_no_write_and_real_
     activate(&mut app, apply);
     settle(&mut app);
     let state = app.world().resource::<ProbeSettingsState>();
-    assert_eq!(
-        state.dialog,
-        infiltrator_bevy_ui::pages::proxy_probe_settings::ProbeSettingsDialogState::Editing
-    );
+    assert_eq!(state.dialog, ProbeSettingsDialogState::Editing);
     assert_eq!(state.editor.failure().unwrap().code, ErrorCode::Storage);
     assert_eq!(state.editor.draft().unwrap().timeout_ms, "60000");
     assert_eq!(state.editor.applied().unwrap().timeout_ms(), 5000);
@@ -179,7 +176,7 @@ fn native_parameter_modal_preserves_input_entities_cancel_has_no_write_and_real_
     settle(&mut app);
     assert_eq!(
         app.world().resource::<ProbeSettingsState>().dialog,
-        infiltrator_bevy_ui::pages::proxy_probe_settings::ProbeSettingsDialogState::Closed
+        ProbeSettingsDialogState::Closed
     );
     assert_eq!(
         app.world()
@@ -275,7 +272,7 @@ fn pending_native_fields_are_disabled_and_wrong_command_or_request_cannot_finish
     assert_eq!(sink.0.lock().unwrap().len(), 1);
     assert_eq!(
         app.world().resource::<ProbeSettingsState>().dialog,
-        infiltrator_bevy_ui::pages::proxy_probe_settings::ProbeSettingsDialogState::Editing
+        ProbeSettingsDialogState::Editing
     );
     for (request_id, command) in [
         (RequestId(44), submitted.clone()),
@@ -324,7 +321,7 @@ fn pending_native_fields_are_disabled_and_wrong_command_or_request_cannot_finish
     app.update();
     assert_eq!(
         app.world().resource::<ProbeSettingsState>().dialog,
-        infiltrator_bevy_ui::pages::proxy_probe_settings::ProbeSettingsDialogState::Closed
+        ProbeSettingsDialogState::Closed
     );
     assert!(
         app.world()
@@ -365,8 +362,7 @@ fn pending_native_fields_are_disabled_and_wrong_command_or_request_cannot_finish
         "60000"
     );
     assert!(
-        app.world().resource::<ProbeSettingsState>().dialog
-            == infiltrator_bevy_ui::pages::proxy_probe_settings::ProbeSettingsDialogState::Closed,
+        app.world().resource::<ProbeSettingsState>().dialog == ProbeSettingsDialogState::Closed,
         "late failure cannot reopen a departed page"
     );
 }

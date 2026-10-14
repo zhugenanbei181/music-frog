@@ -8,6 +8,7 @@ use crate::types::message::Message;
 use infiltrator_application::dialer_chain_application::DialerChainApplication;
 use infiltrator_application::protocol_codec_application::{ProtocolCodecApplication, clear_studio};
 use infiltrator_application::protocol_codec_matrix_application::ProtocolCodecMatrixApplication;
+use infiltrator_composition::mihomo_configuration::profile_document_codec_fixture;
 use infiltrator_contract::profile_document_identity::{
     ProfileDocumentIdentity, ProfileDocumentRevision, ProfileDocumentSourceIdentity,
     ProfileDocumentSourceKind, ProfileId, ProfileSourceId,
@@ -17,6 +18,7 @@ use infiltrator_contract::protocol_trust::CaLoadStatus;
 use infiltrator_ports::profile_document_codec::{
     ProfileConfigurationReadout, ProfileConfigurationUpdate, ProfileDocumentCodecPort,
 };
+use infiltrator_presentation::protocol_form::draft_from_uri;
 use infiltrator_shared::i18n_interpolator::interpolate;
 use infiltrator_shared::locales::{Lang, Localizer};
 use std::sync::Arc;
@@ -239,11 +241,11 @@ proxy-groups:
 rules:
   - MATCH,PROXY
 "#;
-    let mut draft = ProtocolCodecApplication::draft_from_uri(SS2022_URI).unwrap();
+    let mut draft = draft_from_uri(SS2022_URI).unwrap();
     assert_eq!(draft.cipher, "2022-blake3-aes-256-gcm");
     assert_eq!(draft.password.len(), 44, "32-byte PSK as base64");
     draft.server = "9.9.9.9".to_owned();
-    let codec = infiltrator_composition::mihomo_configuration::profile_document_codec_fixture();
+    let codec = profile_document_codec_fixture();
     let mutation = codec
         .apply_configuration(
             &mihomo_identity(codec.as_ref()),
@@ -326,7 +328,7 @@ fn importing_wireguard_surfaces_the_shared_typed_parameters() {
     );
 
     // The mihomo-correct key spellings are what actually gets written.
-    let codec = infiltrator_composition::mihomo_configuration::profile_document_codec_fixture();
+    let codec = profile_document_codec_fixture();
     let mutation = codec
         .apply_configuration(
             &mihomo_identity(codec.as_ref()),
@@ -436,7 +438,7 @@ fn quic_and_xhttp_notes_are_surfaced_not_hidden() {
 #[test]
 fn protocol_codec_matrix_passes_on_the_iced_surface() {
     let report = ProtocolCodecMatrixApplication::run_deterministic_matrix(Arc::new(
-        infiltrator_composition::mihomo_configuration::profile_document_codec_fixture(),
+        profile_document_codec_fixture(),
     ));
     assert!(
         report.all_covered_passed(),

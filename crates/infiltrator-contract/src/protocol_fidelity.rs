@@ -5,9 +5,9 @@
 //! Group 05 closes on the same four-layer standard as groups 06/12/14: one
 //! shared contract + application source, both surfaces, dual headless tests,
 //! and an honest per-item ledger. This module owns the *typed vocabulary*;
-//! parsing, lossless document splicing and validation messages live in
-//! `infiltrator-application::protocol_codec_application`, and the underlying
-//! text codecs live in `infiltrator-domain::profile_converter`.
+//! profile-document lossless splicing lives in the Application use case,
+//! engine-neutral node/URI conversion lives in the domain, and shared editor
+//! field projection lives in Presentation.
 //!
 //! The draft keeps the on-the-wire text (`cipher`, `flow`, `protocol`) as the
 //! source of truth and derives the typed family on demand. That is deliberate:
@@ -939,6 +939,26 @@ pub struct ProtocolStudioSnapshot {
 }
 
 impl ProtocolStudioSnapshot {
+    /// Build the neutral owner observation for one accepted draft. URI
+    /// preview and measured fidelity gaps are supplied by the domain codec.
+    pub fn from_draft(
+        draft: ProtocolDraft,
+        uri_preview: Option<String>,
+        uri_gaps: Vec<String>,
+    ) -> Self {
+        Self {
+            report: Some(draft.report()),
+            uri_preview,
+            uri_gaps,
+            draft: Some(draft),
+            audit: None,
+            last_error: None,
+            last_saved_node: None,
+            dialer: DialerChainReport::default(),
+            ca_trust: CaTrustReport::default(),
+        }
+    }
+
     pub fn issue_lines(&self) -> Vec<String> {
         self.report
             .as_ref()

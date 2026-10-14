@@ -42,7 +42,6 @@ use infiltrator_application::rule_provider_runtime_application::RuleProviderRunt
 use infiltrator_application::rule_tracer_application::RuleTracerApplication;
 use infiltrator_application::runtime_configuration_application::RuntimeConfigurationApplication;
 use infiltrator_application::runtime_control_projection::RuntimeControlApplication;
-use infiltrator_application::runtime_probe_settings::project_settings;
 use infiltrator_application::runtime_status_application::project_runtime_status;
 use infiltrator_application::script_application::ScriptApplication;
 use infiltrator_application::script_export_application::ScriptExportApplication;
@@ -94,6 +93,7 @@ use infiltrator_presentation::doctor_projection::project_observation;
 use infiltrator_presentation::language_choice::project_language;
 use infiltrator_presentation::log_projection::project_log_facts;
 use infiltrator_presentation::routing_intent_projection;
+use infiltrator_presentation::runtime_probe_settings::project_settings;
 use infiltrator_presentation::shell_readout_fold::ShellReadoutProjection;
 use outbound_observation::{
     SurfaceReadScope, authorize_outbound_inventory, gate_outbound_observation,

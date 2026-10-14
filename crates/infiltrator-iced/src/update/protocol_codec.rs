@@ -1,11 +1,8 @@
 //! DUAL-05 custom-node protocol studio actions (shared protocol codec surface).
 //!
-//! The modal and its form are a projection of the shared
-//! `ProtocolStudioSnapshot` published by
-//! `infiltrator_application::protocol_codec_application`: parsing a share
-//! link, editing the draft, exporting a link and committing the node into the
-//! active profile all go through that one application. This module owns only
-//! the surface state machine around it.
+//! The modal uses shared Presentation field parsing and projections. Profile
+//! writes are submitted only as typed Core command intents; this module owns
+//! only the surface state around those observations.
 
 use crate::configs_dir::config_manager;
 use crate::state::AppState;
@@ -16,15 +13,14 @@ use iced::Task;
 use infiltrator_application::protocol_codec_application::{
     ProtocolCodecApplication, publish_studio,
 };
-use infiltrator_application::protocol_form::ProtocolInputs;
 use infiltrator_composition::mihomo_configuration::profiles_for_mihomo;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::dialer_chain::DialerChainReport;
 use infiltrator_contract::error::InfiltratorError;
-use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
 use infiltrator_contract::protocol_fidelity::ProtocolDraft;
 use infiltrator_contract::protocol_trust::CaTrustReport;
 use infiltrator_ports::certificate_authority::CertificateAuthorityPort;
+use infiltrator_presentation::protocol_form::{ProtocolInputs, draft_from_uri, uri_from_draft};
 use std::sync::Arc;
 
 /// DUAL-05-09/10: load the active profile and run the shared dialer analyzer.
@@ -133,7 +129,7 @@ impl AppState {
             Message::UpdateCustomNodeDraft(draft) => {
                 // One shared re-derivation: report + URI gaps come from the
                 // application, never from the view.
-                let preview = ProtocolCodecApplication::uri_from_draft(&draft).ok();
+                let preview = uri_from_draft(&draft).ok();
                 self.runtime.custom_node_studio =
                     ProtocolCodecApplication::publish_draft(*draft, preview);
                 // DUAL-05-13: the trust request changed with the draft, so the
@@ -146,10 +142,10 @@ impl AppState {
                 // see the same typed draft, cipher family, REALITY block and
                 // multiplexing parameters. Iced no longer copies fields by hand.
                 let uri = self.runtime.custom_node_uri_input.trim().to_string();
-                match ProtocolCodecApplication::draft_from_uri(&uri) {
+                match draft_from_uri(&uri) {
                     Ok(draft) => {
                         self.runtime.custom_node_inputs = ProtocolInputs::default();
-                        let preview = ProtocolCodecApplication::uri_from_draft(&draft).ok();
+                        let preview = uri_from_draft(&draft).ok();
                         self.runtime.custom_node_studio =
                             ProtocolCodecApplication::publish_draft(draft, preview);
                         // DUAL-05-13: a freshly imported draft carries its own
@@ -188,7 +184,7 @@ impl AppState {
                     self.runtime.custom_node_studio = next;
                     return Task::done(Message::ShowToast(failure, ToastStatus::Error));
                 };
-                let preview = ProtocolCodecApplication::uri_from_draft(&draft).ok();
+                let preview = uri_from_draft(&draft).ok();
                 self.runtime.custom_node_studio =
                     ProtocolCodecApplication::publish_draft(draft, preview);
                 // DUAL-05-13: keep the published CA resolution in step with the
@@ -224,45 +220,27 @@ impl AppState {
                     self.runtime.custom_node_studio = next;
                     return Task::done(Message::ShowToast(issues, ToastStatus::Error));
                 }
-                self.runtime.custom_node_save_state = CustomNodeSaveState::Saving;
-                if let Some(application) = self.command_ingress() {
-                    return Task::perform(
-                        async move {
-                            match (application
-                                .execute(CommandIntent::SaveCustomNodeDraft {
-                                    draft: Box::new(draft),
-                                })
-                                .await)
-                                .into_unit()
-                            {
-                                Ok(()) => Ok(()),
-                                Err(failure) => Err(InfiltratorError::Config(failure.message)),
-                            }
-                        },
-                        Message::CustomNodeSaved,
+                let Some(application) = self.command_ingress() else {
+                    let failure = InfiltratorError::Config(
+                        "custom protocol saving requires the shared Core command owner".to_owned(),
                     );
-                }
-                let runtime = self.runtime.runtime.clone();
+                    self.runtime.custom_node_studio.last_error = Some(failure.to_string());
+                    self.set_error(&failure);
+                    return Task::done(Message::ShowToast(failure.to_string(), ToastStatus::Error));
+                };
+                self.runtime.custom_node_save_state = CustomNodeSaveState::Saving;
                 Task::perform(
                     async move {
-                        let runtime = runtime.ok_or_else(|| {
-                            InfiltratorError::Config(
-                                "custom protocol editing requires an engine profile transaction"
-                                    .to_owned(),
-                            )
-                        })?;
-                        let store = config_manager().await?;
-                        let profiles = profiles_for_mihomo(store);
-                        let commit = ProtocolCodecApplication::save_draft_to_active_profile(
-                            &profiles,
-                            runtime,
-                            &draft,
-                            ProfileWriteAuthorization::RequireUnlock,
-                        )
-                        .await
-                        .map_err(|failure| InfiltratorError::Config(failure.message))?;
-                        ProtocolCodecApplication::publish_commit(&commit);
-                        Ok(())
+                        match (application
+                            .execute(CommandIntent::SaveCustomNodeDraft {
+                                draft: Box::new(draft),
+                            })
+                            .await)
+                            .into_unit()
+                        {
+                            Ok(()) => Ok(()),
+                            Err(failure) => Err(InfiltratorError::Config(failure.message)),
+                        }
                     },
                     Message::CustomNodeSaved,
                 )

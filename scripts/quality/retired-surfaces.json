@@ -2874,6 +2874,162 @@
       "source_roots": [
         "crates/infiltrator-bevy-ui/src/pages/proxy_group_order.rs"
       ]
+    },
+    {
+      "id": "application-runtime-probe-settings-module",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "runtime_probe_settings",
+      "rationale": "Runtime probe settings validation and read-model projection are owned by the shared Presentation layer; Application retains settings I/O.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/runtime_probe_settings_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src/lib.rs"
+      ]
+    },
+    {
+      "id": "application-runtime-probe-settings-editor-module",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "runtime_probe_settings_editor",
+      "rationale": "The shared runtime probe settings draft and save/readback reducer is owned by Presentation; Application retains settings I/O.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/runtime_probe_settings_editor_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "application-runtime-probe-settings-draft-parser",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "parse_draft",
+      "rationale": "Shared draft validation is a pure Presentation operation over the runtime settings contract.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/runtime_probe_settings_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "application-runtime-probe-settings-projection",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "project_settings",
+      "rationale": "The runtime probe read model projection is shared Presentation behavior; settings persistence remains in Application.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/runtime_probe_settings_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "application-runtime-probe-settings-editor",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "RuntimeProbeSettingsEditor",
+      "rationale": "The typed editor lifecycle is shared Presentation state and has no Application I/O responsibility.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/runtime_probe_settings_editor_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "application-runtime-probe-settings-draft",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "RuntimeProbeSettingsDraft",
+      "rationale": "The editable runtime probe draft is presentation state shared across surfaces.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/runtime_probe_settings_editor_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "application-pending-runtime-probe-settings",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "PendingRuntimeProbeSettings",
+      "rationale": "The typed submitted value belongs with the shared Presentation editor lifecycle.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/runtime_probe_settings_editor_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "application-runtime-probe-settings-write-outcome",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "RuntimeProbeSettingsWriteOutcome",
+      "rationale": "The explicit save result is shared editor state and no longer part of the Application API.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/runtime_probe_settings_editor_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "application-protocol-form-module",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "protocol_form",
+      "rationale": "Protocol field projection and staged input state are shared Presentation behavior; Application owns protocol commands and persistence use cases.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/protocol_form_test.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src/lib.rs"
+      ]
+    },
+    {
+      "id": "application-protocol-field-projection",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "ProtocolFieldProjection",
+      "rationale": "Native protocol-field render data is shared by Iced and Bevy from Presentation.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/protocol_form_test.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "application-protocol-inputs",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "ProtocolInputs",
+      "rationale": "Protocol staged values and validation feedback are presentation state, not an Application API.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/protocol_form_test.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "iced-direct-protocol-profile-write",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "save_draft_to_active_profile",
+      "rationale": "Iced submits SaveCustomNodeDraft through the shared typed command owner; it no longer invokes the Application persistence method directly.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-application/src/protocol_codec_application_test.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-iced/src/update/protocol_codec.rs"
+      ]
     }
   ]
 }

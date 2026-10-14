@@ -42,6 +42,7 @@ pub mod profile_converter;
 pub mod profile_options;
 pub mod profile_source;
 pub mod profiles;
+pub mod protocol_draft_codec;
 pub mod protocol_node_params;
 pub mod protocol_node_projection;
 pub mod proxy;

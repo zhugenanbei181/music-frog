@@ -24,7 +24,7 @@ use crate::state::AppState;
 use crate::state::runtime::{ProbeSettingsDialogState, ProxyGroupOrderDialogState};
 use crate::types::message::Message;
 use iced::Task;
-use infiltrator_application::runtime_probe_settings_editor::RuntimeProbeSettingsWriteOutcome;
+use infiltrator_presentation::runtime_probe_settings_editor::RuntimeProbeSettingsWriteOutcome;
 
 impl AppState {
     pub fn update(&mut self, message: Message) -> Task<Message> {

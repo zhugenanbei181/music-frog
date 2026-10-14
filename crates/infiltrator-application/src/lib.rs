@@ -72,8 +72,6 @@ pub mod rule_provider_runtime_application;
 pub mod rule_tracer_application;
 pub mod runtime_configuration_application;
 pub mod runtime_control_projection;
-pub mod runtime_probe_settings;
-pub mod runtime_probe_settings_editor;
 pub mod runtime_query_application;
 mod runtime_scope;
 pub mod runtime_status_application;
@@ -131,8 +129,6 @@ where
 pub fn validate_logical_rule_syntax(rule: &str) -> Result<(), String> {
     sub_rules::validate_logical_rule_syntax(rule).map_err(|error| error.to_string())
 }
-
-pub mod protocol_form;
 
 pub mod log_application;
 pub mod log_export_application;

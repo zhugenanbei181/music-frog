@@ -5,6 +5,7 @@ use crate::pages::profiles_aggregator::profiles_aggregator_scene;
 use crate::pages::profiles_diff::snapshot_diff_scene;
 use crate::pages::proxies_form::CustomNodeForm;
 use crate::route::{ActiveRoute, Route};
+use crate::surface::LatestSurfaceSnapshot;
 use bevy::ecs::prelude::*;
 use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::input::ButtonInput;
@@ -19,6 +20,7 @@ use infiltrator_bevy_widgets::modal::{ModalDialogCard, ModalScrim};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_contract::surface_snapshot::PageStatus;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum PanelKind {
@@ -148,22 +150,38 @@ pub(crate) fn activate_panel(
     close: Query<&CloseBusinessPanel>,
     mut state: ResMut<BusinessPanelState>,
     mut form: ResMut<CustomNodeForm>,
+    latest: Option<Res<LatestSurfaceSnapshot>>,
     mut roots: Query<(&BusinessPanelRoot, &mut Node)>,
 ) {
     if let Ok(open) = open.get(activate.entity) {
         if !roots.iter().any(|(root, _)| root.0 == open.0) {
             return;
         }
-        if open.0 == PanelKind::CustomNode && form.saving.is_some() {
+        if open.0 == PanelKind::CustomNode && form.operation.is_busy() {
             return;
         }
         if open.0 == PanelKind::CustomNode && state.0 != Some(open.0) {
-            form.begin();
+            let studio = latest
+                .as_ref()
+                .and_then(|snapshot| match &snapshot.0.protocol_studio.status {
+                    PageStatus::Ready | PageStatus::Empty => {
+                        snapshot.0.protocol_studio.data.as_ref()
+                    }
+                    PageStatus::Loading
+                    | PageStatus::Unavailable { .. }
+                    | PageStatus::Failed { .. } => None,
+                })
+                .cloned()
+                .unwrap_or_else(|| form.studio.clone());
+            form.begin(studio);
         }
         state.0 = Some(open.0);
     } else if let Ok(close) = close.get(activate.entity) {
         if state.0 != Some(close.0) {
             return;
+        }
+        if close.0 == PanelKind::CustomNode {
+            form.operation.cancel();
         }
         state.0 = None;
     } else {
@@ -182,12 +200,16 @@ pub(crate) fn cancel_panel(
     keys: Option<Res<ButtonInput<KeyCode>>>,
     route: Res<ActiveRoute>,
     mut state: ResMut<BusinessPanelState>,
+    mut form: ResMut<CustomNodeForm>,
     mut roots: Query<&mut Node, With<BusinessPanelRoot>>,
 ) {
     if let Some(kind) = state.0
         && (route.0 != Some(kind.route())
             || keys.is_some_and(|keys| keys.just_pressed(KeyCode::Escape)))
     {
+        if kind == PanelKind::CustomNode {
+            form.operation.cancel();
+        }
         state.0 = None;
         for mut node in &mut roots {
             node.display = Display::None;

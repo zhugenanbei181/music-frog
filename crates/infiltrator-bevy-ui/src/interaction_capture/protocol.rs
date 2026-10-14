@@ -56,7 +56,7 @@ pub fn activate(
         }
         return;
     }
-    if controls.form.reset_fields || controls.form.importing.is_some() {
+    if controls.form.reset_fields || controls.form.operation.is_busy() {
         return;
     }
     let Some(children) = controls.wrappers.iter().next() else {

@@ -16,8 +16,8 @@ DRIVER_MANIFEST = Path("android/bevy-host/driver/Cargo.toml")
 UI_PACKAGE = "infiltrator-bevy-ui"
 UI_MANIFEST = Path("crates/infiltrator-bevy-ui/Cargo.toml")
 DRIVER_SOURCE = Path("android/bevy-host/driver/src/lib.rs")
-EXPECTED_UI_FEATURE = "ui-application-projections"
 FORBIDDEN_PACKAGES = {
+    "infiltrator-application",
     "infiltrator-android",
     "infiltrator-composition",
     "mihomo-api",
@@ -25,6 +25,7 @@ FORBIDDEN_PACKAGES = {
 }
 FORBIDDEN_UI_FEATURES = {
     "default",
+    "ui-application-projections",
     "capture-tools",
     "capture-controller",
     "desktop-host",
@@ -68,27 +69,26 @@ def dependency_problems(names: set[str]) -> list[str]:
 
 
 def feature_problems(features: set[str]) -> list[str]:
-    problems = []
-    if EXPECTED_UI_FEATURE not in features:
-        problems.append(
-            f"Android Bevy driver must explicitly select `{EXPECTED_UI_FEATURE}`"
-        )
-    problems.extend(
+    return [
         f"Android Bevy driver enables forbidden UI feature `{name}`"
         for name in sorted(features & FORBIDDEN_UI_FEATURES)
-    )
-    return problems
+    ]
 
 
 def default_feature_problems(features: dict[str, object]) -> list[str]:
     defaults = features.get("default")
     if not isinstance(defaults, list):
         return [f"{UI_MANIFEST}: `[features].default` must be an explicit list"]
-    return [
+    problems = [
         f"{UI_MANIFEST}: capture-only feature `{name}` must not be a product default"
         for name in ("capture-tools", "capture-controller")
         if name in defaults
     ]
+    if "ui-application-projections" in features:
+        problems.append(
+            f"{UI_MANIFEST}: retired feature `ui-application-projections` must be removed"
+        )
+    return problems
 
 
 def without_rust_comments(source: str) -> str:
@@ -121,9 +121,9 @@ def manifest_problems(root: Path) -> list[str]:
     problems = []
     if dependency.get("default-features") is not False:
         problems.append(f"{path}: UI dependency must set `default-features = false`")
-    if dependency.get("features") != [EXPECTED_UI_FEATURE]:
+    if dependency.get("features", []) not in (None, []):
         problems.append(
-            f"{path}: UI dependency must select only `{EXPECTED_UI_FEATURE}`"
+            f"{path}: UI dependency must not enable features in the Android product driver"
         )
     return problems
 
@@ -192,44 +192,37 @@ def main() -> int:
         print("\n".join(problems), file=sys.stderr)
         return 1
 
-    retained_application = "infiltrator-application" in names
     print(
         "Android Bevy driver runtime closure is isolated: "
-        "no Android owner, composition, Mihomo API or platform package; "
+        "no Application, Android owner, composition, Mihomo API or platform package; "
         "capture/desktop/script features are disabled."
     )
-    if retained_application:
-        print(
-            "OPEN: `infiltrator-application` remains for runtime-neutral page "
-            "presentation helpers; moving those helpers is still required by BANDROID-041."
-        )
     return 0
 
 
 def self_test() -> int:
     tree = """\
-├── infiltrator-bevy-ui feature \"ui-application-projections\"
-│   └── infiltrator-bevy-ui v0.41.0 ui-application-projections
-│       └── infiltrator-application v0.41.0
+├── infiltrator-bevy-ui v0.41.0
 """
-    if package_names(tree) != {"infiltrator-bevy-ui", "infiltrator-application"}:
+    if package_names(tree) != {"infiltrator-bevy-ui"}:
         print("package parser self-test failed", file=sys.stderr)
         return 1
-    if ui_features(tree) != {EXPECTED_UI_FEATURE}:
+    if ui_features(tree):
         print("feature parser self-test failed", file=sys.stderr)
         return 1
     if dependency_problems(package_names(tree)):
-        print("runtime-neutral application allow case self-test failed", file=sys.stderr)
+        print("isolated UI closure allow case self-test failed", file=sys.stderr)
         return 1
-    if default_feature_problems(
-        {"default": ["ui-application-projections"]}
-    ):
+    if default_feature_problems({"default": ["script-engine-boa"]}):
         print("capture-free UI default feature self-test failed", file=sys.stderr)
         return 1
     if not default_feature_problems(
-        {"default": ["capture-tools", "ui-application-projections"]}
+        {
+            "default": ["capture-tools", "script-engine-boa"],
+            "ui-application-projections": ["dep:infiltrator-application"],
+        }
     ):
-        print("capture feature default rejection self-test failed", file=sys.stderr)
+        print("retired/capture feature rejection self-test failed", file=sys.stderr)
         return 1
     product_source = """
     fn android_main() {
@@ -251,7 +244,9 @@ def self_test() -> int:
     if "mihomo-api" not in forbidden or not dependency_problems(forbidden):
         print("forbidden package self-test failed", file=sys.stderr)
         return 1
-    bad_features = ui_features(tree + '└── infiltrator-bevy-ui feature "capture-tools"')
+    bad_features = ui_features(
+        tree + '└── infiltrator-bevy-ui feature "capture-tools"'
+    )
     if "capture-tools" not in bad_features or not feature_problems(bad_features):
         print("forbidden feature self-test failed", file=sys.stderr)
         return 1

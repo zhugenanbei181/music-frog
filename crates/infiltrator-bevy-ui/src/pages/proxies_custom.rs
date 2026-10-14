@@ -1,20 +1,19 @@
 //! Custom Node Editor & Universal URI Codec scene component (自定义节点与 URI 编解码).
 //!
-//! DUAL-05: the card is a projection of the shared
-//! `ProtocolStudioSnapshot` published by
-//! `infiltrator_application::protocol_codec_application`. The chip row carries
-//! the typed Shadowsocks cipher family (05-01), the VLESS REALITY/Vision
-//! block (05-02) and the multiplexing parameters (05-11); the footer carries
-//! the codec audit and the URI fidelity gaps the application measured.
+//! DUAL-05: the card is a projection of the owner-authored
+//! `ProtocolStudioSnapshot` delivered inside the shared `SurfaceSnapshot`.
+//! The chip row carries the typed Shadowsocks cipher family (05-01), the VLESS
+//! REALITY/Vision block (05-02) and multiplexing parameters (05-11); the footer
+//! carries the codec audit and URI fidelity gaps measured by the neutral codec.
 
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::pages::business_panel::{BusinessPanelState, PanelKind};
 use crate::pages::proxies::ProxiesProjectionUpdated;
 use crate::pages::proxies_form::{
-    CustomNodeForm, CustomNodeFormError, PendingProtocolImport, PendingProtocolSave,
-    ProtocolFieldNode, ProtocolFormText, ProtocolFormTextKind, ProtocolToggle,
-    protocol_fields_scene, stage_native_fields, text_field_under,
+    CustomNodeForm, CustomNodeFormError, ProtocolFieldNode, ProtocolFormText, ProtocolFormTextKind,
+    ProtocolToggle, protocol_fields_scene, stage_native_fields, text_field_under,
 };
+use crate::surface::LatestSurfaceSnapshot;
 use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::prelude::*;
@@ -24,8 +23,6 @@ use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{FlexDirection, FlexWrap, Node, UiRect, percent};
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
-use infiltrator_application::protocol_codec_application::ProtocolCodecApplication;
-use infiltrator_application::protocol_form::field_projection;
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::palette::UiPalette;
@@ -34,6 +31,9 @@ use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::text_input::{TextField, text_field_with_placeholder_scene};
 use infiltrator_contract::protocol_fidelity::ProtocolStudioSnapshot;
 use infiltrator_contract::protocol_form::ProtocolStudioSlot;
+use infiltrator_contract::surface_snapshot::PageStatus;
+use infiltrator_presentation::protocol_editor_operation::ProtocolEditorEffect;
+use infiltrator_presentation::protocol_form::{field_projection, uri_from_draft};
 use infiltrator_presentation::protocol_studio_projection::slot_text;
 use infiltrator_shared::locales::{Lang, Localizer};
 
@@ -200,8 +200,9 @@ pub(crate) fn on_custom_node_action_activated(
     mut form: ResMut<CustomNodeForm>,
     panel: Res<BusinessPanelState>,
     handle: Option<Res<CommandSinkHandle>>,
+    latest: Option<Res<LatestSurfaceSnapshot>>,
 ) {
-    if panel.0 != Some(PanelKind::CustomNode) || form.saving.is_some() {
+    if panel.0 != Some(PanelKind::CustomNode) || form.operation.is_busy() {
         return;
     }
     if let Ok(toggle) = controls.toggles.get(activate.entity) {
@@ -256,10 +257,36 @@ pub(crate) fn on_custom_node_action_activated(
     match action {
         CustomNodeAction::ImportUri => {
             let uri = field_text(CustomNodeInput::Uri);
-            if !uri.is_empty() && form.importing.is_none() {
+            if !uri.is_empty() {
+                let surface_fence =
+                    latest
+                        .as_ref()
+                        .and_then(|snapshot| match &snapshot.0.protocol_studio.status {
+                            PageStatus::Ready | PageStatus::Empty
+                                if snapshot.0.protocol_studio.data.is_some() =>
+                            {
+                                Some((snapshot.0.generation, snapshot.0.revision))
+                            }
+                            PageStatus::Loading
+                            | PageStatus::Ready
+                            | PageStatus::Empty
+                            | PageStatus::Unavailable { .. }
+                            | PageStatus::Failed { .. } => None,
+                        });
+                let Some((surface_generation, surface_revision)) = surface_fence else {
+                    form.studio.last_error = Some("owner protocol state is not ready".to_owned());
+                    return;
+                };
                 let command = UiCommand::ImportCustomNodeUri { uri: uri.clone() };
                 if let Some(request_id) = handle.submit_tracked(command) {
-                    form.importing = Some(PendingProtocolImport { request_id, uri });
+                    if let Err(failure) = form.operation.begin_import(
+                        request_id,
+                        uri,
+                        surface_generation,
+                        surface_revision,
+                    ) {
+                        form.studio.last_error = Some(failure.message);
+                    }
                 } else {
                     form.studio.last_error = Some(
                         Lang(&active_language())
@@ -271,7 +298,7 @@ pub(crate) fn on_custom_node_action_activated(
         }
         CustomNodeAction::ExportUri => {
             if let Some(draft) = &form.studio.draft {
-                match ProtocolCodecApplication::uri_from_draft(draft) {
+                match uri_from_draft(draft) {
                     Ok(uri) => form.studio.uri_preview = Some(uri),
                     Err(error) => form.studio.last_error = Some(error.message),
                 }
@@ -295,9 +322,6 @@ pub(crate) fn on_custom_node_action_activated(
             });
         }
         CustomNodeAction::SaveDraft => {
-            if form.saving.is_some() {
-                return;
-            }
             let draft = form.studio.draft.clone();
             let Some(draft) = draft else {
                 return;
@@ -313,7 +337,9 @@ pub(crate) fn on_custom_node_action_activated(
                 draft: Box::new(draft.clone()),
             };
             if let Some(request_id) = handle.submit_tracked(command) {
-                form.saving = Some(PendingProtocolSave { request_id, draft });
+                if let Err(failure) = form.operation.begin_save(request_id, draft) {
+                    form.studio.last_error = Some(failure.message);
+                }
             } else {
                 form.studio.last_error = Some(
                     Lang(&active_language())
@@ -330,17 +356,44 @@ pub(crate) fn on_custom_node_action_activated(
 /// restamp queries.
 pub(crate) fn sync_custom_node_studio(
     update: On<ProxiesProjectionUpdated>,
+    latest: Res<LatestSurfaceSnapshot>,
     mut texts: Query<(&mut Text, &CustomNodeText)>,
     mut form: ResMut<CustomNodeForm>,
     panel: Res<BusinessPanelState>,
 ) {
-    let studio = &update.0.custom_node;
-    if panel.0 != Some(PanelKind::CustomNode) {
-        form.load(studio.clone());
+    let owner_studio = match &latest.0.protocol_studio.status {
+        PageStatus::Ready | PageStatus::Empty => latest.0.protocol_studio.data.as_ref(),
+        PageStatus::Loading | PageStatus::Unavailable { .. } | PageStatus::Failed { .. } => None,
+    };
+    let readback = if let Some(studio) = owner_studio {
+        form.operation
+            .observe_owner_snapshot(latest.0.generation, latest.0.revision, studio)
     } else {
-        form.studio.dialer = studio.dialer.clone();
-        form.studio.ca_trust = studio.ca_trust.clone();
+        ProtocolEditorEffect::Ignored
+    };
+    match readback {
+        ProtocolEditorEffect::Imported(imported) => form.load(imported),
+        ProtocolEditorEffect::Ignored
+        | ProtocolEditorEffect::ImportAwaitingReadback
+        | ProtocolEditorEffect::Saved
+        | ProtocolEditorEffect::Failed(_) => {
+            // This event is emitted only from the accepted SurfaceSnapshot
+            // projection path. It remains the render input; LatestSurfaceSnapshot
+            // above is used solely for the generation/revision readback fence.
+            let studio = &update.0.custom_node;
+            if panel.0 != Some(PanelKind::CustomNode)
+                || (form.operation.is_idle()
+                    && form.inputs.values.is_empty()
+                    && form.studio != *studio)
+            {
+                form.load(studio.clone());
+            } else {
+                form.studio.dialer = studio.dialer.clone();
+                form.studio.ca_trust = studio.ca_trust.clone();
+            }
+        }
     }
+    let studio = &form.studio;
     for (mut text, slot) in &mut texts {
         text.0 = slot_initial(slot.0, studio);
     }

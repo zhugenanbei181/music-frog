@@ -10,16 +10,16 @@ use iced::advanced::widget::Tree;
 use iced_runtime::Action;
 use iced_runtime::task::into_stream;
 use infiltrator_application::command_application::CommandApplication;
-use infiltrator_application::runtime_probe_settings::project_settings;
 use infiltrator_application::settings_application::SettingsApplication;
 use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::runtime_settings::RuntimeProbeSettings;
+use infiltrator_contract::runtime_settings::{RuntimeProbeSettings, RuntimeProbeSettingsState};
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_iced::state::AppState;
 use infiltrator_iced::state::runtime::ProbeSettingsDialogState;
 use infiltrator_iced::types::app::Route;
 use infiltrator_iced::types::message::Message;
+use infiltrator_presentation::runtime_probe_settings::project_settings;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use tokio::runtime::Builder;
@@ -231,11 +231,12 @@ fn native_parameter_modal_cancels_without_writing_and_retries_durable_failure_wi
 #[test]
 fn escape_and_navigation_discard_only_unsubmitted_drafts_and_never_reopen_after_late_failure() {
     let (mut state, _) = AppState::demo(&demo_env(Route::Proxies));
-    state.runtime.runtime_probe_settings_editor.observe(
-        &infiltrator_contract::runtime_settings::RuntimeProbeSettingsState::Available {
+    state
+        .runtime
+        .runtime_probe_settings_editor
+        .observe(&RuntimeProbeSettingsState::Available {
             settings: RuntimeProbeSettings::default(),
-        },
-    );
+        });
     let original = state
         .runtime
         .runtime_probe_settings_editor

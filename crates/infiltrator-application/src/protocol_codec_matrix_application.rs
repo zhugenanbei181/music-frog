@@ -5,7 +5,6 @@
 
 use crate::certificate_authority_application::CertificateAuthorityApplication;
 use crate::dialer_chain_application::DialerChainApplication;
-use crate::protocol_codec_application::ProtocolCodecApplication;
 use infiltrator_contract::profile_document_identity::{
     ProfileDocumentIdentity, ProfileDocumentRevision, ProfileDocumentSourceIdentity,
     ProfileDocumentSourceKind, ProfileId, ProfileSourceId,
@@ -14,7 +13,9 @@ use infiltrator_contract::protocol_fidelity::ProtocolDraft;
 use infiltrator_contract::protocol_matrix::{
     ProtocolCodecMatrixReport, ProtocolCodecMatrixScenario,
 };
+use infiltrator_contract::protocol_params_ext::PluginOptValue;
 use infiltrator_contract::protocol_trust::TlsTrustParams;
+use infiltrator_domain::protocol_draft_codec::uri_fidelity_gaps;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_document_codec::{
     ProfileConfigurationMutation, ProfileConfigurationReadout, ProfileConfigurationUpdate,
@@ -210,7 +211,7 @@ fn check_cipher(codec: &dyn ProfileDocumentCodecPort) -> Check {
     let mut node = draft("ss", "matrix-ss");
     node.cipher = "2022-blake3-aes-128-gcm".to_owned();
     node.password = "AAAAAAAAAAAAAAAAAAAAAA==".to_owned();
-    let report = ProtocolCodecApplication::report(&node);
+    let report = node.report();
     let family_ok =
         report.cipher_is_2022 && report.cipher_key_bytes == Some(16) && report.is_valid();
     let returned = round_trip_check(codec, &node, |returned| {
@@ -239,7 +240,7 @@ fn check_reality(codec: &dyn ProfileDocumentCodecPort) -> Check {
     node.reality.short_id = "abcd1234".to_owned();
     node.reality.spider_x = "/spider".to_owned();
     node.reality.fingerprint = "chrome".to_owned();
-    let report = ProtocolCodecApplication::report(&node);
+    let report = node.report();
     let chips_ok = report.flow_chip.is_some()
         && report.reality_chips.contains(&"Reality".to_owned())
         && report.reality_chips.contains(&"sid:abcd1234".to_owned());
@@ -331,13 +332,15 @@ fn check_transports(codec: &dyn ProfileDocumentCodecPort) -> Check {
     });
     node.params.transport.xhttp.mode = "stream-up".to_owned();
     node.params.transport.xhttp.path = "/x".to_owned();
-    let xhttp_note = ProtocolCodecApplication::report(&node)
+    let xhttp_note = node
+        .report()
         .params
         .notes
         .iter()
         .any(|note| note.contains("v1.19.18"));
     node.params.transport.network = "quic".to_owned();
-    let quic_note = ProtocolCodecApplication::report(&node)
+    let quic_note = node
+        .report()
         .params
         .notes
         .iter()
@@ -355,10 +358,10 @@ fn check_plugin(codec: &dyn ProfileDocumentCodecPort) -> Check {
     let mut node = draft("ss", "matrix-plugin");
     node.cipher = "aes-128-gcm".to_owned();
     node.params.plugin.name = "obfs".to_owned();
-    node.params.plugin.opts.insert(
-        "mode".to_owned(),
-        infiltrator_contract::protocol_params_ext::PluginOptValue::Text("tls".to_owned()),
-    );
+    node.params
+        .plugin
+        .opts
+        .insert("mode".to_owned(), PluginOptValue::Text("tls".to_owned()));
     round_trip_check(codec, &node, |returned| {
         returned.params.plugin == node.params.plugin
     })
@@ -402,8 +405,7 @@ fn check_dialer_hop(codec: &dyn ProfileDocumentCodecPort) -> Check {
     let mut node = draft("vless", "matrix-hop");
     node.dialer_proxy = "gateway".to_owned();
     let roundtrip = round_trip_check(codec, &node, |returned| returned.dialer_proxy == "gateway");
-    let uri_gap =
-        ProtocolCodecApplication::uri_fidelity_gaps(&node).contains(&"dialer-proxy".to_owned());
+    let uri_gap = uri_fidelity_gaps(&node).contains(&"dialer-proxy".to_owned());
     (
         roundtrip.0 && uri_gap,
         format!("readback={} uri-gap={uri_gap}", roundtrip.0),
@@ -427,7 +429,7 @@ fn check_smux(codec: &dyn ProfileDocumentCodecPort) -> Check {
     node.smux.max_streams = 16;
     node.smux.padding = true;
     let roundtrip = round_trip_check(codec, &node, |returned| returned.smux == node.smux);
-    let uri_gap = ProtocolCodecApplication::uri_fidelity_gaps(&node).contains(&"smux".to_owned());
+    let uri_gap = uri_fidelity_gaps(&node).contains(&"smux".to_owned());
     (
         roundtrip.0 && uri_gap,
         format!("readback={} uri-gap={uri_gap}", roundtrip.0),
@@ -439,7 +441,7 @@ fn check_ech(codec: &dyn ProfileDocumentCodecPort) -> Check {
     node.params.ech.enabled = true;
     node.params.ech.config = "AQIDBA==".to_owned();
     node.alpn = vec!["h2".to_owned(), "http/1.1".to_owned()];
-    let report = ProtocolCodecApplication::report(&node);
+    let report = node.report();
     let chips = report.params.ech_chip.as_deref() == Some("ech:inline")
         && report.params.alpn_chips.len() == 2;
     let roundtrip = round_trip_check(codec, &node, |returned| {

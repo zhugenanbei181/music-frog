@@ -5,11 +5,11 @@ use crate::state::AppState;
 use crate::types::message::Message;
 use crate::version_application::normalized_release_channel;
 use iced::Task;
-use infiltrator_application::runtime_probe_settings::project_settings;
 use infiltrator_contract::shortcuts::ShortcutRegistry;
 use infiltrator_contract::theme::ThemePreference;
 use infiltrator_domain::settings::AppSettings;
 use infiltrator_presentation::language_choice::project_language;
+use infiltrator_presentation::runtime_probe_settings::project_settings;
 use std::path::PathBuf;
 
 impl AppState {

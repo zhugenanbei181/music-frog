@@ -2,7 +2,7 @@
 //! projection of the shared `ProtocolStudioSnapshot`.
 //!
 //! Proves that the import button submits the typed URI intent, that the save
-//! button submits the *shared* draft (and refuses when the application has
+//! button submits the owner-projected draft (and refuses when the snapshot has
 //! published none), and that cipher family (05-01), REALITY/Vision (05-02),
 //! multiplexing (05-11) and the codec audit (05-14) all render from that
 //! single shared source.
@@ -13,24 +13,22 @@ use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::Children;
 use bevy::ui::widget;
 use bevy::ui_widgets::Activate;
-use infiltrator_application::protocol_codec_application::{ProtocolCodecApplication, clear_studio};
+use infiltrator_application::protocol_codec_application::ProtocolCodecApplication;
 use infiltrator_application::protocol_codec_matrix_application::ProtocolCodecMatrixApplication;
 use infiltrator_bevy_ui::app::ShellPlugin;
 use infiltrator_bevy_ui::command::{CommandPumpPlugin, DemoCommandSink, UiCommand, UiCommandSink};
-use infiltrator_bevy_ui::command_events::CommandExecutedEvent;
 use infiltrator_bevy_ui::pages::business_panel::{OpenBusinessPanel, PanelKind};
 use infiltrator_bevy_ui::pages::proxies::{ProxiesProjection, ProxiesProjectionUpdated};
 use infiltrator_bevy_ui::pages::proxies_custom::{
     CustomNodeCaField, CustomNodeDialerField, CustomNodeText, CustomNodeUriField, ImportUriButton,
     SaveCustomNodeButton, ScanDialerChainsButton, VerifyCustomNodeCaButton,
 };
-use infiltrator_bevy_ui::pages::proxies_form::{CustomNodeForm, PendingProtocolImport};
+use infiltrator_bevy_ui::pages::proxies_form::CustomNodeForm;
 use infiltrator_bevy_ui::projection::DemoOverviewSource;
 use infiltrator_bevy_ui::route::{PagesPlugin, Route, RouteChanged};
 use infiltrator_bevy_widgets::text_input::TextField;
 use infiltrator_bevy_widgets::text_input::state::TextFieldInput;
-use infiltrator_contract::command::RequestId;
-use infiltrator_contract::command_output::CommandOutput;
+use infiltrator_composition::mihomo_configuration::profile_document_codec_fixture;
 use infiltrator_contract::profile_document_identity::{
     ProfileDocumentIdentity, ProfileDocumentRevision, ProfileDocumentSourceIdentity,
     ProfileDocumentSourceKind, ProfileId, ProfileSourceId,
@@ -40,6 +38,7 @@ use infiltrator_contract::protocol_form::ProtocolStudioSlot;
 use infiltrator_ports::profile_document_codec::{
     ProfileConfigurationReadout, ProfileConfigurationUpdate, ProfileDocumentCodecPort,
 };
+use infiltrator_presentation::protocol_form::{draft_from_uri, uri_from_draft};
 use std::sync::Arc;
 
 use crate::support::*;
@@ -103,7 +102,6 @@ fn text_for_slot(app: &mut App, slot: ProtocolStudioSlot) -> String {
 
 #[test]
 fn custom_node_import_button_submits_the_typed_uri() {
-    clear_studio();
     let sink = Arc::new(DemoCommandSink::accepting());
     let mut app = setup_app(Arc::clone(&sink));
     navigate_to_proxies(&mut app);
@@ -153,7 +151,6 @@ fn custom_node_import_button_submits_the_typed_uri() {
 
 #[test]
 fn custom_node_save_refuses_without_a_shared_draft_and_submits_the_shared_one() {
-    clear_studio();
     let sink = Arc::new(DemoCommandSink::accepting());
     let mut app = setup_app(Arc::clone(&sink));
     navigate_to_proxies(&mut app);
@@ -169,13 +166,13 @@ fn custom_node_save_refuses_without_a_shared_draft_and_submits_the_shared_one() 
         "the initial incomplete draft cannot produce a save command"
     );
 
-    // Publish a real draft through the shared application and re-project.
-    let mut draft = ProtocolCodecApplication::draft_from_uri(VLESS_URI).unwrap();
+    // Publish a real owner-projected draft and re-project it.
+    let mut draft = draft_from_uri(VLESS_URI).unwrap();
     // The original rendering fixture deliberately contains an invalid 41-character key.
     // Committing now correctly requires a valid protocol draft.
     draft.reality.public_key = "D".repeat(43);
     assert!(draft.report().is_valid());
-    let preview = ProtocolCodecApplication::uri_from_draft(&draft).ok();
+    let preview = uri_from_draft(&draft).ok();
     let studio = ProtocolCodecApplication::publish_draft(draft.clone(), preview);
     let projection = ProxiesProjection {
         name_runs: Default::default(),
@@ -188,20 +185,9 @@ fn custom_node_save_refuses_without_a_shared_draft_and_submits_the_shared_one() 
         custom_node: studio,
     };
     let save = button_entity::<SaveCustomNodeButton>(&mut app);
-    app.world_mut().resource_mut::<CustomNodeForm>().importing = Some(PendingProtocolImport {
-        request_id: RequestId(999),
-        uri: VLESS_URI.into(),
-    });
     app.world_mut()
         .commands()
         .trigger(ProxiesProjectionUpdated(projection));
-    app.world_mut().commands().trigger(CommandExecutedEvent {
-        request_id: RequestId(999),
-        command: UiCommand::ImportCustomNodeUri {
-            uri: VLESS_URI.into(),
-        },
-        result: Ok(CommandOutput::Unit),
-    });
     app.update();
     app.world_mut()
         .commands()
@@ -229,7 +215,6 @@ fn custom_node_save_refuses_without_a_shared_draft_and_submits_the_shared_one() 
 
 #[test]
 fn custom_node_slots_render_the_shared_studio_facts() {
-    clear_studio();
     let sink = Arc::new(DemoCommandSink::accepting());
     let mut app = setup_app(sink);
     navigate_to_proxies(&mut app);
@@ -279,13 +264,13 @@ fn custom_node_slots_render_the_shared_studio_facts() {
         text_for_slot(&mut app, ProtocolStudioSlot::Issues),
         "协议校验通过"
     );
-    // 05-11 is YAML-only; the shared application measured the gap itself.
+    // 05-11 is YAML-only; the codec snapshot carries the measured gap.
     let gaps = text_for_slot(&mut app, ProtocolStudioSlot::Gaps);
     assert!(gaps.contains("smux"), "{gaps}");
 
     // 05-02: a REALITY + Vision VLESS draft renders its typed chips.
-    let reality = ProtocolCodecApplication::draft_from_uri(VLESS_URI).unwrap();
-    let preview = ProtocolCodecApplication::uri_from_draft(&reality).ok();
+    let reality = draft_from_uri(VLESS_URI).unwrap();
+    let preview = uri_from_draft(&reality).ok();
     let studio = ProtocolCodecApplication::publish_draft(reality, preview);
     app.world_mut()
         .commands()
@@ -350,7 +335,6 @@ fn custom_node_slots_render_the_shared_studio_facts() {
 
 #[test]
 fn custom_node_notes_slot_reports_pinned_core_fallbacks_verbatim() {
-    clear_studio();
     let sink = Arc::new(DemoCommandSink::accepting());
     let mut app = setup_app(sink);
     navigate_to_proxies(&mut app);
@@ -387,7 +371,7 @@ fn custom_node_notes_slot_reports_pinned_core_fallbacks_verbatim() {
 #[test]
 fn protocol_codec_matrix_passes_on_the_bevy_surface() {
     let report = ProtocolCodecMatrixApplication::run_deterministic_matrix(Arc::new(
-        infiltrator_composition::mihomo_configuration::profile_document_codec_fixture(),
+        profile_document_codec_fixture(),
     ));
     assert!(
         report.all_covered_passed(),
@@ -404,7 +388,6 @@ fn protocol_codec_matrix_passes_on_the_bevy_surface() {
 
 #[test]
 fn custom_node_audit_line_reports_the_measured_lossless_verdict() {
-    clear_studio();
     let sink = Arc::new(DemoCommandSink::accepting());
     let mut app = setup_app(sink);
     navigate_to_proxies(&mut app);
@@ -412,7 +395,7 @@ fn custom_node_audit_line_reports_the_measured_lossless_verdict() {
     // The engine codec returns an honest audit for a typed profile mutation;
     // the surface renders that readback directly.
     let profile = "proxies:\n  - name: a\n    type: ss\n    server: 1.1.1.1\n    port: 443\n    cipher: aes-128-gcm\n    password: pw\n    future-flag: 7\nmode: rule\n";
-    let codec = infiltrator_composition::mihomo_configuration::profile_document_codec_fixture();
+    let codec = profile_document_codec_fixture();
     let scope = codec.scope();
     let identity = ProfileDocumentIdentity::new(
         ProfileId::new("bevy-protocol-test").unwrap(),
@@ -470,7 +453,6 @@ fn custom_node_audit_line_reports_the_measured_lossless_verdict() {
 
 #[test]
 fn custom_node_dialer_and_ca_slots_render_the_shared_facts() {
-    clear_studio();
     let sink = Arc::new(DemoCommandSink::accepting());
     let mut app = setup_app(sink);
     navigate_to_proxies(&mut app);
@@ -488,7 +470,7 @@ fn custom_node_dialer_and_ca_slots_render_the_shared_facts() {
     // 05-09: a real hop chain resolved by the shared analyzer.
     let profile = "proxies:\n  - name: nas\n    type: ss\n    server: 1.1.1.1\n    port: 8388\n    cipher: aes-128-gcm\n    password: pw\n    dialer-proxy: gateway\n  - name: gateway\n    type: vless\n    server: 2.2.2.2\n    port: 443\n    uuid: b831381d-6324-4d53-ad4f-8cda48b30811\n";
     let report = ProtocolCodecApplication::publish_dialer_report(profile).expect("dialer report");
-    let mut draft = ProtocolCodecApplication::draft_from_uri(VLESS_URI).unwrap();
+    let mut draft = draft_from_uri(VLESS_URI).unwrap();
     draft.name = "nas".to_owned();
     draft.dialer_proxy = "gateway".to_owned();
     let studio = ProtocolCodecApplication::publish_draft(draft, None);
@@ -515,7 +497,7 @@ fn custom_node_dialer_and_ca_slots_render_the_shared_facts() {
     // 05-10: a loop is rendered as a loop warning, never as a valid chain.
     let loop_profile = "proxies:\n  - name: a\n    type: ss\n    server: 1.1.1.1\n    port: 8388\n    cipher: aes-128-gcm\n    password: pw\n    dialer-proxy: b\n  - name: b\n    type: ss\n    server: 2.2.2.2\n    port: 8388\n    cipher: aes-128-gcm\n    password: pw\n    dialer-proxy: a\n";
     ProtocolCodecApplication::publish_dialer_report(loop_profile).expect("loop report");
-    let mut loop_draft = ProtocolCodecApplication::draft_from_uri(VLESS_URI).unwrap();
+    let mut loop_draft = draft_from_uri(VLESS_URI).unwrap();
     loop_draft.name = "a".to_owned();
     loop_draft.dialer_proxy = "b".to_owned();
     let studio = ProtocolCodecApplication::publish_draft(loop_draft, None);
@@ -541,7 +523,7 @@ fn custom_node_dialer_and_ca_slots_render_the_shared_facts() {
 
     // 05-13: the CA slot renders what the host really reported. A host without
     // a reader must never look loaded.
-    let mut ca_draft = ProtocolCodecApplication::draft_from_uri(VLESS_URI).unwrap();
+    let mut ca_draft = draft_from_uri(VLESS_URI).unwrap();
     ca_draft.params.tls_trust.ca_path = "/etc/ssl/custom-ca.pem".to_owned();
     let studio = ProtocolCodecApplication::publish_draft(ca_draft, None);
     let report = ProtocolCodecApplication::publish_ca_trust(
@@ -572,19 +554,17 @@ fn custom_node_dialer_and_ca_slots_render_the_shared_facts() {
         ca.contains("未加载") || ca.contains("was not loaded"),
         "{ca}"
     );
-    clear_studio();
 }
 
 #[test]
 fn custom_node_scan_and_ca_buttons_submit_the_shared_commands() {
-    clear_studio();
     let sink = Arc::new(DemoCommandSink::accepting());
     let mut app = setup_app(Arc::clone(&sink));
     navigate_to_proxies(&mut app);
     open_custom_node(&mut app);
 
     // Publish a draft and project it, so the card has typed facts to edit.
-    let draft = ProtocolCodecApplication::draft_from_uri(VLESS_URI).unwrap();
+    let draft = draft_from_uri(VLESS_URI).unwrap();
     let studio = ProtocolCodecApplication::publish_draft(draft, None);
     app.world_mut()
         .commands()
@@ -674,5 +654,4 @@ fn custom_node_scan_and_ca_buttons_submit_the_shared_commands() {
         "{:?}",
         sink.submitted()
     );
-    clear_studio();
 }

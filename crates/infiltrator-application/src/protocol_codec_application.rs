@@ -8,15 +8,14 @@
 //!   every other section and every unknown key preserved, and the conversion
 //!   is audited honestly instead of being claimed lossless.
 //!
-//! Draft projection and studio operations are executor-neutral. Saving is the
-//! one asynchronous use case: it asks the host runtime to commit adapter-owned
-//! bytes through the source-bound workspace transaction.
+//! Profile document editing is the application use case. Field folding and
+//! draft/URI projection are owned by Presentation and the domain codec; saving
+//! asks the host runtime to commit adapter-owned bytes through the source-bound
+//! workspace transaction.
 
 use crate::certificate_authority_application::CertificateAuthorityApplication;
 use crate::dialer_chain_application::DialerChainApplication;
 use crate::profile_application::{ProfileApplication, ProfileRuntimeAccess};
-use crate::protocol_node_params::node_from_draft;
-use crate::protocol_node_projection::draft_from_node;
 use infiltrator_contract::dialer_chain::DialerChainReport;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
@@ -24,7 +23,10 @@ use infiltrator_contract::protocol_fidelity::{
     CodecAudit, ProtocolDraft, ProtocolFidelityReport, ProtocolStudioSnapshot,
 };
 use infiltrator_contract::protocol_trust::{CaTrustReport, TlsTrustParams};
-use infiltrator_domain::profile_converter::{ProfileConverter, ProxyNodeItem};
+use infiltrator_domain::profile_converter::ProxyNodeItem;
+use infiltrator_domain::protocol_draft_codec;
+use infiltrator_domain::protocol_node_params::node_from_draft;
+use infiltrator_domain::protocol_node_projection::draft_from_node;
 use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceApplier;
 use infiltrator_ports::certificate_authority::CertificateAuthorityPort;
 use infiltrator_ports::profile_document_codec::{
@@ -65,121 +67,28 @@ pub struct ProtocolCodecApplication;
 
 impl ProtocolCodecApplication {
     /// Parse one share link into the shared editable draft.
-    pub fn draft_from_uri(uri: &str) -> Result<ProtocolDraft, Failure> {
-        let trimmed = uri.trim();
-        if trimmed.is_empty() {
-            return Err(invalid_input("share link must not be empty"));
-        }
-        let item = ProfileConverter::parse_uri(trimmed)
-            .map_err(|error| invalid_input(&format!("could not parse share link: {error}")))?;
-        let draft = Self::draft_from_node(&item);
-        if draft.node_type.trim().is_empty() {
-            return Err(invalid_input("share link did not name a protocol"));
-        }
-        Ok(draft)
+    pub(crate) fn draft_from_uri(uri: &str) -> Result<ProtocolDraft, Failure> {
+        protocol_draft_codec::draft_from_uri(uri).map_err(|error| invalid_input(&error.to_string()))
     }
 
     /// Export the draft back to a share link. Nothing is fabricated: an
     /// unsupported family is a typed error, and every field written comes
     /// from the draft.
-    pub fn uri_from_draft(draft: &ProtocolDraft) -> Result<String, Failure> {
-        let item = Self::node_from_draft(draft);
-        ProfileConverter::export_uri(&item)
-            .map_err(|error| invalid_input(&format!("could not encode share link: {error}")))
+    pub(crate) fn uri_from_draft(draft: &ProtocolDraft) -> Result<String, Failure> {
+        protocol_draft_codec::uri_from_draft(draft)
+            .map_err(|error| invalid_input(&error.to_string()))
     }
 
     /// Project a parsed profile node into the shared draft (field-for-field).
-    pub fn draft_from_node(item: &ProxyNodeItem) -> ProtocolDraft {
+    pub(crate) fn draft_from_node(item: &ProxyNodeItem) -> ProtocolDraft {
         draft_from_node(item)
     }
 
     /// Project the draft back into the flat profile node shape. Only the
     /// fields the draft owns are written; unset fields are omitted rather
     /// than emitted as empty strings.
-    pub fn node_from_draft(draft: &ProtocolDraft) -> ProxyNodeItem {
+    pub(crate) fn node_from_draft(draft: &ProtocolDraft) -> ProxyNodeItem {
         node_from_draft(draft)
-    }
-
-    /// Shared read model for both surfaces (05-01/02/11/14).
-    pub fn report(draft: &ProtocolDraft) -> ProtocolFidelityReport {
-        draft.report()
-    }
-
-    /// DUAL-05-14: which draft fields a share link cannot carry, computed by
-    /// actually round-tripping the draft through the URI codec. Nothing here
-    /// is hard-coded, so a future codec improvement shrinks the list by
-    /// itself instead of leaving a stale claim in the ledger.
-    pub fn uri_fidelity_gaps(draft: &ProtocolDraft) -> Vec<String> {
-        let Ok(uri) = Self::uri_from_draft(draft) else {
-            return vec!["uri".to_string()];
-        };
-        let Ok(returned) = Self::draft_from_uri(&uri) else {
-            return vec!["uri".to_string()];
-        };
-        let mut gaps = Vec::new();
-        for (field, same) in [
-            ("name", draft.name.trim() == returned.name.trim()),
-            ("server", draft.server.trim() == returned.server.trim()),
-            ("port", draft.port == returned.port),
-            ("type", draft.node_type.trim() == returned.node_type.trim()),
-            (
-                "password",
-                draft.password.trim() == returned.password.trim(),
-            ),
-            ("uuid", draft.uuid.trim() == returned.uuid.trim()),
-            ("sni", draft.sni.trim() == returned.sni.trim()),
-            ("cipher", draft.cipher.trim() == returned.cipher.trim()),
-            ("flow", draft.flow.trim() == returned.flow.trim()),
-            ("reality", draft.reality == returned.reality),
-            ("smux", draft.smux == returned.smux),
-            ("tls", draft.tls == returned.tls),
-            (
-                "skip-cert-verify",
-                draft.skip_cert_verify == returned.skip_cert_verify,
-            ),
-            ("alpn", draft.alpn == returned.alpn),
-            (
-                "unknown-fields",
-                draft.preserved_fields == returned.preserved_fields,
-            ),
-            // DUAL-05-03…05-12 typed parameter blocks: measured, not assumed.
-            ("ech", draft.params.ech == returned.params.ech),
-            ("tuic", draft.params.tuic == returned.params.tuic),
-            (
-                "hysteria2",
-                draft.params.hysteria2 == returned.params.hysteria2,
-            ),
-            (
-                "wireguard",
-                draft.params.wireguard == returned.params.wireguard,
-            ),
-            (
-                "transport",
-                draft.params.transport == returned.params.transport,
-            ),
-            ("plugin", draft.params.plugin == returned.params.plugin),
-            ("ssh", draft.params.ssh == returned.params.ssh),
-            ("anytls", draft.params.anytls == returned.params.anytls),
-            (
-                "trojan-ss-opts",
-                draft.params.trojan_ss == returned.params.trojan_ss,
-            ),
-            // DUAL-05-09/13: measured, not assumed — a share link carries
-            // neither the dialer hop nor any certificate trust.
-            (
-                "dialer-proxy",
-                draft.dialer_proxy.trim() == returned.dialer_proxy.trim(),
-            ),
-            (
-                "tls-trust",
-                draft.params.tls_trust == returned.params.tls_trust,
-            ),
-        ] {
-            if !same {
-                gaps.push(field.to_string());
-            }
-        }
-        gaps
     }
 
     /// Publish the studio snapshot for a freshly decoded or edited draft.
@@ -195,28 +104,14 @@ impl ProtocolCodecApplication {
         let dialer = studio_snapshot()
             .map(|previous| previous.dialer)
             .unwrap_or_default();
-        let mut snapshot = Self::project_draft(draft, uri_preview);
+        let mut snapshot = ProtocolStudioSnapshot::from_draft(
+            draft.clone(),
+            uri_preview,
+            protocol_draft_codec::uri_fidelity_gaps(&draft),
+        );
         snapshot.dialer = dialer;
         publish_studio(snapshot.clone());
         snapshot
-    }
-
-    /// Fold a staged draft without publishing or touching persistent storage.
-    pub fn project_draft(
-        draft: ProtocolDraft,
-        uri_preview: Option<String>,
-    ) -> ProtocolStudioSnapshot {
-        ProtocolStudioSnapshot {
-            report: Some(draft.report()),
-            uri_preview,
-            uri_gaps: Self::uri_fidelity_gaps(&draft),
-            draft: Some(draft),
-            audit: None,
-            last_error: None,
-            last_saved_node: None,
-            dialer: DialerChainReport::default(),
-            ca_trust: CaTrustReport::default(),
-        }
     }
 
     /// DUAL-05-09/10: analyse a profile document's dialer/relay graph and
@@ -296,7 +191,7 @@ impl ProtocolCodecApplication {
             audit: Some(commit.audit.clone()),
             last_error: None,
             last_saved_node: Some(commit.draft.name.trim().to_string()),
-            uri_gaps: Self::uri_fidelity_gaps(&commit.draft),
+            uri_gaps: protocol_draft_codec::uri_fidelity_gaps(&commit.draft),
             dialer: commit.dialer.clone(),
             ca_trust: CaTrustReport::default(),
         });

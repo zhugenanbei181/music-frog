@@ -2,6 +2,9 @@ use super::*;
 use infiltrator_contract::protocol_fidelity::{ProtocolDraft, ProtocolFamily};
 use infiltrator_contract::protocol_params_ext::PluginOptValue;
 use infiltrator_domain::profile_converter::ProxyNodeItem;
+use infiltrator_domain::protocol_draft_codec::{draft_from_uri, uri_from_draft};
+use infiltrator_domain::protocol_node_params::node_from_draft;
+use infiltrator_domain::protocol_node_projection::draft_from_node;
 
 fn valid_vless() -> ProtocolDraft {
     let mut draft = ProtocolDraft::new("vless");
@@ -13,23 +16,21 @@ fn valid_vless() -> ProtocolDraft {
 }
 
 fn node_round_trip(draft: &ProtocolDraft) -> ProtocolDraft {
-    let node = ProtocolCodecApplication::node_from_draft(draft);
-    ProtocolCodecApplication::draft_from_node(&node)
+    let node = node_from_draft(draft);
+    draft_from_node(&node)
 }
 
 #[test]
 fn uri_draft_round_trip_keeps_the_2022_cipher_family() {
     let uri = "ss://MjAyMi1ibGFrZTMtYWVzLTI1Ni1nY206QUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQT0=@ss.example.com:8388#SS-2022";
-    let draft = ProtocolCodecApplication::draft_from_uri(uri).unwrap();
+    let draft = draft_from_uri(uri).unwrap();
     assert_eq!(draft.family(), ProtocolFamily::Shadowsocks);
     assert_eq!(draft.cipher, "2022-blake3-aes-256-gcm");
     assert_eq!(draft.password.len(), 44);
     assert_eq!(
-        ProtocolCodecApplication::draft_from_uri(
-            &ProtocolCodecApplication::uri_from_draft(&draft).unwrap()
-        )
-        .unwrap()
-        .cipher,
+        draft_from_uri(&uri_from_draft(&draft).unwrap())
+            .unwrap()
+            .cipher,
         draft.cipher
     );
 }
@@ -44,7 +45,7 @@ fn vless_reality_vision_report_and_domain_mapping_keep_typed_values() {
     draft.reality.spider_x = "/spider".to_owned();
     draft.reality.fingerprint = "chrome".to_owned();
 
-    let report = ProtocolCodecApplication::report(&draft);
+    let report = draft.report();
     assert!(report.is_valid(), "{:?}", report.issues);
     assert!(report.flow_chip.is_some());
     assert!(report.reality_chips.contains(&"sid:abcd1234".to_owned()));
@@ -130,7 +131,7 @@ fn domain_mapping_leaves_engine_field_ownership_to_the_selected_codec() {
     let mut node = ProxyNodeItem::new("future", "ss", "1.1.1.1", 8388);
     node.extra
         .insert("future-field".to_owned(), serde_yaml_ng::Value::Bool(true));
-    let draft = ProtocolCodecApplication::draft_from_node(&node);
+    let draft = draft_from_node(&node);
     assert!(draft.preserved_fields.is_empty());
 }
 

@@ -13,7 +13,7 @@ static-openssl = ["infiltrator-bevy-ui/static-openssl"]
 
 [dependencies]
 infiltrator-application = { path = "../infiltrator-application" }
-infiltrator-bevy-ui = { path = "../infiltrator-bevy-ui", default-features = false, features = ["ui-application-projections"] }
+infiltrator-bevy-ui = { path = "../infiltrator-bevy-ui", default-features = false }
 infiltrator-contract = { path = "../infiltrator-contract" }
 infiltrator-desktop = { path = "../infiltrator-desktop" }
 infiltrator-ports = { path = "../infiltrator-ports" }

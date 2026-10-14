@@ -21,9 +21,6 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button, ScrollArea};
-use infiltrator_application::runtime_probe_settings_editor::{
-    RuntimeProbeSettingsEditor, RuntimeProbeSettingsWriteOutcome,
-};
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText, UiLocale};
@@ -37,6 +34,9 @@ use infiltrator_bevy_widgets::text_input::{
 };
 use infiltrator_contract::command::RequestId;
 use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_presentation::runtime_probe_settings_editor::{
+    RuntimeProbeSettingsEditor, RuntimeProbeSettingsWriteOutcome,
+};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum ProbeSettingsDialogState {
@@ -70,8 +70,31 @@ pub struct ProbeTimeoutField;
 pub struct ProbeSettingsState {
     pub dialog: ProbeSettingsDialogState,
     pub editor: RuntimeProbeSettingsEditor,
-    pub request: Option<(RequestId, u64)>,
-    sync_fields: bool,
+    pub request: ProbeSettingsRequestState,
+    field_projection: ProbeSettingsFieldProjection,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum ProbeSettingsRequestState {
+    #[default]
+    Idle,
+    Submitted {
+        request_id: RequestId,
+        token: u64,
+    },
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum ProbeSettingsFieldProjection {
+    #[default]
+    Current,
+    NeedsProjection,
+}
+
+impl ProbeSettingsFieldProjection {
+    fn request(&mut self) {
+        *self = Self::NeedsProjection;
+    }
 }
 
 pub fn launcher(palette: &UiPalette) -> impl Scene + use<> {
@@ -145,14 +168,14 @@ pub fn activate(
     if open.contains(event.entity) {
         state.editor.observe(&latest.0.probe_settings);
         state.dialog = ProbeSettingsDialogState::Editing;
-        state.sync_fields = true;
+        state.field_projection.request();
     } else if cancel.contains(event.entity)
         && state.dialog == ProbeSettingsDialogState::Editing
         && !state.editor.is_pending()
     {
         state.editor.cancel();
         state.dialog = ProbeSettingsDialogState::Closed;
-        state.sync_fields = true;
+        state.field_projection.request();
     } else if apply.contains(event.entity)
         && state.dialog == ProbeSettingsDialogState::Editing
         && state.editor.can_apply()
@@ -166,7 +189,10 @@ pub fn activate(
                 settings: pending.settings,
             })
         }) {
-            state.request = Some((request, pending.token));
+            state.request = ProbeSettingsRequestState::Submitted {
+                request_id: request,
+                token: pending.token,
+            };
         } else {
             state.editor.finish(
                 pending.token,
@@ -181,7 +207,7 @@ pub fn activate(
 }
 
 pub fn finish(event: On<CommandExecutedEvent>, mut state: ResMut<ProbeSettingsState>) {
-    let Some((request, token)) = state.request else {
+    let ProbeSettingsRequestState::Submitted { request_id, token } = state.request else {
         return;
     };
     let UiCommand::SetRuntimeProbeSettings { settings } = &event.command else {
@@ -190,18 +216,18 @@ pub fn finish(event: On<CommandExecutedEvent>, mut state: ResMut<ProbeSettingsSt
     let Some(pending) = state.editor.pending() else {
         return;
     };
-    if request != event.request_id || pending.token != token || pending.settings != *settings {
+    if request_id != event.request_id || pending.token != token || pending.settings != *settings {
         return;
     }
     match state.editor.finish(token, event.unit_result()) {
         RuntimeProbeSettingsWriteOutcome::Saved => {
-            state.request = None;
-            state.sync_fields = true;
+            state.request = ProbeSettingsRequestState::Idle;
+            state.field_projection.request();
             state.dialog = ProbeSettingsDialogState::Closed;
         }
         RuntimeProbeSettingsWriteOutcome::Failed => {
-            state.request = None;
-            state.sync_fields = true;
+            state.request = ProbeSettingsRequestState::Idle;
+            state.field_projection.request();
         }
         RuntimeProbeSettingsWriteOutcome::Stale => {}
     }
@@ -237,7 +263,7 @@ pub fn sync_fields(
             if field.0.is_disabled() && !disabled {
                 field.0.set_disabled(false);
             }
-            if state.sync_fields {
+            if state.field_projection == ProbeSettingsFieldProjection::NeedsProjection {
                 if field.0.text() != value {
                     field.0.apply(TextFieldInput::SetText(value.clone()));
                     deferred_projection |= field.0.text() != value;
@@ -254,7 +280,9 @@ pub fn sync_fields(
                     state.editor.edit_timeout(value);
                 }
             }
-            deferred_projection |= state.sync_fields && field.0.text() != value;
+            deferred_projection |= state.field_projection
+                == ProbeSettingsFieldProjection::NeedsProjection
+                && field.0.text() != value;
             if field.0.is_disabled() != disabled {
                 field.0.set_disabled(disabled);
             }
@@ -267,7 +295,7 @@ pub fn sync_fields(
     // projection dirty until both controlled fields exist, so the first
     // frame that mounts them receives the observed values.
     if synchronized_fields >= 2 && !deferred_projection {
-        state.sync_fields = false;
+        state.field_projection = ProbeSettingsFieldProjection::Current;
     }
 }
 
@@ -279,13 +307,15 @@ pub fn sync_editor(
 ) {
     let previous = state.editor.draft().cloned();
     state.editor.observe(&latest.0.probe_settings);
-    state.sync_fields |= state.editor.draft().cloned() != previous;
+    if state.editor.draft().cloned() != previous {
+        state.field_projection.request();
+    }
     if route.0 != Some(Route::Proxies) && state.dialog == ProbeSettingsDialogState::Editing {
         if !state.editor.is_pending() {
             state.editor.cancel();
         }
         state.dialog = ProbeSettingsDialogState::Closed;
-        state.sync_fields = true;
+        state.field_projection.request();
     }
     if keys.is_some_and(|keys| keys.just_pressed(KeyCode::Escape))
         && state.dialog == ProbeSettingsDialogState::Editing
@@ -293,7 +323,7 @@ pub fn sync_editor(
     {
         state.editor.cancel();
         state.dialog = ProbeSettingsDialogState::Closed;
-        state.sync_fields = true;
+        state.field_projection.request();
     }
 }
 

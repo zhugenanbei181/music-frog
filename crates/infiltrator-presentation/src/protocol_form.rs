@@ -1,9 +1,11 @@
 //! Typed protocol-field folding. Invalid edits preserve the previous value.
 use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::protocol_fidelity::ProtocolStudioSnapshot;
 use infiltrator_contract::protocol_fidelity::{ProtocolDraft, ProtocolFamily};
 use infiltrator_contract::protocol_form::ProtocolField;
 use infiltrator_contract::protocol_params::EchParams;
 use infiltrator_contract::protocol_params_ext::{PluginOptValue, TransportParams};
+use infiltrator_domain::protocol_draft_codec;
 use std::collections::BTreeMap;
 use std::str::FromStr;
 
@@ -20,6 +22,24 @@ fn invalid() -> Failure {
         ErrorCode::InvalidInput,
         "invalid protocol field value",
         false,
+    )
+}
+
+pub fn draft_from_uri(uri: &str) -> Result<ProtocolDraft, Failure> {
+    protocol_draft_codec::draft_from_uri(uri)
+        .map_err(|error| Failure::new(ErrorCode::InvalidInput, error.to_string(), false))
+}
+
+pub fn uri_from_draft(draft: &ProtocolDraft) -> Result<String, Failure> {
+    protocol_draft_codec::uri_from_draft(draft)
+        .map_err(|error| Failure::new(ErrorCode::InvalidInput, error.to_string(), false))
+}
+
+pub fn project_draft(draft: ProtocolDraft, uri_preview: Option<String>) -> ProtocolStudioSnapshot {
+    ProtocolStudioSnapshot::from_draft(
+        draft.clone(),
+        uri_preview,
+        protocol_draft_codec::uri_fidelity_gaps(&draft),
     )
 }
 fn parse<T: FromStr>(value: &str) -> Result<T, Failure> {

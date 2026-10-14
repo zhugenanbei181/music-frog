@@ -26,6 +26,7 @@ use infiltrator_bevy_ui::pages::proxies_form::{
     CustomNodeForm, CustomNodeFormError, ProtocolFieldNode,
 };
 use infiltrator_bevy_ui::route::{PagesPlugin, Route, RouteChanged};
+use infiltrator_bevy_ui::surface::{LatestSurfaceSnapshot, SurfaceSnapshotUpdated};
 use infiltrator_bevy_widgets::responsive::TouchHitbox;
 use infiltrator_bevy_widgets::text_input::TextField;
 use infiltrator_bevy_widgets::text_input::state::TextFieldInput;
@@ -33,7 +34,11 @@ use infiltrator_contract::command::RequestId;
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::core_capabilities::{CoreOperation, ProfileOperation};
 use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::protocol_fidelity::ProtocolStudioSnapshot;
 use infiltrator_contract::protocol_form::ProtocolField;
+use infiltrator_contract::surface_snapshot::PageData;
+use infiltrator_presentation::protocol_editor_operation::ProtocolEditorOperation;
+use infiltrator_presentation::protocol_form::draft_from_uri;
 use infiltrator_test_support::dns_hosts_fixtures::HostsCaptureStore;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
@@ -119,14 +124,20 @@ fn save(app: &mut App) {
     app.world_mut().commands().trigger(Activate { entity });
     app.update();
 }
+fn publish_protocol_readback(app: &mut App, uri: &str) {
+    let draft = draft_from_uri(uri).expect("valid owner protocol readback fixture");
+    let studio = ProtocolStudioSnapshot::from_draft(draft, Some(uri.to_owned()), Vec::new());
+    let mut snapshot = app.world().resource::<LatestSurfaceSnapshot>().0.clone();
+    snapshot.revision += 1;
+    snapshot.protocol_studio = PageData::ready(studio);
+    app.world_mut().trigger(SurfaceSnapshotUpdated(snapshot));
+    app.update();
+}
 fn complete(app: &mut App, command: UiCommand, success: bool) {
-    let request_id = app
-        .world()
-        .resource::<CustomNodeForm>()
-        .saving
-        .as_ref()
-        .unwrap()
-        .request_id;
+    let request_id = match &app.world().resource::<CustomNodeForm>().operation {
+        ProtocolEditorOperation::SaveAwaitingTerminal { request_id, .. } => *request_id,
+        operation => panic!("expected a pending save, got {operation:?}"),
+    };
     app.world_mut().commands().trigger(CommandExecutedEvent {
         command,
         request_id,
@@ -289,7 +300,12 @@ fn production_command_sink_delivers_correlated_terminal_save_result() {
         timeout(Duration::from_secs(5), async {
             loop {
                 app.update();
-                if app.world().resource::<CustomNodeForm>().saving.is_none() {
+                if !app
+                    .world()
+                    .resource::<CustomNodeForm>()
+                    .operation
+                    .is_saving()
+                {
                     break;
                 }
                 yield_now().await;
@@ -333,7 +349,12 @@ fn production_command_failure_keeps_native_form_and_draft_open() {
             timeout(Duration::from_secs(5), async {
                 loop {
                     app.update();
-                    if app.world().resource::<CustomNodeForm>().saving.is_none() {
+                    if !app
+                        .world()
+                        .resource::<CustomNodeForm>()
+                        .operation
+                        .is_saving()
+                    {
                         break;
                     }
                     yield_now().await;
@@ -407,8 +428,10 @@ fn uri_import_uses_real_codec_handler_and_error_cancel_keep_the_imported_draft()
             timeout(Duration::from_secs(5), async {
                 loop {
                     app.update();
-                    if app.world().resource::<CustomNodeForm>().importing.is_none()
-                        && !app.world().resource::<CustomNodeForm>().reset_fields
+                    if !matches!(
+                        &app.world().resource::<CustomNodeForm>().operation,
+                        ProtocolEditorOperation::ImportAwaitingTerminal { .. }
+                    ) && !app.world().resource::<CustomNodeForm>().reset_fields
                     {
                         break;
                     }
@@ -418,6 +441,12 @@ fn uri_import_uses_real_codec_handler_and_error_cancel_keep_the_imported_draft()
             .await
             .expect("real import terminal result");
         });
+        if matches!(
+            &app.world().resource::<CustomNodeForm>().operation,
+            ProtocolEditorOperation::ImportAwaitingReadback { .. }
+        ) {
+            publish_protocol_readback(&mut app, uri);
+        }
         assert_eq!(
             app.world()
                 .resource::<CustomNodeForm>()
@@ -451,7 +480,7 @@ fn uri_import_uses_real_codec_handler_and_error_cancel_keep_the_imported_draft()
     app.update();
     save(&mut app);
     assert_eq!(app.world().resource::<BusinessPanelState>().0, None);
-    assert!(app.world().resource::<CustomNodeForm>().saving.is_none());
+    assert!(app.world().resource::<CustomNodeForm>().operation.is_idle());
 }
 
 #[test]
@@ -521,13 +550,10 @@ fn import_reply_from_cancelled_session_cannot_complete_the_same_uri_in_a_new_ses
         .commands()
         .trigger(Activate { entity: button });
     app.update();
-    let old_id = app
-        .world()
-        .resource::<CustomNodeForm>()
-        .importing
-        .as_ref()
-        .unwrap()
-        .request_id;
+    let old_id = match &app.world().resource::<CustomNodeForm>().operation {
+        ProtocolEditorOperation::ImportAwaitingTerminal { request_id, .. } => *request_id,
+        operation => panic!("expected a pending import, got {operation:?}"),
+    };
     let cancel = app
         .world_mut()
         .query::<(Entity, &CloseBusinessPanel)>()
@@ -560,13 +586,10 @@ fn import_reply_from_cancelled_session_cannot_complete_the_same_uri_in_a_new_ses
         .commands()
         .trigger(Activate { entity: button });
     app.update();
-    let current_id = app
-        .world()
-        .resource::<CustomNodeForm>()
-        .importing
-        .as_ref()
-        .unwrap()
-        .request_id;
+    let current_id = match &app.world().resource::<CustomNodeForm>().operation {
+        ProtocolEditorOperation::ImportAwaitingTerminal { request_id, .. } => *request_id,
+        operation => panic!("expected a pending import, got {operation:?}"),
+    };
     assert_ne!(old_id, current_id);
     app.world_mut().commands().trigger(CommandExecutedEvent {
         request_id: old_id,
@@ -575,7 +598,11 @@ fn import_reply_from_cancelled_session_cannot_complete_the_same_uri_in_a_new_ses
     });
     app.update();
     let form = app.world().resource::<CustomNodeForm>();
-    assert_eq!(form.importing.as_ref().unwrap().request_id, current_id);
+    assert!(matches!(
+        &form.operation,
+        ProtocolEditorOperation::ImportAwaitingTerminal { request_id, .. }
+            if *request_id == current_id
+    ));
     assert_eq!(form.studio.last_error, None);
     assert_eq!(form.studio.draft.as_ref().unwrap().name, "");
     // An unrelated request also cannot finish a current save.
