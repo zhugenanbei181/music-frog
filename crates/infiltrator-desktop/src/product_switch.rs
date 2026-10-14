@@ -17,6 +17,7 @@ use crate::storage::{
     DesktopEngineProfileStores, engine_profile_stores, home_dir, version_factory,
 };
 use infiltrator_application::core_application::CoreApplication;
+use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_composition::active_profile_backend::{
     ActiveProfileBackendSelector, ActiveProfileBackendSwitchError,
     ActiveProfileBackendSwitchFailurePhase, PreviousCoreOwner, SelectedActiveProfileBackend,
@@ -278,6 +279,7 @@ async fn compose_desktop_switch(
             provider,
             profile_document: _,
         } => {
+            let profiles = ProfileApplication::new(Arc::clone(&profile_store));
             let runtime = SingBoxRuntime::compose_selected(
                 selection,
                 profile_store,
@@ -307,6 +309,7 @@ async fn compose_desktop_switch(
             let host_runtime: Arc<dyn HostRuntime> = Arc::new(runtime);
             Ok(DesktopProductBackend {
                 application,
+                profiles,
                 host_runtime,
                 surface_pump,
             })
@@ -478,6 +481,7 @@ async fn compose_mihomo_switch(
         .map_err(old_owner_closed)?,
     );
     let application = runtime.application();
+    let profiles = runtime.profiles();
     let surface_pump = match runtime
         .surface_pump(surface, Duration::from_millis(700))
         .await
@@ -497,6 +501,7 @@ async fn compose_mihomo_switch(
     let host_runtime: Arc<dyn HostRuntime> = runtime;
     Ok(DesktopProductBackend {
         application,
+        profiles,
         host_runtime,
         surface_pump,
     })

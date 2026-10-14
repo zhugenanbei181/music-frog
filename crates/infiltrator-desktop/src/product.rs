@@ -2,6 +2,7 @@
 use crate::composition::{DesktopProductBackend, open_default_product_backend};
 use crate::product_switch::{retry_default_product_engine, switch_default_product_engine};
 use infiltrator_application::core_application::CoreApplication;
+use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::surface_application::SurfacePump;
 use infiltrator_contract::active_profile_reference::{
     ActiveProfileReferenceState, ActiveProfileReferenceTarget,
@@ -84,6 +85,7 @@ impl Error for DesktopProductSessionActionFailure {}
 #[derive(Clone)]
 pub struct DesktopProductSessionBinding {
     pub application: Arc<CoreApplication>,
+    pub profiles: ProfileApplication,
     pub host_runtime: Arc<dyn HostRuntime>,
     pub surface_pump: SurfacePump,
     pub lifecycle: CoreLifecycleSnapshot,
@@ -155,6 +157,7 @@ impl DesktopProductSessionHandle {
 pub struct DesktopProductSession {
     executor: Runtime,
     application: Arc<CoreApplication>,
+    profiles: ProfileApplication,
     surface: SurfaceKind,
     backend_factory: Arc<dyn DesktopProductBackendFactory>,
     state: DesktopProductSessionState,
@@ -252,6 +255,7 @@ impl DesktopProductSession {
         Ok(Self {
             executor,
             application: backend.application,
+            profiles: backend.profiles,
             surface,
             backend_factory: Arc::new(ProductionDesktopProductBackendFactory),
             state: DesktopProductSessionState::Open {
@@ -310,6 +314,7 @@ impl DesktopProductSession {
         };
         Ok(DesktopProductSessionBinding {
             application: Arc::clone(&self.application),
+            profiles: self.profiles.clone(),
             host_runtime,
             surface_pump: pump,
             lifecycle: self.application.snapshot().lifecycle_snapshot(),
@@ -450,6 +455,7 @@ impl DesktopProductSession {
         };
 
         let old_application = mem::replace(&mut self.application, backend.application);
+        self.profiles = backend.profiles;
         self.state = DesktopProductSessionState::Open {
             host_runtime: backend.host_runtime,
             pump: backend.surface_pump,
@@ -711,6 +717,7 @@ impl DesktopProductSession {
         match result {
             Ok(backend) => {
                 let old_application = mem::replace(&mut self.application, backend.application);
+                self.profiles = backend.profiles;
                 self.state = DesktopProductSessionState::Open {
                     host_runtime: backend.host_runtime,
                     pump: backend.surface_pump,

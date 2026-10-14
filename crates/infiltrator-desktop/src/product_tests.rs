@@ -13,6 +13,7 @@ use infiltrator_application::command_application::handler::{
 };
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::core_capability_application::CoreCapabilityApplication;
+use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::surface_application::{SurfacePump, UnavailableSurfaceReader};
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::active_profile_reference::{
@@ -40,6 +41,7 @@ use infiltrator_ports::core_capability_provider::{
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::host_runtime::{HostRuntime, TunServiceStatus};
+use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::resources::{CoreResourcePort, UnsupportedCoreResourcePort};
 use infiltrator_ports::runtime_configuration::RuntimeConfigurationPorts;
 use infiltrator_ports::runtime_http_proxy_endpoint::{
@@ -47,6 +49,7 @@ use infiltrator_ports::runtime_http_proxy_endpoint::{
 };
 use infiltrator_ports::runtime_stream::{RuntimeStreamPort, UnsupportedRuntimeStreamPort};
 use infiltrator_test_support::log_capture_fixtures::LogCaptureProcess;
+use infiltrator_test_support::rule_trace_fixtures::RuleTraceStore;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -307,11 +310,20 @@ fn backend() -> DesktopProductBackend {
 }
 
 fn backend_for(application: Arc<CoreApplication>) -> DesktopProductBackend {
+    let profiles = ProfileApplication::new(Arc::new(RuleTraceStore::default()));
+    backend_with_profiles(application, profiles)
+}
+
+fn backend_with_profiles(
+    application: Arc<CoreApplication>,
+    profiles: ProfileApplication,
+) -> DesktopProductBackend {
     let host_runtime: Arc<dyn HostRuntime> = Arc::new(TestHostRuntime {
         application: Arc::clone(&application),
     });
     DesktopProductBackend {
         application,
+        profiles,
         host_runtime,
         surface_pump: surface_pump(),
     }
@@ -337,6 +349,7 @@ fn session_for_with_factory(
     DesktopProductSession {
         executor,
         application: backend.application,
+        profiles: backend.profiles,
         surface: SurfaceKind::IcedDesktop,
         backend_factory,
         state: DesktopProductSessionState::Open {
@@ -519,8 +532,12 @@ fn post_close_switch_failure_closes_the_old_owner_and_retries_the_typed_target()
     } else {
         EngineId::new("mihomo").expect("valid target engine")
     };
-    let replacement = backend();
+    let replacement_store = Arc::new(RuleTraceStore::default());
+    let replacement_profile_store: Arc<dyn ProfileStore> = replacement_store.clone();
+    let replacement_profiles = ProfileApplication::new(replacement_profile_store);
+    let replacement = backend_with_profiles(application(), replacement_profiles);
     let expected_application = Arc::clone(&replacement.application);
+    replacement_store.deny_read.store(true, Ordering::SeqCst);
     let factory = Arc::new(RetryAfterCloseFactory {
         retry_backend: Mutex::new(Some(replacement)),
         switch_calls: AtomicUsize::new(0),
@@ -542,6 +559,15 @@ fn post_close_switch_failure_closes_the_old_owner_and_retries_the_typed_target()
         .expect("closed prior owner is resumed into the target owner");
 
     assert!(Arc::ptr_eq(&expected_application, &recovered.application));
+    let verification_executor = Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("create profile owner verification executor");
+    assert!(
+        verification_executor
+            .block_on(recovered.profiles.list_profiles())
+            .is_err()
+    );
     assert_eq!(factory.switch_calls.load(Ordering::SeqCst), 1);
     assert_eq!(factory.retry_calls.load(Ordering::SeqCst), 1);
     assert_eq!(
@@ -604,12 +630,22 @@ fn post_close_retry_restarts_a_core_that_was_running_before_the_switch() {
 fn successful_switch_replaces_application_and_surface_handles() {
     let mut session = session();
     let previous_application = session.application();
+    let previous_profiles = session.binding().expect("current owner binding").profiles;
+    assert!(
+        session
+            .executor
+            .block_on(previous_profiles.list_profiles())
+            .is_ok()
+    );
     let target = profile_target(&session, "next");
     let resume = resume_policy(&session);
     let (host_runtime, pump) = session
         .begin_engine_switch()
         .expect("open session begins switch");
-    let replacement = backend();
+    let replacement_store = Arc::new(RuleTraceStore::default());
+    let replacement_profile_store: Arc<dyn ProfileStore> = replacement_store.clone();
+    let replacement_profiles = ProfileApplication::new(replacement_profile_store);
+    let replacement = backend_with_profiles(application(), replacement_profiles);
     let replacement_application = Arc::clone(&replacement.application);
 
     session
@@ -625,6 +661,17 @@ fn successful_switch_replaces_application_and_surface_handles() {
         &session.application()
     ));
     assert!(!Arc::ptr_eq(&previous_application, &session.application()));
+    replacement_store.deny_read.store(true, Ordering::SeqCst);
+    let current_profiles = session
+        .binding()
+        .expect("replacement owner binding")
+        .profiles;
+    assert!(
+        session
+            .executor
+            .block_on(current_profiles.list_profiles())
+            .is_err()
+    );
 }
 
 #[test]

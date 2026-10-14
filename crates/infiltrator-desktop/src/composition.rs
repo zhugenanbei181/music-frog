@@ -37,6 +37,7 @@ use infiltrator_application::network_roaming_application::NetworkRoamingApplicat
 use infiltrator_application::outbound_application::OutboundApplication;
 use infiltrator_application::pac_application::PacApplication;
 use infiltrator_application::port_conflict_application::PortConflictApplication;
+use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::rule_provider_runtime_application::RuleProviderRuntimeApplication;
 use infiltrator_application::runtime_query_application::RuntimeQueryApplication;
 use infiltrator_application::service_mode_application::ServiceModeApplication;
@@ -108,6 +109,7 @@ use self::mihomo_backend::DesktopMihomoBackend;
 /// registered Mihomo provider remains the only concrete runtime owner here.
 pub(crate) struct DesktopProductBackend {
     pub application: Arc<CoreApplication>,
+    pub profiles: ProfileApplication,
     pub host_runtime: Arc<dyn HostRuntime>,
     pub surface_pump: SurfacePump,
 }
@@ -344,9 +346,11 @@ impl DesktopEngineRuntimeProvider for DesktopMihomoRuntimeProvider {
                     }
                 };
                 let application = runtime.application();
+                let profiles = runtime.profiles();
                 let host_runtime: Arc<dyn HostRuntime> = runtime;
                 Ok(DesktopRuntimeOutcome::Product(DesktopProductBackend {
                     application,
+                    profiles,
                     host_runtime,
                     surface_pump,
                 }))
@@ -388,6 +392,7 @@ impl DesktopEngineRuntimeProvider for DesktopSingBoxRuntimeProvider {
                 config_path,
                 preflight,
             } => {
+                let profiles = ProfileApplication::new(Arc::clone(&profile_store));
                 let runtime = Arc::new(
                     SingBoxRuntime::prepare(
                         selection,
@@ -412,6 +417,7 @@ impl DesktopEngineRuntimeProvider for DesktopSingBoxRuntimeProvider {
                 let host_runtime: Arc<dyn HostRuntime> = runtime;
                 Ok(DesktopRuntimeOutcome::Product(DesktopProductBackend {
                     application,
+                    profiles,
                     host_runtime,
                     surface_pump,
                 }))

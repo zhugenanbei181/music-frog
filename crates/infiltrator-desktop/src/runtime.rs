@@ -379,6 +379,10 @@ impl MihomoRuntime {
         self.application.clone()
     }
 
+    pub(crate) fn profiles(&self) -> ProfileApplication {
+        self.profiles.clone()
+    }
+
     /// Apply exactly the profile selected by `expected`, keeping its
     /// revisioned reference fenced through the native transaction and any
     /// native rollback.
