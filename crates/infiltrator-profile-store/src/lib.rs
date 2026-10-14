@@ -17,6 +17,7 @@ pub mod file_lock;
 pub mod metadata;
 pub mod namespace;
 pub mod profile_catalog;
+pub mod profile_catalog_order;
 pub mod profile_display_name;
 pub mod profile_files;
 pub mod profile_reset;

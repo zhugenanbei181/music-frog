@@ -1,0 +1,241 @@
+use crate::store::{EngineProfileStore, ProfileDocumentExtension};
+use infiltrator_contract::core_identity::EngineId;
+use infiltrator_contract::profile_catalog_order::{
+    ProfileCatalogOrderMutation, ProfileCatalogOrderRequest, ProfileCatalogSnapshot,
+};
+use infiltrator_contract::profile_document::DocumentValidation;
+use infiltrator_contract::profile_document_identity::{
+    ProfileFormatId, ProfileId, ProfileSchemaVersion,
+};
+use infiltrator_ports::error::PortError;
+use infiltrator_ports::profile_document_codec::{
+    ProfileDocumentCodecPort, ProfileDocumentCodecScope,
+};
+use infiltrator_ports::profile_store::ProfileStore;
+use infiltrator_ports::secure_store::SecureStore;
+use std::path::PathBuf;
+use std::sync::Arc;
+use tempfile::TempDir;
+
+struct TestCodec(ProfileDocumentCodecScope);
+
+impl ProfileDocumentCodecPort for TestCodec {
+    fn scope(&self) -> ProfileDocumentCodecScope {
+        self.0.clone()
+    }
+
+    fn inspect(&self, _document: &[u8]) -> Result<DocumentValidation, PortError> {
+        Ok(DocumentValidation::Valid)
+    }
+}
+
+struct NoopSecureStore;
+
+#[async_trait::async_trait]
+impl SecureStore for NoopSecureStore {
+    async fn get(&self, _namespace: &str, _key: &str) -> Result<Option<String>, PortError> {
+        Ok(None)
+    }
+
+    async fn set(&self, _namespace: &str, _key: &str, _value: &str) -> Result<(), PortError> {
+        Ok(())
+    }
+
+    async fn delete(&self, _namespace: &str, _key: &str) -> Result<(), PortError> {
+        Ok(())
+    }
+}
+
+fn make_store(root: PathBuf) -> EngineProfileStore<NoopSecureStore> {
+    let engine_id = EngineId::new("mihomo").unwrap();
+    let codec = Arc::new(TestCodec(ProfileDocumentCodecScope {
+        engine_id: engine_id.clone(),
+        format_id: ProfileFormatId::new("mihomo-native").unwrap(),
+        schema_version: ProfileSchemaVersion::new(1).unwrap(),
+    }));
+    EngineProfileStore::new(
+        engine_id,
+        root,
+        codec,
+        ProfileDocumentExtension::Json,
+        NoopSecureStore,
+    )
+    .unwrap()
+}
+
+async fn write_profiles(store: &EngineProfileStore<NoopSecureStore>, names: &[&str]) {
+    for name in names {
+        store
+            .write_profile_document_locked(&ProfileId::new(*name).unwrap(), b"profile")
+            .await
+            .unwrap();
+    }
+}
+
+async fn snapshot(store: &EngineProfileStore<NoopSecureStore>) -> ProfileCatalogSnapshot {
+    let profiles = ProfileStore::list_profiles(store).await.unwrap();
+    ProfileCatalogSnapshot::new(
+        EngineId::new("mihomo").unwrap(),
+        profiles
+            .into_iter()
+            .map(|profile| ProfileId::new(profile.name).unwrap())
+            .collect(),
+    )
+}
+
+#[tokio::test]
+async fn catalog_order_persists_exact_identity_order_and_legacy_order_is_alphabetical() {
+    let root = TempDir::new().unwrap();
+    let store = make_store(root.path().to_path_buf());
+    write_profiles(&store, &["gamma", "alpha", "beta"]).await;
+
+    let expected = snapshot(&store).await;
+    assert_eq!(
+        expected.ordered_profile_ids,
+        ["alpha", "beta", "gamma"].map(|name| ProfileId::new(name).unwrap())
+    );
+    let target_order = ["gamma", "alpha", "beta"].map(|name| ProfileId::new(name).unwrap());
+    assert_eq!(
+        ProfileStore::set_profile_catalog_order(
+            &store,
+            ProfileCatalogOrderRequest::new(expected.clone(), target_order.to_vec()),
+        )
+        .await
+        .unwrap(),
+        ProfileCatalogOrderMutation::Applied {
+            previous: expected,
+            current: ProfileCatalogSnapshot::new(
+                EngineId::new("mihomo").unwrap(),
+                target_order.to_vec(),
+            ),
+        }
+    );
+
+    let reopened = make_store(root.path().to_path_buf());
+    assert_eq!(snapshot(&reopened).await.ordered_profile_ids, target_order);
+    ProfileStore::save_inactive_profile(&reopened, "delta", "profile")
+        .await
+        .unwrap();
+    assert_eq!(
+        snapshot(&reopened).await.ordered_profile_ids,
+        vec![
+            ProfileId::new("gamma").unwrap(),
+            ProfileId::new("alpha").unwrap(),
+            ProfileId::new("beta").unwrap(),
+            ProfileId::new("delta").unwrap(),
+        ]
+    );
+}
+
+#[tokio::test]
+async fn invalid_or_stale_order_never_replaces_the_current_catalog() {
+    let root = TempDir::new().unwrap();
+    let store = make_store(root.path().to_path_buf());
+    write_profiles(&store, &["one", "two", "three"]).await;
+    let expected = snapshot(&store).await;
+
+    for target_order in [
+        vec![
+            ProfileId::new("one").unwrap(),
+            ProfileId::new("one").unwrap(),
+            ProfileId::new("three").unwrap(),
+        ],
+        vec![
+            ProfileId::new("one").unwrap(),
+            ProfileId::new("three").unwrap(),
+        ],
+        vec![
+            ProfileId::new("one").unwrap(),
+            ProfileId::new("three").unwrap(),
+            ProfileId::new("foreign").unwrap(),
+        ],
+    ] {
+        assert!(
+            ProfileStore::set_profile_catalog_order(
+                &store,
+                ProfileCatalogOrderRequest::new(expected.clone(), target_order),
+            )
+            .await
+            .is_err()
+        );
+        assert_eq!(snapshot(&store).await, expected);
+    }
+
+    ProfileStore::delete_profile(&store, "two").await.unwrap();
+    let target_order = vec![
+        ProfileId::new("three").unwrap(),
+        ProfileId::new("one").unwrap(),
+        ProfileId::new("two").unwrap(),
+    ];
+    assert_eq!(
+        ProfileStore::set_profile_catalog_order(
+            &store,
+            ProfileCatalogOrderRequest::new(expected.clone(), target_order),
+        )
+        .await
+        .unwrap(),
+        ProfileCatalogOrderMutation::Stale {
+            expected,
+            observed: ProfileCatalogSnapshot::new(
+                EngineId::new("mihomo").unwrap(),
+                vec![
+                    ProfileId::new("one").unwrap(),
+                    ProfileId::new("three").unwrap()
+                ],
+            ),
+        }
+    );
+}
+
+#[tokio::test]
+async fn concurrent_catalog_reorder_and_profile_delete_leave_a_complete_order() {
+    let root = TempDir::new().unwrap();
+    let store = make_store(root.path().to_path_buf());
+    write_profiles(&store, &["alpha", "beta", "gamma"]).await;
+    let expected = snapshot(&store).await;
+    let target = ["gamma", "beta", "alpha"]
+        .map(|name| ProfileId::new(name).unwrap())
+        .to_vec();
+    let reorder = ProfileStore::set_profile_catalog_order(
+        &store,
+        ProfileCatalogOrderRequest::new(expected.clone(), target.clone()),
+    );
+    let delete = ProfileStore::delete_profile(&store, "beta");
+    let (reorder, delete) = tokio::join!(reorder, delete);
+    delete.unwrap();
+
+    let current = snapshot(&store).await;
+    match reorder.unwrap() {
+        ProfileCatalogOrderMutation::Applied {
+            previous,
+            current: applied,
+        } => {
+            assert_eq!(previous, expected);
+            assert_eq!(applied.ordered_profile_ids, target);
+            assert_eq!(
+                current.ordered_profile_ids,
+                vec![
+                    ProfileId::new("gamma").unwrap(),
+                    ProfileId::new("alpha").unwrap()
+                ]
+            );
+        }
+        ProfileCatalogOrderMutation::Stale {
+            expected: observed_expected,
+            observed,
+        } => {
+            assert_eq!(observed_expected, expected);
+            assert_eq!(observed, current);
+            assert_eq!(
+                current.ordered_profile_ids,
+                vec![
+                    ProfileId::new("alpha").unwrap(),
+                    ProfileId::new("gamma").unwrap()
+                ]
+            );
+        }
+        ProfileCatalogOrderMutation::Unchanged { .. } => {
+            panic!("a changed target order cannot be unchanged")
+        }
+    }
+}

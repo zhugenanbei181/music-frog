@@ -13,6 +13,9 @@ use infiltrator_contract::active_profile_reference::{
 };
 use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_identity::{CoreGeneration, CoreIdentity, EngineId};
+use infiltrator_contract::profile_catalog_order::{
+    ProfileCatalogOrderMutation, ProfileCatalogOrderRequest,
+};
 use infiltrator_contract::profile_display_name::{
     ProfileDisplayNameMutation, ProfileDisplayNameObservation, ProfileDisplayNameTarget,
 };
@@ -41,6 +44,7 @@ struct FakeStore {
     reference_write_count: AtomicUsize,
     profile_save_count: AtomicUsize,
     profiles: Mutex<BTreeMap<String, (String, ProfileMetadata)>>,
+    catalog_order: Mutex<Option<Vec<ProfileId>>>,
     display_names: Mutex<BTreeMap<String, ProfileDisplayNameObservation>>,
     sidecars: Mutex<BTreeMap<String, Vec<u8>>>,
     options_read_error: Mutex<Option<PortError>>,
@@ -548,7 +552,7 @@ impl ProfileStore for FakeStore {
             }
             ActiveProfileReferenceState::Unselected { .. } => None,
         };
-        Ok(self
+        let mut profiles = self
             .profiles
             .lock()
             .expect("profiles lock")
@@ -580,7 +584,16 @@ impl ProfileStore for FakeStore {
                     .expect("backup lock")
                     .contains(name),
             })
-            .collect())
+            .collect::<Vec<_>>();
+        catalog_order::sort_fake_profiles(&self.catalog_order, &mut profiles);
+        Ok(profiles)
+    }
+
+    async fn set_profile_catalog_order(
+        &self,
+        request: ProfileCatalogOrderRequest,
+    ) -> Result<ProfileCatalogOrderMutation, PortError> {
+        catalog_order::set_fake_store_order(self, request).await
     }
 
     async fn get_current(&self) -> Result<String, PortError> {
@@ -936,6 +949,8 @@ mod apply;
 mod auto;
 #[path = "profile_application_tests/batch.rs"]
 mod batch;
+#[path = "profile_application_tests/catalog_order.rs"]
+mod catalog_order;
 #[path = "profile_application_tests/conditional.rs"]
 mod conditional;
 #[path = "profile_application_tests/deletion.rs"]

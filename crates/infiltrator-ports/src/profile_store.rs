@@ -11,6 +11,9 @@ use infiltrator_contract::aggregator::AggregationTemplate;
 use infiltrator_contract::apply_transaction::ApplyTransactionSnapshot;
 use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_identity::EngineId;
+use infiltrator_contract::profile_catalog_order::{
+    ProfileCatalogOrderMutation, ProfileCatalogOrderRequest,
+};
 use infiltrator_contract::profile_display_name::{
     ProfileDisplayNameMutation, ProfileDisplayNameObservation, ProfileDisplayNameTarget,
 };
@@ -134,6 +137,17 @@ pub trait ProfileStore: Send + Sync {
     }
 
     async fn list_profiles(&self) -> Result<Vec<ProfileInfo>, PortError>;
+    /// Compare the complete observed identity order before publishing a new
+    /// engine-scoped catalog order. Stale requests return the current readback.
+    async fn set_profile_catalog_order(
+        &self,
+        _request: ProfileCatalogOrderRequest,
+    ) -> Result<ProfileCatalogOrderMutation, PortError> {
+        Err(PortError::unsupported(
+            Capability::Profiles,
+            "snapshot-fenced profile catalog ordering is unavailable",
+        ))
+    }
     async fn get_current(&self) -> Result<String, PortError>;
     /// Read the product-wide engine/profile selector, including its revision.
     /// Activation and rollback paths use this complete revisioned state as the

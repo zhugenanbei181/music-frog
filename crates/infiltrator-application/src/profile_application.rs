@@ -1574,6 +1574,8 @@ impl ProfileApplication {
     }
 }
 
+#[path = "profile_application/catalog_order.rs"]
+mod catalog_order;
 #[path = "profile_application/display_name.rs"]
 mod display_name;
 

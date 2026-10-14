@@ -1,6 +1,7 @@
 //! Engine-scoped profile enumeration and neutral catalog projection.
 
 use crate::metadata::{default_profile_metadata, read_profile_metadata};
+use crate::profile_catalog_order::apply_catalog_order;
 use crate::store::EngineProfileStore;
 use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
 use infiltrator_contract::profile_document_identity::ProfileId;
@@ -20,11 +21,8 @@ impl<S: SecureStore> EngineProfileStore<S> {
         if !self.config_dir().exists() {
             return Ok(Vec::new());
         }
-        let settings = self.read_settings_value().await.ok();
-        let metadata_table = settings
-            .as_ref()
-            .and_then(|value| value.get("profiles"))
-            .and_then(toml::Value::as_table);
+        let settings = self.read_settings_value().await?;
+        let metadata_table = settings.get("profiles").and_then(toml::Value::as_table);
         let engine = self.engine_id();
         let mut profiles = Vec::new();
         let mut entries = fs::read_dir(self.config_dir())
@@ -91,7 +89,7 @@ impl<S: SecureStore> EngineProfileStore<S> {
             };
             profiles.push(info);
         }
-        profiles.sort_by(|left, right| left.name.cmp(&right.name));
+        apply_catalog_order(&mut profiles, &settings)?;
         Ok(profiles)
     }
 }

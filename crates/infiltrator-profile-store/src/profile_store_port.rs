@@ -14,6 +14,9 @@ use infiltrator_contract::aggregator::AggregationTemplate;
 use infiltrator_contract::apply_transaction::ApplyTransactionSnapshot;
 use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::error::ErrorCode;
+use infiltrator_contract::profile_catalog_order::{
+    ProfileCatalogOrderMutation, ProfileCatalogOrderRequest,
+};
 use infiltrator_contract::profile_display_name::{
     ProfileDisplayNameMutation, ProfileDisplayNameObservation, ProfileDisplayNameTarget,
 };
@@ -48,6 +51,13 @@ impl<S: SecureStore> ProfileStore for EngineProfileStore<S> {
         let selection = ActiveProfileReferenceStore::acquire_selection_lease(self).await?;
         let _profile_guard = lock_profile_writes_for_dir(self.config_dir()).await?;
         self.list_profile_info_locked(selection.state()).await
+    }
+
+    async fn set_profile_catalog_order(
+        &self,
+        request: ProfileCatalogOrderRequest,
+    ) -> Result<ProfileCatalogOrderMutation, PortError> {
+        EngineProfileStore::set_profile_catalog_order(self, request).await
     }
 
     async fn get_current(&self) -> Result<String, PortError> {
