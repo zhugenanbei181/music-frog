@@ -4,6 +4,7 @@
 use super::*;
 use infiltrator_bevy_widgets::editor::state::CodeEditorState;
 use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::profile_mixin_studio::ProfileMixinToggleId;
 use infiltrator_contract::profile_options::ProfileOptionsSnapshot;
 
 /// DUAL-10-08/10/11: the Bevy Mixin pane renders the shared preflight verdict,
@@ -79,9 +80,7 @@ fn test_profiles_mixin_studio_renders_shared_preflight_toggles_and_cascade() {
         let mut query = app.world_mut().query::<(Entity, &MixinToggleButton)>();
         query
             .iter(app.world())
-            .find(|(_, button)| {
-                button.id == infiltrator_ports::profile_document_codec::ProfileMixinToggleId::Ipv6
-            })
+            .find(|(_, button)| button.id == ProfileMixinToggleId::Ipv6)
             .map(|(entity, _)| entity)
             .expect("ipv6 toggle chip")
     };

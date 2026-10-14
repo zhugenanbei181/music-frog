@@ -16,9 +16,14 @@ use infiltrator_domain::script_export::{
 #[path = "script_sandbox_matrix_application_test.rs"]
 mod script_sandbox_matrix_application_test;
 
-use crate::mixin_studio_projection;
 use crate::script_application::ScriptApplication;
 use crate::script_export_application::ScriptExportApplication;
+use infiltrator_contract::profile_mixin_studio::{
+    ProfileMixinCascade, ProfileMixinCascadeStage, ProfileMixinCascadeStageId, ProfileMixinColumn,
+    ProfileMixinColumnRole, ProfileMixinColumns, ProfileMixinComposition, ProfileMixinPreflight,
+    ProfileMixinStageDeclaration, ProfileMixinToggle, ProfileMixinToggleId,
+    ProfileMixinToggleObservation,
+};
 use infiltrator_contract::script_export::{
     MIXIN_OVERLAY_YAML_HEADER, MIXIN_OVERLAY_YAML_NOTE_ZH, ScriptExportKind,
 };
@@ -27,12 +32,6 @@ use infiltrator_contract::script_sandbox_matrix::{
     ScriptSandboxMatrixReport, ScriptSandboxMatrixScenario,
 };
 use infiltrator_domain::script_engine::{HookStage, ScriptCircuitBreaker, ScriptEngine};
-use infiltrator_ports::profile_document_codec::{
-    ProfileMixinCascade, ProfileMixinCascadeStage, ProfileMixinCascadeStageId, ProfileMixinColumn,
-    ProfileMixinColumnRole, ProfileMixinColumns, ProfileMixinComposition, ProfileMixinPreflight,
-    ProfileMixinStageDeclaration, ProfileMixinToggle, ProfileMixinToggleId,
-    ProfileMixinToggleProjection,
-};
 use std::time::Duration;
 
 /// The one shared executor both surfaces call.
@@ -156,8 +155,9 @@ fn check_ast_diff() -> Check {
 }
 
 fn check_cascade_pipeline() -> Check {
-    // The schema adapter tests real cascade behavior. Application code consumes
-    // its neutral projection, so this matrix uses a precomputed adapter fixture.
+    // The schema adapter tests real cascade behavior. This application matrix
+    // only checks that its typed observation retains stage facts; presentation
+    // copy is verified by the presentation crate's own tests.
     let report = ProfileMixinCascade::Merged {
         stages: vec![
             ProfileMixinCascadeStage {
@@ -188,13 +188,27 @@ fn check_cascade_pipeline() -> Check {
         ],
         line_count: 3,
     };
-    let caption = mixin_studio_projection::cascade_caption(&report, "en");
-    (
-        matches!(&report, ProfileMixinCascade::Merged { stages, line_count: 3 } if stages.len() == 5)
-            && caption.contains("→")
-            && caption.contains("3"),
-        caption,
-    )
+    let passed = matches!(
+        &report,
+        ProfileMixinCascade::Merged {
+            stages,
+            line_count: 3
+        } if stages.len() == 5
+            && stages.iter().any(|stage| {
+                stage.id == ProfileMixinCascadeStageId::Subscription
+                    && stage.declaration == ProfileMixinStageDeclaration::Undeclared
+            })
+    );
+    let detail = match report {
+        ProfileMixinCascade::Merged { stages, line_count } => format!(
+            "{} typed stages, {line_count} lines, subscription declaration retained",
+            stages.len()
+        ),
+        ProfileMixinCascade::Blocked { stages, reason } => {
+            format!("blocked after {} stages: {reason}", stages.len())
+        }
+    };
+    (passed, detail)
 }
 
 fn check_mixin_preflight() -> Check {
@@ -202,18 +216,16 @@ fn check_mixin_preflight() -> Check {
         reason: "fixture: invalid Mixin YAML".into(),
     };
     let accepted = ProfileMixinPreflight::Accepted;
-    let blocked_detail = mixin_studio_projection::preflight_detail(&blocked, "en");
-    let accepted_caption = mixin_studio_projection::preflight_key(&accepted);
+    let passed = matches!(&blocked, ProfileMixinPreflight::Blocked { reason } if reason.contains("fixture"))
+        && matches!(accepted, ProfileMixinPreflight::Accepted);
     (
-        blocked_detail.contains("fixture")
-            && mixin_studio_projection::preflight_key(&blocked) == "mixin_studio_preflight_blocked"
-            && accepted_caption == "mixin_studio_preflight_ok",
-        format!("blocked={blocked_detail} accepted={accepted_caption}"),
+        passed,
+        "typed accepted and blocked codec observations".into(),
     )
 }
 
 fn check_mixin_toggles() -> Check {
-    let projection = ProfileMixinToggleProjection::Available(vec![
+    let observation = ProfileMixinToggleObservation::Available(vec![
         ProfileMixinToggle {
             id: ProfileMixinToggleId::Ipv6,
             enabled: true,
@@ -223,11 +235,11 @@ fn check_mixin_toggles() -> Check {
             enabled: true,
         },
     ]);
-    let ids = match &projection {
-        ProfileMixinToggleProjection::Available(toggles) => {
+    let ids = match &observation {
+        ProfileMixinToggleObservation::Available(toggles) => {
             toggles.iter().map(|toggle| toggle.id).collect::<Vec<_>>()
         }
-        ProfileMixinToggleProjection::Unavailable { .. } => Vec::new(),
+        ProfileMixinToggleObservation::Unavailable { .. } => Vec::new(),
     };
     (
         ids == [ProfileMixinToggleId::Ipv6, ProfileMixinToggleId::DnsFakeIp]

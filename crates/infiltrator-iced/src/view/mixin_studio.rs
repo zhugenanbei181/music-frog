@@ -10,12 +10,12 @@ use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
 use crate::view::{editor_viewport, theme};
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
-use infiltrator_application::mixin_studio_projection;
 use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_ports::profile_document_codec::{
+use infiltrator_contract::profile_mixin_studio::{
     ProfileMixinCascade, ProfileMixinColumn, ProfileMixinColumnRole, ProfileMixinComposition,
-    ProfileMixinStudioProjection, ProfileMixinToggleId,
+    ProfileMixinPreflight, ProfileMixinStudioObservation, ProfileMixinToggleId,
 };
+use infiltrator_presentation::mixin_studio_projection;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 fn chip_style(enabled: bool) -> impl Fn(&Theme, button::Status) -> button::Style {
@@ -45,7 +45,7 @@ fn chip_style(enabled: bool) -> impl Fn(&Theme, button::Status) -> button::Style
     }
 }
 
-fn inspect_studio(state: &AppState) -> Result<ProfileMixinStudioProjection, Failure> {
+fn inspect_studio(state: &AppState) -> Result<ProfileMixinStudioObservation, Failure> {
     let identity = state
         .editor
         .document_session
@@ -114,10 +114,7 @@ pub fn preflight_banner(state: &AppState) -> Element<'_, Message> {
     let lang = Lang(&state.shell.lang);
     let (accepted, detail) = match inspect_studio(state) {
         Ok(projection) => {
-            let accepted = matches!(
-                &projection.preflight,
-                infiltrator_ports::profile_document_codec::ProfileMixinPreflight::Accepted
-            );
+            let accepted = matches!(&projection.preflight, ProfileMixinPreflight::Accepted);
             (
                 accepted,
                 mixin_studio_projection::preflight_detail(&projection.preflight, lang.0),
@@ -303,7 +300,7 @@ fn read_only_box<'a>(body: String, height_px: f32, danger: bool) -> Element<'a, 
 }
 
 /// DUAL-10-09: the three-column Mixin editor — Base document on the left, the
-/// editable Mixin overlay in the middle, and the typed codec projection on the
+/// editable Mixin overlay in the middle, and the typed codec observation on the
 /// right, including its blocking reason when composition is refused.
 pub fn three_column_row(state: &AppState) -> Element<'_, Message> {
     let lang = Lang(&state.shell.lang);

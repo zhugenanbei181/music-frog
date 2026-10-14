@@ -30,9 +30,9 @@ use infiltrator_application::script_export_application::ScriptExportApplication;
 use infiltrator_contract::core_capabilities::{CoreOperation, ProfileOperation};
 use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::profile_document_identity::ProfileId;
+use infiltrator_contract::profile_mixin_studio::{ProfileMixinComposition, ProfileMixinToggleId};
 use infiltrator_contract::subscription_filter_form::FilterObservation;
 use infiltrator_desktop::script_export::DesktopScriptExportPort;
-use infiltrator_ports::profile_document_codec::{ProfileMixinComposition, ProfileMixinToggleId};
 use std::fs::read_to_string;
 use std::sync::Arc;
 
@@ -406,7 +406,7 @@ fn mixin_studio_toggles_preflight_and_cascade_ride_the_shared_module() {
             &state.editor.editor_content.text(),
             &state.editor.mixin_content.text(),
         )
-        .expect("typed Mixin studio projection");
+        .expect("typed Mixin studio observation");
     assert_eq!(
         projection.columns.base.content,
         state.editor.editor_content.text()

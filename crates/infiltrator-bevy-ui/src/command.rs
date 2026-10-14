@@ -34,6 +34,15 @@ use infiltrator_contract::profile_document::DocumentInspection;
 use infiltrator_contract::profile_document::DocumentValidation;
 use infiltrator_contract::profile_document_identity::ProfileDocumentIdentity;
 use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
+#[cfg(any(test, feature = "capture-tools"))]
+use infiltrator_contract::profile_mixin_studio::{
+    ProfileMixinCascade, ProfileMixinCascadeStage, ProfileMixinCascadeStageId, ProfileMixinColumn,
+    ProfileMixinColumnRole, ProfileMixinColumns, ProfileMixinComposition, ProfileMixinPreflight,
+    ProfileMixinStageDeclaration, ProfileMixinToggle, ProfileMixinToggleObservation,
+};
+use infiltrator_contract::profile_mixin_studio::{
+    ProfileMixinStudioObservation, ProfileMixinToggleId,
+};
 use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
 use infiltrator_contract::protocol_fidelity::ProtocolDraft;
 use infiltrator_contract::protocol_trust::TlsTrustParams;
@@ -51,15 +60,6 @@ use infiltrator_contract::subscription_import::{
 };
 use infiltrator_contract::tun::TunStack;
 use infiltrator_ports::profile_document_codec::ProfileDocumentSnippetOutcome;
-#[cfg(any(test, feature = "capture-tools"))]
-use infiltrator_ports::profile_document_codec::{
-    ProfileMixinCascade, ProfileMixinCascadeStage, ProfileMixinCascadeStageId, ProfileMixinColumn,
-    ProfileMixinColumnRole, ProfileMixinComposition, ProfileMixinPreflight,
-    ProfileMixinStageDeclaration, ProfileMixinToggle, ProfileMixinToggleProjection,
-};
-use infiltrator_ports::profile_document_codec::{
-    ProfileMixinStudioProjection, ProfileMixinToggleId,
-};
 #[cfg(any(feature = "capture-tools", test))]
 use std::collections::VecDeque;
 #[cfg(any(feature = "capture-tools", test))]
@@ -430,9 +430,9 @@ pub trait UiCommandSink: Send + Sync {
         _identity: &ProfileDocumentIdentity,
         _document_content: &str,
         _mixin_yaml: &str,
-    ) -> Result<ProfileMixinStudioProjection, Failure> {
+    ) -> Result<ProfileMixinStudioObservation, Failure> {
         Err(Failure::unsupported(
-            "Mixin studio projection is not composed",
+            "Mixin studio observation is not composed",
         ))
     }
 }
@@ -499,7 +499,7 @@ impl CommandSinkHandle {
         identity: &ProfileDocumentIdentity,
         document_content: &str,
         mixin_yaml: &str,
-    ) -> Result<ProfileMixinStudioProjection, Failure> {
+    ) -> Result<ProfileMixinStudioObservation, Failure> {
         self.0
             .inspect_mixin_studio(identity, document_content, mixin_yaml)
     }
@@ -516,7 +516,7 @@ pub struct DemoCommandSink {
     editor_inspections: Arc<Mutex<VecDeque<Result<DocumentInspection, Failure>>>>,
     editor_snippets: Arc<Mutex<VecDeque<Result<ProfileDocumentSnippetOutcome, Failure>>>>,
     mixin_preflights: Arc<Mutex<VecDeque<Result<(), Failure>>>>,
-    mixin_studios: Arc<Mutex<VecDeque<Result<ProfileMixinStudioProjection, Failure>>>>,
+    mixin_studios: Arc<Mutex<VecDeque<Result<ProfileMixinStudioObservation, Failure>>>>,
     mixin_toggle_inspections: Arc<Mutex<VecDeque<Result<bool, Failure>>>>,
     mixin_toggle_updates: Arc<Mutex<VecDeque<Result<String, Failure>>>>,
 }
@@ -562,8 +562,8 @@ impl DemoCommandSink {
             .push_back(result);
     }
 
-    /// Queue the next engine-neutral Mixin studio projection for this fake host.
-    pub fn queue_mixin_studio(&self, result: Result<ProfileMixinStudioProjection, Failure>) {
+    /// Queue the next engine-neutral Mixin studio observation for this fake host.
+    pub fn queue_mixin_studio(&self, result: Result<ProfileMixinStudioObservation, Failure>) {
         self.mixin_studios
             .lock()
             .expect("demo Mixin studio queue")
@@ -692,25 +692,25 @@ impl UiCommandSink for DemoCommandSink {
         _identity: &ProfileDocumentIdentity,
         document_content: &str,
         mixin_yaml: &str,
-    ) -> Result<ProfileMixinStudioProjection, Failure> {
+    ) -> Result<ProfileMixinStudioObservation, Failure> {
         self.mixin_studios
             .lock()
             .expect("demo Mixin studio queue")
             .pop_front()
-            .unwrap_or_else(|| Ok(demo_mixin_studio_projection(document_content, mixin_yaml)))
+            .unwrap_or_else(|| Ok(demo_mixin_studio_observation(document_content, mixin_yaml)))
     }
 }
 
 #[cfg(any(feature = "capture-tools", test))]
-fn demo_mixin_studio_projection(
+fn demo_mixin_studio_observation(
     document_content: &str,
     mixin_yaml: &str,
-) -> ProfileMixinStudioProjection {
+) -> ProfileMixinStudioObservation {
     let base_lines = document_content.lines().count();
     let overlay_lines = mixin_yaml.lines().count();
     let composed = format!("{document_content}{mixin_yaml}");
     let composed_lines = composed.lines().count();
-    ProfileMixinStudioProjection {
+    ProfileMixinStudioObservation {
         preflight: ProfileMixinPreflight::Accepted,
         cascade: ProfileMixinCascade::Merged {
             stages: vec![
@@ -742,7 +742,7 @@ fn demo_mixin_studio_projection(
             ],
             line_count: composed_lines,
         },
-        columns: infiltrator_ports::profile_document_codec::ProfileMixinColumns {
+        columns: ProfileMixinColumns {
             base: ProfileMixinColumn {
                 role: ProfileMixinColumnRole::Base,
                 content: document_content.into(),
@@ -762,7 +762,7 @@ fn demo_mixin_studio_projection(
                 line_count: composed_lines,
             }),
         },
-        toggles: ProfileMixinToggleProjection::Available(
+        toggles: ProfileMixinToggleObservation::Available(
             ProfileMixinToggleId::ALL
                 .into_iter()
                 .map(|id| ProfileMixinToggle { id, enabled: false })

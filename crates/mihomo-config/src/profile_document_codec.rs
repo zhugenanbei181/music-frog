@@ -3,13 +3,16 @@
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document::{DocumentDiagnosticSnapshot, DocumentValidation};
 use infiltrator_contract::profile_document_identity::{ProfileFormatId, ProfileSchemaVersion};
+use infiltrator_contract::profile_mixin_studio::{
+    ProfileMixinStudioObservation, ProfileMixinToggleId,
+};
 use infiltrator_contract::yaml_snippets::{SnippetCaret, insert_at_caret};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_document_codec::{
     ProfileConfigurationMutation, ProfileConfigurationQuery, ProfileConfigurationReadout,
     ProfileConfigurationUpdate, ProfileDocumentCaret, ProfileDocumentCodecPort,
     ProfileDocumentCodecScope, ProfileDocumentSnippetInsertion, ProfileDocumentSnippetOutcome,
-    ProfileFilterMutation, ProfileMixinMutation, ProfileMixinToggleId, ProfileOptionsCodecScope,
+    ProfileFilterMutation, ProfileMixinMutation, ProfileOptionsCodecScope,
     ProfileOptionsProjection, ProfileRuleWorkspaceMutation, ProfileRuleWorkspaceProjection,
     ProfileRuleWorkspaceUpdate,
 };
@@ -173,8 +176,7 @@ impl ProfileDocumentCodecPort for MihomoProfileDocumentCodec {
         identity: &infiltrator_contract::profile_document_identity::ProfileDocumentIdentity,
         document_bytes: &[u8],
         mixin_yaml: &str,
-    ) -> Result<infiltrator_ports::profile_document_codec::ProfileMixinStudioProjection, PortError>
-    {
+    ) -> Result<ProfileMixinStudioObservation, PortError> {
         crate::profile_options_codec::inspect_mixin_studio(identity, document_bytes, mixin_yaml)
     }
 

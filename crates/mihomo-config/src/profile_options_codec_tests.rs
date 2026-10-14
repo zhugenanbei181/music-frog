@@ -9,14 +9,14 @@ use infiltrator_contract::profile_document_identity::{
     ProfileDocumentRevision, ProfileDocumentSourceIdentity, ProfileDocumentSourceKind,
     ProfileFormatId, ProfileId, ProfileSchemaVersion, ProfileSourceId,
 };
+use infiltrator_contract::profile_mixin_studio::{
+    ProfileMixinCascade, ProfileMixinCascadeStageId, ProfileMixinComposition,
+    ProfileMixinPreflight, ProfileMixinStageDeclaration, ProfileMixinToggleId,
+    ProfileMixinToggleObservation,
+};
 use infiltrator_contract::subscription_import::SubscriptionFilterDraft;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_document_codec::ProfileDocumentCodecPort;
-use infiltrator_ports::profile_document_codec::{
-    ProfileMixinCascade, ProfileMixinCascadeStageId, ProfileMixinComposition,
-    ProfileMixinPreflight, ProfileMixinStageDeclaration, ProfileMixinToggleId,
-    ProfileMixinToggleProjection,
-};
 
 fn identity(engine: &str, format: &str, schema: u32) -> ProfileDocumentIdentity {
     ProfileDocumentIdentity::new(
@@ -96,7 +96,7 @@ fn mixin_update_strips_old_injected_rules_preserves_filter_and_does_not_mutate_i
 }
 
 #[test]
-fn typed_mixin_toggle_and_studio_projection_are_pure_and_schema_scoped() {
+fn typed_mixin_toggle_and_studio_observation_are_pure_and_schema_scoped() {
     let codec = MihomoProfileDocumentCodec;
     let document_identity = identity("mihomo", "mihomo-yaml", 1);
     let base = b"mode: rule\nport: 7890\n";
@@ -159,7 +159,7 @@ fn typed_mixin_toggle_and_studio_projection_are_pure_and_schema_scoped() {
     assert!(composed.content.contains("mode: global"));
     assert!(composed.content.contains("ipv6: true"));
     assert!(!composed.editable);
-    let ProfileMixinToggleProjection::Available(toggles) = studio.toggles else {
+    let ProfileMixinToggleObservation::Available(toggles) = studio.toggles else {
         panic!("valid Mixin YAML should project its typed toggle values")
     };
     assert_eq!(
@@ -186,7 +186,7 @@ fn typed_mixin_toggle_and_studio_projection_are_pure_and_schema_scoped() {
     ));
     assert!(matches!(
         invalid.toggles,
-        ProfileMixinToggleProjection::Unavailable { .. }
+        ProfileMixinToggleObservation::Unavailable { .. }
     ));
 
     for foreign in [

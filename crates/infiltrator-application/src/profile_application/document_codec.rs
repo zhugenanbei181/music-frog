@@ -7,13 +7,15 @@ use infiltrator_contract::profile_document::{
 use infiltrator_contract::profile_document_identity::{
     ProfileDocument, ProfileDocumentIdentity, ProfileWorkspaceIdentity,
 };
+use infiltrator_contract::profile_mixin_studio::{
+    ProfileMixinStudioObservation, ProfileMixinToggleId,
+};
 use infiltrator_ports::profile_document_codec::{
     ProfileConfigurationMutation, ProfileConfigurationQuery, ProfileConfigurationReadout,
     ProfileConfigurationUpdate, ProfileDocumentCaret, ProfileDocumentCodecPort,
     ProfileDocumentCodecScope, ProfileDocumentSnippetOutcome, ProfileFilterMutation,
-    ProfileMixinMutation, ProfileMixinStudioProjection, ProfileMixinToggleId,
-    ProfileOptionsCodecScope, ProfileOptionsProjection, ProfileRuleWorkspaceMutation,
-    ProfileRuleWorkspaceProjection, ProfileRuleWorkspaceUpdate,
+    ProfileMixinMutation, ProfileOptionsCodecScope, ProfileOptionsProjection,
+    ProfileRuleWorkspaceMutation, ProfileRuleWorkspaceProjection, ProfileRuleWorkspaceUpdate,
 };
 use infiltrator_ports::profile_workspace::ProfileWorkspace;
 use infiltrator_ports::rule_tracer::RuleWorkspace;
@@ -152,7 +154,7 @@ impl ProfileApplication {
         identity: &ProfileDocumentIdentity,
         document_bytes: &[u8],
         mixin_yaml: &str,
-    ) -> Result<ProfileMixinStudioProjection, Failure> {
+    ) -> Result<ProfileMixinStudioObservation, Failure> {
         let codec = self.options_codec_for(identity)?;
         codec
             .inspect_mixin_studio(identity, document_bytes, mixin_yaml)

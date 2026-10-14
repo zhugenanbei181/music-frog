@@ -4,9 +4,9 @@ use bevy::ecs::change_detection::DetectChanges;
 use bevy::ecs::component::Component;
 use bevy::ecs::system::{Query, Res};
 use bevy::ui::widget::Text;
-use infiltrator_application::mixin_studio_projection;
 use infiltrator_bevy_widgets::localization::UiLocale;
-use infiltrator_ports::profile_document_codec::{ProfileMixinColumnRole, ProfileMixinComposition};
+use infiltrator_contract::profile_mixin_studio::{ProfileMixinColumnRole, ProfileMixinComposition};
+use infiltrator_presentation::mixin_studio_projection;
 
 #[derive(Component, Clone, Default)]
 pub enum MixinCopyRole {

@@ -60,6 +60,7 @@ pub mod privileged_network;
 pub mod profile_configuration;
 pub mod profile_document;
 pub mod profile_document_identity;
+pub mod profile_mixin_studio;
 pub mod profile_options;
 pub mod profile_protection;
 pub mod profile_source;

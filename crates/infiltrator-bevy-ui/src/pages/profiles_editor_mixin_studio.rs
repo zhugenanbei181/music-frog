@@ -25,7 +25,6 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button, ScrollArea};
-use infiltrator_application::mixin_studio_projection;
 use infiltrator_bevy_widgets::editor::state::CodeEditorState;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
@@ -33,10 +32,11 @@ use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_ports::profile_document_codec::{
-    ProfileMixinColumn, ProfileMixinColumnRole, ProfileMixinComposition, ProfileMixinPreflight,
-    ProfileMixinToggle, ProfileMixinToggleId, ProfileMixinToggleProjection,
+use infiltrator_contract::profile_mixin_studio::{
+    ProfileMixinColumn, ProfileMixinColumnRole, ProfileMixinColumns, ProfileMixinComposition,
+    ProfileMixinPreflight, ProfileMixinToggle, ProfileMixinToggleId, ProfileMixinToggleObservation,
 };
+use infiltrator_presentation::mixin_studio_projection;
 
 /// One common-overlay toggle chip (index into the shared catalogue).
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
@@ -113,8 +113,8 @@ pub fn mixin_studio_scene(
     let preflight_label = preflight_pill.0.render(&locale);
     let toggle_states: Vec<ProfileMixinToggle> = match studio {
         Some(studio) => match &studio.toggles {
-            ProfileMixinToggleProjection::Available(toggles) => toggles.clone(),
-            ProfileMixinToggleProjection::Unavailable { .. } => ProfileMixinToggleId::ALL
+            ProfileMixinToggleObservation::Available(toggles) => toggles.clone(),
+            ProfileMixinToggleObservation::Unavailable { .. } => ProfileMixinToggleId::ALL
                 .into_iter()
                 .map(|id| ProfileMixinToggle { id, enabled: false })
                 .collect(),
@@ -211,10 +211,7 @@ pub fn mixin_studio_scene(
 /// restamped by `refresh_mixin_editor_body`), and the right column is the real
 /// composed output of the shared cascade pipeline — or the real blocking
 /// reason. Nothing here is a mock.
-fn three_column_scene(
-    columns: &infiltrator_ports::profile_document_codec::ProfileMixinColumns,
-    palette: &UiPalette,
-) -> Box<dyn Scene> {
+fn three_column_scene(columns: &ProfileMixinColumns, palette: &UiPalette) -> Box<dyn Scene> {
     let base_caption =
         mixin_studio_projection::column_caption(&columns.base, UiLocale::default().code());
     let overlay_caption =

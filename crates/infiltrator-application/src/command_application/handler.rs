@@ -7,9 +7,10 @@ use infiltrator_contract::core_identity::CoreScope;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document::DocumentInspection;
 use infiltrator_contract::profile_document_identity::ProfileDocumentIdentity;
-use infiltrator_ports::profile_document_codec::{
-    ProfileDocumentSnippetOutcome, ProfileMixinStudioProjection, ProfileMixinToggleId,
+use infiltrator_contract::profile_mixin_studio::{
+    ProfileMixinStudioObservation, ProfileMixinToggleId,
 };
+use infiltrator_ports::profile_document_codec::ProfileDocumentSnippetOutcome;
 use std::future::Future;
 use std::pin::Pin;
 
@@ -104,9 +105,9 @@ pub trait CommandHandler: Send + Sync {
         _identity: &ProfileDocumentIdentity,
         _document_content: &str,
         _mixin_yaml: &str,
-    ) -> Result<ProfileMixinStudioProjection, Failure> {
+    ) -> Result<ProfileMixinStudioObservation, Failure> {
         Err(Failure::unsupported(
-            "Mixin studio projection is not composed",
+            "Mixin studio observation is not composed",
         ))
     }
 

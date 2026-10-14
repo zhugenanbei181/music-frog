@@ -1,5 +1,5 @@
 //! Shared display fold for the typed Mixin catalogue and real cascade output.
-use infiltrator_ports::profile_document_codec::{
+use infiltrator_contract::profile_mixin_studio::{
     ProfileMixinCascade, ProfileMixinCascadeStage, ProfileMixinCascadeStageId, ProfileMixinColumn,
     ProfileMixinColumnRole, ProfileMixinPreflight, ProfileMixinStageDeclaration,
     ProfileMixinToggleId,
@@ -122,40 +122,5 @@ pub fn preflight_detail(preflight: &ProfileMixinPreflight, locale: &str) -> Stri
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn captions_preserve_missing_stages_actual_line_counts_and_blocking_causes() {
-        let columns = ProfileMixinColumn {
-            role: ProfileMixinColumnRole::Overlay,
-            content: "ipv6: true\n".into(),
-            editable: true,
-            line_count: 1,
-        };
-        assert_eq!(
-            column_caption(&columns, "en-US"),
-            "Mixin overlay · 1 lines · editable"
-        );
-        let report = ProfileMixinCascade::Merged {
-            stages: vec![
-                ProfileMixinCascadeStage {
-                    id: ProfileMixinCascadeStageId::Base,
-                    declaration: ProfileMixinStageDeclaration::Applied,
-                    line_count: 2,
-                },
-                ProfileMixinCascadeStage {
-                    id: ProfileMixinCascadeStageId::Subscription,
-                    declaration: ProfileMixinStageDeclaration::Undeclared,
-                    line_count: 2,
-                },
-            ],
-            line_count: 2,
-        };
-        assert!(cascade_caption(&report, "en-US").contains("Subscription (not declared)"));
-        assert!(cascade_caption(&report, "zh-CN").contains("未声明"));
-        assert_eq!(
-            composed_error(Some("cause {error}/中文🙂"), "en-US"),
-            "Composition blocked: cause {error}/中文🙂"
-        );
-    }
-}
+#[path = "mixin_studio_projection_tests.rs"]
+mod tests;

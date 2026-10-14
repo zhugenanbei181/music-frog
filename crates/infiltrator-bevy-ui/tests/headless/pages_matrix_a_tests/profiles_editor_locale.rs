@@ -13,9 +13,9 @@ use infiltrator_bevy_ui::pages::profiles_editor_panes::{
 use infiltrator_bevy_ui::pages::profiles_editor_state::ProfileEditorState;
 use infiltrator_bevy_widgets::editor::state::CodeEditorState;
 use infiltrator_bevy_widgets::localization::UiLocale;
+use infiltrator_contract::profile_mixin_studio::ProfileMixinColumnRole;
 use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
 use infiltrator_domain::yaml_edit::format::FormatSkipReason;
-use infiltrator_ports::profile_document_codec::ProfileMixinColumnRole;
 
 #[test]
 fn editor_locale_replays_shared_facts_and_keeps_dirty_buffers_cursor_focus_and_entities() {

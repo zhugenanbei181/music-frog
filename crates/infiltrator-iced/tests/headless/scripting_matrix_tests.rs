@@ -6,10 +6,10 @@
 use infiltrator_application::script_application::ScriptApplication;
 use infiltrator_application::script_export_application::ScriptExportApplication;
 use infiltrator_application::script_sandbox_matrix_application::ScriptSandboxMatrixApplication;
-use infiltrator_contract::script_export::{ScriptExportKind, ScriptExportOutcome};
-use infiltrator_ports::profile_document_codec::{
+use infiltrator_contract::profile_mixin_studio::{
     ProfileMixinColumn, ProfileMixinColumnRole, ProfileMixinColumns, ProfileMixinComposition,
 };
+use infiltrator_contract::script_export::{ScriptExportKind, ScriptExportOutcome};
 
 #[test]
 fn script_sandbox_matrix_passes_on_the_iced_surface() {

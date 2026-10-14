@@ -27,6 +27,7 @@ pub mod log_export_actions;
 pub mod log_export_projection;
 pub mod log_projection;
 pub mod logical_rule_projection;
+pub mod mixin_studio_projection;
 pub mod network_status_projection;
 pub mod profile_edit_status_projection;
 pub mod profile_editor_projection;

@@ -18,9 +18,11 @@ use infiltrator_contract::core_identity::{CoreCommandOutcome, CoreCommandRequest
 use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::error::Failure;
 #[cfg(feature = "capture-tools")]
-use infiltrator_ports::core_scope::CoreScopeObservation;
+use infiltrator_contract::profile_mixin_studio::{
+    ProfileMixinStudioObservation, ProfileMixinToggleId,
+};
 #[cfg(feature = "capture-tools")]
-use infiltrator_ports::profile_document_codec::ProfileMixinToggleId;
+use infiltrator_ports::core_scope::CoreScopeObservation;
 #[cfg(feature = "capture-tools")]
 use std::collections::HashMap;
 use std::mem;
@@ -245,8 +247,7 @@ impl UiCommandSink for ApplicationCommandSink {
         identity: &infiltrator_contract::profile_document_identity::ProfileDocumentIdentity,
         document_content: &str,
         mixin_yaml: &str,
-    ) -> Result<infiltrator_ports::profile_document_codec::ProfileMixinStudioProjection, Failure>
-    {
+    ) -> Result<ProfileMixinStudioObservation, Failure> {
         self.application
             .inspect_mixin_studio(identity, document_content, mixin_yaml)
     }

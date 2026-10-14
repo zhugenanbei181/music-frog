@@ -49,7 +49,6 @@ pub mod geo_database_application;
 pub mod language_choice;
 pub mod language_choice_fixtures;
 pub mod mini_hud_application;
-pub mod mixin_studio_projection;
 pub mod mrs_acceleration_application;
 pub mod mtu_application;
 pub mod network_application;

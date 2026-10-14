@@ -18,6 +18,8 @@ use infiltrator_contract::core_identity::{
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document::DocumentInspection;
 use infiltrator_contract::profile_document_identity::ProfileDocumentIdentity;
+use infiltrator_contract::profile_mixin_studio::ProfileMixinStudioObservation;
+use infiltrator_contract::profile_mixin_studio::ProfileMixinToggleId;
 use infiltrator_contract::session::SessionToken;
 use infiltrator_contract::snapshot::{
     CoreEvent, CoreLifecycle, CoreLifecycleSnapshot, CoreSnapshot,
@@ -35,8 +37,6 @@ use infiltrator_ports::geo_database::GeoDatabasePort;
 use infiltrator_ports::outbound::OutboundPort;
 use infiltrator_ports::overview::OverviewReader;
 use infiltrator_ports::profile_document_codec::ProfileDocumentSnippetOutcome;
-use infiltrator_ports::profile_document_codec::ProfileMixinStudioProjection;
-use infiltrator_ports::profile_document_codec::ProfileMixinToggleId;
 use infiltrator_ports::rule_provider_runtime::RuleProviderPort;
 use infiltrator_ports::runtime_stream::RuntimeStreamPort;
 use std::collections::VecDeque;
@@ -454,7 +454,7 @@ impl CoreApplication {
         identity: &ProfileDocumentIdentity,
         document_content: &str,
         mixin_yaml: &str,
-    ) -> Result<ProfileMixinStudioProjection, Failure> {
+    ) -> Result<ProfileMixinStudioObservation, Failure> {
         self.editor_command_handler()?
             .inspect_mixin_studio(identity, document_content, mixin_yaml)
     }

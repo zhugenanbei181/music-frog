@@ -19,13 +19,13 @@ use infiltrator_contract::profile_document::{
     DocumentDiagnosticSnapshot, DocumentInspection, DocumentInspectionUnavailableReason,
     DocumentValidation, ProfileDocumentSnapshot,
 };
+use infiltrator_contract::profile_mixin_studio::ProfileMixinPreflight;
 use infiltrator_contract::profile_protection::{ProfileWriteAuthorization, ProfileWriteProtection};
 use infiltrator_contract::yaml_snippets::{
     SyntaxDiagnosticSnapshot, byte_offset_of_column, column_of_byte_offset,
 };
 use infiltrator_domain::yaml_edit::format::{FormatSkipReason, format_yaml};
 use infiltrator_ports::profile_document_codec::ProfileDocumentSnippetOutcome;
-use infiltrator_ports::profile_document_codec::ProfileMixinPreflight;
 use infiltrator_presentation::profile_edit_status_projection;
 use infiltrator_presentation::profile_editor_projection::{self, EditorStatus};
 

@@ -52,11 +52,11 @@ use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::command::RequestId;
 use infiltrator_contract::error::Failure;
 use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
+use infiltrator_contract::profile_mixin_studio::ProfileMixinStudioObservation;
 use infiltrator_contract::subscription_filter_form::{FilterField, FilterObservation};
 use infiltrator_contract::subscription_import::SubscriptionFilterDedup;
 use infiltrator_contract::subscription_import::SubscriptionFilterDraft;
 use infiltrator_contract::yaml_snippets::YAML_SNIPPETS;
-use infiltrator_ports::profile_document_codec::ProfileMixinStudioProjection;
 use infiltrator_presentation::profile_editor_projection;
 
 /// Which document the editor card shows.
@@ -175,7 +175,7 @@ pub struct ProfileEditorOptionsState {
 pub enum MixinStudioState {
     #[default]
     NotRequested,
-    Available(ProfileMixinStudioProjection),
+    Available(ProfileMixinStudioObservation),
     Unavailable(Failure),
 }
 

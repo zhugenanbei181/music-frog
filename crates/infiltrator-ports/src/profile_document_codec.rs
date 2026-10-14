@@ -9,6 +9,9 @@ use infiltrator_contract::profile_document::DocumentValidation;
 use infiltrator_contract::profile_document_identity::{
     ProfileDocumentIdentity, ProfileFormatId, ProfileSchemaVersion, ProfileWorkspaceIdentity,
 };
+use infiltrator_contract::profile_mixin_studio::{
+    ProfileMixinStudioObservation, ProfileMixinToggleId,
+};
 use infiltrator_contract::protocol_fidelity::{CodecAudit, ProtocolDraft};
 use infiltrator_contract::protocol_trust::TlsTrustParams;
 use infiltrator_contract::provider_cache::KernelEtagSupportSnapshot;
@@ -39,128 +42,6 @@ pub struct ProfileOptionsCodecScope {
 pub struct ProfileOptionsProjection {
     pub mixin_yaml: String,
     pub filter: SubscriptionFilterDraft,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ProfileMixinToggleId {
-    Ipv6,
-    AllowLan,
-    DnsFakeIp,
-    Tun,
-    Sniffer,
-    DebugLog,
-}
-
-impl ProfileMixinToggleId {
-    pub const ALL: [Self; 6] = [
-        Self::Ipv6,
-        Self::AllowLan,
-        Self::DnsFakeIp,
-        Self::Tun,
-        Self::Sniffer,
-        Self::DebugLog,
-    ];
-
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Ipv6 => "ipv6",
-            Self::AllowLan => "allow-lan",
-            Self::DnsFakeIp => "dns-fake-ip",
-            Self::Tun => "tun",
-            Self::Sniffer => "sniffer",
-            Self::DebugLog => "log-level-debug",
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ProfileMixinColumnRole {
-    Base,
-    Overlay,
-    Composed,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ProfileMixinColumn {
-    pub role: ProfileMixinColumnRole,
-    pub content: String,
-    pub editable: bool,
-    pub line_count: usize,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ProfileMixinCascadeStageId {
-    Base,
-    Subscription,
-    Merge,
-    PreMixin,
-    PostMixin,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ProfileMixinStageDeclaration {
-    Applied,
-    Undeclared,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ProfileMixinCascadeStage {
-    pub id: ProfileMixinCascadeStageId,
-    pub declaration: ProfileMixinStageDeclaration,
-    pub line_count: usize,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum ProfileMixinPreflight {
-    Accepted,
-    Blocked { reason: String },
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum ProfileMixinCascade {
-    Merged {
-        stages: Vec<ProfileMixinCascadeStage>,
-        line_count: usize,
-    },
-    Blocked {
-        stages: Vec<ProfileMixinCascadeStage>,
-        reason: String,
-    },
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum ProfileMixinComposition {
-    Produced(ProfileMixinColumn),
-    Blocked { reason: String },
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ProfileMixinColumns {
-    pub base: ProfileMixinColumn,
-    pub overlay: ProfileMixinColumn,
-    pub composed: ProfileMixinComposition,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ProfileMixinToggle {
-    pub id: ProfileMixinToggleId,
-    pub enabled: bool,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum ProfileMixinToggleProjection {
-    Available(Vec<ProfileMixinToggle>),
-    Unavailable { reason: String },
-}
-
-/// One engine-authored, format-neutral Mixin studio projection for the exact
-/// document identity and buffer pair supplied by the editor.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ProfileMixinStudioProjection {
-    pub preflight: ProfileMixinPreflight,
-    pub cascade: ProfileMixinCascade,
-    pub columns: ProfileMixinColumns,
-    pub toggles: ProfileMixinToggleProjection,
 }
 
 /// Result of a Mixin edit, ready for the source-bound workspace transaction.
@@ -454,16 +335,16 @@ pub trait ProfileDocumentCodecPort: Send + Sync {
         ))
     }
 
-    /// Project the current Mixin studio facts using this exact schema adapter.
+    /// Observe the current Mixin studio facts using this exact schema adapter.
     fn inspect_mixin_studio(
         &self,
         _identity: &ProfileDocumentIdentity,
         _document_bytes: &[u8],
         _mixin_yaml: &str,
-    ) -> Result<ProfileMixinStudioProjection, PortError> {
+    ) -> Result<ProfileMixinStudioObservation, PortError> {
         Err(PortError::unsupported(
             Capability::Profiles,
-            "Mixin studio schema projection",
+            "Mixin studio schema observation",
         ))
     }
 

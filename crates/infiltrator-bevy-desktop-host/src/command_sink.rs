@@ -7,8 +7,10 @@ use infiltrator_contract::command::{CommandResult, RequestId};
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::core_identity::{CoreCommandOutcome, CoreCommandRequest};
 use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::profile_mixin_studio::{
+    ProfileMixinStudioObservation, ProfileMixinToggleId,
+};
 use infiltrator_ports::core_scope::CoreScopeObservation;
-use infiltrator_ports::profile_document_codec::ProfileMixinToggleId;
 use std::collections::HashMap;
 use std::sync::mpsc::{Receiver, TryRecvError};
 use std::sync::{Arc, Mutex, RwLock};
@@ -187,8 +189,7 @@ impl UiCommandSink for DesktopCommandSink {
         identity: &infiltrator_contract::profile_document_identity::ProfileDocumentIdentity,
         document_content: &str,
         mixin_yaml: &str,
-    ) -> Result<infiltrator_ports::profile_document_codec::ProfileMixinStudioProjection, Failure>
-    {
+    ) -> Result<ProfileMixinStudioObservation, Failure> {
         self.application
             .inspect_mixin_studio(identity, document_content, mixin_yaml)
     }

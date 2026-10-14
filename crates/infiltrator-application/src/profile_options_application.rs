@@ -13,12 +13,12 @@ use infiltrator_contract::profile_document::ProfileWorkspaceReceipt;
 use infiltrator_contract::profile_document_identity::{
     ProfileDocumentIdentity, ProfileId, ProfileWorkspaceIdentity,
 };
+use infiltrator_contract::profile_mixin_studio::ProfileMixinStudioObservation;
+use infiltrator_contract::profile_mixin_studio::ProfileMixinToggleId;
 use infiltrator_contract::profile_options::ProfileOptionsSnapshot;
 use infiltrator_contract::subscription_filter_result::SubscriptionFilterApplied;
 use infiltrator_contract::subscription_import::SubscriptionFilterDraft;
 use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceApplier;
-use infiltrator_ports::profile_document_codec::ProfileMixinStudioProjection;
-use infiltrator_ports::profile_document_codec::ProfileMixinToggleId;
 use infiltrator_ports::profile_workspace::{
     ProfileWorkspace, ProfileWorkspacePurpose, ProfileWorkspaceUpdate,
 };
@@ -84,7 +84,7 @@ impl ProfileOptionsApplication {
         identity: &ProfileDocumentIdentity,
         document_content: &str,
         mixin_yaml: &str,
-    ) -> Result<ProfileMixinStudioProjection, Failure> {
+    ) -> Result<ProfileMixinStudioObservation, Failure> {
         self.profiles.inspect_profile_mixin_studio(
             identity,
             document_content.as_bytes(),

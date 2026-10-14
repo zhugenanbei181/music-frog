@@ -11,6 +11,10 @@ use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::core_identity::CoreScope;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document::ProfileDocumentSaved;
+use infiltrator_contract::profile_document_identity::ProfileDocumentIdentity;
+use infiltrator_contract::profile_mixin_studio::{
+    ProfileMixinStudioObservation, ProfileMixinToggleId,
+};
 use infiltrator_contract::rule_trace_run::{
     RuleTraceOutboundFacts, RuleTraceOwnerBinding, ScopedRuleTraceRequest,
 };
@@ -321,7 +325,7 @@ fn required_routing_scope(scope: Option<&CoreScope>) -> Result<&CoreScope, Failu
 impl CommandHandler for CommandApplication {
     fn inspect_profile_buffer(
         &self,
-        identity: &infiltrator_contract::profile_document_identity::ProfileDocumentIdentity,
+        identity: &ProfileDocumentIdentity,
         content: &str,
     ) -> Result<infiltrator_contract::profile_document::DocumentInspection, Failure> {
         Ok(self.profile_document()?.inspect_buffer(identity, content))
@@ -352,9 +356,9 @@ impl CommandHandler for CommandApplication {
 
     fn inspect_mixin_toggle(
         &self,
-        identity: &infiltrator_contract::profile_document_identity::ProfileDocumentIdentity,
+        identity: &ProfileDocumentIdentity,
         mixin_yaml: &str,
-        toggle_id: infiltrator_ports::profile_document_codec::ProfileMixinToggleId,
+        toggle_id: ProfileMixinToggleId,
     ) -> Result<bool, Failure> {
         self.profile_options()?
             .inspect_mixin_toggle(identity, mixin_yaml, toggle_id)
@@ -362,9 +366,9 @@ impl CommandHandler for CommandApplication {
 
     fn set_mixin_toggle(
         &self,
-        identity: &infiltrator_contract::profile_document_identity::ProfileDocumentIdentity,
+        identity: &ProfileDocumentIdentity,
         mixin_yaml: &str,
-        toggle_id: infiltrator_ports::profile_document_codec::ProfileMixinToggleId,
+        toggle_id: ProfileMixinToggleId,
         enabled: bool,
     ) -> Result<String, Failure> {
         self.profile_options()?
@@ -373,11 +377,10 @@ impl CommandHandler for CommandApplication {
 
     fn inspect_mixin_studio(
         &self,
-        identity: &infiltrator_contract::profile_document_identity::ProfileDocumentIdentity,
+        identity: &ProfileDocumentIdentity,
         document_content: &str,
         mixin_yaml: &str,
-    ) -> Result<infiltrator_ports::profile_document_codec::ProfileMixinStudioProjection, Failure>
-    {
+    ) -> Result<ProfileMixinStudioObservation, Failure> {
         self.profile_options()?
             .inspect_mixin_studio(identity, document_content, mixin_yaml)
     }

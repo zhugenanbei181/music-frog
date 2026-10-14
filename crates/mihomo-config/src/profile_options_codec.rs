@@ -4,6 +4,12 @@ use crate::profile_document_codec::{PROFILE_FORMAT, PROFILE_SCHEMA_VERSION};
 use crate::profile_option_store;
 use infiltrator_contract::error::{ErrorCode, Failure, FailureReason};
 use infiltrator_contract::profile_document_identity::ProfileDocumentIdentity;
+use infiltrator_contract::profile_mixin_studio::{
+    ProfileMixinCascade, ProfileMixinCascadeStage, ProfileMixinCascadeStageId, ProfileMixinColumn,
+    ProfileMixinColumnRole, ProfileMixinColumns, ProfileMixinComposition, ProfileMixinPreflight,
+    ProfileMixinStageDeclaration, ProfileMixinStudioObservation, ProfileMixinToggle,
+    ProfileMixinToggleId, ProfileMixinToggleObservation,
+};
 use infiltrator_contract::subscription_filter_result::FilterReport;
 use infiltrator_contract::subscription_import::SubscriptionFilterDraft;
 use infiltrator_domain::filter::SubscriptionFilterPipeline;
@@ -14,11 +20,7 @@ use infiltrator_domain::mixin::{
 use infiltrator_domain::profile_options::{ProfileOptions, compose_content, strip_rule_lines};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_document_codec::{
-    ProfileDocumentCodecScope, ProfileFilterMutation, ProfileMixinCascade,
-    ProfileMixinCascadeStage, ProfileMixinCascadeStageId, ProfileMixinColumn,
-    ProfileMixinColumnRole, ProfileMixinColumns, ProfileMixinComposition, ProfileMixinMutation,
-    ProfileMixinPreflight, ProfileMixinStageDeclaration, ProfileMixinStudioProjection,
-    ProfileMixinToggle, ProfileMixinToggleId, ProfileMixinToggleProjection,
+    ProfileDocumentCodecScope, ProfileFilterMutation, ProfileMixinMutation,
     ProfileOptionsCodecScope, ProfileOptionsProjection,
 };
 use std::fmt::Display;
@@ -133,7 +135,7 @@ pub fn inspect_mixin_studio(
     identity: &ProfileDocumentIdentity,
     document_bytes: &[u8],
     mixin_yaml: &str,
-) -> Result<ProfileMixinStudioProjection, PortError> {
+) -> Result<ProfileMixinStudioObservation, PortError> {
     ensure_document_scope(identity)?;
     let preflight = match apply_mixin(identity, document_bytes, None, mixin_yaml) {
         Ok(_) => ProfileMixinPreflight::Accepted,
@@ -184,7 +186,7 @@ pub fn inspect_mixin_studio(
         composed,
     };
     let toggles = match parse_mixin_yaml(mixin_yaml) {
-        Ok(config) => ProfileMixinToggleProjection::Available(
+        Ok(config) => ProfileMixinToggleObservation::Available(
             ProfileMixinToggleId::ALL
                 .into_iter()
                 .map(|id| ProfileMixinToggle {
@@ -193,11 +195,11 @@ pub fn inspect_mixin_studio(
                 })
                 .collect(),
         ),
-        Err(error) => ProfileMixinToggleProjection::Unavailable {
+        Err(error) => ProfileMixinToggleObservation::Unavailable {
             reason: error.to_string(),
         },
     };
-    Ok(ProfileMixinStudioProjection {
+    Ok(ProfileMixinStudioObservation {
         preflight,
         cascade,
         columns,

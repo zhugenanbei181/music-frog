@@ -2092,6 +2092,47 @@
       "source_roots": [
         "crates/infiltrator-application/src/lib.rs"
       ]
+    },
+    {
+      "id": "application-mixin-studio-projection-module",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "mixin_studio_projection",
+      "rationale": "Shared Mixin Studio display projection moved from application to infiltrator-presentation.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/mixin_studio_projection_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src/lib.rs"
+      ]
+    },
+    {
+      "id": "ports-mixin-studio-projection-type",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "ProfileMixinStudioProjection",
+      "rationale": "The adapter-authored Mixin facts are a serialized contract observation; ports no longer owns a cross-layer projection DTO.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-contract/src/profile_mixin_studio_tests.rs",
+        "crates/mihomo-config/src/profile_options_codec_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-ports/src/profile_document_codec.rs"
+      ]
+    },
+    {
+      "id": "ports-mixin-toggle-projection-type",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "ProfileMixinToggleProjection",
+      "rationale": "Mixin toggle availability is a contract-owned typed observation, not a ports-owned projection type.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-contract/src/profile_mixin_studio_tests.rs",
+        "crates/mihomo-config/src/profile_options_codec_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-ports/src/profile_document_codec.rs"
+      ]
     }
   ]
 }

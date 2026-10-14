@@ -26,6 +26,7 @@ use infiltrator_application::rule_provider_application::ProviderUnpackPlan;
 use infiltrator_application::runtime_configuration_application::RuntimeConfigurationReadout;
 use infiltrator_contract::command::CoreLogLevel;
 use infiltrator_contract::outbound::{identity, inventory, preferences, probe};
+use infiltrator_contract::profile_mixin_studio::ProfileMixinToggleId;
 use infiltrator_contract::rule_provider_snapshot::RuleProviderControllerReference;
 use infiltrator_contract::{
     aggregator, command_catalogue, command_output, core_control, core_identity, dialer_chain, dns,
@@ -46,7 +47,6 @@ use infiltrator_domain::{
     settings::AppSettings,
 };
 use infiltrator_ports::host_runtime::TunServiceStatus;
-use infiltrator_ports::profile_document_codec::ProfileMixinToggleId;
 use infiltrator_presentation::routing_intent_actions::PendingRoutingIntentChange;
 use infiltrator_presentation::rule_statistics_workbench::StatisticsAction;
 use std::{path::PathBuf, time::Instant};

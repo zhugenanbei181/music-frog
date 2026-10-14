@@ -9,12 +9,12 @@ use infiltrator_contract::core_identity::{CoreCommandOutcome, CoreScope};
 use infiltrator_contract::error::Failure;
 use infiltrator_contract::profile_document::DocumentInspection;
 use infiltrator_contract::profile_document_identity::ProfileDocumentIdentity;
+use infiltrator_contract::profile_mixin_studio::{
+    ProfileMixinStudioObservation, ProfileMixinToggleId,
+};
 use infiltrator_contract::snapshot::CoreSnapshot;
 use infiltrator_contract::speedtest::SpeedtestSnapshot;
 use infiltrator_ports::profile_document_codec::ProfileDocumentSnippetOutcome;
-use infiltrator_ports::profile_document_codec::{
-    ProfileMixinStudioProjection, ProfileMixinToggleId,
-};
 
 #[derive(Clone)]
 pub(crate) struct CoreCommandIngress {
@@ -111,7 +111,7 @@ impl CoreCommandIngress {
         identity: &ProfileDocumentIdentity,
         document_content: &str,
         mixin_yaml: &str,
-    ) -> Result<ProfileMixinStudioProjection, Failure> {
+    ) -> Result<ProfileMixinStudioObservation, Failure> {
         self.application
             .inspect_mixin_studio(identity, document_content, mixin_yaml)
     }
