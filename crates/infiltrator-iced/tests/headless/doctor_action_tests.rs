@@ -7,7 +7,6 @@ use futures_util::StreamExt;
 use iced::Task;
 use iced::advanced::widget::Tree;
 use iced_runtime::{Action, task::into_stream};
-use infiltrator_application::doctor_actions::DoctorActionPhase;
 use infiltrator_application::doctor_application::DoctorApplication;
 use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_contract::capability::Capability;
@@ -19,6 +18,7 @@ use infiltrator_iced::state::AppState;
 use infiltrator_iced::types::app::Route;
 use infiltrator_iced::types::message::Message;
 use infiltrator_ports::surface::SurfaceReader;
+use infiltrator_presentation::doctor_actions::DoctorActionPhase;
 use std::sync::{Arc, atomic::Ordering};
 use tokio::runtime::Builder;
 

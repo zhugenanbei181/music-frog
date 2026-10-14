@@ -18,13 +18,13 @@ use iced::Task;
 use iced_runtime::Action;
 use iced_runtime::task::into_stream;
 use infiltrator_application::command_application::CommandApplication;
-use infiltrator_application::language_choice::project_language;
 use infiltrator_application::settings_application::SettingsApplication;
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_core::factory_reset::execute;
 use infiltrator_core::profile_reset::reset_profiles_to_default;
 use infiltrator_core::settings_io;
 use infiltrator_domain::settings::AppSettings;
+use infiltrator_presentation::language_choice::{LanguageChoicePhase, project_language};
 use std::fs::{create_dir_all, write};
 use std::sync::Arc;
 
@@ -322,15 +322,13 @@ fn rejected_language_command_retains_the_current_locale_and_exposes_retry() {
     feed(&mut state, language_terminal(task));
     assert_eq!(state.shell.lang, current);
     let failure = match &state.shell.language_choice.phase {
-        infiltrator_application::language_choice::LanguageChoicePhase::Failed {
-            failure, ..
-        } => failure,
+        LanguageChoicePhase::Failed { failure, .. } => failure,
         phase => panic!("language rejection must remain explicit: {phase:?}"),
     };
     assert_eq!(failure.message, "profile is read-only");
     assert!(matches!(
         &state.shell.language_choice.phase,
-        infiltrator_application::language_choice::LanguageChoicePhase::Failed { .. }
+        LanguageChoicePhase::Failed { .. }
     ));
     assert_eq!(handler.0.lock().unwrap().len(), 1);
 }

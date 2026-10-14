@@ -42,6 +42,8 @@ use infiltrator_ports::runtime_configuration::{
     LanAuthenticationState, LanSecurityConfiguration, LanSharingConfiguration, ObservedValue,
     ProxyPortsConfiguration, SnifferConfiguration, TunConfiguration,
 };
+use infiltrator_presentation::language_choice::LanguageChoicePhase;
+use infiltrator_presentation::profile_edit_session::ProfileEditOperationPhase;
 use infiltrator_shared::locales::{Lang, Localizer};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -520,14 +522,10 @@ fn test_editor_actions() {
     }));
     assert_eq!(
         match &state.editor.document_session.operation {
-            infiltrator_presentation::profile_edit_session::ProfileEditOperationPhase::Failed(
-                failure,
-            ) => failure.code.clone(),
-            infiltrator_presentation::profile_edit_session::ProfileEditOperationPhase::Ready
-            | infiltrator_presentation::profile_edit_session::ProfileEditOperationPhase::Pending(
-                _,
-            )
-            | infiltrator_presentation::profile_edit_session::ProfileEditOperationPhase::Saved => {
+            ProfileEditOperationPhase::Failed(failure) => failure.code.clone(),
+            ProfileEditOperationPhase::Ready
+            | ProfileEditOperationPhase::Pending(_)
+            | ProfileEditOperationPhase::Saved => {
                 panic!("mismatched terminal output must be a typed failure")
             }
         },
@@ -535,7 +533,7 @@ fn test_editor_actions() {
     );
     assert!(!matches!(
         &state.editor.document_session.operation,
-        infiltrator_presentation::profile_edit_session::ProfileEditOperationPhase::Saved
+        ProfileEditOperationPhase::Saved
     ));
     assert_eq!(state.shell.current_route, Route::Editor);
 }
@@ -730,15 +728,15 @@ fn test_p0_ip_probe_metadata_and_explicit_language() {
     );
     assert_eq!(
         match &state.shell.language_choice.phase {
-            infiltrator_application::language_choice::LanguageChoicePhase::Rejected(failure) => {
+            LanguageChoicePhase::Rejected(failure) => {
                 failure.code.clone()
             }
-            infiltrator_application::language_choice::LanguageChoicePhase::Ready
-            | infiltrator_application::language_choice::LanguageChoicePhase::Pending(_)
-            | infiltrator_application::language_choice::LanguageChoicePhase::Failed { .. }
-            | infiltrator_application::language_choice::LanguageChoicePhase::AwaitingObservation {
-                ..
-            } => panic!("uncomposed language change must be rejected"),
+            LanguageChoicePhase::Ready
+            | LanguageChoicePhase::Pending(_)
+            | LanguageChoicePhase::Failed { .. }
+            | LanguageChoicePhase::AwaitingObservation { .. } => {
+                panic!("uncomposed language change must be rejected")
+            }
         },
         ErrorCode::NotReady
     );

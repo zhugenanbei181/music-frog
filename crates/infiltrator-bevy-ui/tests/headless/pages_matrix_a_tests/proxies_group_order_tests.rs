@@ -58,8 +58,12 @@ fn test_proxies_node_detail_drawer_and_group_reorder() {
         GroupOrderDialogState::Editing
     );
     assert_ne!(
-        app.world().resource::<GroupOrderState>().editor.draft,
-        app.world().resource::<GroupOrderState>().editor.baseline
+        app.world().resource::<GroupOrderState>().editor.draft(),
+        app.world()
+            .resource::<GroupOrderState>()
+            .editor
+            .baseline()
+            .unwrap()
     );
 
     // 3. Reset group order activation (DUAL-04-12)

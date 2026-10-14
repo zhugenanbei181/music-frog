@@ -208,7 +208,7 @@ impl AppState {
             Message::RetryLanguageChoice => self.retry_language_choice(),
             Message::ApplyProxyGroupOrder => self.apply_group_order(),
             Message::CancelProxyGroupOrder => {
-                if self.runtime.group_order_editor.pending.is_none() {
+                if !self.runtime.group_order_editor.is_pending() {
                     self.runtime.group_order_editor.cancel();
                     self.runtime.group_order_dialog = ProxyGroupOrderDialogState::Closed;
                 }

@@ -24,7 +24,6 @@ use bevy::ui::{
     UiRect, percent, px,
 };
 use bevy::ui_widgets::{Activate, Button, ScrollArea};
-use infiltrator_application::proxy_group_order_editor::{GroupMove, GroupOrderOperation};
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText, UiLocale};
@@ -43,136 +42,10 @@ use infiltrator_contract::outbound::{
     preferences::{OutboundUiPreferenceIntent, OutboundUiPreferenceRequest},
 };
 use infiltrator_contract::surface_snapshot::PageStatus;
+use infiltrator_presentation::proxy_group_order_editor::{
+    GroupMove, GroupOrderFinish, GroupOrderOperation, ProxyGroupOrderEditor,
+};
 use std::collections::{HashMap, HashSet};
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct PendingGroupOrder {
-    pub token: u64,
-    pub groups: Vec<OutboundId>,
-    pub inventory_revision: SnapshotRevision,
-    pub operation: GroupOrderOperation,
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct TypedGroupOrderEditor {
-    pub baseline: Vec<OutboundId>,
-    pub default_order: Vec<OutboundId>,
-    pub draft: Vec<OutboundId>,
-    pub opened_revision: Option<SnapshotRevision>,
-    pub failure: Option<Failure>,
-    pub observation_failure: Option<Failure>,
-    pub pending: Option<PendingGroupOrder>,
-    pub operation: GroupOrderOperation,
-    next_token: u64,
-}
-impl TypedGroupOrderEditor {
-    fn open(
-        &mut self,
-        current: Vec<OutboundId>,
-        default_order: Vec<OutboundId>,
-        revision: SnapshotRevision,
-    ) {
-        self.baseline = current.clone();
-        self.draft = current;
-        self.default_order = default_order;
-        self.opened_revision = Some(revision);
-        self.failure = None;
-        self.observation_failure = None;
-        self.pending = None;
-        self.operation = GroupOrderOperation::Reorder;
-    }
-
-    fn move_group(&mut self, id: &OutboundId, direction: GroupMove) {
-        if self.pending.is_some() {
-            return;
-        }
-        let Some(index) = self.draft.iter().position(|item| item == id) else {
-            return;
-        };
-        let target = match direction {
-            GroupMove::Up => index.checked_sub(1),
-            GroupMove::Down => (index + 1 < self.draft.len()).then_some(index + 1),
-        };
-        if let Some(target) = target {
-            self.draft.swap(index, target);
-            self.operation = GroupOrderOperation::Reorder;
-        }
-    }
-
-    fn reset_draft(&mut self) {
-        if self.pending.is_none() {
-            self.draft.clone_from(&self.default_order);
-            self.operation = GroupOrderOperation::ResetToInventory;
-        }
-    }
-
-    pub fn can_apply(&self) -> bool {
-        self.pending.is_none()
-            && self.observation_failure.is_none()
-            && self.opened_revision.is_some()
-            && self.draft != self.baseline
-    }
-
-    fn begin(&mut self) -> Option<PendingGroupOrder> {
-        if !self.can_apply() {
-            return None;
-        }
-        self.next_token = self.next_token.wrapping_add(1).max(1);
-        let pending = PendingGroupOrder {
-            token: self.next_token,
-            groups: self.draft.clone(),
-            inventory_revision: self.opened_revision?,
-            operation: self.operation,
-        };
-        self.pending = Some(pending.clone());
-        Some(pending)
-    }
-
-    fn finish(&mut self, token: u64, result: Result<(), Failure>) -> bool {
-        if !self
-            .pending
-            .as_ref()
-            .is_some_and(|pending| pending.token == token)
-        {
-            return false;
-        }
-        self.pending = None;
-        match result {
-            Ok(()) => {
-                self.baseline.clone_from(&self.draft);
-                self.failure = None;
-                self.observation_failure = None;
-                self.operation = GroupOrderOperation::Reorder;
-                true
-            }
-            Err(failure) => {
-                self.failure = Some(failure);
-                false
-            }
-        }
-    }
-
-    fn observe(&mut self, current: Result<(Vec<OutboundId>, SnapshotRevision), Failure>) {
-        let (groups, revision) = match current {
-            Ok(observation) => observation,
-            Err(failure) => {
-                self.observation_failure = Some(failure);
-                return;
-            }
-        };
-        self.observation_failure = None;
-        if self.pending.is_some() || self.opened_revision == Some(revision) {
-            return;
-        }
-        if groups != self.baseline {
-            self.observation_failure = Some(Failure::new(
-                ErrorCode::InvalidState,
-                "outbound collection order changed while the editor was open",
-                true,
-            ));
-        }
-    }
-}
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum GroupOrderDialogState {
@@ -184,8 +57,18 @@ pub enum GroupOrderDialogState {
 #[derive(Resource, Default)]
 pub struct GroupOrderState {
     pub dialog: GroupOrderDialogState,
-    pub editor: TypedGroupOrderEditor,
-    pub request: Option<(RequestId, u64, OutboundUiPreferenceRequest)>,
+    pub editor: ProxyGroupOrderEditor,
+    pub request: GroupOrderRequestState,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub enum GroupOrderRequestState {
+    #[default]
+    Idle,
+    Submitted {
+        request_id: RequestId,
+        request: OutboundUiPreferenceRequest,
+    },
 }
 #[derive(Component, Clone, Debug, Default)]
 pub enum GroupOrderAction {
@@ -425,13 +308,12 @@ pub fn activate_order(
     if external.is_some() && state.dialog != GroupOrderDialogState::Editing {
         match observed_group_order(&latest) {
             Ok((current, default_order, revision, _)) => {
-                state.editor.open(current, default_order, revision);
-                state.dialog = GroupOrderDialogState::Editing;
+                match state.editor.open(current, default_order, revision) {
+                    Ok(()) => state.dialog = GroupOrderDialogState::Editing,
+                    Err(failure) => state.editor.reject(failure),
+                }
             }
-            Err(failure) => {
-                state.editor.observation_failure = Some(failure);
-                return;
-            }
+            Err(failure) => state.editor.reject(failure),
         }
     }
     let Some(action) = external.or_else(|| controls.actions.get(event.entity).ok().cloned()) else {
@@ -449,15 +331,16 @@ pub fn activate_order(
         }
         GroupOrderAction::Reset => state.editor.reset_draft(),
         GroupOrderAction::Cancel => {
-            if state.editor.pending.is_none() {
-                state.editor = TypedGroupOrderEditor::default();
+            if !state.editor.is_pending() {
+                state.editor = ProxyGroupOrderEditor::default();
+                state.request = GroupOrderRequestState::Idle;
                 state.dialog = GroupOrderDialogState::Closed;
             }
         }
         GroupOrderAction::Apply => {
-            state.editor.failure = None;
-            let Some(pending) = state.editor.begin() else {
-                return;
+            let pending = match state.editor.begin() {
+                Ok(pending) => pending,
+                Err(_) => return,
             };
             let Some(preferences) = outbound_ui_preferences(&latest.0) else {
                 state.editor.finish(
@@ -510,7 +393,10 @@ pub fn activate_order(
                     request: request.clone(),
                 })
             }) {
-                state.request = Some((request_id, pending.token, request));
+                state.request = GroupOrderRequestState::Submitted {
+                    request_id,
+                    request,
+                };
             } else {
                 state.editor.finish(
                     pending.token,
@@ -526,7 +412,11 @@ pub fn activate_order(
 }
 
 pub fn finish_order(event: On<CommandExecutedEvent>, mut state: ResMut<GroupOrderState>) {
-    let Some((request_id, token, request)) = state.request.clone() else {
+    let GroupOrderRequestState::Submitted {
+        request_id,
+        request,
+    } = state.request.clone()
+    else {
         return;
     };
     if event.request_id != request_id
@@ -551,14 +441,18 @@ pub fn finish_order(event: On<CommandExecutedEvent>, mut state: ResMut<GroupOrde
             false,
         )),
     };
-    let success = result.is_ok();
-    if state.editor.finish(token, result) {
-        state.request = None;
-        if success {
+    let Some(token) = state.editor.pending().map(|pending| pending.token) else {
+        state.request = GroupOrderRequestState::Idle;
+        return;
+    };
+    match state.editor.finish(token, result) {
+        GroupOrderFinish::Applied => {
+            state.request = GroupOrderRequestState::Idle;
             state.dialog = GroupOrderDialogState::Closed;
         }
-    } else if state.editor.pending.is_none() {
-        state.request = None;
+        GroupOrderFinish::Failed | GroupOrderFinish::Stale => {
+            state.request = GroupOrderRequestState::Idle;
+        }
     }
 }
 
@@ -572,15 +466,16 @@ pub fn sync_order_editor(
         return;
     }
     if route.0 != Some(Route::Proxies) {
-        if state.editor.pending.is_none() {
-            state.editor = TypedGroupOrderEditor::default();
+        if !state.editor.is_pending() {
+            state.editor = ProxyGroupOrderEditor::default();
+            state.request = GroupOrderRequestState::Idle;
         }
         state.dialog = GroupOrderDialogState::Closed;
         return;
     }
-    if keys.is_some_and(|keys| keys.just_pressed(KeyCode::Escape)) && state.editor.pending.is_none()
-    {
-        state.editor = TypedGroupOrderEditor::default();
+    if keys.is_some_and(|keys| keys.just_pressed(KeyCode::Escape)) && !state.editor.is_pending() {
+        state.editor = ProxyGroupOrderEditor::default();
+        state.request = GroupOrderRequestState::Idle;
         state.dialog = GroupOrderDialogState::Closed;
         return;
     }
@@ -618,7 +513,7 @@ pub fn reconcile_order_rows(
         })
         .unwrap_or_default();
     let existing: HashSet<_> = rows.iter().map(|(_, row)| row.id.clone()).collect();
-    for id in &state.editor.draft {
+    for id in state.editor.draft() {
         if !existing.contains(id) {
             let label = labels
                 .get(id)
@@ -630,7 +525,7 @@ pub fn reconcile_order_rows(
         }
     }
     for (entity, row) in &rows {
-        if !state.editor.draft.contains(&row.id) {
+        if !state.editor.draft().contains(&row.id) {
             commands.entity(entity).despawn();
         }
     }
@@ -643,7 +538,7 @@ pub fn sort_order_rows(
 ) {
     let ranks: HashMap<_, _> = state
         .editor
-        .draft
+        .draft()
         .iter()
         .enumerate()
         .map(|(rank, id)| (id, rank))
@@ -690,18 +585,18 @@ pub fn sync_order_surface(
                 group_id,
                 direction,
             } => {
-                state.editor.pending.is_some()
+                state.editor.is_pending()
                     || state
                         .editor
-                        .draft
+                        .draft()
                         .iter()
                         .position(|item| item == group_id)
                         .is_none_or(|index| match direction {
                             GroupMove::Up => index == 0,
-                            GroupMove::Down => index + 1 == state.editor.draft.len(),
+                            GroupMove::Down => index + 1 == state.editor.draft().len(),
                         })
             }
-            _ => state.editor.pending.is_some(),
+            _ => state.editor.is_pending(),
         };
         if button.0 != disabled {
             button.0 = disabled;
@@ -709,12 +604,11 @@ pub fn sync_order_surface(
     }
     let message = state
         .editor
-        .failure
-        .as_ref()
-        .or(state.editor.observation_failure.as_ref())
+        .failure()
+        .or_else(|| state.editor.observation_failure())
         .map(|failure| failure.message.clone())
         .unwrap_or_else(|| {
-            if state.editor.pending.is_some() {
+            if state.editor.is_pending() {
                 LocalizedText::plain("core_control_pending").render(&locale)
             } else {
                 String::new()

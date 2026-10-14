@@ -2,9 +2,9 @@
 use crate::state::AppState;
 use crate::types::message::Message;
 use iced::Task;
-use infiltrator_application::doctor_actions::DoctorActionPhase;
 use infiltrator_contract::doctor::DoctorAction;
 use infiltrator_contract::surface_snapshot::PageStatus;
+use infiltrator_presentation::doctor_actions::DoctorActionPhase;
 
 #[derive(Clone, Copy)]
 enum DoctorActionAvailability {
@@ -21,12 +21,12 @@ impl AppState {
         let Some(application) = self.command_ingress() else {
             return Task::none();
         };
+        self.diag.doctor.clear_local_failure();
         let pending = match self.diag.doctor.action.begin(action) {
             Ok(pending) => pending,
             Err(_) => return Task::none(),
         };
         let token = pending.token;
-        self.diag.doctor.error = None;
         Task::perform(
             async move {
                 match (application.execute(pending.action.intent()).await).into_unit() {
@@ -50,12 +50,12 @@ impl AppState {
         let Some(application) = self.command_ingress() else {
             return Task::none();
         };
+        self.diag.doctor.clear_local_failure();
         let pending = match self.diag.doctor.action.begin_retry() {
             Ok(pending) => pending,
             Err(_) => return Task::none(),
         };
         let token = pending.token;
-        self.diag.doctor.error = None;
         Task::perform(
             async move {
                 match (application.execute(pending.action.intent()).await).into_unit() {

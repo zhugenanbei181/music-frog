@@ -12,9 +12,9 @@ use infiltrator_shared::locales::{Lang, Localizer};
 pub fn group_order_modal(state: &AppState) -> Element<'_, Message> {
     let lang = Lang(&state.shell.lang);
     let editor = &state.runtime.group_order_editor;
-    let pending = editor.pending.is_some();
+    let pending = editor.is_pending();
     let mut groups = column![].spacing(8);
-    for (index, group_id) in editor.draft.iter().enumerate() {
+    for (index, group_id) in editor.draft().iter().enumerate() {
         let name = state
             .runtime
             .proxy_groups
@@ -28,7 +28,7 @@ pub fn group_order_modal(state: &AppState) -> Element<'_, Message> {
                     (!pending && index > 0).then(|| Message::MoveProxyGroupUp(group_id.clone()))
                 ),
                 button(text("▼")).style(style_ghost).on_press_maybe(
-                    (!pending && index + 1 < editor.draft.len())
+                    (!pending && index + 1 < editor.draft().len())
                         .then(|| Message::MoveProxyGroupDown(group_id.clone()))
                 ),
             ]
@@ -37,9 +37,8 @@ pub fn group_order_modal(state: &AppState) -> Element<'_, Message> {
         );
     }
     let failure = editor
-        .failure
-        .as_ref()
-        .or(editor.observation_failure.as_ref())
+        .failure()
+        .or(editor.observation_failure())
         .map(|failure| failure.message.as_str())
         .unwrap_or_default();
     let body = container(

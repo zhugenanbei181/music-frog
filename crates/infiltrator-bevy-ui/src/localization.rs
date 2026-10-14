@@ -4,8 +4,8 @@ use crate::surface::LatestSurfaceSnapshot;
 use bevy::app::{App, Plugin, Update};
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Res, ResMut};
-use infiltrator_application::language_choice::LanguageReadPhase;
 use infiltrator_bevy_widgets::localization::{LocaleCopySet, UiLocale, WidgetLocalizationPlugin};
+use infiltrator_presentation::language_choice::LanguageReadPhase;
 
 pub struct LocalizationPlugin;
 impl Plugin for LocalizationPlugin {

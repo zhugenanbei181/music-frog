@@ -6,10 +6,10 @@ use crate::view::component_forms::{style_accent, style_ghost};
 use crate::view_root::interaction_regions::InteractionRegion;
 use iced::widget::{button, column, container, row, text};
 use iced::{Element, Length};
-use infiltrator_application::language_choice::{
+use infiltrator_contract::language::LanguagePreference;
+use infiltrator_presentation::language_choice::{
     LanguageChoicePhase, LanguagePersistence, LanguageReadPhase,
 };
-use infiltrator_contract::language::LanguagePreference;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 pub fn language_card(state: &AppState) -> Element<'_, Message> {

@@ -46,7 +46,13 @@ impl DoctorActionState {
                 true,
             ));
         }
-        self.next_token += 1;
+        self.next_token = self.next_token.checked_add(1).ok_or_else(|| {
+            Failure::new(
+                ErrorCode::InvalidState,
+                "diagnostic action token exhausted",
+                false,
+            )
+        })?;
         let pending = PendingDoctorAction {
             token: self.next_token,
             action,
@@ -91,41 +97,5 @@ impl DoctorActionState {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn busy_and_stale_results_cannot_complete_or_replace_a_request_and_retry_keeps_its_identity() {
-        let mut state = DoctorActionState::default();
-        assert!(state.begin_retry().is_err());
-        let first = state
-            .begin(DoctorAction::RepairOne("config.integrity".into()))
-            .unwrap();
-        assert!(state.begin(DoctorAction::Bootstrap).is_err());
-        assert_eq!(
-            state.finish(first.token + 1, Ok(())),
-            DoctorActionFinish::Stale
-        );
-        assert_eq!(state.phase, DoctorActionPhase::Pending(first.clone()));
-        let failure = Failure::new(ErrorCode::Permission, "privilege required", true);
-        assert_eq!(
-            state.finish(first.token, Err(failure.clone())),
-            DoctorActionFinish::Applied
-        );
-        assert_eq!(
-            state.phase,
-            DoctorActionPhase::Failed {
-                failure,
-                retry_action: first.action.clone(),
-            }
-        );
-        let second = state.begin_retry().unwrap();
-        assert!(second.token > first.token);
-        assert_eq!(state.finish(first.token, Ok(())), DoctorActionFinish::Stale);
-        assert_eq!(state.phase, DoctorActionPhase::Pending(second.clone()));
-        assert_eq!(
-            state.finish(second.token, Ok(())),
-            DoctorActionFinish::Applied
-        );
-        assert_eq!(state.phase, DoctorActionPhase::Idle);
-    }
-}
+#[path = "doctor_actions_tests.rs"]
+mod tests;

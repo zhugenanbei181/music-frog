@@ -2562,6 +2562,318 @@
       "source_roots": [
         "crates/infiltrator-application/src"
       ]
+    },
+    {
+      "id": "application-doctor-actions-module",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "doctor_actions",
+      "rationale": "The pure correlated Doctor reducer moved to infiltrator-presentation; Application retains diagnostic execution.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/doctor_actions_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "application-pending-doctor-action",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "PendingDoctorAction",
+      "rationale": "Correlated Doctor request identity is part of the shared Presentation reducer API, not Application.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/doctor_actions_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "application-doctor-action-phase",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "DoctorActionPhase",
+      "rationale": "Doctor operation phases are owned by the shared Presentation reducer, not Application.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/doctor_actions_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "application-doctor-action-finish",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "DoctorActionFinish",
+      "rationale": "Doctor terminal feedback outcomes are shared Presentation results, not Application services.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/doctor_actions_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "application-doctor-action-state",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "DoctorActionState",
+      "rationale": "The typed Doctor action reducer is shared presentation state and is no longer an Application API.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/doctor_actions_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "application-language-choice-module",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "language_choice",
+      "rationale": "The pure language preference projection and choice reducer moved to infiltrator-presentation; settings persistence remains in Application.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/language_choice_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "application-project-language",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "project_language",
+      "rationale": "Language settings projection is presentation behavior, not an Application API.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/language_choice_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "application-pending-language-choice",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "PendingLanguageChoice",
+      "rationale": "Correlated language choice request identity is part of the shared Presentation reducer API.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/language_choice_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "application-language-read-phase",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "LanguageReadPhase",
+      "rationale": "Language read and last-known states are shared presentation state, not Application APIs.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/language_choice_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "application-language-persistence",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "LanguagePersistence",
+      "rationale": "Language persistence availability is a shared typed presentation fact; Application retains the write use case.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/language_choice_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "application-language-choice-phase",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "LanguageChoicePhase",
+      "rationale": "Language save transitions are owned by the shared Presentation reducer, not Application.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/language_choice_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "application-language-choice-finish",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "LanguageChoiceFinish",
+      "rationale": "Language choice terminal feedback is a shared Presentation result, not an Application service.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/language_choice_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "application-language-choice-state",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "LanguageChoiceState",
+      "rationale": "The typed language choice reducer is shared presentation state and is no longer an Application API.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/language_choice_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "application-proxy-group-order-editor-module",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "proxy_group_order_editor",
+      "rationale": "The shared typed proxy-order draft and receipt reducer moved to infiltrator-presentation.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/proxy_group_order_editor_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "application-proxy-group-move",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "GroupMove",
+      "rationale": "Proxy group movement is a shared Presentation intent used by all surfaces.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/proxy_group_order_editor_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "application-proxy-group-order-operation",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "GroupOrderOperation",
+      "rationale": "Reorder and reset operations are shared typed Presentation state.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/proxy_group_order_editor_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "application-pending-group-order",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "PendingGroupOrder",
+      "rationale": "Correlated group-order submission state is owned by the shared Presentation reducer.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/proxy_group_order_editor_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "application-proxy-group-order-editor",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "ProxyGroupOrderEditor",
+      "rationale": "The proxy order state machine is shared typed Presentation behavior, not an Application API.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/proxy_group_order_editor_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "application-proxy-group-order-finish",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "GroupOrderFinish",
+      "rationale": "Group-order terminal outcomes are explicit shared Presentation results.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/proxy_group_order_editor_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "application-proxy-group-order-validation",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "validate_order",
+      "rationale": "Group-order validation belongs to the shared Presentation contract and reducer.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/proxy_group_order_editor_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-application/src"
+      ]
+    },
+    {
+      "id": "iced-doctor-running-flag",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "is_running",
+      "rationale": "Doctor check progress is represented by DoctorPanelOperation instead of an independent flag.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-iced/tests/gui/doctor_flow_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-iced/src/types/doctor.rs"
+      ]
+    },
+    {
+      "id": "iced-doctor-fixing-flag",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "is_fixing",
+      "rationale": "Doctor repair progress is represented by DoctorPanelOperation instead of an independent flag.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-iced/tests/gui/doctor_flow_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-iced/src/types/doctor.rs"
+      ]
+    },
+    {
+      "id": "iced-doctor-bootstrap-flag",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "is_bootstrapping",
+      "rationale": "Doctor bootstrap progress is represented by DoctorPanelOperation instead of an independent flag.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-iced/tests/gui/doctor_flow_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-iced/src/types/doctor.rs"
+      ]
+    },
+    {
+      "id": "bevy-duplicate-group-order-editor",
+      "kind": "public_symbol",
+      "language": "rust",
+      "text": "TypedGroupOrderEditor",
+      "rationale": "Bevy consumes the same shared ProxyGroupOrderEditor as Iced; the duplicate reducer is retired.",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-presentation/src/proxy_group_order_editor_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-bevy-ui/src/pages/proxy_group_order.rs"
+      ]
     }
   ]
 }

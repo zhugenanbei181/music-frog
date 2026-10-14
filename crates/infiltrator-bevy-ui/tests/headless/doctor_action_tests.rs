@@ -8,7 +8,6 @@ use bevy::ecs::{component::Component, entity::Entity, hierarchy::Children};
 use bevy::ui::InteractionDisabled;
 use bevy::ui_widgets::Activate;
 use infiltrator_application::command_application::CommandApplication;
-use infiltrator_application::doctor_actions::DoctorActionPhase;
 use infiltrator_application::doctor_application::DoctorApplication;
 use infiltrator_bevy_ui::app::ShellPlugin;
 use infiltrator_bevy_ui::command::{CommandPumpPlugin, DemoCommandSink, UiCommand, UiCommandSink};
@@ -48,6 +47,7 @@ use infiltrator_contract::speedtest::{
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::PageData;
 use infiltrator_ports::surface::SurfaceReader;
+use infiltrator_presentation::doctor_actions::DoctorActionPhase;
 use std::any::type_name;
 use std::sync::{Arc, atomic::Ordering};
 use std::thread::yield_now;

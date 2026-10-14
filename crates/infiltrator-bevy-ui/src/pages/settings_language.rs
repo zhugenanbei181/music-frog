@@ -16,10 +16,6 @@ use bevy::ui::{
     AlignItems, BackgroundColor, BorderRadius, FlexDirection, FlexWrap, Node, UiRect, percent,
 };
 use bevy::ui_widgets::{Activate, Button};
-use infiltrator_application::language_choice::{
-    LanguageChoiceFinish, LanguageChoicePhase, LanguageChoiceState, LanguagePersistence,
-    LanguageReadPhase,
-};
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText, UiLocale};
@@ -29,6 +25,10 @@ use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_contract::command::RequestId;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::language::LanguagePreference;
+use infiltrator_presentation::language_choice::{
+    LanguageChoiceFinish, LanguageChoicePhase, LanguageChoiceState, LanguagePersistence,
+    LanguageReadPhase,
+};
 
 #[derive(Component, Clone, Copy, Default)]
 #[require(Button)]

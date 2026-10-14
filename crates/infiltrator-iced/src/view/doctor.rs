@@ -1,6 +1,7 @@
 //! Doctor diagnostics card: self-healing check / repair / bootstrap actions.
 
 use crate::state::AppState;
+use crate::types::doctor::DoctorPanelOperation;
 use crate::types::message::Message;
 use crate::view::component_card::card;
 use crate::view::components::{BadgeKind, badge};
@@ -11,9 +12,9 @@ use crate::view_root::interaction_regions::InteractionRegion;
 use iced::border::Radius;
 use iced::widget::{Space, button, column, container, row, scrollable, text};
 use iced::{Alignment, Element, Length, Theme};
-use infiltrator_application::doctor_actions::DoctorActionPhase;
 use infiltrator_contract::doctor::{DoctorCheckResult, DoctorReport, DoctorStatus};
 use infiltrator_contract::surface_snapshot::{DoctorCheckSnapshot, PageStatus};
+use infiltrator_presentation::doctor_actions::DoctorActionPhase;
 use infiltrator_presentation::doctor_projection::{check_detail, check_name, status_key, summary};
 use infiltrator_shared::i18n_interpolator::localize;
 use infiltrator_shared::locales::{Lang, Localizer};
@@ -38,9 +39,12 @@ pub fn section(state: &AppState) -> Element<'_, Message> {
         .latest()
         .map(|snapshot| &snapshot.pages.doctor);
     let busy = matches!(&doctor.action.phase, DoctorActionPhase::Pending(_))
-        || doctor.is_running
-        || doctor.is_fixing
-        || doctor.is_bootstrapping;
+        || matches!(
+            &doctor.operation,
+            DoctorPanelOperation::Checking
+                | DoctorPanelOperation::Fixing
+                | DoctorPanelOperation::Bootstrapping
+        );
     let repairable = !busy
         && page.is_some_and(|page| {
             matches!(page.status, PageStatus::Ready)
@@ -60,7 +64,7 @@ pub fn section(state: &AppState) -> Element<'_, Message> {
             .width(Length::Fill)
             .padding([7, 14])
             .style(button::primary)
-            .on_press_maybe((!doctor.is_running && !busy).then_some(Message::RunDoctor)),
+            .on_press_maybe((!busy).then_some(Message::RunDoctor)),
             button(
                 text(lang.tr("doctor_btn_fix").to_string())
                     .size(12)
@@ -78,7 +82,7 @@ pub fn section(state: &AppState) -> Element<'_, Message> {
             .width(Length::Fill)
             .padding([7, 14])
             .style(button::secondary)
-            .on_press_maybe((!doctor.is_bootstrapping && !busy).then_some(Message::RunBootstrap)),
+            .on_press_maybe((!busy).then_some(Message::RunBootstrap)),
         ]
         .spacing(theme::SP_SM)
         .into()
@@ -91,7 +95,7 @@ pub fn section(state: &AppState) -> Element<'_, Message> {
             )
             .padding([7, 14])
             .style(button::primary)
-            .on_press_maybe((!doctor.is_running && !busy).then_some(Message::RunDoctor)),
+            .on_press_maybe((!busy).then_some(Message::RunDoctor)),
             Space::new().width(theme::SP_SM),
             button(
                 text(lang.tr("doctor_btn_fix").to_string())
@@ -109,7 +113,7 @@ pub fn section(state: &AppState) -> Element<'_, Message> {
             )
             .padding([7, 14])
             .style(button::secondary)
-            .on_press_maybe((!doctor.is_bootstrapping && !busy).then_some(Message::RunBootstrap)),
+            .on_press_maybe((!busy).then_some(Message::RunBootstrap)),
         ]
         .spacing(0)
         .align_y(Alignment::Center)
@@ -126,18 +130,21 @@ pub fn section(state: &AppState) -> Element<'_, Message> {
         }
         DoctorActionPhase::Idle | DoctorActionPhase::Failed { .. } => {}
     }
-    if doctor.is_running {
-        body = body.push(secondary_text(lang.tr("doctor_running_check").to_string()));
+    match &doctor.operation {
+        DoctorPanelOperation::Checking => {
+            body = body.push(secondary_text(lang.tr("doctor_running_check").to_string()));
+        }
+        DoctorPanelOperation::Fixing => {
+            body = body.push(secondary_text(lang.tr("doctor_running_fix").to_string()));
+        }
+        DoctorPanelOperation::Bootstrapping => {
+            body = body.push(secondary_text(
+                lang.tr("doctor_running_bootstrap").to_string(),
+            ));
+        }
+        DoctorPanelOperation::Idle | DoctorPanelOperation::Failed(_) => {}
     }
-    if doctor.is_fixing {
-        body = body.push(secondary_text(lang.tr("doctor_running_fix").to_string()));
-    }
-    if doctor.is_bootstrapping {
-        body = body.push(secondary_text(
-            lang.tr("doctor_running_bootstrap").to_string(),
-        ));
-    }
-    if let Some(error) = &doctor.error {
+    if let Some(error) = doctor.failure_message() {
         body = body.push(error_text(error));
     }
 
@@ -152,7 +159,7 @@ pub fn section(state: &AppState) -> Element<'_, Message> {
     }
     if let Some(page) = page {
         if let PageStatus::Failed { failure } = &page.status
-            && doctor.error.as_deref() != Some(&failure.message)
+            && doctor.failure_message() != Some(failure.message.as_str())
         {
             body = body.push(error_text(&failure.message));
         }

@@ -2,17 +2,18 @@
 //! `/admin/api/doctor*` 与 `/admin/api/bootstrap`，报告写回 `diag.doctor`。
 //!
 //! 约束：demo 模式在 dispatcher 层拦截（update.rs），单测只驱动 `Result`
-//! 消息、从不发起真实请求；请求失败只落在面板错误位，不弹全局错误条。
+//! 消息、从不发起真实请求；请求失败进入面板 `Failed` 阶段，不弹全局错误条。
 
 use crate::state::AppState;
 use crate::types::app::ToastStatus;
+use crate::types::doctor::{DoctorPanelRequest, DoctorPanelStart};
 use crate::types::message::Message;
 use iced::Task;
-use infiltrator_application::doctor_actions::DoctorActionFinish;
 use infiltrator_contract::doctor::DoctorAction;
 use infiltrator_contract::doctor::{BootstrapReport, DoctorFixReport, DoctorReport};
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_desktop::admin_client::AdminApiClient;
+use infiltrator_presentation::doctor_actions::DoctorActionFinish;
 use infiltrator_presentation::doctor_projection::project_observation;
 use infiltrator_shared::i18n_interpolator::localize;
 use infiltrator_shared::locales::{Lang, Localizer};
@@ -35,11 +36,10 @@ impl AppState {
                 if self.commands.is_some() {
                     return self.shared_doctor_command(DoctorAction::Diagnose);
                 }
-                if self.diag.doctor.is_running {
-                    return Task::none();
+                match self.diag.doctor.begin(DoctorPanelRequest::Check) {
+                    DoctorPanelStart::Started => {}
+                    DoctorPanelStart::Busy => return Task::none(),
                 }
-                self.diag.doctor.is_running = true;
-                self.diag.doctor.error = None;
                 let base = self.admin_api_base();
                 Task::perform(
                     async move {
@@ -53,11 +53,9 @@ impl AppState {
                 )
             }
             Message::DoctorCommandFinished { token, result } => {
-                let failure = result.as_ref().err().cloned();
                 match self.diag.doctor.action.finish(token, result) {
                     DoctorActionFinish::Stale => {}
                     DoctorActionFinish::Applied => {
-                        self.diag.doctor.error = failure.map(|failure| failure.message);
                         if self.shell.demo
                             && let Some(doctor) = &self.diag.doctor.capture_observation
                         {
@@ -74,13 +72,12 @@ impl AppState {
             }
             Message::RetryDoctorCommand => self.shared_retry_doctor_command(),
             Message::DoctorReportReady(result) => {
-                self.diag.doctor.is_running = false;
                 match result {
                     Ok(report) => {
                         self.diag.doctor.report = Some(report);
-                        self.diag.doctor.error = None;
+                        self.diag.doctor.finish(Ok(()));
                     }
-                    Err(error) => self.diag.doctor.error = Some(error.to_string()),
+                    Err(error) => self.diag.doctor.finish(Err(error.to_string())),
                 }
                 Task::none()
             }
@@ -91,10 +88,10 @@ impl AppState {
                 if self.commands.is_some() {
                     return self.shared_doctor_command(DoctorAction::RepairAll);
                 }
-                if self.diag.doctor.is_fixing {
-                    return Task::none();
+                match self.diag.doctor.begin(DoctorPanelRequest::Fix) {
+                    DoctorPanelStart::Started => {}
+                    DoctorPanelStart::Busy => return Task::none(),
                 }
-                self.diag.doctor.is_fixing = true;
                 let base = self.admin_api_base();
                 Task::perform(
                     async move {
@@ -108,9 +105,9 @@ impl AppState {
                 )
             }
             Message::DoctorFixApplied(result) => {
-                self.diag.doctor.is_fixing = false;
                 match result {
                     Ok(report) => {
+                        self.diag.doctor.finish(Ok(()));
                         // 修复会改动文件系统状态，随后刷新报告。
                         Task::batch(vec![
                             Task::done(Message::RunDoctor),
@@ -121,7 +118,7 @@ impl AppState {
                         ])
                     }
                     Err(error) => {
-                        self.diag.doctor.error = Some(error.to_string());
+                        self.diag.doctor.finish(Err(error.to_string()));
                         Task::done(Message::ShowToast(error.to_string(), ToastStatus::Error))
                     }
                 }
@@ -130,10 +127,10 @@ impl AppState {
                 if self.commands.is_some() {
                     return self.shared_doctor_command(DoctorAction::Bootstrap);
                 }
-                if self.diag.doctor.is_bootstrapping {
-                    return Task::none();
+                match self.diag.doctor.begin(DoctorPanelRequest::Bootstrap) {
+                    DoctorPanelStart::Started => {}
+                    DoctorPanelStart::Busy => return Task::none(),
                 }
-                self.diag.doctor.is_bootstrapping = true;
                 let base = self.admin_api_base();
                 Task::perform(
                     async move {
@@ -147,9 +144,9 @@ impl AppState {
                 )
             }
             Message::BootstrapFinished(result) => {
-                self.diag.doctor.is_bootstrapping = false;
                 match result {
                     Ok(report) => {
+                        self.diag.doctor.finish(Ok(()));
                         // 引导同样改动文件系统状态，随后刷新报告。
                         Task::batch(vec![
                             Task::done(Message::RunDoctor),
@@ -160,7 +157,7 @@ impl AppState {
                         ])
                     }
                     Err(error) => {
-                        self.diag.doctor.error = Some(error.to_string());
+                        self.diag.doctor.finish(Err(error.to_string()));
                         Task::done(Message::ShowToast(error.to_string(), ToastStatus::Error))
                     }
                 }

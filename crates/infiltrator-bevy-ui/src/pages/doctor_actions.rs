@@ -12,15 +12,15 @@ use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Query, Res, ResMut};
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
-use infiltrator_application::doctor_actions::{
-    DoctorActionFinish, DoctorActionPhase, DoctorActionState,
-};
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_contract::command::RequestId;
 use infiltrator_contract::doctor::DoctorAction;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::surface_snapshot::PageStatus;
+use infiltrator_presentation::doctor_actions::{
+    DoctorActionFinish, DoctorActionPhase, DoctorActionState,
+};
 
 #[derive(Resource, Default)]
 pub struct DoctorActions {

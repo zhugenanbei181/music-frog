@@ -1,6 +1,7 @@
 //! Apply revision-fenced outbound presentation preferences through the shared owner.
 
 use crate::state::AppState;
+use crate::state::runtime::ProxyGroupOrderDialogState;
 use crate::types::message::Message;
 use iced::Task;
 use infiltrator_contract::command::CommandIntent;
@@ -11,6 +12,7 @@ use infiltrator_contract::outbound::preferences::{
     OutboundUiPreferenceIntent, OutboundUiPreferenceRequest, OutboundUiPreferencesSnapshot,
 };
 use infiltrator_contract::surface_snapshot::{PageData, PageStatus};
+use infiltrator_presentation::proxy_group_order_editor::GroupOrderFinish;
 use std::collections::VecDeque;
 
 #[derive(Clone, Debug)]
@@ -33,13 +35,6 @@ pub enum ProxyPreferencePhase {
     Idle,
     Applying(ApplyingOutboundPreference),
     Failed(Failure),
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum GroupOrderFinishOutcome {
-    Applied,
-    Failed,
-    Stale,
 }
 
 #[derive(Default)]
@@ -153,8 +148,7 @@ impl AppState {
         .then(|| {
             self.runtime
                 .group_order_editor
-                .pending
-                .as_ref()
+                .pending()
                 .map(|pending| pending.token)
         })
         .flatten();
@@ -294,11 +288,10 @@ impl AppState {
         };
         if let (Some(editor_token), Some(result)) = (group_order_token, group_order_result) {
             match self.finish_group_order_preference(editor_token, result) {
-                GroupOrderFinishOutcome::Applied => {
-                    self.runtime.group_order_dialog =
-                        crate::state::runtime::ProxyGroupOrderDialogState::Closed;
+                GroupOrderFinish::Applied => {
+                    self.runtime.group_order_dialog = ProxyGroupOrderDialogState::Closed;
                 }
-                GroupOrderFinishOutcome::Failed | GroupOrderFinishOutcome::Stale => {}
+                GroupOrderFinish::Failed | GroupOrderFinish::Stale => {}
             }
         }
         self.start_next_outbound_ui_preference()
@@ -308,15 +301,8 @@ impl AppState {
         &mut self,
         editor_token: u64,
         result: Result<(), Failure>,
-    ) -> GroupOrderFinishOutcome {
-        let outcome = match &result {
-            Ok(()) => GroupOrderFinishOutcome::Applied,
-            Err(_) => GroupOrderFinishOutcome::Failed,
-        };
-        match self.runtime.group_order_editor.finish(editor_token, result) {
-            true => outcome,
-            false => GroupOrderFinishOutcome::Stale,
-        }
+    ) -> GroupOrderFinish {
+        self.runtime.group_order_editor.finish(editor_token, result)
     }
 
     fn fail_outbound_ui_preference(&mut self, failure: Failure) {

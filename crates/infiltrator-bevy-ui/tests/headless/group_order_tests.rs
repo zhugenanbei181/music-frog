@@ -6,7 +6,6 @@ use bevy::app::App;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::Children;
 use bevy::ui_widgets::Activate;
-use infiltrator_application::proxy_group_order_editor::GroupMove;
 use infiltrator_bevy_ui::app::ShellPlugin;
 use infiltrator_bevy_ui::command::CommandPumpPlugin;
 use infiltrator_bevy_ui::command::UiCommand;
@@ -25,6 +24,7 @@ use infiltrator_contract::outbound::inventory::OutboundInventoryState;
 use infiltrator_contract::outbound::preferences::OutboundUiPreferenceIntent;
 use infiltrator_contract::surface_snapshot::PageData;
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
+use infiltrator_presentation::proxy_group_order_editor::GroupMove;
 use std::sync::Arc;
 use std::thread::yield_now;
 use std::time::{Duration, Instant};
@@ -189,8 +189,8 @@ fn native_order_editor_reorders_typed_ids_preserves_rows_and_applies_readback() 
         .world()
         .resource::<GroupOrderState>()
         .editor
-        .draft
-        .clone();
+        .draft()
+        .to_vec();
     let mut failed_read = app.world().resource::<LatestSurfaceSnapshot>().0.clone();
     failed_read.outbound_ui_preferences = PageData::failed(Failure::new(
         ErrorCode::Network,
@@ -206,7 +206,7 @@ fn native_order_editor_reorders_typed_ids_preserves_rows_and_applies_readback() 
     let ready = app.world().resource::<LatestSurfaceSnapshot>().0.clone();
     publish(&mut app, &sink, ready);
     assert_eq!(
-        app.world().resource::<GroupOrderState>().editor.draft,
+        app.world().resource::<GroupOrderState>().editor.draft(),
         expected
     );
     activate(&mut app, apply);
@@ -272,8 +272,8 @@ fn rejected_native_order_apply_keeps_typed_draft_and_retry_sends_the_same_revisi
         .world()
         .resource::<GroupOrderState>()
         .editor
-        .draft
-        .clone();
+        .draft()
+        .to_vec();
     let failure = Failure::new(
         ErrorCode::Storage,
         "typed preferences refused the order",
@@ -285,8 +285,8 @@ fn rejected_native_order_apply_keeps_typed_draft_and_retry_sends_the_same_revisi
     settle(&mut app);
     let state = app.world().resource::<GroupOrderState>();
     assert_eq!(state.dialog, GroupOrderDialogState::Editing);
-    assert_eq!(state.editor.failure, Some(failure));
-    assert_eq!(state.editor.draft, expected);
+    assert_eq!(state.editor.failure(), Some(&failure));
+    assert_eq!(state.editor.draft(), expected);
     assert!(sink.preferences().group_order.is_empty());
     activate(&mut app, apply);
     settle(&mut app);

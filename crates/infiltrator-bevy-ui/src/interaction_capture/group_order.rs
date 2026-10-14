@@ -7,7 +7,8 @@ use super::{InteractionCapture, ObservedInteraction, selected};
 use crate::command::CommandSinkHandle;
 use crate::pages::proxies::ProxyGroupMoveUpButton;
 use crate::pages::proxy_group_order::{
-    GroupOrderAction, GroupOrderCard, GroupOrderList, GroupOrderRow, GroupOrderState,
+    GroupOrderAction, GroupOrderCard, GroupOrderDialogState, GroupOrderList, GroupOrderRow,
+    GroupOrderState,
 };
 use crate::route::{ActiveRoute, Route};
 use crate::surface::{LatestSurfaceSnapshot, SurfaceSnapshotUpdated};
@@ -109,7 +110,7 @@ pub fn activate(mut surface: OrderSurface, state: Res<InteractionCapture>, mut c
         surface.capture.injected = true;
         return;
     }
-    if surface.editor.dialog != crate::pages::proxy_group_order::GroupOrderDialogState::Editing
+    if surface.editor.dialog != GroupOrderDialogState::Editing
         && let Some((entity, _)) = surface
             .moves
             .iter()
@@ -122,9 +123,9 @@ impl OrderSurface<'_, '_> {
     fn bounds(&self, geometry: &mut CaptureGeometry) -> Option<[f32; 4]> {
         let state = &self.editor;
         if !self.capture.injected
-            || state.dialog != crate::pages::proxy_group_order::GroupOrderDialogState::Editing
+            || state.dialog != GroupOrderDialogState::Editing
             || !state.editor.can_apply()
-            || !state.editor.draft.iter().map(|id| id.value()).eq([
+            || !state.editor.draft().iter().map(|id| id.value()).eq([
                 MOVED_GROUP,
                 FIRST_GROUP,
                 LAST_GROUP,
@@ -136,7 +137,7 @@ impl OrderSurface<'_, '_> {
         if children.len() != 3
             || !children
                 .iter()
-                .zip(&state.editor.draft)
+                .zip(state.editor.draft())
                 .all(|(entity, id)| self.rows.get(*entity).is_ok_and(|row| &row.id == id))
         {
             return None;

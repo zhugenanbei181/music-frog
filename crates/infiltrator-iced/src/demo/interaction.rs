@@ -1,6 +1,6 @@
 //! Deterministic interaction fixtures use the production update pipeline.
 use crate::state::AppState;
-use crate::state::runtime::ProbeSettingsDialogState;
+use crate::state::runtime::{ProbeSettingsDialogState, ProxyGroupOrderDialogState};
 use crate::types::app::ConfirmAction;
 use crate::types::message::Message;
 use infiltrator_composition::capture_fixtures::grouping_surface;
@@ -10,10 +10,14 @@ use infiltrator_contract::outbound::details::OutboundObservation;
 use infiltrator_contract::parity::FeatureId;
 use infiltrator_contract::routing_intent::RoutingIntent;
 use infiltrator_contract::rules_workspace::RulesTab;
+use infiltrator_contract::runtime_settings::{RuntimeProbeSettings, RuntimeProbeSettingsState};
 use infiltrator_contract::speedtest::SpeedtestSnapshot;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_domain::connection_view::ConnectionGroupingMode;
+use infiltrator_presentation::dns_leak_actions::DnsLeakActionPhase;
+use infiltrator_presentation::doctor_actions::DoctorActionPhase;
+use infiltrator_presentation::language_choice::LanguageChoicePhase;
 use infiltrator_presentation::traffic_readout::TrafficFreshness;
 use infiltrator_test_support::connection_grouping_fixtures::grouping_snapshot;
 use infiltrator_test_support::doctor_capture_fixtures::CHECK_ID;
@@ -72,8 +76,8 @@ pub(super) fn activate(state: &mut AppState, feature: FeatureId) {
     }
     if feature == FeatureId::ProxiesProbeSettings {
         state.runtime.runtime_probe_settings_editor.observe(
-            &infiltrator_contract::runtime_settings::RuntimeProbeSettingsState::Available {
-                settings: infiltrator_contract::runtime_settings::RuntimeProbeSettings::default(),
+            &RuntimeProbeSettingsState::Available {
+                settings: RuntimeProbeSettings::default(),
             },
         );
         assert_eq!(state.update(Message::OpenRuntimeProbeSettings).units(), 0);
@@ -330,16 +334,14 @@ pub(crate) fn ready(state: &AppState, feature: FeatureId) -> bool {
                 })
         }
         FeatureId::DnsLeakAlert => {
-            matches!(
-                state.diag.dns_leak_action.phase,
-                infiltrator_presentation::dns_leak_actions::DnsLeakActionPhase::Idle
-            ) && state.editor.dns_leak.conclusion().is_divergent()
+            matches!(state.diag.dns_leak_action.phase, DnsLeakActionPhase::Idle)
+                && state.editor.dns_leak.conclusion().is_divergent()
                 && state.editor.dns_leak.observations.len() == 2
         }
         FeatureId::DoctorFailureRecovery => {
             matches!(
                 &state.diag.doctor.action.phase,
-                infiltrator_application::doctor_actions::DoctorActionPhase::Failed {
+                DoctorActionPhase::Failed {
                     failure,
                     ..
                 } if failure.code == ErrorCode::Permission
@@ -356,7 +358,7 @@ pub(crate) fn ready(state: &AppState, feature: FeatureId) -> bool {
             state.shell.lang == "en-US"
                 && matches!(
                     &state.shell.language_choice.phase,
-                    infiltrator_application::language_choice::LanguageChoicePhase::Ready
+                    LanguageChoicePhase::Ready
                 )
                 && state.shell.language_user_selected
         }
@@ -435,8 +437,7 @@ pub(crate) fn ready(state: &AppState, feature: FeatureId) -> bool {
                 })
         }
         FeatureId::ProxiesGroupReorder => {
-            state.runtime.group_order_dialog
-                == crate::state::runtime::ProxyGroupOrderDialogState::Editing
+            state.runtime.group_order_dialog == ProxyGroupOrderDialogState::Editing
                 && state.runtime.group_order_editor.can_apply()
         }
         FeatureId::ProxiesProbeSettings => {

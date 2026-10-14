@@ -3,12 +3,12 @@ use crate::state::AppState;
 use crate::state::runtime::ProxyGroupOrderDialogState;
 use crate::types::message::Message;
 use iced::Task;
-use infiltrator_application::proxy_group_order_editor::{GroupMove, GroupOrderOperation};
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::outbound::identity::OutboundId;
 use infiltrator_contract::outbound::inventory::OutboundInventoryState;
 use infiltrator_contract::outbound::preferences::OutboundUiPreferenceIntent;
 use infiltrator_contract::surface_snapshot::PageStatus;
+use infiltrator_presentation::proxy_group_order_editor::{GroupMove, GroupOrderOperation};
 use std::collections::HashSet;
 
 impl AppState {
@@ -21,14 +21,14 @@ impl AppState {
                 &self.runtime.outbound_inventory.status,
                 PageStatus::Ready | PageStatus::Empty
             ) {
-                self.runtime.group_order_editor.failure = Some(page_failure(
+                self.runtime.group_order_editor.reject(page_failure(
                     &self.runtime.outbound_inventory.status,
                     "outbound inventory",
                 ));
                 return Task::none();
             }
             let Some(inventory) = self.runtime.outbound_inventory.data.as_ref() else {
-                self.runtime.group_order_editor.failure = Some(Failure::new(
+                self.runtime.group_order_editor.reject(Failure::new(
                     ErrorCode::NotReady,
                     "outbound inventory is not observed",
                     true,
@@ -39,7 +39,7 @@ impl AppState {
                 &self.runtime.outbound_ui_preferences.status,
                 PageStatus::Ready | PageStatus::Empty
             ) {
-                self.runtime.group_order_editor.failure = Some(page_failure(
+                self.runtime.group_order_editor.reject(page_failure(
                     &self.runtime.outbound_ui_preferences.status,
                     "outbound preferences",
                 ));
@@ -52,7 +52,7 @@ impl AppState {
                     .collect::<Vec<_>>(),
                 OutboundInventoryState::Empty => Vec::new(),
                 OutboundInventoryState::Unknown => {
-                    self.runtime.group_order_editor.failure = Some(Failure::new(
+                    self.runtime.group_order_editor.reject(Failure::new(
                         ErrorCode::NotReady,
                         "outbound inventory is unknown",
                         true,
@@ -60,7 +60,7 @@ impl AppState {
                     return Task::none();
                 }
                 OutboundInventoryState::Unsupported => {
-                    self.runtime.group_order_editor.failure = Some(Failure::new(
+                    self.runtime.group_order_editor.reject(Failure::new(
                         ErrorCode::Unsupported,
                         "outbound inventory is unsupported",
                         false,
@@ -68,7 +68,7 @@ impl AppState {
                     return Task::none();
                 }
                 OutboundInventoryState::Failed { failure } => {
-                    self.runtime.group_order_editor.failure = Some(failure.clone());
+                    self.runtime.group_order_editor.reject(failure.clone());
                     return Task::none();
                 }
             };
@@ -79,7 +79,7 @@ impl AppState {
                 .as_ref()
                 .filter(|preferences| preferences.scope() == inventory.scope())
             else {
-                self.runtime.group_order_editor.failure = Some(Failure::new(
+                self.runtime.group_order_editor.reject(Failure::new(
                     ErrorCode::NotReady,
                     "outbound preferences do not match the accepted inventory scope",
                     true,
@@ -92,7 +92,7 @@ impl AppState {
                     .group_order_editor
                     .open(current, default_order, inventory.revision())
             {
-                self.runtime.group_order_editor.failure = Some(failure);
+                self.runtime.group_order_editor.reject(failure);
                 return Task::none();
             }
             self.runtime.group_order_dialog = ProxyGroupOrderDialogState::Editing;
@@ -178,27 +178,27 @@ impl AppState {
     pub(crate) fn apply_group_order(&mut self) -> Task<Message> {
         if !self.is_product_command_ingress() {
             if self.shell.demo {
-                let Some(inventory_revision) = self.runtime.group_order_editor.inventory_revision
+                let Some(inventory_revision) = self.runtime.group_order_editor.inventory_revision()
                 else {
-                    self.runtime.group_order_editor.failure = Some(Failure::new(
+                    self.runtime.group_order_editor.reject(Failure::new(
                         ErrorCode::NotReady,
                         "group order has no accepted inventory revision",
                         true,
                     ));
                     return Task::none();
                 };
-                let intent = if self.runtime.group_order_editor.operation
+                let intent = if self.runtime.group_order_editor.operation()
                     == GroupOrderOperation::ResetToInventory
                 {
                     OutboundUiPreferenceIntent::ResetGroupOrder { inventory_revision }
                 } else {
                     OutboundUiPreferenceIntent::ReorderGroups {
-                        group_ids: self.runtime.group_order_editor.draft.clone(),
+                        group_ids: self.runtime.group_order_editor.draft().to_vec(),
                         inventory_revision,
                     }
                 };
                 if !self.apply_demo_outbound_ui_preference(intent) {
-                    self.runtime.group_order_editor.failure = Some(Failure::new(
+                    self.runtime.group_order_editor.reject(Failure::new(
                         ErrorCode::NotReady,
                         "demo outbound preferences are unavailable",
                         true,
@@ -208,7 +208,7 @@ impl AppState {
                 self.runtime.group_order_dialog = ProxyGroupOrderDialogState::Closed;
                 return Task::none();
             }
-            self.runtime.group_order_editor.failure = Some(Failure::new(
+            self.runtime.group_order_editor.reject(Failure::new(
                 ErrorCode::NotReady,
                 "group order command service is not composed",
                 true,
@@ -217,10 +217,7 @@ impl AppState {
         }
         let pending = match self.runtime.group_order_editor.begin() {
             Ok(pending) => pending,
-            Err(failure) => {
-                self.runtime.group_order_editor.failure = Some(failure);
-                return Task::none();
-            }
+            Err(_) => return Task::none(),
         };
         let Some(scope) = self
             .command_ingress()

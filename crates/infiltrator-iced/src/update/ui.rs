@@ -10,7 +10,6 @@ use crate::types::rule_trace::RuleTraceAction;
 use iced::widget::text_editor::Content;
 use iced::{Task, clipboard, window};
 use infiltrator_application::connection_rate_application::project_connection;
-use infiltrator_application::proxy_group_order_editor::GroupMove;
 use infiltrator_contract::command_catalogue::CommandTarget;
 use infiltrator_contract::error::{InfiltratorError, from_backend};
 use infiltrator_contract::outbound::probe::OutboundProbeBatchScope;
@@ -18,6 +17,7 @@ use infiltrator_domain::connection_rate::PULSE_BREATH_HZ;
 use infiltrator_domain::connection_view::{ConnectionRuleSpec, append_draft_rule};
 use infiltrator_domain::yaml_edit::format::format_yaml;
 use infiltrator_presentation::profile_editor_projection;
+use infiltrator_presentation::proxy_group_order_editor::GroupMove;
 use infiltrator_presentation::rule_statistics_workbench::StatisticsAction;
 use infiltrator_shared::i18n_interpolator::localize;
 use infiltrator_shared::locales::{Lang, Localizer};
@@ -27,7 +27,7 @@ use std::env::{args, current_exe};
 use std::io;
 use std::path::Path;
 use std::process;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use tokio::fs::create_dir_all;
 use tokio::task::spawn_blocking;
 use tokio::time::timeout;
@@ -56,7 +56,7 @@ impl AppState {
                         self.sync_probe_draft_fields();
                     }
                     self.runtime.probe_settings_dialog = ProbeSettingsDialogState::Closed;
-                    if self.runtime.group_order_editor.pending.is_none() {
+                    if !self.runtime.group_order_editor.is_pending() {
                         self.runtime.group_order_editor.cancel();
                     }
                     self.runtime.group_order_dialog = ProxyGroupOrderDialogState::Closed;
@@ -108,7 +108,7 @@ impl AppState {
                         self.sync_probe_draft_fields();
                     }
                     self.runtime.probe_settings_dialog = ProbeSettingsDialogState::Closed;
-                    if self.runtime.group_order_editor.pending.is_none() {
+                    if !self.runtime.group_order_editor.is_pending() {
                         self.runtime.group_order_editor.cancel();
                     }
                     self.runtime.group_order_dialog = ProxyGroupOrderDialogState::Closed;
@@ -147,7 +147,7 @@ impl AppState {
                         self.sync_probe_draft_fields();
                     }
                     self.runtime.probe_settings_dialog = ProbeSettingsDialogState::Closed;
-                    if self.runtime.group_order_editor.pending.is_none() {
+                    if !self.runtime.group_order_editor.is_pending() {
                         self.runtime.group_order_editor.cancel();
                     }
                     self.runtime.group_order_dialog = ProxyGroupOrderDialogState::Closed;
@@ -364,8 +364,8 @@ impl AppState {
                 Task::perform(
                     async move {
                         if let Some(session) = session {
-                            let close = tokio::task::spawn_blocking(move || session.close());
-                            match timeout(std::time::Duration::from_secs(2), close).await {
+                            let close = spawn_blocking(move || session.close());
+                            match timeout(Duration::from_secs(2), close).await {
                                 Ok(Ok(Ok(()))) => {}
                                 Ok(Ok(Err(failure))) => {
                                     log::error!(

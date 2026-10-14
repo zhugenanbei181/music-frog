@@ -4,6 +4,7 @@
 //! test-intent: behavior
 
 use crate::state::AppState;
+use crate::types::doctor::DoctorPanelOperation;
 use crate::types::message::Message;
 use infiltrator_contract::doctor::{
     BootstrapReport, BootstrapStep, DoctorCheckResult, DoctorFixAction, DoctorFixReport,
@@ -31,11 +32,15 @@ fn report(checks: Vec<DoctorCheckResult>) -> DoctorReport {
 }
 
 #[test]
-fn test_run_doctor_sets_busy_flag_and_report_ready_stores_report() {
+fn test_run_doctor_enters_checking_phase_and_report_ready_stores_report() {
     let (mut state, _) = AppState::new();
     let _ = state.update(Message::RunDoctor);
-    assert!(state.diag.doctor.is_running, "RunDoctor arms the panel");
-    assert!(state.diag.doctor.error.is_none());
+    assert_eq!(
+        state.diag.doctor.operation,
+        DoctorPanelOperation::Checking,
+        "RunDoctor enters the checking phase"
+    );
+    assert!(state.diag.doctor.failure_message().is_none());
 
     let sample = report(vec![
         check("config.settings_parse", DoctorStatus::Pass),
@@ -45,7 +50,7 @@ fn test_run_doctor_sets_busy_flag_and_report_ready_stores_report() {
     ]);
     let _ = state.update(Message::DoctorReportReady(Ok(sample)));
 
-    assert!(!state.diag.doctor.is_running);
+    assert_eq!(state.diag.doctor.operation, DoctorPanelOperation::Idle);
     let stored = state.diag.doctor.report.as_ref().expect("report stored");
     assert_eq!(stored.checks.len(), 4);
     assert_eq!(stored.count_by_status(DoctorStatus::Pass), 1);
@@ -60,7 +65,13 @@ fn test_run_doctor_is_guarded_while_busy() {
     let _ = state.update(Message::RunDoctor);
     // busy 期间重复触发不改变状态（节流），也不会清掉在途标记。
     let _ = state.update(Message::RunDoctor);
-    assert!(state.diag.doctor.is_running);
+    assert_eq!(state.diag.doctor.operation, DoctorPanelOperation::Checking);
+    let _ = state.update(Message::RunDoctorFix);
+    assert_eq!(
+        state.diag.doctor.operation,
+        DoctorPanelOperation::Checking,
+        "a different operation cannot overlap the active check"
+    );
 }
 
 #[test]
@@ -71,14 +82,16 @@ fn test_doctor_report_error_surfaces_in_panel_and_clears_busy() {
         "connection refused".to_string(),
     ))));
 
-    assert!(!state.diag.doctor.is_running);
+    assert!(matches!(
+        &state.diag.doctor.operation,
+        DoctorPanelOperation::Failed(message) if message.contains("connection refused")
+    ));
     assert!(
         state
             .diag
             .doctor
-            .error
-            .as_deref()
-            .is_some_and(|e| e.contains("connection refused")),
+            .failure_message()
+            .is_some_and(|message| message.contains("connection refused")),
         "panel error must surface the transport failure"
     );
     assert!(state.diag.doctor.report.is_none());
@@ -91,7 +104,7 @@ fn test_doctor_report_error_keeps_previous_report_visible() {
         "config.settings_parse",
         DoctorStatus::Pass,
     )]))));
-    // 刷新失败（服务已停）时保留上一份报告，仅置错误位。
+    // 刷新失败（服务已停）时保留上一份报告，并进入面板失败阶段。
     let _ = state.update(Message::RunDoctor);
     let _ = state.update(Message::DoctorReportReady(Err(InfiltratorError::Internal(
         "closed".to_string(),
@@ -100,14 +113,14 @@ fn test_doctor_report_error_keeps_previous_report_visible() {
         state.diag.doctor.report.is_some(),
         "previous report must stay visible"
     );
-    assert!(state.diag.doctor.error.is_some());
+    assert!(state.diag.doctor.failure_message().is_some());
 }
 
 #[test]
 fn test_doctor_fix_transitions_and_clears_busy() {
     let (mut state, _) = AppState::new();
     let _ = state.update(Message::RunDoctorFix);
-    assert!(state.diag.doctor.is_fixing);
+    assert_eq!(state.diag.doctor.operation, DoctorPanelOperation::Fixing);
 
     let fixed = DoctorFixReport {
         actions: vec![DoctorFixAction {
@@ -116,8 +129,8 @@ fn test_doctor_fix_transitions_and_clears_busy() {
         }],
     };
     let _ = state.update(Message::DoctorFixApplied(Ok(fixed)));
-    assert!(!state.diag.doctor.is_fixing);
-    assert!(state.diag.doctor.error.is_none());
+    assert_eq!(state.diag.doctor.operation, DoctorPanelOperation::Idle);
+    assert!(state.diag.doctor.failure_message().is_none());
 }
 
 #[test]
@@ -127,15 +140,21 @@ fn test_doctor_fix_error_sets_panel_error() {
     let _ = state.update(Message::DoctorFixApplied(Err(InfiltratorError::Internal(
         "fix failed".to_string(),
     ))));
-    assert!(!state.diag.doctor.is_fixing);
-    assert!(state.diag.doctor.error.is_some());
+    assert!(matches!(
+        &state.diag.doctor.operation,
+        DoctorPanelOperation::Failed(_)
+    ));
+    assert!(state.diag.doctor.failure_message().is_some());
 }
 
 #[test]
 fn test_bootstrap_transitions_and_clears_busy() {
     let (mut state, _) = AppState::new();
     let _ = state.update(Message::RunBootstrap);
-    assert!(state.diag.doctor.is_bootstrapping);
+    assert_eq!(
+        state.diag.doctor.operation,
+        DoctorPanelOperation::Bootstrapping
+    );
 
     let bootstrapped = BootstrapReport {
         steps: vec![BootstrapStep {
@@ -145,16 +164,19 @@ fn test_bootstrap_transitions_and_clears_busy() {
         }],
     };
     let _ = state.update(Message::BootstrapFinished(Ok(bootstrapped)));
-    assert!(!state.diag.doctor.is_bootstrapping);
-    assert!(state.diag.doctor.error.is_none());
+    assert_eq!(state.diag.doctor.operation, DoctorPanelOperation::Idle);
+    assert!(state.diag.doctor.failure_message().is_none());
 
-    // Err 分支同样只清 busy + 置错误位。
+    // Err 分支进入失败阶段并保留可见错误。
     let _ = state.update(Message::RunBootstrap);
     let _ = state.update(Message::BootstrapFinished(Err(InfiltratorError::Internal(
         "bootstrap failed".to_string(),
     ))));
-    assert!(!state.diag.doctor.is_bootstrapping);
-    assert!(state.diag.doctor.error.is_some());
+    assert!(matches!(
+        &state.diag.doctor.operation,
+        DoctorPanelOperation::Failed(_)
+    ));
+    assert!(state.diag.doctor.failure_message().is_some());
 }
 
 #[test]
@@ -168,9 +190,7 @@ fn test_doctor_actions_are_noop_in_demo_mode() {
     ] {
         let _ = state.update(message.clone());
     }
-    assert!(!state.diag.doctor.is_running);
-    assert!(!state.diag.doctor.is_fixing);
-    assert!(!state.diag.doctor.is_bootstrapping);
+    assert_eq!(state.diag.doctor.operation, DoctorPanelOperation::Idle);
 }
 
 #[test]
